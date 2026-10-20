@@ -3151,6 +3151,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
         ValidationError::NegativeVolume { .. } => "negative_volume",
+        ValidationError::OrientationOpposed { .. } => "orientation_opposed",
         ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",
         ValidationError::Pcurve { .. } => "pcurve",

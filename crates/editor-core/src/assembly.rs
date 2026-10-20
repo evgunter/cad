@@ -2164,6 +2164,7 @@ fn attribute(
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume { .. }
+        | ValidationError::OrientationOpposed { .. }
         | ValidationError::SliverInsideOut { .. }
         | ValidationError::VolumeUncomputable { .. }
         | ValidationError::VolumeSignUnresolved { .. }

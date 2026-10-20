@@ -27,8 +27,8 @@
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, along_lying_ray, apex_pyramid, apex_pyramid_kept, at, bearing, corners, fin,
-    lying, mix, near_flat, nest, nest_polygon, posed_box, posed_crown, poses,
+    FIN_BOTTOM, MEET, PLATE, Pose, along_lying_ray, apex_pyramid, apex_pyramid_kept, at, bearing,
+    corners, fin, lying, mix, near_flat, nest, nest_polygon, posed_box, posed_crown, poses,
 };
 use geom_core::{Band, Tol, Vec3};
 use std::collections::BTreeMap;
@@ -244,8 +244,6 @@ const OVERLAP: &str = "LineWedges::Overlap";
 #[derive(Default, Debug)]
 struct Tally {
     built: usize,
-    /// The cells that built, by pose.
-    built_by_pose: BTreeMap<String, usize>,
     refused: BTreeMap<String, usize>,
     /// Each refused cell, `"<pose>, <op>: <kind>"`.
     refused_cells: Vec<String>,
@@ -293,10 +291,6 @@ fn check(
             }
         };
         tally.built += 1;
-        *tally
-            .built_by_pose
-            .entry(pose.label.to_string())
-            .or_default() += 1;
         assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
         for (op, own, other) in [(Operand::A, a, bg), (Operand::B, b, ag)] {
             for (v, _) in own.vertices() {
@@ -867,7 +861,7 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             );
         }
         let fin_scene = fin_builds.then(|| {
-            let fin_b = posed_crown(&fin(), [0.0, 0.2, -0.6], &pose, t());
+            let fin_b = posed_crown(&fin(), FIN_BOTTOM, &pose, t());
             let fin_void_b = built("a fin void buried", subtract(&block_b, &fin_b, t()));
             (fin_b, fin_void_b)
         });
@@ -1010,17 +1004,8 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             tally.doubled,
             tally.refused_cells
         );
-        // The fin crown holds a region that winds −1 at rest, before any
-        // join (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`):
-        // which of its unions refuses is face order's choice, not the
-        // region's. Pinned exactly, both what refuses and what builds
-        // holding the region, so the row's fix shows here. The result
-        // gate's overlap refusals are pinned apart, by count
-        // ([`OVERLAPPING`]).
-        let refused = KNOWN_INSIDE_OUT
-            .iter()
-            .find(|(l, _)| l == label)
-            .map_or(&[][..], |(_, cells)| &cells[..]);
+        // The result gate's overlap refusals are pinned apart, by count
+        // ([`OVERLAPPING`]); no other cell refuses.
         let (overlaps, others): (Vec<&String>, Vec<&String>) = tally
             .refused_cells
             .iter()
@@ -1029,94 +1014,16 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             .iter()
             .find(|(scene, _)| scene == label)
             .map_or(0, |&(_, n)| n);
-        if others != refused
+        if !others.is_empty()
             || overlaps.len() != pinned
             || tally.wrong + tally.missing + tally.doubled > 0
         {
             failures.push(format!("{label}: {tally:?}"));
         }
-        if let Some((_, built)) = KNOWN_WRONG.iter().find(|(l, _)| l == label) {
-            let known: BTreeMap<String, usize> = built
-                .iter()
-                .map(|&(pose, n)| (pose.to_owned(), n))
-                .collect();
-            if tally.built_by_pose != known {
-                failures.push(format!(
-                    "{label}: built by pose {:?}, known wrong (the crown's −1 region) {known:?}",
-                    tally.built_by_pose
-                ));
-            }
-        }
     }
     assert!(failures.is_empty(), "{failures:#?}");
     assert!(rows > 0, "rows were read");
 }
-
-/// The fin scenes whose union check 7 reads inside out
-/// (`ResultInvalid { NegativeVolume }`), cell by cell: `x ∪ y` at three
-/// poses of five. The region it reads is the fin crown's own
-/// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`);
-/// the aimed ray that finds it is the first in face order that decides,
-/// so `y ∪ x` and the two flipped poses' `x ∪ y` take another ray, read
-/// `Out`, and build.
-const KNOWN_INSIDE_OUT: [(&str, [&str; 3]); 2] = [
-    (
-        "a fin, probe 2",
-        [
-            "at rest, x ∪ y: ResultInvalid",
-            "turned about z, x ∪ y: ResultInvalid",
-            "turned, x ∪ y: ResultInvalid",
-        ],
-    ),
-    (
-        "a fin, probe 4",
-        [
-            "at rest, x ∪ y: ResultInvalid",
-            "turned about z, x ∪ y: ResultInvalid",
-            "turned, x ∪ y: ResultInvalid",
-        ],
-    ),
-];
-
-/// **Known wrong**: the fin scenes whose results build and pass tier 3
-/// holding the crown's −1 region (an independent winding count reads it
-/// in every union with probes 1, 2 and 4, in both orders, and in the
-/// crown alone: review R1, PR 5119), with the cells that build at each
-/// pose, so a new pose adds a row rather than moving a count. Check 7
-/// and the census pass a body with a −1 region today; the row owns it
-/// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`).
-const KNOWN_WRONG: [(&str, &[(&str, usize)]); 3] = [
-    (
-        "a fin, probe 1",
-        &[
-            ("at rest", 4),
-            ("turned about z", 4),
-            ("turned", 4),
-            ("flipped", 4),
-            ("flipped and turned", 4),
-        ],
-    ),
-    (
-        "a fin, probe 2",
-        &[
-            ("at rest", 5),
-            ("turned about z", 5),
-            ("turned", 5),
-            ("flipped", 6),
-            ("flipped and turned", 6),
-        ],
-    ),
-    (
-        "a fin, probe 4",
-        &[
-            ("at rest", 5),
-            ("turned about z", 5),
-            ("turned", 5),
-            ("flipped", 6),
-            ("flipped and turned", 6),
-        ],
-    ),
-];
 
 /// A probe cell's tally beside [`Tally`]: what built, what was empty or
 /// refused, and each result that read wrong against the germ.

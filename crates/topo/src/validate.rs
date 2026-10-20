@@ -1467,6 +1467,21 @@ pub enum ValidationError {
         /// The solid whose oriented boundary encloses negative volume.
         solid: SolidKey,
     },
+    /// Tier 3, check 7: `solid` is **inside out in part** — of the rays
+    /// aimed at its faces from beyond them, one definitely crosses into
+    /// its material first and another definitely crosses out of it. Every
+    /// such ray starts on the one side at infinity, so a boundary that
+    /// winds as a solid's reads one side by every ray: these two find its
+    /// faces wound against each other, a region of it inside out, which
+    /// its volume, a sum, cannot see. Read by every aim that decides
+    /// ([`crate::side_reader::side_at_infinity_by_every_aim`]), so which
+    /// solid refuses is not face order's choice.
+    OrientationOpposed {
+        /// The solid whose faces wind against each other.
+        solid: SolidKey,
+        /// The two rays.
+        rays: Box<crate::side_reader::OpposedAims>,
+    },
     /// **An operand read inside-out by a ray.** A ray that met none of
     /// the operand's boundary left a point in its material: infinity lies
     /// inside it. The tier-3 battery never raises it, since check 7 reads
@@ -3994,6 +4009,11 @@ impl fmt::Display for ValidationError {
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
             ),
+            Self::OrientationOpposed { rays, .. } => write!(
+                f,
+                "a solid is inside-out in part, its faces wound against each other: {rays}. \
+                 {DEFECT}"
+            ),
             Self::SliverInsideOut { .. } => f.write_str(
                 "a solid is inside-out: a ray from outside it crosses into its material. \
                  Recourse: build it with its faces pointing outward, or revert it",
@@ -5993,11 +6013,14 @@ fn plus_v_verdict(
 }
 
 /// **Check 7's verdict on `solid`, whose faces are `faces`**: the side
-/// at infinity they leave, read by the reader of a shell's role
-/// ([`crate::side_reader::side_at_infinity`]) — aimed rays
+/// at infinity they leave, read by the reader of a shell's role by
+/// every aim that decides
+/// ([`crate::side_reader::side_at_infinity_by_every_aim`]) — aimed rays
 /// first, and the volume walk's `walked` verdict only where no face
 /// offers an aim that reads. `Out` passes, `In` is inside out
-/// ([`ValidationError::NegativeVolume`]), and a solid no reading decides
+/// ([`ValidationError::NegativeVolume`]), two rays that read opposite
+/// sides are faces wound against each other
+/// ([`ValidationError::OrientationOpposed`]), and a solid no reading decides
 /// refuses ([`ValidationError::OrientationUndecided`], or the walk's
 /// [`ValidationError::VolumeSignUnresolved`]). The walk's own refusal
 /// to measure ([`ValidationError::VolumeUncomputable`]) is reported
@@ -6021,7 +6044,7 @@ fn plus_v_errors<T: Decide>(
 ) -> Vec<ValidationError> {
     use crate::boolean::SolidContainment;
     use crate::boolean::solid_contain::SolidFaces;
-    use crate::side_reader::{SideUnread, side_at_infinity};
+    use crate::side_reader::{EverySide, SideUnread, side_at_infinity_by_every_aim};
     let mut errors = Vec::new();
     if let Some(PlusVVerdict::Uncomputable(source)) = walked {
         errors.push(ValidationError::VolumeUncomputable {
@@ -6042,20 +6065,25 @@ fn plus_v_errors<T: Decide>(
         Some(PlusVVerdict::Undecided(reading)) => Err(Some(Ok(*reading))),
         Some(PlusVVerdict::Uncomputable(_)) | None => Err(None),
     };
-    let read =
-        SolidFaces::select(body, faces).and_then(|sel| side_at_infinity(body, &sel, band, volume));
+    let read = SolidFaces::select(body, faces)
+        .and_then(|sel| side_at_infinity_by_every_aim(body, &sel, band, volume));
     match read {
-        Ok(Ok(SolidContainment::In)) => errors.push(ValidationError::NegativeVolume { solid }),
+        Ok(EverySide::Side(SolidContainment::In)) => {
+            errors.push(ValidationError::NegativeVolume { solid });
+        }
+        Ok(EverySide::Opposed(rays)) => {
+            errors.push(ValidationError::OrientationOpposed { solid, rays });
+        }
         // Uncomputable: reported above, the certificate's.
-        Ok(Ok(_)) | Ok(Err(SideUnread::Fallback { volume: None, .. })) => {}
-        Ok(Err(SideUnread::InBand(pair))) => {
+        Ok(EverySide::Side(_) | EverySide::Unread(SideUnread::Fallback { volume: None, .. })) => {}
+        Ok(EverySide::Unread(SideUnread::InBand(pair))) => {
             errors.push(undecided(OrientationUnread::Pair(Box::new(pair))));
         }
-        Ok(Err(SideUnread::Fallback {
+        Ok(EverySide::Unread(SideUnread::Fallback {
             volume: Some(Err(limit)),
             ..
         })) => errors.push(ValidationError::VolumeSignUnresolved { solid, limit }),
-        Ok(Err(SideUnread::Fallback {
+        Ok(EverySide::Unread(SideUnread::Fallback {
             volume: Some(Ok(margin)),
             aimed,
             set_aside,

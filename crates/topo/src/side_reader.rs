@@ -63,6 +63,52 @@ pub struct AimedPair {
     pub gap: Indeterminate,
 }
 
+/// **An aimed ray that decided a side**: the face it was aimed at, where
+/// it aimed, and the face of its closest crossing, whose outward sign
+/// the side is ([`OpposedAims`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct AimedSide {
+    /// The face the ray was aimed at.
+    pub aimed: FaceKey,
+    /// The point on it the ray was aimed at, as coordinates: a witness,
+    /// as [`AimedPair::aim`] is, by #990.
+    pub aim: String,
+    /// The face of its closest crossing, the one it read the side off.
+    pub crossed: FaceKey,
+}
+
+/// **Two aimed rays that read opposite sides definitely** — one enters
+/// the selection's material at its closest crossing, so it reads the
+/// side at infinity inside it, and one leaves it
+/// ([`side_at_infinity_by_every_aim`]). Every ray starts beyond every
+/// face, on the one side at infinity, so on a boundary that winds as a
+/// solid's every ray reads the same: two that read opposite sides find
+/// faces wound against each other, a region inside out.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OpposedAims {
+    /// The ray that reads the side at infinity inside the material.
+    pub inside_out: AimedSide,
+    /// The ray that reads it outside.
+    pub outside: AimedSide,
+}
+
+impl core::fmt::Display for OpposedAims {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let (i, o) = (&self.inside_out, &self.outside);
+        write!(
+            f,
+            "a ray aimed from outside at {} at {} first crosses {} into the material, \
+             while one aimed at {} at {} first crosses {} out of it",
+            EntityId::Face(i.aimed),
+            i.aim,
+            EntityId::Face(i.crossed),
+            EntityId::Face(o.aimed),
+            o.aim,
+            EntityId::Face(o.crossed),
+        )
+    }
+}
+
 /// **An aimed ray the reader set aside**, and why
 /// ([`side_at_infinity`]): the face it was aimed at, where it aimed, and
 /// what kept it from reading the side.
@@ -441,14 +487,78 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     band: Band,
     volume: impl FnOnce() -> Result<SolidContainment, V>,
 ) -> Result<Result<SolidContainment, SideUnread<V>>, PointInSolidError> {
-    match geom_core::k_stats::in_family(FAMILY, || cast_aims(body, sel, band))? {
-        Rays::Side(side) => Ok(Ok(side)),
-        Rays::InBand(pair) => Ok(Err(SideUnread::InBand(pair))),
-        Rays::Unread { aimed, set_aside } => Ok(volume().map_err(|volume| SideUnread::Fallback {
-            volume,
-            aimed,
-            set_aside,
-        })),
+    match side_by(Aims::First, body, sel, band, volume)? {
+        EverySide::Side(side) => Ok(Ok(side)),
+        EverySide::Unread(unread) => Ok(Err(unread)),
+        EverySide::Opposed(_) => unreachable!("the first ray that decides answers alone"),
+    }
+}
+
+/// **[`side_at_infinity`], read by every aim that decides** — check 7's
+/// reading (D1 tier 3: definitely inside out by any reading is
+/// invalid). Every face that offers an aim is aimed at, as
+/// [`side_at_infinity`] aims, and every ray that decides is read: where
+/// all of them read one side, that is the side; where two read opposite
+/// sides, the faces wind against each other, and the two rays are the
+/// answer ([`EverySide::Opposed`]), whichever face order met first. A ray
+/// set aside, or one that read in band, reads nothing and changes
+/// nothing; where none decides, the reading is [`side_at_infinity`]'s.
+///
+/// # Errors
+///
+/// As [`side_at_infinity`].
+pub(crate) fn side_at_infinity_by_every_aim<T: Decide, V>(
+    body: &Body<T>,
+    sel: &SolidFaces,
+    band: Band,
+    volume: impl FnOnce() -> Result<SolidContainment, V>,
+) -> Result<EverySide<V>, PointInSolidError> {
+    side_by(Aims::Every, body, sel, band, volume)
+}
+
+/// What [`side_at_infinity_by_every_aim`] read.
+#[derive(Clone, Debug)]
+pub(crate) enum EverySide<V> {
+    /// Every ray that decided read this side, or none decided and the
+    /// volume read it.
+    Side(SolidContainment),
+    /// Two rays decided opposite sides.
+    Opposed(Box<OpposedAims>),
+    /// Nothing read the side.
+    Unread(SideUnread<V>),
+}
+
+/// Which aimed rays answer ([`cast_aims`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Aims {
+    /// The first ray that decides, in face order.
+    First,
+    /// Every ray that decides, until two read opposite sides.
+    Every,
+}
+
+/// The reading of [`side_at_infinity`] and
+/// [`side_at_infinity_by_every_aim`]: the aimed rays, then the volume
+/// where none reads.
+fn side_by<T: Decide, V>(
+    aims: Aims,
+    body: &Body<T>,
+    sel: &SolidFaces,
+    band: Band,
+    volume: impl FnOnce() -> Result<SolidContainment, V>,
+) -> Result<EverySide<V>, PointInSolidError> {
+    match geom_core::k_stats::in_family(FAMILY, || cast_aims(aims, body, sel, band))? {
+        Rays::Side(side) => Ok(EverySide::Side(side)),
+        Rays::Opposed(rays) => Ok(EverySide::Opposed(rays)),
+        Rays::InBand(pair) => Ok(EverySide::Unread(SideUnread::InBand(pair))),
+        Rays::Unread { aimed, set_aside } => Ok(match volume() {
+            Ok(side) => EverySide::Side(side),
+            Err(volume) => EverySide::Unread(SideUnread::Fallback {
+                volume,
+                aimed,
+                set_aside,
+            }),
+        }),
     }
 }
 
@@ -472,8 +582,11 @@ pub const FAMILY: &str = "side_at_infinity_";
 
 /// What the aimed rays read ([`cast_aims`]).
 enum Rays {
-    /// A ray decided the side.
+    /// A ray decided the side, or (reading every aim) each that decided
+    /// read it.
     Side(SolidContainment),
+    /// Two rays decided opposite sides (reading every aim).
+    Opposed(Box<OpposedAims>),
     /// A ray read in band on two faces that do not meet.
     InBand(AimedPair),
     /// No ray read: how many were aimed, and each set aside.
@@ -483,8 +596,11 @@ enum Rays {
     },
 }
 
-/// The aimed rays of [`side_at_infinity`], before the volume.
+/// The aimed rays of [`side_at_infinity`], before the volume: the first
+/// that decides answers, or, by [`Aims::Every`], each that decides, and
+/// the first two that decide opposite sides.
 fn cast_aims<T: Decide>(
+    aims: Aims,
     body: &Body<T>,
     sel: &SolidFaces,
     band: Band,
@@ -525,6 +641,7 @@ fn cast_aims<T: Decide>(
         }
     }
     let (mut in_band, mut aimed, mut set_aside) = (None, 0, Vec::new());
+    let (mut inside_out, mut outside) = (None::<AimedSide>, None::<AimedSide>);
     let (along, across) = AIM_INCIDENCE;
     for (face, geo) in &geos {
         let face = *face;
@@ -586,7 +703,29 @@ fn cast_aims<T: Decide>(
             }
         };
         match crossings.closest(AIMED_ROWS.order, band, pair) {
-            Ok(Some((outward, _, _))) => return Ok(Rays::Side(side_before(outward))),
+            Ok(Some((outward, crossed, _))) => {
+                let side = side_before(outward);
+                if aims == Aims::First {
+                    return Ok(Rays::Side(side));
+                }
+                let read = AimedSide {
+                    aimed: face,
+                    aim: at.clone(),
+                    crossed,
+                };
+                let first = if side == SolidContainment::In {
+                    &mut inside_out
+                } else {
+                    &mut outside
+                };
+                first.get_or_insert(read);
+                if let (Some(inside_out), Some(outside)) = (&inside_out, &outside) {
+                    return Ok(Rays::Opposed(Box::new(OpposedAims {
+                        inside_out: inside_out.clone(),
+                        outside: outside.clone(),
+                    })));
+                }
+            }
             // Two faces that meet at a vertex are no pair: their gap closes
             // at the cell they share, and a ray crossing a sharp corner
             // near it reads in band however definite every pair is.
@@ -604,6 +743,11 @@ fn cast_aims<T: Decide>(
             // none at all.
             Ok(None) | Err(_) => set(SetAsideWhy::Graze),
         }
+    }
+    match (inside_out, outside) {
+        (Some(_), None) => return Ok(Rays::Side(SolidContainment::In)),
+        (None, Some(_)) => return Ok(Rays::Side(SolidContainment::Out)),
+        _ => {}
     }
     if let Some(pair) = in_band {
         return Ok(Rays::InBand(pair));

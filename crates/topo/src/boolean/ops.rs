@@ -5542,6 +5542,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::LoopRoleInverted { .. }
         | V::CurvedSenseInverted { .. }
         | V::NegativeVolume { .. }
+        | V::OrientationOpposed { .. }
         | V::SliverInsideOut { .. }
         | V::RingMeetsOuter { .. }
         | V::RingOutsideOuter { .. }

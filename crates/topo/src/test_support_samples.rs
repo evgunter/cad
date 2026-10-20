@@ -1297,6 +1297,21 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
         ValidationError::CurvedSenseInverted { face },
         ValidationError::NegativeVolume { solid },
+        ValidationError::OrientationOpposed {
+            solid,
+            rays: Box::new(crate::side_reader::OpposedAims {
+                inside_out: crate::side_reader::AimedSide {
+                    aimed: face,
+                    aim: "(0, 0, 0)".to_owned(),
+                    crossed: face,
+                },
+                outside: crate::side_reader::AimedSide {
+                    aimed: face,
+                    aim: "(1, 0, 0)".to_owned(),
+                    crossed: face,
+                },
+            }),
+        },
         ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
             face,
