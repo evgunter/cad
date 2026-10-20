@@ -460,16 +460,19 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
 }
 
 /// **A path that grazes a run arc in the escalation band says nothing,
-/// and the next one winds the island.** Two millimetre balls with poles
-/// turned off every axis (a review's random pair 82): the first
-/// outer-loop point's great circle crosses a run arc's plane in the
-/// escalation band, and the reading moves on to the next point rather
-/// than refusing the op. Every op builds, the ops whose big ball keeps
-/// the ring as a hole with that face measured over both its loops.
-/// Above ε 1e-9 every op escalates first, certifying a
-/// pcurve on the sphere's chart, as on main.
+/// and the next one winds the island; pair 82 builds all six ops at
+/// every ε.** Two millimetre balls with poles turned off every axis (a
+/// review's random pair 82): the first outer-loop point's great circle
+/// crosses a run arc's plane in the escalation band, and the reading
+/// moves on to the next point rather than refusing the op. Every op
+/// builds, each validated with the volume oracle (`assert_six`), the
+/// ops whose big ball keeps the ring as a hole with that face measured
+/// over both its loops. Above ε 1e-9 the ops used to escalate on the
+/// sphere chart's meridian reading; since PCERT E1 an in-band meridian
+/// reading is D3's lane choice, which takes the projected lane, so they
+/// build there too.
 #[test]
-fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
+fn a_graze_hands_the_winding_on_and_pair_82_builds_at_every_eps() {
     let tol = Tol::witness();
     let (r1, r2) = (6.098088671076322e-4, 1.4613194916300017e-3);
     let c2 = Vec3::new(
@@ -493,30 +496,6 @@ fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
         tol,
     );
     let b = finished("the big ball", ball_poled(r2, c2, p2, tol), tol);
-    if tol.eps() > 1e-9 {
-        // The millimetre balls are within a few thousand coincidence
-        // widths here, and every op escalates certifying a pcurve on the
-        // sphere's chart (in the merge, or the pcurve pass) before any
-        // ring is read — on main too.
-        for (op, got) in [
-            ("a ∪ b", topo::union(&a, &b, tol)),
-            ("b ∪ a", topo::union(&b, &a, tol)),
-            ("a ∖ b", topo::subtract(&a, &b, tol)),
-            ("b ∖ a", topo::subtract(&b, &a, tol)),
-            ("a ∩ b", topo::intersect(&a, &b, tol)),
-            ("b ∩ a", topo::intersect(&b, &a, tol)),
-        ] {
-            let err = got.err().map(|e| format!("{e:?}"));
-            assert!(
-                err.as_ref()
-                    .is_some_and(|e| (e.starts_with("Merge(") || e.starts_with("Pcurves"))
-                        && e.contains("pcurve_sphere_chart_meridian")),
-                "pair 82, {op} at ε {:e}: {err:?}",
-                tol.eps()
-            );
-        }
-        return;
-    }
     assert_six(
         "pair 82",
         &a,
