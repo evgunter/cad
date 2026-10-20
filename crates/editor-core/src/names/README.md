@@ -284,7 +284,7 @@ The qualifier depends on what was split:
   meets an edge of the other is a crossing, named by its sense: where the
   crossed edge's two sides at the vertex lie against the closed body the
   crossing face belongs to, the edge oriented as the operand body stores it
-  (a seam edge as the loop of the pair's first side runs along it). The sense
+  (a seam edge as the loop of the pair's first side, the lesser name, runs along it). The sense
   is `Enters` (outside, then inside), `Leaves` (inside, then outside),
   `Outside` (outside on both sides: a touch from outside) or `Inside` (inside
   on both sides: a touch from inside); a side lying on the face counts as
@@ -474,9 +474,15 @@ constituents retire. In a union no face publishes under a constituent's
 name: every piece of a member face a merge links is a piece of its parent
 (N2), including a piece that never itself merged. At every boolean, a
 pair as much as a union, a seam cites, as each side, the parent of the face
-beside it (a merged face's `Merged` set, an unmerged face's own name), and a
+beside it as this boolean's own table names it (a merged face's `Merged`
+set; an unmerged face's own name, with the read it came in through), and a
 `Borders` wall cites its parent: a seam never descends to a constituent, so
 a seam along a merged face is named the same wherever the cut crosses it.
+A seam's two sides are in name order, at a pair as at a union: the order
+spells a set, and which input a side came from is in the side's own name. A
+chord between two merged faces that lies within one input's rim is a piece
+of that rim; one that lies within no rim is the seam of the two parents,
+as a crossing between them is.
 Two edges of one seam between the same two faces are two pieces of that
 seam, told apart by their ends (N2), never by citing a retired
 constituent. Referencing a constituent fails with the merged name

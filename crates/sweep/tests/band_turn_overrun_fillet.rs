@@ -72,8 +72,8 @@ use crate::band_turn_overrun_probe::{
 use crate::band_turn_overrun_verdict::{corner, far_band};
 use crate::common::cavity::brick;
 use crate::common::operands::{
-    edge_between, leaning_turn, leaning_turn_at, leaning_turn_in_band, parallelepiped,
-    parallelepiped_at,
+    edge_between, lean_in_band, leaning_turn, leaning_turn_at, leaning_turn_in_band,
+    parallelepiped, parallelepiped_at,
 };
 use crate::common::poses::poses;
 use crate::common::quadrature::gk15;
@@ -376,7 +376,7 @@ fn runs_into_another_face(p: &Poly, q: Req, r: f64) -> bool {
 }
 
 /// [`taken`] on a [`Poly`]'s requests.
-fn poly_taken(p: &Poly, reqs: &[Req], r: f64) -> f64 {
+pub(crate) fn poly_taken(p: &Poly, reqs: &[Req], r: f64) -> f64 {
     let reqs: Vec<(Req, V, V)> = reqs
         .iter()
         .map(|q| {
@@ -1087,25 +1087,27 @@ fn a_void_in_the_overruns_volume_refuses() {
     }
 }
 
-/// **In band, still escalated**: the leaning prism at a lean its
-/// chamfer turn reads in band escalates the fillet too, on its overrun's
+/// **The chamfer's band is not the fillet's**: the leaning prism at a
+/// lean its chamfer turn reads in band builds the fillet's overrun, its
 /// cut-off at the near face (a face tilted by the lean off the far
-/// band's axis: the ellipse's axes in band); a `60°` corner skewed by a
-/// few millionths of a degree escalates on the turn's own readings. The
-/// near-T needle is `band_turn_overrun_verdict`'s.
+/// band's axis) the exact ellipse however near-circular, at the
+/// oracle's `ΔV`; a `60°` corner
+/// skewed by a few millionths of a degree escalates on the turn's own
+/// readings. The near-T needle is `band_turn_overrun_verdict`'s.
 #[test]
-fn a_fillet_turn_in_band_escalates_through_the_door() {
+fn a_fillet_turn_builds_at_the_chamfers_band_and_escalates_in_its_own() {
     let (body, edges) = leaning_turn_in_band(tol());
-    match filleted(&body, &edges, D, "the leaning prism in band") {
-        Err(BlendError::Escalated {
-            decision: BlendDecision::CapEllipse,
-            ..
-        }) => {}
-        other => panic!(
-            "the leaning prism in band escalates its overrun's ellipse, got {:?}",
-            other.map(|_| ())
-        ),
-    }
+    let out = filleted(&body, &edges, D, "the leaning prism in band")
+        .unwrap_or_else(|e| panic!("the leaning prism in band builds its overrun, got {e}"));
+    validate_geometric(&out.body, tol()).expect("the leaning prism in band: tier 3");
+    assert!(
+        !out.coincidences
+            .iter()
+            .any(|r| r.relation == topo::Relation::CommonFoot),
+        "the leaning prism in band: the overrun, not the mitre"
+    );
+    let want = poly_taken(&leaning(lean_in_band(tol()), 1.0, 1.0), &TURN, D);
+    assert_delta(&body, &out.body, want, 1e-11, "the leaning prism in band");
     let z = geom_core::Band::linear(tol())
         .expect("the run's band")
         .zero()
@@ -1218,11 +1220,11 @@ fn a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too() {
 /// which never mitres). The fillet builds the overrun at the oracle at
 /// `10°`, `3°` and `1°`, and at `0.3°` and `0.1°` refuses
 /// `FOOT_INSIDE_A_FACE` at the turn, the far band's trimline meeting the
-/// near band's face before its end face. At `0.03°` and `0.01°` the
-/// default band escalates `CapEllipse` first, but at the bands' other
-/// ends, whose end faces the fixture tilts by `ε` off square — not at
-/// the turn. A run whose band is coarser may escalate a build on
-/// another reading away from the turn too; one whose band is finer
+/// near band's face before its end face. At `0.03°` the default band
+/// escalates on the turn's own gap, and at `0.01°` the far band
+/// definitely reaches a face it does not round (`fillet3_face_clearance`
+/// decided negative). A run whose band is coarser may escalate a build
+/// on another reading away from the turn too; one whose band is finer
 /// refuses at the turn's foot there instead. Every outcome is pinned at
 /// the default band.
 #[test]
@@ -1261,22 +1263,31 @@ fn the_needle_builds_then_refuses_at_the_turn_as_it_flattens() {
                 );
                 "refuses at the turn"
             }
+            Err(BlendError::Escalated { site, decision, .. })
+                if site == (sweep::blend::BlendSite::Joint { vertex: v })
+                    && matches!(
+                        decision,
+                        BlendDecision::TurnFeetGap
+                            | BlendDecision::TurnOverrunChord
+                            | BlendDecision::TurnFeet
+                    ) =>
+            {
+                "escalates at the turn"
+            }
             Err(BlendError::Escalated { site, decision, .. }) => {
                 assert!(
-                    site != sweep::blend::BlendSite::Joint { vertex: v }
-                        && !matches!(
-                            decision,
-                            BlendDecision::TurnFeetGap
-                                | BlendDecision::TurnOverrunChord
-                                | BlendDecision::TurnFeet
-                        ),
+                    site != sweep::blend::BlendSite::Joint { vertex: v },
                     "{what}: escalates away from the turn, got {decision:?} at {site:?}"
                 );
-                if decision == BlendDecision::CapEllipse {
-                    "escalates CapEllipse elsewhere"
-                } else {
-                    "escalates elsewhere"
-                }
+                "escalates elsewhere"
+            }
+            Err(BlendError::FaceClearance { margin, .. }) => {
+                assert!(
+                    margin.sign == geom_core::Sign::Negative,
+                    "{what}: the far band definitely reaches a face it does not round, \
+                     got {margin}"
+                );
+                "refuses clearance"
             }
             // The attachment gate's escalation, at a contact edge.
             Err(e @ BlendError::Op { .. })
@@ -1297,8 +1308,8 @@ fn the_needle_builds_then_refuses_at_the_turn_as_it_flattens() {
                 "builds",
                 "refuses at the turn",
                 "refuses at the turn",
-                "escalates CapEllipse elsewhere",
-                "escalates CapEllipse elsewhere"
+                "escalates at the turn",
+                "refuses clearance"
             ],
             "the needle at the default band"
         );

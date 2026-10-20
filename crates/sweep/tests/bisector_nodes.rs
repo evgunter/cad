@@ -1257,7 +1257,12 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 ///   tilt's plane (turned `0` or `π`) or a quarter turn off it;
 /// - at `1e-7°` both orders escalate on one margin, but at two
 ///   decisions, which this row does not hold alike
-///   (`work/tangtail/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`).
+///   (`work/tangtail/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`);
+///   at a band tight enough to read that tilt definite (`1e-12`), both
+///   orders refuse at a pcurve certificate of the long bisector ellipse,
+///   past what its stored form evaluates within the band
+///   (`work/germ/a-sliver-crossings-long-bisector-ellipse-is-served-past-representability.md`),
+///   one in the join and one in the merge.
 #[test]
 fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
     let tol = Tol::witness();
@@ -1276,7 +1281,8 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
     enum Outcome {
         Built(f64, f64),
         Escalated(String, f64),
-        Refused(String),
+        /// The refusal's kind, and whether it is a pcurve certificate's.
+        Refused(String, bool),
     }
     let outcome = |r: Result<BooleanResult<f64>, topo::BooleanError>| match r {
         Ok(BooleanResult::Body(out)) => {
@@ -1291,13 +1297,13 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
                 .value()
                 .expect("an f64 margin"),
         ),
-        Err(e) => Outcome::Refused(
-            format!("{e:?}")
-                .split([' ', '{', '('])
-                .next()
-                .unwrap()
-                .to_string(),
-        ),
+        Err(e) => {
+            let text = format!("{e:?}");
+            Outcome::Refused(
+                text.split([' ', '{', '(']).next().unwrap().to_string(),
+                text.contains("Certify {") && text.contains("ResidualExceeded"),
+            )
+        }
     };
     let tilted = |rod: Body<f64>, deg: f64| {
         finished(
@@ -1350,7 +1356,9 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
                 (Outcome::Escalated(d, m), Outcome::Escalated(e, n)) => {
                     (!one_decision || d == e) && (m - n).abs() <= 1e-15
                 }
-                (Outcome::Refused(a), Outcome::Refused(b)) => a == b,
+                (Outcome::Refused(a, x), Outcome::Refused(b, y)) => {
+                    a == b || (!one_decision && *x && *y)
+                }
                 _ => false,
             };
             assert!(
