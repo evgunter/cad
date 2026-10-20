@@ -53,7 +53,7 @@ fn committed_corpus_row(name: &str) {
     //   * the rounding of each side's sum: each side's volume is a
     //     fixed-order sum of per-face terms, each face read about a
     //     vertex of its shell (`topo::props`' `shell_reference`, the
-    //     start of the shell's first face). Import traversal need not
+    //     start of the shell's first quadrature face). Import traversal need not
     //     match construction order, so the two sides may sum in
     //     different orders and read a face about different vertices:
     //     their terms are not the same values, only the same sum in the
