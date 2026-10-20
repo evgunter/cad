@@ -1,15 +1,18 @@
-//! **The path door's read-back refuses no sound arc the scene can
-//! resolve.** At a point scalar the door reads every constructed arc
-//! back against what was authored: its landing on its end vertex, and a
-//! `Via` arc's carrier against its through-point. A sound construction
-//! misses only by its arithmetic's rounding, which the reads bound at
-//! 16 ulps of the read's magnitude (8 for the through-point), so on a
-//! scene where that rounding stays under ε the read is Zero and never
-//! refuses. A counterexample search over the arc modes, from tiny turns
-//! to near-full ones, at magnitudes from centimetres to the scene's
-//! resolution and past it: any `ArcMissesAuthoredPoint` is a
-//! construction losing digits, and any read-back refusal on a scene
-//! that resolves the read is the tripwire firing on a sound arc.
+//! **The path door's read-back refuses no sound arc as a defect, and
+//! none the scene can resolve at all.** At a point scalar the door reads
+//! every constructed arc back against what was authored: its start on
+//! its carrier, its landing on its end vertex, a `Via` arc's carrier
+//! against its through-point, and its branch against the turn it was
+//! authored to. A sound construction misses only by its arithmetic's
+//! rounding, which the reads bound at 16 ulps of the read's magnitude,
+//! so on a scene where that rounding stays under ε every read is Zero
+//! and none refuses; and past that, a sound arc may refuse as the
+//! scene's but never as a kernel defect. A counterexample search over
+//! the arc modes, from tiny turns to near-full ones, at magnitudes from
+//! centimetres to 1e300 m and fillets down to the coordinates' own ulp:
+//! any `ArcMissesAuthoredPoint` is a counterexample, and so is any
+//! read-back refusal on a scene that resolves the read. Beside it, the
+//! re-review's two shapes that the gate once called defects, pinned.
 #![allow(clippy::panic)]
 
 test_utils::gated_to![
@@ -112,6 +115,10 @@ fn draw(rng: &mut Rng, top: f64) -> Drawn {
 
 /// The programs that author `arc`, one per arc mode and door shape.
 fn programs(arc: &Drawn, rng: &mut Rng) -> Vec<(&'static str, Vec<Step<f64>>)> {
+    // Half the draws fillet at the coordinates' own grain: within three
+    // decades either side of an ulp of the arc's magnitude.
+    let grain = arc.magnitude() * ULP;
+    let fine = (rng.below(2) == 0).then(|| rng.log_uniform(grain * 1e-3, grain * 1e3));
     let (a, b, q) = (arc.a(), arc.b(), arc.q());
     let (ux, uy) = arc.tangent(arc.start);
     let (vx, vy) = arc.tangent(arc.start + arc.turn);
@@ -135,7 +142,7 @@ fn programs(arc: &Drawn, rng: &mut Rng) -> Vec<(&'static str, Vec<Step<f64>>)> {
     let (dx, dy) = (ux * cc - uy * cs, ux * cs + uy * cc);
     let lead = arc.radius.min(1.0);
     let entry = Point2::new(a.x - dx * lead, a.y - dy * lead);
-    let fillet = 0.05 * lead;
+    let fillet = fine.unwrap_or(0.05 * lead);
     let outward = Point2::new(
         b.x + (b.x - arc.centre.x) * 0.5,
         b.y + (b.y - arc.centre.y) * 0.5,
@@ -278,7 +285,14 @@ fn read_back(kind: &ReplayErrorKind<f64>) -> Option<bool> {
         ReplayErrorKind::Path(PathError::ArcMissBelowSceneResolution { .. }) => Some(false),
         ReplayErrorKind::Path(PathError::Escalated { source })
             if source.predicate.is_some_and(|p| {
-                p.starts_with("path_arc_landing") || p.starts_with("path_arc_through_point")
+                [
+                    "path_arc_start_on_carrier",
+                    "path_arc_landing",
+                    "path_arc_through_point",
+                    "path_arc_branch",
+                ]
+                .iter()
+                .any(|read| p.starts_with(read))
             }) =>
         {
             Some(false)
@@ -302,7 +316,14 @@ fn the_read_back_refuses_no_sound_arc_the_scene_resolves() {
     let mut tally: std::collections::BTreeMap<&str, [usize; 3]> = Default::default();
     let mut found: Vec<String> = Vec::new();
     for _ in 0..test_utils::fuzz::scaled(40) {
-        let arc = draw(&mut rng, 4.0 * resolved);
+        // A quarter of the draws run on past the scene's resolution, up
+        // to 1e300 m, where a rim read overflows.
+        let top = if rng.below(4) == 0 {
+            1e300
+        } else {
+            4.0 * resolved
+        };
+        let arc = draw(&mut rng, top);
         for (mode, steps) in programs(&arc, &mut rng) {
             let row = tally.entry(mode).or_default();
             let refusal = match try_replay_at::<f64>(&steps) {
@@ -345,4 +366,81 @@ fn the_read_back_refuses_no_sound_arc_the_scene_resolves() {
         );
     }
     assert!(found.is_empty(), "{}", found.join("\n"));
+}
+
+/// The fused `Via` incoming with a fillet near or below its coordinates'
+/// ulp, on carriers from 1e6 to 1e18 m: the re-review's shapes (R =
+/// 7.9e8 m with a 1e-7 m fillet at the default ε; R = 1e13 to 5e16 m
+/// with 1e-4 to 0.1 m), which the door once refused as kernel defects
+/// on its start read. They build, or refuse as the scene's; never as a
+/// defect.
+#[test]
+fn sub_ulp_fillets_on_far_via_carriers_are_never_defects() {
+    let mut defects = Vec::new();
+    for k in 0..=24 {
+        let r = 10f64.powf(6.0 + 0.5 * f64::from(k));
+        for f in [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 0.1] {
+            for (t0, t1) in [(0.4, 1.0), (1.0, 2.5), (2.0, 5.5)] {
+                let at = |t: f64| Point2::new(r * t.cos(), r * t.sin());
+                let (a, q, b) = (at(0.0), at(t0), at(t1));
+                let outward = Point2::new(b.x * 1.5, b.y * 1.5);
+                let mid = Point2::new(0.5 * (a.x + b.x), 0.5 * (a.y + b.y));
+                let steps = vec![
+                    Step::At(a),
+                    Step::ArcFillet {
+                        spec: ArcData::Via {
+                            q,
+                            target: Target::Point(b),
+                        },
+                        radius: f,
+                    },
+                    Step::Toward {
+                        dx: outward.x - b.x,
+                        dy: outward.y - b.y,
+                    },
+                    Step::FarEndTo(outward),
+                    Step::LineTo(Target::Point(Point2::new(mid.x * 0.2, mid.y * 0.2))),
+                    Step::LineTo(Target::Start),
+                ];
+                if let Err(e) = try_replay_at::<f64>(&steps) {
+                    if read_back(&e.kind) == Some(true) {
+                        defects.push(format!("R {r:e}, fillet {f:e}, turns {t0}/{t1}: {e}"));
+                    }
+                }
+            }
+        }
+    }
+    assert!(defects.is_empty(), "{}", defects.join("\n"));
+}
+
+/// **A read past 1.3e154 m overflows, and is never a defect**: every
+/// mode's arc at magnitudes from 1e150 to 1e300 m, where `‖p − c‖`
+/// squares past the range and a miss reads infinite. Each builds or
+/// refuses as the scene's.
+#[test]
+fn reads_past_overflow_are_never_defects() {
+    // The seed fixes `programs`' corner, split count and fillet draws,
+    // so the rows are the same arcs every run.
+    let mut rng = test_utils::fuzz::pinned("arc_read_back_overflow", 0x5449);
+    let mut defects = Vec::new();
+    for e in [150, 155, 160, 200, 250, 300] {
+        let m = 10f64.powi(e);
+        for turn in [0.5, 3.0, -5.0, TAU - 1e-3] {
+            let arc = Drawn {
+                centre: Point2::new(0.3 * m, -0.2 * m),
+                radius: 0.4 * m,
+                start: 0.7,
+                turn,
+                through: 0.4,
+            };
+            for (mode, steps) in programs(&arc, &mut rng) {
+                if let Err(e) = try_replay_at::<f64>(&steps) {
+                    if read_back(&e.kind) == Some(true) {
+                        defects.push(format!("{mode} at 1e{e} m, turn {turn}: {e}"));
+                    }
+                }
+            }
+        }
+    }
+    assert!(defects.is_empty(), "{}", defects.join("\n"));
 }

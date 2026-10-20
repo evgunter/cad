@@ -65,6 +65,16 @@ impl ArcSweep {
     }
 }
 
+/// [`turn_side`] as a winding: a left turn rounds counter-clockwise.
+/// `None` on a turn decided Zero, as [`turn_side`].
+pub(crate) fn turn_sense(turn: Sign) -> Option<ArcSweep> {
+    match turn {
+        Sign::Positive => Some(ArcSweep::Ccw),
+        Sign::Negative => Some(ArcSweep::Cw),
+        Sign::Zero => None,
+    }
+}
+
 /// A decided turn's side σ as the literal ±1 (`+1` left), or `None`
 /// for a turn decided Zero, which has no side.
 pub(crate) fn turn_side<T: Real>(turn: Sign) -> Option<T> {
@@ -319,6 +329,9 @@ pub(crate) struct ArcFilletCandidate<T: Real> {
     /// [`crate::Facts::Registered`]) or only to its decided-tangent
     /// classification ([`crate::Facts::Decided`]); see [`OffsetCentres`].
     pub centre_facts: crate::Facts,
+    /// The fillet arc's turn sense: the corner's decided turn
+    /// (`fillet_corner_turn`), a left turn rounding counter-clockwise.
+    pub sense: ArcSweep,
     /// The incoming leg's `fillet_leg_fit` classification: `Positive`
     /// emits the trimmed piece + constructed joint, `Zero` suppresses both.
     pub fit_in: Sign,
@@ -570,7 +583,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     // toward, so the offset construction never searches.
     let turn = Margin::levered(leg_in.dir.perp_dot(leg_out.dir), arm);
     let decided = decide("fillet_corner_turn", turn, band).map_err(ArcTrimRefusal::Escalated)?;
-    let Some(sgn) = turn_side::<T>(decided) else {
+    let Some((sgn, sense)) = turn_side::<T>(decided).zip(turn_sense(decided)) else {
         return Err(ArcTrimRefusal::TurnInBand {
             align: leg_in.dir.dot(leg_out.dir),
             margin: turn.value(),
@@ -681,6 +694,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
                 },
                 center,
                 centre_facts,
+                sense,
                 fit_in,
                 fit_out,
                 setbacks: [sb_in, sb_out],

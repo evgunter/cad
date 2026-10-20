@@ -533,7 +533,7 @@ const ON_CARRIER_ULPS: f64 = 8.0;
 /// |Δθ| ≤ 2π), the rotation's sine, cosine, products and sums 4, and
 /// the landing's sum onto `a` and its distance to `b` 2 — 14, stated
 /// as 16.
-const LANDING_ULPS: f64 = 16.0;
+pub(crate) const LANDING_ULPS: f64 = 16.0;
 
 /// **`arc_carrier_resolution`** — whether a difference a consistency
 /// check read at magnitude `scale` is one the scene can read at all.
@@ -575,7 +575,7 @@ fn resolves<T: Decide>(
 }
 
 /// [`resolves`]'s margin: K·ε/(ulps·2⁻⁵²) − `scale`, meters.
-fn resolution_headroom<T: Real>(scale: T, ulps: f64, band: Band) -> T {
+pub(crate) fn resolution_headroom<T: Real>(scale: T, ulps: f64, band: Band) -> T {
     T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale
 }
 
@@ -737,21 +737,28 @@ pub(crate) fn read_back_arc<T: Decide>(
     read_back(
         START_READ,
         "path_arc_start_on_carrier_resolution",
-        Some(arc.rim(a) - arc.radius),
+        Reading::Difference(arc.rim(a) - arc.radius),
+        || reach(a),
         || carrier().max(reach(a)),
-        ON_CARRIER_ULPS,
+        READ_BACK_RIM_ULPS,
         band,
     )?;
-    let miss = arc.landing(a).distance(b);
     let landing = if built.facts == crate::Facts::Decided {
-        (miss - (arc.rim(a) - arc.rim(b)).abs()).max(T::zero())
+        // The landing against `b` moved along its ray from the centre
+        // onto the landing's own circle: 2r·sin of half the sweep's own
+        // error, whatever `b`'s distance from the centre, which is the
+        // decision's.
+        let towards = b - arc.centre;
+        let onto = arc.centre + towards * (arc.rim(a) / towards.norm());
+        arc.landing(a).distance(onto)
     } else {
-        miss
+        arc.landing(a).distance(b)
     };
     read_back(
         LANDING_READ,
         "path_arc_landing_resolution",
-        Some(landing),
+        Reading::Difference(landing),
+        || reach(a).max(reach(b)),
         || carrier().max(reach(a)).max(reach(b)),
         LANDING_ULPS,
         band,
@@ -760,9 +767,10 @@ pub(crate) fn read_back_arc<T: Decide>(
         read_back(
             THROUGH_POINT_READ,
             "path_arc_through_point_resolution",
-            Some(arc.rim(q) - arc.radius),
+            Reading::Difference(arc.rim(q) - arc.radius),
+            || reach(a).max(reach(b)).max(reach(q)),
             || carrier().max(reach(q)),
-            ON_CARRIER_ULPS,
+            READ_BACK_RIM_ULPS,
             band,
         )?;
     }
@@ -772,15 +780,16 @@ pub(crate) fn read_back_arc<T: Decide>(
         // so each reads at least the chord's length: the authored one
         // Positive, the other Negative.
         let signed = Margin::levered(arc.sweep * sense.sign::<T>(), arc.radius).value();
-        let wrong = match check_unlogged(BRANCH_READ, signed, band, "F23") {
-            Ok(Sign::Positive) => None,
-            Ok(Sign::Zero | Sign::Negative) => Some(signed),
+        let reading = match check_unlogged(BRANCH_READ, signed, band, "F23") {
+            Ok(Sign::Positive) => Reading::Passed,
+            Ok(Sign::Zero | Sign::Negative) => Reading::Off(signed),
             Err(source) => return Err(ReadBackIssue::Escalated(source)),
         };
         read_back(
             BRANCH_READ,
             "path_arc_branch_resolution",
-            wrong,
+            reading,
+            || reach(a).max(reach(b)),
             || carrier().max(reach(a)).max(reach(b)),
             LANDING_ULPS,
             band,
@@ -789,55 +798,91 @@ pub(crate) fn read_back_arc<T: Decide>(
     Ok(())
 }
 
-/// **One read of the door's read-back** ([`read_back_arc`]): `miss`
-/// (`predicate`, meters) against the band, and where it reads off, its
-/// clearance of the read's own rounding (`resolution`): the miss less
-/// `ulps · 2⁻⁵² · scale`, at the magnitude `scale` gives, which only a
-/// miss reads. Zero passes; off and clear of that rounding by the band
-/// is [`ReadBackIssue::Defect`], a miss no rounding of a sound
-/// construction reaches; off and within it is
-/// [`ReadBackIssue::BelowSceneResolution`], which the scene cannot tell
-/// from its rounding; in the band or poisoned escalates. `None` is a
-/// read its caller has already classified as passing. Not a verdict
+/// The rounding the door's two rim reads (`‖p − centre‖ − r`, the start
+/// and a `Via` arc's through-point) carry, in ulps of the read's
+/// magnitude. Validation's [`ON_CARRIER_ULPS`] is derived for a lowered
+/// arc, whose centre and radius come from one chord; a construction can
+/// derive both from points it derived itself. Counted as there: the
+/// centre from a lowered carrier 4; a radius re-read as the norm of a
+/// difference of derived points (a fused side's `‖anchor − centre‖`),
+/// with the centre's rounding inside it, 4; a vertex the construction
+/// derived (a trim point) 4; the read's own subtraction, norm and
+/// difference 2 — 14, stated as 16. A sound fused `Via` fillet was
+/// measured at 9.0 ulps.
+pub(crate) const READ_BACK_RIM_ULPS: f64 = 16.0;
+
+/// One read of the door's read-back, as [`read_back`] takes it.
+enum Reading<T> {
+    /// A difference the authored data makes zero: Zero passes, a
+    /// definite sign is off.
+    Difference(T),
+    /// A read its caller classified as off, by this much.
+    Off(T),
+    /// A read its caller classified as passing.
+    Passed,
+}
+
+/// **One read of the door's read-back** ([`read_back_arc`]), and where
+/// it reads off, whether the miss is a kernel defect: one margin, the
+/// lesser of
+///
+/// - the **headroom** of the authored data's magnitude
+///   ([`resolution_headroom`] at `ulps`, as validation's [`resolves`]
+///   reads a table's): whether the scene the user authored resolves the
+///   read at all; and
+/// - the miss's **clearance** of the read's own rounding at the
+///   magnitude it was taken at, `miss − ulps·2⁻⁵²·scale`: whether this
+///   miss could be that rounding.
+///
+/// Positive on both is [`ReadBackIssue::Defect`]: a miss no rounding of
+/// a sound construction reaches, on a scene that resolves it. Anything
+/// else definite is [`ReadBackIssue::BelowSceneResolution`]. The
+/// magnitude gate reads the AUTHORED data, so a construction that lost
+/// digits and also inflated the magnitude it stored (a carrier flattened
+/// to 1e12 m) still reads as the defect it is; the clearance reads the
+/// STORED magnitude, so a sound arc whose stored form is legitimately
+/// far out is never called one. A miss that is not finite (a rim past
+/// 1.3e154 m overflows) is the scene's, never a defect. A difference in
+/// the band, or poisoned, escalates. Not a verdict
 /// (`k_stats::check_unlogged`): a box leaf has no row for it.
 ///
-/// The gate is the miss's, not the magnitude's alone as validation's
-/// [`resolves`] is: a construction that loses digits can also inflate
-/// the magnitude it stored (a carrier flattened to 1e12 m), and a miss
-/// far above that magnitude's rounding is still its arithmetic. Nor
-/// does it share [`resolves`]'s door: validation's difference checks
-/// are logged verdicts whose refusal reports each classification's
-/// [`MarginDiag`] (`decide_reported`), and these are unlogged
-/// cross-checks at the witness lane, whose door reports a sign.
+/// It shares [`resolves`]'s headroom and not its door: validation's
+/// difference checks are logged verdicts whose refusal reports each
+/// classification's [`MarginDiag`] (`decide_reported`), and these are
+/// unlogged cross-checks at the witness lane, whose door reports a
+/// sign.
 fn read_back<T: Decide>(
     predicate: &'static str,
     resolution_predicate: &'static str,
-    miss: Option<T>,
-    scale: impl FnOnce() -> T,
+    reading: Reading<T>,
+    authored: impl FnOnce() -> T,
+    stored: impl FnOnce() -> T,
     ulps: f64,
     band: Band,
 ) -> Result<(), ReadBackIssue<T>> {
-    let Some(miss) = miss else {
-        return Ok(());
-    };
-    if predicate != BRANCH_READ {
-        match check_unlogged(predicate, miss, band, "F23") {
+    let miss = match reading {
+        Reading::Passed => return Ok(()),
+        Reading::Off(miss) => miss,
+        Reading::Difference(miss) => match check_unlogged(predicate, miss, band, "F23") {
             Ok(Sign::Zero) => return Ok(()),
-            Ok(Sign::Positive | Sign::Negative) => {}
+            Ok(Sign::Positive | Sign::Negative) => miss,
             Err(source) => return Err(ReadBackIssue::Escalated(source)),
-        }
-    }
-    let scale = scale();
+        },
+    };
+    let authored = authored();
+    let scale = stored().max(authored);
     let found = ArcMiss {
         predicate,
         miss: miss.abs(),
         scale,
         resolution: scale * T::from_f64(ulps * f64::EPSILON),
     };
-    // How far the miss stands clear of the read's own rounding at its
-    // magnitude: clear by the band, it is no rounding.
+    if !found.miss.is_bounded() {
+        return Err(ReadBackIssue::BelowSceneResolution(found));
+    }
     let clearance = found.miss - found.resolution;
-    match check_unlogged(resolution_predicate, clearance, band, "F23") {
+    let margin = resolution_headroom(authored, ulps, band).min(clearance);
+    match check_unlogged(resolution_predicate, margin, band, "F23") {
         Ok(Sign::Positive) => Err(ReadBackIssue::Defect(found)),
         Ok(Sign::Zero | Sign::Negative) => Err(ReadBackIssue::BelowSceneResolution(found)),
         Err(source) => Err(ReadBackIssue::Escalated(source)),

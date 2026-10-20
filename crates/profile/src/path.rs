@@ -1352,53 +1352,71 @@ pub enum PathError<T: Real> {
         /// The classified radius, meters.
         radius: T,
     },
-    /// **An arc the path built is off a point it was authored by**: its
-    /// end vertex (`path_arc_landing`), or a `Via` arc's through-point
-    /// (`path_arc_through_point`), read back at a point scalar past the
-    /// band, at a magnitude the scene resolves
-    /// (`seg::constructed_landing`, `seg::constructed_through_point`).
-    /// Every construction's arc passes through both over the reals, so
-    /// this is its arithmetic losing digits: a kernel defect, not the
+    /// **An arc the path built is off what was authored**, read back
+    /// at a point scalar (`seg::read_back_arc`): its start off its
+    /// carrier, its landing off its end vertex, a `Via` arc's carrier off
+    /// its through-point, or the other arc between its ends than the
+    /// turn it was authored to. The miss stands clear of the read's own
+    /// rounding by the band, on a scene the authored data's magnitude
+    /// resolves. Every construction's arc meets all four over the reals,
+    /// so this is its arithmetic losing digits: a kernel defect, not the
     /// input.
     ArcMissesAuthoredPoint {
         /// The segment the arc is: its step and role.
         piece: crate::structure::Piece,
         /// The verb that step called.
         verb: program::Verb,
-        /// The read: `path_arc_landing` or `path_arc_through_point`.
+        /// The read: `path_arc_start_on_carrier`, `path_arc_landing`,
+        /// `path_arc_through_point` or `path_arc_branch`.
         predicate: &'static str,
-        /// The authored point, meters.
+        /// The authored point the read is about, meters: the start or
+        /// end vertex, or a `Via` arc's `q`.
         point: Point2<T>,
-        /// How far the stored arc is off it, meters.
+        /// How far the stored arc is off what was authored, meters (for
+        /// the branch, the length of the arc it built instead).
         miss: T,
         /// The magnitude the read was taken at, meters.
         scale: T,
         /// The rounding the read carries at that magnitude, meters.
         resolution: T,
+        /// The stored arc's turn, radians.
+        turn: T,
+        /// The turn sense the construction authored, where it authors
+        /// one apart from its sweep.
+        authored: Option<ArcSweep>,
     },
-    /// **The same miss, at a magnitude the scene cannot resolve**: the
-    /// read's own `f64` rounding there reaches the band, so the miss
-    /// may be the input's conditioning or the construction's, which a
-    /// point scalar cannot tell apart. Refused, not passed: a stored
-    /// arc off its authored point is unusable either way, and the
-    /// report names the step, the read and the miss so a construction
-    /// that lost digits can still be told from a scene at its
-    /// resolution.
+    /// **The same miss, where the scene cannot call it a defect**: the
+    /// authored data's magnitude does not resolve the read, the miss is
+    /// within the read's own rounding at its magnitude, or the read is
+    /// not finite. The miss may be the input's conditioning or the
+    /// construction's, which a point scalar cannot tell apart. Refused,
+    /// not passed: a stored arc off what was authored is unusable either
+    /// way, and the report names the step, the read and the miss so a
+    /// construction that lost digits can still be told from a scene at
+    /// its resolution.
     ArcMissBelowSceneResolution {
         /// The segment the arc is: its step and role.
         piece: crate::structure::Piece,
         /// The verb that step called.
         verb: program::Verb,
-        /// The read: `path_arc_landing` or `path_arc_through_point`.
+        /// The read: `path_arc_start_on_carrier`, `path_arc_landing`,
+        /// `path_arc_through_point` or `path_arc_branch`.
         predicate: &'static str,
-        /// The authored point, meters.
+        /// The authored point the read is about, meters: the start or
+        /// end vertex, or a `Via` arc's `q`.
         point: Point2<T>,
-        /// How far the stored arc is off it, meters.
+        /// How far the stored arc is off what was authored, meters (for
+        /// the branch, the length of the arc it built instead).
         miss: T,
         /// The magnitude the read was taken at, meters.
         scale: T,
         /// The rounding the read carries at that magnitude, meters.
         resolution: T,
+        /// The stored arc's turn, radians.
+        turn: T,
+        /// The turn sense the construction authored, where it authors
+        /// one apart from its sweep.
+        authored: Option<ArcSweep>,
     },
     /// The far-end-anchor form (`.angle(θ).to(p)` / `.toward(..).to(p)`)
     /// was reached with no opened fillet — at the ENTRY, where the
@@ -1989,18 +2007,18 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 miss,
                 scale,
                 resolution,
-            } => write!(
-                f,
-                "{piece} ({verb}) built an arc {miss} m off {what} ({x}, {y}), clear of the \
-                 {resolution} m its read rounds to at {scale} m ('{predicate}'). \
-                 {KERNEL_DEFECT_ENDING}",
-                what = authored_point_name(predicate),
-                x = num(&point.x),
-                y = num(&point.y),
-                miss = num(miss),
-                scale = num(scale),
-                resolution = num(resolution)
-            ),
+                turn,
+                authored,
+            } => {
+                read_back_sentence(f, piece, verb, predicate, point, miss, turn, *authored)?;
+                write!(
+                    f,
+                    ", clear of the {resolution} m its read rounds to at {scale} m \
+                     ('{predicate}'). {KERNEL_DEFECT_ENDING}",
+                    resolution = num(resolution),
+                    scale = num(scale)
+                )
+            }
             Self::ArcMissBelowSceneResolution {
                 piece,
                 verb,
@@ -2009,18 +2027,18 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 miss,
                 scale,
                 resolution,
-            } => write!(
-                f,
-                "{piece} ({verb}) built an arc {miss} m off {what} ({x}, {y}), within the \
-                 {resolution} m its read rounds to at {scale} m ('{predicate}'). Recourse: \
-                 {ARC_SCENE_RESOLUTION_RECOURSE}",
-                what = authored_point_name(predicate),
-                x = num(&point.x),
-                y = num(&point.y),
-                miss = num(miss),
-                scale = num(scale),
-                resolution = num(resolution)
-            ),
+                turn,
+                authored,
+            } => {
+                read_back_sentence(f, piece, verb, predicate, point, miss, turn, *authored)?;
+                write!(
+                    f,
+                    "; at {scale} m its read rounds to {resolution} m, too coarse to call \
+                     this a defect ('{predicate}'). Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}",
+                    resolution = num(resolution),
+                    scale = num(scale)
+                )
+            }
             Self::FarEndAnchorWithoutFillet => write!(
                 f,
                 "the far-end-anchor form ends an ARRIVAL side at its own anchor, and no \
@@ -3985,7 +4003,9 @@ impl<T: Decide> Core<T> {
         let cross = u1.perp_dot(u2);
         let turn = decide("path_corner_turn", Margin::levered(cross, wn), band)
             .map_err(|source| PathError::Escalated { source })?;
-        let Some(sgn) = crate::sugar::turn_side::<T>(turn) else {
+        let Some((sgn, sense)) =
+            crate::sugar::turn_side::<T>(turn).zip(crate::sugar::turn_sense(turn))
+        else {
             return Err(PathError::NoCornerForFillet {
                 reason: PathNoCornerReason::CarriersParallel,
                 radius: pending.radius,
@@ -4041,12 +4061,6 @@ impl<T: Decide> Core<T> {
             .line_fits(trims.fit_in, trims.fit_out)
             .map_err(PathError::Structure)?;
         let arc = fillet_arc_carrier(&trims, u2, pending.radius, sgn);
-        // The corner's decided turn is the fillet's turn sense: a left
-        // turn rounds counter-clockwise.
-        let sense = match turn {
-            Sign::Negative => ArcSweep::Cw,
-            Sign::Positive | Sign::Zero => ArcSweep::Ccw,
-        };
         let built = fillet_arc(
             arc,
             trims.bulge,
@@ -4599,15 +4613,44 @@ fn circle_loop<T: Decide>(
     Ok(ProfileLoop::from_chain(chain))
 }
 
-/// What [`PathError::ArcMissesAuthoredPoint`] and its sibling say the
-/// arc is off, for their `predicate`.
-fn authored_point_name(predicate: &str) -> &'static str {
-    match predicate {
+/// The opening of [`PathError::ArcMissesAuthoredPoint`]'s and its
+/// sibling's sentences: the step, the verb, and what was built against
+/// what was authored, for their `predicate`.
+#[allow(clippy::too_many_arguments)]
+fn read_back_sentence<T: Real>(
+    f: &mut core::fmt::Formatter<'_>,
+    piece: &crate::structure::Piece,
+    verb: &program::Verb,
+    predicate: &str,
+    point: &Point2<T>,
+    miss: &T,
+    turn: &T,
+    authored: Option<ArcSweep>,
+) -> core::fmt::Result {
+    let (x, y) = (num(&point.x), num(&point.y));
+    if predicate == seg::BRANCH_READ {
+        let sense = match authored {
+            Some(ArcSweep::Ccw) => "a counter-clockwise turn",
+            Some(ArcSweep::Cw) => "a clockwise turn",
+            None => "the other turn",
+        };
+        return write!(
+            f,
+            "{piece} ({verb}) was authored as {sense} to ({x}, {y}) and built a turn of \
+             {turn} rad, the other arc between its ends",
+            turn = num(turn)
+        );
+    }
+    let what = match predicate {
         seg::START_READ => "its start vertex",
         seg::THROUGH_POINT_READ => "the through-point it was authored by",
-        seg::BRANCH_READ => "the turn it was authored to, at",
         _ => "its end vertex",
-    }
+    };
+    write!(
+        f,
+        "{piece} ({verb}) built an arc {miss} m off {what} ({x}, {y})",
+        miss = num(miss)
+    )
 }
 
 /// **A constructed arc, read back against what was authored**, before
@@ -4641,6 +4684,8 @@ fn arc_reads_back<T: Decide>(
             miss: m.miss,
             scale: m.scale,
             resolution: m.resolution,
+            turn: built.arc.sweep,
+            authored: built.sense,
         },
         seg::ReadBackIssue::BelowSceneResolution(m) => PathError::ArcMissBelowSceneResolution {
             piece,
@@ -4650,6 +4695,8 @@ fn arc_reads_back<T: Decide>(
             miss: m.miss,
             scale: m.scale,
             resolution: m.resolution,
+            turn: built.arc.sweep,
+            authored: built.sense,
         },
         seg::ReadBackIssue::Escalated(source) => PathError::Escalated { source },
     })
@@ -7057,7 +7104,7 @@ mod stored_arc_landing {
     /// inside the band ([`seg::constructed_landing`]'s resolution at 16,
     /// [`seg::constructed_through_point`]'s at 8).
     fn resolvable(ulps: f64) -> f64 {
-        band().escalate() / (ulps * f64::EPSILON)
+        seg::resolution_headroom(0.0, ulps, band())
     }
 
     /// The probe radius at this run's ε: the first of a ladder at which
@@ -7137,7 +7184,7 @@ mod stored_arc_landing {
     /// the door's own arc, on the same probe, passes.
     #[test]
     fn a_cancelling_tangent_arc_refuses_at_f64() {
-        let r = probe_radius(16.0, tangent_miss);
+        let r = probe_radius(seg::LANDING_ULPS, tangent_miss);
         let (a, u, b) = tangent_probe(r);
         let verb = program::Verb::TangentArcTo;
         let miss = defect(
@@ -7161,7 +7208,7 @@ mod stored_arc_landing {
     /// the door's own arc about the same centre passes.
     #[test]
     fn a_cancelling_centre_arc_refuses_at_f64() {
-        let r = probe_radius(16.0, centre_miss);
+        let r = probe_radius(seg::LANDING_ULPS, centre_miss);
         let (a, c, b) = centre_probe(r);
         let verb = program::Verb::ArcTo;
         // The door's own `Center` construction (decided, wound Ccw) with
@@ -7199,7 +7246,7 @@ mod stored_arc_landing {
     /// defect off `q`, and the door's own `Via` arc passes.
     #[test]
     fn a_cancelling_via_arc_refuses_off_its_through_point_at_f64() {
-        let r = probe_radius(8.0, via_miss);
+        let r = probe_radius(seg::READ_BACK_RIM_ULPS, via_miss);
         let (a, q, b) = via_probe(r);
         let verb = program::Verb::ArcTo;
         let arc = cancelling_via(a, q, b);
@@ -7293,7 +7340,7 @@ mod stored_arc_landing {
             }
         };
         let verb = program::Verb::TangentArcTo;
-        let r = probe_radius(16.0, tangent_miss);
+        let r = probe_radius(seg::LANDING_ULPS, tangent_miss);
         let (a, u, b) = tangent_probe(r);
         let (ai, bi) = (iv(a), iv(b));
         let ui = Vec2::new(Interval::from_f64(u.x), Interval::from_f64(u.y));
@@ -7303,7 +7350,7 @@ mod stored_arc_landing {
             "exact scalar: no read"
         );
         holds(arc.landing(ai), b, "the cancelling tangent arc");
-        let r = probe_radius(16.0, centre_miss);
+        let r = probe_radius(seg::LANDING_ULPS, centre_miss);
         let (a, c, b) = centre_probe(r);
         let (ai, bi) = (iv(a), iv(b));
         let arc = cancelling_centre(ai, bi, iv(c));
@@ -7325,7 +7372,7 @@ mod stored_arc_landing {
     /// on.
     #[test]
     fn a_miss_the_scene_cannot_resolve_refuses_as_the_scene_resolution_sibling() {
-        let r = 4.0 * resolvable(16.0);
+        let r = 4.0 * resolvable(seg::LANDING_ULPS);
         let (a, u, b) = tangent_probe(r);
         let arc = tangent_arc(a, u, b).arc;
         let verb = program::Verb::TangentArcTo;
@@ -7565,6 +7612,99 @@ mod stored_arc_landing {
         assert!(
             read(decided(1.0), a, admitted, verb).is_ok(),
             "an end off the carrier by what the decision admitted passes"
+        );
+        // The decision's slack and a sweep defect together: the end
+        // 0.99ε inside the carrier, the sweep off by 1.9ε of arc. The
+        // radial part does not hide the sweep's.
+        for rho in [0.5 * eps, 0.99 * eps] {
+            let inside = at(1.0, r - rho);
+            let off = decided(1.0 + 1.9 * eps / r);
+            assert!(
+                matches!(read(off, a, inside, verb), Err(PathError::Escalated { .. })),
+                "a decided end {rho:e} inside the carrier with a 1.9ε sweep defect escalates"
+            );
+        }
+    }
+
+    /// **A read that overflows is never a defect**: a centimetre chord
+    /// whose stored carrier sits 1e160 m away, so the start read's
+    /// `‖a − centre‖` squares past the range and reads infinite. The
+    /// authored points resolve, but an infinite miss is no measurement,
+    /// so it refuses as the scene's.
+    #[test]
+    fn a_read_that_overflows_is_never_a_defect() {
+        let (a, b) = (Point2::new(0.0, 0.0), Point2::new(0.01, 0.0));
+        let far = BuiltArc::new(
+            Arc2 {
+                centre: Point2::new(0.005, -1e160),
+                radius: 1e160,
+                sweep: 1e-162,
+            },
+            crate::Facts::Registered,
+        );
+        assert!(
+            !(far.arc.rim(a) - far.arc.radius).is_finite(),
+            "premise: the start read overflows"
+        );
+        assert!(
+            matches!(
+                read(far, a, b, program::Verb::ArcTo),
+                Err(PathError::ArcMissBelowSceneResolution { .. })
+            ),
+            "an overflowing read refuses as the scene's"
+        );
+    }
+
+    /// **An arc fillet's complementary arc refuses on its branch**: a
+    /// fillet between a ray and an arc carrier, resolved by the door's
+    /// own resolution, carries the corner's decided turn as its sense;
+    /// the same fillet spelled with X → −1/X lands on the same tangent
+    /// point and refuses `path_arc_branch`.
+    #[test]
+    fn an_arc_fillets_complementary_arc_refuses_on_its_branch() {
+        use arc_fillet::{FilletSide, SideCarrier};
+        let tol = Tol::witness();
+        let trims = arc_fillet::resolve::<f64>(
+            &mut crate::structure::Guide::recording(),
+            FilletSide {
+                anchor: Point2::new(-5.0, 0.0),
+                carrier: SideCarrier::Ray(Vec2::new(1.0, 0.0)),
+            },
+            FilletSide {
+                anchor: Point2::new(10.0, 3.0),
+                carrier: SideCarrier::Circle {
+                    centre: Point2::new(5.0, 3.0),
+                    winding: ArcSweep::Ccw,
+                },
+            },
+            0.5,
+            tol,
+        )
+        .expect("the corner resolves");
+        let fillet = trims.fillet();
+        assert!(
+            fillet.sense.is_some(),
+            "the arc fillet carries its corner's turn"
+        );
+        let verb = program::Verb::FilletArc;
+        let (a, b) = (trims.t1, trims.t2);
+        assert!(
+            read(fillet, a, b, verb).is_ok(),
+            "the door's arc fillet passes"
+        );
+        let x = fillet.arc.quarter_tan();
+        let flipped = BuiltArc {
+            arc: Arc2 {
+                sweep: 4.0 * (-1.0 / x).atan(),
+                ..fillet.arc
+            },
+            ..fillet
+        };
+        defect(
+            read(flipped, a, b, verb),
+            seg::BRANCH_READ,
+            verb,
+            "the flipped arc fillet",
         );
     }
 
