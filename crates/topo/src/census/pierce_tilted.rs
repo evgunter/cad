@@ -7,16 +7,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-// Gated to the readings it checks, as the grazing fuzzer is.
-test_utils::gated_to![
-    "crates/topo/src/census.rs",
-    "crates/topo/src/boolean/contain.rs",
-    "crates/geom-core/src/predicate.rs",
-    "crates/geom-core/src/interval.rs",
-    "crates/geom-core/src/k_stats.rs",
-    "crates/geom-brep/src/implicit.rs",
-];
-
 use super::*;
 use geom_core::{Interval, RigidMotion, Tol, UnitVec3};
 use num_bigint::BigInt;
