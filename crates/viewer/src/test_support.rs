@@ -251,11 +251,10 @@ pub fn placed_read(
 }
 
 /// The copy `placement` defines, standing where its body stands
-/// ([`pncad::document::stand`]): a plane mate on a face no variable
-/// reaches, or a revolve's or a full ring's own axis, and the constant
-/// `0` on the freedoms it leaves, so the copy follows its body's
-/// variables. A copy whose body does not evaluate stands as [`pin`]
-/// stands one.
+/// ([`pncad::document::stand`]): the identity bundle, no mate and the
+/// constant `0` on every freedom, so the copy follows its body's
+/// variables. A copy whose body does not evaluate is written the same
+/// bundle, which reads nothing of it.
 pub fn pinned(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
@@ -263,12 +262,12 @@ pub fn pinned(
     tol: Tol,
 ) -> Doc<ProfileProgram> {
     let copy = copy_of(doc, placement);
-    let (mate, values) = match pncad::document::stand(doc, &copy, opts, tol) {
-        Ok(stood) => (stood.mate, stood.values),
-        Err(editor_core::PinRefusal::Unevaluated { node }) => unread(copy, node),
-        Err(refusal) => panic!("the copy stands over its geometry: {refusal}"),
+    let placed = match pncad::document::stand(doc, &copy, opts, tol) {
+        Ok(stood) => stood,
+        Err(editor_core::PinRefusal::Unevaluated { .. }) => editor_core::Placed::identity(),
+        Err(refusal) => panic!("the copy stands: {refusal}"),
     };
-    constrained(doc, placement, mate, values, tol)
+    constrained(doc, placement, placed, tol)
 }
 
 /// **`body`'s copy placed against `target`'s own geometry at `at`**
@@ -295,10 +294,7 @@ pub fn against_in(
         Node::place(vec![pncad::document::BodyRead::plain(body)]),
         tol,
     );
-    (
-        constrained(&doc, placement, placed.mate, placed.values, tol),
-        placement,
-    )
+    (constrained(&doc, placement, placed, tol), placement)
 }
 
 /// The read of the copy `placement` defines: a `Place` through its first
@@ -316,43 +312,23 @@ fn copy_of(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> pncad::documen
     }
 }
 
-/// `mate` added to `placement`'s bundle, then each of `values` naming it.
+/// What a placing door answers, written onto `placement`
+/// ([`editor_core::Placed::write`]).
 fn constrained(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
-    mate: pncad::document::Mate<Formula>,
-    values: Vec<(pncad::document::Coord, Formula)>,
+    placed: editor_core::Placed,
     tol: Tol,
 ) -> Doc<ProfileProgram> {
-    let applied = apply(
-        doc,
-        &DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(mate),
-            fresh: Vec::new(),
-        },
-        tol,
-    )
-    .expect("the mate is admitted");
-    let [id] = applied.record.minted_constraints[..] else {
-        unreachable!("a mate mints one constraint id")
-    };
-    values.into_iter().fold(applied.doc, |doc, (coord, by)| {
-        edited(
-            &doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(pncad::document::Value {
-                    mate: id,
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            tol,
-        )
-        .0
-    })
+    let mut doc = doc.clone();
+    placed
+        .write(placement, |edit| {
+            let applied = apply(&doc, &edit, tol)?;
+            doc = applied.doc;
+            Ok::<_, EditError>(applied.record.minted_constraints)
+        })
+        .expect("the placement's constraints are admitted");
+    doc
 }
 
 /// **The copy `placement` defines, pinned to the world at `pose`**
@@ -376,26 +352,24 @@ pub fn pin(
     tol: Tol,
 ) -> Doc<ProfileProgram> {
     let copy = copy_of(doc, placement);
-    let (mate, values) = match editor_core::pin_at(doc, &copy, pose, opts, tol) {
-        Ok(mate) => (mate, Vec::new()),
+    let placed = match editor_core::pin_at(doc, &copy, pose, opts, tol) {
+        Ok(mate) => editor_core::Placed {
+            mate: Some(mate),
+            values: Vec::new(),
+            by: editor_core::PlacedBy::Pin,
+        },
         Err(editor_core::PinRefusal::Unevaluated { node }) => unread(copy, node),
         Err(refusal) => panic!("the copy pins over its geometry: {refusal}"),
     };
-    constrained(doc, placement, mate, values, tol)
+    constrained(doc, placement, placed, tol)
 }
 
 /// The mate and values that stand `copy`, whose body `node` does not
 /// evaluate, against the world: a plane mate on a face of the body by a
 /// bare name, which is never read, to the world's `xy` plane, and the
 /// three values naming it.
-fn unread(
-    copy: pncad::document::Operand,
-    node: RecipeNodeId,
-) -> (
-    pncad::document::Mate<Formula>,
-    Vec<(pncad::document::Coord, Formula)>,
-) {
-    use pncad::document::{Coord, SlideAxis, Target, WorldRead};
+fn unread(copy: pncad::document::Operand, node: RecipeNodeId) -> editor_core::Placed {
+    use pncad::document::{Coord, Target, TargetAxis, WorldRead};
     let face = StableName {
         kind: EntityKind::Face,
         node,
@@ -409,12 +383,15 @@ fn unread(
         to: Target::World(WorldRead::through(pncad::document::pose::PoseRole::Xy)),
         class: pncad::select::ContactClass::Rest,
     };
-    let zero = vec![
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
-        (Coord::Spin, ang(0.0)),
-    ];
-    (mate, zero)
+    editor_core::Placed {
+        mate: Some(mate),
+        values: vec![
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, ang(0.0)),
+        ],
+        by: editor_core::PlacedBy::PlanarFace,
+    }
 }
 
 /// The `&mut` spelling of `inserted`: insert a node in place and
@@ -509,7 +486,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::place(vec![pncad::document::BodyRead::plain(boss_read)]),
         tol,
     );
-    let doc = constrained(&doc, placement, at.mate, at.values, tol);
+    let doc = constrained(&doc, placement, at, tol);
     (doc, block, boss)
 }
 

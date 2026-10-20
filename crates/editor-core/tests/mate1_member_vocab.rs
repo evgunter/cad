@@ -85,7 +85,7 @@ pub(crate) fn against_with(
         .apply(
             &DocEdit::AddConstraint {
                 placement,
-                mate: Box::new(placed.mate),
+                mate: Box::new(placed.mate.expect("the copy is placed by a mate")),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -100,7 +100,11 @@ pub(crate) fn against_with(
                 doc,
                 DocEdit::AddValue {
                     placement,
-                    value: Box::new(editor_core::Value { mate, coord, by }),
+                    value: Box::new(editor_core::Value {
+                        mate: Some(mate),
+                        coord,
+                        by,
+                    }),
                     fresh: Vec::new(),
                 },
             )

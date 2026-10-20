@@ -12,11 +12,11 @@
 //! standoff a `Slide` on the target, and a freedom the bundle leaves is
 //! a value's (spec §1). It places and never checks.
 //!
-//! A copy standing where its body stands is placed by a plane mate on
-//! a face whose definition reads no variable, with the constant `0` on
-//! the three freedoms it leaves ([`stand`]): its own coordinates agree
-//! with its target's. A pose off the identity is pinned by a frame mate
-//! ([`pin_at`]) or placed by the gesture ([`place_at`]).
+//! A copy standing where its body stands is placed by the identity
+//! bundle ([`stand`]): no mate, and the constant `0` on every freedom,
+//! so its own coordinates are the world's. A pose off the identity is
+//! pinned by a frame mate ([`pin_at`]) or placed by the gesture
+//! ([`place_at`]).
 //!
 //! # What a mate says, geometrically
 //!
@@ -562,7 +562,7 @@ impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
 fn value_slot(constraint: crate::node::ConstraintId, coord: Coord) -> crate::SlotId {
     match coord {
         Coord::Slide(_) => crate::SlotId::ValueSlide { constraint },
-        Coord::Spin => crate::SlotId::ValueSpin { constraint },
+        Coord::Spin | Coord::SpinAbout(_) => crate::SlotId::ValueSpin { constraint },
     }
 }
 
@@ -710,60 +710,86 @@ impl<S: crate::Slot> Constraint<S> {
     }
 }
 
-/// **A value** (FORK-S3M, ruling C-2): one freedom its mate leaves —
-/// a slide or a spin, charted on the two bodies' own coordinates as
-/// the placement carries them — set to a `Length` or an `Angle`.
+/// **A value** (FORK-S3M, ruling C-2; D10 `[placement.values]`): one
+/// freedom of a placement's motion — a slide or a spin — set to a
+/// `Length` or an `Angle`.
 ///
-/// The chart is the two bodies' own frames, each swung onto its side
-/// of the mate by the shortest turn carrying its own `z` to the mated
-/// direction ([`reference_about`]): a slide is the copy's origin
-/// measured from the target's along the target's swung `x`, `y` or
-/// `z`; a spin is the angle about the mated direction from the
-/// target's swung `x` to the copy's. Each is a function of the
-/// relative pose alone, so no order of the values is chosen, and zero
-/// says the two bodies' own coordinates agree as far as the mate
-/// allows.
+/// A value naming a mate sets a freedom that mate leaves, charted on
+/// the two bodies' own frames, each swung onto its side of the mate by
+/// the shortest turn carrying its own `z` to the mated direction
+/// ([`reference_about`]): a slide is the copy's origin measured from
+/// the target's along the target's swung `x`, `y` or `z`; a spin is
+/// the angle about the mated direction from the target's swung `x` to
+/// the copy's. Each is a function of the relative pose alone, so no
+/// order of the values is chosen, and zero says the two bodies' own
+/// coordinates agree as far as the mate allows.
+///
+/// A value naming no mate is charted on the target space's own axes:
+/// a slide is the copy's origin measured from the target's along its
+/// `x`, `y` or `z`, and a spin ([`Coord::SpinAbout`]) is one link of a
+/// chain of turns about its axes, taken in the order the bundle lists
+/// them. A bundle with no mate states the copy's whole motion this way.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, bound = "")]
 pub struct Value<S: crate::Slot = crate::VarId> {
-    /// The mate whose freedom it sets, by its id in the same bundle.
-    pub mate: crate::node::ConstraintId,
+    /// The mate whose freedom it sets, by its id in the same bundle;
+    /// `None` for a freedom of the target space's own axes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mate: Option<crate::node::ConstraintId>,
     /// Which freedom.
     pub coord: Coord,
     /// The number: a `Length` for a slide, an `Angle` for a spin.
     pub by: S,
 }
 
-/// **Which freedom of its mate a value sets.**
+/// **Which freedom a value sets.**
 ///
 /// The freedoms each kind of mate leaves: a plane mate slides along
 /// `x` and `y` and spins; an axis mate slides along `z` (its axis) and
 /// spins; a direction mate slides along all three and spins (its
 /// residual, `Parallel`); a point mate's rotation has no chart, and a
-/// frame mate leaves nothing.
+/// frame mate leaves nothing. With no mate, a value slides along the
+/// target space's `x`, `y` or `z`, or spins about one of them.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum Coord {
-    /// A slide along the target's swung axis.
-    Slide(SlideAxis),
+    /// A slide along the target's (swung) axis.
+    Slide(TargetAxis),
     /// A spin about the mated direction.
     Spin,
+    /// A spin about the target space's own axis: one link of a written
+    /// chain of turns, where no mate fixes a direction.
+    SpinAbout(TargetAxis),
 }
 
-/// **The axis of the target's swung frame a slide runs along.**
+/// **An axis of the target's frame**: the target space's own where no
+/// mate fixes a direction, its frame swung onto the mated direction
+/// where one does.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(rename_all = "lowercase")]
-pub enum SlideAxis {
-    /// The swung `x`.
+pub enum TargetAxis {
+    /// The (swung) `x`.
     X,
-    /// The swung `y`.
+    /// The (swung) `y`.
     Y,
-    /// The swung `z`: the mated direction.
+    /// The (swung) `z`: the mated direction, where a mate fixes one.
     Z,
+}
+
+impl TargetAxis {
+    /// The axis as a unit direction of its frame.
+    #[must_use]
+    pub fn unit<T: geom_core::Real>(self) -> geom_core::UnitVec3<T> {
+        match self {
+            Self::X => geom_core::UnitVec3::exact_x(),
+            Self::Y => geom_core::UnitVec3::exact_y(),
+            Self::Z => geom_core::UnitVec3::exact_z(),
+        }
+    }
 }
 
 impl Coord {
@@ -772,7 +798,7 @@ impl Coord {
     pub fn dimension(self) -> crate::expr::Dimension {
         match self {
             Self::Slide(_) => crate::expr::Dimension::Length,
-            Self::Spin => crate::expr::Dimension::Angle,
+            Self::Spin | Self::SpinAbout(_) => crate::expr::Dimension::Angle,
         }
     }
 
@@ -780,10 +806,13 @@ impl Coord {
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {
-            Self::Slide(SlideAxis::X) => "slide along x",
-            Self::Slide(SlideAxis::Y) => "slide along y",
-            Self::Slide(SlideAxis::Z) => "slide along z",
+            Self::Slide(TargetAxis::X) => "slide along x",
+            Self::Slide(TargetAxis::Y) => "slide along y",
+            Self::Slide(TargetAxis::Z) => "slide along z",
             Self::Spin => "spin",
+            Self::SpinAbout(TargetAxis::X) => "spin about x",
+            Self::SpinAbout(TargetAxis::Y) => "spin about y",
+            Self::SpinAbout(TargetAxis::Z) => "spin about z",
         }
     }
 
@@ -797,12 +826,20 @@ impl Coord {
     pub fn admitted_by(self, kind: crate::VarKind) -> Result<(), FreedomRefusal> {
         use crate::VarKind as K;
         match (kind, self) {
-            (K::Plane, Self::Slide(SlideAxis::X | SlideAxis::Y) | Self::Spin)
-            | (K::Axis, Self::Slide(SlideAxis::Z) | Self::Spin)
-            | (K::Direction, _) => Ok(()),
-            (K::Point, Self::Spin) => Err(FreedomRefusal::NoChart),
+            (K::Plane, Self::Slide(TargetAxis::X | TargetAxis::Y) | Self::Spin)
+            | (K::Axis, Self::Slide(TargetAxis::Z) | Self::Spin)
+            | (K::Direction, Self::Slide(_) | Self::Spin) => Ok(()),
+            (K::Point, Self::Spin | Self::SpinAbout(_)) => Err(FreedomRefusal::NoChart),
             _ => Err(FreedomRefusal::NotAFreedom),
         }
+    }
+
+    /// Whether this freedom is one of the target space's own axes, which
+    /// a value naming no mate sets: a slide along one, or a spin about
+    /// one.
+    #[must_use]
+    pub fn on_own_axes(self) -> bool {
+        matches!(self, Self::Slide(_) | Self::SpinAbout(_))
     }
 }
 
@@ -812,6 +849,14 @@ pub enum NoChartWhy {
     /// A point mate's rotation: three freedoms with no direction to
     /// measure one about. A direction mate lowers it first.
     PointRotation,
+    /// A spin about the mated direction on a value naming no mate:
+    /// there is no mated direction to turn about. A value naming no
+    /// mate spins about the target space's `x`, `y` or `z`.
+    NoMatedDirection,
+    /// A value naming no mate, in a bundle holding a mate: the target
+    /// space's own axes chart a bundle with no mate, whose values state
+    /// the whole motion.
+    BesideAMate,
     /// The mate's `to` reads two bodies: each has its own frame, and
     /// the chart is the one body's.
     TwoBodies,
@@ -892,6 +937,12 @@ pub fn reference_about<T: SolveScalar>(
 pub const OVERCONSTRAINED_RECOURSE: &str = "delete one of the named constraints, and write what \
      it held that the rest leave as a value (an axis mate with a spin is a prismatic joint); where \
      the two copies also meet, an assertion says so";
+
+/// **The recourse a [`MateFault::Unpinned`] ends on**: what an author
+/// writes for a bundle with no mate.
+pub const UNPINNED_RECOURSE: &str = "write every freedom as a value: a slide along each of the \
+     target's x, y and z, and a chain of three spins about its axes, no two in a row about one \
+     axis, the constant 0 where the two spaces agree; or mate the copy";
 
 /// **The v1 class restriction, named.** `Fit` is specified and not
 /// built; a mate cannot declare a designed clearance until the kernel
@@ -1130,6 +1181,17 @@ pub enum MateFault {
         /// How many of the copy's six freedoms the whole bundle leaves.
         free: u8,
     },
+    /// **A bundle with no mate leaves a freedom unwritten** (D10
+    /// `[placement.values]`): with no mate its values state the copy's
+    /// whole motion, so each of the six freedoms is written — a slide
+    /// along each of the target space's axes and a chain of three spins
+    /// about them — or the bundle pins nothing it can name.
+    Unpinned {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// How many of the copy's six freedoms the bundle leaves.
+        free: u8,
+    },
     /// **A bundle relates its copy to two spaces**: its mates' targets
     /// read geometry of two different spaces, or one the world and one
     /// a space that does not reach it. A copy joins one space, so its
@@ -1248,6 +1310,7 @@ impl MateFault {
             Self::PosesOfAnotherDocument { .. }
             | Self::ClassNotAdmitted { .. }
             | Self::Overconstrained { .. }
+            | Self::Unpinned { .. }
             | Self::TargetsDiffer { .. }
             | Self::NotOnTheCopy { .. }
             | Self::Unleverable { .. }
@@ -1283,10 +1346,6 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
     (
         "mate_axis_point_offset",
         "whether a mate's point lies on its axis",
-    ),
-    (
-        "solve_copy_at_identity",
-        "whether a solved copy stands where its body does",
     ),
     // The decided door's rigidity margins (`geom_core::RigidMotion::
     // check_rigid`), asked of a solved placement's map and of a
@@ -1385,6 +1444,18 @@ impl crate::spoken::Say for MateFault {
                     ids(*placement, constraints),
                 )
             }
+            Self::Unpinned { placement, free } => {
+                let left = match free {
+                    1 => "one freedom".to_string(),
+                    n => format!("{n} freedoms"),
+                };
+                write!(
+                    f,
+                    "{}'s bundle has no mate, so its values state the copy's whole motion, and \
+                     it leaves {left} unwritten. Recourse: {UNPINNED_RECOURSE}",
+                    by.node(*placement),
+                )
+            }
             Self::TargetsDiffer {
                 placement,
                 constraints,
@@ -1440,6 +1511,26 @@ impl crate::spoken::Say for MateFault {
                 f,
                 "{} sets a point mate's rotation, which has no chart: no direction to measure \
                  a spin about. Recourse: add a direction mate and set its spin",
+                mate_(*value)
+            ),
+            Self::NoChart {
+                value,
+                why: NoChartWhy::NoMatedDirection,
+            } => write!(
+                f,
+                "{} spins about a mated direction and names no mate, so there is no direction \
+                 to turn about. Recourse: spin about the target's x, y or z, or name the mate \
+                 whose direction it turns about",
+                mate_(*value)
+            ),
+            Self::NoChart {
+                value,
+                why: NoChartWhy::BesideAMate,
+            } => write!(
+                f,
+                "{} names no mate, and its bundle holds one: the target space's own axes chart \
+                 a bundle with no mate. Recourse: name a mate of the bundle whose freedom it \
+                 sets",
                 mate_(*value)
             ),
             Self::NoChart {

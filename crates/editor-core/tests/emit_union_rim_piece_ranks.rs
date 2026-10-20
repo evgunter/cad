@@ -323,7 +323,7 @@ pub(crate) fn runs_in(
             let slot = crate::fixture::value_slot(
                 &doc,
                 tr,
-                editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                editor_core::Coord::Slide(editor_core::TargetAxis::X),
             );
             (doc, Some((tr, slot, dx)))
         }

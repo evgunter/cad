@@ -285,14 +285,18 @@ impl Mate {
     }
 }
 
-/// **Which freedom of its mate a value sets**: `Coord.slide("x")`,
-/// `"y"` or `"z"` — a slide along the chart's axis, `z` the mated
-/// direction — or `Coord.spin()`, the turn about the mated direction.
+/// **Which freedom a value sets**: `Coord.slide("x")`, `"y"` or
+/// `"z"` — a slide along the chart's axis, `z` the mated direction —
+/// `Coord.spin()`, the turn about the mated direction, or
+/// `Coord.spin_about("x")`, `"y"` or `"z"`, a turn about the target
+/// space's own axis.
 ///
 /// A plane mate leaves the slides along `x` and `y` and the spin; an
 /// axis mate the slide along `z` (its axis) and the spin; a direction
-/// mate all four; a point mate's rotation has no chart; a frame mate
-/// leaves nothing.
+/// mate the three slides and the spin; a point mate's rotation has no
+/// chart; a frame mate leaves nothing. A value naming no mate slides
+/// along the target space's own axes and spins about them, a chain of
+/// spins in the order written.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct Coord(pub(crate) d::Coord);
@@ -302,16 +306,7 @@ impl Coord {
     /// The slide along the chart's `axis`: `"x"`, `"y"` or `"z"`.
     #[staticmethod]
     fn slide(axis: &str) -> PyResult<Self> {
-        Ok(Self(d::Coord::Slide(match axis {
-            "x" => d::SlideAxis::X,
-            "y" => d::SlideAxis::Y,
-            "z" => d::SlideAxis::Z,
-            other => {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "not a slide axis: {other:?} — one of \"x\", \"y\" or \"z\""
-                )));
-            }
-        })))
+        Ok(Self(d::Coord::Slide(target_axis(axis)?)))
     }
 
     /// The spin about the mated direction.
@@ -320,7 +315,15 @@ impl Coord {
         Self(d::Coord::Spin)
     }
 
-    /// The stable word: `slide_x`, `slide_y`, `slide_z` or `spin`.
+    /// The spin about the target space's own `axis`: `"x"`, `"y"` or
+    /// `"z"`, one link of a value chain naming no mate.
+    #[staticmethod]
+    fn spin_about(axis: &str) -> PyResult<Self> {
+        Ok(Self(d::Coord::SpinAbout(target_axis(axis)?)))
+    }
+
+    /// The stable word: `slide_x`, `slide_y`, `slide_z`, `spin`,
+    /// `spin_about_x`, `spin_about_y` or `spin_about_z`.
     #[getter]
     fn variant(&self) -> &'static str {
         coord_tag(self.0)
@@ -339,17 +342,33 @@ impl Coord {
 
     fn __repr__(&self) -> String {
         match self.0 {
-            d::Coord::Slide(d::SlideAxis::X) => "Coord.slide(\"x\")".to_owned(),
-            d::Coord::Slide(d::SlideAxis::Y) => "Coord.slide(\"y\")".to_owned(),
-            d::Coord::Slide(d::SlideAxis::Z) => "Coord.slide(\"z\")".to_owned(),
+            d::Coord::Slide(d::TargetAxis::X) => "Coord.slide(\"x\")".to_owned(),
+            d::Coord::Slide(d::TargetAxis::Y) => "Coord.slide(\"y\")".to_owned(),
+            d::Coord::Slide(d::TargetAxis::Z) => "Coord.slide(\"z\")".to_owned(),
             d::Coord::Spin => "Coord.spin()".to_owned(),
+            d::Coord::SpinAbout(d::TargetAxis::X) => "Coord.spin_about(\"x\")".to_owned(),
+            d::Coord::SpinAbout(d::TargetAxis::Y) => "Coord.spin_about(\"y\")".to_owned(),
+            d::Coord::SpinAbout(d::TargetAxis::Z) => "Coord.spin_about(\"z\")".to_owned(),
         }
     }
 }
 
-/// **A mate's value**: one freedom a mate of the same bundle leaves, set to a
-/// number — a `Length` for a slide, an `Angle` for a spin (a lone `0`
-/// is the constant zero).
+/// An axis of the target's frame by its word: `"x"`, `"y"` or `"z"`.
+fn target_axis(axis: &str) -> PyResult<d::TargetAxis> {
+    match axis {
+        "x" => Ok(d::TargetAxis::X),
+        "y" => Ok(d::TargetAxis::Y),
+        "z" => Ok(d::TargetAxis::Z),
+        other => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "not an axis: {other:?} — one of \"x\", \"y\" or \"z\""
+        ))),
+    }
+}
+
+/// **A value**: one freedom a mate of the same bundle leaves, or one of
+/// the target space's own where it names no mate, set to a number — a
+/// `Length` for a slide, an `Angle` for a spin (a lone `0` is the
+/// constant zero).
 ///
 /// It is charted on the two bodies' own frames, each swung onto the
 /// mated direction by the shortest turn: a slide is the copy's origin
@@ -359,10 +378,14 @@ impl Coord {
 /// the mate allows.
 ///
 /// `mate` names the mate by its id (a `MateRef`'s `constraint`, or the
-/// `MateRef` itself). `Doc.add_value` adds one; the door refuses an id
-/// that is no mate of the bundle (`mate_value_names_no_mate`), a
-/// freedom the mate's kind does not leave (`mate_not_a_freedom`) and a
-/// point mate's rotation (`mate_no_chart`).
+/// `MateRef` itself), or is `None`: the target space's own axes, which
+/// chart a bundle with no mate, whose values state the copy's whole
+/// motion and are written whole (`Doc.add_values`). `Doc.add_value` adds
+/// one; the door refuses an id that is no mate of the bundle
+/// (`mate_value_names_no_mate`), a freedom the mate's kind does not
+/// leave (`mate_not_a_freedom`), a point mate's rotation and a value
+/// naming no mate beside a mate (`mate_no_chart`), and a bundle with no
+/// mate that leaves a freedom unwritten (`mate_unpinned`).
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct MateValue(pub(crate) d::Value<d::Formula>);
@@ -390,7 +413,7 @@ impl MateValue {
     /// freedom's dimension.
     pub(crate) fn of(
         py: Python<'_>,
-        mate: d::ConstraintId,
+        mate: Option<d::ConstraintId>,
         coord: d::Coord,
         by: &super::expr::SlotArg,
     ) -> PyResult<Self> {
@@ -404,17 +427,18 @@ impl MateValue {
     #[new]
     fn new(
         py: Python<'_>,
-        mate: MateIdArg,
+        mate: Option<MateIdArg>,
         coord: &Coord,
         by: super::expr::SlotArg,
     ) -> PyResult<Self> {
-        Self::of(py, mate.id(), coord.0, &by)
+        Self::of(py, mate.map(|m| m.id()), coord.0, &by)
     }
 
-    /// The id of the mate whose freedom it sets.
+    /// The id of the mate whose freedom it sets, `None` for the target
+    /// space's own axes.
     #[getter]
-    fn mate(&self) -> ConstraintId {
-        ConstraintId(self.0.mate)
+    fn mate(&self) -> Option<ConstraintId> {
+        self.0.mate.map(ConstraintId)
     }
 
     /// Which freedom.
@@ -435,18 +459,23 @@ impl MateValue {
     }
 
     fn __repr__(&self) -> String {
+        let mate = self
+            .0
+            .mate
+            .map_or_else(|| "None".to_owned(), |mate| mate.to_string());
         format!(
-            "MateValue({}, {}, {})",
-            self.0.mate,
+            "MateValue({mate}, {}, {})",
             Coord(self.0.coord).__repr__(),
             self.0.by
         )
     }
 }
 
-/// **What the "place part" gesture wrote** (`Doc.place_at`): the
-/// placement, its mate and its values, and how the copy was placed —
-/// `by == "planar_face"`, a plane mate on a planar face of the copy to
+/// **What a placement gesture wrote** (`Doc.place_at`, `Doc.place`):
+/// the placement, its mate and its values, and how the copy was placed
+/// — `by == "identity"`, the identity bundle, no mate and the constant
+/// `0` on every freedom; `by == "planar_face"`, a plane mate on a
+/// planar face of the copy to
 /// the plane it lies in at the pose, and the three values (slides
 /// along `x` and `y`, and the spin) that put it there; `by == "axis"`,
 /// an axis mate on a full revolve's or ring's own axis and its two
@@ -456,7 +485,7 @@ impl MateValue {
 #[derive(Clone)]
 pub(crate) struct Placed {
     pub(crate) placement: NodeId,
-    pub(crate) mate: MateRef,
+    pub(crate) mate: Option<MateRef>,
     pub(crate) values: Vec<MateRef>,
     pub(crate) by: d::PlacedBy,
 }
@@ -469,20 +498,21 @@ impl Placed {
         self.placement
     }
 
-    /// The mate's address.
+    /// The mate's address, `None` for the identity bundle.
     #[getter]
-    fn mate(&self) -> MateRef {
+    fn mate(&self) -> Option<MateRef> {
         self.mate
     }
 
-    /// The values' addresses: slide `x`, slide `y`, spin for a planar
-    /// face; the axis mate's two for an axis; empty for a pin.
+    /// The values' addresses: the three slides and three spins of the
+    /// identity bundle; slide `x`, slide `y`, spin for a planar face;
+    /// the axis mate's two for an axis; empty for a pin.
     #[getter]
     fn values(&self) -> Vec<MateRef> {
         self.values.clone()
     }
 
-    /// `"planar_face"`, `"axis"` or `"pin"`.
+    /// `"identity"`, `"planar_face"`, `"axis"` or `"pin"`.
     #[getter]
     fn by(&self) -> &'static str {
         placed_by_tag(self.by)

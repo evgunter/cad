@@ -29,7 +29,7 @@ use geom_core::predicate::Band;
 
 use super::coset::{Arm, Coset, Subgroup, after_turn};
 use super::solve::SolveScalar;
-use super::{Coord, MateFault, MateRef, SlideAxis};
+use super::{Coord, MateFault, MateRef, TargetAxis};
 use crate::NodeErrorKind;
 use crate::node::ConstraintId;
 use crate::pose::PoseValue;
@@ -203,20 +203,20 @@ impl<T: SolveScalar> Chart<T> {
 
     /// The axis a slide runs along, in the target body's own
     /// coordinates.
-    fn own_axis(&self, along: SlideAxis) -> Vec3<T> {
+    fn own_axis(&self, along: TargetAxis) -> Vec3<T> {
         match along {
-            SlideAxis::X => self.own_x,
-            SlideAxis::Y => self.own_d.get().cross(self.own_x),
-            SlideAxis::Z => self.own_d.get(),
+            TargetAxis::X => self.own_x,
+            TargetAxis::Y => self.own_d.get().cross(self.own_x),
+            TargetAxis::Z => self.own_d.get(),
         }
     }
 
     /// The axis a slide runs along.
-    fn axis(&self, along: SlideAxis) -> Vec3<T> {
+    fn axis(&self, along: TargetAxis) -> Vec3<T> {
         match along {
-            SlideAxis::X => self.x,
-            SlideAxis::Y => self.y,
-            SlideAxis::Z => self.d.get(),
+            TargetAxis::X => self.x,
+            TargetAxis::Y => self.y,
+            TargetAxis::Z => self.d.get(),
         }
     }
 
@@ -227,7 +227,7 @@ impl<T: SolveScalar> Chart<T> {
     }
 
     /// **The value a slide along `along` takes at relative pose `m`**.
-    pub(crate) fn slide_at(&self, m: &Affine3<T>, along: SlideAxis) -> T {
+    pub(crate) fn slide_at(&self, m: &Affine3<T>, along: TargetAxis) -> T {
         self.slide(m, self.axis(along))
     }
 
@@ -244,8 +244,8 @@ impl<T: SolveScalar> Chart<T> {
 pub(crate) struct ReadValue<T> {
     /// The value's address.
     pub(crate) value: MateRef,
-    /// The mate it names.
-    pub(crate) mate: ConstraintId,
+    /// The mate it names, `None` for the target space's own axes.
+    pub(crate) mate: Option<ConstraintId>,
     /// Its freedom.
     pub(crate) coord: Coord,
     /// Its number.
@@ -256,38 +256,74 @@ pub(crate) struct ReadValue<T> {
 /// lane's one spin and its slides, [`settle`]): `head`, a motion, then
 /// the constant turn `onto` carrying the copy's chart frame onto the
 /// target's, held as a map until a placement asks for it as a motion
-/// ([`Self::motion`]), so the decision of its rigidity is made where the
-/// value lane decides its placed map's, and only there.
+/// ([`Self::motion`]), so its rigidity is decided by the one door the
+/// value lane asks of its placed map ([`super::solve::admitted`]), and
+/// only there.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Composed<T: geom_core::Real> {
     /// The target body's frame, the shift and the spin.
     head: RigidMotion<T>,
     /// The constant turn.
     onto: Affine3<T>,
-    /// The constant turn held with the identity, where the lane holds
-    /// both ([`super::solve::SolveScalar::with_rest`]).
-    at_rest: Option<Affine3<T>>,
 }
 
 impl<T: SolveScalar> Composed<T> {
-    /// The map with `onto` as its constant turn.
-    fn map(&self, onto: &Affine3<T>) -> Affine3<T> {
-        self.head.to_affine() * *onto
+    /// The map the composition places by.
+    fn map(&self) -> Affine3<T> {
+        self.head.to_affine() * self.onto
     }
 
-    /// The map with its constant turn held with the identity, where the
-    /// lane holds both.
-    pub(crate) fn at_rest(&self) -> Option<Affine3<T>> {
-        self.at_rest.map(|k| self.map(&k))
+    /// **The placed map as a motion**: the constant turn admitted by
+    /// the door every placed map passes ([`super::solve::admitted`]),
+    /// then composed after the head.
+    ///
+    /// # Errors
+    ///
+    /// The door's refusal, or a composed origin that overflows.
+    pub(crate) fn motion(&self, band: Band) -> Result<RigidMotion<T>, NodeErrorKind> {
+        let onto = super::solve::admitted(&self.onto, band)?;
+        self.head.compose(onto).map_err(NodeErrorKind::Motion)
     }
+}
 
-    /// **The placed map as a motion**: the constant turn (`at_rest`'s
-    /// where `rest`) admitted by the decided door, then composed after
-    /// the head. `None` where the door does not admit it.
-    pub(crate) fn motion(&self, rest: bool, band: Band) -> Option<RigidMotion<T>> {
-        let onto = if rest { self.at_rest? } else { self.onto };
-        let onto = RigidMotion::check_rigid(&onto, band).ok()?;
-        self.head.compose(onto).ok()
+/// **A bundle with no mate placed by its values** (D10
+/// `[placement.values]`): the chain of spins about the target space's
+/// own axes, each turning the copy about its own origin, in the order
+/// the bundle lists them, then the slides along those axes, which set
+/// the copy's origin. Composed as motions, so nothing is decided. The
+/// bundle rule has admitted the values as the six freedoms, each once.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Motion`]: an angle or a translation that is no
+/// bounded number.
+pub(crate) fn unmated_motion<T: SolveScalar>(
+    values: &[ReadValue<T>],
+) -> Result<RigidMotion<T>, NodeErrorKind> {
+    let mut turned: Option<RigidMotion<T>> = None;
+    let mut shift = Vec3::zero();
+    for v in values {
+        match v.coord {
+            Coord::SpinAbout(axis) => {
+                let spin =
+                    RigidMotion::rotation(axis.unit(), v.by).map_err(NodeErrorKind::Motion)?;
+                turned = Some(match turned {
+                    Some(inner) => spin.compose(inner).map_err(NodeErrorKind::Motion)?,
+                    None => spin,
+                });
+            }
+            Coord::Slide(TargetAxis::X) => shift.x = v.by,
+            Coord::Slide(TargetAxis::Y) => shift.y = v.by,
+            Coord::Slide(TargetAxis::Z) => shift.z = v.by,
+            Coord::Spin => {
+                unreachable!("the bundle rule admits no spin about a mated direction here")
+            }
+        }
+    }
+    let slid = RigidMotion::translation(shift).map_err(NodeErrorKind::Motion)?;
+    match turned {
+        Some(turned) => slid.compose(turned).map_err(NodeErrorKind::Motion),
+        None => Ok(slid),
     }
 }
 
@@ -321,7 +357,7 @@ pub(crate) fn settle<T: SolveScalar>(
 ) -> Result<(Affine3<T>, Option<Composed<T>>), NodeErrorKind> {
     let mut m = coset.representative;
     let mut left = coset.subgroup;
-    let chart = |v: &ReadValue<T>| match charts.get(&v.mate) {
+    let chart = |v: &ReadValue<T>| match v.mate.and_then(|mate| charts.get(&mate)) {
         Some(Some(chart)) => Ok(*chart),
         _ => Err(NodeErrorKind::Mate(Box::new(MateFault::NoChart {
             value: v.value,
@@ -333,15 +369,22 @@ pub(crate) fn settle<T: SolveScalar>(
     let mut ordered: Vec<&ReadValue<T>> = values.iter().collect();
     ordered.sort_by_key(|v| {
         let rank = match v.coord {
-            Coord::Spin => 0,
-            Coord::Slide(SlideAxis::X) => 1,
-            Coord::Slide(SlideAxis::Y) => 2,
-            Coord::Slide(SlideAxis::Z) => 3,
+            Coord::Spin | Coord::SpinAbout(_) => 0,
+            Coord::Slide(TargetAxis::X) => 1,
+            Coord::Slide(TargetAxis::Y) => 2,
+            Coord::Slide(TargetAxis::Z) => 3,
         };
         (rank, v.mate, v.value.id)
     });
-    let (spins, slides): (Vec<_>, Vec<_>) =
-        ordered.into_iter().partition(|v| v.coord == Coord::Spin);
+    let (spins, slides): (Vec<_>, Vec<_>) = ordered
+        .into_iter()
+        .partition(|v| matches!(v.coord, Coord::Spin | Coord::SpinAbout(_)));
+    // A mate's kind leaves no spin about the target's own axes
+    // (`Coord::admitted_by`), held loud: the chart turns about `d`.
+    assert!(
+        spins.iter().all(|v: &&ReadValue<T>| v.coord == Coord::Spin),
+        "a mate's chart is spun about its mated direction alone"
+    );
     // The premise each slide's move rests on, held loud: a rule that came
     // to admit slides on two mates would otherwise place the copy off a
     // mate it holds, saying nothing.
@@ -390,26 +433,22 @@ pub(crate) fn settle<T: SolveScalar>(
         let chart = chart(spin)?;
         let own = chart.frame.to_affine();
         let rel = own.linear.transpose() * (m.translation - own.translation);
-        let along = |a: SlideAxis| {
+        let along = |a: TargetAxis| {
             slides
                 .iter()
                 .rev()
                 .find(|v| v.coord == Coord::Slide(a))
                 .map_or_else(|| rel.dot(chart.own_axis(a)), |v| v.by)
         };
-        let shift = [SlideAxis::X, SlideAxis::Y, SlideAxis::Z]
+        let shift = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
             .into_iter()
             .fold(Vec3::zero(), |t, a| t + chart.own_axis(a) * along(a));
         if let Some(head) = chart.head_at(spin.by, shift) {
-            let onto = chart.onto();
-            // At rest the map is `onto` alone, so a box holding the rest
-            // holds `onto` with the identity.
             let composed = Composed {
                 head,
-                onto,
-                at_rest: T::with_rest(&onto),
+                onto: chart.onto(),
             };
-            return Ok((composed.map(&onto), Some(composed)));
+            return Ok((composed.map(), Some(composed)));
         }
     }
     // On a frame lane the translation is set from the chart's frame,
@@ -421,14 +460,14 @@ pub(crate) fn settle<T: SolveScalar>(
         && chart(first)?.on_axes()
     {
         let chart = chart(first)?;
-        let along = |a: SlideAxis| {
+        let along = |a: TargetAxis| {
             slides
                 .iter()
                 .rev()
                 .find(|v| v.coord == Coord::Slide(a))
                 .map_or_else(|| chart.slide(&m, chart.axis(a)), |v| v.by)
         };
-        let shift = [SlideAxis::X, SlideAxis::Y, SlideAxis::Z]
+        let shift = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
             .into_iter()
             .fold(chart.origin - Point3::origin(), |t, a| {
                 t + chart.axis(a) * along(a)

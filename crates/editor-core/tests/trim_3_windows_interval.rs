@@ -111,7 +111,7 @@ fn translated(
     d: [Formula; 3],
 ) -> RecipeNodeId {
     use editor_core::pose::PoseDef;
-    use editor_core::{Coord, Operand, SlideAxis};
+    use editor_core::{Coord, Operand, TargetAxis};
     let [dx, dy, dz] = d;
     let body = Operand::Node(input);
     let at = editor_core::Frame::translation([0.0, 0.0, SENTINEL]);
@@ -170,7 +170,7 @@ fn translated(
             _ => {}
         }
     }
-    let mut mate = placed.mate;
+    let mut mate = placed.mate.expect("the gesture writes a mate");
     walk(&mut mate.on, &mut respell);
     match &mut mate.to {
         editor_core::Target::Pose(to) => walk(to, &mut respell),
@@ -181,8 +181,8 @@ fn translated(
         .values
         .into_iter()
         .map(|(coord, by)| match coord {
-            Coord::Slide(SlideAxis::X) => (coord, dx.clone()),
-            Coord::Slide(SlideAxis::Y) => (coord, dy.clone()),
+            Coord::Slide(TargetAxis::X) => (coord, dx.clone()),
+            Coord::Slide(TargetAxis::Y) => (coord, dy.clone()),
             _ => (coord, by),
         })
         .collect();

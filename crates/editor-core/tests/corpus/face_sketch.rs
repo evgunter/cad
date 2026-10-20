@@ -18,8 +18,8 @@
 
 use super::PlacePart;
 use editor_core::{
-    CapEnd, ContactClass, Coord, Dimension, DocEdit, Formula, Mate, Node, Operand, RoleSeg,
-    SlideAxis, SlotId, Target,
+    CapEnd, ContactClass, Coord, Dimension, DocEdit, Formula, Mate, Node, Operand, RoleSeg, SlotId,
+    Target, TargetAxis,
 };
 
 use crate::fixture::{ang, desc, fname, len, plane};
@@ -86,8 +86,14 @@ pub fn document() -> CorpusDoc {
             class: ContactClass::Rest,
         },
         vec![
-            (Coord::Slide(SlideAxis::X), Formula::zero(Dimension::Length)),
-            (Coord::Slide(SlideAxis::Y), Formula::zero(Dimension::Length)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
             (Coord::Spin, ang(SPIN)),
         ],
     );

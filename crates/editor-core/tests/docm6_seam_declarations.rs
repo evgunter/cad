@@ -34,7 +34,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     Assembly, AssemblyError, Attribution, CapEnd, CarriedRefusal, ContactClass, Coord, DocEdit,
     DocRef, DocumentId, EntityKey, EntityKind, Entry, Frame, Mate, MateRef, Node, Operand,
-    ProfileDoc, RecipeNodeId, Relation, RoleSeg, SlideAxis, StableName, Value, assemble,
+    ProfileDoc, RecipeNodeId, Relation, RoleSeg, StableName, TargetAxis, Value, assemble,
     product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -118,8 +118,8 @@ fn seat(on: StableName, to: StableName, class: ContactClass, standoff: f64) -> M
 fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, MateRef) {
     let (doc, mate) = fixture::constrain(doc, mate);
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(shift)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(shift)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, fixture::ang(0.0)),
     ]
     .into_iter()
@@ -129,7 +129,7 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, Mate
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -188,18 +188,7 @@ fn nominally_pinned_instance(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, Reci
 /// the store resolving its part. The values go first, since a value
 /// names its mate.
 fn place(doc: ProfileDoc, store: &PartStore, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {
-    let mut bundle = fixture::bundle(&doc, node);
-    bundle.sort_by_key(|c| c.mate().is_some());
-    let doc = bundle.into_iter().fold(doc, |doc, c| {
-        step(
-            doc,
-            DocEdit::RemoveConstraint {
-                placement: node,
-                constraint: c.id,
-            },
-        )
-        .0
-    });
+    let doc = fixture::emptied(doc, node);
     fixture::pin(
         doc,
         node,

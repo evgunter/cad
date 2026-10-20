@@ -3354,10 +3354,6 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         self.lo() == 0.0 && self.hi() == 0.0
     }
 
-    fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
-        false
-    }
-
     /// Across the negative `x` axis the principal branch's cut widens
     /// the enclosure to the whole circle, so there the angle is read on
     /// the branch about `π`: the solve reads an angle only through its
@@ -3369,53 +3365,6 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         } else {
             y.atan2(x)
         }
-    }
-
-    fn carries_no_variation(_map: &geom_core::Affine3<Self>) -> bool {
-        true
-    }
-
-    fn identity_varying_as(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        None
-    }
-
-    fn holds_rest(map: &geom_core::Affine3<Self>) -> bool {
-        use geom_core::Bounds;
-        use geom_core::linalg::Vec3;
-        let holds = |v: Vec3<Self>, w: [f64; 3]| {
-            [(v.x, w[0]), (v.y, w[1]), (v.z, w[2])]
-                .iter()
-                .all(|&(e, at)| e.lo() <= at && at <= e.hi())
-        };
-        let q = map.linear;
-        holds(q.c0, [1.0, 0.0, 0.0])
-            && holds(q.c1, [0.0, 1.0, 0.0])
-            && holds(q.c2, [0.0, 0.0, 1.0])
-            && holds(map.translation, [0.0; 3])
-    }
-
-    /// Each entry's hull with the identity's: the enclosure of every map
-    /// the box spans, at rest or not.
-    fn with_rest(map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        use geom_core::SpanLocate;
-        use geom_core::linalg::Vec3;
-        let (one, zero) = (
-            <Self as geom_core::Real>::one(),
-            <Self as geom_core::Real>::zero(),
-        );
-        let hull = |v: Vec3<Self>, w: Vec3<Self>| {
-            Vec3::new(
-                v.x.enclosure_hull(w.x),
-                v.y.enclosure_hull(w.y),
-                v.z.enclosure_hull(w.z),
-            )
-        };
-        let mut out = *map;
-        out.linear.c0 = hull(map.linear.c0, Vec3::new(one, zero, zero));
-        out.linear.c1 = hull(map.linear.c1, Vec3::new(zero, one, zero));
-        out.linear.c2 = hull(map.linear.c2, Vec3::new(zero, zero, one));
-        out.translation = hull(map.translation, Vec3::new(zero, zero, zero));
-        Some(out)
     }
 }
 
@@ -3444,10 +3393,6 @@ where
         self.value.exactly_zero()
     }
 
-    fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
-        false
-    }
-
     fn solve_atan2(y: Self, x: Self) -> Self {
         let angle = geom_core::Real::atan2(y, x);
         Self {
@@ -3455,77 +3400,6 @@ where
             deriv: angle.deriv,
         }
     }
-
-    /// Every entry's tangent is exactly zero: a pose the seed's
-    /// parameter moves keeps its derivative.
-    fn carries_no_variation(map: &geom_core::Affine3<Self>) -> bool {
-        let q = map.linear;
-        let t = map.translation;
-        [q.c0, q.c1, q.c2, t].iter().all(|v| {
-            [v.x, v.y, v.z]
-                .iter()
-                .all(|e| e.deriv.quoted() == 0.0 && e.deriv.upper() == 0.0)
-        })
-    }
-
-    /// The value channel the identity's, every tangent `map`'s.
-    fn identity_varying_as(map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        use geom_core::linalg::Vec3;
-        let entry = |at: Self, one: bool| Self {
-            value: if one { T::one() } else { T::zero() },
-            deriv: at.deriv,
-        };
-        let column = |c: Vec3<Self>, i: usize| {
-            Vec3::new(entry(c.x, i == 0), entry(c.y, i == 1), entry(c.z, i == 2))
-        };
-        let q = map.linear;
-        let t = map.translation;
-        let mut out = *map;
-        out.linear.c0 = column(q.c0, 0);
-        out.linear.c1 = column(q.c1, 1);
-        out.linear.c2 = column(q.c2, 2);
-        out.translation = column(t, 3);
-        Some(out)
-    }
-
-    fn holds_rest(map: &geom_core::Affine3<Self>) -> bool {
-        T::holds_rest(&dual_values(map))
-    }
-
-    /// The value channel's hull with the identity, each tangent `map`'s.
-    fn with_rest(map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        use geom_core::linalg::Vec3;
-        let rest = T::with_rest(&dual_values(map))?;
-        let column = |v: Vec3<T>, d: Vec3<Self>| {
-            let e = |value: T, at: Self| Self {
-                value,
-                deriv: at.deriv,
-            };
-            Vec3::new(e(v.x, d.x), e(v.y, d.y), e(v.z, d.z))
-        };
-        let mut out = *map;
-        out.linear.c0 = column(rest.linear.c0, map.linear.c0);
-        out.linear.c1 = column(rest.linear.c1, map.linear.c1);
-        out.linear.c2 = column(rest.linear.c2, map.linear.c2);
-        out.translation = column(rest.translation, map.translation);
-        Some(out)
-    }
-}
-
-/// A dual map's value channel.
-fn dual_values<T: geom_core::Real>(
-    map: &geom_core::Affine3<geom_core::Dual<T>>,
-) -> geom_core::Affine3<T>
-where
-    geom_core::Dual<T>: geom_core::Real,
-{
-    use geom_core::linalg::Vec3;
-    let v = |c: Vec3<geom_core::Dual<T>>| Vec3::new(c.x.value, c.y.value, c.z.value);
-    let q = map.linear;
-    geom_core::Affine3::from_parts(
-        geom_core::linalg::Mat3::from_cols(v(q.c0), v(q.c1), v(q.c2)),
-        v(map.translation),
-    )
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
@@ -3554,33 +3428,8 @@ where
         T::spins_by_frames()
     }
 
-    fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
-        false
-    }
-
     fn solve_atan2(y: Self, x: Self) -> Self {
         geom_core::Real::atan2(y, x)
-    }
-
-    /// As its lane scalar's map does: a map the band decided at rest
-    /// places its copy by no map on the symbolic tier exactly where it
-    /// does on the tier's own lane, so the two lanes' verdicts agree.
-    fn carries_no_variation(map: &geom_core::Affine3<Self>) -> bool {
-        use geom_core::linalg::Vec3;
-        let v = |c: Vec3<Self>| Vec3::new(c.x.value, c.y.value, c.z.value);
-        let q = map.linear;
-        T::carries_no_variation(&geom_core::Affine3::from_parts(
-            geom_core::linalg::Mat3::from_cols(v(q.c0), v(q.c1), v(q.c2)),
-            v(map.translation),
-        ))
-    }
-
-    fn identity_varying_as(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        None
-    }
-
-    fn with_rest(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        None
     }
 }
 
@@ -3642,8 +3491,10 @@ fn root_space<P, S: crate::Slot>(
 /// **Every node whose value lives in a loose copy's space**, in
 /// schedule order: a value's own space where it built; for a node that
 /// did not, the space its recipe gives it (D10: kinds are decided from
-/// the recipe) — a placement with no mate is a loose copy of its own,
-/// one whose mates read the world is the world's, one whose mates read
+/// the recipe) — a placement with an empty bundle is a loose copy of
+/// its own, one with values and no mate (which the door admits only
+/// writing every freedom) or whose mates read the world is the world's,
+/// one whose mates read
 /// poses joins the space of what they read; any other node joins the
 /// first loose space among its inputs.
 fn spaces_of<T: Decide>(
@@ -3669,7 +3520,8 @@ fn spaces_of<T: Decide>(
                     Some(bundle) => {
                         let mut mates = bundle.iter().filter_map(crate::mate::Constraint::mate);
                         Some(match mates.next() {
-                            None => Space::Loose { root: id },
+                            None if bundle.is_empty() => Space::Loose { root: id },
+                            None => Space::World,
                             Some(mate) => match &mate.to {
                                 Target::World(_) => Space::World,
                                 Target::Pose(var) => read_space(*var, &loose),
@@ -4673,8 +4525,10 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v15: an extrude no longer writes a side, and a tube
-            /// reads no frame. (v14: a mate writes its class and its target's word, a
+            /// v16: a value writes whether it names a mate before the
+            /// mate's id, and a spin about the target's own axis is a
+            /// coordinate. (v15: an extrude no longer writes a side, and
+            /// a tube reads no frame. v14: a mate writes its class and its target's word, a
             /// world read its arms and roles; the solved pose and the
             /// parts a face frame resolves against are no longer keyed,
             /// the fold being a function of the keyed reads. v13: a
@@ -4692,7 +4546,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 15,
+            VERSION = 16,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4787,6 +4641,9 @@ mod tag {
             SLIDE_Y = 2,
             SLIDE_Z = 3,
             SPIN = 4,
+            SPIN_X = 5,
+            SPIN_Y = 6,
+            SPIN_Z = 7,
         }
         /// What a mate's `to` reads: a pose variable of the target
         /// space, or the world read inside the mate.
@@ -6156,15 +6013,24 @@ fn feed_bundle(h: &mut KeyHasher, constraints: &[crate::mate::Constraint]) {
         let mate = match &c.kind {
             crate::mate::ConstraintKind::Mate(mate) => mate,
             crate::mate::ConstraintKind::Value(value) => {
-                use crate::mate::{Coord, SlideAxis};
+                use crate::mate::{Coord, TargetAxis};
                 h.write_tag(tag::constraint_kind::VALUE);
-                h.write_u64(u64::from(value.mate.0.ordinal()));
-                h.write_u64(value.mate.0.digest());
+                match value.mate {
+                    Some(mate) => {
+                        h.write_tag(tag::presence::PRESENT);
+                        h.write_u64(u64::from(mate.0.ordinal()));
+                        h.write_u64(mate.0.digest());
+                    }
+                    None => h.write_tag(tag::presence::ABSENT),
+                }
                 h.write_tag(match value.coord {
-                    Coord::Slide(SlideAxis::X) => tag::value_coord::SLIDE_X,
-                    Coord::Slide(SlideAxis::Y) => tag::value_coord::SLIDE_Y,
-                    Coord::Slide(SlideAxis::Z) => tag::value_coord::SLIDE_Z,
+                    Coord::Slide(TargetAxis::X) => tag::value_coord::SLIDE_X,
+                    Coord::Slide(TargetAxis::Y) => tag::value_coord::SLIDE_Y,
+                    Coord::Slide(TargetAxis::Z) => tag::value_coord::SLIDE_Z,
                     Coord::Spin => tag::value_coord::SPIN,
+                    Coord::SpinAbout(TargetAxis::X) => tag::value_coord::SPIN_X,
+                    Coord::SpinAbout(TargetAxis::Y) => tag::value_coord::SPIN_Y,
+                    Coord::SpinAbout(TargetAxis::Z) => tag::value_coord::SPIN_Z,
                 });
                 continue;
             }
@@ -7153,7 +7019,7 @@ mod bundle_key {
     //! served the other's placement.
 
     use super::{KeyHasher, feed_bundle};
-    use crate::mate::{Constraint, Coord, Mate, SlideAxis, Target, Value, WorldRead};
+    use crate::mate::{Constraint, Coord, Mate, Target, TargetAxis, Value, WorldRead};
     use crate::node::ConstraintId;
     use crate::pose::PoseRole;
 
@@ -7180,7 +7046,7 @@ mod bundle_key {
         Constraint::of_value(
             id(11),
             Value {
-                mate,
+                mate: Some(mate),
                 coord,
                 by: BY,
             },
@@ -7214,9 +7080,9 @@ mod bundle_key {
         let keys = [
             key(&[mate(Target::Pose(TO))]),
             with(value(id(10), Coord::Spin)),
-            with(value(id(10), Coord::Slide(SlideAxis::X))),
-            with(value(id(10), Coord::Slide(SlideAxis::Y))),
-            with(value(id(12), Coord::Slide(SlideAxis::Y))),
+            with(value(id(10), Coord::Slide(TargetAxis::X))),
+            with(value(id(10), Coord::Slide(TargetAxis::Y))),
+            with(value(id(12), Coord::Slide(TargetAxis::Y))),
         ];
         for (i, a) in keys.iter().enumerate() {
             for b in &keys[i + 1..] {

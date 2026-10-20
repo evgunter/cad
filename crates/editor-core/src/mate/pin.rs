@@ -14,9 +14,9 @@
 //! offers no such pair refuses ([`PinRefusal::NoFrame`]), never a loose
 //! copy in silence.
 //!
-//! A copy standing where its body stands is placed by [`stand`]: a
-//! plane mate on a face no variable reaches and the constant `0` on its
-//! freedoms. `pin_at` is the pin of a pose off the identity — inline's
+//! A copy standing where its body stands is placed by [`stand`]: the
+//! identity bundle, no mate and the constant `0` on every freedom.
+//! `pin_at` is the pin of a pose off the identity — inline's
 //! copy at a moved landing, and migration, tests and demos — not an
 //! authoring gesture. The authoring gesture is [`place_at`]: "place this copy
 //! at `P`" writes a plane mate on the copy's first planar face to the
@@ -405,14 +405,17 @@ pub(crate) fn written_moves<S: crate::Slot>(
     }
 }
 
-/// **How [`place_at`] placed a copy.**
+/// **How a gesture placed a copy.**
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlacedBy {
+    /// The identity bundle ([`stand`]): no mate, and the constant `0` on
+    /// every freedom.
+    Identity,
     /// A plane mate on the copy's first planar face and its three
     /// values.
     PlanarFace,
     /// An axis mate on a revolve's or a full ring's own axis and its
-    /// two values ([`stand`]).
+    /// two values.
     Axis,
     /// The copy has no planar face, or its first one stands at the pose
     /// within the band about the chart's one pole (no value could be
@@ -421,17 +424,84 @@ pub enum PlacedBy {
     Pin,
 }
 
-/// **The "place part" gesture's constraints** ([`place_at`]): the
-/// mate, then the values that name it, each a freedom and its number.
+/// **A placement gesture's constraints** ([`place_at`], [`stand`]): the
+/// mate, then the values that name it, each a freedom and its number;
+/// or no mate, and the values that state the copy's whole motion, which
+/// are written whole ([`crate::DocEdit::AddValues`]).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Placed {
-    /// The mate.
-    pub mate: Mate<Formula>,
-    /// Its values, to add once the mate's id is minted.
+    /// The mate, `None` where the values state the whole motion.
+    pub mate: Option<Mate<Formula>>,
+    /// Its values, to add once the mate's id is minted; the whole
+    /// bundle where there is no mate.
     pub values: Vec<(super::Coord, Formula)>,
     /// How the copy was placed: a gesture whose copy has no planar face
     /// says so in its report.
     pub by: PlacedBy,
+}
+
+impl Placed {
+    /// **The identity bundle** (D10 `[placement.values]`): no mate, and
+    /// the constant `0` on the slides along the target space's `x`, `y`
+    /// and `z` and on a spin about each, in that order. It reads
+    /// nothing, so it is the same for every copy.
+    #[must_use]
+    pub fn identity() -> Self {
+        use super::{Coord, TargetAxis};
+        let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
+        let slides = axes
+            .into_iter()
+            .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)));
+        let spins = axes
+            .into_iter()
+            .map(|axis| (Coord::SpinAbout(axis), Formula::zero(Dimension::Angle)));
+        Self {
+            mate: None,
+            values: slides.chain(spins).collect(),
+            by: PlacedBy::Identity,
+        }
+    }
+
+    /// **The edits that write this bundle onto `placement`**, each
+    /// handed to `apply` in order, which answers the constraint ids the
+    /// edit minted: the mate ([`crate::DocEdit::AddConstraint`]) and
+    /// then each value naming it ([`crate::DocEdit::AddValue`]), or,
+    /// with no mate, the values as one write
+    /// ([`crate::DocEdit::AddValues`]). Answers every id minted, in
+    /// order.
+    ///
+    /// # Errors
+    ///
+    /// The first refusal `apply` answers.
+    pub fn write<E>(
+        self,
+        placement: RecipeNodeId,
+        mut apply: impl FnMut(
+            crate::DocEdit<crate::ProfileProgram>,
+        ) -> Result<Vec<crate::node::ConstraintId>, E>,
+    ) -> Result<Vec<crate::node::ConstraintId>, E> {
+        let Some(mate) = self.mate else {
+            return apply(crate::DocEdit::unmated(placement, self.values));
+        };
+        let mut minted = apply(crate::DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate),
+            fresh: Vec::new(),
+        })?;
+        let named = minted.first().copied();
+        for (coord, by) in self.values {
+            minted.extend(apply(crate::DocEdit::AddValue {
+                placement,
+                value: Box::new(super::Value {
+                    mate: named,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            })?);
+        }
+        Ok(minted)
+    }
 }
 
 /// **The "place part" gesture** (ruling, scope): the copy read through
@@ -488,7 +558,7 @@ pub fn place_at_in(
     };
     let pinned = || {
         Ok(Placed {
-            mate: pin_at_in(doc, ev, body, pose, tol)?,
+            mate: Some(pin_at_in(doc, ev, body, pose, tol)?),
             values: Vec::new(),
             by: PlacedBy::Pin,
         })
@@ -560,12 +630,12 @@ pub fn place_at_in(
     let chart = chart.unwrap_or_else(|| unreachable!("a plane mate has a chart"));
     let values = vec![
         (
-            super::Coord::Slide(super::SlideAxis::X),
-            written(chart.slide_at(&at, super::SlideAxis::X), Dimension::Length),
+            super::Coord::Slide(super::TargetAxis::X),
+            written(chart.slide_at(&at, super::TargetAxis::X), Dimension::Length),
         ),
         (
-            super::Coord::Slide(super::SlideAxis::Y),
-            written(chart.slide_at(&at, super::SlideAxis::Y), Dimension::Length),
+            super::Coord::Slide(super::TargetAxis::Y),
+            written(chart.slide_at(&at, super::TargetAxis::Y), Dimension::Length),
         ),
         (
             super::Coord::Spin,
@@ -583,146 +653,49 @@ pub fn place_at_in(
         on
     };
     Ok(Placed {
-        mate: Mate {
+        mate: Some(Mate {
             on,
             to: Target::World(world),
             class: super::ContactClass::Rest,
-        },
+        }),
         values,
         by: PlacedBy::PlanarFace,
     })
 }
 
-/// **A copy standing where its body stands** (D10: a body has no
-/// location): a plane mate on the copy's first planar face by id whose
-/// definition reaches no document variable ([`super::anchor`]) — an
-/// extrude's start cap, which lies on its profile's plane — to the
-/// world plane it lies in, and the constant `0` on the three freedoms
-/// the mate leaves, which says the copy's own coordinates agree with
-/// the world's. The copy side carries a `Flip` where the face looks
-/// down its own `z`, so the mate's direction is the world's `+z` and no
-/// move is written on the world side.
-///
-/// A copy with no such face stands on its own axis where it is a
-/// revolve or a full ring ([`on_its_axis`]), and is placed by the
-/// gesture at the identity otherwise ([`place_at`]): its numbers are
-/// then its anchor's nominal.
+/// **A copy standing where its body stands** (D10 `[placement.values]`:
+/// "a placement whose values are all zero and which has no mate is the
+/// identity"): the identity bundle, no mate and the constant `0` on
+/// every freedom — a slide along each of the world's axes and a spin
+/// about each — so the copy's own coordinates are the world's. It reads
+/// nothing of the copy, so a revolve, a ring and an instance stand as an
+/// extrude does, at every value of their variables.
 ///
 /// # Errors
 ///
-/// [`PinRefusal`], as [`place_at`]'s.
+/// [`PinRefusal`]: `body` reads no node, did not evaluate, is no body,
+/// or is a copy already placed.
 pub fn stand_in(
     doc: &crate::ProfileDoc,
     ev: &Evaluation<f64>,
     body: &Operand,
-    tol: Tol,
 ) -> Result<Placed, PinRefusal> {
-    let (node, solid, table) = copy_of(doc, ev, body)?;
-    let anchors = super::anchor::Anchors::of(doc, node);
-    let on_its_plane = solid.faces().find_map(|(face, _)| {
-        let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
-        if kind != geom::SurfaceKind::Plane {
-            return None;
-        }
-        let name = table.name_of(&EntityRef {
-            body: 0,
-            key: EntityKey::Face(face),
-        })?;
-        if !anchors.fixed(name) {
-            return None;
-        }
-        let at = topo::readback::face_pose(&solid, face).ok()?;
-        let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
-        // A face no variable reaches is built from constants alone, so
-        // it lies on its body's own `xy` exactly or not at all: normal
-        // ±z, through a point at z = 0.
-        let on_xy = [at.origin.z, normal.x, normal.y]
-            .into_iter()
-            .all(|c| c == 0.0);
-        on_xy.then(|| (name.clone(), normal.z < 0.0))
-    });
-    let Some((face, down)) = on_its_plane else {
-        if let Some(placed) = on_its_axis(doc, body, &solid, &table, &anchors) {
-            return Ok(placed);
-        }
-        return place_at_in(doc, ev, body, &Frame::IDENTITY, tol);
-    };
-    let plane = Operand::Pose(Box::new(PoseDef::Plane {
-        face: Operand::select(body.clone(), vec![face]),
-    }));
-    let on = if down {
-        Operand::Pose(Box::new(PoseDef::Flip {
-            pose: RoleRead::plain(plane),
-        }))
-    } else {
-        plane
-    };
-    let zero = |coord, dim| (coord, Formula::zero(dim));
-    Ok(Placed {
-        mate: Mate {
-            on,
-            to: Target::World(WorldRead::through(PoseRole::Xy)),
-            class: super::ContactClass::Rest,
-        },
-        values: vec![
-            zero(super::Coord::Slide(super::SlideAxis::X), Dimension::Length),
-            zero(super::Coord::Slide(super::SlideAxis::Y), Dimension::Length),
-            zero(super::Coord::Spin, Dimension::Angle),
-        ],
-        by: PlacedBy::PlanarFace,
-    })
+    copy_of(doc, ev, body)?;
+    Ok(Placed::identity())
 }
 
-/// **A construction with no plane of its own, standing on its own
-/// axis** (spec §5): an `Axis` mate from a revolve's `axis` output, or
-/// from a full ring's torus carrier axis, which reads nothing, to the
-/// world's axis that line is in the construction's own coordinates,
-/// and the constant `0` on the slide along it and the spin about it.
-/// A revolve's axis slots are moves of the target reading what the
-/// slots read, so the copy stands where the revolve put it at every
-/// value; a constant `0` slot writes no move. `None` where no revolve
-/// or full ring is carried unmoved into the copied body.
-fn on_its_axis(
-    doc: &crate::ProfileDoc,
-    body: &Operand,
-    solid: &topo::Body<f64>,
-    table: &crate::names::NameTable,
-    anchors: &super::anchor::Anchors<'_>,
-) -> Option<Placed> {
-    let (_, on, to) = own_axis(doc, body, solid, table, anchors)?;
-    let zero = |coord, dim| (coord, Formula::zero(dim));
-    Some(Placed {
-        mate: Mate {
-            on,
-            to: Target::World(to),
-            class: super::ContactClass::Rest,
-        },
-        values: vec![
-            zero(super::Coord::Slide(super::SlideAxis::Z), Dimension::Length),
-            zero(super::Coord::Spin, Dimension::Angle),
-        ],
-        by: PlacedBy::Axis,
-    })
-}
-
-/// **A plane-less construction's own axis** ([`on_its_axis`]): the
-/// construction carried unmoved into the copy, the axis read off it,
-/// and the world's axis that line is in the construction's own
-/// coordinates.
+/// **A plane-less construction's own axis**: the construction carried
+/// unmoved into the copy, and the axis read off it.
 fn own_axis(
     doc: &crate::ProfileDoc,
     body: &Operand,
     solid: &topo::Body<f64>,
     table: &crate::names::NameTable,
     anchors: &super::anchor::Anchors<'_>,
-) -> Option<(RecipeNodeId, Operand, WorldRead<Formula>)> {
+) -> Option<(RecipeNodeId, Operand)> {
     use crate::node::{Node, TubeWindow};
     anchors.unmoved().find_map(|at| match doc.node(at)? {
-        Node::Revolve {
-            axis_through,
-            axis_heading,
-            ..
-        } => {
+        Node::Revolve { .. } => {
             // The revolve's `axis` output where the copy is the revolve's
             // own body; else the axis of the copy's first circular edge
             // the revolve minted (a revolved vertex's circle turns about
@@ -748,7 +721,7 @@ fn own_axis(
                     of: Operand::select(body.clone(), vec![edge]),
                 }))
             };
-            Some((at, on, revolve_axis(doc, *axis_through, *axis_heading)))
+            Some((at, on))
         }
         Node::Tube {
             window: TubeWindow::Full,
@@ -772,7 +745,7 @@ fn own_axis(
             let on = Operand::Pose(Box::new(PoseDef::Axis {
                 of: Operand::select(body.clone(), vec![face]),
             }));
-            Some((at, on, WorldRead::through(PoseRole::Z)))
+            Some((at, on))
         }
         _ => None,
     })
@@ -821,11 +794,11 @@ fn framed_against(
     let on = frame_at_in(doc, ev, body, &Frame::IDENTITY, tol)?;
     let to = frame_at_in(doc, ev, target, at, tol)?;
     Ok(Placed {
-        mate: Mate {
+        mate: Some(Mate {
             on,
             to: Target::Pose(to),
             class: super::ContactClass::Rest,
-        },
+        }),
         values: Vec::new(),
         by: PlacedBy::Pin,
     })
@@ -867,7 +840,7 @@ fn axis_placed(
     let (node, solid, table) = copy_of(doc, ev, body)?;
     let anchors = super::anchor::Anchors::of(doc, node);
     let no_frame = PinRefusal::NoFrame { node };
-    let (construction, on, _) =
+    let (construction, on) =
         own_axis(doc, body, &solid, &table, &anchors).ok_or(no_frame.clone())?;
     // The axis in the copy's own coordinates: a revolve's `axis`
     // output as the evaluation reads it, a ring's own `z`.
@@ -910,16 +883,16 @@ fn axis_placed(
     .map_err(|_| PinRefusal::Band)?
     .ok_or(no_frame)?;
     Ok(Placed {
-        mate: Mate {
+        mate: Some(Mate {
             on,
             to,
             class: super::ContactClass::Rest,
-        },
+        }),
         values: vec![
             (
-                super::Coord::Slide(super::SlideAxis::Z),
+                super::Coord::Slide(super::TargetAxis::Z),
                 written(
-                    chart.slide_at(&placed, super::SlideAxis::Z),
+                    chart.slide_at(&placed, super::TargetAxis::Z),
                     Dimension::Length,
                 ),
             ),
@@ -947,34 +920,6 @@ fn minted_by(name: &crate::StableName, node: RecipeNodeId) -> bool {
         ] => false,
         _ => name.node == node,
     }
-}
-
-/// **A revolve's axis line as a world read**: the world's x axis spun
-/// about its z by the heading, then slid along its x and y to the axis
-/// point, each move reading what its slot reads. A slot that is the
-/// constant `0` writes no move.
-fn revolve_axis(
-    doc: &crate::ProfileDoc,
-    through: [crate::VarId; 2],
-    heading: crate::VarId,
-) -> WorldRead<Formula> {
-    let slot = |var: crate::VarId, dim: Dimension| {
-        let formula = match doc.var(var).map(crate::Var::def) {
-            Some(crate::var::VarDef::Defined(expr)) => Formula::from(expr),
-            _ => Formula::var(var, dim),
-        };
-        (!formula.is_zero()).then_some(formula)
-    };
-    let mut axis = WorldRead::through(PoseRole::X);
-    if let Some(by) = slot(heading, Dimension::Angle) {
-        axis = axis.spin(WorldRead::through(PoseRole::Z), by);
-    }
-    for (role, var) in [(PoseRole::X, through[0]), (PoseRole::Y, through[1])] {
-        if let Some(by) = slot(var, Dimension::Length) {
-            axis = axis.slide(WorldRead::through(role), by);
-        }
-    }
-    axis
 }
 
 /// **A frame read off `body`'s own geometry, standing at `at` in its
@@ -1274,23 +1219,23 @@ pub fn place_against_in(
     .map_err(|_| PinRefusal::Band)?
     .unwrap_or_else(|| unreachable!("a plane mate has a chart"));
     Ok(Placed {
-        mate: Mate {
+        mate: Some(Mate {
             on,
             to: Target::Pose(to),
             class: super::ContactClass::Rest,
-        },
+        }),
         values: vec![
             (
-                super::Coord::Slide(super::SlideAxis::X),
+                super::Coord::Slide(super::TargetAxis::X),
                 written(
-                    chart.slide_at(&placed, super::SlideAxis::X),
+                    chart.slide_at(&placed, super::TargetAxis::X),
                     Dimension::Length,
                 ),
             ),
             (
-                super::Coord::Slide(super::SlideAxis::Y),
+                super::Coord::Slide(super::TargetAxis::Y),
                 written(
-                    chart.slide_at(&placed, super::SlideAxis::Y),
+                    chart.slide_at(&placed, super::TargetAxis::Y),
                     Dimension::Length,
                 ),
             ),
@@ -1347,7 +1292,7 @@ pub fn stand(
     tol: Tol,
 ) -> Result<Placed, PinRefusal> {
     let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
-    stand_in(doc, &ev, body, tol)
+    stand_in(doc, &ev, body)
 }
 
 /// [`frame_at_in`], over an evaluation of `doc` under `opts` made here.

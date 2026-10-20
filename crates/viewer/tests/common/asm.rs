@@ -27,7 +27,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     CancelToken, Coord, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
-    RecipeNodeId, SlideAxis, evaluate,
+    RecipeNodeId, TargetAxis, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -350,9 +350,9 @@ pub use super::{down_at, up_at};
 /// shelf's `−y`.
 pub fn seat_values(b_x: f64) -> Vec<(Coord, pncad::document::Formula)> {
     vec![
-        (Coord::Slide(SlideAxis::X), len(b_x - POST_SECTION / 2.0)),
+        (Coord::Slide(TargetAxis::X), len(b_x - POST_SECTION / 2.0)),
         (
-            Coord::Slide(SlideAxis::Y),
+            Coord::Slide(TargetAxis::Y),
             len(POST_SECTION / 2.0 - SHELF_DEPTH / 2.0),
         ),
         (Coord::Spin, ang(0.0)),

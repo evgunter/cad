@@ -527,11 +527,11 @@ fn r1_pattern_free_solves_are_bit_identical() {
             [
                 (editor_core::Coord::Spin, ang(0.0)),
                 (
-                    editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                    editor_core::Coord::Slide(editor_core::TargetAxis::X),
                     len(0.25),
                 ),
                 (
-                    editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+                    editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                     len(0.0),
                 ),
             ]
@@ -582,7 +582,7 @@ fn add_value(doc: ProfileDoc, mate: MateRef, coord: editor_core::Coord, by: Form
         DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(editor_core::Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),

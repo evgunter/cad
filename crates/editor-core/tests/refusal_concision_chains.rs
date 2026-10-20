@@ -4259,7 +4259,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, SlideAxis, VarKind,
+        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, TargetAxis, VarKind,
     };
     let n = |id| RecipeNodeId::new(0, tagged(id));
     let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
@@ -4319,7 +4319,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             "NotAFreedom",
             M::NotAFreedom {
                 value: r(9),
-                coord: Coord::Slide(SlideAxis::Z),
+                coord: Coord::Slide(TargetAxis::Z),
                 kind: VarKind::Plane,
             },
         ),

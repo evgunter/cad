@@ -35,7 +35,7 @@ use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKey, EntityKind,
     EntityRef, Entry, EvalOptions, FaceName, InterfaceCrossing, Mate, MateFault, MateRef, MateSide,
     MintRefusal, Node, NodeErrorClass, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, RoleSeg,
-    SlideAxis, StableName, Value, assemble, content_pin, inline, product_recorded,
+    StableName, TargetAxis, Value, assemble, content_pin, inline, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, relations, run, solve, split_world as split, step};
@@ -147,8 +147,8 @@ fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f
 fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
     let (doc, mate) = fixture::constrain_at(doc, placement, seat.mate);
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(seat.slide[0])),
-        (Coord::Slide(SlideAxis::Y), len(seat.slide[1])),
+        (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
+        (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
         (Coord::Spin, fixture::ang(0.0)),
     ]
     .into_iter()
@@ -158,7 +158,7 @@ fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, Ma
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -252,11 +252,11 @@ fn standing_on_its_bottom(
         mate,
         vec![
             (
-                Coord::Slide(SlideAxis::X),
+                Coord::Slide(TargetAxis::X),
                 zero(editor_core::Dimension::Length),
             ),
             (
-                Coord::Slide(SlideAxis::Y),
+                Coord::Slide(TargetAxis::Y),
                 zero(editor_core::Dimension::Length),
             ),
             (Coord::Spin, zero(editor_core::Dimension::Angle)),
@@ -292,18 +292,7 @@ fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
         .collect();
     let mut doc = doc;
     for (placement, frame) in placed {
-        let mut bundle = fixture::bundle(&doc, placement);
-        bundle.sort_by_key(|c| c.mate().is_some());
-        for c in bundle {
-            doc = step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0;
-        }
+        doc = fixture::emptied(doc, placement);
         doc = fixture::pin(doc, placement, &frame, o);
     }
     doc

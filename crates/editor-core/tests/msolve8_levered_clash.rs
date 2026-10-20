@@ -17,8 +17,8 @@ use editor_core::Formula;
 
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, MateFault, MateRef, Node,
-    NodeErrorClass, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SlideAxis, Space,
-    StableName, Value,
+    NodeErrorClass, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, Space, StableName,
+    TargetAxis, Value,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, run, solve};
@@ -116,7 +116,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -171,8 +171,8 @@ fn c4_poses_of_another_document_reaches_no_row() {
             ),
         );
         doc = [
-            (Coord::Slide(SlideAxis::X), len(0.0)),
-            (Coord::Slide(SlideAxis::Y), len(0.0)),
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
             (Coord::Spin, ang(0.0)),
         ]
         .into_iter()
@@ -236,7 +236,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
 fn a_determined_bundle_and_a_v_block_keep_their_verdicts_under_the_witness() {
     let mut r = rig("msolve8-determined");
     let coaxial = r.add(r.lateral(r.b, 0), r.lateral(r.t, 0));
-    r.doc = with_value(r.doc, coaxial, Coord::Slide(SlideAxis::Z), len(1.0));
+    r.doc = with_value(r.doc, coaxial, Coord::Slide(TargetAxis::Z), len(1.0));
     r.doc = with_value(r.doc, coaxial, Coord::Spin, ang(0.0));
     let poses = solve(&r.doc, &EvalOptions::default(), Tol::witness());
     assert!(

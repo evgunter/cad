@@ -3450,6 +3450,15 @@ class DocEdit:
         the copy."""
 
     @staticmethod
+    def add_values(placement: NodeId, values: list[MateValue]) -> DocEdit:
+        """Add `values` to `placement`'s bundle as one write: a bundle
+        with no mate, whose values state the copy's whole motion, is
+        admitted only whole (`Doc.add_values` answers their addresses).
+        Refuses typed on `EditError`: `constraint_on_non_placement`, and
+        `mate_refused` with the door's fault — `mate_unpinned`,
+        `mate_overconstrained`, `mate_no_chart`, and each value's own."""
+
+    @staticmethod
     def add_value(placement: NodeId, value: MateValue) -> DocEdit:
         """Add `value` to `placement`'s bundle: one freedom a mate of the
         bundle leaves, set to a number (`Doc.add_value` answers its
@@ -3770,6 +3779,16 @@ class Doc:
         mate a value names (`mate_named_by_value`). Raises `EditError`:
         `unknown_node`, `constraint_on_non_placement`,
         `unknown_constraint` (no such id)."""
+
+    def add_values(self, placement: NodeId, values: list[MateValue]) -> list[MateRef]:
+        """Write `values` onto `placement` as one edit, and answer their
+        addresses: `apply` of `DocEdit.add_values`. A bundle with no mate
+        states the copy's whole motion in its values — a slide along each
+        of the world's `x`, `y` and `z` and a chain of three spins about
+        its axes, no two in a row about one, taken in the order written —
+        so it is written whole. Refuses typed on `EditError`
+        (`mate_refused`): `mate_unpinned`, `mate_overconstrained`,
+        `mate_no_chart`."""
 
     def add_value(self, mate: MateRef, coord: Coord, by: _SlotArg) -> MateRef:
         """Set one freedom `mate` leaves to `by`, and answer the value's
@@ -5705,29 +5724,47 @@ class Mate:
         class."""
 
 class Coord:
-    """Which freedom of its mate a value sets: `Coord.slide("x")`,
-    `"y"` or `"z"` — a slide along the chart's axis, `z` the mated
-    direction — or `Coord.spin()`, the turn about the mated direction.
+    """Which freedom a value sets: `Coord.slide("x")`, `"y"` or `"z"`
+    — a slide along the chart's axis, `z` the mated direction —
+    `Coord.spin()`, the turn about the mated direction, or
+    `Coord.spin_about("x")`, `"y"` or `"z"`, a turn about the target
+    space's own axis.
 
     A plane mate leaves the slides along `x` and `y` and the spin; an
     axis mate the slide along `z` (its axis) and the spin; a direction
-    mate all four; a point mate's rotation has no chart; a frame mate
-    leaves nothing."""
+    mate the three slides and the spin; a point mate's rotation has no
+    chart; a frame mate leaves nothing. A value naming no mate slides
+    along the target space's own axes and spins about them, a chain of
+    spins in the order written."""
 
     @staticmethod
     def slide(axis: Literal["x", "y", "z"]) -> Coord:
         """Raises ValueError for any other axis word."""
     @staticmethod
     def spin() -> Coord: ...
+    @staticmethod
+    def spin_about(axis: Literal["x", "y", "z"]) -> Coord:
+        """Raises ValueError for any other axis word."""
     @property
-    def variant(self) -> Literal["slide_x", "slide_y", "slide_z", "spin"]: ...
+    def variant(
+        self,
+    ) -> Literal[
+        "slide_x",
+        "slide_y",
+        "slide_z",
+        "spin",
+        "spin_about_x",
+        "spin_about_y",
+        "spin_about_z",
+    ]: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class MateValue:
-    """A mate's value: one freedom a mate of the same bundle leaves, set to a
-    number — a `Length` for a slide, an `Angle` for a spin (a lone `0`
-    is the constant zero).
+    """A value: one freedom a mate of the same bundle leaves, or one of
+    the target space's own where it names no mate, set to a number — a
+    `Length` for a slide, an `Angle` for a spin (a lone `0` is the
+    constant zero).
 
     It is charted on the two bodies' own frames, each swung onto the
     mated direction by the shortest turn: a slide is the copy's origin
@@ -5736,22 +5773,27 @@ class MateValue:
     copy's. Zero says the two bodies' own coordinates agree as far as
     the mate allows.
 
-    `mate` names the mate (a `MateRef`, or its `constraint` id).
-    `Doc.add_value` adds one; the door refuses an id that is no mate of
-    the bundle (`mate_value_names_no_mate`), a freedom the mate's kind
-    does not leave (`mate_not_a_freedom`) and a point mate's rotation
-    (`mate_no_chart`). Raises ValueError where `by` is of another
-    dimension."""
+    `mate` names the mate (a `MateRef`, or its `constraint` id), or is
+    `None`: the target space's own axes, which chart a bundle with no
+    mate, whose values state the copy's whole motion and are written
+    whole (`Doc.add_values`). `Doc.add_value` adds one; the door refuses
+    an id that is no mate of the bundle (`mate_value_names_no_mate`), a
+    freedom the mate's kind does not leave (`mate_not_a_freedom`), a
+    point mate's rotation and a value naming no mate beside a mate
+    (`mate_no_chart`), and a bundle with no mate that leaves a freedom
+    unwritten (`mate_unpinned`). Raises ValueError where `by` is of
+    another dimension."""
 
     def __init__(
         self,
-        mate: MateRef | ConstraintId,
+        mate: MateRef | ConstraintId | None,
         coord: Coord,
         by: _SlotArg,
     ) -> None: ...
     @property
-    def mate(self) -> ConstraintId:
-        """The id of the mate whose freedom it sets."""
+    def mate(self) -> Optional[ConstraintId]:
+        """The id of the mate whose freedom it sets, `None` for the
+        target space's own axes."""
     @property
     def coord(self) -> Coord: ...
     @property
@@ -5761,9 +5803,11 @@ class MateValue:
         """Bit-exact."""
 
 class Placed:
-    """What the "place part" gesture wrote (`Doc.place_at`): the
+    """What a placement gesture wrote (`Doc.place_at`, `Doc.place`): the
     placement, its mate and its values, and how the copy was placed —
-    `by == "planar_face"`, a plane mate on a planar face of the copy to
+    `by == "identity"`, the identity bundle, no mate and the constant
+    `0` on every freedom; `by == "planar_face"`, a plane mate on a
+    planar face of the copy to
     the plane it lies in at the pose and the three values (slides along
     `x` and `y`, and the spin) that put it there; `by == "axis"`, an
     axis mate on a full revolve's or ring's own axis and its two
@@ -5773,13 +5817,15 @@ class Placed:
     @property
     def placement(self) -> NodeId: ...
     @property
-    def mate(self) -> MateRef: ...
+    def mate(self) -> Optional[MateRef]:
+        """`None` for the identity bundle."""
     @property
     def values(self) -> list[MateRef]:
-        """Slide `x`, slide `y`, spin for a planar face; the axis mate's
+        """The three slides and three spins of the identity bundle;
+        slide `x`, slide `y`, spin for a planar face; the axis mate's
         two for an axis; empty for a pin."""
     @property
-    def by(self) -> Literal["planar_face", "axis", "pin"]: ...
+    def by(self) -> Literal["identity", "planar_face", "axis", "pin"]: ...
 
 class ClassAdmission:
     """How far a contact class gets in v1, as a value BOTH enforcing

@@ -33,9 +33,9 @@ use core::f64::consts::TAU;
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Frame,
+    CancelToken, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, NodeErrorClass, Operand, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, Value, ValuePayload, apply, evaluate, place_at, split,
+    ProgramTarget, RecipeNodeId, ValuePayload, apply, evaluate, split, stand,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -106,40 +106,27 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
     applied.record.minted.expect("insert mints an id")
 }
 
-/// One copy of `body` placed in the world where it stands — the
-/// "place part" gesture: a loose `Node::place`, then `place_at`'s mate
-/// and the values naming it, each added to the placement's bundle.
+/// One copy of `body` placed in the world where it stands: a loose
+/// `Node::place`, then `stand`'s identity bundle written onto it.
 fn place_in_world(doc: &mut Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) {
     let placement = insert(doc, Node::place(vec![body.into()]), tol);
     let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
         panic!("a placement was inserted")
     };
-    let placed = place_at(
+    let placed = stand(
         doc,
         &Operand::Var(shapes[0].read),
-        &Frame::IDENTITY,
         &EvalOptions::default(),
         tol,
     )
-    .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
-    let mut step = |edit: DocEdit<ProfileProgram>| {
-        let applied = apply(doc, &edit, tol)
-            .unwrap_or_else(|err| panic!("the placement's edit applies: {err}"));
-        *doc = applied.doc;
-        applied.record.minted_constraints
-    };
-    let mate = step(DocEdit::AddConstraint {
-        placement,
-        mate: Box::new(placed.mate),
-        fresh: Vec::new(),
-    })[0];
-    for (coord, by) in placed.values {
-        step(DocEdit::AddValue {
-            placement,
-            value: Box::new(Value { mate, coord, by }),
-            fresh: Vec::new(),
-        });
-    }
+    .unwrap_or_else(|refusal| panic!("the copy stands: {refusal}"));
+    placed
+        .write(placement, |edit| {
+            let applied = apply(doc, &edit, tol)?;
+            *doc = applied.doc;
+            Ok::<_, pncad::document::EditError>(applied.record.minted_constraints)
+        })
+        .unwrap_or_else(|err| panic!("the placement's edit applies: {err}"));
 }
 
 /// A fresh document carrying the sharp ANNULAR lid, and that node's id.

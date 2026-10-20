@@ -136,8 +136,8 @@ use pncad::document::{
     MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
     NodeStanding, ParseError, PersistError, PiecesFault, PinRefusal, PlacedBy, PlacementRuleFault,
     ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation,
-    ResolveFault, ShellClassifyError, SlideAxis, SlotId, SnapshotError, SplitError,
-    StepHandleRefusal, StepIdFault, Unlocalized, UpdateError, WorldReadFault,
+    ResolveFault, ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal,
+    StepIdFault, TargetAxis, Unlocalized, UpdateError, WorldReadFault,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -996,6 +996,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MatePosesOfAnotherDocument => "mate_poses_of_another_document",
         C::MateClassNotAdmitted => "mate_class_not_admitted",
         C::MateOverconstrained => "mate_overconstrained",
+        C::MateUnpinned => "mate_unpinned",
         C::MateTargetsDiffer => "mate_targets_differ",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
         C::MateUnleverable => "mate_unleverable",
@@ -1804,13 +1805,17 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
 }
 
 /// The stable tag for which freedom a value sets (`Coord`): a slide
-/// along the chart's `x`, `y` or `z`, or the spin.
+/// along the chart's `x`, `y` or `z`, the spin about the mated
+/// direction, or a spin about the target's own `x`, `y` or `z`.
 pub fn coord_tag(coord: Coord) -> &'static str {
     match coord {
-        Coord::Slide(SlideAxis::X) => "slide_x",
-        Coord::Slide(SlideAxis::Y) => "slide_y",
-        Coord::Slide(SlideAxis::Z) => "slide_z",
+        Coord::Slide(TargetAxis::X) => "slide_x",
+        Coord::Slide(TargetAxis::Y) => "slide_y",
+        Coord::Slide(TargetAxis::Z) => "slide_z",
         Coord::Spin => "spin",
+        Coord::SpinAbout(TargetAxis::X) => "spin_about_x",
+        Coord::SpinAbout(TargetAxis::Y) => "spin_about_y",
+        Coord::SpinAbout(TargetAxis::Z) => "spin_about_z",
     }
 }
 
@@ -1819,6 +1824,8 @@ pub fn coord_tag(coord: Coord) -> &'static str {
 pub fn no_chart_why_tag(why: NoChartWhy) -> &'static str {
     match why {
         NoChartWhy::PointRotation => "point_rotation",
+        NoChartWhy::NoMatedDirection => "no_mated_direction",
+        NoChartWhy::BesideAMate => "beside_a_mate",
         NoChartWhy::TwoBodies => "two_bodies",
         NoChartWhy::SlideTurnsABall => "slide_turns_a_ball",
     }
@@ -1851,11 +1858,12 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
     }
 }
 
-/// The stable tag for how the "place part" gesture placed a copy:
-/// resting a planar face, on its own axis, or pinned over a frame read
-/// off its geometry.
+/// The stable tag for how a gesture placed a copy: by the identity
+/// bundle, resting a planar face, on its own axis, or pinned over a
+/// frame read off its geometry.
 pub fn placed_by_tag(by: PlacedBy) -> &'static str {
     match by {
+        PlacedBy::Identity => "identity",
         PlacedBy::PlanarFace => "planar_face",
         PlacedBy::Axis => "axis",
         PlacedBy::Pin => "pin",

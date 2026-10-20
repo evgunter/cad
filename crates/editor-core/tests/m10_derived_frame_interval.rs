@@ -133,10 +133,16 @@ fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
 
 /// The zero values a seat at rest names: no slide, no spin.
 fn at_rest() -> Vec<(editor_core::Coord, Formula)> {
-    use editor_core::{Coord, SlideAxis};
+    use editor_core::{Coord, TargetAxis};
     vec![
-        (Coord::Slide(SlideAxis::X), Formula::zero(Dimension::Length)),
-        (Coord::Slide(SlideAxis::Y), Formula::zero(Dimension::Length)),
+        (
+            Coord::Slide(TargetAxis::X),
+            Formula::zero(Dimension::Length),
+        ),
+        (
+            Coord::Slide(TargetAxis::Y),
+            Formula::zero(Dimension::Length),
+        ),
         (Coord::Spin, Formula::zero(Dimension::Angle)),
     ]
 }

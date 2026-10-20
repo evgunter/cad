@@ -27,8 +27,8 @@ use editor_core::CapEnd;
 use editor_core::{
     ContactClass, Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation,
     Frame, Maintenance, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
-    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, SlideAxis, Space,
-    StableName, Value, apply, load, product, relative_freedom_components, save,
+    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, Space, StableName,
+    TargetAxis, Value, apply, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{
@@ -170,18 +170,7 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, Kit) {
 /// **`placement`'s bundle replaced by one world pin at `frame`** — how
 /// a copy is put at a world pose ([`fixture::pin`]).
 fn repin(doc: ProfileDoc, placement: RecipeNodeId, frame: &Frame, o: &EvalOptions) -> ProfileDoc {
-    let doc = values_first(fixture::bundle(&doc, placement))
-        .into_iter()
-        .fold(doc, |doc, c| {
-            step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        });
+    let doc = fixture::emptied(doc, placement);
     fixture::pin(doc, placement, frame, o)
 }
 
@@ -197,7 +186,7 @@ fn add_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Profi
         DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -280,7 +269,7 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, Kit, MateRef) {
     let (doc, ids, kit) = assembly("asm-r2a-row1", 2);
     let (doc, coaxial) = add(doc, ids[1], pin(&kit, ids[0], ids[1], 0, 0));
     let doc = add_value(doc, coaxial, Coord::Spin, ang(0.0));
-    let doc = add_value(doc, coaxial, Coord::Slide(SlideAxis::Z), len(2.0));
+    let doc = add_value(doc, coaxial, Coord::Slide(TargetAxis::Z), len(2.0));
     (doc, ids, kit, coaxial)
 }
 
@@ -781,16 +770,17 @@ fn row6a_mated_instances_share_an_a9_component() {
             .any(|c| c.contains(&ids[0]) && c.contains(&ids[1])),
         "the constraint COUPLES the components: {together:?}"
     );
-    // The first instance's world pin is a mate on its own face, so it
-    // lands on that instance alone.
-    let pin = fixture::bundle(&doc, ids[0])
-        .into_iter()
-        .find(|c| c.mate().is_some())
-        .map(|c| editor_core::MateRef::new(ids[0], c.id))
-        .expect("the first instance is pinned by a mate");
+    // The first instance stands by the identity bundle, which reads no
+    // pose, so the one mate's two poses land on the two instances.
+    assert!(
+        fixture::bundle(&doc, ids[0])
+            .iter()
+            .all(|c| c.mate().is_none()),
+        "the first instance stands with no mate"
+    );
     assert_eq!(
         fixture::mate_members(&doc),
-        vec![(pin, ids[0]), (mate_ref, ids[1]), (mate_ref, ids[0])],
+        vec![(mate_ref, ids[1]), (mate_ref, ids[0])],
         "each pose lands on its instance"
     );
 }
@@ -1113,7 +1103,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             "a plane's normal slide",
             &planed,
             rest,
-            Coord::Slide(SlideAxis::Z),
+            Coord::Slide(TargetAxis::Z),
             len(0.5),
             editor_core::VarKind::Plane,
         ),
@@ -1123,7 +1113,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             &DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -1217,9 +1207,3 @@ fn row7e_a_mate_not_on_its_copy_refuses_at_the_door() {
     assert!(fault.to_string().contains("pins nothing"), "{fault}");
 }
 
-/// `bundle` with its values ahead of its mates: the order its
-/// constraints come out in, so no value is left naming a removed mate.
-fn values_first(mut bundle: Vec<editor_core::Constraint>) -> Vec<editor_core::Constraint> {
-    bundle.sort_by_key(|c| c.mate().is_some());
-    bundle
-}

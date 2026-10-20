@@ -93,7 +93,7 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
     let slot = fixture::value_slot(
         &s.doc,
         s.placement,
-        editor_core::Coord::Slide(editor_core::SlideAxis::X),
+        editor_core::Coord::Slide(editor_core::TargetAxis::X),
     );
     let (doc, _) = step(
         s.doc.clone(),

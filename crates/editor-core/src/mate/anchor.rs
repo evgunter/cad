@@ -1,13 +1,12 @@
 //! **Which geometry a pin can anchor on without reading a variable**:
-//! [`pin_at`], [`place_at`] and [`stand`] read a copy's pose off its own
-//! geometry against numbers taken from one evaluation, so an anchor
+//! [`pin_at`], [`place_at`] and [`frame_at`] read a copy's pose off its
+//! own geometry against numbers taken from one evaluation, so an anchor
 //! whose definition reaches a document variable is pinned where that
 //! variable's nominal put it, and a variable that moves it moves the
 //! copy back. An anchor whose definition reaches none stands where the
 //! copy's variable-free geometry stands at every value: the copy
-//! follows its variables, and under a parameter box the map is the
-//! identity, which the snap places by no map. A root extrude's or
-//! loft's start cap lies on its first profile's plane and reads nothing.
+//! follows its variables. A root extrude's or loft's start cap lies on
+//! its first profile's plane and reads nothing.
 //!
 //! A typed number with no tolerance is a document variable too (Q1,
 //! VR6): the revalue instrument moves it, so an anchor reading one is
@@ -21,7 +20,7 @@
 //!
 //! [`pin_at`]: super::pin::pin_at
 //! [`place_at`]: super::pin::place_at
-//! [`stand`]: super::pin::stand
+//! [`frame_at`]: super::pin::frame_at
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};

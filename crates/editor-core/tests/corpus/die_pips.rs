@@ -77,7 +77,8 @@
 use super::PlacePart;
 use editor_core::Formula;
 use editor_core::{
-    Coord, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, SlideAxis,
+    Coord, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    TargetAxis,
 };
 
 use crate::fixture::{ang, frame_at, len, len2, revolve_about, scl, value_bump};
@@ -149,7 +150,7 @@ pub fn document() -> CorpusDoc {
 
     r.place_part(pipped);
 
-    let bump = value_bump(&r.doc, pip, Coord::Slide(SlideAxis::Z), 0.015625);
+    let bump = value_bump(&r.doc, pip, Coord::Slide(TargetAxis::Z), 0.015625);
     CorpusDoc {
         name: "die_pips",
         about: "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",

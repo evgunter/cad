@@ -847,8 +847,7 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         tol,
     )?;
     // The plate is the product because it is placed (A10): a placement
-    // of it, placed at the identity by the "place part" gesture's mate
-    // and values.
+    // of it, standing where its body stands.
     let (doc, placement) = insert(
         doc,
         Node::place(vec![pncad::document::BodyRead::plain(Operand::from(
@@ -856,41 +855,14 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         ))]),
         tol,
     )?;
-    let placed = editor_core::place_at(
-        &doc,
-        &Operand::from(extrude),
-        &pncad::document::Frame::IDENTITY,
-        &EvalOptions::default(),
-        tol,
-    )
-    .map_err(SceneDocError::Place)?;
-    let (doc, record) = edit(
-        doc,
-        DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(placed.mate),
-            fresh: Vec::new(),
-        },
-        tol,
-    )?;
-    let [mate] = record.minted_constraints[..] else {
-        unreachable!("an AddConstraint mints one constraint id")
-    };
-    let doc = placed
-        .values
-        .into_iter()
-        .try_fold(doc, |doc, (coord, by)| {
-            edit(
-                doc,
-                DocEdit::AddValue {
-                    placement,
-                    value: Box::new(pncad::document::Value { mate, coord, by }),
-                    fresh: Vec::new(),
-                },
-                tol,
-            )
-            .map(|(doc, _)| doc)
-        })?;
+    let placed = editor_core::stand(&doc, &Operand::from(extrude), &EvalOptions::default(), tol)
+        .map_err(SceneDocError::Place)?;
+    let mut doc = doc;
+    placed.write(placement, |e| {
+        let (next, record) = edit(doc.clone(), e, tol)?;
+        doc = next;
+        Ok::<_, SceneDocError>(record.minted_constraints)
+    })?;
     Ok((doc, extrude))
 }
 

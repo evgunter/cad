@@ -230,12 +230,19 @@ pub fn side_placement(doc: &ProfileDoc, side: &editor_core::Operand) -> Option<R
     .then_some(at)
 }
 
-/// Whether `placement`'s bundle reads the world.
+/// Whether `placement`'s bundle places it in the world: a mate reads
+/// the world, or it has no mate and its values state the whole motion.
 pub fn on_world(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
-    bundle(doc, placement).iter().any(|c| {
-        c.mate()
-            .is_some_and(|m| matches!(m.to, editor_core::Target::World(_)))
-    })
+    let bundle = bundle(doc, placement);
+    let unmated = !bundle.is_empty()
+        && bundle
+            .iter()
+            .all(|c| c.value().is_some_and(|v| v.mate.is_none()));
+    unmated
+        || bundle.iter().any(|c| {
+            c.mate()
+                .is_some_and(|m| matches!(m.to, editor_core::Target::World(_)))
+        })
 }
 
 /// **The selections an authored pose reads**, in read order: each
@@ -374,8 +381,8 @@ pub fn pin(
     if *pose == editor_core::Frame::IDENTITY {
         let copy = copy_read(&doc, placement);
         let stood = editor_core::stand(&doc, &copy, o, Tol::witness())
-            .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
-        return with_values(doc, placement, stood.mate, stood.values);
+            .unwrap_or_else(|refusal| panic!("the copy stands: {refusal}"));
+        return written(doc, placement, stood);
     }
     let mate = pin_mate(&doc, placement, pose, o);
     constrain_at(doc, placement, mate).0
@@ -396,6 +403,39 @@ fn copy_read(doc: &ProfileDoc, placement: RecipeNodeId) -> editor_core::Operand 
     }
 }
 
+/// **`placement` with its bundle emptied, as one write**
+/// ([`DocEdit::RemoveConstraints`]): a loose copy, whatever placed it.
+pub fn emptied(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
+    let constraints = bundle(&doc, placement).iter().map(|c| c.id).collect();
+    step(
+        doc,
+        DocEdit::RemoveConstraints {
+            placement,
+            constraints,
+        },
+    )
+    .0
+}
+
+/// **A gesture's constraints written onto `placement`**
+/// ([`editor_core::Placed::write`]): the mate and the values naming it,
+/// or the values of a bundle with no mate as one write.
+pub fn written(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    placed: editor_core::Placed,
+) -> ProfileDoc {
+    let mut doc = doc;
+    placed
+        .write(placement, |edit| {
+            let applied = doc.apply(&edit, Tol::witness()).unwrap();
+            doc = applied.doc;
+            Ok::<_, std::convert::Infallible>(applied.record.minted_constraints)
+        })
+        .unwrap_or_else(|never| match never {});
+    doc
+}
+
 /// **`mate` and the `values` naming it, added to `placement`**.
 pub fn with_values(
     doc: ProfileDoc,
@@ -410,7 +450,7 @@ pub fn with_values(
             DocEdit::AddValue {
                 placement,
                 value: Box::new(editor_core::Value {
-                    mate: id.id,
+                    mate: Some(id.id),
                     coord,
                     by,
                 }),
@@ -692,15 +732,43 @@ pub fn mated_instance(doc_ref: editor_core::DocRef) -> AuthoredNode {
 }
 
 /// **The world read a placement is pinned at**, as written, where its
-/// bundle's one mate is to the world ([`pin`]); `None` for any other
-/// bundle. Panics on a node that is no placement.
+/// bundle's one mate is to the world ([`pin`]), or where it has no mate
+/// and its values state the whole motion ([`editor_core::stand`]): the
+/// world's frame turned by its spins in order and slid by its slides.
+/// `None` for any other bundle. Panics on a node that is no placement.
 pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::WorldRead<Formula>> {
+    use editor_core::pose::PoseRole;
     let constraints = match doc.node(id) {
         Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
             constraints
         }
         other => panic!("node {} is a placement, got {other:?}", id.0),
     };
+    if !constraints.is_empty()
+        && constraints
+            .iter()
+            .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
+    {
+        let role = |axis| match axis {
+            editor_core::TargetAxis::X => PoseRole::X,
+            editor_core::TargetAxis::Y => PoseRole::Y,
+            editor_core::TargetAxis::Z => PoseRole::Z,
+        };
+        let written = |v: &editor_core::Value| doc.written(&editor_core::Expr::var(v.by, v.coord.dimension()));
+        let values: Vec<_> = constraints.iter().filter_map(editor_core::Constraint::value).collect();
+        let spun = values.iter().fold(editor_core::WorldRead::Frame, |at, v| match v.coord {
+            editor_core::Coord::SpinAbout(axis) => {
+                at.spin(editor_core::WorldRead::through(role(axis)), written(v))
+            }
+            _ => at,
+        });
+        return Some(values.iter().fold(spun, |at, v| match v.coord {
+            editor_core::Coord::Slide(axis) => {
+                at.slide(editor_core::WorldRead::through(role(axis)), written(v))
+            }
+            _ => at,
+        }));
+    }
     let mut mates = constraints.iter().filter_map(editor_core::Constraint::mate);
     let (Some(only), None) = (mates.next(), mates.next()) else {
         return None;
@@ -790,7 +858,9 @@ pub fn value_slot(
         .unwrap_or_else(|| panic!("{placement} holds a value on {coord:?}"));
     match coord {
         editor_core::Coord::Slide(_) => editor_core::SlotId::ValueSlide { constraint: c.id },
-        editor_core::Coord::Spin => editor_core::SlotId::ValueSpin { constraint: c.id },
+        editor_core::Coord::Spin | editor_core::Coord::SpinAbout(_) => {
+            editor_core::SlotId::ValueSpin { constraint: c.id }
+        }
     }
 }
 
@@ -821,7 +891,7 @@ pub fn value_bump(
     };
     let value = match coord {
         editor_core::Coord::Slide(_) => len(held + delta),
-        editor_core::Coord::Spin => ang(held + delta),
+        editor_core::Coord::Spin | editor_core::Coord::SpinAbout(_) => ang(held + delta),
     };
     DocEdit::SetParam {
         node: placement,
@@ -1505,11 +1575,11 @@ impl Recorder {
             },
             vec![
                 (
-                    editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                    editor_core::Coord::Slide(editor_core::TargetAxis::X),
                     Formula::named(name, editor_core::Dimension::Length),
                 ),
                 (
-                    editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+                    editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                     Formula::zero(Dimension::Length),
                 ),
                 (editor_core::Coord::Spin, Formula::zero(Dimension::Angle)),
@@ -1575,10 +1645,28 @@ impl Recorder {
         for (coord, by) in values {
             self.push(DocEdit::AddValue {
                 placement,
-                value: Box::new(editor_core::Value { mate, coord, by }),
+                value: Box::new(editor_core::Value {
+                    mate: Some(mate),
+                    coord,
+                    by,
+                }),
                 fresh: Vec::new(),
             });
         }
+    }
+
+    /// **A gesture's constraints written onto `placement`**, recorded
+    /// ([`editor_core::Placed::write`]).
+    pub fn write(&mut self, placement: RecipeNodeId, placed: editor_core::Placed) {
+        placed
+            .write(placement, |edit| {
+                let applied = editor_core::apply(&self.doc, &edit, Tol::witness())
+                    .expect("recorded edit must apply");
+                self.edits.push(edit);
+                self.doc = applied.doc;
+                Ok::<_, std::convert::Infallible>(applied.record.minted_constraints)
+            })
+            .unwrap_or_else(|never| match never {});
     }
 
     /// **One copy of `body` in the world** (A10), standing where its
@@ -1587,10 +1675,10 @@ impl Recorder {
         let read = body_read(&self.doc, body.into());
         self.evaluated();
         let ev = self.last.as_ref().expect("just evaluated");
-        let stood = editor_core::stand_in(&self.doc, ev, &read, Tol::witness())
+        let stood = editor_core::stand_in(&self.doc, ev, &read)
             .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
         let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
-        self.constrain(placement, stood.mate, stood.values);
+        self.write(placement, stood);
         placement
     }
 
@@ -1612,7 +1700,7 @@ impl Recorder {
         let placed = editor_core::place_at_in(&self.doc, ev, &read, at, Tol::witness())
             .unwrap_or_else(|refusal| panic!("the copy places at its frame: {refusal}"));
         let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
-        self.constrain(placement, placed.mate, placed.values);
+        self.write(placement, placed);
         placement
     }
 
@@ -1634,7 +1722,7 @@ impl Recorder {
             editor_core::place_against_in(&self.doc, ev, &target, &read, at, Tol::witness())
                 .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
         let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
-        self.constrain(placement, placed.mate, placed.values);
+        self.write(placement, placed);
         placement
     }
 
