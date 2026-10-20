@@ -284,7 +284,7 @@ fn a_rejection_tells_the_decided_margin_it_carries() {
 /// says it once. A rejected zero is told by its placement, and a
 /// reading inside the band was not decided: both keep their word in the
 /// tail. A reading past the band that no gate tagged (a bound reported
-/// where it stands) was decided by nobody, and its payload says no word.
+/// where it stands) was decided by nobody, and says no such word.
 #[test]
 fn a_decided_signs_word_rides_the_payload_once() {
     let b = band();
@@ -358,6 +358,8 @@ fn a_decided_signs_word_rides_the_payload_once() {
             "an untagged reading past the band: {payload}"
         );
         assert!(!payload.contains(decided), "no word: {payload}");
+        let whole = reported.to_string();
+        assert!(!whole.contains(decided), "no word in the tail: {whole}");
     }
 }
 

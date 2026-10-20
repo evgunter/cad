@@ -2629,21 +2629,25 @@ impl Indeterminate {
     /// ([`MarginDiag::shows`]) and its kind alone, never from which route
     /// carried it, so a class says one thing and its ending
     /// ([`Indeterminate::ending`], the same class) agrees. Read for the
-    /// word by [`UnderTail`], unless the payload said a gate's
-    /// [`DECIDED_SIGN`] already, and by [`Indeterminate::ending`] for the
+    /// word by [`UnderTail`] and by [`Indeterminate::ending`] for the
     /// lever.
     ///
-    /// A decided nonzero sign is sign-certain. A reading that shows no
-    /// size stays off every sign the decision passes at any smaller
-    /// tolerance, and a zero the symbolic tier proved is no size the user
-    /// may intend, which no subdivision unproves. Every other reading
-    /// says what it is; what a tolerance does for it is the ending's.
+    /// A reading past the band has no word here: whether a sign was
+    /// decided there is the gate's tag, which the payload reads. A
+    /// reading that shows no size stays off every sign the decision
+    /// passes at any smaller tolerance, and a zero the symbolic tier
+    /// proved is no size the user may intend, which no subdivision
+    /// unproves. Every other reading says what it is; what a tolerance
+    /// does for it is the ending's.
     fn reading(&self) -> (Option<&'static str>, KindLever) {
         let (margin, band) = (self.margin, self.band);
         let undecided_value =
             margin.kind() == MarginKind::Value || margin.placement(band) == Placement::ZeroBand;
         match margin.shows(band, self.passes()) {
-            Shows::Past | Shows::Refused => (Some(DECIDED_SIGN), KindLever::Door),
+            // Past the band: a gate's rejection says so in the payload
+            // ([`IndeterminatePayload`]), and a bound reported where it
+            // stands was decided by nobody.
+            Shows::Past | Shows::Refused => (None, KindLever::Door),
             Shows::Unreadable => (None, KindLever::Inputs),
             Shows::NoSize if margin.proven() => (
                 Some("a zero the symbolic tier proved, which no tolerance makes a size"),
@@ -2663,11 +2667,6 @@ impl Indeterminate {
         }
     }
 }
-
-/// What a reading past the band is to the decision that refused it: the
-/// one spelling of the word ([`Indeterminate::reading`], and the payload
-/// of a gate's rejected sign).
-const DECIDED_SIGN: &str = "a decided sign this decision cannot use";
 
 /// The lever a margin kind puts in front of the door's
 /// ([`Indeterminate::reading`]).
@@ -2690,14 +2689,14 @@ impl Indeterminate {
     }
 
     /// The word this escalation's payload says after its placement, read
-    /// from the gate's tag: [`DECIDED_SIGN`] where a gate rejected a
-    /// nonzero sign. A rejected zero's verdict is told by its placement.
+    /// from the gate's tag alone: where a gate rejected a nonzero sign. A
+    /// rejected zero's verdict is told by its placement.
     fn payload_word(&self) -> Option<&'static str> {
         matches!(
             self.margin.rejected_sign(),
             Some(Sign::Positive | Sign::Negative)
         )
-        .then_some(DECIDED_SIGN)
+        .then_some("a decided sign this decision cannot use")
     }
 
     /// Whether [`Indeterminate::ending`] offers a tolerance: a smaller
