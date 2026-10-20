@@ -195,10 +195,11 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses_at_a_dual() {
 }
 
 /// **The same two parts as two shells of ONE solid**: the solid's total
-/// is positive too, so check 7 passes it, and the wedge's shell is a
-/// `Void` standing outside the brick's `Outer`, bounding winding −1.
-/// Tier 3 refuses it on check 10 (`ShellWinding`), and the no-verdict
-/// gate reads check 10 as tier 3 does, so every split door and the
+/// is positive too, and the wedge's shell is a `Void` standing outside
+/// the brick's `Outer`, bounding winding −1. Check 7 reads it by every
+/// aim: a ray aimed at the wedge counts its way into its material, one
+/// aimed at the brick out of it (`OrientationOpposed`). The no-verdict
+/// gate reads check 7 as tier 3 does, so every split door and the
 /// Boolean refuse it at a dual and name the wedge's shell. Red without
 /// that read: `split` at z = 0.75 answered two sides, each carrying the
 /// wedge's inside-out half as a stray void.
@@ -219,8 +220,9 @@ fn an_inside_out_shell_under_one_solid_refuses_at_a_dual() {
     let named = |errors: &[ValidationError]| {
         matches!(
             errors,
-            [ValidationError::ShellWinding { solid, shell, winding: 0, bounded: -1 }]
-                if *solid == solids[0] && *shell == wedge_shell[0]
+            [ValidationError::OrientationOpposed { solid, rays }]
+                if *solid == solids[0] && rays.inside_out.shell == wedge_shell[0]
+                    && rays.outside.shell != wedge_shell[0]
         )
     };
     let operand = unverdicted(one_solid);
@@ -248,7 +250,7 @@ fn an_inside_out_shell_under_one_solid_refuses_at_a_dual() {
     }
 }
 
-/// **At `f64` the at-rest gate refuses the one-solid body on check 10**,
+/// **At `f64` the at-rest gate refuses the one-solid body on check 7**,
 /// the verdict the no-verdict gate reads at a dual.
 #[test]
 fn an_inside_out_shell_under_one_solid_does_not_finish_at_f64() {
@@ -283,13 +285,10 @@ fn an_inside_out_shell_under_one_solid_does_not_finish_at_f64() {
     assert!(
         matches!(
             errors.as_slice(),
-            [ValidationError::ShellWinding {
-                winding: 0,
-                bounded: -1,
-                ..
-            }]
+            [ValidationError::OrientationOpposed { rays, .. }]
+                if rays.inside_out.shell != rays.outside.shell
         ),
-        "the gate refuses the wedge's shell on check 10, got {errors:?}"
+        "the gate refuses the wedge's shell on check 7's two opposed rays, got {errors:?}"
     );
 }
 

@@ -105,8 +105,9 @@ fn positive_total(body: &Body<f64>) {
 /// own outer wall moves to a solid of its own, and a larger block far
 /// away is grafted onto the solid so its total stays positive. Check 7
 /// refuses it before check 10 winds it: a ray aimed from beyond the
-/// solid at the cavity's wall crosses into the material that wall alone
-/// bounds, so the solid's faces leave infinity inside its material.
+/// solid at the cavity's wall counts its way into the material that wall
+/// alone bounds, while another, through the far block first, counts its
+/// way out.
 #[test]
 fn a_void_outside_every_outer_refuses() {
     let mut body = hollow(0.0, 3.0, 1.0);
@@ -128,10 +129,15 @@ fn a_void_outside_every_outer_refuses() {
     assert_eq!(shells_of(&body, solid, ShellRole::Void), vec![cavity]);
     positive_total(&body);
 
-    assert_eq!(
-        topo::validate_geometric(&body, tol()),
-        Err(vec![ValidationError::NegativeVolume { solid }]),
-        "the cavity's wall leaves infinity inside the solid's material"
+    let read = topo::validate_geometric(&body, tol());
+    assert!(
+        matches!(
+            read.as_ref().map_err(Vec::as_slice),
+            Err([ValidationError::OrientationOpposed { solid: s, rays }])
+                if *s == solid && rays.inside_out.shell == cavity
+        ),
+        "a ray aimed at the cavity's wall reads the side at infinity inside the material: \
+         {read:?}"
     );
     assert_eq!(
         topo::validate_geometric_structural(&body, tol()),

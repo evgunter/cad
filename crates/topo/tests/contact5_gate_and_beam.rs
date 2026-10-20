@@ -474,9 +474,11 @@ fn a_declared_seat_with_a_keel_is_probed() {
 /// `[2, 4] × [1, 2] × [0.25, 0.75]` filed under it that pokes out through
 /// its `x = 3` wall: one `Outer` and one `Void`, whose first witnesses
 /// wind as check 10 wants, and whose edges pierce that wall. A block B
-/// rests on A's `x = 0` wall, face to face. Every finding between A and B is a rest,
-/// but A's own edge crossings say its boundary crosses itself, and no
-/// placement can be read against such a material.
+/// rests on A's `x = 0` wall, face to face. A's boundary crosses itself
+/// where the cavity pokes out, so a ray aimed at the `x = 3` wall there
+/// counts its way into A's material while one aimed at A's top counts
+/// its way out: check 7 refuses A on the two rays, and no placement is
+/// read against such a material.
 #[test]
 fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
     let mut body = block((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
@@ -488,13 +490,13 @@ fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
     topo::graft_disjoint(&mut body, &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0))).unwrap();
     let errors = errors_of(&body);
     assert!(
-        !errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::ShellWinding { .. })),
-        "the premise: check 10 passes the crossing cavity: {errors:?}"
+        matches!(
+            &errors[..],
+            [ValidationError::OrientationOpposed { rays, .. }]
+                if rays.inside_out.shell == rays.outside.shell
+        ),
+        "two rays aimed at A's outer wall read opposite sides: {errors:?}"
     );
-    assert!(pierces(&errors) > 0, "{errors:?}");
-    assert_eq!(refusals(&errors), [CROSSING], "{errors:?}");
 }
 
 /// A block `outer` with the block `void` cut out of it as a cavity: one

@@ -67,10 +67,12 @@ pub struct AimedPair {
     pub gap: Indeterminate,
 }
 
-/// **An aimed ray that decided a side**: the face it was aimed at and
-/// where ([`OpposedAims`]).
+/// **An aimed ray that decided a side**: the face it was aimed at, its
+/// shell, and where ([`OpposedAims`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct AimedSide {
+    /// The shell of the face the ray was aimed at.
+    pub shell: crate::entity::ShellKey,
     /// The face the ray was aimed at.
     pub aimed: FaceKey,
     /// The point on it the ray was aimed at, as coordinates: a witness,
@@ -92,17 +94,21 @@ pub struct OpposedAims {
     pub outside: AimedSide,
 }
 
+/// The two rays in words, by their aims: the faces and shells they were
+/// aimed at are the payload's, never the sentence's.
 impl core::fmt::Display for OpposedAims {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let (i, o) = (&self.inside_out, &self.outside);
+        let other = if i.shell == o.shell {
+            "another"
+        } else {
+            "one of another shell"
+        };
         write!(
             f,
-            "a ray aimed from outside at {} at {} counts its way into the material, while one \
-             aimed at {} at {} counts its way out of it",
-            EntityId::Face(i.aimed),
-            i.aim,
-            EntityId::Face(o.aimed),
-            o.aim,
+            "a ray from outside aimed at {} on one of its faces counts its way into its \
+             material, and one aimed at {} on {other} counts its way out",
+            i.aim, o.aim,
         )
     }
 }
@@ -775,6 +781,7 @@ fn cast_aims<T: Decide>(
                     return Ok(Rays::Side(side));
                 }
                 let read = AimedSide {
+                    shell,
                     aimed: face,
                     aim: at.clone(),
                 };

@@ -1315,10 +1315,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             solid,
             rays: Box::new(crate::side_reader::OpposedAims {
                 inside_out: crate::side_reader::AimedSide {
+                    shell: ShellKey::default(),
                     aimed: face,
                     aim: "(0, 0, 0)".to_owned(),
                 },
                 outside: crate::side_reader::AimedSide {
+                    shell: ShellKey::default(),
                     aimed: face,
                     aim: "(1, 0, 0)".to_owned(),
                 },

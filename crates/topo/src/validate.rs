@@ -5710,11 +5710,13 @@ fn seam_region<T: Decide>(body: &Body<T>, start: FaceKey) -> Option<SeamRegion<T
 
 /// **Where `body` holds material wound negative, read as tier 3 reads
 /// it**, at the lane `quad` gives: check 7's
-/// [`ValidationError::NegativeVolume`] verdicts, a solid at a time; then,
-/// behind a clean check 7 as tier 3 runs it, check 10's
+/// [`ValidationError::NegativeVolume`] and
+/// [`ValidationError::OrientationOpposed`] verdicts, a solid at a time;
+/// then, behind a clean check 7 as tier 3 runs it, check 10's
 /// [`ValidationError::ShellWinding`] verdicts, a shell at a time
-/// ([`shell_winding_errors`]). The first is a solid whose total is
-/// negative. The second is a shell inside a solid whose total is
+/// ([`shell_winding_errors`]). The first is a solid read inside out by
+/// its rays or its total, or inside out in part by two opposed rays. The
+/// second is a shell inside a solid whose total is
 /// positive that bounds a region of winding −1: check 10 reads winding
 /// only where a solid holds at most one decided `Outer` shell, and there
 /// a misplaced shell is a `Void` outside the `Outer` or inside another
@@ -5739,7 +5741,13 @@ pub(crate) fn wound_negative<T: geom_core::Decide + crate::props::AtRestPolicy>(
             .collect(),
         Err(errors) => errors
             .into_iter()
-            .filter(|e| matches!(e, ValidationError::NegativeVolume { .. }))
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::NegativeVolume { .. }
+                        | ValidationError::OrientationOpposed { .. }
+                )
+            })
             .collect(),
     }
 }
@@ -9754,7 +9762,8 @@ pub enum Unfinished {
     /// Tier 2's findings: scaffolding at rest.
     Scaffolding(Vec<ValidationError>),
     /// The orientation read's findings: solids check 7 decides inside-out
-    /// ([`ValidationError::NegativeVolume`]), or shells check 10 finds
+    /// ([`ValidationError::NegativeVolume`]) or inside-out in part
+    /// ([`ValidationError::OrientationOpposed`]), or shells check 10 finds
     /// bounding negative material ([`ValidationError::ShellWinding`]).
     InsideOut(Vec<ValidationError>),
     /// Tier 3's check 11: a vertex the join would take

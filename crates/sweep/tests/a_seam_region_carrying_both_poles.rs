@@ -7,7 +7,9 @@
 //! These rows PIN that residual as it stands
 //! (`work/flux/a-seam-region-whose-boundary-carries-both-poles-is-unread.md`):
 //! when its owner lands, the flips below are refused and the rows go red
-//! for the right reason.
+//! for the right reason. Check 7 reads every aim that decides, and two of
+//! its rays read the split boss's flip on opposite sides, so that flip
+//! refuses there already.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::seam_region_common::{flipped, sphere_faces, split_at_meridian, v};
@@ -29,11 +31,13 @@ fn measure(label: &str, body: &Body<f64>, tol: Tol) -> f64 {
 /// A ball unioned with a brick whose face plane holds its polar axis
 /// keeps one 180° lune; `mef` splits it along the meridian through
 /// `(1, 0, 0)`. The two halves' region is bounded by the great circle
-/// `x = 0`, which carries both poles. Both flipped, tier 3 passes and
-/// the volume is the brick less a whole half-sphere's worth: 48 − 2π
-/// against 48 + 2π/3.
+/// `x = 0`, which carries both poles. Both flipped, the faces overlap,
+/// and the volume would be the brick less a whole half-sphere's worth:
+/// 48 − 2π against 48 + 2π/3. Check 6 leaves the region unread, and
+/// check 7 refuses it: a ray aimed at one half counts its way into the
+/// material, one aimed at the brick out of it.
 #[test]
-fn two_faces_whose_region_carries_both_poles_flip_silently() {
+fn two_faces_whose_region_carries_both_poles_flipped_refuse_on_two_opposed_rays() {
     let tol = Tol::witness();
     let ball = finished(
         "ball",
@@ -62,10 +66,19 @@ fn two_faces_whose_region_carries_both_poles_flip_silently() {
         close(boss, 48.0 + 2.0 * PI / 3.0),
         "the split boss measures {boss}"
     );
-    let silent = measure("both halves flipped", &flipped(&body, &faces), tol);
+    let both = flipped(&body, &faces);
+    let read = topo::validate_geometric(&both, tol);
+    assert!(
+        matches!(
+            read.as_ref().map_err(Vec::as_slice),
+            Err([topo::ValidationError::OrientationOpposed { .. }])
+        ),
+        "both halves flipped refuse on two opposed rays: {read:?}"
+    );
+    let silent = topo::mass_properties(&both, tol).unwrap().volume;
     assert!(
         close(silent, 48.0 - 2.0 * PI),
-        "both halves flipped measure {silent}, pinned at 48 − 2π"
+        "both halves flipped measure {silent}, 48 − 2π: the faces overlap"
     );
 }
 

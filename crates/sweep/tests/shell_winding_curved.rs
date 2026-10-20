@@ -51,9 +51,9 @@ fn a_ball_inside_a_ball_of_its_own_solid_refuses() {
     );
 }
 
-/// **A ball cavity outside the ball around it** — one `Outer`, so the
-/// winding is read, over the sphere arm of the point-in-solid walk:
-/// the cavity sits where the solid's only other shell winds `0`.
+/// **A ball cavity outside the ball around it** — the cavity sits where
+/// the solid's only other shell winds `0`, and check 7's aimed rays read
+/// it over the sphere arm of the ray walk.
 #[test]
 fn a_ball_cavity_outside_its_solids_ball_refuses() {
     let big = ball_poled_z(2.0, Vec3::new(0.0, 0.0, 0.0), tol());
@@ -68,15 +68,18 @@ fn a_ball_cavity_outside_its_solids_ball_refuses() {
         .find(|c| c.role == ShellRole::Void)
         .expect("one Void")
         .shell;
-    assert_eq!(
-        topo::validate_geometric(&body, tol()),
-        Err(vec![ValidationError::ShellWinding {
-            solid,
-            shell: void,
-            winding: 0,
-            bounded: -1,
-        }]),
-        "the cavity sits where the large ball winds 0"
+    // Check 7 reads it before check 10 winds it: a ray aimed at the
+    // cavity, which sits where the large ball winds 0, counts its way
+    // into its material, and one aimed at the large ball counts its way
+    // out.
+    let read = topo::validate_geometric(&body, tol());
+    assert!(
+        matches!(
+            read.as_ref().map_err(Vec::as_slice),
+            Err([ValidationError::OrientationOpposed { solid: s, rays }])
+                if *s == solid && rays.inside_out.shell == void && rays.outside.shell != void
+        ),
+        "the cavity sits where the large ball winds 0: {read:?}"
     );
 }
 

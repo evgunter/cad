@@ -4049,13 +4049,15 @@ fn check_10_reads_every_shell_s_role_or_refuses_the_solid() {
             Err(vec![ValidationError::SolidOuterShells { solid, outer: 2 }]),
             "an upright slab beside the cube is a second piece"
         );
+        // Check 7 reads it first: a ray aimed at the slab counts its way
+        // into its material, one aimed at the cube counts its way out.
         let (body, solid) = solid_with(1e-7, true);
         let verdict = validate_geometric(&body, tol).unwrap_err();
         assert!(
             matches!(
                 verdict.as_slice(),
-                [ValidationError::ShellWinding { solid: s, winding: 0, bounded: -1, .. }]
-                    if *s == solid
+                [ValidationError::OrientationOpposed { solid: s, rays }]
+                    if *s == solid && rays.inside_out.shell != rays.outside.shell
             ),
             "an inside-out slab beside the cube is a void outside every outer: {verdict:?}"
         );

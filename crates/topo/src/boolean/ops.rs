@@ -1008,8 +1008,23 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // Each parted edge now bounds a face of each operand, as a seam does.
     seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
-    let body = gate(finished, band, tol)?;
-    interior_loops?;
+    let body = match (gate(finished, band, tol), interior_loops) {
+        (Ok(body), interior_loops) => {
+            interior_loops?;
+            body
+        }
+        // A classification the certificate declined can keep pieces
+        // whose faces wind against each other, which check 7 reads by
+        // two opposed rays: the declined pair is the cause.
+        (Err(BooleanError::ResultInvalid { errors }), Err(cause))
+            if errors
+                .iter()
+                .all(|e| matches!(e, ValidationError::OrientationOpposed { .. })) =>
+        {
+            return Err(cause);
+        }
+        (Err(e), _) => return Err(e),
+    };
     T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
     let [mut face_fragments_a, face_fragments_b] = fragments;
@@ -1293,10 +1308,13 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// Decided on the unmutated reduction and raised on the built body,
 /// so every refusal the join and the build meet first stands verbatim.
 /// It is raised after `gate`, whose tiers hold for a correct surgery
-/// whatever the classification, and before the volume backstop, which
-/// checks the classification this verdict has already declined to
-/// certify: on a refused pair the verdict is the cause, and the
-/// backstop's refusal on the same body would name a symptom.
+/// whatever the classification but one: check 7 reads every aim, so a
+/// declined classification that keeps pieces whose faces wind against
+/// each other is read there (`OrientationOpposed`), and on a refused pair
+/// the verdict answers in its place. It is raised before the volume
+/// backstop, which checks the classification this verdict has already
+/// declined to certify: on a refused pair the verdict is the cause, and
+/// the backstop's refusal on the same body would name a symptom.
 fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
