@@ -1598,3 +1598,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **STANDARD review MERGEABLE, 0 MAJOR:** the `carrier_net` fold is bit-identical (the old fold first differs at C(55,26); this code uses n ≤ 6), and the slow sets match main at both ε.
   - **Routed:** the minors (three more test-only folds, `polynomial_area_pieces`' hand-written pair, `shared_pieces`' silent fallback) are added to `cut-side-quotients-halve-the-shared-weight-power-per-axis`, build C's next PR, which is now unblocked. Build A moves to the binomial item's PR 2 (the product and blossom homes).
   - **#5419:** the pairing check now runs in every build (head cd38b6f7, `SsiError::WrongLane`, two mismatched-chart rows). Both 1e-6 head reds are confirmed base reds, identical word for word on main (GERM's oblique rod; ssiedge's `TubeNotOneArc` at the post-frame mint). The reviewer is verifying the delta.
+- 2026-10-20 04:18Z — **Binomial item PR 3, Step A** (build A, read-only). Compared each restriction home's coefficient intervals against the pyramid at every real call (the geom-brep slow set plus sweep shelling/r1/shell_general_door). Worst case, other home vs the pyramid:
+  - section's general cuts, split: up to 98× wider (15% of coefficients by more than 4 ulp);
+  - section's exact halves, halving kernel: up to 2×;
+  - `cut_pieces`, split: up to 417× (absorbed by the cut's meet with the whole cell, #5123).
+  - The pyramid is never meaningfully wider.
+  - **Ruled:** three homes stay, each with its reason stated. The pyramid is section and props' door, `split_restrict` the cut's meet-protected fast form, `Grid::halved` derivative's halving. The one fold: `restrict_bernstein` (sole caller `props/quad.rs:4376`) reroutes to `restrict_segment`, bit-identical, and retires. STANDARD. The table goes into the item's record. Seam note on flux's log.
