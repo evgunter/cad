@@ -40,7 +40,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{Spans, block, block_of, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{ends, face_vertices, insert, len, on_frame, point};
 use editor_core::{
@@ -70,10 +70,32 @@ use topo::{Body, ContactRecords};
 
 /// The plate and the two blocks, in a document of their own.
 pub(crate) fn pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
-    let (doc, p2) = block(doc, (1.5, 2.0), (1.0, 3.0), 0.47, 1.23);
+    let (doc, plate) = block_of(doc, PLATE_SPANS);
+    let (doc, p1) = block_of(doc, P1);
+    let (doc, p2) = block_of(doc, P2);
     (doc, vec![plate, p1, p2])
+}
+
+/// The plate under [`pinch`]'s blocks and the sector prisms.
+pub(crate) const PLATE_SPANS: Spans = ((0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+
+/// [`pinch`]'s first block.
+pub(crate) const P1: Spans = ((1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
+
+/// [`pinch`]'s second block, meeting [`P1`]'s footprint at (1.5, 1).
+pub(crate) const P2: Spans = ((1.5, 2.0), (1.0, 3.0), 0.47, 1.23);
+
+/// A [`sector_prism`]'s bearings in degrees and its z span.
+pub(crate) type Sector = (f64, f64, (f64, f64));
+
+/// [`crossing_one_wedge`]'s wedges and the prism crossing the first.
+pub(crate) const WEDGE_A: Sector = (0.0, 50.0, (0.5, 2.0));
+pub(crate) const WEDGE_B: Sector = (120.0, 170.0, (0.47, 1.7));
+pub(crate) const CROSSING_A: Sector = (30.0, 60.0, (0.44, 1.81));
+
+/// [`sector_prism`] over `sector`.
+pub(crate) fn sector_of(doc: ProfileDoc, (a0, a1, z): Sector) -> (ProfileDoc, RecipeNodeId) {
+    sector_prism(doc, a0, a1, z)
 }
 
 /// The two blocks run through the plate: a pinch on its top and one on
@@ -104,12 +126,7 @@ pub(crate) fn side_pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 }
 
 /// A prism over the counterclockwise `corners` from `z0`, `dz` high.
-pub(crate) fn prism(
-    doc: ProfileDoc,
-    corners: &[(f64, f64)],
-    z0: f64,
-    dz: f64,
-) -> (ProfileDoc, RecipeNodeId) {
+fn prism(doc: ProfileDoc, corners: &[(f64, f64)], z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
         [0.0, 0.0, z0],
@@ -989,12 +1006,7 @@ fn two_wedges_name_their_meeting_point_the_touch_of_their_legs_in_either_order()
 
 /// An upright prism over the triangle from (1.5, 1) to the points at the
 /// bearings `a0` and `a1` (degrees) 0.4 from it, over `z`.
-pub(crate) fn sector_prism(
-    doc: ProfileDoc,
-    a0: f64,
-    a1: f64,
-    z: (f64, f64),
-) -> (ProfileDoc, RecipeNodeId) {
+fn sector_prism(doc: ProfileDoc, a0: f64, a1: f64, z: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     let at = |a: f64| {
         let (s, c) = f64::to_radians(a).sin_cos();
         (0.4f64.mul_add(c, MEET[0]), 0.4f64.mul_add(s, MEET[1]))
@@ -1530,10 +1542,10 @@ fn side_node(side: &StableName) -> RecipeNodeId {
 /// [`three_on_a_line`] with the third prism over 30°–60°: it crosses the
 /// first's wedge about the line and touches the second's edge along it.
 pub(crate) fn crossing_one_wedge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
-    let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
-    let (doc, c) = sector_prism(doc, 30.0, 60.0, (0.44, 1.81));
+    let (doc, plate) = block_of(doc, PLATE_SPANS);
+    let (doc, a) = sector_of(doc, WEDGE_A);
+    let (doc, b) = sector_of(doc, WEDGE_B);
+    let (doc, c) = sector_of(doc, CROSSING_A);
     (doc, vec![plate, a, b, c])
 }
 

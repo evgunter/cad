@@ -36,9 +36,11 @@ mint ordinal.
 ## What it needs
 
 A rule for an entity that two members hold coincidently: a name that
-cites both (a `Merged`, as N3 does for coincident faces), or a choice by
-something the author wrote (the member list's order, D9). The choice
-belongs with the naming-strategy fork
+cites both members' entities, as `Merged` does for coincident faces (N3),
+and so is keyed by the reads it cites rather than by either one's id.
+Picking one by the member list's order is not open: N0 (NS1, NS4; PR
+5455) rules out a name that reads the order members are listed in. The
+remedy belongs with the naming-strategy fork
 (`naming-has-no-single-strategy-and-each-fork-patches-one-entity`).
 Unmeasured: which emitter arm picks; the union's coincident-face merge in
 `crates/editor-core/src/names/emit_union.rs` is the likely site.

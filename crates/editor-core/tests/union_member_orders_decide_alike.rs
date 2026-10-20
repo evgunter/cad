@@ -46,7 +46,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{Spans, block, block_of, failure, run};
 use crate::corpus::body_of;
 use crate::emit_boolean_vertex_keys::named_geometry;
 use crate::fixture::{insert, len, on_frame};
@@ -592,15 +592,36 @@ fn every_union_of_the_emit_corpus_decides_alike_in_every_member_order() {
 /// the cube's bottom face passes through the L's reflex corner
 /// (1, 1, 1), and their union pinches there.
 pub(crate) fn prism_and_cube(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let ell = vec![
-        (0.0, 0.0),
-        (2.0, 0.0),
-        (2.0, 1.0),
-        (1.0, 1.0),
-        (1.0, 2.0),
-        (0.0, 2.0),
-    ];
-    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![ell]);
+    prism_and_cube_along(doc, CUBE_NORMAL)
+}
+
+/// The L the prism of [`prism_and_cube`] is drawn over; its reflex
+/// corner is (1, 1).
+const ELL: [(f64, f64); 6] = [
+    (0.0, 0.0),
+    (2.0, 0.0),
+    (2.0, 1.0),
+    (1.0, 1.0),
+    (1.0, 2.0),
+    (0.0, 2.0),
+];
+
+/// The normal of [`prism_and_cube`]'s cube's bottom face, unnormalised.
+pub(crate) const CUBE_NORMAL: [f64; 3] = [1.0, 1.3, 0.7];
+
+/// [`prism_and_cube`] with the cube's bottom face on the plane through
+/// the L's reflex corner (1, 1, 1) whose normal is `normal`.
+pub(crate) fn prism_and_cube_along(
+    doc: ProfileDoc,
+    normal: [f64; 3],
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![ELL.to_vec()],
+    );
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
@@ -609,13 +630,13 @@ pub(crate) fn prism_and_cube(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>)
             side: ExtrudeSide::Along,
         },
     );
-    // The frame through the corner whose normal is (1, 1.3, 0.7),
+    // The frame through the corner whose normal is `normal`,
     // normalised: `u` its tilt of +z, `v` = normal × `u`.
     let unit = |m: [f64; 3]| {
         let n = m.iter().map(|c| c * c).sum::<f64>().sqrt();
         m.map(|c| c / n)
     };
-    let m = unit([1.0, 1.3, 0.7]);
+    let m = unit(normal);
     let u = unit([-m[2] * m[0], -m[2] * m[1], 1.0 - m[2] * m[2]]);
     let v = [
         m[1] * u[2] - m[2] * u[1],
@@ -659,11 +680,17 @@ pub(crate) const CARRIED_PINCH: &str =
 
 /// Two unit blocks kissing at the corner (1, 1, 1): one vertex-vertex
 /// record, citing its `VertexFusion` row.
-fn kiss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+pub(crate) fn kiss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
+    let (doc, a) = block_of(doc, KISS[0]);
+    let (doc, b) = block_of(doc, KISS[1]);
     (doc, [a, b])
 }
+
+/// [`kiss`]'s two blocks.
+pub(crate) const KISS: [Spans; 2] = [
+    ((0.0, 1.0), (0.0, 1.0), 0.0, 1.0),
+    ((1.0, 2.0), (1.0, 2.0), 1.0, 1.0),
+];
 
 /// [`kiss`] and a block far from both: the touch is a fold step's, its
 /// record the union's in the orders that fold it last.

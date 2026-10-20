@@ -3,8 +3,8 @@ id: topo-has-no-arena-permuting-helper-for-a-storage-order-name-check
 kind: issue
 title: topo has no helper that rebuilds a body with its arenas permuted, so no test can check that a name ignores storage order
 status: open
-priority: P3
-cost: E
+priority: P2
+cost: M
 opened: 2026-10-20
 ---
 
@@ -21,15 +21,28 @@ body's storage. `rg -n "relabel|permute|shuffle" crates/topo/src` finds
 `iso.rs` (which compares bodies up to relabeling), but nothing that produces
 a relabeled body.
 
+## What storage order the other perturbations already vary
+
+Perturbations 1 (member order), 2 (operand order) and 7 (authoring
+history) vary storage order only where it follows the fold. A union or
+intersect folded in another order builds its result's arenas in another
+order, so its slots and keys differ between the two runs, and so do
+those of every later boolean that reads it. Each operand, though, is
+built by one construction (an extrude or revolve of one profile, or a
+fold in the listed order), and that construction inserts its vertices,
+edges, loops and faces in the same order every time. Perturbation 7
+changes the mint ids, not the arenas. No test today reads the names of
+one operand body stored two ways, with the order it is folded in held
+fixed. That is what this perturbation adds, and N0 names it as a check.
+
 ## What it needs
 
 The smallest helper that would serve, behind `test-support`:
 `topo::test_support::permuted(body: &Body<T>, seed: u64) -> (Body<T>, KeyMap)`.
-It would rebuild `body` by inserting its vertices, edges, half-edges,
-loops, faces and geometry in a seeded permutation of each arena. It would
-return the old-to-new key map, and `topo::iso` would confirm the copy is
-isomorphic. editor-core would also need a door to evaluate a recipe with one
-node's value replaced by the permuted body, so that its names are carried
-through. That door is the larger half and may not be worth it. The
-alternative is a debug-only evaluation option that permutes every boolean
-result's arenas before naming.
+It rebuilds `body` by inserting its vertices, edges, half-edges, loops,
+faces and geometry in a seeded permutation of each arena, returns the
+old-to-new key map, and `topo::iso` confirms the copy is isomorphic.
+editor-core then needs a test door that evaluates a recipe with one
+node's value replaced by the permuted body, with that node's table
+carried across the key map, so the names downstream of it are read
+again.

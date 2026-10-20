@@ -3,12 +3,16 @@
 //! names must not read, evaluates again, and compares the two tables.
 //!
 //! A table is read as its names, each beside its candidates (one, or a
-//! tie's several, compared as a set): an entity's kind, its geometry
+//! tie's several, matched one to one): an entity's kind, its geometry
 //! (a vertex's point, an edge's end points, a face's boundary vertex
 //! points, rounded to the micrometre) and the names of the entities it
-//! is incident with. Minted ids are spelled through a [`Ledger`], so
-//! two documents compare up to the bijection of what each authored. A
-//! refusal is compared by its kind; an empty result as empty.
+//! is incident with. Every minted id is first carried, through
+//! [`remap_name`], to the id of what its authoring step was called in a
+//! [`Ledger`]: two documents compare up to the bijection of what each
+//! authored, and the production rewrite puts every name back in its
+//! canonical form, so a set a name orders by id is spelled alike
+//! whatever order the ids were minted in. A refusal is compared by its
+//! kind; an empty result as empty.
 //!
 //! The perturbations, each its own test over the contact-heavy corpus
 //! below (pinches, flush faces, tilted wedges, prisms on a contact
@@ -17,32 +21,45 @@
 //! 1. the member order of an n-ary union and intersect;
 //! 2. the operand order of a two-member union and intersect;
 //! 3. a rigid frame change of a split plane: its normal's sign, the
-//!    halves swapped, and its origin moved along it;
+//!    halves swapped; its origin moved along it; and, for a frame's xy
+//!    plane, the frame spun about its normal;
 //! 4. a small tilt within one topology, compared by incidence;
-//! 5. two separately authored, structurally identical operands,
-//!    authored in either order;
-//! 6. a far feature added: every other name keeps its incidences and
+//! 5. a far feature added: every other name keeps its incidences and
 //!    its vertices' points;
-//! 7. one recipe under another authoring history.
+//! 6. one recipe under another authoring history: its members authored
+//!    in every order (twins and exact copies among them), or after an
+//!    unrelated node.
 //!
 //! An operand's arena storage permuted is not among them: `topo` has no
 //! helper that permutes a body
 //! (`work/wire/topo-has-no-arena-permuting-helper-for-a-storage-order-name-check.md`).
 //!
-//! Each test holds an admission list: the cases a perturbation finds
-//! moving today, each citing the row that owns it. A case outside the
-//! list that moves, or one in it that no longer does, is red.
+//! Each test settles two lists. Its admissions are the cases a
+//! perturbation moves today, each with its exact count of differing
+//! names and the row that owns it; a case outside the list that moves,
+//! one in it that no longer does, or one that moves by another count, is
+//! red. Its vacuous cases are the ones that compare no table on either
+//! side in any comparison (both refuse, say), each citing the row whose
+//! fix makes it compare; a case that starts comparing, or a new one that
+//! compares nothing, is red too. A case whose members simply do not
+//! meet (an intersect of bodies that only touch) is not in the corpus.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Mutex;
 
-use crate::blocks::{block, failure, run};
-use crate::fixture::{ang, ends, face_edges, face_vertices, insert, len, on_frame, point, scl};
+use crate::blocks::{Spans, block, block_of, failure, run};
+use crate::fixture::{
+    ang, ends, face_edges, face_vertices, frame, insert, len, on_frame, point, scl,
+};
 use crate::union_member_orders_decide_alike as decide_alike;
-use crate::union_pinch_member_order as pinch_order;
+use crate::union_pinch_member_order::{self as pinch_order, Sector};
+use crate::wire_legal_union_refusals as sunk;
+use editor_core::pose::{PoseRole, RoleRead};
 use editor_core::{
     Bodies, BooleanValue, Datum, DocEdit, EntityKey, Entry, ExtrudeSide, Formula, LoopProgram,
-    Node, ProfileDoc, RecipeNodeId, ValuePayload,
+    MintId, Node, NodeMap, Operand, ProfileDoc, RecipeNodeId, StepId, StepMap, ValuePayload, VarId,
+    remap_name,
 };
 use geom_core::Tol;
 
@@ -50,24 +67,39 @@ use geom_core::Tol;
 // The harness
 // ------------------------------------------------------------------ //
 
+/// Every label a [`Ledger`] has spelled, in the order first met: a
+/// label's index here is its canonical ids' block, the same in every
+/// document a test compares.
+static LABELS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// The ordinals one label's canonical ids may take.
+const SPAN: u32 = 100_000;
+
+/// Where the canonical ids of ordinals no span holds begin.
+const UNLABELED: u32 = 3_000_000_000;
+
+fn label_index(label: &str) -> u32 {
+    let mut labels = LABELS.lock().expect("the labels");
+    let at = labels.iter().position(|l| l == label).unwrap_or_else(|| {
+        labels.push(label.to_string());
+        labels.len() - 1
+    });
+    u32::try_from(at).expect("few labels")
+}
+
 /// **What each authored span of a document is called**: the mint
 /// ordinals `[start, end)` an authoring step drew, and its label. An id
-/// is spelled by the span it falls in and its offset there, so two
-/// documents that author the same things in another order, or after
-/// something else, spell them alike.
-///
-/// Where a perturbation changes the order ids were minted in, a ledger
-/// made [`Ledger::up_to_id_order`] also spells each name's sets in one
-/// order ([`sets_sorted`]).
+/// is carried to the canonical id of its span's label and its offset
+/// there, so two documents that author the same things in another
+/// order, or after something else, carry them to the same ids.
 #[derive(Default, Clone)]
-pub(crate) struct Ledger {
+struct Ledger {
     spans: Vec<(u32, u32, String)>,
-    sets: bool,
 }
 
 impl Ledger {
     /// `f` run on `doc`, its mints recorded as `label`.
-    pub(crate) fn authored<T>(
+    fn authored<T>(
         &mut self,
         doc: ProfileDoc,
         label: &str,
@@ -80,129 +112,88 @@ impl Ledger {
         (doc, out)
     }
 
-    fn spell(&self, ordinal: u32) -> String {
+    fn place(&self, ordinal: u32) -> Option<(&str, u32)> {
         self.spans
             .iter()
             .find(|(s, e, _)| (*s..*e).contains(&ordinal))
-            .map_or(format!("#{ordinal}"), |(s, _, l)| {
-                format!("{l}+{}", ordinal - s)
-            })
+            .map(|(s, _, l)| (l.as_str(), ordinal - s))
     }
 
-    /// A ledger that also spells every name's sets in one order.
-    pub(crate) fn up_to_id_order() -> Self {
-        Self {
-            sets: true,
-            ..Self::default()
+    /// The canonical id of `m`: its label's block and its offset.
+    fn canonical(&self, m: MintId) -> MintId {
+        match self.place(m.ordinal()) {
+            _ if m.ordinal() == 0 => m,
+            Some((l, off)) => {
+                assert!(off < SPAN, "a span of fewer than {SPAN} ids");
+                MintId::new(1 + label_index(l) * SPAN + off, 0)
+            }
+            None => MintId::new(UNLABELED + m.ordinal(), 0),
         }
     }
 
-    /// `debug` with every minted id in it spelled by its span.
+    /// `doc`'s ids carried to their canonical ids, as [`remap_name`]
+    /// takes them.
+    fn maps(&self, doc: &ProfileDoc) -> (NodeMap, StepMap, BTreeMap<VarId, VarId>) {
+        let mint = doc.mint();
+        let nodes = doc
+            .ids()
+            .into_iter()
+            .map(|n| (n, RecipeNodeId(self.canonical(n.0))))
+            .collect();
+        let steps = mint
+            .steps()
+            .map(|s| (s, StepId(self.canonical(s.0))))
+            .collect();
+        let mut reads: BTreeMap<VarId, VarId> = mint
+            .vars()
+            .map(|v| (v, VarId(self.canonical(v.0))))
+            .collect();
+        // The read no node defines, which a kernel-built name cites.
+        let none = VarId(MintId::new(0, 0));
+        reads.insert(none, none);
+        (nodes, steps, reads)
+    }
+
+    /// `debug` with every raw minted id in it spelled by its span.
     fn respell(&self, debug: &str) -> String {
-        const HEAD: &str = "MintId { ordinal: ";
-        let mut out = String::new();
-        let mut rest = debug;
-        while let Some(at) = rest.find(HEAD) {
-            out.push_str(&rest[..at]);
-            let tail = &rest[at + HEAD.len()..];
-            let digits = tail
-                .find(|c: char| !c.is_ascii_digit())
-                .unwrap_or(tail.len());
-            let ordinal: u32 = tail[..digits].parse().expect("an ordinal");
-            let close = tail.find('}').expect("a closed MintId");
-            out.push_str(&self.spell(ordinal));
-            rest = &tail[close + 1..];
-        }
-        out.push_str(rest);
-        if self.sets { sets_sorted(&out) } else { out }
+        each_mint(debug, |ordinal| match self.place(ordinal) {
+            Some((l, off)) => format!("{l}+{off}"),
+            None => format!("#{ordinal}"),
+        })
     }
 }
 
-/// The index just past the bracket that closes the one at `s[0]`.
-fn closing(s: &str) -> usize {
-    let mut depth = 0usize;
-    for (i, c) in s.char_indices() {
-        match c {
-            '(' | '[' | '{' => depth += 1,
-            ')' | ']' | '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return i + 1;
-                }
-            }
-            _ => {}
+/// `debug` with every canonical id in it spelled by its label.
+fn spelled_canonical(debug: &str) -> String {
+    let labels = LABELS.lock().expect("the labels");
+    each_mint(debug, |ordinal| match ordinal {
+        0 => "none".to_string(),
+        o if o >= UNLABELED => format!("#{}", o - UNLABELED),
+        o => {
+            let (block, off) = ((o - 1) / SPAN, (o - 1) % SPAN);
+            format!("{}+{off}", labels[block as usize])
         }
-    }
-    panic!("an unclosed bracket in {s}")
+    })
 }
 
-/// `s` split at its top-level `", "`s.
-fn top_level(s: &str) -> Vec<&str> {
-    let (mut out, mut depth, mut from) = (Vec::new(), 0usize, 0);
-    let bytes = s.as_bytes();
-    for (i, &b) in bytes.iter().enumerate() {
-        match b {
-            b'(' | b'[' | b'{' => depth += 1,
-            b')' | b']' | b'}' => depth -= 1,
-            b',' if depth == 0 && bytes.get(i + 1) == Some(&b' ') => {
-                out.push(&s[from..i]);
-                from = i + 2;
-            }
-            _ => {}
-        }
-    }
-    if from < s.len() {
-        out.push(&s[from..]);
-    }
-    out
-}
-
-/// **A name's sets spelled in one order**: a union seam's two sides and
-/// the lists a qualifier holds as a set, each sorted by its own
-/// spelling. A name orders a set by its members' names, whose ids order
-/// as they were minted, so two histories spell one set in two orders.
-fn sets_sorted(s: &str) -> String {
-    const SETS: [&str; 5] = ["Ends(", "Borders(", "Keeps(", "Merged(", "EdgeCrossing("];
-    const SEAM: &str = "Seam { ";
+/// `debug` with each `MintId { .. }` in it replaced by `spell` of its
+/// ordinal.
+fn each_mint(debug: &str, spell: impl Fn(u32) -> String) -> String {
+    const HEAD: &str = "MintId { ordinal: ";
     let mut out = String::new();
-    let mut i = 0;
-    while i < s.len() {
-        let rest = &s[i..];
-        if let Some(set) = SETS.iter().find(|p| rest.starts_with(**p)) {
-            let open = i + set.len();
-            if s[open..].starts_with('[') {
-                let end = open + closing(&s[open..]);
-                let mut items: Vec<String> = top_level(&s[open + 1..end - 1])
-                    .into_iter()
-                    .map(sets_sorted)
-                    .collect();
-                items.sort();
-                out.push_str(set);
-                out.push('[');
-                out.push_str(&items.join(", "));
-                out.push(']');
-                i = end;
-                continue;
-            }
-        }
-        if rest.starts_with(SEAM) {
-            let open = i + SEAM.len() - 2;
-            let end = open + closing(&s[open..]);
-            let fields = top_level(&s[open + 2..end - 2]);
-            if let [a, b] = fields.as_slice()
-                && let (Some(a), Some(b)) = (a.strip_prefix("a: "), b.strip_prefix("b: "))
-            {
-                let mut sides = [sets_sorted(a), sets_sorted(b)];
-                sides.sort();
-                out.push_str(&format!("Seam {{ a: {}, b: {} }}", sides[0], sides[1]));
-                i = end;
-                continue;
-            }
-        }
-        let c = rest.chars().next().expect("a char");
-        out.push(c);
-        i += c.len_utf8();
+    let mut rest = debug;
+    while let Some(at) = rest.find(HEAD) {
+        out.push_str(&rest[..at]);
+        let tail = &rest[at + HEAD.len()..];
+        let digits = tail
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(tail.len());
+        let ordinal: u32 = tail[..digits].parse().expect("an ordinal");
+        let close = tail.find('}').expect("a closed MintId");
+        out.push_str(&spell(ordinal));
+        rest = &tail[close + 1..];
     }
+    out.push_str(rest);
     out
 }
 
@@ -217,7 +208,7 @@ fn next_ordinal(doc: &ProfileDoc) -> u32 {
 
 /// One entity a name denotes, as the comparisons read it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Cand {
+struct Cand {
     kind: char,
     geo: Vec<(i64, i64, i64)>,
     near: BTreeSet<String>,
@@ -225,13 +216,19 @@ pub(crate) struct Cand {
 
 /// What one output of one node published.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum Published {
+enum Published {
     /// Its names, each beside its candidates, sorted.
     Table(BTreeMap<String, Vec<Cand>>),
     /// The empty result.
     Empty,
     /// A refusal, by its kind.
     Refused(String),
+}
+
+impl Published {
+    fn is_table(&self) -> bool {
+        matches!(self, Self::Table(_))
+    }
 }
 
 fn micro(x: f64) -> i64 {
@@ -248,20 +245,21 @@ fn kind_of(debug: &str) -> String {
     }
 }
 
-/// **What `node`'s output `port` published in `doc`**, its ids spelled
+/// **What `node`'s output `port` published in `doc`**, its ids carried
 /// by `ledger`.
-pub(crate) fn published(
-    doc: &ProfileDoc,
-    node: RecipeNodeId,
-    port: u8,
-    ledger: &Ledger,
-) -> Published {
-    published_in(&run(doc), node, port, ledger)
+fn published(doc: &ProfileDoc, node: RecipeNodeId, port: u8, ledger: &Ledger) -> Published {
+    published_in(&run(doc), doc, node, port, ledger)
 }
 
-/// [`published`], read off the evaluation `ev`.
-pub(crate) fn published_in(
+/// [`published`], read off `doc`'s evaluation `ev`.
+///
+/// `emit_boolean_vertex_keys::named_geometry` reads a table the same
+/// way, but panics where the node refuses, reads port 0 alone, and
+/// holds neither a candidate's incidences nor a tie's candidates apart,
+/// which perturbations 3 to 5 compare.
+fn published_in(
     ev: &editor_core::Evaluation<f64>,
+    doc: &ProfileDoc,
     node: RecipeNodeId,
     port: u8,
     ledger: &Ledger,
@@ -273,6 +271,7 @@ pub(crate) fn published_in(
     if matches!(value.payload, ValuePayload::Boolean(BooleanValue::Empty)) {
         return Published::Empty;
     }
+    let (nodes, steps, reads) = ledger.maps(doc);
     let var = ev
         .output_var(node, port)
         .expect("the node defines the port");
@@ -280,7 +279,14 @@ pub(crate) fn published_in(
     let mut names: BTreeMap<(u32, EntityKey), Vec<String>> = BTreeMap::new();
     let mut entries = Vec::new();
     for (n, e) in table.iter() {
-        let spelled = ledger.respell(&format!("{n:?}"));
+        let spelled = match remap_name(n, &nodes, &steps, &reads) {
+            Ok(c) => spelled_canonical(&format!("{c:?}")),
+            Err(err) => format!(
+                "unremappable ({}): {}",
+                ledger.respell(&format!("{err:?}")),
+                ledger.respell(&format!("{n:?}"))
+            ),
+        };
         let rows: Vec<_> = match e {
             Entry::Unique(r) => vec![*r],
             Entry::Tied(rs) => rs.clone(),
@@ -350,7 +356,10 @@ pub(crate) fn published_in(
             cands.push(Cand { kind, geo, near });
         }
         cands.sort();
-        out.insert(spelled, cands);
+        assert!(
+            out.insert(spelled.clone(), cands).is_none(),
+            "two names of one table spell {spelled}"
+        );
     }
     Published::Table(out)
 }
@@ -364,9 +373,32 @@ fn same_points(a: &[(i64, i64, i64)], b: &[(i64, i64, i64)], slack: i64) -> bool
         })
 }
 
+/// A test of one candidate against another.
+type Fits<'a> = &'a dyn Fn(&Cand, &Cand) -> bool;
+
+/// `a` and `b` matched one to one by `fits`.
+fn one_to_one(a: &[Cand], b: &[Cand], fits: Fits<'_>) -> bool {
+    fn from(i: usize, a: &[Cand], b: &[Cand], used: &mut [bool], fits: Fits<'_>) -> bool {
+        let Some(x) = a.get(i) else {
+            return true;
+        };
+        for j in 0..b.len() {
+            if !used[j] && fits(x, &b[j]) {
+                used[j] = true;
+                if from(i + 1, a, b, used, fits) {
+                    return true;
+                }
+                used[j] = false;
+            }
+        }
+        false
+    }
+    a.len() == b.len() && from(0, a, b, &mut vec![false; b.len()], fits)
+}
+
 /// How two tables are compared.
 #[derive(Clone, Copy)]
-pub(crate) enum Compare {
+enum Compare {
     /// The same names, each over the same candidates' geometry.
     Geometry,
     /// The same names, each over candidates of the same kind incident
@@ -380,7 +412,7 @@ pub(crate) enum Compare {
 }
 
 /// What differs between `a` and `b` under `how`, one line per name.
-pub(crate) fn differences(a: &Published, b: &Published, how: Compare) -> Vec<String> {
+fn differences(a: &Published, b: &Published, how: Compare) -> Vec<String> {
     let (Published::Table(ta), Published::Table(tb)) = (a, b) else {
         return if a == b {
             Vec::new()
@@ -395,35 +427,16 @@ pub(crate) fn differences(a: &Published, b: &Published, how: Compare) -> Vec<Str
             continue;
         };
         let alike = match how {
-            Compare::Geometry => {
-                let mut ga: Vec<_> = ca.iter().map(|c| (c.kind, c.geo.clone())).collect();
-                let mut gb: Vec<_> = cb.iter().map(|c| (c.kind, c.geo.clone())).collect();
-                ga.sort();
-                gb.sort();
-                ga.len() == gb.len()
-                    && ga
-                        .iter()
-                        .zip(&gb)
-                        .all(|(x, y)| x.0 == y.0 && same_points(&x.1, &y.1, 2))
-            }
-            Compare::Incidence => {
-                let mut ia: Vec<_> = ca.iter().map(|c| (c.kind, &c.near)).collect();
-                let mut ib: Vec<_> = cb.iter().map(|c| (c.kind, &c.near)).collect();
-                ia.sort();
-                ib.sort();
-                ia == ib
-            }
-            Compare::Kept => {
-                ca.len() == cb.len()
-                    && ca.iter().all(|x| {
-                        cb.iter().any(|y| {
-                            x.kind == y.kind
-                                && x.near.is_subset(&y.near)
-                                && y.near.difference(&x.near).all(|m| !ta.contains_key(m))
-                                && (x.kind != 'v' || same_points(&x.geo, &y.geo, 2))
-                        })
-                    })
-            }
+            Compare::Geometry => one_to_one(ca, cb, &|x, y| {
+                x.kind == y.kind && same_points(&x.geo, &y.geo, 2)
+            }),
+            Compare::Incidence => one_to_one(ca, cb, &|x, y| x.kind == y.kind && x.near == y.near),
+            Compare::Kept => one_to_one(ca, cb, &|x, y| {
+                x.kind == y.kind
+                    && x.near.is_subset(&y.near)
+                    && y.near.difference(&x.near).all(|m| !ta.contains_key(m))
+                    && (x.kind != 'v' || same_points(&x.geo, &y.geo, 2))
+            }),
         };
         if !alike {
             out.push(format!("{n}: {ca:?} vs {cb:?}"));
@@ -445,40 +458,95 @@ fn outline(p: &Published) -> String {
     }
 }
 
-/// **The admission settles**: every row an admission cites exists, and
-/// the cases that moved are exactly the admitted ones.
-fn settle(found: &BTreeMap<String, Vec<String>>, admitted: &[(&str, &str)]) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    for (case, row) in admitted {
-        assert!(root.join(row).is_file(), "{case}: its row {row} is no file");
-    }
-    let admitted: BTreeMap<&str, &str> = admitted.iter().copied().collect();
-    let new: Vec<_> = found
-        .iter()
-        .filter(|(c, _)| !admitted.contains_key(c.as_str()))
-        .map(|(c, d)| {
-            format!(
-                "{c}: {} differences, first {:#?}",
-                d.len(),
-                &d[..d.len().min(3)]
-            )
-        })
-        .collect();
-    let gone: Vec<_> = admitted
-        .iter()
-        .filter(|(c, _)| !found.contains_key(**c))
-        .map(|(c, r)| format!("{c} (admitted on {r})"))
-        .collect();
-    assert!(
-        new.is_empty() && gone.is_empty(),
-        "cases that move unadmitted: {new:#?}\nadmitted cases that no longer move: {gone:#?}"
-    );
+/// A case that moves today: its name, its exact count of differing
+/// names, and the row that owns it.
+type Admitted = (&'static str, usize, &'static str);
+
+/// A case that compares no table today, and the row whose fix makes it
+/// compare one.
+type Vacuous = (&'static str, &'static str);
+
+/// **What one test's comparisons found**, case by case.
+#[derive(Default)]
+struct Found {
+    /// Each moving case's differences.
+    diffs: BTreeMap<String, Vec<String>>,
+    /// Each case: whether any of its comparisons had a table on one
+    /// side, and what its first comparison set side by side.
+    seen: BTreeMap<String, (bool, String)>,
 }
 
-/// Records `case`'s differences, if any.
-fn note(found: &mut BTreeMap<String, Vec<String>>, case: String, diffs: Vec<String>) {
-    if !diffs.is_empty() {
-        found.entry(case).or_default().extend(diffs);
+impl Found {
+    /// Compares `a` with `b` under `how` as part of `case`, each
+    /// difference tagged `tag`.
+    fn compare(&mut self, case: &str, tag: &str, a: &Published, b: &Published, how: Compare) {
+        let seen = self
+            .seen
+            .entry(case.to_string())
+            .or_insert_with(|| (false, format!("{} vs {}", outline(a), outline(b))));
+        seen.0 |= a.is_table() || b.is_table();
+        let diffs = differences(a, b, how);
+        if !diffs.is_empty() {
+            self.diffs
+                .entry(case.to_string())
+                .or_default()
+                .extend(diffs.into_iter().map(|d| {
+                    if tag.is_empty() {
+                        d
+                    } else {
+                        format!("{tag}: {d}")
+                    }
+                }));
+        }
+    }
+
+    /// **The test settles**: every cited row exists; the cases that
+    /// move are exactly the admitted ones, each by its admitted count;
+    /// and the cases that compare no table are exactly the vacuous
+    /// ones.
+    fn settle(&self, admitted: &[Admitted], vacuous: &[Vacuous]) {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        for (case, row) in admitted
+            .iter()
+            .map(|(c, _, r)| (c, r))
+            .chain(vacuous.iter().map(|(c, r)| (c, r)))
+        {
+            assert!(root.join(row).is_file(), "{case}: its row {row} is no file");
+        }
+        let mut wrong = Vec::new();
+        let counts: BTreeMap<&str, usize> = admitted.iter().map(|&(c, n, _)| (c, n)).collect();
+        for (c, d) in &self.diffs {
+            match counts.get(c.as_str()) {
+                Some(&n) if n == d.len() => {}
+                Some(&n) => wrong.push(format!(
+                    "{c}: admitted moving {n} names, moves {}: first {:#?}",
+                    d.len(),
+                    &d[..d.len().min(3)]
+                )),
+                None => wrong.push(format!(
+                    "{c}: moves {} names unadmitted: first {:#?}",
+                    d.len(),
+                    &d[..d.len().min(3)]
+                )),
+            }
+        }
+        for &(c, _, r) in admitted {
+            if !self.diffs.contains_key(c) {
+                wrong.push(format!("{c}: admitted on {r}, moves nothing"));
+            }
+        }
+        let listed: BTreeSet<&str> = vacuous.iter().map(|&(c, _)| c).collect();
+        for (c, (tables, first)) in &self.seen {
+            match (tables, listed.contains(c.as_str())) {
+                (false, false) => wrong.push(format!("{c}: compares no table ({first})")),
+                (true, true) => wrong.push(format!("{c}: listed vacuous, compares a table")),
+                _ => {}
+            }
+        }
+        for c in listed.iter().filter(|c| !self.seen.contains_key(**c)) {
+            wrong.push(format!("{c}: listed vacuous, is no case"));
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
     }
 }
 
@@ -526,7 +594,7 @@ const Z: [f64; 3] = [0.0, 0.0, 1.0];
 /// Two prisms whose coincident faces at `z = 1` and `y = 0` meet along
 /// one line, a chord between two merged faces
 /// (`work/wire/a-chord-between-two-merged-faces-within-no-rim-refuses.md`,
-/// witness 1).
+/// witness 1, which no other test builds).
 fn two_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let ell = [
         (0.0, -1.0),
@@ -549,47 +617,119 @@ fn two_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, vec![a, b])
 }
 
-/// Two unit blocks kissing at a corner.
+/// [`decide_alike::kiss`], its blocks listed.
 fn kiss(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
-    (doc, vec![a, b])
+    let (doc, m) = decide_alike::kiss(doc);
+    (doc, m.to_vec())
 }
+
+/// **Which of a fixture's intersects the corpus compares**: those of
+/// members that overlap, not just touch. An intersect it leaves out is
+/// asserted empty, so a fixture that comes to overlap is red.
+#[derive(Clone, Copy, PartialEq)]
+enum Meets {
+    /// Its members touch: the n-ary intersect is empty, and so is each
+    /// member's meet with the union of the others.
+    Touches,
+    /// No point lies in every member, so the n-ary intersect is empty;
+    /// each member overlaps the union of the others, and that pair
+    /// intersect is compared.
+    Pairwise,
+    /// Every member overlaps every other: both intersects are compared.
+    Overlaps,
+}
+
+impl Meets {
+    /// Whether the n-ary intersect is compared.
+    fn nary(self) -> bool {
+        self == Self::Overlaps
+    }
+
+    /// Whether member `x`'s meet with the union of the rest is compared.
+    fn pair(self, what: &str, x: usize) -> bool {
+        self != Self::Touches && !EMPTY_PAIRS.contains(&(what, x))
+    }
+}
+
+/// The pairs of a [`Meets::Pairwise`] fixture whose member does not
+/// meet the union of the others.
+const EMPTY_PAIRS: &[(&str, usize)] = &[
+    ("crossing one wedge, prisms", 1),
+    ("flush onto an edge", 2),
+    ("pinch and far", 2),
+];
 
 /// The n-ary corpus: members whose unions and intersections meet in
 /// contact, by name.
-const MEMBERS: &[(&str, Members)] = &[
-    ("three in a row", decide_alike::three_in_a_row),
-    ("stepped stack", decide_alike::stepped_stack),
-    ("table", decide_alike::table),
-    ("prism and cube", decide_alike::prism_and_cube),
-    ("pinch and far", decide_alike::pinch_and_far),
-    ("pinch and cap", decide_alike::pinch_and_cap),
-    ("kiss", kiss),
-    ("kiss and far", decide_alike::kiss_and_far),
-    ("flush onto an edge", decide_alike::flush_onto_an_edge),
-    ("plate pinch", pinch_order::pinch),
-    ("through", pinch_order::through),
-    ("two pinches", pinch_order::two_pinches),
-    ("side pinch", pinch_order::side_pinch),
-    ("corner holes", pinch_order::corner_holes),
-    ("notch and hole", pinch_order::notch_and_hole),
-    ("reflex hole", pinch_order::reflex_hole),
-    ("two tilted wedges", two_tilted_wedges),
-    ("three tilted wedges", three_tilted_wedges),
-    ("three on a line", pinch_order::three_on_a_line),
-    ("crossing one wedge", pinch_order::crossing_one_wedge),
+const MEMBERS: &[(&str, Members, Meets)] = &[
+    (
+        "three in a row",
+        decide_alike::three_in_a_row,
+        Meets::Touches,
+    ),
+    ("stepped stack", decide_alike::stepped_stack, Meets::Touches),
+    ("table", decide_alike::table, Meets::Touches),
+    (
+        "prism and cube",
+        decide_alike::prism_and_cube,
+        Meets::Overlaps,
+    ),
+    (
+        "pinch and far",
+        decide_alike::pinch_and_far,
+        Meets::Pairwise,
+    ),
+    (
+        "pinch and cap",
+        decide_alike::pinch_and_cap,
+        Meets::Overlaps,
+    ),
+    ("kiss", kiss, Meets::Touches),
+    ("kiss and far", decide_alike::kiss_and_far, Meets::Touches),
+    (
+        "flush onto an edge",
+        decide_alike::flush_onto_an_edge,
+        Meets::Pairwise,
+    ),
+    ("plate pinch", pinch_order::pinch, Meets::Pairwise),
+    ("through", pinch_order::through, Meets::Pairwise),
+    ("two pinches", pinch_order::two_pinches, Meets::Pairwise),
+    ("side pinch", pinch_order::side_pinch, Meets::Pairwise),
+    ("corner holes", pinch_order::corner_holes, Meets::Pairwise),
+    (
+        "notch and hole",
+        pinch_order::notch_and_hole,
+        Meets::Pairwise,
+    ),
+    ("reflex hole", pinch_order::reflex_hole, Meets::Pairwise),
+    ("two tilted wedges", two_tilted_wedges, Meets::Overlaps),
+    ("three tilted wedges", three_tilted_wedges, Meets::Overlaps),
+    (
+        "three on a line",
+        pinch_order::three_on_a_line,
+        Meets::Pairwise,
+    ),
+    (
+        "crossing one wedge",
+        pinch_order::crossing_one_wedge,
+        Meets::Pairwise,
+    ),
     (
         "crossing one wedge, prisms",
         pinch_order::crossing_one_wedge_prisms,
+        Meets::Pairwise,
     ),
-    ("bridging", pinch_order::bridging),
-    ("two bridges", pinch_order::two_bridges_short),
-    ("two prisms", two_prisms),
+    ("bridging", pinch_order::bridging, Meets::Pairwise),
+    (
+        "two bridges",
+        pinch_order::two_bridges_short,
+        Meets::Pairwise,
+    ),
+    ("two prisms", two_prisms, Meets::Overlaps),
 ];
 
 /// The n-ary verbs, by name.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum Nary {
     Union,
     Intersect,
@@ -615,14 +755,9 @@ impl Nary {
 }
 
 /// `fixture`'s members combined by `op` in `order`, authored after an
-/// unrelated node where `before`, spelled by role (and up to id order
-/// where `sets`): what the op publishes.
-fn nary(fixture: Members, op: Nary, order: &[usize], before: bool, sets: bool) -> Published {
-    let mut ledger = if sets {
-        Ledger::up_to_id_order()
-    } else {
-        Ledger::default()
-    };
+/// unrelated node where `before`: what the op publishes.
+fn nary(fixture: Members, op: Nary, order: &[usize], before: bool) -> Published {
+    let mut ledger = Ledger::default();
     let mut doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
     if before {
         doc = insert(doc, crate::fixture::xy_frame()).0;
@@ -644,50 +779,58 @@ fn count(fixture: Members) -> usize {
 /// members, a fixed sample past that).
 #[test]
 fn a_member_order_moves_no_name() {
-    let mut found = BTreeMap::new();
-    for &(what, fixture) in MEMBERS {
+    let mut found = Found::default();
+    for &(what, fixture, meets) in MEMBERS {
         let orders = decide_alike::orders(count(fixture));
+        if !meets.nary() {
+            let met = nary(fixture, Nary::Intersect, &orders[0], false);
+            assert_eq!(met, Published::Empty, "{what}: its intersect is empty");
+        }
         for op in Nary::BOTH {
-            let first = nary(fixture, op, &orders[0], false, false);
+            if op == Nary::Intersect && !meets.nary() {
+                continue;
+            }
+            let case = format!("{what} / {}", op.word());
+            let first = nary(fixture, op, &orders[0], false);
             for order in &orders[1..] {
-                let got = nary(fixture, op, order, false, false);
-                note(
-                    &mut found,
-                    format!("{what} / {}", op.word()),
-                    differences(&first, &got, Compare::Geometry)
-                        .into_iter()
-                        .map(|d| format!("{order:?}: {d}"))
-                        .collect(),
+                let got = nary(fixture, op, order, false);
+                found.compare(
+                    &case,
+                    &format!("{order:?}"),
+                    &first,
+                    &got,
+                    Compare::Geometry,
                 );
             }
         }
     }
     for &(what, tool) in CUTS.iter().filter(|(_, t)| t.len() > 1) {
-        note(
-            &mut found,
-            format!("{what} / its tool's member order"),
-            differences(
-                &sunk_boss_cut(tool, CutPose::default()),
-                &sunk_boss_cut(
-                    tool,
-                    CutPose {
-                        tool_reversed: true,
-                        ..CutPose::default()
-                    },
-                ),
-                Compare::Geometry,
+        found.compare(
+            &format!("{what} / its tool's member order"),
+            "",
+            &sunk_boss_cut(tool, CutPose::default()),
+            &sunk_boss_cut(
+                tool,
+                CutPose {
+                    tool_reversed: true,
+                    ..CutPose::default()
+                },
             ),
+            Compare::Geometry,
         );
     }
-    settle(&found, ADMITTED_MEMBER_ORDER);
+    found.settle(ADMITTED_MEMBER_ORDER, VACUOUS_MEMBER_ORDER);
 }
 
 /// The member-order cases that move today.
-const ADMITTED_MEMBER_ORDER: &[(&str, &str)] = &[
-    ("bridging / union", pinch_order::TWO_GERMS),
-    ("pinch and cap / intersect", decide_alike::CARRIED_PINCH),
-    ("pinch and far / union", decide_alike::CARRIED_PINCH),
+const ADMITTED_MEMBER_ORDER: &[Admitted] = &[
+    ("bridging / union", 6, BRIDGE_FOLDED_LAST),
+    ("pinch and cap / intersect", 2, decide_alike::CARRIED_PINCH),
+    ("pinch and far / union", 2, decide_alike::CARRIED_PINCH),
 ];
+
+/// The member-order cases that compare no table today.
+const VACUOUS_MEMBER_ORDER: &[Vacuous] = &[("two prisms / union", MERGED_CHORD)];
 
 /// `x` and `y` combined by `op` as a pair, in that order, `y` the
 /// union of the members it lists where it lists several.
@@ -710,71 +853,104 @@ fn pair(fixture: Members, op: Nary, x: usize, swapped: bool) -> Published {
 /// against the union of the others.
 #[test]
 fn an_operand_order_moves_no_name() {
-    let mut found = BTreeMap::new();
-    for &(what, fixture) in MEMBERS {
+    let mut found = Found::default();
+    for &(what, fixture, meets) in MEMBERS {
         let n = count(fixture);
         for x in 0..if n == 2 { 1 } else { n } {
+            if !meets.pair(what, x) {
+                let met = pair(fixture, Nary::Intersect, x, false);
+                assert_eq!(met, Published::Empty, "{what}: m{x} meets the rest nowhere");
+            }
             for op in Nary::BOTH {
-                note(
-                    &mut found,
-                    format!("{what} / {} / m{x} against the rest", op.word()),
-                    differences(
-                        &pair(fixture, op, x, false),
-                        &pair(fixture, op, x, true),
-                        Compare::Geometry,
-                    ),
+                if op == Nary::Intersect && !meets.pair(what, x) {
+                    continue;
+                }
+                found.compare(
+                    &format!("{what} / {} / m{x} against the rest", op.word()),
+                    "",
+                    &pair(fixture, op, x, false),
+                    &pair(fixture, op, x, true),
+                    Compare::Geometry,
                 );
             }
         }
     }
     for &(what, tool) in CUTS {
         let first = sunk_boss_cut(tool, CutPose::default());
-        assert!(
-            matches!(first, Published::Table(_)),
-            "{what}: the cut names: {}",
-            outline(&first)
-        );
-        note(
-            &mut found,
-            format!("{what} / the boss listed first"),
-            differences(
-                &first,
-                &sunk_boss_cut(
-                    tool,
-                    CutPose {
-                        joined_swapped: true,
-                        ..CutPose::default()
-                    },
-                ),
-                Compare::Geometry,
+        found.compare(
+            &format!("{what} / the boss listed first"),
+            "",
+            &first,
+            &sunk_boss_cut(
+                tool,
+                CutPose {
+                    joined_swapped: true,
+                    ..CutPose::default()
+                },
             ),
+            Compare::Geometry,
         );
     }
-    settle(&found, ADMITTED_OPERAND_ORDER);
+    found.settle(ADMITTED_OPERAND_ORDER, VACUOUS_OPERAND_ORDER);
 }
 
 /// The operand-order cases that move today.
-const ADMITTED_OPERAND_ORDER: &[(&str, &str)] = &[
+const ADMITTED_OPERAND_ORDER: &[Admitted] = &[
     (
         "two bridges / union / m2 against the rest",
+        1,
         BRIDGE_LISTED_FIRST,
     ),
     (
         "two bridges / union / m3 against the rest",
+        1,
         BRIDGE_LISTED_FIRST,
     ),
+];
+
+/// The operand-order cases that compare no table today.
+const VACUOUS_OPERAND_ORDER: &[Vacuous] = &[
+    (
+        "bridging / intersect / m3 against the rest",
+        pinch_order::TWO_GERMS,
+    ),
+    (
+        "bridging / union / m3 against the rest",
+        pinch_order::TWO_GERMS,
+    ),
+    (
+        "pinch and cap / intersect / m2 against the rest",
+        decide_alike::CARRIED_PINCH,
+    ),
+    (
+        "pinch and far / union / m2 against the rest",
+        decide_alike::CARRIED_PINCH,
+    ),
+    ("two bridges / intersect / m2 against the rest", BRIDGES_MET),
+    ("two bridges / intersect / m3 against the rest", BRIDGES_MET),
+    ("two prisms / union / m0 against the rest", MERGED_CHORD),
 ];
 
 /// A bridge listed before the union of the wedges and the other bridge
 /// refuses that a seam was offered one edge twice.
 const BRIDGE_LISTED_FIRST: &str = "work/wire/a-pair-union-of-a-bridge-listed-first-and-the-wedges-offers-a-seam-one-edge-twice.md";
 
+/// The bridging prism folded last, after the plate and both wedges,
+/// refuses the union's fold step.
+const BRIDGE_FOLDED_LAST: &str =
+    "work/wire/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
+
+/// A bridge met with the union of the wedges and the other bridge
+/// refuses: vertices share a name that is no single seam.
+const BRIDGES_MET: &str = "work/wire/a-bridge-met-with-the-wedges-and-the-other-bridge-names-vertices-on-no-single-seam-alike.md";
+
+/// A chord between two merged faces within no rim refuses
+/// (`MergedChord`).
+const MERGED_CHORD: &str = "work/wire/a-chord-between-two-merged-faces-within-no-rim-refuses.md";
+
 // ------------------------------------------------------------------ //
 // Merged chords
 // ------------------------------------------------------------------ //
-
-/// A block's x span, y span, base z and height.
-type Spans = ((f64, f64), (f64, f64), f64, f64);
 
 /// The cuts of `wire_legal_union_refusals`'s sunk boss whose chords
 /// cross or run along the line where its two glued wall pieces meet:
@@ -782,26 +958,14 @@ type Spans = ((f64, f64), (f64, f64), f64, f64);
 const CUTS: &[(&str, &[Spans])] = &[
     (
         "a chord across the glued line",
-        &[
-            ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
-            ((0.9, 1.4), (1.4, 4.0), 1.3, 0.7),
-        ],
+        &[sunk::SLAB, sunk::STEP_ACROSS],
     ),
     (
         "a chord across it the other way",
-        &[
-            ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
-            ((0.9, 1.4), (-1.0, 1.7), 1.3, 0.7),
-        ],
+        &[sunk::SLAB, sunk::STEP_THE_OTHER_WAY],
     ),
-    (
-        "a chord along the glued line",
-        &[((1.4, 2.0), (1.5, 4.0), 0.8, 1.2)],
-    ),
-    (
-        "two chords of one seam",
-        &[((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2)],
-    ),
+    ("a chord along the glued line", &[sunk::ALONG]),
+    ("two chords of one seam", &[sunk::SLAB]),
 ];
 
 /// How a sunk-boss cut is perturbed.
@@ -815,27 +979,26 @@ struct CutPose {
     far: bool,
 }
 
-/// The plate `[0,3]² × [0,1]` with a cylinder boss sunk into it, its
-/// wall drawn in two pieces, joined, less the union of `tool`'s blocks
-/// (`wire_legal_union_refusals`'s `SunkBossCut`), posed by `pose`.
+/// [`sunk::plate_and_boss`] joined, less the union of `tool`'s
+/// [`sunk::tool_block`]s (`wire_legal_union_refusals`'s `SunkBossCut`),
+/// posed by `pose`.
 fn sunk_boss_cut(tool: &[Spans], pose: CutPose) -> Published {
     let mut ledger = Ledger::default();
     let doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
-    let (doc, plate) = ledger.authored(doc, "plate", plate);
-    let (doc, boss) = ledger.authored(doc, "boss", |d| {
-        crate::emit_union_borders::cylinder(d, [1.5, 1.5, 0.5], X, Y, 1.0)
-    });
+    let (doc, [plate, boss]) = ledger.authored(doc, "plate and boss", sunk::plate_and_boss);
     let (mut doc, mut blocks) = ledger.authored(doc, "tool", |mut d| {
         let mut blocks = Vec::new();
-        for &(x, y, z0, dz) in tool {
-            let (e, b) = block(d, x, y, z0, dz);
+        for &spans in tool {
+            let (e, (b, _)) = sunk::tool_block(d, spans);
             d = e;
             blocks.push(b);
         }
         (d, blocks)
     });
     if pose.far {
-        let (d, b) = ledger.authored(doc, "far", |d| block(d, (9.0, 10.0), (9.0, 10.0), 0.0, 1.0));
+        let (d, (b, _)) = ledger.authored(doc, "far", |d| {
+            sunk::tool_block(d, ((9.0, 10.0), (9.0, 10.0), 0.0, 1.0))
+        });
         doc = d;
         blocks.push(b);
     }
@@ -951,91 +1114,169 @@ const SPLITS: &[SplitCase] = &[
     ),
 ];
 
-/// `t` split by the plane through `origin` with `normal`, both
-/// halves' tables, `edit` applied to the document first.
+/// A split's tool.
+#[derive(Clone, Copy)]
+enum Tool {
+    /// A `Datum::Plane` through `origin` with `normal`.
+    Plane([f64; 3], [f64; 3]),
+    /// A frame's xy plane: the frame through `origin` spanned by `u`
+    /// and `v`.
+    FrameXy([f64; 3], [f64; 3], [f64; 3]),
+}
+
+/// One split: both halves' tables, and their bodies' face, edge and
+/// vertex counts where both halves hold a body.
+struct Halves {
+    tables: [Published; 2],
+    counts: Option<[usize; 3]>,
+}
+
+/// `t` split by `tool`, `edit` applied to the document first.
 fn split(
     t: Target,
-    origin: [f64; 3],
-    normal: [f64; 3],
+    tool: Tool,
     edit: &dyn Fn(ProfileDoc, Option<RecipeNodeId>) -> ProfileDoc,
-) -> [Published; 2] {
+) -> Halves {
     let mut ledger = Ledger::default();
     let doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
     let (doc, (profile, node)) = ledger.authored(doc, "target", |d| target(d, t));
-    let (doc, plane) = ledger.authored(doc, "plane", |d| {
-        insert(
-            d,
-            Node::Datum(Datum::Plane {
-                origin: origin.map(len),
-                normal: normal.map(scl),
-            }),
-        )
+    let (doc, tool) = ledger.authored(doc, "tool", |d| match tool {
+        Tool::Plane(origin, normal) => {
+            let (d, plane) = insert(
+                d,
+                Node::Datum(Datum::Plane {
+                    origin: origin.map(len),
+                    normal: normal.map(scl),
+                }),
+            );
+            (d, plane.into())
+        }
+        Tool::FrameXy(origin, u, v) => {
+            let (d, f) = insert(d, frame(origin, u, v));
+            (d, RoleRead::through(Operand::output(f, 0), PoseRole::Xy))
+        }
     });
     let (doc, sp) = ledger.authored(doc, "split", |d| {
         insert(
             d,
             Node::Split {
-                target: editor_core::Operand::output(node, 0).into(),
-                tool: plane.into(),
+                target: Operand::output(node, 0).into(),
+                tool,
             },
         )
     });
-    let ev = run(&edit(doc, profile));
-    [0, 1].map(|port| published_in(&ev, sp, port, &ledger))
+    let doc = edit(doc, profile);
+    let ev = run(&doc);
+    let tables = [0, 1].map(|port| published_in(&ev, &doc, sp, port, &ledger));
+    let counts = (|| {
+        let mut c = [0; 3];
+        for port in 0..2 {
+            let var = ev.output_var(sp, port)?;
+            let body = ev.read_body(var, 0).ok()?.ok()?;
+            c[0] += body.faces().count();
+            c[1] += body.edges().count();
+            c[2] += body.vertices().count();
+        }
+        Some(c)
+    })();
+    Halves { tables, counts }
 }
 
 fn unedited(doc: ProfileDoc, _: Option<RecipeNodeId>) -> ProfileDoc {
     doc
 }
 
-/// An in-plane direction of the plane with `normal`.
+/// A unit in-plane direction of the plane with unit `normal`.
 fn along(normal: [f64; 3]) -> [f64; 3] {
-    if normal[2].abs() < 0.9 {
+    let a = if normal[2].abs() < 0.9 {
         [0.37 * normal[1], -0.37 * normal[0], 0.21]
     } else {
         [0.37, 0.0, 0.0]
-    }
+    };
+    let dot = a[0] * normal[0] + a[1] * normal[1] + a[2] * normal[2];
+    unit([0, 1, 2].map(|i| a[i] - dot * normal[i]))
+}
+
+fn unit(m: [f64; 3]) -> [f64; 3] {
+    let n = m.iter().map(|c| c * c).sum::<f64>().sqrt();
+    m.map(|c| c / n)
+}
+
+fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+/// The frame on the plane through `origin` with unit `normal` whose x
+/// axis is [`along`] it turned `deg` about the normal.
+fn spun(origin: [f64; 3], normal: [f64; 3], deg: f64) -> Tool {
+    let u = turned(along(normal), normal, deg);
+    Tool::FrameXy(origin, u, cross(normal, u))
 }
 
 /// **3. A split plane's frame**: flipping its normal swaps its halves
-/// and renames nothing in them, and moving its origin along it renames
-/// nothing.
+/// and renames nothing in them; moving its origin along it renames
+/// nothing; and spinning a frame whose xy plane splits about the
+/// normal renames nothing.
+///
+/// A `Datum::Plane` is an origin and a normal: it has no in-plane axis
+/// to spin, so the spin is asked of a frame's xy plane, the other tool
+/// a split takes, whose x and y axes are authored.
 #[test]
 fn a_split_planes_frame_moves_no_name() {
-    let mut found = BTreeMap::new();
+    let mut found = Found::default();
     for &(what, t, o, n) in SPLITS {
-        let first = split(t, o, n, &unedited);
+        let first = split(t, Tool::Plane(o, n), &unedited).tables;
         assert!(
-            first.iter().all(|h| matches!(h, Published::Table(_))),
+            first.iter().all(Published::is_table),
             "{what}: the split names both halves: {first:?}"
         );
-        let flipped = split(t, o, n.map(|c| -c), &unedited);
+        let flipped = split(t, Tool::Plane(o, n.map(|c| -c)), &unedited).tables;
         let a = along(n);
-        let moved = split(t, [o[0] + a[0], o[1] + a[1], o[2] + a[2]], n, &unedited);
+        let moved = split(
+            t,
+            Tool::Plane([0, 1, 2].map(|i| o[i] + 0.4 * a[i]), n),
+            &unedited,
+        )
+        .tables;
+        let framed = split(t, spun(o, n, 0.0), &unedited).tables;
+        let spun = split(t, spun(o, n, 37.0), &unedited).tables;
         for port in 0..2 {
-            note(
-                &mut found,
-                format!("{what} / flipped"),
-                differences(&first[port], &flipped[1 - port], Compare::Geometry)
-                    .into_iter()
-                    .map(|d| format!("half {port}: {d}"))
-                    .collect(),
+            let half = format!("half {port}");
+            found.compare(
+                &format!("{what} / flipped"),
+                &half,
+                &first[port],
+                &flipped[1 - port],
+                Compare::Geometry,
             );
-            note(
-                &mut found,
-                format!("{what} / moved along"),
-                differences(&first[port], &moved[port], Compare::Geometry)
-                    .into_iter()
-                    .map(|d| format!("half {port}: {d}"))
-                    .collect(),
+            found.compare(
+                &format!("{what} / moved along"),
+                &half,
+                &first[port],
+                &moved[port],
+                Compare::Geometry,
+            );
+            found.compare(
+                &format!("{what} / a frame's plane spun"),
+                &half,
+                &framed[port],
+                &spun[port],
+                Compare::Geometry,
             );
         }
     }
-    settle(&found, ADMITTED_SPLIT_FRAME);
+    found.settle(ADMITTED_SPLIT_FRAME, VACUOUS_SPLIT_FRAME);
 }
 
 /// The split-frame cases that move today.
-const ADMITTED_SPLIT_FRAME: &[(&str, &str)] = &[];
+const ADMITTED_SPLIT_FRAME: &[Admitted] = &[];
+
+/// The split-frame cases that compare no table today.
+const VACUOUS_SPLIT_FRAME: &[Vacuous] = &[];
 
 // ------------------------------------------------------------------ //
 // Tilts
@@ -1045,61 +1286,44 @@ const ADMITTED_SPLIT_FRAME: &[(&str, &str)] = &[];
 fn turned(v: [f64; 3], axis: [f64; 3], deg: f64) -> [f64; 3] {
     let (s, c) = deg.to_radians().sin_cos();
     let dot = v[0] * axis[0] + v[1] * axis[1] + v[2] * axis[2];
-    let cross = [
-        axis[1] * v[2] - axis[2] * v[1],
-        axis[2] * v[0] - axis[0] * v[2],
-        axis[0] * v[1] - axis[1] * v[0],
-    ];
+    let cross = cross(axis, v);
     [0, 1, 2].map(|i| v[i] * c + cross[i] * s + axis[i] * dot * (1.0 - c))
 }
 
 /// [`decide_alike::prism_and_cube`] with the cube's normal turned `deg`
-/// about `x` through the L's reflex corner, so the pinch stays.
+/// about `x`, its bottom face still through the L's reflex corner, so
+/// the pinch stays.
 fn prism_and_tilted_cube(doc: ProfileDoc, deg: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let ell = [
-        (0.0, 0.0),
-        (2.0, 0.0),
-        (2.0, 1.0),
-        (1.0, 1.0),
-        (1.0, 2.0),
-        (0.0, 2.0),
-    ];
-    let (doc, prism) = framed_prism(doc, [0.0; 3], X, Y, &ell, 1.0);
-    let unit = |m: [f64; 3]| {
-        let n = m.iter().map(|c| c * c).sum::<f64>().sqrt();
-        m.map(|c| c / n)
-    };
-    let m = turned(unit([1.0, 1.3, 0.7]), X, deg);
-    let u = unit([-m[2] * m[0], -m[2] * m[1], 1.0 - m[2] * m[2]]);
-    let v = [
-        m[1] * u[2] - m[2] * u[1],
-        m[2] * u[0] - m[0] * u[2],
-        m[0] * u[1] - m[1] * u[0],
-    ];
-    let square = [(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)];
-    let (doc, cube) = framed_prism(doc, [1.0, 1.0, 1.0], u, v, &square, 4.0);
-    (doc, vec![prism, cube])
+    decide_alike::prism_and_cube_along(doc, turned(unit(decide_alike::CUBE_NORMAL), X, deg))
 }
 
 /// [`pinch_order::pinch`] with `p2`'s footprint turned `deg` about the
-/// vertical line through the pinch corner (1.5, 1).
+/// vertical line through its corner at the pinch, (1.5, 1).
 fn pinch_turned(doc: ProfileDoc, deg: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
-    let u = turned(X, Z, deg);
-    let v = turned(Y, Z, deg);
-    let foot = [(0.0, 0.0), (0.5, 0.0), (0.5, 2.0), (0.0, 2.0)];
-    let (doc, p2) = framed_prism(doc, [1.5, 1.0, 0.47], u, v, &foot, 1.23);
+    let (doc, plate) = block_of(doc, pinch_order::PLATE_SPANS);
+    let (doc, p1) = block_of(doc, pinch_order::P1);
+    let ((x0, x1), (y0, y1), z0, dz) = pinch_order::P2;
+    let (w, h) = (x1 - x0, y1 - y0);
+    let foot = [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)];
+    let (doc, p2) = framed_prism(
+        doc,
+        [x0, y0, z0],
+        turned(X, Z, deg),
+        turned(Y, Z, deg),
+        &foot,
+        dz,
+    );
     (doc, vec![plate, p1, p2])
 }
 
 /// [`pinch_order::crossing_one_wedge`] with the crossing prism's
 /// sector turned `deg` about the contact line.
 fn crossing_turned(doc: ProfileDoc, deg: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, a) = pinch_order::sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
-    let (doc, b) = pinch_order::sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
-    let (doc, c) = pinch_order::sector_prism(doc, 30.0 + deg, 60.0 + deg, (0.44, 1.81));
+    let (doc, plate) = block_of(doc, pinch_order::PLATE_SPANS);
+    let (doc, a) = pinch_order::sector_of(doc, pinch_order::WEDGE_A);
+    let (doc, b) = pinch_order::sector_of(doc, pinch_order::WEDGE_B);
+    let (a0, a1, z) = pinch_order::CROSSING_A;
+    let (doc, c) = pinch_order::sector_of(doc, (a0 + deg, a1 + deg, z));
     (doc, vec![plate, a, b, c])
 }
 
@@ -1113,9 +1337,12 @@ const POSED: &[(&str, Posed)] = &[
 ];
 
 /// The tilts each pose is compared at, in degrees.
-const TILTS: [f64; 3] = [-0.3, 0.2, 1.0];
+const TILTS: [f64; 4] = [-0.3, 0.2, 0.6, 1.0];
 
-/// The union of `posed` at `deg`: its table, and its topology's counts.
+/// How many of [`TILTS`] each subject must compare at.
+const COMPARED_TILTS: usize = 2;
+
+/// The union of `posed` at `deg`: its table, and its body's counts.
 fn posed_union(posed: Posed, deg: f64) -> (Published, Option<[usize; 3]>) {
     let mut ledger = Ledger::default();
     let doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
@@ -1130,111 +1357,115 @@ fn posed_union(posed: Posed, deg: f64) -> (Published, Option<[usize; 3]>) {
         ]),
         _ => None,
     });
-    (published(&doc, u, 0, &ledger), counts)
+    (published_in(&ev, &doc, u, 0, &ledger), counts)
 }
 
 /// The pentagon's split by the vertical plane through its apex edge,
-/// turned `deg` about that edge: both halves, and their counts.
-fn pentagon_split_turned(deg: f64) -> ([Published; 2], [usize; 3]) {
-    let n = turned(Y, Z, deg);
-    let halves = split(
+/// turned `deg` about that edge.
+fn pentagon_split_turned(deg: f64) -> Halves {
+    split(
         Target::Prism(crate::split_pinch_keeps::PENTAGON),
-        [1.0, 1.0, 0.0],
-        n,
+        Tool::Plane([1.0, 1.0, 0.0], turned(Y, Z, deg)),
         &unedited,
+    )
+}
+
+/// Compares `subject`'s poses at [`TILTS`] with its pose at 0°, each
+/// as `pose` builds it: its tables and its bodies' counts. A pose whose
+/// bodies' counts differ is another topology, and is not compared but
+/// printed; a pose that holds no body (it refuses, or is empty) is
+/// compared, so it is red unless admitted. Returns how many poses were
+/// compared.
+fn tilt(
+    found: &mut Found,
+    subject: &str,
+    pose: &dyn Fn(f64) -> (Vec<Published>, Option<[usize; 3]>),
+) -> usize {
+    let (first, counts) = pose(0.0);
+    assert!(
+        first.iter().all(Published::is_table) && counts.is_some(),
+        "{subject} at 0°: {:?}",
+        first.iter().map(outline).collect::<Vec<_>>()
     );
-    let counts = halves
-        .iter()
-        .map(|h| match h {
-            Published::Table(t) => t.values().flatten().fold([0; 3], |mut c, x| {
-                match x.kind {
-                    'f' => c[0] += 1,
-                    'e' => c[1] += 1,
-                    'v' => c[2] += 1,
-                    _ => {}
-                }
-                c
-            }),
-            _ => [0; 3],
-        })
-        .fold([0; 3], |a, b| [a[0] + b[0], a[1] + b[1], a[2] + b[2]]);
-    (halves, counts)
+    let mut compared = 0;
+    for deg in TILTS {
+        let (got, c) = pose(deg);
+        if c.is_some() && c != counts {
+            println!("SKIPPED {subject} at {deg}°: its topology {c:?} is not {counts:?}");
+            continue;
+        }
+        compared += 1;
+        for (port, (a, b)) in first.iter().zip(&got).enumerate() {
+            found.compare(
+                subject,
+                &format!("{deg}°, part {port}"),
+                a,
+                b,
+                Compare::Incidence,
+            );
+        }
+    }
+    println!("{subject}: {compared} of {} tilts compared", TILTS.len());
+    compared
 }
 
 /// **4. A tilt within one topology**: a member turned a little, or a
 /// split plane turned about the edge it holds, renames nothing — each
 /// name keeps its kind and its incidences. A pose whose topology
-/// changes is not compared, and says so; every subject compares one
-/// pose at least.
+/// changes is not compared, and says so; every subject compares
+/// [`COMPARED_TILTS`] poses at least.
 #[test]
 fn a_tilt_within_one_topology_moves_no_name() {
-    let mut found = BTreeMap::new();
+    let mut found = Found::default();
     for &(what, posed) in POSED {
-        let (first, counts) = posed_union(posed, 0.0);
+        let compared = tilt(&mut found, what, &|deg| {
+            let (t, c) = posed_union(posed, deg);
+            (vec![t], c)
+        });
         assert!(
-            matches!(first, Published::Table(_)),
-            "{what}: the union names: {}",
-            outline(&first)
+            compared >= COMPARED_TILTS,
+            "{what}: {compared} tilts keep the topology"
         );
-        let mut compared = 0;
-        for deg in TILTS {
-            let (got, c) = posed_union(posed, deg);
-            if c != counts {
-                println!("SKIPPED {what} at {deg}°: its topology {c:?} is not {counts:?}");
-                continue;
-            }
-            compared += 1;
-            note(
-                &mut found,
-                what.to_string(),
-                differences(&first, &got, Compare::Incidence)
-                    .into_iter()
-                    .map(|d| format!("{deg}°: {d}"))
-                    .collect(),
-            );
-        }
-        assert!(compared > 0, "{what}: some tilt keeps the topology");
     }
-    let (first, counts) = pentagon_split_turned(0.0);
+    let what = "notched pentagon, plane turned";
+    let compared = tilt(&mut found, what, &|deg| {
+        let h = pentagon_split_turned(deg);
+        (h.tables.to_vec(), h.counts)
+    });
     assert!(
-        first.iter().all(|h| matches!(h, Published::Table(_))),
-        "the pentagon's split names both halves"
+        compared >= COMPARED_TILTS,
+        "{what}: {compared} tilts keep the topology"
     );
-    let mut compared = 0;
-    for deg in TILTS {
-        let (got, c) = pentagon_split_turned(deg);
-        if c != counts {
-            println!("SKIPPED the pentagon's split at {deg}°: {c:?} is not {counts:?}");
-            continue;
-        }
-        compared += 1;
-        for port in 0..2 {
-            note(
-                &mut found,
-                "notched pentagon, plane turned".to_string(),
-                differences(&first[port], &got[port], Compare::Incidence)
-                    .into_iter()
-                    .map(|d| format!("{deg}°, half {port}: {d}"))
-                    .collect(),
-            );
-        }
-    }
-    assert!(
-        compared > 0,
-        "the pentagon's split: some tilt keeps the topology"
-    );
-    settle(&found, ADMITTED_TILT);
+    found.settle(ADMITTED_TILT, VACUOUS_TILT);
 }
 
 /// The tilt cases that move today.
-const ADMITTED_TILT: &[(&str, &str)] = &[];
+const ADMITTED_TILT: &[Admitted] = &[];
+
+/// The tilt cases that compare no table today.
+const VACUOUS_TILT: &[Vacuous] = &[];
 
 // ------------------------------------------------------------------ //
-// Twins and histories
+// Authoring histories
 // ------------------------------------------------------------------ //
 
-/// One member of a role-built fixture: its role and how it is authored.
-type Member = (&'static str, fn(ProfileDoc) -> (ProfileDoc, RecipeNodeId));
+/// One member of a role-built fixture.
+#[derive(Clone, Copy)]
+enum Part {
+    /// A [`block_of`] these spans.
+    Block(Spans),
+    /// A [`pinch_order::sector_of`] this sector.
+    Sector(Sector),
+}
+
+impl Part {
+    fn author(self, doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+        match self {
+            Self::Block(s) => block_of(doc, s),
+            Self::Sector(s) => pinch_order::sector_of(doc, s),
+        }
+    }
+}
 
 /// What a role-built fixture's members are combined into.
 #[derive(Clone, Copy)]
@@ -1245,134 +1476,97 @@ enum Combine {
     Cut,
 }
 
-/// A role-built fixture: its members, in the order the op lists them.
-type Roles = (&'static str, &'static [Member], Combine);
+/// A role-built fixture: its members, each by role, in the order the
+/// op lists them.
+type Roles = (&'static str, &'static [(&'static str, Part)], Combine);
 
-/// Two twin blocks, one footprint size, touching along the vertical
+/// Two twin blocks of one footprint size, touching along the vertical
 /// line through (1.5, 1).
-fn twin_left(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    block(doc, (1.0, 1.5), (0.5, 1.0), 0.5, 1.5)
-}
+const TWIN_LEFT: Part = Part::Block(((1.0, 1.5), (0.5, 1.0), 0.5, 1.5));
+const TWIN_RIGHT: Part = Part::Block(((1.5, 2.0), (1.0, 1.5), 0.5, 1.5));
 
-fn twin_right(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    block(doc, (1.5, 2.0), (1.0, 1.5), 0.5, 1.5)
-}
+/// A block, authored twice for a block and its exact copy.
+const UNIT_BLOCK: Part = Part::Block(((1.0, 2.0), (0.5, 1.5), 0.5, 1.0));
 
-/// A plate under the twins.
-fn plate(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0)
-}
+const PLATE: Part = Part::Block(pinch_order::PLATE_SPANS);
+const P1: Part = Part::Block(pinch_order::P1);
+const P2: Part = Part::Block(pinch_order::P2);
+const KISS_A: Part = Part::Block(decide_alike::KISS[0]);
+const KISS_B: Part = Part::Block(decide_alike::KISS[1]);
+const WEDGE_A: Part = Part::Sector(pinch_order::WEDGE_A);
+const WEDGE_B: Part = Part::Sector(pinch_order::WEDGE_B);
+const CROSSING_A: Part = Part::Sector(pinch_order::CROSSING_A);
 
-/// A unit block and its exact copy.
-fn unit_block(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    block(doc, (1.0, 2.0), (0.5, 1.5), 0.5, 1.0)
-}
-
-/// Two wedges and a prism crossing one, about (1.5, 1).
-fn wedge_a(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    pinch_order::sector_prism(doc, 0.0, 50.0, (0.5, 2.0))
-}
-
-fn wedge_b(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    pinch_order::sector_prism(doc, 120.0, 170.0, (0.47, 1.7))
-}
-
-fn wedge_c(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    pinch_order::sector_prism(doc, 30.0, 60.0, (0.44, 1.81))
-}
-
-/// The pinch's blocks.
-fn pinch_p1(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5)
-}
-
-fn pinch_p2(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    block(doc, (1.5, 2.0), (1.0, 3.0), 0.47, 1.23)
-}
-
-/// The kiss's blocks.
-fn kiss_a(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
-}
-
-fn kiss_b(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0)
-}
-
-/// Fixtures with two structurally identical operands: twin blocks and
-/// exact copies.
-const TWINS: &[Roles] = &[
+/// Contact-heavy fixtures by role: twins and exact copies, whose names
+/// differ by their ids alone, and the corpus's pinches and crossings.
+const HISTORIES: &[Roles] = &[
     (
         "twins",
-        &[("left", twin_left), ("right", twin_right)],
+        &[("left", TWIN_LEFT), ("right", TWIN_RIGHT)],
         Combine::Nary(Nary::Union),
     ),
     (
         "twins on the plate",
-        &[("plate", plate), ("left", twin_left), ("right", twin_right)],
+        &[("plate", PLATE), ("left", TWIN_LEFT), ("right", TWIN_RIGHT)],
         Combine::Nary(Nary::Union),
     ),
     (
         "the plate less the twins",
-        &[("plate", plate), ("left", twin_left), ("right", twin_right)],
+        &[("plate", PLATE), ("left", TWIN_LEFT), ("right", TWIN_RIGHT)],
         Combine::Cut,
     ),
     (
         "a block and its copy",
-        &[("one", unit_block), ("copy", unit_block)],
+        &[("one", UNIT_BLOCK), ("copy", UNIT_BLOCK)],
         Combine::Nary(Nary::Union),
     ),
     (
         "a block and its copy, met",
-        &[("one", unit_block), ("copy", unit_block)],
+        &[("one", UNIT_BLOCK), ("copy", UNIT_BLOCK)],
         Combine::Nary(Nary::Intersect),
     ),
     (
         "the plate less a block and its copy",
-        &[("plate", plate), ("one", unit_block), ("copy", unit_block)],
+        &[("plate", PLATE), ("one", UNIT_BLOCK), ("copy", UNIT_BLOCK)],
         Combine::Cut,
     ),
-];
-
-/// Contact-heavy fixtures, by role, for the authoring history.
-const HISTORIES: &[Roles] = &[
     (
         "plate pinch",
-        &[("plate", plate), ("p1", pinch_p1), ("p2", pinch_p2)],
+        &[("plate", PLATE), ("p1", P1), ("p2", P2)],
         Combine::Nary(Nary::Union),
     ),
     (
         "crossing one wedge",
         &[
-            ("plate", plate),
-            ("a", wedge_a),
-            ("b", wedge_b),
-            ("c", wedge_c),
+            ("plate", PLATE),
+            ("a", WEDGE_A),
+            ("b", WEDGE_B),
+            ("c", CROSSING_A),
         ],
         Combine::Nary(Nary::Union),
     ),
     (
         "kiss",
-        &[("a", kiss_a), ("b", kiss_b)],
+        &[("a", KISS_A), ("b", KISS_B)],
         Combine::Nary(Nary::Union),
     ),
     (
         "the plate less the pinch's blocks",
-        &[("plate", plate), ("p1", pinch_p1), ("p2", pinch_p2)],
+        &[("plate", PLATE), ("p1", P1), ("p2", P2)],
         Combine::Cut,
     ),
 ];
 
 /// `roles` authored in `authoring` order (indices into it), combined
-/// in role order: what the combination publishes, ids by role.
+/// in role order: what the combination publishes.
 fn by_roles(roles: &Roles, authoring: &[usize]) -> Published {
     let (_, members, combine) = *roles;
-    let mut ledger = Ledger::up_to_id_order();
+    let mut ledger = Ledger::default();
     let mut doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
     let mut ids = vec![None; members.len()];
     for &i in authoring {
-        let (role, f) = members[i];
-        let (d, id) = ledger.authored(doc, role, f);
+        let (role, part) = members[i];
+        let (d, id) = ledger.authored(doc, role, |d| part.author(d));
         doc = d;
         ids[i] = Some(id);
     }
@@ -1396,38 +1590,97 @@ fn by_roles(roles: &Roles, authoring: &[usize]) -> Published {
     published(&doc, op, 0, &ledger)
 }
 
-/// **5. Twin operands**: where two operands are separately authored and
-/// structurally identical, which of them was authored first renames
-/// nothing — their names differ by their ids alone, and no name may
-/// read those ids' order.
+/// **6. Authoring history**: one recipe authored in another order, or
+/// after an unrelated node, publishes one table up to the bijection of
+/// its minted ids. Where two members are separately authored and
+/// structurally identical (twins, exact copies), their names differ by
+/// their ids alone, so this is also which of them was authored first.
 #[test]
-fn which_twin_was_authored_first_moves_no_name() {
-    let mut found = BTreeMap::new();
-    for roles in TWINS {
+fn an_authoring_history_moves_no_name() {
+    let mut found = Found::default();
+    for roles in HISTORIES {
         let n = roles.1.len();
         let forward: Vec<usize> = (0..n).collect();
-        let mut swapped = forward.clone();
-        swapped.swap(n - 2, n - 1);
-        note(
-            &mut found,
-            roles.0.to_string(),
-            differences(
-                &by_roles(roles, &forward),
-                &by_roles(roles, &swapped),
+        let first = by_roles(roles, &forward);
+        let case = format!("{} / authored in another order", roles.0);
+        for order in decide_alike::orders(n)
+            .into_iter()
+            .filter(|o| *o != forward)
+        {
+            found.compare(
+                &case,
+                &format!("{order:?}"),
+                &first,
+                &by_roles(roles, &order),
                 Compare::Geometry,
-            ),
+            );
+        }
+    }
+    for &(what, fixture, _) in MEMBERS {
+        let order: Vec<usize> = (0..count(fixture)).collect();
+        found.compare(
+            &format!("{what} / after an unrelated node"),
+            "",
+            &nary(fixture, Nary::Union, &order, false),
+            &nary(fixture, Nary::Union, &order, true),
+            Compare::Geometry,
         );
     }
-    settle(&found, ADMITTED_TWINS);
+    found.settle(ADMITTED_HISTORY, VACUOUS_HISTORY);
 }
 
-/// The twin cases that move today.
-const ADMITTED_TWINS: &[(&str, &str)] = &[
-    ("a block and its copy", COPY_MINTED_FIRST),
-    ("a block and its copy, met", COPY_MINTED_FIRST),
-    ("the plate less a block and its copy", COPY_MINTED_FIRST),
-    ("twins on the plate", LEG_MINTED_FIRST),
+/// The history cases that move today.
+const ADMITTED_HISTORY: &[Admitted] = &[
+    (
+        "a block and its copy / authored in another order",
+        40,
+        COPY_MINTED_FIRST,
+    ),
+    (
+        "a block and its copy, met / authored in another order",
+        40,
+        COPY_MINTED_FIRST,
+    ),
+    (
+        "the plate less a block and its copy / authored in another order",
+        96,
+        COPY_MINTED_FIRST,
+    ),
+    (
+        "plate pinch / authored in another order",
+        18,
+        LEG_MINTED_FIRST,
+    ),
+    (
+        "twins on the plate / authored in another order",
+        18,
+        LEG_MINTED_FIRST,
+    ),
 ];
+
+/// The history cases that compare no table today.
+const VACUOUS_HISTORY: &[Vacuous] = &[
+    ("bridging / after an unrelated node", BRIDGE_FOLDED_LAST),
+    (
+        "pinch and far / after an unrelated node",
+        decide_alike::CARRIED_PINCH,
+    ),
+    (
+        "the plate less the pinch's blocks / authored in another order",
+        LINE_WEDGES,
+    ),
+    (
+        "the plate less the twins / authored in another order",
+        LINE_WEDGES,
+    ),
+    ("two prisms / after an unrelated node", MERGED_CHORD),
+];
+
+/// A plate less blocks that meet on a line through it refuses
+/// `LineWedges`: the contact is two coincident edges whose material
+/// wedges overlap.
+const LINE_WEDGES: &str =
+    "work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md";
 
 /// A boolean of a body and its exact copy names each entity of the
 /// result from the copy minted first.
@@ -1438,66 +1691,6 @@ const COPY_MINTED_FIRST: &str =
 /// is named the crossing of the leg minted first.
 const LEG_MINTED_FIRST: &str =
     "work/wire/a-pinch-where-two-legs-cross-one-face-is-named-by-the-leg-minted-first.md";
-
-/// **7. Authoring history**: one recipe authored in another order, or
-/// after an unrelated node, publishes one table up to the bijection of
-/// its minted ids.
-#[test]
-fn an_authoring_history_moves_no_name() {
-    let mut found = BTreeMap::new();
-    for roles in HISTORIES.iter().chain(TWINS) {
-        let n = roles.1.len();
-        let forward: Vec<usize> = (0..n).collect();
-        let first = by_roles(roles, &forward);
-        for order in decide_alike::orders(n)
-            .into_iter()
-            .filter(|o| *o != forward)
-        {
-            note(
-                &mut found,
-                format!("{} / authored in another order", roles.0),
-                differences(&first, &by_roles(roles, &order), Compare::Geometry)
-                    .into_iter()
-                    .map(|d| format!("{order:?}: {d}"))
-                    .collect(),
-            );
-        }
-    }
-    for &(what, fixture) in MEMBERS {
-        let order: Vec<usize> = (0..count(fixture)).collect();
-        note(
-            &mut found,
-            format!("{what} / after an unrelated node"),
-            differences(
-                &nary(fixture, Nary::Union, &order, false, true),
-                &nary(fixture, Nary::Union, &order, true, true),
-                Compare::Geometry,
-            ),
-        );
-    }
-    settle(&found, ADMITTED_HISTORY);
-}
-
-/// The history cases that move today.
-const ADMITTED_HISTORY: &[(&str, &str)] = &[
-    (
-        "a block and its copy / authored in another order",
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "a block and its copy, met / authored in another order",
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "the plate less a block and its copy / authored in another order",
-        COPY_MINTED_FIRST,
-    ),
-    ("plate pinch / authored in another order", LEG_MINTED_FIRST),
-    (
-        "twins on the plate / authored in another order",
-        LEG_MINTED_FIRST,
-    ),
-];
 
 // ------------------------------------------------------------------ //
 // Far features
@@ -1569,37 +1762,36 @@ fn add_hole(
     .0
 }
 
-/// **6. A far feature**: a far block added to a union, or a hole
-/// added to a split outline away from its plane, leaves every other
-/// name where it was — its kind, its incidences (gaining only the
-/// feature's), and its vertices' points.
+/// **5. A far feature**: a far block added to a union or to a cut's
+/// tool, or a hole added to a split outline away from its plane, leaves
+/// every other name where it was — its kind, its incidences (gaining
+/// only the feature's), and its vertices' points.
 #[test]
 fn a_far_feature_moves_no_other_name() {
-    let mut found = BTreeMap::new();
-    for &(what, fixture) in MEMBERS {
-        note(
-            &mut found,
-            format!("{what} / a far member"),
-            differences(
-                &with_far_member(fixture, false),
-                &with_far_member(fixture, true),
-                Compare::Kept,
-            ),
+    let mut found = Found::default();
+    for &(what, fixture, _) in MEMBERS {
+        found.compare(
+            &format!("{what} / a far member"),
+            "",
+            &with_far_member(fixture, false),
+            &with_far_member(fixture, true),
+            Compare::Kept,
         );
     }
     for &(what, t, o, n) in SPLITS {
         let (Target::Prism(outline) | Target::Turned(outline)) = t else {
             continue;
         };
-        let first = split(t, o, n, &unedited);
-        let holed = split(t, o, n, &|doc, profile| {
+        let first = split(t, Tool::Plane(o, n), &unedited).tables;
+        let holed = split(t, Tool::Plane(o, n), &|doc, profile| {
             add_hole(
                 doc,
                 profile.expect("an outline's profile"),
                 outline,
                 far_hole(t),
             )
-        });
+        })
+        .tables;
         let size = |h: &[Published; 2]| {
             h.iter()
                 .map(|p| match p {
@@ -1613,38 +1805,45 @@ fn a_far_feature_moves_no_other_name() {
             "{what}: the hole adds names to the halves"
         );
         for port in 0..2 {
-            note(
-                &mut found,
-                format!("{what} / a far hole"),
-                differences(&first[port], &holed[port], Compare::Kept)
-                    .into_iter()
-                    .map(|d| format!("half {port}: {d}"))
-                    .collect(),
+            found.compare(
+                &format!("{what} / a far hole"),
+                &format!("half {port}"),
+                &first[port],
+                &holed[port],
+                Compare::Kept,
             );
         }
     }
     // A one-block tool is the block itself; a far block would make it a
     // union, whose names cite the union.
     for &(what, tool) in CUTS.iter().filter(|(_, t)| t.len() > 1) {
-        note(
-            &mut found,
-            format!("{what} / a far block in the tool"),
-            differences(
-                &sunk_boss_cut(tool, CutPose::default()),
-                &sunk_boss_cut(
-                    tool,
-                    CutPose {
-                        far: true,
-                        ..CutPose::default()
-                    },
-                ),
-                Compare::Kept,
+        found.compare(
+            &format!("{what} / a far block in the tool"),
+            "",
+            &sunk_boss_cut(tool, CutPose::default()),
+            &sunk_boss_cut(
+                tool,
+                CutPose {
+                    far: true,
+                    ..CutPose::default()
+                },
             ),
+            Compare::Kept,
         );
     }
-    settle(&found, ADMITTED_FAR);
+    found.settle(ADMITTED_FAR, VACUOUS_FAR);
 }
 
 /// The far-feature cases that move today.
-const ADMITTED_FAR: &[(&str, &str)] =
-    &[("prism and cube / a far member", decide_alike::CARRIED_PINCH)];
+const ADMITTED_FAR: &[Admitted] = &[(
+    "prism and cube / a far member",
+    1,
+    decide_alike::CARRIED_PINCH,
+)];
+
+/// The far-feature cases that compare no table today.
+const VACUOUS_FAR: &[Vacuous] = &[
+    ("bridging / a far member", BRIDGE_FOLDED_LAST),
+    ("pinch and far / a far member", decide_alike::CARRIED_PINCH),
+    ("two prisms / a far member", MERGED_CHORD),
+];
