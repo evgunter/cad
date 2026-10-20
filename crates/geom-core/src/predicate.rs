@@ -1423,16 +1423,26 @@ pub enum RefusedReading {
     /// The decision's inputs are stored data, which no reading on the
     /// refused side agrees with: the reading contradicts that data, and
     /// it ends in the defect ending naming its culprit
-    /// ([`Culprit::ending`]).
-    Defect(Culprit),
+    /// ([`StoredCulprit::ending`]). Stored data reached the run from
+    /// outside it, so the culprit is never the kernel alone.
+    Defect(StoredCulprit),
 }
 
 /// **Who a defect ending names**: the one spelling of each culprit's
 /// ending. The caller that reads the door chooses it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Culprit {
-    /// The kernel alone ([`KERNEL_DEFECT_ENDING`]).
+    /// The kernel alone, which built what it reads
+    /// ([`KERNEL_DEFECT_ENDING`]).
     Kernel,
+    /// Stored data's culprit, read at rest or at the import door.
+    Stored(StoredCulprit),
+}
+
+/// **Who a contradiction of stored data names**: the kernel or the file,
+/// or the file alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StoredCulprit {
     /// The kernel or the file ([`KERNEL_OR_FILE_DEFECT_ENDING`]).
     KernelOrFile,
     /// The file ([`DAMAGED_FILE_ENDING`]).
@@ -1445,6 +1455,16 @@ impl Culprit {
     pub const fn ending(self) -> &'static str {
         match self {
             Self::Kernel => KERNEL_DEFECT_ENDING,
+            Self::Stored(stored) => stored.ending(),
+        }
+    }
+}
+
+impl StoredCulprit {
+    /// The defect ending naming this culprit.
+    #[must_use]
+    pub const fn ending(self) -> &'static str {
+        match self {
             Self::KernelOrFile => KERNEL_OR_FILE_DEFECT_ENDING,
             Self::File => DAMAGED_FILE_ENDING,
         }
@@ -1521,10 +1541,8 @@ impl FileCoincidence {
     /// more precisely. Beyond ε is the classifier's placement: a definite
     /// miss lies past the band, and a banded one wholly past its zero
     /// threshold. Within ε_in is the reading's farther end; where only its
-    /// nearer end lies within ε_in, the miss "may lie" within it. A miss
-    /// beyond ε whose nearer end lies past ε_in ends in `past`, the
-    /// door's ending for it; any other reading in `otherwise`, the ending
-    /// the refusal carries at rest.
+    /// nearer end lies within ε_in, the miss "may lie" within it.
+    /// Otherwise `otherwise`, the ending the refusal carries at rest.
     ///
     /// Where the miss is the file's data alone ([`MissSource::File`]), the
     /// sentence says the file's data claims agreement only to its own
@@ -1547,7 +1565,6 @@ impl FileCoincidence {
         self,
         miss: MissReading,
         source: MissSource,
-        past: &str,
         otherwise: &str,
     ) -> String {
         let eps_in = self.eps_in;
@@ -1556,12 +1573,12 @@ impl FileCoincidence {
             "Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance to \
              ε_in = {eps_shown} m"
         );
-        let beyond_eps = match miss {
-            MissReading::Banded(margin, band) => margin
-                .magnitudes()
-                .is_some_and(|(near, _)| near > band.zero)
-                .then_some(margin),
-            MissReading::Definite(margin) => (!margin.is_invalid()).then_some(margin),
+        let within = match miss {
+            MissReading::Banded(margin, band) => match margin.magnitudes() {
+                Some((near, _)) if near > band.zero => margin.within(eps_in),
+                _ => None,
+            },
+            MissReading::Definite(margin) => margin.within(eps_in),
             MissReading::Bound(bound) => {
                 return match bound.within(eps_in) {
                     Some(Within::Wholly) => format!(
@@ -1573,11 +1590,8 @@ impl FileCoincidence {
                 };
             }
         };
-        let Some(miss) = beyond_eps else {
+        let Some(within) = within else {
             return otherwise.to_owned();
-        };
-        let Some(within) = miss.within(eps_in) else {
-            return past.to_owned();
         };
         let lies = match within {
             Within::Wholly => "within",
@@ -3169,9 +3183,8 @@ mod tests {
         ];
         let mut seen = Vec::new();
         for (culprit, ending) in [
-            (Culprit::Kernel, KERNEL_DEFECT_ENDING),
-            (Culprit::KernelOrFile, KERNEL_OR_FILE_DEFECT_ENDING),
-            (Culprit::File, DAMAGED_FILE_ENDING),
+            (StoredCulprit::KernelOrFile, KERNEL_OR_FILE_DEFECT_ENDING),
+            (StoredCulprit::File, DAMAGED_FILE_ENDING),
         ] {
             let refused = RefusedReading::Defect(culprit);
             for margin in margins {
@@ -3231,8 +3244,8 @@ mod tests {
                       1e-6 m, so the file cannot tell it from zero. Recourse: L";
         for refused in [
             RefusedReading::AsShown,
-            RefusedReading::Defect(Culprit::KernelOrFile),
-            RefusedReading::Defect(Culprit::File),
+            RefusedReading::Defect(StoredCulprit::KernelOrFile),
+            RefusedReading::Defect(StoredCulprit::File),
         ] {
             for margin in [
                 MarginDiag::value(-5e-8),
@@ -3253,7 +3266,11 @@ mod tests {
             "Recourse: L; N"
         );
         assert_eq!(
-            past.sized_recourse_in_file(band, words(RefusedReading::Defect(Culprit::File)), file),
+            past.sized_recourse_in_file(
+                band,
+                words(RefusedReading::Defect(StoredCulprit::File)),
+                file
+            ),
             DAMAGED_FILE_ENDING
         );
     }
@@ -3687,10 +3704,8 @@ mod tests {
     /// a banded miss past the zero threshold, or a definite one, where its
     /// reading lies within ε_in, or "may lie" within it where only its
     /// nearer end does. A miss the kernel's fit may have made keeps the
-    /// kernel-bug note and claims nothing of the file's data. A miss
-    /// beyond ε wholly past ε_in ends in the door's ending for it, and
-    /// anything else keeps its at-rest ending. Red if a miss that may be
-    /// zero, or a poisoned one, ends as past ε_in.
+    /// kernel-bug note and claims nothing of the file's data. Anything
+    /// else keeps its at-rest ending.
     #[test]
     fn a_miss_within_eps_in_names_setting_eps_to_eps_in() {
         let band = band_1e9();
@@ -3715,43 +3730,51 @@ mod tests {
                         reporting";
         let banded = |m| MissReading::Banded(m, band);
         for (miss, lies) in [
-            (banded(MarginDiag::value(5e-9)), "within"),
-            (banded(MarginDiag::value(-5e-9)), "within"),
-            (banded(MarginDiag::enclosure(2e-9, 5e-9)), "within"),
-            (banded(MarginDiag::value(1e-6)), "within"),
-            (MissReading::Definite(MarginDiag::value(3e-7)), "within"),
-            (MissReading::Definite(MarginDiag::value(-1e-6)), "within"),
+            (banded(MarginDiag::value(5e-9)), Some("within")),
+            (banded(MarginDiag::value(-5e-9)), Some("within")),
+            (banded(MarginDiag::enclosure(2e-9, 5e-9)), Some("within")),
+            (banded(MarginDiag::value(1e-6)), Some("within")),
+            (
+                MissReading::Definite(MarginDiag::value(3e-7)),
+                Some("within"),
+            ),
+            (
+                MissReading::Definite(MarginDiag::value(-1e-6)),
+                Some("within"),
+            ),
             // An enclosure across ε_in: it may lie within it.
             (
                 MissReading::Definite(MarginDiag::enclosure(5e-7, 2e-6)),
-                "may lie within",
+                Some("may lie within"),
             ),
             // Within ε: no miss at this run's tolerance.
-            (banded(MarginDiag::value(5e-10)), "AT REST"),
-            (banded(MarginDiag::enclosure(-2e-9, 5e-9)), "AT REST"),
-            (banded(MarginDiag::enclosure(5e-9, 2e-6)), "may lie within"),
+            (banded(MarginDiag::value(5e-10)), None),
+            (banded(MarginDiag::enclosure(-2e-9, 5e-9)), None),
+            (
+                banded(MarginDiag::enclosure(5e-9, 2e-6)),
+                Some("may lie within"),
+            ),
             // Past ε_in: the file's data misses its own distance too.
-            (banded(MarginDiag::value(2e-6)), "PAST"),
-            (MissReading::Definite(MarginDiag::value(2e-6)), "PAST"),
+            (banded(MarginDiag::value(2e-6)), None),
+            (MissReading::Definite(MarginDiag::value(2e-6)), None),
             (
                 MissReading::Definite(MarginDiag::enclosure(2e-6, 3e-6)),
-                "PAST",
+                None,
             ),
-            // A poisoned reading places no miss.
-            (banded(MarginDiag::INVALID), "AT REST"),
-            (MissReading::Definite(MarginDiag::INVALID), "AT REST"),
+            (banded(MarginDiag::INVALID), None),
+            (MissReading::Definite(MarginDiag::INVALID), None),
         ] {
-            let got_file = file.miss_recourse_in_file(miss, MissSource::File, "PAST", "AT REST");
-            let got_fit = file.miss_recourse_in_file(miss, MissSource::Fit, "PAST", "AT REST");
+            let got_file = file.miss_recourse_in_file(miss, MissSource::File, "AT REST");
+            let got_fit = file.miss_recourse_in_file(miss, MissSource::Fit, "AT REST");
             match lies {
-                ending @ ("PAST" | "AT REST") => {
-                    assert_eq!(got_file, ending, "{miss:?}");
-                    assert_eq!(got_fit, ending, "{miss:?}");
-                }
-                lies => {
+                Some(lies) => {
                     let tail = if lies == "within" { "" } else { persists };
                     assert_eq!(got_file, file_words(lies, tail), "{miss:?}");
                     assert_eq!(got_fit, fit_words(lies), "{miss:?}");
+                }
+                None => {
+                    assert_eq!(got_file, "AT REST", "{miss:?}");
+                    assert_eq!(got_fit, "AT REST", "{miss:?}");
                 }
             }
         }

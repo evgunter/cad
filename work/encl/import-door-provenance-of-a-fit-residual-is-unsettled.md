@@ -2,8 +2,10 @@
 id: import-door-provenance-of-a-fit-residual-is-unsettled
 kind: issue
 title: geom-brep: at the import door a fit residual's provenance is Unsettled, though the carrier and surfaces it compares are the file's
-status: open
+status: review
+pr: 5454
 opened: 2026-10-20
+branch: encl/one-culprit-chooser
 ---
 
 
@@ -20,3 +22,7 @@ It was not routed on that PR because `Unsized::Fit` keeps its ending at every do
 ## Question
 
 Can the import door tell a surface residual over the file's carrier (an exact evaluation of stored data) from one over a kernel approximation? For example, could the provenance be read per carrier kind, or per lane? If it can, the first becomes `Provenance::Stored`. If it cannot, `Unsettled` is the answer, and this row closes with that recorded.
+
+## Answer, 2026-10-20 (PR 5454)
+
+It cannot tell them apart. At the import door even an analytic carrier's parameters, and sometimes the carrier itself, are the kernel's: a scaled ellipse angle, B-spline domain ends, a minted seam generator (`work/encl/import-door-residual-and-unsized-endings-past-eps-in-name-kernel-or-file.md`, its answer). `Provenance::Unsettled` is retired. Every unsized check, these three fits included, reads `Provenance::Derived` there (`Unsized::recourse`, `crates/geom-brep/src/recourse.rs`), which names the kernel or the file.

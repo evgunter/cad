@@ -238,15 +238,28 @@ unresolved enclosure, a straddle) ends in the lever whatever the side.
 | `StoredContradiction` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
 | `Unminted` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
 
-One chooser names the culprit of every defect ending, sized or not
-(`geom_brep::recourse::culprit`), by the door and by whose data the
-contradiction is about (`geom_brep::recourse::Provenance`, a column of
-each decision's table; the two sides above are stored data). At a
-build it names the kernel and at rest the kernel or the file. At the
-import door past ε_in it names the file where the file stored what the
-decision compares, and the kernel or the file where a side is a value
-the kernel derives at adoption, or where whose data it is is not
-settled.
+One chooser names the culprit of every defect ending read through
+`geom_brep::recourse`, sized or not (`geom_brep::recourse::culprit`),
+by the door and by whose data the contradiction is about
+(`geom_brep::recourse::Provenance`). At a build it names the kernel and
+at rest the kernel or the file. At the import door past ε_in it names
+the file where the file stored what the decision compares, and the
+kernel or the file where a side is a value the kernel derives at
+adoption. The provenance is not chosen per decision: every sized
+decision reads both its stored sides above as the file's data
+(`SizedDecision::words`), though `CertCheck::ImageSpan`'s side compares
+a chart image the kernel derives
+(`work/encl/pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache.md`);
+every decision with no size reads a derived value, since at the import
+door each compares a value the kernel derives at adoption — an edge's
+carrier parameters, a carrier the import mints, the witness at the
+carrier's mid-parameter, a chart image or a fit — so its definite
+refusals there name the kernel or the file. Defect endings spelled as a
+constant at their own site (`KERNEL_DEFECT_ENDING`,
+`KERNEL_OR_FILE_DEFECT_ENDING`) do not read the chooser: elsewhere in
+`geom_brep` (`edge_nurbs`, `offset`, `offset_fit`, `patch_bound`,
+`props`) and in `topo`, `sweep`, `profile`, `editor-core`, `pncad` and
+`viewer`, each names the culprit its own door gives.
 
 Within ε_in the import door ends every band-decided reading in its one
 sentence and the lever, whatever the side. No public door returns a
