@@ -295,16 +295,15 @@ fn planar_bodies_carry_zero_stored_pcurves() {
 /// here: a [`Pcurve::Harmonic`] azimuth channel is `α + β·t` with ONE
 /// stored `α` and `β ∈ {−1, 0, +1}`, so a τ jump partway along an edge
 /// has nowhere to live. What remains — which branch a half-edge takes —
-/// is decided once per loop and certified; corrupting that decision on
-/// a single half-edge is caught at rest.
+/// is decided once per loop and certified; a single half-edge's row
+/// moved to another branch is caught at certification, since a row is
+/// its placed image.
 #[test]
 fn a_tampered_branch_is_refused_at_rest() {
-    let (mut above, _) = tilted_cut();
+    let (above, _) = tilted_cut();
     // Shift ONE half-edge's cache by a whole period: the pcurve is
-    // still a perfectly valid chart image of the same locus (periodic
-    // chart!) and still certifies in isolation — what breaks is the
-    // face's one-branch continuity, which is exactly the property the
-    // per-sample unwrap bug destroys.
+    // still a chart image of the same locus (periodic chart!), but it is
+    // not the row's placed image, which is what a row is (C4).
     let victim = above
         .pcurves()
         .map(|(he, _)| he)
@@ -313,7 +312,11 @@ fn a_tampered_branch_is_refused_at_rest() {
     let (t0, t1, shifted) = {
         let cache = above.pcurve(victim).unwrap();
         let (t0, t1) = cache.params();
-        (t0, t1, cache.pcurve().shift_branch(1.0, TAU))
+        (
+            t0,
+            t1,
+            cache.pcurve().shift_branch(1, geom_brep::Period::new(TAU)),
+        )
     };
     let surface = {
         let lp = above.get_half_edge(victim).unwrap().parent_loop;
@@ -335,27 +338,20 @@ fn a_tampered_branch_is_refused_at_rest() {
             .clone()
     };
     let band = Band::linear(Tol::witness()).unwrap();
-    // A window wide enough that trim containment is not what fires —
-    // the finding must be the BRANCH, not the box.
-    let tampered = topo::PcurveCache::certify(shifted, t0, t1, &carrier, &surface, band).unwrap();
-    above.attach_pcurve(victim, tampered);
-    let findings = topo::pcurves::validate_pcurves(&above, band);
+    // A cache is built only through certification, and the shifted
+    // pcurve is a lifted copy of the row, not its placed image (C4), so
+    // certification refuses it at check 4, the whole period read as the
+    // azimuth's offset: the tamper cannot be put into a body at all.
+    let tampered = topo::PcurveCache::certify(shifted, t0, t1, &carrier, &surface, band);
     assert!(
-        findings.iter().any(|f| matches!(
-            f,
-            topo::PcurveMintError::LoopDiscontinuity { .. }
-                | topo::PcurveMintError::LoopNotClosed { .. }
-        )),
-        "{findings:?}"
-    );
-    // And the ladder surfaces it typed.
-    let errs = validate_geometric(&above, Tol::witness()).unwrap_err();
-    assert!(
-        errs.iter()
-            .any(|e| matches!(e, topo::ValidationError::Pcurve { .. })
-                && format!("{e}")
-                    .starts_with("a face's boundary could not be mapped onto its surface")),
-        "{errs:?}"
+        matches!(
+            tampered,
+            Err(geom_brep::PcurveCertifyError::ResidualExceeded {
+                check: geom_brep::PcurveCheck::EnvelopeTerm(geom_brep::EnvelopeTerm::FidelityU),
+                ..
+            })
+        ),
+        "a whole-period tamper is no row: {tampered:?}"
     );
 }
 
@@ -367,7 +363,7 @@ fn a_tampered_branch_is_refused_at_rest() {
 /// value-level refusal rows live in `geom-brep`. What a body CAN carry
 /// is a cache that is perfectly certified against a *different*
 /// half-edge, and the at-rest pass — which re-derives the carrier, the
-/// surface and the window rather than trusting the stored certificate —
+/// surface and the placed image rather than trusting the stored certificate —
 /// is what catches that.
 #[test]
 fn a_cache_certified_against_another_edge_fails_the_tier_gate() {
