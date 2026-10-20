@@ -2,10 +2,13 @@
 id: editor-core-forwarders-the-census-does-not-weld
 kind: issue
 title: Three NodeErrorKind arms forward an editor-core refusal the feature-tree census does not weld to its arms
-status: review
+status: closed
 opened: 2026-10-19
 priority: P4
 cost: E
+closed: 2026-10-20
+pr: 5427
+branch: wire/census-tail
 ---
 
 

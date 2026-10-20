@@ -2349,7 +2349,8 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::UnresolvedRead { slot, var } => write!(
                 f,
                 "its {slot} reads {var}, which no live operation defines: the operation it \
-                 read was deleted"
+                 read was deleted. {}",
+                crate::sentence::Recourse(format_args!("point the {slot} at a live operation"))
             ),
             Self::SelectResolve {
                 slot,

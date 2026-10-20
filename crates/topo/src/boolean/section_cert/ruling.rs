@@ -514,6 +514,7 @@ fn roots<T: Decide>(
         f_per_metre: walk.per_metre,
         f_per_metre_hi: walk.per_metre,
         residual_reach: None,
+        jet: None,
     };
     let slack = RootSlack {
         row: walk.row,

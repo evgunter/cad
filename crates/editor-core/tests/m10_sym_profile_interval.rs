@@ -689,12 +689,19 @@ const PLATE_MAX_TERMS: usize = 28;
 /// and #5377's fix pass): `Plain/Assertion` and `Early/Assertion` +7
 /// calls (686 → 693) and +30 forms, with their digests; the
 /// `*/Decision` lines, the freezes and the largest form hold.
+///
+/// Check 4 deciding no whole period (PCERT B2b): fidelity's 32 branch
+/// decisions are gone, each a numeric decision checked against the
+/// tier, so `Plain/Assertion` and `Early/Assertion` 693 → 661 calls and
+/// `Door/Decision` 428 → 396; forms and digests move with them, and
+/// `Plain/Decision`'s calls, every freeze and the largest form hold.
+/// Measured on the tree with every move above.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 939 forms 15836 frozen 324 digest ac360a3480da30b765ada11e3a3550c7\n\
-     Plain/Assertion calls 693 forms 7073 frozen 405 digest ac98c9fa756d2ff62148806efb245556\n\
-     Early/Decision calls 352 forms 8892 frozen 0 digest 61a2facb711fb0a70f13d4cfa3ece435\n\
-     Early/Assertion calls 693 forms 8235 frozen 0 digest c6b94455a9fdd240760bec7120a63c11\n\
-     Door/Decision calls 428 forms 9525 frozen 0 digest c92c1df17252cd30da849fc47ba1a121";
+     Plain/Decision calls 939 forms 15828 frozen 324 digest 106c6e8f656834241d3861faf20e7799\n\
+     Plain/Assertion calls 661 forms 7013 frozen 405 digest 1a76fa82f0b30a56afad775d19795ee4\n\
+     Early/Decision calls 352 forms 8884 frozen 0 digest 77472cc4b2b651d309e31f2086d5b20a\n\
+     Early/Assertion calls 661 forms 8175 frozen 0 digest f70c798210d8be477658168802101352\n\
+     Door/Decision calls 396 forms 9465 frozen 0 digest c689a400e4425e2426a805dc6619c228";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

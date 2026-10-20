@@ -61,3 +61,24 @@ as one carrier either. So neither of the
 `ProfileJunction` arm's relations, `Tangent` nor `SameOriented`, has a
 reaching document, and its "continues on one carrier with" sentence
 joins "continues tangent into" without a test that speaks it.
+
+## Python too, and probed (2026-10-20)
+
+`crates/pncad-py/tests/test_checks.py` carried the same two rows
+(the `sqrt(ε)` line–arc `tangent` row and the 1 mm `same_oriented`
+row). Both went red with #5377 and are re-pinned to the door
+(`paths/python-junction-main-red`): a corner with no row, and
+`junction_tangent` at the verb. A probe looked for any lattice program
+that reaches a decided junction under the shorter-arm rule. It ran
+line–arc, line–line and arc–arc junctions across the band, at `f64`
+and `Interval`, at coordinates up to `1e9` m, and on legs a later
+fillet trims. None reached one: every case refused at the door or
+validated with `decided_joints()` empty
+(`work/paths/a-python-junction-test-builds-a-junction-the-door-now-refuses.md`,
+Outcome). So the `ProfileJunction` arm's rows are unreachable from
+every document surface, Rust and Python. Its text in
+`pncad.pyi` (`Coincidence.relation`/`site`) and in
+`crates/pncad-py/src/py/value.rs` and `py/checks.rs` names
+`profile_junction` rows that no document can produce, and goes with
+whatever the open question decides.
+

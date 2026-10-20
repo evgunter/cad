@@ -11,7 +11,7 @@ blocked_on: [transform-retires-into-a-placement]
 
 
 Found by the STYLE review of PR 5407, which welds the feature-tree
-census (`every_forwarded_editor_arm_has_a_row` in
+census (`every_forwarded_arm_has_a_row` in
 `crates/editor-core/tests/refusal_concision_chains.rs`) to the
 editor-core refusals `NodeErrorKind` forwards. `forward` cites this row
 (`UNWELDED_HELD`) for three arms on mate and pose ground:

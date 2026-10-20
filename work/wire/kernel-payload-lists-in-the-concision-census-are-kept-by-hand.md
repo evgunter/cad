@@ -2,10 +2,13 @@
 id: kernel-payload-lists-in-the-concision-census-are-kept-by-hand
 kind: issue
 title: The feature-tree census's kernel-payload lists are kept in step with their enums by hand, and four skip arms
-status: review
+status: closed
 opened: 2026-10-19
 priority: P4
 cost: E
+closed: 2026-10-20
+pr: 5427
+branch: wire/census-tail
 ---
 
 

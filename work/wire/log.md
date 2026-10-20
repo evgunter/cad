@@ -6712,3 +6712,8 @@ Signed (WIRE orchestrator).
   - Stale header; check_findings' inline weld; NITs.
   - Fix pass sent.
   - Class note: an exhaustive roster proves the enum is listed, not that the list is consulted. Mutate the forward arms too.
+
+- 2026-10-20 (WIRE orchestrator) PR 5427 merged (f1a197be45).
+  - The fix pass was read. A ROSTERS table reds on any roster no row reaches, every level is an exhaustive match, and the reviewer's three mutations are now red. ROWLESS is replaced by OVER_BUDGET ceilings.
+  - The ResultEscalated row is pinned at margin 1e-20 for one length across eps. The longer tolerance-offering form is unmeasured, noted on the hone row.
+  - Three rows closed.

@@ -20,7 +20,7 @@ use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, Period, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, SpanLocate, SupSpeed, Tol, Vec3};
 use topo::pcurves::ChartArm;
@@ -251,7 +251,7 @@ fn t5_a_realizable_ring_is_lifted_and_the_lifts_are_inert_inside_the_outer() {
     let bound = ChartBound::assembled(
         outer,
         vec![ring],
-        Some(Interval::tau()),
+        Some(Period::new(Interval::tau())),
         ChartArm::Angular(Interval::one()),
         band(),
     )
@@ -313,7 +313,7 @@ fn t5b_an_outer_wider_than_the_period_refuses() {
     let err = ChartBound::assembled(
         outer,
         vec![ring],
-        Some(Interval::tau()),
+        Some(Period::new(Interval::tau())),
         ChartArm::Angular(Interval::one()),
         band(),
     )
@@ -381,7 +381,7 @@ fn t6_an_envelope_box_is_widened_by_its_certificate_slack() {
     let bound = ChartBound::assembled(
         outer,
         Vec::new(),
-        Some(Interval::tau()),
+        Some(Period::new(Interval::tau())),
         ChartArm::Angular(iv(2.0)),
         band(),
     )
@@ -919,7 +919,7 @@ fn t11_the_metred_hull_is_widened_by_every_envelope_slack() {
     let chart_hull = ChartBound::assembled(
         outer,
         Vec::new(),
-        Some(Interval::tau()),
+        Some(Period::new(Interval::tau())),
         ChartArm::Angular(iv(2.0)),
         band(),
     )
