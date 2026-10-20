@@ -1740,3 +1740,54 @@ fn a_partner_tipped_off_the_face_still_ends_the_cut() {
         );
     }
 }
+
+/// Review probe (R2): the tipped partner at more offsets, every op in
+/// both orders through `builds_or_refuses` (tier 3, material), plus
+/// tier 3′ on every built `flush` result and its substitution rows.
+#[test]
+#[ignore = "review probe"]
+fn review_r2_tipped_offsets() {
+    let eps = t().eps();
+    let (mut built, mut refused) = (0, Vec::new());
+    for pose in poses() {
+        let s = Scene::at(&pose);
+        for k in [11.0, -11.0, 20.0, -20.0, 50.0, -50.0, 300.0, -300.0, 1e3, -1e3, 1e5, -1e5] {
+            let y = match union(&s.plate, &tet(lying(k * eps), &pose), t()) {
+                Ok(BooleanResult::Body(r)) => r.body,
+                other => {
+                    println!("{} k={k}: plate ∪ lying: {:?}", pose.label, other.map(|_| ()));
+                    continue;
+                }
+            };
+            for (label, x) in [("flush", &s.flush), ("on_lying", &s.on_lying), ("cone", &s.cone)] {
+                for (op, r) in [
+                    ("x−y", subtract(x, &y, t())),
+                    ("y−x", subtract(&y, x, t())),
+                    ("x∪y", union(x, &y, t())),
+                    ("y∪x", union(&y, x, t())),
+                    ("x∩y", intersect(x, &y, t())),
+                    ("y∩x", intersect(&y, x, t())),
+                ] {
+                    match r {
+                        Ok(BooleanResult::Body(r)) => {
+                            built += 1;
+                            let t3 = validate_geometric(&r.body, t()).is_ok();
+                            let t3p = validate_pseudomanifold(&r.body, &r.contacts, t()).err();
+                            if !t3 || t3p.is_some() {
+                                println!("{} k={k} {label} {op}: t3 {t3} t3' {t3p:?}", pose.label);
+                            }
+                        }
+                        Ok(BooleanResult::Empty) => {}
+                        Err(e) => {
+                            refused.push(format!("{} k={k} {label} {op}: {e:?}", pose.label));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for r in &refused {
+        println!("REFUSED {r}");
+    }
+    println!("built {built}, refused {}", refused.len());
+}
