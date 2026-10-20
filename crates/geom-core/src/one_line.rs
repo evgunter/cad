@@ -28,15 +28,29 @@
 //!   rounding in an end at the origin of space. The caller passes those
 //!   metres, summed over the four ends, as `produced`; zero only for ends
 //!   that are given points, never computed.
-//! - **The projections.** Each is a difference of two points and a dot
-//!   product with `û`, a chain of a few roundings each within half an ulp
-//!   of the points' coordinates; the extent is one more difference.
+//! - **The projections.** Read from `a0`, they round with the spans'
+//!   own lengths, not with where the spans lie: the points are `f64`
+//!   values as given, so their difference is one rounding of the real
+//!   difference. With `u = 2⁻⁵³` and `p` any of `a1`, `b0`, `b1`, the
+//!   chain `t(p) = fl(fl(p − a0)·û)` errs by at most
+//!   - `u·|p − a0|` in the difference, carried through the dot;
+//!   - `3u·|p − a0|` in the dot itself, three products and two sums,
+//!     `|û| ≤ 1 + 5u` (two in the plane);
+//!   - `5u·|p − a0|` for the unit: the caller's `û` is a rounded
+//!     normalization, within `5u` of a unit in direction and length;
 //!
-//! [`crate::rounding_charge`] of `produced` plus the four points'
-//! distances from the origin dominates both (the same charge the
-//! harmonics' short chains carry), and every caller reads its margin past
-//! it. A ROUNDING estimate, as that charge is: at `Interval` the values
-//! are enclosures and the charge only widens them.
+//!   so `9u·|p − a0|` per projection, and the extent, two projections
+//!   and one more difference, within `10u` of the two ends' distances
+//!   from `a0`.
+//!
+//! [`crate::rounding_charge`] (sixteen half-ulps, so `16u` per metre) of
+//! `produced` plus `|a1 − a0| + |b0 − a0| + |b1 − a0|` dominates both
+//! chains, with room: every caller reads its margin past it. Charged at
+//! the spans' own scale, two spans a kilometre out at `ε = 10⁻¹²` read as
+//! finely as two at the origin; an end evaluated far away still carries
+//! its evaluation through `produced`. A ROUNDING estimate, as that charge
+//! is: at `Interval` the values are enclosures and the charge only
+//! widens them.
 
 use crate::{Point2, Point3, Real, Vec2, Vec3};
 
@@ -110,12 +124,7 @@ macro_rules! on_one_line {
             produced: T,
         ) -> OnOneLine<T> {
             let along = |p: $point<T>| (p - a0).dot(unit);
-            let o = $point::origin();
-            let terms = produced
-                + (a0 - o).norm()
-                + (a1 - o).norm()
-                + (b0 - o).norm()
-                + (b1 - o).norm();
+            let terms = produced + (a1 - a0).norm() + (b0 - a0).norm() + (b1 - a0).norm();
             OnOneLine::of(
                 (T::zero(), along(a1)),
                 (along(b0), along(b1)),
@@ -218,7 +227,9 @@ mod rows {
     /// Against the same reading at `Interval`, an enclosure of the real
     /// projections of the same `f64` points, each of `lo`, `hi` and the
     /// extent lies within `noise` of every real value it stands for, over
-    /// segments drawn at every scale and offset from the origin. Red where
+    /// segments drawn at every scale and offset from the origin, half of
+    /// them near each other wherever they lie (the charge's tightest
+    /// regime: it is at the spans' own scale, not the origin's). Red where
     /// the charge is dropped, and where it is more than sixteen times
     /// loose ([`tight`]).
     #[test]
@@ -235,7 +246,19 @@ mod rows {
                     far * rng.range(-1.0, 1.0) + scale * rng.range(-1.0, 1.0),
                 )
             };
-            let (a0, b0) = (at(&mut rng), at(&mut rng));
+            // Half the draws put the two spans near each other wherever
+            // they lie, the regime the charge at the spans' own scale is
+            // tightest in; half scatter them `far` apart.
+            let a0 = at(&mut rng);
+            let b0 = if rng.range(0.0, 1.0) < 0.5 {
+                a0 + Vec3::new(
+                    scale * rng.range(-1.0, 1.0),
+                    scale * rng.range(-1.0, 1.0),
+                    scale * rng.range(-1.0, 1.0),
+                )
+            } else {
+                at(&mut rng)
+            };
             let d = direction(&mut rng);
             let a1 = a0 + d * scale;
             let b1 = b0 + d * (scale * rng.range(-2.0, 2.0));
