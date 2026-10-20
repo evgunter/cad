@@ -570,7 +570,11 @@ fn the_rows_resolve_in_every_op_and_path() {
         panic!("the stepped block is not empty");
     };
     let stepped = stepped.body;
-    let tall = finished("tall", brick((-1.0, 3.0), (-1.0, 2.0), (-1.0, 2.0), tol), tol);
+    let tall = finished(
+        "tall",
+        brick((-1.0, 3.0), (-1.0, 2.0), (-1.0, 2.0), tol),
+        tol,
+    );
     type Op = fn(
         &AtRestBody<f64>,
         &AtRestBody<f64>,
