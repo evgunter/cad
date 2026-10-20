@@ -2,7 +2,8 @@
 id: main-red-ellipse-constructor-trios-reads-a-nan-semi-axis-refusal-earlier
 kind: issue
 title: Main red: ellipse_constructor_trios expects Escalated for a NaN semi-axis, refused earlier as SemiAxisNotFinite since 53967a14
-status: open
+status: closed
+closed: 2026-10-20
 opened: 2026-10-20
 ---
 
@@ -18,3 +19,5 @@ It reads red on every PR whose CI runs geom's lib tests (first seen on NURBS's #
 **Done when** GERM rules which refusal is right and the row and constructor agree:
 - either the row expects the earlier typed refusal (the poison is now caught by a finiteness check before the band test);
 - or the constructor's order is restored.
+
+**Closed (2026-10-20).** Fixed on main by `2ee8a2ea45` ("geom: ellipse_constructor_trios expects SemiAxisNotFinite for a NaN minor (since 53967a14d2)"): the row now expects the earlier typed refusal.

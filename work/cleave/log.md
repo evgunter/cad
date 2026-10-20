@@ -1214,4 +1214,104 @@ Signed (CLEAVE orchestrator).
   - Filed: CLEAVE P2 `a-curved-slit-fails-tier-3-prime-…`, P3 `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`; tess P2 `a-zero-area-ring-meshes-non-manifold…`.
   - Full review dispatched.
 - 2026-10-19 — Filed two RESTREAD P1 main reds at 1e-6, both traced by the 5185 reviewer: `main-red-near-tangent-pierce-poses-…` (introduced by #5297) and `main-red-torus-region-probe-…` (red since #5269 landed).
+- 2026-10-19 — The gate-wedges P1 is up as PR 5357 (`001c3e64a9`).
+  - `gate` ends with `coincident_wedges_disjoint` for every op. A definite overlap refuses as `LineWedges{Overlap}` (a kernel limitation, no lever). 5106's ∖ check is folded in.
+  - Census: many cells newly refuse, each overlapping on main. Cusp-along-ruling cells flip to building. The staircase X is no longer buildable.
+  - Cost: median 20 µs.
+  - CI is red only on the nightly's 1e-12 reds (`steep_frusta`, BAND's `the_needle`).
+  - Full review dispatched; focus on over-refusal (the 180°/270° seam rows) and the flip.
+- 2026-10-19 — PR 5185 merged (the rigid-turn P1).
+  - An arc's vector area is now taken about its start, not the ellipse centre, and the segment term has one home in geom-brep.
+  - The pin covers by the pad alone, plus a ψ 1e-4 pose. Main merged, goldens unchanged.
+  - Row closed.
+  - Follow-ups filed: FLUXTAIL P1s for the cone-apex lever and the cylinder radial lever; the GAUGE note.
+- 2026-10-19 — Dispatched P1 `a-boolean-builds-a-reflex-edge-lying-inside-a-face`: the Boolean builds the slit form per Ev's 4795 sentence (ring / slit / two solids), reusing 5350's ring machinery where it can.
+- 2026-10-19 — PR 5350 full review: FIX-FIRST.
+  - MAJOR: the curved keel now ships an Ok whose side tier 3′ refuses (the split's gate reads tier 3 only, against README:591 and fork row 101). Fix: refuse curved slit trees typed (not yet); file the gate/doc mismatch.
+  - MAJOR: `SlitUnplaced` ('kernel defect') is reachable from a tilted cylinder (`line_clears_conic` can't nest a slit inside an ellipse). Fix: nest by point containment; escalate in band; construction gap where undecidable.
+  - Also: fold the duplicate tess row into the 10-02 row, share the nesting tail, stale docs, the mutant survivor, and file the two-slit-detector consolidation.
+  - Confirmed: the tree walk is sound, volumes 15.7/16, no new refusals.
+  - Fix pass sent.
+- 2026-10-19 — PR 5357 full review: APPROVE-WITH-FIXES, no MAJOR.
+  - No over-refusal: 535/535 Overlap refusals were confirmed independently, and the π seam rows are real overlaps. The cusp flip is valid; the staircase X was wrong on main; 5106's pins are green.
+  - Fixes:
+    - pin `read_again`'s 146 untracked refusals;
+    - restore `LineEdges` for the collinearity screen;
+    - read each line once (k² re-reads);
+    - read sheets over the shared span;
+    - stronger tests; leftovers.
+  - Ruling on typing: a definite overlap is a construction gap under D4 [loud-failure], not D10's `ResultInvalid`; cite both, change no ratified text.
+  - Fix pass sent.
+- 2026-10-19 — PR 5350 fix pass green (`ef8bcaef56`).
+  - Curved slit trees refuse `CurvedSlitTrace` (not yet).
+  - `nest_slit` places by `point_in_loop` on the loops' carriers, with `SlitHoming` when undecided; the tilted-cylinder pin builds at its closed form.
+  - The tess duplicate is folded in; helpers shared; the tree-edge pairing is checked.
+  - Filed P2 `the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime` and P3 `the-split-reads-a-slit-twice-…`.
+  - Narrow re-review dispatched.
+- 2026-10-19 — PR 5350 narrow re-review: FIX-FIRST on one residual.
+  - An island slit (a post inside a pocket in a tilted cylinder) still reaches `SlitUnplaced` 'kernel defect', because `nest_slit` returns early on an unplaced hole face. Fix: holes subtract; the holder is the innermost containing outline.
+  - Share `SlitHoming`/`RingHoming`'s `PointInLoopError` endings (they have drifted).
+  - MAJOR-1 is fixed, all straight trees build, and no build newly refuses.
+  - Found an unfiled main red at 1e-6: `section_ellipse_seam_poses::planes_nearly_along_the_axis_through_a_seam_vertex_split` (CLEAVE's own test). Reproducing it to file.
+- 2026-10-19 — CLEAVE main red at 1e-6: `section_ellipse_seam_poses::planes_nearly_along_…`.
+  - All 18 `COIN_FLIP_1E6` rows (pinned to at-rest `VolumeUncomputable`) now build `ok`. Likely a fix landed (5185's arc vector area?), but 5185's own 1e-6 runs didn't show it.
+  - A lane is dispatched to bisect, verify the sides are valid with the right volumes, and then re-baseline and update the sliver row.
+- 2026-10-19 — The Boolean slit-form P1 is up as PR 5380 (`477be486e8`). Not ready: CI's slow set is red (8 topo tests).
+  - Fix: `boolean::slit::part_riders` parts an edge lying in a plane face into the ring, slit or two solids, using Euler ops. The doors agree with the split (v/e/f and volumes); anything not built refuses `EdgeInFace{gap}`.
+  - Filed: P1 `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted`, P1 `a-boolean-edge-lying-in-a-curved-face-is-not-read`, P2 `the-boolean-parting-refuses-its-rarer-configurations`.
+  - Sent back to classify each slow-set failure (main invalid → re-pin the refusal; main valid → over-refusal blocker; parting then a downstream fail → fix or refuse before parting), to refuse doubled-cusp partings itself to match 5357, and to check the `reach_cone_root_lane` 1e-12 red.
+- 2026-10-19 — PR 5381 merged: the seam poses' 1e-6 coin-flip rows now build.
+  - Bisected to WIRE's PR 5334 (`merge_coplanar_faces` absorbs the wall sliver across the seam), not to 5185.
+  - All 22 poses pass tiers 3 and 3′ with closed-form volumes; table re-baselined.
+  - The sliver row stays open, re-titled, with a remaining reproducer (a 270° wall beside a flat at 1e-6).
+- 2026-10-19 — PR 5350 merged: the keel builds as Ev's ratified zero-area ring.
+  - Straight trees build (ring, crossing, T, chain, kinks); curved trees refuse `CurvedSlitTrace` (not yet).
+  - The slit is nested by `point_in_loop`, with islands and holes subtracted.
+  - `RingHoming`/`SlitHoming` share one `PointInLoopError` rendering. `Uncrossable` now ends 'not yet' instead of offering a lever: it's a kernel limitation.
+  - Keel row closed.
+  - Filed during the work: CLEAVE P2 `a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses`, P2 `the-splits-at-rest-gate-reads-tier-3-…`, P2 `a-curved-slit-fails-tier-3-prime-…`, P3 `the-split-reads-a-slit-twice-…`, P3 `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`.
+- 2026-10-19 — PR 5357 fix pass (`b2546c9989`). CI red only on three 1e-12 tests the lane says fail on main's 5375 head.
+  - `LineEdges` is restored for collinearity; `partners_along` refusals pinned per ε.
+  - Reader reads once per edge/pair, sheets at the shared span; minted-edge lever checked as the input's.
+  - Narrow re-review dispatched; it is also confirming the three reds on main.
+- 2026-10-19 — PR 5380 (`5cdfb57b11`): slow set green; gate red only on the three 1e-12 main reds (each filed).
+  - All 8 slow-set families were main building the rider form (class a). None is over-refusal.
+  - Tangent, Curved and DividedEndTouched now refuse before parting; new `SlitTipUnread` for a 0° tip between two line edges.
+  - My call: accept that 150 void-ray cells now refuse `SlitTipUnread` (typed, no lever). They built on main only from a rider-form operand. Filed P2 `a-boolean-reading-a-slit-tip-refuses-its-zero-corner`.
+  - Full review dispatched.
+- 2026-10-19 — PR 5357 narrow re-review: MERGE.
+  - Verdicts agree 100% after the reader restructure, with per-test counts identical.
+  - The worst time was load; the levers are truthful.
+  - The three 1e-12 reds are main's and filed (steep_frusta: flux; the_needle: cpair; cone-wall ring: flux P1).
+  - The PR conflicts with main: the lane is merging, then I land it. 5380 merges after it.
 - 2026-10-19 — (crossing, FLUSH) FLUSH dispatched `a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face` (branch `flush/edge-meeting-ray`). Its ray walk is the one `point_in_solid` reads (`boolean/solid_contain.rs`, `splitting/containment.rs`), so it measures a needle operand through `point_in_solid` and closes CLEAVE's `point-in-solid-sets-a-ray-aside-near-a-narrow-faces-edge` when it lands. No open CLEAVE PR touches those files today. — (FLUSH orchestrator)
+- 2026-10-19 — PR 5357 merged (the gate-wedges P1).
+  - Every Boolean's result gate refuses coincident edges with overlapping material wedges: a typed construction gap (`LineWedges{Overlap}`) under D4 [loud-failure].
+  - In-band readings escalate `LineEdges` (collinearity) or `LineWedges`.
+  - 5106's ∖ check is folded in. No over-refusal (535/525 confirmed independently).
+  - Checked main's latest moves on a local merge (130 tests, clippy). Row closed.
+- 2026-10-20 — PR 5380 full review: FIX-FIRST.
+  - The parting is correct everywhere (three extents, fallback, W, keel-to-hole; doors agree; the glued tip stays one edge; no parted result fails 5357's gate).
+  - MAJOR: correct answers on main now refuse `SlitTipUnread`. Void ray: 95/150 were correct on main; touching vertex: 19/30; the undisclosed partners matrix: 464/960. Later Booleans on the new ring operands can't read its 0° tip.
+  - **I reverse my earlier ruling.** I had accepted the lane's claim that main built them only from a rider operand. The reviewer read main's results and showed that's false for most cells. Lesson: verify a class claim against main's outputs before ruling on it.
+  - Fix pass: build the slit-tip reading in this PR, keyed to the slit structure, so main's correct cells build. Plus: merge main (5357) and re-pin 7; correct the classification; the wall-side lever; side-aware Tangent; the doc; loud twin records; pin the glued tip; helper reuse; file the zero-area-face ∪ row.
+- 2026-10-20 — 5380: the slit-tip reading is built (structural `SlitTips` via `shared_segments`; `SlitTipUnread` gone). Most of main's correct cells build again, and some cells newly build.
+  - Two gaps remain, outside sectors:
+    - recl along a slit line: 60 + 40 cells; the lever is false on the kernel's own slit;
+    - a slit face glued away: the probe. The split's slits fail it on main too.
+  - Ruling: A. Type both as construction gaps with no lever, disclose exactly (a per-family table against main), and file both builds as P1. The rider form's silent wrong answers outweigh holding the PR for two more kernel sites.
+- 2026-10-20 — PR 5380 fix pass pushed (`0f01263600`, main + 5357 merged). Gate red only on the_needle (filed with CPAIR).
+  - Option A done: `SlitLineCrossed` and `SlitFaceGlued` (no lever); P1 rows `a-boolean-places-two-germs-along-a-slit-line` and `a-boolean-glues-away-the-face-a-slit-lies-in`.
+  - Table at default ε: void 95 same / 20 new / 20 lost; touching 130 / 10 / 0; partners 2734 / 182 / 40 (+8 misread).
+  - Narrow re-review dispatched. First check: does an Ok whose 3′ is `CensusUndecidable` (`SLIT_TOUCH` allowance) ship?
+- 2026-10-20 — 5380 narrow re-review: FIX-FIRST on (a) only.
+  - The Boolean door doesn't run 3′ (parked: REACHHOLD's census row), so head ships 414 Ok results that 3′ can't certify (slit-touch `TouchUnanalysed`). 242 of them were typed refusals on main; the reading finds 406/414 right by material.
+  - Ruling: not a blocker. The door's ratified contract is tier 3, and main already ships ~6.8k such Oks. Disclose it in the PR and on the REACHHOLD row and the slit-line row.
+  - Small fixes: twin-record typing, coplanar units, narrow `slit_line_refusal` to the slit's own line.
+  - The table holds; nothing main read right is read wrong.
+- 2026-10-20 — PR 5380 merged (`607a0d3c1f`): the Boolean builds the slit form and agrees with the split.
+  - Riders parted into ring / slit / divided face; slit tips read structurally (`SlitTips`).
+  - Gaps typed: `SlitLineCrossed`, `SlitFaceGlued`, `EdgeInFace{…}`.
+  - The 414 3′-uncertified Oks are disclosed (inside the door's tier-3 contract; REACHHOLD row noted).
+  - P1 row closed. Follow-ups: P1 `a-boolean-places-two-germs-along-a-slit-line`, P1 `a-boolean-glues-away-the-face-a-slit-lies-in`, P1 `a-boolean-edge-running-past-the-face-…`, P1 `a-boolean-edge-lying-in-a-curved-face-…`, P2 `the-boolean-parting-refuses-its-rarer-configurations`.
+- 2026-10-20 — Dispatched the two P1s that recover main's correct cells lost in 5380: `a-boolean-glues-away-the-face-a-slit-lies-in` (the join merges a glued slit into one wall|wall edge) and `a-boolean-places-two-germs-along-a-slit-line` (recl along a slit line).

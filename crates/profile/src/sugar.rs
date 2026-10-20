@@ -146,10 +146,10 @@ pub(crate) fn split_half_tan<T: Real>(across: T, along: T, len: T) -> T {
 }
 
 /// [`split_half_tan`]'s first arm alone, for a construction whose split
-/// stays clear of `along = −len`, where it cancels: a fillet, whose arc
-/// sweeps under a half turn. A select is one atom to the symbolic
-/// tier's plain walk, so a construction that never needs the second arm
-/// keeps the algebraic form the tier reads through.
+/// stays clear of `along = −len`, where it cancels: an arc fillet's
+/// centre split, whose arc sweeps under a half turn. A select is one
+/// atom to the symbolic tier's plain walk, so a construction that never
+/// needs the second arm keeps the algebraic form the tier reads through.
 pub(crate) fn split_half_tan_near<T: Real>(across: T, along: T, len: T) -> T {
     across / (len + along)
 }
@@ -248,10 +248,9 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     // factor must not poison the enclosure — ci.yml's
     // "interval-square powi(2) allowlist"); norm_squared is powi inside.
     let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
-    // tan(φ/2) of the corner's turn φ, which is under a half turn: the
-    // home's first arm, which cancels only at a hairpin
-    // (`work/paths/a-hairpin-line-fillets-half-tangent-cancels`).
-    let half_tan = split_half_tan_near(v1.perp_dot(v2), v1.dot(v2), m);
+    // tan(φ/2) of the corner's turn φ, by the home's select: its first
+    // arm cancels at a hairpin.
+    let half_tan = split_half_tan(v1.perp_dot(v2), v1.dot(v2), m);
     let bulge = half_tan / (T::one() + (T::one() + half_tan.powi(2)).sqrt());
     let setback = radius * half_tan.abs();
     let len1 = v1.norm_squared().sqrt();
@@ -1566,6 +1565,65 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **Which half-angle quotient a line×line fillet reads, on each
+    /// side of a quarter turn.** Under a quarter turn the stored bulge is
+    /// the one `across / (|v₁||v₂| + along)` gives, bit for bit; past it,
+    /// the one `(|v₁||v₂| − along) / across` gives, in both senses. Each
+    /// corner is one where the two spellings round apart, so a switch
+    /// moved anywhere in (42°, 141°) is red here. At a hairpin the
+    /// setback is `r·tan(φ/2)` of an `atan2` turn to 1e-9.
+    #[test]
+    fn a_line_fillet_reads_the_quotient_its_side_of_a_quarter_turn_names() {
+        let (corner, v1) = (Point2::new(0.0, 0.0), Vec2::new(7.0, 3.0));
+        let head = corner - v1;
+        let bulge_of = |h: f64| h / (1.0 + (1.0 + h * h).sqrt());
+        // (next − corner, whether the turn is past a quarter): 75.5°,
+        // 80.8°, −41.6°, −49.8° under; 109.5°, 119.9°, −141.5°, −146.9°
+        // past.
+        for (v2, past) in [
+            ((-2.0, 13.0), false),
+            ((-1.0, 4.0), false),
+            ((3.0, -1.0), false),
+            ((2.0, -1.0), false),
+            ((-12.0, 13.0), true),
+            ((-12.0, 9.0), true),
+            ((-7.0, -13.0), true),
+            ((-6.0, -9.0), true),
+        ] {
+            let v2 = Vec2::new(v2.0, v2.1);
+            let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
+            let (across, along) = (v1.perp_dot(v2), v1.dot(v2));
+            let first = bulge_of(across / (m + along));
+            let second = bulge_of((m - along) / across);
+            assert_ne!(
+                first.to_bits(),
+                second.to_bits(),
+                "{v2:?}: the two quotients agree to the bit, so this corner pins nothing"
+            );
+            let trims = line_line_fillet_trims(head, corner, corner + v2, 0.5)
+                .unwrap_or_else(|e| panic!("{v2:?}: the fillet refused: {e:?}"));
+            let want = if past { second } else { first };
+            assert_eq!(
+                trims.bulge.to_bits(),
+                want.to_bits(),
+                "{v2:?}: the bulge {} is not the {} quotient's {want}",
+                trims.bulge,
+                if past { "second" } else { "first" }
+            );
+        }
+        // A hairpin, about 1.2e-5 rad short of a half turn, where the
+        // first quotient alone is off by about 1.5e-6 relative.
+        let (v2, radius) = (Vec2::new(-7.0, -2.9999), 1e-6);
+        let trims = line_line_fillet_trims(head, corner, corner + v2, radius)
+            .unwrap_or_else(|e| panic!("the hairpin refused: {e:?}"));
+        let half_tan = (v1.perp_dot(v2).atan2(v1.dot(v2)) * 0.5).tan().abs();
+        let setback = (trims.t2 - corner).norm() / radius;
+        assert!(
+            ((setback - half_tan) / half_tan).abs() <= 1e-9,
+            "the hairpin sets back {setback}·r where the atan2 turn gives {half_tan}·r"
+        );
     }
 
     /// [`Leg::tangent_point`]'s antipodal flip: the ENCLOSING tangency's

@@ -3146,7 +3146,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
             assert_eq!(
                 text,
                 "node 000000000005 failed: the transform op refused: an edge the map moved failed \
-                 re-certification: the transversality margin at sample 4 escalated: margin 5e-9 \
+                 re-certification: the crossing angle at sample 4 escalated: margin 5e-9 \
                  lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
                  surfaces cross at a clearer angle, or, if this angle is intended, tighten the \
                  tolerance below 5e-10 m"

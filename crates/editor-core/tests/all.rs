@@ -59,6 +59,8 @@ mod fixture;
 // one is not, because its subject is `serde_json`.
 mod wire;
 
+#[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
+mod a_keel_on_the_floor_names_its_two_edges;
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
 #[path = "asm2a_instantiate.rs"]
@@ -498,6 +500,8 @@ mod meta_minted_ids;
 mod meta_nesting_bound;
 #[path = "name_depth.rs"]
 mod name_depth;
+#[path = "name_invariance.rs"]
+mod name_invariance;
 #[path = "name_size_against_cut_depth.rs"]
 mod name_size_against_cut_depth;
 #[path = "name_tables_by_position.rs"]

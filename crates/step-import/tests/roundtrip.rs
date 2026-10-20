@@ -50,13 +50,20 @@ fn committed_corpus_row(name: &str) {
     // this run. Both contain the true value, so the budget is the sum
     // of the two half-widths — sound at EVERY ε row — plus ulp
     // accounting:
-    //   * the gap two fold orders of the body's face terms may round
-    //     apart: each side's volume is a fixed-order sum of per-face
-    //     contributions, and the two sums may accumulate in DIFFERENT
-    //     arena orders (import traversal need not match construction
-    //     order). Computed from the imported body's own terms, which are
-    //     the native body's faces (`topo::test_support::fold_order_bound`):
-    //     it scales with `Σ|tᵢ|`, not `|V|`, since the terms are signed.
+    //   * the rounding of each side's sum: each side's volume is a
+    //     fixed-order sum of per-face terms, each face read about a
+    //     vertex of its shell (`topo::props`' `shell_reference`, the
+    //     start of the shell's first face). Import traversal need not
+    //     match construction order, so the two sides may sum in
+    //     different orders and read a face about different vertices:
+    //     their terms are not the same values, only the same sum in the
+    //     reals. Either side's `Σ|tᵢ|` is at most the body's surface
+    //     area times its diameter (a face's flux about a point of its
+    //     shell is at most its area times its lever), so each side's
+    //     fold is bounded by `topo::test_support::fold_order_bound` at
+    //     that `Σ|tᵢ|`, and the budget counts it once per side. A stated
+    //     model, like the bound itself: it scales with `Σ|tᵢ|`, not
+    //     `|V|`, since the terms are signed.
     //   * 2 ulps for the mm³ round-trip: × 1e9 at print time and
     //     × 1e-9 here each round once (neither scale is a power of
     //     two).
@@ -76,7 +83,21 @@ fn committed_corpus_row(name: &str) {
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
     let native_pad_m3 = expect.kernel_volume_pad_mm3 * 1e-9;
     let ulp = expected_m3.next_up() - expected_m3;
-    let ulps = topo::test_support::fold_order_bound(&terms).0 + 2.0 * ulp;
+    let (lo, hi) = body.vertex_points().fold(
+        ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]),
+        |(lo, hi), (_, p)| {
+            let c = [p.x, p.y, p.z];
+            (
+                [0, 1, 2].map(|i| lo[i].min(c[i])),
+                [0, 1, 2].map(|i| hi[i].max(c[i])),
+            )
+        },
+    );
+    let diameter = (0..3).map(|i| (hi[i] - lo[i]).powi(2)).sum::<f64>().sqrt();
+    let reach = props.surface_area * diameter;
+    let own: f64 = terms.iter().map(|&(_, flux, _)| flux.abs()).sum();
+    let fold = topo::test_support::fold_order_bound(&terms).0 * (reach / own).max(1.0);
+    let ulps = 2.0 * fold + 2.0 * ulp;
     let tolerance = props.volume_pad + native_pad_m3 + ulps;
     assert!(
         (props.volume - expected_m3).abs() <= tolerance,

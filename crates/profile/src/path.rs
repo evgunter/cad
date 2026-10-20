@@ -3568,11 +3568,12 @@ fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason<T>) -> Pat
 /// stored as built — its own carrier (the centre the resolution
 /// derived, the authored radius as its magnitude `|r|`, as
 /// [`circle_loop`] stores it) and Δθ = 4·atan(b), `b` the resolution's
-/// quarter-tangent, algebraic in the corner's data — the first arm of
-/// [`crate::sugar::split_half_tan`], a fillet sweeping under a half
-/// turn ([`line_line_fillet_trims`]'s half-angle identity on the legs'
-/// split, or `arc_fillet`'s on the centre's) — with `facts`, which the
-/// caller derives by [`fillet_facts`].
+/// quarter-tangent, algebraic in the corner's data — from
+/// [`crate::sugar::split_half_tan`] of the legs' split
+/// ([`line_line_fillet_trims`]'s half-angle identity), or from its first
+/// arm on the centre's split (`arc_fillet`'s, a fillet sweeping under a
+/// half turn) — with `facts`, which the caller derives by
+/// [`fillet_facts`].
 fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T, facts: crate::Facts) -> BuiltArc<T> {
     BuiltArc {
         arc: Arc2 {
