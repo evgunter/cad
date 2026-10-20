@@ -43,6 +43,14 @@ pub struct DiscardRow {
     /// lie inside a merged face, or that no live edge joins, merged away
     /// with the faces beside it.
     pub bordered: Vec<(VertexKey, VertexKey)>,
+    /// Each stretch along which it bordered a kept face THROUGH a
+    /// substituted fragment ([`super::SubstitutedFace`]): across a
+    /// one-sided chord the boolean cut it along, or across its own edge
+    /// where the fragment beside it is substituted. The kept face holding
+    /// the fragment meets this face's region there, along its own edge,
+    /// which is no seam: the stretch is the kept edge's two ends, or this
+    /// face's edge's, in result keys, read as [`Self::bordered`]'s are.
+    pub bordered_through: Vec<(VertexKey, VertexKey)>,
     /// Each other boundary edge with its split ancestry (the edge,
     /// then each edge it was split from), in the same clone keys as
     /// `face`. The discard deletes these edges' lineage from the
@@ -57,15 +65,19 @@ pub struct DiscardRow {
     pub boundary_chains: Vec<Vec<EdgeKey>>,
 }
 
-/// The one-sided chords a dropped coincident face was cut along
-/// ([`super::fate`]): where a discarded face meets a substituted
-/// fragment across one, it borders the kept face holding that fragment
-/// along the kept edge the chord runs on.
+/// The substituted fragments a dropped coincident face was cut into
+/// ([`super::fate`]): where a discarded face meets one across a one-sided
+/// chord, it borders the kept face holding that fragment along the kept
+/// edge the chord runs on; where it meets one across its own edge, it
+/// borders that kept face along the edge.
 pub(super) struct ChordsAcross<'a> {
     /// The cuts.
     pub cuts: &'a super::fate::FateCuts,
     /// The kept operand's vertex in result keys.
     pub to_result: &'a dyn Fn(VertexKey) -> Option<VertexKey>,
+    /// The discarded face's operand's vertex in result keys: its own
+    /// kept copy, else the kept operand's vertex it meets.
+    pub own_to_result: &'a dyn Fn(VertexKey) -> Option<VertexKey>,
 }
 
 impl ChordsAcross<'_> {
@@ -97,6 +109,23 @@ impl ChordsAcross<'_> {
             (end(k1)?, end(k0)?)
         }))
     }
+
+    /// The edge's own ends `(start, end)` in result keys where `across`,
+    /// the face beside it, is a substituted fragment of `operand`'s
+    /// clone; `None` where it is not, or where an end meets no vertex of
+    /// the result (it lies inside the kept face, which holds no vertex
+    /// there to border along).
+    fn substituted(
+        &self,
+        operand: Operand,
+        (start, end): (VertexKey, VertexKey),
+        across: FaceKey,
+    ) -> Option<(VertexKey, VertexKey)> {
+        if !self.cuts.is_substituted(operand, across) {
+            return None;
+        }
+        (self.own_to_result)(start).zip((self.own_to_result)(end))
+    }
 }
 
 /// The row for discarded face `face` of `body`, an operand clone.
@@ -127,6 +156,7 @@ pub(super) fn discard_row<T: geom_core::Real>(
         operand,
         face,
         bordered: Vec::new(),
+        bordered_through: Vec::new(),
         boundary_chains: Vec::new(),
     };
     for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
@@ -147,15 +177,19 @@ pub(super) fn discard_row<T: geom_core::Real>(
             let across = || desync("a discarded face's edge has no face across it");
             let mate = body.mate(he).ok_or_else(across)?;
             let mate_face = body.face_of_half_edge(mate).ok_or_else(across)?;
-            if let Some(stretch) = match chords {
-                Some(c) => c.bordered(operand, h.edge, h.start, mate_face)?,
+            let end = body
+                .half_edge_end(he)
+                .ok_or_else(|| desync("a discarded face's half-edge has no end"))?;
+            let through = match chords {
+                Some(c) => match c.bordered(operand, h.edge, h.start, mate_face)? {
+                    Some(stretch) => Some(stretch),
+                    None => c.substituted(operand, (h.start, end), mate_face),
+                },
                 None => None,
-            } {
-                row.bordered.push(stretch);
+            };
+            if let Some(stretch) = through {
+                row.bordered_through.push(stretch);
             } else if kept_across(mate_face) {
-                let end = body
-                    .half_edge_end(he)
-                    .ok_or_else(|| desync("a discarded face's half-edge has no end"))?;
                 row.bordered.push(kept_ends(mate, h.start, end)?);
             } else {
                 let mut chain = vec![h.edge];

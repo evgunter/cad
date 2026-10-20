@@ -170,7 +170,9 @@ impl<K: Ord + Clone> Obstacles<K> {
         }
         let settler = naming.settler(body);
         // A bordered stretch settles on a seam edge: the zip made the
-        // kept face's section edge one edge with the wall's.
+        // kept face's section edge one edge with the wall's. A stretch
+        // read through a substituted fragment settles on the kept face's
+        // own edge, whichever it is.
         let seam_edges: BTreeSet<EdgeKey> = naming
             .seam_edges
             .iter()
@@ -267,10 +269,10 @@ impl<K: Ord + Clone> Obstacles<K> {
             // beside it: nothing of a piece lies along it.
             // A stretch an end of which the output stage joined away lies
             // along the edge the join made.
-            // A stretch across a one-sided chord settles on the kept
-            // face's own edge, which is no seam, so a stretch no seam lies
-            // along is read on every edge.
-            for &(u, w) in &row.bordered {
+            for (stretches, edges, seam_only) in [
+                (&row.bordered, &by_ends, true),
+                (&row.bordered_through, &any_by_ends, false),
+            ] {
                 // An end the zip split per cone lies at each of its
                 // copies, so the stretch is read between every pair of
                 // copies, and every edge found is kept, not the first:
@@ -278,13 +280,12 @@ impl<K: Ord + Clone> Obstacles<K> {
                 // region meets it, so each is where its obstacle borders
                 // a piece (N2). `topo`'s `boolean_discards::bordered_edges`
                 // reads it alike.
-                let (us, ws) = (settler.settle_cones(u)?, settler.settle_cones(w)?);
-                ends.extend(us.iter().chain(&ws).filter_map(|c| match c {
-                    Cell::Vertex(v) => Some(*v),
-                    Cell::Edge(_) | Cell::Face(_) => None,
-                }));
-                for (edges, seam_only) in [(&by_ends, true), (&any_by_ends, false)] {
-                    let found = seams.len() + whole.len();
+                for &(u, w) in stretches {
+                    let (us, ws) = (settler.settle_cones(u)?, settler.settle_cones(w)?);
+                    ends.extend(us.iter().chain(&ws).filter_map(|c| match c {
+                        Cell::Vertex(v) => Some(*v),
+                        Cell::Edge(_) | Cell::Face(_) => None,
+                    }));
                     for (&u, &w) in us.iter().flat_map(|u| ws.iter().map(move |w| (u, w))) {
                         let between = match (u, w) {
                             (Cell::Vertex(u), Cell::Vertex(w)) => edges.get(&(u.min(w), u.max(w))),
@@ -303,9 +304,6 @@ impl<K: Ord + Clone> Obstacles<K> {
                         {
                             seams.push(e);
                         }
-                    }
-                    if seams.len() + whole.len() > found {
-                        break;
                     }
                 }
             }

@@ -553,9 +553,43 @@ fn discarded<T: Decide>(
         kept(start, &us).zip(kept(end, &ws)).ok_or_else(refuse)
     };
     let kept_across = |f: FaceKey| sides.contains_key(f);
+    // A vertex of this operand in result keys: the one copy of it the
+    // result keeps, or where it keeps none, the one vertex of the other
+    // operand it meets there.
+    let theirs = super::NullCopies::of_operand(&red.null_edges, operand.other());
+    let own_to_result = |v: VertexKey| -> Option<VertexKey> {
+        let one = |mut rs: Vec<VertexKey>| {
+            rs.sort();
+            rs.dedup();
+            match rs.as_slice() {
+                [r] => Some(*r),
+                _ => None,
+            }
+        };
+        let copies = copy.of(v);
+        let kept: Vec<VertexKey> = copies.iter().filter_map(|&k| kept_vertex(k)).collect();
+        if !kept.is_empty() {
+            return one(kept);
+        }
+        one(red
+            .contacts
+            .vv
+            .iter()
+            .filter_map(|c| {
+                let (mine, other) = match operand {
+                    Operand::A => (c.a, c.b),
+                    Operand::B => (c.b, c.a),
+                };
+                copies.contains(&mine).then_some(other)
+            })
+            .flat_map(|o| theirs.of(o))
+            .filter_map(|k| (chords.1)(k))
+            .collect())
+    };
     let chords = ChordsAcross {
         cuts: chords.0,
         to_result: chords.1,
+        own_to_result: &own_to_result,
     };
     let mut out = Vec::new();
     for &shell in body
