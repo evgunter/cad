@@ -238,6 +238,16 @@ unresolved enclosure, a straddle) ends in the lever whatever the side.
 | `StoredContradiction` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
 | `Unminted` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
 
+One chooser names the culprit of every defect ending, sized or not
+(`geom_brep::recourse::culprit`), by the door and by whose data the
+contradiction is about (`geom_brep::recourse::Provenance`, a column of
+each decision's table; the two sides above are stored data). At a
+build it names the kernel and at rest the kernel or the file. At the
+import door past ε_in it names the file where the file stored what the
+decision compares, and the kernel or the file where a side is a value
+the kernel derives at adoption, or where whose data it is is not
+settled.
+
 Within ε_in the import door ends every band-decided reading in its one
 sentence and the lever, whatever the side. No public door returns a
 refusal on an unminted side read at a build: every

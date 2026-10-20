@@ -45,9 +45,9 @@
 #
 # THE DEFECT CHOICE IS A FOURTH LIST. A sized decision's caller may say
 # a reading certainly on the refused side contradicts the stored data
-# its decision reads (`RefusedReading::ContradictsStoredData`) or a
-# file's (`RefusedReading::DamagedFile`), which turns that reading's
-# ending into the kernel-or-file defect ending or the damaged-file one;
+# its decision reads (`RefusedReading::Defect`, with the culprit
+# `geom_brep::recourse::culprit` names), which turns that reading's
+# ending into a defect ending;
 # and the sign-certain arm asks the refused class's ending without a
 # reading (`SizedWords::sign_certain_recourse`); and whether a reading is
 # certainly on the refused side at all (`MarginDiag::shows_no_size`, and
@@ -79,7 +79,7 @@
 #     alias under another name, is invisible to it;
 #   * so is a glob import of the stored-contradiction choice:
 #     `use geom_core::RefusedReading::*;` followed by a bare
-#     `ContradictsStoredData` escapes the definite-ending count, which
+#     `Defect` escapes the definite-ending count, which
 #     matches the variant only under its enum's name;
 #   * so is a path spelled with whitespace inside it —
 #     `MarginDiag :: value(`, or the path split across lines — since
@@ -142,10 +142,10 @@ SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z
 # `path count why` — production files outside the definition home that
 # spell the stored-contradiction choice or ask the sign-certain ending.
 DEFINITE_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 5 the sized-decision table: SizedDecision::words picks the stored-contradiction and damaged-file choices once for every route, the sign-certain arm asks the refused class ending through those words, and SizedDecision::certainly_refused (its definition, for the doors that refuse a span as their input) reads the class once through MarginDiag::shows_no_size'
+  'crates/geom-brep/src/recourse.rs 4 the sized-decision table: SizedDecision::words picks the stored-contradiction choice once for every route, its culprit named by recourse::culprit, the sign-certain arm asks the refused class ending through those words, and SizedDecision::certainly_refused (its definition, for the doors that refuse a span as their input) reads the class once through MarginDiag::shows_no_size'
   'crates/geom-brep/src/certify.rs 1 every public certification and re-certification door asks whether a span check refusal is certainly on its refused side, to refuse it as the door input (StatedSpan::of) rather than end it'
 )
-DEFINITE_RE='(RefusedReading::(ContradictsStoredData|DamagedFile)|sign_certain_recourse|shows_no_size|certainly_refused)([^A-Za-z0-9_]|$)'
+DEFINITE_RE='(RefusedReading::Defect|sign_certain_recourse|shows_no_size|certainly_refused)([^A-Za-z0-9_]|$)'
 
 # `path count why` — production files that may write the classifier's
 # verdict `terminal_sliver: true` on an escalation of their own. None:
@@ -397,7 +397,7 @@ plant_mint_in_a_plain_mount() {
 # The import door's sentence used as an ε_in oracle, from the door.
 plant_in_file_oracle_outside() {
   mkdir -p "$1/crates/step-import/src"
-  printf 'fn f(d: MarginDiag, e: FileCoincidence) -> bool { e.miss_recourse_in_file(MissReading::Definite(d), MissSource::File, "").contains("stopgap") }\n' \
+  printf 'fn f(d: MarginDiag, e: FileCoincidence) -> bool { e.miss_recourse_in_file(MissReading::Definite(d), MissSource::File, "", "").contains("stopgap") }\n' \
     > "$1/crates/step-import/src/error.rs"
 }
 
@@ -426,7 +426,7 @@ plant_sentence_oracle_outside() {
 # The stored-contradiction choice made outside the sized-decision table.
 plant_definite_choice_outside() {
   mkdir -p "$1/crates/topo/src"
-  printf 'fn f(w: SizedWords) -> SizedWords { SizedWords { refused: RefusedReading::ContradictsStoredData, ..w } }\n' \
+  printf 'fn f(w: SizedWords) -> SizedWords { SizedWords { refused: RefusedReading::Defect(Culprit::KernelOrFile), ..w } }\n' \
     > "$1/crates/topo/src/props.rs"
 }
 
@@ -477,7 +477,7 @@ gate_selftest() {
   gate_selftest_case "sized_recourse_in_file asked outside the allowlisted sites" plant_sized_in_file_oracle_outside
   gate_selftest_case ": sized_recourse_in_file asked outside the allowlisted sites" plant_long_in_file_oracle_outside
   gate_selftest_case "terminal_sliver: true written outside the classifier" plant_forged_sliver
-  gate_selftest_case "RefusedReading::ContradictsStoredData spelled outside the allowlisted sites" plant_definite_choice_outside
+  gate_selftest_case "RefusedReading::Defect spelled outside the allowlisted sites" plant_definite_choice_outside
   gate_selftest_case "sign_certain_recourse spelled outside the allowlisted sites" plant_sign_certain_outside
   gate_selftest_case "shows_no_size spelled outside the allowlisted sites" plant_certainly_refused_outside
   gate_selftest_case "certainly_refused spelled outside the allowlisted sites" plant_certainly_refused_call_outside

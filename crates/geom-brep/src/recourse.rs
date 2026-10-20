@@ -14,9 +14,9 @@
 //! ([`LeverOnly`]).
 
 use geom_core::{
-    Band, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
-    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING,
-    RefusedReading, Sign, SizedWords, lever_recourse, noted,
+    Band, Culprit, Decided, FileCoincidence, Indeterminate, KERNEL_LIMIT_RECOURSE, MarginDiag,
+    MissReading, MissSource, NOT_YET_ENDING, RefusedReading, Sign, SizedWords, lever_recourse,
+    noted,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE};
 
@@ -50,8 +50,8 @@ pub enum ReadAt {
 impl ReadAt {
     /// The reading an ending that does not tell the import door apart
     /// takes there: [`Reading::AtRest`], which names the kernel or the
-    /// file. A sized decision's refused side reads the door itself
-    /// ([`SizedDecision::recourse`]).
+    /// file. A defect ending that does reads the door itself
+    /// ([`culprit`]).
     #[must_use]
     pub const fn reading(self) -> Reading {
         match self {
@@ -73,14 +73,44 @@ impl From<FileCoincidence> for ReadAt {
     }
 }
 
-/// The defect ending at `reading`: a build's is the kernel's alone; over
-/// stored geometry a damaged file reaches it as surely.
+/// **Whose data a contradiction read at the import door is about**: a
+/// property of the check that reads it, which the import door's
+/// [`culprit`] reads. No other door reads it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Provenance {
+    /// The file stored what the reading compares: past ε_in the
+    /// contradiction is the file's.
+    Stored,
+    /// A side is a value the kernel derives at adoption, which the file
+    /// did not store: the contradiction may be that derivation's, so it
+    /// names the kernel beside the file.
+    Derived,
+    /// Whose data it is is not settled where the ending is chosen, so it
+    /// names the kernel beside the file.
+    Unsettled,
+}
+
+/// **The culprit a defect ending names** at `at`, for a contradiction of
+/// `provenance` (D4 ¶1 (iv)): the one chooser every defect ending reads,
+/// sized or not. A build's is the kernel's alone; over a body at rest a
+/// damaged file reaches it as surely; at the import door, past ε_in, a
+/// contradiction of the file's own data is the file's
+/// ([`Provenance::Stored`]), and any other names both.
 #[must_use]
-pub fn defect_ending(reading: Reading) -> &'static str {
-    match reading {
-        Reading::Build => KERNEL_DEFECT_ENDING,
-        Reading::AtRest => KERNEL_OR_FILE_DEFECT_ENDING,
+pub const fn culprit(at: ReadAt, provenance: Provenance) -> Culprit {
+    match (at, provenance) {
+        (ReadAt::Run(Reading::Build), _) => Culprit::Kernel,
+        (ReadAt::Run(Reading::AtRest), _)
+        | (ReadAt::File(_), Provenance::Derived | Provenance::Unsettled) => Culprit::KernelOrFile,
+        (ReadAt::File(_), Provenance::Stored) => Culprit::File,
     }
+}
+
+/// The defect ending at `reading`, by [`culprit`]: a run door's culprit
+/// is the door's alone, so no provenance is stated.
+#[must_use]
+pub const fn defect_ending(reading: Reading) -> &'static str {
+    culprit(ReadAt::Run(reading), Provenance::Unsettled).ending()
 }
 
 /// The unreadable-margin note at `reading`, by [`defect_ending`]'s rule:
@@ -120,10 +150,8 @@ pub enum Unsized {
     /// spent budget), so a miss may be the approximation's limit (D4 ¶1
     /// (i)'s last resort): at a build on every arm, and at rest on an
     /// undecided one. A definite miss read at rest, or at the import
-    /// door past ε_in, is a stored contradiction, which ends in
-    /// [`KERNEL_OR_FILE_DEFECT_ENDING`] at both: unlike a sized
-    /// decision's ([`RefusedSide::StoredContradiction`]), it does not yet
-    /// name the file alone at the import door.
+    /// door past ε_in, is a stored contradiction, which ends in the
+    /// defect ending [`culprit`] names for its provenance.
     Fit,
     /// The refused margin is a certified upper bound on the miss, not
     /// the miss: a loose bound is the certificate's own limit, and
@@ -133,47 +161,73 @@ pub enum Unsized {
 
 impl Unsized {
     /// The one ending a refusal of this decision carries on `arm`, read
-    /// at `reading`.
-    ///
-    /// Every arm of an exact decision ends in the defect ending. Where
-    /// the kernel approximated, an arm read at a build, and an undecided
-    /// arm read at rest, end in the last resort; a definite arm at rest
-    /// ends in the file's defect ending, since no loosening repairs a
-    /// stored contradiction. A bound ends in the last resort on every
-    /// arm at every reading. An arm whose margin could not be read ends
-    /// in the defect ending, whatever the decision: no tolerance makes it
-    /// readable.
+    /// at `reading`: [`Unsized::ending`] at a run door, which reads no
+    /// provenance.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
-        let defect = defect_ending(reading);
+        self.ending(arm, reading, Provenance::Unsettled)
+    }
+
+    /// The one ending a refusal of this decision carries on `arm`, read
+    /// at `at`, for a check whose contradiction is of `provenance`.
+    ///
+    /// Every arm of an exact decision ends in the defect ending
+    /// ([`culprit`]). Where the kernel approximated, an arm read at a
+    /// build, and an undecided arm read anywhere else, end in the last
+    /// resort; a definite arm read past a build ends in the defect
+    /// ending, since no loosening repairs a stored contradiction. A bound
+    /// ends in the last resort on every arm at every door. An arm whose
+    /// margin could not be read ends in the defect ending, whatever the
+    /// decision: no tolerance makes it readable, and the margin is the
+    /// kernel's arithmetic, so it reads as [`Provenance::Derived`].
+    #[must_use]
+    pub fn ending(
+        self,
+        arm: RefusedArm<'_>,
+        at: impl Into<ReadAt>,
+        provenance: Provenance,
+    ) -> String {
+        let at = at.into();
+        let unreadable = arm.unreadable();
+        let provenance = if unreadable {
+            Provenance::Derived
+        } else {
+            provenance
+        };
+        let defect = culprit(at, provenance).ending();
         match self {
             Self::Defect => defect.to_owned(),
-            Self::Fit | Self::Bound if arm.unreadable() => defect.to_owned(),
+            Self::Fit | Self::Bound if unreadable => defect.to_owned(),
             Self::Bound => KERNEL_LIMIT_RECOURSE.to_owned(),
-            Self::Fit => match (reading, arm) {
-                (Reading::Build, _)
-                | (Reading::AtRest, RefusedArm::Undecided(_) | RefusedArm::Straddle) => {
+            Self::Fit => match (at, arm) {
+                (ReadAt::Run(Reading::Build), _)
+                | (_, RefusedArm::Undecided(_) | RefusedArm::Straddle) => {
                     KERNEL_LIMIT_RECOURSE.to_owned()
                 }
-                (Reading::AtRest, RefusedArm::Zero(_) | RefusedArm::SignCertain(_)) => {
-                    defect.to_owned()
-                }
+                (_, RefusedArm::Zero(_) | RefusedArm::SignCertain(_)) => defect.to_owned(),
             },
         }
     }
 
     /// The ending a residual's refusal carries on `arm` at the import
-    /// door (D4 ¶1): read at rest, except that a miss within the file's
-    /// declared coincidence distance but beyond ε names setting ε to ε_in
-    /// as a stopgap, beside re-exporting the file more precisely
+    /// door (D4 ¶1), for a check whose miss is of `provenance`: a miss
+    /// within the file's declared coincidence distance but beyond ε names
+    /// setting ε to ε_in as a stopgap, beside re-exporting the file more
+    /// precisely; a miss wholly past ε_in ends as the door ends it
+    /// ([`Unsized::ending`]); any other reading ends as at rest
     /// ([`FileCoincidence::miss_recourse_in_file`]). A residual passes
     /// only at zero, so its refused margin is a miss, on the sign-certain
     /// arm too, which every residual refusal carries its reading on; a
     /// bound's is a bound on the miss, on its undecided and sign-certain
     /// arms alike.
     #[must_use]
-    pub fn residual_in_file(self, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
-        let reading = ReadAt::File(file).reading();
+    pub fn residual_in_file(
+        self,
+        arm: RefusedArm<'_>,
+        file: FileCoincidence,
+        provenance: Provenance,
+    ) -> String {
+        let reading = Reading::AtRest;
         let miss = match (self, arm) {
             // A bound at zero refuses nothing a residual would.
             (Self::Bound, RefusedArm::Zero(_)) => return self.recourse(arm, reading),
@@ -193,7 +247,12 @@ impl Unsized {
             Self::Defect => MissSource::File,
             Self::Fit | Self::Bound => MissSource::Fit,
         };
-        file.miss_recourse_in_file(miss, source, &self.recourse(arm, reading))
+        file.miss_recourse_in_file(
+            miss,
+            source,
+            &self.ending(arm, file, provenance),
+            &self.recourse(arm, reading),
+        )
     }
 }
 
@@ -357,11 +416,11 @@ pub enum RefusedSide {
     Lever,
     /// A contradiction between a stored description and its stored
     /// geometry. At a build it is the user's geometry, which the lever
-    /// moves: the lever and the note. At the import door past ε_in it is
-    /// the file's ([`geom_core::DAMAGED_FILE_ENDING`]); over a body at
-    /// rest it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`]. A residual's
-    /// stored contradiction ([`Unsized::Fit`]) ends in the latter at the
-    /// import door too.
+    /// moves: the lever and the note. Past a build it ends in the defect
+    /// ending [`culprit`] names for stored data
+    /// ([`Provenance::Stored`]): at the import door past ε_in the file's
+    /// ([`geom_core::DAMAGED_FILE_ENDING`]), over a body at rest
+    /// [`geom_core::KERNEL_OR_FILE_DEFECT_ENDING`].
     StoredContradiction,
     /// A side no kernel construction produces. Every public door that
     /// runs the decision reports a reading certainly on this side as its
@@ -521,13 +580,9 @@ impl SizedDecision {
                 RefusedSide::StoredContradiction | RefusedSide::Unminted,
                 ReadAt::Run(Reading::Build),
             ) => RefusedReading::AsShown,
-            (RefusedSide::StoredContradiction | RefusedSide::Unminted, ReadAt::File(_)) => {
-                RefusedReading::DamagedFile
+            (RefusedSide::StoredContradiction | RefusedSide::Unminted, at) => {
+                RefusedReading::Defect(culprit(at, Provenance::Stored))
             }
-            (
-                RefusedSide::StoredContradiction | RefusedSide::Unminted,
-                ReadAt::Run(Reading::AtRest),
-            ) => RefusedReading::ContradictsStoredData,
         };
         SizedWords {
             lever: self.lever,
@@ -566,7 +621,15 @@ pub(crate) fn repeated_words(text: &str) -> Vec<String> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    use geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
+
     use super::*;
+
+    const PROVENANCES: [Provenance; 3] = [
+        Provenance::Stored,
+        Provenance::Derived,
+        Provenance::Unsettled,
+    ];
 
     /// `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
     fn band() -> Band {
@@ -830,11 +893,13 @@ mod tests {
                     "{label}, {reading:?}"
                 );
             }
-            assert_eq!(
-                Unsized::Fit.residual_in_file(arm, FileCoincidence::new(1e-12)),
-                KERNEL_LIMIT_RECOURSE,
-                "{label}, at the import door"
-            );
+            for provenance in PROVENANCES {
+                assert_eq!(
+                    Unsized::Fit.residual_in_file(arm, FileCoincidence::new(1e-12), provenance),
+                    KERNEL_LIMIT_RECOURSE,
+                    "{label}, at the import door, {provenance:?}"
+                );
+            }
         }
     }
 
@@ -943,17 +1008,24 @@ mod tests {
         let file = FileCoincidence::new(1e3 * tol.eps());
         let miss = MarginDiag::value(1e2 * tol.eps());
         for residual in [Unsized::Defect, Unsized::Fit] {
-            let valued = residual.residual_in_file(RefusedArm::SignCertain(Some(miss)), file);
-            let unvalued = residual.residual_in_file(RefusedArm::SignCertain(None), file);
-            assert!(
-                valued.starts_with("This miss lies beyond the tolerance and within the file's"),
-                "{residual:?}: {valued}"
-            );
-            assert_eq!(
-                unvalued,
-                residual.recourse(RefusedArm::SignCertain(None), Reading::AtRest),
-                "{residual:?}"
-            );
+            for provenance in PROVENANCES {
+                let valued = residual.residual_in_file(
+                    RefusedArm::SignCertain(Some(miss)),
+                    file,
+                    provenance,
+                );
+                let unvalued =
+                    residual.residual_in_file(RefusedArm::SignCertain(None), file, provenance);
+                assert!(
+                    valued.starts_with("This miss lies beyond the tolerance and within the file's"),
+                    "{residual:?} {provenance:?}: {valued}"
+                );
+                assert_eq!(
+                    unvalued,
+                    residual.recourse(RefusedArm::SignCertain(None), Reading::AtRest),
+                    "{residual:?} {provenance:?}"
+                );
+            }
         }
     }
 
@@ -1339,11 +1411,19 @@ mod tests {
                         "{residual:?} at {reading:?} on {arm:?}"
                     );
                 }
-                assert_eq!(
-                    residual.residual_in_file(arm, file),
-                    defect_ending(Reading::AtRest),
-                    "{residual:?} at the import door on {arm:?}"
-                );
+                // A poisoned margin contradicts nothing the file stored.
+                for provenance in PROVENANCES {
+                    assert_eq!(
+                        residual.residual_in_file(arm, file, provenance),
+                        KERNEL_OR_FILE_DEFECT_ENDING,
+                        "{residual:?} at the import door on {arm:?}, {provenance:?}"
+                    );
+                    assert_eq!(
+                        residual.ending(arm, file, provenance),
+                        KERNEL_OR_FILE_DEFECT_ENDING,
+                        "{residual:?} unsized at the import door on {arm:?}, {provenance:?}"
+                    );
+                }
             }
             for decision in &sized {
                 endings.push(decision.recourse(arm, Reading::Build));

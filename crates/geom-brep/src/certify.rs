@@ -70,8 +70,8 @@ use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve_over};
 use crate::recourse::{
-    Classified, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass, SpanDecision,
-    Unsized,
+    Classified, Provenance, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass,
+    SpanDecision, Unsized,
 };
 
 // **The sized decisions' nouns, each spelled once.** A size noun is the
@@ -1003,11 +1003,13 @@ const TANGENT_PLANES_RECOURSE: &str = "keep the edge clear of each surface's axi
 enum Ending {
     /// A decision on a size the user may intend ([`SizedDecision`]).
     Sized(SizedDecision),
-    /// A decision with no size ([`Unsized`]).
-    Unsized(Unsized),
+    /// A decision with no size ([`Unsized`]), and whose data its
+    /// contradiction is about at the import door.
+    Unsized(Unsized, Provenance),
     /// A residual: a decision with no size that passes only at zero, so
-    /// its refused margin is a miss ([`Unsized::residual_in_file`]).
-    Residual(Unsized),
+    /// its refused margin is a miss ([`Unsized::residual_in_file`]), and
+    /// whose data the miss is about at the import door.
+    Residual(Unsized, Provenance),
     /// A quantity undefined over the enclosure it was read on: the
     /// recourse says what is undefined and why, whatever the margin's
     /// numbers, which are not a reading of it.
@@ -1242,7 +1244,7 @@ impl CertCheck {
     /// certificate cannot show the cache is the description.
     #[must_use]
     pub fn bounds_a_miss(self) -> bool {
-        matches!(self.ending(), Ending::Residual(Unsized::Bound))
+        matches!(self.ending(), Ending::Residual(Unsized::Bound, _))
     }
 
     /// **The span decision this check reads, and the side it refuses
@@ -1335,18 +1337,30 @@ impl CertCheck {
             // carrier's own normals, and the touch of the two surfaces a
             // tangency places (the gap reads the pair, not the carrier,
             // so no fit is in it).
-            Self::EndpointStart
-            | Self::EndpointEnd
-            | Self::WitnessSurfaceResidual { .. }
-            | Self::WitnessMidpoint
+            //
+            // At the import door the file stored the vertices, the
+            // carrier and the surfaces, so an endpoint's miss and the
+            // carrier's midpoint off a surface are the file's.
+            Self::EndpointStart | Self::EndpointEnd | Self::WitnessSurfaceResidual { .. } => {
+                Ending::Residual(Unsized::Defect, Provenance::Stored)
+            }
+            // Values the kernel derives at adoption, which the file did
+            // not store: the witness (the carrier's own midpoint), the
+            // mapped description synthesized from the carrier, the
+            // description class the adoption ladder tries (a tangency's
+            // normals and gap read only under that guess), and the chart
+            // image the unified residual is stated against.
+            Self::WitnessMidpoint
             | Self::TangentParallel
             | Self::TangentGap
             | Self::MappedSource
-            | Self::ChartResidual => Ending::Residual(Unsized::Defect),
-            Self::ChartImage => Ending::Unsized(Unsized::Defect),
+            | Self::ChartResidual => Ending::Residual(Unsized::Defect, Provenance::Derived),
+            Self::ChartImage => Ending::Unsized(Unsized::Defect, Provenance::Derived),
             // A fold over samples that each decided transverse: a poison
             // that survives it is the kernel's.
-            Self::PlaneNurbsReportedTransversality => Ending::Unsized(Unsized::Defect),
+            Self::PlaneNurbsReportedTransversality => {
+                Ending::Unsized(Unsized::Defect, Provenance::Derived)
+            }
             // A face constant along a parameter direction is the face's
             // own degeneracy, and the stored face is what the lever
             // edits, so it ends in the lever at rest too.
@@ -1373,16 +1387,18 @@ impl CertCheck {
             // surface residuals take the fit's ending for EVERY carrier,
             // the exact analytic ones too, where a miss would be a defect:
             // the routing reads the decision alone and cannot see which
-            // kind of carrier it measured.
+            // kind of carrier it measured, so whose data the miss is at
+            // the import door is not settled here either.
             Self::SurfaceResidual { .. }
             | Self::PlaneNurbsOnLocus
-            | Self::AnalyticBreakResidual => Ending::Residual(Unsized::Fit),
+            | Self::AnalyticBreakResidual => Ending::Residual(Unsized::Fit, Provenance::Unsettled),
             // Certified bounds on the miss: the tangent lane's sag bound,
-            // the two hull limbs, and the NURBS hull's value at a break.
+            // the two hull limbs, and the NURBS hull's value at a break,
+            // each the kernel's certificate.
             Self::TangentHull
             | Self::PlaneNurbsHull
             | Self::PlaneNurbsHullValue
-            | Self::AnalyticHull => Ending::Residual(Unsized::Bound),
+            | Self::AnalyticHull => Ending::Residual(Unsized::Bound, Provenance::Derived),
         }
     }
 }
@@ -1406,18 +1422,23 @@ impl CertCheck {
 ///   on every arm: a loose bound contradicts nothing stored.
 /// - At the STEP import door ([`ReadAt::File`]) the file's declared
 ///   coincidence distance picks the words: a sized decision's as
-///   [`SizedDecision::recourse`] gives, an unsized one's as at rest, and a
-///   residual's miss within ε_in but beyond ε, or a bound on it wholly
-///   within ε_in, names setting ε to ε_in as a stopgap
-///   ([`Unsized::residual_in_file`]).
+///   [`SizedDecision::recourse`] gives; a residual's miss within ε_in but
+///   beyond ε, or a bound on it wholly within ε_in, names setting ε to
+///   ε_in as a stopgap ([`Unsized::residual_in_file`]); and past ε_in a
+///   defect ending names the culprit the check's [`Provenance`] gives
+///   ([`crate::recourse::culprit`]): the file, where the file stored what
+///   the check compares.
 #[must_use]
 pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
     let at = at.into();
-    let reading = at.reading();
     match (check.ending(), at) {
         (Ending::Sized(sized), at) => sized.recourse(arm, at),
-        (Ending::Residual(residual), ReadAt::File(file)) => residual.residual_in_file(arm, file),
-        (Ending::Unsized(no_size) | Ending::Residual(no_size), _) => no_size.recourse(arm, reading),
+        (Ending::Residual(residual, provenance), ReadAt::File(file)) => {
+            residual.residual_in_file(arm, file, provenance)
+        }
+        (Ending::Unsized(no_size, provenance) | Ending::Residual(no_size, provenance), at) => {
+            no_size.ending(arm, at, provenance)
+        }
         (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
     }
 }
@@ -7339,9 +7360,10 @@ mod tests {
     /// included — and a residual's miss within ε_in but beyond ε, or a
     /// certified bound on it wholly within ε_in, names setting ε to ε_in
     /// as a stopgap. An ε_in below every margin leaves every ending at
-    /// rest but a reading at zero's, and a sized decision's defect ending,
-    /// which the door names the file's. No ending at the door blames the
-    /// kernel alone, or carries a second recourse.
+    /// rest but a reading at zero's, a sized decision's defect ending, and
+    /// a miss over the file's own data ([`Provenance::Stored`]), the last
+    /// two of which the door names the file's. No ending at the door
+    /// blames the kernel alone, or carries a second recourse.
     #[test]
     fn the_import_door_reads_at_rest_with_its_eps_in_words() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -7431,12 +7453,20 @@ mod tests {
                         );
                     }
                     // Past ε_in a sized decision's stored contradiction
-                    // or unminted side is the file's.
+                    // or unminted side is the file's, and so is a miss
+                    // over the file's own data.
                     (Ending::Sized(_), _) if at_rest == KERNEL_OR_FILE_DEFECT_ENDING => {
                         assert_eq!(
                             narrow_door,
                             geom_core::DAMAGED_FILE_ENDING,
                             "{check:?} {arm:?}: past ε_in a sized defect is the file's"
+                        );
+                    }
+                    (Ending::Residual(Unsized::Defect, Provenance::Stored), _) if miss => {
+                        assert_eq!(
+                            narrow_door,
+                            geom_core::DAMAGED_FILE_ENDING,
+                            "{check:?} {arm:?}: past ε_in a miss over the file's data is the file's"
                         );
                     }
                     _ => assert_eq!(
@@ -7483,7 +7513,7 @@ mod tests {
                     // A bound wholly within ε_in names itself, on its
                     // undecided and sign-certain arms alike: every
                     // readable margin here lies within the wide ε_in.
-                    (Ending::Residual(Unsized::Bound), _) => {
+                    (Ending::Residual(Unsized::Bound, _), _) => {
                         let named = match arm {
                             RefusedArm::Undecided(cause) => !cause.margin.is_invalid(),
                             RefusedArm::SignCertain(margin) => margin.is_some(),
@@ -7500,7 +7530,7 @@ mod tests {
                             assert_eq!(door, at_rest, "{check:?} {arm:?}");
                         }
                     }
-                    (Ending::Residual(_), _) if miss => assert!(
+                    (Ending::Residual(..), _) if miss => assert!(
                         door.contains("as a stopgap, set the tolerance to ε_in"),
                         "{check:?} {arm:?}: {door}"
                     ),
@@ -7515,8 +7545,9 @@ mod tests {
 
     /// **A definite residual miss is read by its own value at the import
     /// door** (D4 ¶1): within ε_in it names the stopgap, past ε_in it
-    /// ends at rest, and a miss the kernel's fit may have made keeps the
-    /// kernel-bug note rather than vouching for the file's data.
+    /// ends in the culprit its check's provenance names, and a miss the
+    /// kernel's fit may have made keeps the kernel-bug note rather than
+    /// vouching for the file's data.
     #[test]
     fn a_definite_miss_at_the_import_door_reads_its_own_value() {
         let file = FileCoincidence::new(1e-6);
@@ -7569,18 +7600,113 @@ mod tests {
                 && across.ends_with("a kernel defect or a damaged file, worth reporting"),
             "{across}"
         );
-        for check in [
-            CertCheck::EndpointStart,
-            CertCheck::SurfaceResidual {
-                surface: SurfaceKey::default(),
-            },
+        // Past ε_in a miss over the file's own data is the file's; a
+        // derived value's, and a fit's, names the kernel beside it.
+        for (check, want) in [
+            (CertCheck::EndpointStart, geom_core::DAMAGED_FILE_ENDING),
+            (CertCheck::WitnessMidpoint, KERNEL_OR_FILE_DEFECT_ENDING),
+            (
+                CertCheck::SurfaceResidual {
+                    surface: SurfaceKey::default(),
+                },
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
         ] {
             let past = exceeded(check, 2e-6);
-            assert_eq!(
-                past.ending(file),
-                past.ending(Reading::AtRest),
-                "{check:?}: a miss past ε_in is the file's own defect"
-            );
+            assert_eq!(past.ending(file).as_deref(), Some(want), "{check:?}");
+        }
+    }
+
+    /// **A definite contradiction's culprit follows the door and whose
+    /// data it is about** ([`crate::recourse::culprit`]): one row per
+    /// provenance class, read at a build, at rest, and at the import
+    /// door with the miss within ε_in and past it. Past ε_in a miss over
+    /// the file's own data is the file's, and a derived value's or an
+    /// unsettled one's names the kernel beside the file; a fit keeps its
+    /// last resort at a build, and a bound everywhere. Red if a class's
+    /// culprit is chosen by the door alone.
+    #[test]
+    fn a_defects_culprit_follows_the_door_and_the_provenance() {
+        let file = FileCoincidence::new(1e-6);
+        let stopgap = "Recourse: re-export the file more precisely, or, as a stopgap, set the \
+                       tolerance to ε_in = 1e-6 m";
+        let file_within = format!(
+            "This miss lies beyond the tolerance and within the file's declared coincidence \
+             distance ε_in = 1e-6 m, to which alone the file's data claims to agree. {stopgap}"
+        );
+        let fit_within = format!(
+            "This miss lies beyond the tolerance and within the file's declared coincidence \
+             distance ε_in = 1e-6 m, and may be the kernel's own approximation. {stopgap}; this \
+             refusal may indicate a kernel bug worth reporting"
+        );
+        let bound_within = format!(
+            "The certificate's bound on this miss lies within the file's declared coincidence \
+             distance ε_in = 1e-6 m. {stopgap}; this refusal may indicate a kernel bug worth \
+             reporting"
+        );
+        let (k, kf, damaged) = (
+            KERNEL_DEFECT_ENDING,
+            KERNEL_OR_FILE_DEFECT_ENDING,
+            geom_core::DAMAGED_FILE_ENDING,
+        );
+        let surface = SurfaceKey::default();
+        // (check, its class, build, at rest, within ε_in, past ε_in)
+        let rows = [
+            (
+                CertCheck::EndpointStart,
+                "a residual over stored data",
+                k,
+                kf,
+                file_within.as_str(),
+                damaged,
+            ),
+            (
+                CertCheck::WitnessMidpoint,
+                "a residual over a derived value",
+                k,
+                kf,
+                &file_within,
+                kf,
+            ),
+            (
+                CertCheck::ChartImage,
+                "an unsized check over a derived value",
+                k,
+                kf,
+                kf,
+                kf,
+            ),
+            (
+                CertCheck::SurfaceResidual { surface },
+                "a fit, unsettled",
+                KERNEL_LIMIT_RECOURSE,
+                kf,
+                &fit_within,
+                kf,
+            ),
+            (
+                CertCheck::TangentHull,
+                "a bound",
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_LIMIT_RECOURSE,
+                &bound_within,
+                KERNEL_LIMIT_RECOURSE,
+            ),
+        ];
+        for (check, class, build, at_rest, within, past) in rows {
+            let arm = |m: f64| RefusedArm::SignCertain(Some(MarginDiag::value(m)));
+            for (door, got, want) in [
+                ("a build", recourse(check, arm(2e-6), Reading::Build), build),
+                (
+                    "at rest",
+                    recourse(check, arm(2e-6), Reading::AtRest),
+                    at_rest,
+                ),
+                ("within ε_in", recourse(check, arm(5e-7), file), within),
+                ("past ε_in", recourse(check, arm(2e-6), file), past),
+            ] {
+                assert_eq!(got, want, "{check:?}, {class}, at {door}");
+            }
         }
     }
 
@@ -8140,22 +8266,25 @@ mod tests {
     /// sized, with its pass set; an exact construction ends as a defect,
     /// an approximation as a fit and a certified bound on the miss as a
     /// bound; a residual, whose refused margin is a miss, is marked so as
-    /// any of them. The table is the
-    /// independent side, so a decision `ending()` misfiles fails here.
+    /// any of them. Every decision with no size names whose data its
+    /// contradiction is about at the import door ([`Provenance`]). The
+    /// table is the independent side, so a decision `ending()` misfiles,
+    /// or a check added without a row, fails here.
     #[test]
     fn each_decision_is_classified_as_the_table_says() {
         #[derive(Debug, PartialEq, Eq)]
         enum Class {
             Sized(SizedPass),
-            NoSize(Unsized),
-            Miss(Unsized),
+            NoSize(Unsized, Provenance),
+            Miss(Unsized, Provenance),
             Undefined,
         }
         use Class::{Miss, NoSize, Sized, Undefined};
+        use Provenance::{Derived, Stored, Unsettled};
         use SizedPass::{NonNegative, Positive};
         let table = [
-            (CertCheck::EndpointStart, Miss(Unsized::Defect)),
-            (CertCheck::EndpointEnd, Miss(Unsized::Defect)),
+            (CertCheck::EndpointStart, Miss(Unsized::Defect, Stored)),
+            (CertCheck::EndpointEnd, Miss(Unsized::Defect, Stored)),
             (CertCheck::ParamSpan, Sized(Positive)),
             (CertCheck::ParamSpanMeter, Sized(Positive)),
             (CertCheck::ParamWinding, Sized(NonNegative)),
@@ -8164,35 +8293,41 @@ mod tests {
                 CertCheck::SurfaceResidual {
                     surface: SurfaceKey::default(),
                 },
-                Miss(Unsized::Fit),
+                Miss(Unsized::Fit, Unsettled),
             ),
             (
                 CertCheck::WitnessSurfaceResidual {
                     surface: SurfaceKey::default(),
                 },
-                Miss(Unsized::Defect),
+                Miss(Unsized::Defect, Stored),
             ),
-            (CertCheck::WitnessMidpoint, Miss(Unsized::Defect)),
+            (CertCheck::WitnessMidpoint, Miss(Unsized::Defect, Derived)),
             (CertCheck::Transversality, Sized(Positive)),
             (CertCheck::TransversalityTube, Sized(Positive)),
             (CertCheck::TransversalityArm, Sized(Positive)),
             (CertCheck::TangentPlanes, Undefined),
             (CertCheck::TangentSecondOrder, Sized(Positive)),
-            (CertCheck::TangentParallel, Miss(Unsized::Defect)),
-            (CertCheck::TangentGap, Miss(Unsized::Defect)),
-            (CertCheck::TangentHull, Miss(Unsized::Bound)),
+            (CertCheck::TangentParallel, Miss(Unsized::Defect, Derived)),
+            (CertCheck::TangentGap, Miss(Unsized::Defect, Derived)),
+            (CertCheck::TangentHull, Miss(Unsized::Bound, Derived)),
             (CertCheck::TangentTube, Sized(Positive)),
-            (CertCheck::MappedSource, Miss(Unsized::Defect)),
-            (CertCheck::ChartResidual, Miss(Unsized::Defect)),
-            (CertCheck::ChartImage, NoSize(Unsized::Defect)),
-            (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::Fit)),
-            (CertCheck::PlaneNurbsHull, Miss(Unsized::Bound)),
-            (CertCheck::PlaneNurbsHullValue, Miss(Unsized::Bound)),
-            (CertCheck::AnalyticBreakResidual, Miss(Unsized::Fit)),
-            (CertCheck::AnalyticHull, Miss(Unsized::Bound)),
+            (CertCheck::MappedSource, Miss(Unsized::Defect, Derived)),
+            (CertCheck::ChartResidual, Miss(Unsized::Defect, Derived)),
+            (CertCheck::ChartImage, NoSize(Unsized::Defect, Derived)),
+            (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::Fit, Unsettled)),
+            (CertCheck::PlaneNurbsHull, Miss(Unsized::Bound, Derived)),
+            (
+                CertCheck::PlaneNurbsHullValue,
+                Miss(Unsized::Bound, Derived),
+            ),
+            (
+                CertCheck::AnalyticBreakResidual,
+                Miss(Unsized::Fit, Unsettled),
+            ),
+            (CertCheck::AnalyticHull, Miss(Unsized::Bound, Derived)),
             (
                 CertCheck::PlaneNurbsReportedTransversality,
-                NoSize(Unsized::Defect),
+                NoSize(Unsized::Defect, Derived),
             ),
             (CertCheck::PlaneNurbsChartSpeed, Sized(Positive)),
             (CertCheck::PlaneNurbsChartSpeedBound, Sized(Positive)),
@@ -8205,8 +8340,8 @@ mod tests {
                 .unwrap_or_else(|| panic!("{check:?} is missing from the table"));
             let got = match check.ending() {
                 Ending::Sized(sized) => Sized(sized.passes),
-                Ending::Unsized(no_size) => NoSize(no_size),
-                Ending::Residual(residual) => Miss(residual),
+                Ending::Unsized(no_size, provenance) => NoSize(no_size, provenance),
+                Ending::Residual(residual, provenance) => Miss(residual, provenance),
                 Ending::Undefined(_) => Undefined,
             };
             assert_eq!(&got, want, "{check:?}");
