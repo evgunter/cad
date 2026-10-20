@@ -127,6 +127,13 @@ fn every_spiric_face_meets_its_target_at_the_round_it_does_at_home() {
 /// refused. Far off and turned, every op's pad is its pad at home to the
 /// rounding of the moved coordinates: measured at most 0.21% more at
 /// 1e-12, 2e-6 relative at 1e-9 and 1e-6.
+///
+/// "At home" is `posed(0.0)`, turned and not moved, so the row compares
+/// a turned body with a turned body. The same cut left on the axes reads
+/// several times less (4.1e-6 against 2.0–2.8e-5 at 1e-9, `P ∪ T`), and
+/// that is luck, not a lever: a face whose normal lies on an axis has
+/// off-normal width enclosing exactly zero, which any turn ends. So an
+/// axis-aligned pad is no baseline for a turned one.
 #[test]
 fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
     let tol = Tol::witness();
@@ -140,19 +147,42 @@ fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
     }
 }
 
-/// **One solid stored in two face orders carries one pad.** `T ∪ P` and
-/// `P ∪ T` with a 900 m bar are one solid in two face orders. Each face
-/// is read about the start of its shell's first quadrature face, a vertex
-/// beside the torus in either order, so the quadrature faces' lever is
-/// the torus's extent and not the bar's. Measured 1.04× apart at every ε
-/// row (4.27e-6 against 4.10e-6 at 1e-9). Read about the shell's first
-/// face's start, the far end of the bar in one order, they sat 14.3×
-/// apart at 1e-9, 15.9× at 1e-12 and 911× at 1e-6.
+/// **One solid stored in two face orders carries nearly one pad.**
+/// `T ∪ P` and `P ∪ T` are one solid in two face orders. Each face is read
+/// about the start of its shell's first quadrature face, so which vertex
+/// that is still depends on the stored order, but only among the
+/// quadrature faces: the lever is their extent, not the shell's. Measured:
+/// with a 900 m bar, 1.04× apart at every ε row (4.27e-6 against 4.10e-6
+/// at 1e-9); the cut far off and turned (s = 100), 1.11× at 1e-9, 1.10×
+/// at 1e-12 and 1.55× at 1e-6. Each ratio is pinned with headroom, so an
+/// order the rule starts reading across the shell turns it red. Read
+/// about the shell's first face's start, the bar pair sat 14.3× apart at
+/// 1e-9, 15.9× at 1e-12 and 911× at 1e-6.
 #[test]
-fn one_solid_in_two_face_orders_carries_one_pad() {
+fn one_solid_in_two_face_orders_carries_nearly_one_pad() {
     let tol = Tol::witness();
-    let t = torus(2.0, 0.5);
-    let p = finished(
+    let (bar_bound, turned_bound) = match tol.eps() {
+        1e-6 => (1.1, 1.7),
+        1e-9 | 1e-12 => (1.1, 1.2),
+        _ => {
+            test_utils::vacuity::stood_down(
+                "non-matrix eps",
+                "the ratios are measured at the matrix rows",
+            );
+            return;
+        }
+    };
+    let pad = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
+        let got = topo::union(x, y, tol).unwrap();
+        topo::mass_properties(&got.body().unwrap().body, tol)
+            .unwrap()
+            .volume_pad
+    };
+    let apart = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
+        let (xy, yx) = (pad(x, y), pad(y, x));
+        (xy.max(yx) / xy.min(yx), xy, yx)
+    };
+    let bar = finished(
         "a 900 m bar",
         framed_bar(
             Point3::new(0.3, 0.0, 0.0),
@@ -163,16 +193,14 @@ fn one_solid_in_two_face_orders_carries_one_pad() {
         ),
         tol,
     );
-    let pad = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
-        let got = topo::union(x, y, tol).unwrap();
-        topo::mass_properties(&got.body().unwrap().body, tol)
-            .unwrap()
-            .volume_pad
-    };
-    let (tp, pt) = (pad(&t, &p), pad(&p, &t));
-    let ratio = tp.max(pt) / tp.min(pt);
-    assert!(
-        ratio <= 2.0,
-        "T ∪ P pad {tp:e}, P ∪ T pad {pt:e}: {ratio} apart"
-    );
+    let (t, p) = posed(100.0);
+    for (what, (ratio, xy, yx), bound) in [
+        ("the 900 m bar", apart(&torus(2.0, 0.5), &bar), bar_bound),
+        ("the cut far off and turned", apart(&t, &p), turned_bound),
+    ] {
+        assert!(
+            ratio <= bound,
+            "{what}: T ∪ P pad {xy:e}, P ∪ T pad {yx:e}, {ratio} apart, past {bound}"
+        );
+    }
 }

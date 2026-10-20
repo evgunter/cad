@@ -6184,9 +6184,8 @@ mod shell_reference_rows {
         fold_runs(&runs).0.volume
     }
 
-    #[test]
-    fn a_closed_form_bodys_volume_is_its_volume_about_the_world_origin() {
-        let tol = Tol::witness();
+    /// Closed-form bodies: every face of each reads a closed form.
+    fn closed_form_corpus(tol: Tol) -> Vec<(&'static str, Body<f64>)> {
         let notch = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
         let disc = {
             let p = crate::test_support::prism::<f64>(&notch, 1.0, tol);
@@ -6204,7 +6203,7 @@ mod shell_reference_rows {
             );
             body
         };
-        let bodies = [
+        vec![
             (
                 "unit brick",
                 crate::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
@@ -6222,7 +6221,13 @@ mod shell_reference_rows {
                 "holed block",
                 crate::test_support::holed_block::<f64>(4.0, &[1.0, 3.0], tol),
             ),
-        ];
+        ]
+    }
+
+    #[test]
+    fn a_closed_form_bodys_volume_is_its_volume_about_the_world_origin() {
+        let tol = Tol::witness();
+        let bodies = closed_form_corpus(tol);
         for (name, body) in &bodies {
             let (new, old) = (
                 volume_about(body, None, tol),
@@ -6231,6 +6236,67 @@ mod shell_reference_rows {
             assert!(
                 (new - old).abs() <= 4.0 * f64::EPSILON * old.abs(),
                 "{name}: about the reference {new:e}, about the origin {old:e}"
+            );
+        }
+    }
+
+    /// **A shell with no quadrature face is read about its first face's
+    /// start**, the point every face was read about before the reference
+    /// moved to the first quadrature face: the reference is that vertex,
+    /// and the volume and area read the same bits as a walk about it.
+    #[test]
+    fn a_shell_of_no_quadrature_face_reads_about_its_first_faces_start() {
+        let tol = Tol::witness();
+        for (name, body) in &closed_form_corpus(tol) {
+            for (key, shell) in body.shells() {
+                let first = body.get_face(shell.faces[0]).unwrap();
+                let start = match body.get_loop(first.outer).unwrap().boundary {
+                    LoopBoundary::Empty { vertex } => vertex,
+                    LoopBoundary::Cycle { first } => body.get_half_edge(first).unwrap().start,
+                };
+                let want = body.vertex_points().find(|(v, _)| *v == start).unwrap().1;
+                let got = shell_reference(body, key).unwrap();
+                assert_eq!(
+                    [got.x, got.y, got.z].map(f64::to_bits),
+                    [want.x, want.y, want.z].map(f64::to_bits),
+                    "{name}: the reference is the first face's start"
+                );
+            }
+            let first_start = |f: FaceKey| {
+                let shell = body.get_face(f).unwrap().shell;
+                let first = body
+                    .get_face(body.get_shell(shell).unwrap().faces[0])
+                    .unwrap();
+                let start = match body.get_loop(first.outer).unwrap().boundary {
+                    LoopBoundary::Empty { vertex } => vertex,
+                    LoopBoundary::Cycle { first } => body.get_half_edge(first).unwrap().start,
+                };
+                body.vertex_points().find(|(v, _)| *v == start).unwrap().1
+            };
+            let band = Band::linear(tol).unwrap();
+            let faces = crate::query::all_faces(body);
+            let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
+            let runs = decide_faces_serially(&faces, |&f| {
+                face_flux_about(
+                    body,
+                    f,
+                    band,
+                    &hook,
+                    tol,
+                    RoundWindow::SCHEDULE,
+                    first_start(f),
+                )
+            })
+            .unwrap();
+            let about_first = fold_runs(&runs).0;
+            let walked = crate::mass_properties(body, tol).unwrap();
+            assert_eq!(
+                (walked.volume.to_bits(), walked.surface_area.to_bits()),
+                (
+                    about_first.volume.to_bits(),
+                    about_first.surface_area.to_bits()
+                ),
+                "{name}: the walk reads the bits it reads about the first face's start"
             );
         }
     }
