@@ -402,18 +402,20 @@ impl<T: Decide, H> Crossings<T, H> {
     /// decides definite. Crossings in band of each other are summed,
     /// never ordered: a cluster is every crossing whose span does not lie
     /// definitely after one already in it, so each crossing outside it
-    /// lies definitely after every crossing inside it. `None` where every cluster sums
-    /// to zero.
+    /// lies definitely after every crossing inside it. `None` where every
+    /// cluster sums to zero.
     ///
-    /// A sideless crossing in a cluster read before the count turns sets
-    /// the ray aside as `sideless` reads the cluster's sideless crossings:
-    /// what the ray meets there it reads nothing at, the pairs beside it
-    /// included. Two crossings of one cluster that `apart` says no cell
-    /// joins (two faces that do not meet) are a pair: in band of each
-    /// other, it sets the ray aside as `escalate(diag, hit, other)`; at a
-    /// tie, it grazes. A count that turns by more than one, which no closed
-    /// boundary crossed one cluster at a time gives, grazes. Each gap is
-    /// decided once.
+    /// A cluster read before the count turns is read in this order:
+    /// - a sideless crossing in it sets the ray aside as `sideless` reads
+    ///   the cluster's sideless crossings. What the ray meets there (a
+    ///   corner, a wedge, a crossing on a trim's edge) it reads nothing
+    ///   at, any pair beside it included: D10 refuses only on a pair, a
+    ///   restriction of refusal, not a demand for it, and a ray that meets
+    ///   a corner or a wedge reads nothing;
+    /// - then `pair` asks each two of its crossings, and its fault sets
+    ///   the ray aside (a pair in band) or grazes it (a tie);
+    /// - a count that turns by more than one, which no closed boundary
+    ///   crossed one cluster at a time gives, grazes.
     ///
     /// # Errors
     ///
@@ -423,21 +425,11 @@ impl<T: Decide, H> Crossings<T, H> {
         order: &'static str,
         band: Band,
         count: impl Fn(&H) -> i32,
-        apart: impl Fn(&H, &H) -> bool,
-        escalate: impl FnOnce(Indeterminate, &H, &H) -> E,
+        mut pair: impl FnMut(&H, &H) -> Result<(), RayFault<E>>,
         sideless: impl FnOnce(&[&H]) -> RayFault<E>,
     ) -> Result<Option<Sign>, RayFault<E>> {
         let n = self.ahead.len();
-        let mut decided: Vec<Option<Result<Sign, Indeterminate>>> = vec![None; n.pow(2)];
         let mut spanned: Vec<Option<Result<Sign, Indeterminate>>> = vec![None; n.pow(2)];
-        // `k`'s advance less `b`'s, decided once per pair.
-        let mut gap = |k: usize, b: usize| {
-            let (lo, hi, flip) = if k < b { (k, b, false) } else { (b, k, true) };
-            let read = *decided[lo * n + hi].get_or_insert_with(|| {
-                decide(order, Margin::of(self.ahead[lo].0 - self.ahead[hi].0), band)
-            });
-            read.map(|s| if flip { s.flip() } else { s })
-        };
         // Whether all of `k`'s span lies definitely before all of `b`'s,
         // decided once per ordered pair.
         let mut before = |k: usize, b: usize| {
@@ -476,20 +468,7 @@ impl<T: Decide, H> Crossings<T, H> {
             }
             for (i, &a) in cluster.iter().enumerate() {
                 for &b in &cluster[i + 1..] {
-                    if !apart(&self.ahead[a].1, &self.ahead[b].1) {
-                        continue;
-                    }
-                    match gap(a, b) {
-                        Ok(Sign::Zero) => return Err(RayFault::Graze),
-                        Err(diag) => {
-                            return Err(RayFault::InBand(escalate(
-                                diag,
-                                &self.ahead[a].1,
-                                &self.ahead[b].1,
-                            )));
-                        }
-                        Ok(_) => {}
-                    }
+                    pair(&self.ahead[a].1, &self.ahead[b].1)?;
                 }
             }
             running += cluster
@@ -1060,6 +1039,62 @@ mod tests {
         assert_eq!(
             fold(&[(3.0, 1, false), (1.0, 2, false), (2.0, 3, false)]),
             Ok(Some(2))
+        );
+    }
+
+    /// [`Crossings::first_count`] over `(advance, count, a pair's party,
+    /// sideless)` crossings: a pair is two parties in band of each other.
+    fn count_of(hits: &[(f64, i32, bool, bool)]) -> Result<Option<Sign>, &'static str> {
+        let mut c = Crossings::new();
+        for &(at, count, party, sideless) in hits {
+            c.push(at, (at, count, party), sideless);
+        }
+        c.first_count(
+            "test_ray_walk_order",
+            band(),
+            |h| h.1,
+            |a, b| match (
+                a.2 && b.2,
+                decide("test_ray_walk_order", Margin::of(a.0 - b.0), band()),
+            ) {
+                (true, Err(_)) => Err(RayFault::InBand("pair")),
+                _ => Ok(()),
+            },
+            |_| RayFault::InBand("mark"),
+        )
+        .map_err(|f| match f {
+            RayFault::InBand(what) => what,
+            RayFault::Graze => "graze",
+            _ => "other",
+        })
+    }
+
+    /// **The first nonzero running count reads, crossings in band of
+    /// each other summed**, and a cluster that holds both a pair and a
+    /// mark reads the mark: the ray reads nothing there, and is not
+    /// refused on the pair (PR 5422's review R2; D10 refuses only on a
+    /// pair, and a ray that meets a corner or a wedge reads nothing).
+    #[test]
+    fn the_count_reads_its_first_turn_and_a_mark_before_a_pair() {
+        let e = 1e-9;
+        assert_eq!(
+            count_of(&[(2.0, 1, false, false), (1.0, -1, false, false)]),
+            Ok(Some(Sign::Negative))
+        );
+        // A fold at the near crossing: in band, `+1` and `−1` sum to 0.
+        assert_eq!(
+            count_of(&[
+                (1.0, 1, false, false),
+                (1.0 + 5.0 * e, -1, false, false),
+                (2.0, 1, false, false)
+            ]),
+            Ok(Some(Sign::Positive))
+        );
+        let pair = [(1.0, 1, true, false), (1.0 + 5.0 * e, -1, true, false)];
+        assert_eq!(count_of(&pair), Err("pair"));
+        assert_eq!(
+            count_of(&[pair[0], pair[1], (1.0 + 2.0 * e, 0, false, true)]),
+            Err("mark")
         );
     }
 

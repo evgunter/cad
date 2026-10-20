@@ -41,9 +41,14 @@ The curved half of that row is unbuilt.
 
 ## The rule that carries over
 
-A face the ray meets at two edges, or two met edges sharing a vertex, is
-a wedge and reads nothing; an edge's half crossings span its faces'
-plane crossings (`RayHit`, `Crossings::push_span`). A curved edge's
-reading has to keep both: the planar build read a wrong side on an
-inside-out needle before the wedge rule, and a wrong material side near
-a pyramid's vertex before the span.
+A face the ray meets at two of its edges is a wedge and reads nothing;
+an edge's half crossings span its faces' plane crossings (`RayHit`,
+`Crossings::push_span`); a pair's parties are faces where the ray
+crosses their carriers (`RayHit::pair`). A curved edge's reading has to
+keep all three. Without the wedge the planar build reads a point outside
+a turned needle `In` (`narrow_needle_containment`); without spans (as
+the first build measured), a pyramid's result reads the wrong material
+side at ε 1e-6
+(`partners_along_the_face_build_sound_against_the_germ`); with an edge's
+closest point as a pair's party, two cubes 12ε apart refuse on a pair
+the census reads definite (`two_edges_of_faces_definite_apart_are_no_pair`).

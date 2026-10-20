@@ -348,7 +348,6 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "side_at_infinity_edge",
             "side_at_infinity_order",
             "side_at_infinity_vertex",
-            "side_at_infinity_winding",
             "side_planes_cosurface",
             "witness_at_mid_parameter",
             "witness_on_surface_1",

@@ -111,24 +111,45 @@ reader's aimed rays per solid through `test_support::aimed_rays`, and
   crossed where the turn of its loops says (`crosses_by_turn`), which
   casts no auxiliary direction. A face with an edge no such reading
   decides keeps its in-face walk.
-- **A corner or a wedge reads nothing** (`RayHit::mark`). A vertex in band
-  of the ray is a corner, and one on it a graze. A face the ray meets at
-  two edges, or two met edges sharing a vertex, is a wedge: the half
-  rule is exact only where a ray could pass through every edge it meets
-  at once. Built without this rule, the reader read the inside-out 30ε
-  needle `Out`. A mark matters only where the count reaches it.
+- **A corner or a wedge reads nothing** (`RayHit::mark`, `Mark`). A
+  vertex in band of the ray is a corner, and one on it a graze. A face
+  the ray meets at two of its edges is a wedge (`SetAsideWhy::Wedge`): the
+  half rule would count that face once at each edge, where the ray
+  crosses it once or not at all. A mark matters only where the count
+  reaches it. What the wedge prevents, measured on the fix pass with the
+  rule switched off (both reviews of PR 5422 measured it first, and
+  found the first build's stated reason, the inside-out 30ε needle,
+  false: that needle reads `In` without the rule once spans are in):
+  - `point_in_solid` reads a point outside a turned needle `In`: one
+    point wrong in each of 12 of R1's 72 fuzz rows (the 12ε, trapezoid
+    and 21ε needles and the sliver wedge, R1's poses 1 and 2, both ways
+    out); pinned by `narrow_needle_containment`'s
+    `r1s_witnesses_outside_a_turned_needle_read_outside`, red without
+    the rule;
+  - `partners_along_the_face_build_sound_against_the_germ` fails at
+    ε 1e-6.
+  The review's narrowing is taken: two met edges sharing a vertex of
+  different faces are no wedge (R2 measured no fixture that needs that
+  clause, and this pass built none).
 - **An edge's crossing spans its faces' plane crossings**
   (`Crossings::push_span`). On a face the ray meets obliquely, the plane
   crossing lies bands away from the edge, and anything between the two
-  is summed with them. Built without spans, a pyramid's result read the
-  wrong material side at ε 1e-6
-  (`partners_along_the_face_build_sound_against_the_germ`). A met edge
-  counts only with both its planes crossed ahead of `q`.
+  is summed with them. A met edge counts only with both its planes
+  crossed ahead of `q`.
 - **The count** (`ray_walk::Crossings::first_count`): crossings in band
   of each other are summed, and the sign of the first nonzero running
-  count is the side. A pair (two faces that do not meet, `meet`, in band
-  along the ray) sets the ray aside on that pair; a corner or wedge in the
-  same cluster reads first.
+  count is the side. A pair (`RayHit::pair`) is two faces that do not
+  meet (`meet`), each crossed, whose crossings of their carriers lie in
+  band along the ray: an edge's parties are its faces where the ray
+  crosses their planes, and an edge passed without crossing (count 0) is
+  no party. So two cubes 12ε–19ε apart, whose top edges a ray passes in
+  band of each other across the gap's mouth, are no pair (R2's F1;
+  `two_edges_of_faces_definite_apart_are_no_pair`, red with the edges'
+  closest points as parties, at both ε). A corner or wedge in the same
+  cluster reads before a pair: D10 refuses only on a pair, a
+  restriction of refusal and not a demand for it, and a ray meeting a
+  corner or a wedge reads nothing
+  (`the_count_reads_its_first_turn_and_a_mark_before_a_pair`).
 - **Aims** (`side_reader.rs`): a line-bounded planar face aims at its
   loop's mean point, which asks nothing. The incidence is 10° off the
   normal, not 60°, so a narrow face is as wide to the ray as it is.

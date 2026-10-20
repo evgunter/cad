@@ -154,8 +154,6 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("side_at_infinity_split_window_branch Negative", 12),
         ("side_at_infinity_split_window_branch Positive", 12),
         ("side_at_infinity_vertex Positive", 8),
-        ("side_at_infinity_winding Negative", 4),
-        ("side_at_infinity_winding Positive", 2),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))

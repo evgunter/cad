@@ -219,6 +219,8 @@ mod mesh12_rim_row_reach;
 mod mesh8_coherence;
 #[path = "missed_ray_side.rs"]
 mod missed_ray_side;
+#[path = "narrow_needle_containment.rs"]
+mod narrow_needle_containment;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
 #[path = "offset_a_corner_kiss.rs"]

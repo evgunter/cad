@@ -3304,15 +3304,15 @@ pub enum ShellClassifyError {
         /// met, and their gap along it.
         pair: Box<crate::boolean::AimedPair>,
     },
-    /// No aimed ray read the shell's side, one was set aside at a sharp
-    /// corner (two faces that meet, crossed in band of each other), and
-    /// the volume then refused too: `volume` is that refusal, and
-    /// `corner` the first such ray. A corner is no pair, so this refusal
-    /// is the volume's, naming where the rays went.
+    /// No aimed ray read the shell's side, one was set aside at a corner
+    /// or a wedge (`SetAsideWhy::Corner`, `SetAsideWhy::Wedge`), and the
+    /// volume then refused too: `volume` is that refusal, and `corner`
+    /// the first such ray. Neither is a pair, so this refusal is the
+    /// volume's, naming where the rays went.
     Corner {
         /// The unclassifiable shell.
         shell: ShellKey,
-        /// The first ray set aside at a corner.
+        /// The first ray set aside at a corner or a wedge.
         corner: Box<crate::side_reader::SetAside>,
         /// The volume's refusal.
         volume: Box<ShellClassifyError>,
@@ -3691,10 +3691,13 @@ pub(crate) fn shell_role<T: Decide>(
         Ok(Err(SideUnread::Fallback {
             volume, set_aside, ..
         })) => Err(
-            match set_aside
-                .into_iter()
-                .find(|s| matches!(s.why, crate::side_reader::SetAsideWhy::Corner { .. }))
-            {
+            match set_aside.into_iter().find(|s| {
+                matches!(
+                    s.why,
+                    crate::side_reader::SetAsideWhy::Corner { .. }
+                        | crate::side_reader::SetAsideWhy::Wedge { .. }
+                )
+            }) {
                 Some(corner) => ShellClassifyError::Corner {
                     shell,
                     corner: Box::new(corner),

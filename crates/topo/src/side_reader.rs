@@ -16,7 +16,7 @@
 //! ([`crate::boolean::solid_contain`]'s crossing walk), logged under their
 //! own rows ([`AIMED_ROWS`]) so the two readers' verdicts stay apart.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 
 use crate::body::Body;
 use crate::boolean::SolidContainment;
@@ -101,13 +101,21 @@ pub struct SetAside {
 /// and the disposition row with it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SetAsideWhy {
-    /// It passes within the band of a vertex, or of two edges that meet
-    /// at one (a wedge), and reads nothing (D10, Booleans): a corner,
-    /// never a pair.
+    /// It passes within the band of a vertex, and reads nothing (D10,
+    /// Booleans): a corner, never a pair.
     Corner {
         /// Two faces at the corner.
         faces: [FaceKey; 2],
-        /// The ray's distance from the vertex or the edge, in band.
+        /// The ray's distance from the vertex, in band.
+        gap: Indeterminate,
+    },
+    /// It passes within the band of two edges of one face, narrower than
+    /// the band there, and reads nothing (D10, Booleans): a wedge, never
+    /// a pair.
+    Wedge {
+        /// The face and the other face of one of its edges.
+        faces: [FaceKey; 2],
+        /// The ray's distance from the nearer edge met in band.
         gap: Indeterminate,
     },
     /// A crossing it could not place: in band of a face's boundary, or
@@ -196,6 +204,14 @@ impl core::fmt::Display for UnreadRays<'_> {
                 SetAsideWhy::Corner { faces, gap } => write!(
                     f,
                     ", it passed in band of a corner of {} and {}: {}",
+                    EntityId::Face(faces[0]),
+                    EntityId::Face(faces[1]),
+                    gap.payload()
+                )?,
+                SetAsideWhy::Wedge { faces, gap } => write!(
+                    f,
+                    ", it passed in band of two edges of {}, narrower than the band there \
+                     (one of them shared with {}): {}",
                     EntityId::Face(faces[0]),
                     EntityId::Face(faces[1]),
                     gap.payload()
@@ -431,14 +447,27 @@ fn aim_turn() -> (f64, f64) {
 /// containment's), its decisions logged under the aimed rows
 /// ([`AIMED_ROWS`]). The first ray that decides answers.
 ///
-/// Between two faces `t` apart a ray's two crossings lie at least `t`
-/// apart, so a pair the census reads definite at `Kε` leaves the ray
-/// definite too, and its reading lies in band only where a pair does. A
-/// ray that grazes a face, meets a corner (a vertex in band of it) or a
-/// wedge (a face it meets at two edges, narrower than the band where it
-/// passes, or two edges meeting at a vertex), or crosses a curved face in
-/// band of its trim, reads nothing and is set aside, and the next face is
-/// aimed at. A needle narrower than about `2Kε` across offers no ray that
+/// **A pair is two crossings of faces that do not meet** (`meet`), in
+/// band of each other along the ray, each face read where the ray
+/// crosses its carrier ([`RayHit::pair`]): an edge's half crossings are
+/// its faces' plane crossings there, not the point where the ray passes
+/// the edge, and an edge the ray passes without crossing is no party.
+/// Between two faces `t` apart a ray's crossings of their carriers lie
+/// at least `t` apart, so a pair the census reads definite at `Kε` is
+/// definite along the ray too, and the ray refuses only where a pair
+/// lies in band. Two edges of faces as far apart can still be passed in
+/// band of each other along the ray (two cubes `2Kε` apart, a ray across
+/// the gap's mouth), which is why the parties are the faces' crossings.
+///
+/// **A corner or a wedge reads nothing, and is read before a pair** in
+/// the same cluster ([`crate::ray_walk::Crossings::first_count`]): D10
+/// refuses only on a pair, which restricts refusal and does not demand
+/// it, and a ray that meets a corner or a wedge reads nothing. A ray
+/// that grazes a face, meets a corner (a vertex in band of it) or a
+/// wedge (a face it passes within the band of at two of its edges,
+/// narrower than the band there), or crosses a curved face in band of
+/// its trim, reads nothing and is set aside, and the next face is aimed
+/// at. A needle narrower than about `2Kε` across offers no ray that
 /// reads: every ray through it meets a wedge.
 ///
 /// **The volume only where no face offers an aim that reads.**
@@ -454,7 +483,8 @@ fn aim_turn() -> (f64, f64) {
 /// is the answer. The volume's sign is certified by its enclosure alone,
 /// never held against the band (D10), so it reads a thin selection as
 /// surely as a thick one. A ray that meets a corner or a wedge is set
-/// aside ([`SetAsideWhy::Corner`]): it reads nothing and is never the refusal,
+/// aside ([`SetAsideWhy::Corner`], [`SetAsideWhy::Wedge`]): it reads
+/// nothing and is never the refusal,
 /// and where the volume does not read either, the volume's refusal is,
 /// carrying the rays set aside ([`SideUnread::Fallback`]).
 ///
@@ -501,10 +531,7 @@ pub const FAMILY: &str = "side_at_infinity_";
 /// wedge it meets ([`cast_aims`]).
 enum Unread {
     Pair(AimedPair),
-    Corner {
-        faces: [FaceKey; 2],
-        gap: Indeterminate,
-    },
+    Mark(SetAsideWhy),
 }
 
 /// What the aimed rays read ([`cast_aims`]).
@@ -604,40 +631,39 @@ fn cast_aims<T: Decide>(
                 continue;
             }
         };
-        // The pair's gap is read as a magnitude, the distance between the
-        // two crossings whichever the scan met first.
-        let pair = |signed, near: &RayHit<T>, far: &RayHit<T>| {
-            let gap = geom_core::k_stats::decide_magnitude(
-                AIMED_ROWS.order,
-                Margin::of((far.at - near.at).abs()),
-                band,
-            )
-            .err()
-            .unwrap_or(signed);
-            Unread::Pair(AimedPair {
-                shell,
-                aimed: face,
-                aim: at.clone(),
-                near: near.face,
-                far: far.face,
-                gap,
-            })
-        };
         match crossings.first_count(
             AIMED_ROWS.order,
             band,
             RayHit::count,
-            |a, b| !a.meets(body, b),
-            pair,
-            |hits| RayHit::unread(hits, |faces, gap| Unread::Corner { faces, gap }),
+            |a, b| {
+                a.pair(body, b, AIMED_ROWS.order, band).map_err(|f| {
+                    f.map(|(near, gap, far)| {
+                        Unread::Pair(AimedPair {
+                            shell,
+                            aimed: face,
+                            aim: at.clone(),
+                            near,
+                            far,
+                            gap,
+                        })
+                    })
+                })
+            },
+            |hits| {
+                RayHit::unread(hits, |wedge, faces, gap| {
+                    Unread::Mark(if wedge {
+                        SetAsideWhy::Wedge { faces, gap }
+                    } else {
+                        SetAsideWhy::Corner { faces, gap }
+                    })
+                })
+            },
         ) {
             Ok(Some(outward)) => return Ok(Rays::Side(side_before(outward))),
             Err(RayFault::InBand(Unread::Pair(pair))) => {
                 in_band.get_or_insert(pair);
             }
-            Err(RayFault::InBand(Unread::Corner { faces, gap })) => {
-                set(SetAsideWhy::Corner { faces, gap });
-            }
+            Err(RayFault::InBand(Unread::Mark(why))) => set(why),
             // The count reads no limit: a tie between two faces that do
             // not meet, a graze, or nothing that counts.
             Ok(None) | Err(_) => set(SetAsideWhy::Graze),
