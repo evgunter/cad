@@ -122,10 +122,7 @@ type PoseRead<T> = (Found, [Point3<T>; 2], Point3<T>, Vec3<T>);
 /// The pair read at `T`, the world ends, and the stored plane; `None`
 /// where the turned prism does not certify at the run's ε (at `Interval`,
 /// whose rotation's enclosures pass 1e-12).
-fn read_pose<T: Decide + crate::props::AtRestPolicy>(
-    p: &Pose,
-    band: Band,
-) -> Option<PoseRead<T>> {
+fn read_pose<T: Decide + crate::props::AtRestPolicy>(p: &Pose, band: Band) -> Option<PoseRead<T>> {
     let (poly, _) = profile(p.kind, p.w);
     let prism = crate::test_support_fixtures::prism_z::<T>(&poly, 0.0, 1.0, Tol::witness());
     let m = motion::<T>(p);
