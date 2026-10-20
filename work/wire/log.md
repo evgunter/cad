@@ -6894,3 +6894,7 @@ Signed (WIRE orchestrator).
   - Class note: before merging a text Ev approved, check that the review didn't find the approved sentence itself false. If it did, narrow the text and tell Ev; don't merge it as ratified.
 
 - 2026-10-20 (WIRE orchestrator) Ev on 5457: '(a) works though the stakes seem low'. The lane finishes item 1: delete Verb<T>/Arity/VerbKind::arity, keep VerbKind closed, reword V1. Merge follows.
+
+- 2026-10-20 (WIRE orchestrator) PR 5457 merged (8428fbb043) as option (a). Verb<T>, Arity and VerbKind::arity are gone, VerbKind stays closed, and V1 is reworded per Ev.
+  - The fix-pass items are in: DoorScalar (pin 2), profile_edges_of's caller-reachable assert gone, derive_naming typed or row 4, stale citers fixed.
+  - Eval-arms row closed. MissingSlot stays typed on the D10 readers (parked row).
