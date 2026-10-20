@@ -1,25 +1,23 @@
 //! Degree elevation agrees with its source to rounding at every knot
-//! spacing, close pairs included.
+//! spacing.
 //!
 //! Elevation recomposes by exact removals, each free to leave any one
 //! of its equations unused; which one decides the rounding
 //! (`geom_core::spline::algebra::elevate_plan`). Piegl–Tiller's
-//! midpoint split divided by about `g/span` beside a breakpoint a gap
-//! `g` from another, and each pass handed the next its error: one
-//! elevation from degree 3–5 disagreed by about `1e-15·span/g` of the
-//! coordinates, from degree 6–7 by about its square, from degree 8–9 by
-//! about its cube — a pair `1e-5` apart at degree 8 moved the curve by
-//! the size of its coordinates, and some curves refused with
-//! `WeightCollapse` instead. A gap small beside its neighbours is what
-//! does it, close pair or not: geometric ×1.15 knots at degree 10 were
-//! off by 1.5% of the coordinates, geometric ×2 refused from degree 8,
-//! and uniform knots at degree 9 read 1.6e-3 on ±10 at 80 knots.
+//! midpoint split divides by about `g/span` beside a breakpoint whose
+//! gap `g` is small next to its neighbours, and each pass hands the next
+//! its error, so it amplifies rounding by about `(span/g)^k`, `k` growing
+//! with degree: about 1 from degree 3 to 5, 2 at 6–7, 3 at 8–9. Close
+//! pairs, graded spacing and, at degree 9, uniform spacing all reach it.
+//! The rows pin agreement where the midpoint is far from it, and pin
+//! that the split keeps the midpoint where it is not.
 //!
 //! Every row reads the sup of `|C(t) − E(t)|` over nine points per
 //! distinct span (the close pair's own span included) against a
 //! fraction of the largest control coordinate: `1e-12` for a close pair
-//! (the worst reads about `4e-14`), `1e-11` for graded knots at degree
-//! 10 (the worst reads about `8e-13`).
+//! (the worst reads about `4e-14`), `1e-11` for gently graded knots at
+//! degree 10 (about `8e-13`), `1e-13` for steeply graded knots (about
+//! `2e-14`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -77,8 +75,8 @@ fn disagreement(c: &NurbsCurve3<f64>, e: &NurbsCurve3<f64>) -> f64 {
 const AGREE: f64 = 1e-12;
 
 /// Every degree to 10 against a close pair `g` apart, `g` down to
-/// `1e-9`, and against ten uniform knots. Red on the midpoint split
-/// from degree 3, at a pair `1e-5` apart.
+/// `1e-9`, and against ten uniform knots. The midpoint split reads past
+/// the cap from degree 3, at a pair `1e-5` apart.
 #[test]
 fn one_elevation_agrees_at_every_degree_and_close_pair() {
     let mut rng = fuzz::start("elevation_conditioning::table");
@@ -100,8 +98,8 @@ fn one_elevation_agrees_at_every_degree_and_close_pair() {
     }
 }
 
-/// Degree 8 with a pair `1e-5` apart: the midpoint split moved this
-/// curve by 0.19 of its largest coordinate.
+/// Degree 8 with a pair `1e-5` apart, on pinned data: the midpoint split
+/// moves this curve by 0.19 of its largest coordinate.
 #[test]
 fn a_degree_eight_pair_a_hundred_thousandth_apart_elevates_to_rounding() {
     let c = curve(8, &[0.4, 0.4 + 1e-5], |i| {
@@ -120,9 +118,8 @@ fn a_degree_eight_pair_a_hundred_thousandth_apart_elevates_to_rounding() {
 }
 
 /// Two elevations from degree 5 with a pair `1e-8` apart: the second
-/// step starts at degree 6, where the midpoint split amplified by
-/// about `(span/g)²`, and moved this curve by 0.076 of its largest
-/// coordinate.
+/// step starts at degree 6, where the midpoint split amplifies by about
+/// `(span/g)²` and moves this curve by 0.076 of its largest coordinate.
 #[test]
 fn elevating_twice_past_a_close_pair_does_not_compound() {
     let c = curve(5, &[0.55, 0.55 + 1e-8], |i| {
@@ -140,11 +137,11 @@ fn elevating_twice_past_a_close_pair_does_not_compound() {
     assert!(d <= AGREE, "{d:e}");
 }
 
-/// Degrees 8 and 9 with a pair `1e-6` apart and drawn weights: the
-/// midpoint split refused about three curves in four with
-/// `WeightCollapse` (its amplified rounding wrote a weight out of the
-/// positive regime), and moved the rest by hundreds of their
-/// coordinates. Every one elevates, and agrees.
+/// Degrees 8 and 9 with a pair `1e-6` apart and drawn weights. Every
+/// curve elevates, and agrees. The midpoint split's amplified rounding
+/// writes a weight out of the positive regime on about three curves in
+/// four (`WeightCollapse`), and moves the rest by hundreds of their
+/// coordinates.
 #[test]
 fn high_degree_close_pairs_elevate_without_refusing() {
     let mut rng = fuzz::start("elevation_conditioning::refusals");
@@ -166,13 +163,11 @@ fn high_degree_close_pairs_elevate_without_refusing() {
     }
 }
 
-/// Fifty uniform knots. The midpoint split was at rounding there from
-/// degree 6 to 8 and at 10 (main's worst of 40 curves at degree 10:
-/// about `1.1e-13` of scale), but not at 9, where it read about `1e-8`
-/// of scale: the split must keep the first and fix the second. Red on
-/// main at degree 9, on a split forward while `α ≥ ½`, and on one chosen
-/// per pass without the error its inputs carry (both refused every
-/// degree-8 curve with `WeightCollapse`).
+/// Fifty uniform knots, a catastrophe guard. The midpoint split is at
+/// rounding there at degrees 6–8 and 10 (worst of 40 curves at degree
+/// 10: about `1.1e-13` of scale) but not at 9 (about `1e-8`). A split
+/// forward while `α ≥ ½`, or chosen per pass without the error its
+/// inputs carry, refuses every degree-8 curve with `WeightCollapse`.
 #[test]
 fn uniform_knots_keep_the_midpoint_splits_rounding() {
     const UNIFORM: f64 = 5e-13;
@@ -188,8 +183,8 @@ fn uniform_knots_keep_the_midpoint_splits_rounding() {
 }
 
 /// Geometric ×1.15 knot spacing at degree 10, no close pair: each gap
-/// is 15% wider than the last, yet the midpoint split read 0.15 on ±10
-/// coordinates with 40 knots.
+/// is 15% wider than the last, and the midpoint split reads about 0.15
+/// on ±10 coordinates with 40 knots.
 #[test]
 fn graded_knots_at_degree_ten_elevate_to_rounding() {
     const GRADED: f64 = 1e-11;
@@ -205,5 +200,29 @@ fn graded_knots_at_degree_ten_elevate_to_rounding() {
         let c = drawn(&mut rng, 10, &mids);
         let d = disagreement(&c, &c.elevate_degree(1).unwrap());
         assert!(d <= GRADED, "{d:e} — {}", fuzz::replay());
+    }
+}
+
+/// Geometric ×2 knot spacing at degree 10: each gap twice the last, so
+/// every pass has a split far better than the midpoint, which refuses
+/// these curves. The margin must leave the midpoint here. Over 30
+/// drawn curves, relative to scale: worst about `2e-14` at the margin of
+/// 2; median `3e-13` (worst `9e-13`) at 4; median `2e-12` at 8. The cap
+/// pins the margin from above.
+#[test]
+fn steeply_graded_knots_leave_the_midpoint() {
+    const STEEP: f64 = 1e-13;
+    let mut rng = fuzz::start("elevation_conditioning::steep");
+    let total: f64 = (0..=40).map(|i| 2f64.powi(i)).sum();
+    let mids: Vec<f64> = (0..40)
+        .scan(0.0, |at, i| {
+            *at += 2f64.powi(i) / total;
+            Some(*at)
+        })
+        .collect();
+    for _ in 0..fuzz::scaled(8) {
+        let c = drawn(&mut rng, 10, &mids);
+        let d = disagreement(&c, &c.elevate_degree(1).unwrap());
+        assert!(d <= STEEP, "{d:e} — {}", fuzz::replay());
     }
 }

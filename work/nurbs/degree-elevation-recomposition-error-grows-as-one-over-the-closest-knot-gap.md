@@ -116,12 +116,24 @@ midpoint.
   at exactly ½, so it chained errors from knot to knot and refused every
   curve at degree ≥ 6 with 50 knots.
 - **The margin is empirical.** It was fitted on uniform, graded,
-  geometric, jittered and close-pair knot families at degrees 3–10
-  (the medians are in the constant's doc).
+  geometric, jittered and close-pair knot families at degrees 3–10.
+  Medians of 30 curves on ±10, degree 10 with 40 knots:
+
+  | knots | midpoint | margin 1 | 2 | 8 |
+  |---|---|---|---|---|
+  | uniform | 3.1e-13 | 6.9e-13 | 3.1e-13 | 3.1e-13 |
+  | graded `t^1.5` | 2.0e-9 | 2.7e-12 | 1.7e-12 | 8.2e-12 |
+  | geometric ×1.15 | 0.15 | 6.1e-12 | 4.1e-12 | 1.1e-11 |
+  | geometric ×2 | refuses | 1.1e-13 | 1.1e-13 | 1.7e-11 |
+
   - With no margin, uniform degree-10 near-ties doubled the median
     rounding.
   - A margin of 8 left graded rows up to 150× worse than 2.
   - 2 is at or within 2× of the best on every family.
+  - **Rows pin both sides.** Margin 1 turns the split-choice unit row
+    red; margins 4 and 8 turn the steep-graded row red. No row tells
+    either tie rule (`<=` at the margin, nearest-the-midpoint among
+    equals) from its inverse.
 - **After the fix:**
   - close pairs agree to about 4e-14 of the largest coordinate at every
     degree ≤ 10 and gap ≥ 1e-9;

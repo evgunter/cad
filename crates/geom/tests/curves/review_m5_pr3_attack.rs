@@ -346,14 +346,9 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
         assert_eq!(e2.degree(), p + 2);
         variants.push(("elevate2".into(), e2));
         // Elevation is held to the same 1e-9 as insertion and
-        // refinement. It once needed `max(1e-9, 1e-11 / g)` for the
-        // closest distinct-knot gap `g`: its recomposition's midpoint
-        // split amplified rounding by about `(span/g)^k`, `k` growing
-        // with degree (1 at degree 3-5, 2 at 6-7), and two knots drawn
-        // 3.8e-4 apart (`CAD_FUZZ_SEED=0x827507a3dc90eac7`) disagreed
-        // by 2.0e-9. The recomposition now picks each removal's split
-        // by its rounding (`elevate_plan`), and agrees to about 4e-14 of scale
-        // at every gap (`elevation_conditioning.rs`).
+        // refinement: its recomposition picks each removal's split by
+        // its rounding (`elevate_plan`), so it agrees to about 4e-14 of
+        // scale at every gap (`elevation_conditioning.rs`).
         for (name, v) in &variants {
             // End conditions stay clamped/interpolating.
             assert!(
