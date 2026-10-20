@@ -4,6 +4,8 @@ kind: issue
 title: editor-core: a list position past u32 is clamped to u32::MAX, so two positions alias one slot
 status: open
 opened: 2026-10-19
+priority: P3
+cost: M
 ---
 
 

@@ -6674,3 +6674,10 @@ Signed (WIRE orchestrator).
   - One small split for Ev: a chord within both inputs' rims is SharedRim or a defect.
   - Before sending, the shared premise was checked against N3's ratified words ('an unmerged face's own name'): the clarified reading is consistent with it, and the order clause is new.
   - Subscribed.
+
+- 2026-10-20 (WIRE orchestrator) Dispatched:
+  - FORK-SECTIONID (designer pair; row raised to P2, since a held SectionFace{k} silently rebinds);
+  - FORK-BLENDEMPTY (designer pair, smaller brief);
+  - wire-census2 (wire/census-tail; STYLE review), for the three P4 census rows, with Part kept on D10.
+  - Triaged list-positions-… as P3 M.
+  - The Transform-copy crossing tie waits on 5423.
