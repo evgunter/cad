@@ -1582,3 +1582,5 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - MINOR-1 (two test-only copies of the f64 binomial fold, at `ssi.rs:4397` and `m5_pr7_ssi.rs:5535`), the stale prose and the doubled constant go into build A's STANDARD follow-up, with the #5399 items;
     - the NOTE (the guard mutant survives at `compose/tensor.rs:429`) is filed P3 as `tensor-residual-degree-guard-has-no-row-at-its-edge`.
   - Reviewer archived.
+- 2026-10-20 02:35Z — **#5433 up** (build A's STANDARD follow-up to #5399 and #5414, head 47d1d68c). It also folds a third, production copy of the binomial fold (`carrier_net.rs`'s Taylor re-expansion, bit-identical).
+  - **Base red found by A:** topo's `every_public_mutation_path_preserves_tier1` is red on main since ENCL's PR 5418 (`restate_stored_edge` is off the roster). Filed on ENCL's slate with a seam note; NURBS PRs cite it as a base red.

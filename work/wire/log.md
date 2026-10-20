@@ -6729,3 +6729,9 @@ Signed (WIRE orchestrator).
   - Also: M1, a count fault needs its own recourse; M2, stub drift; S2, prose sweep; V1, the hover text; N1. Taste skipped.
   - Fix pass sent.
   - Class note: 'test-only' must be checked on the function's own cfg, not its caller's. An unreachable! behind an ungated pub door is row 1.
+
+- 2026-10-20 (WIRE orchestrator) PR 5436 merged (a0ac0b4ddd).
+  - The fix pass was read: the insert door re-checks Select::fault for a selection read by id, selection_into is cfg-gated, and a count fault gets its own recourse.
+  - Fork-log row 180 (BLENDEMPTY, decided without [ev], A/B filled) and row 163's Ev and match cells restored rode the PR's last commit. Row closed.
+  - Orchestrator slip: a failed 'worktree add' left a chained commit on local wire/orchestrator. It was never pushed; I moved it to the PR branch by cherry-pick and dropped it locally.
+  - Class note: chain a cd into a new worktree as 'cd X || exit', never after an && that can fail silently into the wrong checkout.
