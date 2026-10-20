@@ -225,6 +225,11 @@ fn check(
             ),
         ),
     ];
+    // A piece neither lane reads has no claim to check: the dense
+    // distance is sampled only where one was made.
+    if reads.iter().all(|(_, read)| read.is_none()) {
+        return Ok(Vec::new());
+    }
     let n = 2000;
     let ds: Vec<f64> = (0..=n)
         .map(|i| {
