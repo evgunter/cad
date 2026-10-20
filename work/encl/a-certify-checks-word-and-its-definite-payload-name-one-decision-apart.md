@@ -2,11 +2,12 @@
 id: a-certify-checks-word-and-its-definite-payload-name-one-decision-apart
 kind: issue
 title: geom-brep: a CertCheck's word and its definite variant's payload name one decision in different nouns
-status: dispatched
+status: review
 opened: 2026-10-20
 priority: P4
 cost: E
 branch: encl/check-word-one-noun
+pr: 5447
 ---
 
 
