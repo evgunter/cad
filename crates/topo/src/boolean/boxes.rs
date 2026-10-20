@@ -3861,11 +3861,11 @@ pub(crate) mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts ELEVEN: the pre-filter's `face_box` and
-        // `edge_box` reads, pass 2′'s curved-edge `edge_box` read
-        // (`census::Candidates::build`, the pruning door),
-        // `collinear_overlaps`' `edge_box` read and the every-face
-        // class's `face_box` read (the same pruning door),
+        // `census.rs` counts TEN: the pre-filter's `face_box` read (one
+        // box per face, read by the planar and every-face classes) and
+        // its `edge_box` read, pass 2′'s curved-edge `edge_box` read
+        // (`census::Candidates::build`, the pruning door) and
+        // `collinear_overlaps`' `edge_box` read (the same pruning door),
         // three rule reads of its own and the edge reach's
         // `edge_rule_box` read of the rule it took, and two that are
         // not doors — two rows in its test module call `face_box` to
@@ -3893,7 +3893,7 @@ pub(crate) mod tests {
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
-            ("census.rs", 11),
+            ("census.rs", 10),
             ("census/depth_gap.rs", 2),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),

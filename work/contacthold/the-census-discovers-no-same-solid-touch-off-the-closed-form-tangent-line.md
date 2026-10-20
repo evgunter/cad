@@ -41,6 +41,20 @@ confirmed where a record names it and discovered nowhere:
   question with two descriptions): `sweep_conformal_patches` groups by
   chart key, and the new sweep reads only a closed-form tangent line.
 
+- **A line touch outside the closed-form set**: a cone on a plane along
+  a ruling, two cones, a cone and a cylinder on a shared ruling.
+  `geom_brep::tangent_locus_kinds` holds plane × cylinder and cylinder ×
+  cylinder only, so the sweep never asks these pairs (and
+  `closed_form_locus` would answer `Unsupported`, read as
+  `RestTangent::NoLine`).
+- **A pair the adjacency filter hides**: two faces that share an edge
+  somewhere and also touch along a tangent line through both interiors
+  elsewhere. The sweep skips every pair sharing an edge, because a pair
+  meeting at its shared edge along the line is read there as escalations
+  and lane refusals (measured on PR 5456 with the filter off: 59
+  findings in 21 tests, none a touch through interiors). Discovering this
+  case needs the line read away from the shared edge.
+
 Cross-solid, each of these is the backstop's (`sweep_cross_solid_backstop`,
 which returns at once for a one-solid body).
 

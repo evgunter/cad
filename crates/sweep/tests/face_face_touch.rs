@@ -443,7 +443,7 @@ fn a_carried_curve_touch_row_with_a_bad_key_refuses_at_the_door() {
     };
     let far = finished(
         "far",
-        brick::<f64>((10.0, 11.0), (10.0, 11.0), (0.0, 1.0), tol()),
+        brick::<f64>((-0.1, 0.1), (1.4, 1.6), (0.4, 0.6), tol()),
         tol(),
     );
     let (edge, face) = u.contacts.edge_face().next().unwrap();
@@ -819,12 +819,30 @@ fn a_record_whose_faces_the_op_divides_lands_on_the_pair_holding_its_line() {
 /// then bridged into one solid by a box over both tops, handing the
 /// bridge the first union's face–face records when `carry`.
 fn bridged_rod(gap: f64, rod_first: bool, carry: bool) -> topo::BooleanBody<f64> {
+    bridged_rod_posed(1.0, 0.0, gap, rod_first, carry)
+}
+
+/// [`bridged_rod`] scaled by `s` about the origin and moved by `d` along
+/// each axis.
+fn bridged_rod_posed(
+    s: f64,
+    d: f64,
+    gap: f64,
+    rod_first: bool,
+    carry: bool,
+) -> topo::BooleanBody<f64> {
+    let at = |lo: f64, hi: f64| (s * lo + d, s * hi + d);
     let plate = finished(
         "plate",
-        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        brick::<f64>(at(-2.0, 2.0), at(-2.0, 2.0), at(0.0, 1.0), tol()),
         tol(),
     );
-    let rod = ext("rod", vec![circle(0.0, 2.5 + gap, 0.5, 0.0)], 0.25, 0.5);
+    let rod = ext(
+        "rod",
+        vec![circle(d, s * 2.5 + gap + d, s * 0.5, 0.0)],
+        s * 0.25 + d,
+        s * 0.5,
+    );
     let (x, y) = if rod_first {
         (&rod, &plate)
     } else {
@@ -841,7 +859,12 @@ fn bridged_rod(gap: f64, rod_first: bool, carry: bool) -> topo::BooleanBody<f64>
     );
     let bridge = finished(
         "bridge",
-        brick::<f64>((-1.0, 1.0), (1.0, 2.5 + gap), (0.6, 1.6), tol()),
+        brick::<f64>(
+            at(-1.0, 1.0),
+            (s + d, s * 2.5 + gap + d),
+            at(0.6, 1.6),
+            tol(),
+        ),
         tol(),
     );
     let records_a = if carry {
@@ -997,4 +1020,139 @@ fn a_bore_tangent_from_inside_with_no_edge_on_its_line_is_missing_its_cusp_edges
         )),
         "plate ∖ rod: a material crescent is no contact: {errors:?}"
     );
+}
+
+/// Whether `errors` holds a face–face tangent-line touch.
+fn found_a_line_touch(errors: &[topo::ValidationError]) -> bool {
+    errors.iter().any(|e| {
+        matches!(
+            e,
+            topo::ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::FaceFaceTangent { .. },
+                ..
+            }
+        )
+    })
+}
+
+/// The rod resting on the plate before any bridge: two solids touching
+/// along the line, read with no record. The touch is between solids, so
+/// the same-solid pass says nothing of it, whatever else refuses. Red
+/// when the pass drops its one-solid test. Both operand orders.
+#[test]
+fn a_rod_on_a_plate_as_two_solids_is_not_a_same_solid_touch() {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.5);
+    for (x, y) in [(&plate, &rod), (&rod, &plate)] {
+        let u = match topo::union(x, y, tol()) {
+            Ok(BooleanResult::Body(u)) => u,
+            other => panic!("plate ∪ rod: {:?}", other.map(|_| ())),
+        };
+        assert_eq!(u.body.solids().count(), 2, "plate ∪ rod: two solids");
+        let errors =
+            topo::validate_pseudomanifold(&u.body, &topo::ContactRecords::default(), tol())
+                .err()
+                .unwrap_or_default();
+        assert!(
+            !found_a_line_touch(&errors),
+            "plate ∪ rod, no record: no same-solid finding: {errors:?}"
+        );
+    }
+}
+
+/// The plate with its internally tangent bore, and a small cube floating
+/// in the bore as a second solid, inside the plate's reach: the bore's
+/// missing cusp edges are the plate's defect alone, and the cube's
+/// clearance from the plate is still decided. Red when the missing
+/// edges leave every solid pair unexamined.
+#[test]
+fn a_solid_missing_its_cusp_edges_leaves_a_solid_in_its_bore_cleared() {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let rod = ext("rod", vec![circle(0.0, 1.5, 0.5, 0.0)], 0.25, 0.5);
+    let bored = match topo::subtract(&plate, &rod, tol()) {
+        Ok(BooleanResult::Body(r)) => r.body,
+        other => panic!("plate ∖ rod: {:?}", other.map(|_| ())),
+    };
+    let cube = finished(
+        "cube",
+        brick::<f64>((-0.1, 0.1), (1.4, 1.6), (0.4, 0.6), tol()),
+        tol(),
+    );
+    let r = match topo::union(&bored, &cube, tol()) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("bored ∪ cube: {:?}", other.map(|_| ())),
+    };
+    assert_eq!(r.body.solids().count(), 2, "bored ∪ cube: two solids");
+    let errors = topo::validate_pseudomanifold(&r.body, &topo::ContactRecords::default(), tol())
+        .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .all(|e| matches!(e, topo::ValidationError::CuspEdgesMissing { .. })),
+        "bored ∪ cube: only the plate's missing cusp edges: {errors:?}"
+    );
+}
+
+/// The bridged rod and the bore at other scales and far from the origin
+/// (adopted from PR 5456's review probes): the void pinch is the one
+/// unrecorded touch and the material one the missing cusp edges, at
+/// each pose. Other arms may escalate far off the origin at a fine ε;
+/// this row reads only what the same-solid pass says.
+#[test]
+fn the_void_and_material_pinches_read_alike_at_every_pose() {
+    for (s, d) in [(1.0e-2, 0.0), (1.0e2, 0.0), (1.0, 1.0e3)] {
+        let r = bridged_rod_posed(s, d, 0.0, false, false);
+        let errors = topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).unwrap_err();
+        let touches = errors
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    topo::ValidationError::UnrecordedContact {
+                        contact: topo::CensusContact::FaceFaceTangent { .. },
+                        ..
+                    }
+                )
+            })
+            .count();
+        assert_eq!(touches, 1, "bridged rod, scale {s}, offset {d}: {errors:?}");
+        let at = |lo: f64, hi: f64| (s * lo + d, s * hi + d);
+        let plate = finished(
+            "plate",
+            brick::<f64>(at(-2.0, 2.0), at(-2.0, 2.0), at(0.0, 1.0), tol()),
+            tol(),
+        );
+        let rod = ext(
+            "rod",
+            vec![circle(d, s * 1.5 + d, s * 0.5, 0.0)],
+            s * 0.25 + d,
+            s * 0.5,
+        );
+        let r = match topo::subtract(&plate, &rod, tol()) {
+            Ok(BooleanResult::Body(r)) => r,
+            other => panic!(
+                "plate ∖ rod, scale {s}, offset {d}: {:?}",
+                other.map(|_| ())
+            ),
+        };
+        let errors =
+            topo::validate_pseudomanifold(&r.body, &topo::ContactRecords::default(), tol())
+                .unwrap_err();
+        let missing = errors
+            .iter()
+            .filter(|e| matches!(e, topo::ValidationError::CuspEdgesMissing { .. }))
+            .count();
+        assert!(
+            missing == 1 && !found_a_line_touch(&errors),
+            "plate ∖ rod, scale {s}, offset {d}: the missing cusp edges and no touch: {errors:?}"
+        );
+    }
 }

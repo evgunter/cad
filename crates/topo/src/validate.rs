@@ -1950,12 +1950,13 @@ pub enum ValidationError {
         /// `outer`'s material.
         witness: VertexKey,
     },
-    /// Tier 3′ (D1 tier 3, C4): two faces of one solid run through a
-    /// tangent line with the solid's material in the crescent between
-    /// them (a bore tangent to a face from inside), and no edge lies on
-    /// the line. Such a line carries two coincident cusp edges, wedge 0,
-    /// one per cusp, so the operation that built the body left out its
-    /// edges: the op's defect, which no contact record answers for.
+    /// Tier 3′ (D1 tier 3, C4): two faces of one solid that share no
+    /// edge, on carriers whose closed-form tangent line runs strictly
+    /// through both faces' interiors, with the solid's material in the
+    /// crescent between them (a bore tangent to a face from inside).
+    /// Such a line carries two coincident cusp edges, wedge 0, one per
+    /// cusp, and this body has none there: a defect of the body, which
+    /// no contact record answers for.
     CuspEdgesMissing {
         /// One face through the line.
         a: FaceKey,
