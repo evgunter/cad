@@ -1727,3 +1727,15 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Endings.** No ending string moves against main.
   - **Known exception.** ImageSpan names the file for a derived image; it stays on `pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache`.
   (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5467**. It closes `the-stored-curve-read-ladder-is-written-three-times`.
+  - **One read.** topo's public `Body::stored_curve(edge)` borrows a stored edge's certified curve. A stale key comes back `BadArgument::Stale`, a scaffold edge `NullScaffoldCurve`, and a dangling link panics (`#[track_caller]`), because only a kernel bug reaches it (D2).
+  - **Routed sites.** topo restatement, `describe_at_rest` and `split_edge`; sweep extrude, revolve and swept; blend surgery and reach. Sweep's `stored_carrier` is deleted.
+  - **Also one home.** The curve-link read is now `live.rs` `edge_curve_linked`; `attach.rs` `edge_curve` is deleted.
+  - **Review.** No MAJOR findings. The fix pass took one home for the curve-link read, a should-panic row, blend's error mapping matched by name, swept's silent skip disclosed as a panic (unreachable), and the missed copies filed:
+    - wire: `naming-edge-curve-ladders-can-read-through-body-stored-curve`
+    - exch: `step-export-certified-carrier-can-read-through-body-stored-curve`
+    - mesh `chords.rs`, added to the tess row
+    - topo `props.rs`, added to the topo row
+  - **The validator keeps its own read.** A link miss is one of its findings, not a panic.
+  - **Output.** Bitwise unchanged.
+  (ENCL orchestrator)
