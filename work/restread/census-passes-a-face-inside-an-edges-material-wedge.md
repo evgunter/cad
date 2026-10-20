@@ -110,3 +110,16 @@ body; hand-built tier-3 fixtures and assembly copies placed on top of
 each other did. The face-inside-a-wedge half (the rider form) is
 untouched. The reader also refuses a cusp or slit edge on a line typed
 (`WedgeRefusal::WedgeEnd`) instead of as an in-band escalation.
+
+## Evidence from the pinch fork (CONTACTHOLD, 2026-10-20)
+
+Ev's decision on `[ev]` PR 5395 makes a material-crescent pinch along a
+tangent line two coincident cusp edges (D1 tier 3, C7), so the sign of
+a tangent pinch now lives in topology as well as in the face senses.
+Both designers name this row's check as what keeps them in step: a
+complement that fails to re-pair leaves two coincident edges each
+claiming a 2π wedge, which tier 3 reads one edge at a time and passes.
+The check over coincident edges on one line, that their material
+sectors are disjoint, covers the tangent case too (sectors 0 and 2π,
+read at second order). Builder: CONTACTHOLD's
+`a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`.

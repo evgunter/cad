@@ -54,3 +54,17 @@ the slack on these bodies).
 within its half-turn room, so the PR-5333 mutant that drops it
 (`a_cone_rim_in_many_arcs_off_the_axis_measures`) no longer reds: its
 whole-ness is read in the rim's own frame, where the carry has no part.
+
+**A second witness, with no ring and no near-tie** (germ, PR 5156's
+fix pass, 2026-10-20). The `sweep` `near_circular_sections` frustum
+(scale `S`: `r0 = S`, `r1 = S/2`, height `S`, half-angle `atan ½`)
+turned `0.7` rad about `(0.3, −0.5, 0.8)` and split at mid-height by a
+plane at tilt `0.3` rad (far from any band) refuses at ε = 1e-12 from
+`S = 50`: `Finish(ResultNotAtRest { side: Above, errors: [VolumeUncomputable
+{ face: FaceKey(5v1), source: Escalated { Indeterminate { margin:
+Enclosure { lo: 0.0, hi: 2.44e-12 }, predicate: "props_chart_loop_whole" } } }] })`.
+The same split as built (axis along `y`) builds, and so does every
+scale at ε = 1e-9. Turned frustum − box refuses the same way from
+`S = 50` at 1e-12. The closure margin enclosing zero to about `2e-12`
+on a cone face of extent 100 looks like the read's rounding is not
+scaled to the face, rather than anything about this ring.

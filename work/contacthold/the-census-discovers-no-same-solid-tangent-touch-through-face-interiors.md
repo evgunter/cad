@@ -41,3 +41,24 @@ along a tangent line through both interiors (the two-carrier lane it
 already reads for a record, `boolean::tangent_pair_at_rest`) and
 refuses one no record names, `UnrecordedContact`. Then the plain bridge
 above refuses 3′ and the carried one passes.
+
+## Weighed (2026-10-19)
+
+A designer pair (A and B) weighed one solid pinched along a tangent
+line through two of its own faces' interiors, this row's state and the
+bore row's (`a-bore-tangent-to-a-plates-face-mints-a-face-face-record-the-census-contradicts`,
+on PR 5390's branch). Both hold that the census owes this discovery,
+refusing `UnrecordedContact`, and that C2's "constructor's obligation"
+sentence stated a gap; C2 now says so. They split on the
+material-crescent pinch (plate ∖ a bore tangent to its face from
+inside): one face–face record, or two coincident cusp edges. That
+question is with Ev on the `[ev]` branch `contacthold/ev-pinch-crescent`,
+and it decides what this discovery reports for a material crescent.
+
+## Answered (Ev, `[ev]` PR 5395, 2026-10-20)
+
+The discovery reads sides. An unrecorded void pinch (the bridged rod)
+is `UnrecordedContact`. A material crescent along a line with no edges
+is the missing-edge defect, the op's (D1 tier 3's cusp edges; C4). At a
+point touch a crescent one solid shares with itself is legal. C2 states
+the discovery as owed.

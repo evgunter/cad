@@ -1675,3 +1675,55 @@ coincidence is now a margined verdict (no declarations), checked by the
     The fix pass removed `verdict()` and `RefusedArm::read` and keyed the word on the tag.
   - **Rows:** evidence added to pcert `band-scale-torus-geometry-ends-as-a-kernel-defect`; the Villarceau pin is renamed to show it pins a known-wrong ending. Evidence also added to restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`.
   (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5437** (rows `the-dihedral-arm-noun-is-spelled-twice-…` and `zero-and-negative-payloads-of-one-decision-use-different-nouns`, both closed).
+  - The dihedral arm is a "width" in its check noun, its size word and its clause.
+  - The forward-span sentence has one home, `StatedSpan::tell`, which takes the subject (`STORED_INTERVAL` / `GIVEN_INTERVAL`). "Runs backwards by" appears only on a decided Negative.
+  - `WindingExceeded` says "turn".
+  - Plane×NURBS `NotTransverse` renders through certify's sentence, with its margin.
+  - The torus spindle clause is dropped, and `TubeNotSeparated` is reordered.
+  - Review: no MAJOR. The fix pass unified the arm's noun and replaced self-pins with literal pins.
+  - Filed: `a-certify-checks-word-and-its-definite-payload-name-one-decision-apart`.
+  - Notes added to iso `plane-nurbs-not-transverse…` (half fixed), ssimarch, and restfront `validate-window-leads…` (`classify_certify` is a hand-written second telling; sweep it as a class).
+  - A container restart mid-fix-pass was resumed without loss.
+  (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5451**, a cross-program main-red fix. `geom curves::tests::ellipse_constructor_trios` had been red on main since GERM's 53967a14d2 (bisected; it fails at opt-level 0 and 1 alike). The commit added `EllipseInvalid::SemiAxisNotFinite`, but the test row still expected a NaN minor to escalate; the row now expects the typed refusal. GERM had handed its track back (PR 5445), so ENCL fixed it because PR 5447 was red on it. `crates/geom` is CURVED ground, and the change touches a test row only. (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5447** (`a-certify-checks-word-and-its-definite-payload-name-one-decision-apart`, closed).
+  - Each sized certify check's word, size, lever and definite payload now speak one noun.
+  - The nouns are composed from `concat!` macros at the top of `certify.rs` (`length_noun!`, `arc_noun!`, `crossing_angle!`, `curvature_difference!`, …).
+  - The noun per check:
+
+    | Check | Noun |
+    |---|---|
+    | ParamSpan / ImageSpan | length |
+    | ParamWinding | the arc's headroom to a full turn (size "arc") |
+    | ParamSpanMeter | a lower bound on length |
+    | Transversality / tube | the crossing angle |
+    | TangentSecondOrder / tube | the curvature difference |
+
+  - On the analytic lane, metres-of-angle payloads say ", levered by the arm it is read over".
+  - `each_decision_is_told_in_one_noun` pins the literals, the word ⊇ size relation and the payload noun.
+  - **Review:** no MAJOR. The fix pass fixed:
+    - the arc/headroom split;
+    - several homes per noun;
+    - the unpinned ImageSpan word;
+    - the SSI label;
+    - the `SPAN_METER` phrase;
+    - `QUANTITY_WORDS`.
+  - **Not covered by "one home":** topo `certify_undecided` (noted on the restfront row); PcurveCheck words (pctail); `MATERIAL_PAIRING` and `RecutAlign` lever/size splits (listed in the PR body).
+  - **Filed:** ssiedge `the-tube-limbs-undecided-arm-names-a-limb-not-its-crossing-angle-bound`.
+  (ENCL orchestrator)
+- 2026-10-20 07:50Z — **Seam note from NURBS: a second main red near PR 5418's follow-up.** `test-utils reader_census::every_site_that_reads_rust_source_is_in_the_ledger` is red on main; its ledger lacks `crates/sweep/src/lib.rs`, last changed by `f1cfa9146b` (sweep-restate review). Filed as `main-red-reader-census-lacks-sweep-lib-after-restate-review`, attributed by file history (not bisected), so please confirm or re-home.
+- 2026-10-20 — **Merged PR 5454**. It closes three rows: `a-defect-endings-culprit-has-two-choosers`, `import-door-residual-and-unsized-endings-past-eps-in-name-kernel-or-file` and `import-door-provenance-of-a-fit-residual-is-unsettled`.
+  - **One chooser.** `geom_brep::recourse::culprit(ReadAt, Provenance)` now picks the culprit, with `Reading::culprit` for the run doors. Every defect ending read through `recourse` goes through it, and so does `unreadable_margin_note`.
+  - **Types.** `geom_core::Culprit` is `Kernel | Stored(StoredCulprit{KernelOrFile, File})`, and `RefusedReading::Defect` takes a `StoredCulprit`, so a kernel culprit there is unrepresentable. `Provenance` is `Stored | Derived`.
+  - **Who gets blamed at the import door:**
+    - sized `StoredContradiction`/`Unminted` sides name the file;
+    - every unsized or residual check is `Derived` and names kernel-or-file, because the kernel derives what each one compares (endpoint parameters, minted seam carriers, witness midpoints).
+  - **Review MAJOR, fixed.** The first head labelled EndpointStart/End `Stored`, which would have told an in-tolerance file it was damaged. Three causes were filed with EXCH:
+    - `ellipse-edge-parameters-overstate-the-endpoint-miss`
+    - `minted-seam-generator-can-put-endpoint-end-two-eps-in-off`
+    - `partial-bspline-edges-are-refused-for-domain-pinned-parameters`
+  - **Gate.** `reporting-margin-door.sh` gains a culprit-choice list.
+  - **Endings.** No ending string moves against main.
+  - **Known exception.** ImageSpan names the file for a derived image; it stays on `pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache`.
+  (ENCL orchestrator)

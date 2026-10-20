@@ -2,8 +2,9 @@
 id: pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache
 kind: issue
 title: geom-brep: a PcurveCheck span refusal at rest ends in KERNEL_OR_FILE_DEFECT_ENDING, naming a damaged file for a cache the kernel derives
-status: open
+status: dispatched
 opened: 2026-10-14
+branch: encl/sized-provenance
 ---
 
 
@@ -36,3 +37,9 @@ Should a pcurve check's at-rest ending name the kernel alone (`KERNEL_DEFECT_END
 Note (PR 5393, 2026-10-19): rendering an `Unminted` refusal at a build no longer panics in geom-brep. The kernel-bug panic exists only at topo's `policy_lane::kernels_own`. Earlier notes here that cite the build panic in `SizedDecision::recourse` describe the state before this PR. (ENCL orchestrator)
 
 Note (PR 5401, 2026-10-19): `policy_lane::kernels_own` is gone. The kernel-bug panic now lives in `policy_lane::Origin::read`: every topo edge certification passes an `Origin`, and `Origin::Kernels(site)` panics on a span refusal. (ENCL implementer)
+
+## Evidence, 2026-10-20 (`encl/one-culprit-chooser`)
+
+One chooser now names every defect ending's culprit: `recourse::culprit(at, provenance)` (`crates/geom-brep/src/recourse.rs`). A sized decision's `StoredContradiction` and `Unminted` sides read it as `Provenance::Stored`, for every sized decision alike (`SizedDecision::words`). Every decision with no size reads `Provenance::Derived` (`Unsized::recourse`), which names the kernel beside the file.
+
+`CertCheck::ImageSpan` is sized with `RefusedSide::StoredContradiction`, so past ε_in at the import door it still ends in `DAMAGED_FILE_ENDING`. That holds even though the chart image it reads is a value the kernel derives (the same mint `CertCheck::ChartImage` reads, as `Derived`). That is this row's finding at the import door as well as at rest. The repair has a seam now: let a sized decision state its provenance, instead of `words` fixing `Stored` for both sides.

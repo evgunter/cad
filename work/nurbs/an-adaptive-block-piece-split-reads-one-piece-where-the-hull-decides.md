@@ -87,3 +87,10 @@ Not worth a second piece schedule and a second derivative-box door.
 cheaper reading that keeps the two-piece box's resolution: for instance
 the step's arithmetic (`Interval::mul_nonneg`, #5163) or a sign test
 that does not form the whole box.
+
+**`clears` is not worth a unit (2026-10-20).** A one-piece `clears`
+is unsound by definition rather than by cost: `Within` is "no piece
+clears" (`boundary.rs:1021`; `one_arc.rs:625/663/721/737` read it that
+way), so fewer pieces changes the answer, not only its price. What is
+left at r1 is 1.33× pre-4954 (15.4 s against 11.5 s on main 5857a62a
+plus #5419), below the bar for a unit of its own.
