@@ -2,7 +2,7 @@
 id: a-split-touching-a-wall-at-a-vertex-refuses-a-crossing-vertex-emission
 kind: issue
 title: A split through a moat that touches a pocket or block wall at a vertex refuses Emission("a split's crossing vertex does not hold exactly one piece of the edge it crosses")
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: M

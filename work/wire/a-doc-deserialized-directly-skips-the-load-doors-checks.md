@@ -2,7 +2,7 @@
 id: a-doc-deserialized-directly-skips-the-load-doors-checks
 kind: issue
 title: Doc derives a public serde::Deserialize, so a Doc built with serde_json::from_str skips the load door's checks and can reach panics the doors hold
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: M
