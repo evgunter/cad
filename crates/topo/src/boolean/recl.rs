@@ -449,12 +449,6 @@ pub(super) fn recl_sectors<T: Decide>(
                 Operand::A => (a_body, sa, sb),
                 Operand::B => (b_body, sb, sa),
             };
-            // A unit direction inside a sector, which is narrower than
-            // a half-turn.
-            let inside = |s: &BoolSector<T>| {
-                let mid = s.start + s.end;
-                mid / mid.norm()
-            };
             let mut runs = false;
             for (edge, dir) in super::sectors::bound_edges(body, own) {
                 if super::sectors::runs_into(other, dir, arm, band)? {
@@ -469,10 +463,15 @@ pub(super) fn recl_sectors<T: Decide>(
                 }
             }
             if !runs {
+                // The kept copy holds the dropped sector wholly, so the
+                // dropped sector's direction names the piece of the kept
+                // face over it, wherever the join divides that face after;
+                // the kept sector's own may lie in another piece.
+                let inside = super::fate::bisector(other, band)?;
                 fates.corners.push(super::fate::FateCorner {
                     holder: keeper,
-                    dropped: (other.he, inside(other)),
-                    kept: super::fate::KeptAt::Sector(own.he, inside(own)),
+                    dropped: (other.he, inside),
+                    kept: super::fate::KeptAt::Sector(own.he, inside),
                 });
             }
         }

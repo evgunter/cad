@@ -1264,16 +1264,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     });
                 }
             } else {
+                let inside = super::fate::bisector(s, band)?;
                 fates.corners.push(super::fate::FateCorner {
                     holder: pierced_op,
-                    dropped: (s.he, {
-                        let mid = s.start + s.end;
-                        mid / mid.norm()
-                    }),
-                    kept: super::fate::KeptAt::Pierced(contact.face, vertex, {
-                        let mid = s.start + s.end;
-                        mid / mid.norm()
-                    }),
+                    dropped: (s.he, inside),
+                    kept: super::fate::KeptAt::Pierced(contact.face, vertex, inside),
                 });
             }
         }
