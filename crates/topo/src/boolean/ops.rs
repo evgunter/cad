@@ -305,17 +305,19 @@ pub struct BooleanNaming {
     /// material divided along an edge lying in it, which lost the line
     /// between its pieces (`boolean::slit`).
     pub discards: Vec<super::DiscardRow>,
-    /// Each pair `(A face, B face)` of coincident faces where the result
-    /// holds either face's region through the other: their materials lie
-    /// on one side, so the classification keeps one operand's copy of the
-    /// region they share and drops the other's (Eq. 15.3). The pair is
-    /// one fact whichever copy is kept. Clone keys, as
-    /// [`super::DiscardRow::face`]: chase `face_fragments_a`/`face_fragments_b`
-    /// for the operand faces. Read off the classification, so every path
-    /// that classifies records it — the section path and the
-    /// containment fallback — sorted and deduplicated;
-    /// a path that never classifies (disjoint boxes) has none.
-    pub covered: Vec<(FaceKey, FaceKey)>,
+    /// Every fragment of a coincident face the result holds through the
+    /// other operand's copy ([`super::SubstitutedFace`]), sorted and
+    /// deduplicated. The section path writes each fragment as cut where
+    /// the held region ends; the containment fallback, which cuts
+    /// nothing, writes whole faces from what its result holds.
+    ///
+    /// The rows are in clone keys, which
+    /// [`substitutions`](Self::substitutions) cannot hold: those are result keys,
+    /// and the dropped fragment is never in the result. In a
+    /// containment fallback its whole operand is absent
+    /// ([`OperandKeys::Absent`]), so no key of the result names it. A
+    /// path that never classifies (disjoint boxes) has none.
+    pub substituted: Vec<super::SubstitutedFace>,
     /// Every operand edge piece the classification read beside a vertex,
     /// with its side of the other operand
     /// ([`EdgePieceClass`](super::EdgePieceClass)), sorted: the vertex in
@@ -394,7 +396,7 @@ impl Default for BooleanNaming {
             ),
             reduction_contacts: Default::default(),
             discards: Default::default(),
-            covered: Default::default(),
+            substituted: Default::default(),
             edge_classes: Default::default(),
             unread_partners: Default::default(),
             chart_cuts: Default::default(),
@@ -896,7 +898,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     let decls = &*glued;
     let reduction_contacts = red.contacts.clone();
-    let covered = red.covered.clone();
     let edge_classes = red.edge_classes.clone();
     let unread_partners = red.unread_partners.clone();
     let null_copies = super::null_copy_rows(&red.null_edges);
@@ -907,6 +908,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         connected.completed.iter().map(|p| p.b_face).collect(),
     ];
     let ledger = ledger(&red, decls, [&scaffold[0], &scaffold[1]])?;
+    let substituted = connected.fates.substituted.clone();
     let tangent_lines = red.tangent_lines.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
@@ -958,8 +960,14 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
     let mut discarded = [BTreeSet::new(), BTreeSet::new()];
-    for row in &fin.discards {
-        discarded[usize::from(row.operand == Operand::B)].insert(row.face);
+    // A substituted fragment leaves the result as a discard does.
+    for (operand, face) in fin
+        .discards
+        .iter()
+        .map(|r| (r.operand, r.face))
+        .chain(substituted.iter().map(|s| (s.operand, s.face)))
+    {
+        discarded[usize::from(operand == Operand::B)].insert(face);
     }
     let recorded = carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
     let OutputStage {
@@ -1030,7 +1038,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         reduction_contacts,
         discards,
         carved_lineage: fin.carved_lineage,
-        covered,
+        substituted,
         edge_classes,
         unread_partners,
         chart_cuts: [Vec::new(), Vec::new()],
@@ -1086,8 +1094,8 @@ fn name_parted(
             operand,
             face,
             bordered: vec![p.ends],
+            bordered_through: Vec::new(),
             boundary_chains: Vec::new(),
-            held: Vec::new(),
         });
     }
     Ok(())
@@ -1245,7 +1253,15 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // argument — and `red` is a local of this pipeline, so a refusal
     // on the way drops it.
     red.enter_join_surgery();
-    let connected = bool_connect(&mut red, a, b, band, tol);
+    let connected = bool_connect(&mut red, a, b, band, tol).and_then(|mut c| {
+        c.fates = super::fate::cut(
+            &mut red,
+            [&mut c.a_fragments, &mut c.b_fragments],
+            band,
+            tol,
+        )?;
+        Ok(c)
+    });
     red.leave_join_surgery(connected.is_ok());
     let connected = connected?;
     if connected.completed.is_empty() {
@@ -7288,7 +7304,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 substitutions: output.clone(),
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
-                covered: red.covered.clone(),
+                substituted: super::fate::uncut(red, [&discarded[0], &discarded[1]]),
                 edge_classes: red.edge_classes.clone(),
                 unread_partners: red.unread_partners.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
@@ -7334,7 +7350,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    let (contacts, covered) = (&red.contacts, &red.covered);
+    let contacts = &red.contacts;
     let reduction_contacts = contacts.clone();
     let mut body = body;
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {
@@ -7346,7 +7362,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     }
     // No cross-operand pair merges here: one operand is absent from the
     // result. A declared pair that held the absent operand's region
-    // through the kept one is `covered`; the surviving operand's
+    // through the kept one is a `substituted` row; the surviving operand's
     // CARRIED records still apply.
     let mut desc = Descendants::default();
     let (a_view, b_view) = match kind {
@@ -7359,6 +7375,14 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         BooleanResultKind::OperandA => [faces_outside(&red.a, keep), faces_outside(&red.b, &[])],
         _ => [faces_outside(&red.a, &[]), faces_outside(&red.b, keep)],
     };
+    let substituted = super::fate::uncut(red, [&discarded[0], &discarded[1]]);
+    // The lump keeps operand A's copy of a coincident pair
+    // (`tables::kept_copy`), so a shell holding one is kept: a fallback
+    // that keeps B whole drops no such pair.
+    debug_assert!(
+        substituted.is_empty() || kind == BooleanResultKind::OperandA,
+        "a containment fallback keeping operand B whole holds a coincident pair"
+    );
     let recorded = carried_vertices(
         &body,
         &ledger,
@@ -7392,7 +7416,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             substitutions: output.clone(),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
-            covered: covered.to_vec(),
+            substituted: substituted.clone(),
             edge_classes: red.edge_classes.clone(),
             unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
@@ -7408,7 +7432,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             substitutions: output.clone(),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
-            covered: covered.to_vec(),
+            substituted: substituted.clone(),
             edge_classes: red.edge_classes.clone(),
             unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),

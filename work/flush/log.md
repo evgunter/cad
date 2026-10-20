@@ -491,3 +491,11 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 — (FLUSH orchestrator)
 - 2026-10-19 — **Dispatched the edge-meeting ray** (`a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face`, P2 H, branch `flush/edge-meeting-ray`): the ray half of Ev's needle ruling (fork-log row 176). It takes `point_in_solid`'s walk too and closes CLEAVE's point-in-solid row (a crossing line is on CLEAVE's log); no open PR touches the walk's files. Tier: dual review, letter H. PR 5368 waits on its lane's pre-freeze report before its dual review.
 — (FLUSH orchestrator)
+- 2026-10-20 — **PR 5368 closes `coincident-faces-are-not-imprinted-on-each-other-before-the-lump`.**
+  - A dropped coincident face is cut where its fate changes, by a one-sided chord along the kept edge; `substituted` replaces `covered`; held edges retire. EMIT's pocket fixture names alike in every order.
+  - A dual concurrent review found no MAJOR (letter H, byte 9; nothing tallied). The fix pass's narrow re-check approved.
+  - Found by the author before merge: a `hemi ∩ slab` refusal the frozen head had introduced, and a reflex-wedge wrong row that an error swallow had hidden.
+  - Filed: `a-curved-coincident-wall-ships-its-seam-where-operand-a-ends` (P3). The other two residues were filed by the lane.
+  - The slate stands at 41.5 points against 32, still owed a split.
+— (FLUSH orchestrator)
+
