@@ -1336,8 +1336,8 @@ document as the source of a placement there, which is an instance.
 a frame that is a function of what it reads and of nothing else,
 chosen so its arithmetic is well conditioned near the geometry it
 builds, and never in the world's; the frame is keyed with its inputs,
-so an edit that leaves an operation's reads alone moves none of its
-bits ([determinism]). The frame is no part of the operation's
+so an edit that leaves the bodies an operation reads where they stand
+in their space moves none of its bits ([determinism]). The frame is no part of the operation's
 meaning: the body up to that rigid map, its names and every verdict
 outside the sliver band are the same in any frame, and a minted
 reference direction is a function of the inputs, not of the axes.
