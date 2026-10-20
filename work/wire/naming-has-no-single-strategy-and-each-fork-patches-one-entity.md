@@ -7,6 +7,9 @@ opened: 2026-10-20
 priority: P1
 cost: H
 design: true
+needs_ev: true
+pr: 5455
+branch: wire/ev-naming-strategy
 ---
 
 

@@ -6766,3 +6766,10 @@ Signed (WIRE orchestrator).
   - O found that the principle is ratified already, in Ev's words: DESIGN.md [intrinsic.contingent], 436489e58b, 2026-10-17. Naming is missing from its 'Instantiated in' list, and N4's agent-written invariant predates it and is looser.
   - Crossover round 1 sent on: the framing; the grammar (4 forms vs a 6-case ladder plus a type gate); checks P8 and the denotation verifier; the coincidence-row scope; the one-namer code-level cause.
   - Passed perturbations 7 (insertion history) and 8 (arena permutation, only if a helper exists) to wire-nameinv.
+
+- 2026-10-20 (WIRE orchestrator) FORK-NAMESTRATEGY converged in one round.
+  - The result is N0: five principles NS1–NS5, a four-form grammar (Carried, Merged, Met, Made), a check per principle, and no reversal of rows 158–179.
+  - The premise was checked: [intrinsic.contingent] is ratified (via [ev] 5230), and naming never instantiated it.
+  - [ev] PR 5455 adds N0, rewrites N4's invariant, and lists [identity] in [intrinsic]. Fork-log row 183.
+  - Open: whether a crossing's sense may read an edge's stored orientation; it waits on the arena-permutation check. The Placed question goes to D10.
+  - Subscribed.
