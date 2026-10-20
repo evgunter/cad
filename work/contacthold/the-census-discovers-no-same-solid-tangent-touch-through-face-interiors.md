@@ -5,8 +5,6 @@ title: One solid pinched along a tangent line through two faces' interiors passe
 status: open
 opened: 2026-10-12
 priority: P1
-design: true
-needs_ev: true
 ---
 
 
@@ -56,3 +54,11 @@ material-crescent pinch (plate ∖ a bore tangent to its face from
 inside): one face–face record, or two coincident cusp edges. That
 question is with Ev on the `[ev]` branch `contacthold/ev-pinch-crescent`,
 and it decides what this discovery reports for a material crescent.
+
+## Answered (Ev, `[ev]` PR 5395, 2026-10-20)
+
+The discovery reads sides. An unrecorded void pinch (the bridged rod)
+is `UnrecordedContact`. A material crescent along a line with no edges
+is the missing-edge defect, the op's (D1 tier 3's cusp edges; C4). At a
+point touch a crescent one solid shares with itself is legal. C2 states
+the discovery as owed.

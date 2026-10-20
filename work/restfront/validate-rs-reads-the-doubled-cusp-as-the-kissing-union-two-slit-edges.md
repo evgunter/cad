@@ -40,4 +40,5 @@ The same superseded reading is in CLEAVE's closed
 The bullet rewritten from D1 tier 3's current text: what tier 3 defers
 for coincident distinct edges, with no kissing-union example. If the
 pinch-crescent fork rules that a material pinch is two cusp edges, that
-is the bullet's example.
+is the bullet's example. It did (Ev, `[ev]` PR 5395, 2026-10-20): plate
+∖ a bore tangent to its face from inside is the example.

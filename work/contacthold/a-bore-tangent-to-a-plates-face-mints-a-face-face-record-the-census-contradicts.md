@@ -5,9 +5,7 @@ title: A plate minus a rod tangent to its face from inside mints a face–face r
 status: open
 opened: 2026-10-19
 priority: P2
-design: true
 refs: [a-two-carrier-face-pair-off-its-tangent-line-reads-contradicted-not-stale, an-at-rest-shared-crescent-reads-as-a-contradicted-contact-not-an-interference-finding, the-census-discovers-no-same-solid-tangent-touch-through-face-interiors]
-needs_ev: true
 ---
 
 Found by `contacthold/ff-divided-reads-stale` (the unit
@@ -95,3 +93,15 @@ solids, each ending in a cusp there. Either answer must handle it: the
 record form has to split the plate face and the bore wall at the
 record's locus, which that op never sectioned; the edge form already
 holds the cusp edges and only re-sorts. Not yet probed on main.
+
+## Answered (Ev, `[ev]` PR 5395, 2026-10-20)
+
+The edge form (option 2, refined). The final state is two coincident
+cusp edges, wedge 0, one per cusp, built at the glue decision, with no
+face–face row: the plate face carries them as a zero-area ring and the
+bore wall is cut along its ruling (D1 tier 3, C7). Interim (option 3):
+the op refuses typed, and so does a carry that lands a record whose
+crescent reads material (the mould). Built by
+`a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`;
+the interim is
+`a-material-crescent-face-face-record-refuses-typed-at-the-op-and-the-carry`.
