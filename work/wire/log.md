@@ -6681,3 +6681,8 @@ Signed (WIRE orchestrator).
   - wire-census2 (wire/census-tail; STYLE review), for the three P4 census rows, with Part kept on D10.
   - Triaged list-positions-… as P3 M.
   - The Transform-copy crossing tie waits on 5423.
+
+- 2026-10-20 (WIRE orchestrator) FORK-BLENDEMPTY: both designers converged on their first reports. The doors refuse an empty Edges selection through Select::fault, and BlendSelectionEmpty and the viewer's NoEdges go.
+  - The 'unfinished recipe' premise is agent text (e2985861f0); no flow grows a selection.
+  - No ratified text changes, so no [ev]. Each designer's optional doc sentence is left out.
+  - Build dispatched: wire-blend (wire/empty-blend-at-the-door; STYLE review). The fork-log row lands with the build PR, its A/B filled at merge.
