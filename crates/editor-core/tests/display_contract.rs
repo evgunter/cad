@@ -2465,8 +2465,7 @@ test_utils::f6_variants! {
         SeamVertexParentage,
         SeamVertexPartners,
         SharedRim,
-        MergedChord,
-        MergedChordOffRim,
+        ChordOffRim,
         MemberEdgeTied,
         ConventionalVertex,
         ClosedCarrierUnread,
@@ -2659,10 +2658,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["operand node 000000000017", "more than one edge"],
         ),
         (
-            NamingError::MergedChord { edge },
-            vec!["merged faces", "the join's own edge"],
-        ),
-        (
             NamingError::SeamVertexPartners {
                 vertex,
                 candidates: [3, 4]
@@ -2687,16 +2682,12 @@ fn naming_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            NamingError::MergedChordOffRim {
+            NamingError::ChordOffRim {
                 edge,
                 node: RecipeNodeId::new(0, tagged(29)),
-                rim: edge,
+                face: topo::FaceKey::default(),
             },
-            vec![
-                "one merged",
-                "operand node 00000000001d",
-                "within neither the rim",
-            ],
+            vec!["two pieces of face", "operand node 00000000001d"],
         ),
         (
             NamingError::ClosedCarrierUnread {

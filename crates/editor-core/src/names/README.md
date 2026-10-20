@@ -17,13 +17,86 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` (an edge its closing join made over several trims, rim trims or survivors `Merged`), `emit_shell.rs` (the shell: survivors `From` the target's read, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
 | N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
-| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, an `EdgeCrossing`'s run, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
+| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, an `EdgeCrossing`'s run, a seam's sides), and what ordering a seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 a recorded cell's read and name; the walk from them to the minting node | `crates/editor-core/src/coincide.rs` (`NamedCell`, `construction`) |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
 | Selectors, geometric filters, detect/declare | `select.rs`, `geompred.rs`, `flush.rs`; design in `docs/SELECT-DESIGN.md`, usage in `docs/guide/selecting.md` |
 
 ## Names
+
+**N0 — What a name is.** Naming instantiates `[intrinsic.contingent]`
+(`docs/DESIGN.md`): a name is decided by what matters to the entity, never by
+how the operation happened to compute it. N1–N5 are instances of N0; where a
+case has no rule, N0 decides it, and a lane derives the name rather than
+forking a question. Each principle names the check that holds it.
+
+- **NS1, what a name may read.** A name may read only:
+  - the operation's kind and its authored structure, up to the operation's
+    declared symmetries. Each operation says which inputs are a set and which
+    a sequence: union and intersect members, a seam's sides, `Merged`
+    constituents, `Borders` walls, `Ends` and an `EdgeCrossing`'s lines are
+    sets; a subtract's seats, loft sections, profile steps and a pattern's
+    index are sequences;
+  - the reads it takes, by minted identity (DM4), and the names in their
+    tables;
+  - the entity's descent from the kernel's birth records (D5);
+  - the verdicts that decided it. For a union these are the judged pairwise
+    verdicts, which are order-free (DM4), never a fold step's decision.
+
+  Nothing else: no order of any kind (fold, completion, pairing, insertion,
+  arena storage), no slot beyond the declared sequences, no frame, no value.
+  A *slot* is the position an input fills: a subtract's `from` and `tool`,
+  or a two-member union's first and second member. A sequence's slot means
+  something (what is cut from what), so a name may read it; a set's does not
+  (swapping a union's two members makes the same body), so a name may not.
+  List order is the same: a loft's sections are a sequence, a union's members
+  a set.
+  A set is spelled in name order, which is a spelling, never a choice.
+  *Check:* the table is unchanged, up to ties, under each of these: the
+  f64/Interval pin; a permutation of a set input; a frame change of a split
+  plane; a tilt within one topology; two separately authored identical
+  operands; a replay under a different edit history (up to the bijection of
+  minted ids); and an operand's arena storage permuted.
+- **NS2, one grammar, read off the finished body.** Every entity takes one of
+  four forms over its descent, and a new entity is named by placing it in
+  one:
+  - **Carried**: one input entity whole, `From { read, of }` or a
+    pass-through.
+  - **Merged**: it covers several input entities, `Merged(flat set)`.
+  - **Met**: it lies in no input entity of its own dimension, and arises
+    where input entities meet (`Seam`, `Crossing`, `EdgeCrossing`), spelled as
+    the set it is made of.
+  - **Made**: the operation builds it under a role its kind fixes (`Cap`,
+    `Band`, `Pole`, `BlendFace`, `Inner`, a profile `Piece`). The role's
+    arguments are names, reads, locators, verdict enums and integers the
+    author wrote, never a counter.
+
+  A form that does not tell an entity from its siblings takes a `Fragment`
+  qualifier (NS3). *Check:* one exhaustive map from each `RoleSeg` variant to
+  its form; and a denotation verifier, independent of the emitters, that
+  re-reads the finished body and the records and confirms what each name
+  claims.
+- **NS3, locality.** A name reads nothing outside the entity's closure (its
+  boundary and the lines it lies on) and its parents' closures. A qualifier
+  reads only the entity's own relation to its siblings: walls, kept edges,
+  ends, or a rank along a shared line, which is a recorded verdict. It never
+  reads how many siblings there are or which came first. *Check:* an
+  unrelated feature added elsewhere leaves every surviving entity's name.
+- **NS4, totality and identity.** Every live entity has exactly one name, and
+  distinct entities have distinct names. Two entities nothing covariant tells
+  apart are a tie (N4); two operands with identical tables are told apart by
+  their reads, never ordered or collapsed. A naming refusal on a legal body is
+  a defect, never a policy. *Check:* `check_total` and `NameTable::insert`,
+  and a coverage fuzzer over legal arrangements that admits no `Naming(*)`
+  refusal but `Escalated` and `Band`.
+- **NS5, complete records.** A name reads descent from the birth records and
+  never reconstructs it; a missing or wrong record is a kernel defect, fixed in
+  the kernel. *Check:* the D5 record validator, and the NS4 fuzzer.
+
+Coincidence rows are records, not names (REFERENCES DM4): their presence
+follows the decisions an evaluation took, and NS1 governs only what a name
+reads of them.
 
 **N1 — A stable name is a derivation path.** `StableName { kind, node, path }`:
 a runtime `EntityKind` (Body, Face, Edge, Vertex — bodies are first-class), the
@@ -420,7 +493,7 @@ resolves is offered every set listing that member edge.
 **A union's face is named for its PARENT.** Two member faces are linked when
 the pairwise judgement of their two members (DM4) merged or covered them:
 its two-member union merged the faces or held either face's region through
-the other (`BooleanNaming::merge_groups`, `BooleanNaming::covered`). A pair
+the other (`BooleanNaming::merge_groups`, `BooleanNaming::substituted`). A pair
 the judgement never brought together links nothing. Linking is
 transitive. The member faces so linked are one parent, named `Merged` of all of
 them, and a member face nothing links is its own parent. A parent is a set of
@@ -515,10 +588,9 @@ live entity is `NamingError::Unnamed`, and `NameTable::insert` refuses aliasing
 (`SeatingRefusal::KindMismatch`). The table is bidirectional (`lookup`,
 `name_of`), one per output variable (N1, the scope), read through that
 variable alone (`Evaluation::table`), and rides memo hits with the geometry;
-consumed entities have no row. The invariant CI pins: the table is a
-function of (recipe structure, structural parameters, predicate verdict vector)
-only — same recipe and same verdicts give an identical table at f64 and at
-Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
+consumed entities have no row. The invariant is N0's NS1: the table reads
+only what NS1 lists. CI pins one instance of it, that the same recipe and the
+same verdicts give an identical table at f64 and at Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
 `tests/lib_g16_corpus_name_digests.rs`). The kernel never sees a `StableName`;
 hit-testing (`resolve/hit.rs`) reads the table backwards, so the GUI never sees
 an arena key.

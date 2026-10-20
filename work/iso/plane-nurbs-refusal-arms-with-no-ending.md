@@ -42,3 +42,7 @@ Give `FootPointInconclusive` limb 1's decision, as `SsiError`'s does.
 Give `Unsupported` the not-yet ending. Make `refusal` exhaustive by
 variant, as `pcurve_cache::ssi_refusal` is, carrying the SSI ending
 where the lane has no arm of its own.
+
+## Evidence, 2026-10-20 (ENCL, `encl/one-culprit-chooser`)
+
+`PlaneNurbsRefusal::PcurveFit`'s `Display` ends in `KERNEL_OR_FILE_DEFECT_ENDING` (`crates/geom-brep/src/edge_nurbs.rs`, `impl Display for PlaneNurbsRefusal`) at every door, a build included. The one culprit chooser `geom_brep::recourse::culprit` names the kernel alone at a build: the interpolation is the kernel's own, over parameters the schedule fixes. When this arm gets a decision, its ending should read the chooser at the door (`Provenance::Derived`), not a constant in `Display`.

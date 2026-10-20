@@ -2,10 +2,11 @@
 id: census-passes-a-face-inside-an-edges-material-wedge
 kind: issue
 title: Tiers 3 and 3′ pass a face lying inside an edge's material wedge
-status: open
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
+closed: 2026-10-19
 ---
 
 Found by the keel design fork (`[ev]` PR 4795), measured on main
@@ -123,3 +124,45 @@ The check over coincident edges on one line, that their material
 sectors are disjoint, covers the tangent case too (sectors 0 and 2π,
 read at second order). Builder: CONTACTHOLD's
 `a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`.
+That half of the check is
+`tier-3-prime-reads-no-side-between-coincident-edges-on-one-line`'s.
+
+## Closed
+
+2026-10-19, branch `restread/face-in-edge-wedge`. Tier 3′ reads an edge
+lying in a face of its own solid for sides (`census.rs`
+`edge_in_own_face`, at every cell of pass 4's in-plane overlap that its
+bounds back): the edge's link against the face's, through the touch
+analysis's `rest::judge`. A crossing refuses `FaceThroughEdgeWedge`; a
+reading that does not decide refuses `FaceThroughEdgeWedgeUndecided`,
+naming why (`TouchUnread`). Arm 2 reads either as a touch inside one
+solid.
+
+- Pinned refusal: the keel in the floor, the slab less a wall-to-wall
+  V-trench built as one prism with the records its contacts need. The
+  Boolean's slit form of the three trenches and of the glued tip
+  subtracted with its records passes, and so does a ridge resting on
+  its own floor
+  (`crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`).
+- No shipped result refuses decided. Since the Boolean parts an edge
+  lying in a face (`topo::boolean::slit`, CLEAVE's
+  `a-boolean-builds-a-reflex-edge-lying-inside-a-face`), the results
+  that kept the keel-in-face form build the slit form or refuse
+  `EdgeInFace`, and measured on the merge none reaches tier 3′:
+  `a_vertex_read_by_two_sector_passes`, `union_flush_onto_edge_contact`,
+  `join1_r2_rand`, `join_pierce_runs_sweep` and
+  `near_tangent_pierce_poses` at ε = 1e-6 and 1e-12 carry no rider pin.
+- Refused undecided, a curved face of the edge's own
+  (`tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face`):
+  38 results of `a_pierce_held_in_a_curved_face`'s plane-face row and
+  two `rest_zip_admission` tests, presumably valid, each pinned by
+  run.
+- Refused undecided in band with no `CensusEscalated` beside it: pose
+  `Lbot nt e0 a12` at `d = −1e-9` (ε = 1e-9) and `d = −1e-6`
+  (ε = 1e-6), both orders of `prism ∪ cube`, which passed before;
+  pinned per ε as `near_tangent_pierce_poses`' `UNREADS`.
+- Out of this row: a face against a vertex's cone, where the literal
+  corollary refuses valid cavity corners
+  (`tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid`),
+  and coincident edges on one line at tier 3′
+  (`tier-3-prime-reads-no-side-between-coincident-edges-on-one-line`).
