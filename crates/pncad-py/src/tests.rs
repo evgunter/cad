@@ -5288,6 +5288,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "naming_error_tag",
         values: &[
             "carrier_unplaced",
+            "chord_off_rim",
             "closed_carrier_unread",
             "conventional_vertex",
             "duplicate",
@@ -5296,8 +5297,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "escalated",
             "kind_mismatch",
             "member_edge_tied",
-            "merged_chord",
-            "merged_chord_off_rim",
             "missing_upstream",
             "partner_unread",
             "seam_vertex_parentage",
