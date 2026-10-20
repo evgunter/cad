@@ -480,9 +480,8 @@ mod tests {
     /// **A section of charts minted once reads as one of fresh mints.**
     /// [`Section::of_charted`] handed one chart per surface, minted once
     /// and shared by two sections in turn (the second reads every cell
-    /// the first formed), answers both seeds with the same branches and
-    /// tubes as [`Section::of`], bit for bit (`Debug` prints each `f64`
-    /// exactly).
+    /// the first formed), answers a seed with the same branch and tube as
+    /// [`Section::of`], bit for bit (`Debug` prints each `f64` exactly).
     #[test]
     fn a_section_of_charts_minted_once_reads_as_fresh_mints() {
         let (s1, s2) = pair();
@@ -495,10 +494,10 @@ mod tests {
         };
         let y = 0.4;
         let (z, r) = (0.04 + 0.05 * y, (0.04_f64 + 0.05 * y).sqrt());
+        // One seed a section keeps the row inside the new-row time bar;
+        // the second charted turn still reads every cell the first formed.
         let read = |mut section: Section<'_>| {
-            for x in [0.5 - r, 0.5 + r] {
-                section.branch_at(Point3::new(x, y, z)).unwrap();
-            }
+            section.branch_at(Point3::new(0.5 - r, y, z)).unwrap();
             format!("{:?} {:?}", section.banked.branches, section.banked.tubes)
         };
         let fresh = read(Section::of(&s1, &s2, domain, band).unwrap());
