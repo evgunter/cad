@@ -1686,3 +1686,29 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Notes added to iso `plane-nurbs-not-transverse…` (half fixed), ssimarch, and restfront `validate-window-leads…` (`classify_certify` is a hand-written second telling; sweep it as a class).
   - A container restart mid-fix-pass was resumed without loss.
   (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5451**, a cross-program main-red fix. `geom curves::tests::ellipse_constructor_trios` had been red on main since GERM's 53967a14d2 (bisected; it fails at opt-level 0 and 1 alike). The commit added `EllipseInvalid::SemiAxisNotFinite`, but the test row still expected a NaN minor to escalate; the row now expects the typed refusal. GERM had handed its track back (PR 5445), so ENCL fixed it because PR 5447 was red on it. `crates/geom` is CURVED ground, and the change touches a test row only. (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5447** (`a-certify-checks-word-and-its-definite-payload-name-one-decision-apart`, closed).
+  - Each sized certify check's word, size, lever and definite payload now speak one noun.
+  - The nouns are composed from `concat!` macros at the top of `certify.rs` (`length_noun!`, `arc_noun!`, `crossing_angle!`, `curvature_difference!`, …).
+  - The noun per check:
+
+    | Check | Noun |
+    |---|---|
+    | ParamSpan / ImageSpan | length |
+    | ParamWinding | the arc's headroom to a full turn (size "arc") |
+    | ParamSpanMeter | a lower bound on length |
+    | Transversality / tube | the crossing angle |
+    | TangentSecondOrder / tube | the curvature difference |
+
+  - On the analytic lane, metres-of-angle payloads say ", levered by the arm it is read over".
+  - `each_decision_is_told_in_one_noun` pins the literals, the word ⊇ size relation and the payload noun.
+  - **Review:** no MAJOR. The fix pass fixed:
+    - the arc/headroom split;
+    - several homes per noun;
+    - the unpinned ImageSpan word;
+    - the SSI label;
+    - the `SPAN_METER` phrase;
+    - `QUANTITY_WORDS`.
+  - **Not covered by "one home":** topo `certify_undecided` (noted on the restfront row); PcurveCheck words (pctail); `MATERIAL_PAIRING` and `RecutAlign` lever/size splits (listed in the PR body).
+  - **Filed:** ssiedge `the-tube-limbs-undecided-arm-names-a-limb-not-its-crossing-angle-bound`.
+  (ENCL orchestrator)

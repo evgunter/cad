@@ -37,3 +37,14 @@ PR 5157 merged the geom-brep side: zero-arm payloads now read "not shown …" wi
 - `classify_certify` (`crates/topo/src/validate.rs` ~2908-2930) still reads "its faces are tangent where its description says they cross" for `CertifyError::NotTransverse` and `PlaneNurbs(P::NotTransverse)` on a Zero verdict. Its recourse then offers to tighten the tolerance below the margin, so the lead says the faces are tangent while the ending says a smaller tolerance may show them cross. `validate::tests` pins the row ~16810 (`says(CertifyError::NotTransverse { lever: None, sample: 4, verdict: zero(5.0e-10) })`). Since PR 5437, `PlaneNurbsRefusal::NotTransverse` renders certification's own sentence ("the faces are not shown to cross (margin … m …)"), so the two lanes' payloads agree and this lead disagrees with both.
 - This is a class, not one instance. Each of `classify_certify`'s at-rest reasons is a second hand-written telling of a decision whose payload certify already writes: every span decision (`IntervalNotForward`, `WindingExceeded`, `StatedInterval`, `SpanMeterCollapsed`) and every transversality decision (`NotTransverse`, `ArmCollapsed`, `NotSecondOrderSeparated`, `TubeNotSeparated`). Sweep the whole `let why = match e`. Compose each reason from the decision's own sentence or clause, as `ArmCollapsed` already composes `dihedral_arm_clause!`, and do not re-word them one at a time.
 - The hedge word differs between the doors too. On a Zero verdict, certify says "not shown {clause}" (`CertifyError::ArmCollapsed`). Topo's check 4 (`ValidationError::NoDihedralArm`) and `classify_certify`'s `ArmCollapsed` lead say "is not {clause}".
+
+## Noted 2026-10-20 (ENCL, `encl/check-word-one-noun`)
+
+The undecided arm has the same second telling: `certify_undecided` (`crates/topo/src/validate.rs`) words each check's escalation by hand, and only the two span reasons say their check word's quantity ("its length", "its image's length"). The rest name the decision another way than certify's check words (`CertCheck`'s `Display`, `crates/geom-brep/src/certify.rs`):
+
+- `ParamWinding`: "whether its arc stays short of a full turn". It shares the size "arc", but the word is "the stored arc's headroom to one full turn of its carrier".
+- `ParamSpanMeter`: "whether its spline has a measurable length". The word is "the lower bound on the spline carrier's length from its metered knot domain".
+- `Transversality` and `TransversalityTube`: "its faces meet too nearly tangentially". The words are "the crossing angle" and "the uniqueness tube's lower bound on the crossing angle".
+- `TangentSecondOrder` and `TangentTube`: "its faces curve apart too little". The words are "the curvature difference" and "the second-order tube's lower bound on the curvature difference".
+
+Fold them into the same sweep.

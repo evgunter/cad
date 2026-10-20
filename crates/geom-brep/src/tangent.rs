@@ -43,7 +43,7 @@ pub struct TangentJet<T: Real> {
     /// At a tangency `d̂` lies in both tangent planes and each `κᵢ` is
     /// that surface's normal curvature along it, signed against the
     /// shared normal: its magnitude bounded away from zero is the
-    /// second-order margin, its collapse means the surfaces
+    /// curvature difference, its collapse means the surfaces
     /// under-determine the locus. Off a tangency `d̂` is not tangent
     /// to the second surface and `κ₂` is a Hessian form that depends
     /// on the implicit's normalisation, not a curvature; it stays
