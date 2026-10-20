@@ -13,7 +13,8 @@
 //!   (`CarrierOffChart`);
 //! - a circle ⊥ the axis through the tube's crest, centred off the
 //!   axis, which the incidence test reads on the torus while it is no
-//!   circle of it (`CarrierGrazesChart`);
+//!   circle of it: its general lane on a torus is not written yet, so it
+//!   refuses lever-only "not yet" (`GeneralLaneUnwritten`, D3);
 //! - a straight line, which no torus holds (`CarrierOffChart`).
 //!
 //! Adopted from PCERT reviewer R2's probes on PR 3759.
@@ -21,7 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, Grazer, Pcurve, PcurveCache, PcurveCertifyError};
+use geom_brep::{EdgeCurveSpec, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
@@ -161,22 +162,10 @@ fn verdicts(
     (findings, mint, body)
 }
 
-fn grazes(e: &PcurveMintError) -> bool {
-    matches!(
-        e,
-        PcurveMintError::Certify {
-            error: PcurveCertifyError::CarrierGrazesChart {
-                grazer: Grazer::TorusCircle,
-                ..
-            },
-            ..
-        }
-    )
-}
-
 /// **Each strut alone is refused by its own class**, at whichever
 /// corner it stands: the oblique circle and the line are off the torus,
-/// and the crest circle grazes it. Tier 3 names the strut and the mint
+/// and the crest circle, on it but none of its circles, has no general
+/// lane yet. Tier 3 names the strut and the mint
 /// refuses with it; none is excused.
 #[test]
 fn each_strut_alone_is_refused_by_its_own_class() {
@@ -206,13 +195,22 @@ fn each_strut_alone_is_refused_by_its_own_class() {
         .expect("the wall has a corner on the tube's crest");
     let p = start_point(&body, crest);
     arc_strut(&mut body, crest, crest_circle_through(p), 0.2);
+    let unwritten = |e: &PcurveMintError| {
+        matches!(
+            e,
+            PcurveMintError::Certify {
+                error: PcurveCertifyError::GeneralLaneUnwritten { .. },
+                ..
+            }
+        )
+    };
     let f = validate_pcurves(&body, band());
     assert!(
-        matches!(f.as_slice(), [e] if grazes(e)),
+        matches!(f.as_slice(), [e] if unwritten(e)),
         "crest circle: {f:?}"
     );
     let m = topo::mint_pcurves_of(&mut body, &[wall], tol());
-    assert!(matches!(&m, Err(e) if grazes(e)), "crest circle: {m:?}");
+    assert!(matches!(&m, Err(e) if unwritten(e)), "crest circle: {m:?}");
 }
 
 /// **A stale wide row is refused, complete or half-minted.** On a

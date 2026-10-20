@@ -48,10 +48,10 @@
 //!   Villarceau circle take their exact focal-section image
 //!   ([`geom_brep::Pcurve::FocalSection`]). Every carrier that can lie
 //!   on an analytic chart has one of these routes. A carrier that
-//!   cannot lie on its face ([`PcurveCertifyError::CarrierOffChart`]),
-//!   or that grazes a cone or torus as none of its circles
-//!   ([`PcurveCertifyError::CarrierGrazesChart`]), is a defect, and the
-//!   pass refuses with it.
+//!   cannot lie on its face ([`PcurveCertifyError::CarrierOffChart`])
+//!   is refused. A circle on a cone or torus that is none of its circles,
+//!   or whose class reading is in band, takes the general (projected)
+//!   lane (D3's lane choice).
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
 //!   rims map through the chart's own rational-quadratic parameter

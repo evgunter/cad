@@ -1937,7 +1937,9 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
                     fuzz::replay()
                 );
             }
-            Err(PcurveCertifyError::CarrierGrazesChart { .. }) => answers[2] += 1,
+            // On the torus but none of its circles: its general lane is
+            // not written yet (D3).
+            Err(PcurveCertifyError::GeneralLaneUnwritten { .. }) => answers[2] += 1,
             Err(PcurveCertifyError::Escalated { .. }) => answers[3] += 1,
             Err(other) => panic!(
                 "{}: refused untyped for this arm: {other} — {}",
@@ -1947,7 +1949,7 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
         }
     }
     println!(
-        "[fuzz] envelope_lemma::moved_villarceau: {} minted, {} off, {} grazing, {} escalated",
+        "[fuzz] envelope_lemma::moved_villarceau: {} minted, {} off, {} no lane yet, {} escalated",
         answers[0], answers[1], answers[2], answers[3]
     );
 }

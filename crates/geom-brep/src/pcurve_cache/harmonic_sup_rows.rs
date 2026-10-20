@@ -644,14 +644,16 @@ fn projected_circle_an_off_sphere_pair_reads_once() {
 
 /// The axial class gates read the tilt at its exact sup, so a tilt in
 /// `[escalate/√2, escalate)`, which the sum read past `escalate`, is
-/// now in the band and escalates at the gate: a sphere parallel and a
-/// cone rim, which the sum sent to the general-circle arm's incidence
-/// escalation, and a torus parallel, which it sent to the oblique arm's
-/// `CarrierGrazesChart { TorusCircle }`. The gate decides first, and
-/// reaching the torus's typed refusal from here would decide the class
-/// on an in-band margin.
+/// in the band at the gate: a sphere parallel, a cone rim and a torus
+/// parallel. A class reading in band is a lane choice not shown (D3), so
+/// no class is decided on the in-band margin. These tilted circles also
+/// leave their charts at first order, so the incidence test, read before
+/// any lane, escalates on its own (the sphere's and cone's here), or the
+/// class gate escalates lever-only "not yet" where it is reached (a
+/// circle's general lane on a torus is not written yet). An on-chart
+/// circle's general lane is `an_in_band_class_on_the_sphere_takes_the_projected_lane`'s.
 #[test]
-fn a_tilt_in_the_band_escalates_its_class_gate() {
+fn a_tilt_in_the_band_decides_no_class() {
     let (center, axis, u_ref) = z_frame();
     let half_angle: f64 = 0.45;
     let cone = Surface::Cone {
@@ -689,11 +691,11 @@ fn a_tilt_in_the_band_escalates_its_class_gate() {
             matches!(
                 got,
                 Err(PcurveCertifyError::Escalated {
-                    check: PcurveCheck::ChartWinding,
+                    check: PcurveCheck::ChartClass | PcurveCheck::ChartIncidence,
                     ..
                 })
             ),
-            "{what}: a tilt of 0.8·escalate escalates its class gate: {got:?}"
+            "{what}: a tilt of 0.8·escalate decides no class: {got:?}"
         );
     }
 }

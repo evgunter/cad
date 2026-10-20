@@ -16,7 +16,7 @@
 use crate::shared::surf::off_cone;
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
-use geom_brep::{Grazer, Pcurve, PcurveCertifyError, chart_pcurve};
+use geom_brep::{Pcurve, PcurveCertifyError, chart_pcurve};
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Point3, Real, Tol, Vec3};
 
@@ -187,15 +187,9 @@ fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
                 centre.x
             );
             assert!(
-                matches!(
-                    got,
-                    Err(PcurveCertifyError::CarrierGrazesChart {
-                        grazer: Grazer::ConeCircle,
-                        ..
-                    })
-                ),
-                "alpha = {alpha}: an on-cone circle that is no rim grazes the chart, never off \
-                 it: {got:?}"
+                matches!(got, Err(PcurveCertifyError::GeneralLaneUnwritten { .. })),
+                "alpha = {alpha}: an on-cone circle that is no rim refuses not yet (its general \
+                 lane is unwritten), never off the chart: {got:?}"
             );
         }
     }

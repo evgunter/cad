@@ -12,7 +12,7 @@ use crate::shared::tol::{band, eps};
 use core::f64::consts::TAU;
 use geom::{Curve3, Surface};
 use geom_brep::{
-    CERT_SAMPLES, EnvelopeStatement, FocalImage, Grazer, Pcurve, PcurveCache, PcurveCertifyError,
+    CERT_SAMPLES, EnvelopeStatement, FocalImage, Pcurve, PcurveCache, PcurveCertifyError,
     PcurveCheck, chart_pcurve, chart_pcurve_over,
 };
 use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
@@ -421,17 +421,10 @@ fn a_grazing_circle_refuses_and_a_moved_villarceau_circle_is_off_the_chart() {
     assert!(off_torus(&crest) < 0.5 * eps(), "the crest circle grazes");
     let got = chart_pcurve(&crest, &surface, band());
     assert!(
-        matches!(
-            got,
-            Err(PcurveCertifyError::CarrierGrazesChart {
-                grazer: Grazer::TorusCircle,
-                ..
-            })
-        ),
-        "a crest circle centred off the axis grazes the torus: {got:?}"
+        matches!(got, Err(PcurveCertifyError::GeneralLaneUnwritten { .. })),
+        "a crest circle centred off the axis, on the torus within the band, is none of its \
+         circles, and its general lane is not written yet on a torus: {got:?}"
     );
-    let msg = got.unwrap_err().to_string();
-    assert!(msg.contains("Recourse: state the crest parallel"), "{msg}");
 
     let Curve3::Circle {
         center: c,
@@ -679,12 +672,15 @@ fn the_tube_rate_gate_refuses_typed_and_a_swept_tube_is_no_image() {
 /// read on the torus by the incidence test, at either phase of its pinch
 /// against the 64 samples, and the gates escalate on
 /// `pcurve_torus_villarceau_plane`. Moved `3e-8`, with the pinch on a
-/// sample, it is read on the torus with the plane gate past the band and
-/// refused as grazing it. This is the Villarceau ladder's undecided arm
-/// read through `chart_pcurve`: a ladder that read an in-band gate as
-/// Zero would image the circle.
+/// sample, it is read on the torus with the plane gate past the band.
+/// Either way the Villarceau class is not shown, a lane choice (D3), and
+/// a circle's general lane on a torus is not written yet, so it refuses
+/// lever-only "not yet" (`ChartClass`): escalating on the plane gate in
+/// band, and as `GeneralLaneUnwritten` past it. Never the focal
+/// section: a ladder that read an in-band gate as Zero would image it as
+/// the Villarceau circle it is not shown to be.
 #[test]
-fn a_plane_gate_in_band_near_the_horn_escalates_on_it() {
+fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane() {
     let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
     let big = 2.0;
     let r = big - 1e-6;
@@ -717,7 +713,7 @@ fn a_plane_gate_in_band_near_the_horn_escalates_on_it() {
             if !matches!(
                 &got,
                 Err(PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::ChartIncidence,
+                    check: geom_brep::PcurveCheck::ChartClass,
                     cause: geom_core::Indeterminate {
                         predicate: Some("pcurve_torus_villarceau_plane"),
                         ..
@@ -730,13 +726,7 @@ fn a_plane_gate_in_band_near_the_horn_escalates_on_it() {
         }
     }
     let got = chart_pcurve(&moved(3e-8, 0.0), &surface, band);
-    if !matches!(
-        got,
-        Err(PcurveCertifyError::CarrierGrazesChart {
-            grazer: Grazer::TorusCircle,
-            ..
-        })
-    ) {
+    if !matches!(got, Err(PcurveCertifyError::GeneralLaneUnwritten { .. })) {
         wrong.push(format!("moved 3e-8: {got:?}"));
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
