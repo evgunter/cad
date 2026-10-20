@@ -1058,6 +1058,11 @@ suits the slot.
   profile's plane) or a point and a heading (a revolve's axis line),
   never a frame. A loft reads its sections and, for each after the
   first, a station: slides and spins in the first section's own axes.
+- *Spaces:* `Space`, a coordinate system ([placement.spaces]),
+  defined by a construction that reads no body (the coordinates it is
+  written in) or by a space node, which reads nothing and in which
+  nothing is built, and read only by a placement, as its source and as
+  the space it places into. A `Space` holds no pose and no value.
 - *Selections* of a shape: one cell of a body (`Face`, `Edge`,
   `Vertex`), or the set of them a reader takes (`Faces`, `Edges`; a
   set kind exists only for a slot that reads one).
@@ -1205,7 +1210,10 @@ at several positions is one body placed several times, each placement
 a copy.
 
 **Spaces.** `[placement.spaces]` A **space** is a coordinate system:
-the coordinates a construction is written in, or the world. A body is
+the coordinates a construction is written in, or a space nothing is
+built in, whose content is what is placed into it, of which the world
+is the one every document holds and cannot delete. Each is a `Space`
+variable, and only placements read one. A body is
 in exactly one space, decided from what it reads: a construction is in
 its own, a copy is in the space its placement places it into, and a
 body an operation builds is in the space of the bodies it reads, so an
@@ -1221,8 +1229,8 @@ the product.
 
 **A placement** `[placement.placement]` is an operation reading a
 **source** — a space, or a space of another document (an instance) —
-and a bundle of constraints, mates and values, and placing the
-source's content into a space under the one rigid motion its
+the space it places into, and a bundle of constraints, mates and
+values, and placing the source's content into that space under the one rigid motion its
 constraints state. It places a copy of each of the source's carried
 bodies into that space, and carries every pose of the source as the
 copy carries it and the source's at-rest decisions about those bodies,
@@ -1286,7 +1294,10 @@ freedoms the mates leave. Those axes are the target space's own where
 no mate fixes a direction, and the target's swung onto the direction
 where one does, so a slide a plane mate leaves runs in that plane
 however the plane is tilted. Where the mates fix a direction (a plane's
-normal, an axis, a lone direction), each of the two spaces' axes is swung
+normal, an axis, a lone direction; a bundle holds at most one mate
+fixing a direction, since a second would state the angle between
+them, an equation the first already fixes, so its values have one
+chart and a value names no mate), each of the two spaces' axes is swung
 onto it by the shortest turn carrying its own z to the mated
 direction, the half-turn about its own x where that direction is its
 own −z, so a mate between axis-aligned poses has an axis-aligned zero
@@ -1310,10 +1321,14 @@ which has no mate is the identity, and the façade writes the constant
 reader of a source's own coordinates, and reads them only through the
 freedoms its mates leave.
 
-**The world** `[placement.world]` is one undeletable space. It
-defines no pose variable, so only placements (as the space a source is
-placed into, or through a mate's target) and export read it, and
-construction never does. The **product** is the world's carried
+**The world** `[placement.world]` is one undeletable space nothing is
+built in. It defines one variable, its space, and no pose: a
+placement reads it as a source or as the space it places into, a mate
+reads its roles (its origin, an axis, a coordinate plane), and
+construction never reads it. Export and the viewer's drawing compose
+a body into the coordinates of a space it reaches, the world's or
+any other shown space's, through one door that nothing else calls,
+and what they produce never re-enters the model. The **product** is the world's carried
 bodies. One document's world, or any other space of it, enters another
 document as the source of a placement there, which is an instance.
 
