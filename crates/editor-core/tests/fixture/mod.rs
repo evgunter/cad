@@ -1731,7 +1731,7 @@ impl Recorder {
         self.evaluated();
         let ev = self.last.as_ref().expect("just evaluated");
         let stood = editor_core::stand_in(&self.doc, ev, &read)
-            .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
+            .unwrap_or_else(|refusal| panic!("the copy stands where its body stands: {refusal}"));
         let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
         self.write(placement, stood);
         placement

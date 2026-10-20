@@ -880,9 +880,9 @@ pub enum SplitError {
     /// The cut names the world, which every document holds: the part
     /// has its own, and the remainder keeps this one.
     CutsTheWorld,
-    /// The instance left in the remainder offers no geometry to stand
-    /// it where its part's world stands ([`crate::mate::stand`]): its
-    /// part evaluated to no body, or to one with no face to read.
+    /// The instance left in the remainder cannot stand where its part's
+    /// world stands ([`crate::mate::stand`]): its part evaluated to no
+    /// body.
     InstanceUnstood,
     /// The new document's identity collides with the document being
     /// split or with a document the cut nodes reference — the new id
@@ -1067,8 +1067,8 @@ impl core::fmt::Display for SplitError {
             ),
             Self::InstanceUnstood => write!(
                 f,
-                "split: the part evaluates to no body with a face to stand its instance on, so \
-                 the instance cannot be placed where the cut stood. {}",
+                "split: the part evaluates to no body, so its instance cannot stand where the cut \
+                 stood. {}",
                 Recourse("cut placements whose copies evaluate to a body")
             ),
             Self::UnknownCutNode { id } => write!(

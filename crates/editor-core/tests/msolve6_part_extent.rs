@@ -1070,7 +1070,7 @@ fn a6_a_split_pins_its_instance_where_it_stands_and_refuses_without_a_resolver()
     );
     assert!(
         matches!(split(None), Err(editor_core::SplitError::InstanceUnstood)),
-        "with no resolver the part offers no geometry to stand its instance on"
+        "with no resolver the part evaluates to no body, so its instance cannot stand"
     );
 }
 

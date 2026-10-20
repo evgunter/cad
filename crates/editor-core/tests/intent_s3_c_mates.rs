@@ -1450,16 +1450,16 @@ fn a_box_of_height_standing(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// **A copy stands where its body stands, at every value.** A box whose
-/// height is a variable, its copy standing on its start cap (a face no
-/// variable reaches): the copy is in the world and placed by no map at
-/// the nominal, at another value, and under an interval box over the
-/// height (a tenth of ε wide, so the body itself certifies), where a pin
-/// read off a face the height reaches would carry the height's width
+/// height is a variable, its copy standing by the identity bundle, which
+/// reads nothing of the copy: the copy is in the world and placed by no
+/// map at the nominal, at another value, and under an interval box over
+/// the height (a tenth of ε wide, so the body itself certifies), where a
+/// pin read off a face the height reaches would carry the height's width
 /// into the copy.
 ///
-/// *Breaks if* the stand reads a face the height reaches or a number
-/// (a map would appear under the box), or places the copy anywhere but
-/// the world.
+/// *Breaks if* the stand reads the copy's geometry or a number (a map
+/// would appear under the box), or places the copy anywhere but the
+/// world.
 #[test]
 fn a_copy_stands_where_its_body_stands_at_every_value() {
     for nominal in [1.0, 2.5] {

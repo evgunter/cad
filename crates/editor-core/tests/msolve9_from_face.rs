@@ -659,11 +659,11 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
             new_pin: new_ref.pin,
         },
     );
-    // The post's own stand was read off a face the extrude had: the
+    // The post's own pin was read off a face the extrude had: the
     // author re-pins the round post over its own geometry, so what
-    // remains unresolved is the seat's face alone. Its stand is one
-    // mate and the values on its freedoms: the values go first, then
-    // the mate they are read in.
+    // remains unresolved is the seat's face alone. Its pin is one mate
+    // and the values on its freedoms: the values go first, then the
+    // mate they are read in.
     let bundle = fixture::bundle(&doc, s.post_i);
     assert_eq!(
         bundle.iter().filter(|c| c.mate().is_some()).count(),

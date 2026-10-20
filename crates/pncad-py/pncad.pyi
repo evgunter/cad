@@ -6582,9 +6582,9 @@ def split(
     (`severed_edge`). A part delivers only its world: the cut's world
     placements are the part's, and the remainder holds ONE instance of
     the part stood where its world stands (the kernel's `stand`), so
-    its copies stand where the cut's did; a part that offers no face to
-    stand it on refuses `instance_unstood`. A remainder read of the cut crosses only where
-    the instance's copies carry what it reads, re-pointed to that copy
+    its copies stand where the cut's did; a part that evaluates to no
+    body refuses `instance_unstood`. A remainder read of the cut crosses
+    only where the instance's copies carry what it reads, re-pointed to that copy
     of the instance; any other is severed (`severed_edge`,
     `remainder_read_uncarried`), as is a name reaching material the
     part's world does not hold once (`name_outside_part_world`). Pure —
