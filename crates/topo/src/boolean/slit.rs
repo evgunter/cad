@@ -59,8 +59,9 @@ use crate::live::proven;
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names
 /// this rung; the disposition table cites this paragraph as its home).
-/// Every case but one is a construction gap with no lever, and
-/// [`EdgeInFaceGap::Crossed`] is a kernel defect: nothing a person does
+/// Every case but two is a construction gap with no lever, and
+/// [`EdgeInFaceGap::Crossed`] and [`EdgeInFaceGap::TwinIncident`] are
+/// kernel defects: nothing a person does
 /// differs by case, and the refusal's sentence names it. A Rust caller
 /// can already name and match it, since `pncad` re-exports `topo`
 /// whole.
@@ -108,6 +109,11 @@ pub enum EdgeInFaceGap {
     /// face: the face crosses the edge's material, which no Boolean
     /// result holds. A kernel defect.
     Crossed,
+    /// A cell the parting minted, the edge's twin or a divided end's
+    /// copy, is incident to the cell a record of its original names, so
+    /// the twin cannot hold the record. The parting never makes that: a
+    /// kernel defect.
+    TwinIncident,
 }
 
 impl EdgeInFaceGap {
@@ -139,6 +145,10 @@ impl EdgeInFaceGap {
             Self::Pocket => "both ends of the edge lie on one hole of the face",
             Self::Recorded => "a contact record names the face the parting would divide",
             Self::Crossed => "the edge's faces leave the line on opposite sides of the face",
+            Self::TwinIncident => {
+                "a cell the parting minted is incident to the cell a record of its original \
+                 names"
+            }
         }
     }
 }
@@ -194,7 +204,7 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
     let mut dropped: BTreeSet<[Cell; 2]> = BTreeSet::new();
     // Each parted edge and divided end, and its twin: every contact the
     // one holds the other holds too, at one point or along one line.
-    let mut twins: Vec<(Cell, Cell)> = Vec::new();
+    let mut twins: Vec<(Cell, Cell, EdgeKey, FaceKey)> = Vec::new();
     let mut divided: BTreeSet<FaceKey> = BTreeSet::new();
     // Read again after each parting: a parting that divides a face
     // gives one of its pieces a new key, which a later edge lying in
@@ -254,12 +264,12 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         for c in [Cell::Vertex(a), Cell::Vertex(b), Cell::Edge(edge)] {
             dropped.insert([c, Cell::Face(face)]);
         }
-        twins.push((Cell::Edge(edge), Cell::Edge(p.parted.minted)));
+        twins.push((Cell::Edge(edge), Cell::Edge(p.parted.minted), edge, face));
         twins.extend(
             p.parted
                 .copies
                 .iter()
-                .map(|&(copy, of)| (Cell::Vertex(of), Cell::Vertex(copy))),
+                .map(|&(copy, of)| (Cell::Vertex(of), Cell::Vertex(copy), edge, face)),
         );
         if p.parted.divided.is_some() {
             divided.insert(face);
@@ -298,7 +308,7 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
             });
         }
         kept.push(Cited::new(row.record, row.cites.clone()));
-        for &(of, twin) in &twins {
+        for &(of, twin, edge, face) in &twins {
             let Some(k) = cells.iter().position(|&c| c == of) else {
                 continue;
             };
@@ -310,8 +320,10 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
             // the other cell nor incident to it, and a refusal here is
             // the parting's own defect.
             let contact =
-                Contact::new(body, twin, cells[1 - k]).map_err(|_| BooleanError::JoinDesync {
-                    what: "a parted cell's twin is incident to the cell its record names",
+                Contact::new(body, twin, cells[1 - k]).map_err(|_| BooleanError::EdgeInFace {
+                    edge,
+                    face,
+                    gap: EdgeInFaceGap::TwinIncident,
                 })?;
             kept.push(Cited::new(contact, row.cites.clone()));
         }
@@ -531,11 +543,15 @@ fn walls_inside<T: Decide>(
                     // (outward normals opposed), its material is across
                     // the plane from the floor's, and the edge keeps one
                     // edge, as D1 says; facing as the floor does, it
-                    // would lie over the floor's own sheet.
+                    // would lie over the floor's own sheet. The two unit
+                    // normals' cosine is levered at the wall's reach, as
+                    // its side was, so the reading is in metres: how far
+                    // the wall's normal, carried across the wall, stands
+                    // off the floor's.
                     geom::Surface::Plane { .. } => {
                         match crate::validate::decide_nonzero(
                             "bool_rider_wall_coplanar",
-                            Margin::of(normal.dot(floor)),
+                            Margin::levered(normal.dot(floor), arm),
                             band,
                         )
                         .map_err(sectors)?

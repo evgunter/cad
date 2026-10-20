@@ -3680,8 +3680,9 @@ pub enum BooleanError {
     /// An edge of the result lies in one of its own faces, and the
     /// material parts it into two edges, face | wall each
     /// ([`EdgeInFaceGap`]): a parting the kernel does not build there,
-    /// or ([`EdgeInFaceGap::Crossed`]) a face crossing the edge's
-    /// material, which is the kernel's own defect.
+    /// or ([`EdgeInFaceGap::Crossed`], [`EdgeInFaceGap::TwinIncident`]) a
+    /// face crossing the edge's material or a parting that left a record
+    /// it cannot hold, which are the kernel's own defects.
     EdgeInFace {
         /// The edge, in the result's keys.
         edge: crate::entity::EdgeKey,
@@ -4992,7 +4993,7 @@ impl core::fmt::Display for BooleanError {
             Self::EdgeInFace {
                 edge,
                 face,
-                gap: gap @ EdgeInFaceGap::Crossed,
+                gap: gap @ (EdgeInFaceGap::Crossed | EdgeInFaceGap::TwinIncident),
             } => write!(
                 f,
                 "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
@@ -5820,8 +5821,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             band,
             &mut covered,
             &mut held,
-        )
-        .map_err(|e| slit_line_refusal(e, &tips))?;
+        )?;
         let sector_read = (records.clone(), raw.clone());
         let mut touched = Vec::new();
         recl::recl_edges(
@@ -5837,8 +5837,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &recl::Reversed::default(),
             held_faces(&touches, c),
             &mut touched,
-        )
-        .map_err(|e| slit_line_refusal(e, &tips))?;
+            &tips,
+        )?;
         line_touches.extend(touched.into_iter().map(|he| (i, he)));
         classified.push((c, a_sectors, b_sectors, records, raw, sector_read));
     }
@@ -5954,8 +5954,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &reversed,
             held_faces(&touches, vv[i].record),
             &mut retouched,
-        )
-        .map_err(|e| slit_line_refusal(e, &tips))?;
+            &tips,
+        )?;
         // A reversal moves a germ between flankers, after the touch is
         // read: the pass reads the touches the first did.
         let first = line_touches
@@ -6066,30 +6066,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         tangent_lines: declared.verified.lines.clone(),
         pending,
     })
-}
-
-/// [`BooleanError::CrossingsAlongAContactLine`] at a vertex pair where
-/// one operand's vertex is the tip of its own slit or zero-area ring
-/// ([`sectors::SlitTips`]), retyped [`BooleanError::SlitLineCrossed`]:
-/// the contact line is the operand's slit, which no piece of it makes,
-/// so the refusal's recourse names nothing. Every other error is
-/// returned as it is.
-fn slit_line_refusal(e: BooleanError, tips: &[sectors::SlitTips; 2]) -> BooleanError {
-    let BooleanError::CrossingsAlongAContactLine { a_vertex, b_vertex } = e else {
-        return e;
-    };
-    [(Operand::A, a_vertex), (Operand::B, b_vertex)]
-        .into_iter()
-        .find_map(|(operand, vertex)| {
-            tips[usize::from(operand == Operand::B)]
-                .face_at(vertex)
-                .map(|face| BooleanError::SlitLineCrossed {
-                    operand,
-                    vertex,
-                    face,
-                })
-        })
-        .unwrap_or(e)
 }
 
 /// **The reduction's edge-edge rows**: for each touch the

@@ -308,6 +308,12 @@ impl SlitTips {
         self.0.contains(&(vertex, face))
     }
 
+    /// Tips named outright, for a unit row that has no body to read.
+    #[cfg(test)]
+    pub(super) fn of_pairs(pairs: impl IntoIterator<Item = (VertexKey, FaceKey)>) -> Self {
+        Self(pairs.into_iter().collect())
+    }
+
     /// The face carrying a slit `vertex` is the tip of, if it is one.
     pub(super) fn face_at(&self, vertex: VertexKey) -> Option<FaceKey> {
         self.0.iter().find(|(v, _)| *v == vertex).map(|&(_, f)| f)

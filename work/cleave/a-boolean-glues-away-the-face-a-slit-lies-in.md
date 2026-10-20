@@ -31,7 +31,12 @@ The probe is the slab `[0, 4]² × [0, 1]` less the trench of
 | one end | v14 e21 f9 | `LineWedges` Overlap (a two-edge zero-area face on the keel) |
 | wall to wall | v14 e21 f9 | `LineWedges` Overlap |
 
-This predates PR 5380 for slit operands. The split's side holding the
+Wall to wall, the join still builds the two-edge face of no area on the
+keel, and only PR 5357's result gate catches it (`LineWedges` overlap,
+not a slit gap). Main built that probe v14 e21 f9 at volume 30.8, the
+slab under (16) and the slab less the wall-to-wall trench (14.8); closed,
+it built v14 e21 f10 at 31.7. This
+predates PR 5380 for slit operands. The split's side holding the
 walls (`split` of the box less the trench by `z = 0`, which builds the
 slit form on main) ∪ the same slab refuses on main `Escalated
 Corner(Straight)` closed and one end (the tip PR 5380 now reads), and

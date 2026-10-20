@@ -22,9 +22,13 @@ edge-edge germs along one ray (`crates/topo/src/boolean/recl.rs`,
 `recl_edges` and `resolve_edge_edge`). The insertion does not place two
 germs apart along a line, and recl refuses
 `CrossingsAlongAContactLine`. That refusal's recourse names "the
-pieces", which a slit is not made of, so the reduction retypes it
-`BooleanError::SlitLineCrossed` (`crates/topo/src/boolean/mod.rs`,
-`slit_line_refusal`). This is a construction gap with no lever.
+pieces", which a slit is not made of. So where the ray is the slit's own
+line (an edge on it bounds the face the slit lies in), recl retypes it
+`BooleanError::SlitLineCrossed` (`crates/topo/src/boolean/recl.rs`,
+`recl_edges`'s `on_slit`), a construction gap with no lever. Any other
+line at a slit's tip keeps the lever, and the unit row
+`two_crossings_of_a_composed_material_along_a_contact_line_refuse_typed`
+pins both cases.
 
 On main the operand held the slit's line as one edge, wall | wall, lying
 in its face (the rider form), and these cells built. They regress to a
@@ -39,6 +43,14 @@ typed refusal on PR 5380. Witnesses, all at the default ε:
   "void under φ 250 …" against "under the ray", "on the ray …". That is
   60 cells: 40 built on main and read right by the germ probe, and 20
   refused there `LineWedges`.
+
+**Shipped uncertified.** The Boolean door gates at tier 3, without the
+census
+(`work/reachhold/boolean-door-runs-the-census-over-its-result.md`). So
+the results this class touches, which the door now returns `Ok`, are
+uncertified at 3′ until the census runs at the door. The re-review of
+PR 5380 counted 414 such `Ok` calls (`CensusUndecidable`
+`TouchUnanalysed`), 242 of which main refused `LineWedges` (overlap).
 
 The census reads the related touch the same way. Two solids of a result
 touching along a slit's line, where the other holds an edge, give tier
