@@ -189,7 +189,7 @@ impl<T: Decide> Window<'_, T> {
         // level, below what an f64 reading can resolve, so no row pins it:
         // it rests on `rounding_charge`'s estimate, as the subdivision's
         // does, and an Interval reading carries its own enclosure.
-        let f = bounds(poly, m, w, crate::rounding_charge(*terms));
+        let f = bounds(poly, m, w, geom_core::rounding_charge(*terms));
         let (big, small) = (
             self.b.semi_u.abs().max(self.b.semi_v.abs()),
             self.b.semi_u.abs().min(self.b.semi_v.abs()),
@@ -432,8 +432,9 @@ mod rows {
         let (ka, kb) = (Conic::of(a).unwrap(), Conic::of(b).unwrap());
         let lever = ka.speed_hi().max(kb.speed_hi());
         let o = Point3::origin();
-        let noise =
-            crate::rounding_charge((ka.center - o).norm() + (kb.center - o).norm() + lever + lever);
+        let noise = geom_core::rounding_charge(
+            (ka.center - o).norm() + (kb.center - o).norm() + lever + lever,
+        );
         let w = Window {
             a: &ka,
             span_a,

@@ -1624,60 +1624,49 @@ fn meetings_are_neighbours_along_the_span_whatever_order_they_are_found_in() {
     );
 }
 
-/// **Two segments on one line, far apart along it and in the band across
-/// it, meet nowhere** (the four readers' witness,
-/// `work/cpair/two-spans-projections-on-one-line-are-read-four-ways`).
-/// `(0,0,0)–(1,0,0)` and `(3, 5·10⁻¹², 0)–(4, 5·10⁻¹², 0)` at
-/// `ε = 10⁻¹²`: `b` lies in the escalation band of `a`'s line, but its
-/// projection on `a`'s axis is `2` m past `a`'s end, so the router's gap
-/// decides them apart before any end is read against a carrier,
-/// whichever span is read first. The router read the gap first on main
-/// too; check 9 and `profile`'s segment pairs escalated here.
+/// **Two segments that touch, on carriers far from them, are never read
+/// apart** (the #5481 reviewer's witness). Both carriers run along the
+/// unit `d`, with origins at `∓d·2²⁰`; `a`'s span ends at `t₁` and `b`'s
+/// starts at `t₁ − 2²¹`, every input exact in `f64`, so in Q
+/// `a(t₁) = b(t₁ − 2²¹) = d·(t₁ − 2²⁰)`: the spans touch at one point.
+/// Evaluated in `f64`, `origin + dir·t` rounds at `|t| ≈ 2²⁰` m, and the
+/// two ends land `5.8·10⁻¹¹` apart in `y`, past the band. Charged only at
+/// the ends' own distances from the origin, the projections read that
+/// rounding as a gap of `2.2·10⁻¹¹` past their charge, and `meet`
+/// answered "no meeting" for a touching pair (the PR's first head).
+/// Charged for the evaluation (`geom_core::one_line`, "The charge"), the
+/// pair meets or refuses, in both orders.
 #[test]
-fn two_segments_on_one_line_far_apart_along_it_meet_nowhere() {
+fn two_segments_touching_on_far_carriers_are_never_read_apart() {
     let fine = Band::new(1e-12, 1e-11).unwrap();
-    let a = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
-    let b = line([3.0, 5e-12, 0.0], [1.0, 0.0, 0.0]);
-    let (sa, sb) = (Span::new(&a, (0.0, 1.0)), Span::new(&b, (0.0, 1.0)));
-    for (order, got) in [
-        ("a first", meet(&sa, &sb, fine)),
-        ("b first", meet(&sb, &sa, fine)),
-    ] {
-        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
-        assert!(
-            got.shared.is_none() && got.points.is_empty(),
-            "{order}: apart: {got:?}"
-        );
-    }
-}
-
-/// **The router's gap is read from the first span's start, not the
-/// carriers' origins.** Two segments a metre long on the `x` axis near
-/// `x = 10³`, `10⁻¹⁰` apart along it, on carriers whose origins stand
-/// `10⁶` m away. Read from the origins, as on main, the projections carry
-/// `rounding_charge` of the origins' metres, about `4·10⁻⁹`, which hid the
-/// gap: the pair routed level and read one curve
-/// (`Pose::Coincident`, `shared` set, no shared run). Read from the first
-/// span's start the charge is about `7·10⁻¹²`, and the gap decides them
-/// apart.
-#[test]
-fn the_routers_gap_does_not_depend_on_where_the_carriers_origins_lie() {
-    let fine = Band::new(1e-12, 1e-11).unwrap();
-    let a = line([-1e6, 0.0, 0.0], [1.0, 0.0, 0.0]);
-    let b = line([1e6, 0.0, 0.0], [1.0, 0.0, 0.0]);
-    let (sa, sb) = (
-        Span::new(&a, (1e6 + 1e3, 1e6 + 1e3 + 1.0)),
-        Span::new(&b, (-1e6 + 1e3 + 1.0 + 1e-10, -1e6 + 1e3 + 2.0)),
+    let far = 2f64.powi(20);
+    let d = Vec3::new(
+        0.803_992_292_151_306_2,
+        0.499_755_838_673_424_7,
+        -0.322_242_914_387_750_1,
     );
+    let a = Curve3::Line {
+        origin: Point3::origin() - d * far,
+        dir: d,
+    };
+    let b = Curve3::Line {
+        origin: Point3::origin() + d * far,
+        dir: d,
+    };
+    let t1 = 1_049_576.874_015_081_7;
+    let s0 = t1 - 2.0 * far;
+    assert_eq!(s0, -1_047_575.125_984_918_3, "the touch is exact in f64");
+    let (sa, sb) = (Span::new(&a, (t1 - 1.0, t1)), Span::new(&b, (s0, s0 + 1.0)));
     for (order, got) in [
         ("a first", meet(&sa, &sb, fine)),
         ("b first", meet(&sb, &sa, fine)),
     ] {
-        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
-        assert!(
-            got.shared.is_none() && got.points.is_empty(),
-            "{order}: apart: {got:?}"
-        );
+        if let Ok(got) = got {
+            assert!(
+                got.shared.is_some() || !got.points.is_empty(),
+                "{order}: a touching pair read apart: {got:?}"
+            );
+        }
     }
 }
 
@@ -1903,11 +1892,14 @@ fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
     assert!(matches!(got, Ok(Pose::Apart)), "{got:?}");
 }
 
-/// **The gap is charged with the rounding its coordinates carry.** At
-/// `ε = 10⁻¹²` a span along `x̂` from `(10⁴, 0, 0)` over `(0, 1)` and one
-/// on the same line over `(1 + g, 2)`: a gap `g = 4·10⁻¹¹`, past the
-/// escalation but within the rounding of coordinates ten kilometres out
-/// (about `9·10⁻¹¹` charged), is not read apart, and `g = 2·10⁻¹⁰` is. Two spans on one carrier
+/// **The gap is charged with the rounding its ends carry**: the
+/// evaluation that produced them from the carrier and their own
+/// coordinates (`geom_core::one_line`, "The charge"). At `ε = 10⁻¹²` a
+/// span along `x̂` from `(10⁴, 0, 0)` over `(0, 1)` and one on the same
+/// line over `(1 + g, 2)`: a gap `g = 4·10⁻¹¹`, past the escalation but
+/// within the rounding of ends evaluated and lying ten kilometres out
+/// (about `1.4·10⁻¹⁰` charged), is not read apart, and `g = 2·10⁻¹⁰` is.
+/// Two spans on one carrier
 /// through the origin, large by their parameter near 1586 m and
 /// `9.8·10⁻¹²` apart, below the escalation, are not read apart either.
 #[test]

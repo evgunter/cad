@@ -23,6 +23,7 @@ pub mod exact;
 pub mod interval;
 pub mod k_stats;
 pub mod linalg;
+pub mod one_line;
 pub mod predicate;
 pub mod readable;
 pub mod real;
@@ -67,7 +68,7 @@ pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_exact_zero, is_finite_length,
     is_underflowed_length, is_zero_length,
 };
-pub use running::{HARMONIC_NOISE_ULPS, Rounded, UNIT_ROUNDOFF, rounding_charge};
+pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRetry, SymRules};
 pub use tolerance::{

@@ -24,14 +24,17 @@ polish meters, untouched). Its sweep filed
 ## 2026-10-20 — NURBS build A: one reading of two spans on one line (PR 1 of 4)
 
 `two-spans-projections-on-one-line-are-read-four-ways`, staged in four PRs.
-PR 1 adds `geom::one_line` (`OnOneLine`, `on_one_line`, `on_one_line_2d`):
-b's projection on a's axis, read from a's span start, with
-`geom_core::rounding_charge` of the four points' metres. The curve-pair
-router's line-line gap reads it. `rounding_charge` and
-`HARMONIC_NOISE_ULPS` move from `geom_brep::implicit` to `geom_core`
-(re-exported where they were) so `profile` can charge alike. Still to
-come, each on its own program's ground: check 9 (RESTFRONT),
+PR 1 adds `geom_core::one_line` (`OnOneLine`, `on_one_line`,
+`on_one_line_2d`): b's projection on a's axis, read from a's span start,
+charged `geom_core::rounding_charge` of the four points' metres plus the
+metres the caller computed them at (`produced`; zero for given
+vertices). The curve-pair router's line-line gap reads it, passing its
+ends' evaluation `|o| + |d|·|t|`. `rounding_charge` and
+`SHORT_CHAIN_ULPS` (was `HARMONIC_NOISE_ULPS`) move from
+`geom_brep::implicit` to `geom_core`, with every caller on the one path.
+Still to come, each on its own program's ground: check 9 (RESTFRONT),
 `profile::seg` (PATHS) and the census (topo). — (NURBS build A)
+
 ## 2026-10-20 — NURBS build A: the line-line crossing measured, no wrong side
 
 `the-curve-pair-line-line-crossing-is-read-from-the-carriers-origins-uncharged`

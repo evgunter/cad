@@ -224,9 +224,9 @@
 
 mod window;
 
-use geom::one_line::{OnOneLine, on_one_line};
 use geom::{Curve3, CurveKind};
 use geom_core::k_stats::{decide, straddle};
+use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::span::Span;
@@ -810,18 +810,25 @@ fn line_line<T: Decide>(
     let n = u1.cross(u2);
     let s = n.norm();
     // Read from `a`'s span start along its carrier, never from either
-    // carrier's origin (`geom::one_line`).
+    // carrier's origin, and charged for how each end was evaluated:
+    // `origin + dir·t` rounds at `|origin| + |dir|·|t|`, which a far
+    // origin makes far larger than the end's own distance
+    // (`geom_core::one_line`, "The charge").
     let ends_of = |s: &Span<'_, T>| {
         let (t0, t1) = s.params();
         (s.carrier().eval(t0), s.carrier().eval(t1))
     };
+    let produced = |(o, d): (Point3<T>, Vec3<T>), s: &Span<'_, T>| {
+        let (t0, t1) = s.params();
+        (o - Point3::origin()).norm() * T::from_f64(2.0) + d.norm() * (t0.abs() + t1.abs())
+    };
     let (a0, a1) = ends_of(a);
-    let at = on_one_line(u1, (a0, a1), ends_of(b));
+    let at = on_one_line(u1, (a0, a1), ends_of(b), produced(la, a) + produced(lb, b));
     let w = a0 + u1 * at.mid() - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
     let origin = Point3::origin();
-    let noise = crate::rounding_charge(
+    let noise = geom_core::rounding_charge(
         (o1 - origin).norm() + (o2 - origin).norm() + ends(a) + ends(b) + lever + lever,
     );
     let crossing = || {
@@ -867,10 +874,10 @@ fn line_conic<T: Decide>(
     let c = (k.center - o).dot(u);
     let lever = reach(a).max(k.speed_hi());
     let origin = Point3::origin();
-    let noise = crate::rounding_charge(
+    let noise = geom_core::rounding_charge(
         (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
     );
-    let screened = noise + crate::rounding_charge(ends(a));
+    let screened = noise + geom_core::rounding_charge(ends(a));
     // A conic's extent is no second span: its projection is read from the
     // line's origin, charged as the router's screens are.
     let at = OnOneLine::of(
@@ -961,7 +968,7 @@ fn conic_conic<T: Decide>(
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
     let lever = ka.speed_hi().max(kb.speed_hi());
     let origin = Point3::origin();
-    let noise = crate::rounding_charge(
+    let noise = geom_core::rounding_charge(
         (ka.center - origin).norm() + (kb.center - origin).norm() + lever + lever,
     );
     let ha = height(&ka, kb.center, kb.axis);
@@ -1043,13 +1050,13 @@ pub(super) fn one_curve<T: Decide>(
 /// computed `Q`'s columns are unit to within about `4.5u`, and its
 /// products and the norms round by `4u·m` and `5u·g`: within
 /// `12.1u·(m_e + m_f) + 5u·g` of a gap the bound holds for, inside
-/// [`crate::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
+/// [`geom_core::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
 /// semi-axis, or `a·b·a′·b′` underflowing) has no way up, and its gap
 /// is NaN: the reading escalates.
 pub(super) fn one_curve_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
     let reach = |k: &Conic<T>| k.semi_u.abs().max(k.semi_v.abs());
     let gap = (e.center - f.center).norm() + frame_gap(e, f).max(frame_gap(f, e));
-    gap + crate::rounding_charge(reach(e) + reach(f) + gap)
+    gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
 }
 
 /// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
@@ -1240,7 +1247,7 @@ fn coplanar_ellipse_circle<T: Decide>(
         t0,
         t1,
         speed_hi: ke.speed_hi(),
-        noise: crate::rounding_charge(terms),
+        noise: geom_core::rounding_charge(terms),
         f_per_metre: r,
         f_per_metre_hi: T::from_f64(3.0) * r,
         residual_reach: Some(r),
@@ -1301,7 +1308,7 @@ fn coplanar_ellipses<T: Decide>(
         t0,
         t1,
         speed_hi: ka.speed_hi(),
-        noise: crate::rounding_charge(terms),
+        noise: geom_core::rounding_charge(terms),
         // `g` vanishes at the second's centre: no floor but zero holds.
         f_per_metre: T::zero(),
         f_per_metre_hi: ceiling,

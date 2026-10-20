@@ -46,7 +46,7 @@
 //!   error, plus only a share `|near|/(hi − lo)` of the far one's — so
 //!   the root moves by `δR / |R′|`, `|R′| = √(−lo·hi)` at both roots;
 //!   the phase's error moves it by itself, and the angle arithmetic
-//!   rounds by [`geom_brep::HARMONIC_NOISE_ULPS`] half-ulps of a turn. That arc length must
+//!   rounds by [`geom_brep::SHORT_CHAIN_ULPS`] half-ulps of a turn. That arc length must
 //!   be definitely inside the band, or the span and trim decisions the
 //!   caller makes on the point are made on the wrong point. An
 //!   unreadable reading refuses here too. A door whose only account is
@@ -218,7 +218,7 @@ impl<T: Decide> FirstHarmonic<T> {
         let d = n.dot(offset);
         let (cos_part, sin_part) = (radius * n.dot(u_ref), radius * n.dot(axis.cross(u_ref)));
         let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-        let noise = geom_brep::rounding_charge(offset.norm() + radius);
+        let noise = geom_core::rounding_charge(offset.norm() + radius);
         Self {
             lo: d - amplitude,
             hi: d + amplitude,
@@ -327,7 +327,7 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     let slope = ((T::zero() - lo_value) * hi_value).max(T::zero()).sqrt();
     let at_root = (hi_value * lo_noise - lo_value * hi_noise) / swing;
     let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-    let slack = speed * (at_root / slope + phase + geom_brep::rounding_charge(T::tau()));
+    let slack = speed * (at_root / slope + phase + geom_core::rounding_charge(T::tau()));
     match decide(rows.root_slack, Margin::of(slack), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter.into()),

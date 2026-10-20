@@ -1,7 +1,7 @@
 ---
 id: the-line-conic-router-reads-its-projections-from-the-lines-carrier-origin
 kind: issue
-title: curve_pair's line_conic router reads its overlap from the line carrier's origin, so a span far from that origin is charged its metres and a gap the band allows can go unseen
+title: curve_pair's line_conic router reads its overlap from the line carrier's origin, not through geom_core::one_line; whether the anchor costs any decision is unshown
 status: open
 priority: P3
 cost: E
@@ -10,7 +10,7 @@ opened: 2026-10-20
 ---
 
 
-Found in PR 5481 (`geom::one_line`, PR 1 of
+Found in PR 5481 (`geom_core::one_line`, PR 1 of
 `two-spans-projections-on-one-line-are-read-four-ways`), and filed
 there by the orchestrator's ruling. It was not folded into that PR
 because it is a different question (scope), not because its bits would
@@ -25,41 +25,49 @@ line:
 - the conic's extent `[c − r, c + r]`, with `c = (center − o)·u` and
   `r` its larger semi-axis.
 
-Both are read from the line CARRIER's origin `o`, which can stand
-metres from the span. The router's gap row (`curve_pair_pose_gap`)
-decides `−extent − screened`, and `screened` carries
-`rounding_charge(|o| + |center| + …)`. So the charge grows with how
-far the carrier's origin lies from the origin of space, not with the
-span. It is honest, but coarse: a gap between the span and the conic's
-extent that the band allows can go unseen. The pair then routes on to
-the tilt and the offset, where it may escalate or polish.
+Both are read from the line CARRIER's origin `o`, through the file's
+own `on_line`, a second spelling of the projection `geom_core::one_line`
+reads from the span's start (the #5481 review's S3). The router's gap
+row (`curve_pair_pose_gap`) decides `−extent − screened`, and
+`screened` carries `rounding_charge(|o| + |center| + …)`.
 
-PR 5481 moved `line_line` onto `geom::one_line::on_one_line`, which
-reads from the first span's start with the charge of the points it
-reads. `line_conic` shares only the interval meet (`OnOneLine::of`).
+## That charge is not the defect it looks like
+
+Read naively, `|o|` in the charge is an artefact of the anchor, and
+reading from the span start would cut it. #5481's first head made that
+cut for `line_line`, and its reviewer showed it wrong: the line's ends
+are `o + dir·t`, evaluated in `f64` at `|t| ≈ |o|` when the origin is
+far from the span, so they carry `~u·|o|` of rounding whichever anchor
+reads them. Dropping it answered a touching pair "no meeting"
+(`meet_rows::two_segments_touching_on_far_carriers_are_never_read_apart`).
+`line_conic` charges those metres today, and is right to.
+
+So the anchor alone buys at most the projection chain's own rounding,
+the smaller term; the evaluation term stays. What is left is the second
+spelling, and whether any pose decides differently for it.
 
 ## Witness first
 
-Look for a pose this decides badly before building anything:
-- a line span a metre long near `x = 10³` on a carrier whose origin
-  stands `10⁶` m away along it;
-- beside a conic whose extent along the line ends a small gap, say
-  `1e-10`, short of the span at `ε = 1e-12`.
+Look for a pose this decides badly before building anything: a line
+span beside a conic whose extent along the line ends a small gap from
+it, at `ε = 1e-12`, at every placement of the line's origin (at the
+span, and `10³`, `10⁶` m along it). Read the gap row's margin under both
+anchors, each charged for the line ends' evaluation. If no pose's
+decision moves, close this item as a spelling only, or fold the
+spelling into whichever PR next touches `line_conic`.
 
-On main the gap's charge is about `rounding_charge(10⁶) ≈ 4·10⁻⁹`,
-so the gap is not read; with the span-start anchor it is about
-`7·10⁻¹²`. Then check what the unread gap actually costs: a needless
-escalation or a polish, never a wrong answer, since the conic's
-points are read afterwards. If nothing downstream decides differently,
-say so and downgrade, as `the-curve-pair-line-line-crossing-…` was.
+## The fix, if the witness shows one
 
-## The fix
+Read the line's ends through `geom_core::one_line`'s anchor (the span
+`(0, (a₁ − a₀)·u)`, the conic's extent about `c = (center − a₀)·u`,
+through `OnOneLine::of`), and charge both chains:
+- **how the ends were produced**: `|o| + |dir|·|t|` per evaluated end,
+  as `line_line` passes `on_one_line`'s `produced`; the conic's centre is
+  a stored value;
+- **the projections**: the points read (`a₀`, `a₁`, the centre) plus `r`.
 
-Anchor at the line span's start `a₀`: the span `(0, (a₁ − a₀)·u)`, the
-conic's extent about `c = (center − a₀)·u`, through `OnOneLine::of`.
-Charge the points read (`a₀`, `a₁` and the conic's centre, plus `r`),
-as `on_one_line` charges its four. The parallel screen keeps its own
-charge.
+The parallel screen keeps its own charge. Never charge the anchor's
+points alone: that is the cut #5481's review caught.
 
 ## Bits
 

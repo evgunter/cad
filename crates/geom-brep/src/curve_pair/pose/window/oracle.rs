@@ -179,7 +179,7 @@ fn window<'w, T: geom_core::Decide>(
         b: kb,
         carrier_b: b,
         height: height(ka, kb.center, kb.axis),
-        noise: crate::rounding_charge(
+        noise: geom_core::rounding_charge(
             (ka.center - o).norm() + (kb.center - o).norm() + lever + lever,
         ),
     }

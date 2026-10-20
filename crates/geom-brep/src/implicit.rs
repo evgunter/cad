@@ -81,6 +81,7 @@
 //! second is `K + 1` residual evaluations per call.
 
 use geom::Surface;
+use geom_core::rounding_charge;
 use geom_core::{Point3, Real, Rounded, Vec3};
 
 use crate::enters::OutwardNormal;
@@ -560,12 +561,6 @@ pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T
 /// law admits.
 pub const ARC_RESIDUAL_SAMPLES: usize = 256;
 
-/// How many half-ulps of a term bound a residual's evaluation is
-/// charged, here and by `topo`'s root doors: the one spelling, kept in
-/// `geom_core` beside the unit roundoff so a crate below this one charges
-/// a projection alike ([`geom_core::HARMONIC_NOISE_ULPS`]).
-pub use geom_core::{HARMONIC_NOISE_ULPS, rounding_charge};
-
 /// The factor a CEILING read from the carrier's frame is padded by, so
 /// that the `f64` value bounds the true one: the cone's reach `R`
 /// ([`conic_cone_harmonics`]) and the torus's reach and surface ceilings
@@ -576,7 +571,7 @@ pub use geom_core::{HARMONIC_NOISE_ULPS, rounding_charge};
 /// `(aa − bb)/2`, to the sum beside it that dominates it. To first order
 /// the ceiling is off by well under `32u`, and `64u` doubles that for
 /// the second-order terms. A ROUNDING estimate, as
-/// [`HARMONIC_NOISE_ULPS`] is.
+/// [`SHORT_CHAIN_ULPS`] is.
 const CEILING_PAD: f64 = 1.0 + 64.0 * geom_core::UNIT_ROUNDOFF;
 
 /// `|F″|` over the whole carrier for a harmonic residual: the true
