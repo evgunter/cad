@@ -312,7 +312,7 @@ fn read_back(kind: &ReplayErrorKind<f64>) -> Option<bool> {
 fn the_read_back_refuses_no_sound_arc_the_scene_resolves() {
     let mut rng = test_utils::fuzz::start("arc_read_back_sweep");
     let eps = tol().get().eps;
-    let resolved = eps / (16.0 * ULP);
+    let resolved = eps / (profile::READ_BACK_LANDING_ULPS * ULP);
     let mut tally: std::collections::BTreeMap<&str, [usize; 3]> = Default::default();
     let mut found: Vec<String> = Vec::new();
     for _ in 0..test_utils::fuzz::scaled(40) {
@@ -350,11 +350,13 @@ fn the_read_back_refuses_no_sound_arc_the_scene_resolves() {
                     "{}: the read-back found a defect: {refusal}",
                     what()
                 )),
-                Some(false) if 16.0 * arc.magnitude() * ULP <= eps => found.push(format!(
-                    "{}: a scene that resolves the read (magnitude {:e}) refused: {refusal}",
-                    what(),
-                    arc.magnitude()
-                )),
+                Some(false) if profile::READ_BACK_LANDING_ULPS * arc.magnitude() * ULP <= eps => {
+                    found.push(format!(
+                        "{}: a scene that resolves the read (magnitude {:e}) refused: {refusal}",
+                        what(),
+                        arc.magnitude()
+                    ))
+                }
                 Some(false) => row[1] += 1,
             }
         }

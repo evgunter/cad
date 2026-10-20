@@ -19,8 +19,9 @@ both of its vertices whatever its quarter-tangent X is: the lowering
 puts the centre on the chord's bisector. An X that loses digits
 therefore does not miss the end vertex. It moves the carrier, and the
 arc no longer passes through the authored `q`. Nothing reads that:
-the facts the lowering registers are its two endpoints, and
-`seg::constructed_landing` reads the landing only. The same holds for
+the facts the lowering registers are its two endpoints, and the
+door's landing read (now part of `seg::read_back_arc`) reads the
+landing only. The same holds for
 every lowered arc whose X is computed from other authored data; a
 `Bulge` arc's X is the authored data itself, so it has nothing else to
 miss.
@@ -50,7 +51,7 @@ Positive refused as a kernel defect. The sites are the leg
 
 Ev ruled on #5449 (2026-10-20) for the tripwire. The path door now
 reads every stored `Via` arc's carrier against its `q` at a point
-scalar (`seg::constructed_through_point`, `path_arc_through_point`):
+scalar (`seg::read_back_arc`'s `path_arc_through_point`):
 the leg (`path::via_arc`), the fused incoming's run
 (`family.rs`, `through_point` onto `PendingArc::through`) and the
 arrival's and close's run (`resolve_arc_arrival`, `resolve_arc_close`).

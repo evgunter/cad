@@ -106,9 +106,9 @@ fn f64_replay_or_unresolvable(
         if read.starts_with("path_arc_through_point")
             || read.starts_with("path_arc_start_on_carrier")
         {
-            Some(8.0)
+            Some(profile::READ_BACK_RIM_ULPS)
         } else if read.starts_with("path_arc_landing") || read.starts_with("path_arc_branch") {
-            Some(16.0)
+            Some(profile::READ_BACK_LANDING_ULPS)
         } else {
             None
         }
@@ -147,6 +147,7 @@ const REFUSES_PAST_RESOLUTION: &[(f64, &[&str])] = &[
     (
         1e-12,
         &[
+            "Center, R 1.37e5",
             "Center, R 1.37e6",
             "Center, R 1e6, turn 1e-4",
             "Via, R 1.36e4",

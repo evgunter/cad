@@ -66,28 +66,35 @@ kernel issues will be mixed together with unfixable cases".
 `seg::read_back_arc` reads it against what was authored:
 - its start on its carrier (`path_arc_start_on_carrier`, the stored radius);
 - its landing on its end vertex (`path_arc_landing`). For a
-  `Facts::Decided` arc the radial part its inline decision admitted is
-  left out, so what is read is the sweep;
+  `Facts::Decided` arc the end vertex is first moved along its ray from
+  the centre onto the landing's circle, which leaves out the distance
+  its inline decision admitted, so what is read is the sweep;
 - a `Via` arc's carrier against `q` (`path_arc_through_point`). `q`
   rides `BuiltArc::through` to the door and is never stored;
 - its branch (`path_arc_branch`): the stored r·Δθ signed by the turn
-  sense the construction authored from data other than its sweep. That
-  is the side of the chord `q` or a tangent's target lies on, a
-  winding, or a side.
+  sense the construction states: the side of the chord `q` or a
+  tangent's target lies on, a winding, a side, or a fillet corner's
+  turn. For most constructions that is the same decision that fixes the
+  sign of the quarter-tangent X, so the read catches a defect after the
+  sign (X → −1/X), not one in it.
 
 Every arc is read except a `Bulge` leg whose authored bulge reads as a
 line. All reads go through `k_stats::check_unlogged` (audit row F23).
 Exact scalars do not run any of it.
 
-**Outcomes.** Zero passes. A miss clear of the read's own rounding at
-its magnitude by the band is `PathError::ArcMissesAuthoredPoint`, a
-kernel defect. A miss within that rounding is
+**Outcomes.** Zero passes. A miss is `PathError::ArcMissesAuthoredPoint`,
+a kernel defect, only where the authored data's magnitude resolves the
+read AND the miss clears the read's own rounding at its stored
+magnitude by the band (one margin, the lesser of the two). Every other
+miss, and any read that is not finite, is
 `PathError::ArcMissBelowSceneResolution`, with the recourse "move the
 profile nearer the origin, or author the arc with a smaller radius …;
 a coarser tolerance also reads it", shared with validation's
 `ArcBelowSceneResolution`. Both name the step and its role, the verb,
 the read, the authored point, the miss, the magnitude and the rounding.
-A read in the band, or poisoned, escalates, for every arc.
+A read in the band, or poisoned, escalates, for every arc, with its own
+recourse (a coarser tolerance, or report a possible defect where the
+scene resolves the size).
 
 **Teeth** (kept: `path::stored_arc_landing`, `tests/arc_read_back_sweep.rs`
 and `tangent_arc_near_a_full_turn`). Each mutant below was run, and
@@ -103,6 +110,11 @@ these went red:
 | `split_half_tan`'s X → −1/X | every far-turn row, on `path_arc_branch` (tangent, `Center`, `Via`) |
 | the tangent arc's radius × (1 + 1e-9) | refuses on `path_arc_start_on_carrier` |
 | the cancelling first arm | tangent, `Center` and `Via` refuse at f64 |
+| the gate on the miss's clearance alone (fix pass 2's "before") | the far-carrier sub-ulp fillet row, the overflow row and the sweep |
+| no finiteness check | `a_read_that_overflows_is_never_a_defect` |
+| the gate on the authored headroom alone | 2 rows |
+| the decided landing as miss − radial part (fix pass 2's "before") | `a_decided_arcs_sweep_is_read_like_any_other` |
+| an arc fillet's X → −1/X | 21 rows, among them `an_arc_fillets_complementary_arc_refuses_on_its_branch` |
 
 **The sweep found a live defect, fixed here.** A counterexample search
 over every arc mode at `f64` (`tests/arc_read_back_sweep.rs`) found 229
@@ -126,6 +138,5 @@ No symbolic receipt moves (`m10_9_pins_interval`, `m10_10`, `sym11`,
 exactly stores no arc on the `Via` carrier, so there is nothing stored
 to read against `q`. That residue stays on
 `a-via-arcs-carrier-is-never-checked-against-its-authored-through-point`.
-Arc fillets carry no authored sense yet, so their branch is not read.
-A line×line fillet's branch is not read either; its declared
-tangencies are, in the fillet re-read.
+A `Bulge` leg carries no turn sense apart from its bulge, which is
+the authored data, so its branch is not read.

@@ -7101,8 +7101,7 @@ mod stored_arc_landing {
     }
 
     /// The largest magnitude at which a read of `ulps` rounding stays
-    /// inside the band ([`seg::constructed_landing`]'s resolution at 16,
-    /// [`seg::constructed_through_point`]'s at 8).
+    /// inside the band ([`seg::resolution_headroom`] at zero).
     fn resolvable(ulps: f64) -> f64 {
         seg::resolution_headroom(0.0, ulps, band())
     }
@@ -7229,11 +7228,13 @@ mod stored_arc_landing {
             "the cancelling centre arc",
         );
         let arc = cancelling.arc;
-        let angular = (centre_miss(r) - (arc.rim(a) - arc.rim(b)).abs()).max(0.0);
+        let towards = b - arc.centre;
+        let onto = arc.centre + towards * (arc.rim(a) / towards.norm());
         assert_eq!(
-            miss, angular,
-            "the refusal reports the sweep's miss it read, less the radial part the \
-             decision admitted"
+            miss,
+            arc.landing(a).distance(onto),
+            "the refusal reports the sweep's miss it read: the landing against the end vertex \
+             moved onto its circle"
         );
         assert!(
             read(center_arc(a, b, c, ArcSweep::Ccw), a, b, verb).is_ok(),
@@ -7613,16 +7614,20 @@ mod stored_arc_landing {
             read(decided(1.0), a, admitted, verb).is_ok(),
             "an end off the carrier by what the decision admitted passes"
         );
-        // The decision's slack and a sweep defect together: the end
-        // 0.99ε inside the carrier, the sweep off by 1.9ε of arc. The
-        // radial part does not hide the sweep's.
+        // The decision's slack and a sweep defect together: the end up to
+        // 0.99ε inside the carrier, the sweep off by 1.2ε or 1.5ε of arc.
+        // The radial part does not hide the sweep's, as subtracting it
+        // from the whole miss did.
         for rho in [0.5 * eps, 0.99 * eps] {
-            let inside = at(1.0, r - rho);
-            let off = decided(1.0 + 1.9 * eps / r);
-            assert!(
-                matches!(read(off, a, inside, verb), Err(PathError::Escalated { .. })),
-                "a decided end {rho:e} inside the carrier with a 1.9ε sweep defect escalates"
-            );
+            for sweep in [1.2 * eps, 1.5 * eps] {
+                let inside = at(1.0, r - rho);
+                let off = decided(1.0 + sweep / r);
+                assert!(
+                    matches!(read(off, a, inside, verb), Err(PathError::Escalated { .. })),
+                    "a decided end {rho:e} inside the carrier with a {sweep:e} sweep defect \
+                     escalates"
+                );
+            }
         }
     }
 

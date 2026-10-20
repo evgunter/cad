@@ -1233,15 +1233,18 @@ Flagged, NOT fixed here (dispositions):
   a constructed arc read back against what was authored, all margins
   in metres:
   - `path_arc_start_on_carrier`: ‖a − centre‖ − r;
-  - `path_arc_landing`: ‖landing(a) − b‖, less |‖a − c‖ − ‖b − c‖|
-    for a `Facts::Decided` arc (the radial part its inline decision
-    admitted);
+  - `path_arc_landing`: ‖landing(a) − b‖; for a `Facts::Decided` arc,
+    the landing against `b` moved along its ray onto the landing's
+    circle (the sweep's own error, without the distance from the centre
+    its inline decision admitted);
   - `path_arc_through_point`: a `Via` arc's ‖q − centre‖ − r;
-  - `path_arc_branch`: r·Δθ signed by the authored turn sense, an
-    angle levered by its radius;
-  - and, behind a read that is off, `<read>_resolution`: the miss less
-    `ulps·2⁻⁵²·scale` (8 ulps for the rim reads, 16 for the landing and
-    the branch).
+  - `path_arc_branch`: r·Δθ signed by the stated turn sense, an angle
+    levered by its radius;
+  - and, behind a read that is off, `<read>_resolution`: the lesser of
+    the authored data's headroom `K·ε/(ulps·2⁻⁵²) − scale` and the
+    miss's clearance `miss − ulps·2⁻⁵²·scale` of the read's own
+    rounding at its stored magnitude (16 ulps for every read; the rim
+    reads' derivation is at `seg::READ_BACK_RIM_ULPS`).
 
   A `Bulge` leg's authored bulge is first asked validation's own
   `segment_straightness` question (the signed sagitta,
@@ -1258,9 +1261,9 @@ Flagged, NOT fixed here (dispositions):
   point-scalar row would be one a box build cannot have.
 
   **Carried as `k_stats::check_unlogged(.., "F23")`**, the door F18,
-  F20 and F21 use. Zero passes (Positive, for the branch). Off and
-  clear of its rounding by the band refuses
-  `PathError::ArcMissesAuthoredPoint`; off within it refuses
+  F20 and F21 use. Zero passes (Positive, for the branch). Off with
+  that gate Positive refuses `PathError::ArcMissesAuthoredPoint`; any
+  other definite miss, and any miss that is not finite, refuses
   `PathError::ArcMissBelowSceneResolution`; in the band or poisoned
   escalates, for every arc.
 

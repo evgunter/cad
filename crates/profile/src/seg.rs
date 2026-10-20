@@ -231,7 +231,7 @@ pub(crate) enum Consistency {
     /// `path_arc_center_equidistant`, or the identities its lowering
     /// registers) and checked at its scalar: at an exact witness by
     /// those registered identities, at a point scalar by the door's
-    /// read-back ([`constructed_landing`], [`constructed_through_point`]).
+    /// read-back ([`read_back_arc`]).
     /// Passed by every validation of a constructed loop
     /// ([`crate::ConstructedProfile`]) and by the path door's re-read of
     /// the fillet arcs it has just lowered.
@@ -533,7 +533,15 @@ const ON_CARRIER_ULPS: f64 = 8.0;
 /// |Δθ| ≤ 2π), the rotation's sine, cosine, products and sums 4, and
 /// the landing's sum onto `a` and its distance to `b` 2 — 14, stated
 /// as 16.
-pub(crate) const LANDING_ULPS: f64 = 16.0;
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const LANDING_ULPS: f64 = 16.0;
 
 /// **`arc_carrier_resolution`** — whether a difference a consistency
 /// check read at magnitude `scale` is one the scene can read at all.
@@ -575,7 +583,15 @@ fn resolves<T: Decide>(
 }
 
 /// [`resolves`]'s margin: K·ε/(ulps·2⁻⁵²) − `scale`, meters.
-pub(crate) fn resolution_headroom<T: Real>(scale: T, ulps: f64, band: Band) -> T {
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub fn resolution_headroom<T: Real>(scale: T, ulps: f64, band: Band) -> T {
     T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale
 }
 
@@ -686,24 +702,31 @@ fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
 /// [`read_back`].
 ///
 /// - **Start on the carrier** ([`START_READ`], ‖a − centre‖ − r,
-///   [`ON_CARRIER_ULPS`]): the stored radius against the vertex the arc
-///   leaves.
+///   [`READ_BACK_RIM_ULPS`]): the stored radius against the vertex the
+///   arc leaves.
 /// - **Landing** ([`LANDING_READ`], [`LANDING_ULPS`]): ‖landing(a) − b‖.
 ///   For an arc whose end is on its carrier only to an inline
-///   ε-decision the door made ([`crate::Facts::Decided`]), the radial
-///   part that decision admitted, |‖a − centre‖ − ‖b − centre‖|, is
-///   subtracted (the landing keeps a's distance from the centre, so it
-///   is the least the miss can be); what is read is the sweep's own
-///   error, which no decision admitted.
-/// - **Through-point** ([`THROUGH_POINT_READ`], [`ON_CARRIER_ULPS`]): a
-///   `Via` arc's carrier against its authored `q`.
+///   ε-decision the door made ([`crate::Facts::Decided`]), the landing
+///   against `b` moved along its ray from the centre onto the landing's
+///   own circle: 2r·sin of half the sweep's own error, with `b`'s
+///   distance from the centre, which that decision admitted, left out.
+///   An in-band sweep error escalates there exactly as on a registered
+///   arc.
+/// - **Through-point** ([`THROUGH_POINT_READ`], [`READ_BACK_RIM_ULPS`]):
+///   a `Via` arc's carrier against its authored `q`.
 /// - **Branch** ([`BRANCH_READ`], [`LANDING_ULPS`]): the stored arc's
-///   length `r·Δθ`, signed by the turn sense the construction authored
-///   independently of its sweep (a `Center` arc's winding, the side of
-///   the chord `q` or a tangent's target lies on). Positive passes;
-///   Negative is the other arc on the same carrier between the same
-///   ends, which lands exactly. Both span the chord, so neither reads
-///   shorter than it.
+///   length `r·Δθ`, signed by the turn sense the construction states
+///   ([`crate::BuiltArc::sense`]). Positive passes; Negative is the
+///   other arc on the same carrier between the same ends, which lands
+///   exactly. Both span the chord, so neither reads shorter than it.
+///   The sense is a decision the construction made on its inputs (the
+///   side of the chord `q` lies on, the side of the departure a target
+///   lies on, a winding, a corner's turn), and for a `Via`, `Center`,
+///   side-run, tangent or fillet arc it is the same primitive that fixes
+///   the sign of the arc's quarter-tangent X. So the read catches a
+///   defect after that sign (an X spelled −1/X, the other arc on the
+///   carrier), not one in the primitive itself. A `Bulge` leg states no
+///   sense apart from its bulge, which is the authored data.
 ///
 /// An arc whose bulge is the authored data itself
 /// ([`crate::BuiltArc::bulge_authored`]) and whose sagitta reads as a
@@ -809,7 +832,15 @@ pub(crate) fn read_back_arc<T: Decide>(
 /// derived (a trim point) 4; the read's own subtraction, norm and
 /// difference 2 — 14, stated as 16. A sound fused `Via` fillet was
 /// measured at 9.0 ulps.
-pub(crate) const READ_BACK_RIM_ULPS: f64 = 16.0;
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const READ_BACK_RIM_ULPS: f64 = 16.0;
 
 /// One read of the door's read-back, as [`read_back`] takes it.
 enum Reading<T> {

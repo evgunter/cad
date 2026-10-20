@@ -266,28 +266,36 @@ applies is a fact of the loop's provenance, carried by its type.
     - a `Via` arc's carrier against the through-point `q` it was
       authored by, which the stored form does not keep;
     - its branch: the stored arc's signed length against the turn
-      sense the construction authored from data other than its sweep
-      (a winding, a side, the side of the chord `q` or a target lies
-      on), since the other arc on the carrier lands exactly.
+      sense the construction states (a winding, a side, a corner's
+      turn, the side of the chord `q` or a target lies on), since the
+      other arc on the carrier lands exactly. For a `Via`, `Center`,
+      side-run, tangent or fillet arc that sense is the same decision
+      that fixes the sign of the quarter-tangent its sweep was computed
+      from, so the read catches a defect after that sign, not one in
+      it. A `Bulge` leg states no sense apart from its bulge, which is
+      the authored data, and its branch is not read.
 
     Every constructed arc is read, however flat its stored form, except
     a `Bulge` leg whose authored bulge reads as a line: validation reads
     it as the line it was authored as, keeping no carrier.
 
     A miss is a loud refusal naming the step, the read, the authored
-    point and the miss: `PathError::ArcMissesAuthoredPoint`, a kernel
-    defect, where the miss stands clear of the read's own rounding at
-    its magnitude; `PathError::ArcMissBelowSceneResolution`, with its
-    recourse, where the scene cannot tell it from that rounding. A read
-    in the band, or poisoned, escalates, for every arc.
+    point and the miss (for the branch, the turn authored and the turn
+    built). It is `PathError::ArcMissesAuthoredPoint`, a kernel defect,
+    only where both hold: the authored data's magnitude resolves the
+    read, and the miss clears the read's own rounding at the magnitude
+    it was taken at by the band. Every other miss, and any read that is
+    not finite, is `PathError::ArcMissBelowSceneResolution`, with its
+    recourse: a sound arc is never called a defect. A read in the band,
+    or poisoned, escalates, for every arc.
 
     An arc whose end is on its carrier only to the door's inline
     decision (`Facts::Decided`) is read like any other, except that its
-    landing read leaves out the radial part that decision admitted: the
-    end's distance from the centre against the start's. What is read is
-    the stored sweep, which no decision was about. So the read-back
-    decides only what no inline decision decided, and none of these
-    facts is decided twice.
+    landing is read against the end vertex moved along its ray from the
+    centre onto the landing's circle, which leaves out the distance from
+    the centre that decision admitted. What is read is the stored sweep,
+    which no decision was about. So the read-back decides only what no
+    inline decision decided, and none of these facts is decided twice.
 - Giving up the provenance (`ConstructedLoop::into_loop`) makes the loop
   a table again, and it is checked.
 

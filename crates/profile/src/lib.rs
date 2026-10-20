@@ -174,6 +174,11 @@ pub use path::{
     PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via,
     circle, circle_split,
 };
+/// The path door's read-back rounding bounds and its magnitude
+/// headroom (`seg::read_back_arc`), for the suites that hold a scene's
+/// answer against them rather than restating them.
+#[cfg(any(test, feature = "test-support"))]
+pub use seg::{LANDING_ULPS as READ_BACK_LANDING_ULPS, READ_BACK_RIM_ULPS, resolution_headroom};
 pub use structure::{
     CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
     LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
@@ -332,11 +337,15 @@ pub(crate) struct BuiltArc<T: Real> {
     /// carrier back against it at a point scalar, and it goes no
     /// further than the door.
     pub(crate) through: Option<Point2<T>>,
-    /// The turn sense the construction authored, from data other than
-    /// the sweep it computed (a winding, a side, the side of the chord
-    /// a through-point or a target lies on): which of the two arcs on
-    /// the carrier between its ends it built. The door reads the
-    /// stored sweep's branch against it.
+    /// The turn sense the construction states, from a decision on its
+    /// inputs rather than from the sweep it stored (a winding, a side,
+    /// the side of the chord a through-point or a target lies on, a
+    /// corner's turn): which of the two arcs on the carrier between its
+    /// ends it meant. The door reads the stored sweep's branch against
+    /// it. Where that decision also fixes the sign of the quarter-tangent
+    /// the sweep was computed from, the read sees a defect after the
+    /// sign, not one in it. `None` for a `Bulge` leg, whose bulge is the
+    /// authored data.
     pub(crate) sense: Option<ArcSweep>,
     /// The bulge is the authored data itself (the `Bulge` leg), so a
     /// stored arc that reads as a line is a line as authored, and the
