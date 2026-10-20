@@ -6925,3 +6925,10 @@ Signed (WIRE orchestrator).
   - PR CI ran only a narrow change-filter set; the lane's wide suites were local. A FULL review (`wire-emis-topo-rev`) re-runs the slow set and corrupt-input, and samples the row-4 claims for reach.
   - Its emit.rs edits overlap `wire-emis-rest`'s file; that lane was told.
 - 2026-10-20 (WIRE orchestrator) `wire-emis-rest` opened PR 5502 (head b4ed55a10e). Of its raises, 57 went to row 4, 2 stay typed as reached, and 2 survive filed (coincide MEET_OF_ONE; union verdicts disagreeing). The rest wait elsewhere: 3 on the verbs row, 4 on D10 ground, and 12 in emit.rs's shared helpers, left because emit_topo, emit_union and others also call them. A FULL review (`wire-emis-rest-rev`) is dispatched; it also merges the 5503 head to check the two together. A follow-up for the 12 helpers is owed once all three lanes land.
+- 2026-10-20 (WIRE orchestrator) `wire-emis-union` opened PR 5501 (head 29b1e8985b). 2 raises went to row 0 and about 64 to row 4.
+  - 13 stay typed: 6 because legal input reaches them, and 7 a correct kernel may reach, which wait on a variant (filed).
+  - It edits `eval/wire.rs`'s `member_cells` caller (5502's file).
+  - A FULL review (`wire-emis-union-rev`) is dispatched, with a three-way merge check of 5501, 5502 and 5503.
+  - Rows owed after all three land:
+    - one NamingError row-1/2 variant set for the 17 deferred "correct kernel may reach" sites (topo 10, union 7; filed rows);
+    - the 12 shared helpers in emit.rs.
