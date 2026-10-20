@@ -65,3 +65,11 @@ slit's mouth, and whether the fixture means to hold that region at all.
 A candidate remedy at the check, for this row and not the PR that found
 it: a cross-check between readings, so that two aimed rays that decide
 opposite sides refuse rather than whichever comes first answering.
+
+## Measured on the edge-meeting ray
+
+With the edge-meeting ray's near-normal aims (FLUSH,
+`a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face`), `x ∪ y`
+of probes 2 and 4 refuses `ResultInvalid` at all five poses, the two
+flipped ones included; `y ∪ x` and probe 1 still build holding the
+region. Pinned in `KNOWN_INSIDE_OUT` and `KNOWN_WRONG`.
