@@ -5093,6 +5093,21 @@ enum TouchVerdict {
 /// its refusal reasons, which a cross-solid touch renders as
 /// [`Undecided`] and an edge lying in a face of its own solid as
 /// [`ValidationError::FaceThroughEdgeWedgeUndecided`].
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match this type — `pncad` re-exports
+/// `topo` whole — and the Python door already says which check refused
+/// (`face_through_edge_wedge_undecided`) and carries the reason's
+/// sentence. Publishing the name owes the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` and a
+/// Python word per arm, both the façade crate's to write.
+///
+/// **The falsifier is a Python caller who must tell a curved edge face
+/// (no way through yet) from a reading in band (move the parts)**
+/// without reading the sentence. When the façade carries the reason,
+/// delete this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum TouchUnread {
