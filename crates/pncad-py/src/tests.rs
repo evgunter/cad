@@ -5291,6 +5291,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "conventional_vertex",
             "duplicate",
             "emission",
+            "entity_named",
             "escalated",
             "kind_mismatch",
             "member_edge_tied",

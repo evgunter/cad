@@ -76,7 +76,7 @@
 //!   the placement translated by `w` (PR 3's binding handoff).
 //! - **Profile-corner joins**: once both side faces of a join exist,
 //!   the join (strut) edge upgrades to `Intersection { pair,
-//!   witness }` via `topo`'s certified `set_edge_curve`
+//!   witness }` through `topo`'s restatement door (`Body::restate_stored_edge`)
 //!   (mint-time `Intersection` is impossible — the surfaces don't exist
 //!   yet). The choice is `geom_brep::classify_dihedral` at the strut
 //!   midpoint with the strut chord as extent: Transverse ⇒ upgrade;
@@ -96,7 +96,7 @@
 //!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
 //!   (bottom and top, outer and ring loops) re-describes as
 //!   `Intersection { cap plane, side surface, witness }` through the
-//!   same `classify_dihedral` → `set_edge_curve` pattern, with the
+//!   same `classify_dihedral` → `restate_stored_edge` pattern, with the
 //!   witness minted as the **carrier's mid-parameter point** (the S2
 //!   witness contract). At the shipped ambiguity multiplier K = 10
 //!   every rim of a normal extrusion is definitely transverse, so the
@@ -202,3 +202,66 @@ pub mod fillet;
 // this crate's balls.
 #[cfg(test)]
 mod offer_rows;
+
+/// **A stored edge is restated through `topo`'s restatement door**
+/// (`topo::Body::restate_stored_edge`, which certifies it as the
+/// kernel's), never through the re-description doors that certify a
+/// carrier as the caller's. Each file of this crate that calls one of those doors is
+/// listed with its count, every call certifying a carrier the file
+/// computes, so a new call cannot land without its author deciding
+/// which it is.
+///
+/// It reads spelling over every source file, tests included, with
+/// comments and literals blanked. It cannot match a door reached
+/// through a macro's expansion or an alias of `Body`'s method.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod restatement_census {
+    use test_utils::source::{boundary_after, boundary_before, code_only, crate_dir, rust_sources};
+
+    /// `topo`'s re-description doors that certify a carrier as their
+    /// caller's.
+    const DOORS: [&str; 2] = ["set_edge_curve", "set_face_surfaces_describing"];
+
+    /// Each call of a door in [`DOORS`], by file and door: a loft strut's
+    /// boundary iso of its wall (`loft.rs`), and a blend's contact edge
+    /// on the carrier its surgery builds (`blend/surgery.rs`).
+    const COMPUTED: [(&str, &str, usize); 2] = [
+        ("blend/surgery.rs", "set_edge_curve", 1),
+        ("loft.rs", "set_edge_curve", 2),
+    ];
+
+    #[test]
+    fn callers_doors_certify_only_computed_carriers() {
+        let src = crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut found: Vec<(String, &str, usize)> = Vec::new();
+        for path in rust_sources(&src) {
+            let code = code_only(&std::fs::read_to_string(&path).unwrap());
+            let file = path
+                .strip_prefix(&src)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            for door in DOORS {
+                let calls = code
+                    .match_indices(door)
+                    .filter(|&(at, _)| {
+                        boundary_before(&code, at) && boundary_after(&code, at + door.len())
+                    })
+                    .count();
+                if calls > 0 {
+                    found.push((file.clone(), door, calls));
+                }
+            }
+        }
+        let listed: Vec<(String, &str, usize)> = COMPUTED
+            .iter()
+            .map(|&(file, door, calls)| (file.to_owned(), door, calls))
+            .collect();
+        assert_eq!(
+            found, listed,
+            "a call of a caller's door changed: a stored edge restated goes through \
+             `Body::restate_stored_edge`; a computed carrier is listed in `COMPUTED`"
+        );
+    }
+}

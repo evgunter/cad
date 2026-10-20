@@ -5660,6 +5660,12 @@ pub(crate) mod staleness_posture {
                  verbatim, which re-mints the faces the edge's halves are on as any \
                  certified description does",
             ),
+            (
+                "restate_stored_edge",
+                Completes,
+                "`describe_at_rest`'s write: `set_edge_curve` with the edge's own carrier and \
+                 interval put back verbatim",
+            ),
             ("set_face_sense", Neither, "writes one `bool`"),
             (
                 "begin_surgery",
