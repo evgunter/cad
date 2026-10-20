@@ -34,10 +34,11 @@
 //!   difference. With `u = 2⁻⁵³` and `p` any of `a1`, `b0`, `b1`, the
 //!   chain `t(p) = fl(fl(p − a0)·û)` errs by at most
 //!   - `u·|p − a0|` in the difference, carried through the dot;
-//!   - `3u·|p − a0|` in the dot itself, three products and two sums,
-//!     `|û| ≤ 1 + 5u` (two in the plane);
+//!   - `3u·|p − a0|` in the dot itself: three products and two sums in
+//!     space (two products and one sum in the plane), with `|û| ≤ 1 + 5u`;
 //!   - `5u·|p − a0|` for the unit: the caller's `û` is a rounded
-//!     normalization, within `5u` of a unit in direction and length;
+//!     normalization, within `5u` of a unit in direction and length (the
+//!     contract at [`on_one_line`](fn@on_one_line));
 //!
 //!   so `9u·|p − a0|` per projection, and the extent, two projections
 //!   and one more difference, within `10u` of the two ends' distances
@@ -139,13 +140,23 @@ on_one_line!(
     /// unit `unit`, read from `a0`** (module docs): `a`'s interval is
     /// `[0, (a1 − a0)·û]`, `b`'s its ends' projections. `produced` is the
     /// metres the four ends were computed at (module docs, "The charge").
+    ///
+    /// **The axis's contract.** `unit` is the caller's rounded
+    /// normalization of a nonzero vector, `v·(1/|v|)` or `v.normalize()`,
+    /// which holds it within `5u` of a unit in length and of `v` in
+    /// direction; the charge's derivation counts on that (module docs).
+    /// Every caller passes one: `geom_brep::curve_pair`'s router its
+    /// carrier's direction, `topo`'s check 9 its edges' chords. An axis
+    /// built any other way is outside the charge.
     on_one_line,
     Point3,
     Vec3
 );
 
 on_one_line!(
-    /// [`on_one_line`](fn@on_one_line) in the plane.
+    /// [`on_one_line`](fn@on_one_line) in the plane, under the same axis
+    /// contract: the reading for a planar reader of two straight spans,
+    /// such as `profile::seg`'s segment pairs.
     on_one_line_2d,
     Point2,
     Vec2
@@ -190,9 +201,11 @@ mod rows {
 
     /// **The charge is no looser than sixteen times what it stands for.**
     /// Containment alone grows easier as the charge grows, so a sweep also
-    /// reads the largest share of the charge any draw spends: `0.19`–`0.39`
+    /// reads the largest share of the charge any draw spends: `0.16`–`0.34`
     /// over five runs of either sweep at the default effort, against this
-    /// floor of `1/16`.
+    /// floor of `1/16`. A floor bounds the loosest the charge may be
+    /// anywhere; that it is at the spans' own scale is
+    /// [`the_charge_is_at_the_spans_scale_wherever_they_lie`]'s.
     fn tight(worst: f64) {
         assert!(
             worst >= 1.0 / 16.0,
@@ -272,6 +285,45 @@ mod rows {
             worst = worst.max(holds(got, real));
         }
         tight(worst);
+    }
+
+    /// **The charge is at the spans' own scale, wherever they lie.** Two
+    /// spans a metre long, a metre apart, `10³` … `10⁶` m from the origin:
+    /// their `noise` is bounded by the charge of a few metres, the spans'
+    /// own lengths from `a0`, at every distance from the origin. Red where
+    /// the charge is read at the points' distances from the origin, the
+    /// scale this replaced: there `noise` grows with `|p|`, about `10⁶`
+    /// times this bound at the far end of the draw.
+    #[test]
+    fn the_charge_is_at_the_spans_scale_wherever_they_lie() {
+        let mut rng = fuzz::start("one-line-span-scale");
+        for _ in 0..fuzz::scaled(2_000) {
+            let far = 10f64.powf(rng.range(3.0, 6.0));
+            let a0 = Point3::new(
+                far * rng.range(-1.0, 1.0),
+                far * rng.range(-1.0, 1.0),
+                far * rng.range(-1.0, 1.0),
+            );
+            let d = direction(&mut rng);
+            let off = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ) * (1.0 / 3f64.sqrt());
+            let (a1, b0) = (a0 + d, a0 + off);
+            let b1 = b0 + d;
+            let got = on_one_line(d, (a0, a1), (b0, b1), 0.0);
+            // `|a1 − a0| + |b0 − a0| + |b1 − a0| ≤ 1 + 1 + 2` metres.
+            let bound = crate::rounding_charge(4.0);
+            assert!(
+                got.noise <= bound,
+                "{} m out: noise {:e} past the spans' own {:e} — {}",
+                (a0 - Point3::origin()).norm(),
+                got.noise,
+                bound,
+                fuzz::replay()
+            );
+        }
     }
 
     /// **Ends evaluated on far carriers carry their evaluation within the
