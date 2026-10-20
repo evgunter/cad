@@ -2,8 +2,9 @@
 id: spiric-face-volume-budget-depends-on-world-position
 kind: issue
 title: A spiric-bounded face's certified volume spends its quadrature budget in a turned frame 990 m out, inside the box
-status: review
-branch: flux/spiric-budget-world-position
+status: closed
+pr: 5442
+closed: 2026-10-20
 opened: 2026-10-14
 priority: P2
 cost: M
