@@ -38,7 +38,7 @@ use geom_core::{Decide, Point2};
 use profile::{ArcSweep, Step, Target};
 use serde::{Deserialize, Serialize};
 
-use crate::eval::{CanonicalSegment, LoopAnchor, ProfileNaming};
+use crate::eval::{CanonicalSegment, LoopAnchor};
 use crate::expr::{Dimension, DimensionError, EvalError, UnitSym, VarEnv, eval_var};
 use crate::formula::Formula;
 use crate::node::{SlotId, StepArg, StepId, find_row, row_readers};
@@ -466,14 +466,11 @@ pub struct ProfileProgram<S: crate::expr::Slot = crate::VarId> {
 /// The canonical `Doc` instantiation (the retired `ProfileDesc` seat).
 pub type ProfileDoc = crate::doc::Doc<ProfileProgram>;
 
-/// **What a replay of a whole program produces**: each loop as
-/// replayed at f64 and its structure record, both in program order
-/// and one per loop — the pair [`ProfileProgram::check`] and
-/// [`ProfileProgram::pieces`] read.
-type Replayed = (
-    Vec<profile::ConstructedLoop<f64>>,
-    Vec<profile::ReplayStructure>,
-);
+/// **What a validated replay of a whole program records**: each loop's
+/// replay structure record, in program order and one per loop, and the
+/// canonicalization the validation applied — the pair
+/// [`ProfileProgram::pieces`] names the canonical positions from.
+type Replayed = (Vec<profile::ReplayStructure>, profile::CanonicalStructure);
 
 // ------------------------------------------------------------------
 // The payload trait (Node<P> genericity's seam)
@@ -705,10 +702,6 @@ pub enum ProgramRefusal {
     /// [`StepIdFault::Shape`]), so they name no step reliably.
     /// Answered only by [`ProfileProgram::pieces`].
     StepIds(StepIdFault),
-    /// The program's replay record and its naming anchor do not
-    /// describe one program, so its pieces cannot be named — a kernel
-    /// bug. Answered only by [`ProfileProgram::pieces`].
-    Pieces(crate::eval::PiecesFault),
 }
 
 // LIB-DOORS F6 (reopened on review): a human-readable rendering. Each
@@ -743,7 +736,6 @@ impl core::fmt::Display for ProgramRefusal {
                  insert door mints them",
             ),
             Self::StepIds(fault) => write!(f, "the program's step ids are refused: {fault}"),
-            Self::Pieces(fault) => write!(f, "the program's pieces have no names: {fault}"),
         }
     }
 }
@@ -775,7 +767,7 @@ struct AnchoredRecords<'p, 'r> {
     /// carry.
     canonical_loop: u32,
     /// The loop's naming anchor, program segment ↔ canonical segment,
-    /// already checked against canonicalization's own record.
+    /// read off canonicalization's own record.
     anchor: LoopAnchor,
 }
 
@@ -852,8 +844,8 @@ impl AnchoredRecords<'_, '_> {
     /// hop is the identity for a loop authored in its canonical sense
     /// and the reflection `s ↦ n − 1 − s` for one authored against it
     /// — read off the anchor, which
-    /// [`ProfileProgram::checked_records`] has already checked against
-    /// canonicalization's own record of the permutation.
+    /// [`ProfileProgram::checked_records`] reads off canonicalization's
+    /// own record of the permutation.
     ///
     /// The BOUND is the caller's, because the two callers hold
     /// different facts and owe the reader different sentences: a span
@@ -897,10 +889,7 @@ impl AnchoredRecords<'_, '_> {
 /// refused: an address this program does not have, or a record that
 /// does not describe this program. There is no arm for "probably
 /// these" — a map that guessed would be exactly the second derivation
-/// the door exists to replace. There is no arm either for the
-/// evaluation's two records of one permutation disagreeing: one
-/// evaluation produces both, so a disagreement is the kernel
-/// contradicting itself and the door asserts (DM8).
+/// the door exists to replace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StepSegmentsError {
     /// The program has no such loop.
@@ -934,11 +923,12 @@ pub enum StepSegmentsError {
         /// How many the record describes.
         recorded: usize,
     },
-    /// The naming anchor carries no entry for this program loop, so
-    /// nothing says which refs its walls were named with.
-    NoAnchor {
-        /// The program loop asked about.
-        loop_: u32,
+    /// The structure record does not call exactly one loop outer, so
+    /// it orders no canonical loops and nothing says which refs the
+    /// walls were named with.
+    LoopOrder {
+        /// How many loops the record calls outer.
+        outer_loops: usize,
     },
     /// The record credits a segment to a radius argument the step it
     /// names does not hold — a `CarrierRadius` on a step whose spec
@@ -1018,13 +1008,14 @@ impl core::fmt::Display for StepSegmentsError {
                 ),
                 loop_, authored, recorded
             ),
-            Self::NoAnchor { loop_ } => write!(
+            Self::LoopOrder { outer_loops } => write!(
                 f,
                 concat!(
-                    "the naming anchor does not describe loop {}, so nothing ",
-                    "says which refs its entities were named with"
+                    "the structure record calls {} loops outer where a profile has ",
+                    "exactly one, so it orders no loops and nothing says which refs ",
+                    "its entities were named with"
                 ),
-                loop_
+                outer_loops
             ),
             // `StepArg::label()` already says the word "radius" where
             // the role has one ("radius", "carrier radius", "arrival
@@ -1813,16 +1804,13 @@ impl ProfileProgram {
     /// The map from a document slot's `(loop_, step)` — the coordinates
     /// of `SlotId::Profile` — to the CANONICAL segments those segments
     /// are: the numbering the emitters, the loft's correspondence and
-    /// the viewer's per-segment marks iterate (V3). It READS two
-    /// records the evaluation already produced and never re-derives
-    /// them from the geometry — a second derivation can disagree with
-    /// the one the geometry came from, which is the defect this door
-    /// exists to not be. The span GIVES the answer, in the program's
-    /// own step order, and the profile's naming anchor carries it into
-    /// canonical loop and canonical segment counted from the loop's
-    /// authored start. The anchor is CHECKED against
-    /// canonicalization's own record of the same permutation before it
-    /// is read.
+    /// the viewer's per-segment marks iterate (V3). It READS the record
+    /// the evaluation already produced and never re-derives it from the
+    /// geometry — a second derivation can disagree with the one the
+    /// geometry came from, which is the defect this door exists to not
+    /// be. The span GIVES the answer, in the program's own step order,
+    /// and the naming anchor carries it into canonical loop and
+    /// canonical segment counted from the loop's authored start.
     ///
     /// A canonical segment is a position, not a name: what a published
     /// name spells is the piece's minted step and role
@@ -1838,17 +1826,15 @@ impl ProfileProgram {
     ///    its straight leg and its arc, and a carrier form's single
     ///    step emits the whole loop, which is how `circle` and
     ///    `circle_split` answer here with no arm of their own.
-    /// 2. **The naming anchor** (`eval::anchor`, `LoopAnchor`): which
-    ///    canonical loop this program loop is, and whether its
+    /// 2. **The permutation canonicalization applied**
+    ///    (`profile::CanonicalStructure`), read as the naming anchor
+    ///    (`eval::anchor`, `LoopAnchor`) exactly as the evaluation reads
+    ///    it: which canonical loop this program loop is, and whether its
     ///    traversal was reversed. It carries a program segment to the
     ///    canonical segment it became — the identity for a loop
     ///    authored in its canonical sense, `s ↦ n − 1 − s` for one
     ///    authored against it, the canonical start being the authored
     ///    one.
-    /// 3. **The permutation canonicalization applied** — the check
-    ///    (`profile::LoopCanonical`'s `reversed`): the reversal that
-    ///    turns program vertex `i` of `n` into canonical vertex
-    ///    `(n − i) mod n`, the only permutation it applies.
     ///
     /// # Why the answer is in CANONICAL indices
     ///
@@ -1859,54 +1845,27 @@ impl ProfileProgram {
     /// and this door answers any section through that section's own
     /// anchor.
     ///
-    /// The anchor is one record and `(3)` is another, so the two are
-    /// checked against each other rather than assumed to agree: the
-    /// permutation is derived from `(3)`, the decision canonicalization
-    /// recorded, and the anchor independently, by bit-matching the
-    /// canonical loop against the replayed one.
-    ///
-    /// # Why a disagreement ASSERTS rather than refusing typed
-    ///
-    /// One evaluation produces both records, so two derivations of one
-    /// permutation that disagree are the evaluation contradicting
-    /// itself — a kernel bug, and kernel bugs panic (DM8). The one
-    /// cost is a caller that hands this door a `structure` and a
-    /// `naming` from two DIFFERENT evaluations: that mispairing panics
-    /// where it could have refused. It is a caller bug, no façade
-    /// caller can make it today, and it disappears by construction
-    /// once the structure record rides on the evaluation's own value
-    /// rather than arriving as a second argument
-    /// (`work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`).
-    ///
-    /// Not persisted, and not a cache: it is rebuilt from the records
-    /// beside the geometry they describe.
+    /// Not persisted, and not a cache: it is rebuilt from the record
+    /// beside the geometry it describes.
     ///
     /// # Errors
     ///
     /// [`StepSegmentsError`] — a loop or step this program does not
     /// have, or a record that does not describe it. It refuses rather
     /// than guessing at either.
-    ///
-    /// # Panics
-    ///
-    /// If the two records describe different permutations of the loop
-    /// (the section above).
     pub fn profile_edges_of(
         &self,
         structure: &profile::ProfileStructure,
-        naming: &ProfileNaming,
         loop_: u32,
         step: u32,
     ) -> Result<Vec<CanonicalSegment>, StepSegmentsError> {
-        self.checked_records(structure, naming, loop_)?
-            .edges_of_step(step)
+        self.checked_records(structure, loop_)?.edges_of_step(step)
     }
 
-    /// **The records one loop's answers are read from, checked against
-    /// each other once.**
+    /// **The records one loop's answers are read from, checked once.**
     ///
     /// Both doors below answer about segments of one loop through one
-    /// permutation, and factoring the check out is what makes that a
+    /// permutation, and factoring the reading out is what makes that a
     /// property of the code rather than of two copies staying in step:
     /// a per-edge answer and a per-step answer that disagreed about
     /// which permutation the evaluation applied would name two
@@ -1916,15 +1875,9 @@ impl ProfileProgram {
     ///
     /// [`StepSegmentsError`] — a loop this program does not have, or a
     /// record that does not describe it.
-    ///
-    /// # Panics
-    ///
-    /// If the two records describe different permutations of the loop
-    /// (see [`ProfileProgram::profile_edges_of`]).
     fn checked_records<'p, 'r>(
         &'p self,
         structure: &'r profile::ProfileStructure,
-        naming: &ProfileNaming,
         loop_: u32,
     ) -> Result<AnchoredRecords<'p, 'r>, StepSegmentsError> {
         let li = loop_ as usize;
@@ -1941,31 +1894,21 @@ impl ProfileProgram {
             .get(li)
             .ok_or(StepSegmentsError::NoRecord { loop_ })?;
         // The shape check is `CheckedRecords::new`'s.
-        let n = canonical.segments.len();
-        let checked = CheckedRecords::new(loop_, program, replay, n)?;
-        let (canonical_loop, anchor) = naming
+        let checked = CheckedRecords::new(loop_, program, replay, canonical.segments.len())?;
+        let naming = crate::eval::derive_naming(&structure.canonical)
+            .map_err(|outer_loops| StepSegmentsError::LoopOrder { outer_loops })?;
+        let Some((canonical_loop, anchor)) = naming
             .loops
             .iter()
             .enumerate()
             .find(|(_, a)| a.program_loop == loop_)
-            .ok_or(StepSegmentsError::NoAnchor { loop_ })?;
-
-        // The two records must be ONE permutation: the same length and
-        // the same reversal (the canonical start being the authored
-        // vertex 0 on both, there is nothing else for them to say).
-        let same = anchor.len as usize == n && n != 0 && anchor.reversed == canonical.reversed;
-        assert!(
-            same,
-            concat!(
-                "the evaluation's two records of loop {}'s permutation ",
-                "disagree: canonicalization recorded reversed={} ",
-                "over {} segments, the naming anchor recorded reversed={} ",
-                "over {} vertices. One evaluation produces both, ",
-                "so they describe one permutation or the kernel has ",
-                "contradicted itself"
-            ),
-            loop_, canonical.reversed, n, anchor.reversed, anchor.len
-        );
+        else {
+            unreachable!(
+                "the anchor of a {}-loop record has no entry for its loop {loop_}: \
+                 `derive_naming` anchors every loop the record holds",
+                structure.canonical.loops.len()
+            )
+        };
         Ok(AnchoredRecords {
             records: checked,
             canonical_loop: program_index(canonical_loop),
@@ -2024,17 +1967,12 @@ impl ProfileProgram {
     /// the end of the program included). Both say the record and the
     /// program are not about each other; neither guesses.
     ///
-    /// # Panics
-    ///
-    /// Where [`ProfileProgram::profile_edges_of`] does — the two
-    /// records describing different permutations of the loop.
     pub fn segment_radii(
         &self,
         structure: &profile::ProfileStructure,
-        naming: &ProfileNaming,
         loop_: u32,
     ) -> Result<Vec<(CanonicalSegment, &VarId)>, StepSegmentsError> {
-        let checked = self.checked_records(structure, naming, loop_)?;
+        let checked = self.checked_records(structure, loop_)?;
         // The carrier forms answer per LOOP: one step, one radius,
         // every edge of it an arc of that radius. A per-segment
         // address for a per-loop fact is what this arm exists to not
@@ -2094,18 +2032,13 @@ impl ProfileProgram {
         self.validated(env, tol).map(|_| ())
     }
 
-    /// The check's ladder, keeping what it produced: the validated
-    /// profile, and each loop as replayed with its
-    /// [`profile::ReplayStructure`], in program order — what
-    /// [`ProfileProgram::pieces`] names the canonical positions from.
-    /// Recording changes nothing about what is computed
+    /// The check's ladder, keeping what it recorded ([`Replayed`]):
+    /// what [`ProfileProgram::pieces`] names the canonical positions
+    /// from. Recording changes nothing about what is computed
     /// (`profile::replay_recording` is `replay` bit for bit plus the
-    /// account), so this and [`ProfileProgram::check`] cannot disagree.
-    fn validated(
-        &self,
-        env: &VarEnv<f64>,
-        tol: Tol,
-    ) -> Result<(profile::ValidatedProfile<f64>, Replayed), ProgramRefusal> {
+    /// account, and `validate_recording` is `validate` plus its record),
+    /// so this and [`ProfileProgram::check`] cannot disagree.
+    fn validated(&self, env: &VarEnv<f64>, tol: Tol) -> Result<Replayed, ProgramRefusal> {
         let (replayed, records) = self.replay_records(env, tol)?;
         // **The identity plane, and the check is honest about why.**
         // Validation is 2-D — `profile::validate` says so itself, and
@@ -2119,8 +2052,10 @@ impl ProfileProgram {
         // The loops are the replay's own construction, so validation
         // decides no arc's consistency checks (D1).
         let replayed = profile::ConstructedProfile::new(profile::SketchPlane::xy(), replayed);
-        let validated = replayed.validate(tol).map_err(ProgramRefusal::Validate)?;
-        Ok((validated, (replayed.into_parts().1, records)))
+        let (_, canonical) = replayed
+            .validate_recording(tol)
+            .map_err(ProgramRefusal::Validate)?;
+        Ok((records, canonical))
     }
 
     /// **The piece every canonical position of this program is**, under
@@ -2138,10 +2073,9 @@ impl ProfileProgram {
     /// # Errors
     ///
     /// [`ProfileProgram::check`]'s; [`ProgramRefusal::Unminted`] for a
-    /// program no document minted step ids for;
-    /// [`ProgramRefusal::StepIds`] for ids not shaped one list per loop
-    /// and one id per authored step; and [`ProgramRefusal::Pieces`]
-    /// where the replay and the naming anchor disagree.
+    /// program no document minted step ids for; and
+    /// [`ProgramRefusal::StepIds`] for ids not shaped one list per
+    /// loop and one id per authored step.
     pub fn pieces(
         &self,
         env: &VarEnv<f64>,
@@ -2151,15 +2085,11 @@ impl ProfileProgram {
             return Err(ProgramRefusal::Unminted);
         }
         self.check_id_shape().map_err(ProgramRefusal::StepIds)?;
-        let (validated, (loops, records)) = self.validated(env, tol)?;
-        let naming = crate::eval::derive_naming(&validated, &loops).unwrap_or_else(|| {
-            unreachable!(
-                "validation reindexes its input exactly, so its canonical loops match the \
-                 replayed ones they were minted from"
-            )
-        });
-        crate::eval::ProfilePieces::publish(&naming, &records, &self.ids)
-            .map_err(ProgramRefusal::Pieces)
+        let (records, canonical) = self.validated(env, tol)?;
+        let naming = crate::eval::validated_naming(&canonical);
+        Ok(crate::eval::ProfilePieces::publish(
+            &naming, &records, &self.ids,
+        ))
     }
 
     /// **Whether this program carries step ids at all.** A program no
