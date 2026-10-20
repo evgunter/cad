@@ -4,6 +4,8 @@ kind: issue
 title: Twelve emit_topo Emission raises a correct kernel may reach have no row-1 or row-2 variant to take
 status: open
 opened: 2026-10-20
+priority: P2
+cost: M
 ---
 
 

@@ -62,3 +62,7 @@ Each class gets one answer, and neither answer is a clamp.
   whichever the internal-break rule settles on
   (`eval-handles-internal-breaks-three-ways-and-run-op-carries-node-facts-as-loose-options`,
   part 1).
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).

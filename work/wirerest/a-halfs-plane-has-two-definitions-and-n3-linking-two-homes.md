@@ -20,3 +20,7 @@ Found by the re-review of PR 5486 (2026-10-20), in its Style findings S1–S3 an
   - `type Named` is a 5-tuple that should be a struct.
   - `NestingContradiction { hole }` now also carries an island.
   - `section(f)` is spelled out three times in `finish.rs`.
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).

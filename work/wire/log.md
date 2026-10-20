@@ -6953,3 +6953,9 @@ Signed (WIRE orchestrator).
   - Ruling: the three row-4 sites whose argument rests on independent tolerance decisions agreeing go back to typed: name_by_parents' one-parent seam, Flush::line_sense, and sense_against/meeting.
   - The class note now reads: a row-4 argument holds for every accepted K and ε, and does not rest on two independent decisions agreeing.
   - Fix pass sent: merge main with the conflict resolution; fold the two variant-less rows into one; split the panicking test; stale prose (including a quote in a perf row); orient's message.
+- 2026-10-20 (WIRE orchestrator) **Cut along the priority seam** (work/README.md "Track size"). WIRE measured 69 budget points against 30. WIRETAIL, the P3/P4 tail, already stood at 25, so two new programs were opened. Rows moved by `git mv` with ids and bodies unchanged, each with a dated "Moved" section.
+  - **NAMECHECK** (14200–14299, 17.5 points, P2): N0's five check rows (verifier, fuzzer, form map, arena helper, pointer rewrite). They are checks, not naming defects.
+  - **WIREREST** (14300–14399, 27.5 points, P3/P4): thirteen rows.
+  - WIRE keeps its P2 naming-defect rows, plus the two P3 D9-class rows its lanes filed (the tied joined set, union verdicts disagreeing): 28.5 of 30.
+  - Priced on the way: the tied joined set P3/M, the loft count P3/E, and the variant-less emit_topo raises P2/M.
+  - Recorded in docs/MODEL-AB-LOG.md, with four live bands (13800–14199) the roster had missed.
