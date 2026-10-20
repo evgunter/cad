@@ -94,19 +94,6 @@ forking a question. Each principle names the check that holds it.
   never reconstructs it; a missing or wrong record is a kernel defect, fixed in
   the kernel. *Check:* the D5 record validator, and the NS4 fuzzer.
 
-*Worked example.* A box `a` and a cylinder `b` standing up through the box's
-top, then `Union [a, b]`, then a fillet of the circle where they meet.
-- The box's four walls, untouched, are Carried: `From { read: a, of: Lateral(k) }`.
-- The box's top, holed by the cylinder, is still one piece of one input
-  face, so it is Carried too, `From { read: a, of: Cap(End) }`. Had the cut
-  left two pieces, each would add `Fragment(Borders(..))` over the walls on
-  its own boundary (NS3).
-- The circle where the cylinder's side leaves the top is Met: `Seam` of the
-  two faces beside it, `From { read: a, of: Cap(End) }` and
-  `From { read: b, of: Lateral }`, in name order. Swapping the union's
-  members changes nothing (NS1).
-- The fillet's face is Made, `BlendFace(e)`, where `e` is that seam's name.
-
 Coincidence rows are records, not names (REFERENCES DM4): their presence
 follows the decisions an evaluation took, and NS1 governs only what a name
 reads of them.
