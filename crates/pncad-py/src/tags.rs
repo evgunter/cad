@@ -1665,6 +1665,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Revert => "revert",
         BooleanErrorKind::EdgeInFace => "edge_in_face",
         BooleanErrorKind::SlitTipUnread => "slit_tip_unread",
+        BooleanErrorKind::LineWedges => "line_wedges",
     }
 }
 
@@ -1770,6 +1771,7 @@ pub fn rim_share_tag(found: &RimShare) -> &'static str {
 pub fn naming_error_tag(err: &NamingError) -> &'static str {
     match err {
         NamingError::Duplicate { .. } => "duplicate",
+        NamingError::EntityNamed { .. } => "entity_named",
         NamingError::KindMismatch { .. } => "kind_mismatch",
         NamingError::ShortTie { .. } => "short_tie",
         NamingError::Unnamed { .. } => "unnamed",
@@ -3004,6 +3006,7 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameRadius => "same_radius",
         R::AxesMeet => "axes_meet",
         R::CoRuled => "co_ruled",
+        R::Meet => "meet",
     }
 }
 

@@ -147,6 +147,7 @@ pub fn fresh_step(verb: Verb) -> Step<f64> {
         Verb::ContinueTo => Step::ContinueTo(target),
         Verb::ArcTo => Step::ArcTo(arc),
         Verb::TangentArcTo => Step::TangentArcTo(target),
+        Verb::ArcOnto => Step::ArcOnto(target),
         Verb::Fillet => Step::Fillet { radius: 0.001 },
         Verb::FilletArc => Step::FilletArc {
             radius: 0.001,
@@ -1362,8 +1363,10 @@ fn closed_on_start(prefix: &[Step<f64>], start: Point2<f64>) -> Option<Vec<Step<
         // No target the step ends on: a binder, a leg by length, a
         // pending fillet, a fused step whose spec is its INCOMING arc,
         // a close, a complete loop; or one with no `Start` spelling, a
-        // far-end anchor.
-        Step::At(_)
+        // far-end anchor. `arc_onto`'s target is landed by the director
+        // after it, so retargeting it alone closes nothing.
+        Step::ArcOnto(_)
+        | Step::At(_)
         | Step::Angle(_)
         | Step::Toward { .. }
         | Step::Tangent
@@ -1533,6 +1536,8 @@ pub fn tip_state_words(state: TipState) -> &'static str {
         TipState::RadiusArrivalDir => "a radius arrival with its director bound",
         TipState::ViaArrival => "a via arrival awaiting its director",
         TipState::ViaArrivalStart => "a via close awaiting its director",
+        TipState::ArcOnto => "an arc onto its target awaiting the director it arrives along",
+        TipState::ArcOntoStart => "an arc onto the entry awaiting the director it arrives along",
         TipState::Closed => "a closed loop, which no verb may follow",
     }
 }
@@ -1631,6 +1636,7 @@ pub fn fresh_step_at(verb: Verb, state: Option<TipState>) -> Step<f64> {
         | Step::LineTo(_)
         | Step::ContinueTo(_)
         | Step::TangentArcTo(_)
+        | Step::ArcOnto(_)
         | Step::Fillet { .. }
         | Step::FarEndTo(_)
         | Step::CloseTo

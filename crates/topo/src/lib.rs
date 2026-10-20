@@ -301,7 +301,7 @@ pub mod test_support {
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
-    pub use crate::props::{FaceTerm, mass_properties_with_face_terms};
+    pub use crate::props::{FaceTerm, fold_order_bound, mass_properties_with_face_terms};
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence, brick,
@@ -882,10 +882,10 @@ pub use boolean::{
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
     CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
     CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
-    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeInFaceGap,
-    EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact, Fusions,
-    GlueVerdict, GluedPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
-    JoinUndecided, LeverArm, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords,
+    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeInFaceGap, EdgeJoin,
+    EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact, Fusions, GlueVerdict,
+    GluedPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
+    LeverArm, LineWedgeFault, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords,
     PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
     PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
     SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
@@ -955,7 +955,6 @@ pub use coherence::{
 };
 pub use coincidence::{
     Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
-    UnspelledDecision,
 };
 pub use geom::Curve3;
 pub use geom::Surface;

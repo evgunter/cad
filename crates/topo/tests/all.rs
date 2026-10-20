@@ -137,6 +137,8 @@ mod display_contract;
 mod euler_site_pcurve_rows;
 #[path = "fused_into_live_cells.rs"]
 mod fused_into_live_cells;
+#[path = "gate_reads_coincident_wedges.rs"]
+mod gate_reads_coincident_wedges;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]

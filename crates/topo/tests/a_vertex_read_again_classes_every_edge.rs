@@ -206,6 +206,38 @@ fn local(pose: &Pose, w: Vec3<f64>) -> [f64; 3] {
     cols.map(|cv| cv.x * w.x + cv.y * w.y + cv.z * w.z)
 }
 
+/// The scenes some of whose cells the result gate refuses
+/// (`BooleanError::LineWedges`), with how many over every pose and op:
+/// each such result carries coincident edges whose wedges overlap,
+/// which every tier passed. They return with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+const OVERLAPPING: &[(&str, usize)] = &[
+    ("under the lying pyramid's ray", 5),
+    ("around the lying pyramid", 5),
+    ("inside the lying pyramid", 5),
+    ("continuing the lying pyramid's face", 5),
+];
+
+/// A refusal's kind as a tally keys it: the error's arm, and for the
+/// result gate's refusal of coincident edges, [`OVERLAP`] where it is an
+/// overlap.
+fn refusal_kind(e: &BooleanError) -> String {
+    if matches!(
+        e,
+        BooleanError::LineWedges {
+            fault: topo::LineWedgeFault::Overlap { .. },
+            ..
+        }
+    ) {
+        return OVERLAP.to_owned();
+    }
+    let kind = format!("{e:?}");
+    kind.split([' ', '{', '(']).next().unwrap_or("").to_owned()
+}
+
+/// The tally key of the result gate's refusal of overlapping wedges.
+const OVERLAP: &str = "LineWedges::Overlap";
+
 /// One scene's cells, over every pose and op: what refused, and each
 /// edge at `MEET` of a built result's operands, by its rows against the
 /// germ.
@@ -250,8 +282,7 @@ fn check(
             Ok(BooleanResult::Body(r)) => r,
             Ok(BooleanResult::Empty) => continue,
             Err(e) => {
-                let kind = format!("{e:?}");
-                let kind = kind.split([' ', '{', '(']).next().unwrap_or("").to_owned();
+                let kind = refusal_kind(&e);
                 let cell = what
                     .strip_prefix(label)
                     .unwrap_or(&what)
@@ -338,32 +369,9 @@ fn crown() -> Vec<[f64; 3]> {
         .collect()
 }
 
-/// **Refused, a parting not built**: the scenes whose cells refuse
-/// `EdgeInFace`, each pose's `y − x`. A pyramid on the void's face, in the arch or round its island: `y −
-/// x` leaves the pyramid's edge in the void's face along part of its
-/// length, and the material about it (at its midpoint, from the face's
-/// own direction round into it: solid to 20°, empty to 90°, solid to
-/// 180°, empty beyond) parts it in two, which is not built where it runs
-/// on past the face's boundary: `EdgeInFace`, at every pose. Main built
-/// the one edge, its wedge a reflex 290° through the empty half-space.
-const UNPARTED: [(&str, [&str; 5]); 2] = [
-    ("on the void's face in the arch", ON_THE_VOIDS_FACE),
-    ("on the void's face, the island in it", ON_THE_VOIDS_FACE),
-];
-
-/// [`UNPARTED`]'s cells.
-const ON_THE_VOIDS_FACE: [&str; 5] = [
-    "at rest, y − x: EdgeInFace",
-    "turned about z, y − x: EdgeInFace",
-    "turned, y − x: EdgeInFace",
-    "flipped, y − x: EdgeInFace",
-    "flipped and turned, y − x: EdgeInFace",
-];
-
 /// **Every edge a vertex read again reads is classed, against the
-/// germ**, in every scene at every pose (module docs), and refuses only
-/// as [`KNOWN_INSIDE_OUT`] and [`UNPARTED`] say. Prints each scene's
-/// tally, then asserts it.
+/// germ**, in every scene at every pose (module docs). Prints each
+/// scene's tally, then asserts it.
 #[test]
 fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
     let mut tallies: BTreeMap<&'static str, Tally> = BTreeMap::new();
@@ -617,26 +625,29 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             .into_iter()
             .map(|(label, base)| (label, pyr(base)))
             .collect();
-        // A void in the lying pyramid with an edge on its ray: two
-        // partners along the top, one inside the other.
+        // A void in the lying pyramid with an edge on its ray refuses:
+        // the difference carries the ray as two edges of 30.6° and
+        // 356.1°, overlapping, which every tier passed. Its three scenes
+        // (over it, in its void, hanging below it) return with the
+        // re-pairing
+        // (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
         let lvoid = mix(
             lying(0.0),
             [[0.0, 0.0, 1.0], [0.2, 0.2, 0.6], [0.25, 0.15, 0.6]],
             0.7,
         );
-        let hollow_lying_b = built(
-            "a lying pyramid, a void on its ray",
-            union(
-                &plate_b,
-                &built(
-                    "a void on its ray",
-                    subtract(&p(lying(0.0)), &p(lvoid), t()),
-                ),
-                t(),
+        let got = subtract(&p(lying(0.0)), &p(lvoid), t());
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::LineWedges {
+                    fault: topo::LineWedgeFault::Overlap { .. },
+                    ..
+                })
             ),
+            "{}: a void on the lying pyramid's ray: {got:?}, not the overlap's refusal",
+            pose.label
         );
-        let hollow_lying = u(plate.clone(), dd(c(lying(0.0)), c(lvoid)));
-        let in_lvoid = pyr(nest(lvoid, 0.7));
         let mut scenes = vec![
             ("the arches", pick(&cone), (&arches_b, &arches)),
             ("one standing pyramid", pick(&cone), (&one_b, &one)),
@@ -835,21 +846,6 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 pick(&hang),
                 (&lying_b, &lying_g),
             ),
-            (
-                "over a lying pyramid, a void on its ray",
-                pick(&over),
-                (&hollow_lying_b, &hollow_lying),
-            ),
-            (
-                "in a void on a lying pyramid's ray",
-                pick(&in_lvoid),
-                (&hollow_lying_b, &hollow_lying),
-            ),
-            (
-                "hanging below a lying pyramid, a void on its ray",
-                pick(&hang),
-                (&hollow_lying_b, &hollow_lying),
-            ),
         ];
         scenes.extend(
             along
@@ -1018,19 +1014,25 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         // join (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`):
         // which of its unions refuses is face order's choice, not the
         // region's. Pinned exactly, both what refuses and what builds
-        // holding the region, so the row's fix shows here.
+        // holding the region, so the row's fix shows here. The result
+        // gate's overlap refusals are pinned apart, by count
+        // ([`OVERLAPPING`]).
         let refused = KNOWN_INSIDE_OUT
             .iter()
             .find(|(l, _)| l == label)
-            .map(|(_, cells)| &cells[..])
-            .or_else(|| {
-                UNPARTED
-                    .iter()
-                    .find(|(l, _)| l == label)
-                    .map(|(_, cells)| &cells[..])
-            })
-            .unwrap_or(&[][..]);
-        if tally.refused_cells != refused || tally.wrong + tally.missing + tally.doubled > 0 {
+            .map_or(&[][..], |(_, cells)| &cells[..]);
+        let (overlaps, others): (Vec<&String>, Vec<&String>) = tally
+            .refused_cells
+            .iter()
+            .partition(|cell| cell.ends_with(&format!(": {OVERLAP}")));
+        let pinned = OVERLAPPING
+            .iter()
+            .find(|(scene, _)| scene == label)
+            .map_or(0, |&(_, n)| n);
+        if others != refused
+            || overlaps.len() != pinned
+            || tally.wrong + tally.missing + tally.doubled > 0
+        {
             failures.push(format!("{label}: {tally:?}"));
         }
         if let Some((_, built)) = KNOWN_WRONG.iter().find(|(l, _)| l == label) {
@@ -1124,6 +1126,8 @@ struct ProbeTally {
     built: usize,
     empty: usize,
     refused: BTreeMap<String, usize>,
+    /// The cells the result gate refused for overlapping wedges.
+    overlaps: std::collections::BTreeSet<String>,
     bad: Vec<String>,
 }
 
@@ -1195,8 +1199,10 @@ fn probe_material(
                 continue;
             }
             Err(e) => {
-                let kind = format!("{e:?}");
-                let kind = kind.split([' ', '{', '(']).next().unwrap_or("").to_owned();
+                let kind = refusal_kind(&e);
+                if kind == OVERLAP {
+                    tally.overlaps.insert(what.clone());
+                }
                 *tally.refused.entry(kind).or_default() += 1;
                 continue;
             }
@@ -1493,4 +1499,45 @@ fn partners_along_the_face_build_sound_against_the_germ() {
         probe.built > 0 && germ.rows > 0,
         "cells built and rows read"
     );
+    // The cells the result gate refuses: each carries coincident edges
+    // whose wedges overlap, which every tier passed (the re-pairing
+    // returns them). The germ's pass reads the same cells.
+    let overlaps = probe.overlaps.len();
+    assert_eq!(
+        germ.refused.get(OVERLAP).copied().unwrap_or(0),
+        overlaps,
+        "the germ's pass and the probe's refuse the same cells"
+    );
+    assert!(
+        probe
+            .refused
+            .keys()
+            .chain(germ.refused.keys())
+            .all(|k| !k.starts_with("LineWedges") || k == OVERLAP),
+        "every refusal of the line's wedges is an overlap: {:?} {:?}",
+        probe.refused,
+        germ.refused
+    );
+    match PARTNERS_OVERLAPPING.iter().find(|&&(e, _)| e == eps) {
+        Some(&(_, want)) => assert_eq!(
+            overlaps, want,
+            "the cells the result gate refuses at ε = {eps:e}: {:#?}",
+            probe.overlaps
+        ),
+        None => println!(
+            "SKIPPED: no pinned count of the overlapping cells at ε = {eps:e}; {overlaps} refused: \
+             {:#?}",
+            probe.overlaps
+        ),
+    }
 }
+
+/// How many cells of [`partners_along_the_face_build_sound_against_the_germ`]
+/// the result gate refuses for overlapping wedges, at each ε a CI row
+/// runs. The count moves with ε because the cells that reach the
+/// result gate do: a partner whose own construction escalates drops its
+/// 84 cells (four at the default ε, six at 1e-6 and 1e-12: 3 024 cells
+/// against 2 856), and a cell an earlier reading escalates in band never
+/// reaches the gate (516, 705 and 492 such cells), both moving with
+/// where the run's ε puts the partners' near-flat and `k·ε` geometry.
+const PARTNERS_OVERLAPPING: &[(f64, usize)] = &[(1e-9, 146), (1e-6, 125), (1e-12, 141)];

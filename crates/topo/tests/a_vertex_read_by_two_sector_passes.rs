@@ -69,8 +69,8 @@ use common::meeting::{
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
-    AlongFace, AtRestBody, BooleanError, BooleanErrorKind, BooleanResult, CensusContact, EntityId,
-    Operand, SectorRead, SideCode, SolidContainment, ValidationError, intersect, mass_properties,
+    AlongFace, AtRestBody, BooleanError, BooleanResult, CensusContact, EntityId, Operand,
+    SectorRead, SideCode, SolidContainment, ValidationError, intersect, mass_properties,
     point_in_solid, point_in_solid_of, readback, subtract, union, validate_geometric,
     validate_pseudomanifold,
 };
@@ -150,13 +150,9 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 
 /// Every refusal of tier 3′ is at [`MEET`]: a contact there no record
 /// backs, an operand's own, which a kernel op called without
-/// `BooleanInputs` records does not carry, or a touch there between two solids that the census misreads. Those
-/// are a pyramid notched by another, a saddle corner on the plate
-/// (`work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`),
-/// and a pyramid on a solid that touches itself there, read from its
-/// vertex alone
-/// (`work/inside/a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone.md`).
-/// [`material_holds`] reads those results right. Where `along`, a
+/// `BooleanInputs` records does not carry, or a touch there between two
+/// solids where one passes into the other (a pyramid notched by
+/// another). [`material_holds`] reads those results right. Where `along`, a
 /// pyramid's edge lies in a face of the other's, and that edge's own
 /// contact, which no record carries, may refuse too
 /// (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-unrecorded-contacts.md`).
@@ -247,8 +243,7 @@ fn three_prime(
                 _ => false,
             },
             ValidationError::CensusUndecidable { a, b, what: class } => {
-                (class.starts_with("they touch at a corner neither convex nor concave")
-                    || class.starts_with("one passes into the other where they touch"))
+                class.starts_with("one passes into the other where they touch")
                     && touches_meet(a)
                     && touches_meet(b)
             }
@@ -388,6 +383,52 @@ fn builds_along(
     builds_where(label, x, y, pose, along, ray, None)
 }
 
+/// The cells whose result the result gate refuses
+/// (`BooleanError::LineWedges`), by scene label and op, at every pose:
+/// each carries coincident edges whose wedges overlap, which every tier
+/// passed. They return with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+const OVERLAPPING: &[&str] = &[
+    "around the lying pyramid, mirrored into the void, x ∩ y",
+    "around the lying pyramid, mirrored into the void, y ∩ x",
+    "around the lying pyramid, x − y",
+    "continuing the lying pyramid's face, mirrored into the void, x ∪ y",
+    "continuing the lying pyramid's face, mirrored into the void, y ∪ x",
+    "continuing the lying pyramid's face, the pyramid lying -0.5ε off the top, y − x",
+    "continuing the lying pyramid's face, the pyramid lying 0.5ε off the top, y − x",
+    "continuing the lying pyramid's face, y − x",
+    "inside the lying pyramid, y − x",
+    "on the lying pyramid's ray, beside it, mirrored into the void, y − x",
+    "under the lying pyramid's ray, mirrored into the void, x ∪ y",
+    "under the lying pyramid's ray, mirrored into the void, y ∪ x",
+    "under the lying pyramid's ray, the pyramid lying -0.5ε off the top, y − x",
+    "under the lying pyramid's ray, the pyramid lying 0.5ε off the top, y − x",
+    "under the lying pyramid's ray, y − x",
+];
+
+/// Whether `e` is the result gate's refusal of overlapping wedges in a
+/// cell [`OVERLAPPING`] names.
+fn overlap_pinned(label: &str, op: &str, e: &BooleanError) -> bool {
+    let overlap = matches!(
+        e,
+        BooleanError::LineWedges {
+            fault: topo::LineWedgeFault::Overlap { .. },
+            ..
+        }
+    );
+    let key = format!("{label}, {op}");
+    overlap && OVERLAPPING.contains(&key.as_str())
+}
+
+/// A cell [`OVERLAPPING`] names that builds is a pin gone stale.
+fn not_pinned(label: &str, op: &str) {
+    let key = format!("{label}, {op}");
+    assert!(
+        !OVERLAPPING.contains(&key.as_str()),
+        "{key}: builds, where the result gate refuses its overlapping wedges"
+    );
+}
+
 /// [`builds_along`], where `glued` names the faces two blocks of `y`
 /// share ([`three_prime`]).
 fn builds_where(
@@ -400,7 +441,7 @@ fn builds_where(
     glued: Option<[[f64; 3]; 4]>,
 ) -> usize {
     let mut held = 0;
-    let mut v = [0.0; 6];
+    let mut v = [Some(0.0); 6];
     // Each op's keep over (in x, in y).
     let probes: Vec<_> = samples(x, y, pose)
         .into_iter()
@@ -421,126 +462,49 @@ fn builds_where(
     .into_iter()
     .enumerate()
     {
-        let refuses = refusing(label, what);
+        let op = what;
         let what = format!("{label}, {}, {what}", pose.label);
-        if let (Some(want), Ok(_)) = (refuses, &r) {
-            panic!("{what}: refuses {want:?} ([`REFUSING`]), but builds");
-        }
         v[k] = match r {
             Ok(BooleanResult::Body(r)) => {
+                not_pinned(label, op);
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
                 material_holds(&what, keep, Some(&r.body), &probes);
                 classes_hold(&what, &r, a, b, pose);
                 held += usize::from(three_prime(&what, &r, pose, along, ray, glued));
-                volume(&r.body)
+                Some(volume(&r.body))
             }
             Ok(BooleanResult::Empty) => {
+                not_pinned(label, op);
                 material_holds(&what, keep, None, &probes);
-                0.0
+                Some(0.0)
             }
-            Err(e) => {
-                assert_eq!(refuses, Some(e.kind()), "{what}: builds, got {e:?}");
-                f64::NAN
-            }
+            Err(e) if overlap_pinned(label, op, &e) => None,
+            Err(e) => panic!("{what}: builds, got {e:?}"),
         };
     }
+    let [xy, yx, u, u2, i, i2] = v;
     let (vx, vy) = (volume(x), volume(y));
     let what = format!("{label}, {}", pose.label);
-    let [xy, yx, u, u2, i, i2] = v;
-    // Each sum, which every result enters.
+    let add = |a: Option<f64>, b: Option<f64>| Some(a? + b?);
+    // Each sum, which every result enters, over the ops that built: a
+    // cell the result gate refuses ([`OVERLAPPING`]) leaves out the sums
+    // it enters, and the rest still hold.
     for (sum, want, which) in [
-        (u + i, vx + vy, "|x ∪ y| + |x ∩ y|"),
-        (xy + i, vx, "|x − y| + |x ∩ y|"),
-        (yx + i, vy, "|y − x| + |x ∩ y|"),
+        (add(u, i), Some(vx + vy), "|x ∪ y| + |x ∩ y|"),
+        (add(xy, i), Some(vx), "|x − y| + |x ∩ y|"),
+        (add(yx, i), Some(vy), "|y − x| + |x ∩ y|"),
         (u2, u, "|y ∪ x|"),
         (i2, i, "|y ∩ x|"),
     ] {
-        // A sum a refusing op enters is not read.
+        let (Some(sum), Some(want)) = (sum, want) else {
+            continue;
+        };
         assert!(
-            sum.is_nan() || want.is_nan() || (sum - want).abs() < 1e-9,
+            (sum - want).abs() < 1e-9,
             "{what}: {which} {sum}, want {want}"
         );
     }
     held
-}
-
-/// The cells [`builds_where`] reads as refusing at every pose, each a
-/// construction gap with no lever: `(scene label, op or "*" for all
-/// six, kind)`. Every other cell builds, and a listed cell that builds
-/// fails.
-///
-/// - The void lying under the top touches it along its ray, so the plate
-///   less it holds the ray as a zero-area ring in the top (D1's slit
-///   form; main held one edge there, whose wedge claimed the top's
-///   material on both of its sides). Each partner's apex is at the
-///   ring's tip, [`MEET`], where the ring's two edges leave together,
-///   and the sector reader does not read that corner:
-///   `SlitTipUnread`.
-/// - A pyramid on the void's face, in the arch or round its island:
-///   `y − x` leaves the pyramid's edge in the void's face, and the
-///   material about it (at the midpoint, from the face's own direction
-///   round into it: solid to 20°, empty to 90°, solid to 180°, empty
-///   beyond) parts it, but the edge runs past the face's boundary, which
-///   the parting does not build: `EdgeInFace` (`Partly`). Main built the
-///   one edge, its wedge a reflex 290° through the empty half-space.
-/// - The pyramid out the bottom of the glued blocks: `y − x` leaves an
-///   edge in the glued face whose material divides the face, and an end
-///   of it touches another edge, which the parting does not build:
-///   `EdgeInFace` (`DividedEndTouched`). Main built the one edge.
-const REFUSING: &[(&str, &str, BooleanErrorKind)] = &[
-    (
-        "under the lying pyramid's ray, mirrored into the void",
-        "*",
-        BooleanErrorKind::SlitTipUnread,
-    ),
-    (
-        "on the lying pyramid's ray, beside it, mirrored into the void",
-        "*",
-        BooleanErrorKind::SlitTipUnread,
-    ),
-    (
-        "inside the lying pyramid, mirrored into the void",
-        "*",
-        BooleanErrorKind::SlitTipUnread,
-    ),
-    (
-        "continuing the lying pyramid's face, mirrored into the void",
-        "*",
-        BooleanErrorKind::SlitTipUnread,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void",
-        "*",
-        BooleanErrorKind::SlitTipUnread,
-    ),
-    (
-        "a pyramid on the void's face in the arch",
-        "y − x",
-        BooleanErrorKind::EdgeInFace,
-    ),
-    (
-        "on the void's face in the arch",
-        "y − x",
-        BooleanErrorKind::EdgeInFace,
-    ),
-    (
-        "on the void's face, the island in it",
-        "y − x",
-        BooleanErrorKind::EdgeInFace,
-    ),
-    (
-        "a pyramid through the glued faces, out the bottom",
-        "y − x",
-        BooleanErrorKind::EdgeInFace,
-    ),
-];
-
-/// What [`REFUSING`] says the op `op` on the scene `label` refuses.
-fn refusing(label: &str, op: &str) -> Option<BooleanErrorKind> {
-    REFUSING
-        .iter()
-        .find(|&&(l, o, _)| l == label && (o == op || o == "*"))
-        .map(|&(_, _, kind)| kind)
 }
 
 /// Every op on `(x, y)`, in both orders, refuses on a vertex of `x`'s
@@ -981,9 +945,7 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
 /// it and continuing its face across it each pair with its apex; and
 /// the scene mirrored through the top, a void below it whose ray lies
 /// on it, which the edge-edge event reads under the top and in the
-/// void's complement at once (`recl::HeldFace`): the plate less that
-/// void holds the ray as a zero-area ring in the top, and every op on
-/// it refuses `SlitTipUnread` at the ring's tip ([`REFUSING`]). A
+/// void's complement at once (`recl::HeldFace`). A
 /// pyramid with a face flush on the top across the ray, and one with a
 /// face on the lying pyramid's, refuse `PartnerAlongFace`: the layering
 /// is not read beside a coincidence of the touch's or the pair's
@@ -1171,8 +1133,7 @@ fn along_two_arches_shared_ray(pose: &Pose, &(label, corners): &ArchPyramid) -> 
 /// opposite sides, coincident only to within the band, so the edge is
 /// `On` (`vtxfac::along_partners`), its class as the naming records it
 /// and as the blocks read the point beside it ([`classes_hold`]). Tier 3′
-/// is as [`three_prime`] allows. Out the bottom, `y − x` refuses
-/// `EdgeInFace` ([`REFUSING`]). Slow set, at every pose; the row below
+/// is as [`three_prime`] allows. Slow set, at every pose; the row below
 /// is its per-PR pose.
 #[test]
 fn an_edge_through_two_blocks_glued_faces_builds_in_every_op() {
@@ -1444,6 +1405,48 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
     assert!(held > 0, "some result holds tier 3′");
 }
 
+/// **A pyramid resting where a solid touches itself holds tier 3′.**
+/// The cavity, the plate less a pyramid hanging from [`MEET`], touches
+/// itself there: the void's apex on the top's interior. A pyramid
+/// standing on its apex at `MEET` rests on the top, and the plate and
+/// one arch less a pyramid hanging below `MEET` leaves the arch resting
+/// on the hollow. Each result's solids are read with their whole links
+/// at `MEET` — the top's disc less the void's cone, not the void's apex
+/// alone — and tier 3′ refuses no solid pair, at every pose: what it
+/// refuses is the operand's own contact at `MEET`, which the op called
+/// without records does not carry ([`three_prime`]).
+#[test]
+fn a_pyramid_resting_where_a_solid_touches_itself_holds_tier_three_prime() {
+    for pose in poses() {
+        let s = Scene::at(&pose);
+        for (what, r) in [
+            ("cavity ∪ cone", union(&s.cavity, &s.cone, t())),
+            ("cone ∪ cavity", union(&s.cone, &s.cavity, t())),
+            ("cavity − cone", subtract(&s.cavity, &s.cone, t())),
+            ("one − hang", subtract(&s.one, &s.hang, t())),
+        ] {
+            let what = format!("{}, {what}", pose.label);
+            let Ok(BooleanResult::Body(r)) = r else {
+                panic!("{what}: builds, got {:?}", r.map(|_| ()));
+            };
+            let errors = validate_pseudomanifold(&r.body, &r.contacts, t()).err();
+            let pairs: Vec<_> = errors
+                .iter()
+                .flatten()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        ValidationError::CensusUndecidable { .. }
+                            | ValidationError::InstanceInterference { .. }
+                    )
+                })
+                .collect();
+            assert!(pairs.is_empty(), "{what}: {errors:?}");
+            three_prime(&what, &r, &pose, false, None, None);
+        }
+    }
+}
+
 /// **Standing pyramids folded onto the plate one at a time build in
 /// every member order**, at tier 3 and the closed-form volume; tier 3′
 /// refuses only the earlier steps' contacts at `MEET`, which the last
@@ -1555,7 +1558,11 @@ fn builds_or_refuses(
     .into_iter()
     .enumerate()
     {
+        let op = what;
         let what = format!("{label}, {}, {what}", pose.label);
+        if r.is_ok() {
+            not_pinned(label, op);
+        }
         let r = match r {
             Ok(BooleanResult::Body(r)) => r,
             Ok(BooleanResult::Empty) => {
@@ -1566,7 +1573,10 @@ fn builds_or_refuses(
                 continue;
             }
             Err(e) => {
-                assert!(typed(&e), "{what}: builds or refuses typed, got {e:?}");
+                assert!(
+                    typed(&e) || overlap_pinned(label, op, &e),
+                    "{what}: builds or refuses typed, got {e:?}"
+                );
                 continue;
             }
         };

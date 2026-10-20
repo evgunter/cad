@@ -616,6 +616,8 @@ BOUND_AS = {
     "Proof": "Coincidence.rung",
     "Rung": "Coincidence.rung",
     "Residual": "Coincidence.residual",
+    # Which of the node's decisions a row is crosses as a tuple tag.
+    "RowOrigin": "Coincidence.origin",
     # The verify door's two-plane verdict crosses as the row's word:
     # `same_oriented` / `same_opposite` on `Coincidence.relation`.
     "PlaneRelation": "Coincidence.relation",
@@ -1811,8 +1813,8 @@ FAMILIES: dict[str, str] = {
 #:   pair to name. `PartialPath` is the Rust lattice's one type where
 #:   Python has one CLASS PER STATE (`PathOpen`, `PathPoint`,
 #:   `PathDirectedPoint`, …), which is §L4's typestate translation.
-#:   `LineTarget`, `ContinueTarget` and `TangentArcTarget` are absorbed
-#:   into the verbs that take them, and
+#:   `LineTarget`, `ContinueTarget`, `TangentArcTarget` and `OntoTarget`
+#:   are absorbed into the verbs that take them, and
 #:   `bulge_from_center`/`bulge_from_via` into the
 #:   `Center`/`Via` spec modes that are bound. `Dimension` is what
 #:   `FreeVar.length`/`angle`/`count`/`scalar` choose between;
@@ -1847,7 +1849,7 @@ FAMILIES: dict[str, str] = {
 #: hands `Node.profile` a `ClosedLoop` and the program is built inside
 #: Rust, so no Python value is ever one of these. The naming table and
 #: its provenance payloads (`NameTable`, `SeatingRefusal`,
-#: `DuplicateName`, `KindMismatch`, `ShortTie`,
+#: `DuplicateName`, `EntityNamed`, `KindMismatch`, `ShortTie`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
@@ -2663,6 +2665,9 @@ NOT_BOUND = {
     "SurfaceKindSet": SHAPE,
     "TagPat": SHAPE,
     "TangentArcTarget": SHAPE,
+    # `arc_onto`'s target trait, absorbed into the verb as
+    # `TangentArcTarget` is.
+    "OntoTarget": SHAPE,
     "Tol": SHAPE,
     "Tolerance": SHAPE,
     "Vec2": SHAPE,
@@ -2848,6 +2853,7 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    "EntityNamed": INTERIOR,
     "KindMismatch": INTERIOR,
     "SeatingRefusal": INTERIOR,
     "ShortTie": INTERIOR,

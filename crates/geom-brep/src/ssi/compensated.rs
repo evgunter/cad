@@ -256,7 +256,9 @@ mod tests {
     /// products and quotients of drawn `f64`s against the same
     /// operations in exact rationals (`i128` over a power of two for the
     /// sums and products, cross-multiplied for the quotients), each a
-    /// few ulps wide (plus `2⁻⁹⁶` where the result cancels). The
+    /// few ulps wide (plus `2⁻⁹⁶` where the result cancels, and the
+    /// smallest normal at a zero quotient, whose ends are subnormal
+    /// pads). The
     /// operations here are exact or nearly so; the rounding bounds are
     /// held by [`a_cancelled_sum_of_products_keeps_its_rounding_bound`].
     #[test]
@@ -287,22 +289,34 @@ mod tests {
                 // where the ends are dyadics with few enough bits.
                 let q = x.div(y).enclosure().expect("finite");
                 // `end·b` against `a` in exact integers: `end = m·2^e`.
+                // Arbitrary precision: an end of `0/b`'s enclosure is a
+                // subnormal pad, `e` near −1074, past any fixed width.
                 let check = |end: f64, below: bool| {
+                    use num_bigint::BigInt;
                     let (m, e) = split(end);
-                    let (bi, ai) = (b as i128, a as i128);
-                    let lhs = m * bi;
-                    let rhs = if e < 0 { ai << -e } else { ai };
-                    let lhs = if e > 0 { lhs << e } else { lhs };
+                    let (bi, ai) = (BigInt::from(b as i128), BigInt::from(a as i128));
+                    let lhs = BigInt::from(m) * bi;
+                    let shift = e.unsigned_abs() as usize;
+                    let (lhs, rhs) = if e < 0 {
+                        (lhs, ai << shift)
+                    } else {
+                        (lhs << shift, ai)
+                    };
                     let diff = lhs - rhs;
                     let sign = if b > 0.0 { diff } else { -diff };
-                    if below { sign <= 0 } else { sign >= 0 }
+                    if below {
+                        sign <= BigInt::from(0)
+                    } else {
+                        sign >= BigInt::from(0)
+                    }
                 };
                 assert!(
                     check(q.lo(), true) && check(q.hi(), false),
                     "{a}/{b}: {q:?}"
                 );
+                // A zero quotient's ends are subnormal pads.
                 assert!(
-                    q.hi() - q.lo() <= 8.0 * f64::EPSILON * (a / b).abs(),
+                    q.hi() - q.lo() <= 8.0 * f64::EPSILON * (a / b).abs() + f64::MIN_POSITIVE,
                     "{a}/{b}: {q:?} is wide"
                 );
             }

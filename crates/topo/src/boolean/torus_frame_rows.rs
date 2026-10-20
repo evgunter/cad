@@ -84,6 +84,9 @@ fn shape(got: &Loops) -> String {
         Err(FrameError::Spiric { loops, section }) => format!("spiric {loops:?} {section}"),
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::OutsideInventory { .. }) => "outside the inventory".into(),
+        Err(FrameError::DegenerateTorus { convention, .. }) => {
+            format!("degenerate torus {convention:?}")
+        }
     }
 }
 
@@ -386,6 +389,82 @@ fn a_general_pose_refuses_by_name_with_its_loops() {
         );
     }
 }
+
+/// **A torus off its ring convention is refused as the pierce refuses
+/// it** (D4 ¶1 (iv)): the frame reads the table's ring guard, and the
+/// Boolean names the half on the torus face, in band as
+/// [`super::BooleanDecision::Torus`] and decided as
+/// [`BooleanError::DegenerateTorus`], each ending in the half's lever.
+/// Every operand the Boolean reads is validated, which decides the ring
+/// half on this band, so these tori are hand-minted.
+#[test]
+fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
+    use geom_brep::TorusConvention::{Ring, Tube};
+    let b = band();
+    let (z, e) = (b.zero(), b.escalate());
+    let mid = (z + e) / 2.0;
+    let face = FaceKey::default();
+    let p = plane([0.0, 0.2, 0.0], Vec3::unit_y());
+    for (what, big_r, r, half, in_band, lever) in [
+        ("tube in band", BIG_R, mid, Tube, true, TUBE_LEVER),
+        ("tube negative", BIG_R, -SMALL_R, Tube, false, TUBE_LEVER),
+        (
+            "ring in band",
+            SMALL_R + mid,
+            SMALL_R,
+            Ring,
+            true,
+            RING_LEVER,
+        ),
+        ("horn", SMALL_R, SMALL_R, Ring, false, RING_LEVER),
+        ("spindle", SMALL_R, BIG_R, Ring, false, RING_LEVER),
+    ] {
+        let torus = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_y(),
+            major_radius: big_r,
+            minor_radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let got = pair_section_frame_at(
+            &torus,
+            &p,
+            Point3::new(big_r, 0.0, 0.0),
+            FrameExtent::Reach(REACH),
+            b,
+        );
+        let Err(e) = got else {
+            panic!("{what}: the frame refuses, got {}", shape(&got));
+        };
+        let err = frame_refusal(e, (face, &torus), (face, &p));
+        match (&err, in_band) {
+            (
+                BooleanError::Escalated {
+                    decision: super::BooleanDecision::Torus(got),
+                    ..
+                },
+                true,
+            )
+            | (
+                BooleanError::DegenerateTorus {
+                    convention: got,
+                    operand: super::Operand::A,
+                    ..
+                },
+                false,
+            ) => assert_eq!(*got, half, "{what}"),
+            _ => panic!("{what}: the pierce's refusal of the half, got {err:?}"),
+        }
+        let text = err.to_string();
+        assert!(
+            text.contains(lever) && !text.contains("desync") && !text.contains("corrupt"),
+            "{what}: the half's lever: {text}"
+        );
+    }
+}
+
+const TUBE_LEVER: &str = "reshape the torus so its tube is clearly thicker than the tolerance";
+const RING_LEVER: &str = "make the tube radius clearly smaller than the ring radius";
 
 /// **Touching under a germ is the desync**: the plane `y = 0.5` touches
 /// the tube along its top circle, and `y = 0.7` misses it; neither is a

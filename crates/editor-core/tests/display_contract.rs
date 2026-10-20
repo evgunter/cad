@@ -2454,6 +2454,7 @@ test_utils::f6_variants! {
     /// closes that.
     pub(crate) const NAMING_ERROR: NamingError = [
         Duplicate,
+        EntityNamed,
         KindMismatch,
         ShortTie,
         Unnamed,
@@ -2497,6 +2498,69 @@ fn keys() -> (topo::EdgeKey, topo::FaceKey, topo::VertexKey) {
     (edge, born.face, born.vertex)
 }
 
+/// **An entity offered a second name refuses as that, through the
+/// public seating doors**, carrying the name it already holds, and
+/// renders it as the kernel defect it is.
+#[test]
+fn a_second_name_on_one_entity_refuses_as_entity_named() {
+    use editor_core::{EntityKey, EntityNamed, EntityRef, NameTable, SeatingRefusal};
+    let (_, face, _) = keys();
+    let cap = |end| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId::new(0, tagged(7)),
+        path: vec![RoleSeg::Cap(end)],
+    };
+    let ent = EntityRef {
+        body: 0,
+        key: EntityKey::Face(face),
+    };
+    let mut table = NameTable::new();
+    table.insert(cap(CapEnd::Start), ent).expect("a fresh row");
+    let refused = table
+        .insert(cap(CapEnd::End), ent)
+        .expect_err("the face already holds a name");
+    assert_eq!(
+        refused,
+        SeatingRefusal::EntityNamed(EntityNamed {
+            name: Box::new(cap(CapEnd::End)),
+            held: Box::new(cap(CapEnd::Start)),
+        }),
+        "`insert` reports the name the face holds"
+    );
+    let shown = NamingError::from(refused).to_string();
+    for wanted in [
+        "kernel bug",
+        "the end cap",
+        "the start cap",
+        "already names",
+    ] {
+        assert!(
+            shown.contains(wanted),
+            "rendered without {wanted:?}: {shown}"
+        );
+    }
+    let twice = NameTable::new()
+        .insert_tied(cap(CapEnd::End), vec![ent, ent])
+        .expect_err("one face offered twice");
+    assert_eq!(
+        twice,
+        SeatingRefusal::EntityNamed(EntityNamed {
+            name: Box::new(cap(CapEnd::End)),
+            held: Box::new(cap(CapEnd::End)),
+        }),
+        "`insert_tied` refuses one face offered twice as the name it is offered"
+    );
+    let shown = NamingError::from(twice).to_string();
+    assert!(
+        shown.contains("the end cap") && shown.contains("offered the same face twice"),
+        "the list's repeat is the fact it states: {shown}"
+    );
+    assert!(
+        !shown.contains("already names"),
+        "a face offered twice is not said to hold a name already: {shown}"
+    );
+}
+
 /// **Every `NamingError` renders its subject, and no variant escapes
 /// the census.**
 ///
@@ -2520,6 +2584,21 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 }),
             },
             vec!["minted twice"],
+        ),
+        (
+            NamingError::EntityNamed {
+                name: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId::new(0, tagged(7)),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                }),
+                held: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId::new(0, tagged(7)),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                }),
+            },
+            vec!["seated on a face", "already names"],
         ),
         (
             NamingError::KindMismatch {

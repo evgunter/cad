@@ -29,8 +29,9 @@
 //! - the plate intersected with the joined blocks, where the two
 //!   pierces stay in two faces and so stay two vertices;
 //! - the plate minus the joined blocks, and a slab less them, which
-//!   refuse `Revert`: the blocks' contact runs inside the other operand,
-//!   where the complement pairs one block's faces with the other's.
+//!   refuse `LineWedges`: the blocks' contact runs inside the other
+//!   operand, where the complement pairs one block's faces with the
+//!   other's, and the result's two edges there overlap.
 //!
 //! Each row also reads the result's contact record, its tier-3′ verdict
 //! and `check_mesh` on its tessellation: every result passes 3′, every
@@ -625,9 +626,10 @@ fn a_pinch_union_publishes_one_table_in_every_member_order() {
 
 /// **The plate against the joined blocks: a union both ways round
 /// builds the member-order body, an intersection keeps the two
-/// footprints apart, and a subtraction refuses `Revert`**: the blocks'
-/// contact runs inside the plate, and ∖ does not build the re-pairing
-/// its complement needs.
+/// footprints apart, and a subtraction refuses `LineWedges`**: the
+/// blocks' contact runs inside the plate, and ∖ does not build the
+/// re-pairing its complement needs, so the result's two edges there
+/// bound 270° each, overlapping.
 #[test]
 fn the_plate_against_the_joined_blocks_builds_in_every_op() {
     let (doc, m) = pinch(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
@@ -673,8 +675,8 @@ fn the_plate_against_the_joined_blocks_builds_in_every_op() {
     // bound 270° each, overlapping.
     let refusal = failure(&ev, notched);
     assert!(
-        format!("{refusal:?}").contains("Revert {"),
-        "plate ∖ blocks: {refusal:?}, not the revert's refusal"
+        format!("{refusal:?}").contains("LineWedges { fault: Overlap"),
+        "plate ∖ blocks: {refusal:?}, not the overlap's refusal"
     );
 
     let o = checked(&ev, footprints, "plate ∩ blocks", NOTCHES);
@@ -694,7 +696,7 @@ fn the_plate_against_the_joined_blocks_builds_in_every_op() {
 /// keeps the blocks' contact inside the slab, where the complement pairs
 /// one block's faces with the other's. The result would carry the
 /// contact as two coincident edges bounding 270° each, overlapping, and
-/// ∖ refuses `Revert`. The six ops of that slab against the plate return
+/// the result gate refuses `LineWedges`. The six ops of that slab against the plate return
 /// with the re-pairing
 /// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
@@ -708,8 +710,8 @@ fn a_slab_holding_the_contact_refuses_to_be_cut() {
     let ev = run(&doc);
     let refusal = failure(&ev, x);
     assert!(
-        format!("{refusal:?}").contains("Revert {"),
-        "slab ∖ blocks: {refusal:?}, not the revert's refusal"
+        format!("{refusal:?}").contains("LineWedges { fault: Overlap"),
+        "slab ∖ blocks: {refusal:?}, not the overlap's refusal"
     );
 }
 
@@ -1517,7 +1519,7 @@ fn side_node(side: &StableName) -> RecipeNodeId {
 
 /// [`three_on_a_line`] with the third prism over 30°–60°: it crosses the
 /// first's wedge about the line and touches the second's edge along it.
-fn crossing_one_wedge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn crossing_one_wedge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
     let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
@@ -1590,17 +1592,20 @@ fn pencil(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, vec![a, b, c])
 }
 
-/// **A face through a seam is decided by the step that meets it, and
-/// held unspelled**: folding the prism into the boxes' union decides
-/// the seam crossing each of the prism's two diagonal rim edges, one
-/// point each. Read back to the inputs, each crossing would be the seam
-/// edge on a rim edge, which says more than was decided, so the step
-/// publishes no row and holds both decisions
-/// (`BooleanNaming::unspelled`), each a point minted on the seam decided
-/// one with a point minted on a rim edge. Red if a crossing is
-/// published as an edge on an edge, or dropped.
+/// **A face through a seam is decided by the step that meets it, as a
+/// meeting**: folding the prism into the boxes' union decides the seam
+/// crossing each of the prism's two diagonal rim edges, one point each.
+/// Read back to the step's inputs, each crossing is the seam edge and a
+/// rim edge sharing that point (`Relation::Meet`), never the one edge on
+/// the other. The union publishes each as the fold step's row of the
+/// member cells that meet there: the two boxes' faces the seam runs
+/// between and the prism's rim edge. (The boxes' own step logs its
+/// meetings of their edges too, apart from the judged rows stating them:
+/// a meeting of two edges names no vertex that would put the two at one
+/// point.) Red if a crossing is published as an edge on an edge, or
+/// dropped.
 #[test]
-fn a_face_through_a_seam_is_held_unspelled_by_the_step_that_meets_it() {
+fn a_face_through_a_seam_is_the_meeting_the_step_that_meets_it_decides() {
     for order in [[0, 1, 2], [1, 0, 2]] {
         let (doc, m) = pencil(ProfileDoc::empty_derived("pencil", Tol::witness()));
         let ev = run(&doc);
@@ -1616,32 +1621,73 @@ fn a_face_through_a_seam_is_held_unspelled_by_the_step_that_meets_it() {
         else {
             panic!("{order:?}: the prism folds in");
         };
-        assert!(
-            out.coincidences.is_empty(),
-            "{order:?}: no row states the crossings: {:?}",
-            out.coincidences
-        );
-        let held = &out.naming.unspelled;
-        let [first, second] = held.as_slice() else {
-            panic!("{order:?}: the step holds both crossings: {held:?}");
+        let [first, second] = out.coincidences.as_slice() else {
+            panic!(
+                "{order:?}: the step states both crossings: {:?}",
+                out.coincidences
+            );
         };
-        for d in [first, second] {
+        for r in [first, second] {
             assert!(
-                d.site == topo::DecisionSite::VertexFusion
-                    && d.relation == topo::Relation::OnCarrier
+                r.site == topo::DecisionSite::VertexFusion
+                    && r.relation == topo::Relation::Meet
                     && matches!(
-                        d.cells,
+                        r.cells,
                         [
-                            (topo::Operand::A, topo::Cell::Vertex(_)),
-                            (topo::Operand::B, topo::Cell::Vertex(_)),
+                            topo::RowCell::Input {
+                                input: topo::Operand::A,
+                                cell: topo::Cell::Edge(_),
+                            },
+                            topo::RowCell::Input {
+                                input: topo::Operand::B,
+                                cell: topo::Cell::Edge(_),
+                            },
                         ]
                     ),
-                "{order:?}: a point of the seam one with a point of a rim edge: {held:?}"
+                "{order:?}: the seam edge meeting a rim edge: {:?}",
+                out.coincidences
             );
         }
         assert!(
             first.cells != second.cells,
-            "{order:?}: two crossings: {held:?}"
+            "{order:?}: two crossings: {:?}",
+            out.coincidences
+        );
+
+        let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+        let (doc, u) = crate::fixture::union_over(doc, &members);
+        let ev = run(&doc);
+        assert!(failure(&ev, u).is_none(), "{order:?}: the union builds");
+        let read = |i: usize| doc.output(m[i], 0).expect("a member's read");
+        let fold: Vec<String> = ev
+            .value(u)
+            .expect("the union evaluates")
+            .coincidences
+            .iter()
+            .filter(|r| matches!(r.origin, editor_core::RowOrigin::Fold { step: 2 }))
+            .map(|r| {
+                let cells: Vec<String> = r
+                    .cells
+                    .iter()
+                    .map(|c| match c {
+                        editor_core::NamedCell::Entity { input, name } => {
+                            let at = (0..3).find(|&i| read(i) == *input).map_or(9, |i| i);
+                            format!("{:?}@{at}", name.kind)
+                        }
+                        other => format!("{other:?}"),
+                    })
+                    .collect();
+                format!("{:?} {:?} {:?} {cells:?}", r.origin, r.site, r.relation)
+            })
+            .collect();
+        let want = format!(
+            "Fold {{ step: 2 }} VertexFusion Meet {:?}",
+            ["Face@0", "Face@1", "Edge@2"]
+        );
+        assert_eq!(
+            fold,
+            [want.clone(), want],
+            "{order:?}: the step's two rows, the boxes' faces and the prism's rim edge"
         );
     }
 }
@@ -1672,5 +1718,47 @@ fn two_wedges_overlapping_about_one_line_publish_their_apex_rows() {
                     && r.contains("LateralEdge(")),
             "{order:?}: each apex corner on the other's apex edge: {rows:#?}"
         );
+    }
+}
+
+/// [`crossing_one_wedge`] with a block over `x`, `y` and `z` (its low
+/// end and height) covering the junction where the plate's top meets
+/// the line.
+fn covered_junction(
+    doc: ProfileDoc,
+    (x, y, z): ((f64, f64), (f64, f64), (f64, f64)),
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut m) = crossing_one_wedge(doc);
+    let (doc, cover) = block(doc, x, y, z.0, z.1);
+    m.push(cover);
+    (doc, m)
+}
+
+/// **A block covering the junction a fold step mints builds in every
+/// member order, every row of it member cells that meet.** The orders
+/// that fold the two wedges, the plate and the third prism before the
+/// block log a row at a point the block's step then swallows, which the
+/// finished body does not hold: the row names the member cells that
+/// met there, which every member still holds.
+#[test]
+fn a_block_over_the_wedges_junction_builds_in_every_member_order() {
+    let covers = [
+        ("a small cover", ((1.4, 1.6), (0.9, 1.1), (0.9, 0.2))),
+        ("a wide cover", ((1.2, 1.8), (0.7, 1.3), (0.8, 0.4))),
+    ];
+    for (label, cover) in covers {
+        for order in orders(5) {
+            let (doc, m) =
+                covered_junction(ProfileDoc::empty_derived("covered", Tol::witness()), cover);
+            let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+            let (doc, u) = crate::fixture::union_over(doc, &members);
+            let ev = run(&doc);
+            assert!(
+                failure(&ev, u).is_none(),
+                "{label}, member order {order:?}: refused: {:?}",
+                failure(&ev, u)
+            );
+            crate::union_member_orders_decide_alike::cells_are_held(&ev, u, &order);
+        }
     }
 }

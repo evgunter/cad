@@ -64,3 +64,15 @@ longer returns the halves. It refuses as
 now pins that refusal below its `measured_from` floor, so fixing this row
 turns the split's refusal into halves and reddens that arm. Lift the
 floor then.
+
+## Note from CLEAVE (2026-10-19): the operand fixture refuses too
+
+On main's nightly for `07a57312bf` (2026-10-19) and in PR 5357's CI at
+1e-12, `reach_cone_split::steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt`
+now panics while it builds the *operand*, before any split: "the frustum
+is not a finished body: [VolumeUncomputable { … Escalated { … predicate:
+Some(\"props_meridian_on_surface\") … }]", from the fixture's at-rest
+gate (`crates/topo/src/lib.rs:392`, the `finished` helper). This row
+read the refusal at the split's halves; the frustum itself now refuses
+at that ε as well. The predicate is `props_meridian_on_surface`, not the
+ellipse elevation this row names, so the two may be separate readings.

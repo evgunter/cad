@@ -147,7 +147,7 @@ pub(crate) mod zip;
 
 use geom_core::{
     Band, BandError, Bounds, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, MarginDiag,
-    Point3, Real, Sign, Tol,
+    NOT_YET_ENDING, Point3, Real, Sign, Tol,
 };
 
 use crate::body::Body;
@@ -265,13 +265,14 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_rider_wall_side"
         | "bool_rider_wall_bend" => Coincide::Sectors.subject(),
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
-        // The census's edge-edge reading, which ∖ takes of the operand it
-        // reverts (`census::collinear_overlaps`).
+        // The census's edge-edge reading, which the result gate takes of
+        // the result and ∖ of an operand part it reverts unjoined
+        // (`census::collinear_overlaps`).
         "pm_census_ee_parallel" => "whether two straight edges of one solid are parallel",
         "pm_census_ee_line_gap" => "whether two straight edges of one solid lie on one line",
         "pm_census_span_order" => "the order of two points along a straight edge",
         "pm_census_ee_overlap" => "whether two edges on one line overlap along a length",
-        // The line's wedges ∖ reads on its result (`census::line_wedges`),
+        // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
         | crate::census::LINE_WEDGE_BEFORE_ARRIVING
@@ -3662,17 +3663,14 @@ pub enum BooleanError {
     /// grouping.
     Pieces(crate::pieces::PieceSortError),
     /// ∖ reverts an operand's kept part, two of whose edges lie on one
-    /// line, and the complement pairs the faces meeting there
-    /// differently: the result's edges on that line would bound
-    /// overlapping material ([`crate::census::line_wedges`]), or nothing
-    /// joins the reverted part to re-pair them. The re-pairing is not
-    /// built.
+    /// line, and nothing joins the reverted part afterwards: the
+    /// complement pairs the faces meeting there differently, and the
+    /// re-pairing is not built.
     Revert {
         /// The operand reverted.
         operand: Operand,
-        /// The refusal: two edges, in the operand's own keys where the
-        /// line is read on the operand and in the result's where its
-        /// wedges are read on the result, and where the line runs.
+        /// The refusal: two of the operand's edges, and where the line
+        /// runs.
         source: crate::revert::RevertError,
     },
     /// An edge of the result lies in one of its own faces, and the
@@ -3701,6 +3699,52 @@ pub enum BooleanError {
         vertex: VertexKey,
         /// The face the slit or ring lies in.
         face: FaceKey,
+    },
+    /// **The result's edges on one line, where two or more lie, bound
+    /// material the result gate cannot admit** ([`crate::census::line_wedges`]):
+    /// each such edge classifies its own wedge (D1's
+    /// coincident-distinct-edges class), so their wedges are disjoint.
+    /// Where four or more sheets meet on a line the material decides
+    /// which pair into edges, and the op's pairing is not that one; the
+    /// re-pairing is not built.
+    ///
+    /// A definite finding at the finished-body gate is otherwise a kernel
+    /// defect (`ResultInvalid`, DESIGN.md `[coincidence.booleans]`). This
+    /// one is not: the operands are valid and their answer is defined,
+    /// and the kernel has not built it, so it is the typed refusal naming
+    /// its blocker that DESIGN.md `[loud-failure]` gives valid input the
+    /// kernel has not built yet.
+    LineWedges {
+        /// What the line's reading found.
+        fault: LineWedgeFault,
+        /// Where the line read begins.
+        from: String,
+        /// Where it ends.
+        to: String,
+    },
+}
+
+/// What [`BooleanError::LineWedges`] found on the result's line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineWedgeFault {
+    /// The two edges' material wedges overlap: the line's material is
+    /// counted twice.
+    Overlap {
+        /// The result's two edges, in arena order.
+        edges: [EdgeKey; 2],
+    },
+    /// A face of this edge has no tangent plane where it meets the line,
+    /// so the material on its side has no reading.
+    NoSheet {
+        /// The result's edge.
+        edge: EdgeKey,
+    },
+    /// This edge's faces meet at a zero angle or a full turn, a cusp or
+    /// a knife slit (D1's wedge ends), and the line's reading has no
+    /// answer for those.
+    WedgeEnd {
+        /// The result's edge.
+        edge: EdgeKey,
     },
 }
 
@@ -3890,6 +3934,8 @@ pub enum BooleanErrorKind {
     EdgeInFace,
     /// [`BooleanError::SlitTipUnread`].
     SlitTipUnread,
+    /// [`BooleanError::LineWedges`].
+    LineWedges,
 }
 
 /// Which of the volume backstop's three bodies a refusal is about.
@@ -4103,6 +4149,7 @@ impl BooleanError {
             Self::Revert { .. } => BooleanErrorKind::Revert,
             Self::EdgeInFace { .. } => BooleanErrorKind::EdgeInFace,
             Self::SlitTipUnread { .. } => BooleanErrorKind::SlitTipUnread,
+            Self::LineWedges { .. } => BooleanErrorKind::LineWedges,
         }
     }
 }
@@ -4919,7 +4966,8 @@ impl core::fmt::Display for BooleanError {
                 let operand = operand_word(*operand);
                 write!(
                     f,
-                    "the subtraction reverses the {operand} solid's kept part, and {source}"
+                    "the subtraction reverses the {operand} solid's kept part, and {source}. \
+                     {NOT_YET_ENDING}"
                 )
             }
             Self::EdgeInFace {
@@ -4951,6 +4999,26 @@ impl core::fmt::Display for BooleanError {
                 operand_word(*operand),
                 geom_core::NOT_YET_ENDING
             ),
+            Self::LineWedges { fault, from, to } => match fault {
+                LineWedgeFault::Overlap { .. } => write!(
+                    f,
+                    "the result's edges on the line from {from} to {to} bound overlapping \
+                     material: the Boolean pairs the faces meeting there as the material does \
+                     not, and the re-pairing it needs is not built. {NOT_YET_ENDING}"
+                ),
+                LineWedgeFault::NoSheet { .. } => write!(
+                    f,
+                    "a face meeting the line from {from} to {to}, where two or more of the \
+                     result's edges lie, has no tangent plane there, so the material on its side has no \
+                     reading. {NOT_YET_ENDING}"
+                ),
+                LineWedgeFault::WedgeEnd { .. } => write!(
+                    f,
+                    "an edge on the line from {from} to {to}, where two or more of the result's \
+                     edges lie, bounds a cusp or a knife slit, which the reading of the line's \
+                     material does not cover. {NOT_YET_ENDING}"
+                ),
+            },
         }
     }
 }
@@ -6733,9 +6801,10 @@ pub(crate) enum RestTangent<T: Real> {
     /// ([`locus_through_both_faces`]): no span of the line is in both,
     /// so their interiors do not meet along it.
     Apart,
-    /// The jet schedule verified the line over where both extents meet,
-    /// `overlap`; whether the line lies in the two faces there is the
-    /// caller's to read.
+    /// The faces' extents along the line meet over `overlap`; whether
+    /// the line lies in the two faces there is the caller's to read
+    /// ([`rest_line_in_both_faces`]), and only then whether the table
+    /// holds along it ([`tangent_table_at_rest`]).
     Line {
         /// The tangent line.
         carrier: geom::Curve3<T>,
@@ -6745,19 +6814,18 @@ pub(crate) enum RestTangent<T: Real> {
 }
 
 /// **A face–face record on two carriers, read at rest** (C3): the
-/// closed-form line their carriers derive ([`tangent_line`]), the two
-/// faces' extents along it, and, where those meet, the C4 `Tangent`
-/// table along it there ([`contact_verify::tangent_locus_relation`], the
-/// declared posture, the record standing as the declaration), material
-/// sides included.
+/// closed-form line their carriers derive ([`tangent_line`]) and the two
+/// faces' extents along it. The `Tangent` table along it, material
+/// sides included, is [`tangent_table_at_rest`], which reads only a
+/// line known to run through both faces ([`RestLineInBothFaces`]): a
+/// pair the line misses does not meet, whatever its sides.
 ///
 /// # Errors
 ///
-/// [`crate::contact::ContactRefusal::Contradicted`] where the pair is
-/// definitely not tangent, labelled with the row that refused it, or the
-/// table contradicts it; `Escalated` where a margin is in band; and
-/// `NotCertifiable` where no closed-form locus derives or a face cannot
-/// be read (naming why).
+/// [`crate::contact::ContactRefusal::Contradicted`] where the carriers
+/// are definitely not tangent, labelled with the row that refused it;
+/// `Escalated` where a margin is in band; and `NotCertifiable` where no
+/// closed-form locus derives or a face cannot be read (naming why).
 pub(crate) fn tangent_pair_at_rest<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
@@ -6765,17 +6833,8 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     band: Band,
 ) -> Result<RestTangent<T>, crate::contact::ContactRefusal> {
     use crate::contact::ContactRefusal;
-    let surface = |f| {
-        let face = body.get_face(f)?;
-        Some((body.get_surface(face.surface)?.clone(), face.sense))
-    };
-    let ((sa, sense_a), (sb, sense_b)) =
-        surface(fa)
-            .zip(surface(fb))
-            .ok_or(ContactRefusal::NotCertifiable {
-                what: "a face of the face-face record has no surface",
-            })?;
-    let line = tangent_line((body, fa, &sa), (body, fb, &sb), band).map_err(|e| {
+    let ((sa, _), (sb, _)) = (record_face(body, fa)?, record_face(body, fb)?);
+    let line = tangent_line((body, fa, sa), (body, fb, sb), band).map_err(|e| {
         ContactRefusal::NotCertifiable {
             what: match e {
                 BooleanError::InvalidInput { what, .. } => what,
@@ -6812,21 +6871,91 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
         Ok(false) => return Ok(RestTangent::Apart),
         Err(diag) => return Err(ContactRefusal::Escalated { diag }),
     }
+    Ok(RestTangent::Line {
+        carrier: line.carrier,
+        overlap: line.overlap,
+    })
+}
+
+/// A face of a face–face record on two carriers: its surface and sense.
+fn record_face<T: Real>(
+    body: &Body<T>,
+    f: FaceKey,
+) -> Result<(&geom::Surface<T>, bool), crate::contact::ContactRefusal> {
+    body.get_face(f)
+        .and_then(|face| Some((body.get_surface(face.surface)?, face.sense)))
+        .ok_or(crate::contact::ContactRefusal::NotCertifiable {
+            what: "a face of the face-face record has no surface",
+        })
+}
+
+/// A record's tangent line known to run through both faces' interiors
+/// ([`rest_line_in_both_faces`], the only constructor): what
+/// [`tangent_table_at_rest`] reads, so the sides are never read for a
+/// pair the line misses.
+pub(crate) struct RestLineInBothFaces<'b, T: Real> {
+    body: &'b Body<T>,
+    faces: [FaceKey; 2],
+    carrier: geom::Curve3<T>,
+    overlap: (T, T),
+}
+
+/// [`line_through_both_faces`] for a face–face record's line at rest
+/// ([`RestTangent::Line`]): `Some` where the line runs through both
+/// faces' interiors, `None` where it does not.
+///
+/// # Errors
+///
+/// What [`line_through_both_faces`] leaves unread.
+pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
+    body: &'b Body<T>,
+    faces: [FaceKey; 2],
+    carrier: geom::Curve3<T>,
+    overlap: (T, T),
+    band: Band,
+    unread: impl Fn(usize, FaceUnread, &mut Vec<E>),
+) -> Result<Option<RestLineInBothFaces<'b, T>>, Vec<E>> {
+    let through =
+        line_through_both_faces(faces.map(|f| (body, f)), &carrier, overlap, band, unread)?;
+    Ok(through.then_some(RestLineInBothFaces {
+        body,
+        faces,
+        carrier,
+        overlap,
+    }))
+}
+
+/// The C4 `Tangent` table of a face–face record on two carriers along
+/// their tangent line, where it runs through both faces
+/// ([`RestLineInBothFaces`]), the declared posture, the record standing
+/// as the declaration ([`contact_verify::tangent_locus_relation`]): the
+/// touch and the material sides.
+///
+/// # Errors
+///
+/// [`crate::contact::ContactRefusal::Contradicted`] where the table
+/// contradicts the touch or the sides (`contact_tangent_opposed`,
+/// `contact_tangent_overlap`); `Escalated` where a margin is in band;
+/// `NotCertifiable` where a face has no surface.
+pub(crate) fn tangent_table_at_rest<T: Decide>(
+    line: &RestLineInBothFaces<'_, T>,
+    band: Band,
+) -> Result<(), crate::contact::ContactRefusal> {
+    let [fa, fb] = line.faces;
+    let ((sa, sense_a), (sb, sense_b)) = (record_face(line.body, fa)?, record_face(line.body, fb)?);
+    let (t0, t1) = line.overlap;
     contact_verify::tangent_locus_relation(
-        &sa,
+        sa,
         sense_a,
-        &sb,
+        sb,
         sense_b,
         &line.carrier,
         t0,
         t1,
         true,
         band,
-    )?;
-    Ok(RestTangent::Line {
-        carrier: line.carrier,
-        overlap: line.overlap,
-    })
+    )
+    .map(|_| ())
 }
 
 /// **The glue door's tangency**: the check ([`verify_tangency`]), and
@@ -8824,6 +8953,23 @@ mod tests {
                     to: "(3.0, 4.0, 5.0)".to_owned(),
                 },
             },
+            BooleanError::LineWedges {
+                fault: LineWedgeFault::Overlap {
+                    edges: [edge, edge],
+                },
+                from: "(0.0, 1.0, 2.0)".to_owned(),
+                to: "(3.0, 4.0, 5.0)".to_owned(),
+            },
+            BooleanError::LineWedges {
+                fault: LineWedgeFault::NoSheet { edge },
+                from: "(0.0, 1.0, 2.0)".to_owned(),
+                to: "(3.0, 4.0, 5.0)".to_owned(),
+            },
+            BooleanError::LineWedges {
+                fault: LineWedgeFault::WedgeEnd { edge },
+                from: "(0.0, 1.0, 2.0)".to_owned(),
+                to: "(3.0, 4.0, 5.0)".to_owned(),
+            },
         ]
     }
 
@@ -8934,6 +9080,7 @@ mod tests {
                 BooleanErrorKind::Revert => "Revert",
                 BooleanErrorKind::EdgeInFace => "EdgeInFace",
                 BooleanErrorKind::SlitTipUnread => "SlitTipUnread",
+                BooleanErrorKind::LineWedges => "LineWedges",
             }
         }
         /// The variant name `Debug` opens with.

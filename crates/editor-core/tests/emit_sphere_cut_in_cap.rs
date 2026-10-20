@@ -188,18 +188,17 @@ fn a_sphere_cut_in_refuses_only_where_its_rows_are_filed() {
     }
 }
 
-/// **The cap holds its meridian crossings unspelled**: the kernel cuts
-/// the lens's top face along a meridian before the op, and the cap
-/// decides each point where the section circle crosses that meridian
-/// on the brick's near face. Read back to the lens, the point would be
-/// the face the meridian runs in, and the row would say the lens's face
-/// lies on the brick's: so the cap publishes no such row and holds both
-/// decisions, each a point of the cut lens on the brick's face. Every
-/// row it does publish names cells of its inputs that hold the point
-/// decided: a vertex on a face lies on that face's surface. Red if a
-/// crossing is published face on face, or dropped.
+/// **The cap states its meridian crossings as meetings**: the kernel
+/// cuts the lens's top face along a meridian before the op, and the
+/// cap decides each point where the section circle crosses that
+/// meridian on the brick's near face. Read back to the lens, the point
+/// is the face the meridian runs in, so the row is the lens's face and
+/// the brick's sharing that point (`Relation::Meet`), never the lens's
+/// face lying on the brick's. Every other row names cells of its inputs
+/// that hold the point decided: a vertex on a face lies on that face's
+/// surface. Red if a crossing is published face on face, or dropped.
 #[test]
-fn the_cap_holds_its_meridian_crossings_unspelled() {
+fn the_cap_states_its_meridian_crossings_as_meetings() {
     for lens_first in [true, false] {
         let (doc, [lens, brick, _]) = document("intersect", lens_first);
         let ev = run(&doc);
@@ -284,20 +283,23 @@ fn the_cap_holds_its_meridian_crossings_unspelled() {
                 "lens first {lens_first}: a row whose cells hold its point: {row:?}"
             );
         }
-        let held = &cap.naming.unspelled;
-        let brick_face = |(input, cell): (topo::Operand, topo::Cell)| {
-            input == brick_is
-                && matches!(cell, topo::Cell::Face(f) if body(input).faces().any(|(k, _)| k == f))
+        let met: Vec<&topo::Coincidence> = cap
+            .coincidences
+            .iter()
+            .filter(|r| r.relation == topo::Relation::Meet)
+            .collect();
+        let face_of = |cell: topo::RowCell, brick: bool| {
+            matches!(cell, topo::RowCell::Input { input, cell: topo::Cell::Face(f) }
+                if (input == brick_is) == brick && body(input).faces().any(|(k, _)| k == f))
         };
         assert!(
-            held.len() == 2
-                && held
+            met.len() == 2
+                && met
                     .iter()
-                    .all(|d| d.site == topo::DecisionSite::VertexFusion
-                        && d.relation == topo::Relation::OnCarrier
-                        && matches!(d.cells[0], (input, topo::Cell::Vertex(_)) if input != brick_is)
-                        && brick_face(d.cells[1])),
-            "lens first {lens_first}: both crossings held, a point of the lens on the brick's face: {held:?}"
+                    .all(|r| r.site == topo::DecisionSite::VertexFusion
+                        && r.cells.iter().any(|&c| face_of(c, false))
+                        && r.cells.iter().any(|&c| face_of(c, true))),
+            "lens first {lens_first}: both crossings, the lens's face meeting the brick's: {met:?}"
         );
     }
 }

@@ -93,3 +93,20 @@ Unverified, from PR 5106's review diagnostic (to be measured):
 
 
 **Unblocked (CLEAVE, 2026-10-19).** `[ev]` PR 4795 merged (`0a702a9bc1`). Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where more than two sheets meet on a line, the material decides the edges, and the complement re-pairs. Radial edges were declined.
+## Seam note from CLEAVE (2026-10-19): the Boolean gate refuses the coincident-edge class
+
+`cleave/gate-refuses-overlapping-wedges` runs `census::line_wedges` at
+the Boolean's result gate over every line `census::collinear_overlaps`
+finds in the result, every op, and refuses an overlap typed
+(`BooleanError::LineWedges`). So no Boolean result with overlapping
+coincident wedges reaches rest. This row's side check is still owed at
+tier 3′ for the doors that do not build through the Boolean: STEP
+adoption admits any body tier 3/3′ passes, and `insert_voids` grafts a
+record-backed or partial pair structurally (PR 5106's
+`insert_voids(box, [s, s], unequal-pinch cavity)` witness). Measured
+over the three crates' suites at three ε with an at-rest probe: no
+other door (extrude, revolve, shell, offset, split) handed back such a
+body; hand-built tier-3 fixtures and assembly copies placed on top of
+each other did. The face-inside-a-wedge half (the rider form) is
+untouched. The reader also refuses a cusp or slit edge on a line typed
+(`WedgeRefusal::WedgeEnd`) instead of as an in-band escalation.

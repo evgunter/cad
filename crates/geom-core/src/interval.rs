@@ -439,6 +439,15 @@ pub fn add_up(a: f64, b: f64) -> f64 {
     if s.is_certified() { s.hi() } else { a + b }
 }
 
+impl Interval {
+    /// `self · w` for a multiplier with a non-negative lower end, read
+    /// on the two corners its signs select ([`DInterval::mul_nonneg`]).
+    #[must_use]
+    pub fn mul_nonneg(self, w: Self) -> Self {
+        Self(self.0.mul_nonneg(w.0))
+    }
+}
+
 impl Add for Interval {
     type Output = Self;
 

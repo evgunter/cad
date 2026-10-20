@@ -1395,8 +1395,9 @@ class StartToken:
 
 class ArrivesTangentToken:
     """The type of `Start.arrives_tangent()`, the seam's declared
-    tangent arrival. `line_to`, `tangent_arc_to` and `arc_to(Bulge(...))`
-    take it; `Via` and `Center` do not."""
+    tangent arrival. Every closer takes it: where the leg's data fix its
+    end direction it is checked; `arc_onto` and the `Via` arrival take
+    `Start`'s direction from it and close at the verb."""
 
 # A closing target: `Start`, with or without the seam's declaration.
 _Close: TypeAlias = StartToken | ArrivesTangentToken
@@ -1475,7 +1476,18 @@ _PointLeg: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt]
 # position and tangent; the incoming side's anchor is the tip).
 _LegEndIncoming: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt] | Radius
 _BulgeClose: TypeAlias = Bulge[StartToken] | Bulge[ArrivesTangentToken]
-_PointClose: TypeAlias = _BulgeClose | Via[StartToken] | Center[StartToken]
+_PointClose: TypeAlias = (
+    _BulgeClose
+    | Via[StartToken]
+    | Via[ArrivesTangentToken]
+    | Center[StartToken]
+    | Center[ArrivesTangentToken]
+)
+# The arrivals that close at the verb: `Center` at `Start` (checked
+# when declared), and `Via` with the declaration supplying its director.
+_ArrivalClose: TypeAlias = (
+    Center[StartToken] | Center[ArrivesTangentToken] | Via[ArrivesTangentToken]
+)
 _Tangent: TypeAlias = Sweep | ArcLen
 
 class Open:
@@ -1497,7 +1509,7 @@ class Open:
     @overload
     @staticmethod
     def arc_fillet_arc(
-        spec: Center[_Pt], radius: Length, spec2: Center[StartToken]
+        spec: Center[_Pt], radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     @staticmethod
@@ -1589,6 +1601,27 @@ class PathViaArrivalStart:
     def angle(self, theta: Angle) -> ClosedLoop: ...
     def toward(self, dx: float, dy: float) -> ClosedLoop: ...
 
+class PathArcOnto:
+    """`arc_onto(p)`: the target bound, ONE director pending — it names
+    the arc's END tangent, and the departure is derived."""
+
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
+    def angle(self, theta: Angle) -> PathDirectedPoint: ...
+    def toward(self, dx: float, dy: float) -> PathDirectedPoint: ...
+
+class PathArcOntoStart:
+    """`arc_onto(Start)`: the sharp seam, ONE director pending."""
+
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
+    def angle(self, theta: Angle) -> ClosedLoop: ...
+    def toward(self, dx: float, dy: float) -> ClosedLoop: ...
+
 class PathPoint:
     """A plain point: position bound, no incoming carrier. There is
     nothing to inherit here, so `tangent` and `turn` are absent."""
@@ -1607,6 +1640,12 @@ class PathPoint:
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
     def arc_to(self, spec: _PointClose) -> ClosedLoop: ...
+    @overload
+    def arc_onto(self, target: tuple[Length, Length]) -> PathArcOnto: ...
+    @overload
+    def arc_onto(self, target: StartToken) -> PathArcOntoStart: ...
+    @overload
+    def arc_onto(self, target: ArrivesTangentToken) -> ClosedLoop: ...
     def arc_fillet(self, spec: _PointLeg, radius: Length) -> PathOpen: ...
     @overload
     def arc_fillet_arc(
@@ -1614,7 +1653,7 @@ class PathPoint:
     ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _PointLeg, radius: Length, spec2: Center[StartToken]
+        self, spec: _PointLeg, radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     def arc_fillet_arc(
@@ -1646,7 +1685,7 @@ class PathDirectedPoint:
     @overload
     def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathDirectedPoint: ...
     @overload
-    def fillet_arc(self, radius: Length, spec: Center[StartToken]) -> ClosedLoop: ...
+    def fillet_arc(self, radius: Length, spec: _ArrivalClose) -> ClosedLoop: ...
     @overload
     def fillet_arc(self, radius: Length, spec: Radius) -> PathRadiusArrival: ...
     @overload
@@ -1663,6 +1702,12 @@ class PathDirectedPoint:
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
     def arc_to(self, spec: _PointClose) -> ClosedLoop: ...
+    @overload
+    def arc_onto(self, target: tuple[Length, Length]) -> PathArcOnto: ...
+    @overload
+    def arc_onto(self, target: StartToken) -> PathArcOntoStart: ...
+    @overload
+    def arc_onto(self, target: ArrivesTangentToken) -> ClosedLoop: ...
     def arc_fillet(self, spec: _LegEndIncoming, radius: Length) -> PathOpen: ...
     @overload
     def arc_fillet_arc(
@@ -1670,7 +1715,7 @@ class PathDirectedPoint:
     ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _LegEndIncoming, radius: Length, spec2: Center[StartToken]
+        self, spec: _LegEndIncoming, radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     def arc_fillet_arc(
@@ -1698,7 +1743,7 @@ class PathDirected:
     @overload
     def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathDirectedPoint: ...
     @overload
-    def fillet_arc(self, radius: Length, spec: Center[StartToken]) -> ClosedLoop: ...
+    def fillet_arc(self, radius: Length, spec: _ArrivalClose) -> ClosedLoop: ...
     @overload
     def fillet_arc(self, radius: Length, spec: Radius) -> PathRadiusArrival: ...
     @overload
@@ -1715,7 +1760,7 @@ class PathDirected:
     ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _Tangent, radius: Length, spec2: Center[StartToken]
+        self, spec: _Tangent, radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     def arc_fillet_arc(
@@ -6889,11 +6934,13 @@ class CheckEvidence:
     examination, so nothing was read; do not take the silence for a
     clean body.
 
-    `unproven_coincidence` (`relation`, `site`, `reason`, and the row
-    as `coincidence`) — a node decided two cells one from values and
-    the coincidence door does not prove it structural. `reason` says
-    what separates the two constructions, or why a cell's could not be
-    read. A `profile_junction` row's `relation` is `tangent` or `cusp`
+    `unproven_coincidence` (`relation`, `site`, `reason`, the row as
+    `coincidence`, and `restated`) — a node decided a coincidence of
+    its cells from values and the coincidence door does not prove it
+    structural. `reason` says what separates the constructions, or why
+    a cell's could not be read. `restated` lists a union's fold-step
+    rows decided at a member vertex this row names, reported with it.
+    A `profile_junction` row's `relation` is `tangent` or `cusp`
     between two carriers and `same_oriented` on one. A report, never a
     refusal."""
 
@@ -6929,20 +6976,23 @@ class CheckEvidence:
     def site(self) -> Optional[str]: ...
     @property
     def coincidence(self) -> Optional[Coincidence]: ...
+    @property
+    def restated(self) -> Optional[list[Coincidence]]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class Coincidence:
     """One coincidence a node decided from values (D10), with what the
     coincidence door decided about it.
 
-    `cells` are pairs: an entity is `(read, name)`, the `Var` the
+    `cells` are two, or for a `meet` the two or more that share one
+    point, sorted, each a pair: an entity is `(read, name)`, the `Var` the
     deciding node took it in through, whose table names it, and the
     name there (the opaque text the materializers answer with); the
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
     `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
-    `axes_meet` or `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
+    `axes_meet`, `co_ruled` or `meet`; `site` is `plane_ladder`, `carrier_ladder`,
     `tangent_witness`, `coaxial_sphere`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
     `profile_junction`, `vertex_fusion` or
@@ -6953,10 +7003,17 @@ class Coincidence:
     proved it structural (`same_construction`, `carrier_verdict` or
     `margin_identity`), or `None`, and then `residual` says what separates
     the two constructions and what the replay with every variable a
-    symbol made of the row."""
+    symbol made of the row. `origin` is `None` for the node's own
+    operation, `("judged", p, q)` for a union's or an intersect's
+    judgement of its members at places `p < q` (its order-free rows),
+    and `("fold", k)` for the fold step folding in the member at `k`."""
 
     @property
     def cells(self) -> list[tuple[Var | NodeId, Optional[str]]]: ...
+    @property
+    def origin(
+        self,
+    ) -> tuple[Literal["judged"], int, int] | tuple[Literal["fold"], int] | None: ...
     @property
     def relation(self) -> str: ...
     @property

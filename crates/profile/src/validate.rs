@@ -32,27 +32,35 @@
 //!    the candidate (`nearer_end`) stands within ε of the other carrier
 //!    and definitely nearer that candidate than the carriers' other one
 //!    (`own_candidate`), so inside the candidate's own stretch;
-//!    otherwise the pair escalates.
+//!    otherwise the pair escalates. The pass reads where a loop meets
+//!    itself, never how far two adjacent segments run within ε of each
+//!    other past their joint: that neighbourhood is the joint's own,
+//!    and its extent is not a number any pass reads
+//!    (`[topology.census]`). An adjacent pair is read beyond the vertex
+//!    it shares — at a tangent cusp, by its far ends: within ε
+//!    touches, in band escalates, definite validates however long the
+//!    stretch before it. Whether a tangent cusp is a legal edge is the
+//!    sweep's second-order question, asked where it becomes one.
 //! 4. **Tangent joints** (D1's profile tangency) — every *joint*
 //!    (adjacent-segment junction at its shared vertex) is classified by
-//!    the same carrier predicates the simplicity pass uses — the
-//!    carrier clearance margins (`carrier_line_circle`, the
-//!    `carrier_circles_*` family) are bit-identical expressions;
-//!    line/line joints reuse `chord_side` in the same expression form
-//!    on the joint's far endpoint (a carrier-identity question — no
-//!    new ε anywhere). A joint classified Zero, tangent carriers or one
-//!    carrier continuing, is a tangent joint: identity is a fact about
-//!    carriers, tangency a fact about directions, and the directions
-//!    agree there (Ev, in-chat, 2026-09-02). The tangent-joint set is
+//!    [`seg::joint_tangency`]: carrier identity first (`chord_side` of
+//!    a line/line joint's far endpoint, `carrier_circles_identity` of
+//!    an arc/arc one), then the joint's turn levered by the shorter of
+//!    its two legs' arms (`path_junction_turn`, through
+//!    [`seg::junction_turn`], the one reading and the one arm the path
+//!    door asks of the same junction — no new ε). A joint whose turn reads Zero,
+//!    or whose carriers are one, is a tangent joint: identity is a fact
+//!    about carriers, tangency a fact about directions, and the
+//!    directions agree there (Ev, in-chat, 2026-09-02). The tangent-joint set is
 //!    derived here ([`ValidatedLoop::tangent_joints`]), from the
 //!    joints a [`ConstructedLoop`]'s constructors made and these
-//!    verdicts. A constructed joint the carriers definitely cross ⇒
+//!    verdicts. A constructed joint that definitely turns ⇒
 //!    [`ProfileError::TangencyContradicted`] (a construction is
 //!    verified, never trusted); a Zero joint no constructor made is
 //!    recorded as a tangency decided from values
 //!    ([`ValidatedLoop::decided_joints`]), for the
-//!    `unproven-coincidence` lint. In-band near-tangency escalates from
-//!    the simplicity pass as it always did.
+//!    `unproven-coincidence` lint. A turn in band escalates at the
+//!    joint's segment pair.
 //! 5. **Containment forest** — trilean point-in-loop by ray parity
 //!    (rays through arc segments included); a grazing ray is refused and
 //!    the next candidate ray tried deterministically (Mäntylä ch. 13's
@@ -117,6 +125,7 @@
 //! | `carrier_circles_identity` | d + |Δr| | direct |
 //! | `carrier_circles_external` | d − (r₁+r₂) | direct |
 //! | `carrier_circles_internal` | d − |Δr| | direct |
+//! | `path_junction_turn` | sin φ · arm | the shorter of the two legs' arms, each a line's length or an arc's min(radius, chord) |
 //! | `carrier_circles_chord` | the radical foot's mean depth inside both circles, or zero outside them | direct |
 //! | `arc_apex_identity` | apex distance | direct |
 //! | `collinear_overlap` | overlap length | direct |
@@ -194,8 +203,9 @@ pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the ori
 /// declare the tangency, or spell the continuation, or move the
 /// geometry.
 pub(crate) const JUNCTION_TANGENT_LEVER: &str = "for tangency onto a new carrier use .tangent() \
-     (or the tangent-arc or seam-fillet close at the seam); for a straight continuation spell it \
-     line(len) off the directed point; otherwise move the geometry";
+     (.tangent().tangent_arc_to(p) for an arc; the tangent-arc or seam-fillet close at the \
+     seam); for a straight continuation spell it line(len) off the directed point; otherwise \
+     move the geometry";
 
 use crate::path::num;
 use crate::seg::{
@@ -607,18 +617,20 @@ pub const FILLET_FLATTENED_RECOURSE: &str = "turn the corner further, or use a L
 
 /// **The recourse for a fillet whose carrier the scene cannot resolve.**
 ///
-/// The stored form here IS an arc — the sagitta is metres — but the
-/// clearance a carrier predicate classifies is a DIFFERENCE of lengths
-/// at the scene's own magnitude (`r − |h|`, `d − |r₁ − r₂|`), and such a
-/// difference cancels first-order: at magnitude `M` it resolves only to
-/// about `M·2^-52`. When that floor is coarser than ε the joint cannot
-/// be classified at all, whatever the turn is.
+/// The stored form here IS an arc — the sagitta is metres — but a
+/// joint's turn is read off its legs' headings, each a DIFFERENCE of
+/// coordinates at the scene's own magnitude `M` (the larger of the
+/// coordinates and the radii) over the length it is taken across (an
+/// arc's radius `ρ`, a line's length), and such a difference cancels
+/// first-order: levered by the joint's arm, the turn resolves only to
+/// about `M·2⁻⁵²·arm/ρ`. The arm is the shorter leg's, never longer
+/// than the fillet's own `min(ρ, chord)`, so the floor is at most about
+/// `M·2⁻⁵²`, and when it is coarser than ε the joint cannot be
+/// classified at all, whatever the turn is.
 ///
-/// So this situation's levers run the OTHER way from
-/// [`FILLET_FLATTENED_RECOURSE`]'s: a larger radius makes it worse. What
-/// helps is shrinking the magnitude the difference is taken at — a
-/// smaller radius, or the geometry nearer the origin — or dropping the
-/// fillet.
+/// So the lever is the magnitude: the geometry nearer the origin, or a
+/// radius no larger than the scene's own distance from it (a radius
+/// below that changes nothing). Or drop the fillet.
 ///
 /// Followed at its own door by the row named
 /// `the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_scene`.
@@ -630,8 +642,8 @@ pub const FILLET_FLATTENED_RECOURSE: &str = "turn the corner further, or use a L
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "use a smaller radius (a LARGER one makes this worse), place the geometry nearer \
-     the origin, or drop the fillet and leave the corner sharp";
+pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "move the geometry nearer the origin, keep the radius no larger than its distance from the \
+     origin, or leave the corner sharp";
 
 /// **The recourse when the stored form's own classification is in
 /// band** — the undecided twin of the two above.
@@ -654,8 +666,8 @@ pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "use a smaller radius (a LARG
     )
 )]
 pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "the arc may be too shallow to store (turn the corner further, or use a larger \
-     radius) or too fine for the scene (use a smaller radius, or move nearer the \
-     origin); dropping the fillet, or lowering the tolerance, settles either";
+     radius) or too fine for the scene (move nearer the origin); dropping the fillet, \
+     or lowering the tolerance, settles either";
 
 /// The recourse for a fillet leg with no extent to round against.
 ///
@@ -974,10 +986,17 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_junction_side",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
     },
-    // the sine of a junction's turn, levered by the arriving arm; decided only by the path door
+    // the sine of a junction's turn at the shorter leg's arm: the path door's, and validation's
+    // joint pass's (`seg::joint_tangency`)
     DecisionEnding {
         name: "path_junction_turn",
         kind: EndingKind::Lever(JUNCTION_TANGENT_LEVER),
+    },
+    // the same turn read off a fillet's STORED joints by the door's stored-form re-read
+    // (`seg::joint_tangency` under this name): its levers are the stored form's, not `.tangent()`
+    DecisionEnding {
+        name: "path_fillet_joint_turn",
+        kind: EndingKind::Lever(FILLET_STORED_FORM_INBAND_RECOURSE),
     },
     // an authored leg's extent metered against zero
     DecisionEnding {
@@ -1141,6 +1160,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
             "whether the path carries straight on at this junction or doubles back into a cusp"
         }
         "path_junction_turn" => "whether the path turns at this junction",
+        "path_fillet_joint_turn" => "whether a fillet's stored joint turns",
         "path_leg_length" => "whether an authored leg has any length",
         "path_run_out_carrier" => "whether an emitted segment lands on a fillet's arrival carrier",
         "path_seam_arrival_lever" => "whether the seam arrival has a leg long enough to measure",
@@ -2231,10 +2251,10 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
         // 3b: the tangent joints — classify every joint
         // (adjacent-segment junction), verify the constructed ones and
         // record the ones decided Zero that no constructor made. Runs
-        // after simplicity so in-band near-tangency escalates from the
-        // pair classification exactly as before this arm existed. Each
-        // tangent joint's heading is decided here too: which of them
-        // are cusps (INPUT indices; canonicalization remaps them).
+        // after simplicity, so a pair that meets away from its joint is
+        // refused as a contact first. Each tangent joint's heading is
+        // decided here too: which of them are cusps (INPUT indices;
+        // canonicalization remaps them).
         let mut input_joints: Vec<JointVerdicts> = Vec::with_capacity(loops_in.len());
         for (li, input) in loops_in.iter().enumerate() {
             input_joints.push(judge_joints(
@@ -2742,8 +2762,7 @@ struct JointVerdicts {
 /// The per-loop joint pass of D1's profile tangency: joint v is the
 /// junction between segment (v − 1 mod n) (arriving) and segment v
 /// (leaving) at vertex v. Each joint is classified by
-/// [`seg::joint_tangency`] (module docs list the reused carrier
-/// predicates):
+/// [`seg::joint_tangency`] (module docs, step 4):
 ///
 /// - `Transversal` and constructed ⇒
 ///   [`ProfileError::TangencyContradicted`] (a construction is
@@ -2792,7 +2811,8 @@ fn judge_joints<T: Decide>(
             site: EscalationSite::SegmentPair(first, second),
             source,
         };
-        let reading = seg::joint_tangency(&segs[prev], &segs[joint], band).map_err(escalated)?;
+        let reading = seg::joint_tangency(&segs[prev], &segs[joint], "path_junction_turn", band)
+            .map_err(escalated)?;
         let carriers = match reading.class {
             seg::JointClass::Transversal if constructed.contains(&joint) => {
                 return Err(ProfileError::TangencyContradicted {
@@ -2813,7 +2833,7 @@ fn judge_joints<T: Decide>(
             && seg::junction_reverses(
                 arriving.heading_at(arriving.b),
                 leaving.heading_at(leaving.a),
-                arriving.arm(),
+                arriving.arm().min(leaving.arm()),
                 band,
             )
             .map_err(escalated)?;
