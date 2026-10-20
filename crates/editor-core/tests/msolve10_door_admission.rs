@@ -839,6 +839,48 @@ fn a2_the_door_admits_every_constraint_of_the_corpus_again() {
                 );
                 admitted += 1;
             }
+            // A bundle with no mate goes and comes back whole: its values
+            // state the copy's whole motion together.
+            let unmated = !bundle.is_empty()
+                && bundle
+                    .iter()
+                    .all(|c| c.value().is_some_and(|v| v.mate.is_none()));
+            if unmated {
+                constraints += bundle.len();
+                let values = bundle
+                    .iter()
+                    .map(|c| {
+                        written_constraint(&doc, MateRef::new(placement, c.id))
+                            .value()
+                            .cloned()
+                            .expect("a value")
+                    })
+                    .collect();
+                let without = step(
+                    doc.clone(),
+                    DocEdit::RemoveConstraints {
+                        placement,
+                        constraints: bundle.iter().map(|c| c.id).collect(),
+                    },
+                )
+                .0;
+                let twin = through_door(
+                    &without,
+                    placement,
+                    &DocEdit::AddValues {
+                        placement,
+                        values,
+                        fresh: Vec::new(),
+                    },
+                );
+                assert!(
+                    twin.is_ok(),
+                    "{label}: the door refused the twin of {placement:?}'s bundle: {:?}",
+                    twin.err()
+                );
+                admitted += 1;
+                continue;
+            }
             for c in bundle.iter().filter(|c| c.value().is_some()) {
                 constraints += 1;
                 let written = written_constraint(&doc, MateRef::new(placement, c.id));

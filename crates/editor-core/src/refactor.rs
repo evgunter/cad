@@ -404,7 +404,7 @@ fn carry<E>(
     target: &mut Recording<'_, ProfileProgram>,
     vars: &mut VarCarry<'_>,
     fold: bool,
-    settle: impl Fn(RecipeNodeId, &mut crate::mate::Mate<Formula>, Option<&Run>) -> bool,
+    settle: impl Fn(RecipeNodeId, Option<&mut crate::mate::Mate<Formula>>, Option<&Run>) -> bool,
     edit: impl Fn(EditError) -> E,
     miss: impl Fn(RecipeNodeId, RemapMiss) -> E,
 ) -> Result<(NodeMap, StepMap, ReadMap), E> {
@@ -543,7 +543,10 @@ fn carry<E>(
     for (old, new, bundle) in bundles {
         // A bundle with no mate is admitted only whole: its values are
         // carried as one write.
-        if unmated_bundle(&bundle) {
+        if crate::mate::solve::unmated_bundle(&bundle) {
+            if !settle(old, None, None) {
+                continue;
+            }
             let whole = Node::Place {
                 shapes: Vec::new(),
                 constraints: bundle,
@@ -607,7 +610,7 @@ fn carry<E>(
                     continue;
                 }
             };
-            if !settle(old, &mut mate, run.as_ref()) {
+            if !settle(old, Some(&mut mate), run.as_ref()) {
                 continue;
             }
             let record = target
@@ -645,13 +648,20 @@ fn carry<E>(
     Ok((node_map, step_map, out_map))
 }
 
-/// Whether `bundle` is a placement's bundle with no mate: values alone,
-/// which state the copy's whole motion and are written whole.
-fn unmated_bundle(bundle: &[crate::mate::Constraint]) -> bool {
-    !bundle.is_empty()
-        && bundle
-            .iter()
-            .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
+/// **Whether `bundle` places its copy in the world by itself**: it has
+/// mates and every one reads the world (the pin
+/// [`crate::mate::pin_at`] writes, or a plane mate and its values), or
+/// it has none and its values state the whole motion there (the
+/// identity bundle [`crate::mate::stand`] writes).
+fn places_in_the_world(bundle: &[crate::mate::Constraint]) -> bool {
+    let mut mates = bundle
+        .iter()
+        .filter_map(crate::mate::Constraint::mate)
+        .peekable();
+    match mates.peek() {
+        None => crate::mate::solve::unmated_bundle(bundle),
+        Some(_) => mates.all(|mate| matches!(mate.to, crate::mate::Target::World(_))),
+    }
 }
 
 /// The values an authored carrier of a bundle with no mate holds, in
@@ -2722,21 +2732,16 @@ enum SourceKey {
     Keyed(crate::CopyKey),
 }
 
-/// **The numbers `placement` is pinned to the world by**, when every
-/// mate of its bundle targets the world (the pin
-/// [`crate::mate::pin_at`] writes, or a plane mate and its values):
-/// each world read's scalars and each value's, as slots. `None` for a
-/// bundle with no mate or with a mate on another target.
+/// **The numbers `placement` is pinned to the world by**, when its
+/// bundle places it in the world by numbers of the world's own
+/// ([`places_in_the_world`]): each world read's scalars and each
+/// value's, as slots. `None` for an empty bundle or one with a mate on
+/// another target.
 fn world_pin_of<P>(doc: &Doc<P>, placement: RecipeNodeId) -> Option<Vec<(crate::SlotId, VarId)>> {
     use crate::mate::BundleRows;
     let node = doc.node(placement)?;
     let bundle = crate::mate::solve::bundle_of(node)?;
-    let mut mates = bundle
-        .iter()
-        .filter_map(crate::mate::Constraint::mate)
-        .peekable();
-    mates.peek()?;
-    if !mates.all(|mate| matches!(mate.to, crate::mate::Target::World(_))) {
+    if !places_in_the_world(bundle) {
         return None;
     }
     Some(
@@ -3974,7 +3979,9 @@ pub fn inline(
     let reads_world = |p: RecipeNodeId| {
         part.node(p)
             .and_then(crate::mate::solve::bundle_of)
-            .is_some_and(|bundle| bundle.iter().any(crate::mate::Constraint::reads_world))
+            .is_some_and(|bundle| {
+                crate::mate::solve::unmated_bundle(bundle) || bundle.iter().any(crate::mate::Constraint::reads_world)
+            })
     };
     // Where the part's placements land (A4). A pin's numbers are the
     // motion it solved to: one that reads a variable would lose it once
@@ -4065,9 +4072,10 @@ pub fn inline(
                     .iter()
                     .any(|c| c.id == id && c.mate().is_some() && c.reads_world())
             };
+            // A value naming no mate is charted on the world's own axes.
             let Some(value) = bundle
                 .iter()
-                .find(|c| c.value().is_some_and(|v| v.mate.is_some_and(on_world)))
+                .find(|c| c.value().is_some_and(|v| v.mate.is_none_or(on_world)))
             else {
                 continue;
             };
@@ -4304,7 +4312,14 @@ pub fn inline(
             // world, moved by the instance's pose, composed after the
             // run its read was folded off.
             Landing::Pinned(motion) => {
-                if let (Some(motion), crate::mate::Target::World(world)) = (motion, &mut mate.to) {
+                if let (
+                    Some(motion),
+                    Some(crate::mate::Mate {
+                        to: crate::mate::Target::World(world),
+                        ..
+                    }),
+                ) = (motion, mate)
+                {
                     let (linear, translation) = match run {
                         Some((held, at)) => (
                             motion.linear * *held,
@@ -4576,7 +4591,7 @@ pub fn inline(
         let host_vars = VarCarry::new(doc);
         let mut ids: BTreeMap<crate::node::ConstraintId, crate::node::ConstraintId> =
             BTreeMap::new();
-        if unmated_bundle(&bundle) {
+        if crate::mate::solve::unmated_bundle(&bundle) {
             let whole = Node::Place {
                 shapes: Vec::new(),
                 constraints: bundle.clone(),
@@ -4590,7 +4605,7 @@ pub fn inline(
                 })
                 .map_err(refused)?;
         }
-        for constraint in bundle.iter().filter(|_| !unmated_bundle(&bundle)) {
+        for constraint in bundle.iter().filter(|_| !crate::mate::solve::unmated_bundle(&bundle)) {
             let one = Node::Place {
                 shapes: Vec::new(),
                 constraints: vec![constraint.clone()],

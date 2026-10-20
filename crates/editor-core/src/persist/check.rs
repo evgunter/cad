@@ -1182,6 +1182,7 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::AddValues { .. }
         // A constraint's id is minted, not a float.
         | DocEdit::RemoveConstraint { .. }
+        | DocEdit::RemoveConstraints { .. }
         // A label is text.
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => None,

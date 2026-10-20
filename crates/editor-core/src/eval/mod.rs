@@ -3491,8 +3491,10 @@ fn root_space<P, S: crate::Slot>(
 /// **Every node whose value lives in a loose copy's space**, in
 /// schedule order: a value's own space where it built; for a node that
 /// did not, the space its recipe gives it (D10: kinds are decided from
-/// the recipe) — a placement with no mate is a loose copy of its own,
-/// one whose mates read the world is the world's, one whose mates read
+/// the recipe) — a placement with an empty bundle is a loose copy of
+/// its own, one with values and no mate (which the door admits only
+/// writing every freedom) or whose mates read the world is the world's,
+/// one whose mates read
 /// poses joins the space of what they read; any other node joins the
 /// first loose space among its inputs.
 fn spaces_of<T: Decide>(
@@ -3518,7 +3520,8 @@ fn spaces_of<T: Decide>(
                     Some(bundle) => {
                         let mut mates = bundle.iter().filter_map(crate::mate::Constraint::mate);
                         Some(match mates.next() {
-                            None => Space::Loose { root: id },
+                            None if bundle.is_empty() => Space::Loose { root: id },
+                            None => Space::World,
                             Some(mate) => match &mate.to {
                                 Target::World(_) => Space::World,
                                 Target::Pose(var) => read_space(*var, &loose),

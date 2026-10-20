@@ -2701,6 +2701,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::RemoveConstraint { .. }
+        | DocEdit::RemoveConstraints { .. }
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }

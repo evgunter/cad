@@ -1061,10 +1061,12 @@ fn a6_a_split_pins_its_instance_where_it_stands_and_refuses_without_a_resolver()
     let placements = remainder.placements();
     assert_eq!(placements.len(), 1, "one instance is left behind");
     let bundle = fixture::bundle(remainder, placements[0]);
-    let mates: Vec<_> = bundle.iter().filter_map(|c| c.mate()).collect();
     assert!(
-        matches!(mates.as_slice(), [m] if matches!(m.to, editor_core::Target::World(_))),
-        "the instance stands where it stands by one mate to the world: {bundle:?}"
+        bundle.len() == 6
+            && bundle
+                .iter()
+                .all(|c| c.value().is_some_and(|v| v.mate.is_none())),
+        "the instance stands where it stands by the identity bundle: {bundle:?}"
     );
     assert!(
         matches!(split(None), Err(editor_core::SplitError::InstanceUnstood)),

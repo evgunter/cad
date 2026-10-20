@@ -292,18 +292,7 @@ fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
         .collect();
     let mut doc = doc;
     for (placement, frame) in placed {
-        let mut bundle = fixture::bundle(&doc, placement);
-        bundle.sort_by_key(|c| c.mate().is_some());
-        for c in bundle {
-            doc = step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0;
-        }
+        doc = fixture::emptied(doc, placement);
         doc = fixture::pin(doc, placement, &frame, o);
     }
     doc

@@ -188,18 +188,7 @@ fn nominally_pinned_instance(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, Reci
 /// the store resolving its part. The values go first, since a value
 /// names its mate.
 fn place(doc: ProfileDoc, store: &PartStore, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {
-    let mut bundle = fixture::bundle(&doc, node);
-    bundle.sort_by_key(|c| c.mate().is_some());
-    let doc = bundle.into_iter().fold(doc, |doc, c| {
-        step(
-            doc,
-            DocEdit::RemoveConstraint {
-                placement: node,
-                constraint: c.id,
-            },
-        )
-        .0
-    });
+    let doc = fixture::emptied(doc, node);
     fixture::pin(
         doc,
         node,

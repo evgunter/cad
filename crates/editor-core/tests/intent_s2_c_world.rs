@@ -908,7 +908,7 @@ fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
 }
 
 /// **Inline keeps every copy the host places.** The host holds one
-/// instance pinned to the world at the identity and a second placement
+/// instance standing at the identity and a second placement
 /// copying the instance's one copy by its key, over a part that places
 /// its block once: the inlined host still places two copies, and its
 /// product is the one it had. A second placement of the instance's
@@ -927,26 +927,16 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
          second: &dyn Fn(RecipeNodeId) -> editor_core::BodyRead<editor_core::Formula>| {
             let mut store = PartStore::default();
             let part_ref = store.insert(part, Tol::witness());
-            let opts = crate::fixture::resolver::with_resolver(store.clone());
             let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
             let (host, instance) = insert(host, Node::instantiate_part(part_ref));
-            // One pin at the identity, read off the instance's own copy
-            // while it is loose, holds both placements of it.
-            let copy = editor_core::Operand::Var(
-                host.output(instance, 0)
-                    .expect("an instance defines its copies"),
-            );
-            let at_rest = editor_core::pin_at(
-                &host,
-                &copy,
-                &editor_core::Frame::IDENTITY,
-                &opts,
-                Tol::witness(),
-            )
-            .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
+            // Both placements stand at the identity: the identity
+            // bundle, which reads nothing of the copy.
+            let stood = |host: ProfileDoc, at: RecipeNodeId| {
+                crate::fixture::written(host, at, editor_core::Placed::identity())
+            };
             let (host, second) = insert(host, Node::place(vec![second(instance)]));
-            let (host, _) = crate::fixture::constrain_at(host, instance, at_rest.clone());
-            let (host, _) = crate::fixture::constrain_at(host, second, at_rest);
+            let host = stood(host, instance);
+            let host = stood(host, second);
             (host, instance, [instance, second], store)
         };
     let (part, key) = {

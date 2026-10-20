@@ -230,12 +230,19 @@ pub fn side_placement(doc: &ProfileDoc, side: &editor_core::Operand) -> Option<R
     .then_some(at)
 }
 
-/// Whether `placement`'s bundle reads the world.
+/// Whether `placement`'s bundle places it in the world: a mate reads
+/// the world, or it has no mate and its values state the whole motion.
 pub fn on_world(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
-    bundle(doc, placement).iter().any(|c| {
-        c.mate()
-            .is_some_and(|m| matches!(m.to, editor_core::Target::World(_)))
-    })
+    let bundle = bundle(doc, placement);
+    let unmated = !bundle.is_empty()
+        && bundle
+            .iter()
+            .all(|c| c.value().is_some_and(|v| v.mate.is_none()));
+    unmated
+        || bundle.iter().any(|c| {
+            c.mate()
+                .is_some_and(|m| matches!(m.to, editor_core::Target::World(_)))
+        })
 }
 
 /// **The selections an authored pose reads**, in read order: each
@@ -394,6 +401,20 @@ fn copy_read(doc: &ProfileDoc, placement: RecipeNodeId) -> editor_core::Operand 
         ),
         other => panic!("node {} is a placement, got {other:?}", placement.0),
     }
+}
+
+/// **`placement` with its bundle emptied, as one write**
+/// ([`DocEdit::RemoveConstraints`]): a loose copy, whatever placed it.
+pub fn emptied(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
+    let constraints = bundle(&doc, placement).iter().map(|c| c.id).collect();
+    step(
+        doc,
+        DocEdit::RemoveConstraints {
+            placement,
+            constraints,
+        },
+    )
+    .0
 }
 
 /// **A gesture's constraints written onto `placement`**
@@ -711,15 +732,43 @@ pub fn mated_instance(doc_ref: editor_core::DocRef) -> AuthoredNode {
 }
 
 /// **The world read a placement is pinned at**, as written, where its
-/// bundle's one mate is to the world ([`pin`]); `None` for any other
-/// bundle. Panics on a node that is no placement.
+/// bundle's one mate is to the world ([`pin`]), or where it has no mate
+/// and its values state the whole motion ([`editor_core::stand`]): the
+/// world's frame turned by its spins in order and slid by its slides.
+/// `None` for any other bundle. Panics on a node that is no placement.
 pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::WorldRead<Formula>> {
+    use editor_core::pose::PoseRole;
     let constraints = match doc.node(id) {
         Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
             constraints
         }
         other => panic!("node {} is a placement, got {other:?}", id.0),
     };
+    if !constraints.is_empty()
+        && constraints
+            .iter()
+            .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
+    {
+        let role = |axis| match axis {
+            editor_core::TargetAxis::X => PoseRole::X,
+            editor_core::TargetAxis::Y => PoseRole::Y,
+            editor_core::TargetAxis::Z => PoseRole::Z,
+        };
+        let written = |v: &editor_core::Value| doc.written(&editor_core::Expr::var(v.by, v.coord.dimension()));
+        let values: Vec<_> = constraints.iter().filter_map(editor_core::Constraint::value).collect();
+        let spun = values.iter().fold(editor_core::WorldRead::Frame, |at, v| match v.coord {
+            editor_core::Coord::SpinAbout(axis) => {
+                at.spin(editor_core::WorldRead::through(role(axis)), written(v))
+            }
+            _ => at,
+        });
+        return Some(values.iter().fold(spun, |at, v| match v.coord {
+            editor_core::Coord::Slide(axis) => {
+                at.slide(editor_core::WorldRead::through(role(axis)), written(v))
+            }
+            _ => at,
+        }));
+    }
     let mut mates = constraints.iter().filter_map(editor_core::Constraint::mate);
     let (Some(only), None) = (mates.next(), mates.next()) else {
         return None;

@@ -468,10 +468,12 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
         for input in doc.upstream_of(id, node) {
             couple(id, input);
         }
-        // A world read is inside the mate and reads no variable, so the
-        // world is coupled here.
-        let pinned =
-            bundle_of(node).is_some_and(|bundle| bundle.iter().any(super::Constraint::reads_world));
+        // A world read is inside the mate and reads no variable, and a
+        // bundle with no mate places its copy in the world by its values
+        // alone, so the world is coupled here.
+        let pinned = bundle_of(node).is_some_and(|bundle| {
+            bundle.iter().any(super::Constraint::reads_world) || unmated_bundle(bundle)
+        });
         if pinned {
             couple(id, RecipeNodeId::WORLD);
         }
@@ -985,6 +987,15 @@ pub(crate) fn unpinned(
         placement,
         free: 6 - codimension(bundle),
     }))
+}
+
+/// **Whether `bundle` has values and no mate**: its values state the
+/// copy's whole motion in the world.
+pub(crate) fn unmated_bundle<S: crate::Slot>(bundle: &[super::Constraint<S>]) -> bool {
+    !bundle.is_empty()
+        && bundle
+            .iter()
+            .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
 }
 
 /// **Whether a bundle is the identity bundle as written** (D10: "a

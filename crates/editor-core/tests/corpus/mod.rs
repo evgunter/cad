@@ -715,6 +715,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
         DocEdit::AddConstraint { .. } => "AddConstraint",
         DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
+        DocEdit::RemoveConstraints { .. } => "RemoveConstraints",
         DocEdit::AddValue { .. } => "AddValue",
         DocEdit::AddValues { .. } => "AddValues",
         DocEdit::UpdateReference { .. } => "UpdateReference",

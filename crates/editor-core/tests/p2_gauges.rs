@@ -305,20 +305,7 @@ pub(crate) fn set_pin(
     pose: Option<Frame>,
     o: &EvalOptions,
 ) -> ProfileDoc {
-    // Values first: a mate goes once no value names it.
-    let doc = fixture::bundle(&doc, placement)
-        .into_iter()
-        .rev()
-        .fold(doc, |doc, c| {
-            step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        });
+    let doc = fixture::emptied(doc, placement);
     match pose {
         Some(pose) => fixture::pin(doc, placement, &pose, o),
         None => doc,
@@ -484,9 +471,18 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
     assert!(offset_of(&doc, base).is_some(), "the base is pinned");
     assert_eq!(offset_of(&doc, top), None);
     let poses = solve(&doc, &o, Tol::witness());
+    let at = poses.relative(base).expect("the base is placed");
+    let off = at
+        .columns
+        .iter()
+        .flatten()
+        .zip([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
+        .map(|(a, b)| (a - b).abs())
+        .chain(at.translation.iter().map(|t| t.abs()))
+        .fold(0.0_f64, f64::max);
     assert!(
-        poses.at_identity(base),
-        "a copy pinned at the identity sits at the world's origin"
+        off < 1e-12,
+        "a copy pinned at the identity sits at the world's origin: {at:?}"
     );
     assert_eq!(
         poses.space(top),

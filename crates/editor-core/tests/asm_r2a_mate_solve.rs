@@ -170,18 +170,7 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, Kit) {
 /// **`placement`'s bundle replaced by one world pin at `frame`** — how
 /// a copy is put at a world pose ([`fixture::pin`]).
 fn repin(doc: ProfileDoc, placement: RecipeNodeId, frame: &Frame, o: &EvalOptions) -> ProfileDoc {
-    let doc = values_first(fixture::bundle(&doc, placement))
-        .into_iter()
-        .fold(doc, |doc, c| {
-            step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        });
+    let doc = fixture::emptied(doc, placement);
     fixture::pin(doc, placement, frame, o)
 }
 
@@ -781,16 +770,17 @@ fn row6a_mated_instances_share_an_a9_component() {
             .any(|c| c.contains(&ids[0]) && c.contains(&ids[1])),
         "the constraint COUPLES the components: {together:?}"
     );
-    // The first instance's world pin is a mate on its own face, so it
-    // lands on that instance alone.
-    let pin = fixture::bundle(&doc, ids[0])
-        .into_iter()
-        .find(|c| c.mate().is_some())
-        .map(|c| editor_core::MateRef::new(ids[0], c.id))
-        .expect("the first instance is pinned by a mate");
+    // The first instance stands by the identity bundle, which reads no
+    // pose, so the one mate's two poses land on the two instances.
+    assert!(
+        fixture::bundle(&doc, ids[0])
+            .iter()
+            .all(|c| c.mate().is_none()),
+        "the first instance stands with no mate"
+    );
     assert_eq!(
         fixture::mate_members(&doc),
-        vec![(pin, ids[0]), (mate_ref, ids[1]), (mate_ref, ids[0])],
+        vec![(mate_ref, ids[1]), (mate_ref, ids[0])],
         "each pose lands on its instance"
     );
 }
@@ -1217,9 +1207,3 @@ fn row7e_a_mate_not_on_its_copy_refuses_at_the_door() {
     assert!(fault.to_string().contains("pins nothing"), "{fault}");
 }
 
-/// `bundle` with its values ahead of its mates: the order its
-/// constraints come out in, so no value is left naming a removed mate.
-fn values_first(mut bundle: Vec<editor_core::Constraint>) -> Vec<editor_core::Constraint> {
-    bundle.sort_by_key(|c| c.mate().is_some());
-    bundle
-}
