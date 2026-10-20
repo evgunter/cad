@@ -3878,22 +3878,23 @@ fn ee_crossing_lane<T: Decide>(
 
 /// **Whether the census reads two spans' projections at this band**
 /// (`pm_census_ee_overlap_precision`). Margin: `(K − 1)·ε / (SHORT_CHAIN_ULPS·u)`
-/// less the four points' summed distance from the origin (meters): how
-/// far that sum sits below the one at which the projections' charge
-/// ([`geom_core::one_line`]) reaches `(K − 1)·ε`.
+/// less the spans' summed lengths from the first one's start, the
+/// projections' charge read back in metres ([`geom_core::one_line`]): how
+/// far that sum sits below the one at which the charge reaches
+/// `(K − 1)·ε`.
 ///
 /// **Why that much room is enough.** [`collinear_overlap`] decides its
 /// projections uncharged ([`tri_cmp`], `pm_census_ee_overlap`), because
 /// within that room no uncharged verdict can be wrong: each margin it
 /// reads is within the charge `n` of its real value, so a definite
 /// verdict (`|m| > Kε`) has its real sign past `Kε − n ≥ ε`, and a Zero
-/// (`|m| ≤ ε`) is never a real definite (`ε + n ≤ Kε`). Points the body
-/// stores collinear within `ε` sit where their ulp is below `ε`, so no
-/// body the census reads today comes near the edge (a 135 153-pair sweep
-/// at `ε = 10⁻¹²` found no misread). Past it the reading is the
-/// representation's rounding, not the geometry: an escalation, the
-/// tolerance coarser or the geometry nearer the origin its recourse,
-/// never a guess.
+/// (`|m| ≤ ε`) is never a real definite (`ε + n ≤ Kε`). The charge is at
+/// the spans' own scale, so only spans kilometres long at a fine `ε`
+/// leave the room (about `5·10³` m of summed length at `ε = 10⁻¹²`),
+/// wherever they lie; a 135 153-pair sweep at `ε = 10⁻¹²`, out to `10⁴` m
+/// from the origin, found no misread inside it. Past it the reading is
+/// the representation's rounding, not the geometry: an escalation, a
+/// coarser tolerance its recourse, never a guess.
 fn overlap_resolves<T: Decide>(noise: T, band: Band) -> Result<(), Indeterminate> {
     let room = band.escalate() - band.zero();
     let per_metre = T::from_f64(geom_core::SHORT_CHAIN_ULPS * f64::EPSILON * 0.5);
@@ -16867,23 +16868,24 @@ mod edge_pairs_as_segments {
         segment((pt(a), pt(b)))
     }
 
-    /// **Spans too far out for this band escalate on their precision,
-    /// never decide.** Two collinear edges a metre long about `10⁴` m from
-    /// the origin at `ε = 10⁻¹²`: their four points sum to `4·10⁴` m, past
-    /// the `(K − 1)·ε / (SHORT_CHAIN_ULPS·u) ≈ 5·10³` m at which the
-    /// projections' charge reaches the room [`overlap_resolves`] keeps, so
-    /// the uncharged end comparisons could read rounding as geometry.
-    /// [`collinear_overlap`] escalates `pm_census_ee_overlap_precision`
-    /// rather than read them. At `ε = 10⁻⁹` the same spans are inside the
-    /// room and read as an overlap.
+    /// **Spans too long for this band escalate on their precision, never
+    /// decide.** Two collinear edges three kilometres long, overlapping by
+    /// half, at `ε = 10⁻¹²`: their lengths from the first one's start sum
+    /// to `9·10³` m, past the `(K − 1)·ε / (SHORT_CHAIN_ULPS·u) ≈ 5·10³` m
+    /// at which the projections' charge reaches the room
+    /// [`overlap_resolves`] keeps, so the uncharged end comparisons could
+    /// read rounding as geometry. [`collinear_overlap`] escalates
+    /// `pm_census_ee_overlap_precision` rather than read them. At
+    /// `ε = 10⁻⁹` the same spans are inside the room and read as an
+    /// overlap. (Where they lie does not matter: the charge is at the
+    /// spans' own scale.)
     #[test]
-    fn spans_too_far_out_for_the_band_escalate_on_their_precision() {
-        let far = 1e4;
-        let ea = seg([far, far, far], [far + 1.0, far, far]);
-        let eb = seg([far + 0.5, far, far], [far + 1.5, far, far]);
+    fn spans_too_long_for_the_band_escalate_on_their_precision() {
+        let ea = seg([0.0, 0.0, 0.0], [3e3, 0.0, 0.0]);
+        let eb = seg([1.5e3, 0.0, 0.0], [4.5e3, 0.0, 0.0]);
         let mut errors = Vec::new();
         let read = collinear_overlap(&ea, &eb, band(AT_1E12), &mut errors);
-        assert!(read.is_none(), "far out at 1e-12: {read:?}");
+        assert!(read.is_none(), "kilometre spans at 1e-12: {read:?}");
         assert!(
             matches!(
                 errors.as_slice(),
