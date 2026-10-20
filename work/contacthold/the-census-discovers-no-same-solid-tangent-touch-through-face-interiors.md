@@ -2,7 +2,9 @@
 id: the-census-discovers-no-same-solid-tangent-touch-through-face-interiors
 kind: issue
 title: One solid pinched along a tangent line through two faces' interiors passes tier 3′ with no record: the census has no same-solid face–face discovery
-status: open
+status: review
+branch: contacthold/same-solid-discovery
+pr: 5456
 opened: 2026-10-12
 priority: P1
 ---
