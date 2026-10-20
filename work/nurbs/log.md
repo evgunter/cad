@@ -1636,3 +1636,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Ruled:** rule 3. Each association is tightest for its own callers, so two homes stay, with precision as the stated reason and the table in the item. #5439 drops back to STANDARD: docs, the bit rows kept, the enclosure rows, the review's MINOR and NOTE, no golden moves.
   - **Lesson:** fixing the rule before the numbers was worth it. The first ruling (bits) was wrong in kind; this one is right in kind and holds to its threshold.
   - **#5419:** C pushed 67c2d535. Topo's `of_charted` sites panic on `WrongLane`; the release mutant is red on 8 rows by the panic, against 3. The reviewer re-verifies.
+- 2026-10-20 07:45Z — **#5419 merged** (759acedd; mint each wall once per operation).
+  - **FULL review MERGEABLE at 67c2d535:**
+    - the release pairing check refuses mispairings at the `pub` doors, and topo panics on `WrongLane` at its call sites;
+    - the wrong-held-key mutant is red on all 8 mispaired rows by the panic (against 3 before the panic, with 5 silent);
+    - unmutated topo+sweep release pass 6332/6332, and `limb_three` is byte-identical.
+  - **The slow rows are under target:** shelling 1.66×, r1 1.33× (main + #5419, build C). The slow-rows item is closed with those numbers, and `cheapen-the-restriction-cut-steps-2-to-4` closed (step 4 not taken).
+  - **Filed:** `mint-once-is-pinned-only-by-timing` (P3; the review's M3 survives, so a mint-count row is needed), with the review's style tail.
