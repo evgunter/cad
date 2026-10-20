@@ -2533,6 +2533,7 @@ impl<P> Doc<P> {
             bindings,
             refused: BTreeMap::new(),
             written: std::collections::BTreeSet::new(),
+            turns: BTreeMap::new(),
         };
         self.bind_definitions(&mut env);
         env
@@ -2571,6 +2572,7 @@ impl<P> Doc<P> {
         };
         env.bindings.remove(&id);
         env.refused.remove(&id);
+        env.turns.remove(&id);
         if self.var_names.contains_key(&id) {
             env.written.remove(&id);
         } else {
@@ -2587,6 +2589,11 @@ impl<P> Doc<P> {
         match bound {
             Ok(bound) => {
                 env.bindings.insert(id, bound);
+                // The form rides beside the value: a rotation by this
+                // variable reads its sine and cosine from it.
+                if let Some(turns) = expr.constant_turns(|v| env.turns.get(&v).copied()) {
+                    env.turns.insert(id, turns);
+                }
             }
             Err(refusal) => {
                 env.refused.insert(id, refusal);

@@ -710,6 +710,7 @@ where
                     mate: v.mate,
                     coord: v.coord,
                     by,
+                    turns: params.turns.get(&v.by).copied(),
                 });
                 continue;
             }
@@ -1417,6 +1418,14 @@ pub(crate) fn need_scalar<T: Decide>(
     slots::scalar(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
 }
 
+/// [`need_scalar`] of an angle slot, with the form it was written in.
+pub(crate) fn need_angle<T: Decide>(
+    vals: &SlotValues<T>,
+    slot: SlotId,
+) -> Result<geom_core::Angle<T>, NodeErrorKind> {
+    slots::angle(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
+}
+
 /// A named `[Expr; 3]` slot family of an evaluated node, as a vector
 /// ([`need_scalar`]'s backstop, on the family's x component). Shared
 /// with the mate solve for the same reason.
@@ -1437,10 +1446,12 @@ fn need_vec2<T: Decide>(
 
 /// **A revolve's axis direction in its profile's plane**: the unit
 /// vector at its heading from the profile's x axis, `(cos h, sin h)`.
-/// Unit by construction, up to the rounding of the sine and cosine;
-/// its readers decide it as they decide any authored direction.
+/// Unit by construction, up to the rounding of the sine and cosine,
+/// which a heading written as a fraction of a turn reads exactly
+/// ([`geom_core::Angle`]); its readers decide it as they decide any
+/// authored direction.
 fn axis_heading<T: Decide>(vals: &SlotValues<T>) -> Result<Vec2<T>, NodeErrorKind> {
-    let (sin, cos) = need_scalar(vals, SlotId::AxisHeading)?.sin_cos();
+    let (sin, cos) = need_angle(vals, SlotId::AxisHeading)?.sin_cos();
     Ok(Vec2::new(cos, sin))
 }
 
@@ -4367,7 +4378,7 @@ fn stepped_map<T: Decide>(
             SteppedOperands::circular(
                 origin,
                 dir,
-                need_scalar(vals, SlotId::Step)?,
+                need_angle(vals, SlotId::Step)?,
                 &(rule.written)(SlotId::Step),
                 band(tol)?,
             )?
@@ -4656,7 +4667,7 @@ fn station_plane<T: Decide>(
                 pose::slide(frame, axis(*along), by)?
             }
             M::Spin { about, by: _ } => {
-                let by = need_scalar(vals, SlotId::StationSpin { section, step })?;
+                let by = need_angle(vals, SlotId::StationSpin { section, step })?;
                 pose::spin(frame, Point3::origin(), axis(*about), by)?
             }
         };

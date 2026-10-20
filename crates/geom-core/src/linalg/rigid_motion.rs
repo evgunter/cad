@@ -160,7 +160,7 @@
 //! one home, [`frame`](super::frame)'s module docs; nothing is
 //! restated here.
 
-use crate::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
+use crate::linalg::{Affine3, Angle, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use crate::predicate::{Band, Decide, Indeterminate, Sign};
 use crate::real::Real;
 use crate::spline::SpanLocate;
@@ -576,6 +576,22 @@ impl<T: Real> RigidMotion<T> {
         Self::rotation_then_translation(axis, angle, Vec3::zero())
     }
 
+    /// [`Self::rotation`] by an [`Angle`], whose sine and cosine are its
+    /// written form's where it has one.
+    ///
+    /// # Errors
+    ///
+    /// [`RigidMotionError::NonFinite`] naming [`MotionPart::Angle`].
+    pub fn rotation_by(axis: UnitVec3<T>, angle: Angle<T>) -> Result<Self, RigidMotionError> {
+        if !angle.get().is_bounded() {
+            return Err(RigidMotionError::NonFinite(MotionPart::Angle));
+        }
+        Ok(Self::from_linear(
+            Mat3::rotation_about_unit_by(axis, angle),
+            Point3::origin(),
+        ))
+    }
+
     /// **[`Self::rotation`], then the translation by `t`**, built in
     /// one step: linear part the rotation's, translation `t` stored
     /// verbatim — the bits [`Self::compose`] of a translation onto a
@@ -616,11 +632,25 @@ impl<T: Real> RigidMotion<T> {
         axis: UnitVec3<T>,
         angle: T,
     ) -> Result<Self, RigidMotionError> {
-        if !angle.is_bounded() {
+        Self::rotation_about_axis_by(point, axis, Angle::radians(angle))
+    }
+
+    /// [`Self::rotation_about_axis`] by an [`Angle`], whose sine and
+    /// cosine are its written form's where it has one.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::rotation_about_axis`]'s.
+    pub fn rotation_about_axis_by(
+        point: Point3<T>,
+        axis: UnitVec3<T>,
+        angle: Angle<T>,
+    ) -> Result<Self, RigidMotionError> {
+        if !angle.get().is_bounded() {
             return Err(RigidMotionError::NonFinite(MotionPart::Angle));
         }
         let q = finite(point, MotionPart::Anchor)? - Point3::origin();
-        let map = Affine3::anchored_rotation(q, axis.get(), angle);
+        let map = Affine3::anchored_rotation_by(q, axis.get(), angle);
         Ok(Self::from_linear(
             map.linear,
             finite(at(map.translation), MotionPart::Anchor)?,

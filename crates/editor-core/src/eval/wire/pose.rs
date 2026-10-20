@@ -272,7 +272,8 @@ fn definition<T: Decide>(
             let PoseValue::Axis { origin, dir } = pose(about)? else {
                 unreachable!("the door admits an axis alone at a spin's axis")
             };
-            let angle = scalar(*by, crate::expr::Dimension::Angle)?;
+            let angle = crate::expr::eval_angle(*by, env)
+                .map_err(|source| NodeErrorKind::PoseScalar { var: *by, source })?;
             spin(pose(read)?, origin, dir, angle)?
         }
         PoseDef::Through { axis, point } => {
@@ -372,7 +373,8 @@ pub(crate) fn eval_world<T: Decide>(
             let PoseValue::Axis { origin, dir } = eval_world(about, env, b)? else {
                 unreachable!("a world read spins about an axis: its kind was checked")
             };
-            let angle = scalar(*by, crate::expr::Dimension::Angle)?;
+            let angle = crate::expr::eval_angle(*by, env)
+                .map_err(|source| NodeErrorKind::PoseScalar { var: *by, source })?;
             spin(eval_world(pose, env, b)?, origin, dir, angle)?
         }
         W::Flip { pose } => flip(eval_world(pose, env, b)?, b)?,
@@ -425,13 +427,13 @@ pub(crate) fn spin<T: Decide>(
     value: PoseValue<T>,
     origin: Point3<T>,
     dir: UnitVec3<T>,
-    angle: T,
+    angle: geom_core::Angle<T>,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     let turn =
-        RigidMotion::rotation_about_axis(origin, dir, angle).map_err(NodeErrorKind::Motion)?;
+        RigidMotion::rotation_about_axis_by(origin, dir, angle).map_err(NodeErrorKind::Motion)?;
     // A turned point takes `q + R·(p − q)`, which widens by its offset
     // from the axis, not by the composite map's anchor.
-    let point = |p| geom_core::Affine3::rotate_point_about_unit_axis(origin, dir, angle, p);
+    let point = |p| geom_core::Affine3::rotate_point_about_unit_axis_by(origin, dir, angle, p);
     Ok(match value {
         PoseValue::Point { position } => PoseValue::Point {
             position: point(position),

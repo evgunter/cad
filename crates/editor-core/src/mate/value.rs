@@ -23,9 +23,9 @@
 
 use std::collections::BTreeMap;
 
-use geom_core::RigidMotion;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
 use geom_core::predicate::Band;
+use geom_core::{Angle, RigidMotion};
 
 use super::coset::{Arm, Coset, Subgroup, after_turn};
 use super::solve::SolveScalar;
@@ -162,7 +162,7 @@ impl<T: SolveScalar> Chart<T> {
     /// The turn carrying the copy's chart frame onto the target's
     /// turned `by` about `d`: the linear part of every map whose spin
     /// is `by`, read off the two charts alone.
-    fn turned(&self, by: T) -> Mat3<T> {
+    fn turned(&self, by: Angle<T>) -> Mat3<T> {
         let (sin, cos) = by.sin_cos();
         let (x, y, d) = (self.x, self.y, self.d.get());
         let to_x = x * cos + y * sin;
@@ -185,8 +185,8 @@ impl<T: SolveScalar> Chart<T> {
     /// target body's frame, then the shift, then the turn by `by` about
     /// the mated direction, each composed as a motion, so nothing
     /// re-derives its rigidity from its entries and nothing is decided.
-    fn head_at(&self, by: T, shift: Vec3<T>) -> Option<RigidMotion<T>> {
-        let turn = RigidMotion::rotation(self.own_d, by).ok()?;
+    fn head_at(&self, by: Angle<T>, shift: Vec3<T>) -> Option<RigidMotion<T>> {
+        let turn = RigidMotion::rotation_by(self.own_d, by).ok()?;
         self.frame
             .compose(RigidMotion::translation(shift).ok()?)
             .ok()?
@@ -250,6 +250,16 @@ pub(crate) struct ReadValue<T> {
     pub(crate) coord: Coord,
     /// Its number.
     pub(crate) by: T,
+    /// The fraction of a turn a spin's number is written as, where it
+    /// is one ([`crate::expr::VarEnv::turns`]).
+    pub(crate) turns: Option<crate::expr::Ratio>,
+}
+
+impl<T: geom_core::Real> ReadValue<T> {
+    /// A spin's number as an angle, with the form it was written in.
+    fn angle(&self) -> Angle<T> {
+        crate::expr::angle_of(self.by, self.turns)
+    }
 }
 
 /// **A settled map as the motions its composition made** (a frame
@@ -305,8 +315,8 @@ pub(crate) fn unmated_motion<T: SolveScalar>(
     for v in values {
         match v.coord {
             Coord::SpinAbout(axis) => {
-                let spin =
-                    RigidMotion::rotation(axis.unit(), v.by).map_err(NodeErrorKind::Motion)?;
+                let spin = RigidMotion::rotation_by(axis.unit(), v.angle())
+                    .map_err(NodeErrorKind::Motion)?;
                 turned = Some(match turned {
                     Some(inner) => spin.compose(inner).map_err(NodeErrorKind::Motion)?,
                     None => spin,
@@ -398,20 +408,20 @@ pub(crate) fn settle<T: SolveScalar>(
     // Spins first: every slide after them re-measures the copy's origin.
     for v in spins {
         let chart = chart(v)?;
-        let by = v.by - chart.spin(&m);
+        let measured = chart.spin(&m);
         // A turn about the copy's own origin keeps its translation as it
         // is: composed as a turn about that point, a box lane would
         // widen it by the turn's own width levered over the origin's
         // distance, twice.
         let turned = match residual_turn_point(left).or(chart.line) {
-            Some(at) => Affine3::rotation_about_axis(at, chart.d.get(), by) * m,
+            Some(at) => turn_to(at, chart.d, v, measured) * m,
             None => {
-                let turn = Affine3::rotation_about_axis(Point3::origin(), chart.d.get(), by);
+                let turn = turn_to(Point3::origin(), chart.d, v, measured);
                 Affine3::from_parts(turn.linear * m.linear, m.translation)
             }
         };
         m = if T::spins_by_frames() {
-            Affine3::from_parts(chart.turned(v.by), turned.translation)
+            Affine3::from_parts(chart.turned(v.angle()), turned.translation)
         } else {
             turned
         };
@@ -443,7 +453,7 @@ pub(crate) fn settle<T: SolveScalar>(
         let shift = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
             .into_iter()
             .fold(Vec3::zero(), |t, a| t + chart.own_axis(a) * along(a));
-        if let Some(head) = chart.head_at(spin.by, shift) {
+        if let Some(head) = chart.head_at(spin.angle(), shift) {
             let composed = Composed {
                 head,
                 onto: chart.onto(),
@@ -484,6 +494,26 @@ pub(crate) fn settle<T: SolveScalar>(
         m = Affine3::from_parts(Mat3::identity(), axis * gap) * m;
     }
     Ok((m, None))
+}
+
+/// **The turn about the line through `at` along `d` that takes a copy
+/// spun `measured` to `v`'s spin**: by the difference of the two, or,
+/// for a spin written as a fraction of a turn, the measured spin undone
+/// and then the written turn made, each from its own sine and cosine,
+/// so the written one is exact where its form is.
+fn turn_to<T: SolveScalar>(
+    at: Point3<T>,
+    d: UnitVec3<T>,
+    v: &ReadValue<T>,
+    measured: T,
+) -> Affine3<T> {
+    match v.turns {
+        Some(_) => {
+            Affine3::rotation_about_unit_axis_by(at, d, v.angle())
+                * Affine3::rotation_about_unit_axis_by(at, d, Angle::radians(-measured))
+        }
+        None => Affine3::rotation_about_axis(at, d.get(), v.by - measured),
+    }
 }
 
 /// **The line a residual's turns about its direction fix**: the

@@ -48,8 +48,9 @@ enum Rule<T: geom_core::Real> {
         /// The axis direction, the datum's own witness.
         dir: UnitVec3<T>,
         /// The rotation angle per step, signed by the right-hand rule
-        /// about `dir`, nonzero and within a turn.
-        step: T,
+        /// about `dir`, nonzero and within a turn, with the form it was
+        /// written in.
+        step: geom_core::Angle<T>,
     },
 }
 
@@ -96,10 +97,11 @@ impl<T: Decide> SteppedOperands<T> {
     pub(crate) fn circular(
         origin: Point3<T>,
         dir: UnitVec3<T>,
-        step: T,
+        angle: geom_core::Angle<T>,
         authored: &Formula,
         band: Band,
     ) -> Result<Self, NodeErrorKind> {
+        let step = angle.get();
         let seen = geom_core::k_stats::decide_flagged_reported(PATTERN_STEP, step, band, "F14")
             .map_err(escalated(Decision::PatternStep))?;
         let positive = match seen.sign {
@@ -108,7 +110,13 @@ impl<T: Decide> SteppedOperands<T> {
             Sign::Negative => false,
         };
         let turns = match turns_off(Decision::PatternStepTurn, step, T::tau(), band)? {
-            Sign::Negative => return Ok(Self(Rule::Circular { origin, dir, step })),
+            Sign::Negative => {
+                return Ok(Self(Rule::Circular {
+                    origin,
+                    dir,
+                    step: angle,
+                }));
+            }
             Sign::Zero => StepTurns::Whole,
             Sign::Positive => match turns_held(step, band)? {
                 Held::Whole => StepTurns::Whole,
@@ -231,7 +239,19 @@ pub(crate) fn stepped_rule_map<T: Decide>(
             origin,
             dir,
             step: angle,
-        } => RigidMotion::rotation_about_axis(*origin, *dir, *angle * step),
+        } => {
+            // `i` steps of a step written as a fraction of a turn are `i`
+            // times that fraction, read as exactly as the step is.
+            let value = angle.get() * step;
+            let turns = angle
+                .turns()
+                .and_then(|t| geom_core::Turns::new(t.num().checked_mul(i)?, t.den()));
+            let angle = match turns {
+                Some(turns) => geom_core::Angle::of_turns(value, turns),
+                None => geom_core::Angle::radians(value),
+            };
+            RigidMotion::rotation_about_axis_by(*origin, *dir, angle)
+        }
     }
     .map_err(NodeErrorKind::Motion)
 }

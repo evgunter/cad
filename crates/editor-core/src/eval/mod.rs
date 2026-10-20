@@ -5490,7 +5490,7 @@ where
         debug_assert_eq!(slot, nominal_slot, "the two slot lists are one order");
         h.write_u64(i as u64);
         match (val, nominal) {
-            (slots::SlotVal::Scalar(v), slots::SlotVal::Scalar(n)) => {
+            (slots::SlotVal::Scalar(v, _), slots::SlotVal::Scalar(n, _)) => {
                 v.feed(&mut h);
                 h.write_tag(tag::slot::NOMINAL);
                 h.write_f64_bits(*n);
@@ -5503,7 +5503,7 @@ where
             // only ever merge keys the mixed shape already made
             // impossible.
             (slots::SlotVal::Count(c), _) => h.write_i64(*c),
-            (slots::SlotVal::Scalar(v), slots::SlotVal::Count(_)) => v.feed(&mut h),
+            (slots::SlotVal::Scalar(v, _), slots::SlotVal::Count(_)) => v.feed(&mut h),
         }
     }
     // The node's evaluated PAYLOAD expressions, in `payload_exprs`

@@ -47,9 +47,9 @@ pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{
-    Affine3, FrameError, FrameInput, FrameVector, LeveredUnitError, Mat3, MotionPart, OrthoAxis,
-    OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, TurnError,
-    UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
+    Affine3, Angle, FrameError, FrameInput, FrameVector, LeveredUnitError, Mat3, MotionPart,
+    OrthoAxis, OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, TurnError,
+    Turns, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
     not_rigid_reading,
 };
 pub use predicate::{

@@ -1184,6 +1184,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
         bindings,
         refused: BTreeMap::new(),
         written: std::collections::BTreeSet::new(),
+        turns: BTreeMap::new(),
     };
     // A defined variable is no axis: it binds its definition over the
     // widened inputs, so it carries their enclosure.
@@ -1257,6 +1258,7 @@ pub fn var_env_symbolic_pinned<T: AxisScalar + geom_core::predicate::Decide, P>(
         bindings,
         refused: BTreeMap::new(),
         written: std::collections::BTreeSet::new(),
+        turns: BTreeMap::new(),
     };
     doc.bind_definitions(&mut env);
     Ok(env)

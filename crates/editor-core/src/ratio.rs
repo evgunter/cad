@@ -193,6 +193,52 @@ impl Ratio {
         }
     }
 
+    /// `num/den` from signed 128-bit parts, reduced; `None` past the
+    /// bound or at a zero denominator.
+    fn of_wide(num: i128, den: i128) -> Option<Self> {
+        let negative = (num < 0) != (den < 0);
+        Self::of_parts(negative && num != 0, num.unsigned_abs(), den.unsigned_abs())
+    }
+
+    /// `self + other`, `None` where the sum is past the bound.
+    pub(crate) fn checked_add(self, other: Self) -> Option<Self> {
+        let (a, b, c, d) = self.wide(other);
+        Self::of_wide(
+            a.checked_mul(d)?.checked_add(c.checked_mul(b)?)?,
+            b.checked_mul(d)?,
+        )
+    }
+
+    /// `self · other`, `None` where the product is past the bound.
+    pub(crate) fn checked_mul(self, other: Self) -> Option<Self> {
+        let (a, b, c, d) = self.wide(other);
+        Self::of_wide(a.checked_mul(c)?, b.checked_mul(d)?)
+    }
+
+    /// `self / other`, `None` for a zero divisor or past the bound.
+    pub(crate) fn checked_div(self, other: Self) -> Option<Self> {
+        let (a, b, c, d) = self.wide(other);
+        Self::of_wide(a.checked_mul(d)?, b.checked_mul(c)?)
+    }
+
+    /// `−self`.
+    pub(crate) fn neg(self) -> Self {
+        Self {
+            num: -self.num,
+            den: self.den,
+        }
+    }
+
+    /// The two values' numerators and denominators, widened.
+    fn wide(self, other: Self) -> (i128, i128, i128, i128) {
+        (
+            i128::from(self.num),
+            i128::from(self.den),
+            i128::from(other.num),
+            i128::from(other.den),
+        )
+    }
+
     /// The decimal text of this value where its denominator is a
     /// product of twos and fives and the text reads back to it.
     pub(crate) fn decimal(self) -> Option<String> {

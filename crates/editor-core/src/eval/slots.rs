@@ -30,8 +30,9 @@ use crate::var::VarId;
 /// An evaluated slot: continuous scalar or exact count.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum SlotVal<T> {
-    /// A continuous value in kernel units.
-    Scalar(T),
+    /// A continuous value in kernel units, and the fraction of a turn
+    /// an angle's definition is, where it is one ([`VarEnv::turns`]).
+    Scalar(T, Option<crate::expr::Ratio>),
     /// An exact structural count.
     Count(i64),
 }
@@ -68,7 +69,9 @@ pub(crate) fn eval_rows<'e, T: Decide>(
             let val = if slot.is_structural() {
                 SlotVal::Count(eval_var_count(var, env).map_err(|e| (slot, e))?)
             } else {
-                SlotVal::Scalar(eval_var(var, slot.expr_dimension(), env).map_err(|e| (slot, e))?)
+                let dim = slot.expr_dimension();
+                let value = eval_var(var, dim, env).map_err(|e| (slot, e))?;
+                SlotVal::Scalar(value, env.turns.get(&var).copied())
             };
             Ok((slot, val))
         })
@@ -80,7 +83,19 @@ pub(crate) fn eval_rows<'e, T: Decide>(
 /// bug surfaced as a typed operand error upstream).
 pub(crate) fn scalar<T: Copy>(values: &SlotValues<T>, slot: SlotId) -> Option<T> {
     values.iter().find_map(|(s, v)| match v {
-        SlotVal::Scalar(x) if *s == slot => Some(*x),
+        SlotVal::Scalar(x, _) if *s == slot => Some(*x),
+        _ => None,
+    })
+}
+
+/// The angle in a named slot, with the form it was written in
+/// ([`crate::expr::eval_angle`]'s, for a slot).
+pub(crate) fn angle<T: geom_core::Real>(
+    values: &SlotValues<T>,
+    slot: SlotId,
+) -> Option<geom_core::Angle<T>> {
+    values.iter().find_map(|(s, v)| match v {
+        SlotVal::Scalar(x, turns) if *s == slot => Some(crate::expr::angle_of(*x, *turns)),
         _ => None,
     })
 }

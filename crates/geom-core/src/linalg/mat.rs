@@ -14,7 +14,7 @@
 use core::convert::Infallible;
 use core::ops::Mul;
 
-use crate::linalg::{UnitVec3, Vec3};
+use crate::linalg::{Angle, UnitVec3, Vec3};
 use crate::real::Real;
 
 /// A linear map of the 3-D tangent space, stored as three named columns.
@@ -198,10 +198,21 @@ impl<T: Real> Mat3<T> {
         Self::rodrigues(axis.get(), angle)
     }
 
+    /// [`Self::rotation_about_unit`] by an [`Angle`], whose sine and
+    /// cosine are its written form's where it has one.
+    pub fn rotation_about_unit_by(axis: UnitVec3<T>, angle: Angle<T>) -> Self {
+        Self::rodrigues_by(axis.get(), angle)
+    }
+
     /// The Rodrigues entries over `n` as given: the one body of both
     /// rotation constructors, which differ only in whether they
     /// normalize the axis first.
     pub(in crate::linalg) fn rodrigues(n: Vec3<T>, angle: T) -> Self {
+        Self::rodrigues_by(n, Angle::radians(angle))
+    }
+
+    /// [`Self::rodrigues`] by an [`Angle`]'s sine and cosine.
+    pub(in crate::linalg) fn rodrigues_by(n: Vec3<T>, angle: Angle<T>) -> Self {
         let (s, c) = angle.sin_cos();
         let t = T::one() - c;
         let (x, y, z) = (n.x, n.y, n.z);
@@ -282,10 +293,13 @@ impl<T: Real> Mat3<T> {
     /// [`Self::identity_minus_rotation_about`] over an axis already
     /// unit, as [`Self::rotation_about_unit`] is to [`Self::rotation_about`].
     pub(in crate::linalg) fn identity_minus_rodrigues(n: Vec3<T>, angle: T) -> Self {
-        let (hs, hc) = (angle * T::from_f64(0.5)).sin_cos();
-        let two = T::from_f64(2.0);
-        let s = two * hs * hc;
-        let t = two * hs.powi(2);
+        Self::identity_minus_rodrigues_by(n, Angle::radians(angle))
+    }
+
+    /// [`Self::identity_minus_rodrigues`] by an [`Angle`]'s
+    /// ([`Angle::sin_versine`]).
+    pub(in crate::linalg) fn identity_minus_rodrigues_by(n: Vec3<T>, angle: Angle<T>) -> Self {
+        let (s, t) = angle.sin_versine();
         let (x, y, z) = (n.x, n.y, n.z);
         Self::from_cols(
             Vec3::new(

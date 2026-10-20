@@ -1276,9 +1276,9 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         NodeErrorKind::PoseRead { .. }
         | NodeErrorKind::Mate(_)
         | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
-        NodeErrorKind::Part { .. }
-        | NodeErrorKind::Transform(_)
-        | NodeErrorKind::Motion(_) => Forward::Unwelded(UNWELDED_PLACEMENT),
+        NodeErrorKind::Part { .. } | NodeErrorKind::Transform(_) | NodeErrorKind::Motion(_) => {
+            Forward::Unwelded(UNWELDED_PLACEMENT)
+        }
         NodeErrorKind::ProfileAnchor
         | NodeErrorKind::ProfileRecordMissing { .. }
         | NodeErrorKind::CurvedSolidFrontier { .. }

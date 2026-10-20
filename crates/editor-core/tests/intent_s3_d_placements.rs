@@ -784,3 +784,142 @@ fn a_copy_stands_against_a_copy_already_placed() {
         again.map(|p| p.by)
     );
 }
+
+/// Every vertex of the body `node` evaluates to at scalar `T`, each
+/// coordinate as its `(lo, hi)` bounds, sorted.
+fn vertex_bounds<T: editor_core::EvalScalar>(
+    doc: &ProfileDoc,
+    node: RecipeNodeId,
+) -> Vec<[(f64, f64); 3]> {
+    use geom_core::Bounds;
+    let ev = editor_core::evaluate::<T>(
+        doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let Some(NodeResult::Ok(value)) = ev.result(node) else {
+        panic!("{node} evaluates: {:?}", ev.result(node));
+    };
+    let body = match &value.payload {
+        ValuePayload::Body(b) => b.clone(),
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => copies.bodies[0].clone(),
+        other => panic!("{node} is a body: {other:?}"),
+    };
+    let mut points: Vec<[(f64, f64); 3]> = body
+        .vertices()
+        .map(|(v, _)| {
+            let p = topo::readback::vertex_point(&body, v).expect("a vertex point");
+            [p.x, p.y, p.z].map(|c| (c.lo(), c.hi()))
+        })
+        .collect();
+    points.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
+    points
+}
+
+/// **A block placed upright by a written `turn/4` stands on the world's
+/// planes bit for bit, in every lane** (D10 `[variables.literals]`: a
+/// rational fraction of a turn is a constant; D8, the recipe keeps the
+/// form written). The unit box is turned a quarter turn about the
+/// world's `x` by a bundle with no mate, about its plane mate's
+/// direction by a mated spin, and about the world's `x` by a world read
+/// spun by `turn/4`; each vertex lands on its exact integer coordinates
+/// at `f64`, `Interval`, `Dual64` and `Sym`, each coordinate a point
+/// with no width. A spin is read through its sine and cosine, taken from
+/// the fraction (`geom_core::Angle`), never from the rounded radian,
+/// whose cosine is `6.1e-17`.
+///
+/// *Breaks if* a rotation by a written fraction of a turn reads the
+/// sine and cosine of its value: a coordinate then carries `6.1e-17`
+/// at `f64` and an enclosure of that width at `Interval`.
+#[test]
+fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes() {
+    use editor_core::TargetAxis::{X, Y, Z};
+    let quarter = || Formula::turn_over(4).expect("a quarter turn");
+    let zero = |d| Formula::zero(d);
+    let doc = ProfileDoc::empty_derived("d", Tol::witness());
+    let (doc, b) = unit_box(doc);
+    let corners = |f: fn([f64; 3]) -> [f64; 3]| {
+        let mut want: Vec<[(f64, f64); 3]> = vertices(&doc, b)
+            .into_iter()
+            .map(|p| f(p).map(|c| (c + 0.0, c + 0.0)))
+            .collect();
+        want.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
+        want
+    };
+    // Upright: a quarter turn about x, (x, y, z) ↦ (x, −z, y).
+    let upright = corners(|[x, y, z]| [x, -z, y]);
+    // A quarter turn about z, (x, y, z) ↦ (−y, x, z).
+    let about_z = corners(|[x, y, z]| [-y, x, z]);
+
+    let mut unmated = [X, Y, Z]
+        .into_iter()
+        .map(|axis| (Coord::Slide(axis), zero(editor_core::Dimension::Length)))
+        .collect::<Vec<_>>();
+    unmated.push((Coord::SpinAbout(X), quarter()));
+    unmated.push((Coord::SpinAbout(Y), zero(editor_core::Dimension::Angle)));
+    unmated.push((Coord::SpinAbout(Z), zero(editor_core::Dimension::Angle)));
+    let (by_values, p_values) = insert(
+        doc.clone(),
+        Node::place(vec![BodyRead::plain(Operand::from(b))]),
+    );
+    let by_values = by_values
+        .apply(
+            &editor_core::DocEdit::unmated(p_values, unmated),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|refusal| panic!("the values are admitted: {refusal}"))
+        .doc;
+
+    let mate = |to: WorldRead<Formula>| Mate {
+        on: start_cap(b),
+        to: Target::World(to),
+        class: editor_core::ContactClass::Rest,
+    };
+    let (by_spin, p_spin) = placed(
+        doc.clone(),
+        b,
+        mate(WorldRead::through(PoseRole::Xy)),
+        vec![
+            (Coord::Slide(X), zero(editor_core::Dimension::Length)),
+            (Coord::Slide(Y), zero(editor_core::Dimension::Length)),
+            (Coord::Spin, quarter()),
+        ],
+    );
+    let stood = WorldRead::through(PoseRole::Xy).spin(WorldRead::through(PoseRole::X), quarter());
+    let (by_read, p_read) = placed(
+        doc,
+        b,
+        mate(stood),
+        vec![
+            (Coord::Slide(X), zero(editor_core::Dimension::Length)),
+            (Coord::Slide(Y), zero(editor_core::Dimension::Length)),
+            (Coord::Spin, zero(editor_core::Dimension::Angle)),
+        ],
+    );
+
+    let rows = [
+        ("no mate, spun about x", &by_values, p_values, &upright),
+        ("a mated spin", &by_spin, p_spin, &about_z),
+        ("a world read spun about x", &by_read, p_read, &upright),
+    ];
+    for (what, doc, p, want) in rows {
+        assert_eq!(&vertex_bounds::<f64>(doc, p), want, "{what} at f64");
+        assert_eq!(
+            &vertex_bounds::<geom_core::Interval>(doc, p),
+            want,
+            "{what} at Interval"
+        );
+        assert_eq!(
+            &vertex_bounds::<geom_core::Dual64>(doc, p),
+            want,
+            "{what} at Dual64"
+        );
+        assert_eq!(
+            &vertex_bounds::<geom_core::Sym<f64>>(doc, p),
+            want,
+            "{what} at Sym"
+        );
+    }
+}

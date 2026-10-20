@@ -10,7 +10,7 @@
 use core::convert::Infallible;
 use core::ops::Mul;
 
-use crate::linalg::{Mat3, Point3, UnitVec3, Vec3};
+use crate::linalg::{Angle, Mat3, Point3, UnitVec3, Vec3};
 use crate::real::Real;
 
 /// An affine map of the 3-D affine space: `p ↦ linear·p + translation`.
@@ -168,10 +168,26 @@ impl<T: Real> Affine3<T> {
     /// [`RigidMotion::rotation_about_axis`](super::RigidMotion::rotation_about_axis),
     /// which differ only in whether the axis is normalized first.
     pub(in crate::linalg) fn anchored_rotation(q: Vec3<T>, n: Vec3<T>, angle: T) -> Self {
+        Self::anchored_rotation_by(q, n, Angle::radians(angle))
+    }
+
+    /// [`Self::anchored_rotation`] by an [`Angle`], whose sine and
+    /// cosine are its written form's where it has one.
+    pub(in crate::linalg) fn anchored_rotation_by(q: Vec3<T>, n: Vec3<T>, angle: Angle<T>) -> Self {
         Self::from_parts(
-            Mat3::rodrigues(n, angle),
-            Mat3::identity_minus_rodrigues(n, angle) * q,
+            Mat3::rodrigues_by(n, angle),
+            Mat3::identity_minus_rodrigues_by(n, angle) * q,
         )
+    }
+
+    /// [`Self::rotation_about_axis`] by an [`Angle`] about an axis
+    /// already unit.
+    pub fn rotation_about_unit_axis_by(
+        point: Point3<T>,
+        axis: UnitVec3<T>,
+        angle: Angle<T>,
+    ) -> Self {
+        Self::anchored_rotation_by(point - Point3::origin(), axis.get(), angle)
     }
 
     /// The point `p` turned by `angle` radians (right-hand rule) about
@@ -217,6 +233,16 @@ impl<T: Real> Affine3<T> {
         p: Point3<T>,
     ) -> Point3<T> {
         point + Mat3::rotation_about_unit(axis, angle) * (p - point)
+    }
+
+    /// [`Self::rotate_point_about_unit_axis`] by an [`Angle`].
+    pub fn rotate_point_about_unit_axis_by(
+        point: Point3<T>,
+        axis: UnitVec3<T>,
+        angle: Angle<T>,
+        p: Point3<T>,
+    ) -> Point3<T> {
+        point + Mat3::rotation_about_unit_by(axis, angle) * (p - point)
     }
 
     /// Applies the map to a point: `linear·p + translation`, where `p`'s
