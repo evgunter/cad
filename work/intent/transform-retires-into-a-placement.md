@@ -204,6 +204,11 @@ So running the map at the nominal does not by itself make the lanes' decision li
 - **Red left, viewer**: `creation_ops::the_ring_stream…`. The viewer's gesture places a new body by `place_at` at the identity and the tour stands it by `stand`; switching the gesture to `stand` exposes that `stand` shares a revolve's written axis numbers, which the edit door refuses. Filed `a-stand-on-a-revolve-shares-its-written-axis-numbers` (P1, design): it needs a ruling.
 - **Checks**: `cargo clippy --workspace --all-targets` (and `--all-features`) `-D warnings` clean; demos/tour and demos/wild clippy clean; benches and tools/* check; rustfmt clean; `work.py lint` ok.
 
+**Lane of 2026-10-20 (FORK-REST and the identity bundle; rulings 1 and 2 of the orchestrator's brief)**
+- The previous lane's work is d1f57659dd..851c56a3a7: FORK-REST (only the identity bundle as written places by no map; `rest_verdict`, `solve_copy_at_identity`, the `SolveScalar` rest hooks, `marked`, `bundle_reads_a_variable` and `Composed`'s at-rest parts deleted), the mateless bundle (`Value.mate` optional, `Coord::SpinAbout`, `DocEdit::AddValues`, `MateFault::Unpinned`), `stand` writing the identity bundle, the façades (`Placed::write`/`identity`, pncad-py `MateValue(None, ..)`), the viewer's gesture by `stand`, `RemoveConstraints`, golden.cad/die_tool.pncad/slot_tables re-blessed.
+- **Its restart WIP commit ff37f08174 carried 434139ef1c's tree** and undid all four commits; 6287cf64fd reverts it. The untracked probe `zz_dlane_probe.rs` (per-node body digests over the corpus) is deleted.
+- Status: editor-core tests build. Suites running.
+
 **Next, for a fresh lane**
 1. `git fetch origin && git checkout intent/s3-d-transform-retires-into-a-placement && git pull`, then `export CARGO_TARGET_DIR=<one target dir> CARGO_INCREMENTAL=0`, then `cargo nextest run -p editor-core --test all --no-fail-fast` and `cargo nextest run -p viewer --features app,test-support --test all --no-fail-fast`. Settle each red per the three lane logs. The logs live in `/home/user` and do not survive the container, so this section names what each said.
 2. Merge origin/main again if it has moved, then run `cargo clippy --workspace --all-targets -- -D warnings`, demos/tour's clippy and certified lane, and `python3 scripts/work.py lint`.
