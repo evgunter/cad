@@ -133,6 +133,24 @@
 //! edge's material wedge, read by the touch analysis's one test
 //! ([`rest::judge`]) over each cell's outward normals.
 //!
+//! **Pass 4's findings in arm 2.** A
+//! [`ValidationError::FaceThroughEdgeWedge`], or its undecided twin, is
+//! a touch inside one solid and blocks no solid pair of its own. A face
+//! sheet inside the edge's wedge leaves the material a set with a
+//! bounded side, wrongly paired at the edge, which placement still
+//! reads against. A wedge inside the face's material winds the region
+//! there to two, so the shell crosses itself elsewhere. That crossing
+//! blocks where it stands as a pierce or an edge cross of the solid,
+//! but two planar faces can cross showing only vertex-on-face events: a
+//! triangle `(0,0,0), (4,1,1), (4,-1,-1)` in `y = z` crosses one
+//! `(2,0,0), (-2,2,0), (-2,-2,0)` in `z = 0` along `[(0,0,0), (2,0,0)]`,
+//! each with a vertex inside the other, and a vertex-on-face touch
+//! inside one solid blocks nothing. Such a body is still refused by its
+//! own finding, and by [`ValidationError::UnrecordedContact`] unless
+//! the touches are recorded; what it can lack is arm 2's cross-solid
+//! finding beside them
+//! (`work/restread/tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid.md`).
+//!
 //! **Certification (F1/F2(iii))**: the census never blesses — every
 //! finding must be *backed* by a declaration and every declaration
 //! must be *confirmed* by geometry; both directions are typed errors.
@@ -4901,14 +4919,8 @@ impl Named {
                 }
             },
             ValidationError::CensusUndecidable { a, b, .. } => Self::Two(*a, *b, Said::Unexamined),
-            // A touch inside one solid ([`edge_in_own_face`]), which
-            // blocks no other pair. A face sheet inside the edge's wedge
-            // leaves the material a set with a bounded side, wrongly
-            // paired at the edge, so placement reads against it. A wedge
-            // inside the face's material winds the region there to two;
-            // a touch pushes off without crossing, so such a shell
-            // crosses itself elsewhere, and that crossing stands as its
-            // own `Pierce` or `EdgeCross`, which blocks.
+            // A touch inside one solid: the module doc's "pass 4's
+            // findings in arm 2" says what that leaves unblocked.
             ValidationError::FaceThroughEdgeWedge { edge, face, .. }
             | ValidationError::FaceThroughEdgeWedgeUndecided { edge, face, .. } => Self::Two(
                 EntityId::Edge(*edge),
@@ -12075,6 +12087,7 @@ mod tests {
             let got = crate::validate_pseudomanifold(&body, &ContactRecords::default(), tol);
             if label == "in band" {
                 assert_eq!(verdict, TouchVerdict::Unread(TouchUnread::InBand));
+                assert_eq!(verdict.refusal(), Some(Undecided::TouchInBand));
                 assert!(got.is_err(), "{label}: an in-band shared point clears");
             } else {
                 assert!(
@@ -12902,10 +12915,9 @@ mod tests {
             rest::judge(&pyramid(None), &floor_link(band), band),
             TouchVerdict::Rest(_)
         ));
-        assert_eq!(
-            rest::judge(&pyramid(Some(0)), &floor_link(band), band),
-            TouchVerdict::Unread(TouchUnread::Unanalysed)
-        );
+        let open = rest::judge(&pyramid(Some(0)), &floor_link(band), band);
+        assert_eq!(open, TouchVerdict::Unread(TouchUnread::Unanalysed));
+        assert_eq!(open.refusal(), Some(Undecided::TouchUnanalysed));
     }
 
     /// **A tie's distance is not read as a side.** The floor, against
@@ -12972,10 +12984,9 @@ mod tests {
             .expect("a link")
         };
         let floor = floor_link(band);
-        assert_eq!(
-            rest::judge(&link((x, vec![vec![0, 1, 2, 3]])), &floor, band),
-            TouchVerdict::Unread(TouchUnread::Degenerate)
-        );
+        let slit = rest::judge(&link((x, vec![vec![0, 1, 2, 3]])), &floor, band);
+        assert_eq!(slit, TouchVerdict::Unread(TouchUnread::Degenerate));
+        assert_eq!(slit.refusal(), Some(Undecided::TouchDegenerate));
         assert_eq!(
             rest::judge(&link((-x, vec![vec![0, 1, 4, 5]])), &floor, band),
             TouchVerdict::Crossing
@@ -13001,13 +13012,35 @@ mod tests {
             }
             let geo = snapshot(&body);
             let (v, _) = body.vertices.iter().next().unwrap();
-            assert!(
-                matches!(
-                    vertex_link(&body, &geo, v, band),
-                    Err(TouchVerdict::Unread(TouchUnread::ChordScale))
-                ),
+            let Err(verdict) = vertex_link(&body, &geo, v, band) else {
+                panic!("{scale}: the corner's link built");
+            };
+            assert_eq!(
+                verdict,
+                TouchVerdict::Unread(TouchUnread::ChordScale),
                 "{scale}"
             );
+            assert_eq!(
+                verdict.refusal(),
+                Some(Undecided::TouchChordScale),
+                "{scale}"
+            );
+        }
+    }
+
+    /// **The reasons no fixture reaches refuse as their own kinds.**
+    /// The in-band, unanalysed, degenerate and out-of-scale reasons are
+    /// pinned where their links are built; a piece in band, a curved
+    /// face and a corrupt topology have no link-level fixture, so their
+    /// row of `TouchUnread::refusal` is pinned as written.
+    #[test]
+    fn the_unreached_unread_reasons_refuse_as_their_own_kinds() {
+        for (why, kind) in [
+            (TouchUnread::PieceInBand, Undecided::TouchPieceInBand),
+            (TouchUnread::Unreadable, Undecided::TouchUnreadable),
+            (TouchUnread::Corrupt, Undecided::CorruptInstance),
+        ] {
+            assert_eq!(TouchVerdict::Unread(why).refusal(), Some(kind), "{why:?}");
         }
     }
 

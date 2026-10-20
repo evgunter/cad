@@ -1933,7 +1933,7 @@ pub enum ValidationError {
     /// **Tier 3′: whether a face passes through an edge's material wedge
     /// is undecided.** An edge lies in a face of its own solid, and the
     /// side reading of the two ([`Self::FaceThroughEdgeWedge`]'s) could
-    /// not be taken: `what` says why.
+    /// not be taken: `why` says why.
     FaceThroughEdgeWedgeUndecided {
         /// The edge.
         edge: EdgeKey,

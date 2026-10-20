@@ -59,3 +59,21 @@ form, and every overlap is a defect. At a point it is not.
 The same question stands for a vertex on an edge's interior (pass 2,
 `ve_face_backed`) and two vertices of one solid on one point key
 (pass 1).
+
+## A missing cross-solid finding beside it
+
+Arm 2's `blocks` (`census.rs`, `Named::of` and the closure in
+`sweep_cross_solid_backstop`) maps a vertex-on-face touch inside one
+solid to no block. Two planar faces of one solid can cross showing
+only such events: face A, the triangle `(0,0,0), (4,1,1), (4,-1,-1)`
+in `y = z`, and face B, `(2,0,0), (-2,2,0), (-2,-2,0)` in `z = 0`,
+cross along `[(0,0,0), (2,0,0)]` with no edge piercing or crossing,
+each with a vertex in the other's interior. A `FaceThroughEdgeWedge`
+whose wedge lies inside the face's material forces such a
+self-crossing elsewhere, so where it takes this form no finding blocks
+the solid's pairs in arm 2. The body is still refused by its own
+`FaceThroughEdgeWedge`, and by `UnrecordedContact` unless the touches
+are recorded; the gap is the secondary cross-solid finding, not a
+silent pass. `sweep/tests/common/differential.rs`'s `Verdict::Rider`
+judge reads a body refused by `FaceThroughEdgeWedge` alone as a rider,
+so it would hide that finding's absence.
