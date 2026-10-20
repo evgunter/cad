@@ -180,7 +180,30 @@ struct Tally {
 /// the old ring, an `Axis` mate the snap placed by no map, would now
 /// run its quarter-turn map (738 more refused candidates). No genuine
 /// crossing is refused.
-const PINNED: (usize, usize, usize, usize) = (440_460, 142_391, 13_674, 7_092);
+///
+/// It moved when a turn by a rational fraction of a turn became exact
+/// (INTENT stage 3 D, `geom_core::Turns`), from `(440460, 142391,
+/// 13674, 7092)`, the rays unchanged. Measured landing by landing
+/// against the same tree with the turn form switched off, the exact
+/// turns alone move four documents:
+/// - `kitchen_sink`: its revolve stands exactly upright, and the 1044
+///   candidates over 396 rays its two landings refused at the
+///   determinant are gone, with 452 fewer grazes;
+/// - `gallery_ring`: its quarter-turn heading has a `y` of exactly 0
+///   (it was `2.7e-19`), so 171 fewer grazes, 24 more refused
+///   candidates and 6 more rays with a refusal;
+/// - `die_composed_tour`: 153 fewer grazes;
+/// - `die_tool`: 18 fewer grazes.
+///
+/// The rest is the writers that now state an axis-aligned frame
+/// (`corner_frame`, `moved_frame`, an unmated `turn/4`) in `kitchen_sink`,
+/// `die_pips`, `die_tool`, `die_composed` and the tour die. With the
+/// turns still rounding, they come to 154 fewer grazes, 828 more refused
+/// candidates and 180 more rays with a refusal. That share was
+/// measured in aggregate only, at that intermediate state.
+///
+/// No genuine crossing is refused.
+const PINNED: (usize, usize, usize, usize) = (440_460, 141_443, 13_482, 6_882);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

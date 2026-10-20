@@ -546,11 +546,12 @@ struct Answer {
 /// Under INTENT stage 3 D `face_sketch`'s product is its box and the
 /// boss sketched on it, one body (the gesture writes the union), so its
 /// two rows price the boss too (12 → 28 predicted). `die_composed_tour`
-/// is the tour's regenerated document, its pips placed against the die
-/// by quarter-turn frames: 14 more probe triangles at `1e-4`, and at
-/// `1e-5` the budget settles a δ 0.1% coarser (`1.9336e-5` →
-/// `1.9356e-5`), the prediction at the budget and the largest rung
-/// held.
+/// is the tour's regenerated document. Its pips were first placed
+/// against the die by frames whose quarter turns rounded, which cost 14
+/// more probe triangles at `1e-4` and settled a δ 0.1% coarser at
+/// `1e-5`. They now stand on lines stated from the cube's corner by
+/// exact turns, and both rows read what they read before D again
+/// (`29740` probe triangles; δ `1.9336e-5`, `178038`).
 const ANSWERS: &[Answer] = &[
     Answer {
         document: "die",
@@ -959,17 +960,17 @@ const ANSWERS: &[Answer] = &[
         predicted: 208127,
         requested_cost: None,
         largest_probe: 26016,
-        probe_triangles: 29754,
+        probe_triangles: 29740,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_composed_tour",
         requested: 1e-5,
-        delta: 1.9355638273184584e-5,
+        delta: 1.9336001620400844e-5,
         predicted: 1000000,
-        requested_cost: Some(1935563),
+        requested_cost: Some(1933600),
         largest_probe: 119934,
-        probe_triangles: 177674,
+        probe_triangles: 178038,
         stop: ProbeStop::Converged,
     },
     Answer {
