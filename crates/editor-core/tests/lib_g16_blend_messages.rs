@@ -16,10 +16,11 @@
 //! new text side by side.
 //!
 //! The chamfer half is not a copy of the fillet half: it is the same
-//! three refusals under the other verb, which is the assertion that the
+//! two refusals under the other verb, which is the assertion that the
 //! shared door discriminates rather than merely runs. (A name of the
-//! wrong kind is the insert door's refusal, not evaluation's:
-//! `wire_selection_kind_doors.rs`.)
+//! wrong kind and an empty selection are the insert door's refusals,
+//! not evaluation's: `wire_selection_kind_doors.rs`,
+//! `edit_blend_canonical.rs`.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -64,11 +65,11 @@ fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
     }
 }
 
-/// The three refusals, for one blend verb, as `(label, message)`.
+/// The two refusals, for one blend verb, as `(label, message)`.
 ///
-/// Merged into ONE row per verb rather than six tests: nextest is
+/// Merged into ONE row per verb rather than four tests: nextest is
 /// process-per-test and each of these rebuilds the same cube document,
-/// so the split would pay the fixture six times over
+/// so the split would pay the fixture four times over
 /// (implementer-discipline §8). Every assertion carries its own
 /// label so a red names the refusal without the test name helping.
 fn messages(
@@ -77,12 +78,7 @@ fn messages(
     let size = fixture::len(0.1);
     let mut out = Vec::new();
 
-    // (a) empty selection
-    let (doc, cube) = cube_doc();
-    let (d, n) = fixture::insert(doc, blend(cube, size.clone(), Vec::new()));
-    out.push(("empty", msg_of(&d, n)));
-
-    // (b) a name the target never minted — Vanished through N5.
+    // (a) a name the target never minted — Vanished through N5.
     let (doc, cube) = cube_doc();
     let ghost = editor_core::StableName {
         kind: editor_core::EntityKind::Edge,
@@ -94,7 +90,7 @@ fn messages(
     let (d, n) = fixture::insert(doc, blend(cube, size, vec![ghost]));
     out.push(("resolve", msg_of(&d, n)));
 
-    // (c) the op itself refusing: a size far too large for the cube.
+    // (b) the op itself refusing: a size far too large for the cube.
     let (doc, cube) = cube_doc();
     let named = blend(cube, fixture::len(0.9), fixture::prism_edges(&doc, cube, 4));
     let (d, n) = fixture::insert(doc, named);
@@ -102,31 +98,25 @@ fn messages(
     out
 }
 
-/// **The fillet's two SELECTION refusal texts are byte-frozen, and
-/// its op row is prefix-pinned** — deliberately not three byte pins.
+/// **The fillet's SELECTION refusal text is byte-frozen, and its op
+/// row is prefix-pinned** — deliberately not two byte pins.
 ///
-/// The two selection rows are this layer's own text and freeze
-/// whole. The op row's tail is the kernel's message, which quotes an
-/// arena key, so it is pinned by PREFIXES instead: the wrapper's, and
-/// the kernel payload's opening words — the exact text the verb-
-/// vocabulary unit reworded (the payload no longer opens "fillet: ";
-/// the wrapper is the one verb), so this is where a regression toward
-/// a re-verbed inner Display shows up on the fillet side.
+/// The selection row is this layer's own text and freezes whole. The
+/// op row's tail is the kernel's message, which quotes an arena key, so
+/// it is pinned by PREFIXES instead: the wrapper's, and the kernel
+/// payload's opening words — the exact text the verb-vocabulary unit
+/// reworded (the payload no longer opens "fillet: "; the wrapper is the
+/// one verb), so this is where a regression toward a re-verbed inner
+/// Display shows up on the fillet side.
 #[test]
-fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned() {
+fn the_fillets_selection_refusal_is_byte_frozen_and_the_op_row_prefix_pinned() {
     let got = messages(Node::fillet);
-    let want = [
-        (
-            "empty",
-            "the fillet selection is empty — an unfinished recipe, not the identity",
-        ),
-        (
-            "resolve",
-            "this fillet's edge 0 no longer resolves in this evaluation: the recorded reference \
+    let want = [(
+        "resolve",
+        "this fillet's edge 0 no longer resolves in this evaluation: the recorded reference \
              disagrees with the recipe as it stands on the derivation path (Extrude {cube}'s \
              payload differs). Recourse: rebind it",
-        ),
-    ];
+    )];
     let (_, cube) = cube_doc();
     let cube = test_utils::refusal::tag(cube.0.digest());
     for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {
@@ -141,7 +131,7 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
     // this row fail for an unrelated allocation change. The claim that
     // belongs to THIS layer is the wrapper: the verb, then the kernel
     // payload forwarded unaltered.
-    let (label, op) = &got[2];
+    let (label, op) = &got[1];
     assert_eq!(label, &"op");
     assert!(
         op.starts_with("the fillet op refused: "),
@@ -155,7 +145,7 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
     );
 }
 
-/// **The chamfer's three say "chamfer"** — the shared ladder
+/// **The chamfer's two say "chamfer"** — the shared ladder
 /// discriminates rather than merely running.
 #[test]
 fn the_chamfers_refusal_messages_name_the_chamfer() {

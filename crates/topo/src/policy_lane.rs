@@ -87,6 +87,8 @@ pub(crate) enum KernelSite {
     AtRest,
     /// The restatement of a wrap edge whose halves an operation parted.
     PartedWrap,
+    /// [`crate::Body::restate_stored_edge`]'s restatement.
+    StoredRestatement,
 }
 
 impl core::fmt::Display for KernelSite {
@@ -106,6 +108,7 @@ impl core::fmt::Display for KernelSite {
             Self::RimRechart => "a rim re-chart",
             Self::AtRest => "describe_at_rest",
             Self::PartedWrap => "a parted wrap edge",
+            Self::StoredRestatement => "restate_stored_edge",
         })
     }
 }

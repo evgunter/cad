@@ -1028,36 +1028,20 @@ where
 
 /// Re-describes `edge`, both of whose halves bound one face on `wall`,
 /// as that face's wrap edge (D1, `EdgeDescriptionSpec::wrap`): the
-/// certified carrier and interval kept verbatim. A one-segment loop's
-/// strut — extrude's and a revolve's — and a full revolve's periodic
-/// meridian all go through here.
+/// stored carrier and interval restated ([`Body::restate_stored_edge`]).
+/// A one-segment loop's strut — extrude's and a revolve's — and a full
+/// revolve's periodic meridian all go through here.
+///
+/// # Panics
+///
+/// As [`Body::restate_stored_edge`], on a kernel bug.
 pub(crate) fn describe_wrap_edge<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
     tol: Tol,
 ) -> Result<(), EulerOpError> {
-    let curve_key = body
-        .get_edge(edge)
-        .unwrap_or_else(|| unreachable!("edge {edge:?} was minted by this sweep and is live"))
-        .curve;
-    let curve = body
-        .get_curve_geom(curve_key)
-        .unwrap_or_else(|| unreachable!("curve {curve_key:?} is held by live edge {edge:?}"))
-        .certified()
-        .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
-    let carrier = curve.carrier().clone();
-    let (param_start, param_end) = curve.params();
-    body.set_edge_curve(
-        edge,
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::wrap(wall),
-            carrier,
-            param_start,
-            param_end,
-        },
-        tol,
-    )?;
+    body.restate_stored_edge(edge, EdgeDescriptionSpec::wrap(wall), tol)?;
     Ok(())
 }
 
@@ -1397,6 +1381,10 @@ pub(crate) fn face_surface_key<T: Real>(body: &Body<T>, face: FaceKey) -> Surfac
 /// every edge is a cap–wall rim between a plane and a `Surface::Nurbs`
 /// wall; D2 exempts NURBS-adjacent edges from the must-carry demand,
 /// and loft's module doc says these rims are never classified.
+///
+/// # Panics
+///
+/// As [`Body::restate_stored_edge`], on a kernel bug.
 pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -1455,13 +1443,14 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
         // its description by what the lane can certify, so every rim
         // stays in the cap's chart until the pair certifies them all
         // (`work/select/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
-        let spec = body
+        let description = body
             .get_curve_geom(curve_key)
             .and_then(topo::CurveGeom::certified)
             .unwrap_or_else(|| unreachable!("{edge:?} was read scaffolded just above"))
             .restated_spec()
-            .at_rest_in_chart(chart, false);
-        body.set_edge_curve(edge, spec, tol)?;
+            .at_rest_in_chart(chart, false)
+            .description;
+        body.restate_stored_edge(edge, description, tol)?;
     }
     Ok(())
 }
