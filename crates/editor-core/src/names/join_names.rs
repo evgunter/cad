@@ -56,9 +56,13 @@ pub(crate) fn joined_name(
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where a record's kept edge is not in
-/// `body`, where a cover holds an edge the door minted outright (the
-/// ruling's stop case), or as `member` refuses.
+/// [`NamingError::Emission`] where a cover holds an edge the door
+/// minted outright (the ruling's stop case), or as `member` refuses.
+///
+/// # Panics
+///
+/// Where a record's kept edge is not in `body`, or a joined name is not
+/// one segment: both are the door's own records disagreeing with it.
 pub(crate) fn name_joins<T: geom_core::Real>(
     node: RecipeNodeId,
     body: &Body<T>,
@@ -68,9 +72,11 @@ pub(crate) fn name_joins<T: geom_core::Real>(
     let mut out = BTreeMap::new();
     for (kept, cover) in topo::join_covers(joins) {
         if body.get_edge(kept).is_none() {
-            return Err(NamingError::Emission {
-                what: "a door recorded a join whose kept edge is not in its body",
-            });
+            unreachable!(
+                "a join's kept edge {kept:?} is not in the body the door recorded it on: a join \
+                 keeps `kept` live, and `topo::join_covers` hands a kept edge a later join \
+                 took on to that join's kept edge"
+            );
         }
         let mut images = Vec::with_capacity(cover.len());
         for m in cover {
@@ -88,9 +94,10 @@ pub(crate) fn name_joins<T: geom_core::Real>(
         }
         let (name, tied) = joined_name(node, images);
         let [seg] = name.path.as_slice() else {
-            return Err(NamingError::Emission {
-                what: "a joined edge's name is not one segment",
-            });
+            unreachable!(
+                "joined edge {kept:?}'s name {name:?} is not one segment: `joined_name` returns \
+                 one image, each one `name1` segment, or one flat `Merged` set of them"
+            );
         };
         out.insert(EntityKey::Edge(kept), (seg.clone(), tied));
     }
