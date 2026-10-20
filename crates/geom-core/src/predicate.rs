@@ -1420,13 +1420,55 @@ pub enum RefusedReading {
     /// Nothing more than its class shows: no size, so it ends in the
     /// lever and [`SizedWords::no_size`].
     AsShown,
-    /// The decision's inputs are a stored body's, which no reading on
-    /// the refused side agrees with: the reading contradicts that data,
-    /// and it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`].
-    ContradictsStoredData,
-    /// The decision's inputs are a file's, read at the import door: the
-    /// reading names the file as damaged ([`DAMAGED_FILE_ENDING`]).
-    DamagedFile,
+    /// The decision's inputs are stored data, which no reading on the
+    /// refused side agrees with: the reading contradicts that data, and
+    /// it ends in the defect ending naming its culprit
+    /// ([`StoredCulprit::ending`]). Stored data reached the run from
+    /// outside it, so the culprit is never the kernel alone.
+    Defect(StoredCulprit),
+}
+
+/// **Who a defect ending names**: the one spelling of each culprit's
+/// ending. The caller that reads the door chooses it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Culprit {
+    /// The kernel alone, which built what it reads
+    /// ([`KERNEL_DEFECT_ENDING`]).
+    Kernel,
+    /// Stored data's culprit, read at rest or at the import door.
+    Stored(StoredCulprit),
+}
+
+/// **Who a contradiction of stored data names**: the kernel or the file,
+/// or the file alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StoredCulprit {
+    /// The kernel or the file ([`KERNEL_OR_FILE_DEFECT_ENDING`]).
+    KernelOrFile,
+    /// The file ([`DAMAGED_FILE_ENDING`]).
+    File,
+}
+
+impl Culprit {
+    /// The defect ending naming this culprit.
+    #[must_use]
+    pub const fn ending(self) -> &'static str {
+        match self {
+            Self::Kernel => KERNEL_DEFECT_ENDING,
+            Self::Stored(stored) => stored.ending(),
+        }
+    }
+}
+
+impl StoredCulprit {
+    /// The defect ending naming this culprit.
+    #[must_use]
+    pub const fn ending(self) -> &'static str {
+        match self {
+            Self::KernelOrFile => KERNEL_OR_FILE_DEFECT_ENDING,
+            Self::File => DAMAGED_FILE_ENDING,
+        }
+    }
 }
 
 impl SizedWords<'_> {
@@ -1460,8 +1502,7 @@ impl Shows {
             ),
             Self::NoSize | Self::Refused => match refused {
                 RefusedReading::AsShown => lever_recourse(lever, no_size),
-                RefusedReading::ContradictsStoredData => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
-                RefusedReading::DamagedFile => DAMAGED_FILE_ENDING.to_owned(),
+                RefusedReading::Defect(culprit) => culprit.ending().to_owned(),
             },
             Self::Floor => lever_recourse(lever, Some(&floor_note(size))),
             Self::Unresolved | Self::Past => lever_recourse(lever, None),
@@ -3141,13 +3182,11 @@ mod tests {
             MarginDiag::INVALID,
         ];
         let mut seen = Vec::new();
-        for (refused, ending) in [
-            (
-                RefusedReading::ContradictsStoredData,
-                KERNEL_OR_FILE_DEFECT_ENDING,
-            ),
-            (RefusedReading::DamagedFile, DAMAGED_FILE_ENDING),
+        for (culprit, ending) in [
+            (StoredCulprit::KernelOrFile, KERNEL_OR_FILE_DEFECT_ENDING),
+            (StoredCulprit::File, DAMAGED_FILE_ENDING),
         ] {
+            let refused = RefusedReading::Defect(culprit);
             for margin in margins {
                 let shows = margin.shows(band, SizedPass::Positive);
                 seen.push(std::mem::discriminant(&shows));
@@ -3205,8 +3244,8 @@ mod tests {
                       1e-6 m, so the file cannot tell it from zero. Recourse: L";
         for refused in [
             RefusedReading::AsShown,
-            RefusedReading::ContradictsStoredData,
-            RefusedReading::DamagedFile,
+            RefusedReading::Defect(StoredCulprit::KernelOrFile),
+            RefusedReading::Defect(StoredCulprit::File),
         ] {
             for margin in [
                 MarginDiag::value(-5e-8),
@@ -3227,7 +3266,11 @@ mod tests {
             "Recourse: L; N"
         );
         assert_eq!(
-            past.sized_recourse_in_file(band, words(RefusedReading::DamagedFile), file),
+            past.sized_recourse_in_file(
+                band,
+                words(RefusedReading::Defect(StoredCulprit::File)),
+                file
+            ),
             DAMAGED_FILE_ENDING
         );
     }
