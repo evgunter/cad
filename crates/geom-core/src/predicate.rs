@@ -2398,9 +2398,9 @@ impl fmt::Display for MissingRecourse<'_> {
 /// bare [`Indeterminate`] Display is this payload plus the shared
 /// tail.
 ///
-/// Where a verdict was reached on the reading
-/// ([`Indeterminate::verdict`]) — a gate's rejection of a decided sign, a
-/// proved zero — the payload says what its reading is after the
+/// Where the reading is a sign decided past the band
+/// ([`Indeterminate::verdict`]), which a lead that calls the refusal
+/// undecided does not tell, the payload says what it is after the
 /// placement, " — {word}" ([`Indeterminate::reading`]), so every
 /// composition of a payload and an ending tells it, whoever's ending
 /// follows.
@@ -2645,9 +2645,9 @@ impl Indeterminate {
     /// ([`MarginDiag::shows`]) and its kind alone, never from which route
     /// carried it, so a class says one thing and its ending
     /// ([`Indeterminate::ending`], the same class) agrees. Read for the
-    /// word by the payload, where a verdict was reached on the reading,
-    /// and by [`UnderTail`] otherwise; and by [`Indeterminate::ending`]
-    /// for the lever.
+    /// word by the payload, on a sign decided past the band, and by
+    /// [`UnderTail`] otherwise; and by [`Indeterminate::ending`] for the
+    /// lever.
     ///
     /// A decided nonzero sign is sign-certain. A reading that shows no
     /// size stays off every sign the decision passes at any smaller
@@ -2708,19 +2708,23 @@ impl Indeterminate {
     /// the ambiguity band. `None` for a reading inside the band, an
     /// enclosure the band leaves undecided, and a poisoned margin. Read
     /// from the number, never from the route that carried it, it is the
-    /// test a reading is told by as decided: its payload says its word
-    /// ([`Indeterminate::payload`]), and a decision's table ends it as
-    /// the decided arm it is (`geom_brep::recourse::Unsized`).
+    /// test a reading is told by as decided: a decided sign's payload
+    /// says its word ([`Indeterminate::payload`]), and a decision's table
+    /// ends it as the decided arm it is (`geom_brep::recourse::Unsized`).
     #[must_use]
     pub fn verdict(&self) -> Option<Sign> {
         self.margin.verdict(self.band)
     }
 
     /// The word this escalation's payload says after its placement: its
-    /// reading's ([`Indeterminate::reading`]), wherever a verdict was
-    /// reached on it.
+    /// reading's ([`Indeterminate::reading`]), where it is a sign decided
+    /// past the band. A zero band's verdict is told by its placement, and
+    /// an offer's word is its ending's to tell.
     fn payload_word(&self) -> Option<&'static str> {
-        self.verdict().and(self.reading().0)
+        match self.verdict()? {
+            Sign::Positive | Sign::Negative => self.reading().0,
+            Sign::Zero => None,
+        }
     }
 
     /// Whether [`Indeterminate::ending`] offers a tolerance: a smaller
