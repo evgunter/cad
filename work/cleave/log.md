@@ -1290,3 +1290,8 @@ Signed (CLEAVE orchestrator).
   - In-band readings escalate `LineEdges` (collinearity) or `LineWedges`.
   - 5106's ∖ check is folded in. No over-refusal (535/525 confirmed independently).
   - Checked main's latest moves on a local merge (130 tests, clippy). Row closed.
+- 2026-10-20 — PR 5380 full review: FIX-FIRST.
+  - The parting is correct everywhere (three extents, fallback, W, keel-to-hole; doors agree; the glued tip stays one edge; no parted result fails 5357's gate).
+  - MAJOR: correct answers on main now refuse `SlitTipUnread`. Void ray: 95/150 were correct on main; touching vertex: 19/30; the undisclosed partners matrix: 464/960. Later Booleans on the new ring operands can't read its 0° tip.
+  - **I reverse my earlier ruling.** I had accepted the lane's claim that main built them only from a rider operand. The reviewer read main's results and showed that's false for most cells. Lesson: verify a class claim against main's outputs before ruling on it.
+  - Fix pass: build the slit-tip reading in this PR, keyed to the slit structure, so main's correct cells build. Plus: merge main (5357) and re-pin 7; correct the classification; the wall-side lever; side-aware Tangent; the doc; loud twin records; pin the glued tip; helper reuse; file the zero-area-face ∪ row.
