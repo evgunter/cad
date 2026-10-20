@@ -112,6 +112,17 @@ fn shape(frame: &Frame) -> String {
     }
 }
 
+/// [`shape`] of a reading that may carry two loops.
+fn loops_shape(got: &Result<Option<super::join::SectionLoops<f64>>, FrameError>) -> String {
+    match got {
+        Ok(Some(super::join::SectionLoops::Two { .. })) => "two loops".into(),
+        Ok(Some(super::join::SectionLoops::One(lp))) => shape(&Ok(Some(lp.turn()))),
+        Ok(None) => shape(&Ok(None)),
+        Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
+        Err(_) => "another refusal".into(),
+    }
+}
+
 /// The Dandelin construction for a plane `(q, n)` cutting the cone
 /// `(A, â, α)` off its apex, as `PlaneConeSection::TiltedEllipse`'s docs
 /// state it: centre `A − δ·n + (c·δ·s/K)·û`, with `c = â·n`,
@@ -445,33 +456,41 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
     }
 }
 
-/// **A tilt the classifier decides but the carrier cannot tell from a
-/// circle escalates.** A plane tilted off axis-normal by `θ`, with the
-/// tilt margin levered at the extent four band-widths clear: the table's
-/// classifier reads a tilted ellipse, whose semi-axes differ by
-/// `O(θ²)`, far inside the band, and the conic constructor refuses
-/// `ellipse_axes_distinct`. That is the pose's undecided circle, so the
-/// frame escalates on that predicate rather than reading it as the
-/// kernel's desync. The cone is the widening frustum, levered at the
-/// face's reach; the cylinder is a unit wall, levered at its radius.
+/// **The pose decides circle against ellipse once.** A plane tilted
+/// off axis-normal by `θ`, the tilt margin levered at the extent four
+/// band-widths clear: the table's classifier reads a tilted ellipse,
+/// whose semi-axes differ by `O(θ²)`, far inside the band, and the frame
+/// is that ellipse's own (its centre, the cutting plane's normal). At a
+/// tilt in the band the pose's own row escalates (`pn_axis_normal`,
+/// `pc_rim_alignment`). The cone is the widening frustum, levered at
+/// the face's reach; the cylinder is a unit wall, levered at its radius.
 #[test]
-fn a_near_circular_tilt_escalates_the_circle_question_not_a_desync() {
+fn a_near_circular_tilt_is_the_ellipses_frame_and_only_the_pose_escalates() {
     let b = band();
-    let tilted = |lever: f64| {
-        let theta = (4.0 * b.escalate() / lever).asin();
+    let tilted = |margin: f64, lever: f64| {
+        let theta = (margin / lever).asin();
         Vec3::new(theta.sin(), theta.cos(), 0.0)
     };
-    let verdict = |got: &Frame| match got {
+    let clear = 4.0 * b.escalate();
+    let in_band = (b.zero() + b.escalate()) / 2.0;
+    let escalated = |got: &Frame| match got {
         Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
         _ => "another outcome",
     };
     let cone = widening();
-    let p = plane([0.0, 0.5, 0.0], tilted(wall_reach()));
-    let got = frame(&p, &cone, on_wall());
+    let q = Point3::new(0.0, 0.5, 0.0);
+    let n = tilted(clear, wall_reach());
+    let got = frame(&plane([q.x, q.y, q.z], n), &cone, on_wall());
+    assert_conic_frame(&got, dandelin_centre(&cone, q, n), n, "the cone");
+    let got = frame(
+        &plane([q.x, q.y, q.z], tilted(in_band, wall_reach())),
+        &cone,
+        on_wall(),
+    );
     assert_eq!(
-        verdict(&got),
-        "ellipse_axes_distinct",
-        "the cone: got {}",
+        escalated(&got),
+        "pn_axis_normal",
+        "the cone in band: got {}",
         shape(&got)
     );
     let wall = geom::Surface::Cylinder {
@@ -480,13 +499,24 @@ fn a_near_circular_tilt_escalates_the_circle_question_not_a_desync() {
         radius: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let p = plane([0.0, 0.5, 0.0], tilted(1.0));
-    for (label, a, c) in [("plane, wall", &p, &wall), ("wall, plane", &wall, &p)] {
-        let got = pair_section_frame(a, c, Point3::new(1.0, 0.5, 0.0), None, b);
+    let n = tilted(clear, 1.0);
+    let at = Point3::new(1.0, 0.5, 0.0);
+    let (p, banded) = (
+        plane([q.x, q.y, q.z], n),
+        plane([q.x, q.y, q.z], tilted(in_band, 1.0)),
+    );
+    for (label, x, y) in [("plane, wall", &p, &wall), ("wall, plane", &wall, &p)] {
+        assert_conic_frame(&pair_section_frame(x, y, at, None, b), q, n, label);
+    }
+    for (label, x, y) in [
+        ("plane, wall", &banded, &wall),
+        ("wall, plane", &wall, &banded),
+    ] {
+        let got = pair_section_frame(x, y, at, None, b);
         assert_eq!(
-            verdict(&got),
-            "ellipse_axes_distinct",
-            "the cylinder ({label}): got {}",
+            escalated(&got),
+            "pc_rim_alignment",
+            "the cylinder in band ({label}): got {}",
             shape(&got)
         );
     }
@@ -553,33 +583,55 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
 }
 
 /// **Two declared-equal walls whose axes meet at a sliver of an angle
-/// escalate the circle question.** Unit walls about `y` and about `y`
-/// turned by `φ` about `z` through the origin, `φ` four band-widths clear
-/// of parallel at their radius: the table reads the axes as meeting and
-/// constructs the bisector ellipses, the one across both axes with
-/// semi-axes `1/cos(φ/2)` and `1`, an `O(φ²)` difference far inside the
-/// band. The constructor refuses `ellipse_axes_distinct`, and the frame
-/// escalates on it rather than calling it a refusal the pair cannot make.
+/// are the bisector ellipses' two loops.** Unit walls about `y` and
+/// about `y` turned by `φ` about `z` through the origin, `φ` four
+/// band-widths clear of parallel at their radius: the table reads the
+/// axes as meeting and constructs the bisector ellipses, the one across
+/// both axes with semi-axes `1/cos(φ/2)` and `1`, an `O(φ²)` difference
+/// far inside the band. Both loops turn about the axes' meeting point,
+/// each about its own bisector plane's normal. At a `φ` in the band the
+/// pose's own row escalates (`cc_axes_parallel`).
 #[test]
-fn declared_equal_walls_meeting_at_a_sliver_escalate_the_circle_question() {
+fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     let b = band();
-    let phi = (4.0 * b.escalate()).asin();
-    let wall = |axis: Vec3<f64>| geom::Surface::Cylinder {
+    let wall = |phi: f64| geom::Surface::Cylinder {
         origin: Point3::new(0.0, 0.0, 0.0),
-        axis,
+        axis: Vec3::new(-phi.sin(), phi.cos(), 0.0),
         radius: 1.0,
         u_ref: Vec3::new(0.0, 0.0, 1.0),
     };
-    let (a, c) = (
-        wall(Vec3::new(0.0, 1.0, 0.0)),
-        wall(Vec3::new(-phi.sin(), phi.cos(), 0.0)),
-    );
+    let phi = (4.0 * b.escalate()).asin();
+    let (a, c) = (wall(0.0), wall(phi));
+    // `â₁ ± â₂` in closed form: `a₁ − a₂` would read its `y` off
+    // `1 − cos φ`, to `u/φ²`.
+    let (sh, ch) = (phi / 2.0).sin_cos();
+    let (across, along) = (Vec3::new(-sh, ch, 0.0), Vec3::new(ch, sh, 0.0));
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
-        let got = pair_section_frame(x, y, Point3::new(0.0, 0.0, 0.0), None, b);
+        let got = pair_section_frame_at(x, y, Point3::origin(), FrameExtent::Radii, b);
+        let Ok(Some(super::join::SectionLoops::Two { loops, .. })) = got else {
+            panic!("{label}: the two bisector loops, got {}", loops_shape(&got));
+        };
+        let normals: Vec<Vec3<f64>> = loops.iter().map(|lp| lp.axis.normalize()).collect();
+        for lp in &loops {
+            assert!(
+                (lp.center - Point3::origin()).norm() < 1e-15,
+                "{label}: centre {:?}",
+                lp.center
+            );
+        }
         assert!(
-            matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("ellipse_axes_distinct")),
-            "{label}: got {}",
-            shape(&got)
+            normals.iter().any(|m| m.cross(across).norm() < 1e-12)
+                && normals.iter().any(|m| m.cross(along).norm() < 1e-12),
+            "{label}: the loops turn about the bisector planes' normals, got {normals:?}"
+        );
+    }
+    let c = wall(((b.zero() + b.escalate()) / 2.0).asin());
+    for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
+        let got = pair_section_frame_at(x, y, Point3::origin(), FrameExtent::Radii, b);
+        assert!(
+            matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("cc_axes_parallel")),
+            "{label} in band: got {}",
+            loops_shape(&got)
         );
     }
 }

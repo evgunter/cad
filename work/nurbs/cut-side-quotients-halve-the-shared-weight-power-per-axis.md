@@ -27,3 +27,9 @@ one-channel grid (a weight power) is halved. The row
 read and none for a cut asking no axis; M2 (re-halving the denominator
 per numerator inside `shared_pieces`) turns it and
 `a_cell_halves_each_weight_power_once` red.
+
+**Also in this PR** (from #5433's review, https://github.com/evgunter/cad/pull/5433#issuecomment-6282863390, and #5424's review):
+- Done here: the three test-only f64 binomial folds (`carrier_net.rs`, `derivative.rs`'s oracle row, `analytic_rung3_certificate.rs`) read `pieces::binomial`.
+- Done here: `polynomial_area_pieces` reads `halving_counts`.
+- Done here: `shared_pieces` fills each numerator's list or refuses the whole reading, so no slot is left at a default and no guard is unreachable.
+- **Moved to build A's PR 3** of `binomial-bernstein-product-and-blossom-have-two-homes-each`, which touches `split_restrict`. Two items move: the "[0,1]" comment (`s.hi` reaches 1+2⁻⁵² when t is tiny), and the thin-step row drawing wide end weights and a tiny t. This PR does not touch `split_restrict`.

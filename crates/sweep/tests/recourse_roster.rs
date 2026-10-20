@@ -18,10 +18,10 @@
 //! them is the one that would notice a blend name decided outside the
 //! blend's funnel.
 //!
-//! Four blend decisions are taken by another crate's door and relayed
+//! Three blend decisions are taken by another crate's door and relayed
 //! under the closed type: `ContactArm`, `ContactWedge` and
 //! `ContactSecondOrder` (`geom_brep`'s must-carry rule, by the reading
-//! that escalated) and `CapEllipse` (`geom`'s `Curve3::ellipse`). Their
+//! that escalated). Their
 //! names are decided nowhere in this crate's src, so the census does
 //! not see them, and nothing here lists them as another door's.
 //!
@@ -177,10 +177,6 @@ const PAIRING: &[(BlendDecision, &str)] = &[
     (
         BlendDecision::CapTransverse,
         sweep::blend::FILLET3_CAP_TILT_RECOURSE,
-    ),
-    (
-        BlendDecision::CapEllipse,
-        sweep::blend::FILLET3_CAP_ELLIPSE_RECOURSE,
     ),
     (
         BlendDecision::CutOffFeet,
