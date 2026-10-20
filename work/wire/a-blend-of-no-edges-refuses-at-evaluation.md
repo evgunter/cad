@@ -2,11 +2,14 @@
 id: a-blend-of-no-edges-refuses-at-evaluation
 kind: issue
 title: A blend's empty selection refuses at evaluation though its names are authored data the doors hold
-status: open
+status: closed
 opened: 2026-10-17
 priority: P3
 cost: M
 design: true
+closed: 2026-10-20
+pr: 5436
+branch: wire/empty-blend-at-the-door
 ---
 
 
