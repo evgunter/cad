@@ -998,3 +998,406 @@ fn a_bore_tangent_from_inside_with_no_edge_on_its_line_is_missing_its_cusp_edges
         "plate ∖ rod: a material crescent is no contact: {errors:?}"
     );
 }
+
+// ---- Review probes for PR 5456 (rev3 lane): not for merge. ----
+
+/// A summary of a census refusal list: each error's variant name, and
+/// for the new arm's two findings, the pair's carrier kinds.
+fn probe_summary(body: &Body<f64>, errors: &[topo::ValidationError]) -> Vec<String> {
+    errors
+        .iter()
+        .map(|e| match e {
+            topo::ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::FaceFaceTangent { finding },
+                ..
+            } => format!(
+                "FFT{:?}{:?}",
+                pair_kinds(body, finding.pair.a, finding.pair.b),
+                finding.verdict
+            ),
+            topo::ValidationError::CuspEdgesMissing { a, b, .. } => {
+                format!("CUSP{:?}", pair_kinds(body, *a, *b))
+            }
+            other => {
+                let s = format!("{other:?}");
+                s.chars().take(90).collect()
+            }
+        })
+        .collect()
+}
+
+fn probe_validate(body: &Body<f64>, contacts: &topo::ContactRecords) -> Vec<String> {
+    match topo::validate_pseudomanifold(body, contacts, tol()) {
+        Ok(()) => vec![],
+        Err(errors) => probe_summary(body, &errors),
+    }
+}
+
+/// `bridged_rod` with the scale, the rod's vertex phase, and every
+/// carried record kind (not only ff) when `carry_all`.
+fn probe_bridged(
+    s: f64,
+    gap: f64,
+    phase: f64,
+    rod_first: bool,
+    carry: u8,
+    rod_z: (f64, f64),
+) -> Result<topo::BooleanBody<f64>, String> {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0 * s, 2.0 * s), (-2.0 * s, 2.0 * s), (0.0, s), tol()),
+        tol(),
+    );
+    let rod = ext(
+        "rod",
+        vec![circle(0.0, 2.5 * s + gap, 0.5 * s, phase)],
+        rod_z.0 * s,
+        (rod_z.1 - rod_z.0) * s,
+    );
+    let (x, y) = if rod_first {
+        (&rod, &plate)
+    } else {
+        (&plate, &rod)
+    };
+    let u = match topo::union(x, y, tol()) {
+        Ok(BooleanResult::Body(u)) => u,
+        other => return Err(format!("plate ∪ rod: {:?}", other.map(|_| ()))),
+    };
+    let bridge = finished(
+        "bridge",
+        brick::<f64>(
+            (-1.0 * s, 1.0 * s),
+            (1.0 * s, 2.5 * s + gap),
+            (rod_z.1 * s - 0.15 * s, rod_z.1 * s + 0.85 * s),
+            tol(),
+        ),
+        tol(),
+    );
+    let records_a = match carry {
+        0 => topo::OperandRecords::default(),
+        1 => topo::OperandRecords {
+            ff: u.contacts.carried().ff,
+            ..topo::OperandRecords::default()
+        },
+        _ => u.contacts.carried(),
+    };
+    match topo::boolean_op_with(
+        topo::BooleanOp::Union,
+        &u.body,
+        &bridge,
+        &topo::BooleanInputs {
+            records_a,
+            ..topo::BooleanInputs::default()
+        },
+        topo::SweepStrategy::Realized,
+        tol(),
+    ) {
+        Ok(BooleanResult::Body(r)) => Ok(r),
+        other => Err(format!("∪ bridge: {:?}", other.map(|_| ()))),
+    }
+}
+
+fn probe_motions() -> Vec<(&'static str, Option<geom_core::RigidMotion<f64>>)> {
+    let band = Band::linear(tol()).unwrap();
+    let axis =
+        geom_core::UnitVec3::new(geom_core::Vec3::new(1.0, 2.0, 3.0), "probe", band).unwrap();
+    vec![
+        ("identity", None),
+        (
+            "turned",
+            Some(geom_core::RigidMotion::rotation(axis, 0.7).unwrap()),
+        ),
+        (
+            "far",
+            Some(
+                geom_core::RigidMotion::rotation_then_translation(
+                    axis,
+                    0.7,
+                    geom_core::Vec3::new(1.0e4, -3.0e3, 7.0e3),
+                )
+                .unwrap(),
+            ),
+        ),
+    ]
+}
+
+fn probe_moved(
+    body: &Body<f64>,
+    m: &Option<geom_core::RigidMotion<f64>>,
+) -> Result<Body<f64>, String> {
+    match m {
+        None => Ok(body.clone()),
+        Some(m) => topo::transform_rigid(body, m, tol()).map_err(|e| format!("transform: {e:?}")),
+    }
+}
+
+#[test]
+fn probe_5456_void_pinch_poses_scales() {
+    let mut out = Vec::new();
+    for s in [1.0e-2, 1.0, 1.0e2] {
+        for rod_first in [false, true] {
+            for carry in [0u8, 1, 2] {
+                let r = probe_bridged(s, 0.0, 0.0, rod_first, carry, (0.25, 0.75));
+                let r = match r {
+                    Ok(r) => r,
+                    Err(e) => {
+                        out.push(format!("s {s} rf {rod_first} carry {carry}: OP {e}"));
+                        continue;
+                    }
+                };
+                for (name, m) in probe_motions() {
+                    let got = probe_moved(&r.body, &m).map(|b| probe_validate(&b, &r.contacts));
+                    out.push(format!(
+                        "s {s} rf {rod_first} carry {carry} {name}: {got:?}"
+                    ));
+                }
+            }
+        }
+    }
+    eprintln!("PROBE void poses\n{}", out.join("\n"));
+}
+
+#[test]
+fn probe_5456_seam_on_the_line() {
+    let mut out = Vec::new();
+    let half_pi = core::f64::consts::FRAC_PI_2;
+    // Rod at (0, 2.5), r 0.5: phase −π/2 puts a vertex, and the seam
+    // ruling, at (0, 2): on the tangent line.
+    for rod_first in [false, true] {
+        for carry in [0u8, 1, 2] {
+            let got = probe_bridged(1.0, 0.0, -half_pi, rod_first, carry, (0.25, 0.75)).map(|r| {
+                (
+                    r.contacts.face_face().count(),
+                    probe_validate(&r.body, &r.contacts),
+                )
+            });
+            out.push(format!("void seam rf {rod_first} carry {carry}: {got:?}"));
+        }
+    }
+    // The bore: rod at (0, 1.5), r 0.5, phase π/2 puts the seam at (0, 2).
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    for (label, phase) in [("bore seam on line", half_pi), ("bore seam off", 0.0)] {
+        let rod = ext("rod", vec![circle(0.0, 1.5, 0.5, phase)], 0.25, 0.5);
+        match topo::subtract(&plate, &rod, tol()) {
+            Ok(BooleanResult::Body(r)) => {
+                out.push(format!(
+                    "{label}: solids {} ff {} ef {}: own records {:?}; none {:?}",
+                    r.body.solids().count(),
+                    r.contacts.face_face().count(),
+                    r.contacts.carried().ef.len(),
+                    probe_validate(&r.body, &r.contacts),
+                    probe_validate(&r.body, &topo::ContactRecords::default()),
+                ));
+            }
+            other => out.push(format!("{label}: OP {:?}", other.map(|_| ()))),
+        }
+    }
+    eprintln!("PROBE seam\n{}", out.join("\n"));
+}
+
+#[test]
+fn probe_5456_bore_poses_scales() {
+    let mut out = Vec::new();
+    for s in [1.0e-2, 1.0, 1.0e2] {
+        let plate = finished(
+            "plate",
+            brick::<f64>((-2.0 * s, 2.0 * s), (-2.0 * s, 2.0 * s), (0.0, s), tol()),
+            tol(),
+        );
+        let rod = ext(
+            "rod",
+            vec![circle(0.0, 1.5 * s, 0.5 * s, 0.0)],
+            0.25 * s,
+            0.5 * s,
+        );
+        let r = match topo::subtract(&plate, &rod, tol()) {
+            Ok(BooleanResult::Body(r)) => r,
+            other => {
+                out.push(format!("s {s}: OP {:?}", other.map(|_| ())));
+                continue;
+            }
+        };
+        for (name, m) in probe_motions() {
+            let got = probe_moved(&r.body, &m).map(|b| {
+                (
+                    probe_validate(&b, &topo::ContactRecords::default()),
+                    probe_validate(&b, &r.contacts),
+                )
+            });
+            out.push(format!("s {s} {name}: (none, own) {got:?}"));
+        }
+    }
+    eprintln!("PROBE bore poses\n{}", out.join("\n"));
+}
+
+#[test]
+fn probe_5456_near_band_and_endpoint() {
+    let mut out = Vec::new();
+    let band = Band::linear(tol()).unwrap();
+    for (label, gap) in [
+        ("gap 0.5 esc", 0.5 * band.escalate()),
+        ("gap 1.5 esc", 1.5 * band.escalate()),
+        ("gap 0.5 eps", 0.5 * tol().eps()),
+        ("gap 2 eps", 2.0 * tol().eps()),
+        ("gap -0.5 esc", -0.5 * band.escalate()),
+    ] {
+        for carry in [0u8, 2] {
+            let got = probe_bridged(1.0, gap, 0.0, false, carry, (0.25, 0.75)).map(|r| {
+                (
+                    r.contacts.face_face().count(),
+                    probe_validate(&r.body, &r.contacts),
+                )
+            });
+            out.push(format!("{label} carry {carry}: {got:?}"));
+        }
+    }
+    // The rod's run along the line ends exactly where the plate's face
+    // ends (z = 1): the line touches the face's closed region only at
+    // its end, and the rod along z ∈ [1, 1.5] meets it at one point.
+    for (label, z) in [("endpoint", (1.0, 1.5)), ("flush top", (0.5, 1.0))] {
+        for carry in [0u8, 2] {
+            let got = probe_bridged(1.0, 0.0, 0.0, false, carry, z).map(|r| {
+                (
+                    r.contacts.face_face().count(),
+                    probe_validate(&r.body, &r.contacts),
+                )
+            });
+            out.push(format!("{label} carry {carry}: {got:?}"));
+        }
+    }
+    eprintln!("PROBE band/endpoint\n{}", out.join("\n"));
+}
+
+/// Two parallel rods touching externally along x = 0.5, y = 2.5,
+/// bridged into one solid: a void cylinder × cylinder pinch.
+#[test]
+fn probe_5456_cylinder_cylinder() {
+    let mut out = Vec::new();
+    let half_pi = core::f64::consts::FRAC_PI_2;
+    for (label, r2, cx2) in [("external", 0.5, 1.0), ("external unequal", 0.3, 0.8)] {
+        let r1 = ext("rod1", vec![circle(0.0, 2.5, 0.5, half_pi)], 0.25, 0.5);
+        let r2 = ext("rod2", vec![circle(cx2, 2.5, r2, half_pi)], 0.25, 0.5);
+        let u = match topo::union(&r1, &r2, tol()) {
+            Ok(BooleanResult::Body(u)) => u,
+            other => {
+                out.push(format!("{label}: rod ∪ rod {:?}", other.map(|_| ())));
+                continue;
+            }
+        };
+        out.push(format!(
+            "{label}: rods solids {} ff {}",
+            u.body.solids().count(),
+            u.contacts.face_face().count()
+        ));
+        let bridge = finished(
+            "bridge",
+            brick::<f64>((-0.2, cx2 + 0.2), (2.3, 2.7), (0.6, 1.6), tol()),
+            tol(),
+        );
+        for carry in [0u8, 2] {
+            let records_a = if carry == 0 {
+                topo::OperandRecords::default()
+            } else {
+                u.contacts.carried()
+            };
+            let got = match topo::boolean_op_with(
+                topo::BooleanOp::Union,
+                &u.body,
+                &bridge,
+                &topo::BooleanInputs {
+                    records_a,
+                    ..topo::BooleanInputs::default()
+                },
+                topo::SweepStrategy::Realized,
+                tol(),
+            ) {
+                Ok(BooleanResult::Body(r)) => Ok((
+                    r.body.solids().count(),
+                    r.contacts.face_face().count(),
+                    probe_validate(&r.body, &r.contacts),
+                )),
+                other => Err(format!("{:?}", other.map(|_| ()))),
+            };
+            out.push(format!("{label} carry {carry}: {got:?}"));
+        }
+    }
+    eprintln!("PROBE cyl×cyl\n{}", out.join("\n"));
+}
+
+/// An independent oracle for the sign: a point in the crescent beside
+/// the line, classified by `point_in_solid`, against the arm's finding.
+#[test]
+fn probe_5456_sign_oracle() {
+    let band = Band::linear(tol()).unwrap();
+    let mut out = Vec::new();
+    // Void: the rod (centre y = 2.5) resting on the plate's y = 2 face.
+    let r = probe_bridged(1.0, 0.0, 0.0, false, 0, (0.25, 0.75)).unwrap();
+    // Material: the bore (centre y = 1.5) tangent from inside.
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let rod = ext("rod", vec![circle(0.0, 1.5, 0.5, 0.0)], 0.25, 0.5);
+    let Ok(BooleanResult::Body(m)) = topo::subtract(&plate, &rod, tol()) else {
+        panic!()
+    };
+    for (label, body, cy) in [("void", &r.body, 2.5), ("material", &m.body, 1.5)] {
+        let x: f64 = 0.05;
+        let wall_y = if cy > 2.0 {
+            cy - (0.25 - x * x).sqrt()
+        } else {
+            cy + (0.25 - x * x).sqrt()
+        };
+        let mid = 0.5 * (2.0 + wall_y);
+        let at = topo::point_in_solid(body, geom_core::Point3::new(x, mid, 0.4), band, tol());
+        let found = probe_validate(body, &topo::ContactRecords::default());
+        out.push(format!(
+            "{label}: crescent point y {mid}: {at:?}; arm {found:?}"
+        ));
+    }
+    eprintln!("PROBE oracle\n{}", out.join("\n"));
+}
+
+/// Cost probe: a plate extruded with an n × n grid of round holes, each
+/// hole's walls a band or two from its neighbours' boxes, timed through
+/// the full validate.
+#[test]
+fn probe_5456_cost_grid_of_holes() {
+    let mut out = Vec::new();
+    for n in [4usize, 8, 16] {
+        let pitch = 1.0;
+        let r = 0.45;
+        let side = pitch * n as f64;
+        let mut loops = vec![bulge_loop(
+            [(0.0, 0.0), (side, 0.0), (side, side), (0.0, side)]
+                .map(|(x, y)| (Point2::new(x, y), 0.0))
+                .to_vec(),
+        )];
+        for i in 0..n {
+            for j in 0..n {
+                loops.push(circle(
+                    pitch * (i as f64 + 0.5),
+                    pitch * (j as f64 + 0.5),
+                    r,
+                    0.3,
+                ));
+            }
+        }
+        let body = ext("grid", loops, 0.0, 1.0).into_body();
+        let t = std::time::Instant::now();
+        let got = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), tol());
+        let dt = t.elapsed();
+        out.push(format!(
+            "n {n}: faces {} validate {:?} in {:?}",
+            body.faces().count(),
+            got.map_err(|e| e.len()),
+            dt
+        ));
+    }
+    eprintln!("PROBE cost\n{}", out.join("\n"));
+}
