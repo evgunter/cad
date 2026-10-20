@@ -5,6 +5,7 @@ title: paths: a Via arc lands on its end vertex by construction, so nothing read
 status: open
 opened: 2026-10-20
 priority: P2
+needs_ev: true
 ---
 
 
@@ -45,3 +46,6 @@ Positive refused as a kernel defect. The sites are the leg
 (`path::via_arc`'s caller in `path.rs`), the fused incoming
 (`family.rs`, `bulge_from_via`) and the arrival (`ViaArrival`).
 
+
+## Question to Ev
+The design question this row and `a-stored-arcs-end-is-never-checked-against-its-authored-vertex` raise is in front of Ev in an `[ev]` PR: whether, and how, the path door reads a constructed arc back against what was authored at point scalars, which amends D1's point-scalar mechanism sentence. Both designers recommend that a `Via` arc's carrier be read against its through point `q` at the door. The implementation follows the ruling.
