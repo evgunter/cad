@@ -439,15 +439,16 @@ fn a_hole_narrower_than_the_span_is_no_pierce() {
     }
 }
 
-/// **A span standing between ε and 2ε off the plane is refused by its
-/// height, and one well within ε is read**: an edge grazing the unit
-/// square cap `z = 1` at its middle, its plane's stored origin moved
-/// off along the plane, at ε = 1e-12. At 420 m the residuals' charges
-/// lift the span's ends about `1.7ε` off the plane, so the height reads
-/// in the band and refuses; at 30 m they lift it under `0.2ε`, and the
-/// crossing, half a metre inside, is read a pierce.
+/// **A span whose reach to the boundary under it passes `(K − 1)ε`, by
+/// under twice that, is refused by its height; one well within it is
+/// read**: an edge grazing the unit square cap `z = 1` at its middle,
+/// its plane's stored origin moved off along the plane, at ε = 1e-12.
+/// At 2.1 km the residuals' charges lift the span's ends about `13ε`
+/// off the plane, so a boundary point under it could stand about `14ε`
+/// away, and the reading refuses; at 30 m that reach is under `1.5ε`,
+/// and the crossing, half a metre inside, is read a pierce.
 #[test]
-fn a_span_standing_past_epsilon_off_the_plane_is_refused_by_its_height() {
+fn a_span_standing_past_its_reach_off_the_plane_is_refused_by_its_height() {
     let band = Band::new(1e-12, 1e-11).unwrap();
     let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
     let read = |far: f64| {
@@ -465,6 +466,7 @@ fn a_span_standing_past_epsilon_off_the_plane_is_refused_by_its_height() {
         let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
         let PierceSpan { t: [lo, hi], lever } =
             pierce_span(&e, f, r, band, &mut Vec::new()).expect("a placed crossing");
+        let reach = (lever * (hi - lo) + band.zero()) * (1.0 + lever / e.len);
         let declared = Declared::index(&geo, &ContactRecords::default());
         let mut errors = Vec::new();
         pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
@@ -475,18 +477,20 @@ fn a_span_standing_past_epsilon_off_the_plane_is_refused_by_its_height() {
                 _ => None,
             })
             .collect();
-        (lever * (hi - lo) / band.zero(), found(&errors), rows)
+        (reach / band.zero(), found(&errors), rows)
     };
-    let (height, got, rows) = read(300.0);
+    let (reach, got, rows) = read(1500.0);
     assert!(
-        (1.2..1.8).contains(&height),
-        "the far span stands {height}ε off, not between 1.2ε and 1.8ε"
+        (10.0..17.0).contains(&reach),
+        "the far span reaches {reach}ε, not between 10ε and 17ε"
     );
     assert!(
-        got == Found::Refused && rows == ["pm_census_ef_pierce_height"],
-        "a span {height}ε off read {got:?}, refused by {rows:?}"
+        got == Found::Refused
+            && !rows.is_empty()
+            && rows.iter().all(|r| r.starts_with("pm_census_ef_pierce_height")),
+        "a span reaching {reach}ε read {got:?}, refused by {rows:?}"
     );
-    let (height, got, _) = read(21.0);
-    assert!(height < 0.2, "the near span stands {height}ε off");
-    assert_eq!(got, Found::Pierce, "a span {height}ε off");
+    let (reach, got, _) = read(21.0);
+    assert!(reach < 1.5, "the near span reaches {reach}ε");
+    assert_eq!(got, Found::Pierce, "a span reaching {reach}ε");
 }

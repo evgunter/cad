@@ -284,12 +284,15 @@ fn a_grazing_edge_refuses_near_a_far_origined_faces_boundary_and_reads_away_from
     }
 }
 
+#[cfg(test)]
 #[path = "pierce_probe.rs"]
 mod probe;
 
+#[cfg(test)]
 #[path = "pierce_rows.rs"]
 mod rows;
 
+#[cfg(test)]
 #[path = "pierce_tilted.rs"]
 mod tilted;
 

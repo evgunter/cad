@@ -2801,8 +2801,8 @@ fn pierce_inside<T: Decide>(
     let on = |at| matches!(at, OnEdge(_) | OnVertex(_));
     match (at_lo, at_hi) {
         (In, In) | (Out, Out) => {
-            let height = lever * (hi - lo);
-            if short() || span_clear(geo, f, (q_lo, q_hi), height, band, errors)? {
+            let stand = (lever * (hi - lo), lever / e.len);
+            if short() || span_clear(geo, f, (q_lo, q_hi), stand, band, errors)? {
                 return (at_lo == In).then(|| e.p0 + chord * geom::mid_param(lo, hi));
             }
         }
@@ -2825,47 +2825,55 @@ fn pierce_inside<T: Decide>(
 /// **Whether no boundary of the face `f` meets the span `S`**
 /// (`q_lo`–`q_hi`, longer than `2ε`, its ends read past `Kε` on one side
 /// of the boundary): `Some(false)` where it may, or where `f` is not a
-/// polygon or the band's `K` is 3 or less; `None` where a reading
-/// refused (pushed).
+/// polygon; `None` where a reading refused (pushed).
 ///
-/// `S` must first read within ε of the plane: `height`, an upper bound
-/// on how far its ends stand off it ([`pierce_span`]'s lever over the
-/// fraction's enclosure), through the magnitude door
-/// (`pm_census_ef_pierce_height`, its straddle `…_height_straddle`). Then
-/// no boundary edge's interior meets `S`'s ([`interiors_meet`]) and no
-/// boundary vertex lies on `S`'s interior ([`on_edge_interior_reading`]).
+/// `stand` is `(h, σ)`: `h` bounds how far `S`'s ends stand off the
+/// plane ([`pierce_span`]'s lever over the fraction's enclosure), and
+/// `σ` the edge's slope off it (the lever over the chord). A boundary
+/// point `b`, within ε of the plane, over a point `s` of `S`, stands
+/// within `g = h + ε` of `s`, and a boundary vertex over `S` has its foot
+/// on `S`'s line within `σg` of `s`. So `b` stands within
+/// `g·(1 + σ) + ε` of `S` along any path below. That reach is read
+/// within `Kε` first: `g·(1 + σ)` through the magnitude door at the band
+/// `[(K − 1)ε, Kε]` (`pm_census_ef_pierce_height`, its straddle
+/// `…_height_straddle`), at most `(K − 1)ε` or refused. Past `Kε`, a
+/// boundary point over `S` could read apart from it.
 ///
-/// Those readings are of 3D distances, and each that calls a boundary
-/// apart from `S` does so only past `Kε`, or at an end of `S` or of the
-/// side. A boundary point `b`, within ε of the plane, over a point `s`
-/// of `S`, stands within `2ε` of `s`. `S` slopes off the plane by
-/// `σ ≤ height/L < 1/2`. So:
-/// - the lines' gap is at most `2ε`;
-/// - a vertex `v` over `S` is within `2ε` of its line, its foot within
-///   `σ·2ε < ε` of `s`, so within `3ε` of `S` or of its end;
-/// - a reach at most ε from `S`'s end `q` leaves `q` within `√5·ε` of
-///   the side's line, so of the side, or of the vertex where it ends,
-///   which is within that of `S`'s line, as above;
-/// - a reach at most ε from the side's vertex leaves that vertex within
-///   `√5·ε` of `S`'s line, as above.
+/// Then no boundary edge's interior meets `S`'s ([`interiors_meet`]) and
+/// no boundary vertex lies on `S`'s interior ([`on_edge_interior_reading`]).
+/// These are 3D readings, each calling a boundary apart from `S` only
+/// past `Kε`, or near an end of `S` or of the side:
+/// - the lines' gap is at most `g`;
+/// - a vertex over `S` is within `g` of its line, and within `g·(1 + σ)`
+///   of `S`'s end where its foot falls past it;
+/// - a reach at most ε from `S`'s end `q` leaves `q` within `g + ε` of
+///   the side's line, so of the side, or of the vertex that ends it;
+/// - a reach at most ε from the side's vertex leaves the vertex within
+///   `g + ε` of `S`'s line, so of `S`, or of its end.
 ///
-/// Within `3ε` is within `Kε` for `K > 3`. So no reading calls `b`
-/// apart, or an end of `S` stands within `Kε` of the boundary, against
-/// its own reading.
+/// So no reading calls `b` apart, or an end of `S` stands within `Kε` of
+/// the boundary, against its own reading. That holds for every `K > 1`;
+/// below `K = 2`, `g ≥ ε` already passes `(K − 1)ε` and the span always
+/// refuses. `h` overstates the true height by the residuals' unspent
+/// charge, which covers the reach's own rounding.
 fn span_clear<T: Decide>(
     geo: &Geo<T>,
     f: &FaceGeo<T>,
     span: (Point3<T>, Point3<T>),
-    height: T,
+    (height, slope): (T, T),
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    if !(f.polygon && band.escalate() > 3.0 * band.zero()) {
+    let Ok(within) = Band::new(band.escalate() - band.zero(), band.escalate()) else {
+        return Some(false);
+    };
+    if !f.polygon {
         return Some(false);
     }
-    let decide = magnitude_door("pm_census_ef_pierce_height", band);
+    let reach = (height + T::from_f64(band.zero())) * (T::from_f64(1.0) + slope);
+    let decide = magnitude_door("pm_census_ef_pierce_height", within);
     let straddle = "pm_census_ef_pierce_height_straddle";
-    match enclosure_reading([T::zero(), height], straddle, band, decide) {
+    match enclosure_reading([T::zero(), reach], straddle, within, decide) {
         Ok(Enclosed::AtMost(_)) => {}
         Ok(Enclosed::Above) => return Some(false),
         Err(cause) => {
