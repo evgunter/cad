@@ -33,10 +33,24 @@
 //!
 //! # The reset marker
 //!
-//! At a joint on the chart's singular set — a sphere's pole, a cone's
-//! apex, a spline chart whose first-channel knot domain moves a point
-//! under the band — the first channel has no lever: every azimuth names the
-//! same point, so no whole number of azimuth periods is decided there.
+//! A reset is written at a joint in exactly two cases
+//! (`crate::pcurves`' `decide_joint`):
+//!
+//! - **on the chart's singular set** — a sphere's pole, a cone's apex,
+//!   or a spline chart whose first-channel knot domain moves a point
+//!   under the band — where the first channel has no lever: every
+//!   azimuth names the same point, so no whole number of azimuth periods
+//!   is decided there;
+//! - **on a spline chart whose first-channel gate is undecided** (its
+//!   `u` sweep in the band's sliver, `AzimuthRule::SplineUndecided`),
+//!   where no azimuth integer is claimed and the joint's chart-space gap
+//!   is what keeps the joint sound.
+//!
+//! An undecided SECOND-channel gate (a net closed in `v` whose `v` sweep
+//! sits in the band's sliver) writes no reset: the joint refuses
+//! (`crate::pcurves::PcurveMintError::NetStretchUndecided`), since a reset
+//! quotients out the first channel, not the second.
+//!
 //! Such a joint stores [`JointElement::Reset`], which carries only the
 //! part of the element that IS decided (the second-channel periods and
 //! the twin, the element modulo `T_u`; `T_u` is central, so that

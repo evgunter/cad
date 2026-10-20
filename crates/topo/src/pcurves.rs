@@ -582,6 +582,20 @@ pub enum PcurveMintError {
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
+    /// The joint into a half-edge lies on a spline net closed in `v`
+    /// whose whole `v` sweep moves a point neither definitely past the
+    /// band nor definitely under it (`pcurve_loop_v_stretch`), so the
+    /// joint's `v` periods are undecided and no element is written: a
+    /// net whose `v` sections are within the band's sliver of collapsing
+    /// to a curve. Refused under this name, not as a reset, because a
+    /// reset keeps the element modulo the first channel's periods and
+    /// would carry an undecided `v` while dropping a decided `u`.
+    NetStretchUndecided {
+        /// The half-edge whose ENTRY is the joint.
+        half_edge: HalfEdgeKey,
+        /// The gate's diagnostic.
+        cause: Indeterminate,
+    },
     /// The run's linear band could not be built.
     Band(BandError),
     /// A half-edge's walked image is a `Fitted` or `General` one, and
@@ -702,6 +716,11 @@ impl core::fmt::Display for PcurveMintError {
             Self::Escalated { half_edge, cause } => write!(
                 f,
                 "the pcurve at half-edge {half_edge:?} escalated: {cause}"
+            ),
+            Self::NetStretchUndecided { half_edge, cause } => write!(
+                f,
+                "the joint into half-edge {half_edge:?} lies on a spline net closed in v whose \
+                 v sections are too close to collapsing to decide its v periods: {cause}"
             ),
             Self::Band(e) => write!(f, "{e}"),
             Self::UncertifiedImage { half_edge } => write!(
@@ -1613,12 +1632,13 @@ impl<T: Real> ChartArm<T> {
         }
     }
 
-    /// The arm's own magnitude, for the gate that asks whether the arm
-    /// itself is collapsed (a spline chart's net-level singular gate,
-    /// [`singular_at`]: *"can any first-channel displacement move a
-    /// point at all?"*). That is a question about the arm and not a
-    /// crossing, so no door applies and the tag comes off here,
-    /// deliberately.
+    /// The arm's own magnitude, for a reader that needs the lever itself
+    /// rather than a crossing through it: [`joint_has_room`], which
+    /// subtracts the ends' `2ε` from an analytic chart's arm before
+    /// levering a chord by it. That is a question about the arm and not
+    /// a crossing, so no door applies and the tag comes off here,
+    /// deliberately. (The net-level singular gate does cross: it meters
+    /// the `u` knot domain through the arm, [`net_reach`].)
     pub(crate) fn magnitude(self) -> T {
         match self {
             Self::Angular(arm) => arm,
@@ -1914,7 +1934,7 @@ impl<T: Decide> ChartPeriods<T> {
     /// hand on an OPEN net applies here, where [`ChartPeriods::of`] would
     /// leave a gap; tier 3 re-decides it ([`validate_pcurves`]), and the
     /// disagreement is
-    /// `work/pcert/chart-channel-periods-are-spelled-in-five-places.md`'s.
+    /// `work/pcert/chart-channel-periods-are-spelled-in-several-places.md`'s.
     pub(crate) fn stated(surface: &Surface<T>) -> Self {
         let net = surface.spline_chart();
         let u = match (surface, net) {
@@ -1952,10 +1972,6 @@ impl<T: Decide> ChartPeriods<T> {
             ..Self::of(surface, band)
         }
     }
-}
-
-fn chart_periods<T: Decide>(surface: &Surface<T>, band: Band) -> ChartPeriods<T> {
-    ChartPeriods::of(surface, band)
 }
 
 /// The meridional (second-channel) lever arm where that channel is
@@ -2615,13 +2631,15 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                  (`DescribedChart::minting`)"
             )
         };
-        let periods = chart_periods(&surface, band);
+        let periods = ChartPeriods::of(&surface, band);
         let pin = |image: &Pcurve<T>, at: T, onto: geom_core::Point2<T>| {
             decide_joint(chart, image, at, onto, carrier.eval(at), periods, band).map_err(|miss| {
                 SplitRowError {
                     half_edge,
                     refusal: SplitRefusal::Joint(match miss {
-                        PinMiss::Escalated(cause) => Some(cause),
+                        PinMiss::Escalated(cause) | PinMiss::NetStretchUndecided(cause) => {
+                            Some(cause)
+                        }
                         PinMiss::Discontinuity => None,
                     }),
                 }
@@ -2711,7 +2729,9 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                     .map_err(|miss| SplitRowError {
                         half_edge,
                         refusal: SplitRefusal::Joint(match miss {
-                            PinMiss::Escalated(cause) => Some(cause),
+                            PinMiss::Escalated(cause) | PinMiss::NetStretchUndecided(cause) => {
+                                Some(cause)
+                            }
                             PinMiss::Discontinuity => None,
                         }),
                     })?,
@@ -3854,6 +3874,13 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
                 half_edge: cycle[index],
                 cause,
             },
+            WalkFail::Miss {
+                index,
+                miss: PinMiss::NetStretchUndecided(cause),
+            } => PcurveMintError::NetStretchUndecided {
+                half_edge: cycle[index],
+                cause,
+            },
             WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
         })?;
     out.extend(cycle.iter().zip(carriers).zip(walked).map(
@@ -3958,6 +3985,13 @@ fn walk_runs<T: AtRestPolicy>(
                 half_edge: keys[index],
                 cause,
             }),
+            Err(WalkFail::Miss {
+                index,
+                miss: PinMiss::NetStretchUndecided(cause),
+            }) => refused.push(PcurveMintError::NetStretchUndecided {
+                half_edge: keys[index],
+                cause,
+            }),
             Err(WalkFail::Item(never)) => match never {},
             Err(WalkFail::NotClosed) => unreachable!("an open run checks no closure"),
         }
@@ -4018,6 +4052,11 @@ pub(crate) enum PinMiss {
     Discontinuity,
     /// A decision escalated.
     Escalated(Indeterminate),
+    /// The joint is on a spline net closed in `v` whose whole `v` sweep
+    /// moves a point within the band (`pcurve_loop_v_stretch` undecided,
+    /// [`net_reach`]): its `v` periods are not decided, and the joint
+    /// refuses under that name rather than writing an element.
+    NetStretchUndecided(Indeterminate),
 }
 
 /// Why [`walk_cycle`] refused, with the index of the item it refused
@@ -4067,11 +4106,11 @@ fn walk_cycle<'a, T: Decide, E>(
     band: Band,
     closes: bool,
 ) -> Result<Vec<Pinned<'a, T>>, WalkFail<E>> {
-    // The chart's own periods (`chart_periods`): in `u`, `τ` on an
+    // The chart's own periods (`ChartPeriods::of`): in `u`, `τ` on an
     // analytic azimuth chart, the knot-domain length on a NURBS chart
     // closed in u, and NO shift at all on a chart that does not wrap;
     // in `v`, likewise for the second channel.
-    let periods = chart_periods(chart.surface(), band);
+    let periods = ChartPeriods::of(chart.surface(), band);
     // The exit of the previous item's image, in chart coordinates, and
     // the first item's entry parameter, for the closure joint.
     let mut prev_exit: Option<geom_core::Point2<T>> = None;
@@ -4365,13 +4404,14 @@ impl AzimuthRule {
 /// rest (`work/topotail/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`).
 ///
 /// **So a reset is written in exactly two cases**: a vertex decided on
-/// the singular set (any chart), and a spline chart whose net-level gate
-/// is undecided, in `u` ([`AzimuthRule::SplineUndecided`]) or, on a net
-/// closed in `v`, in `v` (`pcurve_loop_v_stretch`). The second is a
+/// the singular set (any chart), and a spline chart whose `u` net-level
+/// gate is undecided ([`AzimuthRule::SplineUndecided`]). The second is a
 /// reset on an undecided reading; it is sound by the joint's chart-space
-/// gap, not by the incidence. As every reset, it stores the element
-/// modulo `T_u`, and the lift restarts the first channel there. An
-/// analytic chart never writes a reset on an undecided incidence.
+/// gap, not by the incidence. An analytic chart never writes a reset on
+/// an undecided incidence. A net closed in `v` whose `v` gate is
+/// undecided writes no element at all: the joint refuses as
+/// [`PinMiss::NetStretchUndecided`], since a reset, the element modulo
+/// `T_u`, would keep the `v` it cannot decide and drop the `u` it did.
 fn decide_joint<T: Decide>(
     chart: DescribedChart<'_, T>,
     image: &Pcurve<T>,
@@ -4413,27 +4453,27 @@ fn decide_joint<T: Decide>(
     // ([`v_meter`]) on a net closed in `v`. A shift of the first channel
     // moves no second-channel value.
     let gap_v = prev.y - sheet.eval(entry_t).y;
-    let (kv, v_undecided) = match periods.v {
-        Some(VPeriod::Angle { period, polar }) => (
-            period
-                .decide(
-                    "pcurve_loop_branch",
-                    gap_v,
-                    |g| Margin::levered(g, polar),
-                    band,
-                )
-                .map_err(|stop| PinMiss::from(stop.miss))?,
-            false,
-        ),
+    let kv = match periods.v {
+        Some(VPeriod::Angle { period, polar }) => period
+            .decide(
+                "pcurve_loop_branch",
+                gap_v,
+                |g| Margin::levered(g, polar),
+                band,
+            )
+            .map_err(|stop| PinMiss::from(stop.miss))?,
         // A net's `v` periods are read by the marks only where its `v`
         // knot domain moves a point past the band ([`net_reach`]), as its
         // `u` periods are ([`singular_at`]). Decided under it, no `v`
         // displacement on the chart reaches ε, every lift names the same
         // point, and the joint is an ordinary one with `kv = 0`, its
         // chart-space gap deciding ([`spline_gap_closes`]). Undecided, the
-        // joint is a reset, as `u`'s undecided gate makes it
-        // ([`AzimuthRule::SplineUndecided`]): no `v` integer is claimed,
-        // and the chart-space gap is what keeps it sound.
+        // joint refuses ([`PinMiss::NetStretchUndecided`]). It does not
+        // write a reset as `u`'s undecided gate does: a reset stores the
+        // element modulo `T_u`, so it would drop a decided `u` element and
+        // keep the undecided `v`, the inverse of what it marks. The case
+        // is a degenerate net, one whose whole `v` sweep is within the
+        // band's sliver.
         Some(VPeriod::Net(period)) => {
             let Some(payload) = surface.spline_chart() else {
                 unreachable!("a net's period is a spline chart's")
@@ -4443,22 +4483,19 @@ fn decide_joint<T: Decide>(
                 net_reach(chart, payload, NetChannel::V),
                 band,
             ) {
-                Ok(Sign::Positive) => (
-                    period
-                        .decide(
-                            "pcurve_loop_branch",
-                            gap_v,
-                            |g| Margin::metered_sup(g, v_meter(chart)),
-                            band,
-                        )
-                        .map_err(|stop| PinMiss::from(stop.miss))?,
-                    false,
-                ),
-                Ok(Sign::Zero | Sign::Negative) => (0, false),
-                Err(_) => (0, true),
+                Ok(Sign::Positive) => period
+                    .decide(
+                        "pcurve_loop_branch",
+                        gap_v,
+                        |g| Margin::metered_sup(g, v_meter(chart)),
+                        band,
+                    )
+                    .map_err(|stop| PinMiss::from(stop.miss))?,
+                Ok(Sign::Zero | Sign::Negative) => 0,
+                Err(cause) => return Err(PinMiss::NetStretchUndecided(cause)),
             }
         }
-        None => (0, false),
+        None => 0,
     };
     // A spline chart has no angular channel, so its lift is the sheet
     // moved by the periods of each channel it closes in, and the
@@ -4480,11 +4517,6 @@ fn decide_joint<T: Decide>(
     };
     Ok(match rule {
         AzimuthRule::OnSingularSet | AzimuthRule::SplineUndecided => JointElement::Reset(deck),
-        AzimuthRule::Aperiodic | AzimuthRule::Marks | AzimuthRule::MarksNearPole(_)
-            if v_undecided =>
-        {
-            JointElement::Reset(deck)
-        }
         AzimuthRule::Aperiodic | AzimuthRule::Marks | AzimuthRule::MarksNearPole(_) => {
             JointElement::Shift(deck)
         }
@@ -4544,11 +4576,11 @@ pub(crate) fn turn_element<T: Decide>(
         exit_t,
         image.eval(entry_t),
         entry_vertex(body, half_edge),
-        chart_periods(&surface, band),
+        ChartPeriods::of(&surface, band),
         band,
     ) {
         Ok(element) => Ok(Some(element)),
-        Err(PinMiss::Escalated(cause)) => Err(Some(cause)),
+        Err(PinMiss::Escalated(cause) | PinMiss::NetStretchUndecided(cause)) => Err(Some(cause)),
         Err(PinMiss::Discontinuity) => Err(None),
     }
 }
@@ -5091,7 +5123,7 @@ pub fn chart_boundary<T: AtRestPolicy>(
     let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
         .chain(face_data.rings.iter().copied())
         .collect();
-    let periods = chart_periods(chart, band);
+    let periods = ChartPeriods::of(chart, band);
     let period = periods.u();
     let mut outer: Option<ChartLoop<T>> = None;
     let mut rings: Vec<ChartLoop<T>> = Vec::new();
@@ -5127,7 +5159,8 @@ pub fn chart_boundary<T: AtRestPolicy>(
             w.pcurve = lift.apply(&w.pcurve, chart, periods).unwrap_or_else(|| {
                 unreachable!(
                     "a decided element applies: decide_joint offers the twin only where \
-                     sphere_twin answers one"
+                     sphere_twin answers one, and periods only in a channel the chart's \
+                     periods at this band give, the periods it is applied in here"
                 )
             });
         }
@@ -5145,6 +5178,16 @@ pub fn chart_boundary<T: AtRestPolicy>(
         // bounds a different region from the face. Decided here as 3-D
         // incidence of each joint's vertex on that set
         // ([`singular_at`]), and anything but definitely off it refuses.
+        //
+        // The assumption: every reset the walk wrote reads not-Off here,
+        // so a loop whose lift restarted its first channel (above, at a
+        // reset: [`JointElement::follow`]) never reaches the polygon. It
+        // holds because the walk writes a reset only on a `singular_at`
+        // reading of `On` or, on a spline chart, an undecided one
+        // ([`AzimuthRule`]), and this reads the same `singular_at` at the
+        // same band. On a spline chart that reading is net-level
+        // ([`net_reach`]), so a net whose `u` sweep is not definitely past
+        // the band refuses here at every joint, not only at a reset.
         for w in &walked {
             if !matches!(
                 singular_at(described, entry_vertex(body, w.key), band),
@@ -5360,7 +5403,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
         // included, and the winding off conjugation invariants
         // ([`Winding::closes`]), so no verdict hangs on which half-edge
         // is `first`.
-        let periods = chart_periods(surface, band);
+        let periods = ChartPeriods::of(surface, band);
         let image_of = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
             let plus = is_plus(body, he);
             let (image, t0, t1) = match body.pcurve(he) {
@@ -5411,6 +5454,12 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                         half_edge: he,
                         cause,
                     }),
+                    Err(PinMiss::NetStretchUndecided(cause)) => {
+                        findings.push(PcurveMintError::NetStretchUndecided {
+                            half_edge: he,
+                            cause,
+                        });
+                    }
                 }
             }
             if n > 0
@@ -6403,6 +6452,7 @@ mod stretch_meter {
             Ok(element) => format!("{element:?}"),
             Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
             Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
+            Err(super::PinMiss::NetStretchUndecided(_)) => "NetStretchUndecided".into(),
         };
         let lift = |u| {
             format!(
@@ -6576,6 +6626,7 @@ mod stretch_meter {
                 Ok(other) => format!("{other:?}"),
                 Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
                 Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
+                Err(super::PinMiss::NetStretchUndecided(_)) => "NetStretchUndecided".into(),
             }
         };
         // `π·lever` as a fraction of the escalate edge, in band: the
@@ -7836,7 +7887,7 @@ pub(crate) mod pole_slit_tests {
                 0.0,
                 geom_core::Point2::new(0.5, 1.0),
                 at(c0, 0.5),
-                super::chart_periods(s, band),
+                super::ChartPeriods::of(s, band),
                 band,
             )
         };
@@ -7844,6 +7895,9 @@ pub(crate) mod pole_slit_tests {
             Ok(element) => format!("{element:?}"),
             Err(super::PinMiss::Discontinuity) => "Discontinuity".to_owned(),
             Err(super::PinMiss::Escalated(cause)) => format!("Escalated({cause:?})"),
+            Err(super::PinMiss::NetStretchUndecided(cause)) => {
+                format!("NetStretchUndecided({cause:?})")
+            }
         };
         let closed = net(c0);
         assert!(
@@ -9362,7 +9416,11 @@ mod villarceau_joint_tests {
                                 twin: false,
                             };
                             let lifted = lift
-                                .apply(row.pcurve(), &surface, super::chart_periods(&surface, band))
+                                .apply(
+                                    row.pcurve(),
+                                    &surface,
+                                    super::ChartPeriods::of(&surface, band),
+                                )
                                 .unwrap();
                             if k != 0 {
                                 assert!(
@@ -9554,7 +9612,7 @@ mod from_computed_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod net_period_rows {
-    use super::{DescribedChart, PinMiss, chart_periods, chart_v_period, decide_joint};
+    use super::{ChartPeriods, DescribedChart, PinMiss, chart_v_period, decide_joint};
     use crate::joint::{Deck, JointElement};
     use geom::Surface;
     use geom_brep::Pcurve;
@@ -9619,7 +9677,7 @@ mod net_period_rows {
             f(0.0),
             Point2::new(f(0.5), f(prev_v)),
             Point3::new(f(1.0), f(0.0), f(0.5)),
-            chart_periods(&s, band()),
+            ChartPeriods::of(&s, band()),
             band(),
         )
     }
@@ -9706,32 +9764,39 @@ mod net_period_rows {
             0.0,
             Point2::new(k, 0.5),
             Point3::new(1.0, 0.0, 0.5),
-            chart_periods(&s, band()),
+            ChartPeriods::of(&s, band()),
             band(),
         );
         assert_eq!(out.ok(), Some(shift(1, 0)));
     }
 
-    /// **An undecided `v` gate writes a reset**, as `u`'s does
-    /// (`AzimuthRule::SplineUndecided`): a net closed in `v` whose `v`
-    /// knot domain moves a point within the band (`net_reach`) claims
-    /// no `v` integer, and the joint's chart-space gap, zero here, is
-    /// what decides it. Decided under the band, the same joint is an
+    /// **An undecided `v` gate refuses under its own name**
+    /// (`PinMiss::NetStretchUndecided`): a net closed in `v` whose `v`
+    /// knot domain moves a point within the band (`net_reach`) decides no
+    /// `v` integer, and the joint writes no element, neither a reset nor
+    /// an ordinary `v = 0`. Decided under the band, the same joint is an
     /// ordinary identity (`a_spline_gate_that_is_not_off_writes_a_reset`'s
     /// flat net); decided past it, the marks read.
     #[test]
-    fn an_undecided_v_gate_writes_a_reset() {
+    fn an_undecided_v_gate_refuses_under_its_own_name() {
         let mid = 0.5 * (1.0 + Tol::witness().k()) * eps();
         // The prism's `sup |S_v|` is its widest span: an edge `√3·size`
         // over 0.3 of the domain.
         let size = |reach: f64| reach * 0.3 / 3.0_f64.sqrt();
         let in_band = closed(size(mid), (0.0, 1.0));
         assert!(chart_v_period(&in_band, band()).is_some(), "closed in v");
-        let reset = JointElement::Reset(Deck::IDENTITY);
-        assert_eq!(joint::<f64>(&in_band, 0.3, 0.3).ok(), Some(reset), "f64");
-        assert_eq!(
-            joint::<Interval>(&in_band, 0.3, 0.3).ok(),
-            Some(reset),
+        assert!(
+            matches!(
+                joint::<f64>(&in_band, 0.3, 0.3),
+                Err(PinMiss::NetStretchUndecided(_))
+            ),
+            "f64"
+        );
+        assert!(
+            matches!(
+                joint::<Interval>(&in_band, 0.3, 0.3),
+                Err(PinMiss::NetStretchUndecided(_))
+            ),
             "Interval"
         );
         let under = closed(size(0.25 * eps()), (0.0, 1.0));
@@ -9739,6 +9804,91 @@ mod net_period_rows {
             joint::<f64>(&under, 0.3, 0.3).ok(),
             Some(shift(0, 0)),
             "decided under"
+        );
+    }
+
+    /// A net closed in BOTH channels: `u` around a unit triangle in the
+    /// `xy` plane, `v` around a triangle of circumradius `minor` in each
+    /// station's `(radial, z)` plane, both over `[0, 1]` with interior
+    /// knots at 0.3 and 0.7 (review C-delta's probe fixture).
+    fn tube(minor: f64) -> Surface<f64> {
+        let ring = {
+            let [a, b, c] = tri(1.0);
+            [a, b, c, a]
+        };
+        let section = {
+            let [a, b, c] = tri(minor);
+            [a, b, c, a]
+        };
+        let k = || KnotVector::clamped(vec![0.0, 0.0, 0.3, 0.7, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::new();
+        for (x, y) in ring {
+            let r = x.hypot(y);
+            for (radial, z) in section {
+                control.push(Point3::new(x + radial * x / r, y + radial * y / r, z));
+            }
+        }
+        Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(k(), k(), control, vec![1.0; 16]).unwrap(),
+        ))
+    }
+
+    /// The joint into an iso line along `u` entering at `u = 0` from
+    /// its predecessor's exit at `u = 1`: a crossing of the `u` seam, at
+    /// `v = 0.5`, at `T`.
+    fn u_crossing<T: Decide>(s: &Surface<f64>) -> Result<JointElement, PinMiss> {
+        let s: Surface<T> = s.map_scalar(T::from_f64);
+        let f = T::from_f64;
+        decide_joint(
+            DescribedChart::of(&s).unwrap(),
+            &Pcurve::IsoLine {
+                p0: Point2::new(f(0.0), f(0.5)),
+                pl: Vec2::new(f(0.3), f(0.0)),
+            },
+            f(0.0),
+            Point2::new(f(1.0), f(0.5)),
+            Point3::new(f(1.0), f(0.0), f(0.0)),
+            ChartPeriods::of(&s, band()),
+            band(),
+        )
+    }
+
+    /// **An undecided `v` gate refuses even where the `u` element is
+    /// decided.** On a net closed in both channels whose `v` sweep sits
+    /// in the band, a crossing of the `u` seam decides `u = 1`, but the
+    /// joint refuses as `NetStretchUndecided`. A reset there would store
+    /// the element modulo `T_u`, dropping the decided `u = 1` and keeping
+    /// the undecided `v = 0`: the lift would restart `u`, the loop's
+    /// winding would count no `u` wrap, and the chart boundary would
+    /// refuse the loop under another name. With the `v` sweep decided
+    /// past the band the same crossing is `Shift(u: 1)`.
+    #[test]
+    fn an_undecided_v_gate_refuses_a_decided_u_crossing() {
+        let mid = 0.5 * (1.0 + Tol::witness().k()) * eps();
+        let in_band = tube(mid * 0.3 / 3.0_f64.sqrt());
+        assert!(
+            super::chart_u_period(&in_band, band()).is_some(),
+            "closed in u"
+        );
+        assert!(chart_v_period(&in_band, band()).is_some(), "closed in v");
+        assert!(
+            matches!(
+                u_crossing::<f64>(&in_band),
+                Err(PinMiss::NetStretchUndecided(_))
+            ),
+            "f64"
+        );
+        assert!(
+            matches!(
+                u_crossing::<Interval>(&in_band),
+                Err(PinMiss::NetStretchUndecided(_))
+            ),
+            "Interval"
+        );
+        assert_eq!(
+            u_crossing::<f64>(&tube(0.1)).ok(),
+            Some(shift(1, 0)),
+            "v decided"
         );
     }
 

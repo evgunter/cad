@@ -3359,7 +3359,9 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             "the face wraps all the way round its surface, which the kernel cannot yet map",
             NOT_YET_ENDING,
         ),
-        M::Escalated { cause, .. } => {
+        // A net closed in `v` whose `v` sections sit in the band's sliver
+        // of collapsing: an undecided reading, read as one.
+        M::Escalated { cause, .. } | M::NetStretchUndecided { cause, .. } => {
             return (
                 CLOSE,
                 geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
