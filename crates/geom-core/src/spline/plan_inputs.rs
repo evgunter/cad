@@ -170,8 +170,12 @@ pub fn remove_knot_plan<T: SpanLocate>(
     })
 }
 
-/// [`algebra::elevate_plan`] over held knots and weights. Its decisions
-/// read the structure alone, so no parameter is certified.
+/// [`algebra::elevate_plan`] over held knots and weights, decided on
+/// the plan proxy ([`inputs`]). Its structural decisions read the
+/// structure alone; its one value-reading decision, each recomposition
+/// pass's forward/backward split, reads the proxy's knot values, and
+/// any split is exact in ℝ for every member of the held knots, so it
+/// chooses only rounding. No parameter is certified.
 ///
 /// # Errors
 ///
