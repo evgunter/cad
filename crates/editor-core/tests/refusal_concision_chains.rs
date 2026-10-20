@@ -102,7 +102,7 @@ const KERNEL_KEYED: &[&str] = &[
 /// under it with the ceiling standing, is red.
 const OVER_BUDGET: &[(&str, usize)] = &[
     // work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
-    ("Profile/ArcBelowSceneResolution", 117),
+    ("Profile/ArcBelowSceneResolution", 91),
     // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/ResultEscalated", 90),
 ];
@@ -966,7 +966,8 @@ mod kernel {
             NonpositiveCircleRadius, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
             CircleSplitCount, PolygonTooFewVertices, ZeroDirection, NonFiniteDirection,
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
-            ArcCenterNotEquidistant, DegenerateArcCenter, FarEndAnchorWithoutFillet,
+            ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
+            ArcMissBelowSceneResolution, FarEndAnchorWithoutFillet,
             Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
         ];
     }
@@ -4141,6 +4142,40 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "DegenerateArcCenter",
             P::DegenerateArcCenter { radius: 1e-12 },
         ),
+        (
+            "ArcMissesAuthoredPoint",
+            P::ArcMissesAuthoredPoint {
+                piece: profile::Piece {
+                    step: 1,
+                    role: profile::PieceRole::Leg,
+                },
+                verb: profile::Verb::TangentArcTo,
+                predicate: "path_arc_landing",
+                point: Point2::new(-2.7, 2.7e-4),
+                miss: 3.4e-8,
+                scale: 1.36e4,
+                resolution: 4.8e-11,
+                turn: 6.2,
+                authored: None,
+            },
+        ),
+        (
+            "ArcMissBelowSceneResolution",
+            P::ArcMissBelowSceneResolution {
+                piece: profile::Piece {
+                    step: 1,
+                    role: profile::PieceRole::Leg,
+                },
+                verb: profile::Verb::ArcTo,
+                predicate: "path_arc_through_point",
+                point: Point2::new(0.0, 2.74e8),
+                miss: 3.0e-8,
+                scale: 2.74e8,
+                resolution: 4.9e-7,
+                turn: 6.2,
+                authored: None,
+            },
+        ),
         ("FarEndAnchorWithoutFillet", P::FarEndAnchorWithoutFillet),
         (
             "Escalated",
@@ -5880,8 +5915,9 @@ fn every_check_finding_renders_within_the_budget() {
 /// real doors.
 ///
 /// A shell's role off its volume is the sign of the volume's enclosure
-/// alone (D10). At ε 1e-9 a brick less a needle `1 × 10.5ε × 10.5ε` holds
-/// the needle as a cavity no aimed ray reads; read through the structural
+/// alone (D10). At ε 1e-9 a brick less a needle `1 × 10.5ε × 10.5ε`,
+/// turned off the axes, holds the needle as a cavity no aimed ray reads
+/// (each meets a wedge); read through the structural
 /// door, which holds no interval lane, its volume lies within its sums'
 /// rounding, so its role is unresolved in that scalar: a capability limit
 /// of the measurement, with no tolerance offered and no defect claimed.
@@ -5916,16 +5952,38 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             tol,
         ));
         let w = 10.5 * tol.eps();
-        let needle = at_rest(topo::test_support::brick::<f64>(
-            (0.0, 1.0),
-            (0.0, w),
-            (0.0, w),
+        // Turned off the axes: every aimed ray at the cavity meets a wedge
+        // (a face it passes within the band of two edges of), where along
+        // the axes a ray aimed at the cavity's end reads it.
+        let (x, y, z) = {
+            let n = (37.0_f64 * 37.0 + 21.0 * 21.0 + 13.0 * 13.0).sqrt();
+            (37.0 / n, -21.0 / n, 13.0 / n)
+        };
+        let (s, c) = 0.7_f64.sin_cos();
+        let k = 1.0 - c;
+        let r = [
+            [c + x * x * k, x * y * k - z * s, x * z * k + y * s],
+            [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
+            [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
+        ];
+        let needle = at_rest(topo::test_support::mapped_cube::<f64>(
+            move |a, b, cc| {
+                let p = [a, b * w, cc * w];
+                let at = |i: usize| r[i][0] * p[0] + r[i][1] * p[1] + r[i][2] * p[2];
+                geom_core::Point3::new(at(0), at(1), at(2))
+            },
             tol,
         ));
         let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
         let body: &topo::Body<f64> = &cut.body().expect("a body").body;
-        let source = topo::classify_shells_structural(body, tol)
-            .expect_err("the lane-free door reads no role for the needle cavity");
+        // The door names the first ray set aside at a corner or a wedge
+        // beside the volume's refusal; the refusal is the volume's.
+        let source = match topo::classify_shells_structural(body, tol)
+            .expect_err("the lane-free door reads no role for the needle cavity")
+        {
+            topo::ShellClassifyError::Corner { volume, .. } => *volume,
+            other => other,
+        };
         assert!(
             matches!(
                 source,

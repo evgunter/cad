@@ -46,6 +46,15 @@ pub enum ArcSweep {
 }
 
 impl ArcSweep {
+    /// The other sense: the same arc traversed backwards.
+    #[must_use]
+    pub(crate) fn reversed(self) -> Self {
+        match self {
+            Self::Ccw => Self::Cw,
+            Self::Cw => Self::Ccw,
+        }
+    }
+
     /// The sense as the literal ±1: `+1` counterclockwise, `−1`
     /// clockwise.
     pub(crate) fn sign<T: Real>(self) -> T {
@@ -53,6 +62,16 @@ impl ArcSweep {
             Self::Ccw => T::one(),
             Self::Cw => -T::one(),
         }
+    }
+}
+
+/// [`turn_side`] as a winding: a left turn rounds counter-clockwise.
+/// `None` on a turn decided Zero, as [`turn_side`].
+pub(crate) fn turn_sense(turn: Sign) -> Option<ArcSweep> {
+    match turn {
+        Sign::Positive => Some(ArcSweep::Ccw),
+        Sign::Negative => Some(ArcSweep::Cw),
+        Sign::Zero => None,
     }
 }
 
@@ -99,7 +118,11 @@ pub enum FilletLegShape<T: Real> {
 /// `via`→`b` (independent of where on the arc `via` sits); the bulge is
 /// tan(θ/4) = tan(Δ/2), [`split_half_tan`] of the split
 /// `(d₁ × d₂, d₁·d₂)` of hypotenuse `|d₁|·|d₂|` (fixed order, D9) — the
-/// `Via` leg's own lowering.
+/// `Via` leg's own lowering. The cross term is spelled `d₁ × (b − a)`,
+/// equal over the reals since `d₂ = (b − a) − d₁`: near a full turn
+/// `d₁` and `d₂` are long and nearly opposed, and their own cross
+/// product cancels to the short chord's scale, while the chord's does
+/// not.
 ///
 /// **Degenerate inputs, honestly:** `via` collinear between `a` and `b`
 /// gives bulge 0 (the line segment the three points describe); `via`
@@ -117,7 +140,7 @@ pub enum FilletLegShape<T: Real> {
 pub fn bulge_from_via<T: Real>(a: Point2<T>, via: Point2<T>, b: Point2<T>) -> T {
     let d1 = via - a;
     let d2 = b - via;
-    split_half_tan(d1.perp_dot(d2), d1.dot(d2), d1.norm() * d2.norm())
+    split_half_tan(d1.perp_dot(b - a), d1.dot(d2), d1.norm() * d2.norm())
 }
 
 /// **An arc's quarter-tangent, from a chord split — the one home.** A
@@ -306,6 +329,9 @@ pub(crate) struct ArcFilletCandidate<T: Real> {
     /// [`crate::Facts::Registered`]) or only to its decided-tangent
     /// classification ([`crate::Facts::Decided`]); see [`OffsetCentres`].
     pub centre_facts: crate::Facts,
+    /// The fillet arc's turn sense: the corner's decided turn
+    /// (`fillet_corner_turn`), a left turn rounding counter-clockwise.
+    pub sense: ArcSweep,
     /// The incoming leg's `fillet_leg_fit` classification: `Positive`
     /// emits the trimmed piece + constructed joint, `Zero` suppresses both.
     pub fit_in: Sign,
@@ -557,7 +583,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     // toward, so the offset construction never searches.
     let turn = Margin::levered(leg_in.dir.perp_dot(leg_out.dir), arm);
     let decided = decide("fillet_corner_turn", turn, band).map_err(ArcTrimRefusal::Escalated)?;
-    let Some(sgn) = turn_side::<T>(decided) else {
+    let Some((sgn, sense)) = turn_side::<T>(decided).zip(turn_sense(decided)) else {
         return Err(ArcTrimRefusal::TurnInBand {
             align: leg_in.dir.dot(leg_out.dir),
             margin: turn.value(),
@@ -668,6 +694,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
                 },
                 center,
                 centre_facts,
+                sense,
                 fit_in,
                 fit_out,
                 setbacks: [sb_in, sb_out],

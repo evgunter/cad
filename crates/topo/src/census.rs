@@ -8625,6 +8625,54 @@ fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
     }
 }
 
+/// **How a segment passes one of a body's line edges** — the
+/// edge-edge closest read ([`ee_lines_closest`]) with the segment as the
+/// first span: what a ray reads of the edges it passes
+/// (`boolean::solid_contain::ray_crossings`).
+pub(crate) struct LinePass<T: Real> {
+    /// The edge.
+    pub(crate) edge: EdgeKey,
+    /// Its two faces: `he_plus`'s, then `he_minus`'s.
+    pub(crate) faces: (FaceKey, FaceKey),
+    /// Its two ends, `he_plus`'s start first.
+    pub(crate) ends: [VertexKey; 2],
+    /// The lines' distance where they come closest, enclosed.
+    pub(crate) gap: [T; 2],
+    /// How far along the segment from its start they come closest,
+    /// enclosed.
+    pub(crate) along: [T; 2],
+    /// How far along the edge they come closest, from each of its ends,
+    /// enclosed.
+    pub(crate) reach: [[T; 2]; 2],
+}
+
+/// Every line edge of `body` that `keep` holds (asked of its key and two
+/// faces), as the segment `from → to` passes it ([`LinePass`]). The
+/// caller keeps only edges whose line is not parallel to the segment:
+/// the closed form divides by the sine of their angle.
+pub(crate) fn line_passes<T: Real>(
+    body: &Body<T>,
+    (from, to): (Point3<T>, Point3<T>),
+    keep: impl Fn(EdgeKey, FaceKey, FaceKey) -> bool,
+) -> Vec<LinePass<T>> {
+    let ray = segment((from, to));
+    line_edges(body)
+        .into_iter()
+        .filter(|e| keep(e.key, e.f_plus, e.f_minus))
+        .map(|e| {
+            let closest = ee_lines_closest(&ray, &e);
+            LinePass {
+                edge: e.key,
+                faces: (e.f_plus, e.f_minus),
+                ends: [e.v0, e.v1],
+                gap: closest.gap,
+                along: closest.reach[0][0],
+                reach: closest.reach[1],
+            }
+        })
+        .collect()
+}
+
 /// **A record's confirm pass, one pair at a time**: whether two cells'
 /// interiors meet in `body`, decided as [`confirm_records`]
 /// decides a record of them, so a record placed by this answer is one
