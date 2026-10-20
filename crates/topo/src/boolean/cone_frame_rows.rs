@@ -599,10 +599,6 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     };
     let phi = (4.0 * b.escalate()).asin();
     let (a, c) = (wall(0.0), wall(phi));
-    let axis = |w: &geom::Surface<f64>| match *w {
-        geom::Surface::Cylinder { axis, .. } => axis,
-        _ => unreachable!("a wall"),
-    };
     // `â₁ ± â₂` in closed form: `a₁ − a₂` would read its `y` off
     // `1 − cos φ`, to `u/φ²`.
     let (sh, ch) = (phi / 2.0).sin_cos();
