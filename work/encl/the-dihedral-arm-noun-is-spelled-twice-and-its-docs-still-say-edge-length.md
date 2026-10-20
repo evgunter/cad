@@ -2,10 +2,13 @@
 id: the-dihedral-arm-noun-is-spelled-twice-and-its-docs-still-say-edge-length
 kind: issue
 title: geom-brep: the dihedral arm's noun is spelled in ArmCollapsed's Negative render and in CertCheck::TransversalityArm, and ArmCollapsed's and DIHEDRAL_ARM_CLAUSE's docs still say the edge is too short
-status: open
+status: closed
+pr: 5437
 opened: 2026-10-19
 priority: P4
 cost: E
+branch: encl/one-noun-per-decision
+closed: 2026-10-20
 ---
 
 

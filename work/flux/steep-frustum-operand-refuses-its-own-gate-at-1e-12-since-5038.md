@@ -24,6 +24,8 @@ The panic comes from `topo::test_support::finished`, on the **operand** before t
 
 **Bisected** over first-parent merges from `6faa629db4` to `07a57312bf`, building `sweep`'s `all` binary at each step. It passes at `4e0cdbd563` (the first parent of the merge) and fails at **`8ef77cd2f5`**, the merge of PR 5038 (`flux/line-iso-incidence`). PR 5038 makes the cylinder and cone line arms decide `props_meridian_on_surface` at an upper bound on the segment's distance from the surface: the ends' residuals plus `radial_sag`. At this extent, that bound no longer settles inside 1e-12 on the frustum's wall.
 
+**Also reproduced** by PCERT B2b's fix pass (PR 5343, F8) on `pcert/windings-structure`, which is main plus B2b, with the same enclosure bit for bit. B2b changes nothing on the props path, so the red is main's.
+
 **Owed.** Decide whether the bound is loose at this extent (then tighten it, as `props-cone-ellipse-elevation-over-reads-a-section-ellipse-by-twenty-fold` asks of the ellipse bound), or whether a scale-100 frustum honestly cannot be measured at 1e-12 (then the row's `builds_from` for `(1.3, 100)` moves to 1e-9, with the reason in the row).
 
 Reproduce: `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep --profile ci --ignore-default-filter -E 'test(=reach_cone_split::steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt)'`.

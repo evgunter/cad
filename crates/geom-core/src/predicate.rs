@@ -1420,13 +1420,55 @@ pub enum RefusedReading {
     /// Nothing more than its class shows: no size, so it ends in the
     /// lever and [`SizedWords::no_size`].
     AsShown,
-    /// The decision's inputs are a stored body's, which no reading on
-    /// the refused side agrees with: the reading contradicts that data,
-    /// and it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`].
-    ContradictsStoredData,
-    /// The decision's inputs are a file's, read at the import door: the
-    /// reading names the file as damaged ([`DAMAGED_FILE_ENDING`]).
-    DamagedFile,
+    /// The decision's inputs are stored data, which no reading on the
+    /// refused side agrees with: the reading contradicts that data, and
+    /// it ends in the defect ending naming its culprit
+    /// ([`StoredCulprit::ending`]). Stored data reached the run from
+    /// outside it, so the culprit is never the kernel alone.
+    Defect(StoredCulprit),
+}
+
+/// **Who a defect ending names**: the one spelling of each culprit's
+/// ending. The caller that reads the door chooses it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Culprit {
+    /// The kernel alone, which built what it reads
+    /// ([`KERNEL_DEFECT_ENDING`]).
+    Kernel,
+    /// Stored data's culprit, read at rest or at the import door.
+    Stored(StoredCulprit),
+}
+
+/// **Who a contradiction of stored data names**: the kernel or the file,
+/// or the file alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StoredCulprit {
+    /// The kernel or the file ([`KERNEL_OR_FILE_DEFECT_ENDING`]).
+    KernelOrFile,
+    /// The file ([`DAMAGED_FILE_ENDING`]).
+    File,
+}
+
+impl Culprit {
+    /// The defect ending naming this culprit.
+    #[must_use]
+    pub const fn ending(self) -> &'static str {
+        match self {
+            Self::Kernel => KERNEL_DEFECT_ENDING,
+            Self::Stored(stored) => stored.ending(),
+        }
+    }
+}
+
+impl StoredCulprit {
+    /// The defect ending naming this culprit.
+    #[must_use]
+    pub const fn ending(self) -> &'static str {
+        match self {
+            Self::KernelOrFile => KERNEL_OR_FILE_DEFECT_ENDING,
+            Self::File => DAMAGED_FILE_ENDING,
+        }
+    }
 }
 
 impl SizedWords<'_> {
@@ -1460,8 +1502,7 @@ impl Shows {
             ),
             Self::NoSize | Self::Refused => match refused {
                 RefusedReading::AsShown => lever_recourse(lever, no_size),
-                RefusedReading::ContradictsStoredData => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
-                RefusedReading::DamagedFile => DAMAGED_FILE_ENDING.to_owned(),
+                RefusedReading::Defect(culprit) => culprit.ending().to_owned(),
             },
             Self::Floor => lever_recourse(lever, Some(&floor_note(size))),
             Self::Unresolved | Self::Past => lever_recourse(lever, None),
@@ -2380,6 +2421,14 @@ impl fmt::Display for MissingRecourse<'_> {
 /// [`COINCIDENCE_RECOURSE`]) and must not double the recourse; the
 /// bare [`Indeterminate`] Display is this payload plus the shared
 /// tail.
+///
+/// Where a gate rejected a sign it decided past the band
+/// ([`MarginDiag::rejected_sign`]), which a lead that calls the refusal
+/// undecided does not tell, the payload says so after the placement,
+/// " — {word}", so every composition of a payload and an ending tells
+/// it, whoever's ending follows. A reading past the band that no gate
+/// tagged (a bound reported where it stands) was decided by nobody, and
+/// gets no word.
 #[derive(Debug, Clone, Copy)]
 pub struct IndeterminatePayload<'a>(&'a Indeterminate);
 
@@ -2471,6 +2520,10 @@ impl fmt::Display for IndeterminatePayload<'_> {
                 "margin is invalid (NaN or a refused enclosure) against the ambiguity \
                  band ({zero:e}, {escalate:e})"
             ),
+        }?;
+        match self.0.payload_word() {
+            Some(word) => write!(f, " — {word}"),
+            None => Ok(()),
         }
     }
 }
@@ -2616,24 +2669,26 @@ impl Indeterminate {
     /// — the word read from what the margin shows the refused decision
     /// ([`MarginDiag::shows`]) and its kind alone, never from which route
     /// carried it, so a class says one thing and its ending
-    /// ([`Indeterminate::ending`], the same class) agrees. Read by
-    /// [`UnderTail`] for the word and by [`Indeterminate::ending`] for the
+    /// ([`Indeterminate::ending`], the same class) agrees. Read for the
+    /// word by [`UnderTail`] and by [`Indeterminate::ending`] for the
     /// lever.
     ///
-    /// A decided nonzero sign is sign-certain. A reading that shows no
-    /// size stays off every sign the decision passes at any smaller
-    /// tolerance, and a zero the symbolic tier proved is no size the user
-    /// may intend, which no subdivision unproves. Every other reading
-    /// says what it is; what a tolerance does for it is the ending's.
+    /// A reading past the band has no word here: whether a sign was
+    /// decided there is the gate's tag, which the payload reads. A
+    /// reading that shows no size stays off every sign the decision
+    /// passes at any smaller tolerance, and a zero the symbolic tier
+    /// proved is no size the user may intend, which no subdivision
+    /// unproves. Every other reading says what it is; what a tolerance
+    /// does for it is the ending's.
     fn reading(&self) -> (Option<&'static str>, KindLever) {
         let (margin, band) = (self.margin, self.band);
         let undecided_value =
             margin.kind() == MarginKind::Value || margin.placement(band) == Placement::ZeroBand;
         match margin.shows(band, self.passes()) {
-            Shows::Past | Shows::Refused => (
-                Some("a decided sign this decision cannot use"),
-                KindLever::Door,
-            ),
+            // Past the band: a gate's rejection says so in the payload
+            // ([`IndeterminatePayload`]), and a bound reported where it
+            // stands was decided by nobody.
+            Shows::Past | Shows::Refused => (None, KindLever::Door),
             Shows::Unreadable => (None, KindLever::Inputs),
             Shows::NoSize if margin.proven() => (
                 Some("a zero the symbolic tier proved, which no tolerance makes a size"),
@@ -2672,6 +2727,17 @@ impl Indeterminate {
     /// could not rule out).
     fn passes(&self) -> SizedPass {
         self.margin.tag().map_or(SizedPass::NonZero, |r| r.passes)
+    }
+
+    /// The word this escalation's payload says after its placement, read
+    /// from the gate's tag alone: where a gate rejected a nonzero sign. A
+    /// rejected zero's verdict is told by its placement.
+    fn payload_word(&self) -> Option<&'static str> {
+        matches!(
+            self.margin.rejected_sign(),
+            Some(Sign::Positive | Sign::Negative)
+        )
+        .then_some("a decided sign this decision cannot use")
     }
 
     /// Whether [`Indeterminate::ending`] offers a tolerance: a smaller
@@ -2739,9 +2805,10 @@ impl fmt::Display for IndeterminateUnder<'_> {
 impl fmt::Display for UnderTail<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let UnderTail(under) = self;
-        f.write_str(" — ")?;
-        if let (Some(reading), _) = under.diag.reading() {
-            write!(f, "{reading}; ")?;
+        match (under.diag.payload_word(), under.diag.reading().0) {
+            (Some(_), _) => f.write_str("; ")?,
+            (None, Some(reading)) => write!(f, " — {reading}; ")?,
+            (None, None) => f.write_str(" — ")?,
         }
         f.write_str(&under.diag.ending(under.recourse))
     }
@@ -3115,13 +3182,11 @@ mod tests {
             MarginDiag::INVALID,
         ];
         let mut seen = Vec::new();
-        for (refused, ending) in [
-            (
-                RefusedReading::ContradictsStoredData,
-                KERNEL_OR_FILE_DEFECT_ENDING,
-            ),
-            (RefusedReading::DamagedFile, DAMAGED_FILE_ENDING),
+        for (culprit, ending) in [
+            (StoredCulprit::KernelOrFile, KERNEL_OR_FILE_DEFECT_ENDING),
+            (StoredCulprit::File, DAMAGED_FILE_ENDING),
         ] {
+            let refused = RefusedReading::Defect(culprit);
             for margin in margins {
                 let shows = margin.shows(band, SizedPass::Positive);
                 seen.push(std::mem::discriminant(&shows));
@@ -3179,8 +3244,8 @@ mod tests {
                       1e-6 m, so the file cannot tell it from zero. Recourse: L";
         for refused in [
             RefusedReading::AsShown,
-            RefusedReading::ContradictsStoredData,
-            RefusedReading::DamagedFile,
+            RefusedReading::Defect(StoredCulprit::KernelOrFile),
+            RefusedReading::Defect(StoredCulprit::File),
         ] {
             for margin in [
                 MarginDiag::value(-5e-8),
@@ -3201,7 +3266,11 @@ mod tests {
             "Recourse: L; N"
         );
         assert_eq!(
-            past.sized_recourse_in_file(band, words(RefusedReading::DamagedFile), file),
+            past.sized_recourse_in_file(
+                band,
+                words(RefusedReading::Defect(StoredCulprit::File)),
+                file
+            ),
             DAMAGED_FILE_ENDING
         );
     }

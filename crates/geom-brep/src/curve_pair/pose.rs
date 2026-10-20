@@ -1253,6 +1253,7 @@ fn coplanar_ellipse_circle<T: Decide>(
         f_per_metre: r,
         f_per_metre_hi: T::from_f64(3.0) * r,
         residual_reach: Some(r),
+        jet: None,
     };
     let residual = |theta: T| (ke.point(theta) - kc.center).norm() - r;
     subdivided(&poly, &residual, &frame, place, band)
@@ -1314,6 +1315,7 @@ fn coplanar_ellipses<T: Decide>(
         f_per_metre: T::zero(),
         f_per_metre_hi: ceiling,
         residual_reach: Some(reach),
+        jet: None,
     };
     let residual = |theta: T| {
         let d = ka.point(theta) - kb.center;

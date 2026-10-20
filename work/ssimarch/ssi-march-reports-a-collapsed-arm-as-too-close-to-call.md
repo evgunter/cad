@@ -65,3 +65,7 @@ variant above lands, ask its question in the shared clause (the march
 has a crossing curve rather than a stored edge, so the subject noun may
 differ; the clause after it should not), and keep the rendered refusal
 within the 75-word budget.
+
+## Note 2026-10-20 (ENCL, PR 5437)
+
+The section above quotes `CertCheck::TransversalityArm`'s word as "the length its faces' angle is measured over", and the clause as "long enough, for how its faces curve". Both have moved. The clause is now "between faces wide enough, for how they curve, to measure their angle". The word is now `geom_brep::DIHEDRAL_ARM_NOUN`, "the width the faces' angle is measured across". `DIHEDRAL_ARM`'s size word, which the ending quotes, is now "width or the gap its faces open". The SSI march's question should take the arm as a width too.

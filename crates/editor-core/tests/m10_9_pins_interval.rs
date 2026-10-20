@@ -134,6 +134,13 @@ pub(crate) struct Study {
 /// symbolic, (1373, 1166) → (1389, 1150) shut: sixteen decisions move
 /// from `numeric` to `symbolic`, the total unchanged. No registrant
 /// moved and no verdict moved.
+///
+/// Check 4 deciding no whole period (PCERT B2b) takes fidelity's numeric
+/// branch decisions out of each door-shut replay, measured on the tree
+/// with the joint pass above: the link (722, 736) → (722, 704), still
+/// refusing at `pcurve_envelope`, the bracket (1252, 1106) →
+/// (1252, 1066) and the pad (1389, 1150) → (1389, 1102). `symbolic`
+/// holds, no registrant moved and no verdict moved.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -163,10 +170,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
         },
         Study {
             name: "r2_link",
-            // The tangent arc stores Δθ = 4·atan(across / (|d| + along)),
-            // and the quarter-tangent of a half-turn whose chord is the
-            // parameter `half_w` reads `2w / |2w|`, a sign the tier does
-            // not hold. The rim identity the arc registers sits inside a
+            // The tangent arc stores Δθ = 4·atan(X), X the select
+            // between `across / (|d| + along)` and `(|d| − along) /
+            // across` (`profile`'s `sugar::split_half_tan`); at a
+            // half-turn whose chord is the parameter `half_w`, `along` is
+            // zero and X reads `2w / |2w|`, a sign the tier does not
+            // hold. The rim identity the arc registers sits inside a
             // frozen compound, the mapped-source residual is read
             // numerically, and it leaves the band first at 3.030e2·ε.
             certifies_at: 3.029e2,
@@ -178,7 +187,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // circle's radius and orientation read as one pair), so it
             // decides 3 of the envelope's 9 terms on each of its two
             // reads.
-            without_the_registry: Some(((722, 736), Some("pcurve_envelope"))),
+            without_the_registry: Some(((722, 704), Some("pcurve_envelope"))),
             symbolic: [767, 767, 767],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
@@ -193,7 +202,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1252, 1106), None)),
+            without_the_registry: Some(((1252, 1066), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -217,7 +226,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exact components, the tier proves what the door used to
             // discharge (64 decisions, `(1147, 1392)` shut against
             // `(1211, 1328)` shipped, when they were angles).
-            without_the_registry: Some(((1389, 1150), None)),
+            without_the_registry: Some(((1389, 1102), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -664,7 +673,13 @@ fn m10_9_what_the_registry_buys() {
 /// leg's arm, and read again at the door once the leaving leg is
 /// stored: sixteen decisions move from `numeric` to `symbolic`, the
 /// total unchanged, and one more form freezes, (1373, 1166, 4298) →
-/// (1389, 1150, 4299).
+/// (1389, 1150, 4299). Check 4 deciding no whole period (PCERT B2b),
+/// fidelity's 48 numeric branch decisions gone, measured on that tree:
+/// (1389, 1150, 4299) → (1389, 1102, 4299), at both dials alike. The
+/// line×line fillet's half-angle tangent read by the home's select
+/// (`profile`'s `sugar::split_half_tan`), one atom to the plain walk
+/// where the corner's `v₁·v₂` is not a constant: two more forms
+/// freeze, (1389, 1102, 4299) → (1389, 1102, 4301), decisions held.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -698,7 +713,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1389, 1150, 4299), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1389, 1102, 4301), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

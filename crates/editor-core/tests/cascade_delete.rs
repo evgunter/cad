@@ -87,9 +87,18 @@ fn fork() -> (TDoc, [RecipeNodeId; 4]) {
     let doc = TDoc::empty_derived("cascade_delete", Tol::witness());
     let (doc, profile) = insert(&doc, Node::Profile(FakeProfile("square")));
     let (doc, body) = extrude(&doc, profile);
+    // One edge-shaped name: an edge set holds at least one, and the
+    // fork's shape is all these rows read.
     let fillet = |target| Node::Fillet {
         radius: len(0.001),
-        selection: editor_core::Operand::select(target, Vec::new()),
+        selection: editor_core::Operand::select(
+            target,
+            vec![editor_core::StableName {
+                kind: editor_core::EntityKind::Edge,
+                node: target,
+                path: Vec::new(),
+            }],
+        ),
     };
     let (doc, left) = insert(&doc, fillet(body));
     let (doc, right) = insert(&doc, fillet(body));

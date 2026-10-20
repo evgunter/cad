@@ -449,12 +449,6 @@ pub(super) fn recl_sectors<T: Decide>(
                 Operand::A => (a_body, sa, sb),
                 Operand::B => (b_body, sb, sa),
             };
-            // A unit direction inside a sector, which is narrower than
-            // a half-turn.
-            let inside = |s: &BoolSector<T>| {
-                let mid = s.start + s.end;
-                mid / mid.norm()
-            };
             let mut runs = false;
             for (edge, dir) in super::sectors::bound_edges(body, own) {
                 if super::sectors::runs_into(other, dir, arm, band)? {
@@ -469,10 +463,23 @@ pub(super) fn recl_sectors<T: Decide>(
                 }
             }
             if !runs {
+                // The kept copy holds the dropped sector wholly, so the
+                // dropped sector's direction names the piece of the kept
+                // face over it, wherever the join divides that face after;
+                // the kept sector's own may lie in another piece.
+                let inside = super::fate::bisector(other, band)?;
                 fates.corners.push(super::fate::FateCorner {
                     holder: keeper,
-                    dropped: (other.he, inside(other)),
-                    kept: super::fate::KeptAt::Sector(own.he, inside(own)),
+                    dropped: super::fate::SectorAt {
+                        he: other.he,
+                        face: other.face,
+                        dir: inside,
+                    },
+                    kept: super::fate::KeptAt::Sector(super::fate::SectorAt {
+                        he: own.he,
+                        face: own.face,
+                        dir: inside,
+                    }),
                 });
             }
         }
@@ -689,6 +696,7 @@ pub(super) fn recl_edges<T: Decide>(
     reversed: &Reversed,
     held: [Option<HeldFace<T>>; 2],
     touches: &mut Vec<[crate::entity::HalfEdgeKey; 2]>,
+    tips: &[super::sectors::SlitTips; 2],
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
 
@@ -783,6 +791,45 @@ pub(super) fn recl_edges<T: Decide>(
         // The common edge's half-edge at this vertex: the start bound
         // of the start holder is the next sector's own chord.
         let bound = |secs: &[BoolSector<T>], f_s: usize| secs[(f_s + 1) % secs.len()].he;
+        // Two germs along this ray where it is a solid's own slit or
+        // ring line: the solid's vertex is the slit's tip
+        // ([`super::sectors::SlitTips`]) and an edge of its on this ray
+        // bounds the face the slit lies in, which only the slit's two
+        // edges do at its tip. The recourse `CrossingsAlongAContactLine`
+        // names, the pieces before they are joined, is no lever on the
+        // kernel's own slit: a construction gap
+        // ([`BooleanError::SlitLineCrossed`]). Any other line keeps it.
+        let on_slit = |e: BooleanError| -> BooleanError {
+            let BooleanError::CrossingsAlongAContactLine { a_vertex, b_vertex } = e else {
+                return e;
+            };
+            let sides = [
+                (Operand::A, a_vertex, &a_ms, a_sectors, a_body),
+                (Operand::B, b_vertex, &b_ms, b_sectors, b_body),
+            ];
+            for (operand, vertex, ms, secs, body) in sides {
+                let Some(face) = tips[usize::from(operand == Operand::B)].face_at(vertex) else {
+                    continue;
+                };
+                let bounds_face = |he: crate::entity::HalfEdgeKey| {
+                    [Some(he), body.mate(he)]
+                        .into_iter()
+                        .flatten()
+                        .any(|h| body.face_of_half_edge(h) == Some(face))
+                };
+                if ms
+                    .iter()
+                    .any(|m| m.real && bounds_face(bound(secs, m.start_holder)))
+                {
+                    return BooleanError::SlitLineCrossed {
+                        operand,
+                        vertex,
+                        face,
+                    };
+                }
+            }
+            e
+        };
         // One wedge of each solid by the edge-edge rule
         // ([`resolve_edge_edge`]): its germ, an edge in `reversed` folded
         // to its other flanker; or, between two edges whose flanking
@@ -796,7 +843,8 @@ pub(super) fn recl_edges<T: Decide>(
             let read = resolve_edge_edge(
                 a_sectors, b_sectors, a_body, b_body, op, declared, band, held, faces, aw, bw,
                 fallback,
-            )?;
+            )
+            .map_err(&on_slit)?;
             let edge =
                 |secs: &[BoolSector<T>], w: Wedge| w.edge.then(|| bound(secs, w.flankers[0]));
             let (ha, hb) = (edge(a_sectors, aw), edge(b_sectors, bw));
@@ -905,10 +953,10 @@ pub(super) fn recl_edges<T: Decide>(
                     let vertex = |body: &Body<T>, secs: &[BoolSector<T>]| {
                         proven(&body.half_edges, secs[0].he, EntityId::HalfEdge).start
                     };
-                    return Err(BooleanError::CrossingsAlongAContactLine {
+                    return Err(on_slit(BooleanError::CrossingsAlongAContactLine {
                         a_vertex: vertex(a_body, a_sectors),
                         b_vertex: vertex(b_body, b_sectors),
-                    });
+                    }));
                 }
             }
         } else {
@@ -2723,6 +2771,7 @@ mod tests {
             &Reversed::default(),
             [None, None],
             &mut Vec::new(),
+            &Default::default(),
         )
         .expect_err("the sense at an in-band arm refuses");
         let BooleanError::Escalated { decision, diag } = &err else {
@@ -2860,6 +2909,7 @@ mod tests {
                 &Reversed::default(),
                 [held, None],
                 &mut touches,
+                &Default::default(),
             )
             .map(|()| touches.len())
         };
@@ -2969,6 +3019,7 @@ mod tests {
                 &Reversed::default(),
                 [None, None],
                 &mut touches,
+                &Default::default(),
             )
             .map(|()| (touches.len(), records))
         };
@@ -3058,6 +3109,7 @@ mod tests {
                 &Reversed::default(),
                 [Some(flat), Some(b_face)],
                 &mut Vec::new(),
+                &Default::default(),
             )
             .expect_err("the faces cross along the line");
             assert!(
@@ -3149,6 +3201,7 @@ mod tests {
                 &Reversed::default(),
                 [None, None],
                 &mut Vec::new(),
+                &Default::default(),
             )
             .expect_err("two crossings along the line");
             let vertex = |body: &crate::body::Body<f64>, h| body.get_half_edge(h).unwrap().start;
@@ -3161,6 +3214,61 @@ mod tests {
                 ),
                 "{op:?}: {err:?}"
             );
+            // The same vertex as a slit's tip: where the ray's edge bounds
+            // the face the slit lies in, the line is the slit's and the
+            // refusal is the slit's construction gap; where the slit lies
+            // in another face, the line is not the slit's and keeps its
+            // lever.
+            let slit_face = pa
+                .body
+                .face_of_half_edge(ha)
+                .expect("the ray's edge bounds a face");
+            let other_face = pa
+                .body
+                .faces()
+                .map(|(f, _)| f)
+                .find(|&f| {
+                    f != slit_face
+                        && pa.body.mate(ha).and_then(|m| pa.body.face_of_half_edge(m)) != Some(f)
+                })
+                .expect("a face the ray's edge does not bound");
+            for (face, slit) in [(slit_face, true), (other_face, false)] {
+                let tips = [
+                    super::super::sectors::SlitTips::of_pairs([(want.0, face)]),
+                    super::super::sectors::SlitTips::default(),
+                ];
+                let mut records = vec![
+                    rec(0, 0, (On, Out), (On, Out)),
+                    rec(2, 0, (On, Out), (On, Out)),
+                ];
+                let mut first_read = records.clone();
+                let err = recl_edges(
+                    &mut records,
+                    &mut first_read,
+                    &own,
+                    &b,
+                    &pa.body,
+                    &pb.body,
+                    op,
+                    &declared,
+                    band,
+                    &Reversed::default(),
+                    [None, None],
+                    &mut Vec::new(),
+                    &tips,
+                )
+                .expect_err("two crossings along the line");
+                let ok = if slit {
+                    matches!(
+                        err,
+                        BooleanError::SlitLineCrossed { operand: Operand::A, vertex, face: f }
+                            if vertex == want.0 && f == face
+                    )
+                } else {
+                    matches!(err, BooleanError::CrossingsAlongAContactLine { .. })
+                };
+                assert!(ok, "{op:?}, the slit in {face:?}: {err:?}");
+            }
         }
     }
 

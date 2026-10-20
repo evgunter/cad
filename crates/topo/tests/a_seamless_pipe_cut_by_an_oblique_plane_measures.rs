@@ -336,42 +336,17 @@ fn a_seamless_pipe_cut_by_an_oblique_plane_measures_in_its_closed_form() {
     }
 }
 
-/// The one pose measured not to converge: at `Interval` and ε = 1e-12,
-/// the pipe a kilometre out with its floor 100 m up its tilted axis
-/// runs its wall out of budget (width 3.3e-9 against 1.024e-9, rounds
-/// 13). The same pose converges at `f64`, and at `Interval` in the
-/// world frame
-/// (`work/quad/quadrature-interval-floor-grows-with-the-body-past-the-band`).
-fn runs_out_of_budget_at_interval(frame: [f64; 3], pose: Pose) -> bool {
-    Tol::witness().eps() <= 1e-12 && frame[0] == 1e3 && pose.z0 == 100.0
-}
-
+/// Every pose converges at `Interval`, at every ε. The pipe a kilometre
+/// out with its floor 100 m up its tilted axis once ran its wall out of
+/// budget at ε = 1e-12 (width 3.3e-9 against 1.024e-9, rounds 13), read
+/// about the world origin; each face is read about a vertex of its
+/// shell (`topo::props`' `shell_reference`), and it converges.
 #[test]
 fn a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval() {
     for (o, axis) in FRAMES {
         let f = Frame::at(o, axis);
         for pose in POSES {
             let at = format!("frame {o:?} axis {axis:?}, {pose:?}, Interval");
-            if runs_out_of_budget_at_interval(o, pose) {
-                let tol = Tol::witness();
-                let got = mass_properties(&pipe::<Interval>(pose, &f, tol), tol);
-                assert!(
-                    matches!(
-                        got,
-                        Err(topo::MassPropsError::Face {
-                            source: geom_brep::props::PropsError::QuadratureBudget { .. },
-                            ..
-                        })
-                    ),
-                    "{at}: want the pinned budget refusal, got {got:?}"
-                );
-                test_utils::vacuity::stood_down(
-                    &at,
-                    "its wall runs the quadrature out of budget at this ε (pinned), so its \
-                     enclosure is not read",
-                );
-                continue;
-            }
             let mp = measured::<Interval>(pose, &f, &at);
             let (r, h) = (Interval::from_f64(pose.r), Interval::from_f64(pose.h));
             let volume = Interval::pi() * r * r * h;

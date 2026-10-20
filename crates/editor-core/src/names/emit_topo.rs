@@ -5580,6 +5580,7 @@ mod tests {
                 operand: topo::Operand::A,
                 face: body.faces().next().map(|(f, _)| f).unwrap(),
                 bordered: Vec::new(),
+                bordered_through: Vec::new(),
                 boundary_chains: vec![vec![e1, e0]],
             }],
             ..topo::BooleanNaming::default()

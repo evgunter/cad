@@ -2,10 +2,13 @@
 id: two-refusals-the-widened-census-finds-state-no-recourse
 kind: issue
 title: UnresolvedRead and ParamBox/SymbolsOverABox, first given census rows by PR 5407, state no recourse
-status: open
+status: closed
 opened: 2026-10-19
 priority: P4
 cost: E
+closed: 2026-10-20
+pr: 5427
+branch: wire/census-tail
 ---
 
 

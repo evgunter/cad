@@ -2946,23 +2946,17 @@ pub(in crate::boolean) mod tests {
     }
 
     /// **An ellipse carrier's escalation reads by door**: the section
-    /// through a curved face whose kind the carrier constructor could not
-    /// decide says which question it hinged on, offers the split the
-    /// geometry and the tolerance alone and the Boolean its declaration
-    /// too, and offers neither a carrier to construct.
+    /// through a curved face whose minor semi-axis the carrier
+    /// constructor could not decide positive says which question it
+    /// hinged on, and offers the split the geometry and the tolerance
+    /// alone and the Boolean its declaration too.
     #[test]
     fn an_ellipse_carrier_escalation_is_routed_by_door() {
         let b = band();
-        let rows = [
-            (
-                "ellipse_axes_distinct",
-                "whether the curve is a circle or an ellipse",
-            ),
-            (
-                "ellipse_minor_positive",
-                "whether the curve's minor semi-axis is positive",
-            ),
-        ];
+        let rows = [(
+            "ellipse_minor_positive",
+            "whether the curve's minor semi-axis is positive",
+        )];
         for (predicate, subject) in rows {
             let diag = Indeterminate {
                 predicate: Some(predicate),
@@ -2981,7 +2975,7 @@ pub(in crate::boolean) mod tests {
                     text.contains(&format!(
                         "{subject} is undecided for the section through a curved face: {}. ",
                         diag.payload()
-                    )) && !text.contains("Circle carrier"),
+                    )),
                     "{predicate}: {text}"
                 );
             }

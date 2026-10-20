@@ -164,7 +164,7 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
                     }
                     let settler = out.naming.settler(body);
                     for d in &out.naming.discards {
-                        for &(u, w) in &d.bordered {
+                        for &(u, w) in d.bordered.iter().chain(&d.bordered_through) {
                             let ends = [u, w].map(|v| {
                                 let cell = settler
                                     .settle(v)
@@ -194,7 +194,7 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
     );
     assert_eq!(
         (stretches, inside),
-        (25_224, 1296),
+        (25_512, 1392),
         "bordered stretches, and those with an end inside an edge or a face"
     );
 }

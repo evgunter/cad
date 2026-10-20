@@ -265,6 +265,7 @@ fn the_envelope_dominates_a_certified_lower_bound_at_interval() {
             let boxed = pc.chart_box(t0, t1);
             let Ok(terms) =
                 projected_envelope(&image, t0, t1, &boxed, &ci, &certify_on, b, Some(lane))
+                    .map(|(terms, _)| terms)
             else {
                 continue;
             };

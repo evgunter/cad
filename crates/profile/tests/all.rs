@@ -112,6 +112,8 @@ mod fillet_stored_tangency;
 mod generic_replay;
 #[path = "guided_replay.rs"]
 mod guided_replay;
+#[path = "hairpin_fillet_radius.rs"]
+mod hairpin_fillet_radius;
 #[path = "interval_lane.rs"]
 mod interval_lane;
 #[path = "lift_census.rs"]
@@ -176,6 +178,8 @@ mod sketch_plane;
 mod table_arcs_inside_scene_resolution;
 #[path = "table_guided_validation.rs"]
 mod table_guided_validation;
+#[path = "tangent_arc_near_a_full_turn.rs"]
+mod tangent_arc_near_a_full_turn;
 #[path = "tangent_arc_on_the_ray.rs"]
 mod tangent_arc_on_the_ray;
 #[path = "tangent_joints.rs"]
