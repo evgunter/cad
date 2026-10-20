@@ -1665,3 +1665,4 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Filed:** `the-stored-curve-read-ladder-is-written-three-times`.
   - **Seam:** CARVE/STRUT files were touched (call-site swaps, `stored_carrier`, docs).
   (ENCL orchestrator)
+- 2026-10-20 02:35Z — **Seam note from NURBS: main red after PR 5418.** `topo::review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` fails on main `911e0c18`, naming `Body::restate_stored_edge` (`attach.rs:1362`), which has no tier-1 postcondition and isn't on the allowlist. Filed as `main-red-restate-stored-edge-is-off-the-tier1-mutation-roster` (ENCL's). NURBS PRs will cite it as a base red until it's fixed.
