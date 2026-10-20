@@ -170,10 +170,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
         },
         Study {
             name: "r2_link",
-            // The tangent arc stores Δθ = 4·atan(across / (|d| + along)),
-            // and the quarter-tangent of a half-turn whose chord is the
-            // parameter `half_w` reads `2w / |2w|`, a sign the tier does
-            // not hold. The rim identity the arc registers sits inside a
+            // The tangent arc stores Δθ = 4·atan(X), X the select
+            // between `across / (|d| + along)` and `(|d| − along) /
+            // across` (`profile`'s `sugar::split_half_tan`); at a
+            // half-turn whose chord is the parameter `half_w`, `along` is
+            // zero and X reads `2w / |2w|`, a sign the tier does not
+            // hold. The rim identity the arc registers sits inside a
             // frozen compound, the mapped-source residual is read
             // numerically, and it leaves the band first at 3.030e2·ε.
             certifies_at: 3.029e2,

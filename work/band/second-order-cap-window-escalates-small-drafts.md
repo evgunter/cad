@@ -2,7 +2,9 @@
 id: second-order-cap-window-escalates-small-drafts
 kind: issue
 title: a fillet cut off at a slightly tilted plane end face escalates over a window that grows as the radius shrinks and the tolerance coarsens
-status: open
+status: closed
+closed: 2026-10-20
+branch: germ/circular-axes-band-gap
 opened: 2026-10-06
 priority: P3
 ---
@@ -46,3 +48,14 @@ kind, and a circle stored in the tilted plane is read as coaxial by
 What could narrow the window is an ellipse carrier whose kind does not
 hinge on `ellipse_axes_distinct` at the band's scale — a representation
 question for the ellipse door, not for the blend.
+
+## Closed — the window's decision is gone (#germ/circular-axes-band-gap)
+
+The ellipse door no longer decides `ellipse_axes_distinct`: the pose
+decides circle against ellipse once (Ev, PR 5156,
+`work/germ/circular-axes-refuses-between-the-rim-alignment-band-and-the-axes-band.md`),
+so a tilt `fillet3_cap_transverse` reads definite is the exact ellipse
+however near-circular, and `BlendDecision::CapEllipse` is retired with
+the gate. The only band left on a drafted end is the departure's own.
+`band_planar_oblique_fillet.rs` `a_drafted_wall_builds_its_ellipse`
+pins it: each draft past that band builds its ellipse.

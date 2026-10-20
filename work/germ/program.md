@@ -24,10 +24,11 @@ What is left here is P1 and P2:
 - `c5-plane-torus-cone-cylinder-arms` (P1, H, design) is the C5 table's
   missing plane × torus and cone × cylinder arms, which block the Klein
   wall pair. Its touching poses wait on D10.
-- The P2 rows are Interval and band reach on the cone and conic
-  sections: an oblique rod clear of a cone refuses the extent scan at
-  1e-12, and a conic section just past its band fails certification
-  downstream.
+- The P2 rows are Interval and band reach on the conic sections: an
+  oblique rod clear of a cone refuses the extent scan at 1e-12; a conic
+  section just past its band fails certification downstream; and a
+  sliver crossing's long bisector ellipse is served past what its
+  evaluation can represent.
 
 The P3/P4 tail was cut out at the 2026-10-20 hand-back into GERMCERT
 (rounding and certificate margins) and GERMTAIL (refusals and

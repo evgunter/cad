@@ -4,7 +4,7 @@
 //! (F2), a Householder-QR differential against `linalg::lsq` (F3),
 //! pointwise composite exactness/containment across all five implicit
 //! surfaces plus a hand-derived degree-1 sphere check and the
-//! `binom_row` exactness pin (F4), worked-example and loose-tolerance
+//! binomials' exactness pin (`pieces::binomial`, F4), worked-example and loose-tolerance
 //! probes (F6), and the F9 end-to-end: cylinder fit -> project ->
 //! compose -> Decide accept/refuse. The randomized rows draw from
 //! `test_utils::fuzz`: a fresh seed per run, logged unconditionally, with

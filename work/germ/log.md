@@ -466,3 +466,9 @@ coincidence is now a margined verdict (no declarations), checked by the
   Band the 3 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
   (tracker sweep)
 - 2026-10-15 — Seam note from CIW (at Ev's direction, since TINT has no orchestrator): `an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12` moves here from TINT. It is red on every nightly `full suite`. (CIW orchestrator)
+- 2026-10-20 05:00 — **PR 5156 merged** (`d5163286c8`; row PR-5156, concurrent H, tallied 1, major true). Delta review d5156: sound. A 64-digit oracle over turned and far frames finds the wall miss at most 0.37ε inside the box at 1e-12, against 2.3e-6 on the review head, and B's body refusals did not reproduce on either head. Its two NITs (the doc's cone tan²α remark overstates the miss; the bisector's `pick` copies `Vec3::select`) are left here. Merged with main twice; the fork-log row was renumbered 181. Merge run: 9961 at unset and 1e-6, 9960 at 1e-12 (main's needle).
+- 2026-10-20 05:05 — **Hand-back** (Ev, in chat 2026-10-19: finish what is important, not the whole tail; leave GERM or its successor `ready`).
+  - GERM is `ready`. Its dispatchable slate is one P1 and three P2 rows, 11 points: c5 (H, design; its touching poses held by D10) and the conic-reach P2s. Every charter P0 row is closed.
+  - Eight rows whose PRs had merged are closed: seven at `review` (PRs 4964, 5012, 5043, 5066, 5152, 5382, 5394), plus the P1 copysign census, which was fixed by another track's PR 5180 and is green on main.
+  - GERM measured about 48 points against 30, so its P3/P4 tail is cut by `git mv`, ids and bodies unchanged, into two `ready` tracks: GERMCERT (rounding and certificate margins, 17 points) and GERMTAIL (refusals and structure, 23 points). One tail would have opened over budget, and below P2 the slate holds no priority seam.
+  - Nothing new was dispatched. The check-in trigger is deleted and PR 5156 unsubscribed.

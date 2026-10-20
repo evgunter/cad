@@ -6,16 +6,17 @@ Opened 2026-10-20 by GERM's closing cut (`work/README.md`, Track size): GERM mea
 
 ## The slate
 
-**22 budget points** of dispatchable work against a ceiling of 30.
+**23 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P3 | `a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns` | M | a full revolve's return-half rim starts at fl(π) and runs fl(π) more, so it ends r·2·(π − fl(π)) short of its start vertex, past the band at ε = 1e-12 from r ≈ 4100 |
-| P3 | `a-ring-path-along-a-ruling-or-crest-arcs-carrier-reads-nothing` | M | A ring path along a cone ruling arc's line, or the torus's crest cylinder, reads nothing even off the arc |
+| P3 | `edge-pose-reads-a-near-circular-ellipses-u-ref-off-its-semi-axes` | E | edge_pose answers a near-circular ellipse's u_ref from major_frame, which rounding decides |
 | P3 | `interior-loop-cut-in` | H | A face pair with a certified interior loop (the section certificate's R-loop) refuses where the loop could be cut into both faces and answered |
 | P3 | `nurbs-plane-section-has-no-component-arm` | H | A NURBS face and a plane whose carrier cuts its control net refuse on reach at the section certificate, which blocks every crossing NURBS union once containment serves the kind |
 | P3 | `ring-path-reads-curve-meetings-and-one-curve-outside-meet` | M | ring_path's misses_in_plane and segment_misses decide curve-pair meetings, and split_ring_path_same_circle decides one curve, outside geom_brep::curve_pair |
 | P3 | `square-wall-crossing-at-a-tubes-top-refuses-r-order` | M | The square-wall arm refuses R-order where the wall crosses the tube at its top or bottom parallel, though the section is regular there |
+| P4 | `a-ring-path-along-a-ruling-or-crest-arcs-carrier-reads-nothing` | M | A ring path along a cone ruling arc's line, or the torus's crest cylinder, reads nothing even off the arc |
 | P4 | `section-wrong-lane-ends-in-a-tag` | E | geom-brep: SectionError::WrongLane ends in '(a kernel bug)', not the shared kernel-defect ending |
 | P4 | `volume-backstop-reads-a-nurbs-operands-unimplemented-closed-form-as-a-classification-invariant` | E | The volume backstop reports a NURBS operand's unimplemented closed form as a classification invariant on a planar body |
 

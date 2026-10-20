@@ -275,8 +275,9 @@ pub(crate) enum Consistency {
 ///     direct; [`Arc2::landing`]). Zero ⇒ the start, turned by the
 ///     sweep about the centre, lands on the end.
 /// - **`arc_diameter_clearance`** (arcs only) — margin:
-///   2r − |a − apex| = 2r·(1 − sin(|Δθ|/4)) (meters, computed in the
-///   second form): how far the arc's half-span chord sits below the
+///   2r − |a − apex| = 2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4)) (meters,
+///   computed in the second form, which does not cancel near a full
+///   turn as `1 − sin(|Δθ|/4)` does): how far the arc's half-span chord sits below the
 ///   carrier diameter, ≈ L²/(16r) for a near-full arc of
 ///   endpoint chord L. Zero ⇒ the arc is within tolerance of a full
 ///   circle — rejected as [`ShapeIssue::NearFull`] (the angular gap g
@@ -485,11 +486,13 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
             let apex = arc.apex(a, b);
             let span_chord = a.distance(apex);
             // 2r − |a − apex| with |a − apex| = 2r·sin(|Δθ|/4), spelled
-            // on the carrier: the chord-scale apex carries tan(|Δθ|/4),
-            // whose relative error grows as 1/(2π − |Δθ|) near a full
-            // turn, while 1 − sin(|Δθ|/4) is flat there.
+            // on the carrier as 2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4)): the
+            // chord-scale apex carries tan(|Δθ|/4), whose relative error
+            // grows as 1/(2π − |Δθ|) near a full turn, and
+            // 1 − sin(|Δθ|/4) cancels there.
+            let quarter = span * T::from_f64(0.25);
             let clearance =
-                (arc.radius + arc.radius) * (T::one() - (span * T::from_f64(0.25)).sin());
+                (arc.radius + arc.radius) * quarter.cos().powi(2) / (T::one() + quarter.sin());
             match decide("arc_diameter_clearance", Margin::of(clearance), band)
                 .map_err(escalated)?
             {

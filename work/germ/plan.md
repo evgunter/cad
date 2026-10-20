@@ -7,14 +7,14 @@ Track size). Nothing dispatched yet.
 
 ## The slate
 
-**9.5 budget points** of dispatchable work against a ceiling of 30 (at the 2026-10-20 hand-back). The charter's six P0 rows are closed; the P3/P4 tail moved to GERMCERT and GERMTAIL.
+**11 budget points** of dispatchable work against a ceiling of 30 (at the 2026-10-20 hand-back). The charter's six P0 rows are closed; the P3/P4 tail moved to GERMCERT and GERMTAIL.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P1 | `c5-plane-torus-cone-cylinder-arms` | H | C5 table - plane x torus and cone x cylinder section arms (blocking the Klein wall-pair debt) |
+| P2 | `a-sliver-crossings-long-bisector-ellipse-is-served-past-representability` | M | A sliver crossing of equal cylinders serves the long bisector ellipse past what f64 evaluates within the band |
 | P2 | `an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12` | E | an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms is red at CAD_TOLERANCE_EPS=1e-12 and 1e-6 on main (a rod clear: FallbackExtentUnsupported, near-tangent carriers) |
 | P2 | `conic-section-just-past-its-band-fails-certification-downstream` | M | plane x cylinder and plane x cone mint a section whose construction error outgrows the band just past their degenerate trilean, and it refuses at certification instead of at the arm |
-| P3 | `circular-axes-refuses-between-the-rim-alignment-band-and-the-axes-band` | E | Tilts between eps/r and sqrt(2 eps/r) refuse CircularAxes with no lever: pc_rim_alignment and ellipse_axes_distinct read two different quantities |
 
 ## Order
 
@@ -22,6 +22,8 @@ Track size). Nothing dispatched yet.
 it is cheap, and its repro is one row. Next is
 `conic-section-just-past-its-band-fails-certification-downstream`, a
 design read on how far past the band a conic section may be served.
+`a-sliver-crossings-long-bisector-ellipse-is-served-past-representability`
+is the same question on the bisector; take the two together.
 `c5-plane-torus-cone-cylinder-arms` is the largest row. Its plane
 containing the torus axis (two circles, closed form) can be specified
 now; anything that needs a touching pose waits on D10.

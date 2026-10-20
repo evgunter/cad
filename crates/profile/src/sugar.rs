@@ -1,9 +1,11 @@
-//! Constructor sugar: human-friendly arc forms lowered to bulges.
+//! Constructor sugar: human-friendly arc forms lowered to bulges, and
+//! the home every construction reads its arc's quarter-tangent from
+//! ([`split_half_tan`]): a stored sweep is `4·atan(X)` of it, X
+//! algebraic in the authored data (the crate README's profile-format
+//! clause).
 //!
-//! The **stored** form is always the bulge chain (the crate docs'
-//! zero-consistency-conditions rule); sugar may take direction hints
-//! ([`ArcSweep`]) or through-points, but nothing beyond the computed
-//! bulge survives into the data.
+//! Sugar may take direction hints ([`ArcSweep`]) or through-points, but
+//! nothing beyond the computed bulge survives into the data.
 //!
 //! Sugar is *evaluation code*: total, comparison-free, no decisions —
 //! with ONE documented exception: **the fillet constructor's gates**
@@ -95,17 +97,17 @@ pub enum FilletLegShape<T: Real> {
 /// By the inscribed-angle theorem the arc's included angle is
 /// θ = 2·Δ, where Δ is the signed turn from chord `a`→`via` to chord
 /// `via`→`b` (independent of where on the arc `via` sits); the bulge is
-/// tan(θ/4) = tan(Δ/2). Computed exactly in that form (fixed order,
-/// D9): Δ = atan2(perp_dot(d₁, d₂), d₁·d₂), result = tan(Δ/2).
+/// tan(θ/4) = tan(Δ/2), [`split_half_tan`] of the split
+/// `(d₁ × d₂, d₁·d₂)` of hypotenuse `|d₁|·|d₂|` (fixed order, D9) — the
+/// `Via` leg's own lowering.
 ///
 /// **Degenerate inputs, honestly:** `via` collinear between `a` and `b`
-/// gives Δ = 0 ⇒ bulge 0 (the line segment the three points describe);
-/// `via` collinear *outside* the chord gives Δ = ±π ⇒ tan(±π/2), an
-/// infinite/huge value whose downstream geometry validation rejects;
-/// `via` coincident with `a` or `b` makes one chord zero and the turn
-/// ill-defined — atan2(0, 0) = 0 at `f64`, so the result degrades to a
-/// line-ish bulge that validation judges on its merits. Total, never a
-/// panic; the sugar does not decide (no predicates in evaluation code).
+/// gives bulge 0 (the line segment the three points describe); `via`
+/// collinear *outside* the chord gives an infinite or huge value whose
+/// downstream geometry validation rejects; `via` coincident with `a` or
+/// `b` makes one chord zero and the bulge `NaN`, which validation
+/// rejects. Total, never a panic; the sugar does not decide (no
+/// predicates in evaluation code).
 ///
 /// **Session-box gap (deferred D4 ¶4 item — see the crate docs):** a
 /// *near*-collinear-outside `via` produces a finite but astronomically
@@ -115,66 +117,64 @@ pub enum FilletLegShape<T: Real> {
 pub fn bulge_from_via<T: Real>(a: Point2<T>, via: Point2<T>, b: Point2<T>) -> T {
     let d1 = via - a;
     let d2 = b - via;
-    let turn = d1.perp_dot(d2).atan2(d1.dot(d2));
-    (turn / T::from_f64(2.0)).tan()
+    split_half_tan(d1.perp_dot(d2), d1.dot(d2), d1.norm() * d2.norm())
+}
+
+/// **An arc's quarter-tangent, from a chord split — the one home.** A
+/// split is a pair `(across, along)` of hypotenuse `len`, read off the
+/// authored data: a tangent arc's departure against its chord, the two
+/// chords at a `Via` point, an arc's half-chord against its centre's
+/// offset ([`centre_split`]), a fillet corner's two legs. Its value is
+/// tan(½·atan2(across, along)) — the quarter-tangent X = tan(θ/4) of the
+/// arc the first three describe, tan(φ/2) of a corner's turn φ —
+/// spelled `across / (len + along)` where `along ≥ 0` and
+/// `(len − along) / across` where it is negative, chosen with
+/// [`Real::select_le_zero`]. The two are equal over the reals, and on
+/// its own side each sum has terms of one sign: the first cancels only
+/// near `along = −len` (an arc near a full turn), the second only near
+/// `along = len` (a short arc). An enclosure of `along` that straddles
+/// zero takes the hull of two accurate arms.
+pub(crate) fn split_half_tan<T: Real>(across: T, along: T, len: T) -> T {
+    (-along).select_le_zero(
+        split_half_tan_near(across, along, len),
+        (len - along) / across,
+    )
+}
+
+/// [`split_half_tan`]'s first arm alone, for a construction whose split
+/// stays clear of `along = −len`, where it cancels: a fillet, whose arc
+/// sweeps under a half turn. A select is one atom to the symbolic
+/// tier's plain walk, so a construction that never needs the second arm
+/// keeps the algebraic form the tier reads through.
+pub(crate) fn split_half_tan_near<T: Real>(across: T, along: T, len: T) -> T {
+    across / (len + along)
 }
 
 /// The bulge of the arc from `a` to `b` about `center`, sweeping in the
-/// `sweep` direction.
-///
-/// The included angle is the angular displacement from `a` to `b` as
-/// seen from `center`, reduced into [0, 2π) for [`ArcSweep::Ccw`] (and
-/// its negative-period mirror for [`ArcSweep::Cw`]) via
-/// [`Real::reduce_periodic`]; the bulge is tan(θ/4). Fixed evaluation
-/// order as written (D9).
-///
-/// **Why the `[0, τ)` window and not the centred one**: the included
-/// angle here is a full authored sweep, not a difference near zero —
-/// `Ccw` means "the long way round if that is what the author drew",
-/// and a centred reduction would silently turn a 350° arc into a −10°
-/// one. The window's jump therefore sits where it belongs, at a sweep
-/// of zero, and the arc that lands on it is the degenerate one: `a` and
-/// `b` coincident as seen from the centre. At interval type a box
-/// straddling that jump encloses both `0` and `τ`, honestly — the two
-/// arcs really are both consistent with the enclosure.
-///
-/// **The guard is DOWNSTREAM, not upstream.** `DegenerateSegment` and
-/// `NearFullArc` are raised by `validate`'s segment pass, which runs
-/// on a loop this function has already contributed a bulge to — the
-/// degenerate bulge is computed and stored first, and refused when the
-/// loop is validated. What makes that safe is not ordering but the
-/// fact that nothing consumes an unvalidated loop: the refusals key
-/// off the very values a degenerate sweep produces, so a bulge that
-/// went through the jump cannot reach a consumer without passing the
-/// pass that rejects it. Moving the jump would not remove it, only
-/// relocate it onto a non-degenerate sweep, so the posture stands —
-/// but it stands on the validation boundary, not on a gate in front of
-/// this formula.
+/// `sweep` direction: [`quarter_tan_about`] on the carrier through `a`,
+/// so the bulge is the quarter-tangent a `Center` leg stores its sweep
+/// by. [`ArcSweep::Ccw`] means "the long way round if that is what the
+/// author drew": past a half turn the centre is on the chord's other
+/// side, and the same expression reads the major arc.
 ///
 /// **The center is a hint, not stored data**: the stored segment is
 /// chord + bulge, whose implied center is the perpendicular-bisector
 /// point at the implied radius. If `b` does not lie on the circle
-/// through `a` about `center`, the stored arc still runs `a`→`b` with
-/// the computed sweep — the intent's angles, the chord's geometry.
-/// Coincident endpoints (θ that reduces to 0) or a center coincident
-/// with an endpoint produce degenerate/poison values for validation to
-/// reject; total, never a panic.
+/// through `a` about `center`, the stored arc still runs `a`→`b`, with
+/// the quarter-tangent the half-chord and the centre's offset from it
+/// give at the radius `|a − center|`. Coincident endpoints or a center
+/// coincident with `a` produce poison values (`NaN`, or a zero-length
+/// chord) that `validate`'s segment pass rejects
+/// (`DegenerateSegment`, `NearFullArc`); total, never a panic. Nothing
+/// consumes an unvalidated loop, so the guard stands on the validation
+/// boundary, not on a gate in front of this formula.
 pub fn bulge_from_center<T: Real>(
     a: Point2<T>,
     b: Point2<T>,
     center: Point2<T>,
     sweep: ArcSweep,
 ) -> T {
-    let va = a - center;
-    let vb = b - center;
-    let phi_a = va.y.atan2(va.x);
-    let phi_b = vb.y.atan2(vb.x);
-    let ccw = (phi_b - phi_a).reduce_periodic(T::tau());
-    let theta = match sweep {
-        ArcSweep::Ccw => ccw,
-        ArcSweep::Cw => ccw - T::tau(),
-    };
-    (theta / T::from_f64(4.0)).tan()
+    quarter_tan_about(a, b, center, (a - center).norm(), sweep.sign())
 }
 
 /// The line×line fillet's computed trim geometry — the output of
@@ -244,7 +244,10 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     // factor must not poison the enclosure — ci.yml's
     // "interval-square powi(2) allowlist"); norm_squared is powi inside.
     let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
-    let half_tan = v1.perp_dot(v2) / (m + v1.dot(v2));
+    // tan(φ/2) of the corner's turn φ, which is under a half turn: the
+    // home's first arm, which cancels only at a hairpin
+    // (`work/paths/a-hairpin-line-fillets-half-tangent-cancels`).
+    let half_tan = split_half_tan_near(v1.perp_dot(v2), v1.dot(v2), m);
     let bulge = half_tan / (T::one() + (T::one() + half_tan.powi(2)).sqrt());
     let setback = radius * half_tan.abs();
     let len1 = v1.norm_squared().sqrt();
@@ -658,7 +661,12 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             survivors.push(ArcFilletCandidate {
                 t1,
                 t2,
-                bulge: quarter_tan_about(t1, t2, center, radius, sgn),
+                bulge: {
+                    // A fillet sweeps under a half turn: the home's
+                    // first arm.
+                    let (across, along) = centre_split(t1, t2, center, sgn);
+                    split_half_tan_near(across, along, radius)
+                },
                 center,
                 centre_facts,
                 fit_in,
@@ -1463,22 +1471,33 @@ impl<T: Real> OffsetCentres<T> {
     }
 }
 
+/// **An arc about a known centre's split**: for the arc from `a` to `b`
+/// about `centre`, turning in the sense `sgn` (±1), `(σ·h, σ·p)` — `h`
+/// the half-chord, `p` the centre's signed offset from the chord's
+/// midpoint along its left normal. With both ends on the carrier of
+/// radius `r` (`r² = p² + h²`), half the included angle θ has
+/// `sin = h/r` and `cos = σ·p/r`, so the split's hypotenuse is `r` and
+/// [`split_half_tan`] of it is tan(θ/4); the sense picks θ in (0, 2π)
+/// or (−2π, 0), and past a half turn `σ·p` is negative. Algebraic in
+/// its inputs: no angle is read off an endpoint.
+pub(crate) fn centre_split<T: Real>(
+    a: Point2<T>,
+    b: Point2<T>,
+    centre: Point2<T>,
+    sgn: T,
+) -> (T, T) {
+    let chord = b - a;
+    let len = chord.norm();
+    let offset = (centre - a.lerp(b, T::from_f64(0.5))).dot(Vec2::new(-chord.y, chord.x)) / len;
+    (sgn * (len * T::from_f64(0.5)), sgn * offset)
+}
+
 /// **The quarter-tangent of an arc about a known centre**: X =
 /// tan(Δθ/4) of the arc from `a` to `b` about `centre` on the carrier
-/// of `radius`, turning in the sense `sgn` (±1), spelled
-/// `σ·h / (r + σ·p)` — `h` the half-chord, `p` the centre's signed
-/// offset from the chord along its left normal. Algebraic in its
-/// inputs: no angle is read off an endpoint, and no sign is chosen.
-///
-/// Over the reals, with both ends on the carrier (`r² = p² + h²`), half
-/// the included angle θ has `sin = h/r` and `cos = σ·p/r`, so X is
-/// `σ·sin/(1 + cos)` = tan(θ/4), and the sense picks θ in (0, 2π) or
-/// (−2π, 0) — past a half turn the centre is on the chord's other
-/// side, `σ·p` is negative, and the same expression reads the major
-/// arc. `r + σ·p` is the sum the half-angle form takes, so a short arc
-/// carries no cancellation; it vanishes only at a full turn. Ends off
-/// the carrier give the quarter-tangent the same expression reads off
-/// them; what that proves is the caller's to say.
+/// of `radius`, turning in the sense `sgn` (±1) — [`split_half_tan`] of
+/// [`centre_split`], read accurately from a short arc to a near full
+/// turn. Ends off the carrier give the quarter-tangent the same
+/// expression reads off them; what that proves is the caller's to say.
 pub(crate) fn quarter_tan_about<T: Real>(
     a: Point2<T>,
     b: Point2<T>,
@@ -1486,10 +1505,8 @@ pub(crate) fn quarter_tan_about<T: Real>(
     radius: T,
     sgn: T,
 ) -> T {
-    let chord = b - a;
-    let len = chord.norm();
-    let offset = (centre - a.lerp(b, T::from_f64(0.5))).dot(Vec2::new(-chord.y, chord.x)) / len;
-    sgn * (len * T::from_f64(0.5)) / (radius + sgn * offset)
+    let (across, along) = centre_split(a, b, centre, sgn);
+    split_half_tan(across, along, radius)
 }
 
 #[cfg(test)]
