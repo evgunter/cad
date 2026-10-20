@@ -37,7 +37,7 @@
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
 //!    sharing) keep the conventional description structurally;
 //!    otherwise `classify_dihedral` at the strut midpoint decides —
-//!    Transverse upgrades to `Intersection` via `set_edge_curve`,
+//!    Transverse upgrades to `Intersection` via `restate_stored_edge`,
 //!    Smooth descends one order through the must-carry rule over the
 //!    edge ([`geom_brep::must_carry_over_edge`] — the lane gate and
 //!    the certification schedule's interior stations, in its one home:
@@ -52,7 +52,7 @@
 //! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
 //!    rim edge (bottom and top, outer and ring loops) upgrades to
 //!    `Intersection { cap plane, side surface, witness }` through the
-//!    same `classify_dihedral` → `set_edge_curve` pattern as the corner
+//!    same `classify_dihedral` → `restate_stored_edge` pattern as the corner
 //!    joins (the ratified rim decision — M2-LOG, 2026-07-19). The
 //!    witness is the **carrier's mid-parameter point** (the S2 witness
 //!    contract: for arc rims the chord midpoint lies off the carrier by

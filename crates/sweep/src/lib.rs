@@ -76,7 +76,7 @@
 //!   the placement translated by `w` (PR 3's binding handoff).
 //! - **Profile-corner joins**: once both side faces of a join exist,
 //!   the join (strut) edge upgrades to `Intersection { pair,
-//!   witness }` via `topo`'s certified `set_edge_curve`
+//!   witness }` through `topo`'s restatement door (`Body::restate_stored_edge`)
 //!   (mint-time `Intersection` is impossible — the surfaces don't exist
 //!   yet). The choice is `geom_brep::classify_dihedral` at the strut
 //!   midpoint with the strut chord as extent: Transverse ⇒ upgrade;
@@ -96,7 +96,7 @@
 //!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
 //!   (bottom and top, outer and ring loops) re-describes as
 //!   `Intersection { cap plane, side surface, witness }` through the
-//!   same `classify_dihedral` → `set_edge_curve` pattern, with the
+//!   same `classify_dihedral` → `restate_stored_edge` pattern, with the
 //!   witness minted as the **carrier's mid-parameter point** (the S2
 //!   witness contract). At the shipped ambiguity multiplier K = 10
 //!   every rim of a normal extrusion is definitely transverse, so the
