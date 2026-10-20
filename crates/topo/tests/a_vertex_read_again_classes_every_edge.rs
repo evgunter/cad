@@ -1179,7 +1179,18 @@ fn probe_material(
     .enumerate()
     {
         tally.cells += 1;
+        let op = what;
         let what = format!("{label}, {}, {what}", pose.label);
+        let before = tally.bad.len();
+        let dump = |tally: &ProbeTally, outcome: &str| {
+            if std::env::var_os("DUMP_CELLS").is_some() {
+                eprintln!(
+                    "PCELL\t{label}\t{}\t{op}\t{outcome}\tgood={}",
+                    pose.label,
+                    tally.bad.len() == before
+                );
+            }
+        };
         // The germ's verdict at each direction it reads a side at.
         let sides = dirs.iter().filter_map(|&d| {
             let (sx, sy) = (x.1.side(d, ball), y.1.side(d, ball));
@@ -1196,6 +1207,7 @@ fn probe_material(
                         .bad
                         .push(format!("{what}: empty, but the germ holds {d:?}"));
                 }
+                dump(tally, "empty\t0");
                 continue;
             }
             Err(e) => {
@@ -1203,6 +1215,7 @@ fn probe_material(
                 if kind == OVERLAP {
                     tally.overlaps.insert(what.clone());
                 }
+                dump(tally, &format!("err:{kind}\t- {e:?}"));
                 *tally.refused.entry(kind).or_default() += 1;
                 continue;
             }
@@ -1210,6 +1223,7 @@ fn probe_material(
         tally.built += 1;
         if let Err(e) = validate_geometric(&body, t()) {
             tally.bad.push(format!("{what}: tier 3 {e:?}"));
+            dump(tally, "body\t-");
             continue;
         }
         v[k] = vol(&body).ok();
@@ -1227,6 +1241,7 @@ fn probe_material(
                 break;
             }
         }
+        dump(tally, &format!("body\t{:.9}", v[k].unwrap_or(f64::NAN)));
     }
     if let [Some(xl), Some(yl), Some(u1), Some(u2), Some(i1), Some(i2)] = v {
         let tol = 1e-9 * (vx + vy).max(1.0);

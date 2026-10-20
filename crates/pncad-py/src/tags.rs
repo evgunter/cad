@@ -1664,7 +1664,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Pieces => "pieces",
         BooleanErrorKind::Revert => "revert",
         BooleanErrorKind::EdgeInFace => "edge_in_face",
-        BooleanErrorKind::SlitTipUnread => "slit_tip_unread",
+        BooleanErrorKind::SlitLineCrossed => "slit_line_crossed",
+        BooleanErrorKind::SlitFaceGlued => "slit_face_glued",
         BooleanErrorKind::LineWedges => "line_wedges",
     }
 }

@@ -427,3 +427,74 @@ fn a_cavity_resting_its_keel_on_the_floor_opens_through_it_as_a_ring() {
         );
     }
 }
+
+#[test]
+fn zz_probe_slab_under_the_floor() {
+    for row in &ROWS {
+        let pose = Pose::rest();
+        let Ok(BooleanResult::Body(cut)) =
+            subtract(&slab(&pose, (0.0, 1.0)), &trench(&pose, row.span), t())
+        else {
+            panic!()
+        };
+        let cut = cut.body;
+        let under = slab(&pose, (-1.0, 0.0));
+        let r = topo::union(&cut, &under, t());
+        eprintln!(
+            "PROBE {}: {:?}",
+            row.what,
+            r.as_ref().map(|r| match r {
+                BooleanResult::Body(b) => format!(
+                    "v{} e{} f{}",
+                    b.body.vertices().count(),
+                    b.body.edges().count(),
+                    b.body.faces().count()
+                ),
+                _ => "empty".into(),
+            })
+        );
+    }
+}
+
+#[test]
+fn zz_probe_split_side_under() {
+    for row in &ROWS {
+        let pose = Pose::rest();
+        let Ok(BooleanResult::Body(cut)) =
+            subtract(&slab(&pose, (-1.0, 1.0)), &trench(&pose, row.span), t())
+        else {
+            panic!()
+        };
+        let sides = split(
+            &cut.body,
+            &split_plane(pose.at([0.0; 3]), Vec3::new(0.0, 0.0, 1.0), t()),
+            t(),
+        );
+        let walls = match sides {
+            Ok(s) => match s.above {
+                SplitPart::Body(w) => w,
+                _ => panic!(),
+            },
+            Err(e) => {
+                eprintln!("PROBE2 {}: split {e:?}", row.what);
+                continue;
+            }
+        };
+        let walls = topo::test_support::finished("walls", walls, t());
+        let r = topo::union(&walls, &slab(&pose, (-1.0, 0.0)), t());
+        eprintln!(
+            "PROBE2 {}: {:?}",
+            row.what,
+            r.as_ref().map(|r| match r {
+                BooleanResult::Body(b) => format!(
+                    "v{} e{} f{} vol {}",
+                    b.body.vertices().count(),
+                    b.body.edges().count(),
+                    b.body.faces().count(),
+                    topo::mass_properties(&b.body, t()).unwrap().volume
+                ),
+                _ => "empty".into(),
+            })
+        );
+    }
+}

@@ -464,6 +464,27 @@ fn builds_where(
     {
         let op = what;
         let what = format!("{label}, {}, {what}", pose.label);
+        if std::env::var_os("DUMP_CELLS").is_some() {
+            use std::panic::{AssertUnwindSafe, catch_unwind};
+            let ok = |f: &dyn Fn()| catch_unwind(AssertUnwindSafe(f)).is_ok();
+            let line = match &r {
+                Ok(BooleanResult::Body(r)) => format!(
+                    "body\t{:.9}\tt3={}\tmat={}\tcls={}\t3p={}",
+                    volume(&r.body),
+                    validate_geometric(&r.body, t()).is_ok(),
+                    ok(&|| material_holds(&what, keep, Some(&r.body), &probes)),
+                    ok(&|| classes_hold(&what, r, a, b, pose)),
+                    validate_pseudomanifold(&r.body, &r.contacts, t()).is_ok()
+                ),
+                Ok(BooleanResult::Empty) => format!(
+                    "empty\t0\tt3=true\tmat={}\tcls=true\t3p=true",
+                    ok(&|| material_holds(&what, keep, None, &probes))
+                ),
+                Err(e) => format!("err:{:?}\t-", e.kind()),
+            };
+            eprintln!("CELL\t{label}\t{}\t{op}\t{line}", pose.label);
+            continue;
+        }
         v[k] = match r {
             Ok(BooleanResult::Body(r)) => {
                 not_pinned(label, op);
@@ -481,6 +502,9 @@ fn builds_where(
             Err(e) if overlap_pinned(label, op, &e) => None,
             Err(e) => panic!("{what}: builds, got {e:?}"),
         };
+    }
+    if std::env::var_os("DUMP_CELLS").is_some() {
+        return held;
     }
     let [xy, yx, u, u2, i, i2] = v;
     let (vx, vy) = (volume(x), volume(y));
@@ -1705,4 +1729,41 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
         }
     }
     assert!(built > 0, "cells built");
+}
+
+#[test]
+fn zz_probe_void_lying() {
+    let pose = Pose::rest();
+    let plate = posed_box("the plate", PLATE, &pose, t());
+    let r = subtract(&plate, &tet(below_the_top(lying(0.0)), &pose), t());
+    let Ok(BooleanResult::Body(r)) = r else {
+        panic!()
+    };
+    let b = &r.body;
+    for (v, d) in b.vertices() {
+        let p = readback::vertex_point(b, v).unwrap();
+        if p.z > 0.99 && p.x > 1.4 && p.x < 1.8 && p.y < 1.5 {
+            eprintln!("VTX {v:?} pk={:?} {p:?}", d.point);
+        }
+    }
+    for (e, d) in b.edges() {
+        let h = b.get_half_edge(d.he_plus).unwrap();
+        let (s, en) = (h.start, b.half_edge_end(d.he_plus).unwrap());
+        let (ps, pe) = (
+            readback::vertex_point(b, s).unwrap(),
+            readback::vertex_point(b, en).unwrap(),
+        );
+        if ps.z > 0.99
+            && pe.z > 0.99
+            && ps.x > 1.4
+            && ps.x < 1.8
+            && pe.x > 1.4
+            && pe.x < 1.8
+            && ps.y < 1.5
+            && pe.y < 1.5
+        {
+            eprintln!("EDGE {e:?} {s:?}->{en:?}");
+        }
+    }
+    eprintln!("CONTACTS {:?}", r.contacts.rows());
 }

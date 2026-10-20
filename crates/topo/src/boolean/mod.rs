@@ -2205,6 +2205,9 @@ pub(crate) fn one_vertex_at<T: Decide>(
 pub struct BooleanReduction<T: Real> {
     /// The op the classification was performed for.
     pub op: BooleanOp,
+    /// Each operand's slit and ring tips, A's then B's, read at rest
+    /// ([`sectors::SlitTips`]).
+    pub(crate) slit_tips: [sectors::SlitTips; 2],
     /// The annotated A clone (crossings split, null edges inserted).
     pub a: Body<T>,
     /// The annotated B clone.
@@ -3686,18 +3689,30 @@ pub enum BooleanError {
         /// Why it is not parted.
         gap: EdgeInFaceGap,
     },
-    /// A vertex of an operand is the tip of a slit or a zero-area ring
-    /// in one of its faces (tier 3's two coincident distinct edges), and
-    /// the corner between its two coincident edges reads as a straight
-    /// one turned through no angle, which the sector reader does not
-    /// build: the operand is sound, and the reading of its slit tip is
-    /// the kernel's gap.
-    SlitTipUnread {
-        /// The operand the vertex is in.
+    /// The other solid's edges cross the two coincident edges of an
+    /// operand's slit or zero-area ring where the solids meet along
+    /// it: two germs along one ray of the vertex pair at the slit's tip
+    /// (`recl::recl_edges`), which the insertion does not yet place
+    /// apart. [`BooleanError::CrossingsAlongAContactLine`] where the
+    /// line is the operand's own slit, which no piece of it makes: a
+    /// construction gap, with no lever.
+    SlitLineCrossed {
+        /// The operand holding the slit.
         operand: Operand,
-        /// The slit's tip.
+        /// The slit's tip, a key of the operand's working copy.
         vertex: VertexKey,
-        /// The face the slit or ring lies in.
+        /// The face carrying the slit.
+        face: FaceKey,
+    },
+    /// The face carrying an operand's slit or zero-area ring is glued
+    /// away by the other solid, so the slit's two coincident edges would
+    /// be one edge between its two walls, which the join does not yet
+    /// build: its ring run along the slit encloses no area. A
+    /// construction gap, with no lever.
+    SlitFaceGlued {
+        /// The operand holding the slit.
+        operand: Operand,
+        /// The face carrying it, a key of the operand's working copy.
         face: FaceKey,
     },
     /// **The result's edges on one line, where two or more lie, bound
@@ -3932,8 +3947,10 @@ pub enum BooleanErrorKind {
     Revert,
     /// [`BooleanError::EdgeInFace`].
     EdgeInFace,
-    /// [`BooleanError::SlitTipUnread`].
-    SlitTipUnread,
+    /// [`BooleanError::SlitLineCrossed`].
+    SlitLineCrossed,
+    /// [`BooleanError::SlitFaceGlued`].
+    SlitFaceGlued,
     /// [`BooleanError::LineWedges`].
     LineWedges,
 }
@@ -4148,7 +4165,8 @@ impl BooleanError {
             Self::Pieces(_) => BooleanErrorKind::Pieces,
             Self::Revert { .. } => BooleanErrorKind::Revert,
             Self::EdgeInFace { .. } => BooleanErrorKind::EdgeInFace,
-            Self::SlitTipUnread { .. } => BooleanErrorKind::SlitTipUnread,
+            Self::SlitLineCrossed { .. } => BooleanErrorKind::SlitLineCrossed,
+            Self::SlitFaceGlued { .. } => BooleanErrorKind::SlitFaceGlued,
             Self::LineWedges { .. } => BooleanErrorKind::LineWedges,
         }
     }
@@ -4987,15 +5005,24 @@ impl core::fmt::Display for BooleanError {
                 gap.words(),
                 geom_core::NOT_YET_ENDING
             ),
-            Self::SlitTipUnread {
+            Self::SlitLineCrossed {
                 operand,
                 vertex,
                 face,
             } => write!(
                 f,
-                "the {} solid's vertex {vertex:?} is the tip of a slit or zero-area ring in face \
-                 {face:?}, whose two coincident edges leave it together, and the corner between \
-                 them is not read. {}",
+                "the {} solid holds a slit or zero-area ring in face {face:?} ending at vertex \
+                 {vertex:?}, where the solids meet along it, and the other solid's edges cross \
+                 its two coincident edges there, which the Boolean does not yet place apart \
+                 along the line. {}",
+                operand_word(*operand),
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::SlitFaceGlued { operand, face } => write!(
+                f,
+                "the other solid glues away face {face:?} of the {} solid, which carries a slit \
+                 or zero-area ring, so the slit's two coincident edges would become one edge \
+                 between its two walls, which the join does not yet build. {}",
                 operand_word(*operand),
                 geom_core::NOT_YET_ENDING
             ),
@@ -5445,6 +5472,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // phase rather than once per operator (`crate::surgery`). Two
     // guards over two locals: each owns its own borrow, so a refusal
     // on the way closes both scopes by dropping them.
+    // The operands' slit and ring tips, read at rest: the reduction may
+    // split a slit's two edges apart from its tip
+    // ([`sectors::SlitTips`]).
+    let tips = [
+        sectors::SlitTips::of(a_operand),
+        sectors::SlitTips::of(b_operand),
+    ];
     let mut carved_a = a_operand.clone();
     let mut carved_b = b_operand.clone();
     let mut a = carved_a.begin_surgery();
@@ -5527,6 +5561,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &contacts,
                 reread,
                 branches.get(&(operand, c.vertex)).copied(),
+                &tips[usize::from(operand == Operand::B)],
                 band,
             ) {
                 Ok(out) => out,
@@ -5563,6 +5598,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             &contacts,
                             rereads.get(&(operand, c.vertex)).copied(),
                             branches.get(&(operand, c.vertex)).copied(),
+                            &tips[usize::from(operand == Operand::B)],
                             band,
                         ) {
                             Ok(_) | Err(BooleanError::Escalated { .. }) => {}
@@ -5709,8 +5745,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut classified = Vec::with_capacity(contacts.vv.len());
     let mut line_touches = Vec::new();
     for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
-        let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
-        let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
+        let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], band)?;
+        let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], band)?;
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
         let mut along = None;
@@ -5783,7 +5819,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             band,
             &mut covered,
             &mut held,
-        )?;
+        )
+        .map_err(|e| slit_line_refusal(e, &tips))?;
         let sector_read = (records.clone(), raw.clone());
         let mut touched = Vec::new();
         recl::recl_edges(
@@ -5799,7 +5836,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &recl::Reversed::default(),
             held_faces(&touches, c),
             &mut touched,
-        )?;
+        )
+        .map_err(|e| slit_line_refusal(e, &tips))?;
         line_touches.extend(touched.into_iter().map(|he| (i, he)));
         classified.push((c, a_sectors, b_sectors, records, raw, sector_read));
     }
@@ -5915,7 +5953,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &reversed,
             held_faces(&touches, vv[i].record),
             &mut retouched,
-        )?;
+        )
+        .map_err(|e| slit_line_refusal(e, &tips))?;
         // A reversal moves a germ between flankers, after the touch is
         // read: the pass reads the touches the first did.
         let first = line_touches
@@ -6001,6 +6040,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .collect::<Result<Vec<_>, _>>()?;
     Ok(BooleanReduction {
         op,
+        slit_tips: tips,
         a: carved_a,
         b: carved_b,
         contacts: ReductionContacts { ee, ..contacts },
@@ -6025,6 +6065,30 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         tangent_lines: declared.verified.lines.clone(),
         pending,
     })
+}
+
+/// [`BooleanError::CrossingsAlongAContactLine`] at a vertex pair where
+/// one operand's vertex is the tip of its own slit or zero-area ring
+/// ([`sectors::SlitTips`]), retyped [`BooleanError::SlitLineCrossed`]:
+/// the contact line is the operand's slit, which no piece of it makes,
+/// so the refusal's recourse names nothing. Every other error is
+/// returned as it is.
+fn slit_line_refusal(e: BooleanError, tips: &[sectors::SlitTips; 2]) -> BooleanError {
+    let BooleanError::CrossingsAlongAContactLine { a_vertex, b_vertex } = e else {
+        return e;
+    };
+    [(Operand::A, a_vertex), (Operand::B, b_vertex)]
+        .into_iter()
+        .find_map(|(operand, vertex)| {
+            tips[usize::from(operand == Operand::B)]
+                .face_at(vertex)
+                .map(|face| BooleanError::SlitLineCrossed {
+                    operand,
+                    vertex,
+                    face,
+                })
+        })
+        .unwrap_or(e)
 }
 
 /// **The reduction's edge-edge rows**: for each touch the
@@ -9079,7 +9143,8 @@ mod tests {
                 BooleanErrorKind::Pieces => "Pieces",
                 BooleanErrorKind::Revert => "Revert",
                 BooleanErrorKind::EdgeInFace => "EdgeInFace",
-                BooleanErrorKind::SlitTipUnread => "SlitTipUnread",
+                BooleanErrorKind::SlitLineCrossed => "SlitLineCrossed",
+                BooleanErrorKind::SlitFaceGlued => "SlitFaceGlued",
                 BooleanErrorKind::LineWedges => "LineWedges",
             }
         }

@@ -562,8 +562,14 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
     let (pa, pb) = vertex_point(body, a)
         .zip(vertex_point(body, b))
         .ok_or_else(desync)?;
-    let spec = geom_brep::IntersectionDraft::of(curve.as_ref(), pa, pb)
-        .into_spec(geom_brep::SurfacePair::new(floor_surface, wall_surface));
+    // A line edge (an arc refuses `Curved` before parting): the draft
+    // draws the chord between the ends, its own spec.
+    let geom_brep::DraftedIntersection::Chord(spec) =
+        geom_brep::IntersectionDraft::of(curve.as_ref(), pa, pb)
+            .into_intersection(geom_brep::SurfacePair::new(floor_surface, wall_surface))
+    else {
+        return Err(refused(EdgeInFaceGap::Curved));
+    };
     let next = proven(&body.half_edges, h, EntityId::HalfEdge).next;
     let made = body.mef(
         MefSite::Chords { he1: h, he2: next },
