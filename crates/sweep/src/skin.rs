@@ -628,11 +628,13 @@ pub fn segment_curve<T: SpanLocate>(
             for k in 0..m {
                 // The sub-arc's breakpoints `k/m` are structure: the
                 // constants the knot vector below holds, and the ones
-                // knot merging enters for the same breakpoint.
+                // knot merging enters for the same breakpoint. One
+                // spelling, [`geom_brep::sub_arc_joint`], which the
+                // mesher's chord schedule shares to land on the joint.
                 #[allow(clippy::cast_precision_loss)]
                 let (base, next) = (
                     delta * T::from_f64(k as f64),
-                    T::from_f64((k + 1) as f64 / steps),
+                    T::from_f64(geom_brep::sub_arc_joint(k + 1, m)),
                 );
                 control.push(tangent_point(base + delta * half));
                 weights.push(half_w);
@@ -641,8 +643,7 @@ pub fn segment_curve<T: SpanLocate>(
             }
             let mut runs = vec![(T::zero(), three)];
             for k in 1..m {
-                #[allow(clippy::cast_precision_loss)]
-                runs.push((T::from_f64(k as f64 / steps), two));
+                runs.push((T::from_f64(geom_brep::sub_arc_joint(k, m)), two));
             }
             runs.push((T::one(), three));
             Ok(NurbsCurve3::new(Knots::new(runs, 2)?, control, weights)?)

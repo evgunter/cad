@@ -521,13 +521,15 @@ fn cell_component(sq: Interval) -> f64 {
 ///
 /// # Errors
 ///
-/// As [`patch_bound::patch_cells`] — same gates, same arms, same
-/// refusals, reported in this crate's error type.
+/// As [`patch_bound::patch_cells_across_creases`] — the rational arm
+/// admits a C⁰ crease, which [`NurbsCellGrid::cert`] then keeps every
+/// certified box off; otherwise the same gates, arms and refusals as
+/// [`patch_bound::patch_cells`], reported in this crate's error type.
 pub(crate) fn nurbs_cell_bounds(
     n: &NurbsSurface<f64>,
     fk: FaceKey,
 ) -> Result<Vec<CellBound>, TessellateError> {
-    Ok(patch_bound::patch_cells(n)
+    Ok(patch_bound::patch_cells_across_creases(n)
         .map_err(|e| face_err(fk, e))?
         .into_iter()
         .map(|c| CellBound {
@@ -912,6 +914,12 @@ impl NurbsCellGrid {
         }
     }
 
+    /// The face's C⁰ creases, `(u, v)`: the lines the trimmed lane
+    /// cuts its triangulation along, so that no triangle crosses one.
+    pub(crate) fn creases(&self) -> (&[f64], &[f64]) {
+        (&self.creases_u, &self.creases_v)
+    }
+
     /// Cell boundary values in `u`. The schedule consumers go
     /// through [`Self::band_schedule`], so only the tests read this;
     /// the certificate lookup uses the field directly.
@@ -1220,7 +1228,9 @@ impl NurbsCellGrid {
     /// reads as a refused certificate. Straddling boxes are not only
     /// boundary fans: the trimmed lane's `u` columns are uniform over the
     /// trim box, not placed on the `u` cuts, so interior grid triangles
-    /// straddle `u` cuts too.
+    /// straddle `u` cuts too. That lane cuts its triangulation along
+    /// every crease ([`Self::creases`]), so on its meshes this answer
+    /// is a backstop.
     ///
     /// For a box inside ONE cell this is exactly that cell's own
     /// certificate.
@@ -2221,6 +2231,70 @@ pub(crate) mod tests {
         assert!(deviation(across) > 0.19);
         assert!(grid.cert(across) == f64::INFINITY);
         assert!(grid.cert(beside) == 0.0);
+    }
+
+    /// **The lofted circle's straddler, read for its true deviation.**
+    /// The wall of `sweep::test_support::lofted_cylinder` carries the
+    /// crease `u = ½` (two quarter arcs at a double knot), and a
+    /// triangle across it has no certificate. Its true deviation (the
+    /// wall against the linear interpolant of its corners, densely
+    /// sampled) is read beside two certificates: the one `cert` answers
+    /// (`+∞`), and the componentwise max of the cells on both sides,
+    /// which the crease voids in general (the tent row above).
+    ///
+    /// On THIS wall the max still dominates, because the sub-arcs are
+    /// equal: each is the same rational quadratic on an equal knot
+    /// span, so the one-sided derivatives at the joint agree and the
+    /// wall is C¹ there in fact. The trimmed lane cuts along it anyway;
+    /// here that costs only the cut. A row that goes red on the second
+    /// assertion means the sub-arcs stopped being equal, and the crease
+    /// became a real one.
+    #[test]
+    fn a_lofted_circle_straddler_reads_its_true_deviation() {
+        let body = sweep::test_support::lofted_cylinder(1.0, Tol::witness());
+        let mut walls = 0;
+        for (fk, face) in body.faces() {
+            let Some(geom::Surface::Nurbs(wall)) = body.get_surface(face.surface) else {
+                continue;
+            };
+            walls += 1;
+            let grid = nurbs_cell_grid(wall, fk).expect("the creased wall is covered");
+            assert_eq!(grid.creases(), (&[0.5][..], &[][..]));
+            let uncreased = NurbsCellGrid::from_cells(&nurbs_cell_bounds(wall, fk).unwrap());
+            let deviation = |uv: [[f64; 2]; 3]| {
+                let p = uv.map(|[u, v]| wall.eval(u, v));
+                let mut worst = 0.0f64;
+                for i in 0..=40 {
+                    for j in 0..=(40 - i) {
+                        let (a, b) = (f64::from(i) / 40.0, f64::from(j) / 40.0);
+                        let c = 1.0 - a - b;
+                        let u = a * uv[0][0] + b * uv[1][0] + c * uv[2][0];
+                        let v = a * uv[0][1] + b * uv[1][1] + c * uv[2][1];
+                        let lin = Point3::new(
+                            a * p[0].x + b * p[1].x + c * p[2].x,
+                            a * p[0].y + b * p[1].y + c * p[2].y,
+                            a * p[0].z + b * p[1].z + c * p[2].z,
+                        );
+                        worst = worst.max((wall.eval(u, v) - lin).norm());
+                    }
+                }
+                worst
+            };
+            for across in [
+                [[0.45, 0.2], [0.55, 0.2], [0.5, 0.8]],
+                [[0.3, 0.1], [0.7, 0.1], [0.5, 0.9]],
+            ] {
+                let dev = deviation(across);
+                assert!(dev > 0.0);
+                assert!(grid.cert(across) == f64::INFINITY, "{across:?}");
+                let max = uncreased.cert(across);
+                assert!(
+                    max >= dev,
+                    "{across:?}: the cells' max {max:e}, deviates {dev:e}"
+                );
+            }
+        }
+        assert_eq!(walls, 2);
     }
 
     /// **The shipped `cert` semantics, pinned bit-for-bit** (R1 MIN-2 /

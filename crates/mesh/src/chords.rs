@@ -34,6 +34,12 @@
 //!   3-D chord but many UV steps). A `Fitted` image has no certified
 //!   speed bound here and refuses typed (the trimmed lane's module
 //!   docs name its consumer).
+//! - Crease joints: an arc rim of `m ≥ 2` sub-arcs meets its face's C⁰
+//!   creases at the sub-arc joints, and the trimmed lane cuts its
+//!   triangles along those creases, so the count is rounded up to a
+//!   multiple of `m`: point `q·k` of `q·m` then sits at the joint's own
+//!   parameter, `t₀ + Δt·geom_brep::sub_arc_joint(k, m)`, the expression
+//!   `sweep::skin::segment_curve` places the joint knot with.
 //!
 //! An adjacent surface reaches a chord count only through
 //! [`adjacent_surface`], and the two tightenings above are its two
@@ -171,8 +177,7 @@ pub(crate) fn compute_chords(
         ids.push(start_id);
         ts.push(t0);
         for i in 1..n {
-            #[allow(clippy::cast_precision_loss)]
-            let t = t0 + span * (i as f64 / n as f64);
+            let t = t0 + span * geom_brep::sub_arc_joint(i, n);
             #[allow(clippy::cast_possible_truncation)]
             let id = positions.len() as u32;
             positions.push(curve.carrier().eval(t));
@@ -345,6 +350,9 @@ fn nurbs_tighten(
     let (t0, t1) = params;
     let span = t1 - t0;
     let sides = sides_of(body, ek)?;
+    // The sub-arc count every adjacent arc rim needs the schedule to
+    // be a multiple of (the `IsoArc` arm below).
+    let mut joints = 1;
     for side in [sides.plus, sides.minus] {
         let (hek, fk) = (side.half_edge, side.face);
         let surface = adjacent_surface(body, fk)?;
@@ -380,7 +388,11 @@ fn nurbs_tighten(
             // A closed-form sup over the whole span, like the other
             // two arms — no sampling.
             Pcurve::IsoArc {
-                pd, angle, breaks, ..
+                pd,
+                t0: arc_t0,
+                angle,
+                breaks,
+                ..
             } => {
                 let spans = breaks.control_count().saturating_sub(1);
                 if spans == 0 {
@@ -389,6 +401,26 @@ fn nurbs_tighten(
                         note: "an arc-rim pcurve with no sub-arc structure — a malformed \
                                cache, not a chord-schedule question",
                     });
+                }
+                // THE CREASE CHORD POINT. Two sub-arcs meet at a knot
+                // of multiplicity two, a C⁰ crease of the chart in `u`,
+                // and the trimmed lane needs a boundary point exactly
+                // there to cut its triangles at it. A schedule of
+                // `q·spans` points puts point `q·k` at
+                // `t0 + span·sub_arc_joint(k, spans)`, the joint's own
+                // parameter, so the count is rounded up to a multiple
+                // below. That needs the rim's turn to be this edge's
+                // interval, bit for bit.
+                if spans > 1 {
+                    if *arc_t0 != t0 || *angle != span {
+                        return Err(TessellateError::UnsupportedCurve {
+                            edge: ek,
+                            note: "an arc-rim pcurve whose turn is not its edge's parameter \
+                                   interval, so no chord point lands on its sub-arc joints \
+                                   (the C⁰ creases of its NURBS face)",
+                        });
+                    }
+                    joints = lcm(joints, spans);
                 }
                 #[allow(clippy::cast_precision_loss)]
                 let m = spans as f64;
@@ -453,7 +485,16 @@ fn nurbs_tighten(
             .max(ceil_count(su * span, hu)?)
             .max(ceil_count(sv * span, hv)?);
     }
-    Ok(n)
+    Ok(n.div_ceil(joints) * joints)
+}
+
+/// The least common multiple of two sub-arc counts.
+fn lcm(a: usize, b: usize) -> usize {
+    let (mut x, mut y) = (a, b);
+    while y != 0 {
+        (x, y) = (y, x % y);
+    }
+    a / x * b
 }
 
 /// The per-axis UV speed sups `(s_u, s_v)` of a **general

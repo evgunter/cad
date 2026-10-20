@@ -350,13 +350,59 @@ pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface
 /// 18 ([`PatchBoundError::DegreeAboveCeiling`], module docs "Refusal"),
 /// or a derived-knot construction that fails to materialise.
 pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
-    check_direction(n.knots_u_f64_interim())?;
-    check_direction(n.knots_v_f64_interim())?;
+    gate(n, false)?;
     if is_rational(n) {
         rational_cells(n, RATIONAL_CERT_SPLITS)
     } else {
         integral_cells(n)
     }
+}
+
+/// [`patch_cells`] for a consumer that keeps its own reads off a C⁰
+/// crease: the rational arm admits an interior knot of multiplicity
+/// equal to the degree (degree ≥ 2), where [`check_direction`]
+/// refuses one.
+///
+/// **Why the rational arm can, and the integral arm cannot.** The
+/// rational arm reads each span cell's own control window
+/// ([`rational_cells`]): a span's Bernstein block, its weights and its
+/// derivatives all live inside the span, so a crease at the span's end
+/// is the end of one block and the start of the next, and each cell
+/// bounds the one-sided partials of its own side exactly. The integral
+/// arm differences the whole net first, and a derivative across a knot
+/// of multiplicity `p` is discontinuous there, which no clamped vector
+/// describes; it keeps [`check_direction`]'s refusal.
+///
+/// **What the caller owns.** Every cell bounds its own span; no bound
+/// holds for a region that crosses a crease, so the max over cells on
+/// both sides does not certify a box straddling one. The mesher's
+/// `NurbsCellGrid::cert` refuses such a box, and its trimmed lane cuts
+/// every triangle at the crease.
+///
+/// # Errors
+///
+/// As [`patch_cells`], with [`PatchBoundError::Crease`] left only to
+/// the integral arm.
+pub fn patch_cells_across_creases(
+    n: &NurbsSurface<f64>,
+) -> Result<Vec<PatchCell>, PatchBoundError> {
+    if !is_rational(n) {
+        return patch_cells(n);
+    }
+    gate(n, true)?;
+    rational_cells(n, RATIONAL_CERT_SPLITS)
+}
+
+/// [`check_direction`] on both directions, with a degree-≥ 2 crease
+/// let through when `admit_crease`.
+fn gate(n: &NurbsSurface<f64>, admit_crease: bool) -> Result<(), PatchBoundError> {
+    for kv in [n.knots_u_f64_interim(), n.knots_v_f64_interim()] {
+        match check_direction(kv) {
+            Err(PatchBoundError::Crease) if admit_crease => {}
+            other => other?,
+        }
+    }
+    Ok(())
 }
 
 /// [`patch_cells`] on an EXPLICIT schedule, in **both** arms: the
@@ -961,6 +1007,67 @@ fn on_window<X>(su: Span<'_>, sv: Span<'_>, at: impl Fn(usize, usize) -> X) -> V
 pub(crate) mod tests {
     use super::*;
     use geom_core::spline::weight_scale::pow2_scaled;
+
+    /// **The rational arm reads a crease as the end of one span and the
+    /// start of the next.** A half cylinder, two rational quarter arcs
+    /// in `u` joined at a double knot (a C⁰ crease at degree 2), has
+    /// exactly the cells of its two halves built as separate patches:
+    /// each cell reads its own span's window and nothing across the
+    /// crease. [`patch_cells`] refuses the whole (`Crease`), and
+    /// [`patch_cells_across_creases`] still refuses an integral one,
+    /// whose arm differences the whole net.
+    #[test]
+    fn a_rational_crease_reads_as_two_patches() {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let arc = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (-1.0, 1.0), (-1.0, 0.0)];
+        let patch = |ku: Vec<f64>, rows: &[(f64, f64)], ws: &[f64]| {
+            let ku = KnotVector::clamped(ku, 2).expect("kv");
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("kv");
+            let mut control = Vec::new();
+            let mut weights = Vec::new();
+            for (&(x, y), &wt) in rows.iter().zip(ws) {
+                for z in [0.0, 1.0] {
+                    control.push(geom_core::Point3::new(x, y, z));
+                    weights.push(wt);
+                }
+            }
+            NurbsSurface::new(ku, kv, control, weights).expect("ok")
+        };
+        let whole = patch(
+            vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0],
+            &arc,
+            &[1.0, w, 1.0, w, 1.0],
+        );
+        let left = patch(
+            vec![0.0, 0.0, 0.0, 0.5, 0.5, 0.5],
+            &arc[..3],
+            &[1.0, w, 1.0],
+        );
+        let right = patch(
+            vec![0.5, 0.5, 0.5, 1.0, 1.0, 1.0],
+            &arc[2..],
+            &[1.0, w, 1.0],
+        );
+        assert!(matches!(patch_cells(&whole), Err(PatchBoundError::Crease)));
+        let read = |cells: Vec<PatchCell>| -> Vec<String> {
+            cells.iter().map(|c| format!("{c:?}")).collect()
+        };
+        let mut halves = read(patch_cells(&left).expect("left"));
+        halves.extend(read(patch_cells(&right).expect("right")));
+        assert_eq!(
+            read(patch_cells_across_creases(&whole).expect("whole")),
+            halves
+        );
+        let integral = patch(
+            vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0],
+            &arc,
+            &[1.0; 5],
+        );
+        assert!(matches!(
+            patch_cells_across_creases(&integral),
+            Err(PatchBoundError::Crease)
+        ));
+    }
 
     /// **The degree ceilings are the statement's, and each arm meets its
     /// own.** An integral bidegree `(19, 2)` Bézier certifies: its area
