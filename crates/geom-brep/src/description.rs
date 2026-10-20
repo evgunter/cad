@@ -115,7 +115,36 @@ pub enum EdgeAuthority<T: Real> {
 impl<T: Real> EdgeAuthority<T> {
     /// Whether a modeler DECLARED this locus.
     pub fn is_declared(&self) -> bool {
-        matches!(*self, EdgeAuthority::Declared(_))
+        self.kind().is_declared()
+    }
+
+    /// Who determined this locus, without the declared source: the one
+    /// spelling of an [`AuthorityKind`], for a record that carries the
+    /// authority past the scalar the edge is certified at (a mint
+    /// refusal, an at-rest finding).
+    pub fn kind(&self) -> AuthorityKind {
+        AuthorityKind {
+            declared: matches!(*self, EdgeAuthority::Declared(_)),
+        }
+    }
+}
+
+/// **Who determined an edge's locus**, without the declared source
+/// ([`EdgeAuthority::kind`], its only constructor). Where a carrier
+/// misses its face, the authority decides the ending (D3): a declared
+/// curve that does not lie on its face is the modeler's to move, while a
+/// locus the kernel derived for itself that misses is the kernel's
+/// defect.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AuthorityKind {
+    declared: bool,
+}
+
+impl AuthorityKind {
+    /// Whether a modeler DECLARED the locus.
+    #[must_use]
+    pub const fn is_declared(self) -> bool {
+        self.declared
     }
 }
 

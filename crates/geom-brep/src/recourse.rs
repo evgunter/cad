@@ -381,6 +381,17 @@ pub struct LeverOnly {
     pub lever: &'static str,
 }
 
+/// **A declared curve that does not lie on the face it names** (D3):
+/// the modeler's to move, on every arm — decided or in band, at a build
+/// or at rest — with no tolerance offer and no defect. The one spelling
+/// of that ending, for the edge certificate
+/// ([`crate::CertCheck::DeclaredIncidence`]) and for a declared boundary
+/// row's refusal at rest.
+pub const DECLARED_OFF_FACE: LeverOnly = LeverOnly {
+    lever: "move the declared curve onto the face it bounds, or declare it on the face it \
+            lies on",
+};
+
 impl LeverOnly {
     /// The one ending a refusal of this decision carries on `arm`, read
     /// at `reading`.

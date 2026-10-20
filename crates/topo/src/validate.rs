@@ -2913,6 +2913,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        CertifyError::DeclaredOffChart { .. } => DECLARED_OFF,
         CertifyError::GeneralLaneUnwritten { .. } => {
             "it is on its face but is none of the face's own curves, and the kernel cannot yet \
              write where such a curve sits on that face"
@@ -3059,6 +3060,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::GeneralLaneUnwritten { .. }
+            | CertifyError::DeclaredOffChart { .. }
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
@@ -3126,6 +3128,7 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::ChartClass => {
             geom_core::undecided!("which of its face's own curves it is")
         }
+        CertCheck::DeclaredIncidence => DECLARED_CLOSE,
         CertCheck::EndpointStart
         | CertCheck::EndpointEnd
         | CertCheck::SurfaceResidual { .. }
@@ -3394,6 +3397,58 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
     }
 }
 
+/// **A boundary curve that misses its face, ended by who placed it**
+/// (D3): the one place a carrier-off-chart refusal or an undecided
+/// incidence reading ([`geom_brep::PcurveCheck::ChartIncidence`]) picks
+/// its ending, or `None` for any other refusal.
+///
+/// A curve the modeler DECLARED that does not lie on its face is the
+/// modeler's to move: it ends in that lever alone, decided or in band,
+/// with no tolerance offer and no defect. A locus the kernel DERIVED for
+/// itself that misses its face is the kernel's: a definite miss is the
+/// defect, and an undecided one ends as the incidence check's routing
+/// gives it at rest. `wrong` and `close` are the caller's reasons for a
+/// derived locus.
+/// Why a DECLARED curve refused on its face, at rest: the edge
+/// certificate's reason and a boundary row's alike.
+const DECLARED_OFF: &str = "a declared curve does not lie on its face";
+/// Why a DECLARED curve's incidence on its face is undecided.
+const DECLARED_CLOSE: &str = geom_core::undecided!("whether a declared curve lies on its face");
+
+fn off_face_ending(
+    error: &geom_brep::PcurveCertifyError,
+    authority: geom_brep::AuthorityKind,
+    wrong: &'static str,
+    close: &'static str,
+) -> Option<(&'static str, Cow<'static, str>)> {
+    use geom_brep::PcurveCertifyError as C;
+    use geom_brep::recourse::DECLARED_OFF_FACE;
+    let arm = match error {
+        C::CarrierOffChart { margin, .. } => RefusedArm::SignCertain(*margin),
+        C::Escalated {
+            check: geom_brep::PcurveCheck::ChartIncidence,
+            cause,
+            ..
+        } => RefusedArm::Undecided(cause),
+        _ => return None,
+    };
+    let undecided = matches!(arm, RefusedArm::Undecided(_));
+    let lever = || Cow::Owned(DECLARED_OFF_FACE.recourse(arm, Reading::AtRest));
+    Some(match (authority.is_declared(), undecided) {
+        (true, false) => (DECLARED_OFF, lever()),
+        (true, true) => (DECLARED_CLOSE, lever()),
+        (false, false) => (wrong, Cow::Borrowed(DEFECT)),
+        (false, true) => (
+            close,
+            Cow::Owned(
+                error
+                    .ending(Reading::AtRest)
+                    .unwrap_or_else(|| unreachable!("an escalation is a decision's refused arm")),
+            ),
+        ),
+    })
+}
+
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
@@ -3450,7 +3505,12 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             "the face's outline is a lone vertex, so it bounds no region",
             crate::pcurves::EMPTY_OUTER_RECOURSE,
         ),
-        M::Certify { error, .. } => {
+        M::Certify {
+            error, authority, ..
+        } => {
+            if let Some(ending) = off_face_ending(error, *authority, WRONG, CLOSE) {
+                return ending;
+            }
             // A decision's refused arm ends as its check's routing gives
             // it at rest (`PcurveCertifyError::ending`); a refusal no
             // decision owns ends in its own.
@@ -3485,8 +3545,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     Some(REPARAMETERIZE),
                 ),
                 C::CarrierEnclosure(_) => (CARRIER_ENCLOSURE, Some(NOT_YET_ENDING)),
+                C::CarrierOffChart { .. } => unreachable!("`off_face_ending` ends it"),
                 C::ChartRow { .. }
-                | C::CarrierOffChart { .. }
                 | C::ImageMismatch { .. }
                 | C::ChannelKindMismatch { .. }
                 | C::WindingMismatch { .. }
@@ -12008,6 +12068,67 @@ mod tests {
         assert!(problems.is_empty(), "{}", problems.join("\n"));
     }
 
+    /// **A boundary row whose carrier misses its face ends by who placed
+    /// the carrier** (D3, E1b): `off_face_ending`, read at rest through
+    /// the finding's own authority stamp. A declared curve ends in the
+    /// modeler's lever on both arms, decided and in band, with no
+    /// tolerance and no defect; a derived locus keeps the kernel's
+    /// defect (definite) and the incidence check's own ending (in band).
+    #[test]
+    fn a_boundary_curve_off_its_face_ends_by_who_placed_it() {
+        use crate::pcurves::PcurveMintError as M;
+        use geom_brep::{PcurveCertifyError as C, PcurveCheck};
+        let [derived, declared] = crate::test_support_samples::authorities();
+        assert!(declared.is_declared() && !derived.is_declared());
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let off = C::CarrierOffChart {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Line,
+            why: "a sphere holds no line",
+            margin: None,
+        };
+        let in_band = C::Escalated {
+            check: PcurveCheck::ChartIncidence,
+            sample: 0,
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band,
+                predicate: Some("pcurve_sphere_chart_incident"),
+                terminal_sliver: false,
+            },
+        };
+        for error in [off, in_band] {
+            let rest = |authority| {
+                classify_pcurve(&M::Certify {
+                    half_edge: crate::entity::HalfEdgeKey::default(),
+                    error: error.clone(),
+                    authority,
+                })
+            };
+            let (why, ending) = rest(declared);
+            assert!(why.contains("declared curve"), "{error:?}: {why}");
+            assert!(
+                ending.starts_with("Recourse: move the declared curve onto the face it bounds"),
+                "{error:?}: {ending}"
+            );
+            for word in ["defect", "tolerance", "bug"] {
+                assert!(!ending.contains(word), "{error:?}: {word}: {ending}");
+            }
+            let (why, ending) = rest(derived);
+            assert!(!why.contains("declared"), "{error:?}: {why}");
+            assert!(!ending.contains("declared curve"), "{error:?}: {ending}");
+            if matches!(error, C::CarrierOffChart { .. }) {
+                assert_eq!(ending, DEFECT, "{error:?}");
+            } else {
+                assert_eq!(
+                    Some(ending.into_owned()),
+                    error.ending(Reading::AtRest),
+                    "{error:?}"
+                );
+            }
+        }
+    }
+
     /// Each own-close refusal ends as its decision gives the arm it
     /// reports, read at rest: a sized decision's lever with the tolerance
     /// its in-band margin gives, a residual's last resort or defect, and
@@ -12035,6 +12156,7 @@ mod tests {
             finding: crate::pcurves::PcurveMintError::Certify {
                 half_edge: crate::entity::HalfEdgeKey::default(),
                 error,
+                authority: geom_brep::EdgeAuthority::<f64>::Derived.kind(),
             },
         };
         let rows = [

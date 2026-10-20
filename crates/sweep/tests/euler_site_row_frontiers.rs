@@ -152,6 +152,7 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
                     chart: geom::SurfaceKind::Cone,
                     ..
                 },
+                ..
             } if half_edge == made.he_plus || half_edge == made.he_minus
         )
     };
@@ -243,6 +244,7 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
             topo::PcurveMintError::Certify {
                 half_edge,
                 error: geom_brep::PcurveCertifyError::IsoUnsupported { .. },
+                ..
             } => why.push(half_edge),
             ref other => panic!("only the gaps and why they are gaps, got {other:?}"),
         }

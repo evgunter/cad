@@ -431,6 +431,11 @@ pub enum PcurveMintError {
         half_edge: HalfEdgeKey,
         /// The typed certification failure, nested whole.
         error: PcurveCertifyError,
+        /// Who determined the half-edge's edge locus, stamped where the
+        /// refusal is built ([`certify_refused`]): a declared carrier off
+        /// its face ends in the modeler's lever, a derived one in the
+        /// kernel's defect (D3).
+        authority: geom_brep::AuthorityKind,
     },
     /// The chart image of a half-edge does not meet its predecessor's
     /// in the chart: the loop's one-branch unwrap is not continuous
@@ -643,7 +648,9 @@ impl core::fmt::Display for PcurveMintError {
                 "the outer loop of face {face:?} is a lone vertex, so it bounds no region of \
                  the chart. {EMPTY_OUTER_RECOURSE}"
             ),
-            Self::Certify { half_edge, error } => write!(
+            Self::Certify {
+                half_edge, error, ..
+            } => write!(
                 f,
                 "the pcurve of half-edge {half_edge:?} failed certification: {error}"
             ),
@@ -872,7 +879,7 @@ pub fn pcurve_of<T: AtRestPolicy>(
     if surface.spline_chart().is_some() {
         return nurbs_iso_derive(body, half_edge, &surface, band);
     }
-    analytic_derive(&carrier, t0, t1, &surface, band, half_edge)
+    analytic_derive(body, &carrier, t0, t1, &surface, band, half_edge)
 }
 
 /// The chart image of a carrier on an ANALYTIC chart, on the chart's
@@ -885,6 +892,7 @@ pub fn pcurve_of<T: AtRestPolicy>(
 ///
 /// [`PcurveMintError::Certify`] with the derivation's refusal.
 fn analytic_derive<T: Decide>(
+    body: &Body<T>,
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
@@ -893,7 +901,7 @@ fn analytic_derive<T: Decide>(
     half_edge: HalfEdgeKey,
 ) -> Result<Pcurve<T>, PcurveMintError> {
     chart_pcurve_over(carrier, t0, t1, surface, band)
-        .map_err(|error| PcurveMintError::Certify { half_edge, error })
+        .map_err(|error| certify_refused(body, half_edge, error))
 }
 
 /// **Whether a stored row states its edge's whole interval** — copied
@@ -1034,6 +1042,27 @@ fn half_edge_curve<T: Real>(
         .ok_or(PcurveMintError::NoCarrier { half_edge })
 }
 
+/// **A certification refusal of `half_edge`'s row**, stamped with its
+/// edge's authority ([`geom_brep::EdgeAuthority::kind`]): the one place a
+/// [`PcurveMintError::Certify`] reads who determined the locus. A row is
+/// certified only against a certified carrier, so the edge holds one.
+#[track_caller]
+fn certify_refused<T: Real>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+    error: PcurveCertifyError,
+) -> PcurveMintError {
+    let (edge, data) = edge_record(body, half_edge);
+    let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+        panic!("a row's certification refused on a half-edge with no certified carrier");
+    };
+    PcurveMintError::Certify {
+        half_edge,
+        error,
+        authority: curve.authority().kind(),
+    }
+}
+
 /// The certified carrier and parameter interval of `half_edge`'s edge.
 ///
 /// # Errors
@@ -1166,9 +1195,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     band: Band,
 ) -> Result<Pcurve<T>, PcurveMintError> {
     use geom_core::{Point2, Vec2};
-    let refuse = |what: &'static str| PcurveMintError::Certify {
-        half_edge,
-        error: PcurveCertifyError::IsoUnsupported { what },
+    let refuse = |what: &'static str| {
+        certify_refused(body, half_edge, PcurveCertifyError::IsoUnsupported { what })
     };
     let (carrier, t0, t1) = half_edge_carrier(body, half_edge)?;
     let span = t1 - t0;
@@ -1302,12 +1330,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         if deferred.is_none()
             && (row_space.forward || row_space.backward)
             && let (Some(f0), Some(f1)) = (
-                derive_chart_foot(carrier.eval(t0), surface, half_edge)
-                    .ok()
-                    .flatten(),
-                derive_chart_foot(carrier.eval(t1), surface, half_edge)
-                    .ok()
-                    .flatten(),
+                derive_chart_foot(carrier.eval(t0), surface).ok().flatten(),
+                derive_chart_foot(carrier.eval(t1), surface).ok().flatten(),
             )
         {
             let rising = f1.x > f0.x;
@@ -1370,7 +1394,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                         PcurveCertifyError::ResidualExceeded { .. }
                         | PcurveCertifyError::IsoUnsupported { .. },
                     ) => {}
-                    Err(error) => return Err(PcurveMintError::Certify { half_edge, error }),
+                    Err(error) => return Err(certify_refused(body, half_edge, error)),
                 },
                 refused => return refused,
             }
@@ -1392,8 +1416,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         if let Some(cause) = deferred {
             return Err(PcurveMintError::Escalated { half_edge, cause });
         }
-        derive_general_image(&carrier, (t0, t1), wall, half_edge)
+        derive_general_image(&carrier, (t0, t1), wall)
             .map(|image| Pcurve::General(std::sync::Arc::new(image)))
+            .map_err(|error| certify_refused(body, half_edge, error))
     };
     let own = half_edge_surface_key(body, half_edge);
     match half_edge_description(body, half_edge)? {
@@ -1424,7 +1449,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 p0: Point2::new(x, p0.y),
                 pl: Vec2::new(T::zero(), pl.y),
             };
-            let at_foot = derive_chart_foot(carrier.eval(t0), surface, half_edge)
+            let at_foot = derive_chart_foot(carrier.eval(t0), surface)
                 .ok()
                 .flatten()
                 .map(|foot| column(computed_foot::<T>(foot).x));
@@ -1533,7 +1558,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 ///
 /// # Errors
 ///
-/// [`PcurveMintError::Certify`] carrying
 /// [`PcurveCertifyError::FittedLaneUnsupported`] at a scalar with no
 /// certified lane (a dual body may not certify — D1), or the
 /// derivation's own typed refusal.
@@ -1541,15 +1565,11 @@ fn derive_general_image<T: AtRestPolicy>(
     carrier: &geom::Curve3<T>,
     params: (T, T),
     wall: &geom::NurbsSurface<T>,
-    half_edge: HalfEdgeKey,
-) -> Result<geom::NurbsCurve2<T>, PcurveMintError> {
-    let certify = |error| PcurveMintError::Certify { half_edge, error };
+) -> Result<geom::NurbsCurve2<T>, PcurveCertifyError> {
     let Some(lane) = T::fitted_lane() else {
-        return Err(certify(PcurveCertifyError::FittedLaneUnsupported {
-            scalar: T::NAME,
-        }));
+        return Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME });
     };
-    lane.general_image(carrier, params, wall).map_err(certify)
+    lane.general_image(carrier, params, wall)
 }
 
 /// The **certified chart foot** of one model-space point on this face's
@@ -1562,18 +1582,15 @@ fn derive_general_image<T: AtRestPolicy>(
 ///
 /// # Errors
 ///
-/// [`PcurveMintError::Certify`] when the projection will not converge.
+/// The lane's refusal when the projection will not converge.
 fn derive_chart_foot<T: AtRestPolicy>(
     point: geom_core::Point3<T>,
     surface: &Surface<T>,
-    half_edge: HalfEdgeKey,
-) -> Result<Option<geom_core::Point2<f64>>, PcurveMintError> {
+) -> Result<Option<geom_core::Point2<f64>>, PcurveCertifyError> {
     let (Some(wall), Some(lane)) = (surface.spline_chart(), T::fitted_lane()) else {
         return Ok(None);
     };
-    lane.chart_foot(point, wall)
-        .map(Some)
-        .map_err(|error| PcurveMintError::Certify { half_edge, error })
+    lane.chart_foot(point, wall).map(Some)
 }
 
 /// A chart foot [`derive_chart_foot`] measured, in `T`: Newton's
@@ -2940,10 +2957,7 @@ fn carry_rows<T: AtRestPolicy>(
             band,
             T::fitted_lane(),
         )
-        .map_err(|error| PcurveMintError::Certify {
-            half_edge: he,
-            error,
-        })?;
+        .map_err(|error| certify_refused(body, he, error))?;
         carried.push((he, restated, body.joint(he)));
     }
     Ok(carried)
@@ -3094,7 +3108,7 @@ fn derive_face<T: AtRestPolicy>(
                 refused.extend(
                     certs
                         .into_iter()
-                        .map(|(half_edge, error)| PcurveMintError::Certify { half_edge, error }),
+                        .map(|(half_edge, error)| certify_refused(body, half_edge, error)),
                 );
             }
         }
@@ -3104,7 +3118,7 @@ fn derive_face<T: AtRestPolicy>(
         first_owed::<T>(
             refused
                 .into_iter()
-                .map(|(half_edge, error)| PcurveMintError::Certify { half_edge, error })
+                .map(|(half_edge, error)| certify_refused(body, half_edge, error))
                 .collect(),
         )
     })
@@ -4021,7 +4035,7 @@ fn derive_image<T: AtRestPolicy>(
         // description (M6-3) — see `nurbs_iso_derive`.
         nurbs_iso_derive(body, he, surface, band)?
     } else {
-        analytic_derive(&carrier, t0, t1, surface, band, he)?
+        analytic_derive(body, &carrier, t0, t1, surface, band, he)?
     };
     Ok((carrier, t0, t1, base))
 }
@@ -5139,10 +5153,7 @@ pub fn chart_boundary<T: AtRestPolicy>(
         for w in &walked {
             if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
                 PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
-                    .map_err(|error| PcurveMintError::Certify {
-                        half_edge: w.key,
-                        error,
-                    })?;
+                    .map_err(|error| certify_refused(body, w.key, error))?;
             }
         }
         // The chord polygon is drawn on the loop's lift: each row with the
@@ -5386,10 +5397,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                     findings.push(e);
                 }
                 if let Err(error) = cache.recertify(&carrier, surface, band, lane) {
-                    findings.push(PcurveMintError::Certify {
-                        half_edge: he,
-                        error,
-                    });
+                    findings.push(certify_refused(body, he, error));
                 }
             }
         }
@@ -6855,6 +6863,7 @@ mod recourse_tests {
             PcurveMintError::Certify {
                 half_edge: HalfEdgeKey::default(),
                 error: certify_error.clone(),
+                authority: geom_brep::EdgeAuthority::<f64>::Derived.kind(),
             },
             PcurveMintError::LoopDiscontinuity {
                 half_edge: HalfEdgeKey::default(),
@@ -6944,6 +6953,7 @@ mod recourse_tests {
                     terminal_sliver: false,
                 },
             },
+            authority: geom_brep::EdgeAuthority::<f64>::Derived.kind(),
         };
         assert_eq!(
             finding.to_string(),
@@ -6968,8 +6978,7 @@ mod recourse_tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod derive_without_a_door {
-    use super::{PcurveMintError, derive_general_image};
-    use crate::entity::HalfEdgeKey;
+    use super::derive_general_image;
     use geom::{NurbsCurve3, NurbsSurface};
     use geom_brep::PcurveCertifyError;
     use geom_core::spline::KnotVector;
@@ -7001,13 +7010,8 @@ mod derive_without_a_door {
         .map_scalar(lift);
         let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(carrier));
         let params = (Dual64::from_f64(0.0), Dual64::from_f64(1.0));
-        let err =
-            derive_general_image(&carrier, params, &chart, HalfEdgeKey::default()).unwrap_err();
-        let PcurveMintError::Certify {
-            error: PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
-            ..
-        } = err
-        else {
+        let err = derive_general_image(&carrier, params, &chart).unwrap_err();
+        let PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" } = err else {
             panic!("a dual derives no general image, and says so by name: {err:?}");
         };
         let text = err.to_string();
@@ -9566,7 +9570,6 @@ mod from_computed_rows {
     use geom_core::{Point3, Real};
 
     use super::{computed_foot, derive_chart_foot};
-    use crate::entity::HalfEdgeKey;
     use crate::revalue_pin::{Revalued, S, revalued};
 
     /// A chart foot enters as computed values: the fitted lane's foot of
@@ -9589,7 +9592,7 @@ mod from_computed_rows {
                 .unwrap(),
             ));
             let point = Point3::new(x, S::from_f64(0.5) * x, S::zero());
-            let foot = derive_chart_foot(point, &chart, HalfEdgeKey::default())
+            let foot = derive_chart_foot(point, &chart)
                 .unwrap()
                 .expect("a spline chart at a certifying scalar measures a foot");
             let foot = computed_foot::<S>(foot);
