@@ -4,6 +4,8 @@ kind: issue
 title: A Meet row whose two cells are one tied name refuses MEET_OF_ONE as a kernel defect, though a legal tie can plausibly reach it
 status: open
 opened: 2026-10-20
+priority: P3
+cost: M
 ---
 
 

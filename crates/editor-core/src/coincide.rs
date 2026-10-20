@@ -816,8 +816,8 @@ pub(crate) struct RowInputs<'a> {
 /// # Panics
 ///
 /// For a cell of a body the node did not read: a result cell, which
-/// only the at-rest census records, or operand B's of a node that reads
-/// one body. The kernel records only the operands it was handed.
+/// only the at-rest census records and whose rows never come here, or
+/// operand B's of a node that reads one body. The kernel records only the operands it was handed.
 pub(crate) fn name_rows(
     rows: &[topo::Coincidence],
     inputs: &RowInputs<'_>,
@@ -834,8 +834,9 @@ pub(crate) fn name_rows(
                 })
                 .ok_or_else(unnamed),
             topo::RowCell::Result { cell } => unreachable!(
-                "a node's coincidence row names result cell {cell:?}, though only the at-rest \
-                 census records a result cell and a node's rows are its operation's"
+                "a node's coincidence row names result cell {cell:?}, though the at-rest census is \
+                 the only producer of a result cell (no import mints one) and its rows reach the \
+                 at-rest checks, never `name_rows`"
             ),
             topo::RowCell::Input { input, cell } => {
                 let (node, table) = match input {

@@ -115,9 +115,9 @@ pub struct Blended<T: Real> {
     /// `BlendNaming` with `Default` — would let a caller or a future
     /// assembly ship an EMPTY table indistinguishable from a full one.
     /// `None` is the state that says "this body has no birth records",
-    /// which `editor-core` refuses as a kernel bug rather than falling
-    /// back to unnamed geometry; an empty struct would be refused by
-    /// nothing.
+    /// which `editor-core` panics on as a kernel bug rather than
+    /// falling back to unnamed geometry; an empty struct would be
+    /// caught by nothing.
     pub naming: Option<super::naming::BlendNaming>,
     /// The coincidences the battery decided from values, in its order
     /// ([`super::BatteryVerdict::coincidences`]) and the source body's

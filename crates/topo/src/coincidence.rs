@@ -41,9 +41,10 @@ pub enum RowCell {
     /// The plane the operation cuts with (a split's tool): a carrier
     /// the operation reads, not a cell of any body.
     Tool,
-    /// A cell of the operation's own result, for an operation that
-    /// reads no body and decides on the one it makes (an import's
-    /// anchor).
+    /// A cell of the body the row was decided on, for a decision about
+    /// one body at rest rather than about an operation's inputs: the
+    /// at-rest census's rows ([`crate::census_rest_decision`] and its
+    /// contact rows) are the only ones that carry it.
     Result {
         /// The cell, in the result's keys.
         cell: Cell,

@@ -4,6 +4,8 @@ kind: issue
 title: given_pairs refuses UNION_VERDICTS_DISAGREE as a kernel defect where two independently decided pairwise verdicts disagree through one accumulation face's lineage, a values case
 status: open
 opened: 2026-10-20
+priority: P3
+cost: M
 ---
 
 

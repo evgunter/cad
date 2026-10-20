@@ -51,10 +51,17 @@ fn unresolved(rim: EdgeKey, l: usize, v: usize) -> ! {
 /// cardinality means the body and the bundle disagree.
 #[track_caller]
 fn cap_rim_contradicted(wall: FaceKey, cap: FaceKey, found: RimShare) -> ! {
-    unreachable!(
-        "swept wall {wall:?} and cap {cap:?} share {found:?} rim edges, though the sweep \
-         mints each wall meeting each cap along one rim, in the body it hands over with them"
-    )
+    match found {
+        RimShare::NotAdjacent => unreachable!(
+            "swept wall {wall:?} and cap {cap:?} share no edge, though the sweep mints each \
+             wall meeting each cap along one rim, in the body it hands over with them"
+        ),
+        RimShare::Several => unreachable!(
+            "swept wall {wall:?} and cap {cap:?} share more than one edge, though the sweep \
+             mints each wall meeting each cap along one rim, in the body it hands over with \
+             them"
+        ),
+    }
 }
 
 /// **A canonical position with no piece**: the pieces and the swept
@@ -71,19 +78,28 @@ fn no_piece(l: usize, at: &[usize]) -> ! {
 /// The piece canonical segment `k` of loop `l` is.
 #[track_caller]
 fn edge_at(pieces: &ProfilePieces, l: usize, k: usize) -> ProfileEdgeRef {
-    pieces.edge(l, k).unwrap_or_else(|| no_piece(l, &[k]))
+    match pieces.edge(l, k) {
+        Some(piece) => piece,
+        None => no_piece(l, &[k]),
+    }
 }
 
 /// The piece canonical vertex `v` of loop `l` is.
 #[track_caller]
 fn vertex_at(pieces: &ProfilePieces, l: usize, v: usize) -> ProfileVertexRef {
-    pieces.vertex(l, v).unwrap_or_else(|| no_piece(l, &[v]))
+    match pieces.vertex(l, v) {
+        Some(piece) => piece,
+        None => no_piece(l, &[v]),
+    }
 }
 
 /// The pieces the run of canonical segments `run` of loop `l` is.
 #[track_caller]
 fn run_at(pieces: &ProfilePieces, l: usize, run: &[usize]) -> PieceRun {
-    pieces.run(l, run).unwrap_or_else(|| no_piece(l, run))
+    match pieces.run(l, run) {
+        Some(pieces) => pieces,
+        None => no_piece(l, run),
+    }
 }
 
 /// **How a loft's per-position roles are spelled**: its walls and seams
@@ -96,29 +112,44 @@ impl Sections<'_> {
     /// The profile a cap end lies on.
     #[track_caller]
     fn end(&self, end: CapEnd) -> &ProfilePieces {
-        match end {
+        let section = match end {
             CapEnd::Start => self.0.first(),
             CapEnd::End => self.0.last(),
-        }
-        .unwrap_or_else(|| unreachable!("a loft skins two sections or more, so it has two ends"))
+        };
+        let Some(section) = section else {
+            unreachable!("a loft skins two sections or more, so it has two ends")
+        };
+        section
     }
 
     /// The wall at canonical segment `k` of loop `l`.
+    #[track_caller]
     fn wall(&self, l: usize, k: usize) -> RoleSeg {
-        RoleSeg::LoftWall(self.0.iter().map(|p| edge_at(p, l, k)).collect())
+        let mut pieces = Vec::with_capacity(self.0.len());
+        for p in self.0 {
+            pieces.push(edge_at(p, l, k));
+        }
+        RoleSeg::LoftWall(pieces)
     }
 
     /// The wall–wall edge at canonical vertex `v` of loop `l`.
+    #[track_caller]
     fn strut(&self, l: usize, v: usize) -> RoleSeg {
-        RoleSeg::LoftSeam(self.0.iter().map(|p| vertex_at(p, l, v)).collect())
+        let mut pieces = Vec::with_capacity(self.0.len());
+        for p in self.0 {
+            pieces.push(vertex_at(p, l, v));
+        }
+        RoleSeg::LoftSeam(pieces)
     }
 
     /// The rim where the wall at `(l, k)` meets the cap at `end`.
+    #[track_caller]
     fn rim(&self, end: CapEnd, l: usize, k: usize) -> RoleSeg {
         RoleSeg::RimEdge(end, edge_at(self.end(end), l, k).into())
     }
 
     /// The cap vertex at `end` over canonical vertex `v` of loop `l`.
+    #[track_caller]
     fn cap_vertex(&self, end: CapEnd, l: usize, v: usize) -> RoleSeg {
         RoleSeg::CapVertex(end, vertex_at(self.end(end), l, v))
     }
@@ -153,6 +184,13 @@ pub(crate) fn name_extrude<T: Decide>(
         let vertex = |c: usize| built.start_vertex(n, c);
         for wall in walls {
             let run: &[usize] = &wall.segments;
+            let Some(&lead) = run.first() else {
+                unreachable!(
+                    "extruded wall {:?} of loop {l} sweeps no segment, though the sweep mints \
+                     a wall per run of one segment or more",
+                    wall.face
+                );
+            };
             t.insert(
                 name1(
                     EntityKind::Face,
@@ -161,13 +199,6 @@ pub(crate) fn name_extrude<T: Decide>(
                 ),
                 ent(0, EntityKey::Face(wall.face)),
             )?;
-            let Some(&lead) = wall.segments.first() else {
-                unreachable!(
-                    "extruded wall {:?} of loop {l} sweeps no segment, though the sweep mints \
-                     a wall per run of one segment or more",
-                    wall.face
-                );
-            };
             t.insert(
                 name1(
                     EntityKind::Edge,
@@ -371,7 +402,6 @@ pub(crate) fn name_revolve<T: Decide>(
     for (l, bands) in built.bands.iter().enumerate() {
         let mut lr = Vec::with_capacity(bands.len());
         for band in bands {
-            let run = run_at(pieces, l, &band.segments);
             let Some(&first) = band.segments.first() else {
                 unreachable!(
                     "revolved wall {:?} of loop {l} sweeps no segment, though the sweep mints \
@@ -379,6 +409,7 @@ pub(crate) fn name_revolve<T: Decide>(
                     band.face
                 );
             };
+            let run = run_at(pieces, l, &band.segments);
             insert_face(&mut t, RoleSeg::Band(run.clone()), band.face)?;
             lr.push((first, run));
         }
@@ -437,14 +468,17 @@ pub(crate) fn name_revolve<T: Decide>(
                         // meridian of its chain beside it shares.
                         let ends = edge_ends(body, rim)?;
                         let beside = |chain: &[EdgeKey]| -> Result<VertexKey, NamingError> {
-                            [chain[(v + n - 1) % n], chain[v]]
+                            let Some(vertex) = [chain[(v + n - 1) % n], chain[v]]
                                 .iter()
                                 .map(|&m| Ok(common_vertex(ends, edge_ends(body, m)?)))
                                 .collect::<Result<Vec<_>, NamingError>>()?
                                 .into_iter()
                                 .flatten()
                                 .next()
-                                .map_or_else(|| unresolved(rim, l, v), Ok)
+                            else {
+                                unresolved(rim, l, v)
+                            };
+                            Ok(vertex)
                         };
                         insert_vertex(
                             &mut t,
@@ -501,7 +535,7 @@ pub(crate) fn name_revolve<T: Decide>(
                     if let Some(rim) = rims[v] {
                         let ends = edge_ends(body, rim)?;
                         let beside = [seam_chain[(v + n - 1) % n], seam_chain[v]];
-                        let seam = beside
+                        let Some(seam) = beside
                             .iter()
                             .flatten()
                             .map(|m| Ok(common_vertex(ends, edge_ends(body, *m)?)))
@@ -509,7 +543,9 @@ pub(crate) fn name_revolve<T: Decide>(
                             .into_iter()
                             .flatten()
                             .next()
-                            .unwrap_or_else(|| unresolved(rim, 0, v));
+                        else {
+                            unresolved(rim, 0, v)
+                        };
                         let pi = if ends.0 == seam { ends.1 } else { ends.0 };
                         insert_vertex(
                             &mut t,

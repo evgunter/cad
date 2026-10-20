@@ -3553,8 +3553,8 @@ fn in_member_space(
         // on a cylinder's axis, `CoaxialSphere`), which a fold step does
         // not decide: it runs with the pairwise judgement's verdicts
         // given (`topo::Verdicts::Given`), and a carrier pair's row is
-        // the judgement's. So no cell of one is widened, and it is
-        // refused if a step ever returns one made of several cells.
+        // the judgement's. So no cell of one is widened, and a step
+        // that returns one made of several cells is a kernel bug.
         _ => two(p, x, row.relation),
     }
 }

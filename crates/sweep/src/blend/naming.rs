@@ -50,7 +50,7 @@
 //! consumer (one IMPLEMENTATION, reached through both verbs' thin
 //! emitter doors). It reads every field, [`Retired`] included, but
 //! not all for one job: the mint rows are what it names FROM, while
-//! [`Retired`] is a GUARD, refusing an output key the records say
+//! [`Retired`] is a GUARD, panicking on an output key the records say
 //! was retired rather than naming it a survivor. That guard cannot
 //! fire while the arenas reissue no retired key; it holds the
 //! invariant against that changing.
