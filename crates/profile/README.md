@@ -260,18 +260,34 @@ applies is a fact of the loop's provenance, carried by its type.
     inexact) the stored arc is the arithmetic the construction ran,
     which can lose the digits its proof is about. So the path door
     reads the stored form back once against the authored data, before
-    the chain stores it, for every arc validation reads as an arc
-    (its sagitta definite; a segment read as a line keeps no carrier):
-    the arc's landing on its end vertex
-    (`seg::constructed_landing`), and a `Via` arc's carrier against the
-    through-point `q` it was authored by, which the stored form does not
-    keep (`seg::constructed_through_point`). A miss is a loud refusal
-    naming the step, the read and the miss:
-    `PathError::ArcMissesAuthoredPoint`, a kernel defect, where the
-    scene resolves the read; `PathError::ArcMissBelowSceneResolution`,
-    with its recourse, where it does not. A read in the band, or
-    poisoned, escalates. That read-back is the only place a point
-    scalar decides these facts, so none is decided twice.
+    the chain stores it (`seg::read_back_arc`):
+    - its start on its carrier (the stored radius);
+    - its landing on its end vertex;
+    - a `Via` arc's carrier against the through-point `q` it was
+      authored by, which the stored form does not keep;
+    - its branch: the stored arc's signed length against the turn
+      sense the construction authored from data other than its sweep
+      (a winding, a side, the side of the chord `q` or a target lies
+      on), since the other arc on the carrier lands exactly.
+
+    Every constructed arc is read, however flat its stored form, except
+    a `Bulge` leg whose authored bulge reads as a line: validation reads
+    it as the line it was authored as, keeping no carrier.
+
+    A miss is a loud refusal naming the step, the read, the authored
+    point and the miss: `PathError::ArcMissesAuthoredPoint`, a kernel
+    defect, where the miss stands clear of the read's own rounding at
+    its magnitude; `PathError::ArcMissBelowSceneResolution`, with its
+    recourse, where the scene cannot tell it from that rounding. A read
+    in the band, or poisoned, escalates, for every arc.
+
+    An arc whose end is on its carrier only to the door's inline
+    decision (`Facts::Decided`) is read like any other, except that its
+    landing read leaves out the radial part that decision admitted: the
+    end's distance from the centre against the start's. What is read is
+    the stored sweep, which no decision was about. So the read-back
+    decides only what no inline decision decided, and none of these
+    facts is decided twice.
 - Giving up the provenance (`ConstructedLoop::into_loop`) makes the loop
   a table again, and it is checked.
 

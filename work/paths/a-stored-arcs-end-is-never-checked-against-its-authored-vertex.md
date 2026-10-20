@@ -63,60 +63,69 @@ kernel issues will be mixed together with unfixable cases".
 **What the door reads.** At a point scalar (`T::WITNESS == Inexact`:
 `f64`, `Dual`, `Probe`, `Sym<f64>`), before the chain stores an arc
 (`Core::build`, after the fillet tangency re-read, and `circle_loop`),
-`path::arc_reads_back` reads, for every arc validation reads as an
-arc (`seg::reads_as_arc`, validation's own sagitta question, unlogged;
-a segment read as a line keeps no carrier), its landing on its end vertex
-(`seg::constructed_landing`, `path_arc_landing`, 16 ulps) and a `Via`
-arc's carrier against its authored `q` (`seg::constructed_through_point`,
-`path_arc_through_point`, 8 ulps). `q` travels on `BuiltArc::through`
-to the door and is not stored. Both go through `k_stats::check_unlogged`
-(audit row F23). Exact scalars do not run it.
+`seg::read_back_arc` reads it against what was authored:
+- its start on its carrier (`path_arc_start_on_carrier`, the stored radius);
+- its landing on its end vertex (`path_arc_landing`). For a
+  `Facts::Decided` arc the radial part its inline decision admitted is
+  left out, so what is read is the sweep;
+- a `Via` arc's carrier against `q` (`path_arc_through_point`). `q`
+  rides `BuiltArc::through` to the door and is never stored;
+- its branch (`path_arc_branch`): the stored r·Δθ signed by the turn
+  sense the construction authored from data other than its sweep. That
+  is the side of the chord `q` or a tangent's target lies on, a
+  winding, or a side.
 
-**Outcomes.** Zero passes. Off at a magnitude the scene resolves:
-`PathError::ArcMissesAuthoredPoint`, a kernel defect. Off past the
-scene's resolution: `PathError::ArcMissBelowSceneResolution`, with the
-recourse "move the shape nearer the origin, or use a coarser
-tolerance". Both name the step and its role, the verb, the read, the
-authored point, the miss, the magnitude and the rounding there. In the
-band or poisoned: `PathError::Escalated`, naming the read, with the same
-recourse. One exception: an arc whose end is on its carrier only to the
-door's own inline decision (`Facts::Decided`, a `Center` arc or a
-decided fillet tangency) passes an in-band landing, which that decision
-admitted; reading it again would decide it twice
-(`review_s2`'s drawn decided tangencies land 1.1e-9 to 1.3e-9 m off at
-ε = 1e-9).
+Every arc is read except a `Bulge` leg whose authored bulge reads as a
+line. All reads go through `k_stats::check_unlogged` (audit row F23).
+Exact scalars do not run any of it.
 
-**Teeth** (kept, `path::stored_arc_landing`, every ε row): the
-cancelling tangent, `Center` and `Via` arcs, spelled by hand as they
-stood before #5403, each refuse `ArcMissesAuthoredPoint` naming their
-read; the door's own arcs on the same probes pass; a miss past the
-scene's resolution refuses the sibling, naming its step and recourse;
-an in-band miss and a poisoned arc escalate. Mutating the guard to
-always pass reds the first three; inverting its resolution gate reds
-the first three and the sibling row.
+**Outcomes.** Zero passes. A miss clear of the read's own rounding at
+its magnitude by the band is `PathError::ArcMissesAuthoredPoint`, a
+kernel defect. A miss within that rounding is
+`PathError::ArcMissBelowSceneResolution`, with the recourse "move the
+profile nearer the origin, or author the arc with a smaller radius …;
+a coarser tolerance also reads it", shared with validation's
+`ArcBelowSceneResolution`. Both name the step and its role, the verb,
+the read, the authored point, the miss, the magnitude and the rounding.
+A read in the band, or poisoned, escalates, for every arc.
 
-**What moved.** Sound arcs on scenes the read cannot resolve now refuse
-at `f64` instead of storing: `tangent_arc_near_a_full_turn`'s
-1.37e7 and 1.37e8 rows at the default ε, its `Center` 1.37e6 row and its
-1e4 m short `Via` row at ε = 1e-12. Those rows now pin the refusal and
-its scale. Three viewer rows at 1e307 to 1.6e308 m now refuse at the
-door before the flattener (filed
+**Teeth** (kept: `path::stored_arc_landing`, `tests/arc_read_back_sweep.rs`
+and `tangent_arc_near_a_full_turn`). Each mutant below was run, and
+these went red:
+
+| mutant | rows that went red |
+|---|---|
+| the guard always passes | 10 `stored_arc_landing` rows |
+| the clearance gate inverted | 8 rows |
+| a decided arc's landing skipped | 2 rows |
+| a decided arc's in-band landing passed | 1 row |
+| the flat skip applied to every arc | 2 rows |
+| `split_half_tan`'s X → −1/X | every far-turn row, on `path_arc_branch` (tangent, `Center`, `Via`) |
+| the tangent arc's radius × (1 + 1e-9) | refuses on `path_arc_start_on_carrier` |
+| the cancelling first arm | tangent, `Center` and `Via` refuse at f64 |
+
+**The sweep found a live defect, fixed here.** A counterexample search
+over every arc mode at `f64` (`tests/arc_read_back_sweep.rs`) found 229
+`Via` legs near a full turn whose carrier sat off `q`, up to 4e-5 m at
+R = 1e6, on scenes that resolve the read. The cause was that
+`bulge_from_via` took its turn's cross term as `(q − a) × (b − q)`,
+which cancels. It now reads `(q − a) × (b − a)`, which is equal over
+the reals. The first counterexample is pinned
+(`the_sweeps_via_arc_near_a_full_turn_holds_its_through_point`).
+
+**What moved.** Sound arcs on scenes past the read's resolution now
+refuse at `f64` instead of storing. `tangent_arc_near_a_full_turn`
+pins which rows refuse at each ε (`REFUSES_PAST_RESOLUTION`). Three
+viewer rows at 1e307 to 1.6e308 m now refuse at the door, before the
+flattener (filed
 `issues/viewer-flattens-arc-arms-have-no-path-witness-after-the-door-read-back`).
 No symbolic receipt moves (`m10_9_pins_interval`, `m10_10`, `sym11`,
 `sym_9`, `m10_bulge`).
-
-**The sweep found a live defect, fixed here.** A counterexample search
-over every arc mode at `f64` (`tests/arc_read_back_sweep.rs`, about a
-million programs at three ε rows) found 229 `Via` legs near a full
-turn whose carrier sat off `q` (up to 4e-5 m at R = 1e6, 4.8e-8 m at
-R = 1.4e4) on scenes that resolve the read: `bulge_from_via` took its
-turn's cross term as `(q − a) × (b − q)`, two long, nearly opposed
-vectors whose product cancels to the short chord's scale. It now reads
-`(q − a) × (b − a)`, equal over the reals, and the sweep finds none.
-The first counterexample is pinned
-(`the_sweeps_via_arc_near_a_full_turn_holds_its_through_point`).
 
 **Not covered.** A `Via` arrival or fused incoming whose fillet fits
 exactly stores no arc on the `Via` carrier, so there is nothing stored
 to read against `q`. That residue stays on
 `a-via-arcs-carrier-is-never-checked-against-its-authored-through-point`.
+Arc fillets carry no authored sense yet, so their branch is not read.
+A line×line fillet's branch is not read either; its declared
+tangencies are, in the fillet re-read.

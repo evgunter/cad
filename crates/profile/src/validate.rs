@@ -2585,11 +2585,13 @@ impl<T: Decide> ConstructedProfile<T> {
     /// answer it, and the answers are compared against the record.
     ///
     /// An arc's three consistency checks are not decided at all
-    /// ([`Consistency::ByConstruction`]): each arc was verified at its
-    /// construction in the guided replay, at this scalar (D1) — a
-    /// `Center` arc by `path_arc_center_equidistant`, which the path
-    /// door decides inline, and a lowered arc by the exact witness of
-    /// the endpoint identities its lowering registers.
+    /// ([`Consistency::ByConstruction`]): each arc was checked at its
+    /// construction in the guided replay, at this scalar (D1). At an
+    /// exact scalar the check is the exact witness of the endpoint
+    /// identities its lowering registers, or the door's inline decision
+    /// (a `Center` arc's `path_arc_center_equidistant`); at a point
+    /// scalar it is the door's read-back of the stored arc against what
+    /// was authored (`seg::read_back_arc`).
     ///
     /// # Errors
     ///

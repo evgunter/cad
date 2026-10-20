@@ -4042,11 +4042,18 @@ impl<T: Decide> Core<T> {
             .line_fits(trims.fit_in, trims.fit_out)
             .map_err(PathError::Structure)?;
         let arc = fillet_arc_carrier(&trims, u2, pending.radius, sgn);
+        // The corner's decided turn is the fillet's turn sense: a left
+        // turn rounds counter-clockwise.
+        let sense = match turn {
+            Sign::Negative => ArcSweep::Cw,
+            Sign::Positive | Sign::Zero => ArcSweep::Ccw,
+        };
         let built = fillet_arc(
             arc,
             trims.bulge,
             fillet_facts(crate::Facts::Registered, trims.fit_in),
-        );
+        )
+        .sensed(sense);
         register_incoming_tangency(&built, trims.t1, u1, sgn * pending.radius, tol);
         // (5) incoming side emission: Positive fit emits the straight
         // piece + constructed joint (exactly the raw fillet's rule); Zero

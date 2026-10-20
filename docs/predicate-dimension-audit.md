@@ -1228,37 +1228,45 @@ Flagged, NOT fixed here (dispositions):
   `LEDGER_FLAGGED_SITES` 5 → 6.
 
 - **F23** (added by PATHS' stored-arc read-back unit)
-  `profile/src/seg.rs` `read_back`, reached through
-  `constructed_landing` and `constructed_through_point` from the path
-  door before a chain stores its arcs (`path::arc_reads_back`): a
-  constructed arc's landing on its end vertex, `‖landing(a) − b‖`
-  (`path_arc_landing`), a `Via` arc's carrier against its authored
-  through-point, `‖q − centre‖ − r` (`path_arc_through_point`), and
-  where either reads off, the headroom `K·ε/(ulps·2⁻⁵²) − scale`
-  (`path_arc_landing_resolution` at 16 ulps,
-  `path_arc_through_point_resolution` at 8), all in metres. All are
-  lengths, so `Margin::of` fits them dimensionally; what keeps them off
-  the logged doors is WHERE they run. Each fact is a theorem of its
-  construction over the reals, or holds to an inline decision (D1),
-  and this reads the arithmetic that delivered it on the witness lane
-  (`Witness::Inexact`) only: an exact scalar's stored arc encloses the
-  real one, so it has no miss to read, and a row there would re-decide
-  a registered identity on the enclosure's width. A logged
+  `profile/src/seg.rs` `read_back_arc` and its `read_back`, reached from
+  the path door before a chain stores its arcs (`path::arc_reads_back`):
+  a constructed arc read back against what was authored, all margins
+  in metres:
+  - `path_arc_start_on_carrier`: ‖a − centre‖ − r;
+  - `path_arc_landing`: ‖landing(a) − b‖, less |‖a − c‖ − ‖b − c‖|
+    for a `Facts::Decided` arc (the radial part its inline decision
+    admitted);
+  - `path_arc_through_point`: a `Via` arc's ‖q − centre‖ − r;
+  - `path_arc_branch`: r·Δθ signed by the authored turn sense, an
+    angle levered by its radius;
+  - and, behind a read that is off, `<read>_resolution`: the miss less
+    `ulps·2⁻⁵²·scale` (8 ulps for the rim reads, 16 for the landing and
+    the branch).
+
+  A `Bulge` leg's authored bulge is first asked validation's own
+  `segment_straightness` question (the signed sagitta,
+  `seg::sagitta`, the one spelling both use), unlogged, and a line is
+  not read.
+
+  All are lengths, so `Margin::of` fits them dimensionally; what keeps
+  them off the logged doors is WHERE they run. Each fact is a theorem
+  of its construction over the reals, or holds to an inline decision
+  (D1), and this reads the arithmetic that delivered it on the witness
+  lane (`Witness::Inexact`) only: an exact scalar's stored arc encloses
+  the real one, so it has no miss to read, and a row there would
+  re-decide a registered identity on the enclosure's width. A logged
   point-scalar row would be one a box build cannot have.
+
   **Carried as `k_stats::check_unlogged(.., "F23")`**, the door F18,
-  F20 and F21 use. Zero passes; off at a resolvable magnitude refuses
-  `PathError::ArcMissesAuthoredPoint`, off past it
+  F20 and F21 use. Zero passes (Positive, for the branch). Off and
+  clear of its rounding by the band refuses
+  `PathError::ArcMissesAuthoredPoint`; off within it refuses
   `PathError::ArcMissBelowSceneResolution`; in the band or poisoned
-  escalates, except an in-band landing of an arc whose end is on its
-  carrier only to the door's own inline decision (`Facts::Decided`),
-  which that decision admitted. Both reads are asked only of an arc
-  validation reads as an arc: `seg::reads_as_arc` asks validation's
-  own `segment_straightness` question (the signed sagitta, metres) the
-  same way, unlogged, and a segment read as a line or a sliver is left
-  to validation. A sample under either `_resolution`
-  name is a refused arc, so those two populations are the probe lane's
-  count of the read-back's refusals. Not a `decide_flagged` site;
-  `LEDGER_FLAGGED_SITES` does not move.
+  escalates, for every arc.
+
+  A sample under a `_resolution` name is a refused arc, so those
+  populations are the probe lane's count of the read-back's refusals.
+  Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

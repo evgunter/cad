@@ -747,10 +747,10 @@ fn an_arc_whose_radius_is_not_a_number_refuses_at_the_preview() {
 /// distinction produces.
 ///
 /// **The path door refuses it first.** At `f64` the door reads every
-/// arc it builds back against its end vertex before it stores it, and
-/// this arc's landing, taken about a centre that is not a point, is not
-/// a number, so the read escalates on `path_arc_landing` and the chain
-/// never reaches the flattener. The row pins that refusal.
+/// arc it builds back against what was authored before it stores it,
+/// and this arc's reads, taken about a centre that is not a point, are
+/// not numbers, so the read-back escalates and the chain never reaches
+/// the flattener. The row pins that refusal.
 #[test]
 fn an_arc_whose_centre_overflows_refuses_at_the_preview() {
     let tol = Tol::witness();
@@ -780,7 +780,9 @@ fn an_arc_whose_centre_overflows_refuses_at_the_preview() {
                 kind: PathErrorKind::Escalated,
                 ..
             }
-        ) && refusal.to_string().contains("lands on its end vertex"),
+        ) && refusal
+            .to_string()
+            .contains("move the profile nearer the origin"),
         "{refusal}",
     );
 }
@@ -893,10 +895,10 @@ fn a_vertex_past_the_exponent_range_refuses_at_the_preview() {
 /// the question is asked where a coordinate is MINTED.
 ///
 /// **The path door refuses it first.** At `f64` the door reads the arc
-/// back against its end vertex before it stores it, at a magnitude of
-/// about `1e308` m whose rounding no tolerance reaches below, so the
-/// chain refuses there, loudly, and never reaches the flattener. The
-/// row pins that refusal.
+/// back against what was authored before it stores it, at a magnitude
+/// of about `1e308` m that no read survives, so the chain refuses
+/// there, loudly, and never reaches the flattener. The row pins that
+/// refusal.
 #[test]
 fn an_arcs_far_side_past_the_range_refuses_though_its_frame_is_finite() {
     let tol = Tol::witness();
@@ -926,7 +928,9 @@ fn an_arcs_far_side_past_the_range_refuses_though_its_frame_is_finite() {
                 kind: PathErrorKind::ArcMissBelowSceneResolution | PathErrorKind::Escalated,
                 ..
             }
-        ) && refusal.to_string().contains("end vertex"),
+        ) && refusal
+            .to_string()
+            .contains("move the profile nearer the origin"),
         "{refusal}",
     );
 }
