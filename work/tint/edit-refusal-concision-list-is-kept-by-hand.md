@@ -12,12 +12,12 @@ cost: E
 Found by `wire-census2`'s sweep for the class of
 `kernel-payload-lists-in-the-concision-census-are-kept-by-hand`.
 
-`crates/viewer/tests/refusal_concision_edits.rs` says it renders
+`crates/viewer/tests/refusal_concision_edits.rs:6` says it renders
 "every `EditError` arm" through the status line and holds each to the
-budget. Its forwarded faults are welded by `witnesses` chains whose
+budget. Its forwarded faults are welded by `witnesses` chains (`:724`) whose
 `next` functions match with no wildcard, but the `EditError` list
 itself is kept by hand: a scripted comparison of its constructors
-against the enum (`crates/editor-core/src/edit.rs`) finds 12 of 92
+against the enum (`crates/editor-core/src/edit.rs:2131`) finds 12 of 92
 arms with no row — `PoseShape`, `IndexedRead`, `LoftSectionsSpelled`,
 `SetExtrudeSideOnNonExtrude`, `SharedVarNeedsName`, `FreshUnheld`,
 `FreshKind`, `FreshUnread`, `VarIsAnOutput`, `AppearanceBodyNotARead`,

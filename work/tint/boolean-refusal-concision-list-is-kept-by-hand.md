@@ -12,14 +12,13 @@ cost: E
 Found by `wire-census2`'s sweep for the class of
 `kernel-payload-lists-in-the-concision-census-are-kept-by-hand`, whose
 PR welds the feature-tree census's kernel lists to their enums
-(`every_forwarded_arm_has_a_row` in
-`crates/editor-core/tests/refusal_concision_chains.rs`).
+(`every_forwarded_arm_has_a_row`, `crates/editor-core/tests/refusal_concision_chains.rs:1389`).
 
-`rendered_boolean_refusals` in
-`crates/editor-core/tests/refusal_concision.rs` is the census's home
+`rendered_boolean_refusals`
+(`crates/editor-core/tests/refusal_concision.rs:159`) is the census's home
 for `topo::BooleanError`: the feature-tree census samples only its
 `Join` arm (the `Boolean/Join/` rows, twinned with `Split/Join/`), and
-its `forward` cites this row for `NodeErrorKind::Boolean`. The list
+its `forward` (`crates/editor-core/tests/refusal_concision_chains.rs:1185`, `UNWELDED_BOOLEAN`) cites this row for `NodeErrorKind::Boolean`. The list
 renders "every arm whose prose the concision pass wrote", by hand: a
 scripted comparison of its constructors against the enum finds 37 of
 76 arms, so 39 never render through the budget there — `Band`,
@@ -36,7 +35,7 @@ scripted comparison of its constructors against the enum finds 37 of
 `VolumeUndecided`, `UnrepresentableResult`, `GraftRecertify`,
 `Pieces`, `Revert`, `LineWedges`. Its `PointInSolidError` rows (through
 `BooleanError::Containment`) skip `InsideOut`, which the chains
-census's `separation_reasons` now renders.
+census's `separation_reasons` (`crates/editor-core/tests/refusal_concision_chains.rs:6241`) now renders.
 
 Some of these may render elsewhere (`Join` through the chains census's
 `Boolean/Join/` rows). Each wants a row or a reason in-file.

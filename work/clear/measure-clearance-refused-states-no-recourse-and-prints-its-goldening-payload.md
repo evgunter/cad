@@ -11,19 +11,18 @@ cost: M
 
 Found by `wire-census2`, whose PR gives each of
 `clearance::ClearanceRefusal`'s eleven arms a row in the feature-tree
-census (`every_forwarded_arm_has_a_row` in
-`crates/editor-core/tests/refusal_concision_chains.rs`; before it, one
+census (`every_forwarded_arm_has_a_row`, `crates/editor-core/tests/refusal_concision_chains.rs:1389`; before it, one
 arm had a row).
 
 `NodeErrorKind::MeasureClearanceRefused`'s `Display`
-(`crates/editor-core/src/eval/mod.rs`) renders "the clearance engine
+(`crates/editor-core/src/eval/mod.rs:2718`) renders "the clearance engine
 refused `{name}` ({payload})": the class name `ClearanceRefusal::name`
 gives the goldening form, then `said_payload`, which is
 `ClearanceRefusal::payload`'s machine channel for every arm but
-`Selection` (`crates/editor-core/src/clearance.rs`). So:
+`Selection` (`crates/editor-core/src/clearance.rs:577`, `payload` at `:674`). So:
 
 - **No arm states a recourse.** All eleven rows are on
-  `FILED_NO_RECOURSE` under a comment citing this file: `Sliver`,
+  `FILED_NO_RECOURSE` (`crates/editor-core/tests/refusal_concision_chains.rs:258`) under a comment citing this file: `Sliver`,
   `Budget`, `Unsupported`, `Selection`, `PoisonEnclosure`,
   `NothingCertified`, `NotADistance`, `EmptyScope`,
   `ToleranceHasNoBand`, `NoAdmittedPair`, `WitnessUnverified`.
@@ -32,7 +31,7 @@ gives the goldening form, then `said_payload`, which is
   prints the bound's bits (`bff0000000000000` for −1), and `Budget`
   prints `CellBudget`'s `Debug` (`Depth { max_cell_depth: 24 }`), which
   the shape guard reads as a `Debug` struct and a stage label. Each
-  span is on `ADMISSIONS` citing this file. (The `Unsupported` span
+  span is on `ADMISSIONS` (`crates/editor-core/tests/refusal_concision_chains.rs:200`) citing this file. (The `Unsupported` span
   was filed on `work/props/props-refusal-prose-outgrows-the-viewer.md`,
   which no longer exists.)
 

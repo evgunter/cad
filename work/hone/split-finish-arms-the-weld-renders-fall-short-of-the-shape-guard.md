@@ -11,12 +11,11 @@ cost: E
 
 Found by `wire-census2`, whose PR welds the feature-tree census's
 `Split/Finish/` rows to `topo::SplitFinishError`'s arms
-(`every_forwarded_arm_has_a_row` in
-`crates/editor-core/tests/refusal_concision_chains.rs`). The arms the
+(`every_forwarded_arm_has_a_row`, `crates/editor-core/tests/refusal_concision_chains.rs:1389`). The arms the
 roster turned up with no row render short of the standard:
 
-- **`ResultEscalated`** (`crates/topo/src/splitting/finish.rs`, its
-  `Display`) renders 94 words over the 75-word budget, and names the
+- **`ResultEscalated`** (`crates/topo/src/splitting/finish.rs:655`, its
+  `Display` at `:690`) renders 94 words over the 75-word budget, and names the
   aimed ray's two faces by key, on a payload of side `Below`,
   `BooleanDecision::ShellRole { near, far, others: 1 }` and a margin
   of 3e-10 in a ±1e-9 zero band: "the piece on the below side of the
@@ -27,9 +26,10 @@ roster turned up with no row render short of the standard:
   tolerance. Recourse: move the split plane or the geometry so the two
   faces the aimed ray met are clearly apart, or, if this gap is
   intended, tighten the tolerance below 3e-11 m". With `others: 0` it
-  is still over. No admission lets a budget breach stand, so the census
-  holds no row for it: `ROWLESS` cites this file.
-- **`Merge`** (a side's `MergeCoplanarError`, rendered whole) carries
+  is still over. The row stands on `OVER_BUDGET` (`crates/editor-core/tests/refusal_concision_chains.rs:104`) at a
+  ceiling of 94 words, citing this file, and its two face keys on
+  `ADMISSIONS`.
+- **`Merge`** (`finish.rs:673`, `Display` at `:874`; a side's `MergeCoplanarError`, rendered whole) carries
   the merge's stage label, names its edge by key and states no
   recourse, on `MergeCoplanarError::PeriodClosure`: "the piece on the
   above side of the plane: merge_coplanar_faces: killing shared edge
@@ -41,7 +41,6 @@ roster turned up with no row render short of the standard:
 ## Repair shape
 
 Bring `ResultEscalated` under the budget and name the faces in words,
-then give it a row in `split()`'s `finish` list and take it off
-`ROWLESS`. Have `Merge` drop the merge's stage label and key and end
+then take it off `OVER_BUDGET` and its keys off `ADMISSIONS`. Have `Merge` drop the merge's stage label and key and end
 in the merge's recourse (or the kernel-defect or not-yet ending), and
 drop its three admissions.

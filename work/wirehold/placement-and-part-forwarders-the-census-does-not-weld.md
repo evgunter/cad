@@ -11,25 +11,27 @@ blocked_on: [transform-retires-into-a-placement]
 
 
 Found by `wire-census2`, whose PR welds the feature-tree census
-(`every_forwarded_arm_has_a_row` in
-`crates/editor-core/tests/refusal_concision_chains.rs`) to the kernel
-and editor-core refusals `NodeErrorKind` forwards. `forward` cites this
+(`every_forwarded_arm_has_a_row`, `crates/editor-core/tests/refusal_concision_chains.rs:1389`) to the kernel
+and editor-core refusals `NodeErrorKind` forwards. `forward` (`crates/editor-core/tests/refusal_concision_chains.rs:1190`) cites this
 row (`UNWELDED_PLACEMENT`) for five arms on placement, datum and part
 ground:
 
 - `Part` forwards `parts::PartFault` (nine arms,
-  `crates/editor-core/src/eval/parts.rs`). `document_arms`' `parts`
-  list renders seven; `PartProduct` is in `part_products`, and
+  `crates/editor-core/src/eval/parts.rs:191`). `document_arms`' `parts`
+  list (`crates/editor-core/tests/refusal_concision_chains.rs:4913`) renders seven; `PartProduct` is in `part_products` (`crates/editor-core/tests/refusal_concision_chains.rs:5223`), and
   `Unresolved` is in the viewer's `instance_authoring.rs`, as the
   comment above the list says. The arms are covered across three
   lists that no roster ties.
-- `Transform` forwards `topo::TransformError` (nine arms), rendered by
-  `transform()`, with `ApproxRecertify` through `offset_fit_routes`.
-- `Motion` forwards `geom_core::RigidMotionError` (three arms),
-  rendered by `motion()`.
+- `Transform` forwards `topo::TransformError` (nine arms,
+  `crates/topo/src/transform.rs:114`), rendered by `transform()`
+  (`crates/editor-core/tests/refusal_concision_chains.rs:2884`), with `ApproxRecertify` through `offset_fit_routes`.
+- `Motion` forwards `geom_core::RigidMotionError` (three arms,
+  `crates/geom-core/src/linalg/rigid_motion.rs:301`), rendered by
+  `motion()` (`crates/editor-core/tests/refusal_concision_chains.rs:2925`).
 - `FaceFrameReadback` forwards `topo::readback::ReadbackError` (three
-  arms, each with a row).
-- `FrameDirection` forwards `DirectionRefusal`.
+  arms, `crates/topo/src/readback.rs:142`, each with a row).
+- `FrameDirection` forwards `DirectionRefusal`
+  (`crates/editor-core/src/eval/wire.rs:1504`).
 
 ## Parked on the D10 hold (2026-10-20, WIRE)
 

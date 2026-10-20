@@ -5,19 +5,21 @@
 //! a sentence the person holding the mouse reads, and a forwarding arm
 //! (`Extrude(e)`, `Split(e)`, `Mate(fault)`, …) reads the forwarded
 //! refusal's own sentence inside its wrapper. These rows render every
-//! `NodeErrorKind` arm, and every arm of each refusal a forwarding arm
-//! carries, the way the viewer draws it — `node 5 failed:` and the
-//! wrapper included — on a representative payload, and hold each to
-//! the budget [`refusal_concision`](crate::refusal_concision) states.
+//! `NodeErrorKind` arm, and the arms of what it forwards as far as the
+//! next paragraph says, the way the viewer draws it — `node 5 failed:`
+//! and the wrapper included — on a representative payload, and hold
+//! each to the budget [`refusal_concision`](crate::refusal_concision) states.
 //!
-//! **What "every arm" covers.** One level of forwarding is exhaustive:
-//! each `NodeErrorKind` arm, and each arm of the enum it forwards
-//! (a thin wrapper — `SplitError`, `ReplayError` — is looked through to
-//! the enum it wraps). A refusal forwarded two levels down (an
-//! `EulerOpError` inside `ExtrudeError::Op`, a `PcurveMintError` inside
-//! `RevolveError::Pcurve`) is rendered on one representative arm; its
-//! own enum's lengths are held by the `*-refusal-prose-outgrows-the-viewer`
-//! rows on its owner's slate.
+//! **What "every arm" covers.** Every `NodeErrorKind` arm has a row.
+//! A forwarding arm's payload is welded level by level, as deep as
+//! `forward` names a roster: `Split(e)` to `SplitError`'s arm and on to
+//! the stage refusal it carries, `SelectResolve` to `ResolveError` and a
+//! vanished name's `Diagnosis` (`every_forwarded_arm_has_a_row`). Below
+//! a level's last roster — an `EulerOpError` inside `ExtrudeError::Op`,
+//! a `PcurveMintError` inside `RevolveError::Pcurve` — a refusal is
+//! rendered on one representative arm. The arms `forward` files as
+//! unwelded (the D10-held mate, pose, part and placement refusals, and
+//! the Boolean's) render here on samples, each citing its row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -94,6 +96,16 @@ const KERNEL_KEYED: &[&str] = &[
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",
+];
+
+/// The rows admitted over the word budget, each at the most words it
+/// renders today and filed with its owner: a row over its ceiling, or
+/// under it with the ceiling standing, is red.
+const OVER_BUDGET: &[(&str, usize)] = &[
+    // work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    ("Profile/ArcBelowSceneResolution", 117),
+    // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    ("Split/Finish/ResultEscalated", 94),
 ];
 
 /// The clause labels a surface legitimately opens with that read, by
@@ -219,6 +231,12 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
         row: "Revolve/SmoothJoinRefuted",
         span: "EdgeKey(null)",
         filed: "work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+    },
+    // A shell-role escalation names the aimed ray's faces by key.
+    Admission {
+        row: "Split/Finish/ResultEscalated",
+        span: "FaceKey(null) and FaceKey(null)",
+        filed: "work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     // A merge refusal names its edge by key.
     Admission {
@@ -434,14 +452,37 @@ pub(crate) fn short_of_the_standard(
 ) -> Vec<String> {
     let mut problems = Vec::new();
     for (name, text) in rows {
-        eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
+        let words = text.split_whitespace().count();
+        eprintln!("MEASURE {words} {name}: {text}");
+        let ceiling = OVER_BUDGET
+            .iter()
+            .find_map(|(row, most)| (*row == name.as_str()).then_some(*most));
+        let breach = format!(
+            "{name} renders {words} words, over {}",
+            test_utils::refusal::BUDGET
+        );
         for problem in test_utils::refusal::problems_admitting(name, text, &[], false, ADMISSIONS) {
+            if let Some(most) = ceiling.filter(|_| problem.starts_with(&breach)) {
+                if words > most {
+                    problems.push(format!(
+                        "{name} renders {words} words, over its admitted {most}: {text}"
+                    ));
+                } else {
+                    used.insert(format!("OVER_BUDGET {name}"));
+                }
+                continue;
+            }
             match admission(name, text, &problem) {
                 Some(entry) => {
                     used.insert(entry);
                 }
                 None => problems.push(problem),
             }
+        }
+        if let Some(most) = ceiling.filter(|most| words < *most) {
+            problems.push(format!(
+                "{name} renders {words} words; lower its admission of {most}"
+            ));
         }
     }
     problems
@@ -555,6 +596,12 @@ fn every_admission_admits_a_row_it_is_needed_for() {
         FILED_NO_RECOURSE
             .iter()
             .map(|n| format!("FILED_NO_RECOURSE {n}"))
+            .filter(|e| !used.contains(e)),
+    );
+    stale.extend(
+        OVER_BUDGET
+            .iter()
+            .map(|(n, _)| format!("OVER_BUDGET {n}"))
             .filter(|e| !used.contains(e)),
     );
     stale.extend(
@@ -1055,16 +1102,62 @@ test_utils::f6_variants! {
     ];
 }
 
-/// One level of a forwarded payload: the roster of the refusal it
-/// carries at that depth, and the arm this row's payload takes there.
+/// Every roster the weld checks, by the refusal it is the census of.
+/// [`forward`] names a level's roster here, and the weld reds on an
+/// entry no row reached, so an arm reclassified away from its roster
+/// drops nothing silently.
+const ROSTERS: &[(&str, &[&str])] = {
+    use kernel::*;
+    &[
+        ("EvalError", EVAL_ERROR.identifiers()),
+        ("ParamBoxError", PARAM_BOX_ERROR.identifiers()),
+        ("SeedError", SEED_ERROR.identifiers()),
+        ("PlacementRuleFault", PLACEMENT_RULE_FAULT.identifiers()),
+        ("PiecesFault", PIECES_FAULT.identifiers()),
+        ("ResolveError", RESOLVE_ERROR.identifiers()),
+        ("Diagnosis", DIAGNOSIS.identifiers()),
+        ("BifurcationKind", BIFURCATION_KIND.identifiers()),
+        ("ClearanceRefusal", CLEARANCE_REFUSAL.identifiers()),
+        (
+            "NamingError",
+            crate::display_contract::NAMING_ERROR.identifiers(),
+        ),
+        (
+            "InterrogateError",
+            crate::display_contract::INTERROGATE_ERROR.identifiers(),
+        ),
+        ("ExtrudeError", EXTRUDE_ERROR.identifiers()),
+        ("RevolveError", REVOLVE_ERROR.identifiers()),
+        ("TubeError", TUBE_ERROR.identifiers()),
+        ("SkinError", SKIN_ERROR.identifiers()),
+        ("LoftError", LOFT_ERROR.identifiers()),
+        ("BlendError", BLEND_ERROR.identifiers()),
+        ("ProfileError", PROFILE_ERROR.identifiers()),
+        ("ReplayErrorKind", REPLAY_ERROR_KIND.identifiers()),
+        ("PathError", PATH_ERROR.identifiers()),
+        ("StructureRefusalKind", STRUCTURE_REFUSAL_KIND.identifiers()),
+        ("SplitError", SPLIT_ERROR.identifiers()),
+        ("SplitReduceError", SPLIT_REDUCE_ERROR.identifiers()),
+        ("SplitJoinError", SPLIT_JOIN_ERROR.identifiers()),
+        ("SplitFinishError", SPLIT_FINISH_ERROR.identifiers()),
+        ("ShellError", SHELL_ERROR.identifiers()),
+        ("ReplaceFaceError", REPLACE_FACE_ERROR.identifiers()),
+        ("PointInSolidError", POINT_IN_SOLID_ERROR.identifiers()),
+        ("BandError", BAND_ERROR.identifiers()),
+    ]
+};
+
+/// One level of a forwarded payload: the [`ROSTERS`] entry of the
+/// refusal it carries at that depth, and the arm this row's payload
+/// takes there.
 struct Level {
-    census: &'static [&'static str],
+    roster: &'static str,
     arm: String,
 }
 
-fn level(census: &'static [&'static str], payload: &impl core::fmt::Debug) -> Level {
+fn level(roster: &'static str, payload: &impl core::fmt::Debug) -> Level {
     Level {
-        census,
+        roster,
         arm: test_utils::f6::variant_identifier(payload),
     }
 }
@@ -1091,93 +1184,102 @@ const UNWELDED_PLACEMENT: &str =
     "work/wirehold/placement-and-part-forwarders-the-census-does-not-weld.md";
 const UNWELDED_BOOLEAN: &str = "work/tint/boolean-refusal-concision-list-is-kept-by-hand.md";
 
-/// The arms a weld holds no row for, by `{family}/{arm}`, each with
-/// the row that files why: its rendering breaks the word budget, which
-/// no admission lets stand. Read as rendered, so the roster still
-/// names them; one that gains a row goes red here.
-const ROWLESS: &[(&str, &str)] = &[
-    (
-        "Profile/ArcBelowSceneResolution",
-        "work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
-    ),
-    (
-        "Split/Finish/ResultEscalated",
-        "work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
-    ),
-];
-
-/// The one classification of every `NodeErrorKind` arm: a `match` with
-/// no wildcard, so a new arm is a decision here before it compiles.
+/// The one classification of every `NodeErrorKind` arm, and of each
+/// level below it: `match`es with no wildcard, so a new arm at any
+/// welded level is a decision here before it compiles.
 fn forward(kind: &NodeErrorKind) -> Forward {
-    use kernel::*;
     let welded = |levels| Forward::Welded {
         levels,
         labelled: true,
     };
-    let one = |census, payload: &dyn core::fmt::Debug| welded(vec![level(census, &payload)]);
+    let one = |roster, payload: &dyn core::fmt::Debug| welded(vec![level(roster, &payload)]);
     match kind {
         NodeErrorKind::Expr { source, .. }
         | NodeErrorKind::PoseScalar { source, .. }
         | NodeErrorKind::MeasureNonFinite { source }
-        | NodeErrorKind::PayloadExpr { source, .. } => one(EVAL_ERROR.identifiers(), source),
-        NodeErrorKind::ParamBox { source } => one(PARAM_BOX_ERROR.identifiers(), source),
-        NodeErrorKind::Seed { source } => one(SEED_ERROR.identifiers(), source),
-        NodeErrorKind::PlacementRule(e) => one(PLACEMENT_RULE_FAULT.identifiers(), e),
-        NodeErrorKind::Naming(e) => one(crate::display_contract::NAMING_ERROR.identifiers(), e),
+        | NodeErrorKind::PayloadExpr { source, .. } => one("EvalError", source),
+        NodeErrorKind::ParamBox { source } => one("ParamBoxError", source),
+        NodeErrorKind::Seed { source } => one("SeedError", source),
+        NodeErrorKind::PlacementRule(e) => one("PlacementRuleFault", e),
+        NodeErrorKind::Naming(e) => one("NamingError", e),
         NodeErrorKind::SelectResolve { error, .. } => {
-            let mut levels = vec![level(RESOLVE_ERROR.identifiers(), error)];
-            if let ResolveError::Vanished { diagnosis, .. } = &**error {
-                levels.push(level(DIAGNOSIS.identifiers(), diagnosis));
+            let mut levels = vec![level("ResolveError", error)];
+            match &**error {
+                ResolveError::Vanished { diagnosis, .. } => {
+                    levels.push(level("Diagnosis", diagnosis));
+                }
+                ResolveError::Ambiguous { .. }
+                | ResolveError::ReadGone { .. }
+                | ResolveError::NodeGone { .. } => {}
             }
             welded(levels)
         }
-        NodeErrorKind::ProfilePieces { fault } => one(PIECES_FAULT.identifiers(), fault),
-        NodeErrorKind::WitnessBifurcation(e) => one(BIFURCATION_KIND.identifiers(), &e.kind),
-        NodeErrorKind::MeasureClearanceRefused(e) => one(CLEARANCE_REFUSAL.identifiers(), e),
+        NodeErrorKind::ProfilePieces { fault } => one("PiecesFault", fault),
+        NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
+        NodeErrorKind::MeasureClearanceRefused(e) => one("ClearanceRefusal", e),
         // Labelled by the standing each carries, the names the filed
         // rows cite them by.
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Forward::Welded {
-            levels: vec![level(
-                crate::display_contract::INTERROGATE_ERROR.identifiers(),
-                error,
-            )],
+            levels: vec![level("InterrogateError", error)],
             labelled: false,
         },
-        NodeErrorKind::Profile(e) => one(PROFILE_ERROR.identifiers(), e),
+        NodeErrorKind::Profile(e) => one("ProfileError", e),
         NodeErrorKind::ProfileReplay { error, .. } => {
-            let mut levels = vec![level(REPLAY_ERROR_KIND.identifiers(), &error.kind)];
-            if let profile::ReplayErrorKind::Path(e) = &error.kind {
-                levels.push(level(PATH_ERROR.identifiers(), e));
+            let mut levels = vec![level("ReplayErrorKind", &error.kind)];
+            match &error.kind {
+                profile::ReplayErrorKind::Path(e) => levels.push(level("PathError", e)),
+                profile::ReplayErrorKind::Transition { .. } => {}
             }
             welded(levels)
         }
-        NodeErrorKind::ProfileLaneReplay { structure, .. } => welded(
-            structure
-                .iter()
-                .map(|s| level(STRUCTURE_REFUSAL_KIND.identifiers(), &s.kind))
-                .collect(),
-        ),
-        NodeErrorKind::Extrude(e) => one(EXTRUDE_ERROR.identifiers(), e),
-        NodeErrorKind::Revolve(e) => one(REVOLVE_ERROR.identifiers(), e),
-        NodeErrorKind::Tube(e) => one(TUBE_ERROR.identifiers(), e),
+        NodeErrorKind::ProfileLaneReplay { structure, .. } => match structure {
+            Some(s) => one("StructureRefusalKind", &s.kind),
+            None => welded(Vec::new()),
+        },
+        NodeErrorKind::Extrude(e) => one("ExtrudeError", e),
+        NodeErrorKind::Revolve(e) => one("RevolveError", e),
+        NodeErrorKind::Tube(e) => one("TubeError", e),
         NodeErrorKind::Split(e) => {
-            let mut levels = vec![level(SPLIT_ERROR.identifiers(), e)];
-            levels.extend(match e {
-                topo::SplitError::Reduce(e) => Some(level(SPLIT_REDUCE_ERROR.identifiers(), e)),
-                topo::SplitError::Join(e) => Some(level(SPLIT_JOIN_ERROR.identifiers(), e)),
-                topo::SplitError::Finish(e) => Some(level(SPLIT_FINISH_ERROR.identifiers(), e)),
-                topo::SplitError::Pcurves(_) | topo::SplitError::Pieces(_) => None,
-            });
+            let mut levels = vec![level("SplitError", e)];
+            match e {
+                topo::SplitError::Reduce(e) => levels.push(level("SplitReduceError", e)),
+                topo::SplitError::Join(e) => levels.push(level("SplitJoinError", e)),
+                topo::SplitError::Finish(e) => levels.push(level("SplitFinishError", e)),
+                topo::SplitError::Pcurves(_) | topo::SplitError::Pieces(_) => {}
+            }
             welded(levels)
         }
-        NodeErrorKind::Blend { error, .. } => one(BLEND_ERROR.identifiers(), error),
-        NodeErrorKind::Skin(e) => one(SKIN_ERROR.identifiers(), e),
-        NodeErrorKind::Loft(e) => one(LOFT_ERROR.identifiers(), e),
-        NodeErrorKind::Band(e) => one(BAND_ERROR.identifiers(), e),
+        NodeErrorKind::Blend { error, .. } => one("BlendError", error),
+        NodeErrorKind::Skin(e) => one("SkinError", e),
+        NodeErrorKind::Loft(e) => one("LoftError", e),
+        NodeErrorKind::Band(e) => one("BandError", e),
         NodeErrorKind::Shell(e) => {
-            let mut levels = vec![level(SHELL_ERROR.identifiers(), e)];
-            if let topo::ShellError::Face { error, .. } = &**e {
-                levels.push(level(REPLACE_FACE_ERROR.identifiers(), error));
+            use topo::ShellError as S;
+            let mut levels = vec![level("ShellError", e)];
+            match &**e {
+                S::Face { error, .. } => levels.push(level("ReplaceFaceError", error)),
+                S::Band { .. }
+                | S::Thickness { .. }
+                | S::NoSolid
+                | S::Roles { .. }
+                | S::Partition { .. }
+                | S::WallClearance { .. }
+                | S::OffsetsCross { .. }
+                | S::ChartSenseMixed { .. }
+                | S::OpenFaceStale { .. }
+                | S::OpenFaceRepeated { .. }
+                | S::OpenFacesExhaustShell { .. }
+                | S::OpenFacesDisconnect { .. }
+                | S::OpenFaceChartPartial { .. }
+                | S::Lift { .. }
+                | S::Insert { .. }
+                | S::OpenFaceRimNotExpressible { .. }
+                | S::Rim { .. }
+                | S::Escalated { .. }
+                | S::Pcurve { .. }
+                | S::RimSeamMixed { .. }
+                | S::Join { .. }
+                | S::NotValid { .. } => {}
             }
             welded(levels)
         }
@@ -1236,33 +1338,48 @@ fn forward(kind: &NodeErrorKind) -> Forward {
 }
 
 /// Whether `label` names `arms` in order, outermost first: each arm
-/// ends at the label's end or at a `/`, `(` or `)`, so a level reads as
-/// `{arm}/{arm}` or `{arm}({arm})`. What follows the last is free.
+/// ends at the label's end, at a `/`, at a `(` that opens the next
+/// level, or at the `)` closing one opened before it, so a level reads
+/// as `{arm}/{arm}` or `{arm}({arm})`. What follows the last is free.
 fn names_arms(label: &str, arms: &[&str]) -> bool {
-    let mut rest = label;
+    let (mut rest, mut open) = (label, 0usize);
     for arm in arms {
         let Some(after) = rest.strip_prefix(arm) else {
             return false;
         };
-        if !(after.is_empty() || after.starts_with(['/', '(', ')'])) {
-            return false;
+        let mut chars = after.chars();
+        match chars.next() {
+            None | Some('/') => {}
+            Some('(') => open += 1,
+            Some(')') if open > 0 => open -= 1,
+            Some(_) => return false,
         }
-        rest = after.get(1..).unwrap_or("");
+        rest = chars.as_str();
     }
     true
 }
 
 /// **Every `NodeErrorKind` arm has a row, and so does every arm of
-/// each refusal it forwards, at every level the census welds.**
+/// each refusal [`forward`] welds, at every level it welds**, and every
+/// [`ROSTERS`] entry is reached by some row.
 ///
 /// Each roster is an `f6_variants!` census, whose `match` rustc holds
 /// exhaustive (`NamingError`'s and `InterrogateError`'s are
-/// `display_contract`'s), and [`forward`] ties each forwarding arm to
-/// its rosters with no wildcard. The family a payload's arms are
-/// checked under is its row's `NodeErrorKind` arm followed by the arms
-/// of the levels above it (`Split/Reduce`), so a family cannot drop out
-/// of the check while the arm above it has a row, and the first census
-/// makes every arm have one.
+/// `display_contract`'s). [`forward`] picks each level's roster by an
+/// exhaustive `match`, and a roster no row reaches is reported, so an
+/// arm moved off its roster (to `Own`, or a level dropped) reds rather
+/// than leaving the roster's arms unchecked. The family a payload's
+/// arms are checked under is its row's `NodeErrorKind` arm followed by
+/// the arms of the levels above it (`Split/Reduce`), so a family cannot
+/// drop out of the check while the arm above it has a row, and the
+/// first census makes every arm have one. The separation finding's
+/// containment refusals (`check_findings`) are welded the same way, as
+/// the `Check/SeparationUnavailable/Containment` family.
+///
+/// What it does not weld: the arms [`forward`] files as `Unwelded` or
+/// `RenderedIn`, and any refusal below a level's last roster (a
+/// `PcurveMintError` inside `Split/Pcurves`, the `RevolveError` inside
+/// `Tube/Revolve`), each rendered on one sample.
 ///
 /// Each set difference guards one direction that can fire: an arm with
 /// no row. The other — a row whose arm is not in the census — cannot,
@@ -1283,22 +1400,33 @@ fn every_forwarded_arm_has_a_row() {
     )
     .into_iter()
     .collect();
-    let mut families: std::collections::BTreeMap<String, (&[&str], Vec<String>)> =
+    let mut families: std::collections::BTreeMap<String, (&'static str, Vec<String>)> =
         std::collections::BTreeMap::new();
-    let exists = |name: &str, filed: &str| {
+    let mut record = |name: &str, family: &str, levels: Vec<Level>, reports: &mut Vec<String>| {
+        let mut path = family.to_owned();
+        for Level { roster, arm } in levels {
+            let entry = families.entry(path.clone()).or_insert((roster, Vec::new()));
+            if entry.0 != roster {
+                reports.push(format!(
+                    "{name}: the {path}/ family is read as {} and as {roster}",
+                    entry.0
+                ));
+            }
+            entry.1.push(arm.clone());
+            path = format!("{path}/{arm}");
+        }
+    };
+    let gone = |name: &str, filed: &str| {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
             .join(filed);
-        assert!(
-            path.is_file(),
-            "{name}: its payload cites {filed}, which is gone"
-        );
+        (!path.is_file()).then(|| format!("{name}: its payload cites {filed}, which is gone"))
     };
     for ((name, kind), family) in rows.iter().zip(&kinds) {
         let (levels, labelled) = match forward(kind) {
             Forward::Welded { levels, labelled } => (levels, labelled),
             Forward::Unwelded(filed) | Forward::RenderedIn(filed) => {
-                exists(name, filed);
+                reports.extend(gone(name, filed));
                 continue;
             }
             Forward::Own => continue,
@@ -1313,29 +1441,26 @@ fn every_forwarded_arm_has_a_row() {
                 arms.join("/")
             ));
         }
-        let mut path = (*family).to_owned();
-        for Level { census, arm } in levels {
-            families
-                .entry(path.clone())
-                .or_insert((census, Vec::new()))
-                .1
-                .push(arm.clone());
-            path = format!("{path}/{arm}");
-        }
+        record(name, family, levels, &mut reports);
     }
-    for (path, filed) in ROWLESS {
-        exists(path, filed);
-        let (family, arm) = path.rsplit_once('/').expect("a family and an arm");
-        let arms = &mut families
-            .get_mut(family)
-            .unwrap_or_else(|| panic!("{path}: no {family}/ rows"))
-            .1;
-        if arms.iter().any(|a| a == arm) {
-            reports.push(format!("{path} has a row: take it off ROWLESS"));
+    let family = "Check/SeparationUnavailable/Containment";
+    for (label, e) in separation_reasons() {
+        let reason = level("PointInSolidError", &e);
+        if !names_arms(&label, &[reason.arm.as_str()]) {
+            reports.push(format!(
+                "{family}({label}): a row is named by its payload's arm, {}",
+                reason.arm
+            ));
         }
-        arms.push(arm.to_owned());
+        record(&label, family, vec![reason], &mut reports);
     }
-    for (family, (census, arms)) in &families {
+    for (family, (roster, arms)) in &families {
+        let Some((_, census)) = ROSTERS.iter().find(|(r, _)| r == roster) else {
+            reports.push(format!(
+                "the {family}/ rows read {roster}, which ROSTERS lacks"
+            ));
+            continue;
+        };
         let arms: Vec<&str> = arms.iter().map(String::as_str).collect();
         reports.extend(test_utils::census::set_difference(
             census,
@@ -1344,6 +1469,13 @@ fn every_forwarded_arm_has_a_row() {
             "rendered by a row and not an arm of the census",
             "an arm with no row: give it one",
         ));
+    }
+    for (roster, _) in ROSTERS {
+        if !families.values().any(|(r, _)| r == roster) {
+            reports.push(format!(
+                "no row reaches the {roster} roster: `forward` no longer reads it"
+            ));
+        }
     }
     assert!(reports.is_empty(), "{}", reports.join("\n"));
 }
@@ -1608,7 +1740,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     vec![
         row(
-            "ProfileLaneReplay",
+            "ProfileLaneReplay(NoStructure)",
             NodeErrorKind::ProfileLaneReplay {
                 loop_: 0,
                 step: 2,
@@ -2704,6 +2836,18 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "ResultEscalated",
+            F::ResultEscalated {
+                side: topo::PlaneSide::Below,
+                decision: topo::BooleanDecision::ShellRole {
+                    near: face,
+                    far: face,
+                    others: 1,
+                },
+                diag: diag(),
+            },
+        ),
+        (
             "Merge",
             F::Merge {
                 side: topo::PlaneSide::Above,
@@ -3767,6 +3911,15 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
         ("PlaneNotFinite", E::PlaneNotFinite),
         ("EmptyLoop", E::EmptyLoop { loop_index: 0 }),
         ("DegenerateSegment", E::DegenerateSegment(a)),
+        (
+            "ArcBelowSceneResolution",
+            E::ArcBelowSceneResolution {
+                at: a,
+                check: profile::ArcCheck::Landing,
+                margin: geom_core::MarginDiag::value(3.0e-10),
+                headroom: geom_core::MarginDiag::value(1.0e-9),
+            },
+        ),
         (
             "InconsistentArc",
             E::InconsistentArc {
@@ -5889,8 +6042,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     use payloads::*;
     use topo::{
         BooleanError, CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey,
-        PointInSolidError, ShellClassifyError, ShellKey, StructureRead, Unexaminable, Unexamined,
-        VertexKey,
+        ShellClassifyError, ShellKey, StructureRead, Unexaminable, Unexamined, VertexKey,
     };
     let shell = ShellKey::default();
     let finding = |check, evidence| CheckFinding {
@@ -6067,6 +6219,28 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     .into_iter()
     .map(|(n, f)| (n.to_owned(), f))
     .collect::<Vec<_>>();
+    for (n, e) in separation_reasons() {
+        let source = BooleanError::Containment(e);
+        rows.push((
+            format!("SeparationUnavailable/Containment({n})"),
+            finding(
+                CheckId::Separation,
+                E::SeparationUnavailable {
+                    refusal: source.into(),
+                },
+            ),
+        ));
+    }
+    rows
+}
+
+/// Every containment refusal the separation read can raise, by its
+/// arm (and, for the loop walk's escalation, every form a site of it
+/// raises): the payloads `check_findings` renders through
+/// `SeparationUnavailable`.
+fn separation_reasons() -> Vec<(String, topo::PointInSolidError)> {
+    use payloads::*;
+    use topo::{FaceKey, PointInSolidError};
     let face = FaceKey::default();
     let separation_reasons = [
         (
@@ -6148,20 +6322,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             },
         ),
     ];
-    let reached: Vec<String> = separation_reasons
-        .iter()
-        .map(|(_, e)| test_utils::f6::variant_identifier(e))
-        .collect();
-    let reached: Vec<&str> = reached.iter().map(String::as_str).collect();
-    if let Some(report) = test_utils::census::set_difference(
-        kernel::POINT_IN_SOLID_ERROR.identifiers(),
-        &reached,
-        "the SeparationUnavailable/Containment rows and PointInSolidError's arms disagree",
-        "rendered by a row and not an arm of the census",
-        "an arm with no row: give it one",
-    ) {
-        panic!("{report}");
-    }
     // The loop walk's escalation, in every form a site of it raises.
     let with = |margin| geom_core::Indeterminate { margin, ..diag() };
     let poisoned = with(geom_core::MarginDiag::INVALID);
@@ -6189,23 +6349,11 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             }),
         )
     });
-    let separation_reasons = separation_reasons
+    separation_reasons
         .into_iter()
         .map(|(n, e)| (n.to_owned(), e))
-        .chain(walk);
-    for (n, e) in separation_reasons {
-        let source = BooleanError::Containment(e);
-        rows.push((
-            format!("SeparationUnavailable/Containment({n})"),
-            finding(
-                CheckId::Separation,
-                E::SeparationUnavailable {
-                    refusal: source.into(),
-                },
-            ),
-        ));
-    }
-    rows
+        .chain(walk)
+        .collect()
 }
 
 /// **Every detail a blend refusal is raised with fits its chain.** The
