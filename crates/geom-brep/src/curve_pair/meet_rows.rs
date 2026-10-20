@@ -1714,6 +1714,57 @@ fn a_fillet_joint_between_two_ellipses_is_read_by_its_window() {
     }
 }
 
+/// **A rim touching its fillet circle's plane meets it at the joint alone
+/// at `ε = 10⁻¹²`.** The needle's rim, a rod of radius `0.1` cut so its
+/// ellipse's semi-axes are `6.406` and `0.1`, the quarter of it from its
+/// major vertex `J = (0.1, 0, 0)`, and a fillet's circle of radius `0.1`
+/// in `z = 0` ending at `J` tangent to it, and one of radius `0.2` tangent
+/// inside it there. The rim touches the circle's plane at `J`, so the
+/// plane root's window stays within the zero band of the circle over
+/// about `10⁶` rings; read on along the circle it holds the joint alone,
+/// whichever span is read first. Red at that band where the run is read
+/// by the first-order on readings alone: the window runs out of pieces
+/// and the root's polish meets parallel tangents (`Unsettled::Meter`).
+#[test]
+fn a_rim_touching_its_fillet_circles_plane_meets_it_at_the_joint_alone_at_a_fine_band() {
+    let fine = Band::new(1e-12, 1e-11).unwrap();
+    let big = 6.406_f64;
+    let (c, s) = (0.1 / big, (1.0 - (0.1 / big) * (0.1 / big)).sqrt());
+    let u = Vec3::new(c, 0.0, s);
+    let rim = Curve3::Ellipse {
+        center: Point3::new(0.1, 0.0, 0.0) - u * big,
+        axis: u.cross(Vec3::new(0.0, 1.0, 0.0)),
+        semi_u: big,
+        semi_v: 0.1,
+        u_ref: u,
+    };
+    for radius in [0.1, 0.2] {
+        let circle = Curve3::Circle {
+            center: Point3::new(0.1 - radius, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (sr, sc) = ((0.0, FRAC_PI_2), (-FRAC_PI_2, 0.0));
+        for (order, got) in [
+            (
+                "rim first",
+                meet(&Span::new(&rim, sr), &Span::new(&circle, sc), fine),
+            ),
+            (
+                "circle first",
+                meet(&Span::new(&circle, sc), &Span::new(&rim, sr), fine),
+            ),
+        ] {
+            let got = got.unwrap_or_else(|e| panic!("radius {radius}, {order}: {e:?}"));
+            assert!(
+                matches!(got.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+                "radius {radius}, {order}: the joint alone: {got:?}"
+            );
+        }
+    }
+}
+
 /// **A height harmonic whose highest point lies on the negative `û`
 /// axis is read clear of `atan2`'s cut.** A die's pip, as the corpus
 /// builds it and in the enclosures it carries at interval: the pip's rim
