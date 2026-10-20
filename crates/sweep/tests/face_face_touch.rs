@@ -1008,7 +1008,12 @@ mod rev2_probes {
         finished("brick", brick::<f64>(x, y, z, tol()), tol())
     }
 
-    fn op(o: topo::BooleanOp, x: &AtRestBody<f64>, y: &AtRestBody<f64>, ff: Vec<(topo::FaceKey, topo::FaceKey)>) -> Result<topo::BooleanBody<f64>, String> {
+    fn op(
+        o: topo::BooleanOp,
+        x: &AtRestBody<f64>,
+        y: &AtRestBody<f64>,
+        ff: Vec<(topo::FaceKey, topo::FaceKey)>,
+    ) -> Result<topo::BooleanBody<f64>, String> {
         let _ = ff;
         let got = match o {
             topo::BooleanOp::Union => topo::union(x, y, tol()),
@@ -1021,9 +1026,16 @@ mod rev2_probes {
         }
     }
 
-    fn bridge_onto(u: &topo::BooleanBody<f64>, bridge: &AtRestBody<f64>, carry: bool) -> Result<topo::BooleanBody<f64>, String> {
+    fn bridge_onto(
+        u: &topo::BooleanBody<f64>,
+        bridge: &AtRestBody<f64>,
+        carry: bool,
+    ) -> Result<topo::BooleanBody<f64>, String> {
         let records_a = if carry {
-            topo::OperandRecords { ff: u.contacts.carried().ff, ..topo::OperandRecords::default() }
+            topo::OperandRecords {
+                ff: u.contacts.carried().ff,
+                ..topo::OperandRecords::default()
+            }
         } else {
             topo::OperandRecords::default()
         };
@@ -1031,7 +1043,10 @@ mod rev2_probes {
             topo::BooleanOp::Union,
             &u.body,
             bridge,
-            &topo::BooleanInputs { records_a, ..topo::BooleanInputs::default() },
+            &topo::BooleanInputs {
+                records_a,
+                ..topo::BooleanInputs::default()
+            },
             topo::SweepStrategy::Realized,
             tol(),
         ) {
@@ -1042,11 +1057,19 @@ mod rev2_probes {
 
     fn short(e: &topo::ValidationError) -> String {
         match e {
-            topo::ValidationError::UnrecordedContact { contact, .. } => format!("Unrecorded({})", tag(contact)),
+            topo::ValidationError::UnrecordedContact { contact, .. } => {
+                format!("Unrecorded({})", tag(contact))
+            }
             topo::ValidationError::CuspEdgesMissing { .. } => "CuspEdgesMissing".into(),
-            topo::ValidationError::CensusEscalated { cause } => format!("Escalated({:?})", cause.predicate),
-            topo::ValidationError::CensusUnsupported { cause, .. } => format!("Unsupported({cause:?})"),
-            topo::ValidationError::ContactContradicted { .. } => format!("{e:?}").chars().take(160).collect(),
+            topo::ValidationError::CensusEscalated { cause } => {
+                format!("Escalated({:?})", cause.predicate)
+            }
+            topo::ValidationError::CensusUnsupported { cause, .. } => {
+                format!("Unsupported({cause:?})")
+            }
+            topo::ValidationError::ContactContradicted { .. } => {
+                format!("{e:?}").chars().take(160).collect()
+            }
             other => format!("{other:?}").chars().take(120).collect(),
         }
     }
@@ -1065,7 +1088,14 @@ mod rev2_probes {
     fn report(label: &str, r: &topo::BooleanBody<f64>, own: bool, probe: Option<[f64; 3]>) {
         let empty = topo::ContactRecords::default();
         let contacts = if own { &r.contacts } else { &empty };
-        let side = probe.map(|p| topo::point_in_solid(&r.body, geom_core::Point3::new(p[0], p[1], p[2]), Band::linear(tol()).unwrap(), tol()));
+        let side = probe.map(|p| {
+            topo::point_in_solid(
+                &r.body,
+                geom_core::Point3::new(p[0], p[1], p[2]),
+                Band::linear(tol()).unwrap(),
+                tol(),
+            )
+        });
         let v = topo::validate_pseudomanifold(&r.body, contacts, tol());
         let said = match &v {
             Ok(()) => "Ok".to_owned(),
@@ -1080,14 +1110,34 @@ mod rev2_probes {
     }
 
     /// plate ∪ rod (axis z, tangent to y = 2 at x = 0 + dx), then a bridge.
-    fn bridged(label: &str, s: f64, (dx, dy, dz): (f64, f64, f64), gap: f64, phase: f64, carry: bool) {
-        let plate = brk((-2.0 * s + dx, 2.0 * s + dx), (-2.0 * s + dy, 2.0 * s + dy), (dz, s + dz));
-        let rod = ext("rod", vec![circle(dx, 2.5 * s + gap + dy, 0.5 * s, phase)], 0.25 * s + dz, 0.5 * s);
+    fn bridged(
+        label: &str,
+        s: f64,
+        (dx, dy, dz): (f64, f64, f64),
+        gap: f64,
+        phase: f64,
+        carry: bool,
+    ) {
+        let plate = brk(
+            (-2.0 * s + dx, 2.0 * s + dx),
+            (-2.0 * s + dy, 2.0 * s + dy),
+            (dz, s + dz),
+        );
+        let rod = ext(
+            "rod",
+            vec![circle(dx, 2.5 * s + gap + dy, 0.5 * s, phase)],
+            0.25 * s + dz,
+            0.5 * s,
+        );
         let u = match op(topo::BooleanOp::Union, &plate, &rod, vec![]) {
             Ok(u) => u,
             Err(e) => return println!("PROBE {label}: plate ∪ rod refused {e}"),
         };
-        let bridge = brk((-1.0 * s + dx, 1.0 * s + dx), (1.0 * s + dy, 2.5 * s + gap + dy), (0.6 * s + dz, 1.6 * s + dz));
+        let bridge = brk(
+            (-1.0 * s + dx, 1.0 * s + dx),
+            (1.0 * s + dy, 2.5 * s + gap + dy),
+            (0.6 * s + dz, 1.6 * s + dz),
+        );
         match bridge_onto(&u, &bridge, carry) {
             Ok(r) => {
                 let p = [dx + 0.2 * s, 2.0 * s + dy + 0.01 * s, 0.4 * s + dz];
@@ -1111,7 +1161,14 @@ mod rev2_probes {
         bridged("gap 1.5 esc", 1.0, (0.0, 0.0, 0.0), 1.5 * esc, 0.0, false);
         bridged("gap 2.5 esc", 1.0, (0.0, 0.0, 0.0), 2.5 * esc, 0.0, false);
         bridged("seam on ruling", 1.0, (0.0, 0.0, 0.0), 0.0, pi / 2.0, false);
-        bridged("seam on ruling carried", 1.0, (0.0, 0.0, 0.0), 0.0, pi / 2.0, true);
+        bridged(
+            "seam on ruling carried",
+            1.0,
+            (0.0, 0.0, 0.0),
+            0.0,
+            pi / 2.0,
+            true,
+        );
         bridged("phase 0.3", 1.0, (0.0, 0.0, 0.0), 0.0, 0.3, false);
     }
 
@@ -1125,8 +1182,17 @@ mod rev2_probes {
             ("bore far 1e3", 0.0, 1.0, 1.0e3),
             ("bore scale 1e-2", 0.0, 1.0e-2, 0.0),
         ] {
-            let plate = brk((-2.0 * s + d, 2.0 * s + d), (-2.0 * s + d, 2.0 * s + d), (d, s + d));
-            let rod = ext("rod", vec![circle(d, 1.5 * s + d, 0.5 * s, phase)], 0.25 * s + d, 0.5 * s);
+            let plate = brk(
+                (-2.0 * s + d, 2.0 * s + d),
+                (-2.0 * s + d, 2.0 * s + d),
+                (d, s + d),
+            );
+            let rod = ext(
+                "rod",
+                vec![circle(d, 1.5 * s + d, 0.5 * s, phase)],
+                0.25 * s + d,
+                0.5 * s,
+            );
             match op(topo::BooleanOp::Subtract, &plate, &rod, vec![]) {
                 Ok(r) => {
                     let p = [d + 0.2 * s, 2.0 * s + d - 0.01 * s, 0.5 * s + d];
@@ -1146,11 +1212,20 @@ mod rev2_probes {
         let b = ext("rod b", vec![circle(1.0, 0.0, 0.5, 0.3)], 0.0, 1.0);
         match op(topo::BooleanOp::Union, &a, &b, vec![]) {
             Ok(u) => {
-                println!("PROBE rods ∪: solids {} ff {}", u.body.solids().count(), u.contacts.face_face().count());
+                println!(
+                    "PROBE rods ∪: solids {} ff {}",
+                    u.body.solids().count(),
+                    u.contacts.face_face().count()
+                );
                 let bridge = brk((-0.2, 1.2), (-0.1, 0.1), (0.8, 1.5));
                 for carry in [false, true] {
                     match bridge_onto(&u, &bridge, carry) {
-                        Ok(r) => report(&format!("rods bridged carry {carry}"), &r, carry, Some([0.5, 0.05, 0.4])),
+                        Ok(r) => report(
+                            &format!("rods bridged carry {carry}"),
+                            &r,
+                            carry,
+                            Some([0.5, 0.05, 0.4]),
+                        ),
                         Err(e) => println!("PROBE rods bridged: refused {e}"),
                     }
                 }
@@ -1173,28 +1248,58 @@ mod rev2_probes {
     #[test]
     fn rev2_split_plate_faces() {
         for (label, p1, p2) in [
-            ("split across z=0.5", ((-2.0, 2.0), (-2.0, 2.0), (0.0, 0.5)), ((-2.0, 2.0), (-2.0, 2.0), (0.5, 1.0))),
-            ("split along x=0", ((-2.0, 0.0), (-2.0, 2.0), (0.0, 1.0)), ((0.0, 2.0), (-2.0, 2.0), (0.0, 1.0))),
+            (
+                "split across z=0.5",
+                ((-2.0, 2.0), (-2.0, 2.0), (0.0, 0.5)),
+                ((-2.0, 2.0), (-2.0, 2.0), (0.5, 1.0)),
+            ),
+            (
+                "split along x=0",
+                ((-2.0, 0.0), (-2.0, 2.0), (0.0, 1.0)),
+                ((0.0, 2.0), (-2.0, 2.0), (0.0, 1.0)),
+            ),
         ] {
-            let plate = match op(topo::BooleanOp::Union, &brk(p1.0, p1.1, p1.2), &brk(p2.0, p2.1, p2.2), vec![]) {
+            let plate = match op(
+                topo::BooleanOp::Union,
+                &brk(p1.0, p1.1, p1.2),
+                &brk(p2.0, p2.1, p2.2),
+                vec![],
+            ) {
                 Ok(p) => p,
-                Err(e) => { println!("PROBE {label}: plate refused {e}"); continue; }
+                Err(e) => {
+                    println!("PROBE {label}: plate refused {e}");
+                    continue;
+                }
             };
-            let y2 = plate.body.faces().filter(|(k, _)| {
-                face_points(&plate.body, *k).iter().all(|v| (v[1] - 2.0).abs() < 1e-12)
-            }).count();
+            let y2 = plate
+                .body
+                .faces()
+                .filter(|(k, _)| {
+                    face_points(&plate.body, *k)
+                        .iter()
+                        .all(|v| (v[1] - 2.0).abs() < 1e-12)
+                })
+                .count();
             println!("PROBE {label}: plate faces on y = 2: {y2}");
             let plate = plate.body;
             let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.5);
             let u = match op(topo::BooleanOp::Union, &plate, &rod, vec![]) {
                 Ok(u) => u,
-                Err(e) => { println!("PROBE {label}: ∪ rod refused {e}"); continue; }
+                Err(e) => {
+                    println!("PROBE {label}: ∪ rod refused {e}");
+                    continue;
+                }
             };
             println!("PROBE {label} ∪ rod: ff {:?}", face_pairs(&u));
             let bridge = brk((-1.0, 1.0), (1.0, 2.5), (0.6, 1.6));
             for carry in [false, true] {
                 match bridge_onto(&u, &bridge, carry) {
-                    Ok(r) => report(&format!("{label} bridged carry {carry}"), &r, carry, Some([0.2, 2.01, 0.4])),
+                    Ok(r) => report(
+                        &format!("{label} bridged carry {carry}"),
+                        &r,
+                        carry,
+                        Some([0.2, 2.01, 0.4]),
+                    ),
                     Err(e) => println!("PROBE {label} bridged: refused {e}"),
                 }
             }
@@ -1217,7 +1322,9 @@ mod rev2_probes {
                 let bridge = brk((-1.0, 1.0), (1.0, 2.5), (1.2, 2.0));
                 for carry in [false, true] {
                     match bridge_onto(&u, &bridge, carry) {
-                        Ok(r) => report(&format!("endpoint bridged carry {carry}"), &r, carry, None),
+                        Ok(r) => {
+                            report(&format!("endpoint bridged carry {carry}"), &r, carry, None)
+                        }
                         Err(e) => println!("PROBE endpoint bridged: refused {e}"),
                     }
                 }
@@ -1249,7 +1356,11 @@ mod rev2_probes {
         for _ in 0..5 {
             let _ = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), tol());
         }
-        println!("PROBE cost: {faces} faces, 5 censuses {:?} (REV2_MUT={:?})", t.elapsed(), std::env::var("REV2_MUT").ok());
+        println!(
+            "PROBE cost: {faces} faces, 5 censuses {:?} (REV2_MUT={:?})",
+            t.elapsed(),
+            std::env::var("REV2_MUT").ok()
+        );
     }
 
     /// Internally tangent cylinders with nearly equal radii: κ_rel ≈ δ
@@ -1272,11 +1383,17 @@ mod rev2_probes {
             let rod = ext("rod", vec![circle(d, 0.0, 1.0 - d, 0.3)], 0.25, 0.5);
             let holed = match op(topo::BooleanOp::Subtract, &block, &hole, vec![]) {
                 Ok(h) => h.body,
-                Err(e) => { println!("PROBE void δ={k}esc hole refused {e}"); continue; }
+                Err(e) => {
+                    println!("PROBE void δ={k}esc hole refused {e}");
+                    continue;
+                }
             };
             let u = match op(topo::BooleanOp::Union, &holed, &rod, vec![]) {
                 Ok(u) => u,
-                Err(e) => { println!("PROBE void δ={k}esc ∪ rod refused {e}"); continue; }
+                Err(e) => {
+                    println!("PROBE void δ={k}esc ∪ rod refused {e}");
+                    continue;
+                }
             };
             let bridge = brk((-1.2, -0.5), (-0.1, 0.1), (0.4, 0.6));
             match bridge_onto(&u, &bridge, false) {
@@ -1290,7 +1407,10 @@ mod rev2_probes {
     /// wall piece on it into two: does the carried record land on both?
     #[test]
     fn rev2_bridge_across_the_line() {
-        for (label, y1) in [("across, rod half split", 2.6), ("across, rod cut through", 3.2)] {
+        for (label, y1) in [
+            ("across, rod half split", 2.6),
+            ("across, rod cut through", 3.2),
+        ] {
             let plate = brk((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0));
             let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.5);
             let u = op(topo::BooleanOp::Union, &plate, &rod, vec![]).unwrap();
@@ -1299,7 +1419,12 @@ mod rev2_probes {
                 match bridge_onto(&u, &bridge, carry) {
                     Ok(r) => {
                         println!("PROBE {label} carry {carry}: ff {:?}", face_pairs(&r));
-                        report(&format!("{label} carry {carry}"), &r, carry, Some([0.2, 2.01, 0.3]));
+                        report(
+                            &format!("{label} carry {carry}"),
+                            &r,
+                            carry,
+                            Some([0.2, 2.01, 0.3]),
+                        );
                     }
                     Err(e) => println!("PROBE {label}: bridge refused {e}"),
                 }
@@ -1318,17 +1443,45 @@ mod rev2_probes {
             let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.5);
             let u = match op(topo::BooleanOp::Union, &plate, &rod, vec![]) {
                 Ok(u) => u,
-                Err(e) => { println!("PROBE ends x1={k}esc ∪ refused {e}"); continue; }
+                Err(e) => {
+                    println!("PROBE ends x1={k}esc ∪ refused {e}");
+                    continue;
+                }
             };
-            println!("PROBE ends x1={k}esc ∪: solids {} records ff {} all {:?}", u.body.solids().count(), u.contacts.face_face().count(), u.contacts.kinds().count());
+            println!(
+                "PROBE ends x1={k}esc ∪: solids {} records ff {} all {:?}",
+                u.body.solids().count(),
+                u.contacts.face_face().count(),
+                u.contacts.kinds().count()
+            );
             let bridge = brk((-1.0, -0.2), (1.0, 2.5), (0.6, 1.6));
             for carry in [false, true] {
-                let records_a = if carry { u.contacts.carried() } else { topo::OperandRecords::default() };
-                match topo::boolean_op_with(topo::BooleanOp::Union, &u.body, &bridge,
-                    &topo::BooleanInputs { records_a, ..topo::BooleanInputs::default() },
-                    topo::SweepStrategy::Realized, tol()) {
-                    Ok(BooleanResult::Body(r)) => report(&format!("ends x1={k}esc carry-all {carry}"), &r, carry, None),
-                    other => println!("PROBE ends x1={k}esc bridge refused {:?}", other.map(|_| ())),
+                let records_a = if carry {
+                    u.contacts.carried()
+                } else {
+                    topo::OperandRecords::default()
+                };
+                match topo::boolean_op_with(
+                    topo::BooleanOp::Union,
+                    &u.body,
+                    &bridge,
+                    &topo::BooleanInputs {
+                        records_a,
+                        ..topo::BooleanInputs::default()
+                    },
+                    topo::SweepStrategy::Realized,
+                    tol(),
+                ) {
+                    Ok(BooleanResult::Body(r)) => report(
+                        &format!("ends x1={k}esc carry-all {carry}"),
+                        &r,
+                        carry,
+                        None,
+                    ),
+                    other => println!(
+                        "PROBE ends x1={k}esc bridge refused {:?}",
+                        other.map(|_| ())
+                    ),
                 }
             }
         }
