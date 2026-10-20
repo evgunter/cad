@@ -29,7 +29,7 @@ use std::collections::BTreeMap;
 use editor_core::{
     CapEnd, ContactClass, ContentPin, Coord, DocEdit, DocRef, DocumentId, EvalOptions, Node,
     NodeErrorKind, NodeResult, PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, TargetAxis, Value, product,
+    ResolveFault, SlideAxis, Value, product,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, run, square};
@@ -140,7 +140,7 @@ fn world_pinned(doc: ProfileDoc, instance: RecipeNodeId, opts: &EvalOptions) -> 
             .expect("an instance defines its copies"),
     );
     match editor_core::stand(&doc, &copy, opts, Tol::witness()) {
-        Ok(stood) => fixture::written(doc, instance, stood),
+        Ok(stood) => fixture::with_values(doc, instance, stood.mate, stood.values),
         Err(_) => {
             let mate = fixture::pin_mate(&doc, instance, &editor_core::Frame::IDENTITY, opts);
             fixture::constrain_at(doc, instance, mate).0
@@ -164,9 +164,9 @@ fn instantiating_pinned(
 /// last.
 ///
 /// The first level stands its instance where its body does
-/// ([`editor_core::stand`]); every level above writes the same identity
-/// bundle, which reads nothing of its part, so building the chain
-/// evaluates no part below the first.
+/// ([`world_pinned`]); every level above stands its instance by the
+/// same mate, read one part further down ([`relayed`]), so building
+/// the chain evaluates no part below the first.
 fn chain(levels: usize) -> (PartStore, Vec<DocRef>) {
     let mut store = PartStore::new();
     let mut refs = vec![store.insert(leaf(), Tol::witness())];
@@ -183,13 +183,74 @@ fn chain(levels: usize) -> (PartStore, Vec<DocRef>) {
                 editor_core::stand(&doc, &copy, &with_resolver(store.clone()), Tol::witness())
                     .expect("the first level's instance stands where its body does")
             }
-            Some(prev) => prev.clone(),
+            Some(prev) => relayed(&doc, instance, prev),
         };
-        let doc = fixture::written(doc, instance, here.clone());
+        let doc = fixture::with_values(doc, instance, here.mate.clone(), here.values.clone());
         stood = Some(here);
         refs.push(store.insert(doc, Tol::witness()));
     }
     (store, refs)
+}
+
+/// **The mate `prev` stood the instance below with, read through
+/// `instance`**: the same plane mate, flip and values, its face the one
+/// `instance`'s copy publishes for the face `prev` read — the part's
+/// product name under [`editor_core::RoleSeg::InPart`] at `instance`.
+fn relayed(
+    doc: &ProfileDoc,
+    instance: RecipeNodeId,
+    prev: &editor_core::Placed,
+) -> editor_core::Placed {
+    use editor_core::pose::PoseDef;
+    use editor_core::{Operand, RoleSeg, StableName};
+    let copy = doc
+        .output(instance, 0)
+        .expect("an instance defines its copies");
+    // A stand reads its copy's start cap, flipped where the copy looks
+    // down its z: the relay keeps the flip and re-reads the face.
+    let (face, flipped) = match &prev.mate.on {
+        Operand::Pose(def) => match &**def {
+            PoseDef::Flip { pose } => (&pose.read, true),
+            _ => (&prev.mate.on, false),
+        },
+        other => panic!("a standing mate reads a pose off its copy: {other:?}"),
+    };
+    let Operand::Pose(def) = face else {
+        panic!("a standing mate reads a pose off its copy: {face:?}")
+    };
+    let PoseDef::Plane {
+        face: Operand::Select { names, .. },
+    } = &**def
+    else {
+        panic!("a standing mate reads a face's plane: {def:?}")
+    };
+    let names = names
+        .iter()
+        .map(|n| StableName {
+            kind: n.kind,
+            node: instance,
+            path: vec![RoleSeg::InPart {
+                of: n.clone().into(),
+            }],
+        })
+        .collect();
+    let plane = Operand::Pose(Box::new(PoseDef::Plane {
+        face: Operand::Select {
+            body: Box::new(Operand::Var(copy)),
+            names,
+        },
+    }));
+    let mut mate = prev.mate.clone();
+    mate.on = if flipped {
+        crate::fixture::flip(plane)
+    } else {
+        plane
+    };
+    editor_core::Placed {
+        mate,
+        values: prev.values.clone(),
+        by: prev.by,
+    }
 }
 
 fn resolving(store: PartStore) -> EvalOptions {
@@ -529,8 +590,8 @@ fn mated(
     );
     let (doc, mate) = fixture::constrain_at(doc, ids[1], mate);
     let doc = [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
         (Coord::Spin, fixture::ang(0.0)),
     ]
     .into_iter()
@@ -540,7 +601,7 @@ fn mated(
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: Some(mate.id),
+                    mate: mate.id,
                     coord,
                     by,
                 }),

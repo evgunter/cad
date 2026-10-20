@@ -99,14 +99,11 @@ const EXTRUDE_LOG: usize = 655;
 /// validation, after the pre-pass in the Profile node's log.
 const LANE_OP: usize = 71;
 const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
-/// A placement standing where its body stands ([`fixture::place`]): the
-/// identity bundle, which the fold places by no map, deciding nothing.
-const PLACEMENT_LOG: usize = 0;
-/// Each instance's own op: its pin's fold off the identity (two datum
-/// normals and the map's seven rigidity margins, run as every
-/// placement but the identity bundle runs its map), then placement and
-/// validation of the placed body.
-const INSTANCE_LOG: usize = 465;
+/// A placement standing where its body stands ([`fixture::place`]): a
+/// `Plane` mate from its start cap to the world's xy, whose fold
+/// decides each side's two axes unit (four), each side's chart
+/// reference off its antipode (two) and the at-rest predicate once.
+const PLACEMENT_LOG: usize = 7;
 
 /// Two instances, both pinned to the world, so both ops do the same
 /// work. `o` reaches the part they copy.
@@ -145,7 +142,7 @@ fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
 fn the_instantiate_log_is_schedule_independent() {
     let (doc, ids, seq_opts) = two_instances("kstats-sched");
     let seq = logs(&run(&doc, &seq_opts), &ids);
-    assert_eq!(seq, [INSTANCE_LOG, INSTANCE_LOG]);
+    assert_eq!(seq, [466, 466]);
     let par_opts = EvalOptions {
         parallel: true,
         ..seq_opts.clone()
@@ -174,7 +171,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
     assert_eq!(
-        seq[0], 921,
+        seq[0], 922,
         "the outer op's own log over a two-solid part, and its pin's"
     );
     let par = logs(
@@ -206,7 +203,7 @@ fn a_node_memo_hit_carries_the_priors_log() {
     );
     assert_eq!(again.recomputed, 0, "every node was a memo hit");
     assert_eq!(logs(&again, &ids), logs(&first, &ids));
-    assert_eq!(logs(&again, &ids), [INSTANCE_LOG, INSTANCE_LOG]);
+    assert_eq!(logs(&again, &ids), [466, 466]);
 }
 
 /// **A cancelled prefix leaves no frame behind**: the run after a
@@ -284,7 +281,7 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     let outer = Bracket::open();
     let ev = run(&doc, &opts);
     let outside = outer.finish();
-    assert_eq!(logs(&ev, &ids), [INSTANCE_LOG, INSTANCE_LOG]);
+    assert_eq!(logs(&ev, &ids), [466, 466]);
     assert!(
         outside.verdicts.is_empty() && outside.escalations.is_empty(),
         "{outside:?}"

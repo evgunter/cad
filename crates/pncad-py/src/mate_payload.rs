@@ -254,11 +254,6 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             free: Some(*free),
             ..none
         },
-        MateFault::Unpinned { placement, free } => MateFaultPayload {
-            placement: Some(*placement),
-            free: Some(*free),
-            ..none
-        },
         MateFault::TargetsDiffer {
             placement,
             constraints,

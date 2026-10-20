@@ -31,18 +31,18 @@ use crate::fixture::{frame_at, slid, value_slot};
 
 use editor_core::{
     Coord, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
-    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis,
+    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlideAxis,
+    StableName,
 };
 use geom_core::Tol;
 
 /// `doc` with the placement `placed` slid to `to` along `axis` of its
 /// target's own frame. The values are charted on the target's flipped
 /// start cap, whose `y` runs along the target's `−y`.
-fn moved(doc: ProfileDoc, placed: RecipeNodeId, axis: TargetAxis, to: f64) -> ProfileDoc {
+fn moved(doc: ProfileDoc, placed: RecipeNodeId, axis: SlideAxis, to: f64) -> ProfileDoc {
     let slot = value_slot(&doc, placed, Coord::Slide(axis));
     let by = match axis {
-        TargetAxis::Y => -to,
+        SlideAxis::Y => -to,
         _ => to,
     };
     step(
@@ -667,7 +667,7 @@ fn a_boss_moved_onto_the_divider_is_the_border_delta() {
     let (doc, slab_id) = add(doc, Some(plate), &slab());
     let (doc, tr) = add(doc, Some(plate), &b((0.4, 0.8), (0.8, 1.2), (0.47, 1.03)));
     let (doc, u) = union_of(doc, &[plate, slab_id, tr], &[0, 1, 2]);
-    let doc2 = moved(doc.clone(), tr, TargetAxis::X, 0.65);
+    let doc2 = moved(doc.clone(), tr, SlideAxis::X, 0.65);
     let (plate_read, tr_read) = (out(&doc, plate), out(&doc, tr));
     let pieces = |ev: &Evaluation<f64>| -> BTreeSet<StableName> {
         table(ev, u)
@@ -1139,7 +1139,7 @@ fn a_bar_that_divides_no_tied_face_leaves_the_tie() {
         let (doc, tr) = block_on(doc.clone(), root, (3.9, 4.1), y, 2.5, 1.0);
         for order in permutations(&[0, 1]) {
             let (doc1, u) = union_of(doc.clone(), &[sub, tr], &order);
-            let doc2 = moved(doc1.clone(), tr, TargetAxis::Y, dy);
+            let doc2 = moved(doc1.clone(), tr, SlideAxis::Y, dy);
             let mut seen = Vec::new();
             for (at, d) in [("before", &doc1), ("after", &doc2)] {
                 let ev = run(d);
@@ -1182,7 +1182,7 @@ fn a_split_keeps_its_names_when_the_splitting_feature_moves() {
     for order in permutations(&[0, 1, 2]) {
         let (doc1, u) = union_of(doc.clone(), &[a, tr, s2], &order);
         let a_read = out(&doc1, a);
-        let doc2 = moved(doc1.clone(), tr, TargetAxis::X, 0.05);
+        let doc2 = moved(doc1.clone(), tr, SlideAxis::X, 0.05);
         let (ev1, ev2) = (run(&doc1), run(&doc2));
         for ev in [&ev1, &ev2] {
             assert!(failure(ev, u).is_none(), "{order:?}: {:?}", failure(ev, u));
@@ -1237,7 +1237,7 @@ fn a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it() {
     let labels = BTreeMap::from([(sub, "sub"), (tr, "bar")]);
     for order in permutations(&[0, 1]) {
         let (doc1, u) = union_of(doc.clone(), &[sub, tr], &order);
-        let doc2 = moved(doc1.clone(), tr, TargetAxis::Y, 1.5);
+        let doc2 = moved(doc1.clone(), tr, SlideAxis::Y, 1.5);
         let mut by_role = Vec::new();
         for (at, d) in [("before", &doc1), ("after", &doc2)] {
             let ev = run(d);

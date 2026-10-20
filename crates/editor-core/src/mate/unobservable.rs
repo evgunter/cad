@@ -83,7 +83,7 @@ pub fn unobservable(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> Vec<Uno
             }
             let Some(mate) = bundle
                 .iter()
-                .find(|m| Some(m.id) == value.mate)
+                .find(|m| m.id == value.mate)
                 .and_then(super::Constraint::mate)
             else {
                 continue;

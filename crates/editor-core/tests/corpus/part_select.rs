@@ -166,11 +166,11 @@ pub fn document() -> CorpusDoc {
         },
         vec![
             (
-                editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                editor_core::Coord::Slide(editor_core::SlideAxis::X),
                 len(0.0),
             ),
             (
-                editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                editor_core::Coord::Slide(editor_core::SlideAxis::Y),
                 len(0.0),
             ),
             (editor_core::Coord::Spin, crate::fixture::ang(0.0)),

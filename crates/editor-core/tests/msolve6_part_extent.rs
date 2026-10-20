@@ -23,7 +23,7 @@ use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
     MateFault, MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal,
-    RecipeNodeId, ResolveFault, Target, TargetAxis, Value, WorldRead, content_pin, product,
+    RecipeNodeId, ResolveFault, SlideAxis, Target, Value, WorldRead, content_pin, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, on_frame, revolve_about, run, solve};
@@ -161,7 +161,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: Some(mate.id),
+                mate: mate.id,
                 coord,
                 by,
             }),
@@ -192,8 +192,8 @@ fn seat(
         ),
     );
     let doc = [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ]
     .into_iter()
@@ -464,8 +464,8 @@ fn seated(
     );
     let mut seat = vec![rest];
     for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ] {
         let id = push(
@@ -473,7 +473,7 @@ fn seated(
             DocEdit::AddValue {
                 placement: b,
                 value: Box::new(Value {
-                    mate: Some(rest.id),
+                    mate: rest.id,
                     coord,
                     by,
                 }),
@@ -1061,12 +1061,10 @@ fn a6_a_split_pins_its_instance_where_it_stands_and_refuses_without_a_resolver()
     let placements = remainder.placements();
     assert_eq!(placements.len(), 1, "one instance is left behind");
     let bundle = fixture::bundle(remainder, placements[0]);
+    let mates: Vec<_> = bundle.iter().filter_map(|c| c.mate()).collect();
     assert!(
-        bundle.len() == 6
-            && bundle
-                .iter()
-                .all(|c| c.value().is_some_and(|v| v.mate.is_none())),
-        "the instance stands where it stands by the identity bundle: {bundle:?}"
+        matches!(mates.as_slice(), [m] if matches!(m.to, editor_core::Target::World(_))),
+        "the instance stands where it stands by one mate to the world: {bundle:?}"
     );
     assert!(
         matches!(split(None), Err(editor_core::SplitError::InstanceUnstood)),

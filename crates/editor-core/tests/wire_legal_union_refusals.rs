@@ -23,7 +23,7 @@ use crate::docm8_flat_merged::split_fixture;
 use crate::fixture::{insert, len, point, step, table, value_slot};
 use editor_core::{
     Bodies, Coord, DocEdit, EntityKey, Entry, NamingError, Node, NodeErrorKind, ProfileDoc,
-    Qualifier, RecipeNodeId, RoleSeg, StableName, TargetAxis,
+    Qualifier, RecipeNodeId, RoleSeg, SlideAxis, StableName,
 };
 use geom_core::{Point3, Tol};
 use std::collections::BTreeSet;
@@ -101,7 +101,7 @@ impl SunkBossCut {
     /// is charted on the plane its copy's start cap is mated to, which
     /// faces down, so its `y` runs against the world's.
     fn moved(&self, k: usize, y: f64) -> Self {
-        let slot = value_slot(&self.doc, self.placements[k], Coord::Slide(TargetAxis::Y));
+        let slot = value_slot(&self.doc, self.placements[k], Coord::Slide(SlideAxis::Y));
         let (doc, _) = step(
             self.doc.clone(),
             DocEdit::SetParam {

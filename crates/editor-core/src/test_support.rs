@@ -239,15 +239,36 @@ pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> Loop
 /// If a door refuses one.
 fn constrained(doc: ProfileDoc, placement: RecipeNodeId, placed: crate::Placed) -> ProfileDoc {
     let tol = geom_core::Tol::witness();
-    let mut doc = doc;
+    let step = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| {
+        crate::apply(doc, &edit, tol).expect("a placement's constraint applies")
+    };
+    let mated = step(
+        &doc,
+        DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(placed.mate),
+            fresh: Vec::new(),
+        },
+    );
+    let mate = *mated
+        .record
+        .minted_constraints
+        .first()
+        .expect("a mate mints its id");
     placed
-        .write(placement, |edit| {
-            let applied = crate::apply(&doc, &edit, tol)?;
-            doc = applied.doc;
-            Ok::<_, crate::EditError>(applied.record.minted_constraints)
+        .values
+        .into_iter()
+        .fold(mated.doc, |doc, (coord, by)| {
+            step(
+                &doc,
+                DocEdit::AddValue {
+                    placement,
+                    value: Box::new(crate::mate::Value { mate, coord, by }),
+                    fresh: Vec::new(),
+                },
+            )
+            .doc
         })
-        .expect("a placement's constraint applies");
-    doc
 }
 
 /// **A placement of `body`**, inserted with no constraint yet.

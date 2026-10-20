@@ -433,7 +433,7 @@ pub fn mate_into(
             DocEdit::AddValue {
                 placement,
                 value: Box::new(pncad::document::Value {
-                    mate: Some(id),
+                    mate: id,
                     coord,
                     by,
                 }),

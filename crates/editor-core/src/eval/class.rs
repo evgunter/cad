@@ -209,8 +209,6 @@ pub enum NodeErrorClass {
     MateClassNotAdmitted,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Overconstrained`].
     MateOverconstrained,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unpinned`].
-    MateUnpinned,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::TargetsDiffer`].
     MateTargetsDiffer,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotOnTheCopy`].
@@ -374,7 +372,6 @@ impl NodeErrorClass {
             MateFault::PosesOfAnotherDocument { .. } => Self::MatePosesOfAnotherDocument,
             MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
-            MateFault::Unpinned { .. } => Self::MateUnpinned,
             MateFault::TargetsDiffer { .. } => Self::MateTargetsDiffer,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
@@ -501,7 +498,6 @@ mod tests {
         MatePosesOfAnotherDocument,
         MateClassNotAdmitted,
         MateOverconstrained,
-        MateUnpinned,
         MateTargetsDiffer,
         MateNotOnTheCopy,
         MateUnleverable,
@@ -867,10 +863,6 @@ mod tests {
                 constraints: vec![c(1), c(2)],
                 free: 1,
             }),
-            C::MateUnpinned => mate(crate::MateFault::Unpinned {
-                placement: n(6),
-                free: 2,
-            }),
             C::MateTargetsDiffer => mate(crate::MateFault::TargetsDiffer {
                 placement: n(6),
                 constraints: vec![c(1), c(2)],
@@ -904,7 +896,7 @@ mod tests {
             }),
             C::MateNotAFreedom => mate(crate::MateFault::NotAFreedom {
                 value: m(9),
-                coord: crate::mate::Coord::Slide(crate::mate::TargetAxis::Z),
+                coord: crate::mate::Coord::Slide(crate::mate::SlideAxis::Z),
                 kind: crate::VarKind::Plane,
             }),
             C::MateNoChart => mate(crate::MateFault::NoChart {

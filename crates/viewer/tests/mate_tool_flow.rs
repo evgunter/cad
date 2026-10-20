@@ -156,7 +156,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
 /// (`Coord::admitted_by`).
 #[test]
 fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
-    use pncad::document::{Coord, FreedomRefusal, TargetAxis, VarKind};
+    use pncad::document::{Coord, FreedomRefusal, SlideAxis, VarKind};
     let tol = Tol::witness();
     let bench = asm::bench("matetable", tol);
     let session = asm::open_bench(&bench, tol);
@@ -194,7 +194,7 @@ fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
     assert_eq!(
         (coord, kind, refusal),
         (
-            Coord::Slide(TargetAxis::X),
+            Coord::Slide(SlideAxis::X),
             VarKind::Axis,
             FreedomRefusal::NotAFreedom
         )
@@ -355,7 +355,7 @@ fn shelf_on(
     let mut choice = asm::seat_choice();
     for (coord, by) in &mut choice.values {
         *by = match coord {
-            pncad::document::Coord::Spin | pncad::document::Coord::SpinAbout(_) => ang(0.0),
+            pncad::document::Coord::Spin => ang(0.0),
             pncad::document::Coord::Slide(_) => len(0.0),
         };
     }

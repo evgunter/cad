@@ -30,7 +30,7 @@ use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, EvalOptions,
     Evaluation, FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind,
     NodeResult, PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE,
-    RecipeNodeId, RoleSeg, SlotId, StableName, Target, TargetAxis, Value, VarDef, VarKind,
+    RecipeNodeId, RoleSeg, SlideAxis, SlotId, StableName, Target, Value, VarDef, VarKind,
     all_faces, face_carrier_kind, face_frame, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -103,7 +103,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: Some(mate.id),
+                mate: mate.id,
                 coord,
                 by,
             }),
@@ -135,8 +135,8 @@ fn seated_on(
         ),
     );
     let doc = [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ]
     .into_iter()
@@ -217,8 +217,8 @@ fn stood_on_its_base(doc: ProfileDoc, instance: RecipeNodeId, body: RecipeNodeId
         instance,
         mate,
         vec![
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Slide(SlideAxis::X), len(0.0)),
+            (Coord::Slide(SlideAxis::Y), len(0.0)),
             (Coord::Spin, ang(0.0)),
         ],
     )

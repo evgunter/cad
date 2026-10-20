@@ -127,7 +127,7 @@ fn place_pip(
     pip: RecipeNodeId,
     p: &([f64; 3], [f64; 3], f64),
 ) -> (TDoc, RecipeNodeId) {
-    use editor_core::{Coord, Operand, TargetAxis};
+    use editor_core::{Coord, Operand, SlideAxis};
     let (t, _, a) = p;
     let (doc, placement) = step(
         doc,
@@ -162,8 +162,8 @@ fn place_pip(
     log.push(edit);
     let id = applied.record.minted_constraints[0];
     let doc = [
-        (Coord::Slide(TargetAxis::X), len(t[0])),
-        (Coord::Slide(TargetAxis::Y), len(t[1])),
+        (Coord::Slide(SlideAxis::X), len(t[0])),
+        (Coord::Slide(SlideAxis::Y), len(t[1])),
         (Coord::Spin, ang(*a)),
     ]
     .into_iter()
@@ -174,7 +174,7 @@ fn place_pip(
             TEdit::AddValue {
                 placement,
                 value: Box::new(editor_core::Value {
-                    mate: Some(id),
+                    mate: id,
                     coord,
                     by,
                 }),

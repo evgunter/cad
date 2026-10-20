@@ -25,7 +25,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
     MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId,
-    SitedFace, Space, TargetAxis, Value, evaluate,
+    SitedFace, SlideAxis, Space, Value, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, solve, step};
 use geom_core::Tol;
@@ -147,7 +147,7 @@ impl Scene {
             &DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: Some(mate.id),
+                    mate: mate.id,
                     coord,
                     by,
                 }),
@@ -176,8 +176,8 @@ impl Scene {
     /// which pin it.
     fn seat_on_base(&mut self, block: RecipeNodeId, x: f64, y: f64) -> MateRef {
         let rest = self.rest_on_base(block, 0.0);
-        self.value(rest, Coord::Slide(TargetAxis::X), len(x));
-        self.value(rest, Coord::Slide(TargetAxis::Y), len(y));
+        self.value(rest, Coord::Slide(SlideAxis::X), len(x));
+        self.value(rest, Coord::Slide(SlideAxis::Y), len(y));
         self.value(rest, Coord::Spin, ang(0.0));
         rest
     }
@@ -193,8 +193,8 @@ impl Scene {
                 ContactClass::Rest,
             ),
         );
-        self.value(rest, Coord::Slide(TargetAxis::X), len(0.0));
-        self.value(rest, Coord::Slide(TargetAxis::Y), len(0.0));
+        self.value(rest, Coord::Slide(SlideAxis::X), len(0.0));
+        self.value(rest, Coord::Slide(SlideAxis::Y), len(0.0));
         self.value(rest, Coord::Spin, ang(0.0));
         rest
     }

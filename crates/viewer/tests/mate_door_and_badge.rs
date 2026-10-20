@@ -119,11 +119,7 @@ fn the_at_rest_badge_checks_a_loose_space() {
                 &mut doc,
                 DocEdit::AddValue {
                     placement: post,
-                    value: Box::new(Value {
-                        mate: Some(mate),
-                        coord,
-                        by,
-                    }),
+                    value: Box::new(Value { mate, coord, by }),
                     fresh: Vec::new(),
                 },
             );

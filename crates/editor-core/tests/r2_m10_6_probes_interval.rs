@@ -174,7 +174,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
     let slide_x = fixture::value_slot(
         &r.doc,
         placed,
-        editor_core::Coord::Slide(editor_core::TargetAxis::X),
+        editor_core::Coord::Slide(editor_core::SlideAxis::X),
     );
     r.push(DocEdit::SetParam {
         node: placed,

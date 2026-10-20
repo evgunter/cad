@@ -350,8 +350,8 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
                 editor_core::Constraint {
                     id: editor_core::ConstraintId(editor_core::MintId::new(0, 1)),
                     kind: editor_core::ConstraintKind::Value(editor_core::Value {
-                        mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 0))),
-                        coord: editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 0)),
+                        coord: editor_core::Coord::Slide(editor_core::SlideAxis::X),
                         by: len(0.2),
                     }),
                 },

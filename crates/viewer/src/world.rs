@@ -48,9 +48,8 @@ fn placed_vars(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Vec<VarId>
 
 /// **The root of the loose space `node`'s value lives in**, read off
 /// its recipe (D10, Spaces), or `None` for the world's: a placement
-/// with an empty bundle is a loose copy of its own, one with values and
-/// no mate, or whose mates read the world, is the world's, one whose
-/// mates read a pose joins the space of
+/// with no mate is a loose copy of its own, one whose mates read the
+/// world is the world's, one whose mates read a pose joins the space of
 /// the body the pose is read off; a construction is the root of its
 /// own space, and any other node joins the first loose space among the
 /// operands it reads.
@@ -64,8 +63,7 @@ pub fn loose_root(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<Recip
     match held {
         Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
             match constraints.iter().find_map(|c| c.mate()) {
-                None if constraints.is_empty() => Some(node),
-                None => None,
+                None => Some(node),
                 Some(mate) => match &mate.to {
                     Target::World(_) => None,
                     Target::Pose(var) => read_space(*var),

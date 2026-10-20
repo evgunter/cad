@@ -25,7 +25,7 @@ use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, Entry,
     EvalOptions, Evaluation, Formula, MateFault, MateRef, MateSide, Node, NodeErrorKind,
     NodeResult, NodeStanding, PartFault, PatternKind, ProductError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, StableName, TargetAxis, Value,
+    RoleSeg, SitedFace, SlideAxis, StableName, Value,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, gate, insert, len, on_frame, run, scl};
@@ -153,8 +153,8 @@ fn seat(
         fixture::rest(bottom, base_top, ContactClass::Rest),
     );
     for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(1.0)),
-        (Coord::Slide(TargetAxis::Y), len(1.0)),
+        (Coord::Slide(SlideAxis::X), len(1.0)),
+        (Coord::Slide(SlideAxis::Y), len(1.0)),
         (Coord::Spin, ang(0.0)),
     ] {
         doc = editor_core::apply(
@@ -162,7 +162,7 @@ fn seat(
             &DocEdit::AddValue {
                 placement: top,
                 value: Box::new(Value {
-                    mate: Some(rest.id),
+                    mate: rest.id,
                     coord,
                     by,
                 }),

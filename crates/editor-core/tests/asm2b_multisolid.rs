@@ -74,7 +74,18 @@ fn repinned(
     translation: [f64; 3],
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let doc = fixture::emptied(doc, placement);
+    let doc = values_first(fixture::bundle(&doc, placement))
+        .into_iter()
+        .fold(doc, |doc, c| {
+            step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
     fixture::pin(doc, placement, &Frame::translation(translation), o)
 }
 
@@ -495,3 +506,9 @@ fn the_at_rest_gate_does_not_see_instance_interference_single_or_multi() {
     );
 }
 
+/// `bundle` with its values ahead of its mates: the order its
+/// constraints come out in, so no value is left naming a removed mate.
+fn values_first(mut bundle: Vec<editor_core::Constraint>) -> Vec<editor_core::Constraint> {
+    bundle.sort_by_key(|c| c.mate().is_some());
+    bundle
+}

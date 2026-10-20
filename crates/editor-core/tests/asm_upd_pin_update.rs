@@ -159,7 +159,18 @@ fn repinned(
         .apply(&DocEdit::UpdateReference { node, new_pin }, Tol::witness())
         .expect("the update applies")
         .doc;
-    let doc = fixture::emptied(doc, node);
+    let doc = values_first(fixture::bundle(&doc, node))
+        .into_iter()
+        .fold(doc, |doc, c| {
+            fixture::step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement: node,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
     fixture::pin(doc, node, &Frame::translation([dx, 0.0, 0.0]), o)
 }
 
@@ -754,12 +765,9 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 
     // An unrelated edit keeps moving the pin exactly as it did — the
     // update arm smuggles no path into the canonical bytes.
-    let unrelated = DocEdit::RemoveConstraints {
+    let unrelated = DocEdit::RemoveConstraint {
         placement: ids[0],
-        constraints: fixture::bundle(&before, ids[0])
-            .iter()
-            .map(|c| c.id)
-            .collect(),
+        constraint: values_first(fixture::bundle(&before, ids[0]))[0].id,
     };
     let update = DocEdit::UpdateReference {
         node: ids[0],
@@ -835,3 +843,9 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
     );
 }
 
+/// `bundle` with its values ahead of its mates: the order its
+/// constraints come out in, so no value is left naming a removed mate.
+fn values_first(mut bundle: Vec<editor_core::Constraint>) -> Vec<editor_core::Constraint> {
+    bundle.sort_by_key(|c| c.mate().is_some());
+    bundle
+}

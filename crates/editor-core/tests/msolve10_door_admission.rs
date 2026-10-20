@@ -31,7 +31,7 @@ use editor_core::Formula;
 
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateRef,
-    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, Target, TargetAxis, VarKind,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SlideAxis, SnapshotError, Target, VarKind,
     WorldRead, WorldReadFault, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -150,11 +150,7 @@ fn add_value(
 ) -> DocEdit<editor_core::ProfileProgram> {
     DocEdit::AddValue {
         placement,
-        value: Box::new(editor_core::Value {
-            mate: Some(mate),
-            coord,
-            by,
-        }),
+        value: Box::new(editor_core::Value { mate, coord, by }),
         fresh: Vec::new(),
     }
 }
@@ -328,7 +324,7 @@ fn a1_a_values_own_admission_refuses_at_insert() {
     let (doc, slid) = through_door(
         &doc,
         ids[1],
-        &add_value(ids[1], rest.id, Coord::Slide(TargetAxis::X), len(0.25)),
+        &add_value(ids[1], rest.id, Coord::Slide(SlideAxis::X), len(0.25)),
     )
     .expect("a plane mate leaves its in-plane slide");
 
@@ -350,14 +346,14 @@ fn a1_a_values_own_admission_refuses_at_insert() {
     let fault = through_door(
         &doc,
         ids[1],
-        &add_value(ids[1], rest.id, Coord::Slide(TargetAxis::Z), len(0.25)),
+        &add_value(ids[1], rest.id, Coord::Slide(SlideAxis::Z), len(0.25)),
     )
     .expect_err("refused");
     assert!(
         matches!(
             fault,
             MateFault::NotAFreedom {
-                coord: Coord::Slide(TargetAxis::Z),
+                coord: Coord::Slide(SlideAxis::Z),
                 kind: VarKind::Plane,
                 ..
             }
@@ -811,7 +807,7 @@ fn a2_the_door_admits_every_constraint_of_the_corpus_again() {
                 if matches!(m.to, Target::World(_))
                     || bundle
                         .iter()
-                        .any(|v| v.value().is_some_and(|v| v.mate == Some(c.id)))
+                        .any(|v| v.value().is_some_and(|v| v.mate == c.id))
                 {
                     continue;
                 }
@@ -838,48 +834,6 @@ fn a2_the_door_admits_every_constraint_of_the_corpus_again() {
                     twin.err()
                 );
                 admitted += 1;
-            }
-            // A bundle with no mate goes and comes back whole: its values
-            // state the copy's whole motion together.
-            let unmated = !bundle.is_empty()
-                && bundle
-                    .iter()
-                    .all(|c| c.value().is_some_and(|v| v.mate.is_none()));
-            if unmated {
-                constraints += bundle.len();
-                let values = bundle
-                    .iter()
-                    .map(|c| {
-                        written_constraint(&doc, MateRef::new(placement, c.id))
-                            .value()
-                            .cloned()
-                            .expect("a value")
-                    })
-                    .collect();
-                let without = step(
-                    doc.clone(),
-                    DocEdit::RemoveConstraints {
-                        placement,
-                        constraints: bundle.iter().map(|c| c.id).collect(),
-                    },
-                )
-                .0;
-                let twin = through_door(
-                    &without,
-                    placement,
-                    &DocEdit::AddValues {
-                        placement,
-                        values,
-                        fresh: Vec::new(),
-                    },
-                );
-                assert!(
-                    twin.is_ok(),
-                    "{label}: the door refused the twin of {placement:?}'s bundle: {:?}",
-                    twin.err()
-                );
-                admitted += 1;
-                continue;
             }
             for c in bundle.iter().filter(|c| c.value().is_some()) {
                 constraints += 1;

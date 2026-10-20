@@ -28,7 +28,7 @@ use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
     Formula, Frame, FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node,
     NodeErrorKind, Operand, PartResolver, PersistError, PoseRefusal, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SitedFace, SitedRef, Space, StableName, Target, TargetAxis, Value, ValuePayload,
+    RecipeNodeId, SitedFace, SitedRef, SlideAxis, Space, StableName, Target, Value, ValuePayload,
     VarName, WorldRead, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -208,8 +208,8 @@ pub(crate) fn seat_edits(
     let mate = MateRef::new(placement, applied.record.minted_constraints[0]);
     let mut edits = vec![rest];
     let doc = [
-        (Coord::Slide(TargetAxis::X), len(at[0])),
-        (Coord::Slide(TargetAxis::Y), len(at[1])),
+        (Coord::Slide(SlideAxis::X), len(at[0])),
+        (Coord::Slide(SlideAxis::Y), len(at[1])),
         (Coord::Spin, ang(0.0)),
     ]
     .into_iter()
@@ -217,7 +217,7 @@ pub(crate) fn seat_edits(
         let edit = DocEdit::AddValue {
             placement,
             value: Box::new(Value {
-                mate: Some(mate.id),
+                mate: mate.id,
                 coord,
                 by,
             }),
@@ -305,7 +305,20 @@ pub(crate) fn set_pin(
     pose: Option<Frame>,
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let doc = fixture::emptied(doc, placement);
+    // Values first: a mate goes once no value names it.
+    let doc = fixture::bundle(&doc, placement)
+        .into_iter()
+        .rev()
+        .fold(doc, |doc, c| {
+            step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
     match pose {
         Some(pose) => fixture::pin(doc, placement, &pose, o),
         None => doc,
@@ -471,18 +484,9 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
     assert!(offset_of(&doc, base).is_some(), "the base is pinned");
     assert_eq!(offset_of(&doc, top), None);
     let poses = solve(&doc, &o, Tol::witness());
-    let at = poses.relative(base).expect("the base is placed");
-    let off = at
-        .columns
-        .iter()
-        .flatten()
-        .zip([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
-        .map(|(a, b)| (a - b).abs())
-        .chain(at.translation.iter().map(|t| t.abs()))
-        .fold(0.0_f64, f64::max);
     assert!(
-        off < 1e-12,
-        "a copy pinned at the identity sits at the world's origin: {at:?}"
+        poses.at_identity(base),
+        "a copy pinned at the identity sits at the world's origin"
     );
     assert_eq!(
         poses.space(top),

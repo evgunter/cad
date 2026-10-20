@@ -135,7 +135,7 @@ where
             slot: value_slot(
                 &doc,
                 tr,
-                editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                editor_core::Coord::Slide(editor_core::SlideAxis::X),
             ),
             value: len(2.5).into(),
             fresh: Vec::new(),

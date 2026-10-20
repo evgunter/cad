@@ -48,7 +48,7 @@ fn remove(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
     fixture::bundle(&doc, mate.placement)
         .into_iter()
         .rev()
-        .filter(|c| c.id == mate.id || c.value().is_some_and(|v| v.mate == Some(mate.id)))
+        .filter(|c| c.id == mate.id || c.value().is_some_and(|v| v.mate == mate.id))
         .fold(doc, |doc, c| {
             step(
                 doc,

@@ -3,25 +3,25 @@
 //! computes over the body's own geometry —
 //!
 //! - [`place_in_world`]: the copy in the world where it stands
-//!   ([`stand`]: the identity bundle, no mate and the constant `0` on
-//!   every freedom), so it follows every variable its body reads;
+//!   ([`stand`]: a plane mate on a face no variable reaches, or a full
+//!   revolve's own axis, with constant-zero values), so it follows
+//!   every variable its body reads;
 //! - [`in_world`]: the copy in the world at a pose ([`place_at`]);
 //! - [`against`]: the copy placed against another body's geometry at a
 //!   frame in that body's own coordinates ([`place_against`]) — how a
 //!   construction combined with another joins its space.
 //!
 //! A placement is a sequence of edits applied in order (the insert, the
-//! mate and one value per freedom it leaves, or the values of a bundle
-//! with no mate as one edit); [`Placed::edits`] is
+//! mate, one value per freedom the mate leaves); [`Placed::edits`] is
 //! that sequence, so a scene that exports its edit log replays exactly
 //! what it applied.
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    BodyRead, Doc, DocEdit, EvalOptions, Frame, Node, Operand, ProfileProgram, RecipeNodeId, apply,
-    frame_at, place_against, place_at, stand,
+    BodyRead, Doc, DocEdit, EvalOptions, Frame, Node, Operand, ProfileProgram, RecipeNodeId, Value,
+    apply, frame_at, place_against, place_at, stand,
 };
-use pncad::document::{Coord, Formula, Mate, Placed as Answer, Target};
+use pncad::document::{Coord, Formula, Mate, Target};
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 
@@ -42,7 +42,7 @@ pub fn place_in_world(doc: &Doc<ProfileProgram>, body: impl Into<Operand>, tol: 
     let body = body.into();
     let placed = stand(doc, &body, &EvalOptions::default(), tol)
         .unwrap_or_else(|e| panic!("the copy stands over its geometry: {e}"));
-    written(doc, body, placed, tol)
+    written(doc, body, placed.mate, placed.values, tol)
 }
 
 /// One copy of `body` in the world at `at` ([`place_at`]; at the
@@ -63,7 +63,7 @@ pub fn in_world(
     let body = body.into();
     let placed = place_at(doc, &body, at, &EvalOptions::default(), tol)
         .unwrap_or_else(|e| panic!("the copy places at its pose: {e}"));
-    written(doc, body, placed, tol)
+    written(doc, body, placed.mate, placed.values, tol)
 }
 
 /// [`in_world`] by the "place part" gesture ([`place_at`]) at every
@@ -83,8 +83,7 @@ pub fn in_world_valued(
     let body = body.into();
     let placed = place_at(doc, &body, at, &EvalOptions::default(), tol)
         .unwrap_or_else(|e| panic!("the copy places at its pose: {e}"));
-    let values = values(placed.values);
-    written(doc, body, Answer { values, ..placed }, tol)
+    written(doc, body, placed.mate, values(placed.values), tol)
 }
 
 /// A copy of `body` placed against `target`'s geometry at `at` — the
@@ -123,8 +122,7 @@ pub fn against_valued(
     let (target, body) = (target.into(), body.into());
     let placed = place_against(doc, &target, &body, at, &EvalOptions::default(), tol)
         .unwrap_or_else(|e| panic!("the copy places against its target: {e}"));
-    let values = values(placed.values);
-    written(doc, body, Answer { values, ..placed }, tol)
+    written(doc, body, placed.mate, values(placed.values), tol)
 }
 
 /// **The frame at `origin` with axes `u` and `v`** (`v` made orthogonal
@@ -248,7 +246,7 @@ pub fn against_on_axis(
     };
     let values = vec![
         (
-            Coord::Slide(pncad::document::TargetAxis::Z),
+            Coord::Slide(pncad::document::SlideAxis::Z),
             Formula::zero(pncad::document::Dimension::Length),
         ),
         (
@@ -256,23 +254,18 @@ pub fn against_on_axis(
             Formula::zero(pncad::document::Dimension::Angle),
         ),
     ];
-    written(
-        doc,
-        body,
-        Answer {
-            mate: Some(mate),
-            values,
-            by: pncad::document::PlacedBy::Axis,
-        },
-        tol,
-    )
+    written(doc, body, mate, values, tol)
 }
 
-/// The placement of `body` written as edits: the insert, then what the
-/// door answered ([`pncad::document::stand`] and the rest), written as
-/// `write` writes it — the mate and each value against its minted id,
-/// or the values of a bundle with no mate as one edit.
-fn written(doc: &Doc<ProfileProgram>, body: Operand, placed: Answer, tol: Tol) -> Placed {
+/// The placement of `body` written as edits: the insert, the mate, and
+/// each value against the mate's minted id.
+fn written(
+    doc: &Doc<ProfileProgram>,
+    body: Operand,
+    mate: Mate<Formula>,
+    values: Vec<(Coord, Formula)>,
+    tol: Tol,
+) -> Placed {
     let mut edits = Vec::new();
     let mut step = |doc: &Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>| {
         let applied = apply(doc, &edit, tol)
@@ -288,14 +281,26 @@ fn written(doc: &Doc<ProfileProgram>, body: Operand, placed: Answer, tol: Tol) -
         },
     );
     let placement = inserted.record.minted.expect("an insert mints an id");
-    let mut doc = inserted.doc;
-    placed
-        .write(placement, |edit| {
-            let applied = step(&doc, edit);
-            doc = applied.doc;
-            Ok::<_, std::convert::Infallible>(applied.record.minted_constraints)
-        })
-        .unwrap_or_else(|never| match never {});
+    let mated = step(
+        &inserted.doc,
+        DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate),
+            fresh: Vec::new(),
+        },
+    );
+    let mate = mated.record.minted_constraints[0];
+    let doc = values.into_iter().fold(mated.doc, |doc, (coord, by)| {
+        step(
+            &doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(Value { mate, coord, by }),
+                fresh: Vec::new(),
+            },
+        )
+        .doc
+    });
     Placed {
         doc,
         placement,

@@ -23,8 +23,8 @@ use editor_core::mate::coset::{Coset, Subgroup, intersect};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BodyRead, ConstraintId, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate,
-    MateFault, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, StableName,
-    Target, TargetAxis, Value, WorldRead,
+    MateFault, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, SlideAxis,
+    StableName, Target, Value, WorldRead,
 };
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
@@ -309,11 +309,7 @@ fn add_value(
     let applied = doc.apply(
         &DocEdit::AddValue {
             placement,
-            value: Box::new(Value {
-                mate: Some(mate),
-                coord,
-                by,
-            }),
+            value: Box::new(Value { mate, coord, by }),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -326,7 +322,7 @@ fn add_value(
 fn number(coord: Coord, v: f64) -> Formula {
     match coord {
         Coord::Slide(_) => len(v),
-        Coord::Spin | Coord::SpinAbout(_) => ang(v),
+        Coord::Spin => ang(v),
     }
 }
 
@@ -377,8 +373,8 @@ fn box_resting_on(
         },
     );
     let coords = [
-        Coord::Slide(TargetAxis::X),
-        Coord::Slide(TargetAxis::Y),
+        Coord::Slide(SlideAxis::X),
+        Coord::Slide(SlideAxis::Y),
         Coord::Spin,
     ];
     for k in order {
@@ -511,7 +507,7 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
         doc,
         placement,
         mate.id,
-        Coord::Slide(TargetAxis::X),
+        Coord::Slide(SlideAxis::X),
         len(1.0),
     )
     .expect("a plane mate leaves the slide");
@@ -519,7 +515,7 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
         doc,
         placement,
         mate.id,
-        Coord::Slide(TargetAxis::X),
+        Coord::Slide(SlideAxis::X),
         len(2.0),
     ) {
         Err(EditError::MateRefused { fault, .. }) => assert!(
@@ -568,8 +564,8 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
     );
     let mut doc = doc;
     for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
         (Coord::Spin, ang(30.0_f64.to_radians())),
     ] {
         doc = add_value(doc, placement, mate.id, coord, by)
@@ -700,8 +696,8 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         },
     );
     for coord in [
-        Coord::Slide(TargetAxis::X),
-        Coord::Slide(TargetAxis::Y),
+        Coord::Slide(SlideAxis::X),
+        Coord::Slide(SlideAxis::Y),
         Coord::Spin,
     ] {
         doc = add_value(doc, placement, mate.id, coord, number(coord, 0.0))
@@ -817,8 +813,7 @@ fn the_place_gesture_reproduces_its_pose() {
         "the values are computed from P, not assumed zero: {:?}",
         placed_by.values
     );
-    let mate = placed_by.mate.expect("the gesture writes a plane mate");
-    let (mut doc, mate) = fixture::constrain_at(doc, placement, mate);
+    let (mut doc, mate) = fixture::constrain_at(doc, placement, placed_by.mate);
     for (coord, by) in placed_by.values {
         doc = add_value(doc, placement, mate.id, coord, by)
             .expect("the gesture's values are its mate's freedoms")
@@ -866,16 +861,15 @@ fn the_place_gesture_flips_a_face_looking_down_so_its_chart_has_a_swing() {
             editor_core::PlacedBy::PlanarFace,
             "{angle}: {near:?}"
         );
-        let mate = near.mate.expect("the gesture writes a plane mate");
         assert!(
             matches!(
-                &mate.on,
+                &near.mate.on,
                 Operand::Pose(p) if matches!(**p, editor_core::pose::PoseDef::Flip { .. })
             ),
             "{angle}: the cap looks down, so its copy side is flipped: {:?}",
-            mate.on
+            near.mate.on
         );
-        let (mut doc, mate) = fixture::constrain_at(doc.clone(), placement, mate);
+        let (mut doc, mate) = fixture::constrain_at(doc.clone(), placement, near.mate);
         for (coord, by) in near.values {
             doc = add_value(doc, placement, mate.id, coord, by)
                 .expect("the gesture's values are its mate's freedoms")
@@ -1102,8 +1096,8 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
         editor_core::Dimension::Length,
     );
     for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), slide),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
+        (Coord::Slide(SlideAxis::X), slide),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ] {
         doc = add_value(doc, placement, mate.id, coord, by)
@@ -1117,74 +1111,56 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
     (doc, placement, seeded)
 }
 
-/// **FORK-REST — only the identity bundle is placed by no map, and in
-/// every lane.** Whether a copy is placed by no map is read off its
-/// recipe: the identity bundle ([`editor_core::stand`]: no mate, the
-/// constant `0` on every freedom) is placed by none in the `f64`, the
-/// interval and the dual lane alike, while a box pinned at the identity
-/// by `pin_at`'s frame mate runs its map in every lane, though the map
-/// comes out as the identity.
+/// **Fork C-5 — a copy at rest is placed by no map, in every lane.** A
+/// box pinned at the identity by `pin_at` stands there to rounding; the
+/// fold decides it at rest and places it by no map in the `f64`, the
+/// interval and the dual lane alike.
 ///
-/// *Breaks if* any lane decides from a value that a copy is at rest
-/// (the lanes would disagree on whether a map is applied), or the
-/// identity bundle is placed by a map.
+/// *Breaks if* the snap is one lane's (the lanes would disagree on
+/// whether a map is applied), or reads another predicate than
+/// `SolvedPoses::at_identity`'s.
 #[test]
-fn only_the_identity_bundle_is_placed_by_no_map_in_every_lane() {
-    let lanes = |doc: &ProfileDoc, placement| {
-        let seeded = EvalOptions {
-            seed: doc.var_named("unread"),
-            ..EvalOptions::default()
-        };
-        [
-            motion_of(&evaluated::<f64>(doc, &EvalOptions::default()), placement).is_none(),
-            motion_of(
-                &evaluated::<geom_core::Interval>(doc, &EvalOptions::default()),
-                placement,
-            )
-            .is_none(),
-            motion_of(&evaluated::<geom_core::Dual64>(doc, &seeded), placement).is_none(),
-        ]
-    };
-    let unread = |doc| {
-        fixture::step(
-            doc,
-            DocEdit::DeclareVar {
-                name: editor_core::VarName::new("unread").expect("a name"),
-                def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
-                    editor_core::Dimension::Length,
-                    1.0,
-                )),
-            },
-        )
-        .0
-    };
+fn a_copy_pinned_at_the_identity_is_placed_by_no_map_in_every_lane() {
     let (doc, body) = a_box("s3c_at_rest", 1.0);
     let (doc, placement) = placed(doc, body);
-    let stood = fixture::pinned(doc.clone(), placement, &EvalOptions::default());
-    assert_eq!(
-        lanes(&unread(stood), placement),
-        [true; 3],
-        "the identity bundle is placed by no map"
-    );
+    // `pin_at`'s mate itself, not the stand `fixture::pinned`
+    // writes at the identity: the snap is this row's subject.
     let mate = fixture::pin_mate(
         &doc,
         placement,
         &editor_core::Frame::IDENTITY,
         &EvalOptions::default(),
     );
-    let (pinned, _) = fixture::constrain_at(doc, placement, mate);
-    assert_eq!(
-        lanes(&unread(pinned), placement),
-        [false; 3],
-        "a frame mate at the identity runs its map"
+    let (doc, _) = fixture::constrain_at(doc, placement, mate);
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::new("unread").expect("a name"),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                editor_core::Dimension::Length,
+                1.0,
+            )),
+        },
     );
+    let seeded = EvalOptions {
+        seed: doc.var_named("unread"),
+        ..EvalOptions::default()
+    };
+    assert!(motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement).is_none());
+    let boxed = motion_of(
+        &evaluated::<geom_core::Interval>(&doc, &EvalOptions::default()),
+        placement,
+    );
+    assert!(boxed.is_none(), "{boxed:?}");
+    assert!(motion_of(&evaluated::<geom_core::Dual64>(&doc, &seeded), placement).is_none());
 }
 
-/// **A copy slid by a micrometre stands there.** The same box slid a
-/// micrometre along x, a thousand times the band's zero: its map is
-/// the slide.
+/// **Fork C-5 — a copy slid by more than the band is not at rest.** The
+/// same box slid a micrometre along x, a thousand times the band's
+/// zero: its map is kept.
 ///
-/// *Breaks if* the slide is lost from the copy's map.
+/// *Breaks if* the snap reads a band wider than the tolerance's, or
+/// snaps a decided displacement.
 #[test]
 fn a_copy_slid_past_the_band_keeps_its_map() {
     let (doc, placement, _) = box_slid_by_a_parameter(1e-6);
@@ -1193,14 +1169,15 @@ fn a_copy_slid_past_the_band_keeps_its_map() {
     assert!((motion.to_affine().translation.x - 1e-6).abs() < 1e-15);
 }
 
-/// **A pose that moves with a parameter keeps its derivative.** The
-/// box slid by `s`, declared at 0: it is no identity bundle, so it runs
-/// its map in every lane (FORK-REST), the identity at the nominal; a
-/// dual run seeded at `s` carries the slide's unit tangent, and its
-/// translation's derivative along x is one.
+/// **Fork C-5 — a pose that moves with a parameter keeps its
+/// derivative.** The box slid by `s`, declared at 0: its bundle reads a
+/// declared variable, so it runs its map in every lane (C-5 narrowed),
+/// the identity at the nominal; a dual run seeded at `s` carries the
+/// slide's unit tangent, and its translation's derivative along x is
+/// one.
 ///
-/// *Breaks if* the map is dropped at rest (the value lane would place
-/// it by no map), or the dual lane drops the tangent.
+/// *Breaks if* the bundle is snapped at rest (the value lane would
+/// place it by no map), or the dual lane drops the tangent.
 #[test]
 fn a_parametric_pose_at_a_nominal_identity_keeps_its_derivative() {
     let (doc, placement, seeded) = box_slid_by_a_parameter(0.0);
@@ -1219,14 +1196,15 @@ fn a_parametric_pose_at_a_nominal_identity_keeps_its_derivative() {
     assert_eq!(x.deriv.to_bits(), 1.0_f64.to_bits(), "{x:?}");
 }
 
-/// **A seeded copy at rest has the value lane's bits and its own
-/// tangent.** A box on the world floor spun by `t`, declared at a whole
-/// turn: it is no identity bundle, so every lane runs its map
-/// (FORK-REST), the `f64` lane's the identity to rounding. A dual run seeded at `t` places it by a map whose value
+/// **Fork C-5 — a seeded copy at rest has the value lane's bits and
+/// its own tangent.** A box on the world floor spun by `t`, declared at
+/// a whole turn: its bundle reads a declared variable, so every lane
+/// runs its map (C-5 narrowed), the `f64` lane's the identity to
+/// rounding. A dual run seeded at `t` places it by a map whose value
 /// channel is the `f64` lane's bits and whose tangent is the spin's:
 /// the turn about `z` moves the copy's `x` along `y` at unit rate.
 ///
-/// *Breaks if* a lane drops the map (the value lane's would be no map,
+/// *Breaks if* a lane snaps the map (the value lane's would be no map,
 /// the dual's tangent lost), or the dual's value channel rounds off
 /// the `f64` lane's.
 #[test]
@@ -1258,8 +1236,8 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         editor_core::Dimension::Angle,
     );
     for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
         (Coord::Spin, turn),
     ] {
         doc = add_value(doc, placement, mate.id, coord, by)
@@ -1296,18 +1274,18 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
     );
 }
 
-/// **A box spanning the band encloses the value lane at its
+/// **Fork C-5 — a box spanning the band encloses the value lane at its
 /// corners.** A box on the floor spun by `t`, declared at a tenth of ε
 /// rad, boxed over `[ε/10, 6ε/10]` (ε the run's, 1e-9 by default): the
-/// bundle is no identity bundle, so the value lane runs its map at
-/// each corner (FORK-REST) and keeps its turn at both, the low one
+/// bundle reads a declared variable, so the value lane runs its map at
+/// each corner (C-5 narrowed) and keeps its turn at both, the low one
 /// less than the band's zero and the high one more. The box's map holds
 /// both. A map that wide moves the copy's edges by about the band's
 /// zero, so the box run may refuse to certify them — an escalation;
 /// what it never does is answer a map that leaves a corner out.
 ///
 /// *Breaks if* a corner's value-lane map lies outside the box's, or the
-/// value lane drops a corner's map.
+/// value lane snaps a corner of a bundle that reads a variable.
 #[test]
 fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
     // The corners are tenths of the run's ε, so the low one moves less
@@ -1340,8 +1318,8 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
         editor_core::Dimension::Angle,
     );
     for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
         (Coord::Spin, turn),
     ] {
         doc = add_value(doc, placement, mate.id, coord, by)

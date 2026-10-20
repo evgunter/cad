@@ -841,7 +841,7 @@ fn edit_back_restores_bit_identical_bodies() {
     let fp0 = fingerprint(boolean_body(&e0, d.final_node));
 
     // Slide the +z pip's placement a quarter along its x.
-    let slide_x = editor_core::Coord::Slide(editor_core::TargetAxis::X);
+    let slide_x = editor_core::Coord::Slide(editor_core::SlideAxis::X);
     let (moved, _) = step(
         d.doc.clone(),
         crate::fixture::value_bump(&d.doc, d.pz_placement, slide_x, 0.25),

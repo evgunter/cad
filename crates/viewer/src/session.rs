@@ -3045,7 +3045,7 @@ impl DocSession {
             let report = match placed {
                 Ok(placed) => {
                     let by = placed.by;
-                    constrain(run, placement, placed)?;
+                    constrain(run, placement, placed.mate, placed.values)?;
                     PlaceReport {
                         placement,
                         by: Ok(by),
@@ -3398,7 +3398,6 @@ impl DocSession {
             // structure: where a copy stands, not a panel field's value.
             | DocEdit::AddConstraint { .. }
             | DocEdit::AddValue { .. }
-            | DocEdit::AddValues { .. }
             | DocEdit::RemoveConstraint { .. }
             // The variable doors that are not the value or the
             // notation half. A declare mints a variable and a
@@ -3798,17 +3797,12 @@ fn in_one_space(
             },
             None => (operand.clone(), Frame::IDENTITY, None),
         };
-        // A body never placed stands where it stands in the world (the
-        // identity bundle); a copy re-placed keeps the pose it holds.
-        let placed = match (home, &replaced) {
-            (Space::Loose { root }, _) => {
+        let placed = match home {
+            Space::Loose { root } => {
                 let target = body_of(run.doc(), root);
                 pncad::document::place_against_in(run.doc(), &ev, &target, &body, &at, tol)
             }
-            (Space::World, None) => pncad::document::stand_in(run.doc(), &ev, &body),
-            (Space::World, Some(_)) => {
-                pncad::document::place_at_in(run.doc(), &ev, &body, &at, tol)
-            }
+            Space::World => pncad::document::place_at_in(run.doc(), &ev, &body, &at, tol),
         };
         let Ok(placed) = placed else {
             read.push(operand.clone());
@@ -3822,13 +3816,13 @@ fn in_one_space(
                         run.apply(edit)?;
                     }
                 }
-                constrain(run, node, placed)?;
+                constrain(run, node, placed.mate, placed.values)?;
                 read.push(operand.clone());
             }
             None => {
                 let placement =
                     run.insert(Node::place(vec![pncad::document::BodyRead::plain(body)]))?;
-                constrain(run, placement, placed)?;
+                constrain(run, placement, placed.mate, placed.values)?;
                 read.push(placement.into());
             }
         }
@@ -3880,30 +3874,33 @@ fn add_values(
     for (coord, by) in values {
         run.apply(DocEdit::AddValue {
             placement,
-            value: Box::new(pncad::document::Value {
-                mate: Some(mate),
-                coord,
-                by,
-            }),
+            value: Box::new(pncad::document::Value { mate, coord, by }),
             fresh: Vec::new(),
         })?;
     }
     Ok(())
 }
 
-/// **What a placing door answers, written onto `placement`**
-/// ([`editor_core::Placed::write`]): the mate and each value naming it,
-/// or the values of a bundle with no mate as one edit.
+/// **`mate` added to `placement`'s bundle, then each of `values`
+/// naming it** — what a placing door's [`pncad::document::Placed`]
+/// answers, written.
 fn constrain(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
-    placed: editor_core::Placed,
+    mate: pncad::document::Mate<Formula>,
+    values: Vec<(pncad::document::Coord, Formula)>,
 ) -> Result<(), EditError> {
-    placed.write(placement, |edit| {
-        run.apply_recorded(edit)
-            .map(|record| record.minted_constraints)
-    })?;
-    Ok(())
+    let minted = run
+        .apply_recorded(DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate),
+            fresh: Vec::new(),
+        })?
+        .minted_constraints;
+    let [mate] = minted[..] else {
+        unreachable!("an AddConstraint mints one constraint id")
+    };
+    add_values(run, placement, mate, values)
 }
 
 /// **A gesture's numbers at their nominal values** in `doc`: each
@@ -4016,11 +4013,13 @@ fn space_evaluation<'a>(derived: &'a Derived, history: &History) -> Option<&'a E
     (*run.doc == *committed || *run.doc == *shown).then(|| run.evaluation.as_ref())
 }
 
-/// **The "place where authored" gesture over the copy `body` reads**
-/// ([`editor_core::stand`]): the identity bundle, no mate and the
-/// constant `0` on every freedom, written onto `placement`'s bundle, so
-/// the copy stands where its body stands at every value. A body `stand`
-/// refuses stands loose, and the report says why.
+/// **The "place part" gesture over the copy `body` reads**
+/// ([`editor_core::place_at`]): the mate `place_at` reads off the copy
+/// as `run`'s document holds it, added to `placement`'s bundle, and its
+/// values naming it — the copy at the identity, a plane mate on its
+/// first planar face whose values can then move it. A copy with no
+/// planar face is pinned; one `place_at` refuses stands loose, and the
+/// report says which.
 fn place_copy(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
@@ -4028,7 +4027,13 @@ fn place_copy(
     opts: &EvalOptions,
     tol: Tol,
 ) -> Result<PlaceReport, EditError> {
-    let placed = match editor_core::stand(run.doc(), body, opts, tol) {
+    let placed = match editor_core::place_at(
+        run.doc(),
+        body,
+        &pncad::document::Frame::IDENTITY,
+        opts,
+        tol,
+    ) {
         Ok(placed) => placed,
         Err(refusal) => {
             return Ok(PlaceReport {
@@ -4037,16 +4042,15 @@ fn place_copy(
             });
         }
     };
-    let by = placed.by;
-    constrain(run, placement, placed)?;
+    constrain(run, placement, placed.mate, placed.values)?;
     Ok(PlaceReport {
         placement,
-        by: Ok(by),
+        by: Ok(placed.by),
     })
 }
 
 /// **`body` placed in the world**: a `Place` of it inserted, loose, and
-/// standing where its body stands by [`place_copy`] over the shape the
+/// placed at the identity by [`place_copy`] over the shape the
 /// placement copies.
 fn place_in_world(
     run: &mut Recording<'_, ProfileProgram>,

@@ -636,7 +636,7 @@ fn without(host: ProfileDoc, m: editor_core::MateRef) -> ProfileDoc {
     fixture::bundle(&host, m.placement)
         .into_iter()
         .rev()
-        .filter(|c| c.id == m.id || c.value().is_some_and(|v| v.mate == Some(m.id)))
+        .filter(|c| c.id == m.id || c.value().is_some_and(|v| v.mate == m.id))
         .fold(host, |host, c| {
             step(
                 host,

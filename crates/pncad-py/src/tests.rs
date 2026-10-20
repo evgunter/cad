@@ -85,12 +85,12 @@ fn insert(
 }
 
 /// `placement`'s one copy standing where its body stands
-/// ([`pncad::document::stand`]): the identity bundle, written whole.
+/// ([`pncad::document::stand`]): the mate and its values, added.
 fn stood(
     doc: pncad::document::ProfileDoc,
     placement: pncad::document::RecipeNodeId,
 ) -> pncad::document::ProfileDoc {
-    use pncad::document::{Node, Operand};
+    use pncad::document::{DocEdit, Node, Operand, Value};
     let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
         panic!("{placement} is a placement");
     };
@@ -101,16 +101,30 @@ fn stood(
         &pncad::document::EvalOptions::default(),
         pncad::tolerance::Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("the copy stands: {e}"));
-    let mut doc = doc;
+    .unwrap_or_else(|e| panic!("the copy stands over its geometry: {e}"));
+    let added = applied(
+        &doc,
+        DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(placed.mate),
+            fresh: Vec::new(),
+        },
+    );
+    let mate = added.record.minted_constraints[0];
     placed
-        .write(placement, |edit| {
-            let added = applied(&doc, edit);
-            doc = added.doc;
-            Ok::<_, std::convert::Infallible>(added.record.minted_constraints)
+        .values
+        .into_iter()
+        .fold(added.doc, |doc, (coord, by)| {
+            applied(
+                &doc,
+                DocEdit::AddValue {
+                    placement,
+                    value: Box::new(Value { mate, coord, by }),
+                    fresh: Vec::new(),
+                },
+            )
+            .doc
         })
-        .unwrap_or_else(|never| match never {});
-    doc
 }
 
 /// A one-box document under the id `label` derives: square(2)
@@ -858,7 +872,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
     use pncad::document::{
         ConstraintId, Coord, DocumentId, LeverRefusal, MateFault as F, MateRef, MateSide, MintId,
-        NoChartWhy, NodeErrorKind, NodeRefusal, RecipeNodeId, TargetAxis, VarKind, WorldReadFault,
+        NoChartWhy, NodeErrorKind, NodeRefusal, RecipeNodeId, SlideAxis, VarKind, WorldReadFault,
     };
 
     let id = |n| RecipeNodeId::new(0, n);
@@ -957,7 +971,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     carries(
         &F::NotAFreedom {
             value: m(1),
-            coord: Coord::Slide(TargetAxis::Z),
+            coord: Coord::Slide(SlideAxis::Z),
             kind: VarKind::Plane,
         },
         &["value_ref", "coord", "mate_kind"],
@@ -968,13 +982,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             why: NoChartWhy::PointRotation,
         },
         &["value_ref", "why"],
-    );
-    carries(
-        &F::Unpinned {
-            placement: id(4),
-            free: 2,
-        },
-        &["placement", "free"],
     );
     carries(
         &F::SideUnevaluated {
@@ -2201,7 +2208,6 @@ fn node_error_tags_are_the_published_words() {
         MatePosesOfAnotherDocument => "mate_poses_of_another_document",
         MateClassNotAdmitted => "mate_class_not_admitted",
         MateOverconstrained => "mate_overconstrained",
-        MateUnpinned => "mate_unpinned",
         MateTargetsDiffer => "mate_targets_differ",
         MateNotOnTheCopy => "mate_not_on_the_copy",
         MateUnleverable => "mate_unleverable",
@@ -4749,15 +4755,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "coord_tag",
-        values: &[
-            "slide_x",
-            "slide_y",
-            "slide_z",
-            "spin",
-            "spin_about_x",
-            "spin_about_y",
-            "spin_about_z",
-        ],
+        values: &["slide_x", "slide_y", "slide_z", "spin"],
         delegates: &[],
     },
     TagEntry {
@@ -5254,13 +5252,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "no_chart_why_tag",
-        values: &[
-            "beside_a_mate",
-            "no_mated_direction",
-            "point_rotation",
-            "slide_turns_a_ball",
-            "two_bodies",
-        ],
+        values: &["point_rotation", "slide_turns_a_ball", "two_bodies"],
         delegates: &[],
     },
     TagEntry {
@@ -5549,7 +5541,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "placed_by_tag",
-        values: &["axis", "identity", "pin", "planar_face"],
+        values: &["axis", "pin", "planar_face"],
         delegates: &[],
     },
     TagEntry {
