@@ -2,10 +2,12 @@
 id: unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word
 kind: issue
 title: Unsized::recourse accepts a gate-tagged arm, and an escalation's labelled ending drops the cause's 'decided sign this decision cannot use' phrase, so nothing tells the user a gate rejected a decided sign
-status: open
+status: review
 opened: 2026-10-12
 priority: P3
 cost: M
+branch: encl/unsized-gate-word
+pr: 5428
 ---
 
 (Split from `work/pcert/a-villarceau-tangent-parts-gated-zero-ends-as-a-kernel-defect.md` and from review of PR 4874. `recourse.rs` is ENCL ground, which is why this row is ENCL's.)

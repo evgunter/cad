@@ -87,11 +87,11 @@
 //! degree) and surface degrees `(m_u, m_v)`, the composite numerator
 //! degree is `q·(m_u + m_v) + q`. Every Bernstein product routes
 //! through [`super::binom_row`], whose exactness cap
-//! ([`super::BINOM_EXACT_MAX`] = 54) therefore bounds what this module
-//! serves: `q·(m_u + m_v + 1) ≤ 54`. For the SSI fit degrees actually
+//! ([`super::BINOM_EXACT_MAX`] = 56) therefore bounds what this module
+//! serves: `q·(m_u + m_v + 1) ≤ 56`. For the SSI fit degrees actually
 //! in use (`SSI_FIT_DEGREE` = 3 for carrier and pcurve) that is
 //! `m_u + m_v ≤ 17` — a bicubic×bicubic wall lands at degree 21 of the
-//! 54 budget, and even a degree (9,8) surface fits. Beyond the cap the
+//! 56 budget, and even a degree (9,8) surface fits. Beyond the cap the
 //! binomial row is all-NaN and the bound is `NaN`, which fails every
 //! `≤ ε` certification loudly (D4 ¶2) — never a silently rounded
 //! weight. Work scales as

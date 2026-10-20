@@ -35,7 +35,9 @@ use geom_core::k_stats::{
     decide_magnitude, decide_negative, decide_nonzero, decide_positive, decide_reported,
     gate_measured,
 };
-use geom_core::{Band, Decided, ErrorTextReading, Interval, Margin, MarginDiag, Sign};
+use geom_core::{
+    Band, Decided, ErrorTextReading, Indeterminate, Interval, Margin, MarginDiag, Sign,
+};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -271,6 +273,93 @@ fn a_rejection_tells_the_decided_margin_it_carries() {
         assert!(!text.contains("tighten"), "sign-certain: {text}");
         assert!(!text.contains("subdivide"), "decided: {text}");
         assert!(!text.contains("invalid"), "nothing was poisoned: {text}");
+    }
+}
+
+/// **A gate's rejected sign's word rides the payload, and is said
+/// once.** Where a gate rejected a sign decided past the band, its
+/// payload says what that reading is after the placement, so a door
+/// that composes the payload with its own decision's ending tells it
+/// ([`Indeterminate::undecided`]), and the escalation's own sentence
+/// says it once. A rejected zero is told by its placement, and a
+/// reading inside the band was not decided: both keep their word in the
+/// tail. A reading past the band that no gate tagged (a bound reported
+/// where it stands) was decided by nobody, and says no such word.
+#[test]
+fn a_decided_signs_word_rides_the_payload_once() {
+    let b = band();
+    let rejected = |margin: f64| decide_positive("gate_word", Margin::of(margin), b).unwrap_err();
+    let decided = "a decided sign this decision cannot use";
+    let near = "a near-coincidence";
+    for cause in [
+        rejected(-1.0),
+        decide_positive(
+            "gate_word",
+            Margin::of(Interval::from_bounds(-2.0, -1.0)),
+            b,
+        )
+        .unwrap_err(),
+    ] {
+        let payload = cause.payload().to_string();
+        let whole = cause.to_string();
+        assert_eq!(
+            cause.margin.rejected_sign(),
+            Some(Sign::Negative),
+            "the gate's tag: {payload}"
+        );
+        assert!(
+            payload.ends_with(&format!(" — {decided}")),
+            "the payload: {payload}"
+        );
+        assert_eq!(whole.matches(decided).count(), 1, "said once: {whole}");
+        assert!(
+            whole.starts_with(&format!("{payload}; ")),
+            "the tail: {whole}"
+        );
+        assert_eq!(
+            cause.undecided("whether S", "E").to_string(),
+            format!("whether S is undecided: {payload}. E"),
+            "a composed ending"
+        );
+    }
+    for (cause, tag) in [
+        (rejected(0.5 * b.zero()), Some(Sign::Zero)),
+        (rejected(f64::midpoint(b.zero(), b.escalate())), None),
+    ] {
+        let payload = cause.payload().to_string();
+        assert_eq!(
+            cause.margin.rejected_sign(),
+            tag,
+            "the gate's tag: {payload}"
+        );
+        assert!(
+            !payload.contains(" — "),
+            "no word in the payload: {payload}"
+        );
+        assert!(
+            cause.to_string().contains(&format!(" — {near}; ")),
+            "the tail's word: {cause}"
+        );
+    }
+    for margin in [MarginDiag::value(-1.0), MarginDiag::enclosure(1.0, 2.0)] {
+        let reported = Indeterminate {
+            margin,
+            band: b,
+            predicate: Some("reported_bound"),
+            terminal_sliver: false,
+        };
+        let payload = reported.payload().to_string();
+        assert!(
+            payload.ends_with(&format!(
+                "lies past the ambiguity band ({:e}, {:e})",
+                b.zero(),
+                b.escalate()
+            )),
+            "an untagged reading past the band: {payload}"
+        );
+        assert!(!payload.contains(decided), "no word: {payload}");
+        let whole = reported.to_string();
+        assert!(!whole.contains(decided), "no word in the tail: {whole}");
     }
 }
 

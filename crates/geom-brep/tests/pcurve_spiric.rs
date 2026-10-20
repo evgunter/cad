@@ -437,24 +437,37 @@ fn a_hundredfold_structural_band_still_refuses_at_the_envelope() {
     );
 }
 
-/// **The wall's `v0` is a whole-period constant, and this is the row
-/// that pins the value `topo`'s polar branch shift must produce.**
-/// `shift_polar_branch`'s wall arm answers `v0 + k·period`; a mutant
-/// that drops the `k·period` is silent on every body-level row,
-/// because **no body on this tree walks a spiric loop across the `v`
-/// cut** — a spiric rim's parameter span is the revolved PROFILE
-/// arc's, and the one spiric-bearing body's rims span 1.78 rad, so the
-/// walk's `k` is 0 everywhere. Said rather than worked around: the
-/// value the arm owes is pinned here, at the door.
+/// **The wall's `v0` lifted a whole period is the value `topo`'s
+/// second-channel shift produces, and it is no row.** The shift of the
+/// wall image by `k` periods along `v` is `v0 + k·period`, pinned here
+/// at the door: no body on this tree walks a spiric loop across the `v`
+/// cut (a spiric rim's parameter span is the revolved PROFILE arc's,
+/// and the one spiric-bearing body's rims span 1.78 rad, so the walk's
+/// `k` is 0 everywhere). That lift is the row with a deck element,
+/// never a row of its own (C4: a row is its placed image), so
+/// certification refuses it at the second channel's fidelity term; the
+/// wall's identity alone meets it exactly.
 #[test]
-fn a_wall_image_certifies_at_a_whole_period_shift_and_not_at_a_half_one() {
+fn a_wall_image_lifted_a_whole_period_is_no_row_and_a_half_one_moves() {
     let period = core::f64::consts::TAU;
-    for k in [-2.0, -1.0, 1.0, 2.0] {
-        let c = certify(wall(1.0, k * period), &torus(), band())
-            .unwrap_or_else(|e| panic!("v0 = {k}·tau must certify, got {e:?}"));
-        assert_eq!(c.certificate().statement, EnvelopeStatement::SpiricIdentity);
-        assert_eq!(c.certificate().envelope, 0.0, "k = {k}");
-        assert!(c.certificate().max_residual <= 1e-14, "k = {k}");
+    for k in [-2, -1, 1, 2] {
+        let lifted = wall(1.0, 0.0).translate(0.0, f64::from(k) * period);
+        assert_eq!(
+            format!("{lifted:?}"),
+            format!("{:?}", wall(1.0, f64::from(k) * period)),
+            "k = {k}: the lift is v0 + k·period"
+        );
+        let e = certify(lifted, &torus(), band()).expect_err("a lifted copy is no row");
+        assert!(
+            matches!(
+                e,
+                PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::EnvelopeTerm(geom_brep::EnvelopeTerm::FidelityV),
+                    ..
+                }
+            ),
+            "k = {k}: refused at the second channel's term, got {e:?}"
+        );
     }
     // Any shift that is not a whole period is a different locus.
     let e = certify(wall(1.0, core::f64::consts::PI), &torus(), band())

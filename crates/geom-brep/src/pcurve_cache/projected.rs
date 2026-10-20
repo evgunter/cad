@@ -1429,7 +1429,8 @@ fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
     }
 }
 
-/// The distance of an angle from the nearest point of `shift + τℤ`.
+/// The distance of an angle from the nearest point of `shift + pℤ`, `p`
+/// the channel's own period ([`super::angle_periods`]).
 ///
 /// Sound at every scalar on its own terms: a lattice distance is
 /// continuous in the angle and the same on either branch at a tie, so
@@ -1439,8 +1440,10 @@ fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
 /// zero) against a shift of 0 or π (the sphere's twin), all form-definite
 /// constants at `Sym`, and add the distance to an envelope bound: no
 /// identity reads it.
-fn off_period<T: Real>(angle: T, shift: T) -> T {
-    (angle - shift).reduce_periodic_centred(T::tau()).abs()
+fn off_period<T: Real>(angle: T, shift: T, period: super::Period<T>) -> T {
+    (angle - shift)
+        .reduce_periodic_centred(period.length())
+        .abs()
 }
 
 /// A chart's conversion between its canonical form's magnitude `|f|`
@@ -1882,7 +1885,7 @@ pub(super) fn projected_envelope<T: Decide>(
     surface: &Surface<T>,
     band: Band,
     lane: Option<crate::FittedLane<T>>,
-) -> Result<EnvelopeTerms<T>, PcurveCertifyError> {
+) -> Result<(EnvelopeTerms<T>, super::ImageName), PcurveCertifyError> {
     let mut terms = EnvelopeTerms::new();
     let refuse = |why| PcurveCertifyError::ImageMismatch {
         image: PcurveKind::Projected,
@@ -1915,7 +1918,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 m.max(mapped.distance(*p))
             });
         terms.add(EnvelopeTerm::Incidence, sup);
-        return Ok(terms);
+        return Ok((terms, super::ImageName::Derived));
     }
     let twin = super::orthonormal_chart(surface);
     let Some((o, e)) = chart_frame(&twin) else {
@@ -2051,6 +2054,16 @@ pub(super) fn projected_envelope<T: Decide>(
             });
         }
     };
+    let name = if twin_deck {
+        super::ImageName::Twin
+    } else {
+        super::ImageName::Derived
+    };
+    // The chart's angle channels and their periods, from their one home;
+    // the plane was answered above, so the first channel is an angle.
+    let Some((Some(period_u), period_v)) = super::angle_periods(surface) else {
+        unreachable!("a curved analytic chart's first channel is an angle")
+    };
     let (shift, sign) = if twin_deck {
         (T::pi(), T::zero() - T::one())
     } else {
@@ -2058,12 +2071,12 @@ pub(super) fn projected_envelope<T: Decide>(
     };
     terms.add(
         EnvelopeTerm::FidelityU,
-        off_period(image.u_off, shift) * u_arm,
+        off_period(image.u_off, shift, period_u) * u_arm,
     );
     let v_reach = boxed.v_reach();
-    let v_off = match *surface {
-        Surface::Sphere { .. } | Surface::Torus { .. } => off_period(image.v_off, shift),
-        _ => image.v_off.abs(),
+    let v_off = match period_v {
+        Some(period) => off_period(image.v_off, shift, period),
+        None => image.v_off.abs(),
     };
     terms.add(
         EnvelopeTerm::FidelityV,
@@ -2094,7 +2107,7 @@ pub(super) fn projected_envelope<T: Decide>(
         }
         _ => {}
     }
-    Ok(terms)
+    Ok((terms, name))
 }
 
 /// The four checks of a projected row, in the fixed order every lane
@@ -2271,24 +2284,21 @@ pub(super) fn run_projected_checks<T: Decide>(
     };
 
     // ---- Check 4: the envelope, the whole certified statement. ----
-    let terms = projected_envelope(image, t0, t1, &boxed, carrier, surface, band, lane)?;
+    let (mut terms, name) =
+        projected_envelope(image, t0, t1, &boxed, carrier, surface, band, lane)?;
+    // The projected envelope reads the image through the chart's
+    // periodic map, so it cannot see a whole period of either channel:
+    // the row's placement is its own pair of terms
+    // (`super::placement_terms`).
+    let (fu, fv) = super::placement_terms(pcurve, name, (t0, t1), carrier, surface, band)?;
+    terms.add(EnvelopeTerm::FidelityU, fu);
+    terms.add(EnvelopeTerm::FidelityV, fv);
     let envelope = terms.total();
-    match decide("pcurve_envelope", Margin::of(envelope), band) {
-        Ok(Sign::Zero) => {}
-        refused => {
-            let check = terms
-                .first_over(band)
-                .map_or(PcurveCheck::Envelope, PcurveCheck::EnvelopeTerm);
-            return Err(match refused {
-                Err(cause) => PcurveCertifyError::Escalated {
-                    check,
-                    sample: 0,
-                    cause,
-                },
-                Ok(_) => PcurveCertifyError::ResidualExceeded { check, sample: 0 },
-            });
-        }
-    }
+    super::envelope_verdict(envelope, band, || {
+        terms
+            .first_over(band)
+            .map_or(PcurveCheck::Envelope, PcurveCheck::EnvelopeTerm)
+    })?;
     Ok(super::PcurveCertificate::closed(
         samples,
         max_residual,
