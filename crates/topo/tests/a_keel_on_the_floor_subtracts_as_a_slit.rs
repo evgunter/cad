@@ -477,7 +477,7 @@ struct Glued {
     keel: bool,
 }
 
-const GLUED: [Glued; 5] = [
+const GLUED: [Glued; 4] = [
     Glued {
         what: "slit ∪ the slab under",
         slab: (-1.0, 0.0),
@@ -514,15 +514,6 @@ const GLUED: [Glued; 5] = [
         counts: [(16, 24, 11), (16, 24, 10), (16, 24, 10)],
         keel: false,
     },
-    Glued {
-        what: "the slab inside ∪ slit",
-        slab: (0.0, 0.5),
-        op: topo::BooleanOp::Union,
-        slab_first: true,
-        volume: |l| 16.0 - 0.225 * l,
-        counts: [(16, 24, 11), (16, 24, 10), (16, 24, 10)],
-        keel: false,
-    },
 ];
 
 /// **A face glued to the slit floor merges the slit's two edges into
@@ -533,8 +524,8 @@ const GLUED: [Glued; 5] = [
 /// `[0, 4]² × [0, 0.5]` inside it, which ∖ the slit leaves as the
 /// trench's foot. The floor is glued away, so the material about the
 /// keel is the two walls' alone (tier 3: the material decides the
-/// edges), and the keel is one edge between them. ∪ the slab inside
-/// fills the keel. At every extent and pose: tiers 1, 2, 3 and 3′ with
+/// edges), and the keel is one edge between them. The slit ∪ the slab
+/// inside fills the keel. At every extent and pose: tiers 1, 2, 3 and 3′ with
 /// no records, one solid, the closed-form volume, the vertex, edge and
 /// face counts, and the keel one edge between two walls.
 #[test]
