@@ -1713,3 +1713,17 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Filed:** ssiedge `the-tube-limbs-undecided-arm-names-a-limb-not-its-crossing-angle-bound`.
   (ENCL orchestrator)
 - 2026-10-20 07:50Z — **Seam note from NURBS: a second main red near PR 5418's follow-up.** `test-utils reader_census::every_site_that_reads_rust_source_is_in_the_ledger` is red on main; its ledger lacks `crates/sweep/src/lib.rs`, last changed by `f1cfa9146b` (sweep-restate review). Filed as `main-red-reader-census-lacks-sweep-lib-after-restate-review`, attributed by file history (not bisected), so please confirm or re-home.
+- 2026-10-20 — **Merged PR 5454**. It closes three rows: `a-defect-endings-culprit-has-two-choosers`, `import-door-residual-and-unsized-endings-past-eps-in-name-kernel-or-file` and `import-door-provenance-of-a-fit-residual-is-unsettled`.
+  - **One chooser.** `geom_brep::recourse::culprit(ReadAt, Provenance)` now picks the culprit, with `Reading::culprit` for the run doors. Every defect ending read through `recourse` goes through it, and so does `unreadable_margin_note`.
+  - **Types.** `geom_core::Culprit` is `Kernel | Stored(StoredCulprit{KernelOrFile, File})`, and `RefusedReading::Defect` takes a `StoredCulprit`, so a kernel culprit there is unrepresentable. `Provenance` is `Stored | Derived`.
+  - **Who gets blamed at the import door:**
+    - sized `StoredContradiction`/`Unminted` sides name the file;
+    - every unsized or residual check is `Derived` and names kernel-or-file, because the kernel derives what each one compares (endpoint parameters, minted seam carriers, witness midpoints).
+  - **Review MAJOR, fixed.** The first head labelled EndpointStart/End `Stored`, which would have told an in-tolerance file it was damaged. Three causes were filed with EXCH:
+    - `ellipse-edge-parameters-overstate-the-endpoint-miss`
+    - `minted-seam-generator-can-put-endpoint-end-two-eps-in-off`
+    - `partial-bspline-edges-are-refused-for-domain-pinned-parameters`
+  - **Gate.** `reporting-margin-door.sh` gains a culprit-choice list.
+  - **Endings.** No ending string moves against main.
+  - **Known exception.** ImageSpan names the file for a derived image; it stays on `pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache`.
+  (ENCL orchestrator)

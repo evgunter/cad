@@ -2,10 +2,11 @@
 id: import-door-residual-and-unsized-endings-past-eps-in-name-kernel-or-file
 kind: issue
 title: geom-brep: at the import door past eps_in a definite residual or unsized refusal ends in KERNEL_OR_FILE_DEFECT_ENDING, not the door's one damaged-file refusal
-status: review
+status: closed
 pr: 5454
 opened: 2026-10-19
 branch: encl/one-culprit-chooser
+closed: 2026-10-20
 ---
 
 
