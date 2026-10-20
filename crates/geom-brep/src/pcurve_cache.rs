@@ -180,7 +180,8 @@ use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::spline::{KnotVector, SpanLocate, SplineError};
 use geom_core::{
-    Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
+    Decide, Decided, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2,
+    Vec3,
 };
 
 use crate::certify::{CERT_SAMPLES, sample_param};
@@ -1891,6 +1892,10 @@ pub enum PcurveCertifyError {
         carrier: geom::CurveKind,
         /// Why the pair has no common locus, named.
         why: &'static str,
+        /// The margin the decision that refused read, where the refusal is
+        /// a reading not shown away from a degenerate pose (a rim at the
+        /// apex's height): a band-decided Zero, not an exact one (D4 ¶1 (i)).
+        margin: Option<geom_core::MarginDiag>,
     },
     /// The image offered is not the carrier's image, or not this
     /// door's: a fitted or general image at the closed-form door, a
@@ -2115,13 +2120,17 @@ impl core::fmt::Display for PcurveCertifyError {
                 chart,
                 carrier,
                 why,
+                margin,
             } => write!(
                 f,
-                "pcurve certification: the {} carrier does not lie on the {} chart — {why}. \
+                "pcurve certification: the {} carrier does not lie on the {} chart — {why}{}. \
                  The edge is not on its face. Recourse: repair the body so the edge's carrier \
                  lies on the face's surface",
                 carrier.name(),
-                chart.name()
+                chart.name(),
+                margin
+                    .map(|m| format!(" (margin {m:e} m)"))
+                    .unwrap_or_default()
             ),
             Self::ImageMismatch { image, why } => write!(
                 f,
@@ -8890,8 +8899,8 @@ fn derive_class<T: Decide>(
                                 // alone.
                                 Sign::Zero => {
                                     return Err(off_chart(
-                                        "a line in the plane through the apex ⊥ the axis \
-                                             meets the cone only at the apex",
+                                        "the line is not shown off the plane through the apex ⊥ \
+                                         the axis, which meets the cone only at the apex",
                                     ));
                                 }
                             }
@@ -8967,17 +8976,34 @@ fn derive_class<T: Decide>(
                     // (radial(u)·v flips sign) — the same nappe rule
                     // as the ruling arm, decided on the height.
                     let h = (center - apex).dot(axis);
-                    let nappe = match decide("pcurve_cone_chart_nappe", Margin::of(h), band)
-                        .map_err(|cause| cone_circle_general(carrier, surface, band, Some(cause)))?
+                    let nappe = match geom_core::k_stats::decide_reported(
+                        "pcurve_cone_chart_nappe",
+                        Margin::of(h),
+                        band,
+                    )
+                    .map_err(|cause| cone_circle_general(carrier, surface, band, Some(cause)))?
                     {
-                        Sign::Positive => Nappe::Pos,
-                        Sign::Negative => Nappe::Neg,
-                        // An apex-level "rim" is the apex point itself;
-                        // no circle lies there.
-                        Sign::Zero => {
-                            return Err(off_chart(
-                                "the apex plane meets the cone only at the apex, so no rim \
-                                 lies there",
+                        Decided {
+                            sign: Sign::Positive,
+                            ..
+                        } => Nappe::Pos,
+                        Decided {
+                            sign: Sign::Negative,
+                            ..
+                        } => Nappe::Neg,
+                        // A rim whose height is not shown off the apex's
+                        // is not shown to be a circle at all: the apex
+                        // plane meets the cone only at the apex.
+                        Decided {
+                            sign: Sign::Zero,
+                            margin,
+                        } => {
+                            return Err(Underived::Refused(
+                                OffChart(
+                                    "the rim's height is not shown away from the apex's, where \
+                                     the apex plane meets the cone only at the apex",
+                                )
+                                .not_shown(margin, surface, carrier),
                             ));
                         }
                     };
@@ -9033,8 +9059,8 @@ fn derive_class<T: Decide>(
                     // The incidence test decides first: an ellipse off
                     // this cone is no section of it, and its refusal
                     // names that rather than an image's residual.
-                    if let Err(why) = cone_conic_incidence(carrier, surface, band)? {
-                        return Err(off_chart(why));
+                    if let Err(refused) = cone_conic_incidence(carrier, surface, band)? {
+                        return Err(Underived::Refused(refused));
                     }
                     // The image is read about the major vertex, where
                     // the focus is on the `t = t0` side: a carrier seamed
@@ -9051,19 +9077,35 @@ fn derive_class<T: Decide>(
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
                     let w = center - apex;
                     let h = w.dot(axis);
-                    let ns = match decide("pcurve_cone_chart_nappe", Margin::of(h), band).map_err(
-                        |cause| Underived::General {
-                            undecided: Some(cause),
-                        },
-                    )? {
-                        Sign::Positive => T::one(),
-                        Sign::Negative => T::zero() - T::one(),
+                    let ns = match geom_core::k_stats::decide_reported(
+                        "pcurve_cone_chart_nappe",
+                        Margin::of(h),
+                        band,
+                    )
+                    .map_err(|cause| Underived::General {
+                        undecided: Some(cause),
+                    })? {
+                        Decided {
+                            sign: Sign::Positive,
+                            ..
+                        } => T::one(),
+                        Decided {
+                            sign: Sign::Negative,
+                            ..
+                        } => T::zero() - T::one(),
                         // A section ellipse is centred off the apex
-                        // level on its own nappe; one centred on it
-                        // lies on no cone.
-                        Sign::Zero => {
-                            return Err(off_chart(
-                                "an ellipse centred at the apex's height lies on no nappe",
+                        // level on its own nappe; one whose centre is not
+                        // shown off that level is not shown on a nappe.
+                        Decided {
+                            sign: Sign::Zero,
+                            margin,
+                        } => {
+                            return Err(Underived::Refused(
+                                OffChart(
+                                    "the ellipse's centre is not shown away from the apex's \
+                                     height, and a section centred there lies on no nappe",
+                                )
+                                .not_shown(margin, surface, carrier),
                             ));
                         }
                     };
@@ -9626,6 +9668,23 @@ impl OffChart {
             chart: surface.kind(),
             carrier: carrier.kind(),
             why: self.0,
+            margin: None,
+        }
+    }
+
+    /// The refusal of a reading not shown away from a degenerate pose,
+    /// quoting the margin the decision read (D4 ¶1 (i)).
+    fn not_shown<T: Real>(
+        self,
+        margin: geom_core::MarginDiag,
+        surface: &Surface<T>,
+        carrier: &Curve3<T>,
+    ) -> PcurveCertifyError {
+        PcurveCertifyError::CarrierOffChart {
+            chart: surface.kind(),
+            carrier: carrier.kind(),
+            why: self.0,
+            margin: Some(margin),
         }
     }
 }
@@ -9731,6 +9790,7 @@ fn torus_oblique_circle<T: Decide>(
             carrier: carrier.kind(),
             why: "the circle's points are not on the torus (its distance from the torus at a \
                   sample is past the band)",
+            margin: None,
         }));
     }
     let w = c - center;
@@ -9910,8 +9970,7 @@ fn cone_circle_general<T: Decide>(
 ) -> Underived {
     match cone_conic_incidence(carrier, surface, band) {
         Ok(Ok(())) => Underived::General { undecided },
-        Ok(Err(why)) => Underived::Refused(OffChart(why).refusal(surface, carrier)),
-        Err(refused) => Underived::Refused(refused),
+        Ok(Err(refused)) | Err(refused) => Underived::Refused(refused),
     }
 }
 
@@ -10193,7 +10252,7 @@ fn cone_conic_incidence<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-) -> Result<Result<(), &'static str>, PcurveCertifyError> {
+) -> Result<Result<(), PcurveCertifyError>, PcurveCertifyError> {
     let (Some(form), &Surface::Cone { apex, axis, .. }) = (carrier_harmonic(carrier), surface)
     else {
         unreachable!("cone_conic_incidence: the cone arm reads a conic carrier")
@@ -10204,22 +10263,42 @@ fn cone_conic_incidence<T: Decide>(
         form.b.dot(axis),
     );
     let z_min = wz.abs() - (az.powi(2) + bz.powi(2)).sqrt();
-    match decide("pcurve_cone_chart_nappe", Margin::of(z_min), band).map_err(incidence_escalated)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Ok(Err(
-                "the conic reaches the apex's height, and the apex plane meets the cone only \
-                 at the apex",
-            ));
+    match geom_core::k_stats::decide_reported("pcurve_cone_chart_nappe", Margin::of(z_min), band)
+        .map_err(incidence_escalated)?
+    {
+        Decided {
+            sign: Sign::Positive,
+            ..
+        } => {}
+        Decided {
+            sign: Sign::Negative,
+            ..
+        } => {
+            return Ok(Err(OffChart(
+                "the conic reaches past the apex's height, and the apex plane meets the cone \
+                 only at the apex",
+            )
+            .refusal(surface, carrier)));
+        }
+        Decided {
+            sign: Sign::Zero,
+            margin,
+        } => {
+            return Ok(Err(OffChart(
+                "the conic's lowest point is not shown away from the apex's height, where the \
+                 apex plane meets the cone only at the apex",
+            )
+            .not_shown(margin, surface, carrier)));
         }
     }
     Ok(
         match chart_incidence("pcurve_cone_chart_incident", carrier, surface, band)? {
             Incidence::On => Ok(()),
-            Incidence::Off => Err(
+            Incidence::Off => Err(OffChart(
                 "the conic's points are not on the cone (its distance from the cone at a sample \
                  is past the band)",
-            ),
+            )
+            .refusal(surface, carrier)),
         },
     )
 }
@@ -11468,6 +11547,7 @@ mod tests {
                     chart: geom::SurfaceKind::Cone,
                     carrier: geom::CurveKind::Ellipse,
                     why,
+                    ..
                 } if why.contains("not on the cone")
             ),
             "{err:?}"
@@ -11654,8 +11734,18 @@ mod tests {
                 chart: SurfaceKind::Sphere,
                 carrier: CurveKind::Line,
                 why: "WHY",
+                margin: None,
             },
             vec!["sphere", "line", "WHY"],
+        ));
+        rows.push((
+            PcurveCertifyError::CarrierOffChart {
+                chart: SurfaceKind::Cone,
+                carrier: CurveKind::Circle,
+                why: "WHY",
+                margin: Some(geom_core::MarginDiag::value(4e-10)),
+            },
+            vec!["cone", "circle", "WHY", "(margin 4e-10 m)"],
         ));
         rows.push((
             PcurveCertifyError::ImageMismatch {

@@ -449,3 +449,52 @@ fn a_plane_chart_box_covers_every_span_of_its_net() {
         "Interval",
     );
 }
+
+/// **A rim whose height is not shown away from the apex's refuses as
+/// not shown, quoting its margin** (`pcurve_cone_chart_nappe`'s Zero
+/// arm). A circle ⊥ the axis, centred on it at a height inside the zero
+/// band, passes the rim gates and reaches the nappe: a band-decided Zero
+/// is not an exact one, so the refusal says the height "is not shown
+/// away from the apex's" and carries the margin the decision read, never
+/// the bare fact that the apex plane meets the cone only at the apex.
+/// Read at `f64` and at `Interval`.
+#[test]
+fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
+    let surface = cone(0.5);
+    let Surface::Cone {
+        apex, axis, u_ref, ..
+    } = surface
+    else {
+        unreachable!()
+    };
+    let rim = Curve3::Circle {
+        center: apex + axis * (0.2 * eps()),
+        axis,
+        radius: 0.3,
+        u_ref,
+    };
+    let check = |got: Result<String, PcurveCertifyError>, lane: &str| match got {
+        Err(PcurveCertifyError::CarrierOffChart {
+            why,
+            margin: Some(_),
+            ..
+        }) => {
+            assert!(
+                why.contains("is not shown away from the apex"),
+                "{lane}: {why}"
+            );
+        }
+        other => panic!("{lane}: a rim at the apex's height: {other:?}"),
+    };
+    let got = chart_pcurve(&rim, &surface, band());
+    if let Err(e) = &got {
+        assert!(e.to_string().contains("(margin "), "{e}");
+    }
+    check(got.map(|p| format!("{p:?}")), "f64");
+    let rim_i: Curve3<Interval> = rim.map_scalar(Interval::from_f64);
+    let surface_i: Surface<Interval> = surface.map_scalar(Interval::from_f64);
+    check(
+        chart_pcurve(&rim_i, &surface_i, band()).map(|p| format!("{p:?}")),
+        "Interval",
+    );
+}

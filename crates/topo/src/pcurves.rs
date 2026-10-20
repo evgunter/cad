@@ -6530,6 +6530,7 @@ mod recourse_tests {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
             why: "a sphere holds no line",
+            margin: None,
         };
         let arms = [
             PcurveMintError::Stale {

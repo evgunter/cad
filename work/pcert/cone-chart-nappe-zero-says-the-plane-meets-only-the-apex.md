@@ -2,7 +2,8 @@
 id: cone-chart-nappe-zero-says-the-plane-meets-only-the-apex
 kind: issue
 title: geom-brep: pcurve_cone_chart_nappe's Zero refusal says the apex plane meets the cone only at the apex, and prints no margin
-status: open
+status: closed
+closed: 2026-10-20
 opened: 2026-10-13
 priority: P3
 cost: E
@@ -19,3 +20,20 @@ A `Sign::Zero` from `decide` is a band-decided reading — an exact zero, a stra
 ## Repair shape
 
 Say the rim's height "is not shown away from the apex (margin … m)", carrying the margin into `off_chart`'s text.
+
+## Fixed (PCERT E1, `pcert/lane-choices`)
+
+`PcurveCertifyError::CarrierOffChart` carries an optional `margin`
+(`geom_core::MarginDiag`), printed as "(margin … m)". Every
+`pcurve_cone_chart_nappe` Zero arm now says the reading "is not shown"
+rather than stating the zero as exact:
+- the rim (`derive_class`, cone circle arm) and the section ellipse read
+  the nappe through `decide_reported` and quote its margin;
+- `cone_conic_incidence` does the same for the conic's lowest point, and
+  splits a definite `Negative` ("reaches past the apex's height") from
+  the not-shown `Zero`;
+- the ruling's direction gate (`decide_flagged`, which reports no
+  margin) carries the wording only.
+
+Pinned by `chart_incidence::a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin`,
+at `f64` and at `Interval`.
