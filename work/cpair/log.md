@@ -30,6 +30,7 @@ NURBS build A (dispatched by the NURBS orchestrator) claims
 beside them, the needle at ε 1e-12 its first witness. No CPAIR or BAND
 branch touches `crates/geom-brep/src/curve_pair/` (checked against every
 live remote branch). Plan before code, at the NURBS orchestrator.
+
 ## 2026-10-20 — NURBS build A: the line-line crossing measured, no wrong side
 
 `the-curve-pair-line-line-crossing-is-read-from-the-carriers-origins-uncharged`

@@ -943,6 +943,65 @@ mod rows {
         );
     }
 
+    /// **The half-width covers a piece one ulp wide far from zero** (the
+    /// #5477 review's M1). `b` is the unit circle in `z = 0`; `a` is the
+    /// unit circle about `(1, 0, 1)` in `y = 0`, turned so that
+    /// `a(400) = (1, 0, 0)`, a transverse crossing with skew about 1.
+    /// Over pieces `(l, r)` one ulp of `400` wide, `(l + r)/2` ties and
+    /// rounds to an end, so the far end lies a whole ulp (`5.7·10⁻¹⁴`)
+    /// from `m` while `w` is half that. The reading along `b` holds both
+    /// ends' true distance to `b`'s carrier. Red where the half-width is
+    /// left bare (no charge for the rounding of `m` and `w`): it falls
+    /// about `2.9·10⁻¹⁴` under on a third of the pieces.
+    #[test]
+    fn the_half_width_covers_a_piece_one_ulp_wide_far_from_zero() {
+        let b = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let a = Curve3::Circle {
+            center: Point3::new(1.0, 0.0, 1.0),
+            axis: Vec3::new(0.0, -1.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(-400f64.sin(), 0.0, -400f64.cos()),
+        };
+        let at = a.eval(400.0);
+        assert!(
+            (at - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12,
+            "a(400) is {at:?}, not the crossing"
+        );
+        // `b`'s carrier is the unit circle in `z = 0`.
+        let d = |t: f64| {
+            let q = a.eval(t);
+            (q.z.powi(2) + (q.x.hypot(q.y) - 1.0).powi(2)).sqrt()
+        };
+        let (ka, kb) = (Conic::of(&a).unwrap(), Conic::of(&b).unwrap());
+        let w = Window {
+            a: &ka,
+            span_a: (399.0, 401.0),
+            b: &kb,
+            carrier_b: &b,
+            height: super::super::height(&ka, kb.center, kb.axis),
+            noise: 0.0,
+        };
+        let mut l = 400.0_f64;
+        for _ in 0..64 {
+            let r = l.next_up();
+            let (m, half) = ((l + r) / 2.0, (r - l) / 2.0);
+            let foot = b.foot(a.eval(m), 0.0);
+            let along = w.along_b(m, half, &foot);
+            let far = d(l).max(d(r));
+            assert!(
+                along >= far,
+                "piece ({l}, {r}): the reading along b, {along:e}, is under \
+                 the far end's distance {far:e}"
+            );
+            l = r;
+        }
+    }
+
     /// **The bend term is an upper bound on its real value.** Against
     /// `(A + k²·B)·w²/2` read exactly over drawn semi-axes, slopes and
     /// widths, [`super::bent`] is never below it. Red where the term is

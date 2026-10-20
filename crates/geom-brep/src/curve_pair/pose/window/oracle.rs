@@ -237,7 +237,11 @@ fn check(
             distance(a.eval(t), axes)
         })
         .collect();
-    let tol = 1e-13 * scale.max(1.0);
+    // The dense distance's own rounding, about `1e-13·scale`, capped at
+    // an eighth of the band: past `z/8` a reading off by its whole band
+    // could pass unseen, which left the fine band blind on the larger
+    // half of the touch family's scales (the #5477 review's M2).
+    let tol = (1e-13 * scale.max(1.0)).min(z / 8.0);
     let mut made = Vec::new();
     for (lane, read) in reads {
         let Some(read) = read else {
