@@ -1656,3 +1656,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - The conflict that my aafaa9b2 caused is resolved on the item, which stays closed; its two `split_restrict` lines moved to #5461. CI is green on 5ca3b5e9, and the code diff is identical to the reviewed head.
   - **#5439 merged** (ac8a2e40), keeping two Bernstein product homes for precision.
   - **#5461** (binomial item PR 3, closing the item) and **#5459** (degree-elevation fix) are in review.
+- 2026-10-20 09:30Z — **#5459: margin 2, and main's graded-knot defects** (build C's held-out measurements; median of 30 curves, one `elevate_degree(1)`).
+  - `MIDPOINT_MARGIN = 8` was fitted on noise. K2 is at or within 2× of the best on every held-out family (graded t^1.5, geometric ×1.15/×2, jittered, with and without a close pair).
+  - **Main's midpoint split is badly conditioned on graded knots with no close pair:** geometric ×1.15 at p=10 is off by 0.15, steep ×2 at p ≥ 8 refuses, and uniform p=9 reaches 1.6e-3 at 80 knots.
+  - **Ruled:** K2, documented as empirical with its fitting set; a p=9 uniform row; the near-tie pinned by an exact split-choice unit row, not a cap; a geometric ×1.15 row. K2 moves bits on 90 of 800 uniform shapes at equal or better error, which the output-stability memory allows; stated in the PR. The reviewer reviews the new head.
+  - **Build A:** KNOT's `surface-knot-insertion-writes-weights-validate-counts-refuses` (STANDARD, a silent error at the producer) first, then CPAIR's `curve-pair-polish-meters-refuse-shallow-meetings` (P2, the needle base red at 1e-12).
