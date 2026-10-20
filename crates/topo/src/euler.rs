@@ -262,7 +262,7 @@ use crate::entity::{
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::joint::JointElement;
-use crate::live::{Arg, KeySource, Live, dangling_link, link, linked, lookup, proven, require_key};
+use crate::live::{Arg, KeySource, Live, link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
@@ -4105,21 +4105,14 @@ impl<T: Decide> Body<T> {
         run: &[HalfEdgeKey],
     ) -> Result<Option<&EdgeCurve<T>>, EulerOpError> {
         let edge_data = proven(&self.edges, edge, EntityId::Edge);
-        match self.get_curve_geom(edge_data.curve) {
-            Some(crate::null::CurveGeom::Certified(curve)) => Ok(Some(curve)),
-            Some(crate::null::CurveGeom::NullScaffold(_))
+        match self.edge_curve_linked(edge, edge_data) {
+            crate::null::CurveGeom::Certified(curve) => Ok(Some(curve)),
+            crate::null::CurveGeom::NullScaffold(_)
                 if run.contains(&edge_data.he_plus) && run.contains(&edge_data.he_minus) =>
             {
                 Ok(None)
             }
-            Some(crate::null::CurveGeom::NullScaffold(_)) => {
-                Err(EulerOpError::RebasedNullEdge { edge })
-            }
-            None => dangling_link(
-                EntityId::Edge(edge),
-                "curve",
-                GeomRef::Curve(edge_data.curve),
-            ),
+            crate::null::CurveGeom::NullScaffold(_) => Err(EulerOpError::RebasedNullEdge { edge }),
         }
     }
 

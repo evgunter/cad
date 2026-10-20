@@ -71,7 +71,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface, ParentSide, RechartDoor};
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::live::{Arg, dangling_link, linked, lookup, proven, require_key};
+use crate::live::{Arg, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
 
@@ -408,7 +408,11 @@ impl<T: Decide> Body<T> {
                 return Err(EulerOpError::DuplicateRedescription { edge });
             }
             let curve_key = edge_data.curve;
-            if self.edge_curve(edge, curve_key).null_scaffold().is_some() {
+            if self
+                .edge_curve_linked(edge, edge_data)
+                .null_scaffold()
+                .is_some()
+            {
                 return Err(EulerOpError::NullScaffoldCurve { curve: curve_key });
             }
             let sides = self.sides(edge, moved);
@@ -668,12 +672,12 @@ impl<T: Decide> Body<T> {
     ) -> Result<Vec<EdgeKey>, EulerOpError> {
         let mut out = Vec::new();
         for edge in edges {
-            let curve_key = proven(&self.edges, edge, EntityId::Edge).curve;
+            let data = proven(&self.edges, edge, EntityId::Edge);
             let (spelling, curve) = match reading.written().iter().find(|(e, ..)| *e == edge) {
                 Some((.., curve)) => (Spelling::Listed, Some(curve)),
                 None => (
                     Spelling::Stored,
-                    self.edge_curve(edge, curve_key).certified(),
+                    self.edge_curve_linked(edge, data).certified(),
                 ),
             };
             let Some(curve) = curve else {
@@ -786,7 +790,7 @@ impl<T: Decide> Body<T> {
         let mut out = RechartEdges::default();
         for edge_key in edges {
             let edge = proven(&self.edges, edge_key, EntityId::Edge);
-            let named = Named::of(self.edge_curve(edge_key, edge.curve));
+            let named = Named::of(self.edge_curve_linked(edge_key, edge));
             if matches!(named, Named::Nothing) {
                 continue;
             }
@@ -1064,8 +1068,8 @@ impl<T: Decide> Body<T> {
             self.rechart_edges(edges.iter().copied(), moved, Spelling::Stored);
         let mut out = Vec::new();
         for (edge, sides) in stranded {
-            let curve = proven(&self.edges, edge, EntityId::Edge).curve;
-            let named = Named::of(self.edge_curve(edge, curve));
+            let data = proven(&self.edges, edge, EntityId::Edge);
+            let named = Named::of(self.edge_curve_linked(edge, data));
             if sides.coherent_after(named, Spelling::Listed) {
                 out.push((edge, self.carried_spec(edge, sides, &[]).description));
             }
@@ -1106,8 +1110,8 @@ impl<T: Decide> Body<T> {
     /// chart image is stated in its chart's coordinates, so it is left
     /// to be re-derived on a chart whose payload is not the old one's.
     fn carried_spec(&self, edge: EdgeKey, sides: Sides, charts: &[Rechart<T>]) -> EdgeCurveSpec<T> {
-        let curve_key = proven(&self.edges, edge, EntityId::Edge).curve;
-        let Some(certified) = self.edge_curve(edge, curve_key).certified() else {
+        let data = proven(&self.edges, edge, EntityId::Edge);
+        let Some(certified) = self.edge_curve_linked(edge, data).certified() else {
             unreachable!(
                 "{edge:?} is carried, and `rechart_edges` carries only a certified edge \
                  (it skips scaffold and null edges)"
@@ -1211,13 +1215,6 @@ impl<T: Decide> Body<T> {
                 self.linked_vertex_point(end, EntityId::HalfEdge(next), "start"),
             ),
         ]
-    }
-
-    /// The curve geometry `edge`'s `curve` field names.
-    #[track_caller]
-    fn edge_curve(&self, edge: EdgeKey, curve: CurveKey) -> &crate::CurveGeom<T> {
-        self.get_curve_geom(curve)
-            .unwrap_or_else(|| dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(curve)))
     }
 
     /// Sets `face`'s orientation sense ([`crate::Face::sense`]) in
@@ -1865,8 +1862,8 @@ impl<T: Decide> Body<T> {
     ///
     /// If `edge` or a record it links to does not resolve.
     pub(crate) fn stored_description_adjacent(&self, edge: EdgeKey) -> bool {
-        let curve = proven(&self.edges, edge, EntityId::Edge).curve;
-        let stored = self.edge_curve(edge, curve);
+        let data = proven(&self.edges, edge, EntityId::Edge);
+        let stored = self.edge_curve_linked(edge, data);
         let sides = self.sides(edge, |_, _, _| None);
         Named::of(stored).adjacent_to(sides.before.map(Slot::Kept), Slot::Kept)
     }
@@ -4584,46 +4581,6 @@ mod tests {
         );
         body.kfmrh_describing(top, membrane, &carried, tol())
             .unwrap();
-    }
-
-    /// **The stored-curve read borrows the arena's carrier and answers
-    /// each way of having none as itself**: a null edge is
-    /// `NullScaffoldCurve` naming its curve row, a stale key the
-    /// caller's `Stale` edge.
-    #[test]
-    fn the_stored_curve_read_borrows_and_types_each_miss() {
-        let (mut body, _, half, _) = half_cap_on_own_key();
-        let at = outer_cycle(&body, half)[1];
-        let live = body.get_half_edge(at).unwrap().edge;
-        let arena = body
-            .get_curve_geom(body.get_edge(live).unwrap().curve)
-            .and_then(crate::CurveGeom::certified)
-            .unwrap();
-        assert!(
-            core::ptr::eq(body.stored_curve(live).unwrap(), arena),
-            "a live edge reads the arena's own entry"
-        );
-        let null = body
-            .mev_null(
-                crate::MevSite::Fan { he1: at, he2: at },
-                crate::NewVertexSide::Above,
-            )
-            .unwrap();
-        let null_edge = body.get_half_edge(null.he_plus).unwrap().edge;
-        let curve = body.get_edge(null_edge).unwrap().curve;
-        assert_eq!(
-            body.stored_curve(null_edge).unwrap_err(),
-            EulerOpError::NullScaffoldCurve { curve },
-            "a null edge"
-        );
-        assert_eq!(
-            body.stored_curve(EdgeKey::default()).unwrap_err(),
-            EulerOpError::Argument(crate::BadArgument::Stale {
-                role: "edge",
-                key: EntityId::Edge(EdgeKey::default()),
-            }),
-            "a stale key"
-        );
     }
 
     /// **A describing kill refuses a null edge listed**: a null spur

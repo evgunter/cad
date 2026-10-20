@@ -15,5 +15,6 @@ opened: 2026-10-20
 
 - `walk.rs` (~225) and `memo.rs` (~773): `get_edge` → `MissingEntity { what: "edge" }`, `get_curve_geom` → `MissingEntity { what: "edge curve" }`, `.certified()` → `NullScaffoldEdge`.
 - `trimmed.rs` (~160, ~947): one `MissingEntity { what: "edge curve" }` for every miss, a null edge included.
+- `chords.rs` (~101-106): the same `MissingEntity { what: "edge curve" }` / `NullScaffoldEdge` pair, over `body.edges()`.
 
 Routing them is a `map_err` from `EulerOpError::NullScaffoldCurve` to `NullScaffoldEdge` and from `BadArgument::Stale` to `MissingEntity`. It changes one thing: a dangling curve link would panic rather than come back as `MissingEntity { what: "edge curve" }`, and `trimmed.rs` would tell a null edge apart. Those are this program's calls.

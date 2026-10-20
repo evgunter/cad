@@ -2524,7 +2524,10 @@ pub(super) fn certified_curve<T: Real>(
         topo::EulerOpError::NullScaffoldCurve { .. } => {
             scaffolding(at, "an edge carries no certified carrier")
         }
-        _ => unresolved(at, "an edge the blend reads"),
+        topo::EulerOpError::Argument(topo::BadArgument::Stale { .. }) => {
+            unresolved(at, "an edge the blend reads")
+        }
+        e => unreachable!("`Body::stored_curve` refuses only a stale or a null edge: {e}"),
     })
 }
 

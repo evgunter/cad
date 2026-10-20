@@ -81,7 +81,7 @@ use crate::entity::{
 use crate::euler::{EulerOpError, RunSite};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::joint::JointElement;
-use crate::live::{Arg, dangling_link, lookup};
+use crate::live::{Arg, lookup};
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::provenance::Provenance;
 use crate::validate::ValidatorSeal;
@@ -904,6 +904,7 @@ impl<T: Real> Body<T> {
     /// kernel bug reaches.
     ///
     /// [`BadArgument::Stale`]: crate::BadArgument::Stale
+    #[track_caller]
     pub fn stored_curve(&self, edge: EdgeKey) -> Result<&EdgeCurve<T>, EulerOpError> {
         self.stored_curve_as(edge, Arg("edge"))
     }
@@ -915,12 +916,10 @@ impl<T: Real> Body<T> {
         edge: EdgeKey,
         from: Arg,
     ) -> Result<&EdgeCurve<T>, EulerOpError> {
-        let curve = lookup(&self.edges, edge, EntityId::Edge, from)?.curve;
-        self.curves
-            .get(curve)
-            .unwrap_or_else(|| dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(curve)))
+        let data = lookup(&self.edges, edge, EntityId::Edge, from)?;
+        self.edge_curve_linked(edge, data)
             .certified()
-            .ok_or(EulerOpError::NullScaffoldCurve { curve })
+            .ok_or(EulerOpError::NullScaffoldCurve { curve: data.curve })
     }
 
     /// The surface geometry at `key`, or `None` if the key is stale;
@@ -1617,6 +1616,68 @@ mod tests {
 
     fn origin() -> Point3<f64> {
         Point3::origin()
+    }
+
+    /// **The stored-curve read borrows the arena's carrier and answers
+    /// each way of having none as itself**: a null edge is
+    /// `NullScaffoldCurve` naming its curve row, a stale key the
+    /// caller's `Stale` edge under the role it was asked as.
+    #[test]
+    fn the_stored_curve_read_borrows_and_types_each_miss() {
+        let t = pillow(Tol::witness());
+        let mut body = t.body;
+        let arena = body
+            .get_curve_geom(t.curves[0])
+            .and_then(CurveGeom::certified)
+            .unwrap();
+        assert!(
+            core::ptr::eq(body.stored_curve(t.edges[0]).unwrap(), arena),
+            "a live edge reads the arena's own entry"
+        );
+        let null = body
+            .mev_null(
+                crate::MevSite::Fan {
+                    he1: t.hes_a[0],
+                    he2: t.hes_a[0],
+                },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        let null_edge = body.get_half_edge(null.he_plus).unwrap().edge;
+        let curve = body.get_edge(null_edge).unwrap().curve;
+        assert_eq!(
+            body.stored_curve(null_edge).unwrap_err(),
+            EulerOpError::NullScaffoldCurve { curve },
+            "a null edge"
+        );
+        let stale = |role| {
+            EulerOpError::Argument(crate::BadArgument::Stale {
+                role,
+                key: EntityId::Edge(EdgeKey::default()),
+            })
+        };
+        assert_eq!(
+            body.stored_curve(EdgeKey::default()).unwrap_err(),
+            stale("edge"),
+            "a stale key"
+        );
+        assert_eq!(
+            body.stored_curve_as(EdgeKey::default(), Arg("redescriptions"))
+                .unwrap_err(),
+            stale("redescriptions"),
+            "a stale key under the restatement doors' role"
+        );
+    }
+
+    /// **A live edge whose curve row is gone is a kernel bug** (D2): the
+    /// read panics naming the link rather than refusing the caller.
+    #[test]
+    #[should_panic(expected = "'s curve names")]
+    fn the_stored_curve_read_panics_on_a_dangling_curve_link() {
+        let t = pillow(Tol::witness());
+        let mut body = t.body;
+        body.curves.remove(t.curves[0]);
+        let _ = body.stored_curve(t.edges[0]);
     }
 
     #[test]
