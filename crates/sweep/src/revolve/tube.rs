@@ -318,6 +318,13 @@ impl std::error::Error for TubeError {}
 /// [`RigidMotion`] is orthonormal by its type, decided at whichever
 /// mint built it, so the axis and the reference radial arrive as facts
 /// rather than as claims this door has to re-examine.
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the operation stored whose own span or
+/// winding reads certainly refused at the run's band where it is
+/// re-described ([`topo::Body::restate_stored_edge`],
+/// [`topo::Body::describe_at_rest`]).
 pub fn tube_along_arc<T: Decide + topo::AtRestPolicy>(
     frame: RigidMotion<T>,
     major_radius: T,
@@ -344,6 +351,13 @@ pub fn tube_along_arc<T: Decide + topo::AtRestPolicy>(
 /// [`TubeError::WallGapCollapsed`]) are decided FIRST, before
 /// anything is minted, and their verdicts are what the full period's
 /// cavity insertion carries as its containment evidence.
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the operation stored whose own span or
+/// winding reads certainly refused at the run's band where it is
+/// re-described ([`topo::Body::restate_stored_edge`],
+/// [`topo::Body::describe_at_rest`]).
 // The solid door's intent parameters plus the wall — the list IS the
 // door, and bundling any subset of the radii and the window into a
 // struct would hide which numbers the body stores verbatim. The frame

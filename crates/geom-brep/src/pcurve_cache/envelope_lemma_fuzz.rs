@@ -31,14 +31,15 @@ mod projected_searches;
 
 use super::{
     AxisMap, Channel, ChartMap, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, Pcurve,
-    PcurveCache, PcurveCertifyError, PcurveCheck, angle_rate, carrier_harmonic, channels_of,
-    chart_image_harmonic, chart_pcurve, derive_harmonic, focal_section_envelope, incidence,
-    orthonormal_chart, periodic_envelope,
+    PcurveCache, PcurveCertifyError, PcurveCheck, Period, angle_rate, carrier_harmonic,
+    channels_of, chart_image_harmonic, chart_pcurve, derive_harmonic, focal_section_envelope,
+    incidence, orthonormal_chart, periodic_envelope,
 };
 use geom::{Curve3, Surface};
+use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
 use geom_core::tolerance::Tol;
-use geom_core::{Bounds, Interval, Point3, Real, Vec3};
+use geom_core::{Bounds, Interval, Margin, Point3, Real, Sign, Vec3};
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use test_utils::fuzz;
 
@@ -793,8 +794,8 @@ struct Row {
 fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     let (chart, exact) = on_chart(s, class);
     // 0: the carrier moves; 1: the image moves; 2: both; 3: neither,
-    // the image only renamed (a whole period, the twin); 4: the chart's
-    // frame moves.
+    // the image only renamed (its sphere twin, or a whole period over,
+    // which is no row); 4: the chart's frame moves.
     let mode = s.below(5);
     let delta = magnitude(s);
     let surface = if mode == 4 {
@@ -809,11 +810,12 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     };
     let (t0, t1) = span(s);
     let reach = t0.abs().max(t1.abs());
-    // The stored image is what the mint derives on the chart as stored.
+    // The stored image is what the mint derives on the chart as stored,
+    // placed over the span it is certified on (C4).
     let (derived, _) = derive_harmonic(
         &carrier,
         &surface,
-        super::Placement::own(&carrier, &surface),
+        super::Placement::over((t0, t1), &carrier, &surface),
         band(),
     )
     .ok()?;
@@ -843,8 +845,9 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
         }
     };
     let mut stored = jittered(&derived, jitter);
-    let k = s.range(-1.5, 1.5).round();
-    stored = stored.shift_branch(k, TAU);
+    // A whole turn of the window either way, or none.
+    let k = [-1, 0, 1][s.below(3)];
+    stored = stored.shift_branch(k, Period::new(TAU));
     if matches!(surface, Surface::Sphere { .. }) && s.below(2) == 0 {
         stored = twin(&stored, 0.0);
     }
@@ -883,7 +886,27 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
             .collect::<Vec<_>>(),
         fuzz::replay()
     );
-    if mode == 3 && images_exactly(class) {
+    // A row renamed by a whole period is a lifted copy, no row (C4): its
+    // azimuth's fidelity term reads the period as its offset and refuses
+    // alone, whatever else the draw moved. An exact image renamed by its
+    // sphere's twin costs nothing.
+    if k != 0 {
+        assert!(
+            !matches!(
+                decide(
+                    "pcurve_envelope_term",
+                    Margin::of(terms.0[EnvelopeTerm::FidelityU.slot()]),
+                    band()
+                ),
+                Ok(Sign::Zero)
+            ),
+            "{}: a row a whole period off is no row, yet its FidelityU term {:e} is in the \
+             band — {}",
+            context(),
+            terms.0[EnvelopeTerm::FidelityU.slot()],
+            fuzz::replay()
+        );
+    } else if mode == 3 && images_exactly(class) {
         assert!(
             envelope <= noise,
             "{}: a renamed exact image costs {envelope:e}; terms {:?} — {}",
@@ -926,10 +949,11 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
 
 /// **The lemma, swept** (a counterexample search: the seed varies). For
 /// a carrier moved off its chart, a stored image moved off the one
-/// derived from it (by a whole period, or onto a sphere's involution
-/// twin, as well as by drift), and a chart whose frame is off its
-/// convention, check 4's envelope is never below the sampled sup of the
-/// stored image's residual, at `f64` or at `Interval`. Each row moves
+/// derived from it (by drift, onto a sphere's involution twin, or a
+/// whole period over, which its azimuth term refuses alone), and a
+/// chart whose frame is off its convention, check 4's envelope is never
+/// below the sampled sup of the stored image's residual, at `f64` or at
+/// `Interval`. Each row moves
 /// one of the four alone, or two, so a term is met with nothing else to
 /// cover for it. The failure prints the terms.
 #[test]
@@ -1286,10 +1310,10 @@ fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
 /// **A corrupted stored image refuses at `Interval` as at `f64`**
 /// (PR 3812's review R1, P3; static rows). Check 3 does not run over a
 /// box, so fidelity is what refuses a stored image that is not the
-/// carrier's; every corruption here refuses, at both scalars, and every
-/// legitimate renaming (a whole period, a sphere's involution twin)
-/// certifies at both, however many periods out: check 4 decides the
-/// branch by the period's marks from zero, with no cap.
+/// carrier's; every corruption here refuses, at both scalars, and so
+/// does every whole-period renaming, a lifted copy and no row (C4),
+/// however many periods out; a sphere's involution twin, the same placed
+/// image's other name, certifies at both.
 #[test]
 fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
     let fixtures: Vec<(Surface<f64>, Curve3<f64>, &str)> = vec![
@@ -1376,7 +1400,7 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
         let (image, _) = derive_harmonic(
             carrier,
             surface,
-            super::Placement::own(carrier, surface),
+            super::Placement::over((t0, t1), carrier, surface),
             band(),
         )
         .unwrap();
@@ -1413,18 +1437,16 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
         // `Ok(())` certifies; `Err(false)` refuses as a residual.
         let corruptions: Vec<(&str, Pcurve<f64>, Result<(), bool>)> = vec![
             ("exact", image.clone(), Ok(())),
-            ("u + τ", h(TAU, 0.0), Ok(())),
-            ("u − 3τ", h(-3.0 * TAU, 0.0), Ok(())),
-            ("u + 7τ", h(7.0 * TAU, 0.0), Ok(())),
+            // A whole-period rename is a lifted copy, the row with a deck
+            // element, and no row of its own (C4): refused as a residual.
+            ("u + τ", h(TAU, 0.0), Err(false)),
+            ("u − 3τ", h(-3.0 * TAU, 0.0), Err(false)),
+            ("u + 7τ", h(7.0 * TAU, 0.0), Err(false)),
             ("u + π", h(PI, 0.0), Err(false)),
             ("u + τ/2 + 1e-9", h(PI + 1e-9, 0.0), Err(false)),
             ("u + 1e3·ε", h(off, 0.0), Err(false)),
             ("v + 1e3·ε", h(0.0, off), Err(false)),
-            (
-                "v + τ",
-                h(0.0, TAU),
-                if angular_v { Ok(()) } else { Err(false) },
-            ),
+            ("v + τ", h(0.0, TAU), Err(false)),
             (
                 "slope u flipped",
                 restated(&image, 0.0, 0.0, [true, false]),
@@ -1444,10 +1466,12 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
                 twin(&image, 0.0),
                 if sphere { Ok(()) } else { off_sphere_twin },
             ),
+            // The twin a whole period on is a lifted copy of the twin,
+            // no row (C4).
             (
                 "the twin, a period on",
                 twin(&image, TAU),
-                if sphere { Ok(()) } else { off_sphere_twin },
+                if sphere { Err(false) } else { off_sphere_twin },
             ),
         ];
         for (what, stored, want) in corruptions {

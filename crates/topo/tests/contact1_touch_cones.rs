@@ -217,18 +217,14 @@ fn a_block_flush_with_the_arm_top_clears_on_its_shared_edge() {
 /// inner-corner vertex, which is a SADDLE (a reflex vertical edge, two
 /// convex floor edges, a floor sector of 270°). No plane through the
 /// corner separates the two cones and the bracket's complement there is
-/// not convex, so neither sufficient test certifies the rest: the
-/// analysis refuses typed as unanalysed (filed as
-/// `work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`).
-/// Unmoved from the base, where the vertex pair had no analysis at all.
+/// not convex; the two links, read whole, are apart, and the pair
+/// clears.
 #[test]
-fn a_block_on_the_floor_of_the_inner_corner_refuses_unanalysed() {
+fn a_block_on_the_floor_of_the_inner_corner_clears() {
     let body = bracket_with(&block((1.0, 2.0), (1.0, 2.0), (0.0, 0.5)));
     let errors = refused(&body, &ContactRecords::default());
-    assert!(
-        the_refusal(&errors).contains("neither convex nor concave"),
-        "{errors:?}"
-    );
+    assert!(touch_kinds(&errors).contains(&"VertexVertex"), "{errors:?}");
+    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
 }
 
 /// The tilted block whose corner meets the bracket's corner `(3, 1,
@@ -276,11 +272,12 @@ fn a_tilted_block_touching_a_corner_clears_declared_or_not() {
 /// **A sliver corner is read at its faces' far vertices.** A
 /// parallelepiped rests a corner on the wall `x = 1` with a 3 cm edge
 /// off the wall and a 0.8 m edge leaving it at an elevation `e` just
-/// past the run band's escalation threshold. Every face is read by its
-/// vertices' distances from the wall (`census.rs`, `Star::within`), so
-/// the long edge's faces read `e` or more — definitely off the wall, on
-/// the concavity's side — and the corner is a rest: the pair carries no
-/// placement finding.
+/// past the run band's escalation threshold. Every piece of a face is
+/// read at points along its far side until one decides (`census.rs`,
+/// `rest::judge`): halfway out the long edge's face stands `e/2` off
+/// the wall, in band, and further out past the threshold — definitely
+/// off the wall, on the concavity's side — so the corner is a rest and
+/// the pair carries no placement finding.
 #[test]
 fn a_sliver_corner_clears_on_its_long_edge_s_own_reading() {
     let band = Band::linear(Tol::witness()).unwrap();

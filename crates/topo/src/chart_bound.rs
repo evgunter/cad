@@ -38,7 +38,7 @@
 //! answer are the same ones here.
 
 use crate::pcurves::ChartArm;
-use geom_brep::ChartWindow;
+use geom_brep::{ChartWindow, Period};
 use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Vec2};
 
 use crate::chart_region::SCHEDULE_2D;
@@ -247,7 +247,7 @@ pub struct ChartBound<T: Real> {
 /// point. They are kept because the description is a public value that
 /// answers rectangles the consumer's window rule does not bound, and
 /// dropping a spec'd lift is a spec change, not an implementation one.
-const RING_SHIFTS: [f64; 3] = [-1.0, 0.0, 1.0];
+const RING_SHIFTS: [i32; 3] = [-1, 0, 1];
 
 impl<T: Decide> ChartBound<T> {
     /// Assembles the description from a walked outer loop and its
@@ -277,7 +277,7 @@ impl<T: Decide> ChartBound<T> {
     pub fn assembled(
         outer: ChartLoop<T>,
         rings: Vec<ChartLoop<T>>,
-        period: Option<T>,
+        period: Option<Period<T>>,
         u_arm: ChartArm<T>,
         band: Band,
     ) -> Result<Self, PcurveMintError> {
@@ -300,7 +300,11 @@ impl<T: Decide> ChartBound<T> {
             // measured violation, and refusing it would turn a
             // rounding into a lost description.
             if matches!(
-                decide(SPAN, u_arm.meter(hull.u_max - hull.u_min - p), band),
+                decide(
+                    SPAN,
+                    u_arm.meter(hull.u_max - hull.u_min - p.length()),
+                    band
+                ),
                 Ok(Sign::Positive)
             ) {
                 return Err(PcurveMintError::OuterSpansPeriod);
@@ -312,7 +316,7 @@ impl<T: Decide> ChartBound<T> {
                 None => loops.push(ring),
                 Some(p) => {
                     for k in RING_SHIFTS.iter().copied() {
-                        loops.push(ring.shifted(p * T::from_f64(k)));
+                        loops.push(ring.shifted(p.times(k)));
                     }
                 }
             }
@@ -320,7 +324,7 @@ impl<T: Decide> ChartBound<T> {
         Ok(Self {
             loops,
             hull,
-            period,
+            period: period.map(Period::length),
         })
     }
 }
