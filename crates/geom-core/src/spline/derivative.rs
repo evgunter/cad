@@ -161,8 +161,8 @@ use super::knots::Span;
 use super::pieces::{binomial, span_row};
 
 /// The degree ceiling of the quotient bound (module docs): the highest
-/// common degree whose binomials are all exact `f64`s, `C(56, 28) < 2⁵³`.
-pub const QUOTIENT_MAX_DEGREE: usize = 56;
+/// common degree whose binomials are all exact `f64`s.
+pub const QUOTIENT_MAX_DEGREE: usize = super::pieces::BINOMIAL_EXACT_MAX;
 
 /// `p / (hi − lo)` in `T`, for the pair whose knot difference runs from
 /// `lo = u_{i+1}` to `hi = u_{i+p+1}`.
@@ -886,7 +886,8 @@ impl<T: Real, const D: usize> Raised<T, D> {
     /// The quotient on `counts` equal pieces per axis (powers of two),
     /// as [`shared_pieces`] cuts it.
     fn pieces(&self, counts: (usize, usize)) -> Option<Vec<QuotientPiece<T, D>>> {
-        shared_pieces(&[&self.numer], &self.denom, counts)?.pop()
+        let [pieces] = shared_pieces([&self.numer], &self.denom, counts)?;
+        Some(pieces)
     }
 }
 
@@ -909,27 +910,28 @@ fn grid_pieces<T: Real, const D: usize>(
 /// every numerator's: halving is deterministic, so a quotient that
 /// halved its own copy of the same weight power would read the same
 /// bits, and a weight power several quotients share costs one halving.
-fn shared_pieces<T: Real, const D: usize>(
-    numers: &[&Grid<T, D>],
+fn shared_pieces<T: Real, const D: usize, const N: usize>(
+    numers: [&Grid<T, D>; N],
     denom: &Grid<T, 1>,
     counts: (usize, usize),
-) -> Option<Vec<Vec<QuotientPiece<T, D>>>> {
+) -> Option<[Vec<QuotientPiece<T, D>>; N]> {
     #[cfg(test)]
     tests::WEIGHT_HALVINGS.with(|n| n.set(n.get() + 1));
     let denoms: Vec<Vec<T>> = grid_pieces(denom, counts)?
         .iter()
         .map(|d| d.c.iter().map(|w| w.0[0]).collect())
         .collect();
-    numers
-        .iter()
-        .map(|numer| {
-            grid_pieces(numer, counts)?
-                .iter()
-                .zip(&denoms)
-                .map(|(n, d)| QuotientPiece::new(n.arrays(), d.clone()))
-                .collect()
-        })
-        .collect()
+    let lists = numers.map(|numer| -> Option<Vec<_>> {
+        grid_pieces(numer, counts)?
+            .iter()
+            .zip(&denoms)
+            .map(|(n, d)| QuotientPiece::new(n.arrays(), d.clone()))
+            .collect()
+    });
+    if lists.iter().any(Option::is_none) {
+        return None;
+    }
+    Some(lists.map(Option::unwrap_or_default))
 }
 
 /// [`CellQuotients`] before it is cut.
@@ -1269,37 +1271,32 @@ fn cell_pieces<T: Real>(
     // the second partials share `W³`. With the second order the area is
     // formed whatever `area` asks: `CellSecondQuotients` readers take it
     // beside them.
-    let counts = (halving_count(splits.0), halving_count(splits.1));
+    let counts = halving_counts(splits);
     let first = whole.first_raised(area || whole.second.is_some())?;
-    let [u, v]: [_; 2] = shared_pieces(&[&first.u.numer, &first.v.numer], &first.u.denom, counts)?
-        .try_into()
-        .ok()?;
-    let mut w3_pieces = match (&first.area, whole.second_raised()) {
+    let [u, v] = shared_pieces([&first.u.numer, &first.v.numer], &first.u.denom, counts)?;
+    let (area, second) = match (&first.area, whole.second_raised()) {
         (Some(a), Some(s)) => {
             // Every `W³` is `W²·W` of the same `W` (`area_raised`,
             // `second_numerator`), so the area's serves all four.
-            shared_pieces(
-                &[&a.numer, &s.uu.numer, &s.uv.numer, &s.vv.numer],
+            let [area, uu, uv, vv] = shared_pieces(
+                [&a.numer, &s.uu.numer, &s.uv.numer, &s.vv.numer],
                 &a.denom,
                 counts,
-            )?
+            )?;
+            let second = uu
+                .into_iter()
+                .zip(uv)
+                .zip(vv)
+                .map(|((uu, uv), vv)| Some(CellSecondQuotients { uu, uv, vv }))
+                .collect();
+            (area.into_iter().map(Some).collect(), second)
         }
-        (Some(a), None) => shared_pieces(&[&a.numer], &a.denom, counts)?,
-        (None, _) => Vec::new(),
-    }
-    .into_iter();
-    let area: Vec<_> = match w3_pieces.next() {
-        Some(a) => a.into_iter().map(Some).collect(),
-        None => vec![None; u.len()],
-    };
-    let second: Vec<_> = match (w3_pieces.next(), w3_pieces.next(), w3_pieces.next()) {
-        (Some(uu), Some(uv), Some(vv)) => uu
-            .into_iter()
-            .zip(uv)
-            .zip(vv)
-            .map(|((uu, uv), vv)| Some(CellSecondQuotients { uu, uv, vv }))
-            .collect(),
-        _ => vec![None; u.len()],
+        (Some(a), None) => {
+            let [area] = shared_pieces([&a.numer], &a.denom, counts)?;
+            (area.into_iter().map(Some).collect(), vec![None; u.len()])
+        }
+        (None, None) => (vec![None; u.len()], vec![None; u.len()]),
+        (None, Some(_)) => unreachable!("the second order forms the area (`first_raised` above)"),
     };
     let out = u
         .into_iter()
@@ -2356,7 +2353,7 @@ mod tests {
             )
         };
         let block = || super::CellBlock::Homogeneous { a: &a, w: &w };
-        let halvings = |f: &dyn Fn() -> usize| {
+        let weight_halvings = |f: &dyn Fn() -> usize| {
             let before = WEIGHT_HALVINGS.with(core::cell::Cell::get);
             let pieces = f();
             assert!(pieces > 1, "the schedule cuts the cell");
@@ -2379,10 +2376,14 @@ mod tests {
                     .1
                     .len()
             };
-            assert_eq!(halvings(&first), 1, "W² once, splits {splits:?}");
-            assert_eq!(halvings(&area), 2, "W² and W³ once each, splits {splits:?}");
+            assert_eq!(weight_halvings(&first), 1, "W² once, splits {splits:?}");
             assert_eq!(
-                halvings(&second),
+                weight_halvings(&area),
+                2,
+                "W² and W³ once each, splits {splits:?}"
+            );
+            assert_eq!(
+                weight_halvings(&second),
                 2,
                 "W² and W³ once each, splits {splits:?}"
             );
@@ -2394,7 +2395,8 @@ mod tests {
     /// `S_u`, `S_v`, area and three second partials, numerator and
     /// weight power) is the bits of that quotient halved as one,
     /// numerator and its own weight power together, the area's and the
-    /// second partials' `W³` formed apart.
+    /// second partials' `W³` formed apart; and so is every piece
+    /// [`super::cell_quotients`] serves with the area and without it.
     #[test]
     fn a_shared_weight_halving_is_each_quotients_own_to_the_bit() {
         let RationalCell {
@@ -2425,10 +2427,7 @@ mod tests {
             assert_eq!(flat(got), flat(want), "{what}");
         };
         for splits in [(1, 1), (2, 4), (8, 2)] {
-            let counts = (
-                super::halving_count(splits.0),
-                super::halving_count(splits.1),
-            );
+            let counts = super::halving_counts(splits);
             let whole =
                 super::cell_whole(axes(), block(), true).expect("a block under the ceiling");
             let first = whole.first_raised(true).expect("the first order");
@@ -2471,6 +2470,21 @@ mod tests {
                 same(&s.uu, &uu[k], &format!("S_uu piece {k}, splits {splits:?}"));
                 same(&s.uv, &uv[k], &format!("S_uv piece {k}, splits {splits:?}"));
                 same(&s.vv, &vv[k], &format!("S_vv piece {k}, splits {splits:?}"));
+            }
+            for with_area in [true, false] {
+                let got =
+                    super::cell_quotients(axes(), block(), splits, with_area).expect("pieces");
+                assert_eq!(got.len(), u.len());
+                for (k, f) in got.iter().enumerate() {
+                    let at = format!("piece {k}, splits {splits:?}, area {with_area}");
+                    same(&f.u, &u[k], &format!("S_u {at}"));
+                    same(&f.v, &v[k], &format!("S_v {at}"));
+                    match &f.area {
+                        Some(area) => same(area, &ar[k], &format!("area {at}")),
+                        None => assert!(!with_area, "the area is absent at {at}"),
+                    }
+                    assert!(f.area.is_some() == with_area, "the area asked at {at}");
+                }
             }
         }
     }
