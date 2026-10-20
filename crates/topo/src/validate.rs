@@ -1950,6 +1950,22 @@ pub enum ValidationError {
         /// `outer`'s material.
         witness: VertexKey,
     },
+    /// Tier 3′ (D1 tier 3, C4): two faces of one solid that share no
+    /// edge, on carriers whose closed-form tangent line runs strictly
+    /// through both faces' interiors, with the solid's material in the
+    /// crescent between them (a bore tangent to a face from inside).
+    /// Such a line carries two coincident cusp edges, wedge 0, one per
+    /// cusp, and this body has none there: a defect of the body, which
+    /// no contact record answers for.
+    CuspEdgesMissing {
+        /// One face through the line.
+        a: FaceKey,
+        /// The other.
+        b: FaceKey,
+        /// A point on the line within both faces' extents along it,
+        /// read after "at" in the message.
+        witness: String,
+    },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
     /// key twice yields two errors).
@@ -2376,6 +2392,15 @@ pub enum CensusContact {
         /// The face.
         face: FaceKey,
     },
+    /// Two faces of one solid on distinct carriers touching along their
+    /// tangent line through both interiors, the crescent between them
+    /// void (CONTACT-DESIGN C2's same-solid discovery, C3's curve touch),
+    /// carried as the kernel contact finding of class `Tangent`.
+    FaceFaceTangent {
+        /// What was found: the face pair, its class (`Tangent`), and
+        /// the verdict the jet schedule read along the line.
+        finding: crate::contact::ContactFinding,
+    },
     /// Two curved faces on ONE carrier with opposed senses whose trim
     /// regions definitely overlap in the shared chart (M9-2's
     /// conformal face-pair arm) — carried as the kernel contact
@@ -2405,6 +2430,7 @@ impl fmt::Display for CensusContact {
             Self::EdgeEdgeCross { .. } => f.write_str("two edges crossing"),
             Self::EdgeEdgeOverlap { .. } => f.write_str("two edges overlapping along a length"),
             Self::EdgeFaceOverlap { .. } => f.write_str("an edge lying in a face along a length"),
+            Self::FaceFaceTangent { .. } => f.write_str("two faces touching along a line"),
             Self::ConformalPatch { finding } => write!(
                 f,
                 "two faces lying against each other (a {} contact)",
@@ -4227,6 +4253,12 @@ impl fmt::Display for ValidationError {
                 "two instances overlap: a corner of one lies inside the other \
                  (an interference fit), which no declaration can make valid. Recourse: move \
                  the instances apart"
+            ),
+            Self::CuspEdgesMissing { witness, .. } => write!(
+                f,
+                "two faces of one part are pinched together along a line at {witness} with \
+                 material between them on both sides, and no edge lies on the line, which owes \
+                 two cusp edges. {DEFECT}"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(
@@ -16345,7 +16377,7 @@ mod review_census_display_keys {
             }
         }
         assert_eq!(
-            checked, 14,
+            checked, 15,
             "every CensusContact and StaleDeclaration sample"
         );
     }
