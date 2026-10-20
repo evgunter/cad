@@ -133,6 +133,8 @@ mod cube_doors_agree;
 mod display_contract;
 #[path = "edge_meeting_ray_probes.rs"]
 mod edge_meeting_ray_probes;
+#[path = "review_r2_edge_meeting_probes.rs"]
+mod review_r2_edge_meeting_probes;
 #[path = "euler_site_pcurve_rows.rs"]
 mod euler_site_pcurve_rows;
 #[path = "fused_into_live_cells.rs"]
