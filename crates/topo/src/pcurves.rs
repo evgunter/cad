@@ -9774,3 +9774,131 @@ mod net_period_rows {
         );
     }
 }
+
+/// Delta-verifier probes for PR 5444's J pass (review C-delta).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
+mod c_delta_probes {
+    use super::{DescribedChart, chart_periods, chart_v_period, chart_u_period, decide_joint};
+    use crate::joint::{Deck, JointElement};
+    use geom::Surface;
+    use geom_brep::Pcurve;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Interval, Decide, Point2, Point3, Tol, Vec2};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+    fn tri(size: f64) -> [(f64, f64); 3] {
+        [
+            (size, 0.0),
+            (-0.5 * size, 0.75_f64.sqrt() * size),
+            (-0.5 * size, -(0.75_f64.sqrt()) * size),
+        ]
+    }
+
+    /// A "torus" net: `u` around a unit triangle in xy, `v` around a
+    /// triangle of circumradius `minor` in the (radial, z) plane; both
+    /// knot vectors [0,0,.3,.7,1,1] scaled to `(lu, lv)`.
+    fn torus_net(minor: f64, lu: f64, lv: f64) -> Surface<f64> {
+        let big = tri(1.0);
+        let small = tri(minor);
+        let ring = [big[0], big[1], big[2], big[0]];
+        let sec = [small[0], small[1], small[2], small[0]];
+        let k = |l: f64| KnotVector::clamped(vec![0.0, 0.0, 0.3 * l, 0.7 * l, l, l], 1).unwrap();
+        let mut control = Vec::new();
+        for c in ring {
+            let r = (c.0 * c.0 + c.1 * c.1).sqrt();
+            let (rx, ry) = (c.0 / r, c.1 / r);
+            for s in sec {
+                control.push(Point3::new(c.0 + s.0 * rx, c.1 + s.0 * ry, s.1));
+            }
+        }
+        Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(k(lu), k(lv), control, vec![1.0; 16]).unwrap(),
+        ))
+    }
+
+    fn show(r: &Result<JointElement, super::PinMiss>) -> String {
+        match r { Ok(e) => format!("Ok({e:?})"), Err(m) => format!("Err({})", match m { super::PinMiss::Discontinuity => "Discontinuity", super::PinMiss::Escalated(_) => "Escalated" }) }
+    }
+
+    fn joint_at<T: Decide>(
+        s: &Surface<f64>,
+        entry: (f64, f64),
+        dir: (f64, f64),
+        prev: (f64, f64),
+    ) -> Result<JointElement, super::PinMiss> {
+        let s: Surface<T> = s.map_scalar(T::from_f64);
+        let f = T::from_f64;
+        let image = Pcurve::IsoLine {
+            p0: Point2::new(f(entry.0), f(entry.1)),
+            pl: Vec2::new(f(dir.0), f(dir.1)),
+        };
+        decide_joint(
+            DescribedChart::of(&s).unwrap(),
+            &image,
+            f(0.0),
+            Point2::new(f(prev.0), f(prev.1)),
+            Point3::new(f(1.0), f(0.0), f(0.0)),
+            chart_periods(&s, band()),
+            band(),
+        )
+    }
+
+    /// J1: a net closed in u and v, u decided metric, v reach in band.
+    /// The joint crosses the u seam (entry u=0 from prev u=1).
+    #[test]
+    fn j1_v_undecided_with_decided_u_element() {
+        let t = Tol::witness();
+        let mid = 0.5 * (1.0 + t.k()) * t.eps();
+        // v reach = lv * sup|S_v|; sup|S_v| ~ sqrt3*minor/0.3 on lv=1.
+        let minor = mid * 0.3 / 3.0_f64.sqrt();
+        let s = torus_net(minor, 1.0, 1.0);
+        eprintln!(
+            "u period {:?} v period {:?}",
+            chart_u_period(&s, band()).map(|p| p.length()),
+            chart_v_period(&s, band()).map(|p| p.period().length())
+        );
+        let out = joint_at::<f64>(&s, (0.0, 0.5), (0.3, 0.0), (1.0, 0.5));
+        eprintln!("f64 out: {}  canonical: {:?}", show(&out), out.as_ref().ok().map(|e| e.canonical()));
+        let outi = joint_at::<Interval>(&s, (0.0, 0.5), (0.3, 0.0), (1.0, 0.5));
+        eprintln!("Interval out: {}", show(&outi));
+        // control: same crossing, v decided past the band
+        let big = torus_net(0.1, 1.0, 1.0);
+        let ctl = joint_at::<f64>(&big, (0.0, 0.5), (0.3, 0.0), (1.0, 0.5));
+        eprintln!("control (minor 0.1): {}", show(&ctl));
+        // and the lift: the next half-edge's lift after this joint from identity
+        if let Ok(e) = out {
+            let follow = e.canonical().follow(Deck::IDENTITY);
+            eprintln!("follow from identity: {follow:?} (u restart means the next image is NOT moved by the u period)");
+        }
+    }
+
+    /// J2: tiny domain, length 1e-6, both a unit-size net (reach ~1) and a
+    /// sub-eps net (rate large, reach tiny).
+    #[test]
+    fn j2_tiny_domain() {
+        for size in [1.0, 1e-3 * Tol::witness().eps()] {
+            let [c0, c1, c2] = tri(size);
+            let l = 1e-6;
+            let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 0.3 * l, 0.7 * l, l, l], 1).unwrap();
+            let control = [0.0, 1.0]
+                .into_iter()
+                .flat_map(|z| [c0, c1, c2, c0].map(|c| Point3::new(c.0, c.1, z)))
+                .collect();
+            let s = Surface::Nurbs(std::sync::Arc::new(
+                geom::NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
+            ));
+            let r = joint_at::<f64>(&s, (0.5, 0.0), (0.0, 0.1 * l), (0.5, l));
+            let ri = joint_at::<Interval>(&s, (0.5, 0.0), (0.0, 0.1 * l), (0.5, l));
+            let r0 = joint_at::<f64>(&s, (0.5, 0.0), (0.0, 0.1 * l), (0.5, 0.0));
+            eprintln!("size {size:e}: crossing f64 {} Interval {}; no crossing {}", show(&r), show(&ri), show(&r0));
+            if size == 1.0 {
+                assert_eq!(r.ok(), Some(JointElement::Shift(Deck { u: 0, v: 1, twin: false })));
+                assert_eq!(ri.ok(), Some(JointElement::Shift(Deck { u: 0, v: 1, twin: false })));
+            }
+        }
+    }
+}
