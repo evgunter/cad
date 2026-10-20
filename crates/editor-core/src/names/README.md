@@ -46,6 +46,12 @@ forking a question. Each principle names the check that holds it.
 
   Nothing else: no order of any kind (fold, completion, pairing, insertion,
   arena storage), no slot beyond the declared sequences, no frame, no value.
+  A *slot* is the position an input fills: a subtract's `from` and `tool`,
+  or a two-member union's first and second member. A sequence's slot means
+  something (what is cut from what), so a name may read it; a set's does not
+  (swapping a union's two members makes the same body), so a name may not.
+  List order is the same: a loft's sections are a sequence, a union's members
+  a set.
   A set is spelled in name order, which is a spelling, never a choice.
   *Check:* the table is unchanged, up to ties, under each of these: the
   f64/Interval pin; a permutation of a set input; a frame change of a split
@@ -87,6 +93,19 @@ forking a question. Each principle names the check that holds it.
 - **NS5, complete records.** A name reads descent from the birth records and
   never reconstructs it; a missing or wrong record is a kernel defect, fixed in
   the kernel. *Check:* the D5 record validator, and the NS4 fuzzer.
+
+*Worked example.* A box `a` and a cylinder `b` standing up through the box's
+top, then `Union [a, b]`, then a fillet of the circle where they meet.
+- The box's four walls, untouched, are Carried: `From { read: a, of: Lateral(k) }`.
+- The box's top, holed by the cylinder, is still one piece of one input
+  face, so it is Carried too, `From { read: a, of: Cap(End) }`. Had the cut
+  left two pieces, each would add `Fragment(Borders(..))` over the walls on
+  its own boundary (NS3).
+- The circle where the cylinder's side leaves the top is Met: `Seam` of the
+  two faces beside it, `From { read: a, of: Cap(End) }` and
+  `From { read: b, of: Lateral }`, in name order. Swapping the union's
+  members changes nothing (NS1).
+- The fillet's face is Made, `BlendFace(e)`, where `e` is that seam's name.
 
 Coincidence rows are records, not names (REFERENCES DM4): their presence
 follows the decisions an evaluation took, and NS1 governs only what a name
