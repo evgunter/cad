@@ -820,19 +820,21 @@ pub(crate) fn nurbs_cell_grid(
             });
         }
     }
-    Ok(NurbsCellGrid::from_cells(&cells).with_creases(
-        creases(n.knots_u_f64_interim()),
-        creases(n.knots_v_f64_interim()),
-    ))
+    Ok(NurbsCellGrid::from_cells(&cells)
+        .with_creases(creases(n.knot_values_u()), creases(n.knot_values_v())))
 }
 
 /// The C⁰ creases of one direction: its interior knots of multiplicity
-/// at least the degree (every interior knot at degree 1).
-fn creases(kv: &geom_core::spline::KnotVector) -> Vec<f64> {
-    let p = kv.degree();
-    kv.interior_knots()
-        .filter(|&(_, m)| m >= p)
-        .map(|(u, _)| u)
+/// at least the degree (every interior knot at degree 1), read off the
+/// held knot runs, whose first and last are the domain's ends.
+fn creases(knots: &geom_core::spline::Knots<f64>) -> Vec<f64> {
+    let p = knots.degree();
+    let runs: Vec<(f64, usize)> = knots.runs().collect();
+    runs.get(1..runs.len().saturating_sub(1))
+        .unwrap_or(&[])
+        .iter()
+        .filter(|&&(_, m)| m >= p)
+        .map(|&(u, _)| u)
         .collect()
 }
 
@@ -2172,6 +2174,22 @@ pub(crate) mod tests {
                 .iter()
                 .all(|c| c.bound.muu == 0.0 && c.bound.mvv == 0.0)
         );
+        // The whole tent's own knots name the ridge as its one crease.
+        let tent = {
+            let kv_u =
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+            let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+            let mut control = Vec::new();
+            for i in 0..5 {
+                let u = f64::from(i) / 4.0;
+                for j in 0..2 {
+                    control.push(Point3::new(u, f64::from(j), ridge(u)));
+                }
+            }
+            NurbsSurface::new(kv_u, kv_v, control, vec![1.0; 10]).unwrap()
+        };
+        assert_eq!(creases(tent.knot_values_u()), vec![0.5]);
+        assert!(creases(tent.knot_values_v()).is_empty());
         let grid = NurbsCellGrid::from_cells(&cells).with_creases(vec![0.5], Vec::new());
         // The tent itself, read on either side of the ridge.
         let surface = |u: f64, v: f64| Point3::new(u, v, ridge(u));
