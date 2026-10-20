@@ -6739,3 +6739,9 @@ Signed (WIRE orchestrator).
 - 2026-10-20 (WIRE orchestrator) Ev approved 5423 ('i still have no real opinion on the order but this seems ok'). Ev read the split as a question of fact, and I agreed in reply; the build settles it. Merged (7beba6f7ae), with fork-log row 178 filled.
   - Slip, repeated: a main merge on the [ev] branch conflicted in the fork log and I committed over the markers. Caught before the merge and fixed. Commits are now gated on a marker grep for files lint does not cover.
   - Dispatched wire-seamorder (wire/pair-seam-name-order; FULL review). It closes the order row, the merged-chord row and the Transform-copy tie row.
+
+- 2026-10-20 (WIRE orchestrator) Ev approved 5426 ('sure, this definitely seems like an improvement'), and it is merged (3b687e1652) with fork-log row 179 filled. The section row is back to open for the build.
+- Ev's broader point on 5426 (no consistent naming strategy) is filed as naming-has-no-single-strategy-and-each-fork-patches-one-entity (P1 H, design).
+  - It cites WIRE's six naming forks this week.
+  - A read-only survey lane (wire-namesurvey) is dispatched: a defect census grouped by what leaked, the clauses' generality, and an invariance-check sketch. The strategy itself will go to Ev as an [ev] PR.
+  - Not replied on 5426, since it is merged.

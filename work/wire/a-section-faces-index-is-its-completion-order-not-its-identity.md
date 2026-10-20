@@ -2,12 +2,11 @@
 id: a-section-faces-index-is-its-completion-order-not-its-identity
 kind: issue
 title: A SectionFace { k } is the k-th section a half completed, so a held section name silently denotes another face whenever the half's section count changes
-status: dispatched
+status: open
 opened: 2026-10-18
 priority: P2
 cost: M
 design: true
-needs_ev: true
 pr: 5426
 branch: wire/ev-section-face-identity
 ---
