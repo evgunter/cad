@@ -112,6 +112,21 @@ each other did. The face-inside-a-wedge half (the rider form) is
 untouched. The reader also refuses a cusp or slit edge on a line typed
 (`WedgeRefusal::WedgeEnd`) instead of as an in-band escalation.
 
+## Evidence from the pinch fork (CONTACTHOLD, 2026-10-20)
+
+Ev's decision on `[ev]` PR 5395 makes a material-crescent pinch along a
+tangent line two coincident cusp edges (D1 tier 3, C7), so the sign of
+a tangent pinch now lives in topology as well as in the face senses.
+Both designers name this row's check as what keeps them in step: a
+complement that fails to re-pair leaves two coincident edges each
+claiming a 2π wedge, which tier 3 reads one edge at a time and passes.
+The check over coincident edges on one line, that their material
+sectors are disjoint, covers the tangent case too (sectors 0 and 2π,
+read at second order). Builder: CONTACTHOLD's
+`a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`.
+That half of the check is
+`tier-3-prime-reads-no-side-between-coincident-edges-on-one-line`'s.
+
 ## Closed
 
 2026-10-19, branch `restread/face-in-edge-wedge`. Tier 3′ reads an edge
@@ -120,7 +135,8 @@ lying in a face of its own solid for sides (`census.rs`
 bounds back): the edge's link against the face's, through the touch
 analysis's `rest::judge`. A crossing refuses `FaceThroughEdgeWedge`; a
 reading that does not decide refuses `FaceThroughEdgeWedgeUndecided`,
-naming why. Arm 2 reads either as a touch inside one solid.
+naming why (`TouchUnread`). Arm 2 reads either as a touch inside one
+solid.
 
 - Pinned refusals: the three keel-in-face trenches and the glued tip
   subtracted with its records; a ridge resting on its own floor passes
@@ -131,11 +147,15 @@ naming why. Arm 2 reads either as a touch inside one solid.
   `cutter ∖ pinch` in `union_flush_onto_edge_contact`, 10 cases of
   `join1_r2_rand`, 8 lines of `join_pierce_runs_sweep`, and 7 runs each
   at ε = 1e-6 and 1e-12 of `near_tangent_pierce_poses`.
-- Valid bodies now refused undecided, a curved face of the edge's own
+- Refused undecided, a curved face of the edge's own
   (`tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face`):
-  `a_pierce_held_in_a_curved_face`'s plane-face row and two
-  `rest_zip_admission` tests. In band: the two `near_tangent_pierce_poses`
-  tests, which let that refusal through beside `CensusEscalated`.
+  42 results of `a_pierce_held_in_a_curved_face`'s plane-face row and
+  two `rest_zip_admission` tests, 38 of them presumably valid, each
+  pinned by run.
+- Refused undecided in band with no `CensusEscalated` beside it: pose
+  `Lbot nt e0 a12` at `d = −1e-9` (ε = 1e-9) and `d = −1e-6`
+  (ε = 1e-6), both orders of `prism ∪ cube`, which passed before;
+  pinned per ε as `near_tangent_pierce_poses`' `UNREADS`.
 - Out of this row: a face against a vertex's cone, where the literal
   corollary refuses valid cavity corners
   (`tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid`),

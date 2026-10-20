@@ -2380,6 +2380,14 @@ impl fmt::Display for MissingRecourse<'_> {
 /// [`COINCIDENCE_RECOURSE`]) and must not double the recourse; the
 /// bare [`Indeterminate`] Display is this payload plus the shared
 /// tail.
+///
+/// Where a gate rejected a sign it decided past the band
+/// ([`MarginDiag::rejected_sign`]), which a lead that calls the refusal
+/// undecided does not tell, the payload says so after the placement,
+/// " — {word}", so every composition of a payload and an ending tells
+/// it, whoever's ending follows. A reading past the band that no gate
+/// tagged (a bound reported where it stands) was decided by nobody, and
+/// gets no word.
 #[derive(Debug, Clone, Copy)]
 pub struct IndeterminatePayload<'a>(&'a Indeterminate);
 
@@ -2471,6 +2479,10 @@ impl fmt::Display for IndeterminatePayload<'_> {
                 "margin is invalid (NaN or a refused enclosure) against the ambiguity \
                  band ({zero:e}, {escalate:e})"
             ),
+        }?;
+        match self.0.payload_word() {
+            Some(word) => write!(f, " — {word}"),
+            None => Ok(()),
         }
     }
 }
@@ -2616,24 +2628,26 @@ impl Indeterminate {
     /// — the word read from what the margin shows the refused decision
     /// ([`MarginDiag::shows`]) and its kind alone, never from which route
     /// carried it, so a class says one thing and its ending
-    /// ([`Indeterminate::ending`], the same class) agrees. Read by
-    /// [`UnderTail`] for the word and by [`Indeterminate::ending`] for the
+    /// ([`Indeterminate::ending`], the same class) agrees. Read for the
+    /// word by [`UnderTail`] and by [`Indeterminate::ending`] for the
     /// lever.
     ///
-    /// A decided nonzero sign is sign-certain. A reading that shows no
-    /// size stays off every sign the decision passes at any smaller
-    /// tolerance, and a zero the symbolic tier proved is no size the user
-    /// may intend, which no subdivision unproves. Every other reading
-    /// says what it is; what a tolerance does for it is the ending's.
+    /// A reading past the band has no word here: whether a sign was
+    /// decided there is the gate's tag, which the payload reads. A
+    /// reading that shows no size stays off every sign the decision
+    /// passes at any smaller tolerance, and a zero the symbolic tier
+    /// proved is no size the user may intend, which no subdivision
+    /// unproves. Every other reading says what it is; what a tolerance
+    /// does for it is the ending's.
     fn reading(&self) -> (Option<&'static str>, KindLever) {
         let (margin, band) = (self.margin, self.band);
         let undecided_value =
             margin.kind() == MarginKind::Value || margin.placement(band) == Placement::ZeroBand;
         match margin.shows(band, self.passes()) {
-            Shows::Past | Shows::Refused => (
-                Some("a decided sign this decision cannot use"),
-                KindLever::Door,
-            ),
+            // Past the band: a gate's rejection says so in the payload
+            // ([`IndeterminatePayload`]), and a bound reported where it
+            // stands was decided by nobody.
+            Shows::Past | Shows::Refused => (None, KindLever::Door),
             Shows::Unreadable => (None, KindLever::Inputs),
             Shows::NoSize if margin.proven() => (
                 Some("a zero the symbolic tier proved, which no tolerance makes a size"),
@@ -2672,6 +2686,17 @@ impl Indeterminate {
     /// could not rule out).
     fn passes(&self) -> SizedPass {
         self.margin.tag().map_or(SizedPass::NonZero, |r| r.passes)
+    }
+
+    /// The word this escalation's payload says after its placement, read
+    /// from the gate's tag alone: where a gate rejected a nonzero sign. A
+    /// rejected zero's verdict is told by its placement.
+    fn payload_word(&self) -> Option<&'static str> {
+        matches!(
+            self.margin.rejected_sign(),
+            Some(Sign::Positive | Sign::Negative)
+        )
+        .then_some("a decided sign this decision cannot use")
     }
 
     /// Whether [`Indeterminate::ending`] offers a tolerance: a smaller
@@ -2739,9 +2764,10 @@ impl fmt::Display for IndeterminateUnder<'_> {
 impl fmt::Display for UnderTail<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let UnderTail(under) = self;
-        f.write_str(" — ")?;
-        if let (Some(reading), _) = under.diag.reading() {
-            write!(f, "{reading}; ")?;
+        match (under.diag.payload_word(), under.diag.reading().0) {
+            (Some(_), _) => f.write_str("; ")?,
+            (None, Some(reading)) => write!(f, " — {reading}; ")?,
+            (None, None) => f.write_str(" — ")?,
         }
         f.write_str(&under.diag.ending(under.recourse))
     }
