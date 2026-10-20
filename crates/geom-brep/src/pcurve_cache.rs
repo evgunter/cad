@@ -12496,3 +12496,67 @@ mod iso_arc_poison {
         assert!(g.value.is_nan() && g.deriv.is_nan(), "{g:?}");
     }
 }
+
+/// Check 4's re-derivation of a closed form's class (`derive_harmonic`,
+/// the body the mint and check 4 share), where the class reading is in
+/// the band.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod check_4_class_rows {
+    use super::{PcurveCertifyError, PcurveCheck, Placement, derive_harmonic};
+    use geom::{Curve3, Surface};
+    use geom_core::{Band, Decide, Interval, Point3, Real, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **Check 4's re-derivation of an in-band class is undecided** (D3,
+    /// the PCERT E1 ruling): a closed form minted at Zero whose class
+    /// reading has moved into the band re-derives to neither the closed
+    /// form (a pass would decide the class on an in-band margin) nor a
+    /// contradiction of it (only a definite one is a defect), but to the
+    /// class check's typed escalation, at `f64` and at `Interval`. The
+    /// carrier is a sphere parallel tilted on the sphere so its axial
+    /// reading sits mid-band.
+    #[test]
+    fn check_4s_re_derivation_of_an_in_band_class_is_undecided() {
+        fn read<T: Decide>(at: impl Fn(f64) -> T) -> Result<(), PcurveCertifyError> {
+            let (h, rho) = (0.6, 0.8);
+            let mid = 0.5 * (band().zero() + band().escalate());
+            let theta = (mid / rho).asin();
+            let (s, c) = theta.sin_cos();
+            let n = Vec3::new(0.0, -s, c);
+            let tilted = Curve3::Circle {
+                center: Point3::origin() + n * h,
+                axis: n,
+                radius: rho,
+                u_ref: Vec3::unit_x(),
+            }
+            .map_scalar(&at);
+            let sphere = Surface::Sphere {
+                center: Point3::origin(),
+                radius: 1.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            }
+            .map_scalar(&at);
+            derive_harmonic(&tilted, &sphere, Placement::own(&tilted, &sphere), band()).map(|_| ())
+        }
+        for (lane, got) in [
+            ("f64", read(|x: f64| x)),
+            ("Interval", read(<Interval as Real>::from_f64)),
+        ] {
+            assert!(
+                matches!(
+                    got,
+                    Err(PcurveCertifyError::Escalated {
+                        check: PcurveCheck::ChartClass,
+                        ..
+                    })
+                ),
+                "{lane}: {got:?}"
+            );
+        }
+    }
+}

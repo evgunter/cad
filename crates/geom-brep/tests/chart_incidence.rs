@@ -498,3 +498,68 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
         "Interval",
     );
 }
+
+/// **A closed form minted at Zero, re-read with its class reading in
+/// band, is undecided at check 4: typed, escalating, never a pass and
+/// never a defect** (D3; only a definite contradiction of what is stored
+/// is a defect). The image is a sphere parallel's, minted where the
+/// axial gate reads Zero. The carrier it is re-read against is the same
+/// circle tilted on the sphere so its axial reading is in the band:
+/// still exactly on the sphere, so incidence reads it on.
+///
+/// On the harmonic lane the map residual and the class reading measure
+/// the one displacement (the tilt at the circle's radius), so the
+/// residual's own escalation is what check 4 reads first: typed, and
+/// undecided. The class re-read behind it is pinned at the door check 4
+/// re-derives through (`pcurve_cache::tests::check_4s_re_derivation_of_an_in_band_class_is_undecided`).
+#[test]
+fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
+    use geom_brep::PcurveCache;
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let (h, rho) = (0.6, 0.8);
+    let parallel = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, h),
+        axis: Vec3::unit_z(),
+        radius: rho,
+        u_ref: Vec3::unit_x(),
+    };
+    let image = chart_pcurve(&parallel, &sphere, band()).unwrap();
+    // Tilt the circle's plane about `x` through the sphere's centre, so
+    // it stays on the sphere; the axial reading is `ρ·sin θ`.
+    let mid = 0.5 * (band().zero() + band().escalate());
+    let theta = (mid / rho).asin();
+    let (s, c) = theta.sin_cos();
+    let n = Vec3::new(0.0, -s, c);
+    let tilted = Curve3::Circle {
+        center: Point3::origin() + n * h,
+        axis: n,
+        radius: rho,
+        u_ref: Vec3::unit_x(),
+    };
+    let tau = core::f64::consts::TAU;
+    let got = PcurveCache::certify(image, 0.0, tau, &tilted, &sphere, band());
+    assert!(
+        matches!(got, Err(PcurveCertifyError::Escalated { .. })),
+        "f64: undecided, typed: {got:?}"
+    );
+    let at = <Interval as Real>::from_f64;
+    let sphere_i = sphere.map_scalar(at);
+    let image_i = chart_pcurve(&parallel.map_scalar(at), &sphere_i, band()).unwrap();
+    let got = PcurveCache::certify(
+        image_i,
+        at(0.0),
+        at(tau),
+        &tilted.map_scalar(at),
+        &sphere_i,
+        band(),
+    );
+    assert!(
+        matches!(got, Err(PcurveCertifyError::Escalated { .. })),
+        "Interval: undecided, typed: {got:?}"
+    );
+}
