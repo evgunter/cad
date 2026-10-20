@@ -391,6 +391,7 @@ use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge,
     classify_material_pairing,
 };
+use geom_core::one_line::on_one_line;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, NOT_YET_ENDING, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
@@ -8980,12 +8981,40 @@ fn segments_meet<T: Decide>(
     }
 }
 
-/// Two straight edges `[a0, a1]` and `[b0, b1]` in one plane, by the
-/// four orientation margins of each one's ends against the other's
-/// line — signed lengths, `(p − o) × ê · n̂`. Both ends strictly on one
-/// side of the other's line separates them; otherwise they meet,
-/// unless all of one's ends lie ON the other's line, where the pair is
-/// collinear and the question is whether the two spans overlap.
+/// Whether two segments' projections lie apart past the band on
+/// either one's axis (the **`ring_outer_meet_gap`** row, [`lines_meet`]):
+/// on `a`'s unit `ea` first, then on `b`'s `eb` where `a`'s did not
+/// decide. Either axis apart holds every pair of points apart, so the
+/// reading is the pair's, whichever segment is named first.
+fn gaps_apart<T: Decide>(
+    (ea, a): (
+        geom_core::Vec3<T>,
+        (geom_core::Point3<T>, geom_core::Point3<T>),
+    ),
+    (eb, b): (
+        geom_core::Vec3<T>,
+        (geom_core::Point3<T>, geom_core::Point3<T>),
+    ),
+    band: Band,
+) -> bool {
+    let apart = |unit, first, second| {
+        let along = on_one_line(unit, first, second, T::zero());
+        decide("ring_outer_meet_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+    };
+    apart(ea, a, b) || apart(eb, b, a)
+}
+
+/// Two straight edges `[a0, a1]` and `[b0, b1]` in one plane. First the
+/// gap between their projections on either one's axis ([`gaps_apart`],
+/// [`geom_core::one_line`]): projections apart past the band hold every
+/// pair of points apart by as much, whatever the ends' sides would read.
+/// The four points are the body's stored vertex positions
+/// ([`edge_endpoints`]). Then the four
+/// orientation margins of each one's ends against the other's line —
+/// signed lengths, `(p − o) × ê · n̂`. Both ends strictly on one side of
+/// the other's line separates them; otherwise they meet, unless all of
+/// one's ends lie ON the other's line, where the pair is collinear and
+/// the question is whether the two spans overlap.
 fn lines_meet<T: Decide>(
     a0: geom_core::Point3<T>,
     a1: geom_core::Point3<T>,
@@ -8996,6 +9025,9 @@ fn lines_meet<T: Decide>(
 ) -> EdgePair {
     let ea = (a1 - a0).normalize();
     let eb = (b1 - b0).normalize();
+    if gaps_apart((ea, (a0, a1)), (eb, (b0, b1)), band) {
+        return EdgePair::Apart;
+    }
     let side = |p: geom_core::Point3<T>, o: geom_core::Point3<T>, e: geom_core::Vec3<T>| {
         decide(
             "ring_outer_meet_side",
@@ -9020,18 +9052,26 @@ fn lines_meet<T: Decide>(
     let collinear =
         |pair: &[Result<Sign, Indeterminate>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
     // Collinear: do the spans overlap, measured along one edge's own
-    // axis? A point of overlap is a meeting too.
+    // axis? A point of overlap is a meeting too. The overlap is the one
+    // reading's ([`geom_core::one_line`]), decided past its charge both
+    // ways: a meeting where even its lower bound reaches the band's
+    // zero, apart where even its upper bound is definitely negative, and
+    // the bounds' straddle otherwise.
     let overlap = |o0: geom_core::Point3<T>,
                    o1: geom_core::Point3<T>,
                    e: geom_core::Vec3<T>,
                    p0: geom_core::Point3<T>,
                    p1: geom_core::Point3<T>| {
-        let len = (o1 - o0).norm();
-        let (t0, t1) = ((p0 - o0).dot(e), (p1 - o0).dot(e));
-        let margin = t0.max(t1).min(len) - t0.min(t1).max(T::zero());
-        match decide("ring_outer_meet_overlap", Margin::of(margin), band) {
-            Ok(Sign::Positive | Sign::Zero) => EdgePair::Meet,
-            Ok(Sign::Negative) => EdgePair::Apart,
+        const ROW: &str = "ring_outer_meet_overlap";
+        let along = on_one_line(e, (o0, o1), (p0, p1), T::zero());
+        let lower = match decide_reported(ROW, Margin::of(along.extent() - along.noise), band) {
+            Ok(d) if matches!(d.sign, Sign::Positive | Sign::Zero) => return EdgePair::Meet,
+            Ok(d) => d,
+            Err(source) => return EdgePair::Unsure(source),
+        };
+        match decide_reported(ROW, Margin::of(along.extent() + along.noise), band) {
+            Ok(d) if d.sign == Sign::Negative => EdgePair::Apart,
+            Ok(upper) => EdgePair::Unsure(geom_core::k_stats::straddle(ROW, lower, upper, band)),
             Err(source) => EdgePair::Unsure(source),
         }
     };
@@ -10780,6 +10820,9 @@ fn shell_component<T: Real>(
         rings,
     })
 }
+
+#[cfg(test)]
+mod gap_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -15503,6 +15546,81 @@ mod tests {
             ),
             "each arc holds a different meeting point"
         );
+    }
+
+    /// **Two segments on one line, far apart along it and in the band
+    /// across it, are apart** (the four readers' witness,
+    /// `work/cpair/two-spans-projections-on-one-line-are-read-four-ways`).
+    /// `(0,0,0)–(1,0,0)` and `(3, 5·10⁻¹², 0)–(4, 5·10⁻¹², 0)` at
+    /// `ε = 10⁻¹²`: `b`'s ends lie in the escalation band of `a`'s line, but
+    /// its projection on `a`'s axis lies two metres past `a`'s end. On main
+    /// arm 5 read the four sides first and kept the pair `Unsure` on the
+    /// in-band ones; read from the gap first, it is apart, in either order.
+    #[test]
+    fn two_segments_on_one_line_far_apart_along_it_are_apart() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let a = MeetSegment::Line {
+            a: Point3::new(0.0, 0.0, 0.0),
+            b: Point3::new(1.0, 0.0, 0.0),
+        };
+        let b = MeetSegment::Line {
+            a: Point3::new(3.0, 5e-12, 0.0),
+            b: Point3::new(4.0, 5e-12, 0.0),
+        };
+        for (order, got) in [
+            ("a first", segments_meet(a, b, n, band)),
+            ("b first", segments_meet(b, a, n, band)),
+        ] {
+            assert!(matches!(got, EdgePair::Apart), "[{order}] apart");
+        }
+    }
+
+    /// **A segment whose end touches the middle of another, square to it,
+    /// is never read apart by the gap**, at every length and scale. In Q
+    /// `a` ends at `a1`, and `b` runs from `a1 + (s, −t)` to `a1 − (s, −t)`,
+    /// square to `a1 − a0 = k·(t, s)`; every coordinate is an integer
+    /// times a power of two, so the stored points are the real ones. So
+    /// `b`'s projection on `a`'s axis starts exactly where `a`'s ends:
+    /// the gap is zero, and only the rounding of the projections, about
+    /// `u` of `a`'s length, can read it open. Red where the gap's charge
+    /// is dropped: a long `a` then reads apart past the band.
+    #[test]
+    fn an_end_touching_the_middle_of_a_square_segment_is_never_read_apart_by_the_gap() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let mut rng = test_utils::fuzz::start("check-9-gap-touch");
+        let int =
+            |rng: &mut test_utils::fuzz::Rng, bits: f64| rng.range(1.0, 2f64.powf(bits)).floor();
+        for _ in 0..test_utils::fuzz::scaled(4000) {
+            let scale = 2f64.powi(-(rng.range(0.0, 30.0) as i32));
+            let (x, y) = (int(&mut rng, 40.0), int(&mut rng, 40.0));
+            let (t, s, k) = (
+                int(&mut rng, 10.0),
+                int(&mut rng, 10.0),
+                int(&mut rng, 10.0),
+            );
+            let at = |px: f64, py: f64| Point3::new(px * scale, py * scale, 0.0);
+            let a = MeetSegment::Line {
+                a: at(x - k * t, y - k * s),
+                b: at(x, y),
+            };
+            let b = MeetSegment::Line {
+                a: at(x + s, y - t),
+                b: at(x - s, y + t),
+            };
+            for (order, got) in [
+                ("a first", segments_meet(a, b, n, band)),
+                ("b first", segments_meet(b, a, n, band)),
+            ] {
+                assert!(
+                    !matches!(got, EdgePair::Apart),
+                    "[{order}] a touching pair read apart: a1 ({x}, {y}), (t, s) ({t}, {s}), \
+                     k {k}, scale {scale:e} — {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
     }
 
     /// **Two arcs that cross are read meeting, at radii orders of

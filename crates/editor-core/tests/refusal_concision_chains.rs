@@ -102,7 +102,7 @@ const KERNEL_KEYED: &[&str] = &[
 /// under it with the ceiling standing, is red.
 const OVER_BUDGET: &[(&str, usize)] = &[
     // work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
-    ("Profile/ArcBelowSceneResolution", 117),
+    ("Profile/ArcBelowSceneResolution", 91),
     // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/ResultEscalated", 90),
 ];
@@ -966,7 +966,8 @@ mod kernel {
             NonpositiveCircleRadius, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
             CircleSplitCount, PolygonTooFewVertices, ZeroDirection, NonFiniteDirection,
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
-            ArcCenterNotEquidistant, DegenerateArcCenter, FarEndAnchorWithoutFillet,
+            ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
+            ArcMissBelowSceneResolution, FarEndAnchorWithoutFillet,
             Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
         ];
     }
@@ -4140,6 +4141,40 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         (
             "DegenerateArcCenter",
             P::DegenerateArcCenter { radius: 1e-12 },
+        ),
+        (
+            "ArcMissesAuthoredPoint",
+            P::ArcMissesAuthoredPoint {
+                piece: profile::Piece {
+                    step: 1,
+                    role: profile::PieceRole::Leg,
+                },
+                verb: profile::Verb::TangentArcTo,
+                predicate: "path_arc_landing",
+                point: Point2::new(-2.7, 2.7e-4),
+                miss: 3.4e-8,
+                scale: 1.36e4,
+                resolution: 4.8e-11,
+                turn: 6.2,
+                authored: None,
+            },
+        ),
+        (
+            "ArcMissBelowSceneResolution",
+            P::ArcMissBelowSceneResolution {
+                piece: profile::Piece {
+                    step: 1,
+                    role: profile::PieceRole::Leg,
+                },
+                verb: profile::Verb::ArcTo,
+                predicate: "path_arc_through_point",
+                point: Point2::new(0.0, 2.74e8),
+                miss: 3.0e-8,
+                scale: 2.74e8,
+                resolution: 4.9e-7,
+                turn: 6.2,
+                authored: None,
+            },
         ),
         ("FarEndAnchorWithoutFillet", P::FarEndAnchorWithoutFillet),
         (
