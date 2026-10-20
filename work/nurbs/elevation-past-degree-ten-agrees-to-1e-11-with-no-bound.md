@@ -32,10 +32,38 @@ a common degree (`compose_chain` in `crates/geom/src/curves/compose.rs`,
 them, so a section of degree ≥ 11 reaches it silently. (Main is far worse
 on the same inputs: it refuses, or reads 1e-5 to 1e+44.)
 
-**Done when** either:
-- `elevate_plan` surfaces a bound. The split estimate already computes
-  one per pass (`conditioned_split`'s `worst(nf)` times unit roundoff
-  times the coordinates' scale), and carrying it to the plan would let a
-  caller refuse where the bound passes its ε; or
-- a measured row pins the envelope past degree 10, and the callers'
-  docs state it.
+**Done when** `elevate_plan` surfaces a bound, or its callers refuse
+at ε. The split estimate already computes one per pass
+(`conditioned_split`'s `worst(nf)`, times unit roundoff, times the
+coordinates' scale). It is first-order, so "steering" grade as `fit.rs`
+calls its bound unless the chain is interval-evaluated, and whether
+`compose_chain` and `skin` should refuse at ε is a design fork: this
+form goes through the designer pass when it is picked up.
+
+**Not a live hazard today, as far as checked.** Every degree-≥11 path
+is user geometry handed to `compose_chain` or `skin`, and no test row
+outside these elevation rows builds one. Whether any tour scene does
+was not checked.
+
+## Pinned (2026-10-20, `nurbs/elevation-envelope-rows`)
+
+The measured envelope is pinned by rows, each capped at about 3× its
+worst of 90 curves (CI's test profile), and stated at both callers'
+docs. Relative to the curve's largest control coordinate:
+
+| row | shapes | worst | cap |
+|---|---|---|---|
+| `degree_eleven_elevates_within_its_measured_envelope` | 50 uniform / graded / jittered knots | 4.4e-12 / 2.4e-12 / 8.1e-12 | 2.5e-11 |
+| `degree_twelve_elevates_within_its_measured_envelope` | the same | 1.8e-11 / 1.5e-11 / 3.6e-11 | 1.1e-10 |
+| `high_degree_clusters_elevate_within_their_measured_envelope` | degree 16 / 20 / 25, clusters of 2 and 4 knots `1e-9` apart | 1e-13 / 4e-13 / 5.9e-12 | 2e-11 |
+
+- **Red on the midpoint split**, which refuses or reads 9e-5 and up on
+  every row.
+- **Margin 8** turns the cluster row red (2–4e-11 at degree 25).
+- **Margin 1** reads alike on these shapes.
+- **Timing:** each row takes ≤ 0.15 s. Shapes with 200 knots cost about
+  0.6 s per elevation at degree 11–12 and are left out of the fast set
+  (degree 12 with 200 knots measured 1–6e-11).
+
+The rows guard against regression; they are not a bound, so this item
+stays open on the form above.
