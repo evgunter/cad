@@ -37,10 +37,11 @@ const FILES: [&str; 5] = [
 /// turn its offset from the axis: 8 of its points, by at most 2 ulps
 /// (`m10_p_fence`'s header has the dump). `declared_tangency`'s row
 /// moved when a chord's director became its components: 4 of its
-/// points, by at most `3.3e-16` (the same header). Thirteen rows moved
+/// points, by at most `3.3e-16` (the same header). Eleven rows moved
 /// when a construction came to compute in its own coordinates and its
 /// placement to map it there: a body built off a datum moves by one
-/// composition's rounding, its word count kept, and `face_sketch`'s
+/// composition's rounding, its word count kept (the two tubes stand
+/// about the world's `+y` by an exact `−turn/4` and hold their rows), and `face_sketch`'s
 /// boss is placed against the box and unioned with it, so the box joins
 /// its product (28 words to 52). Merged with main's union fold (the
 /// union's rows its decision log), `corner_table`'s product keeps its
@@ -89,8 +90,8 @@ const PRE_C: [(&str, &str); 34] = [
     ("plate_param", "fd7b71fa51270532/88"),
     ("kiss_carry", "9efdca7b404d4e52/85"),
     ("tube_ring", "c342379c65eab6d1/10"),
-    ("tube_arc", "157736947a98199b/16"),
-    ("hollow_tube_elbow", "85f46f07a3392ced/28"),
+    ("tube_arc", "19b8e0af8227889b/16"),
+    ("hollow_tube_elbow", "9ae3e25a75d4fecd/28"),
     ("hollow_tube_ring", "1db62df6ebe2507d/16"),
     ("reshaped_rod", "128f9facfb4a7626/52"),
     (FILES[0], "8853ddff30bcec28/154"),

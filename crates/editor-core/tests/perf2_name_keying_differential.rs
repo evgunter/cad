@@ -280,6 +280,11 @@ fn sans_epsilon(t: &str) -> String {
 /// read-back frame that minted 42 more ids, and its explicit rule's
 /// frames came to be built from the fraction of a turn each is. Every
 /// other document held.
+///
+/// `tube_arc`'s and `hollow_tube_elbow`'s persisted text moved when each
+/// tube came to stand about the world's `+y` by a bundle with no mate
+/// spun `−turn/4`, where it had stood where its body stands; their name
+/// tables held, and so did every other document.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xb4db9802b0b606f7, 0x8af513933244b575),
     ("corner_table", 0x45e0ac4118bb214d, 0x8716f69f07ef2d45),
@@ -314,8 +319,8 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("plate_param", 0x1374cf899f16a081, 0xc61e5981d4483dad),
     ("kiss_carry", 0x94d99109484dbaad, 0x0b50925beeee0a40),
     ("tube_ring", 0xb1623d89f704044f, 0xf71602ffe004bfc3),
-    ("tube_arc", 0xe566cd7d88cf25b3, 0x447df786c7d343ee),
-    ("hollow_tube_elbow", 0x469aba62d2ad9f95, 0xfe9c8afabbcbff44),
+    ("tube_arc", 0xe566cd7d88cf25b3, 0x893551b32708fee4),
+    ("hollow_tube_elbow", 0x469aba62d2ad9f95, 0x9698badaf1c676e2),
     ("hollow_tube_ring", 0x7d6efd15feea4270, 0xe910e65bbd5c2740),
     ("reshaped_rod", 0x2c0687528028d32a, 0x12c682ed7bc2e302),
 ];

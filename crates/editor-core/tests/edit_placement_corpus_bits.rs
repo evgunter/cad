@@ -101,6 +101,11 @@ use editor_core::Node;
 /// copy and the product. The product's ordinal fell from 101 to 59:
 /// the master's placement mints 42 fewer ids than `place_against`'s
 /// did.
+///
+/// `tube_arc`'s and `hollow_tube_elbow`'s rows moved when each tube,
+/// built about its own `z`, came to stand about the world's `+y` again
+/// as its retired spine frame had it: a bundle with no mate spun
+/// `−turn/4` about `x`, so its world copy is where it stood before D.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 122, 0xedc88b0c9768a183),
     ("die", 137, 0x3b18c1950c918b57),
@@ -216,8 +221,8 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("kiss_carry", 74, 0x21f1f9dbf876d243),
     ("kiss_carry", 93, 0xf9d9270ccbfdcf21),
     ("tube_ring", 5, 0x28708aadf200c24a),
-    ("tube_arc", 7, 0xda5de013096cb80d),
-    ("hollow_tube_elbow", 8, 0x195ecd4525de4b1e),
+    ("tube_arc", 7, 0x78b0777814e2560d),
+    ("hollow_tube_elbow", 8, 0x34e28ea09a5238fe),
     ("hollow_tube_ring", 6, 0xc17178d9cde4a81e),
     ("reshaped_rod", 48, 0x6713d9dd15ba1cb2),
 ];

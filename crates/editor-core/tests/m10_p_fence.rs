@@ -726,6 +726,20 @@
 //! were already exact. Its points move by those ulps, and its ids move
 //! because that placement mints 42 fewer. No other document moved
 //! (`edit_placement_corpus_bits`, `lib_g16_corpus_name_digests`).
+//!
+//! **ALL FOUR NUMBERS RE-TAKEN WHEN THE TWO TUBES CAME BACK TO WHERE THEY
+//! STOOD** (`(0x2589_59d0_55b6_3062, …)` at `f64` and the Probe,
+//! `(0x8fcd_f14c_7442_91ba, …)` at `Interval`, `(0xc5bc_7b20_ff45_83fa,
+//! …)` id-free, before). `tube_arc` and `hollow_tube_elbow` are built
+//! about their own `z`, and had been standing about it in the world
+//! since D retired their spine frame; each now stands about the world's
+//! `+y` as that frame had it, by a bundle with no mate spun `−turn/4`
+//! about `x`, so their points move back. Their products are their
+//! pre-D digests again (`intent_s2_c_world`'s `PRE_C`). Both evaluate
+//! with no refusal at `Interval`. No other document moved: every corpus
+//! document's world copies, compared vertex by vertex against D's merge
+//! base, hold, and `edit_placement_corpus_bits` moved only the two
+//! tubes' rows.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -1021,7 +1035,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x2589_59d0_55b6_3062, 0x75af_0bd5_3dc4_4dde),
+        (0x39bd_7b9f_dc43_e282, 0x0a13_1047_4364_26fe),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -1051,7 +1065,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x8fcd_f14c_7442_91ba, 0xcb41_5d8b_d964_70a6),
+        (0x6fcf_e1f2_e656_a932, 0xa0d2_a589_6cd1_49be),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -1075,7 +1089,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x2589_59d0_55b6_3062, 0x75af_0bd5_3dc4_4dde),
+        (0x39bd_7b9f_dc43_e282, 0x0a13_1047_4364_26fe),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -1153,7 +1167,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0xc5bc_7b20_ff45_83fa, 0xc1f5_93aa_63b6_799e),
+        (0xdcfe_8859_0d53_c91a, 0x52fa_0f08_998b_143e),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

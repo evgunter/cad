@@ -1196,8 +1196,8 @@ const RING_WIDE_CANDIDATE_T: f64 = 1.448_765_272_489_762_4;
 
 /// **The other side of the line: a wide candidate whose interval DOES
 /// reach the aimed vertex, and the door refuses with both.** The
-/// `tube_arc` corpus document at open, a `+z` ray through the mesh
-/// vertex `(1.2534, 1.9521, 0.3843)` on its end cap's rim. `main` answered
+/// `tube_arc` corpus document at open, a `+y` ray through the mesh
+/// vertex `(1.2534, 0.3843, −1.9521)`. `main` answered
 /// `1.475_904_852_772_309_5` — `0.0041` short of the vertex, a
 /// near-coplanar candidate whose rounded `t` is the smallest on the
 /// ray. Its `t` interval is wider than that gap, so it does not
@@ -1224,11 +1224,11 @@ fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
     let index = common::index_at(&session, common::corpus_delta()).expect("tube_arc indexes");
     let vertex = Point3::new(
         1.253_413_016_011_234,
-        1.952_075_113_318_894_5,
         0.384_323_569_889_266_14,
+        -1.952_075_113_318_894_5,
     );
     let reach = REACH;
-    let ray = aimed(vertex, Vec3::new(0.0, 0.0, 1.0), REACH);
+    let ray = aimed(vertex, Vec3::new(0.0, 1.0, 0.0), REACH);
     assert!(
         index.parts().iter().any(|part| {
             part.mesh().positions.iter().any(|p| {
