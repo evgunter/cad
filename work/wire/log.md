@@ -6886,3 +6886,9 @@ Signed (WIRE orchestrator).
   - So the (a)/(b)/(c) choice is API shape only. (a) is the smallest.
 
 - 2026-10-20 (WIRE orchestrator) Ev approved 5488 ('this looks good'): retiring flush clauses rows 74/121 is ratified. needs_ev cleared; the merge waits on the FULL review's adjudication.
+
+- 2026-10-20 (WIRE orchestrator) PR 5488 FULL review at 3ec6022478: the code is right, and a planted least-pick reds two tests.
+  - MAJOR, demonstrated: line_sense/line_head still read mint order, on a pinch with one leg reversed (Leaves vs Enters by authoring order). The README sentence Ev approved stated 'its least edge' as the rule.
+  - Handled by disclosure: told Ev on the PR. The fix pass rewords the sentence to 'one of its edges; which is open', raises the row to P2 with the fixture measured and admitted, and fixes the citation (row 124, not 121).
+  - Also: line_head's unchecked flush assumption; stale docs; cites_both on the head; a locality assert; the tied flag; three rows (N5 two-hop offers, subtract seats via the least, the duplicated grouping helper).
+  - Class note: before merging a text Ev approved, check that the review didn't find the approved sentence itself false. If it did, narrow the text and tell Ev; don't merge it as ratified.
