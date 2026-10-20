@@ -165,13 +165,15 @@ impl<'a> PlaneSection<'a> {
     /// the domain are checked, so the refusals come in the same order):
     /// [`ChartedNurbs::mint`] itself, or a chart a caller minted once for
     /// the operation and hands to every section of that wall. **The
-    /// chart must be of `wall`**, as a mint of it is; a debug build
-    /// asserts that it is the same surface.
+    /// chart must be of `wall`**, as a mint of it is: the door checks
+    /// that it is the very surface, in every build, and refuses
+    /// otherwise.
     ///
     /// # Errors
     ///
     /// As [`PlaneSection::of`], with the chart's own refusals where it
-    /// mints.
+    /// mints, and [`SsiError::WrongLane`] where the chart is of another
+    /// surface.
     pub fn of_charted(
         plane: &'a Surface<f64>,
         (wall, chart): (
@@ -230,10 +232,11 @@ impl<'a> PlaneSection<'a> {
         // minted once over the wall's domain, which refuses one the
         // domain cannot resolve, the proof obligation's first.
         let charted = chart(wall)?;
-        debug_assert!(
-            core::ptr::eq(charted.surface(), wall),
-            "a chart handed to `PlaneSection::of_charted` is of another surface"
-        );
+        if !core::ptr::eq(charted.surface(), wall) {
+            return Err(SsiError::WrongLane {
+                expected: "the wall paired with a chart minted from it (`PlaneSection::of_charted`)",
+            });
+        }
         let speed = charted.speeds().max();
         let account_floor =
             SweepFloor::chart(root, domain.floor(band), speed, FloorKind::Accounting)?;
@@ -427,6 +430,26 @@ mod tests {
                 "turn {turn}: the charted section reads otherwise"
             );
         }
+    }
+
+    /// **A chart of another wall is refused.**
+    /// [`PlaneSection::of_charted`] handed another wall's chart refuses
+    /// with [`SsiError::WrongLane`] in every build, before any reading.
+    #[test]
+    fn a_chart_of_another_wall_is_refused() {
+        let plane = level(0.1);
+        let (wall, other) = (
+            net(&|i, _| [0.25, -0.25, 0.25][i]),
+            net(&|i, _| [0.3, -0.2, 0.3][i]),
+        );
+        let chart = super::ChartedNurbs::mint(&other).unwrap();
+        let got =
+            PlaneSection::of_charted(&plane, (&wall, |_| Ok(chart.clone())), domain(), band());
+        assert!(
+            matches!(got, Err(super::SsiError::WrongLane { .. })),
+            "a mispaired chart came back {:?}",
+            got.err()
+        );
     }
 
     /// **Each seed is answered by the branch through it.** The trough

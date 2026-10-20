@@ -135,12 +135,13 @@ impl<'a> Section<'a> {
     /// same order): [`ChartedNurbs::mint`] itself, or a chart a caller
     /// minted once for the operation and hands to every section of that
     /// surface. **Each chart must be of the surface it is paired with**,
-    /// as a mint of it is; a debug build asserts that it is the same
-    /// surface.
+    /// as a mint of it is: the door checks that it is the very surface,
+    /// in every build, and refuses otherwise.
     ///
     /// # Errors
     ///
-    /// As [`Section::of`], with the charts' own refusals where they mint.
+    /// As [`Section::of`], with the charts' own refusals where they mint,
+    /// and [`SsiError::WrongLane`] where a chart is of another surface.
     pub fn of_charted(
         (s1, chart_1): (
             &'a NurbsSurface<f64>,
@@ -157,10 +158,11 @@ impl<'a> Section<'a> {
         finite_net("second NURBS surface", s2)?;
         domain.check()?;
         let (a, b) = (chart_1(s1)?, chart_2(s2)?);
-        debug_assert!(
-            core::ptr::eq(a.surface(), s1) && core::ptr::eq(b.surface(), s2),
-            "a chart handed to `Section::of_charted` is of another surface"
-        );
+        if !(core::ptr::eq(a.surface(), s1) && core::ptr::eq(b.surface(), s2)) {
+            return Err(SsiError::WrongLane {
+                expected: "each surface paired with a chart minted from it (`Section::of_charted`)",
+            });
+        }
         let (sa, sb) = (a.speeds(), b.speeds());
         let speeds = [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()];
         let r = Box4::of_charts(s1, s2);
@@ -516,6 +518,40 @@ mod tests {
             assert!(
                 read(charted) == fresh,
                 "turn {turn}: the charted section reads otherwise"
+            );
+        }
+    }
+
+    /// **A chart of another surface is refused.** [`Section::of_charted`]
+    /// handed `s2`'s chart for `s1` (or `s1`'s for `s2`) refuses with
+    /// [`SsiError::WrongLane`] in every build, before any reading:
+    /// computing on with the other surface's chart would answer for the
+    /// wrong wall silently.
+    #[test]
+    fn a_chart_of_another_surface_is_refused() {
+        let (s1, s2) = pair();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.5),
+            half_extent: 2.0,
+            extent: 1.0,
+            floor_scale: 1.0,
+        };
+        let (a, b) = (
+            super::ChartedNurbs::mint(&s1).unwrap(),
+            super::ChartedNurbs::mint(&s2).unwrap(),
+        );
+        for (first, second) in [(&b, &b), (&a, &a), (&b, &a)] {
+            let got = Section::of_charted(
+                (&s1, |_| Ok(first.clone())),
+                (&s2, |_| Ok(second.clone())),
+                domain,
+                band,
+            );
+            assert!(
+                matches!(got, Err(SsiError::WrongLane { .. })),
+                "a mispaired chart came back {:?}",
+                got.err()
             );
         }
     }

@@ -209,8 +209,9 @@ impl<'s> WallCharts<'s> {
 
 /// **A spline wall as a section reads it**: its net, and the operation's
 /// slot for its chart ([`WallCharts`]) where the operation holds one.
-/// The slot must be the net's own: the section doors assert it in debug
-/// builds (`geom_brep::Section::of_charted`).
+/// The slot must be the net's own: the section doors check it in every
+/// build and refuse a chart of another surface
+/// (`geom_brep::Section::of_charted`).
 #[derive(Clone, Copy)]
 pub(crate) struct Wall<'w, 's, T: Real> {
     /// The net.
