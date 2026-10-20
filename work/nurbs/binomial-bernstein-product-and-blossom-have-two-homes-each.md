@@ -78,14 +78,51 @@ take all three: one restriction door with a halving fast path.
 - **Binomials: folded** (PR 5414, with the cap's one home and the last
   `f64` folds in PR 5433). `pieces::binomial` is the one home, and
   `pieces::BINOMIAL_EXACT_MAX` the one cap.
-- **Bernstein product: two homes by design** (PR 2 of this item).
+- **Bernstein product: two homes, by precision** (PR 5439). Each
+  association is the tighter one for its own callers.
   `compose::bern_mul_row` folds a memoized outward quotient weight per
-  term, read on two corners (`Interval::mul_nonneg`), and its bits are
-  pinned by the rehearsal's ratified rows; `derivative::product` keeps
-  exact integer numerators and divides once after the sum, at any
-  `Real`, on bivariate grids under a bilinear `mul`. Folding either into
-  the other moves the other's pins. Each product's docs state this, and
-  `derivative::tests::both_bernstein_products_enclose_the_exact_rational_product`
-  pins that both enclose the exact rational product.
+  term; `derivative::product` keeps exact integer numerators and
+  divides after each coefficient's sum, at any `Real`. Both enclose
+  the exact rational product
+  (`derivative::tests::both_bernstein_products_enclose_the_exact_rational_product`).
+  The measurement (2026-10-20, main `b74e5b8c`) took three candidates:
+  A, main; B, compose on exact numerators with one division per
+  coefficient; C, `product` on per-term outward quotients.
+  - **Decisions.** geom-brep and sweep slow sets (4682 rows) at the
+    default ε and 1e-12: neither B nor C changes an outcome beyond
+    pinned values. B moves the offset-fit weights-2 sup golden 166 ulp
+    tighter and the `m5_pr7_ssi` arithmetic-floor pin (minimum margin
+    8.97e-15 to 1.04e-14, six rounds to four, the typed `HullSupChart`
+    refusal unchanged); C moves the offset-fit golden 20 ulp wider. The
+    offset-fit scale invariance holds under both. The `limb_three`
+    census on shelling, r1, `m5_pr7_ssi::` and `nurbs_nurbs_section::`
+    (735 rung lines) is identical in rungs and one-arc outcomes under
+    both; C differs only in margin bits (110 lines), B in one rung's
+    box count (4945 to 5729, same outcome). Not seen: decisions outside
+    those four rows and the slow sets' assertions.
+  - **Widths**, the other association against each home's live one,
+    over geom-core, geom, mesh, geom-brep and sweep:
+
+    | other association at | coefficients | wider | > 4 ulp | > 2× and > 4 ulp | worst |
+    |---|---|---|---|---|---|
+    | compose `tensor.rs:383` (powers) | 3.39 M | 32.4% | 4.50% | 95 530 | exact points widened |
+    | compose `tensor.rs:384` | 3.39 M | 30.4% | 2.61% | 35 309 | 6× |
+    | compose `tensor.rs:386` | 6.45 M | 47.4% | 5.41% | 14 606 | exact points widened |
+    | compose `tensor.rs:453` | 17.1 M | 36.6% | 2.73% | 376 | 6× |
+    | compose `ch_mul` | 2.84 M | 30.2% | 2.62% | 203 | 4× |
+    | compose `patch::mul_block` | 165 M | 27.1% | 4.86% | 31 570 | 4× |
+    | `product` in `area_raised` | 53.4 M | 20.4% | 4.96% | 92 996 | 1470× |
+    | `product` in `doubled_cross` | 0.92 M | 59% | 25% | 10 298 | 208× |
+    | `product` in `cell_pieces` | 12.6 M | 63.1% | 10.1% | 554 | 10.5× |
+
+    B is narrower than A on 7–40% of compose's coefficients, and its
+    widest excess is about 1e-15 to 1e-11 of the coefficient's
+    magnitude. The ruling (2026-10-20): no fold direction may widen a
+    real caller past about 2×, so both homes stay.
 - **Blossom and restriction: open** (`restrict_segment`, `split_restrict`,
-  `Grid::halved`: one restriction door with a halving fast path).
+  `Grid::halved`: one restriction door with a halving fast path). Its
+  PR also carries two carry-overs from PR 5424's review in
+  `blossom::split_restrict`: the step's comment says both weights lie in
+  `[0, 1]`, where `s.hi` reaches `1 + 2⁻⁵²` at a tiny `t` and only
+  `lo ≥ 0` is needed; and the thin-step row draws no wide end weights
+  and no tiny `t`.
