@@ -139,13 +139,17 @@ reader's aimed rays per solid through `test_support::aimed_rays`, and
 - **The count** (`ray_walk::Crossings::first_count`): crossings in band
   of each other are summed, and the sign of the first nonzero running
   count is the side. A pair (`RayHit::pair`) is two faces that do not
-  meet (`meet`), each crossed, whose crossings of their carriers lie in
-  band along the ray: an edge's parties are its faces where the ray
-  crosses their planes, and an edge passed without crossing (count 0) is
-  no party. So two cubes 12ε–19ε apart, whose top edges a ray passes in
-  band of each other across the gap's mouth, are no pair (R2's F1;
-  `two_edges_of_faces_definite_apart_are_no_pair`, red with the edges'
-  closest points as parties, at both ε). A corner or wedge in the same
+  meet (`meet`), each crossed, met in band of each other along the ray,
+  each party read where the ray meets its faces: a face's crossing, or
+  where the ray passes an edge; an edge passed without crossing (count
+  0) is no party. Not where the ray crosses their carriers: on a shallow
+  ray a carrier crossing lands far off its face, beside another face
+  (R2's re-check of `2be7c1ad14`: a wall, a gap of 3Kε–8Kε, a box whose
+  top edge the ray passes; 8 of 9 rays refused on the wall and the top's
+  carrier, ~3ε apart; `an_oblique_carrier_crossing_beside_another_face_is_no_pair`,
+  all 9 `In` at both ε). Two cubes 12ε–19ε apart, whose top edges a ray
+  passes in band across the gap's mouth, are no pair
+  (`two_edges_of_faces_definite_apart_are_no_pair`). A corner or wedge in the same
   cluster reads before a pair: D10 refuses only on a pair, a
   restriction of refusal and not a demand for it, and a ray meeting a
   corner or a wedge reads nothing
