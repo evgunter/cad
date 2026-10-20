@@ -15,19 +15,22 @@ Found by `wire-census2`, whose PR welds the feature-tree census's
 roster turned up with no row render short of the standard:
 
 - **`ResultEscalated`** (`crates/topo/src/splitting/finish.rs:655`, its
-  `Display` at `:690`) renders 94 words over the 75-word budget, and names the
+  `Display` at `:690`) renders 90 words over the 75-word budget, and names the
   aimed ray's two faces by key, on a payload of side `Below`,
   `BooleanDecision::ShellRole { near, far, others: 1 }` and a margin
-  of 3e-10 in a ±1e-9 zero band: "the piece on the below side of the
-  plane: whether a shell of the result bounds material or a cavity is
-  undecided: margin 3e-10 lies within the zero band (±1e-9). an aimed
-  ray met faces FaceKey(null) and FaceKey(null) of the result there. 1
-  more of the result's readings lies in band, decided by the same
-  tolerance. Recourse: move the split plane or the geometry so the two
-  faces the aimed ray met are clearly apart, or, if this gap is
-  intended, tighten the tolerance below 3e-11 m". With `others: 0` it
-  is still over. The row stands on `OVER_BUDGET` (`crates/editor-core/tests/refusal_concision_chains.rs:104`) at a
-  ceiling of 94 words, citing this file, and its two face keys on
+  of 1e-20 in a ±1e-9 zero band (deep enough that no tolerance a run
+  admits decides it, so the length is the same at every eps row; at
+  3e-10 it offers a tolerance and runs 94 words at the default row, 83
+  at 1e-12): "the piece on the below side of the plane: whether a shell
+  of the result bounds material or a cavity is undecided: margin 1e-20
+  lies within the zero band (±1e-9). an aimed ray met faces
+  FaceKey(null) and FaceKey(null) of the result there. 1 more of the
+  result's readings lies in band, decided by the same tolerance.
+  Recourse: move the split plane or the geometry so the two faces the
+  aimed ray met are clearly apart; no tolerance a run admits decides
+  this gap". With `others: 0` it is still over. The row stands on
+  `OVER_BUDGET` (`crates/editor-core/tests/refusal_concision_chains.rs:104`)
+  at a ceiling of 90 words, citing this file, and its two face keys on
   `ADMISSIONS`.
 - **`Merge`** (`finish.rs:673`, `Display` at `:874`; a side's `MergeCoplanarError`, rendered whole) carries
   the merge's stage label, names its edge by key and states no

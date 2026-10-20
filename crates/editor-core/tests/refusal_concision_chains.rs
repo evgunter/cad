@@ -105,7 +105,7 @@ const OVER_BUDGET: &[(&str, usize)] = &[
     // work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Profile/ArcBelowSceneResolution", 117),
     // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
-    ("Split/Finish/ResultEscalated", 94),
+    ("Split/Finish/ResultEscalated", 90),
 ];
 
 /// The clause labels a surface legitimately opens with that read, by
@@ -2844,7 +2844,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     far: face,
                     others: 1,
                 },
-                diag: diag(),
+                // A margin so deep in the band that no tolerance above
+                // `EPS_MIN` decides it, so the sentence offers none at
+                // any eps row and its length is one number.
+                diag: geom_core::Indeterminate {
+                    margin: geom_core::MarginDiag::value(1.0e-20),
+                    ..diag()
+                },
             },
         ),
         (

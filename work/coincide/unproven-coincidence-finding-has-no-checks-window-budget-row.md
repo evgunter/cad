@@ -13,7 +13,7 @@ Found by `wire-census2`'s sweep for the class of
 `kernel-payload-lists-in-the-concision-census-are-kept-by-hand`.
 
 `check_findings`
-(`crates/editor-core/tests/refusal_concision_chains.rs:6039`) renders each
+(`crates/editor-core/tests/refusal_concision_chains.rs:6045`) renders each
 `CheckEvidence` arm (`crates/editor-core/src/checks.rs:413`) as the checks
 window draws it and holds it to the 75-word budget
 (`every_check_finding_renders_within_the_budget`). It is kept by hand,

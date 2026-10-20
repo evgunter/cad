@@ -35,7 +35,7 @@ scripted comparison of its constructors against the enum finds 37 of
 `VolumeUndecided`, `UnrepresentableResult`, `GraftRecertify`,
 `Pieces`, `Revert`, `LineWedges`. Its `PointInSolidError` rows (through
 `BooleanError::Containment`) skip `InsideOut`, which the chains
-census's `separation_reasons` (`crates/editor-core/tests/refusal_concision_chains.rs:6241`) now renders.
+census's `separation_reasons` (`crates/editor-core/tests/refusal_concision_chains.rs:6247`) now renders.
 
 Some of these may render elsewhere (`Join` through the chains census's
 `Boolean/Join/` rows). Each wants a row or a reason in-file.
