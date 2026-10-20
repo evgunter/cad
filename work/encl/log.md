@@ -1658,3 +1658,10 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Review:** no MAJOR. The fix pass followed the orchestrator's adjudication (doors enforce restatement by their shape, rows guard both directions).
   - **Next:** `cross-crate-restatements-of-stored-edges-certify-as-callers` (sweep, including `extrude.rs` struts).
   (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5418** (`cross-crate-restatements-of-stored-edges-certify-as-callers`, closed).
+  - **New door:** `pub` `topo::Body::restate_stored_edge(edge, description, tol)` takes only a description, names `Kernels(StoredRestatement)` itself, and panics only when a stored edge's own span or winding reads certainly refused.
+  - **Sweep:** its seven restatements route through the door: swept wrap and rim, extrude rim and struts (now read from the stored strut, bitwise as before), and revolve. A sweep source census pins `set_edge_curve` to computed-carrier callers (loft, blend). Loft, blend and step-import stay `Callers`.
+  - **Review:** no MAJOR. Input cannot reach the door's panic: a stale key is a typed error, the description never changes check 2, and `Tol` has one inhabitant. The orchestrator fixed loft's `# Panics` and the stale sweep module docs.
+  - **Filed:** `the-stored-curve-read-ladder-is-written-three-times`.
+  - **Seam:** CARVE/STRUT files were touched (call-site swaps, `stored_carrier`, docs).
+  (ENCL orchestrator)
