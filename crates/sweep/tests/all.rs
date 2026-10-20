@@ -62,6 +62,8 @@ mod a_carried_record_no_reading_covers;
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
+#[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
+mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
@@ -108,6 +110,8 @@ mod a_seam_region_carrying_both_poles;
 mod a_seam_region_covering_the_sphere_twice;
 #[path = "a_short_shallow_strut_between_wide_walls_is_a_corner.rs"]
 mod a_short_shallow_strut_between_wide_walls_is_a_corner;
+#[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]
+mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]

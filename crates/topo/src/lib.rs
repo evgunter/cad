@@ -301,7 +301,9 @@ pub mod test_support {
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
-    pub use crate::props::{FaceTerm, fold_order_bound, mass_properties_with_face_terms};
+    pub use crate::props::{
+        FaceTerm, fold_order_bound, mass_properties_with_face_terms, quadrature_rounds,
+    };
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence, brick,
@@ -882,20 +884,21 @@ pub use boolean::{
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
     CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
     CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
-    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeJoin,
-    EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact, Fusions, GlueVerdict,
-    GluedPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    LeverArm, LineWedgeFault, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords,
-    PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
-    SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
-    SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace,
-    TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact, VfContact, VoidContainment,
-    VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
-    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
-    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_cell, joined_edge, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeInFaceGap,
+    EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact, Fusions,
+    GlueVerdict, GluedPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
+    JoinUndecided, LeverArm, LineWedgeFault, NodeWhy, NullEdgePairRecord, Operand, OperandKeys,
+    OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc,
+    PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
+    RefusedRow, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
+    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops,
+    SweepStrategy, SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact,
+    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
+    subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{

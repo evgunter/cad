@@ -45,9 +45,9 @@
 #
 # THE DEFECT CHOICE IS A FOURTH LIST. A sized decision's caller may say
 # a reading certainly on the refused side contradicts the stored data
-# its decision reads (`RefusedReading::ContradictsStoredData`) or a
-# file's (`RefusedReading::DamagedFile`), which turns that reading's
-# ending into the kernel-or-file defect ending or the damaged-file one;
+# its decision reads (`RefusedReading::Defect`, with the culprit
+# `geom_brep::recourse::culprit` names), which turns that reading's
+# ending into a defect ending;
 # and the sign-certain arm asks the refused class's ending without a
 # reading (`SizedWords::sign_certain_recourse`); and whether a reading is
 # certainly on the refused side at all (`MarginDiag::shows_no_size`, and
@@ -57,6 +57,15 @@
 # and the decision's refused side, so the routes there cannot drift: a
 # spelling of any anywhere else is a second table. The list counts the variant's
 # spellings and the method's calls, not what the site does with them.
+#
+# THE CULPRIT CHOICE IS A FIFTH LIST. Which culprit a defect ending names
+# is chosen once (`geom_brep::recourse::culprit`, and the run doors'
+# `Reading::culprit` it reads), and only a contradiction of the file's
+# own data (`Provenance::Stored`) names the file alone
+# (`StoredCulprit::File`). A call to either chooser, or a spelling of
+# that provenance or that culprit, anywhere else chooses the culprit a
+# second time: a site that blames the file for a value the kernel
+# derived is invisible to every ending test that reads its words.
 #
 # WHAT A LISTED SITE OWES, and the gate checks none of it — it checks
 # only the file and the count, so the list is where the argument lives:
@@ -79,8 +88,11 @@
 #     alias under another name, is invisible to it;
 #   * so is a glob import of the stored-contradiction choice:
 #     `use geom_core::RefusedReading::*;` followed by a bare
-#     `ContradictsStoredData` escapes the definite-ending count, which
-#     matches the variant only under its enum's name;
+#     `Defect` escapes the definite-ending count, which
+#     matches the variant only under its enum's name; the same holds of
+#     a bare `File` or `Stored` under a glob import of `StoredCulprit` or
+#     `Provenance`, and of `DAMAGED_FILE_ENDING` spelled directly, which
+#     names the file without choosing a culprit;
 #   * so is a path spelled with whitespace inside it —
 #     `MarginDiag :: value(`, or the path split across lines — since
 #     the matcher reads each record's text as written;
@@ -142,10 +154,18 @@ SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z
 # `path count why` — production files outside the definition home that
 # spell the stored-contradiction choice or ask the sign-certain ending.
 DEFINITE_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 5 the sized-decision table: SizedDecision::words picks the stored-contradiction and damaged-file choices once for every route, the sign-certain arm asks the refused class ending through those words, and SizedDecision::certainly_refused (its definition, for the doors that refuse a span as their input) reads the class once through MarginDiag::shows_no_size'
+  'crates/geom-brep/src/recourse.rs 4 the sized-decision table: SizedDecision::words picks the stored-contradiction choice once for every route, its culprit named by recourse::culprit, the sign-certain arm asks the refused class ending through those words, and SizedDecision::certainly_refused (its definition, for the doors that refuse a span as their input) reads the class once through MarginDiag::shows_no_size'
   'crates/geom-brep/src/certify.rs 1 every public certification and re-certification door asks whether a span check refusal is certainly on its refused side, to refuse it as the door input (StatedSpan::of) rather than end it'
 )
-DEFINITE_RE='(RefusedReading::(ContradictsStoredData|DamagedFile)|sign_certain_recourse|shows_no_size|certainly_refused)([^A-Za-z0-9_]|$)'
+DEFINITE_RE='(RefusedReading::Defect|sign_certain_recourse|shows_no_size|certainly_refused)([^A-Za-z0-9_]|$)'
+
+# `path count why` — production files outside the definition home that
+# call a culprit chooser, or spell the file's own provenance or the
+# file culprit.
+CULPRIT_ALLOWLIST=(
+  'crates/geom-brep/src/recourse.rs 8 the culprit chooser: the definitions of recourse::culprit and Reading::culprit, culprit reading the run door and naming the file for stored data, defect_ending and unreadable_margin_note reading the run door, Unsized::recourse reading it for a derived value, and SizedDecision::words for stored data'
+)
+CULPRIT_RE='(culprit\(|(Provenance::Stored|StoredCulprit::File)([^A-Za-z0-9_]|$))'
 
 # `path count why` — production files that may write the classifier's
 # verdict `terminal_sliver: true` on an escalation of their own. None:
@@ -277,7 +297,14 @@ gate() {
     2) gate_error "$(gate_name): an allowlisted definite-ending site's count moved. Move the pin in the change that carries the argument"
        exit 1 ;;
   esac
-  gate_ok "the reporting margin's door is called only at the ${#DOOR_ALLOWLIST[@]} allowlisted site(s), a valued reading minted only at the ${#MINT_ALLOWLIST[@]} allowlisted mint site(s), its sized sentence asked only at the ${#SIZED_ALLOWLIST[@]} allowlisted site(s), the definite-ending choice spelled only at the ${#DEFINITE_ALLOWLIST[@]} allowlisted site(s), no forged terminal-sliver verdict, at the counts they pin ($((${#support[@]} / 2)) test-support mount(s) skipped)"
+  check_list "culprit choice" "$CULPRIT_RE" "${CULPRIT_ALLOWLIST[@]}" || rc=$?
+  case $rc in
+    1) gate_error "$(gate_name): $CHECK_LIST_FIRED spelled outside the allowlisted sites (this file's header says why). Which culprit a defect ending names is chosen once, in geom_brep::recourse::culprit; end the refusal through it instead, or add the site here with its reason"
+       exit 1 ;;
+    2) gate_error "$(gate_name): an allowlisted culprit site's count moved. Move the pin in the change that carries the argument"
+       exit 1 ;;
+  esac
+  gate_ok "the reporting margin's door is called only at the ${#DOOR_ALLOWLIST[@]} allowlisted site(s), a valued reading minted only at the ${#MINT_ALLOWLIST[@]} allowlisted mint site(s), its sized sentence asked only at the ${#SIZED_ALLOWLIST[@]} allowlisted site(s), the definite-ending choice spelled only at the ${#DEFINITE_ALLOWLIST[@]} allowlisted site(s), the culprit chosen only at the ${#CULPRIT_ALLOWLIST[@]} allowlisted site(s), no forged terminal-sliver verdict, at the counts they pin ($((${#support[@]} / 2)) test-support mount(s) skipped)"
 }
 
 # The clean fixture: the definition home and every allowlisted file,
@@ -295,7 +322,7 @@ impl MarginDiag {
 }
 fn f(m: f64) -> MarginDiag { MarginDiag::value(m) }
 RS
-  for entry in "${DOOR_ALLOWLIST[@]}" "${MINT_ALLOWLIST[@]}" "${SIZED_ALLOWLIST[@]}" "${DEFINITE_ALLOWLIST[@]}"; do
+  for entry in "${DOOR_ALLOWLIST[@]}" "${MINT_ALLOWLIST[@]}" "${SIZED_ALLOWLIST[@]}" "${DEFINITE_ALLOWLIST[@]}" "${CULPRIT_ALLOWLIST[@]}"; do
     read -r path want why <<<"$entry"
     mkdir -p "$1/${path%/*}"
     : > "$1/$path"
@@ -310,6 +337,12 @@ RS
     read -r path want why <<<"$entry"
     for ((i = 0; i < want; i++)); do
       printf 'fn c%d(w: SizedWords) -> String { w.sign_certain_recourse() }\n' "$i" >> "$1/$path"
+    done
+  done
+  for entry in "${CULPRIT_ALLOWLIST[@]}"; do
+    read -r path want why <<<"$entry"
+    for ((i = 0; i < want; i++)); do
+      printf 'fn k%d(at: ReadAt) -> Culprit { culprit(at, Provenance::Derived) }\n' "$i" >> "$1/$path"
     done
   done
   # A test-support mount, whose samples mint: skipped.
@@ -397,7 +430,7 @@ plant_mint_in_a_plain_mount() {
 # The import door's sentence used as an ε_in oracle, from the door.
 plant_in_file_oracle_outside() {
   mkdir -p "$1/crates/step-import/src"
-  printf 'fn f(d: MarginDiag, e: FileCoincidence) -> bool { e.miss_recourse_in_file(MissReading::Definite(d), MissSource::File, "").contains("stopgap") }\n' \
+  printf 'fn f(d: MarginDiag, e: FileCoincidence) -> bool { e.miss_recourse_in_file(MissReading::Definite(d), MissSource::File, "", "").contains("stopgap") }\n' \
     > "$1/crates/step-import/src/error.rs"
 }
 
@@ -426,8 +459,26 @@ plant_sentence_oracle_outside() {
 # The stored-contradiction choice made outside the sized-decision table.
 plant_definite_choice_outside() {
   mkdir -p "$1/crates/topo/src"
-  printf 'fn f(w: SizedWords) -> SizedWords { SizedWords { refused: RefusedReading::ContradictsStoredData, ..w } }\n' \
+  printf 'fn f(w: SizedWords) -> SizedWords { SizedWords { refused: RefusedReading::Defect(Culprit::KernelOrFile), ..w } }\n' \
     > "$1/crates/topo/src/props.rs"
+}
+
+# The culprit chosen outside the chooser: a call to it, the file's own
+# provenance, and the file culprit spelled directly.
+plant_culprit_call_outside() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'fn f(at: ReadAt) -> &'"'"'static str { culprit(at, Provenance::Derived).ending() }\n' \
+    > "$1/crates/topo/src/props.rs"
+}
+plant_stored_provenance_outside() {
+  mkdir -p "$1/crates/step-import/src"
+  printf 'const P: Provenance = Provenance::Stored;\n' \
+    > "$1/crates/step-import/src/error.rs"
+}
+plant_file_culprit_outside() {
+  mkdir -p "$1/crates/step-import/src"
+  printf 'fn f() -> &'"'"'static str { StoredCulprit::File.ending() }\n' \
+    > "$1/crates/step-import/src/error.rs"
 }
 
 # Whether a reading is certainly refused, asked outside the table.
@@ -477,13 +528,16 @@ gate_selftest() {
   gate_selftest_case "sized_recourse_in_file asked outside the allowlisted sites" plant_sized_in_file_oracle_outside
   gate_selftest_case ": sized_recourse_in_file asked outside the allowlisted sites" plant_long_in_file_oracle_outside
   gate_selftest_case "terminal_sliver: true written outside the classifier" plant_forged_sliver
-  gate_selftest_case "RefusedReading::ContradictsStoredData spelled outside the allowlisted sites" plant_definite_choice_outside
+  gate_selftest_case "RefusedReading::Defect spelled outside the allowlisted sites" plant_definite_choice_outside
   gate_selftest_case "sign_certain_recourse spelled outside the allowlisted sites" plant_sign_certain_outside
   gate_selftest_case "shows_no_size spelled outside the allowlisted sites" plant_certainly_refused_outside
   gate_selftest_case "certainly_refused spelled outside the allowlisted sites" plant_certainly_refused_call_outside
+  gate_selftest_case "culprit spelled outside the allowlisted sites" plant_culprit_call_outside
+  gate_selftest_case "Provenance::Stored spelled outside the allowlisted sites" plant_stored_provenance_outside
+  gate_selftest_case "StoredCulprit::File spelled outside the allowlisted sites" plant_file_culprit_outside
   gate_selftest_passes "the definition, the allowlisted calls and mints, a test module's, the poison constant and prose" gate_plant_clean
   gate_selftest_homes --narrowed --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence or an import-door sentence asked outside its table, on the stored-contradiction choice, the sign-certain ending or whether a reading is certainly refused outside its table, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence or an import-door sentence asked outside its table, on the stored-contradiction choice, the sign-certain ending or whether a reading is certainly refused outside its table, on a culprit chooser called, or the stored provenance or the file culprit spelled, outside the chooser, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -1620,3 +1620,34 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Ruled:** fix, at FULL. A conditioning-aware forward/backward split in elevation's recomposition only. If that doesn't reach ε·scale at p ≥ 6, report; the fallback is a typed refusal, never silent drift. Rows red on main; goldens over elevated geometry re-cut, with what moved stated; SWEEP and curves seam notes if their goldens move.
 - 2026-10-20 05:15Z — **#5446 CI red, base red.** `geom curves::tests::ellipse_constructor_trios` (`SemiAxisNotFinite`) is red on main since GERM's `53967a14` (#5156); build C bisected it. Filed on GERM's slate with a seam note. #5446 merges over it under the standing base-red ruling.
   - **Friction:** the orchestrator's container hit 99% disk (a 24 GB stale target from earlier timing work) and couldn't build to check. Freed; lanes with warm builds now do base-red checks.
+- 2026-10-20 05:30Z — **#5419: topo's `WrongLane` must panic** (ruled in from the reviewer's cd38b6f7 verification).
+  - **What the reviewer found:** the door's release pairing check refuses every mispairing, but topo absorbed `WrongLane` as an ordinary section refusal, so the wrong-held-key mutant went red on only 3 of 34 slot rows in release; the rest took refusal or fallback paths silently.
+  - **Ruling:** DESIGN `[loud-failure]` ("a bug panics, as early as it is detectable"; "no fallback that answers where a method declined"). Topo builds the pairing, so a `WrongLane` at its call sites is a kernel bug. C makes the two `offset_derive` call sites panic on it; the `pub` doors keep the typed refusal for outside callers.
+  - **Also verified at cd38b6f7:**
+    - no false `WrongLane` (clones keep the surface reference);
+    - the shelling probe is byte-identical;
+    - all 7 topo and sweep 1e-12 reds are filed base reds, word for word.
+  - **#5440:** review MERGEABLE (1450 pieces bit-identical, M2–M7 red, 267 decisions match). It waits on C resolving the item conflict that my aafaa9b2 caused. The two `split_restrict` carry-overs move to build A's PR 3.
+- 2026-10-20 07:25Z — **#5439 resolved: two Bernstein product homes, kept for precision** (build A's measurement under the rule fixed at 04:42Z).
+  - **Decisions:** neither fold direction moves one (the geom-brep and sweep slow sets at both ε, plus the `limb_three` census over 735 rung lines; only margin bits and one box count change).
+  - **Widths:**
+    - B (compose on exact numerators) widens compose's tensor and `ch_mul` and `mul_block` coefficients up to 6× and loses exact zero-width points at `tensor.rs:383/386`, though it is narrower on 7–40% of them;
+    - C (derivative on compose's per-term weights) widens `area_raised` up to 1470× and `doubled_cross` up to 208×.
+  - **Ruled:** rule 3. Each association is tightest for its own callers, so two homes stay, with precision as the stated reason and the table in the item. #5439 drops back to STANDARD: docs, the bit rows kept, the enclosure rows, the review's MINOR and NOTE, no golden moves.
+  - **Lesson:** fixing the rule before the numbers was worth it. The first ruling (bits) was wrong in kind; this one is right in kind and holds to its threshold.
+  - **#5419:** C pushed 67c2d535. Topo's `of_charted` sites panic on `WrongLane`; the release mutant is red on 8 rows by the panic, against 3. The reviewer re-verifies.
+- 2026-10-20 07:45Z — **#5419 merged** (759acedd; mint each wall once per operation).
+  - **FULL review MERGEABLE at 67c2d535:**
+    - the release pairing check refuses mispairings at the `pub` doors, and topo panics on `WrongLane` at its call sites;
+    - the wrong-held-key mutant is red on all 8 mispaired rows by the panic (against 3 before the panic, with 5 silent);
+    - unmutated topo+sweep release pass 6332/6332, and `limb_three` is byte-identical.
+  - **The slow rows are under target:** shelling 1.66×, r1 1.33× (main + #5419, build C). The slow-rows item is closed with those numbers, and `cheapen-the-restriction-cut-steps-2-to-4` closed (step 4 not taken).
+  - **Filed:** `mint-once-is-pinned-only-by-timing` (P3; the review's M3 survives, so a mint-count row is needed), with the review's style tail.
+- 2026-10-20 07:50Z — **#5459 is up** (build C, the degree-elevation fix, FULL, head 60954f25).
+  - **The fix:** `remove_once(.., ChainSplit)`, with elevation on `Conditioned`, which tracks a first-order error estimate per control point and takes the least-error split each pass (midpoint on a tie); knot removal keeps `Midpoint`. The plain α ≥ ½ rule failed on uniform knots, where α ties at ½ and error chained.
+  - **After it:** p ≤ 10 × g ≥ 1e-9 within 3e-15 of scale, the `WeightCollapse` refusals at p ≥ 8 gone, no golden moved, elevation 1.3–2.1× faster.
+  - **Base reds:**
+    - GERM's ellipse row, fixed on main by `2ee8a2ea` (my item is closed);
+    - a new `reader_census` red, filed on ENCL;
+    - ENCL's tier-1 roster red.
+  - **Friction (build C):** one `CARGO_TARGET_DIR` shared across worktrees silently reuses another worktree's build of a workspace package, because cargo's fingerprint checks the source paths of the last build. It made a red-on-main check pass on fixed code twice today, until `cargo clean -p <pkg>`. Lanes taking red-on-main or timing measurements use one target directory per worktree, or clean the switched packages. Raise it as an `[ev]` memory candidate if it recurs.

@@ -125,3 +125,12 @@ Every `limb_three` decision on shelling, r1, `m5_pr7_ssi::` and
 for whoever wants more: `Interval::mul_nonneg` in the thin step once
 #5163 lands, #5163 in the offset fit, and `clears` at r1
 (`an-adaptive-block-piece-split-reads-one-piece-where-the-hull-decides`).
+
+**Measured on the merged levers** (build C, 2026-10-20: main 5857a62a, which carries #5424, merged locally with #5419 at cd38b6f7; fresh targets, opt-1, `--test-threads 1`, three interleaved rounds):
+
+| row | pre-4954 | main 5857a62a | main + #5419 |
+|---|---|---|---|
+| shelling | 32.7 s | 62.8 s (1.92×) | **54.3 s (1.66×)** |
+| r1 | 11.5 s | 15.6 s (1.35×) | **15.4 s (1.33×)** |
+
+Both rows are under the 2× target. The remaining r1 lever, a cheaper `clears`, is not worth a unit at 1.33×, and has no sound one-piece path (see the closed adaptive-split item).
