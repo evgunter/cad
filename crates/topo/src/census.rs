@@ -2686,11 +2686,13 @@ impl<T: Decide> EfPair<'_, T> {
 /// each pair of enclosures intersected, as the crossing lane reads its
 /// reaches ([`ee_lines_closest`]).
 ///
-/// An end read strictly on one side lies past the band's zero `z` off
-/// the plane: past its escalation if decided, and past `z` if
-/// undecided ([`undecided_signs`]), whose residual lies between the
-/// two. So the lever exceeds `2z`, and its enclosure is read past the
-/// band, a divisor, or straddling it, refused.
+/// The lever never reads at most ε. A residual read on a strict side
+/// reaches past the band's zero `z` on it: all of it past the
+/// escalation if decided, and, undecided ([`undecided_signs`]), some of
+/// it, since it is not within `z`. So two ends read on opposite sides
+/// differ by more than `z` at the bound of the residuals' difference
+/// that faces the lever's sign, which the intersection keeps, and the
+/// lever's size reads past `z`.
 fn pierce_span<T: Decide>(
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
@@ -2716,7 +2718,7 @@ fn pierce_span<T: Decide>(
     match enclosure_reading(size, "pm_census_ef_pierce_lever_straddle", band, decide) {
         Ok(Enclosed::Above) => {}
         Ok(Enclosed::AtMost(_)) => unreachable!(
-            "two ends read on opposite sides past the band's zero read a lever at most it"
+            "two ends read on opposite sides of the plane read a lever at most the band's zero"
         ),
         Err(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
