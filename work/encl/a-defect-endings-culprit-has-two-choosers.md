@@ -2,7 +2,8 @@
 id: a-defect-endings-culprit-has-two-choosers
 kind: issue
 title: geom-brep: the culprit a defect ending names is chosen in two places, recourse::defect_ending (by Reading, cannot say damaged file) and SizedDecision::words (by ReadAt)
-status: dispatched
+status: review
+pr: 5454
 opened: 2026-10-19
 branch: encl/one-culprit-chooser
 ---
