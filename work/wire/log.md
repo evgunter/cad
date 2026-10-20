@@ -6754,3 +6754,10 @@ Signed (WIRE orchestrator).
     - names-emission-raises-panic-or-take-their-true-ending (after seamorder);
     - held-out-goes-once-the-ring-tie-row-is-fixed (parked on CLEAVE).
   - The pinch-corner row is unparked: it is a limit, row 1.
+
+- 2026-10-20 (WIRE orchestrator) wire-namesurvey reported, and the survey is saved on the strategy row.
+  - About 120 naming defects in six groups. The candidate principle fails as worded, since it needs declared symmetries, locality, reads, totality and birth records.
+  - The member-order probe on corpus::documents() found 0 differences: the wrong corpus.
+  - Filed intent/a-placement-adds-no-name-segment-is-said-three-ways (a RoleSeg::Placed inconsistency, D10).
+  - Dispatched FORK-NAMESTRATEGY (designer pair; byte drawn, unread).
+  - Dispatched wire-nameinv (wire/name-invariance-checks; STYLE review), six perturbations over a contact-heavy corpus with findings filed and admitted both ways.
