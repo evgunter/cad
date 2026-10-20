@@ -9380,3 +9380,113 @@ mod from_computed_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
+mod review_c_probes {
+    use geom::Surface;
+    use geom_core::{Band, Decide, Interval, Point2, Point3, Real, Tol};
+
+    fn prism(kv: Vec<f64>, last_off: f64) -> Surface<f64> {
+        let (c0, c1, c2) = ((1.0, 0.0), (-0.5, 0.75_f64.sqrt()), (-0.5, -(0.75_f64.sqrt())));
+        let at = |c: (f64, f64), z: f64| Point3::new(c.0, c.1, z);
+        let ku = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = geom_core::spline::KnotVector::clamped(kv, 1).unwrap();
+        let last = (c0.0 + last_off, c0.1);
+        let control = [0.0, 1.0]
+            .into_iter()
+            .flat_map(|z| [c0, c1, c2, last].map(|c| at(c, z)))
+            .collect();
+        Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
+        ))
+    }
+
+    fn joint<T: Decide>(s: &Surface<T>, from: f64, dv: f64, prev_v: f64, band: Band) -> String {
+        let image = geom_brep::Pcurve::IsoLine {
+            p0: Point2::new(T::from_f64(0.5), T::from_f64(from)),
+            pl: geom_core::Vec2::new(T::zero(), T::from_f64(dv)),
+        };
+        let out = super::decide_joint(
+            super::DescribedChart::of(s).unwrap(),
+            &image,
+            T::zero(),
+            Point2::new(T::from_f64(0.5), T::from_f64(prev_v)),
+            Point3::new(T::from_f64(1.0), T::zero(), T::from_f64(0.5)),
+            super::chart_periods(s, band),
+            band,
+        );
+        match out {
+            Ok(e) => format!("{e:?}"),
+            Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
+            Err(super::PinMiss::Escalated(c)) => format!("Escalated({c:?})"),
+        }
+    }
+
+    #[test]
+    fn probe_offset_scaled_both_directions_both_lanes() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for (kv, v0, v1) in [
+            (vec![2.0, 2.0, 2.6, 3.4, 4.0, 4.0], 2.0, 4.0),
+            (vec![-30.0, -30.0, -18.0, -2.0, 10.0, 10.0], -30.0, 10.0),
+            (vec![0.0, 0.0, 3e9, 7e9, 1e10, 1e10], 0.0, 1e10),
+        ] {
+            let s = prism(kv.clone(), 0.0);
+            let si: Surface<Interval> = s.map_scalar(Interval::from_f64);
+            let span = (v1 - v0) * 0.3;
+            println!(
+                "kv={kv:?} vmeter={:?} periods={:?}",
+                super::v_meter(super::DescribedChart::of(&s).unwrap()).get(),
+                super::chart_periods(&s, band)
+            );
+            // entering at v0, prev at v1: expect v = +1
+            println!("  f64 up   : {}", joint(&s, v0, span, v1, band));
+            println!("  ivl up   : {}", joint(&si, v0, span, v1, band));
+            // entering at v1 going down, prev at v0: expect v = -1
+            println!("  f64 down : {}", joint(&s, v1, -span, v0, band));
+            println!("  ivl down : {}", joint(&si, v1, -span, v0, band));
+            // ordinary joint, no crossing: expect identity
+            println!("  f64 none : {}", joint(&s, v0, span, v0, band));
+        }
+    }
+
+    #[test]
+    fn probe_near_band_seam_rows() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        println!("eps = {}", Tol::witness().eps());
+        for off in [1e-13, 1e-11, 1e-10, 5e-10, 1e-9, 2e-9, 5e-9, 1e-8, 1e-6] {
+            let s = prism(vec![0.0, 0.0, 0.3, 0.7, 1.0, 1.0], off);
+            println!(
+                "off={off:e} vperiod={:?} joint={}",
+                super::chart_v_period(&s, band).map(geom_brep::Period::length),
+                joint(&s, 0.0, 0.3, 1.0, band)
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
+mod review_c_probes_u {
+    use geom::Surface;
+    use geom_core::{Band, Point2, Point3, Tol};
+    #[test]
+    fn probe_u_mirror_huge_domain() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        println!("eps = {}", Tol::witness().eps());
+        let (c0, c1, c2) = ((1.0, 0.0), (-0.5, 0.75_f64.sqrt()), (-0.5, -(0.75_f64.sqrt())));
+        let at = |c: (f64, f64), z: f64| Point3::new(c.0, c.1, z);
+        for kmax in [1.0, 1e10] {
+            let ku = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.3 * kmax, 0.7 * kmax, kmax, kmax], 1).unwrap();
+            let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            // u-major: control[iu * nv + iv], nv = 2 (heights)
+            let control = [c0, c1, c2, c0].into_iter().flat_map(|c| [at(c, 0.0), at(c, 1.0)]).collect();
+            let s = Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()));
+            let image = geom_brep::Pcurve::IsoLine { p0: Point2::new(0.0, 0.5), pl: geom_core::Vec2::new(0.3 * kmax, 0.0) };
+            let out = super::decide_joint(
+                super::DescribedChart::of(&s).unwrap(), &image, 0.0, Point2::new(kmax, 0.5),
+                Point3::new(1.0, 0.0, 0.5), super::chart_periods(&s, band), band);
+            println!("kmax={kmax:e} periods={:?} out={:?}", super::chart_periods(&s, band), out.map_err(|e| match e { super::PinMiss::Discontinuity => "Disc".to_string(), super::PinMiss::Escalated(c) => format!("{c:?}") }));
+        }
+    }
+}
