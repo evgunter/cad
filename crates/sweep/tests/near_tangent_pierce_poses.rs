@@ -345,7 +345,16 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
                 Ok(()) => Vec::new(),
                 Err(errors) => errors
                     .into_iter()
-                    .filter(|e| !matches!(e, ValidationError::CensusEscalated { .. }))
+                    // In band: an escalation, or an edge lying in a
+                    // face of its own solid whose side is undecided.
+                    .filter(|e| {
+                        !matches!(e, ValidationError::CensusEscalated { .. })
+                            && !matches!(
+                                e,
+                                ValidationError::FaceThroughEdgeWedgeUndecided { what, .. }
+                                    if what.starts_with("which side of each other")
+                            )
+                    })
                     .collect(),
             };
         match pinned {

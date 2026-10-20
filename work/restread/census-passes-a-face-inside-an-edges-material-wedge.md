@@ -120,17 +120,21 @@ lying in a face of its own solid for sides (`census.rs`
 bounds back): the edge's link against the face's, through the touch
 analysis's `rest::judge`. A crossing refuses `FaceThroughEdgeWedge`; a
 reading that does not decide refuses `FaceThroughEdgeWedgeUndecided`,
-naming why.
+naming why. Arm 2 reads either as a touch inside one solid.
 
-- The keel-in-face trenches (both ends closed, one open, wall to wall)
-  and the glued tip subtracted with its records refuse, pinned in
-  `crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`
-  until CLEAVE's `a-boolean-builds-a-reflex-edge-lying-inside-a-face`
-  builds the slit form. A ridge resting on its own solid's floor passes.
-- Newly refused shipped results, re-baselined to the refusal, the same
-  keel-in-face form: `y − x` of the glued blocks against the pyramid
-  (`a_vertex_read_by_two_sector_passes`), and `cutter ∖ pinch` at slope
-  −0.5 (`union_flush_onto_edge_contact`).
+- Pinned refusals: the three keel-in-face trenches and the glued tip
+  subtracted with its records; a ridge resting on its own floor passes
+  (`crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`).
+- Shipped results re-baselined to the decided refusal, all of CLEAVE's
+  `a-boolean-builds-a-reflex-edge-lying-inside-a-face` (listed on that
+  row): seven `y − x` cells of `a_vertex_read_by_two_sector_passes`,
+  `cutter ∖ pinch` in `union_flush_onto_edge_contact`, 10 cases of
+  `join1_r2_rand` and 8 lines of `join_pierce_runs_sweep`.
+- Valid bodies now refused undecided, a curved face of the edge's own
+  (`tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face`):
+  `a_pierce_held_in_a_curved_face`'s plane-face row and two
+  `rest_zip_admission` tests. In band: the two `near_tangent_pierce_poses`
+  tests, which let that refusal through beside `CensusEscalated`.
 - Out of this row: a face against a vertex's cone, where the literal
   corollary refuses valid cavity corners
   (`tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid`),

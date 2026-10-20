@@ -424,10 +424,12 @@ fn pierce_point_finding(
 /// face placement every body holds one vertex per cone at `v`, on one
 /// point key, and meshes. In the face placement refusals pass: the residue is the
 /// filed rows'. The edge and corner placements reach `v` through the
-/// vertex-vertex lane, where every run builds `SOUND`.
+/// vertex-vertex lane, where every run builds `SOUND`, but for [`RIDERS`]
+/// lines `RIDER`.
 #[test]
 fn the_sweep_subset_ships_no_bad_body() {
     let mut bad = Vec::new();
+    let mut riders = Vec::new();
     for (place, lo, psis) in PLACEMENTS {
         let every = if place == "face" { 1 } else { 3 };
         for i in (0..12).step_by(every) {
@@ -446,6 +448,10 @@ fn the_sweep_subset_ships_no_bad_body() {
                         _ => None,
                     };
                     let line = outcome(r, want, tol());
+                    if line.starts_with("OK RIDER") {
+                        riders.push(format!("{tag}: {line}"));
+                        continue;
+                    }
                     let sound = line.starts_with("OK SOUND") || line.starts_with("EMPTY ok");
                     if place != "face" && !sound
                         || line.starts_with("OK") && !line.starts_with("OK SOUND")
@@ -466,7 +472,20 @@ fn the_sweep_subset_ships_no_bad_body() {
         bad.len(),
         bad.join("\n")
     );
+    assert_eq!(
+        riders.len(),
+        RIDERS,
+        "the keel-in-face lines:\n{}",
+        riders.join("\n")
+    );
 }
+
+/// The lines [`the_sweep_subset_ships_no_bad_body`] reads `RIDER`: an edge
+/// of one operand left lying in a face of the result as one reflex edge,
+/// which tier 3′ refuses `FaceThroughEdgeWedge`. They read `SOUND` once
+/// the boolean builds the slit form
+/// (`work/cleave/a-boolean-builds-a-reflex-edge-lying-inside-a-face.md`).
+const RIDERS: usize = 8;
 
 /// **A reflex corner crossing a cube's edge or corner four times builds
 /// every op**, in both operand orders, `SOUND` by [`outcome`] against
