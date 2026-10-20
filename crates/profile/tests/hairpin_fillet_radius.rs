@@ -12,7 +12,12 @@
 //! `L`, which lets δ go to `Kε/L`).
 #![allow(clippy::panic)]
 
-test_utils::gated_to!["crates/profile/src/sugar.rs", "crates/profile/src/path.rs",];
+test_utils::gated_to![
+    "crates/profile/src/sugar.rs",
+    "crates/profile/src/path.rs",
+    "crates/profile/src/path/",
+    "crates/profile/tests/common/",
+];
 
 use crate::common::{anchor_fit, tol, try_replay_at};
 use geom_core::{Bounds, Interval, Point2, Real};
