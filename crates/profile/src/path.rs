@@ -6899,7 +6899,11 @@ mod stored_arc_landing {
             arc_lands(cancelling_tangent(a, u, b), a, b, band()),
             "the cancelling tangent arc",
         );
-        assert_eq!(miss, tangent_miss(r), "the refusal reports the miss it read");
+        assert_eq!(
+            miss,
+            tangent_miss(r),
+            "the refusal reports the miss it read"
+        );
         assert!(
             arc_lands(tangent_arc(a, u, b).arc, a, b, band()).is_ok(),
             "the door's tangent arc at r = {r:e} lands"
@@ -6944,13 +6948,19 @@ mod stored_arc_landing {
         let (ai, bi) = (iv(a), iv(b));
         let ui = Vec2::new(Interval::from_f64(u.x), Interval::from_f64(u.y));
         let arc = cancelling_tangent(ai, ui, bi);
-        assert!(arc_lands(arc, ai, bi, band()).is_ok(), "exact scalar: no check");
+        assert!(
+            arc_lands(arc, ai, bi, band()).is_ok(),
+            "exact scalar: no check"
+        );
         holds(arc.landing(ai), b, "the cancelling tangent arc");
         let r = probe_radius(centre_miss);
         let (a, c, b) = centre_probe(r);
         let (ai, bi) = (iv(a), iv(b));
         let arc = cancelling_centre(ai, bi, iv(c));
-        assert!(arc_lands(arc, ai, bi, band()).is_ok(), "exact scalar: no check");
+        assert!(
+            arc_lands(arc, ai, bi, band()).is_ok(),
+            "exact scalar: no check"
+        );
         holds(arc.landing(ai), b, "the cancelling centre arc");
     }
 

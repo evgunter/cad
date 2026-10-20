@@ -565,7 +565,7 @@ fn resolves<T: Decide>(
         Margin::of(resolution_headroom(scale, ulps, band)),
         band,
     )
-        .map_err(SegIssue::escalated)?;
+    .map_err(SegIssue::escalated)?;
     match gate.sign {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(SegIssue::BelowSceneResolution {
@@ -674,7 +674,11 @@ pub(crate) fn constructed_landing<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => {}
         Ok(Sign::Zero) | Err(_) => return Ok(()),
     }
-    let scale = arc.radius.max(reach(arc.centre)).max(reach(a)).max(reach(b));
+    let scale = arc
+        .radius
+        .max(reach(arc.centre))
+        .max(reach(a))
+        .max(reach(b));
     let headroom = resolution_headroom(scale, LANDING_ULPS, band);
     match check_unlogged("path_arc_landing_resolution", headroom, band, "F23") {
         Ok(Sign::Positive) => Err(LandingMiss { miss, scale }),
