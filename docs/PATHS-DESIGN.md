@@ -964,7 +964,7 @@ typestate, and it retires:
 | `.tangent()` | directed point → Directed | inherit + declared; ill-typed on plain points |
 | `.toward(dx, dy)` | Point → Directed; Open → Angle | **G1** — the exact director: same slot as `.angle`, ray stored verbatim |
 | `line(len)` | Directed → Point; directed point → directed point | off a directed point, the straight continuation: the leg departs along the point's own intrinsic tangent. Binding bits only; there is no junction (no authored direction exists to classify) and nothing is declared. The minted vertex is a structural subdivision of the carrier — the loft vertex-budget shape. |
-| `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the departing point's ray, within ε_input, metered as the target's own lateral displacement (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, refusing `SeamTangent` when the seam is undeclared and zero-turn; `Start.arrives_tangent()` is the target that DECLARES it (§6's revised PQ4) and inverts that verdict. The zero-turn joint the leg itself mints is CONSTRUCTED by the verb (2026-09-02), so it enters the loop's constructed joints (`ConstructedLoop::constructed_joints`). The closer classifies no departure junction at all (there is no authored direction), and where a closing leg DOES have one it refuses `JunctionTangent` like any other verb. |
+| `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the RUN's carrier line — the line bound where the run's direction was bound, carried unchanged by every verb that inherits the direction, and never re-anchored at an accepted vertex — within ε_input, metered as the target's own lateral displacement from that line (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, refusing `SeamTangent` when the seam is undeclared and zero-turn; `Start.arrives_tangent()` is the target that DECLARES it (§6's revised PQ4) and inverts that verdict. The zero-turn joint the leg itself mints is CONSTRUCTED by the verb (2026-09-02), so it enters the loop's constructed joints (`ConstructedLoop::constructed_joints`). The closer classifies no departure junction at all (there is no authored direction), and where a closing leg DOES have one it refuses `JunctionTangent` like any other verb. |
 | `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs; the NURBS pair awaits the segment vocabulary (VQ7) |
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
 | `arc_onto(target)` | Point → pending director → directed Point; `Start` → pending director → complete loop; `Start.arrives_tangent()` → complete loop | §2a item 6 — `tangent_arc_to`'s mirror: the arc to the target whose END tangent is the one director that follows; departure derived and junction-checked; the token supplies `Start`'s direction; refuses `ArcLegOnOpenFillet` on a fillet arrival's bare anchor |
@@ -1437,20 +1437,19 @@ no departure has (the entry cannot carry `.tangent()`), so naming it as
 a departure sent the reader to a spelling the seam does not have. Both
 arc closers pass `true` now.
 
-**The band's guarantee is PER LEG, and the run-level certifier is the
-data gate** (recorded after review; a limit, not a hole). Each
-`continue_to` checks THIS leg's target against THIS leg's declared ray.
-That is the honest scope of the on-ray band, and it composes as any
-per-step tolerance composes: forty legs each accepting a same-side miss
-of 0.5·ε put the run's end 20·ε — two full ε_input — off the ray it
-started on, with every per-leg check green and correctly so. The drift
-does not escape quietly: the data gate sees the accumulated bow that no
-per-leg check can, and ESCALATES on `chord_side` rather than accepting
-it. Loud, not silent, and not a guess. Tightening the per-leg band
-would not change the shape of this, so the answer is the gate — which
-is already this design's answer for run-level facts.
-`the_per_leg_band_composes_and_the_data_gate_catches_the_sum` pins the
-gate's verdict.
+**The band's guarantee is PER RUN, because the datum is the run's
+carrier.** A run is the chain of straight legs since the direction was
+last bound (`.angle`/`.turn`/`toward`, `line_to`'s chord, an arc's end
+tangent); its carrier is the line anchored at the vertex where that
+direction was bound. Every `continue_to` in the run checks its target
+against that one line, never against a ray re-anchored at the previous
+accepted vertex, so n accepted misses are n misses of one line and never
+a sum: every vertex of a declared straight run lies within the band of
+one line, and n appears nowhere. `validate` certifies nothing about
+runs; it reads the materialized joints by their turn at its own lever,
+as ruled. The fillet and junction readers keep the ray at the vertex:
+their questions are about the leg ending there, and the two rays differ
+by that vertex's accepted miss, which the band already admits.
 
 **The ε_input story of the new arms** (D4 consequence (iv): for every
 arm added to a decision, name which ε_input story it belongs to, or say
