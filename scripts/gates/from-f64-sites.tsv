@@ -101,6 +101,7 @@ crates/pncad/src/authoring.rs	6	constant	x	an authoring helper's argument: the c
 crates/profile/src/path.rs	1	constant	k as f64	a vertex index of a circle's split
 crates/profile/src/path.rs	1	constant	n as f64	a circle's split count
 crates/profile/src/seg.rs	1	constant	band.escalate() / (ulps * f64::EPSILON)	a resolution threshold from the band and an ulp count
+crates/profile/src/seg.rs	1	constant	ulps * f64::EPSILON	an ulp count's relative rounding, scaling a read's magnitude to the resolution its refusal reports
 crates/profile/src/sugar.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/profile/src/validate.rs	1	constant	angle	a containment ray's fixed angle (RAY_BASE + k·RAY_STEP)
 crates/profile/src/validate.rs	4	launders(the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants)	<fn>	ValidatedProfile::lift_onto: its one production caller, sweep's loft at an enclosure scalar, re-enters the f64 canonical form of its lane sections' value channel as constants (a function of the variables at Sym<Interval>)

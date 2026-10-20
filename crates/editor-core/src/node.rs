@@ -1915,7 +1915,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// **Hollow a body into a thin solid** of wall `thickness`, with the
     /// faces `open` selects re-authored as annular rims.
     ///
-    /// The op is the verb seat's `Verb::Shell` over `topo::shell_open`:
+    /// The op is the verb seat's `verbs::Shell` over `topo::shell_open`:
     /// every boundary face is replaced by its inward offset and the
     /// offset boundary inserted as a cavity, then each designated chart
     /// is lifted into a rim. Every check is the kernel's, carried

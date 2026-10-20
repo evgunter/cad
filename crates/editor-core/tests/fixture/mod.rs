@@ -1874,6 +1874,99 @@ impl Recorder {
     }
 }
 
+/// **One copy of `body` in the world, its whole motion stated by
+/// `values`** ([`Recorder::in_world_by`]): a bundle with no mate.
+/// Returns the document and the placement; its copy is the placement's
+/// output.
+pub fn in_world_by(
+    doc: ProfileDoc,
+    body: impl Into<editor_core::Operand>,
+    values: Vec<(editor_core::Coord, Formula)>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let read = body_read(&doc, body.into());
+    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+    (step(doc, DocEdit::unmated(placement, values)).0, placement)
+}
+
+/// **One copy of `body` in the world on `at`, a frame whose axes are
+/// the world's up to sign and order**: its turns about x, then y, then z
+/// (`Rz·Ry·Rx`) each a whole number of quarter turns, written as the
+/// fractions of a turn they are ([`turned_to`]), so the copy stands
+/// exactly where `at` says.
+///
+/// # Panics
+///
+/// If a turn of `at` is not a whole number of quarter turns.
+pub fn in_world_square(
+    doc: ProfileDoc,
+    body: impl Into<editor_core::Operand>,
+    at: &editor_core::Frame,
+) -> (ProfileDoc, RecipeNodeId) {
+    use editor_core::TargetAxis;
+    use std::f64::consts::FRAC_PI_2;
+    let r = |i: usize, j: usize| at.columns[j][i];
+    let cos_beta = r(0, 0).hypot(r(1, 0));
+    let beta = (-r(2, 0)).atan2(cos_beta);
+    let (alpha, gamma) = if cos_beta > 0.5 {
+        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
+    } else {
+        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
+    };
+    let quarter = |a: f64| {
+        let k = (a / FRAC_PI_2).round();
+        assert!(
+            (a - k * FRAC_PI_2).abs() < 1e-12,
+            "{at:?} turns by a whole number of quarter turns"
+        );
+        let turn = |den| Formula::turn_over(den).expect("a fraction of a turn");
+        #[allow(clippy::cast_possible_truncation)]
+        match (k as i64).rem_euclid(4) {
+            0 => None,
+            1 => Some(turn(4)),
+            2 => Some(turn(2)),
+            _ => Some(Formula::neg(turn(4)).expect("an angle negates")),
+        }
+    };
+    let spins: Vec<(TargetAxis, Formula)> = [
+        (TargetAxis::X, alpha),
+        (TargetAxis::Y, beta),
+        (TargetAxis::Z, gamma),
+    ]
+    .into_iter()
+    .filter_map(|(axis, a)| quarter(a).map(|by| (axis, by)))
+    .collect();
+    in_world_by(doc, body, turned_to(at.translation, &spins))
+}
+
+/// **The world's motion spinning a construction about the world's x, y
+/// and z axes in that order, each by the angle `spins` gives it, then
+/// sliding it to `origin`** — the values of a bundle with no mate
+/// ([`in_world_by`]). A spin not listed, and a slide of exactly zero,
+/// is the constant zero.
+pub fn turned_to(
+    origin: [f64; 3],
+    spins: &[(editor_core::TargetAxis, Formula)],
+) -> Vec<(editor_core::Coord, Formula)> {
+    use editor_core::{Coord, Dimension, TargetAxis};
+    let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
+    let slides = axes.into_iter().zip(origin).map(|(axis, at)| {
+        let by = if at == 0.0 {
+            Formula::zero(Dimension::Length)
+        } else {
+            len(at)
+        };
+        (Coord::Slide(axis), by)
+    });
+    let spun = axes.into_iter().map(|axis| {
+        let by = spins
+            .iter()
+            .find(|(a, _)| *a == axis)
+            .map_or_else(|| Formula::zero(Dimension::Angle), |(_, by)| by.clone());
+        (Coord::SpinAbout(axis), by)
+    });
+    slides.chain(spun).collect()
+}
+
 /// **The world's motion standing a construction's own `y` along the
 /// world's `z`, its origin at `origin`**: a quarter turn about `x`,
 /// written `turn/4`, and the three slides — the values of a bundle with
@@ -2860,7 +2953,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
         | RoleSeg::SplitBody
-        | RoleSeg::SectionFace { .. }
+        | RoleSeg::SectionFace
         | RoleSeg::LoftWall(_)
         | RoleSeg::LoftSeam(_) => Vec::new(),
     }

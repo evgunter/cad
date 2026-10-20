@@ -2463,8 +2463,7 @@ test_utils::f6_variants! {
         SeamVertexParentage,
         SeamVertexPartners,
         SharedRim,
-        MergedChord,
-        MergedChordOffRim,
+        ChordOffRim,
         MemberEdgeTied,
         ConventionalVertex,
         ClosedCarrierUnread,
@@ -2657,10 +2656,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["operand node 000000000017", "more than one edge"],
         ),
         (
-            NamingError::MergedChord { edge },
-            vec!["merged faces", "the join's own edge"],
-        ),
-        (
             NamingError::SeamVertexPartners {
                 vertex,
                 candidates: [3, 4]
@@ -2685,16 +2680,12 @@ fn naming_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            NamingError::MergedChordOffRim {
+            NamingError::ChordOffRim {
                 edge,
                 node: RecipeNodeId::new(0, tagged(29)),
-                rim: edge,
+                face: topo::FaceKey::default(),
             },
-            vec![
-                "one merged",
-                "operand node 00000000001d",
-                "within neither the rim",
-            ],
+            vec!["two pieces of face", "operand node 00000000001d"],
         ),
         (
             NamingError::ClosedCarrierUnread {
@@ -3179,7 +3170,7 @@ test_utils::f6_variants! {
     /// the door could not answer, so every arm must say which question
     /// in words a consumer can act on.
     const STEP_SEGMENTS_ERROR: StepSegmentsError =
-        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, RadiusNotAnArgument,
+        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, LoopOrder, RadiusNotAnArgument,
          EmissionOffTheLoop, CarrierRecordsEmissions, SpanOffTheLoop];
 }
 
@@ -3201,8 +3192,8 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
             vec!["loop 1", "authors 5 steps", "describes 4"],
         ),
         (
-            StepSegmentsError::NoAnchor { loop_: 0 },
-            vec!["naming anchor", "loop 0"],
+            StepSegmentsError::LoopOrder { outer_loops: 2 },
+            vec!["calls 2 loops outer", "exactly one"],
         ),
         // The WHOLE sentence, not three substrings of it: every
         // radius-role label already ends in the word "radius"

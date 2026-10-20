@@ -85,8 +85,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/SeamVertexParentage",
     "Naming/SeamVertexPartners",
     "Naming/SharedRim",
-    "Naming/MergedChord",
-    "Naming/MergedChordOffRim",
+    "Naming/ChordOffRim",
     "Naming/ConventionalVertex",
     "Naming/ClosedCarrierUnread",
     "Naming/CarrierUnplaced",
@@ -101,7 +100,7 @@ const KERNEL_KEYED: &[&str] = &[
 /// under it with the ceiling standing, is red.
 const OVER_BUDGET: &[(&str, usize)] = &[
     // work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
-    ("Profile/ArcBelowSceneResolution", 117),
+    ("Profile/ArcBelowSceneResolution", 91),
     // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/ResultEscalated", 90),
 ];
@@ -779,8 +778,8 @@ fn every_node_refusal_renders_within_the_budget() {
 
 use editor_core::clearance::ClearanceRefusal;
 use editor_core::{
-    BifurcationKind, Diagnosis, EvalError, ParamBoxError, PiecesFault, PlacementRuleFault,
-    ResolveError, SeedError,
+    BifurcationKind, Diagnosis, EvalError, ParamBoxError, PlacementRuleFault, ResolveError,
+    SeedError,
 };
 
 test_utils::f6_variants! {
@@ -822,11 +821,6 @@ test_utils::f6_variants! {
 }
 
 test_utils::f6_variants! {
-    /// `PiecesFault`'s arms, for the `ProfilePieces/` rows.
-    const PIECES_FAULT: PiecesFault = [NoRecord, NoIds, Length, NoStepId];
-}
-
-test_utils::f6_variants! {
     /// `ResolveError`'s arms, for the `SelectResolve/` rows.
     const RESOLVE_ERROR: ResolveError = [Vanished, Ambiguous, ReadGone, NodeGone];
 }
@@ -836,13 +830,12 @@ test_utils::f6_variants! {
     /// census rows are checked against, so an arm with no row reds and
     /// an arm added to the enum stops this compiling until it is here.
     const NODE_ERROR_KIND: NodeErrorKind = [
-        Expr, Profile, ProfileReplay, ProfileLaneReplay, ProfileAnchor, ProfilePieces,
-        ProfileRecordMissing, Extrude, Revolve, Tube, Split, Blend, Boolean, Transform, Motion,
-        Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
+        Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
+        Boolean, Transform, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
         UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
-        VerbArity, Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
+        Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
         DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
         Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
@@ -966,7 +959,8 @@ mod kernel {
             NonpositiveCircleRadius, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
             CircleSplitCount, PolygonTooFewVertices, ZeroDirection, NonFiniteDirection,
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
-            ArcCenterNotEquidistant, DegenerateArcCenter, FarEndAnchorWithoutFillet,
+            ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
+            ArcMissBelowSceneResolution, FarEndAnchorWithoutFillet,
             Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
         ];
     }
@@ -1099,7 +1093,6 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("ParamBoxError", PARAM_BOX_ERROR.identifiers()),
         ("SeedError", SEED_ERROR.identifiers()),
         ("PlacementRuleFault", PLACEMENT_RULE_FAULT.identifiers()),
-        ("PiecesFault", PIECES_FAULT.identifiers()),
         ("ResolveError", RESOLVE_ERROR.identifiers()),
         ("Diagnosis", DIAGNOSIS.identifiers()),
         ("BifurcationKind", BIFURCATION_KIND.identifiers()),
@@ -1200,7 +1193,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             }
             welded(levels)
         }
-        NodeErrorKind::ProfilePieces { fault } => one("PiecesFault", fault),
         NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
         NodeErrorKind::MeasureClearanceRefused(e) => one("ClearanceRefusal", e),
         // Labelled by the standing each carries, the names the filed
@@ -1279,9 +1271,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         NodeErrorKind::Part { .. } | NodeErrorKind::Transform(_) | NodeErrorKind::Motion(_) => {
             Forward::Unwelded(UNWELDED_PLACEMENT)
         }
-        NodeErrorKind::ProfileAnchor
-        | NodeErrorKind::ProfileRecordMissing { .. }
-        | NodeErrorKind::CurvedSolidFrontier { .. }
+        NodeErrorKind::CurvedSolidFrontier { .. }
         | NodeErrorKind::MissingInput { .. }
         | NodeErrorKind::UnresolvedRead { .. }
         | NodeErrorKind::ToleranceConflict { .. }
@@ -1297,7 +1287,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::NonFiniteDirection { .. }
         | NodeErrorKind::UnderflowedDirection { .. }
         | NodeErrorKind::MissingSlot { .. }
-        | NodeErrorKind::VerbArity { .. }
         | NodeErrorKind::Escalated { .. }
         | NodeErrorKind::MeasureEscalated { .. }
         | NodeErrorKind::PlacementAxisEscalated { .. }
@@ -1592,8 +1581,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
 /// repair, so a wrapper that added one of its own would read here as
 /// two. The interpolation's carriers (`Fit/`, `Structure/`) are NOT
 /// forwarded: the kernel chose their samples and knots, so a builder's
-/// repair would name nothing the user supplied, and those rows end in
-/// the kernel-defect ending instead.
+/// repair would name nothing the user supplied. A seed that ran short
+/// (`Fit/TooFewPoints`) ends in the narrow knot span's lever; the
+/// structure's arm and the mint's limb end in the last resort.
 ///
 /// Every meter refusal ends in its decision's one recourse for its
 /// verdict ([`meter_escalations`], [`meter_verdicts`]), never the
@@ -1651,9 +1641,14 @@ fn every_offset_fit_refusal_ends_exactly_once() {
                 "{name}: a shell user sets a wall, not a distance or a side: {text}"
             );
         }
-        if arm.starts_with("Fit/") || arm.starts_with("Structure/") || arm.starts_with("MintLimb") {
+        if arm.starts_with("Fit/TooFewPoints") {
             assert!(
-                text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                text.ends_with(geom_brep::recourse::NARROW_SPAN_RECOURSE),
+                "{name}: {text}"
+            );
+        } else if arm.starts_with("Structure/") || arm.starts_with("MintLimb") {
+            assert!(
+                text.ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
                 "{name}: {text}"
             );
         }
@@ -1661,10 +1656,7 @@ fn every_offset_fit_refusal_ends_exactly_once() {
         // is the call that refused, and nothing is stored.
         if arm.starts_with("MintLimb") {
             mint_limbs += 1;
-            assert!(
-                !text.contains("stored") && !text.contains("Recourse"),
-                "{name}: {text}"
-            );
+            assert!(!text.contains("stored"), "{name}: {text}");
         } else if arm.starts_with("Limb") {
             at_rest_limbs += 1;
             assert!(
@@ -1728,11 +1720,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 step: 2,
                 structure: None,
             },
-        ),
-        row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
-        row(
-            "ProfileRecordMissing",
-            NodeErrorKind::ProfileRecordMissing { loop_: 1 },
         ),
         row(
             "CurvedSolidFrontier",
@@ -1905,13 +1892,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "MissingSlot",
             NodeErrorKind::MissingSlot {
                 slot: SlotId::Distance,
-            },
-        ),
-        row(
-            "VerbArity",
-            NodeErrorKind::VerbArity {
-                verb: verbs::VerbKind::Fillet,
-                given: verbs::Arity::Two,
             },
         ),
         row(
@@ -3317,7 +3297,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("Meter/NormalFloor", 2),
         ("Meter/CurvatureHeadroom", 2),
         ("Meter/Escalated", 1),
-        ("PatchBound/", 7),
+        ("PatchBound/", 6),
         ("Fit/", 1),
         ("Structure/", 1),
         ("InvalidRequest", 1),
@@ -4146,6 +4126,40 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "DegenerateArcCenter",
             P::DegenerateArcCenter { radius: 1e-12 },
         ),
+        (
+            "ArcMissesAuthoredPoint",
+            P::ArcMissesAuthoredPoint {
+                piece: profile::Piece {
+                    step: 1,
+                    role: profile::PieceRole::Leg,
+                },
+                verb: profile::Verb::TangentArcTo,
+                predicate: "path_arc_landing",
+                point: Point2::new(-2.7, 2.7e-4),
+                miss: 3.4e-8,
+                scale: 1.36e4,
+                resolution: 4.8e-11,
+                turn: 6.2,
+                authored: None,
+            },
+        ),
+        (
+            "ArcMissBelowSceneResolution",
+            P::ArcMissBelowSceneResolution {
+                piece: profile::Piece {
+                    step: 1,
+                    role: profile::PieceRole::Leg,
+                },
+                verb: profile::Verb::ArcTo,
+                predicate: "path_arc_through_point",
+                point: Point2::new(0.0, 2.74e8),
+                miss: 3.0e-8,
+                scale: 2.74e8,
+                resolution: 4.9e-7,
+                turn: 6.2,
+                authored: None,
+            },
+        ),
         ("FarEndAnchorWithoutFillet", P::FarEndAnchorWithoutFillet),
         (
             "Escalated",
@@ -4361,7 +4375,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 /// analysis seeds, placement rules, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, PiecesFault,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError,
         PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
         TieWitness, VarName,
     };
@@ -4429,26 +4443,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             ),
         ]
     };
-    let pieces = [
-        ("NoRecord", PiecesFault::NoRecord { loop_: 0 }),
-        ("NoIds", PiecesFault::NoIds { loop_: 0 }),
-        (
-            "Length",
-            PiecesFault::Length {
-                loop_: 0,
-                recorded: 4,
-                anchored: 5,
-            },
-        ),
-        (
-            "NoStepId",
-            PiecesFault::NoStepId {
-                loop_: 0,
-                step: 6,
-                ids: 5,
-            },
-        ),
-    ];
     let param_box = [
         (
             "UnknownParam",
@@ -4620,17 +4614,11 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "MergedChord",
-            NamingError::MergedChord {
-                edge: topo::EdgeKey::default(),
-            },
-        ),
-        (
-            "MergedChordOffRim",
-            NamingError::MergedChordOffRim {
+            "ChordOffRim",
+            NamingError::ChordOffRim {
                 edge: topo::EdgeKey::default(),
                 node: RecipeNodeId::new(0, tagged(3)),
-                rim: topo::EdgeKey::default(),
+                face: topo::FaceKey::default(),
             },
         ),
         (
@@ -4830,12 +4818,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         for (n, e) in eval() {
             rows.push(row(&format!("{wrap}/{n}"), build(e)));
         }
-    }
-    for (n, fault) in pieces {
-        rows.push(row(
-            &format!("ProfilePieces/{n}"),
-            NodeErrorKind::ProfilePieces { fault },
-        ));
     }
     for (n, source) in param_box {
         rows.push(row(
@@ -5879,8 +5861,9 @@ fn every_check_finding_renders_within_the_budget() {
 /// real doors.
 ///
 /// A shell's role off its volume is the sign of the volume's enclosure
-/// alone (D10). At ε 1e-9 a brick less a needle `1 × 10.5ε × 10.5ε` holds
-/// the needle as a cavity no aimed ray reads; read through the structural
+/// alone (D10). At ε 1e-9 a brick less a needle `1 × 10.5ε × 10.5ε`,
+/// turned off the axes, holds the needle as a cavity no aimed ray reads
+/// (each meets a wedge); read through the structural
 /// door, which holds no interval lane, its volume lies within its sums'
 /// rounding, so its role is unresolved in that scalar: a capability limit
 /// of the measurement, with no tolerance offered and no defect claimed.
@@ -5915,16 +5898,38 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             tol,
         ));
         let w = 10.5 * tol.eps();
-        let needle = at_rest(topo::test_support::brick::<f64>(
-            (0.0, 1.0),
-            (0.0, w),
-            (0.0, w),
+        // Turned off the axes: every aimed ray at the cavity meets a wedge
+        // (a face it passes within the band of two edges of), where along
+        // the axes a ray aimed at the cavity's end reads it.
+        let (x, y, z) = {
+            let n = (37.0_f64 * 37.0 + 21.0 * 21.0 + 13.0 * 13.0).sqrt();
+            (37.0 / n, -21.0 / n, 13.0 / n)
+        };
+        let (s, c) = 0.7_f64.sin_cos();
+        let k = 1.0 - c;
+        let r = [
+            [c + x * x * k, x * y * k - z * s, x * z * k + y * s],
+            [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
+            [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
+        ];
+        let needle = at_rest(topo::test_support::mapped_cube::<f64>(
+            move |a, b, cc| {
+                let p = [a, b * w, cc * w];
+                let at = |i: usize| r[i][0] * p[0] + r[i][1] * p[1] + r[i][2] * p[2];
+                geom_core::Point3::new(at(0), at(1), at(2))
+            },
             tol,
         ));
         let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
         let body: &topo::Body<f64> = &cut.body().expect("a body").body;
-        let source = topo::classify_shells_structural(body, tol)
-            .expect_err("the lane-free door reads no role for the needle cavity");
+        // The door names the first ray set aside at a corner or a wedge
+        // beside the volume's refusal; the refusal is the volume's.
+        let source = match topo::classify_shells_structural(body, tol)
+            .expect_err("the lane-free door reads no role for the needle cavity")
+        {
+            topo::ShellClassifyError::Corner { volume, .. } => *volume,
+            other => other,
+        };
         assert!(
             matches!(
                 source,

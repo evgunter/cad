@@ -100,7 +100,13 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// node (a profile is 2-D), its extrudes carry no side, and its copy
 /// stands by `mate::stand`'s plane mate where C's world pin held it, so
 /// the document lost its frame nodes (64 → 57) and every id moved.
-const DIE_TABLE_DIGEST: u64 = 0xf50bd202c91a22dc;
+///
+/// Re-pinned for wording: the die's subtracts name a seam's sides and a
+/// crossing's edge and face as their own tables carry them in, each with
+/// its read, in name order (N3); no id moved. Measured merging main at
+/// `be82e5ad6b` into D, where the pips are placed copies, the value is
+/// neither tree's.
+const DIE_TABLE_DIGEST: u64 = 0x43dbede8c308a4fa;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
@@ -125,7 +131,12 @@ const DIE_TABLE_DIGEST: u64 = 0xf50bd202c91a22dc;
 /// moved with the frame nodes, and a pip operand is placed against the
 /// die's root before it is joined, so the names it carries are wrapped
 /// `Placed { of }`.
-const DIE_NAMES_DIGEST: u64 = 0x2f79_041d_6dcc_702a;
+///
+/// **Re-pinned with `DIE_TABLE_DIGEST`** for a seam's sides and a
+/// crossing's lines named in the subtract's own table (N3): the names'
+/// wording moved, no id. Measured with `DIE_TABLE_DIGEST` on the
+/// merged tree.
+const DIE_NAMES_DIGEST: u64 = 0x1a9b_42d3_6c00_a950;
 
 #[test]
 fn die_name_tables_are_golden() {

@@ -1437,11 +1437,54 @@ pub(crate) fn need_vec3<T: Decide>(
     slots::vec3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot })
 }
 
-fn need_vec2<T: Decide>(
-    vals: &SlotValues<T>,
-    f: fn(Axis3) -> SlotId,
-) -> Result<Vec2<T>, NodeErrorKind> {
-    slots::vec2(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
+/// **A slot the node declares, as its evaluated value.**
+///
+/// # Panics
+///
+/// When `found` is `None`, which only a kernel bug reaches:
+/// `slots::eval_slots` evaluates every row `Node::slots` declares for
+/// the node, a reader asks only for the slots its node's kind declares,
+/// and the slot's address fixes whether it is a scalar or a count, so
+/// the value is always there.
+#[track_caller]
+fn declared<V>(found: Option<V>, slot: SlotId) -> V {
+    let Some(value) = found else {
+        unreachable!(
+            "the node's {slot:?} slot is not among its evaluated values, though \
+             `slots::eval_slots` evaluates every slot `Node::slots` declares and its reader \
+             asks only for one its node declares"
+        )
+    };
+    value
+}
+
+/// A declared scalar slot ([`declared`]).
+#[track_caller]
+fn slot_scalar<T: Decide>(vals: &SlotValues<T>, slot: SlotId) -> T {
+    declared(slots::scalar(vals, slot), slot)
+}
+
+/// A declared angle slot, with the form it was written in
+/// ([`declared`]).
+#[track_caller]
+fn slot_angle<T: Decide>(vals: &SlotValues<T>, slot: SlotId) -> geom_core::Angle<T> {
+    declared(slots::angle(vals, slot), slot)
+}
+
+/// A declared count slot ([`declared`]).
+#[track_caller]
+fn slot_count<T: Decide>(vals: &SlotValues<T>, slot: SlotId) -> i64 {
+    declared(slots::count(vals, slot), slot)
+}
+
+/// A declared `[Expr; 2]` slot pair as a sketch-plane point, each
+/// component read through [`declared`] under its own slot.
+#[track_caller]
+fn slot_point2<T: Decide>(vals: &SlotValues<T>, f: fn(Axis3) -> SlotId) -> Point2<T> {
+    Point2::new(
+        slot_scalar(vals, f(Axis3::X)),
+        slot_scalar(vals, f(Axis3::Y)),
+    )
 }
 
 /// **A revolve's axis direction in its profile's plane**: the unit
@@ -1450,17 +1493,9 @@ fn need_vec2<T: Decide>(
 /// which a heading written as a fraction of a turn reads exactly
 /// ([`geom_core::Angle`]); its readers decide it as they decide any
 /// authored direction.
-fn axis_heading<T: Decide>(vals: &SlotValues<T>) -> Result<Vec2<T>, NodeErrorKind> {
-    let (sin, cos) = need_angle(vals, SlotId::AxisHeading)?.sin_cos();
-    Ok(Vec2::new(cos, sin))
-}
-
-fn need_point2<T: Decide>(
-    vals: &SlotValues<T>,
-    f: fn(Axis3) -> SlotId,
-) -> Result<Point2<T>, NodeErrorKind> {
-    let v = need_vec2(vals, f)?;
-    Ok(Point2::new(v.x, v.y))
+fn axis_heading<T: Decide>(vals: &SlotValues<T>) -> Vec2<T> {
+    let (sin, cos) = slot_angle(vals, SlotId::AxisHeading).sin_cos();
+    Vec2::new(cos, sin)
 }
 
 /// **A direction refusal before it is spelled as a node error** — what
@@ -1573,7 +1608,7 @@ pub(crate) fn prepare_profile(
         let (validated_f64, canonical) = replayed
             .validate_recording(tol)
             .map_err(NodeErrorKind::Profile)?;
-        Ok((replayed, replay_records, validated_f64, canonical))
+        Ok((replay_records, validated_f64, canonical))
     });
     let pinned = |name: &str| profile::PINNED_UNDER_GUIDANCE.contains(&name);
     let decided = geom_core::k_stats::Recorded {
@@ -1587,14 +1622,9 @@ pub(crate) fn prepare_profile(
             .collect(),
     };
     geom_core::k_stats::splice(recording);
-    let (replayed, replay_records, validated_f64, canonical) = elaborated?;
-    // A canonical loop matched no program loop: an internal break.
-    let naming = anchor::derive_naming(&validated_f64, replayed.loops())
-        .ok_or(NodeErrorKind::ProfileAnchor)?;
-    // The records above and the program's minted ids describe one
-    // program, so a disagreement is an internal break.
-    let pieces = super::ProfilePieces::publish(&naming, &replay_records, ids)
-        .map_err(|fault| NodeErrorKind::ProfilePieces { fault })?;
+    let (replay_records, validated_f64, canonical) = elaborated?;
+    let naming = anchor::validated_naming(&canonical);
+    let pieces = super::ProfilePieces::publish(&naming, &replay_records, ids);
     Ok(ProfilePre {
         validated_f64,
         naming,
@@ -1628,11 +1658,13 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
 ) -> Result<profile::ValidatedProfile<T>, NodeErrorKind> {
     let mut loops = Vec::with_capacity(resolved.len());
     for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
-        let record = pre
-            .structure
-            .replay
-            .get(li as usize)
-            .ok_or(NodeErrorKind::ProfileRecordMissing { loop_: li })?;
+        let Some(record) = pre.structure.replay.get(li as usize) else {
+            unreachable!(
+                "the f64 pass recorded {} loops and the lane resolves loop {li}: both resolve \
+                 the one program, one entry per loop",
+                pre.structure.replay.len()
+            )
+        };
         let lp = profile::replay_guided(steps, record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
                 loop_: li,
@@ -1685,8 +1717,7 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
 /// **A refusal here is the evaluation contradicting itself**: the
 /// records were minted from this program by the same pre-pass, so no
 /// document can reach one and no caller can repair it. It is a kernel
-/// bug observed in a branch — `unreachable!`'s job (D9's D2 addendum),
-/// as in `ProfileProgram::profile_edges_of`.
+/// bug observed in a branch — `unreachable!`'s job (D9 row 4).
 fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crate::var::VarId>>> {
     pre.naming
         .loops
@@ -1694,11 +1725,11 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
         .enumerate()
         .map(|(canonical_loop, anchor)| {
             let by_program_segment = program
-                .segment_radii(&pre.structure, &pre.naming, anchor.program_loop)
+                .segment_radii(&pre.structure, anchor.program_loop)
                 .unwrap_or_else(|e| {
                     unreachable!(
-                        "this profile's structure record and its naming anchor were \
-                         minted from this one program by one pre-pass, so the record \
+                        "this profile's structure record was minted from this one \
+                         program by one pre-pass, so the record \
                          describes THIS program — its steps, its segments and its \
                          radius arguments. Program loop {} is answered from a record \
                          that does not: {e}",
@@ -1776,7 +1807,7 @@ fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let distance = need_scalar(vals, SlotId::Distance)?;
+    let distance = slot_scalar(vals, SlotId::Distance);
     wire_swept(
         &crate::verbs::sweep::extrude(),
         (distance, sweep::ExtrudeSide::Along),
@@ -1804,13 +1835,13 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // The kernel's `RevolveAxis` and the node's axis line are both in
     // the profile's own 2-D coordinates, so the wiring is the identity.
     let axis2 = RevolveAxis {
-        origin: need_point2(vals, SlotId::Origin)?,
-        dir: axis_heading(vals)?,
+        origin: slot_point2(vals, SlotId::Origin),
+        dir: axis_heading(vals),
     };
     let b = band(tol)?;
     // Kernel contract: exactly-full must SAY Full. Anything else wires
     // Partial and the kernel's own classification rules on it.
-    let angle = need_scalar(vals, SlotId::RevolveAngle)?;
+    let angle = slot_scalar(vals, SlotId::RevolveAngle);
     let revolution = match turns_off(Decision::RevolveFullTurn, angle, T::tau(), b)? {
         Sign::Zero => Revolution::Full,
         _ => Revolution::Partial(angle),
@@ -1839,22 +1870,19 @@ struct TubeArgs<T: geom_core::Real> {
     minor_radius: T,
 }
 
-fn tube_args<T: Decide>(
-    window: &crate::node::TubeWindow,
-    vals: &SlotValues<T>,
-) -> Result<TubeArgs<T>, NodeErrorKind> {
-    Ok(TubeArgs {
+fn tube_args<T: Decide>(window: &crate::node::TubeWindow, vals: &SlotValues<T>) -> TubeArgs<T> {
+    TubeArgs {
         frame: RigidMotion::identity(),
-        major_radius: need_scalar(vals, SlotId::TubeMajorRadius)?,
+        major_radius: slot_scalar(vals, SlotId::TubeMajorRadius),
         window: match window {
             crate::node::TubeWindow::Full => sweep::TubeWindow::Full,
             crate::node::TubeWindow::Arc { .. } => sweep::TubeWindow::Arc {
-                t0: need_scalar(vals, SlotId::TubeWindowStart)?,
-                t1: need_scalar(vals, SlotId::TubeWindowEnd)?,
+                t0: slot_scalar(vals, SlotId::TubeWindowStart),
+                t1: slot_scalar(vals, SlotId::TubeWindowEnd),
             },
         },
-        minor_radius: need_scalar(vals, SlotId::TubeMinorRadius)?,
-    })
+        minor_radius: slot_scalar(vals, SlotId::TubeMinorRadius),
+    }
 }
 
 /// **A solid tube** — `sweep::tube_along_arc` (RECIPE-DOORS D4 as
@@ -1873,7 +1901,7 @@ fn wire_tube<T: Decide + topo::AtRestPolicy>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let a = tube_args(window, vals)?;
+    let a = tube_args(window, vals);
     let built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
         .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
@@ -1911,8 +1939,8 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let a = tube_args(window, vals)?;
-    let wall = need_scalar(vals, SlotId::TubeWall)?;
+    let a = tube_args(window, vals);
+    let wall = slot_scalar(vals, SlotId::TubeWall);
     let built =
         sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
             .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
@@ -1939,7 +1967,6 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
         verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
         verbs::VerbError::Split(error) => NodeErrorKind::Split(error),
-        verbs::VerbError::Arity { verb, given } => NodeErrorKind::VerbArity { verb, given },
         // The kernel's error is generic over the lane scalar and this
         // enum is scalar-free, so it crosses as a TOTAL fold at the
         // lane's `f64` witness, never a rendering or a drop.
@@ -1986,7 +2013,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         unreachable!("an edge set holds at least one name (`Select::fault`), one entity per name");
     }
     let body = finished_operand(results, target, tol)?;
-    let size = need_scalar(vals, verb.slots.size_slot)?;
+    let size = slot_scalar(vals, verb.slots.size_slot);
     let target_table = read_table(value_of(results, target)?);
     // D9 order; the kernel refuses a repeated edge itself.
     let mut edges: Vec<topo::EdgeKey> = selection.ents.iter().map(|&(_, edge)| edge).collect();
@@ -2043,7 +2070,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let (target_read, target) = (open.read, open.at);
     let body = finished_operand(results, target, tol)?;
-    let thickness = need_scalar(vals, verb.slots.size_slot)?;
+    let thickness = slot_scalar(vals, verb.slots.size_slot);
     let target_table = read_table(value_of(results, target)?);
     // Designation order: the first designated face of a chart carries
     // its rim.
@@ -4567,8 +4594,8 @@ fn section_value<T: Decide>(
     })
 }
 
-/// A structural (Count) slot read as a `usize`, refused typed when
-/// absent or outside `least..=most`: the slot's own domain, which the
+/// A declared structural (Count) slot read as a `usize`, refused typed
+/// when outside `least..=most`: the slot's own domain, which the
 /// caller states (pass `usize::MAX` for a domain with no upper end).
 /// The refusal carries that domain as the slot admits it, clamped to
 /// what an `i64` holds, so `admits` always names values that evaluate.
@@ -4578,7 +4605,7 @@ fn need_count(
     least: usize,
     most: usize,
 ) -> Result<usize, NodeErrorKind> {
-    let n = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
+    let n = slot_count(vals, slot);
     let wide = |u: usize| i64::try_from(u).unwrap_or(i64::MAX);
     usize::try_from(n)
         .ok()

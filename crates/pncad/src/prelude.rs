@@ -528,7 +528,7 @@ pub use topo::{
 //   subject whose parts this list already spelled.
 //
 // THE RUNG BELOW IS CARRIED TOO, and where it stops is one further
-// down. `CensusContact::ConformalPatch` carries a
+// down. `CensusContact::ConformalPatch` and `FaceFaceTangent` carry a
 // `topo::ContactFinding`, which rides in group 9 with the rest of the
 // contact vocabulary; `ReadbackError::Dangling` carries an
 // `EntityId`, which rides in group 4 with the keys it sums over. What

@@ -450,9 +450,10 @@ cases! {
     seam_barely_creased: "SeamWedge", D, SEAM_SITE, Valued =>
         seam(D, 1.0, Vec3::new(0.0, 0.0, 1.0));
     seam_barely_bending_apart: "SeamJet", D, SEAM_SITE, Valued => seam_bend(D);
-    // A ray aimed at 60° across two parallel faces `D/2` apart meets them
-    // `D` apart along it.
-    aimed_ray_across_a_pair_in_band: "ShellRole", D, ROLE_SITE, Valued => aimed_pair(D / 2.0);
+    // A ray aimed 10° off the normal (`AIM_INCIDENCE`) across two
+    // parallel faces `D·cos 10°` apart meets them `D` apart along it.
+    aimed_ray_across_a_pair_in_band: "ShellRole", D, ROLE_SITE, Valued =>
+        aimed_pair(D * crate::side_reader::AIM_INCIDENCE.0);
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
         "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
          normal carries a seam across the escape plane that the crossing layer meets first: no \
@@ -1622,8 +1623,9 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
 
 /// A unit brick's top and the floor of a brick standing `gap` above it,
 /// read as one selection by the reader of the side at infinity
-/// ([`crate::side_reader::side_at_infinity`]): a ray aimed at
-/// the top at 60° meets the floor first and the top `2·gap` further on.
+/// ([`crate::side_reader::side_at_infinity`]): a ray aimed at the top
+/// meets the floor first and the top `gap` over the cosine of its
+/// incidence further on ([`crate::side_reader::AIM_INCIDENCE`]).
 /// An in-band pair is refused as the result gate refuses it.
 fn aimed_pair(gap: f64) -> Result<(), BooleanError> {
     use super::super::solid_contain::SolidFaces;
@@ -2255,6 +2257,9 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
         | BooleanErrorKind::Revert
+        | BooleanErrorKind::EdgeInFace
+        | BooleanErrorKind::SlitLineCrossed
+        | BooleanErrorKind::SlitFaceGlued
         | BooleanErrorKind::LineWedges => Vec::new(),
     }
 }
@@ -2519,6 +2524,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::VertexOnCurvedFace",
         1,
     ),
+    ("fate.rs", "contained", "BooleanDecision::Containment", 1),
+    ("fate.rs", "places", "BooleanDecision::of_normal", 1),
+    ("fate.rs", "sign", "Coincide::Sectors", 1),
     ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
@@ -2827,6 +2835,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "within_signs", "Coincide::Sectors", 1),
+    ("slit.rs", "lies_in", "Coincide::EdgeOnPlane", 1),
+    ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
+    ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
         "sphere_region.rs",
         "-",

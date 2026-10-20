@@ -40,7 +40,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::blocks::{block, block_on, failure, run};
+use crate::blocks::{Spans, block, block_of, block_on, block_on_of, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{ends, face_vertices, insert, len, point};
 use editor_core::{
@@ -69,15 +69,46 @@ use topo::{Body, ContactRecords};
 
 /// The plate and the two blocks, in a document of their own.
 pub(crate) fn pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
-    let (doc, p1) = block_on(doc, plate, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
-    let (doc, p2) = block_on(doc, plate, (1.5, 2.0), (1.0, 3.0), 0.47, 1.23);
+    let (doc, plate) = block_of(doc, PLATE_SPANS);
+    let (doc, p1) = block_on_of(doc, plate, P1);
+    let (doc, p2) = block_on_of(doc, plate, P2);
     (doc, vec![plate, p1, p2])
+}
+
+/// The plate under [`pinch`]'s blocks and the sector prisms.
+pub(crate) const PLATE_SPANS: Spans = ((0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+
+/// [`pinch`]'s first block.
+pub(crate) const P1: Spans = ((1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
+
+/// [`pinch`]'s second block, meeting [`P1`]'s footprint at (1.5, 1).
+pub(crate) const P2: Spans = ((1.5, 2.0), (1.0, 3.0), 0.47, 1.23);
+
+/// A [`sector_prism`]'s bearings in degrees and its z span.
+pub(crate) type Sector = (f64, f64, (f64, f64));
+
+/// [`crossing_one_wedge`]'s wedges and the prism crossing the first.
+pub(crate) const WEDGE_A: Sector = (0.0, 50.0, (0.5, 2.0));
+pub(crate) const WEDGE_B: Sector = (120.0, 170.0, (0.47, 1.7));
+pub(crate) const CROSSING_A: Sector = (30.0, 60.0, (0.44, 1.81));
+
+/// [`sector_prism`] over `sector`, its copy standing in the world.
+pub(crate) fn sector_in_world(doc: ProfileDoc, (a0, a1, z): Sector) -> (ProfileDoc, RecipeNodeId) {
+    sector_prism(doc, Stand::World, a0, a1, z)
+}
+
+/// [`sector_prism`] over `sector`, placed against `plate`.
+pub(crate) fn sector_of(
+    doc: ProfileDoc,
+    plate: RecipeNodeId,
+    (a0, a1, z): Sector,
+) -> (ProfileDoc, RecipeNodeId) {
+    sector_prism(doc, Stand::On(plate), a0, a1, z)
 }
 
 /// The two blocks run through the plate: a pinch on its top and one on
 /// its bottom.
-fn through(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn through(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
     let (doc, p1) = block_on(doc, plate, (1.0, 1.5), (-1.0, 1.0), -0.5, 2.5);
     let (doc, p2) = block_on(doc, plate, (1.5, 2.0), (1.0, 3.0), -0.47, 2.17);
@@ -86,7 +117,7 @@ fn through(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// [`pinch`] and a third block whose footprint meets `p1`'s at (1, 1, 1):
 /// two pinches on the top.
-fn two_pinches(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn two_pinches(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, mut m) = pinch(doc);
     let (doc, p3) = block_on(doc, m[0], (0.5, 1.0), (1.0, 3.0), 0.6, 0.9);
     m.push(p3);
@@ -95,7 +126,7 @@ fn two_pinches(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// The plate and two blocks through its x = 3 side whose footprints there
 /// are holes meeting at (3, 1, 0.5).
-fn side_pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn side_pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
     let (doc, p1) = block_on(doc, plate, (2.5, 4.0), (0.5, 1.0), 0.2, 0.3);
     let (doc, p2) = block_on(doc, plate, (2.47, 3.9), (1.0, 1.5), 0.5, 0.3);
@@ -141,7 +172,7 @@ fn prism(
 /// The plate and two blocks whose footprints on its top are holes
 /// meeting at the corner (1.5, 1): the blocks of [`pinch`], cut short of
 /// the plate's sides.
-fn corner_holes(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn corner_holes(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
     let (doc, p1) = block_on(doc, plate, (1.0, 1.5), (0.5, 1.0), 0.5, 1.5);
     let (doc, p2) = block_on(doc, plate, (1.5, 2.0), (1.0, 1.5), 0.47, 1.23);
@@ -150,7 +181,7 @@ fn corner_holes(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// [`corner_holes`] with `p1` through the plate's y = 0 side: a notch
 /// and a hole meeting at the corner.
-fn notch_and_hole(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn notch_and_hole(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
     let (doc, p1) = block_on(doc, plate, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
     let (doc, p2) = block_on(doc, plate, (1.5, 2.0), (1.0, 1.5), 0.47, 1.23);
@@ -164,7 +195,7 @@ const WEDGE: [(f64, f64); 3] = [(1.5, 1.0), (1.0, 0.6), (1.2, 0.5)];
 /// The plate, a wedge-footprint block and an L-footprint block, holes
 /// in its top meeting at (1.5, 1): the L's reflex corner, an interior
 /// angle of 3π/2, with the wedge inside the quadrant the L leaves.
-fn reflex_hole(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn reflex_hole(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
     let (doc, wedge) = prism(doc, Stand::On(plate), &WEDGE, 0.5, 1.5);
     let ell = [
@@ -740,7 +771,7 @@ use topo::test_support::meeting::{
 /// placed against the plate on its tilted frame: above the top the
 /// prisms lean apart and touch nowhere, below it they cross inside the
 /// plate.
-fn tilted_holes(doc: ProfileDoc, holes: &[Hole]) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn tilted_holes(doc: ProfileDoc, holes: &[Hole]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     assert_eq!(PLATE[2].0, 0.0, "the plate's base is its own xy");
     let (mut doc, plate) = block(doc, PLATE[0], PLATE[1], PLATE[2].1);
     let mut m = vec![plate];
@@ -1026,7 +1057,7 @@ fn sector_prism(
 
 /// The plate and three prisms over 50° sectors about (1.5, 1), each 70°
 /// from the next, touching pairwise along the vertical line through it.
-fn three_on_a_line(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn three_on_a_line(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
     let (doc, a) = sector_prism(doc, Stand::On(plate), 0.0, 50.0, (0.5, 2.0));
     let (doc, b) = sector_prism(doc, Stand::On(plate), 120.0, 170.0, (0.47, 1.7));
@@ -1275,7 +1306,7 @@ fn a_subtract_against_the_wedges_union_names_their_meeting_alike_in_every_member
 
 /// [`three_on_a_line`] with the third prism over 30°–140°: it bridges
 /// the gap between the first two's wedges, crossing both.
-fn bridging(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn bridging(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
     let (doc, a) = sector_prism(doc, Stand::On(plate), 0.0, 50.0, (0.5, 2.0));
     let (doc, b) = sector_prism(doc, Stand::On(plate), 120.0, 170.0, (0.47, 1.7));
@@ -1285,7 +1316,7 @@ fn bridging(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// Where the bridge folds last, after the plate, its edge meets the
 /// line's two coincident edges at two points, which topo does not build.
-const TWO_GERMS: &str =
+pub(crate) const TWO_GERMS: &str =
     "work/tangtail/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md";
 
 /// A table, key-free: each row's name by where its entities stand —
@@ -1355,7 +1386,7 @@ fn two_bridges(doc: ProfileDoc, c_z: (f64, f64)) -> (ProfileDoc, Vec<RecipeNodeI
 }
 
 /// [`two_bridges`] with `c` from z 0.6 to 1.5.
-fn two_bridges_short(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn two_bridges_short(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     two_bridges(doc, (0.6, 1.5))
 }
 
@@ -1552,15 +1583,15 @@ fn side_node(side: &StableName) -> RecipeNodeId {
 /// [`three_on_a_line`] with the third prism over 30°–60°: it crosses the
 /// first's wedge about the line and touches the second's edge along it.
 pub(crate) fn crossing_one_wedge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
-    let (doc, a) = sector_prism(doc, Stand::On(plate), 0.0, 50.0, (0.5, 2.0));
-    let (doc, b) = sector_prism(doc, Stand::On(plate), 120.0, 170.0, (0.47, 1.7));
-    let (doc, c) = sector_prism(doc, Stand::On(plate), 30.0, 60.0, (0.44, 1.81));
+    let (doc, plate) = block_of(doc, PLATE_SPANS);
+    let (doc, a) = sector_of(doc, plate, WEDGE_A);
+    let (doc, b) = sector_of(doc, plate, WEDGE_B);
+    let (doc, c) = sector_of(doc, plate, CROSSING_A);
     (doc, vec![plate, a, b, c])
 }
 
 /// [`crossing_one_wedge`] without the plate.
-fn crossing_one_wedge_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn crossing_one_wedge_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, m) = crossing_one_wedge(doc);
     (doc, m[1..].to_vec())
 }

@@ -34,6 +34,26 @@ pub(crate) fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<&NodeErr
     }
 }
 
+/// A block's x span, y span, base z and height, as [`block_of`] and
+/// [`block_on_of`] take them.
+pub(crate) type Spans = ((f64, f64), (f64, f64), f64, f64);
+
+/// [`block`] over `spans`: the root a later block stands on, so its
+/// base is its own xy.
+pub(crate) fn block_of(doc: ProfileDoc, (x, y, z0, dz): Spans) -> (ProfileDoc, RecipeNodeId) {
+    assert_eq!(z0, 0.0, "a root block's base is its own xy");
+    block(doc, x, y, dz)
+}
+
+/// [`block_on`] over `spans`, against `target`.
+pub(crate) fn block_on_of(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    (x, y, z0, dz): Spans,
+) -> (ProfileDoc, RecipeNodeId) {
+    block_on(doc, target, x, y, z0, dz)
+}
+
 /// An axis-aligned block on its own xy plane, extruded `dz`: a
 /// construction, the root of its own space.
 pub(crate) fn block(

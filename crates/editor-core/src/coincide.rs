@@ -680,11 +680,11 @@ pub fn construction<P>(
         let of = match origin(seg) {
             SegOrigin::Minted => {
                 return match (seg, node(at)?) {
-                    (RoleSeg::SectionFace { .. }, Node::Split { tool, .. }) => Ok(Construction {
+                    (RoleSeg::SectionFace, Node::Split { tool, .. }) => Ok(Construction {
                         origin: Origin::Tool(tool.read, tool.role),
                         placed,
                     }),
-                    (RoleSeg::SectionFace { .. }, _) => Err(Unwalked::Misplaced(at)),
+                    (RoleSeg::SectionFace, _) => Err(Unwalked::Misplaced(at)),
                     _ => {
                         let mut minted = name;
                         minted

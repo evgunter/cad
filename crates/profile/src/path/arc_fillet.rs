@@ -133,6 +133,9 @@ pub(crate) struct ArcFilletTrims<T: Real> {
     /// What the offset construction proved of the centre
     /// ([`crate::sugar::ArcFilletCandidate::centre_facts`]).
     pub centre_facts: crate::Facts,
+    /// The fillet's turn sense, the corner's decided turn
+    /// ([`crate::sugar::ArcFilletCandidate::sense`]).
+    pub sense: ArcSweep,
 }
 
 impl<T: Real> ArcFilletTrims<T> {
@@ -145,6 +148,7 @@ impl<T: Real> ArcFilletTrims<T> {
             self.bulge,
             super::fillet_facts(self.centre_facts, self.fit_in),
         )
+        .sensed(self.sense)
     }
 }
 
@@ -947,6 +951,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             radius,
         },
         centre_facts: c.centre_facts,
+        sense: c.sense,
     })
 }
 

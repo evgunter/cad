@@ -458,11 +458,22 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// So every node minted after a stand moved its id, and this digest
 /// feeds ids. Every standing copy in the corpus is bit-identical to its
 /// source (measured with a lane probe over `body_digest`).
+///
+/// RE-BLESSED, `crossing_slots` only, for a seam's sides and a
+/// crossing's lines named in the subtract's own table, in name order
+/// (N3). The digest feeds the name table. No body moved
+/// (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held).
+/// Re-measured merging main at `be82e5ad6b` into D, `crossing_slots`:
+/// main's N3 names each seam side and crossing line with the read it
+/// came in through, and in D a later operand is a placed copy, so the
+/// names it spells moved under both changes and the value is neither
+/// tree's. No other row moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x62a0_f03c_c794_d036u64),
+        ("crossing_slots", 0xc686_087f_4f50_550eu64),
         ("heat_sink", 0xf1a2_5a30_b135_72a2),
         ("kiss_carry", 0xfb95_fe3f_5408_dbd8),
     ] {

@@ -1,5 +1,5 @@
 //! **The `Shell` recipe node** — `Node::Shell` wires the verb seat's
-//! `Verb::Shell` (`topo::shell_open`) over a target body and an
+//! `verbs::Shell` (`topo::shell_open`) over a target body and an
 //! ORDERED designation of the faces to open into rims.
 //!
 //! The documents under test are `corpus/cup.rs` (a box with its top

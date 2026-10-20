@@ -2,7 +2,7 @@
 //! moved with it** — the SEAT-4/5/7 method, for the first verb whose
 //! result is two-sided.
 //!
-//! `Node::Split` builds a `verbs::Verb`, runs it through the split
+//! `Node::Split` builds a `verbs::Split`, runs it through the split
 //! door, takes its birth record out of the closed record channel and
 //! its two sides out of the door's own out-type, and emits names from
 //! the record. A re-plumbing's failure mode is a difference nobody
@@ -344,13 +344,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// rounded turns. On the merged tree with the exact heading alone it
 /// read `0xcd7f_f823_b396_33fc`. The other rows held across main's merge
 /// at `557e581a64` and this lane.
+///
+/// Re-measured merging main at `be82e5ad6b` into D, `cut_cylinder`,
+/// `part_select` and `kitchen_sink`: main's N3 names each seam side and
+/// crossing line with the read it came in through, and in D a later
+/// operand is a placed copy, so the names it spells moved under both
+/// changes and the value is neither tree's. No other row moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xacfc_bd06_c584_16a7u64),
-        ("part_select", 0xd94a_a647_45b1_289b),
-        ("kitchen_sink", 0x04bc_da74_1fbe_d57c),
+        ("cut_cylinder", 0x4a6a_99bb_d540_29d3u64),
+        ("part_select", 0x60d5_4797_17cb_f087),
+        ("kitchen_sink", 0x9050_359e_8f31_a962),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

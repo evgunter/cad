@@ -23,6 +23,7 @@ pub mod exact;
 pub mod interval;
 pub mod k_stats;
 pub mod linalg;
+pub mod one_line;
 pub mod predicate;
 pub mod readable;
 pub mod real;
@@ -53,21 +54,21 @@ pub use linalg::{
     not_rigid_reading,
 };
 pub use predicate::{
-    Band, BandError, BandField, COINCIDENCE_RECOURSE, DAMAGED_FILE_ENDING, DEFAULT_K,
+    Band, BandError, BandField, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING, DEFAULT_K,
     DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading, FileCoincidence,
     Indeterminate, IndeterminatePayload, IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING,
     KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin,
     MarginDiag, MarginKind, MissReading, MissSource, MissingRecourse, NOT_YET_ENDING,
     RANGE_RECOURSE, Recourse, RefusedReading, SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords,
-    SupSpeed, UNNAMED_DECISION, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE,
-    UndecidedRefusal, UnderTail, floor_note, lever_recourse, noted,
+    StoredCulprit, SupSpeed, UNNAMED_DECISION, UNREADABLE_MARGIN_NOTE,
+    UNREADABLE_STORED_MARGIN_NOTE, UndecidedRefusal, UnderTail, floor_note, lever_recourse, noted,
 };
 pub use readable::Readable;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_exact_zero, is_finite_length,
     is_underflowed_length, is_zero_length,
 };
-pub use running::{Rounded, UNIT_ROUNDOFF};
+pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRetry, SymRules};
 pub use tolerance::{

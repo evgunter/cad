@@ -699,8 +699,9 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
 /// edge a face crossed as far as it had cut it by then (`#k of n` of THAT
 /// step), which is fold history and names no published piece. Over every
 /// case and order, each edge a vertex's seam cites in the union's space
-/// is a member edge with no rank, never a set of them, and the vertex
-/// lies on that edge in the member's own body. On main 112 cited edges carried a fold rank;
+/// is a member edge with no rank, or the set of several flush on one
+/// line through the vertex, and the vertex lies on each such edge in its
+/// member's own body. On main 112 cited edges carried a fold rank;
 /// ranked over the finished body without this rewrite, 318 cited a rank
 /// no published row carries.
 #[test]
@@ -734,15 +735,19 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                             }
                             _ => continue,
                         };
+                        let sides = sides
+                            .into_iter()
+                            .flat_map(|side| match side.path.as_slice() {
+                                [RoleSeg::Merged(line)] if side.kind == EntityKind::Edge => {
+                                    line.iter().collect()
+                                }
+                                _ => vec![side],
+                            });
                         for side in sides {
                             if side.kind != EntityKind::Edge || side.node != union {
                                 continue;
                             }
                             let here = format!("{} {tag} {at}: {name:?}", case.label);
-                            assert!(
-                                !matches!(side.path.first(), Some(RoleSeg::Merged(_))),
-                                "{here} cites a set of edges, not one it lies on: {side:?}"
-                            );
                             let Some(RoleSeg::From { read, of }) = side.path.first() else {
                                 continue;
                             };

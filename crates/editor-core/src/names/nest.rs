@@ -1882,7 +1882,7 @@ pub(super) mod tests {
                 R::Fragment(Qualifier::Ends(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::OrderAlong { rank: 1, of: 3 }),
                 R::SplitBody,
-                R::SectionFace { section: 2 },
+                R::SectionFace,
                 R::SectionEdge { face: r(a) },
                 R::SplitFragment { parent: r(b) },
                 R::CrossingVertex {

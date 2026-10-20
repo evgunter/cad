@@ -134,10 +134,10 @@ use pncad::document::{
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
     EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
     MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
-    NodeStanding, ParseError, PersistError, PiecesFault, PinRefusal, PlacedBy, PlacementRuleFault,
-    ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation,
-    ResolveFault, ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal,
-    StepIdFault, TargetAxis, Unlocalized, UpdateError, WorldReadFault,
+    NodeStanding, ParseError, PersistError, PinRefusal, PlacedBy, PlacementRuleFault, ProgramFault,
+    ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
+    TargetAxis, Unlocalized, UpdateError, WorldReadFault,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -208,6 +208,8 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",
         PathErrorKind::ArcCenterNotEquidistant => "arc_center_not_equidistant",
         PathErrorKind::DegenerateArcCenter => "degenerate_arc_center",
+        PathErrorKind::ArcMissesAuthoredPoint => "arc_misses_authored_point",
+        PathErrorKind::ArcMissBelowSceneResolution => "arc_miss_below_scene_resolution",
         PathErrorKind::FarEndAnchorWithoutFillet => "far_end_anchor_without_fillet",
         PathErrorKind::Escalated => "escalated",
         PathErrorKind::Band => "band",
@@ -876,9 +878,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Profile => "profile",
         C::ProfileReplay => "profile_replay",
         C::ProfileLaneReplay => "profile_lane_replay",
-        C::ProfileAnchor => "profile_anchor",
-        C::ProfilePieces => "profile_pieces",
-        C::ProfileRecordMissing => "profile_record_missing",
         C::Extrude => "extrude",
         C::Revolve => "revolve",
         // ONE tag for both tube kinds, matching every other op on
@@ -942,7 +941,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::UnderflowedDirection => "underflowed_direction",
         C::Band => "band",
         C::MissingSlot => "missing_slot",
-        C::VerbArity => "verb_arity",
         C::Escalated => "escalated",
         C::PoseRead => "pose_read",
         C::PoseDegenerate => "pose_degenerate",
@@ -1062,9 +1060,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             Some(refusal) => Some(structure_refusal_tag(&refusal.kind)),
             None => None,
         },
-        NodeErrorKind::ProfileAnchor => None,
-        NodeErrorKind::ProfilePieces { fault } => Some(pieces_fault_tag(fault)),
-        NodeErrorKind::ProfileRecordMissing { .. } => None,
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
@@ -1098,7 +1093,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnderflowedDirection { .. } => None,
         NodeErrorKind::Band(inner) => Some(band_error_tag(inner)),
         NodeErrorKind::MissingSlot { .. } => None,
-        NodeErrorKind::VerbArity { .. } => None,
         // The escalation's payload is a MARGIN and a band, not an arm;
         // the predicate that escalated is a name the kernel mints and
         // the message carries.
@@ -1593,6 +1587,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GraftRecertify => "graft_recertify",
         BooleanErrorKind::Pieces => "pieces",
         BooleanErrorKind::Revert => "revert",
+        BooleanErrorKind::EdgeInFace => "edge_in_face",
+        BooleanErrorKind::SlitLineCrossed => "slit_line_crossed",
+        BooleanErrorKind::SlitFaceGlued => "slit_face_glued",
         BooleanErrorKind::LineWedges => "line_wedges",
     }
 }
@@ -1712,8 +1709,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         // bug, and these are not one.
         NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
-        NamingError::MergedChord { .. } => "merged_chord",
-        NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
+        NamingError::ChordOffRim { .. } => "chord_off_rim",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
         NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",
@@ -1766,7 +1762,6 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
         ProgramRefusal::StepIds(_) => "step_ids",
-        ProgramRefusal::Pieces(_) => "pieces",
     }
 }
 
@@ -2343,6 +2338,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::EmptyLoop { .. } => "empty_loop",
         TessellateError::MissingEntity { .. } => "missing_entity",
         TessellateError::ResolutionOverflow { .. } => "resolution_overflow",
+        TessellateError::StepNotPositive { .. } => "step_not_positive",
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
@@ -3113,8 +3109,13 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CensusUnsupported { .. } => "census_unsupported",
         ValidationError::CensusLaneUnsupported { .. } => "census_lane_unsupported",
         ValidationError::CensusUndecidable { .. } => "census_undecidable",
+        ValidationError::FaceThroughEdgeWedge { .. } => "face_through_edge_wedge",
+        ValidationError::FaceThroughEdgeWedgeUndecided { .. } => {
+            "face_through_edge_wedge_undecided"
+        }
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
+        ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",
         ValidationError::NextPrevMismatch { .. } => "next_prev_mismatch",
@@ -3253,6 +3254,7 @@ pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
         CensusContact::EdgeEdgeCross { .. } => "edge_edge_cross",
         CensusContact::EdgeEdgeOverlap { .. } => "edge_edge_overlap",
         CensusContact::EdgeFaceOverlap { .. } => "edge_face_overlap",
+        CensusContact::FaceFaceTangent { .. } => "face_face_tangent",
         CensusContact::ConformalPatch { .. } => "conformal_patch",
     }
 }
@@ -3342,18 +3344,6 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
-    }
-}
-
-/// The stable tag for where a profile's naming anchor, replay record
-/// and minted ids disagree — the fault `NodeErrorKind::ProfilePieces`
-/// carries, published on `inner_variant` beside the node error's word.
-pub fn pieces_fault_tag(fault: &PiecesFault) -> &'static str {
-    match fault {
-        PiecesFault::NoRecord { .. } => "no_record",
-        PiecesFault::NoIds { .. } => "no_ids",
-        PiecesFault::Length { .. } => "length",
-        PiecesFault::NoStepId { .. } => "no_step_id",
     }
 }
 

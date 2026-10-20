@@ -1,8 +1,9 @@
 # verbs: the kernel verb vocabulary seat
 
-`verbs` is where the kernel's operations are named. One closed `Verb<T>`
-enum reifies an operation's parameters as plain data — scalars at `T`,
-entity references as arena keys, operands never in the payload — beside
+`verbs` is where the kernel's operations are named. One payload type per
+run door reifies an operation's parameters as plain data — scalars at
+`T`, entity references as arena keys, operands never in the payload —
+and the closed `VerbKind` names every verb they hold, beside
 the run dispatch over the op crates' own doors and the parameter→field
 flow that only the operation itself knows. The crate sits above `sweep`
 and `topo`, whose ops it names, and below `editor-core`, its only
@@ -32,12 +33,12 @@ implementation under both.
 | S2 `select_where` as a wrapper | `crates/editor-core/src/names/geompred.rs` |
 | S3 flush detector at the body seat | `crates/topo/src/flush.rs`, verifier at `crates/topo/src/boolean/carrier_pair.rs` (`carrier_pair_relation`); the name-level wrapper at `crates/editor-core/src/names/flush.rs` |
 | S4 band derived at op entry | `crates/sweep/src/blend/build.rs`, `crates/topo/src/shell.rs` |
-| V1 the closed kernel-side declaration | `crates/verbs/src/verb.rs` (`Verb`, `VerbKind`, `Arity`), `run.rs` (the doors, `VerbOut`/`PairOut`/`SplitOut`/`VerbRecord`/`VerbError`), `flow.rs` (`ParamFlow`) |
+| V1 the closed kernel-side declaration | `crates/verbs/src/verb.rs` (`Blend`, `Boolean`, `Sweep`, `Split`, `Shell`, `VerbKind`), `run.rs` (the doors, `VerbOut`/`PairOut`/`SplitOut`/`VerbRecord`/`VerbError`), `flow.rs` (`ParamFlow`) |
 | V2 owner-held stable-tag commitments | `crates/editor-core/src/eval/mod.rs` (`verb_content_tag`) |
 | V3 per-verb correspondence | `crates/editor-core/src/verbs/{mod,blend,boolean,sweep,split,shell}.rs`; the generic lowerings in `crates/editor-core/src/eval/wire.rs` |
 | V4 additive migration | `crates/verbs/src/lib.rs` (what is on the seat and what is not) |
 | P1 the flow and its reader | `crates/verbs/src/flow.rs` (`ParamFlow`, `FlowSource`); `crates/editor-core/src/param_source.rs` (`flow_bearing`, `operand_flow_bearing`, `feed_content_key`) |
-| The censuses and guards | `crates/verbs/tests/{layer_guard,run_door,param_flow}.rs`; `VerbKind::ALL`, `Arity::ALL`, `ScalarParam::ALL`, `FlowSource::ALL` |
+| The censuses and guards | `crates/verbs/tests/{layer_guard,run_door,param_flow}.rs`; `VerbKind::ALL`, `ScalarParam::ALL`, `FlowSource::ALL` |
 
 ## 0. Grounding (the premises, not re-litigated here)
 
@@ -144,83 +145,80 @@ derived-scale band stays constructible where an op needs one
 ## 2. One verb vocabulary
 
 This is the kernel's vocabulary. `profile::Verb`, the sketch program's,
-is a different one; the naming convention between the two is stated in
-both crates' module docs.
+is a different one; this crate has no type of that name.
 
-**V1 — the per-verb declaration is closed and kernel-side.** `Verb<T>`
-(`verbs/src/verb.rs`) holds an operation's parameters as data:
+**V1 — the per-verb declaration is closed and kernel-side**, as one
+payload type per run door plus the closed `VerbKind` vocabulary they
+project onto (`verbs/src/verb.rs`). The payloads hold an operation's
+parameters as data:
 
-- `Fillet` and `Chamfer` — edge keys and a scalar;
-- `Extrude` — a depth and a side;
-- `Revolve` — a sketch-plane axis and a classified `Revolution`;
+- `Blend` — `Fillet` and `Chamfer`, edge keys and a scalar;
+- `Sweep` — `Extrude`, a depth and a side, and `Revolve`, a sketch-plane
+  axis and a classified `Revolution`;
 - `Boolean` — the regularized op and the declared coincidence intents in
   arena keys;
 - `Split` — the parting plane;
-- `Shell` — a thickness and the faces to open (one variant, since an
-  empty designation IS the sealed hollow).
+- `Shell` — a thickness and the faces to open (one verb, since an empty
+  designation IS the sealed hollow).
 
 Operand bodies are not in the payload: they are borrowed at the run
-doors, and what an operand IS, and how many, is declared data. The enum
-is `T: Real` (the revolve's axis is geometry) and carries no equality of
-any kind, deliberately: deciding whether two coordinates are the same is
-a classification band's question, never `==`'s.
+doors, and what an operand IS, and how many, is the door's signature. A
+door is a method of its payload type, so no verb can be handed to a door
+that does not answer it. The payloads are `T: Real` (the revolve's axis
+is geometry) and carry no equality of any kind, deliberately: deciding
+whether two coordinates are the same is a classification band's
+question, never `==`'s.
 
-The vocabulary's payload-free projection is `VerbKind`, and it names
-NINE verbs (`VerbKind::ALL`): the boolean's union, intersect and
-subtract are three kernel operations sharing one payload shape, and
-every commitment keyed on the vocabulary keeps them apart, so each is
-its own name. `VerbKind::arity` declares which door answers a verb;
-`Verb::kind` is the one place the projection is written, exhaustive.
+`VerbKind` is the vocabulary, payload-free, and it names NINE verbs
+(`VerbKind::ALL`): the boolean's union, intersect and subtract are three
+kernel operations sharing one payload shape, and every commitment keyed
+on the vocabulary keeps them apart, so each is its own name. Each
+payload type's `kind` is an exhaustive match onto it, and every
+commitment matches `VerbKind` exhaustively with no wildcard (D3), so a
+verb added to `VerbKind` breaks every commitment site at compile time.
 
 Each verb owns:
 
-- **its run door.** `Verb::run` (one body in, `VerbOut`), `run_pair`
-  (two bodies in, `PairOut` — the typed empty is part of the boolean's
-  contract, F8), `run_profile` (one borrowed `ValidatedProfile`, the
-  door's whole bundle back as the record), `run_split` (`SplitOut`, two
-  sides each a body or the typed empty) and `run_shell`. Every check,
+- **its run door.** `Blend::run` (one body in, `VerbOut`),
+  `Boolean::run_pair` (two bodies in, `PairOut` — the typed empty is part
+  of the boolean's contract, F8), `Sweep::run_profile` (one borrowed
+  `ValidatedProfile`, the door's whole bundle back as the record),
+  `Split::run_split` (`SplitOut`, two sides each a body or the typed
+  empty) and `Shell::run_shell`. Every check,
   refusal and minted entity is the op door's; these dispatch and re-wrap.
 - **its birth-record shape.** `VerbOut` carries the operation's own
   record in `VerbRecord`, one variant per record family, the kernel's
   own types moved across by value and never restated. A verb without a
-  birth channel cannot join the enum: the record is what lets the
+  birth channel cannot join the vocabulary: the record is what lets the
   document layer name what the operation created.
 - **its parameter→field flow** (`verbs/src/flow.rs`), as data — §3's
   channel, and the reason the declaration sits beside the op: only the
   op knows where its parameters end up.
 
-**`Arity` is the door vocabulary.** Its five rows — `One`, `Two`,
-`Profile`, `Split`, `Shell` — are doors, not operand counts: rows differ
-along three axes (the operand, the out-type, and the bound the door can
-run at), and no row is a claim about any one alone. `One` and `Split`
-take the same operand and are two doors because their out-types differ.
-`One` and `Shell` agree at both ends and are two doors because the
-shell's op door demands certification rights
+**The doors differ along three axes** — the operand, the out-type, and
+the bound the door can run at. `Blend::run` and `Split::run_split` take
+the same operand and are two doors because their out-types differ.
+`Blend::run` and `Shell::run_shell` agree at both ends and are two doors
+because the shell's op door demands certification rights
 (`Decide + CertifiedBounds + AtRestPolicy`) that no `Dual` scalar has.
 
-`run_shell` asks for those rights as a VALUE: a `topo::ShellDoor<T>`
+`Shell::run_shell` asks for those rights as a VALUE: a `topo::ShellDoor<T>`
 parameter whose one constructor is bounded on them. So the seat needs no
 second `impl` block, and the mixed pass instantiated at `Dual` still
 compiles against every door here — a scalar the per-scalar policy gives
 no door (`topo::AtRestPolicy::shell_door` answers `None`) has nothing to
 pass and refuses typed where it stands.
 
-The name `Arity` is kept for continuity: it crosses the document layer's
-refusal payload (`NodeErrorKind::VerbArity`, re-exported through
-`pncad`). Renaming it would cost approximately nothing, so keeping it is
-a decision that may be revisited, not a defect. `VerbError::Arity`
-speaks the rows in the doors' own names; `tests/run_door.rs` asserts
-that `Arity::ALL` and the door matrix name one set.
-
 **A name is the vocabulary's to say, not a rendering each consumer
-picks.** `VerbKind` and `Arity` each carry a `Display` beside their
-`ALL`, written as an exhaustive match so a row the enum gains has no
-word until someone writes one, and the refusal renders through it. A
-fieldless row's word is its variant identifier — that is what the doors
-are called — and the boolean's three rows say their production door
-(`Union`, `Intersect`, `Subtract`) rather than the enum's coordinate for
-the verb. The censuses beside `ALL` hold the words apart: two rows
-saying the same word makes a refusal ambiguous about what it refused.
+picks.** `VerbKind` carries a `Display` beside its `ALL`, written as an
+exhaustive match so a verb the enum gains has no word until someone
+writes one, and the sentences naming a verb render through it. A
+fieldless verb's word is its variant identifier — that is what the
+doors are called — and the boolean's three rows say their production
+door (`Union`, `Intersect`, `Subtract`) rather than the enum's
+coordinate for the verb. The census beside `ALL` holds the words apart:
+two verbs saying the same word make a sentence ambiguous about which it
+names.
 
 **V2 — commitments are exhaustive matches to stable tags, held by their
 owners.** Every commitment a verb has is an exhaustive match over the
@@ -272,7 +270,7 @@ the document authors.** The seat carries the blend pair, the two sweeps,
 the boolean's three ops, the split and the shell. Every other door —
 transform, pattern, loft, sweep along a path, measure — runs outside it,
 reached by `editor-core`'s lowering calling its op crate directly.
-`crates/verbs/src/lib.rs` says so in its header, since reading the enum
+`crates/verbs/src/lib.rs` says so in its header, since reading the vocabulary
 as "every operation a recipe door can invoke" would misjudge the next
 unit's cost. No wire format moves in a migration: each unit pins its
 spelling and digests first.
@@ -311,10 +309,10 @@ it is the `unproven-coincidence` lint's.
 
 ## 4. The question ledger, answered
 
-- **VS-Q1 — where `Verb` lives.** `Verb<T>` lives in `crates/verbs`, its
+- **VS-Q1 — where the verb vocabulary lives.** In `crates/verbs`, its
   own crate above `sweep` and `topo` and below `editor-core`: the
   vocabulary spans crates — the blend pair and the sweeps are `sweep`'s,
-  the boolean and the split `topo`'s — so hosting the enum in either op
+  the boolean and the split `topo`'s — so hosting it in either op
   crate would make one name the other's ops. The rejected alternative is
   a `sweep`-hosted module, cheaper on the build-cost ledger
   (GENERICS-BUILD-COST); the crate earns its manifest.
@@ -331,7 +329,7 @@ it is the `unproven-coincidence` lint's.
   RECORD rather than to a verb's payload, so a collapse is a change to
   the naming seam and not to the verb vocabulary. The disposition is
   recorded where the twin lives (`sweep/src/blend/naming.rs`), naming
-  `verbs::Verb` as the canonical owner a collapse would target, the
+  `verbs::Blend` as the canonical owner a collapse would target, the
   persisted spelling becoming a stable-tag match over it.
 - **VS-Q6 — sequencing.** §1 in its own units, then §2 with the blend
   pair, then the remaining verbs one unit each, §3 riding the first
@@ -345,7 +343,8 @@ it is the `unproven-coincidence` lint's.
   seatless calls have meaning only where a replayable call log exists,
   and the trigger is a real consumer. Nothing here forecloses it — the
   birth-record channel V1 requires per verb is the substrate that
-  proposal would widen, and `Verb<T>` is what such a log would store.
+  proposal would widen, and the verb payloads are what such a log would
+  store.
 - **The #917 `OpGroup::Fillet` rename** — its own issue, its own scale.
 - **Post-publish schema discipline for V2's stable tags** — carried in
   DESIGN.md's "Before publishing" list.

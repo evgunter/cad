@@ -59,7 +59,7 @@ pub fn section_face(split: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: split,
-        path: vec![RoleSeg::SectionFace { section: 0 }],
+        path: vec![RoleSeg::SectionFace],
     }
 }
 

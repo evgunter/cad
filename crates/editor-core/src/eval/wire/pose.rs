@@ -193,8 +193,8 @@ fn output<T: Decide>(
             };
             let vals = slots::eval_slots(revolve, env)
                 .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-            let origin = super::need_point2(&vals, SlotId::Origin)?;
-            let dir = super::axis_heading(&vals)?;
+            let origin = super::slot_point2(&vals, SlotId::Origin);
+            let dir = super::axis_heading(&vals);
             // The sweep's own arithmetic (`sweep::revolve`'s axis frame):
             // the origin placed as a point, the direction decided in the
             // sketch and turned by the plane's frame, so the line this

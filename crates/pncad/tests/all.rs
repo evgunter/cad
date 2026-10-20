@@ -424,6 +424,11 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         CensusContact::EdgeEdgeCross { .. } => true,
         CensusContact::EdgeEdgeOverlap { .. } => true,
         CensusContact::EdgeFaceOverlap { .. } => true,
+        // A face–face record of class `Tangent` backs it.
+        CensusContact::FaceFaceTangent { finding } => {
+            named::<ContactFinding>(finding);
+            true
+        }
         // The arm the stop was named at, and its payload has a name
         // now: a caller that reaches a conformal patch asks what the
         // finding CLAIMS and what verdict decided it, instead of
@@ -4854,7 +4859,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   holds and `NamingError` is what `NodeErrorKind::Naming` holds,
 ///   and both carriers are curated — so a consumer could match either
 ///   arm and had no way to name what it caught. That is the payload
-///   rule this list's own `VerbKind` entry states, and `crate::document`
+///   rule this list's own `NodeRefusal` entry states, and `crate::document`
 ///   and `crate::select` carry them now. `BifurcationKind` stays: its
 ///   carrier arm is not constructed before the M6 solver, so nothing
 ///   can hold one to name. (`ClassAdmission`/`class_admission` left this family

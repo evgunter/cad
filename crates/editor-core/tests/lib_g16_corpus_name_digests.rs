@@ -262,29 +262,37 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// read-back frame that minted 42 more ids, and its explicit rule's
 /// frames came to be built from the fraction of a turn each is. Every
 /// other document held.
+///
+/// Re-pinned merging main at `be82e5ad6b` into D, `die`,
+/// `crossing_slots`, the three `nested_islands`, `kitchen_sink`,
+/// `cut_cylinder`, `die_pips`, `die_tool`, `part_select`,
+/// `die_composed` and the tour die: main's N3 names each seam side and
+/// crossing line with the read it came in through, and in D a later
+/// operand is a placed copy, so the names those documents' booleans
+/// spell moved under both changes and each value is neither tree's.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0xd996a20e0fd9ee56),
+    ("die", 0x518b99d8559ab074),
     ("corner_table", 0x29800dc909826450),
     ("heat_sink", 0x99d838be7a738b42),
-    ("crossing_slots", 0x916f9fa37f640a7b),
-    ("nested_islands_105", 0x6c61877172865fd6),
-    ("nested_islands_106_depth1", 0xc52eb6cf8b1e5acd),
-    ("nested_islands_106_depth2", 0x155d067061c7b7dc),
+    ("crossing_slots", 0xc888df0d2e771787),
+    ("nested_islands_105", 0x31c5a36546704c22),
+    ("nested_islands_106_depth1", 0x55267bf7d8792969),
+    ("nested_islands_106_depth2", 0xb535ff1ee5840578),
     ("declared_tangency", 0x57d4ee11deccc368),
-    ("kitchen_sink", 0x86f84c3284fcef4e),
-    ("cut_cylinder", 0x89205495cfa42a99),
+    ("kitchen_sink", 0x82d15219141de51a),
+    ("cut_cylinder", 0x52479871c2112751),
     ("measured_web", 0x44c4e0d24d38b03c),
     ("boss_union", 0x52aab550bf0ac788),
     ("die_fillet", 0xc57e5803d9b2429a),
     ("die_chamfer", 0x07195df35d2892cc),
-    ("die_pips", 0x7987c560eab620bb),
+    ("die_pips", 0x302a1b3ab51621f3),
     ("heat_sink_fins", 0xc11b5c13358b6b56),
-    ("die_tool", 0xd7ecb55f034767ce),
+    ("die_tool", 0xe589dd2a21a2f936),
     ("face_sketch", 0xe1162804a5269b4c),
-    ("part_select", 0x8d9fda8439eaf0a0),
+    ("part_select", 0xb7a13d41d1e319e8),
     ("loft_prism", 0x5a473fb46c0284ce),
-    ("die_composed", 0x0efee0885352a50d),
-    ("die_composed_tour", 0xa0796277cc94fd0f),
+    ("die_composed", 0x47b37cc0fafd5023),
+    ("die_composed_tour", 0xab38ee0562a0d20e),
     ("plate_param", 0x91ce84257aef28bf),
     ("kiss_carry", 0x800de290a5901f2f),
     ("tube_ring", 0xc7e2d65e798931e7),

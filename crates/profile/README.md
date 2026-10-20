@@ -122,8 +122,8 @@ its step's minted id and its role in that step's fixed list
 (`crates/editor-core/src/names/README.md`, "N1, the profile pieces") —
 which the replay records per segment (`ReplayStructure::pieces`), so no
 value edit, loop-role change or sense flip moves a name.
-`eval/anchor.rs` recovers each loop's reversal as a `LoopAnchor` by
-bit-matching the canonical loop against the replayed one, and pairs each
+`eval/anchor.rs` reads each loop's reversal as a `LoopAnchor` off the f64
+validation's own record (`CanonicalStructure`), and pairs each
 canonical segment and vertex with its piece (`ProfilePieces`). A step
 `SetProgram` drops takes its id with it, and its names resolve Vanished.
 
@@ -243,16 +243,58 @@ applies is a fact of the loop's provenance, carried by its type.
   lattice's closing by the builder and by every replay) holds by
   construction: `ConstructedProfile`'s validate doors, `pncad::validated`
   and the loft's constructed sections do not decide the three again. A
-  `Center` arc's landing is the path door's own predicate
-  (`path_arc_center_equidistant`), and a fillet arc's ends are the
-  door's own decisions where its resolution decided the offset
-  carriers tangent or a leg's fit exact, each made inline at every
-  scalar (`Facts::Decided`); every other construction's facts are the
-  identities it registers on the values it built (`BuiltArc`,
-  `Facts::Registered`), which an exact
-  scalar's witness checks and a point scalar takes on the construction's
-  proof. Re-deciding them could only confirm Zero or escalate on
-  dependency width, never catch an inconsistency.
+  construction's proof holds over the reals. A `Center` arc's landing
+  is the path door's own predicate (`path_arc_center_equidistant`), and
+  a fillet arc's ends are the door's own decisions where its
+  resolution decided the offset carriers tangent or a leg's fit exact,
+  each made inline at every scalar (`Facts::Decided`); every other
+  construction's facts are the identities it registers on the values
+  it built (`BuiltArc`, `Facts::Registered`).
+  - **At an exact scalar** (`Interval`, and the symbolic tier over it)
+    the stored arc encloses the arc its construction proved, and the
+    registered identities are the check. Re-deciding them could only
+    confirm Zero or escalate on dependency width, never catch an
+    inconsistency, so nothing is decided again.
+  - **At a point scalar** (`f64`, and every scalar whose witness is
+    inexact) the stored arc is the arithmetic the construction ran,
+    which can lose the digits its proof is about. So the path door
+    reads the stored form back once against the authored data, before
+    the chain stores it (`seg::read_back_arc`):
+    - its start on its carrier (the stored radius);
+    - its landing on its end vertex;
+    - a `Via` arc's carrier against the through-point `q` it was
+      authored by, which the stored form does not keep;
+    - its branch: the stored arc's signed length against the turn
+      sense the construction states (a winding, a side, a corner's
+      turn, the side of the chord `q` or a target lies on), since the
+      other arc on the carrier lands exactly. For a `Via`, `Center`,
+      side-run, tangent or fillet arc that sense is the same decision
+      that fixes the sign of the quarter-tangent its sweep was computed
+      from, so the read catches a defect after that sign, not one in
+      it. A `Bulge` leg states no sense apart from its bulge, which is
+      the authored data, and its branch is not read.
+
+    Every constructed arc is read, however flat its stored form, except
+    a `Bulge` leg whose authored bulge reads as a line: validation reads
+    it as the line it was authored as, keeping no carrier.
+
+    A miss is a loud refusal naming the step, the read, the authored
+    point and the miss (for the branch, the turn authored and the turn
+    built). It is `PathError::ArcMissesAuthoredPoint`, a kernel defect,
+    only where both hold: the authored data's magnitude resolves the
+    read, and the miss clears the read's own rounding at the magnitude
+    it was taken at by the band. Every other miss, and any read that is
+    not finite, is `PathError::ArcMissBelowSceneResolution`, with its
+    recourse: a sound arc is never called a defect. A read in the band,
+    or poisoned, escalates, for every arc.
+
+    An arc whose end is on its carrier only to the door's inline
+    decision (`Facts::Decided`) is read like any other, except that its
+    landing is read against the end vertex moved along its ray from the
+    centre onto the landing's circle, which leaves out the distance from
+    the centre that decision admitted. What is read is the stored sweep,
+    which no decision was about. So the read-back decides only what no
+    inline decision decided, and none of these facts is decided twice.
 - Giving up the provenance (`ConstructedLoop::into_loop`) makes the loop
   a table again, and it is checked.
 
@@ -459,8 +501,11 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   carrier is one edge. The form is redundant (the vertices lie on the
   carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
   consistency conditions are never trusted: each is either checked at
-  validate or holds by construction, proved by what built the arc at
-  the scalar it was built in, and none is decided twice (where each
+  validate (a table) or holds by construction (a constructed arc),
+  proved by what built the arc over the reals and checked at the
+  scalar it was built in, by an exact scalar's registered identities or
+  by the door that built it reading a point scalar's stored form back
+  against the authored data, and none is decided twice (where each
   is decided: `crates/profile/README.md`); a stored carrier is carried
   verbatim, including across scalars, and never re-derived from its
   vertices. The authored shape lives in the program, which is what a

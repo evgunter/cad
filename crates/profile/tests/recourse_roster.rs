@@ -66,6 +66,15 @@ pub(crate) const CARRIERS: &[NameCarrier] = &[
     // caller supplies: validation's `path_junction_turn`, or the door's
     // stored-form read's `path_fillet_joint_turn`.
     NameCarrier::Call("joint_tangency"),
+    // `seg::read_back` reads a constructed arc back at a point scalar
+    // (`k_stats::check_unlogged`) under each read's name (`seg::START_READ`,
+    // `seg::LANDING_READ`, `seg::THROUGH_POINT_READ`, `seg::BRANCH_READ`) and
+    // its resolution gate's.
+    NameCarrier::Call("read_back"),
+    NameCarrier::Const("LANDING_READ"),
+    NameCarrier::Const("THROUGH_POINT_READ"),
+    NameCarrier::Const("START_READ"),
+    NameCarrier::Const("BRANCH_READ"),
 ];
 
 /// The `decide*` calls whose name the reader cannot read at the site,
@@ -536,9 +545,7 @@ fn the_undecided_endings_follow_the_decisions_kind() {
              vertices at its magnitude is undecided: margin 5e-9 lies inside the ambiguity band \
              (1e-9, 1e-8). Recourse: move the profile nearer the origin, or author the arc with \
              a smaller radius (a flatter arc stores its centre farther out); a coarser tolerance \
-             also reads it, and an arc the path lattice constructs is verified at its \
-             construction, so validating its loop with that provenance (a \
-             `ConstructedProfile`, `pncad::validated`) does not re-read it",
+             also reads it",
         ),
         (
             "validation, the junction's side, value",

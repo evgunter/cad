@@ -4381,11 +4381,15 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sel = Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag)))
             return sum(len(ev.select(h, sel)) for h in halves)
 
-        self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
-        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 14)
         def pieces(kind, tag):
             pat = NamePat.of_kind(kind).path([SegPat.tag(tag), SegPat.tag(SegTag.Fragment)])
             return sum(len(ev.select(h, Selector.of(pat))) for h in halves)
+
+        self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
+        # Each half holds several pieces of the plane, each the plane
+        # qualified by the walls it borders, so none is the bare plane.
+        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 0)
+        self.assertEqual(pieces(EntityKind.Face, SegTag.SectionFace), 14)
 
         # A section line that re-enters one operand face cuts several
         # chords of it, each named by its ends.

@@ -106,6 +106,14 @@ use editor_core::Node;
 /// built about its own `z`, came to stand about the world's `+y` again
 /// as its retired spine frame had it: a bundle with no mate spun
 /// `−turn/4` about `x`, so its world copy is where it stood before D.
+///
+/// Merging main at `be82e5ad6b` into D moved `die_composed`'s row and
+/// the tour document's last: each is the world placement of the
+/// filleted die, minted after the fillet, whose stored selection names
+/// the pip rim by seam sides carried in through their reads (N3,
+/// main's); the fillet's id moved with its payload, and the
+/// placement's with it. Neither tree moved these words alone; every
+/// other row held.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 122, 0xedc88b0c9768a183),
     ("die", 137, 0x3b18c1950c918b57),
@@ -192,7 +200,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("part_select", 56, 0xd6c1e39940b5f496),
     ("loft_prism", 51, 0x7b39a360638cd8a1),
     ("die_composed", 36, 0x9799e9408a965673),
-    ("die_composed", 89, 0x4bca5573dec89b94),
+    ("die_composed", 89, 0x9e11aafa0ce9cf70),
     ("die_composed_tour", 40, 0xa6ebce75136e3f6c),
     ("die_composed_tour", 101, 0x3cfecee20be34e65),
     ("die_composed_tour", 176, 0x298467248d835200),
@@ -214,7 +222,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("die_composed_tour", 1376, 0xe8227e6c4f410265),
     ("die_composed_tour", 1451, 0x6b1a01b34ed6d881),
     ("die_composed_tour", 1526, 0xa264fe57d2a657e2),
-    ("die_composed_tour", 1613, 0x06f090e809052b4d),
+    ("die_composed_tour", 1613, 0x2941f42aa64024d9),
     ("plate_param", 44, 0xb131b90c7283e469),
     ("plate_param", 63, 0x778c16d8f77b1175),
     ("kiss_carry", 37, 0x5327fb974bfe45c1),

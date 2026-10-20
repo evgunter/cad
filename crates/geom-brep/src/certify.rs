@@ -323,7 +323,7 @@ pub enum CertCheck {
 /// not doors anyone calls: a reader told
 /// `EndpointStart` has nothing to reach for with that word, which is
 /// what makes an identifier the right rendering where the vocabulary
-/// names doors (`verbs`' `VerbKind` and `Arity`) and the wrong one
+/// names doors (`verbs`' `VerbKind`) and the wrong one
 /// here. The typed field is what a programmatic consumer matches on;
 /// this is the sentence for the person reading it.
 ///
@@ -1335,6 +1335,11 @@ impl CertCheck {
             // carrier's own normals, and the touch of the two surfaces a
             // tangency places (the gap reads the pair, not the carrier,
             // so no fit is in it).
+            //
+            // At the import door each compares a value the kernel derives
+            // at adoption ([`crate::recourse::Provenance`]): the
+            // endpoints' carrier parameters, a carrier the import mints,
+            // the witness at the carrier's mid-parameter.
             Self::EndpointStart
             | Self::EndpointEnd
             | Self::WitnessSurfaceResidual { .. }
@@ -1406,18 +1411,20 @@ impl CertCheck {
 ///   on every arm: a loose bound contradicts nothing stored.
 /// - At the STEP import door ([`ReadAt::File`]) the file's declared
 ///   coincidence distance picks the words: a sized decision's as
-///   [`SizedDecision::recourse`] gives, an unsized one's as at rest, and a
-///   residual's miss within ε_in but beyond ε, or a bound on it wholly
-///   within ε_in, names setting ε to ε_in as a stopgap
-///   ([`Unsized::residual_in_file`]).
+///   [`SizedDecision::recourse`] gives; a residual's miss within ε_in but
+///   beyond ε, or a bound on it wholly within ε_in, names setting ε to
+///   ε_in as a stopgap ([`Unsized::residual_in_file`]); and past ε_in a
+///   defect ending names the culprit [`crate::recourse::culprit`] gives:
+///   the file for a sized decision's refused side, the kernel or the file
+///   for a decision with no size, whose comparands the kernel derives at
+///   adoption ([`crate::recourse::Provenance`]).
 #[must_use]
 pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
     let at = at.into();
-    let reading = at.reading();
     match (check.ending(), at) {
         (Ending::Sized(sized), at) => sized.recourse(arm, at),
         (Ending::Residual(residual), ReadAt::File(file)) => residual.residual_in_file(arm, file),
-        (Ending::Unsized(no_size) | Ending::Residual(no_size), _) => no_size.recourse(arm, reading),
+        (Ending::Unsized(no_size) | Ending::Residual(no_size), at) => no_size.recourse(arm, at),
         (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
     }
 }
@@ -7339,9 +7346,11 @@ mod tests {
     /// included — and a residual's miss within ε_in but beyond ε, or a
     /// certified bound on it wholly within ε_in, names setting ε to ε_in
     /// as a stopgap. An ε_in below every margin leaves every ending at
-    /// rest but a reading at zero's, and a sized decision's defect ending,
-    /// which the door names the file's. No ending at the door blames the
-    /// kernel alone, or carries a second recourse.
+    /// rest but a reading at zero's, and the defect ending of a sized
+    /// decision whose refused side is stored data, which the door names
+    /// the file's: those checks are named here, so a side or a culprit
+    /// misfiled reads red. No ending at the door blames the kernel alone,
+    /// or carries a second recourse.
     #[test]
     fn the_import_door_reads_at_rest_with_its_eps_in_words() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -7367,6 +7376,16 @@ mod tests {
             };
             (cause, miss)
         });
+        // The checks whose refused side is stored data: past ε_in, the
+        // file's.
+        let the_files = [
+            CertCheck::ParamSpan,
+            CertCheck::ParamWinding,
+            CertCheck::ImageSpan,
+            CertCheck::Transversality,
+            CertCheck::TangentSecondOrder,
+        ];
+        let mut named_the_file = Vec::new();
         for check in all_checks() {
             let mut arms: Vec<(RefusedArm<'_>, bool)> = causes
                 .iter()
@@ -7430,14 +7449,13 @@ mod tests {
                             "{check:?} {arm:?}: a reading at zero lies below every ε_in"
                         );
                     }
-                    // Past ε_in a sized decision's stored contradiction
-                    // or unminted side is the file's.
-                    (Ending::Sized(_), _) if at_rest == KERNEL_OR_FILE_DEFECT_ENDING => {
+                    _ if the_files.contains(&check) && at_rest == KERNEL_OR_FILE_DEFECT_ENDING => {
                         assert_eq!(
                             narrow_door,
                             geom_core::DAMAGED_FILE_ENDING,
-                            "{check:?} {arm:?}: past ε_in a sized defect is the file's"
+                            "{check:?} {arm:?}: past ε_in a stored side's defect is the file's"
                         );
+                        named_the_file.push(check);
                     }
                     _ => assert_eq!(
                         narrow_door, at_rest,
@@ -7504,19 +7522,27 @@ mod tests {
                         door.contains("as a stopgap, set the tolerance to ε_in"),
                         "{check:?} {arm:?}: {door}"
                     ),
-                    (Ending::Sized(_), _) if at_rest == KERNEL_OR_FILE_DEFECT_ENDING => {
+                    _ if the_files.contains(&check) && at_rest == KERNEL_OR_FILE_DEFECT_ENDING => {
                         assert_eq!(door, geom_core::DAMAGED_FILE_ENDING, "{check:?} {arm:?}");
                     }
                     _ => assert_eq!(door, at_rest, "{check:?} {arm:?}"),
                 }
             }
         }
+        for check in the_files {
+            assert!(
+                named_the_file.contains(&check),
+                "{check:?}: no reading past ε_in named the file"
+            );
+        }
     }
 
     /// **A definite residual miss is read by its own value at the import
     /// door** (D4 ¶1): within ε_in it names the stopgap, past ε_in it
-    /// ends at rest, and a miss the kernel's fit may have made keeps the
-    /// kernel-bug note rather than vouching for the file's data.
+    /// names the kernel beside the file, since the kernel derives what
+    /// every residual compares there, and a miss the
+    /// kernel's fit may have made keeps the kernel-bug note rather than
+    /// vouching for the file's data.
     #[test]
     fn a_definite_miss_at_the_import_door_reads_its_own_value() {
         let file = FileCoincidence::new(1e-6);
@@ -7569,18 +7595,144 @@ mod tests {
                 && across.ends_with("a kernel defect or a damaged file, worth reporting"),
             "{across}"
         );
+        let surface = SurfaceKey::default();
         for check in [
             CertCheck::EndpointStart,
-            CertCheck::SurfaceResidual {
-                surface: SurfaceKey::default(),
-            },
+            CertCheck::EndpointEnd,
+            CertCheck::WitnessSurfaceResidual { surface },
+            CertCheck::WitnessMidpoint,
+            CertCheck::SurfaceResidual { surface },
         ] {
             let past = exceeded(check, 2e-6);
             assert_eq!(
-                past.ending(file),
-                past.ending(Reading::AtRest),
-                "{check:?}: a miss past ε_in is the file's own defect"
+                past.ending(file).as_deref(),
+                Some(KERNEL_OR_FILE_DEFECT_ENDING),
+                "{check:?}: past ε_in"
             );
+        }
+    }
+
+    /// **A definite contradiction's culprit follows the door and whose
+    /// data it is about** ([`crate::recourse::culprit`]): one row per
+    /// class, read at a build, at rest, and at the import door with the
+    /// reading within ε_in and past it. Past ε_in a sized decision's
+    /// stored side is the file's, and a decision with no size, whose
+    /// comparands the kernel derives there, names the kernel beside the
+    /// file; a fit keeps its last resort at a build, and a bound
+    /// everywhere. Red if a class's culprit is chosen by the door alone.
+    #[test]
+    fn a_defects_culprit_follows_the_door_and_the_provenance() {
+        let file = FileCoincidence::new(1e-6);
+        let stopgap = "Recourse: re-export the file more precisely, or, as a stopgap, set the \
+                       tolerance to ε_in = 1e-6 m";
+        let file_within = format!(
+            "This miss lies beyond the tolerance and within the file's declared coincidence \
+             distance ε_in = 1e-6 m, to which alone the file's data claims to agree. {stopgap}"
+        );
+        let fit_within = format!(
+            "This miss lies beyond the tolerance and within the file's declared coincidence \
+             distance ε_in = 1e-6 m, and may be the kernel's own approximation. {stopgap}; this \
+             refusal may indicate a kernel bug worth reporting"
+        );
+        let bound_within = format!(
+            "The certificate's bound on this miss lies within the file's declared coincidence \
+             distance ε_in = 1e-6 m. {stopgap}; this refusal may indicate a kernel bug worth \
+             reporting"
+        );
+        let (k, kf, damaged) = (
+            KERNEL_DEFECT_ENDING,
+            KERNEL_OR_FILE_DEFECT_ENDING,
+            geom_core::DAMAGED_FILE_ENDING,
+        );
+        let lever = "Recourse: move the geometry so the faces curve apart more clearly where they \
+                     touch";
+        let sized_within = format!(
+            "This curvature difference is within the file's declared coincidence distance ε_in = \
+             1e-6 m, so the file cannot tell it from zero. {lever}"
+        );
+        let surface = SurfaceKey::default();
+        // A sized decision's reading is band-decided on its refused side,
+        // which the door compares with ε_in; a residual's miss is carried
+        // on its sign-certain arm.
+        let refused: fn(f64) -> RefusedArm<'static> = |m| {
+            RefusedArm::Zero(Classified {
+                margin: MarginDiag::value(-m),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+            })
+        };
+        let missed: fn(f64) -> RefusedArm<'static> =
+            |m| RefusedArm::SignCertain(Some(MarginDiag::value(m)));
+        // (check, its class, its arm, build, at rest, within ε_in, past
+        // ε_in)
+        let rows = [
+            (
+                CertCheck::TangentSecondOrder,
+                "a sized decision's stored contradiction",
+                refused,
+                lever,
+                kf,
+                sized_within.as_str(),
+                damaged,
+            ),
+            (
+                CertCheck::EndpointStart,
+                "a residual over parameters the kernel derives",
+                missed,
+                k,
+                kf,
+                &file_within,
+                kf,
+            ),
+            (
+                CertCheck::WitnessMidpoint,
+                "a residual over the witness the kernel derives",
+                missed,
+                k,
+                kf,
+                &file_within,
+                kf,
+            ),
+            (
+                CertCheck::ChartImage,
+                "an unsized check over an image the kernel derives",
+                missed,
+                k,
+                kf,
+                kf,
+                kf,
+            ),
+            (
+                CertCheck::SurfaceResidual { surface },
+                "a fit",
+                missed,
+                KERNEL_LIMIT_RECOURSE,
+                kf,
+                &fit_within,
+                kf,
+            ),
+            (
+                CertCheck::TangentHull,
+                "a bound",
+                missed,
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_LIMIT_RECOURSE,
+                &bound_within,
+                KERNEL_LIMIT_RECOURSE,
+            ),
+        ];
+        for (check, class, arm, build, at_rest, within, past) in rows {
+            for (door, got, want) in [
+                ("a build", recourse(check, arm(2e-6), Reading::Build), build),
+                (
+                    "at rest",
+                    recourse(check, arm(2e-6), Reading::AtRest),
+                    at_rest,
+                ),
+                ("within ε_in", recourse(check, arm(5e-7), file), within),
+                ("past ε_in", recourse(check, arm(2e-6), file), past),
+            ] {
+                assert_eq!(got, want, "{check:?}, {class}, at {door}");
+            }
         }
     }
 

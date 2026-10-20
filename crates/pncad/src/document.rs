@@ -26,7 +26,7 @@
 //!
 //! **Which list a PAYLOAD owes.** A payload rides with its carrier so
 //! a consumer can match the variant AND name what it caught: that is
-//! the rule the `VerbKind`/`Arity` stanza below states, and it places
+//! the rule the `NodeRefusal` stanza below states, and it places
 //! every payload whose only home is the refusal holding it. It does
 //! NOT place a payload that belongs to a vocabulary one of the
 //! curated lists already owns — the naming roles are
@@ -45,7 +45,7 @@
 // The recipe and its edits. `Applied` is `apply`'s return (the new
 // document plus its `EditRecord`) — re-exported so a caller can STORE
 // one in a typed field rather than only destructure it.
-// `ProgramRefusal` rides with `EditError` by the `VerbKind` rule below:
+// `ProgramRefusal` rides with `EditError` by the `NodeRefusal` rule below:
 // it is `EditError::ProfileProgramRefused`'s payload, and nothing else
 // this crate carries answers in it, so without it a consumer can match
 // the variant and read its refusal only out of prose. `AttrKind` rides
@@ -80,8 +80,7 @@
 // `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
-// arm can name what it caught. `PiecesFault` is the same for
-// `NodeErrorKind::ProfilePieces` and `ProgramRefusal::Pieces`.
+// arm can name what it caught.
 // `AuthoredStep` is how an author who recorded a step reaches its id
 // and its pieces (`ProfileProgram::step`, `ProfileProgram::piece`) and
 // keeps it across a reshaping (`keep_grid`); `StepHandleRefusal` is
@@ -89,8 +88,8 @@
 // `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording, SlotValue,
-    StepId, StepIdFault, Took, apply, apply_replayed,
+    MaintenanceNet, MetaVersionError, ProgramRefusal, Recorded, Recording, SlotValue, StepId,
+    StepIdFault, Took, apply, apply_replayed,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -247,7 +246,7 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // all, and `UnitSym::canonical_for` is how a caller authoring in
 // metres says so.
 // `DisplayUnitRefusal` is what `FreeVar::with_display_unit` answers
-// when a notation cannot be written — the same `VerbKind` rule: it is
+// when a notation cannot be written — the same `NodeRefusal` rule: it is
 // that door's `Err`, and a consumer calling the door on a `FreeVar`
 // it holds could otherwise read the reason only out of prose.
 // `DistributionRefusal` is the same thing at the third field, for
@@ -294,14 +293,12 @@ pub use editor_core::DocParamField;
 // without naming the type that makes it unit, and it names it at the
 // crate that mints it — the constructor's refusal (`UnitVec3Error`,
 // there too) is the only way a datum direction is rejected.
-// `VerbKind`/`Arity` ride with `NodeErrorKind` for the same reason:
-// they are `VerbArity`'s payload, so a consumer can match the variant
-// but not name what it caught without them (the prelude's `BlendKind`
-// rule — the discriminant crosses with the refusal).
-// `NodeRefusal` rides with `NodeErrorKind` by the same rule: it is
+// `NodeRefusal` rides with `NodeErrorKind` for the same reason: it is
 // what `MateFault::PlacerRefused` and `EditError::PlacementAxis` carry
 // an evaluation refusal in, so a consumer can match either variant but
-// not read the cause out of it without naming the wrapper.
+// not read the cause out of it without naming the wrapper (the
+// prelude's `BlendKind` rule — the discriminant crosses with the
+// refusal).
 // `CarriedChain`, `CarriedLevel` and `CarriedIn` ride with it: they are
 // `NodeErrorKind::carried_chain`'s answer, the one reading of which
 // refusal a failure carries and which document its node is in.
@@ -321,10 +318,10 @@ pub use editor_core::DocParamField;
 // `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
+    BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
     EvalOptions, EvalOutcome, Evaluation, Mispaired, NodeError, NodeErrorClass, NodeErrorKind,
     NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide, StepTurns,
-    ValuePayload, VerbKind, evaluate,
+    ValuePayload, evaluate,
 };
 // A placement's copies, keyed (`ValuePayload::Copies`): each copy by
 // its key, with its own names.
@@ -426,7 +423,7 @@ pub use editor_core::{
 // end on.
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
-/// states at `VerbKind`.
+/// states at `NodeRefusal`.
 ///
 /// A parallelism verdict is levered over the mated copies' own
 /// extent: a part's reach that is not in hand is carried in the
@@ -577,7 +574,7 @@ pub use editor_core::{
 // name. A module, so its arms keep their names (`pose::PoseDef::Plane`).
 pub use editor_core::pose;
 /// The shell door's typed refusal, which two `CheckEvidence` arms
-/// carry — by the payload rule this list states at `VerbKind`.
+/// carry — by the payload rule this list states at `NodeRefusal`.
 ///
 /// [`CheckEvidence::Escalated`] and [`CheckEvidence::Unsupported`] are
 /// two different findings about the SAME thing: the component count

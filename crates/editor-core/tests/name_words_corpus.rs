@@ -154,9 +154,24 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`;
 /// retiring `RoleSeg::Placed` and `InPart` in D′ is expected to bring
 /// them back, and D′ re-tightens this pin.
+///
+/// The full total rose by 11 970 and its p99 by seven, and the scoped
+/// total by 200, with a seam's sides and a crossing's edge and face named
+/// as the boolean's own table names them (N3): at every subtract each
+/// says the read it came in through, where it said the operand's entity
+/// alone, so two operands holding the same names are told apart. The
+/// longer sentences are the right names, not a regression. The maxima
+/// and the scoped percentiles held.
+///
+/// Merging main at `be82e5ad6b` into D, the two moves met: full p99
+/// 128 → 135, max 366 → 396, total 444393 → 458233; scoped p99 41 → 43,
+/// total 59553 → 59743. Each side a subtract carries in now says its
+/// read as well as the `Placed` copy it came through, and the longest
+/// name says it at each of its ends; the growth is the same placed-copy
+/// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 41, 57, 59_553]),
-    ("full", [19, 128, 366, 444_393]),
+    ("scoped faces", [16, 43, 57, 59_743]),
+    ("full", [19, 135, 396, 458_233]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -287,7 +302,12 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// It moved again by tags in `die_tool` alone, when its master ball came
 /// to stand on the cube's corner frame by an axis mate, which mints 42
 /// fewer ids than the `place_against` it replaces. [`NAME_WORDS`] held.
-const SAID_DIGEST: u64 = 0xab31_fa51_bb72_320d;
+///
+/// A seam's sides and a crossing's lines named in the boolean's own
+/// table (N3) moved it with [`NAME_WORDS`], in every document holding a
+/// subtract. Measured with [`NAME_WORDS`] merging main at `be82e5ad6b`
+/// into D.
+const SAID_DIGEST: u64 = 0xf612_daee_4703_2017;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

@@ -6,7 +6,7 @@
 //!
 //! # 1. Nothing observable moved (the SEAT-4/5 method)
 //!
-//! `Node::Extrude` and `Node::Revolve` build a `verbs::Verb`, run it
+//! `Node::Extrude` and `Node::Revolve` build a `verbs::Sweep`, run it
 //! through the profile door and read their birth record out of the
 //! closed record channel. The wire format is pinned by a byte-identical
 //! round trip over a document carrying both sweeps, and each
@@ -410,14 +410,25 @@ fn both_sweeps_evaluate_in_one_document() {
 /// rounded turns. On the merged tree with the exact heading alone it
 /// read `0xcd7f_f823_b396_33fc`. The other rows held across main's merge
 /// at `557e581a64` and this lane.
+///
+/// RE-BLESSED, `die` only, for a seam's sides and a crossing's lines
+/// named in the subtract's own table, in name order (N3): the die's pip
+/// subtracts' names moved, and the digest hashes the name table. No
+/// point moved (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held).
+/// Re-measured merging main at `be82e5ad6b` into D, `die`,
+/// `cut_cylinder` and `kitchen_sink`: main's N3 names each seam side
+/// and crossing line with the read it came in through, and in D a later
+/// operand is a placed copy, so the names it spells moved under both
+/// changes and the value is neither tree's. No other row moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xbd0b_096f_8414_d39a),
+        ("die", 0x3868_c216_76a4_616c),
         ("corner_table", 0xd125_80bc_7a18_9468),
-        ("cut_cylinder", 0xacfc_bd06_c584_16a7),
+        ("cut_cylinder", 0x4a6a_99bb_d540_29d3),
         ("boss_union", 0xd486_5e6b_6a43_0069),
-        ("kitchen_sink", 0x04bc_da74_1fbe_d57c),
+        ("kitchen_sink", 0x9050_359e_8f31_a962),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
