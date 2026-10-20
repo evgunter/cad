@@ -345,6 +345,22 @@ impl<T: Decide, H> Crossings<T, H> {
         self.spans.push((from, to));
     }
 
+    /// Probe: every crossing.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn dump(&self) -> String
+    where
+        T: core::fmt::Debug,
+        H: core::fmt::Debug,
+    {
+        let mut v: Vec<String> = self
+            .ahead
+            .iter()
+            .zip(&self.spans)
+            .map(|((at, h, sl), sp)| format!("\n    at {at:?} span {sp:?} sideless {sl} {h:?}"))
+            .collect();
+        v.concat()
+    }
+
     /// The closest crossing's hit, `None` when the ray met nothing.
     ///
     /// The closest is the least by the caller's `order` row. Every other

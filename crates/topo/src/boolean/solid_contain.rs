@@ -4534,9 +4534,13 @@ impl<T> RayHit<T> {
     pub(crate) fn meets<U: geom_core::Real>(&self, body: &Body<U>, other: &Self) -> bool {
         self.mark.is_some()
             || other.mark.is_some()
-            || self
-                .faces()
-                .all(|a| other.faces().all(|b| crate::side_reader::meet(body, a, b)))
+            || if std::env::var_os("R1_ANY_MEET").is_some() {
+                self.faces()
+                    .any(|a| other.faces().any(|b| crate::side_reader::meet(body, a, b)))
+            } else {
+                self.faces()
+                    .all(|a| other.faces().all(|b| crate::side_reader::meet(body, a, b)))
+            }
     }
 
     /// The fault a sideless hit the count reached reads, `corner` a
@@ -4693,7 +4697,7 @@ fn edge_meets<T: Decide>(
                     pass.ends.iter().any(|v| theirs.contains(&Some(*v)))
                 })
         });
-        if let Some(k) = wedge {
+        if let Some(k) = wedge.filter(|_| std::env::var_os("R1_NO_WEDGE").is_none()) {
             let gap = gap.or(gaps[k]);
             meets.marks.push(mark(faces, at, gap));
             let (_, a, b, other) = meets.met[k];
@@ -4942,7 +4946,11 @@ pub(crate) fn ray_crossings<T: Decide>(
                 at,
                 mark: None,
             },
-            (at.min(ta).min(tb), at.max(ta).max(tb)),
+            if std::env::var_os("R1_NO_SPAN").is_some() {
+                (at, at)
+            } else {
+                (at.min(ta).min(tb), at.max(ta).max(tb))
+            },
         )?;
     }
     for m in meets.marks {

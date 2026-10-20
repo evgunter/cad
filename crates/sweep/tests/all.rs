@@ -1113,6 +1113,8 @@ mod spiric_rim;
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;
 
+#[path = "edge_meeting_ray_review_r1.rs"]
+mod edge_meeting_ray_review_r1;
 #[path = "shell7_r2_probes.rs"]
 mod shell7_r2_probes;
 

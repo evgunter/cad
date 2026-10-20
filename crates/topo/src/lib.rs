@@ -318,6 +318,10 @@ pub mod test_support {
     pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::aimed_rays_report(body, band)
     }
+    /// Probe: every aimed ray's hits and reading.
+    pub fn aimed_rays_all(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::aimed_rays_all(body, band)
+    }
 
     /// The pad a face's reach box takes past the band, and each face's
     /// share of the census's gaps (`boolean::boxes::sweep_pad`): the

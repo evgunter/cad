@@ -572,6 +572,8 @@ fn cast_aims<T: Decide>(
         aimed += 1;
         let at = crate::census::witness(aim);
         let mut set = |why| {
+            #[cfg(any(test, feature = "test-support"))]
+            probe_log(|| format!("face {face:?} set aside {why:?}"));
             set_aside.push(SetAside {
                 aimed: face,
                 aim: Some(at.clone()),
@@ -590,7 +592,11 @@ fn cast_aims<T: Decide>(
         let d = (aim - from).normalize();
         let reach = selection_reach(body, faces, from)?;
         let crossings = match ray_crossings(body, &geos, from, d, reach, band, AIMED_ROWS) {
-            Ok(crossings) => crossings,
+            Ok(crossings) => {
+                #[cfg(any(test, feature = "test-support"))]
+                probe_log(|| format!("face {face:?} hits {}", crossings.dump()));
+                crossings
+            }
             Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {
                 set(SetAsideWhy::Limit(e));
                 continue;
@@ -631,7 +637,14 @@ fn cast_aims<T: Decide>(
             pair,
             |hits| RayHit::unread(hits, |faces, gap| Unread::Corner { faces, gap }),
         ) {
-            Ok(Some(outward)) => return Ok(Rays::Side(side_before(outward))),
+            Ok(Some(outward)) => {
+                #[cfg(any(test, feature = "test-support"))]
+                if probe_all() {
+                    probe_log(|| format!("face {face:?} reads {:?}", side_before(outward)));
+                    continue;
+                }
+                return Ok(Rays::Side(side_before(outward)));
+            }
             Err(RayFault::InBand(Unread::Pair(pair))) => {
                 in_band.get_or_insert(pair);
             }
@@ -812,4 +825,28 @@ mod pre_filter_tests {
         );
         assert!(!aimed(&log).is_empty(), "an aimed ray is cast");
     }
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) static PROBE: std::sync::Mutex<Option<Vec<String>>> = std::sync::Mutex::new(None);
+#[cfg(any(test, feature = "test-support"))]
+fn probe_all() -> bool {
+    PROBE.lock().map(|g| g.is_some()).unwrap_or(false)
+}
+#[cfg(any(test, feature = "test-support"))]
+fn probe_log(f: impl FnOnce() -> String) {
+    if let Ok(mut g) = PROBE.lock() {
+        if let Some(v) = g.as_mut() {
+            v.push(f());
+        }
+    }
+}
+/// Probe: every aimed ray's hits and reading.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn aimed_rays_all<T: Decide>(body: &Body<T>, band: Band) -> Vec<String> {
+    *PROBE.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Vec::new());
+    let tail = aimed_rays_report(body, band);
+    let mut v = PROBE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take().unwrap_or_default();
+    v.extend(tail);
+    v
 }
