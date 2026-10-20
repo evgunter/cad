@@ -1651,3 +1651,27 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - a new `reader_census` red, filed on ENCL;
     - ENCL's tier-1 roster red.
   - **Friction (build C):** one `CARGO_TARGET_DIR` shared across worktrees silently reuses another worktree's build of a workspace package, because cargo's fingerprint checks the source paths of the last build. It made a red-on-main check pass on fixed code twice today, until `cargo clean -p <pkg>`. Lanes taking red-on-main or timing measurements use one target directory per worktree, or clean the switched packages. Raise it as an `[ev]` memory candidate if it recurs.
+- 2026-10-20 08:05Z — **#5440 merged** (a6aa5d45; the cut-side quotients halve the shared `W²` once, via `shared_pieces`).
+  - **STANDARD review MERGEABLE:** 1450 pieces bit-identical; M2–M7 red; 3113/3113 at both ε; 267 decisions identical.
+  - The conflict that my aafaa9b2 caused is resolved on the item, which stays closed; its two `split_restrict` lines moved to #5461. CI is green on 5ca3b5e9, and the code diff is identical to the reviewed head.
+  - **#5439 merged** (ac8a2e40), keeping two Bernstein product homes for precision.
+  - **#5461** (binomial item PR 3, closing the item) and **#5459** (degree-elevation fix) are in review.
+- 2026-10-20 09:30Z — **#5459: margin 2, and main's graded-knot defects** (build C's held-out measurements; median of 30 curves, one `elevate_degree(1)`).
+  - `MIDPOINT_MARGIN = 8` was fitted on noise. K2 is at or within 2× of the best on every held-out family (graded t^1.5, geometric ×1.15/×2, jittered, with and without a close pair).
+  - **Main's midpoint split is badly conditioned on graded knots with no close pair:** geometric ×1.15 at p=10 is off by 0.15, steep ×2 at p ≥ 8 refuses, and uniform p=9 reaches 1.6e-3 at 80 knots.
+  - **Ruled:** K2, documented as empirical with its fitting set; a p=9 uniform row; the near-tie pinned by an exact split-choice unit row, not a cap; a geometric ×1.15 row. K2 moves bits on 90 of 800 uniform shapes at equal or better error, which the output-stability memory allows; stated in the PR. The reviewer reviews the new head.
+  - **Build A:** KNOT's `surface-knot-insertion-writes-weights-validate-counts-refuses` (STANDARD, a silent error at the producer) first, then CPAIR's `curve-pair-polish-meters-refuse-shallow-meetings` (P2, the needle base red at 1e-12).
+- 2026-10-20 09:55Z — **CPAIR polish-meters plan** (build A, read-only diagnosis; queued after the KNOT unit). The needle/leaning-prisms base reds and the cap-ring/atan2s reds are two families:
+  - **A (f64):** at a fillet joint the rim ellipse touches the circle with parallel tangents. The window must tile a ~1e-7 on-stretch, but `close` has a floor of L·rounding_charge ≈ 3e-12 > z = 1e-12, and the first-order bound reads On only at 2e-13 pieces, so `PIECE_BUDGET` runs out. **Fix:** a third, second-order certified On bound along a tangent-matched path (Taylor); no meter change, no budget raised. The prototype turns the needle and leaning_prisms green at 1e-12.
+  - **B (Interval):** polish iterates the interval itself, so the last step bounds the iterate's wrapped width. The fix needs a new `bounds_allowlist` entry (ratified per entry), so it is a design fork for Ev; to be filed as its own item and weighed by designers first.
+  - **Ruled:** A at FULL, with certified enclosures for the second-derivative maxima and outward rounding; B filed separately with `design: true`.
+- 2026-10-20 10:15Z — **KNOT `surface-knot-insertion-writes-weights-validate-counts-refuses` closed by #5470** (c9d9d0dc, tracker-only). It was already fixed at the producer by #4923 (`algebra::written_weight`); build A re-ran the mutant on today's main, and both door rows go red when the check admits everything.
+  - **#5461:** STANDARD review MERGEABLE. Three minors on the homes' stated reasons, the halves claim and the tiny-t draw were fixed in-PR at cb8b9eb7, a docs/test-only delta that I verified. Merging on green.
+  - **#5468:** CI red only on the CPAIR needle (filed base red; commented on the PR).
+  - **Build A:** on the CPAIR fix A. The second-order bound is in, and the needle and leaning_prisms are green at 1e-12 locally; rows next.
+- 2026-10-20 10:30Z — **#5461 merged** (3570dc18; it closes `binomial-bernstein-product-and-blossom-have-two-homes-each`).
+  - **Three restriction homes stay, each with its true stated reason:** the pyramid by width, `split_restrict` by cost (sound because it is meet-protected), `Grid::halved` by genericity over `T: Real`.
+  - `restrict_bernstein` is retired, its quad reroute bit-identical.
+  - #5424's thin-step carry-overs are covered.
+  - The binomial item series is complete: #5414, #5433, #5439, #5461.
+- 2026-10-20 — **#5468 merged** (C, `8659a922`): `mint-once-is-pinned-only-by-timing` is closed. The mint counter is now pinned by a row, not by timing. Test and message changes only. Merged over the needle base red at ε 1e-12 (`band_turn_overrun_fillet::the_needle…`, being fixed by #5477), commented on the PR. (NURBS orchestrator)

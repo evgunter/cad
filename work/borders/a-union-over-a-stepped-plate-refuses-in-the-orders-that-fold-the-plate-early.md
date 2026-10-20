@@ -64,6 +64,23 @@ wall, and the plate's top with `big`'s low tops. This makes FLUSH's
 first suspect. It has not been shown to be the cause; the discard rows
 were not dumped. Once that row lands, re-measure both shapes. If they
 still refuse, dump the refusing step's `DiscardRow`s against the
-piece that borders none. The three-box reproducer in
-`a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere` is the
-nearest known relative.
+piece that borders none. The three-box reproducer below is the nearest
+known relative.
+
+## The three-box reproducer (moved from `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere`, 2026-10-20)
+
+`A = [0,1]³`, `C = [1,2]×[0,1]²` touching `A` at `x = 1`, and
+`M = [0.5,1.5]×[−0.5,1.5]²` covering that contact. A `Union` over the six
+member orders, measured on PR 5368's head (the fate-change cut landed):
+`[a, m, c]`, `[m, a, c]`, `[m, c, a]` and `[c, m, a]` refuse "a piece of
+a face held as several borders no recorded discard between them", and
+`[a, c, m]` and `[c, a, m]` build, as before the cut.
+
+Read in `[a, m, c]`, the parent is `a`'s top merged with `c`'s. The fold
+loses its region to two discards, `a`'s top over x 0.5..1 (when `m`
+folds in) and `c`'s top over x 1..1.5 (when `c` folds in). The two meet
+along x = 1, each dying with its own member's rim there, two edges no
+step ever glued, because `m` covered the contact before `c` arrived. No
+binary step meets a coincident pair, so the cut does not reach it; linking
+the two discards needs a reading of coincidence the fold never performs
+(the `(a, c)` judgement's glue of those rims, or geometry).

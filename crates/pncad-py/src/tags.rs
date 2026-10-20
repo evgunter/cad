@@ -1784,8 +1784,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         // bug, and these are not one.
         NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
-        NamingError::MergedChord { .. } => "merged_chord",
-        NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
+        NamingError::ChordOffRim { .. } => "chord_off_rim",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
         NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",
@@ -3178,6 +3177,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CensusUndecidable { .. } => "census_undecidable",
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
+        ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",
         ValidationError::NextPrevMismatch { .. } => "next_prev_mismatch",
@@ -3316,6 +3316,7 @@ pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
         CensusContact::EdgeEdgeCross { .. } => "edge_edge_cross",
         CensusContact::EdgeEdgeOverlap { .. } => "edge_edge_overlap",
         CensusContact::EdgeFaceOverlap { .. } => "edge_face_overlap",
+        CensusContact::FaceFaceTangent { .. } => "face_face_tangent",
         CensusContact::ConformalPatch { .. } => "conformal_patch",
     }
 }
