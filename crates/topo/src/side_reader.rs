@@ -448,16 +448,15 @@ fn aim_turn() -> (f64, f64) {
 /// ([`AIMED_ROWS`]). The first ray that decides answers.
 ///
 /// **A pair is two crossings of faces that do not meet** (`meet`), in
-/// band of each other along the ray, each face read where the ray
-/// crosses its carrier ([`RayHit::pair`]): an edge's half crossings are
-/// its faces' plane crossings there, not the point where the ray passes
-/// the edge, and an edge the ray passes without crossing is no party.
-/// Between two faces `t` apart a ray's crossings of their carriers lie
-/// at least `t` apart, so a pair the census reads definite at `Kε` is
-/// definite along the ray too, and the ray refuses only where a pair
-/// lies in band. Two edges of faces as far apart can still be passed in
-/// band of each other along the ray (two cubes `2Kε` apart, a ray across
-/// the gap's mouth), which is why the parties are the faces' crossings.
+/// band of each other along the ray, each read where the ray meets its
+/// faces ([`RayHit::pair`]): a face's crossing, or the point where the
+/// ray passes an edge, in band of both its faces; an edge the ray passes
+/// without crossing is no party. Two faces `t` apart are met about `t`
+/// apart along the ray, less what the band lets an edge's passage slide
+/// along it, so the ray refuses only where its parties' faces lie about
+/// in band. Where the ray crosses their carriers is no such read: on a
+/// ray shallow to a face, its carrier crossing lands far off the face,
+/// beside another face.
 ///
 /// **A corner or a wedge reads nothing, and is read before a pair** in
 /// the same cluster ([`crate::ray_walk::Crossings::first_count`]): D10

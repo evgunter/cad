@@ -4502,13 +4502,13 @@ pub(crate) struct RayHit<T> {
     /// faces the ray crosses opposite ways (a fold it passes by or
     /// through, either way crossing nothing net).
     pub(crate) count: i32,
-    /// The face crossed, or the edge's first face, and where the ray
-    /// crosses its carrier.
-    pub(crate) face: (FaceKey, T),
-    /// The edge's other face, and where the ray crosses its plane, for
-    /// an edge met.
-    pub(crate) other: Option<(FaceKey, T)>,
-    /// Its advance along the ray: an edge's is where the ray passes it.
+    /// The face crossed, or the edge's first face.
+    pub(crate) face: FaceKey,
+    /// The edge's other face, for an edge met.
+    pub(crate) other: Option<FaceKey>,
+    /// Its advance along the ray, where it lies on its faces: a face's
+    /// crossing, or where the ray passes an edge, within the band of
+    /// both its faces.
     pub(crate) at: T,
     /// What the ray reads nothing at here ([`edge_meets`]), if anything:
     /// a mark counts nothing and is sideless, so it matters only where
@@ -4539,7 +4539,7 @@ impl<T: Copy> RayHit<T> {
     const fn crossing(face: FaceKey, at: T, count: i32) -> Self {
         Self {
             count,
-            face: (face, at),
+            face,
             other: None,
             at,
             mark: None,
@@ -4550,36 +4550,37 @@ impl<T: Copy> RayHit<T> {
     const fn marked(faces: [FaceKey; 2], at: T, mark: Mark) -> Self {
         Self {
             count: 0,
-            face: (faces[0], at),
-            other: Some((faces[1], at)),
+            face: faces[0],
+            other: Some(faces[1]),
             at,
             mark: Some(mark),
         }
     }
 
-    /// The faces it crosses, each where the ray crosses its carrier.
-    fn places(&self) -> impl Iterator<Item = (FaceKey, T)> {
+    /// The faces it lies on.
+    fn faces(&self) -> impl Iterator<Item = FaceKey> {
         core::iter::once(self.face).chain(self.other)
     }
 
     /// **Whether two hits of one cluster are a pair** (D10: the ray
-    /// refuses only on a pair): two faces that do not meet
-    /// ([`crate::side_reader::meet`]), each crossed by the ray, whose
-    /// crossings of their carriers lie in band of each other along it,
-    /// their gap decided on `order` as a magnitude. A hit that counts nothing (a mark, or an edge
-    /// the ray passes by or through without crossing) is no party. An
-    /// edge's parties are its faces where the ray crosses their planes,
-    /// not where it passes the edge: two faces `t` apart are crossed at
-    /// least `t` apart along any ray, so a pair the census reads
-    /// definite stays definite here, while two edges of faces that far
-    /// apart can be passed in band of each other. A tie between two such
-    /// crossings grazes.
+    /// refuses only on a pair). A hit that counts nothing (a mark, or an
+    /// edge the ray passes by or through without crossing) is no party.
+    /// Two parties lie on their faces where the ray meets them (`at`: a
+    /// face's crossing, or where it passes an edge, in band of both its
+    /// faces), so two faces of theirs `t` apart are met about `t` apart
+    /// along the ray, less what the band lets an edge's passage slide
+    /// along it. Not so where the ray crosses their carriers: on a ray
+    /// shallow to a face, its carrier crossing lands far off the face,
+    /// beside another face (PR 5422's review R2). Two
+    /// parties met in band of each other along the ray (decided on
+    /// `order` as a magnitude) are a pair, or a tie that grazes, on any
+    /// two of their faces that do not meet ([`crate::side_reader::meet`]).
     ///
     /// # Errors
     ///
     /// [`RayFault::InBand`] with the pair's first face, its gap and the
     /// other face; [`RayFault::Graze`] at a tie.
-    pub(crate) fn pair<U: geom_core::Real>(
+    pub(crate) fn pair<U: Decide>(
         &self,
         body: &Body<U>,
         other: &Self,
@@ -4592,17 +4593,23 @@ impl<T: Copy> RayHit<T> {
         if self.count == 0 || other.count == 0 {
             return Ok(());
         }
-        for (a, ta) in self.places() {
-            for (b, tb) in other.places() {
+        let along = geom_core::k_stats::decide_magnitude(
+            order,
+            Margin::of((self.at - other.at).abs()),
+            band,
+        );
+        if along == Ok(geom_core::k_stats::Magnitude::Positive) {
+            return Ok(());
+        }
+        for a in self.faces() {
+            for b in other.faces() {
                 if crate::side_reader::meet(body, a, b) {
                     continue;
                 }
-                match geom_core::k_stats::decide_magnitude(order, Margin::of((ta - tb).abs()), band)
-                {
-                    Ok(geom_core::k_stats::Magnitude::Zero) => return Err(RayFault::Graze),
-                    Err(diag) => return Err(RayFault::InBand((a, diag, b))),
-                    Ok(geom_core::k_stats::Magnitude::Positive) => {}
-                }
+                return Err(match along {
+                    Err(diag) => RayFault::InBand((a, diag, b)),
+                    Ok(_) => RayFault::Graze,
+                });
             }
         }
         Ok(())
@@ -4616,7 +4623,7 @@ impl<T: Copy> RayHit<T> {
         unread: impl FnOnce(bool, [FaceKey; 2], Indeterminate) -> E,
     ) -> RayFault<E> {
         match hits.iter().find_map(|h| {
-            let faces = [h.face.0, h.other.map_or(h.face.0, |o| o.0)];
+            let faces = [h.face, h.other.unwrap_or(h.face)];
             match h.mark {
                 Some(Mark::Corner(gap)) => Some((false, faces, gap)),
                 Some(Mark::Wedge(gap)) => Some((true, faces, gap)),
@@ -4711,6 +4718,12 @@ fn edge_meets<T: Decide>(
                     face: pass.faces.0,
                 }))?;
             let gap = crate::sector_shape::point_segment_distance(q, far, at);
+            // The charge is the kernel's one spelling of a short chain's
+            // rounding (`HARMONIC_NOISE_ULPS` half-ulps of a term bound,
+            // named for the implicit residuals it was first counted on):
+            // the distance is such a chain — differences, a projection, a
+            // norm — each rounding under half an ulp of the lengths it is
+            // read from.
             let low = gap - geom_brep::rounding_charge((at - q).norm() + gap);
             let faces = [pass.faces.0, pass.faces.1];
             let along = (at - q).dot(d);
@@ -4889,7 +4902,7 @@ pub(crate) fn ray_crossings<T: Decide>(
     // none.
     let mut offer = |hit: RayHit<T>, span: (T, T), sideless: bool| {
         let escalate = |diag| PointInSolidError::Escalated {
-            face: hit.face.0,
+            face: hit.face,
             diag,
         };
         let ahead = ray_walk::advance(rows.advance, Margin::of(hit.at), band)
@@ -5010,8 +5023,8 @@ pub(crate) fn ray_crossings<T: Decide>(
         offer(
             RayHit {
                 count: (sign(a) + sign(b)) / 2,
-                face: (a, ta),
-                other: Some((b, tb)),
+                face: a,
+                other: Some(b),
                 at,
                 mark: None,
             },
@@ -5990,6 +6003,57 @@ mod per_solid_entry_tests {
                 ),
                 "cubes {m}ε apart: the ray refuses on a pair, {got:?}"
             );
+        }
+    }
+
+    /// **A carrier crossing beside another face is no pair** (PR 5422's
+    /// review R2, re-check of `2be7c1ad14`). A wall `1.5` tall, a gap of
+    /// 3Kε to 8Kε, then a unit box. A shallow ray leaves the wall near
+    /// `z = 1` and passes the box's top edge in band; the top's carrier it
+    /// crosses a few ε from the wall's, far off the top face itself. The
+    /// census reads the wall and the top definite apart, so the ray reads
+    /// `In` or is set aside, and never refuses on them.
+    #[test]
+    fn an_oblique_carrier_crossing_beside_another_face_is_no_pair() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        for m in [3.0, 5.0, 8.0] {
+            for slope in [0.05, 0.1, 0.15] {
+                let l = m * tol.k() * tol.eps();
+                let mut body =
+                    quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.5, tol);
+                let other = quad_prism(
+                    &[
+                        (1.0 + l, 0.0),
+                        (2.0 + l, 0.0),
+                        (2.0 + l, 1.0),
+                        (1.0 + l, 1.0),
+                    ],
+                    1.0,
+                    tol,
+                );
+                crate::instance::graft_disjoint(&mut body, &other).unwrap();
+                let sel =
+                    SolidFaces::select(&body, body.faces().map(|(k, _)| k).collect()).unwrap();
+                let geos: Vec<_> = sel
+                    .faces()
+                    .iter()
+                    .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
+                    .collect();
+                let d = Vec3::new(1.0, 0.05, -slope).normalize();
+                let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
+                let reach = selection_reach(&body, sel.faces(), q).unwrap();
+                let got = cast_ray(&body, &geos, q, d, reach, band);
+                let pair = matches!(
+                    &got,
+                    Err(RayFault::InBand(PointInSolidError::Escalated { diag, .. }))
+                        if diag.predicate == Some(SCHEDULE_ROWS.order)
+                );
+                assert!(
+                    !pair && !matches!(got, Ok(Some(SolidContainment::Out))),
+                    "a gap of {m}Kε, slope {slope}: {got:?}"
+                );
+            }
         }
     }
 

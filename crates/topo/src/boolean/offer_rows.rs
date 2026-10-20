@@ -450,8 +450,8 @@ cases! {
     seam_barely_creased: "SeamWedge", D, SEAM_SITE, Valued =>
         seam(D, 1.0, Vec3::new(0.0, 0.0, 1.0));
     seam_barely_bending_apart: "SeamJet", D, SEAM_SITE, Valued => seam_bend(D);
-    // A ray aimed at 60° across two parallel faces `D/2` apart meets them
-    // `D` apart along it.
+    // A ray aimed 10° off the normal (`AIM_INCIDENCE`) across two
+    // parallel faces `D·cos 10°` apart meets them `D` apart along it.
     aimed_ray_across_a_pair_in_band: "ShellRole", D, ROLE_SITE, Valued =>
         aimed_pair(D * crate::side_reader::AIM_INCIDENCE.0);
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(

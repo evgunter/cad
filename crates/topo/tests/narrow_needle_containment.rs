@@ -5,8 +5,10 @@
 //! a wedge and reads nothing. Without the wedge, the half rule counts
 //! such a face once at each edge, and a point outside a turned needle
 //! reads `In` (`r1s_witnesses_outside_a_turned_needle_read_outside`, red
-//! without it). `narrow_needles_read_by_point_containment` reads the
-//! needles at an enumeration of points about their edges and corners.
+//! without it), and pins the rule. `narrow_needles_read_by_point_containment`
+//! reads the needles at an enumeration of points about their edges and
+//! corners: it pins the reading, not the wedge rule, and stays green
+//! without it.
 
 #![allow(clippy::expect_used, clippy::panic)]
 
