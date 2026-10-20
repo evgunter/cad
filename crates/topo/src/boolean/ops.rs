@@ -301,7 +301,9 @@ pub struct BooleanNaming {
     pub reduction_contacts: ReductionContacts,
     /// Every face an operand lost to the result, with the kept faces it
     /// bordered (`boolean::discard`, which says which paths record
-    /// rows and why the others have none to record).
+    /// rows and why the others have none to record), and every face the
+    /// material divided along an edge lying in it, which lost the line
+    /// between its pieces (`boolean::slit`).
     pub discards: Vec<super::DiscardRow>,
     /// Each pair `(A face, B face)` of coincident faces where the result
     /// holds either face's region through the other: their materials lie
@@ -587,6 +589,12 @@ impl<T: Real> BooleanResult<T> {
 /// A ∪* B (module docs; functional). Surface kinds are gated per arm,
 /// not wholesale — see `reduce::gate_operand_pairs`.
 ///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
 /// # Errors
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
@@ -607,6 +615,12 @@ pub fn union<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// A ∩* B (module docs).
 ///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
 /// # Errors
 ///
 /// [`BooleanError`].
@@ -626,6 +640,12 @@ pub fn intersect<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// A ∖* B (module docs).
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
 ///
 /// # Errors
 ///
@@ -651,6 +671,12 @@ pub fn subtract<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// produce bit-identical results; the differential suite runs full
 /// ops through both and pins exactly that. Production wrappers pass
 /// [`SweepStrategy::Realized`].
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
 ///
 /// # Errors
 ///
@@ -928,7 +954,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         body.movefac(shell)?;
     }
     let vertex_merges = desc.vertex_merges();
-    let cone_splits = cones.splits().clone();
+    let mut cone_splits = cones.splits().clone();
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
     let mut discarded = [BTreeSet::new(), BTreeSet::new()];
@@ -966,12 +992,27 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         band,
     )?;
     share_recorded_points(&mut body, &contacts, &coincidences, band)?;
+    let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
+    if !parted.is_empty() {
+        crate::pcurves::mint_pcurves(&mut body, tol)
+            .map_err(|source| BooleanError::Pcurves { source })?;
+    }
+    // Each parted edge now bounds a face of each operand, as a seam does.
+    seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
     interior_loops?;
     T::gate_volume_backstop(op, a, b, &body, band, tol)?;
-    let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
-    let [face_fragments_a, face_fragments_b] = fragments;
+    let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
+    let [mut face_fragments_a, face_fragments_b] = fragments;
+    let mut discards = fin.discards;
+    name_parted(
+        &parted,
+        &mut graft_faces,
+        &mut face_fragments_a,
+        &mut cone_splits,
+        &mut discards,
+    )?;
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
         b_keys: OperandKeys::Grafted,
@@ -987,7 +1028,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_a,
         face_fragments_b,
         reduction_contacts,
-        discards: fin.discards,
+        discards,
         carved_lineage: fin.carved_lineage,
         covered,
         edge_classes,
@@ -1006,6 +1047,50 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         verdicts: GlueVerdict::of_rows(&coincidences, &tangent_lines),
         coincidences,
     }))
+}
+
+/// **The naming rows of the partings [`super::slit::part_riders`]
+/// made.** An end the material parted is held as one copy per wedge, as
+/// the zip's per-cone splits are (`cone_splits`). A face it divided along
+/// an edge lying in it descends from the face it was divided off, on that
+/// face's side (`graft_faces` for B's, `face_fragments_a` for A's), and
+/// lost the line between its pieces: a discard row whose stretch is the
+/// line, along which each piece borders the region the other holds.
+///
+/// # Errors
+///
+/// [`BooleanError::LineageRow`] where a row would make a list cycle.
+fn name_parted(
+    parted: &[super::slit::Parted],
+    graft_faces: &mut Vec<(FaceKey, FaceKey)>,
+    face_fragments_a: &mut crate::lineage::FaceDivisions,
+    cone_splits: &mut crate::lineage::ConeCopies,
+    discards: &mut Vec<super::DiscardRow>,
+) -> Result<(), BooleanError> {
+    for p in parted {
+        for &row in &p.copies {
+            cone_splits.push(row)?;
+        }
+        let Some(piece) = p.divided else { continue };
+        let (operand, face) = match graft_faces.iter().find(|&&(_, r)| r == p.face) {
+            Some(&(from, _)) => {
+                graft_faces.push((from, piece));
+                (Operand::B, from)
+            }
+            None => {
+                face_fragments_a.push((piece, p.face))?;
+                (Operand::A, p.face)
+            }
+        };
+        discards.push(super::DiscardRow {
+            operand,
+            face,
+            bordered: vec![p.ends],
+            boundary_chains: Vec::new(),
+            held: Vec::new(),
+        });
+    }
+    Ok(())
 }
 
 /// `map` with each vertex on either side read as the vertex a zip's
@@ -2777,11 +2862,14 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
         {
             geom_brep::DihedralClass::Transverse => {
-                let spec = draft.into_spec(geom_brep::SurfacePair::new(s1, s2));
-                let carrier = spec.carrier.kind();
-                body.set_edge_curve(edge, spec, tol).map_err(|e| {
-                    of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e)
-                })?;
+                let carrier = draft.span().0.kind();
+                body.describe_intersection(
+                    crate::policy_lane::KernelSite::SeamIntersection,
+                    edge,
+                    draft.into_intersection(geom_brep::SurfacePair::new(s1, s2)),
+                    tol,
+                )
+                .map_err(|e| of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e))?;
             }
             geom_brep::DihedralClass::Smooth => {
                 // F1 (the declared-merge SKIP lane): a SURVIVING
@@ -2844,17 +2932,17 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     // refreshes a stale citation, since the minted
                     // surfaces are the CURRENT adjacency.
                     let c = existing.as_ref().ok_or_else(corrupt)?;
-                    let (t0, t1) = c.params();
-                    let spec = geom_brep::EdgeCurveSpec {
-                        description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                            pair: geom_brep::SurfacePair::new(s1, s2),
-                            witness,
-                        },
-                        carrier: c.carrier().clone(),
-                        param_start: t0,
-                        param_end: t1,
+                    let description = geom_brep::EdgeDescriptionSpec::TangentIntersection {
+                        pair: geom_brep::SurfacePair::new(s1, s2),
+                        witness,
                     };
-                    body.set_edge_curve(edge, spec, tol).map_err(|e| {
+                    body.restate_edge(
+                        crate::policy_lane::KernelSite::SeamTangency,
+                        edge,
+                        description,
+                        tol,
+                    )
+                    .map_err(|e| {
                         of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier().kind(), e)
                     })?;
                 } else if stale {
@@ -2876,9 +2964,14 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         geom_brep::RestLocus::Chart(_) => EdgeDescribeFailure::Chart,
                         geom_brep::RestLocus::Pair(_) => EdgeDescribeFailure::Pair,
                     };
-                    let spec = c.restated_at(rest);
-                    body.set_edge_curve(edge, spec, tol)
-                        .map_err(|e| of_attachment(edge, failure, c.carrier().kind(), e))?;
+                    let description = c.restated_at(rest).description;
+                    body.restate_edge(
+                        crate::policy_lane::KernelSite::SeamAtRest,
+                        edge,
+                        description,
+                        tol,
+                    )
+                    .map_err(|e| of_attachment(edge, failure, c.carrier().kind(), e))?;
                 }
             }
         }
@@ -3317,7 +3410,7 @@ impl Descendants {
 
 /// What [`piece_holds`] read of one piece.
 #[derive(Debug)]
-enum PieceRead {
+pub(super) enum PieceRead {
     /// The point is strictly inside the piece.
     In,
     /// The point is off the piece's carrier, outside its region, or on
@@ -3336,7 +3429,7 @@ enum PieceRead {
 ///
 /// [`BooleanError::Escalated`] (`SelfCheck(CarriedLineage)`) on a margin
 /// in band, the on-plane one or the door's.
-fn piece_holds<T: Decide>(
+pub(super) fn piece_holds<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
@@ -7164,8 +7257,26 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 band,
             )?;
             share_recorded_points(&mut body, &contacts, &coincidences, band)?;
+            let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
+            if !parted.is_empty() {
+                crate::pcurves::mint_pcurves(&mut body, tol)
+                    .map_err(|source| BooleanError::Pcurves { source })?;
+            }
             let body = gate(body, band, tol)?;
-            let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
+            let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) =
+                graft_rows(&graft);
+            let mut face_fragments_a =
+                crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
+            let mut cone_splits =
+                crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies);
+            let mut discards = Vec::new();
+            name_parted(
+                &parted,
+                &mut graft_faces,
+                &mut face_fragments_a,
+                &mut cone_splits,
+                &mut discards,
+            )?;
             let naming = BooleanNaming {
                 a_keys: OperandKeys::Direct,
                 b_keys: OperandKeys::Grafted,
@@ -7183,6 +7294,10 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
                 killed_lineage,
+                seam_edges: parted.iter().flat_map(|p| [p.kept, p.minted]).collect(),
+                face_fragments_a,
+                cone_splits,
+                discards,
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {

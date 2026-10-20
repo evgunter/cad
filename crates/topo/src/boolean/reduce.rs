@@ -1693,7 +1693,7 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )
 }
 
-/// A covered line × curved-face pair whose touch lies inside the edge
+/// A covered edge × curved-face pair whose touch lies inside the edge
 /// ([`CurvedEvent::Deferred`]), deferred until both sweep directions
 /// have run.
 #[derive(Debug)]
@@ -1851,11 +1851,12 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// endpoint posture instead of the frontier door. A roots-lane
 /// "tangent" verdict is a band decision and never a source, so a
 /// graze within the band keeps the frontier. The cover records
-/// endpoints only, so a covered pair whose ends are both clear of the
-/// carrier and which no enclosure or root set clears is deferred
-/// ([`CurvedEvent::Deferred`]) — a LINE against a wall or a sphere,
-/// whose convex residual a fragment's ends read whole — and read again
-/// on the edge's fragments
+/// endpoints only, so a covered pair whose ends place nothing on the
+/// face and which no enclosure or root set clears is deferred
+/// ([`CurvedEvent::Deferred`]: a LINE against a wall or a sphere
+/// whose roots do not settle, or a covered circle with no end on the
+/// carrier, its interior unseen, [`Placement::declared`]'s rule) and
+/// read again on the edge's fragments
 /// once both sweep directions have run ([`settle_deferred`]). Each
 /// on-carrier endpoint is
 /// classified through the boundary pre-pass rows
@@ -2229,12 +2230,11 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // stands); definitely off on the side the cover
                 // certifies ⇒ no event at that end (a covered circle
                 // touches the carrier where it meets it); off on the
-                // other side ⇒ the frontier. An interior-only touch (no
-                // endpoint on the carrier) keeps the frontier door: along
-                // a circle the residual is not convex, so a covered arc
-                // can touch twice and an endpoint reading of its
-                // fragments would not see the second touch. Uncovered
-                // keeps both doors verbatim.
+                // other side ⇒ the frontier. An arc with no end on the
+                // carrier, its interior unseen, is deferred to the
+                // fragments both directions leave ([`settle_deferred`]),
+                // read by this arm as the other operand order reads
+                // them. Uncovered keeps both doors verbatim.
                 //
                 // **An endpoint the trim places definitely OUT of THIS
                 // face is eventless HERE, not a refusal.** Reading that
@@ -2273,11 +2273,13 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // ([`Placement::declared`]).
                 //
                 // Still keeping the door: a no-verdict endpoint
-                // ([`Placement::Undecided`]); a boundary the interior
-                // question has no closed form for; and an arc that only
-                // touches the carrier (a `Tangent` cover, no carrier
-                // identity) with nothing recorded, whose interior this
-                // arm cannot see.
+                // ([`Placement::Undecided`]) and a boundary the interior
+                // question has no closed form for. An arc with no end on
+                // the carrier and its interior unseen (a `Tangent` cover,
+                // no carrier identity) is deferred: it meets the face, if
+                // at all, strictly inside, at one point or several, and its
+                // fragments are read again once both directions have split
+                // it.
                 Ok(Sign::Zero) if covered => {
                     let inside = interior(on_carrier, y, x_is, face, &curve, band, frontier)?;
                     if let Interior::Crossing(event) = inside {
@@ -3938,10 +3940,11 @@ pub(super) enum CurvedEvent<T: geom_core::Real> {
     /// mints on the edge is read against the face under `on`
     /// ([`LyingIn::Curved`]).
     Lies { recorded: bool, on: OnCurved },
-    /// A covered LINE whose touch with a cylinder or sphere, if it has
-    /// one, lies strictly inside the edge: both ends are definitely off
-    /// the carrier, the cover puts the edge in one closed side of it,
-    /// and the roots could not settle it. The cover records endpoints
+    /// A covered edge with no end on the carrier, whatever it meets on
+    /// the face lying strictly inside it, at one point or several: the
+    /// cover puts the edge in one closed side of the carrier, and neither
+    /// the roots (a line on a cylinder or sphere) nor the interior
+    /// question settled it ([`Placement::declared`]). The cover records endpoints
     /// only, so the sweep defers the pair ([`DeferredTouch`]) until both
     /// directions have run and then reads it again on the edge's
     /// fragments ([`settle_deferred`]).
@@ -4005,8 +4008,8 @@ impl Placement {
     /// `Some(placement)` when the residual put it ON the carrier and
     /// `None` when it is honestly not this arm's business (definitely
     /// clear, or the arm has only one on-carrier end), does this pair
-    /// record an event, have none here, or keep the typed frontier
-    /// (`None`)?
+    /// record an event, have none here, wait for the edge's fragments,
+    /// or keep the typed frontier (`None`)?
     ///
     /// - **any `Undecided`** keeps the door: an endpoint the containment
     ///   door could not place leaves the pair unknown. Only the truth
@@ -4028,9 +4031,14 @@ impl Placement {
     ///   certified the span's interior meets this face's boundary
     ///   nowhere ([`interior`]), so a span with both ends
     ///   outside the face lies wholly outside it. Without that
-    ///   certificate it keeps the door: an overlap lying wholly inside
-    ///   this face's window, with both ends beyond it, must not turn
-    ///   into a silent no-event.
+    ///   certificate an end ON the carrier keeps the door: an overlap
+    ///   lying wholly inside this face's window, with both ends beyond
+    ///   it, must not turn into a silent no-event;
+    /// - **no end on the carrier**, the interior unseen, is deferred
+    ///   ([`CurvedEvent::Deferred`]): whatever the edge meets on this
+    ///   face, at one point or several, lies strictly inside it, and
+    ///   the settle stage reads it again on the fragments both
+    ///   directions leave.
     fn declared<T: geom_core::Real>(
         ends: [Option<Self>; 2],
         interior_clear: bool,
@@ -4042,6 +4050,8 @@ impl Placement {
             Some(CurvedEvent::Recorded)
         } else if interior_clear {
             Some(CurvedEvent::None)
+        } else if ends == [None, None] {
+            Some(CurvedEvent::Deferred)
         } else {
             None
         }
@@ -4951,8 +4961,9 @@ mod undeclared_rule_rows {
     }
 
     /// **The declared rule**: an `Undecided` end always keeps the door,
-    /// and an all-`Elsewhere` pair is no event only beside a certified
-    /// clear interior.
+    /// an all-`Elsewhere` pair is no event only beside a certified clear
+    /// interior, and an edge with no end on the carrier and no
+    /// certificate waits for its fragments.
     #[test]
     fn the_declared_rule_reads_all_elsewhere_by_the_interior_certificate() {
         use Placement::{Elsewhere as E, Recorded as R, Undecided as U};
@@ -4960,9 +4971,8 @@ mod undeclared_rule_rows {
             |ends: [Option<Placement>; 2], clear| match Placement::declared::<f64>(ends, clear) {
                 Some(CurvedEvent::Recorded) => "record",
                 Some(CurvedEvent::None) => "none",
-                Some(
-                    CurvedEvent::Pierce { .. } | CurvedEvent::Deferred | CurvedEvent::Lies { .. },
-                ) => {
+                Some(CurvedEvent::Deferred) => "defer",
+                Some(CurvedEvent::Pierce { .. } | CurvedEvent::Lies { .. }) => {
                     panic!("the rule never pierces or holds")
                 }
                 None => "door",
@@ -4974,6 +4984,7 @@ mod undeclared_rule_rows {
             ([Some(E), Some(U)], "door", "door"),
             ([Some(R), None], "record", "record"),
             ([None, Some(E)], "door", "none"),
+            ([None, None], "defer", "none"),
         ];
         for (ends, unseen, clear) in rows {
             assert_eq!(declared(ends, false), unseen, "{ends:?}, interior unseen");

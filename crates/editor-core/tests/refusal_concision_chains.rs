@@ -5,19 +5,21 @@
 //! a sentence the person holding the mouse reads, and a forwarding arm
 //! (`Extrude(e)`, `Split(e)`, `Mate(fault)`, …) reads the forwarded
 //! refusal's own sentence inside its wrapper. These rows render every
-//! `NodeErrorKind` arm, and every arm of each refusal a forwarding arm
-//! carries, the way the viewer draws it — `node 5 failed:` and the
-//! wrapper included — on a representative payload, and hold each to
-//! the budget [`refusal_concision`](crate::refusal_concision) states.
+//! `NodeErrorKind` arm, and the arms of what it forwards as far as the
+//! next paragraph says, the way the viewer draws it — `node 5 failed:`
+//! and the wrapper included — on a representative payload, and hold
+//! each to the budget [`refusal_concision`](crate::refusal_concision) states.
 //!
-//! **What "every arm" covers.** One level of forwarding is exhaustive:
-//! each `NodeErrorKind` arm, and each arm of the enum it forwards
-//! (a thin wrapper — `SplitError`, `ReplayError` — is looked through to
-//! the enum it wraps). A refusal forwarded two levels down (an
-//! `EulerOpError` inside `ExtrudeError::Op`, a `PcurveMintError` inside
-//! `RevolveError::Pcurve`) is rendered on one representative arm; its
-//! own enum's lengths are held by the `*-refusal-prose-outgrows-the-viewer`
-//! rows on its owner's slate.
+//! **What "every arm" covers.** Every `NodeErrorKind` arm has a row.
+//! A forwarding arm's payload is welded level by level, as deep as
+//! `forward` names a roster: `Split(e)` to `SplitError`'s arm and on to
+//! the stage refusal it carries, `SelectResolve` to `ResolveError` and a
+//! vanished name's `Diagnosis` (`every_forwarded_arm_has_a_row`). Below
+//! a level's last roster — an `EulerOpError` inside `ExtrudeError::Op`,
+//! a `PcurveMintError` inside `RevolveError::Pcurve` — a refusal is
+//! rendered on one representative arm. The arms `forward` files as
+//! unwelded (the D10-held mate, pose, part and placement refusals, and
+//! the Boolean's) render here on samples, each citing its row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -43,6 +45,7 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
 const KERNEL_KEYED: &[&str] = &[
     "Revolve/VoidInsertion",
     "Revolve/Pcurve",
+    "Extrude/Pcurve",
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
@@ -50,6 +53,9 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
     "Split/Reduce/CrossingInsertion",
+    "Split/Reduce/LineageRow",
+    "Split/Join/LineageRow",
+    "Boolean/Join/LineageRow",
     "Split/Join/SectionLoopMixed",
     "Split/Join/CutInvariant",
     "Split/Join/Corrupt",
@@ -92,6 +98,16 @@ const KERNEL_KEYED: &[&str] = &[
     "Shell/Rim",
 ];
 
+/// The rows admitted over the word budget, each at the most words it
+/// renders today and filed with its owner: a row over its ceiling, or
+/// under it with the ceiling standing, is red.
+const OVER_BUDGET: &[(&str, usize)] = &[
+    // work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    ("Profile/ArcBelowSceneResolution", 117),
+    // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    ("Split/Finish/ResultEscalated", 90),
+];
+
 /// The clause labels a surface legitimately opens with that read, by
 /// shape, like a stage prefix — a clause with no word only a sentence
 /// has — each on the row namespace whose surface writes it. A label
@@ -117,11 +133,6 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
 /// a new prefix on the same row, or the same prefix on another row, is
 /// still red.
 pub(crate) const FILED: &[(&str, &str)] = &[
-    // `geom/src/curves.rs` (#2861): `EllipseInvalid` opens with
-    // "ellipse construction:":
-    // work/chrome/the-refusal-shape-guard-has-blind-spots.md
-    ("Split/Join/Section(Carrier)", "ellipse construction"),
-    ("Boolean/Join/Section(Carrier)", "ellipse construction"),
     // A stage for a subject (`<gerund> … refused:`), each on its
     // owner's row:
     // work/hone/reach-refusals-short-of-the-shape-guard.md
@@ -159,6 +170,8 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     ),
     // work/carvetail/carve-refusals-short-of-the-shape-guard.md
     ("Blend/SurgeryInvariant", "at face FaceKey"),
+    // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    ("Split/Finish/Merge", "merge_coplanar_faces"),
     // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
     (
         "Naming/SplitLineage",
@@ -180,14 +193,51 @@ pub(crate) const FILED_DECLARE: &[&str] = &[];
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.
 pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
-    // `ClearanceRefusal::payload` (`editor-core/src/clearance.rs`)
-    // renders the faces of `Unsupported` and `PoisonEnclosure`, the two
-    // arms `min_separation` refuses with that carry evidence, as
-    // `FaceKey` `Debug`, and this arm prints it.
+    // `ClearanceRefusal::payload` (`editor-core/src/clearance.rs`) is
+    // the goldening form, and this arm prints it: faces as `FaceKey`
+    // `Debug`, a bound as its bits, a budget as its `Debug`.
     Admission {
-        row: "MeasureClearanceRefused",
+        row: "MeasureClearanceRefused/Unsupported",
         span: "FaceKey(null)",
-        filed: "work/props/props-refusal-prose-outgrows-the-viewer.md",
+        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+    },
+    Admission {
+        row: "MeasureClearanceRefused/PoisonEnclosure",
+        span: "FaceKey(null)/FaceKey(null)",
+        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+    },
+    Admission {
+        row: "MeasureClearanceRefused/NotADistance",
+        span: "bff0000000000000",
+        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+    },
+    Admission {
+        row: "MeasureClearanceRefused/Budget",
+        span: "Depth { max_cell_depth: 24 }",
+        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+    },
+    // A smooth-join refusal names its edge by key.
+    Admission {
+        row: "Extrude/SmoothJoinRefuted",
+        span: "EdgeKey(null)",
+        filed: "work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+    },
+    Admission {
+        row: "Revolve/SmoothJoinRefuted",
+        span: "EdgeKey(null)",
+        filed: "work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+    },
+    // A shell-role escalation names the aimed ray's faces by key.
+    Admission {
+        row: "Split/Finish/ResultEscalated",
+        span: "FaceKey(null) and FaceKey(null)",
+        filed: "work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+    },
+    // A merge refusal names its edge by key.
+    Admission {
+        row: "Split/Finish/Merge",
+        span: "EdgeKey(null)",
+        filed: "work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     // A document named by its hex id: the reference loop.
     Admission {
@@ -203,13 +253,11 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
-    "BlendSelectionEmpty",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DegenerateDirection",
     "EmptyHalf",
     "EmptyOperand",
-    "MeasureClearanceRefused",
     "MeasureNotParallel",
     "MeasureRefUnreadable/Readback",
     // `NodeStanding`'s failed and poisoned repairs, which a mate
@@ -255,7 +303,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/ArcViaCollinear",
     "ProfileReplay/Path/CircleSplitCount",
     "ProfileReplay/Path/DegenerateArcCenter",
-    "ProfileReplay/Path/DegenerateArcChord",
     "ProfileReplay/Path/DegenerateArcSpec",
     "ProfileReplay/Path/ArcSweepNotShortOfFullTurn",
     "ProfileReplay/Path/NoCornerForFillet",
@@ -270,6 +317,24 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
+    // work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
+    "MeasureClearanceRefused/Budget",
+    "MeasureClearanceRefused/EmptyScope",
+    "MeasureClearanceRefused/NoAdmittedPair",
+    "MeasureClearanceRefused/NotADistance",
+    "MeasureClearanceRefused/NothingCertified",
+    "MeasureClearanceRefused/PoisonEnclosure",
+    "MeasureClearanceRefused/Selection",
+    "MeasureClearanceRefused/Sliver",
+    "MeasureClearanceRefused/ToleranceHasNoBand",
+    "MeasureClearanceRefused/Unsupported",
+    "MeasureClearanceRefused/WitnessUnverified",
+    // work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    "Profile/InconsistentArc",
+    // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    "Split/Finish/Merge",
+    // work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    "Revolve/PinnedRunStation",
     // work/hone/reach-refusals-short-of-the-shape-guard.md
     "Boolean/Join/Corrupt",
     "Boolean/Join/CutInvariant",
@@ -380,14 +445,37 @@ pub(crate) fn short_of_the_standard(
 ) -> Vec<String> {
     let mut problems = Vec::new();
     for (name, text) in rows {
-        eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
+        let words = text.split_whitespace().count();
+        eprintln!("MEASURE {words} {name}: {text}");
+        let ceiling = OVER_BUDGET
+            .iter()
+            .find_map(|(row, most)| (*row == name.as_str()).then_some(*most));
+        let breach = format!(
+            "{name} renders {words} words, over {}",
+            test_utils::refusal::BUDGET
+        );
         for problem in test_utils::refusal::problems_admitting(name, text, &[], false, ADMISSIONS) {
+            if let Some(most) = ceiling.filter(|_| problem.starts_with(&breach)) {
+                if words > most {
+                    problems.push(format!(
+                        "{name} renders {words} words, over its admitted {most}: {text}"
+                    ));
+                } else {
+                    used.insert(format!("OVER_BUDGET {name}"));
+                }
+                continue;
+            }
             match admission(name, text, &problem) {
                 Some(entry) => {
                     used.insert(entry);
                 }
                 None => problems.push(problem),
             }
+        }
+        if let Some(most) = ceiling.filter(|most| words < *most) {
+            problems.push(format!(
+                "{name} renders {words} words; lower its admission of {most}"
+            ));
         }
     }
     problems
@@ -501,6 +589,12 @@ fn every_admission_admits_a_row_it_is_needed_for() {
         FILED_NO_RECOURSE
             .iter()
             .map(|n| format!("FILED_NO_RECOURSE {n}"))
+            .filter(|e| !used.contains(e)),
+    );
+    stale.extend(
+        OVER_BUDGET
+            .iter()
+            .map(|(n, _)| format!("OVER_BUDGET {n}"))
             .filter(|e| !used.contains(e)),
     );
     stale.extend(
@@ -690,37 +784,692 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
-/// **Every `NamingError` arm has a row.** The roster is
-/// `display_contract`'s `NAMING_ERROR` census, whose `match` rustc holds
-/// exhaustive, and each `Naming/` row is named by its own payload's
-/// variant, so an arm added to the enum or a row taken out reds here.
-#[test]
-fn every_naming_arm_has_a_row() {
-    let rendered: Vec<String> = editor_payloads()
-        .into_iter()
-        .filter_map(|(name, kind)| {
-            let NodeErrorKind::Naming(e) = kind else {
-                return None;
-            };
-            let arm = test_utils::f6::variant_identifier(&e);
-            assert_eq!(
-                name,
-                format!("Naming/{arm}"),
-                "a naming row is named by its arm"
-            );
-            Some(arm)
-        })
-        .collect();
-    let rendered: Vec<&str> = rendered.iter().map(String::as_str).collect();
-    if let Some(report) = test_utils::census::set_difference(
-        crate::display_contract::NAMING_ERROR.identifiers(),
-        &rendered,
-        "NamingError's arms and the feature tree's naming rows disagree",
-        "rendered by a row and not an arm of the census",
-        "an arm with no feature-tree row: give it one in `editor_payloads`",
-    ) {
-        panic!("{report}");
+use editor_core::clearance::ClearanceRefusal;
+use editor_core::{
+    BifurcationKind, Diagnosis, EvalError, ParamBoxError, PiecesFault, PlacementRuleFault,
+    ResolveError, SeedError,
+};
+
+test_utils::f6_variants! {
+    /// `EvalError`'s arms, for the `Expr/`, `PoseScalar/`,
+    /// `MeasureNonFinite/` and `PayloadExpr/` rows.
+    const EVAL_ERROR: EvalError = [
+        UnresolvedVar,
+        OutputRead,
+        DefinitionRefused,
+        VarKindMismatch,
+        CountExprInContinuousEval,
+        ContinuousExprInCountEval,
+        CountOverflow,
+        CountToScalarOutOfRange,
+        NonFiniteResult,
+        Unlowered,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// `ParamBoxError`'s arms, for the `ParamBox/` rows.
+    const PARAM_BOX_ERROR: ParamBoxError = [UnknownParam, AxisUnrepresentable, SymbolsOverABox];
+}
+
+test_utils::f6_variants! {
+    /// `SeedError`'s arms, for the `Seed/` rows.
+    const SEED_ERROR: SeedError = [UnknownVar, CountVar, SeedOnNonFreeVar, TangentUnrepresentable];
+}
+
+test_utils::f6_variants! {
+    /// `PlacementRuleFault`'s arms, for the `PlacementRule/` rows.
+    const PLACEMENT_RULE_FAULT: PlacementRuleFault = [
+        CountSpelling,
+        NoPlacements,
+        NonFiniteFrame,
+        ImproperFrame,
+        NonRigidFrame,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// `PiecesFault`'s arms, for the `ProfilePieces/` rows.
+    const PIECES_FAULT: PiecesFault = [NoRecord, NoIds, Length, NoStepId];
+}
+
+test_utils::f6_variants! {
+    /// `ResolveError`'s arms, for the `SelectResolve/` rows.
+    const RESOLVE_ERROR: ResolveError = [Vanished, Ambiguous, ReadGone, NodeGone];
+}
+
+test_utils::f6_variants! {
+    /// `NodeErrorKind`'s arms: the roster [`forward`] classifies and the
+    /// census rows are checked against, so an arm with no row reds and
+    /// an arm added to the enum stops this compiling until it is here.
+    const NODE_ERROR_KIND: NodeErrorKind = [
+        Expr, Profile, ProfileReplay, ProfileLaneReplay, ProfileAnchor, ProfilePieces,
+        ProfileRecordMissing, Extrude, Revolve, Tube, Split, Blend, Boolean, Transform, Motion,
+        Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
+        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
+        UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
+        DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
+        VerbArity, Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
+        PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
+        DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
+        Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
+        FaceFrameNotPlanar, FaceFrameReadback, FrameDirection, WitnessBifurcation, Part, Mate,
+        SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
+        MeasureNotParallel, MeasureUnsupported, PayloadExpr, MeasureClearanceRefused,
+        AssertionDimension,
+    ];
+}
+
+/// The kernel refusals the census welds, each an `f6_variants!` roster
+/// for the rows named in its doc. A generic one is read at `f64`, the
+/// scalar every row is built at.
+mod kernel {
+    use profile::ProfileError;
+    use sweep::ExtrudeError;
+    use sweep::LoftError;
+    use sweep::RevolveError;
+    use sweep::SkinError;
+    use sweep::TubeError;
+    use sweep::blend::BlendError;
+    pub(super) type ReplayErrorKind = profile::ReplayErrorKind<f64>;
+    pub(super) type PathError = profile::path::PathError<f64>;
+    use profile::StructureRefusalKind;
+    use topo::SplitError;
+    use topo::SplitFinishError;
+    use topo::SplitJoinError;
+    use topo::SplitReduceError;
+    pub(super) type ShellError = topo::ShellError<f64>;
+    pub(super) type ReplaceFaceError = topo::ReplaceFaceError<f64>;
+    use geom_core::BandError;
+    use topo::PointInSolidError;
+
+    test_utils::f6_variants! {
+        /// `ExtrudeError`'s arms, for the `Extrude/` rows.
+        pub(super) const EXTRUDE_ERROR: ExtrudeError = [
+            Band, DegenerateExtrusion, NegativeDepth, ObliqueExtrusion,
+            ExtrusionEscalated, CosurfaceEscalated, SliverJoin, SliverRim,
+            SmoothJoinRefuted, CapPlane, SidePlane, Op, Pcurve,
+        ];
     }
+
+    test_utils::f6_variants! {
+        /// `RevolveError`'s arms, for the `Revolve/` rows.
+        pub(super) const REVOLVE_ERROR: RevolveError = [
+            Band, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
+            DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
+            SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
+            NonManifoldAxisContact, MultipleAxisRuns, HoleTouchesAxis, VoidInsertion,
+            CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
+            PinnedRunStation, CapPlane, Op, Pcurve,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `TubeError`'s arms, for the `Tube/` rows.
+        pub(super) const TUBE_ERROR: TubeError = [
+            Band, DegenerateWindow, FullRangeWindow, NonpositiveWall, WallExceedsRadius,
+            WallGapCollapsed, Escalated, Revolve,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `SkinError`'s arms, for the `Skin/` rows.
+        pub(super) const SKIN_ERROR: SkinError = [
+            TooFewSections, SectionShapeMismatch, SectionProfile, DomainNotUnit,
+            DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
+            PathTangentReversal, PathTangentUndecided, StationNotFinite, Band,
+            RowMotionUndecided, ArcSweepUndecided, Fit, KnotAlgebra, Structure,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `LoftError`'s arms, for the `Loft/` rows.
+        pub(super) const LOFT_ERROR: LoftError = [
+            Band, Skin, Euler, CapPlane, Pcurve, SeamStructure, SectionStructure,
+            SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
+            FarSectionNotForward, FarStackingEscalated, StackingEscalated,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `BlendError`'s arms, for the `Blend/` rows.
+        pub(super) const BLEND_ERROR: BlendError = [
+            Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
+            FaceClearance, TangentialEdge, SpineIrregular, ChainNotG1,
+            ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
+            ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
+            UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
+            ScaffoldingOperand, InsideOutOperand, UnjoinedOperand, SurgeryInvariant,
+            RingClearance, WhollyInside, Certify, Op, Join,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `ProfileError`'s arms, for the `Profile/` rows.
+        pub(super) const PROFILE_ERROR: ProfileError = [
+            Band, EmptyProfile, PlaneNotFinite, EmptyLoop, DegenerateSegment,
+            NearFullArc, InconsistentArc, ArcBelowSceneResolution, NonSimple,
+            TangentialContact, TangentJointOutOfRange, TangentJointOnFullTurn,
+            TangencyContradicted, SliverLoop, MultipleOuterLoops, NestingTooDeep,
+            RayCastingExhausted, Escalated, Structure,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `ReplayErrorKind`'s arms, for the `ProfileReplay/` rows.
+        pub(super) const REPLAY_ERROR_KIND: ReplayErrorKind = [
+            Transition, Path,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `PathError`'s arms, for the `ProfileReplay/Path/` rows.
+        pub(super) const PATH_ERROR: PathError = [
+            JunctionTangent, JunctionCusp, SeamTangent, SeamArrivalOffDirection,
+            SeamArrivalLeverTooShort, ContinuationTargetOffRay, NoCornerForFillet,
+            NoCornerOfPair, FilletOffsetLeverTooShort, FilletArcFlattenedInStorage,
+            FilletCarrierBelowSceneResolution, ArcLegOnOpenFillet,
+            SeamRetrimsArcFirstSide, NonpositiveLeg, NonpositiveFilletRadius,
+            NonpositiveCircleRadius, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
+            CircleSplitCount, PolygonTooFewVertices, ZeroDirection, NonFiniteDirection,
+            UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
+            ArcCenterNotEquidistant, DegenerateArcCenter, FarEndAnchorWithoutFillet,
+            Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `StructureRefusalKind`'s arms, for the `ProfileLaneReplay/` rows.
+        pub(super) const STRUCTURE_REFUSAL_KIND: StructureRefusalKind = [
+            Indeterminate, Flipped,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `SplitError`'s arms, for the `Split/` rows.
+        pub(super) const SPLIT_ERROR: SplitError = [
+            Reduce, Join, Finish, Pcurves, Pieces,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `SplitReduceError`'s arms, for the `Split/Reduce/` rows.
+        pub(super) const SPLIT_REDUCE_ERROR: SplitReduceError = [
+            Band, CurvedBooleanUnsupported, CurvedEdgeUnsupported, CrossingEscalated,
+            TangencyUnsupported, KnifeEdge, ScaffoldingOperand, InsideOutOperand,
+            UnjoinedOperand, SliverVertex, SliverSector, SectionGermsEscalated,
+            SectionGermsUnordered, NonFiniteSectorChord, UnderflowedSectorChord,
+            ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
+            UnrecordedSide, UnboundedFace, CrossingInsertion, Euler, LineageRow,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `SplitJoinError`'s arms, for the `Split/Join/` rows.
+        pub(super) const SPLIT_JOIN_ERROR: SplitJoinError = [
+            OrderEscalated, Escalated, DegenerateSection, CurvedSlitTrace, RingHoming,
+            RingHomingAmbiguous, UnpairedLooseEnds, SingleSiteSectionLoop,
+            SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
+            Band, Euler, SectionEndEscalated, SectionUnresolved, Section, ApexUnlifted,
+            PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RingIslandUnread,
+            TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
+            SectionCrossings,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `SplitFinishError`'s arms, for the `Split/Finish/` rows.
+        pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
+            DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
+            Band, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
+            EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
+            NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
+            ResultNotAtRest, ResultEscalated, EdgeJoin, Merge,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `ShellError`'s arms, for the `Shell/` rows.
+        pub(super) const SHELL_ERROR: ShellError = [
+            Band, Thickness, NoSolid, Roles, Partition, WallClearance, OffsetsCross,
+            ChartSenseMixed, Face, OpenFaceStale, OpenFaceRepeated,
+            OpenFacesExhaustShell, OpenFacesDisconnect, OpenFaceChartPartial, Lift,
+            Insert, OpenFaceRimNotExpressible, Rim, Escalated, Pcurve, RimSeamMixed,
+            Join, NotValid,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `ReplaceFaceError`'s arms, for the `Shell/Face/` rows.
+        pub(super) const REPLACE_FACE_ERROR: ReplaceFaceError = [
+            Band, StaleFace, Offset, Fit, ApproxLaneUnsupported, SharedSurfaceKey,
+            EmptyGroup, GroupChartsDiffer, PlaceholderSurface, ApexWindow,
+            NappeStraddles, ApexWindowUnknown, NeighborPairUnroutable,
+            NeighborPoseUnroutable, FittedBoundaryUnsupported, CarrierLaneUnsupported,
+            IsoRow, Structure, VertexDisagreement, EdgeSection, CornerSection,
+            DeclaredEdgeTilted, MixedEdge, ReanchorPastCarrierEnd, ReanchorCollapse,
+            ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
+            TogetherPartialSet, TogetherCorner, TogetherChartMixed,
+            TogetherFaceRepeated, TogetherEdgeDisagreement, TogetherAxialUnsupported,
+            TogetherNotAxial, TogetherAxialCorner, TogetherAxialEdge, DegenerateTorus,
+            Escalated, Op, Pcurve, Join, ResultNotClosed,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `PointInSolidError`'s arms, for the `Check/SeparationUnavailable/Containment(…)` rows.
+        pub(super) const POINT_IN_SOLID_ERROR: PointInSolidError = [
+            Escalated, RayExhausted, ZeroVolumeBody, InsideOut, Loop, CorruptFace,
+            KindUnsupported, VolumeUncertified, PartialSphereFace, PartialConeFace,
+            PartialTorusFace, EdgeCarrierUnsupported, WallOutlineUnsupported,
+            JunctionSidesDisagree, NarrowWindowUnread, RootCountDisagrees, NoSuchSolid,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `BandError`'s arms, for the `Band/` rows.
+        pub(super) const BAND_ERROR: BandError = [
+            InvalidValue, InvalidLeverArm, Empty,
+        ];
+    }
+}
+
+test_utils::f6_variants! {
+    /// `Diagnosis`'s arms, for the `SelectResolve/Vanished(…)` rows.
+    const DIAGNOSIS: Diagnosis = [
+        PredicateFlip, BorderDelta, GroupResized, StructuralParam, RecipeEdit, Cascade,
+        WitnessBifurcation, Upstream,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// `BifurcationKind`'s arms, for the `WitnessBifurcation/` rows.
+    const BIFURCATION_KIND: BifurcationKind = [FoldProximity, AmbiguousBasin, ResidualFailure];
+}
+
+test_utils::f6_variants! {
+    /// `ClearanceRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
+    const CLEARANCE_REFUSAL: ClearanceRefusal = [
+        Sliver, Budget, Unsupported, Selection, PoisonEnclosure, NothingCertified, NotADistance,
+        EmptyScope, ToleranceHasNoBand, NoAdmittedPair, WitnessUnverified,
+    ];
+}
+
+/// Every roster the weld checks, by the refusal it is the census of.
+/// [`forward`] names a level's roster here, and the weld reds on an
+/// entry no row reached, so an arm reclassified away from its roster
+/// drops nothing silently.
+const ROSTERS: &[(&str, &[&str])] = {
+    use kernel::*;
+    &[
+        ("EvalError", EVAL_ERROR.identifiers()),
+        ("ParamBoxError", PARAM_BOX_ERROR.identifiers()),
+        ("SeedError", SEED_ERROR.identifiers()),
+        ("PlacementRuleFault", PLACEMENT_RULE_FAULT.identifiers()),
+        ("PiecesFault", PIECES_FAULT.identifiers()),
+        ("ResolveError", RESOLVE_ERROR.identifiers()),
+        ("Diagnosis", DIAGNOSIS.identifiers()),
+        ("BifurcationKind", BIFURCATION_KIND.identifiers()),
+        ("ClearanceRefusal", CLEARANCE_REFUSAL.identifiers()),
+        (
+            "NamingError",
+            crate::display_contract::NAMING_ERROR.identifiers(),
+        ),
+        (
+            "InterrogateError",
+            crate::display_contract::INTERROGATE_ERROR.identifiers(),
+        ),
+        ("ExtrudeError", EXTRUDE_ERROR.identifiers()),
+        ("RevolveError", REVOLVE_ERROR.identifiers()),
+        ("TubeError", TUBE_ERROR.identifiers()),
+        ("SkinError", SKIN_ERROR.identifiers()),
+        ("LoftError", LOFT_ERROR.identifiers()),
+        ("BlendError", BLEND_ERROR.identifiers()),
+        ("ProfileError", PROFILE_ERROR.identifiers()),
+        ("ReplayErrorKind", REPLAY_ERROR_KIND.identifiers()),
+        ("PathError", PATH_ERROR.identifiers()),
+        ("StructureRefusalKind", STRUCTURE_REFUSAL_KIND.identifiers()),
+        ("SplitError", SPLIT_ERROR.identifiers()),
+        ("SplitReduceError", SPLIT_REDUCE_ERROR.identifiers()),
+        ("SplitJoinError", SPLIT_JOIN_ERROR.identifiers()),
+        ("SplitFinishError", SPLIT_FINISH_ERROR.identifiers()),
+        ("ShellError", SHELL_ERROR.identifiers()),
+        ("ReplaceFaceError", REPLACE_FACE_ERROR.identifiers()),
+        ("PointInSolidError", POINT_IN_SOLID_ERROR.identifiers()),
+        ("BandError", BAND_ERROR.identifiers()),
+    ]
+};
+
+/// One level of a forwarded payload: the [`ROSTERS`] entry of the
+/// refusal it carries at that depth, and the arm this row's payload
+/// takes there.
+struct Level {
+    roster: &'static str,
+    arm: String,
+}
+
+fn level(roster: &'static str, payload: &impl core::fmt::Debug) -> Level {
+    Level {
+        roster,
+        arm: test_utils::f6::variant_identifier(payload),
+    }
+}
+
+/// What the census does with one `NodeErrorKind` arm's payload.
+enum Forward {
+    /// A refusal welded level by level, outermost first: every arm of
+    /// each level's roster has a row. When `labelled`, a row is named
+    /// `{family}/` and then its arm at each level ([`names_arms`]);
+    /// what follows names a sample of a refusal no roster here holds.
+    Welded { levels: Vec<Level>, labelled: bool },
+    /// A refusal the weld does not cover, and the row that files it.
+    Unwelded(&'static str),
+    /// A kernel refusal sampled here and rendered arm by arm by
+    /// another census: the file that holds it.
+    RenderedIn(&'static str),
+    /// No forwarded refusal: the arm writes its own sentence over plain
+    /// values, or carries one struct whose shape has no arms.
+    Own,
+}
+
+const UNWELDED_HELD: &str = "work/wirehold/mate-and-pose-forwarders-the-census-does-not-weld.md";
+const UNWELDED_PLACEMENT: &str =
+    "work/wirehold/placement-and-part-forwarders-the-census-does-not-weld.md";
+const UNWELDED_BOOLEAN: &str = "work/tint/boolean-refusal-concision-list-is-kept-by-hand.md";
+
+/// The one classification of every `NodeErrorKind` arm, and of each
+/// level below it: `match`es with no wildcard, so a new arm at any
+/// welded level is a decision here before it compiles.
+fn forward(kind: &NodeErrorKind) -> Forward {
+    let welded = |levels| Forward::Welded {
+        levels,
+        labelled: true,
+    };
+    let one = |roster, payload: &dyn core::fmt::Debug| welded(vec![level(roster, &payload)]);
+    match kind {
+        NodeErrorKind::Expr { source, .. }
+        | NodeErrorKind::PoseScalar { source, .. }
+        | NodeErrorKind::MeasureNonFinite { source }
+        | NodeErrorKind::PayloadExpr { source, .. } => one("EvalError", source),
+        NodeErrorKind::ParamBox { source } => one("ParamBoxError", source),
+        NodeErrorKind::Seed { source } => one("SeedError", source),
+        NodeErrorKind::PlacementRule(e) => one("PlacementRuleFault", e),
+        NodeErrorKind::Naming(e) => one("NamingError", e),
+        NodeErrorKind::SelectResolve { error, .. } => {
+            let mut levels = vec![level("ResolveError", error)];
+            match &**error {
+                ResolveError::Vanished { diagnosis, .. } => {
+                    levels.push(level("Diagnosis", diagnosis));
+                }
+                ResolveError::Ambiguous { .. }
+                | ResolveError::ReadGone { .. }
+                | ResolveError::NodeGone { .. } => {}
+            }
+            welded(levels)
+        }
+        NodeErrorKind::ProfilePieces { fault } => one("PiecesFault", fault),
+        NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
+        NodeErrorKind::MeasureClearanceRefused(e) => one("ClearanceRefusal", e),
+        // Labelled by the standing each carries, the names the filed
+        // rows cite them by.
+        NodeErrorKind::MeasureRefUnreadable { error, .. } => Forward::Welded {
+            levels: vec![level("InterrogateError", error)],
+            labelled: false,
+        },
+        NodeErrorKind::Profile(e) => one("ProfileError", e),
+        NodeErrorKind::ProfileReplay { error, .. } => {
+            let mut levels = vec![level("ReplayErrorKind", &error.kind)];
+            match &error.kind {
+                profile::ReplayErrorKind::Path(e) => levels.push(level("PathError", e)),
+                profile::ReplayErrorKind::Transition { .. } => {}
+            }
+            welded(levels)
+        }
+        NodeErrorKind::ProfileLaneReplay { structure, .. } => match structure {
+            Some(s) => one("StructureRefusalKind", &s.kind),
+            None => welded(Vec::new()),
+        },
+        NodeErrorKind::Extrude(e) => one("ExtrudeError", e),
+        NodeErrorKind::Revolve(e) => one("RevolveError", e),
+        NodeErrorKind::Tube(e) => one("TubeError", e),
+        NodeErrorKind::Split(e) => {
+            let mut levels = vec![level("SplitError", e)];
+            match e {
+                topo::SplitError::Reduce(e) => levels.push(level("SplitReduceError", e)),
+                topo::SplitError::Join(e) => levels.push(level("SplitJoinError", e)),
+                topo::SplitError::Finish(e) => levels.push(level("SplitFinishError", e)),
+                topo::SplitError::Pcurves(_) | topo::SplitError::Pieces(_) => {}
+            }
+            welded(levels)
+        }
+        NodeErrorKind::Blend { error, .. } => one("BlendError", error),
+        NodeErrorKind::Skin(e) => one("SkinError", e),
+        NodeErrorKind::Loft(e) => one("LoftError", e),
+        NodeErrorKind::Band(e) => one("BandError", e),
+        NodeErrorKind::Shell(e) => {
+            use topo::ShellError as S;
+            let mut levels = vec![level("ShellError", e)];
+            match &**e {
+                S::Face { error, .. } => levels.push(level("ReplaceFaceError", error)),
+                S::Band { .. }
+                | S::Thickness { .. }
+                | S::NoSolid
+                | S::Roles { .. }
+                | S::Partition { .. }
+                | S::WallClearance { .. }
+                | S::OffsetsCross { .. }
+                | S::ChartSenseMixed { .. }
+                | S::OpenFaceStale { .. }
+                | S::OpenFaceRepeated { .. }
+                | S::OpenFacesExhaustShell { .. }
+                | S::OpenFacesDisconnect { .. }
+                | S::OpenFaceChartPartial { .. }
+                | S::Lift { .. }
+                | S::Insert { .. }
+                | S::OpenFaceRimNotExpressible { .. }
+                | S::Rim { .. }
+                | S::Escalated { .. }
+                | S::Pcurve { .. }
+                | S::RimSeamMixed { .. }
+                | S::Join { .. }
+                | S::NotValid { .. } => {}
+            }
+            welded(levels)
+        }
+        NodeErrorKind::Boolean(_) => Forward::Unwelded(UNWELDED_BOOLEAN),
+        NodeErrorKind::UnfinishedOperand { .. } => {
+            Forward::RenderedIn("crates/editor-core/tests/refusal_concision_at_rest.rs")
+        }
+        NodeErrorKind::PoseRead { .. }
+        | NodeErrorKind::Mate(_)
+        | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
+        NodeErrorKind::Part { .. }
+        | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Motion(_)
+        | NodeErrorKind::FaceFrameReadback { .. }
+        | NodeErrorKind::FrameDirection { .. } => Forward::Unwelded(UNWELDED_PLACEMENT),
+        NodeErrorKind::ProfileAnchor
+        | NodeErrorKind::ProfileRecordMissing { .. }
+        | NodeErrorKind::CurvedSolidFrontier { .. }
+        | NodeErrorKind::MissingInput { .. }
+        | NodeErrorKind::UnresolvedRead { .. }
+        | NodeErrorKind::ToleranceConflict { .. }
+        | NodeErrorKind::WrongOperand { .. }
+        | NodeErrorKind::EmptyOperand { .. }
+        | NodeErrorKind::ProductOperand { .. }
+        | NodeErrorKind::EmptyHalf { .. }
+        | NodeErrorKind::InstanceOutOfRange { .. }
+        | NodeErrorKind::NoSuchCopy { .. }
+        | NodeErrorKind::CopiesShareAKey { .. }
+        | NodeErrorKind::CopyShape { .. }
+        | NodeErrorKind::DegenerateDirection { .. }
+        | NodeErrorKind::NonFiniteDirection { .. }
+        | NodeErrorKind::UnderflowedDirection { .. }
+        | NodeErrorKind::MissingSlot { .. }
+        | NodeErrorKind::VerbArity { .. }
+        | NodeErrorKind::Escalated { .. }
+        | NodeErrorKind::MeasureEscalated { .. }
+        | NodeErrorKind::PlacementAxisEscalated { .. }
+        | NodeErrorKind::PoseDirectionEscalated { .. }
+        | NodeErrorKind::PoseDegenerate { .. }
+        | NodeErrorKind::CountOutOfRange { .. }
+        | NodeErrorKind::NegativeSpacing { .. }
+        | NodeErrorKind::DegenerateSpacing
+        | NodeErrorKind::DegenerateStep
+        | NodeErrorKind::FullRangeStep { .. }
+        | NodeErrorKind::PlacementsUncertified { .. }
+        | NodeErrorKind::UnschedulableCycle
+        | NodeErrorKind::UnionFoldStep { .. }
+        | NodeErrorKind::ShellLaneUnsupported { .. }
+        | NodeErrorKind::FaceFrameNotPlanar { .. }
+        | NodeErrorKind::CrossingUnverified { .. }
+        | NodeErrorKind::MeasureNotParallel { .. }
+        | NodeErrorKind::MeasureUnsupported(_)
+        | NodeErrorKind::AssertionDimension { .. } => Forward::Own,
+    }
+}
+
+/// Whether `label` names `arms` in order, outermost first: each arm
+/// ends at the label's end, at a `/`, at a `(` that opens the next
+/// level, or at the `)` closing one opened before it, so a level reads
+/// as `{arm}/{arm}` or `{arm}({arm})`. What follows the last is free.
+fn names_arms(label: &str, arms: &[&str]) -> bool {
+    let (mut rest, mut open) = (label, 0usize);
+    for arm in arms {
+        let Some(after) = rest.strip_prefix(arm) else {
+            return false;
+        };
+        let mut chars = after.chars();
+        match chars.next() {
+            None | Some('/') => {}
+            Some('(') => open += 1,
+            Some(')') if open > 0 => open -= 1,
+            Some(_) => return false,
+        }
+        rest = chars.as_str();
+    }
+    true
+}
+
+/// **Every `NodeErrorKind` arm has a row, and so does every arm of
+/// each refusal [`forward`] welds, at every level it welds**, and every
+/// [`ROSTERS`] entry is reached by some row.
+///
+/// Each roster is an `f6_variants!` census, whose `match` rustc holds
+/// exhaustive (`NamingError`'s and `InterrogateError`'s are
+/// `display_contract`'s). [`forward`] picks each level's roster by an
+/// exhaustive `match`, and a roster no row reaches is reported, so an
+/// arm moved off its roster (to `Own`, or a level dropped) reds rather
+/// than leaving the roster's arms unchecked. The family a payload's
+/// arms are checked under is its row's `NodeErrorKind` arm followed by
+/// the arms of the levels above it (`Split/Reduce`), so a family cannot
+/// drop out of the check while the arm above it has a row, and the
+/// first census makes every arm have one. The separation finding's
+/// containment refusals (`check_findings`) are welded the same way, as
+/// the `Check/SeparationUnavailable/Containment` family.
+///
+/// What it does not weld: the arms [`forward`] files as `Unwelded` or
+/// `RenderedIn`, and any refusal below a level's last roster (a
+/// `PcurveMintError` inside `Split/Pcurves`, the `RevolveError` inside
+/// `Tube/Revolve`), each rendered on one sample.
+///
+/// Each set difference guards one direction that can fire: an arm with
+/// no row. The other — a row whose arm is not in the census — cannot,
+/// since the census's `match` names every arm; it is left in place for
+/// a `Debug` written by hand, which `variant_identifier` would misread.
+#[test]
+fn every_forwarded_arm_has_a_row() {
+    use test_utils::f6::variant_identifier;
+    let rows = node_refusals();
+    let kinds: Vec<String> = rows.iter().map(|(_, k)| variant_identifier(k)).collect();
+    let kinds: Vec<&str> = kinds.iter().map(String::as_str).collect();
+    let mut reports: Vec<String> = test_utils::census::set_difference(
+        NODE_ERROR_KIND.identifiers(),
+        &kinds,
+        "NodeErrorKind's arms and the census rows disagree",
+        "rendered by a row and not an arm of the census",
+        "an arm with no row: give it one in `node_refusals`",
+    )
+    .into_iter()
+    .collect();
+    let mut families: std::collections::BTreeMap<String, (&'static str, Vec<String>)> =
+        std::collections::BTreeMap::new();
+    let mut record = |name: &str, family: &str, levels: Vec<Level>, reports: &mut Vec<String>| {
+        let mut path = family.to_owned();
+        for Level { roster, arm } in levels {
+            let entry = families.entry(path.clone()).or_insert((roster, Vec::new()));
+            if entry.0 != roster {
+                reports.push(format!(
+                    "{name}: the {path}/ family is read as {} and as {roster}",
+                    entry.0
+                ));
+            }
+            entry.1.push(arm.clone());
+            path = format!("{path}/{arm}");
+        }
+    };
+    let gone = |name: &str, filed: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(filed);
+        (!path.is_file()).then(|| format!("{name}: its payload cites {filed}, which is gone"))
+    };
+    for ((name, kind), family) in rows.iter().zip(&kinds) {
+        let (levels, labelled) = match forward(kind) {
+            Forward::Welded { levels, labelled } => (levels, labelled),
+            Forward::Unwelded(filed) | Forward::RenderedIn(filed) => {
+                reports.extend(gone(name, filed));
+                continue;
+            }
+            Forward::Own => continue,
+        };
+        let label = name.strip_prefix(&format!("{family}/"));
+        let arms: Vec<&str> = levels.iter().map(|l| l.arm.as_str()).collect();
+        if label.is_none() && !levels.is_empty() {
+            reports.push(format!("{name}: a {family} row opens with {family}/"));
+        } else if labelled && !names_arms(label.unwrap_or(""), &arms) {
+            reports.push(format!(
+                "{name}: a row is named by its payload's arm at each level, {}",
+                arms.join("/")
+            ));
+        }
+        record(name, family, levels, &mut reports);
+    }
+    let family = "Check/SeparationUnavailable/Containment";
+    for (label, e) in separation_reasons() {
+        let reason = level("PointInSolidError", &e);
+        if !names_arms(&label, &[reason.arm.as_str()]) {
+            reports.push(format!(
+                "{family}({label}): a row is named by its payload's arm, {}",
+                reason.arm
+            ));
+        }
+        record(&label, family, vec![reason], &mut reports);
+    }
+    for (family, (roster, arms)) in &families {
+        let Some((_, census)) = ROSTERS.iter().find(|(r, _)| r == roster) else {
+            reports.push(format!(
+                "the {family}/ rows read {roster}, which ROSTERS lacks"
+            ));
+            continue;
+        };
+        let arms: Vec<&str> = arms.iter().map(String::as_str).collect();
+        reports.extend(test_utils::census::set_difference(
+            census,
+            &arms,
+            &format!("the {family}/ rows and their payload's arms disagree"),
+            "rendered by a row and not an arm of the census",
+            "an arm with no row: give it one",
+        ));
+    }
+    for (roster, _) in ROSTERS {
+        if !families.values().any(|(r, _)| r == roster) {
+            reports.push(format!(
+                "no row reaches the {roster} roster: `forward` no longer reads it"
+            ));
+        }
+    }
+    assert!(reports.is_empty(), "{}", reports.join("\n"));
 }
 
 /// A failure as the feature tree draws it: the failed node's own line,
@@ -979,20 +1728,11 @@ fn row(name: &str, kind: NodeErrorKind) -> (String, NodeErrorKind) {
 /// The arms whose sentence `NodeErrorKind` writes itself, each on a
 /// representative payload where it forwards.
 fn own_arms() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{Dimension, EvalError, SlotId};
+    use editor_core::{Dimension, SlotId};
     use payloads::*;
     vec![
         row(
-            "Expr",
-            NodeErrorKind::Expr {
-                slot: SlotId::Distance,
-                source: EvalError::UnresolvedVar {
-                    var: editor_core::VarId::new(0, tagged(7)),
-                },
-            },
-        ),
-        row(
-            "ProfileLaneReplay(None)",
+            "ProfileLaneReplay(NoStructure)",
             NodeErrorKind::ProfileLaneReplay {
                 loop_: 0,
                 step: 2,
@@ -1001,22 +1741,8 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
         row(
-            "ProfileRecordMissing(None)",
-            NodeErrorKind::ProfileRecordMissing { loop_: None },
-        ),
-        row(
-            "ProfileRecordMissing(Some)",
-            NodeErrorKind::ProfileRecordMissing { loop_: Some(1) },
-        ),
-        row(
-            "ProfilePieces",
-            NodeErrorKind::ProfilePieces {
-                fault: editor_core::PiecesFault::Length {
-                    loop_: 0,
-                    recorded: 4,
-                    anchored: 5,
-                },
-            },
+            "ProfileRecordMissing",
+            NodeErrorKind::ProfileRecordMissing { loop_: 1 },
         ),
         row(
             "CurvedSolidFrontier",
@@ -1173,7 +1899,18 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 role: "extrude direction",
             },
         ),
-        row("Band", NodeErrorKind::Band(band_error())),
+        row(
+            "Band/InvalidValue",
+            NodeErrorKind::Band(geom_core::BandError::InvalidValue {
+                field: geom_core::BandField::Zero,
+                value: f64::NAN,
+            }),
+        ),
+        row(
+            "Band/InvalidLeverArm",
+            NodeErrorKind::Band(geom_core::BandError::InvalidLeverArm { value: -1.0 }),
+        ),
+        row("Band/Empty", NodeErrorKind::Band(band_error())),
         row(
             "MissingSlot",
             NodeErrorKind::MissingSlot {
@@ -1195,6 +1932,41 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "MeasureEscalated",
+            NodeErrorKind::MeasureEscalated {
+                predicate: "bool_plane_parallel",
+                source: named("bool_plane_parallel"),
+            },
+        ),
+        row(
+            "PlacementAxisEscalated",
+            NodeErrorKind::PlacementAxisEscalated {
+                predicate: "eval_direction_norm",
+                source: named("eval_direction_norm"),
+            },
+        ),
+        row(
+            "PoseDirectionEscalated",
+            NodeErrorKind::PoseDirectionEscalated {
+                predicate: topo::DATUM_UNIT_NORM,
+                source: named(topo::DATUM_UNIT_NORM),
+            },
+        ),
+        row(
+            "UnresolvedRead",
+            NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Selection,
+                var: editor_core::VarId::new(0, tagged(4)),
+            },
+        ),
+        row(
+            "ProductOperand",
+            NodeErrorKind::ProductOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                parts: 2,
+            },
+        ),
+        row(
             "PoseRead",
             NodeErrorKind::PoseRead {
                 pose: editor_core::VarKind::Axis,
@@ -1207,13 +1979,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "PoseDegenerate",
             NodeErrorKind::PoseDegenerate {
                 construction: editor_core::pose::PoseConstruction::Meet,
-            },
-        ),
-        row(
-            "PoseScalar",
-            NodeErrorKind::PoseScalar {
-                var: editor_core::VarId::new(0, tagged(4)),
-                source: editor_core::EvalError::NonFiniteResult,
             },
         ),
         row(
@@ -1279,12 +2044,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row("UnschedulableCycle", NodeErrorKind::UnschedulableCycle),
         row(
-            "BlendSelectionEmpty",
-            NodeErrorKind::BlendSelectionEmpty {
-                verb: sweep::blend::BlendKind::Fillet,
-            },
-        ),
-        row(
             "ShellLaneUnsupported",
             NodeErrorKind::ShellLaneUnsupported { scalar: "interval" },
         ),
@@ -1301,20 +2060,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 a: "plane",
                 b: "plane",
                 predicate: "measure_parallel",
-            },
-        ),
-        row(
-            "MeasureNonFinite",
-            NodeErrorKind::MeasureNonFinite {
-                source: EvalError::NonFiniteResult,
-            },
-        ),
-        row(
-            "PayloadExpr",
-            NodeErrorKind::PayloadExpr {
-                what: "placement",
-                index: 2,
-                source: EvalError::NonFiniteResult,
             },
         ),
         row(
@@ -1396,13 +2141,13 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "CapPlaneOrientation",
+            "CapPlane(Orientation)",
             E::CapPlane {
                 source: sweep::CapPlaneError::Orientation(named("cap_plane_orientation")),
             },
         ),
         (
-            "CapPlaneEdgeOn",
+            "CapPlane(EdgeOn)",
             E::CapPlane {
                 source: sweep::CapPlaneError::EdgeOn,
             },
@@ -1415,7 +2160,18 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
                 source: newell(),
             },
         ),
+        (
+            "SmoothJoinRefuted",
+            E::SmoothJoinRefuted {
+                edge: topo::EdgeKey::default(),
+                mixed: Some(geom_brep::MixedStations {
+                    transverse: 3,
+                    smooth: 4,
+                }),
+            },
+        ),
         ("Op", E::Op { source: euler() }),
+        ("Pcurve", E::Pcurve(pcurve())),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Extrude/{n}"), NodeErrorKind::Extrude(e)))
@@ -1541,15 +2297,38 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             },
         ),
         (
-            "CapPlaneOrientation",
+            "CapPlane(Orientation)",
             E::CapPlane {
                 source: sweep::CapPlaneError::Orientation(named("cap_plane_orientation")),
             },
         ),
         (
-            "CapPlaneEdgeOn",
+            "CapPlane(EdgeOn)",
             E::CapPlane {
                 source: sweep::CapPlaneError::EdgeOn,
+            },
+        ),
+        (
+            "Turn",
+            E::Turn(geom_core::RigidMotionError::NonFinite(
+                geom_core::MotionPart::Angle,
+            )),
+        ),
+        (
+            "SmoothJoinRefuted",
+            E::SmoothJoinRefuted {
+                edge: topo::EdgeKey::default(),
+                mixed: Some(geom_brep::MixedStations {
+                    transverse: 3,
+                    smooth: 4,
+                }),
+            },
+        ),
+        (
+            "PinnedRunStation",
+            E::PinnedRunStation {
+                loop_index: 0,
+                vertex_index: 2,
             },
         ),
         ("Op", E::Op { source: euler() }),
@@ -1758,6 +2537,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("Euler", R::Euler(euler())),
+        (
+            "UnjoinedOperand",
+            R::UnjoinedOperand {
+                errors: vec![topo::ValidationError::JoinableVertexAtRest { vertex }],
+            },
+        ),
+        (
+            "LineageRow",
+            R::LineageRow(topo::RowRefusal {
+                rows: topo::LineageRows::Fusions,
+                defect: topo::RowDefect::SelfRow,
+                key: topo::Cell::Vertex(vertex),
+            }),
+        ),
     ]
     .map(|(n, e)| (format!("Reduce/{n}"), SplitError::Reduce(e)));
     // The join is shared by the split and the Boolean, and each wraps it
@@ -1812,7 +2605,15 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ("Band", J::Band(band_error())),
             ("Euler", J::Euler(euler())),
             (
-                "SectionEnd(OnPlane)",
+                "LineageRow",
+                J::LineageRow(topo::RowRefusal {
+                    rows: topo::LineageRows::FaceDivisions,
+                    defect: topo::RowDefect::NotFresh,
+                    key: topo::Cell::Face(face),
+                }),
+            ),
+            (
+                "SectionEndEscalated(OnPlane)",
                 J::SectionEndEscalated {
                     face,
                     reading: topo::SectionEndReading::OnPlane,
@@ -1820,7 +2621,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "SectionEnd(SquareToAxis)",
+                "SectionEndEscalated(SquareToAxis)",
                 J::SectionEndEscalated {
                     face,
                     reading: topo::SectionEndReading::SquareToAxis,
@@ -1851,7 +2652,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ),
             // The two section refusals a plane-inclusive pair can reach
             // (the join reads no other): a lane bug, and the conic
-            // carrier's own refusal at a near-circular tilt.
+            // carrier's own escalation on its minor semi-axis.
             (
                 "Section",
                 J::Section {
@@ -1865,8 +2666,8 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "Section(Carrier)",
                 J::Section {
                     face,
-                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes(
-                        payloads::named("ellipse_axes_distinct"),
+                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(
+                        payloads::named("ellipse_minor_positive"),
                     )),
                 },
             ),
@@ -2011,6 +2812,38 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::EdgeJoin {
                 side: topo::PlaneSide::Above,
                 refusal: join_refusal(),
+            },
+        ),
+        (
+            "ResultNotAtRest",
+            F::ResultNotAtRest {
+                side: topo::PlaneSide::Above,
+                errors: vec![topo::ValidationError::JoinableVertexAtRest { vertex }],
+            },
+        ),
+        (
+            "ResultEscalated",
+            F::ResultEscalated {
+                side: topo::PlaneSide::Below,
+                decision: topo::BooleanDecision::ShellRole {
+                    near: face,
+                    far: face,
+                    others: 1,
+                },
+                // A margin so deep in the band that no tolerance above
+                // `EPS_MIN` decides it, so the sentence offers none at
+                // any eps row and its length is one number.
+                diag: geom_core::Indeterminate {
+                    margin: geom_core::MarginDiag::value(1.0e-20),
+                    ..diag()
+                },
+            },
+        ),
+        (
+            "Merge",
+            F::Merge {
+                side: topo::PlaneSide::Above,
+                error: topo::MergeCoplanarError::PeriodClosure { edge },
             },
         ),
         (
@@ -2208,7 +3041,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
             "lever arm",
             escalated(CertCheck::TransversalityArm, in_band),
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there, or, if this length or the gap its faces open is intended, \
+             tightly there, or, if this width or the gap its faces open is intended, \
              tighten the tolerance below 5e-10 m",
         ),
         (
@@ -2218,7 +3051,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 MarginDiag::enclosure(2.0e-9, 5.0e-9),
             ),
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there, or, if this length or the gap its faces open is intended, \
+             tightly there, or, if this width or the gap its faces open is intended, \
              tighten the tolerance below 2e-10 m",
         ),
         (
@@ -2312,7 +3145,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
             assert_eq!(
                 text,
                 "node 000000000005 failed: the transform op refused: an edge the map moved failed \
-                 re-certification: the transversality margin at sample 4 escalated: margin 5e-9 \
+                 re-certification: the crossing angle at sample 4 escalated: margin 5e-9 \
                  lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
                  surfaces cross at a clearer angle, or, if this angle is intended, tighten the \
                  tolerance below 5e-10 m"
@@ -2627,6 +3460,15 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             E::KnotAlgebra(geom_core::spline::KnotAlgebraError::KnotNotPresent { u: 0.5 }),
         ),
         (
+            "PathTangentUndecided",
+            E::PathTangentUndecided {
+                station: 2,
+                source: payloads::diag(),
+            },
+        ),
+        ("StationNotFinite", E::StationNotFinite { station: 2 }),
+        ("Band", E::Band(payloads::band_error())),
+        (
             "Structure",
             E::Structure(geom_core::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 }),
         ),
@@ -2655,12 +3497,15 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             E::CapPlane(sweep::CapPlaneError::Newell(newell())),
         ),
         (
-            "CapPlaneOrientation",
+            "CapPlane(Orientation)",
             E::CapPlane(sweep::CapPlaneError::Orientation(named(
                 "cap_plane_orientation",
             ))),
         ),
-        ("CapPlaneEdgeOn", E::CapPlane(sweep::CapPlaneError::EdgeOn)),
+        (
+            "CapPlane(EdgeOn)",
+            E::CapPlane(sweep::CapPlaneError::EdgeOn),
+        ),
         ("Pcurve", E::Pcurve(pcurve())),
         (
             "SeamStructure",
@@ -3007,6 +3852,18 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "UnjoinedOperand",
+            E::UnjoinedOperand {
+                errors: vec![topo::ValidationError::JoinableVertexAtRest { vertex }],
+            },
+        ),
+        (
+            "Join",
+            E::Join {
+                refusal: join_refusal(),
+            },
+        ),
+        (
             "Op",
             E::Op {
                 site: "strut mev",
@@ -3046,6 +3903,22 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
         ("PlaneNotFinite", E::PlaneNotFinite),
         ("EmptyLoop", E::EmptyLoop { loop_index: 0 }),
         ("DegenerateSegment", E::DegenerateSegment(a)),
+        (
+            "ArcBelowSceneResolution",
+            E::ArcBelowSceneResolution {
+                at: a,
+                check: profile::ArcCheck::Landing,
+                margin: geom_core::MarginDiag::value(3.0e-10),
+                headroom: geom_core::MarginDiag::value(1.0e-9),
+            },
+        ),
+        (
+            "InconsistentArc",
+            E::InconsistentArc {
+                at: a,
+                check: profile::ArcCheck::OnCarrier,
+            },
+        ),
         ("NearFullArc", E::NearFullArc(a)),
         (
             "NonSimple",
@@ -3481,7 +4354,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         .map(|(n, error)| (n, NodeErrorKind::ProfileReplay { loop_: 0, error }))
         .chain([
             row(
-                "ProfileLaneReplay(Flipped)",
+                "ProfileLaneReplay/Flipped",
                 NodeErrorKind::ProfileLaneReplay {
                     loop_: 0,
                     step: 2,
@@ -3489,7 +4362,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             row(
-                "ProfileLaneReplay(Indeterminate)",
+                "ProfileLaneReplay/Indeterminate",
                 NodeErrorKind::ProfileLaneReplay {
                     loop_: 0,
                     step: 2,
@@ -3504,7 +4377,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 /// analysis seeds, placement rules, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, PiecesFault,
         PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
         TieWitness, VarName,
     };
@@ -3515,59 +4388,81 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         node: RecipeNodeId::new(0, tagged(3)),
         path: Vec::new(),
     };
-    let eval: Vec<(&str, EvalError)> = vec![
+    let eval = || -> Vec<(&str, EvalError)> {
+        vec![
+            (
+                "UnresolvedVar",
+                EvalError::UnresolvedVar {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                },
+            ),
+            (
+                "OutputRead",
+                EvalError::OutputRead {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                },
+            ),
+            (
+                "DefinitionRefused",
+                EvalError::DefinitionRefused {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                    source: Box::new(EvalError::NonFiniteResult),
+                },
+            ),
+            (
+                "VarKindMismatch",
+                EvalError::VarKindMismatch {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                    bound: Dimension::Angle,
+                    read: Dimension::Length,
+                },
+            ),
+            (
+                "CountExprInContinuousEval",
+                EvalError::CountExprInContinuousEval,
+            ),
+            (
+                "ContinuousExprInCountEval",
+                EvalError::ContinuousExprInCountEval {
+                    found: Dimension::Length,
+                },
+            ),
+            ("CountOverflow", EvalError::CountOverflow),
+            (
+                "CountToScalarOutOfRange",
+                EvalError::CountToScalarOutOfRange(1 << 60),
+            ),
+            ("NonFiniteResult", EvalError::NonFiniteResult),
+            // No node raises it — a lowered document holds no authored
+            // leaf, so a node's expression never reaches it — but a formula
+            // evaluated outside a document does, and it renders through the
+            // same `Display` within the same budget.
+            (
+                "Unlowered",
+                EvalError::Unlowered(editor_core::LowerFault::Quantity {
+                    dim: Dimension::Length,
+                }),
+            ),
+        ]
+    };
+    let pieces = [
+        ("NoRecord", PiecesFault::NoRecord { loop_: 0 }),
+        ("NoIds", PiecesFault::NoIds { loop_: 0 }),
         (
-            "UnresolvedVar",
-            EvalError::UnresolvedVar {
-                var: editor_core::VarId::new(0, tagged(7)),
+            "Length",
+            PiecesFault::Length {
+                loop_: 0,
+                recorded: 4,
+                anchored: 5,
             },
         ),
         (
-            "OutputRead",
-            EvalError::OutputRead {
-                var: editor_core::VarId::new(0, tagged(7)),
+            "NoStepId",
+            PiecesFault::NoStepId {
+                loop_: 0,
+                step: 6,
+                ids: 5,
             },
-        ),
-        (
-            "DefinitionRefused",
-            EvalError::DefinitionRefused {
-                var: editor_core::VarId::new(0, tagged(7)),
-                source: Box::new(EvalError::NonFiniteResult),
-            },
-        ),
-        (
-            "VarKindMismatch",
-            EvalError::VarKindMismatch {
-                var: editor_core::VarId::new(0, tagged(7)),
-                bound: Dimension::Angle,
-                read: Dimension::Length,
-            },
-        ),
-        (
-            "CountExprInContinuousEval",
-            EvalError::CountExprInContinuousEval,
-        ),
-        (
-            "ContinuousExprInCountEval",
-            EvalError::ContinuousExprInCountEval {
-                found: Dimension::Length,
-            },
-        ),
-        ("CountOverflow", EvalError::CountOverflow),
-        (
-            "CountToScalarOutOfRange",
-            EvalError::CountToScalarOutOfRange(1 << 60),
-        ),
-        ("NonFiniteResult", EvalError::NonFiniteResult),
-        // No node raises it — a lowered document holds no authored
-        // leaf, so a node's expression never reaches it — but a formula
-        // evaluated outside a document does, and it renders through the
-        // same `Display` within the same budget.
-        (
-            "Unlowered",
-            EvalError::Unlowered(editor_core::LowerFault::Quantity {
-                dim: Dimension::Length,
-            }),
         ),
     ];
     let param_box = [
@@ -3591,6 +4486,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 hi: 0.0,
             },
         ),
+        ("SymbolsOverABox", ParamBoxError::SymbolsOverABox),
     ];
     let seed = [
         (
@@ -3662,6 +4558,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "Duplicate",
             NamingError::Duplicate {
                 name: Box::new(name()),
+            },
+        ),
+        (
+            "EntityNamed",
+            NamingError::EntityNamed {
+                name: Box::new(name()),
+                held: Box::new(stable(EntityKind::Face, 4)),
             },
         ),
         (
@@ -3796,6 +4699,12 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
     ];
+    let at = RecipeNodeId::new(0, tagged(8));
+    let vanished = |diagnosis| ResolveError::Vanished {
+        name: name(),
+        diagnosis,
+        last_good: None,
+    };
     let resolve = || {
         [
             (
@@ -3829,7 +4738,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "Vanished",
+                "Vanished(PredicateFlip)",
                 ResolveError::Vanished {
                     name: name(),
                     diagnosis: Diagnosis::PredicateFlip {
@@ -3839,6 +4748,48 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     },
                     last_good: None,
                 },
+            ),
+            (
+                "Vanished(BorderDelta)",
+                vanished(Diagnosis::BorderDelta {
+                    node: at,
+                    gone: vec![name()],
+                    new: Vec::new(),
+                }),
+            ),
+            (
+                "Vanished(GroupResized)",
+                vanished(Diagnosis::GroupResized {
+                    node: at,
+                    was: 2,
+                    now: 1,
+                    cutters: editor_core::GroupCutters::NotSeamBounded,
+                }),
+            ),
+            (
+                "Vanished(StructuralParam)",
+                vanished(Diagnosis::StructuralParam {
+                    node: at,
+                    param: SlotId::Count,
+                }),
+            ),
+            (
+                "Vanished(RecipeEdit)",
+                vanished(Diagnosis::RecipeEdit {
+                    edit: RecipeEditRef::NodeDeleted { node: at },
+                }),
+            ),
+            (
+                "Vanished(Upstream)",
+                vanished(Diagnosis::Upstream {
+                    node: RecipeNodeId::new(0, tagged(9)),
+                    cause: editor_core::UpstreamCause::PredicateFlip {
+                        predicate: "side_of_plane",
+                        at,
+                        from: Sign::Negative,
+                        to: Sign::Positive,
+                    },
+                }),
             ),
             (
                 "Ambiguous",
@@ -3872,13 +4823,34 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         ]
     };
     let mut rows: Vec<(String, NodeErrorKind)> = Vec::new();
-    for (n, e) in eval {
+    type EvalWrap = fn(EvalError) -> NodeErrorKind;
+    let eval_wraps: [(&str, EvalWrap); 4] = [
+        ("Expr", |source| NodeErrorKind::Expr {
+            slot: SlotId::Distance,
+            source,
+        }),
+        ("PoseScalar", |source| NodeErrorKind::PoseScalar {
+            var: editor_core::VarId::new(0, tagged(4)),
+            source,
+        }),
+        ("MeasureNonFinite", |source| {
+            NodeErrorKind::MeasureNonFinite { source }
+        }),
+        ("PayloadExpr", |source| NodeErrorKind::PayloadExpr {
+            what: "placement",
+            index: 2,
+            source,
+        }),
+    ];
+    for (wrap, build) in eval_wraps {
+        for (n, e) in eval() {
+            rows.push(row(&format!("{wrap}/{n}"), build(e)));
+        }
+    }
+    for (n, fault) in pieces {
         rows.push(row(
-            &format!("Expr/{n}"),
-            NodeErrorKind::Expr {
-                slot: SlotId::Distance,
-                source: e,
-            },
+            &format!("ProfilePieces/{n}"),
+            NodeErrorKind::ProfilePieces { fault },
         ));
     }
     for (n, source) in param_box {
@@ -3956,22 +4928,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "WitnessBifurcation",
-            NodeErrorKind::WitnessBifurcation(WitnessBifurcation {
-                kind: BifurcationKind::FoldProximity,
-                margin: BranchMarginEvidence {
-                    margin: 3.0e-10,
-                    band_zero: 1.0e-9,
-                    band_escalate: 1.0e-8,
-                },
-                implicated: vec![Implicated::Entity(face()), Implicated::Constraint(2)],
-                witness_age: WitnessAge {
-                    solved_under: Vec::new(),
-                    at_solve: Vec::new(),
-                },
-            }),
-        ),
-        row(
             "SpaceMismatch/WorldAndLoose",
             NodeErrorKind::SpaceMismatch {
                 a: editor_core::Space::World,
@@ -4007,14 +4963,84 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 b: "torus",
             }),
         ),
-        row(
-            "MeasureClearanceRefused",
-            NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Unsupported {
-                carrier: "a free-form face",
-                face: FaceKey::default(),
-            }),
-        ),
     ];
+    for (n, kind) in [
+        ("FoldProximity", BifurcationKind::FoldProximity),
+        ("AmbiguousBasin", BifurcationKind::AmbiguousBasin),
+        ("ResidualFailure", BifurcationKind::ResidualFailure),
+    ] {
+        rows.push(row(
+            &format!("WitnessBifurcation/{n}"),
+            NodeErrorKind::WitnessBifurcation(WitnessBifurcation {
+                kind,
+                margin: BranchMarginEvidence {
+                    margin: 3.0e-10,
+                    band_zero: 1.0e-9,
+                    band_escalate: 1.0e-8,
+                },
+                implicated: vec![Implicated::Entity(face()), Implicated::Constraint(2)],
+                witness_age: WitnessAge {
+                    solved_under: Vec::new(),
+                    at_solve: Vec::new(),
+                },
+            }),
+        ));
+    }
+    {
+        use editor_core::clearance::{CellBudget, SelectionRefusal};
+        for (n, refusal) in [
+            (
+                "Sliver",
+                ClearanceRefusal::Sliver {
+                    predicate: "clearance_pair_separation",
+                },
+            ),
+            (
+                "Budget",
+                ClearanceRefusal::Budget(CellBudget::Depth { max_cell_depth: 24 }),
+            ),
+            (
+                "Unsupported",
+                ClearanceRefusal::Unsupported {
+                    carrier: "a free-form face",
+                    face: FaceKey::default(),
+                },
+            ),
+            (
+                "Selection",
+                ClearanceRefusal::Selection(SelectionRefusal::NoSuchBody {
+                    node: RecipeNodeId::new(0, tagged(6)),
+                    index: 2,
+                }),
+            ),
+            (
+                "PoisonEnclosure",
+                ClearanceRefusal::PoisonEnclosure {
+                    a: FaceKey::default(),
+                    b: FaceKey::default(),
+                },
+            ),
+            (
+                "NothingCertified",
+                ClearanceRefusal::NothingCertified { refused_leaves: 12 },
+            ),
+            ("NotADistance", ClearanceRefusal::NotADistance { c: -1.0 }),
+            ("EmptyScope", ClearanceRefusal::EmptyScope),
+            ("ToleranceHasNoBand", ClearanceRefusal::ToleranceHasNoBand),
+            ("NoAdmittedPair", ClearanceRefusal::NoAdmittedPair),
+            (
+                "WitnessUnverified",
+                ClearanceRefusal::WitnessUnverified {
+                    what: "the f64 rebuild found the pair clear of the bound".to_owned(),
+                },
+            ),
+        ] {
+            rows.push(row(
+                &format!("MeasureClearanceRefused/{n}"),
+                NodeErrorKind::MeasureClearanceRefused(refusal),
+            ));
+        }
+    }
     for (n, error) in [
         (
             "Dangling",
@@ -4874,117 +5900,8 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
         ]
         .map(|(n, e)| (n.to_owned(), e)),
     );
-    // `Fit` is `offset_fit_routes`'s; every other arm is rendered here.
-    let rendered: std::collections::BTreeSet<&str> =
-        rows.iter().map(|(_, e)| replace_face_arm(e)).collect();
-    let missing: Vec<&str> = REPLACE_FACE_ARMS
-        .into_iter()
-        .filter(|arm| *arm != "Fit" && !rendered.contains(arm))
-        .collect();
-    assert!(missing.is_empty(), "the census renders no {missing:?} row");
     rows
 }
-
-/// `ReplaceFaceError`'s variant name. An exhaustive match, so an arm
-/// added to the enum does not compile until it is named here; named
-/// here and in [`REPLACE_FACE_ARMS`], [`replace_face`]'s census is red
-/// until it renders the arm.
-fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
-    use topo::ReplaceFaceError as R;
-    match error {
-        R::Band { .. } => "Band",
-        R::StaleFace { .. } => "StaleFace",
-        R::Offset { .. } => "Offset",
-        R::Fit { .. } => "Fit",
-        R::ApproxLaneUnsupported { .. } => "ApproxLaneUnsupported",
-        R::SharedSurfaceKey { .. } => "SharedSurfaceKey",
-        R::EmptyGroup => "EmptyGroup",
-        R::GroupChartsDiffer { .. } => "GroupChartsDiffer",
-        R::PlaceholderSurface { .. } => "PlaceholderSurface",
-        R::ApexWindow { .. } => "ApexWindow",
-        R::NappeStraddles { .. } => "NappeStraddles",
-        R::ApexWindowUnknown { .. } => "ApexWindowUnknown",
-        R::NeighborPairUnroutable { .. } => "NeighborPairUnroutable",
-        R::NeighborPoseUnroutable { .. } => "NeighborPoseUnroutable",
-        R::FittedBoundaryUnsupported { .. } => "FittedBoundaryUnsupported",
-        R::CarrierLaneUnsupported { .. } => "CarrierLaneUnsupported",
-        R::IsoRow { .. } => "IsoRow",
-        R::Structure { .. } => "Structure",
-        R::VertexDisagreement { .. } => "VertexDisagreement",
-        R::EdgeSection { .. } => "EdgeSection",
-        R::CornerSection { .. } => "CornerSection",
-        R::DeclaredEdgeTilted { .. } => "DeclaredEdgeTilted",
-        R::MixedEdge { .. } => "MixedEdge",
-        R::ReanchorPastCarrierEnd { .. } => "ReanchorPastCarrierEnd",
-        R::ReanchorCollapse { .. } => "ReanchorCollapse",
-        R::ReanchorInconclusive { .. } => "ReanchorInconclusive",
-        R::NurbsLaneUnsupported { .. } => "NurbsLaneUnsupported",
-        R::TogetherNonPlanar { .. } => "TogetherNonPlanar",
-        R::TogetherPartialSet { .. } => "TogetherPartialSet",
-        R::TogetherCorner { .. } => "TogetherCorner",
-        R::TogetherChartMixed { .. } => "TogetherChartMixed",
-        R::TogetherFaceRepeated { .. } => "TogetherFaceRepeated",
-        R::TogetherEdgeDisagreement { .. } => "TogetherEdgeDisagreement",
-        R::TogetherAxialUnsupported { .. } => "TogetherAxialUnsupported",
-        R::TogetherNotAxial { .. } => "TogetherNotAxial",
-        R::TogetherAxialCorner { .. } => "TogetherAxialCorner",
-        R::TogetherAxialEdge { .. } => "TogetherAxialEdge",
-        R::DegenerateTorus { .. } => "DegenerateTorus",
-        R::Escalated { .. } => "Escalated",
-        R::Op { .. } => "Op",
-        R::Pcurve { .. } => "Pcurve",
-        R::Join { .. } => "Join",
-        R::ResultNotClosed { .. } => "ResultNotClosed",
-    }
-}
-
-/// Every `ReplaceFaceError` variant, in declaration order: the names
-/// [`replace_face_arm`] answers.
-const REPLACE_FACE_ARMS: [&str; 43] = [
-    "Band",
-    "StaleFace",
-    "Offset",
-    "Fit",
-    "ApproxLaneUnsupported",
-    "SharedSurfaceKey",
-    "EmptyGroup",
-    "GroupChartsDiffer",
-    "PlaceholderSurface",
-    "ApexWindow",
-    "NappeStraddles",
-    "ApexWindowUnknown",
-    "NeighborPairUnroutable",
-    "NeighborPoseUnroutable",
-    "FittedBoundaryUnsupported",
-    "CarrierLaneUnsupported",
-    "IsoRow",
-    "Structure",
-    "VertexDisagreement",
-    "EdgeSection",
-    "CornerSection",
-    "DeclaredEdgeTilted",
-    "MixedEdge",
-    "ReanchorPastCarrierEnd",
-    "ReanchorCollapse",
-    "ReanchorInconclusive",
-    "NurbsLaneUnsupported",
-    "TogetherNonPlanar",
-    "TogetherPartialSet",
-    "TogetherCorner",
-    "TogetherChartMixed",
-    "TogetherFaceRepeated",
-    "TogetherEdgeDisagreement",
-    "TogetherAxialUnsupported",
-    "TogetherNotAxial",
-    "TogetherAxialCorner",
-    "TogetherAxialEdge",
-    "DegenerateTorus",
-    "Escalated",
-    "Op",
-    "Pcurve",
-    "Join",
-    "ResultNotClosed",
-];
 
 /// **Every checks-window finding fits the window it is listed in.** The
 /// checks window draws each finding's `Display` verbatim beside its
@@ -5117,8 +6034,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     use payloads::*;
     use topo::{
         BooleanError, CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey,
-        PointInSolidError, ShellClassifyError, ShellKey, StructureRead, Unexaminable, Unexamined,
-        VertexKey,
+        ShellClassifyError, ShellKey, StructureRead, Unexaminable, Unexamined, VertexKey,
     };
     let shell = ShellKey::default();
     let finding = |check, evidence| CheckFinding {
@@ -5295,6 +6211,28 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     .into_iter()
     .map(|(n, f)| (n.to_owned(), f))
     .collect::<Vec<_>>();
+    for (n, e) in separation_reasons() {
+        let source = BooleanError::Containment(e);
+        rows.push((
+            format!("SeparationUnavailable/Containment({n})"),
+            finding(
+                CheckId::Separation,
+                E::SeparationUnavailable {
+                    refusal: source.into(),
+                },
+            ),
+        ));
+    }
+    rows
+}
+
+/// Every containment refusal the separation read can raise, by its
+/// arm (and, for the loop walk's escalation, every form a site of it
+/// raises): the payloads `check_findings` renders through
+/// `SeparationUnavailable`.
+fn separation_reasons() -> Vec<(String, topo::PointInSolidError)> {
+    use payloads::*;
+    use topo::{FaceKey, PointInSolidError};
     let face = FaceKey::default();
     let separation_reasons = [
         (
@@ -5309,6 +6247,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             }),
         ),
         ("ZeroVolumeBody", PointInSolidError::ZeroVolumeBody),
+        ("InsideOut", PointInSolidError::InsideOut),
         ("CorruptFace", PointInSolidError::CorruptFace { face }),
         (
             "KindUnsupported",
@@ -5402,23 +6341,11 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             }),
         )
     });
-    let separation_reasons = separation_reasons
+    separation_reasons
         .into_iter()
         .map(|(n, e)| (n.to_owned(), e))
-        .chain(walk);
-    for (n, e) in separation_reasons {
-        let source = BooleanError::Containment(e);
-        rows.push((
-            format!("SeparationUnavailable/Containment({n})"),
-            finding(
-                CheckId::Separation,
-                E::SeparationUnavailable {
-                    refusal: source.into(),
-                },
-            ),
-        ));
-    }
-    rows
+        .chain(walk)
+        .collect()
 }
 
 /// **Every detail a blend refusal is raised with fits its chain.** The

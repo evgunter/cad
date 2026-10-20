@@ -238,6 +238,29 @@ unresolved enclosure, a straddle) ends in the lever whatever the side.
 | `StoredContradiction` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
 | `Unminted` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
 
+One chooser names the culprit of every defect ending read through
+`geom_brep::recourse`, sized or not (`geom_brep::recourse::culprit`),
+by the door and by whose data the contradiction is about
+(`geom_brep::recourse::Provenance`). At a build it names the kernel and
+at rest the kernel or the file. At the import door past ε_in it names
+the file where the file stored what the decision compares, and the
+kernel or the file where a side is a value the kernel derives at
+adoption. The provenance is not chosen per decision: every sized
+decision reads both its stored sides above as the file's data
+(`SizedDecision::words`), though `CertCheck::ImageSpan`'s side compares
+a chart image the kernel derives
+(`work/encl/pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache.md`);
+every decision with no size reads a derived value, since at the import
+door each compares a value the kernel derives at adoption — an edge's
+carrier parameters, a carrier the import mints, the witness at the
+carrier's mid-parameter, a chart image or a fit — so its definite
+refusals there name the kernel or the file. Defect endings spelled as a
+constant at their own site (`KERNEL_DEFECT_ENDING`,
+`KERNEL_OR_FILE_DEFECT_ENDING`) do not read the chooser: elsewhere in
+`geom_brep` (`edge_nurbs`, `offset`, `offset_fit`, `patch_bound`,
+`props`) and in `topo`, `sweep`, `profile`, `editor-core`, `pncad` and
+`viewer`, each names the culprit its own door gives.
+
 Within ε_in the import door ends every band-decided reading in its one
 sentence and the lever, whatever the side. No public door returns a
 refusal on an unminted side read at a build: every
@@ -250,11 +273,12 @@ finer than the one it was minted at, since the winding decision passes
 a headroom its band reads as zero. Where that input is an edge the
 kernel holds, re-minted or re-certified at the run's one band (a rigid
 motion, a graft, a re-description in place, a split child, a re-based
-run), `topo` panics at the call site (`policy_lane::kernels_own`): a
-kernel bug. Only a refusal built by hand reaches `CertCheck::ParamSpan`'s
+run), the call names that origin (`topo`'s `policy_lane::Origin::Kernels`,
+which every certification in `topo` names one of) and panics: a kernel
+bug. Only a refusal built by hand reaches `CertCheck::ParamSpan`'s
 or `CertCheck::ParamWinding`'s own ending at a build; rendering it is
 input, so it ends there as the door's own refusal does, in the lever,
-and the kernel-bug panic is `kernels_own`'s alone. So the `Unminted`
+and the kernel-bug panic is `Origin::Kernels`'s alone. So the `Unminted`
 build cell keeps clause (iv)'s panic where the kernel constructs, the
 only place such a reading arises; the cell names what a hand-built
 value renders. The table departs from clause (iv) in one cell, typed until the door that would keep input

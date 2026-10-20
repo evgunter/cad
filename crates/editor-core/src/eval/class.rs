@@ -166,10 +166,6 @@ pub enum NodeErrorClass {
     Naming,
     /// [`NodeErrorKind::UnionFoldStep`].
     UnionFoldStep,
-    /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a fillet.
-    FilletSelectionEmpty,
-    /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a chamfer.
-    ChamferSelectionEmpty,
     /// [`NodeErrorKind::Shell`].
     Shell,
     /// [`NodeErrorKind::ShellLaneUnsupported`].
@@ -329,9 +325,6 @@ impl NodeErrorKind {
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
             Self::UnionFoldStep { .. } => C::UnionFoldStep,
-            Self::BlendSelectionEmpty { verb } => {
-                by_verb(*verb, C::FilletSelectionEmpty, C::ChamferSelectionEmpty)
-            }
             Self::Shell(_) => C::Shell,
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
             Self::FaceFrameNotPlanar { .. } => C::FaceFrameNotPlanar,
@@ -539,8 +532,6 @@ mod tests {
         UnschedulableCycle,
         Naming,
         UnionFoldStep,
-        FilletSelectionEmpty,
-        ChamferSelectionEmpty,
         Shell,
         ShellLaneUnsupported,
         FaceFrameNotPlanar,
@@ -693,7 +684,7 @@ mod tests {
                     anchored: 5,
                 },
             },
-            C::ProfileRecordMissing => K::ProfileRecordMissing { loop_: Some(1) },
+            C::ProfileRecordMissing => K::ProfileRecordMissing { loop_: 1 },
             C::Extrude => K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
             C::Revolve => K::Revolve(sweep::RevolveError::DegenerateAxis),
             C::Tube => K::Tube(Box::new(sweep::TubeError::DegenerateWindow)),
@@ -869,12 +860,6 @@ mod tests {
                 member: 2,
                 read: crate::VarId::new(2, 2),
                 refusal: Box::new(K::UnschedulableCycle),
-            },
-            C::FilletSelectionEmpty => K::BlendSelectionEmpty {
-                verb: BlendKind::Fillet,
-            },
-            C::ChamferSelectionEmpty => K::BlendSelectionEmpty {
-                verb: BlendKind::Chamfer,
             },
             C::Shell => K::Shell(Box::new(topo::ShellError::Thickness { thickness: -0.5 })),
             C::ShellLaneUnsupported => K::ShellLaneUnsupported { scalar: "interval" },

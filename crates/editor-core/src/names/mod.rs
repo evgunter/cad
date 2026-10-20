@@ -22,6 +22,7 @@
 pub(crate) mod attribute;
 mod borders;
 mod canonical;
+mod chase;
 mod defer;
 mod discriminate;
 mod emit;
@@ -88,7 +89,8 @@ pub(crate) use role::{VerbatimEdge, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{
-    DuplicateName, EntityKey, EntityRef, Entry, KindMismatch, NameTable, SeatingRefusal, ShortTie,
+    DuplicateName, EntityKey, EntityNamed, EntityRef, Entry, KindMismatch, NameTable,
+    SeatingRefusal, ShortTie,
 };
 /// The kernel's contact vocabulary, re-exported so a refusal the recipe
 /// layer renders quotes the kernel's own words.
@@ -110,8 +112,8 @@ pub use words::{LeafRole, leaf_role, role_leaf};
 ///
 /// Returns the names in canonical order, ready for
 /// [`crate::Node::fillet`]. Empty if `node` has no value, no table, or
-/// no edges — the fillet node itself refuses an empty selection, so
-/// the emptiness surfaces there rather than here.
+/// no edges — the fillet's insert refuses an empty selection, so the
+/// emptiness surfaces there rather than here.
 pub fn all_edges<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
     at: impl Into<crate::At>,

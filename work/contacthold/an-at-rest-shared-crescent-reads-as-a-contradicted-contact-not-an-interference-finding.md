@@ -18,7 +18,14 @@ Found by a designer of the overlapping-tangency fork (fork log row 118), read fr
 ## Note (PR 4831)
 
 Untouched by the claim-free glue build: the census confirm
-(`tangent_pair_at_rest` → `contact_verify::tangent_locus_relation`) still
+(`tangent_table_at_rest` → `contact_verify::tangent_locus_relation`) still
 reads the crescent as the `Tangent` contact's contradiction. The ruling on
 PR 4775 places the crescent check there and calls a shared crescent
 interference; which refusal the census reports is this row's.
+
+## Answered (Ev, `[ev]` PR 5395, 2026-10-20)
+
+Between two distinct solids a shared crescent is interference (C6), not
+`ContactContradicted`: the census reports it as an interference
+finding. Inside one solid, along a line it is a missing edge (the op's
+defect), and at a point touch it is legal (C4).

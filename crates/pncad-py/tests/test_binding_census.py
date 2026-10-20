@@ -1849,7 +1849,7 @@ FAMILIES: dict[str, str] = {
 #: hands `Node.profile` a `ClosedLoop` and the program is built inside
 #: Rust, so no Python value is ever one of these. The naming table and
 #: its provenance payloads (`NameTable`, `SeatingRefusal`,
-#: `DuplicateName`, `KindMismatch`, `ShortTie`,
+#: `DuplicateName`, `EntityNamed`, `KindMismatch`, `ShortTie`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
@@ -2331,8 +2331,10 @@ NOT_BOUND = {
     # `body=`; an edit door's shape refusal crosses as
     # `EditError.inner_variant` (the row in `BOUND_AS`), and a load's as
     # `PersistError.inner_variant` `selection_shape` / `selection_body`
-    # and its sentence.
+    # and its sentence. How many names a kind holds is the slot's: a
+    # `name_count` fault crosses its count at `EditError.count`.
     "Select": SHAPE,
+    "SelectionCount": SHAPE,
     "SelectionBodyFault": SHAPE,
     "OutputPort": SHAPE,
     "PortKind": SHAPE,
@@ -2853,6 +2855,7 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    "EntityNamed": INTERIOR,
     "KindMismatch": INTERIOR,
     "SeatingRefusal": INTERIOR,
     "ShortTie": INTERIOR,

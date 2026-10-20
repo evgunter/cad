@@ -86,9 +86,9 @@
 //!   whether two conics are one curve**, whatever their kinds
 //!   (`curve_pair_pose_one_curve`, `one_curve_gap`): each conic is
 //!   `c + L·x` over the unit circle, `L = [a·û, b·v̂]`, and the centres'
-//!   gap plus `‖L₁ − L₂Q‖` for the best rotation `Q` bounds how far a
-//!   point of either lies from the other, a tilt out of the plane
-//!   included. Read zero is [`Pose::Coincident`]. Past it:
+//!   gap plus `‖L₁ − L₂Q‖` for the best rotation `Q`, its rounding
+//!   charged, bounds how far a point of either lies from the other, a
+//!   tilt out of the plane included. Read zero is [`Pose::Coincident`]. Past it:
 //!   - **two circles**: their centres' distance `d`
 //!     (`curve_pair_pose_centres`). Zero is one centre, and the radii's gap
 //!     with `d` and the slant as its spread (`curve_pair_pose_radii`)
@@ -1045,8 +1045,20 @@ pub(super) fn one_curve<T: Decide>(
 /// `Q` absorbs. The gap read from either side is the same but for
 /// rounding, and the larger is taken, so the gap does not depend on the
 /// order of the pair.
+///
+/// **The gap carries its own rounding charge**, so no reading of it is
+/// bare. With `m` a conic's larger semi-axis magnitude, the computed
+/// semi-axis vectors are off by `√17·u·m` (`v̂ = n̂ × û` by `4u`), the
+/// computed `Q`'s columns are unit to within about `4.5u`, and its
+/// products and the norms round by `4u·m` and `5u·g`: within
+/// `12.1u·(m_e + m_f) + 5u·g` of a gap the bound holds for, inside
+/// [`crate::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
+/// semi-axis, or `a·b·a′·b′` underflowing) has no way up, and its gap
+/// is NaN: the reading escalates.
 pub(super) fn one_curve_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
-    (e.center - f.center).norm() + frame_gap(e, f).max(frame_gap(f, e))
+    let reach = |k: &Conic<T>| k.semi_u.abs().max(k.semi_v.abs());
+    let gap = (e.center - f.center).norm() + frame_gap(e, f).max(frame_gap(f, e));
+    gap + crate::rounding_charge(reach(e) + reach(f) + gap)
 }
 
 /// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
@@ -1241,6 +1253,7 @@ fn coplanar_ellipse_circle<T: Decide>(
         f_per_metre: r,
         f_per_metre_hi: T::from_f64(3.0) * r,
         residual_reach: Some(r),
+        jet: None,
     };
     let residual = |theta: T| (ke.point(theta) - kc.center).norm() - r;
     subdivided(&poly, &residual, &frame, place, band)
@@ -1302,6 +1315,7 @@ fn coplanar_ellipses<T: Decide>(
         f_per_metre: T::zero(),
         f_per_metre_hi: ceiling,
         residual_reach: Some(reach),
+        jet: None,
     };
     let residual = |theta: T| {
         let d = ka.point(theta) - kb.center;

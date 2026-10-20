@@ -98,19 +98,19 @@ pub mod torus_convention;
 
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
-    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, ForwardReading,
-    IntersectionDraft, NurbsLane, StatedImage, StatedSpan, WindingReading, edge_extent,
-    folded_parallelism, sample_param, schedule_param,
+    CERT_SAMPLES, CertCheck, Certificate, CertifyError, DraftedIntersection, EdgeCurve,
+    EdgeCurveSpec, ForwardReading, IntersectionDraft, NurbsLane, StatedImage, StatedSpan,
+    WindingReading, edge_extent, folded_parallelism, sample_param, schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, DihedralReading, MATERIAL_PAIRING,
-    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations, MustCarryDescription,
-    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, RestLocus, SecondOrder,
-    SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
+    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
+    MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations,
+    MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal,
+    RestLocus, SecondOrder, SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
     classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
     material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
     second_order_walk, tangent_second_order,
@@ -138,9 +138,9 @@ pub use implicit::{
     circle_residual_extremes, circle_sphere_harmonic, cone_elevation, conic_arc_residual_range,
     conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual,
     conic_residual_extremes, conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit,
-    conic_torus_residual, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
-    min_radius_of_curvature, min_radius_of_curvature_toward, rounding_charge,
+    conic_torus_jet, conic_torus_residual, curvature_lever_arm, implicit_gradient,
+    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
+    implicit_residual, min_radius_of_curvature, min_radius_of_curvature_toward, rounding_charge,
 };
 pub use intersect::{
     ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, OutsideConic, PairRoute,
@@ -149,7 +149,7 @@ pub use intersect::{
     cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
     cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
     plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section,
+    sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus, tangent_locus_of_faces};

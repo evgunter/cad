@@ -2,8 +2,9 @@
 id: the-spiric-winding-lever-decides-real-pinched-loops-zero
 kind: issue
 title: The spiric winding's length lever is 1e3-1e4 times the true length near the pinch, so small real loops read a decided Zero
-status: review
+status: closed
 opened: 2026-10-13
+closed: 2026-10-14
 priority: P3
 cost: M
 branch: germ/spiric-lever-pinch

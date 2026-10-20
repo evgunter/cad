@@ -130,6 +130,8 @@ mod rim_wedge;
 pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
+mod slit;
+pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
 mod surface_group;
@@ -252,10 +254,17 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         }
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
-        "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" | "bool_cone_arc"
-        | "bool_cone_arc_span" | "bool_cone_within" | "bool_cone_facing" | "bool_cone_apart" => {
-            Coincide::Sectors.subject()
-        }
+        "bool_sector_within"
+        | "bool_flank_offset"
+        | "bool_wedge_reflex"
+        | "bool_cone_arc"
+        | "bool_cone_arc_span"
+        | "bool_cone_within"
+        | "bool_cone_facing"
+        | "bool_cone_apart"
+        | "bool_rider_wall_side"
+        | "bool_rider_wall_bend"
+        | "bool_rider_wall_coplanar" => Coincide::Sectors.subject(),
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
         // The census's edge-edge reading, which the result gate takes of
         // the result and ∖ of an operand part it reverts unjoined
@@ -2197,6 +2206,9 @@ pub(crate) fn one_vertex_at<T: Decide>(
 pub struct BooleanReduction<T: Real> {
     /// The op the classification was performed for.
     pub op: BooleanOp,
+    /// Each operand's slit and ring tips, A's then B's, read at rest
+    /// ([`sectors::SlitTips`]).
+    pub(crate) slit_tips: [sectors::SlitTips; 2],
     /// The annotated A clone (crossings split, null edges inserted).
     pub a: Body<T>,
     /// The annotated B clone.
@@ -3665,6 +3677,46 @@ pub enum BooleanError {
         /// runs.
         source: crate::revert::RevertError,
     },
+    /// An edge of the result lies in one of its own faces, and the
+    /// material parts it into two edges, face | wall each
+    /// ([`EdgeInFaceGap`]): a parting the kernel does not build there,
+    /// or ([`EdgeInFaceGap::Crossed`], [`EdgeInFaceGap::TwinIncident`]) a
+    /// face crossing the edge's material or a parting that left a record
+    /// it cannot hold, which are the kernel's own defects.
+    EdgeInFace {
+        /// The edge, in the result's keys.
+        edge: crate::entity::EdgeKey,
+        /// The face it lies in.
+        face: FaceKey,
+        /// Why it is not parted.
+        gap: EdgeInFaceGap,
+    },
+    /// The other solid's edges cross the two coincident edges of an
+    /// operand's slit or zero-area ring where the solids meet along
+    /// it: two germs along one ray of the vertex pair at the slit's tip
+    /// (`recl::recl_edges`), which the insertion does not yet place
+    /// apart. [`BooleanError::CrossingsAlongAContactLine`] where the
+    /// line is the operand's own slit, which no piece of it makes: a
+    /// construction gap, with no lever.
+    SlitLineCrossed {
+        /// The operand holding the slit.
+        operand: Operand,
+        /// The slit's tip, a key of the operand's working copy.
+        vertex: VertexKey,
+        /// The face carrying the slit.
+        face: FaceKey,
+    },
+    /// The face carrying an operand's slit or zero-area ring is glued
+    /// away by the other solid, so the slit's two coincident edges would
+    /// be one edge between its two walls, which the join does not yet
+    /// build: its ring run along the slit encloses no area. A
+    /// construction gap, with no lever.
+    SlitFaceGlued {
+        /// The operand holding the slit.
+        operand: Operand,
+        /// The face carrying it, a key of the operand's working copy.
+        face: FaceKey,
+    },
     /// **The result's edges on one line, where two or more lie, bound
     /// material the result gate cannot admit** ([`crate::census::line_wedges`]):
     /// each such edge classifies its own wedge (D1's
@@ -3895,6 +3947,12 @@ pub enum BooleanErrorKind {
     Pieces,
     /// [`BooleanError::Revert`].
     Revert,
+    /// [`BooleanError::EdgeInFace`].
+    EdgeInFace,
+    /// [`BooleanError::SlitLineCrossed`].
+    SlitLineCrossed,
+    /// [`BooleanError::SlitFaceGlued`].
+    SlitFaceGlued,
     /// [`BooleanError::LineWedges`].
     LineWedges,
 }
@@ -4108,6 +4166,9 @@ impl BooleanError {
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
             Self::Pieces(_) => BooleanErrorKind::Pieces,
             Self::Revert { .. } => BooleanErrorKind::Revert,
+            Self::EdgeInFace { .. } => BooleanErrorKind::EdgeInFace,
+            Self::SlitLineCrossed { .. } => BooleanErrorKind::SlitLineCrossed,
+            Self::SlitFaceGlued { .. } => BooleanErrorKind::SlitFaceGlued,
             Self::LineWedges { .. } => BooleanErrorKind::LineWedges,
         }
     }
@@ -4929,6 +4990,44 @@ impl core::fmt::Display for BooleanError {
                      {NOT_YET_ENDING}"
                 )
             }
+            Self::EdgeInFace {
+                edge,
+                face,
+                gap: gap @ (EdgeInFaceGap::Crossed | EdgeInFaceGap::TwinIncident),
+            } => write!(
+                f,
+                "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
+                gap.words(),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::EdgeInFace { edge, face, gap } => write!(
+                f,
+                "edge {edge:?} of the result lies in face {face:?}, whose material parts it into \
+                 two edges, and the parting is not built where {}. {}",
+                gap.words(),
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::SlitLineCrossed {
+                operand,
+                vertex,
+                face,
+            } => write!(
+                f,
+                "the {} solid holds a slit or zero-area ring in face {face:?} ending at vertex \
+                 {vertex:?}, where the solids meet along it, and the other solid's edges cross \
+                 its two coincident edges there, which the Boolean does not yet place apart \
+                 along the line. {}",
+                operand_word(*operand),
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::SlitFaceGlued { operand, face } => write!(
+                f,
+                "the other solid glues away face {face:?} of the {} solid, which carries a slit \
+                 or zero-area ring, so the slit's two coincident edges would become one edge \
+                 between its two walls, which the join does not yet build. {}",
+                operand_word(*operand),
+                geom_core::NOT_YET_ENDING
+            ),
             Self::LineWedges { fault, from, to } => match fault {
                 LineWedgeFault::Overlap { .. } => write!(
                     f,
@@ -5375,6 +5474,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // phase rather than once per operator (`crate::surgery`). Two
     // guards over two locals: each owns its own borrow, so a refusal
     // on the way closes both scopes by dropping them.
+    // The operands' slit and ring tips, read at rest: the reduction may
+    // split a slit's two edges apart from its tip
+    // ([`sectors::SlitTips`]).
+    let tips = [
+        sectors::SlitTips::of(a_operand),
+        sectors::SlitTips::of(b_operand),
+    ];
     let mut carved_a = a_operand.clone();
     let mut carved_b = b_operand.clone();
     let mut a = carved_a.begin_surgery();
@@ -5457,6 +5563,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &contacts,
                 reread,
                 branches.get(&(operand, c.vertex)).copied(),
+                &tips[usize::from(operand == Operand::B)],
                 band,
             ) {
                 Ok(out) => out,
@@ -5493,6 +5600,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             &contacts,
                             rereads.get(&(operand, c.vertex)).copied(),
                             branches.get(&(operand, c.vertex)).copied(),
+                            &tips[usize::from(operand == Operand::B)],
                             band,
                         ) {
                             Ok(_) | Err(BooleanError::Escalated { .. }) => {}
@@ -5639,8 +5747,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut classified = Vec::with_capacity(contacts.vv.len());
     let mut line_touches = Vec::new();
     for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
-        let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
-        let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
+        let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], band)?;
+        let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], band)?;
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
         let mut along = None;
@@ -5729,6 +5837,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &recl::Reversed::default(),
             held_faces(&touches, c),
             &mut touched,
+            &tips,
         )?;
         line_touches.extend(touched.into_iter().map(|he| (i, he)));
         classified.push((c, a_sectors, b_sectors, records, raw, sector_read));
@@ -5845,6 +5954,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &reversed,
             held_faces(&touches, vv[i].record),
             &mut retouched,
+            &tips,
         )?;
         // A reversal moves a germ between flankers, after the touch is
         // read: the pass reads the touches the first did.
@@ -5931,6 +6041,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .collect::<Result<Vec<_>, _>>()?;
     Ok(BooleanReduction {
         op,
+        slit_tips: tips,
         a: carved_a,
         b: carved_b,
         contacts: ReductionContacts { ee, ..contacts },
@@ -6731,9 +6842,10 @@ pub(crate) enum RestTangent<T: Real> {
     /// ([`locus_through_both_faces`]): no span of the line is in both,
     /// so their interiors do not meet along it.
     Apart,
-    /// The jet schedule verified the line over where both extents meet,
-    /// `overlap`; whether the line lies in the two faces there is the
-    /// caller's to read.
+    /// The faces' extents along the line meet over `overlap`; whether
+    /// the line lies in the two faces there is the caller's to read
+    /// ([`rest_line_in_both_faces`]), and only then whether the table
+    /// holds along it ([`tangent_table_at_rest`]).
     Line {
         /// The tangent line.
         carrier: geom::Curve3<T>,
@@ -6743,19 +6855,18 @@ pub(crate) enum RestTangent<T: Real> {
 }
 
 /// **A face–face record on two carriers, read at rest** (C3): the
-/// closed-form line their carriers derive ([`tangent_line`]), the two
-/// faces' extents along it, and, where those meet, the C4 `Tangent`
-/// table along it there ([`contact_verify::tangent_locus_relation`], the
-/// declared posture, the record standing as the declaration), material
-/// sides included.
+/// closed-form line their carriers derive ([`tangent_line`]) and the two
+/// faces' extents along it. The `Tangent` table along it, material
+/// sides included, is [`tangent_table_at_rest`], which reads only a
+/// line known to run through both faces ([`RestLineInBothFaces`]): a
+/// pair the line misses does not meet, whatever its sides.
 ///
 /// # Errors
 ///
-/// [`crate::contact::ContactRefusal::Contradicted`] where the pair is
-/// definitely not tangent, labelled with the row that refused it, or the
-/// table contradicts it; `Escalated` where a margin is in band; and
-/// `NotCertifiable` where no closed-form locus derives or a face cannot
-/// be read (naming why).
+/// [`crate::contact::ContactRefusal::Contradicted`] where the carriers
+/// are definitely not tangent, labelled with the row that refused it;
+/// `Escalated` where a margin is in band; and `NotCertifiable` where no
+/// closed-form locus derives or a face cannot be read (naming why).
 pub(crate) fn tangent_pair_at_rest<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
@@ -6763,17 +6874,8 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     band: Band,
 ) -> Result<RestTangent<T>, crate::contact::ContactRefusal> {
     use crate::contact::ContactRefusal;
-    let surface = |f| {
-        let face = body.get_face(f)?;
-        Some((body.get_surface(face.surface)?.clone(), face.sense))
-    };
-    let ((sa, sense_a), (sb, sense_b)) =
-        surface(fa)
-            .zip(surface(fb))
-            .ok_or(ContactRefusal::NotCertifiable {
-                what: "a face of the face-face record has no surface",
-            })?;
-    let line = tangent_line((body, fa, &sa), (body, fb, &sb), band).map_err(|e| {
+    let ((sa, _), (sb, _)) = (record_face(body, fa)?, record_face(body, fb)?);
+    let line = tangent_line((body, fa, sa), (body, fb, sb), band).map_err(|e| {
         ContactRefusal::NotCertifiable {
             what: match e {
                 BooleanError::InvalidInput { what, .. } => what,
@@ -6810,21 +6912,91 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
         Ok(false) => return Ok(RestTangent::Apart),
         Err(diag) => return Err(ContactRefusal::Escalated { diag }),
     }
+    Ok(RestTangent::Line {
+        carrier: line.carrier,
+        overlap: line.overlap,
+    })
+}
+
+/// A face of a face–face record on two carriers: its surface and sense.
+fn record_face<T: Real>(
+    body: &Body<T>,
+    f: FaceKey,
+) -> Result<(&geom::Surface<T>, bool), crate::contact::ContactRefusal> {
+    body.get_face(f)
+        .and_then(|face| Some((body.get_surface(face.surface)?, face.sense)))
+        .ok_or(crate::contact::ContactRefusal::NotCertifiable {
+            what: "a face of the face-face record has no surface",
+        })
+}
+
+/// A record's tangent line known to run through both faces' interiors
+/// ([`rest_line_in_both_faces`], the only constructor): what
+/// [`tangent_table_at_rest`] reads, so the sides are never read for a
+/// pair the line misses.
+pub(crate) struct RestLineInBothFaces<'b, T: Real> {
+    body: &'b Body<T>,
+    faces: [FaceKey; 2],
+    carrier: geom::Curve3<T>,
+    overlap: (T, T),
+}
+
+/// [`line_through_both_faces`] for a face–face record's line at rest
+/// ([`RestTangent::Line`]): `Some` where the line runs through both
+/// faces' interiors, `None` where it does not.
+///
+/// # Errors
+///
+/// What [`line_through_both_faces`] leaves unread.
+pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
+    body: &'b Body<T>,
+    faces: [FaceKey; 2],
+    carrier: geom::Curve3<T>,
+    overlap: (T, T),
+    band: Band,
+    unread: impl Fn(usize, FaceUnread, &mut Vec<E>),
+) -> Result<Option<RestLineInBothFaces<'b, T>>, Vec<E>> {
+    let through =
+        line_through_both_faces(faces.map(|f| (body, f)), &carrier, overlap, band, unread)?;
+    Ok(through.then_some(RestLineInBothFaces {
+        body,
+        faces,
+        carrier,
+        overlap,
+    }))
+}
+
+/// The C4 `Tangent` table of a face–face record on two carriers along
+/// their tangent line, where it runs through both faces
+/// ([`RestLineInBothFaces`]), the declared posture, the record standing
+/// as the declaration ([`contact_verify::tangent_locus_relation`]): the
+/// touch and the material sides.
+///
+/// # Errors
+///
+/// [`crate::contact::ContactRefusal::Contradicted`] where the table
+/// contradicts the touch or the sides (`contact_tangent_opposed`,
+/// `contact_tangent_overlap`); `Escalated` where a margin is in band;
+/// `NotCertifiable` where a face has no surface.
+pub(crate) fn tangent_table_at_rest<T: Decide>(
+    line: &RestLineInBothFaces<'_, T>,
+    band: Band,
+) -> Result<(), crate::contact::ContactRefusal> {
+    let [fa, fb] = line.faces;
+    let ((sa, sense_a), (sb, sense_b)) = (record_face(line.body, fa)?, record_face(line.body, fb)?);
+    let (t0, t1) = line.overlap;
     contact_verify::tangent_locus_relation(
-        &sa,
+        sa,
         sense_a,
-        &sb,
+        sb,
         sense_b,
         &line.carrier,
         t0,
         t1,
         true,
         band,
-    )?;
-    Ok(RestTangent::Line {
-        carrier: line.carrier,
-        overlap: line.overlap,
-    })
+    )
+    .map(|_| ())
 }
 
 /// **The glue door's tangency**: the check ([`verify_tangency`]), and
@@ -8947,6 +9119,9 @@ mod tests {
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
                 BooleanErrorKind::Pieces => "Pieces",
                 BooleanErrorKind::Revert => "Revert",
+                BooleanErrorKind::EdgeInFace => "EdgeInFace",
+                BooleanErrorKind::SlitLineCrossed => "SlitLineCrossed",
+                BooleanErrorKind::SlitFaceGlued => "SlitFaceGlued",
                 BooleanErrorKind::LineWedges => "LineWedges",
             }
         }

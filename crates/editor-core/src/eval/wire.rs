@@ -252,20 +252,87 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     pub lane: LaneEnv<'a, T>,
 }
 
+/// **A node as its op reads it**: the node, with what
+/// [`super::eval_node`] computed for it before its content key, by the
+/// node's kind. Built there and not in [`run_op`], because a profile's
+/// precompute decides on the node's behalf ahead of the key (its
+/// decisions are the log's first entries) and an assertion's payload
+/// feeds the key.
+pub(crate) enum OpInput<'n, T: geom_core::Real> {
+    /// A profile, with its program resolved at the nominal and the f64
+    /// precompute made from it.
+    Profile {
+        program: &'n ProfileProgram,
+        resolved: Vec<Vec<profile::Step<f64>>>,
+        pre: Box<ProfilePre>,
+        form: ProfileForm<T>,
+    },
+    /// An assertion, with its value and bound evaluated
+    /// ([`super::Payload`]) and the dimensions they are read at.
+    Assertion {
+        value: crate::VarId,
+        relation: crate::measure::AssertionRelation,
+        dims: (crate::expr::Dimension, crate::expr::Dimension),
+        payload: super::Payload<T>,
+    },
+    /// Any other node, which carries nothing computed ahead of its key.
+    Other(&'n Node<ProfileProgram>),
+}
+
+/// **How a profile's lane value is formed** ([`super::ProfileLane`]).
+pub(crate) enum ProfileForm<T: geom_core::Real> {
+    /// The `f64` lane over the nominal IS the first pass: its validated
+    /// form is the value.
+    FirstPass(profile::ValidatedProfile<T>),
+    /// Every other lane replays the program, resolved at the lane
+    /// scalar, guided by the first pass's records.
+    Lane(Vec<Vec<profile::Step<T>>>),
+}
+
+impl<T: geom_core::Real> OpInput<'_, T> {
+    /// The assertion's payload, for the content key.
+    pub(crate) fn payload(&self) -> Option<&super::Payload<T>> {
+        match self {
+            Self::Assertion { payload, .. } => Some(payload),
+            Self::Profile { .. } | Self::Other(_) => None,
+        }
+    }
+
+    /// The profile's program resolved at the nominal, for the content
+    /// key.
+    pub(crate) fn resolved_program(&self) -> Option<&[Vec<profile::Step<f64>>]> {
+        match self {
+            Self::Profile { resolved, .. } => Some(resolved),
+            Self::Assertion { .. } | Self::Other(_) => None,
+        }
+    }
+
+    /// The profile's program resolved at the lane scalar, where the
+    /// lane replays it, for the content key.
+    pub(crate) fn lane_program(&self) -> Option<&[Vec<profile::Step<T>>]> {
+        match self {
+            Self::Profile {
+                form: ProfileForm::Lane(resolved),
+                ..
+            } => Some(resolved),
+            Self::Profile {
+                form: ProfileForm::FirstPass(_),
+                ..
+            }
+            | Self::Assertion { .. }
+            | Self::Other(_) => None,
+        }
+    }
+}
+
 /// Runs one node's op against its (already Ok) inputs and evaluated
 /// slots, emitting the node's name table alongside the payload.
-/// `profile_pre` is the profile node's f64 precompute (present exactly
-/// for `Node::Profile` — computed in `eval_node`'s resolution stage,
-/// inside the node's verdict frame and ahead of this op).
-#[allow(clippy::too_many_arguments)] // the run-tolerance witness and the pre-key reads are not duties of their own
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
-    node: &Node<ProfileProgram>,
+    input: &OpInput<'_, T>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    payload: Option<&super::Payload<T>>,
-    profile_pre: Option<&ProfilePre>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -283,6 +350,32 @@ where
         + super::ProfileLane,
 {
     use crate::OperandSlot as O;
+    // A profile reads its frame, a datum, and an assertion reads no
+    // operand, so neither has a read to project.
+    let node = match input {
+        OpInput::Profile {
+            program, pre, form, ..
+        } => {
+            let value = wire_profile(doc, program, results, pre, form, env.lane, tol)?;
+            let rows = crate::coincide::name_junctions(id, &value.validated, &value.pieces)
+                .map_err(NodeErrorKind::Naming)?;
+            return Ok(
+                OpOut::plain(ValuePayload::Profile(value), names::empty()).with_coincidences(rows)
+            );
+        }
+        OpInput::Assertion {
+            value,
+            relation,
+            dims,
+            payload,
+        } => {
+            // Which endpoints this assertion may read: structural, off
+            // the measures under its value, so the same at every scalar.
+            let certified = super::measure::certified(doc, *value);
+            return wire_assertion(*dims, certified, *relation, payload, tol);
+        }
+        OpInput::Other(node) => *node,
+    };
     let unprojected = results;
     // A boolean's, a union's and a measure's reads are projected one by
     // one: two ports of one split are two bodies, which one map keyed by
@@ -321,24 +414,8 @@ where
             wire_datum(d, doc, results, vals, tol)?,
             names::empty(),
         )),
-        Node::Profile(program) => {
-            let payload = wire_profile(
-                doc,
-                program,
-                program.frame,
-                results,
-                profile_pre,
-                env.lane,
-                tol,
-            )?;
-            let rows = match &payload {
-                ValuePayload::Profile(value) => {
-                    crate::coincide::name_junctions(id, &value.validated, &value.pieces)
-                        .map_err(NodeErrorKind::Naming)?
-                }
-                _ => Vec::new(),
-            };
-            Ok(OpOut::plain(payload, names::empty()).with_coincidences(rows))
+        Node::Profile(_) | Node::Assertion { .. } => {
+            unreachable!("`eval_node` gives a profile and an assertion their own `OpInput` arm")
         }
         Node::Extrude { profile, side, .. } => {
             wire_extrude(id, at(O::Profile, *profile)?, *side, results, vals, tol)
@@ -507,17 +584,6 @@ where
                     .unwrap_or(unprojected)
             };
             wire_measure(primitive, doc, &at, tol)
-        }
-        Node::Assertion { value, .. } => {
-            // Which endpoints this assertion may read: structural, off
-            // the measures under its value, so the same at every scalar.
-            let certified = super::measure::certified(doc, *value);
-            let reads = node.payload_reads(doc).unwrap_or_default();
-            let (Some(payload), [(_, value_dim), (_, bound_dim)]) = (payload, reads.as_slice())
-            else {
-                unreachable!("an assertion reads its value and its bound, and both were evaluated")
-            };
-            wire_assertion(*value_dim, *bound_dim, certified, node, payload, tol)
         }
         Node::InstantiatePart {
             doc_ref,
@@ -1890,8 +1956,9 @@ pub(crate) fn prepare_profile(
     })
 }
 
-/// The lift's SECOND PASS (M10-P PP1/PP5): the same program resolved at
-/// the lane scalar and elaborated there, GUIDED by pass 1's record.
+/// The lift's SECOND PASS (M10-P PP1/PP5): the same program, `resolved`
+/// at the lane scalar (`eval_node`), elaborated there, GUIDED by pass
+/// 1's record.
 ///
 /// This is where a profile parameter reaches the lane, over the
 /// evaluation's own environment ([`LaneEnv::params`]) — a `Dual` seed
@@ -1903,22 +1970,18 @@ pub(crate) fn prepare_profile(
 /// and the canonical permutation they hang off is pinned by the record,
 /// so `T`-valued geometry changes no name.
 pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
-    program: &ProfileProgram,
+    resolved: &[Vec<profile::Step<T>>],
     plane: profile::SketchPlane<T>,
-    lane: LaneEnv<'_, T>,
     pre: &ProfilePre,
     tol: Tol,
 ) -> Result<profile::ValidatedProfile<T>, NodeErrorKind> {
-    let resolved = program
-        .resolve(lane.params)
-        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
-    for (li, steps) in loop_coordinates(resolved.len())?.zip(&resolved) {
+    for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
         let record = pre
             .structure
             .replay
             .get(li as usize)
-            .ok_or(NodeErrorKind::ProfileRecordMissing { loop_: Some(li) })?;
+            .ok_or(NodeErrorKind::ProfileRecordMissing { loop_: li })?;
         let lp = profile::replay_guided(steps, record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
                 loop_: li,
@@ -1939,30 +2002,29 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
 fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
     doc: &crate::doc::Doc<ProfileProgram>,
     program: &ProfileProgram,
-    frame: crate::VarId,
     results: &Results<T>,
-    pre: Option<&ProfilePre>,
+    pre: &ProfilePre,
+    form: &ProfileForm<T>,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> PayloadResult<T> {
-    let pre = pre.ok_or(NodeErrorKind::ProfileRecordMissing { loop_: None })?;
-    let plane = frame_plane_lane(doc, results, frame, lane.params, tol)?;
-    let validated = match lane.pass_one(pre) {
-        // The `f64` lane IS the first pass, so its validated form is the
-        // value, on the plane minted at the lane, and the node logs what
-        // the second pass it skips decides.
-        Some(pass_one) => {
+) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
+    let plane = frame_plane_lane(doc, results, program.frame, lane.params, tol)?;
+    let validated = match form {
+        // The first pass's validated form is the value, on the plane
+        // minted at the lane, and the node logs what the second pass it
+        // skips decides.
+        ProfileForm::FirstPass(first) => {
             geom_core::k_stats::relog(&pre.decided);
-            pass_one.clone().on_plane(plane)
+            first.clone().on_plane(plane)
         }
-        None => lane_profile::<T>(program, plane, lane, pre, tol)?,
+        ProfileForm::Lane(resolved) => lane_profile::<T>(resolved, plane, pre, tol)?,
     };
-    Ok(ValuePayload::Profile(Arc::new(ProfileValue {
+    Ok(Arc::new(ProfileValue {
         validated,
         naming: pre.naming.clone(),
         pieces: pre.pieces.clone(),
         edge_radii: edge_radii(program, pre),
-    })))
+    }))
 }
 
 /// **The per-edge radius expressions, in the sweep's own indexing** —
@@ -2252,13 +2314,13 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
 ///
 /// Constant-radius rolling-ball fillets and equal-setback flat
 /// chamfers on a SELECTION of the target's edges. The correspondence
-/// supplies what differs: the size slot, the selection-refusal label,
-/// which verb to build, and what to call a missing record.
+/// supplies what differs: the size slot, which verb to build, and what
+/// to call a missing record.
 ///
 /// # Refusals
 ///
-/// The selection is resolved before this runs ([`select`]); an empty one
-/// refuses [`NodeErrorKind::BlendSelectionEmpty`]. Failure of the op itself is [`NodeErrorKind::Blend`], carrying
+/// The selection is resolved before this runs ([`select`]). Failure of
+/// the op itself is [`NodeErrorKind::Blend`], carrying
 /// the kernel's error unaltered; the input body is never passed
 /// through, so a blend that did not happen reads as a failed node.
 ///
@@ -2281,9 +2343,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let (target_read, target) = (selection.read, selection.at);
     if selection.ents.is_empty() {
-        return Err(NodeErrorKind::BlendSelectionEmpty {
-            verb: verb.selection_label,
-        });
+        unreachable!("an edge set holds at least one name (`Select::fault`), one entity per name");
     }
     let body = finished_operand(results, target, tol)?;
     let size = need_scalar(vals, verb.slots.size_slot)?;
@@ -2536,7 +2596,9 @@ fn select_one<T: Decide>(
         };
         (selected.at, ent)
     }
-    let Some((entity, false)) = doc.var(var).and_then(|held| held.kind().selection()) else {
+    let Some((entity, crate::var::SelectionCount::One)) =
+        doc.var(var).and_then(|held| held.kind().selection())
+    else {
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
     Ok(match entity {
@@ -2756,27 +2818,28 @@ fn wire_measure<'r, T: Decide + crate::measure::MinClearanceLane>(
 /// Report-ONLY: no op accepts a verdict as an operand, and nothing here
 /// touches the value or the document.
 fn wire_assertion<T: Decide>(
-    value_dim: crate::expr::Dimension,
-    bound_dim: crate::expr::Dimension,
+    (value_dim, bound_dim): (crate::expr::Dimension, crate::expr::Dimension),
     certified: crate::measure::Certified,
-    node: &Node<ProfileProgram>,
+    relation: crate::measure::AssertionRelation,
     payload: &super::Payload<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let Node::Assertion { relation, .. } = node else {
-        unreachable!("an assertion's verdict is wired for an assertion")
-    };
     // A measured value with no value at this scalar is not a failed
     // node, so the assertion answers with E10's third state and the
     // requirement stays visible in a build that cannot check it.
-    if let Some((_, reason)) = payload.unavailable {
-        return Ok(OpOut::plain(
-            ValuePayload::Assertion(crate::measure::AssertionVerdict::Unevaluated {
-                reason: crate::measure::UnevaluatedReason::MeasureUnavailable(reason),
-            }),
-            names::empty(),
-        ));
-    }
+    use super::measure::Observed;
+    let (value, bound) = match payload.observed {
+        [Observed::Unavailable(reason), _]
+        | [Observed::Value(_), Observed::Unavailable(reason)] => {
+            return Ok(OpOut::plain(
+                ValuePayload::Assertion(crate::measure::AssertionVerdict::Unevaluated {
+                    reason: crate::measure::UnevaluatedReason::MeasureUnavailable(reason),
+                }),
+                names::empty(),
+            ));
+        }
+        [Observed::Value(value), Observed::Value(bound)] => (value, bound),
+    };
     // The bound's DECLARED dimension must agree (units erase at the
     // evaluation boundary), through the rule the document doors ask.
     if crate::node::AssertionBoundFault::against(value_dim, bound_dim).is_some() {
@@ -2785,18 +2848,11 @@ fn wire_assertion<T: Decide>(
             bound: bound_dim,
         });
     }
-    let [value, bound] = payload.values.as_slice() else {
-        unreachable!(
-            "an assertion with a value has its value and its bound evaluated, yet the payload \
-             vector holds {}",
-            payload.values.len()
-        )
-    };
     Ok(OpOut::plain(
         ValuePayload::Assertion(crate::measure::decide_assertion(
-            *value,
-            *bound,
-            *relation,
+            value,
+            bound,
+            relation,
             band(tol)?,
             certified,
         )),
@@ -3793,6 +3849,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 let base = fold_rows.len();
                 let decided = out.coincidences.len();
                 if pairwise {
+                    let given = inputs.given.as_deref().unwrap_or_else(|| {
+                        unreachable!("a pairwise step's inputs carry its given pairs (set above)")
+                    });
                     let acc_view =
                         names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
                     let inputs_named = crate::coincide::RowInputs {
@@ -3800,7 +3859,6 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         b: Some((own_read, &member_table)),
                         tool: None,
                     };
-                    let given = inputs.given.as_deref().unwrap_or_default();
                     let cited = contacts.decided();
                     for (k, row) in out.coincidences.iter().enumerate() {
                         let restates = restated_given(

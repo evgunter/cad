@@ -17,11 +17,17 @@
 //! cylinder's radius change beside a cap across its axis. There the
 //! door transports, at every scalar; everywhere else it derives.
 
+use core::cell::OnceCell;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use std::collections::BTreeMap;
+
+use geom_brep::ChartedNurbs;
 use geom_brep::SectionReading;
 use geom_brep::ssi::{
     BoundarySection, ChartAxis, ChartEnd, SsiBoundaryContact, SsiDomain, SsiError,
 };
+
+use crate::SurfaceKey;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
@@ -142,23 +148,107 @@ pub enum SplineRoot {
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct SectionLane<T: Real> {
-    section: fn(
-        &Surface<T>,
-        &NurbsSurface<T>,
+    section: for<'w, 's> fn(
+        &'s Surface<T>,
+        Wall<'w, 's, T>,
         &Curve3<T>,
         (T, T),
         T,
         Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>,
     root: fn(&Surface<T>, &NurbsCurve3<T>, T, T, Band) -> Result<SplineRoot, CornerVerdict<T>>,
-    pair: fn(
-        &NurbsSurface<T>,
-        &NurbsSurface<T>,
+    pair: for<'w, 's> fn(
+        Wall<'w, 's, T>,
+        Wall<'w, 's, T>,
         &Curve3<T>,
         (T, T),
         T,
         Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>,
+}
+
+/// **One offset's charted walls**: a slot per wall its sections may read,
+/// each holding that wall's [`ChartedNurbs`] once it is minted. Built and
+/// dropped by the operation's own frame, which owns the walls it borrows
+/// (a moved chart's new surface, a held neighbour in the body); keyed by
+/// structure alone, a moved wall by its chart's place in the operation's
+/// charts and a held one by its [`SurfaceKey`], never by what a net holds.
+/// So a wall is minted at most once an operation however many of its
+/// edges are sectioned, and never across operations: no section reads a
+/// chart its operation did not mint.
+///
+/// The slots hold `f64` charts, the one scalar whose section lane is
+/// written ([`SectionLane::f64`]); an operation at any other scalar
+/// builds none.
+#[derive(Debug, Default)]
+pub(crate) struct WallCharts<'s> {
+    moved: Vec<OnceCell<ChartedNurbs<'s, f64>>>,
+    held: BTreeMap<SurfaceKey, OnceCell<ChartedNurbs<'s, f64>>>,
+}
+
+impl<'s> WallCharts<'s> {
+    /// Empty slots for `moved` moved charts and for every surface `held`
+    /// names.
+    pub(crate) fn new(moved: usize, held: impl IntoIterator<Item = SurfaceKey>) -> Self {
+        Self {
+            moved: (0..moved).map(|_| OnceCell::new()).collect(),
+            held: held.into_iter().map(|k| (k, OnceCell::new())).collect(),
+        }
+    }
+
+    /// The slot of the operation's `i`th moved chart's new surface.
+    pub(crate) fn moved(&self, i: usize) -> Option<&OnceCell<ChartedNurbs<'s, f64>>> {
+        self.moved.get(i)
+    }
+
+    /// The slot of the held surface `key`.
+    pub(crate) fn held(&self, key: SurfaceKey) -> Option<&OnceCell<ChartedNurbs<'s, f64>>> {
+        self.held.get(&key)
+    }
+}
+
+/// **A spline wall as a section reads it**: its net, and the operation's
+/// slot for its chart ([`WallCharts`]) where the operation holds one.
+/// The slot must be the net's own: the section doors check it in every
+/// build and refuse a chart of another surface
+/// (`geom_brep::Section::of_charted`).
+#[derive(Clone, Copy)]
+pub(crate) struct Wall<'w, 's, T: Real> {
+    /// The net.
+    pub(crate) net: &'s NurbsSurface<T>,
+    /// Its chart's slot, or `None` to mint the chart afresh.
+    pub(crate) chart: Option<&'w OnceCell<ChartedNurbs<'s, f64>>>,
+}
+
+/// A `WrongLane` from a charted door, which this module builds every
+/// wall/chart pairing for: a kernel bug, not an input the operation
+/// can decline (`docs/DESIGN.md` `[loud-failure]`), so it panics here
+/// rather than reaching a refusal or a fallback. The `pub` doors keep
+/// the typed refusal for callers outside the kernel.
+///
+/// # Panics
+///
+/// Always.
+#[allow(clippy::panic)]
+fn mispaired(door: &str, wall: &str, e: &SsiError) -> ! {
+    panic!("kernel invariant: {door} refused {wall} as mispaired with their charts: {e}")
+}
+
+/// How a section has `wall`'s chart: from the operation's slot, minting
+/// into it the first time, or minted afresh where there is no slot.
+fn chart_of<'w, 's>(
+    slot: Option<&'w OnceCell<ChartedNurbs<'s, f64>>>,
+) -> impl FnOnce(&'s NurbsSurface<f64>) -> Result<ChartedNurbs<'s, f64>, SsiError> + 'w {
+    move |net| match slot {
+        None => ChartedNurbs::mint(net),
+        Some(cell) => {
+            if let Some(chart) = cell.get() {
+                return Ok(chart.clone());
+            }
+            let chart = ChartedNurbs::mint(net)?;
+            Ok(cell.get_or_init(|| chart).clone())
+        }
+    }
 }
 
 impl<T: Real> core::fmt::Debug for SectionLane<T> {
@@ -184,10 +274,10 @@ impl<T: Real> SectionLane<T> {
     /// The section of `plane` with the spline `wall` nearest `old` on
     /// `[t0, t1]`, running with it: the wall's exact row where the
     /// section is one, the march's branch otherwise.
-    pub(crate) fn section(
+    pub(crate) fn section<'w, 's>(
         self,
-        plane: &Surface<T>,
-        wall: &NurbsSurface<T>,
+        plane: &'s Surface<T>,
+        wall: Wall<'w, 's, T>,
         old: &Curve3<T>,
         span: (T, T),
         extent: T,
@@ -198,10 +288,10 @@ impl<T: Real> SectionLane<T> {
 
     /// The section of two spline charts through `old`'s middle, running
     /// with it.
-    pub(crate) fn pair(
+    pub(crate) fn pair<'w, 's>(
         self,
-        a: &NurbsSurface<T>,
-        b: &NurbsSurface<T>,
+        a: Wall<'w, 's, T>,
+        b: Wall<'w, 's, T>,
         old: &Curve3<T>,
         span: (T, T),
         extent: T,
@@ -758,9 +848,9 @@ const NEWTON_STEPS: usize = 24;
 /// middle settles, or the wall's boundary row where a `Side` region
 /// holds it (the plane holds that row within the band). A `Corner`
 /// region is a point, and refuses.
-fn plane_wall_section(
-    plane: &Surface<f64>,
-    wall: &NurbsSurface<f64>,
+fn plane_wall_section<'w, 's>(
+    plane: &'s Surface<f64>,
+    Wall { net: wall, chart }: Wall<'w, 's, f64>,
     old: &Curve3<f64>,
     (t0, t1): (f64, f64),
     extent: f64,
@@ -790,8 +880,16 @@ fn plane_wall_section(
                 extent,
                 floor_scale: 1.0,
             };
-            let mut section = match geom_brep::PlaneSection::of(plane, wall, domain, band) {
+            let mut section = match geom_brep::PlaneSection::of_charted(
+                plane,
+                (wall, chart_of(chart)),
+                domain,
+                band,
+            ) {
                 Ok(s) => s,
+                Err(e @ SsiError::WrongLane { .. }) => {
+                    mispaired("PlaneSection::of_charted", "the plane's wall", &e)
+                }
                 Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
             };
             match section.branch_at(mid) {
@@ -869,9 +967,9 @@ fn running_as(
 /// sense. A pair tangent at the seed refuses by the section's own
 /// transversality decision, and a section outside either chart's window
 /// there by the seed's.
-fn pair_section(
-    a: &NurbsSurface<f64>,
-    b: &NurbsSurface<f64>,
+fn pair_section<'w, 's>(
+    a: Wall<'w, 's, f64>,
+    b: Wall<'w, 's, f64>,
     old: &Curve3<f64>,
     (t0, t1): (f64, f64),
     extent: f64,
@@ -887,8 +985,16 @@ fn pair_section(
         extent,
         floor_scale: 1.0,
     };
-    let mut section = match geom_brep::Section::of(a, b, domain, band) {
+    let mut section = match geom_brep::Section::of_charted(
+        (a.net, chart_of(a.chart)),
+        (b.net, chart_of(b.chart)),
+        domain,
+        band,
+    ) {
         Ok(s) => s,
+        Err(e @ SsiError::WrongLane { .. }) => {
+            mispaired("Section::of_charted", "the pair's walls", &e)
+        }
         Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
     };
     let carrier = match section.branch_at(mid) {
@@ -1375,7 +1481,7 @@ mod square {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod regions {
-    use super::{SectionVerdict, plane_wall_section, wall_row};
+    use super::{SectionVerdict, Wall, plane_wall_section, wall_row};
     use geom::{Curve3, NurbsSurface, Surface};
     use geom_brep::ssi::ChartAxis;
     use geom_core::spline::KnotVector;
@@ -1419,7 +1525,17 @@ mod regions {
         let row = geom_brep::boundary_iso_v(&wall, false).expect("the bottom row");
         let span = row.domain();
         let old = Curve3::Nurbs(Arc::new(row));
-        let carrier = match plane_wall_section(&ground(), &wall, &old, span, 1.0, band()) {
+        let carrier = match plane_wall_section(
+            &ground(),
+            Wall {
+                net: &wall,
+                chart: None,
+            },
+            &old,
+            span,
+            1.0,
+            band(),
+        ) {
             Ok(Ok(c)) => c,
             other => panic!("the bottom row is the section, got {other:?}"),
         };
@@ -1445,7 +1561,17 @@ mod regions {
             origin: Point3::origin(),
             dir: Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt(),
         };
-        let got = plane_wall_section(&ground(), &wall, &old, (-0.1, 0.1), 1.0, band());
+        let got = plane_wall_section(
+            &ground(),
+            Wall {
+                net: &wall,
+                chart: None,
+            },
+            &old,
+            (-0.1, 0.1),
+            1.0,
+            band(),
+        );
         assert!(
             matches!(got, Ok(Err(SectionVerdict::Corner { .. }))),
             "expected the corner's refusal, got {got:?}"
@@ -1460,7 +1586,7 @@ mod regions {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod rational_carriers {
-    use super::{SplineRoot, plane_spline_root, plane_wall_section};
+    use super::{SplineRoot, Wall, plane_spline_root, plane_wall_section};
     use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Tol, Vec3};
@@ -1497,7 +1623,17 @@ mod rational_carriers {
             origin: Point3::new(0.0, 0.05, 0.0),
             dir: Vec3::unit_x(),
         };
-        let row = match plane_wall_section(&plane, &wall, &old, (0.0, 1.0), 1.0, band()) {
+        let row = match plane_wall_section(
+            &plane,
+            Wall {
+                net: &wall,
+                chart: None,
+            },
+            &old,
+            (0.0, 1.0),
+            1.0,
+            band(),
+        ) {
             Ok(Ok(c)) => c,
             other => panic!("the middle row is the section, got {other:?}"),
         };

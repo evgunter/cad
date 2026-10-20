@@ -94,7 +94,7 @@ struct Exact {
 }
 
 /// The exact value of a finite `f64`, in counts of `2⁻¹⁰⁷⁴`.
-fn big(x: f64) -> BigInt {
+pub(super) fn big(x: f64) -> BigInt {
     let bits = x.to_bits();
     let exp = ((bits >> 52) & 0x7ff) as usize;
     let frac = bits & ((1u64 << 52) - 1);
@@ -111,7 +111,7 @@ fn big_sub(a: V, b: V) -> [BigInt; 3] {
     [0, 1, 2].map(|i| big(a[i]) - big(b[i]))
 }
 
-fn big_cross(a: &[BigInt; 3], b: &[BigInt; 3]) -> [BigInt; 3] {
+pub(super) fn big_cross(a: &[BigInt; 3], b: &[BigInt; 3]) -> [BigInt; 3] {
     [
         &a[1] * &b[2] - &a[2] * &b[1],
         &a[2] * &b[0] - &a[0] * &b[2],
@@ -119,7 +119,7 @@ fn big_cross(a: &[BigInt; 3], b: &[BigInt; 3]) -> [BigInt; 3] {
     ]
 }
 
-fn big_dot(a: &[BigInt; 3], b: &[BigInt; 3]) -> BigInt {
+pub(super) fn big_dot(a: &[BigInt; 3], b: &[BigInt; 3]) -> BigInt {
     &a[0] * &b[0] + &a[1] * &b[1] + &a[2] * &b[2]
 }
 

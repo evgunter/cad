@@ -1344,8 +1344,9 @@ pub enum ValidationError {
     },
     /// Tier 3 (check 4): at an interior sample of an edge, the folded
     /// lever arm the wedge between its faces is metered over was decided
-    /// not positive — the edge is too short, or a face curves too
-    /// tightly there (a cone at its apex), for an angle to be measured —
+    /// not positive — the faces' extent there, clamped by how tightly
+    /// they curve (a cone at its apex), leaves no width to measure an
+    /// angle between them over —
     /// the definite arm of [`WedgeCheck::Arm`], whose undecided arm is
     /// [`Self::SliverDihedral`] ([`geom_brep::DIHEDRAL_ARM`]).
     NoDihedralArm {
@@ -2856,10 +2857,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
-        | CertifyError::IntervalNotForward {
-            verdict: Refused::Negative { .. },
-        }
-        | CertifyError::WindingExceeded
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
         CertifyError::ResidualExceeded { check, .. } => {
             if check.bounds_a_miss() {
@@ -2913,12 +2910,19 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::IntervalNotForward {
             verdict: Refused::Zero(_),
         } => "its length is within the tolerance of zero",
+        // A door reports a sign-certain span refusal as its input's
+        // (`StatedInterval`), so the bare variants arrive only built by
+        // hand, and read as the door's.
         CertifyError::StatedInterval {
             refused: geom_brep::StatedSpan::Forward(_),
+        }
+        | CertifyError::IntervalNotForward {
+            verdict: Refused::Negative { .. },
         } => "its parameter interval does not run forward",
         CertifyError::StatedInterval {
             refused: geom_brep::StatedSpan::Winding(_),
-        } => "its arc spans more than one full turn",
+        }
+        | CertifyError::WindingExceeded => "its arc spans more than one full turn",
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
@@ -6936,7 +6940,8 @@ pub(crate) fn tier3_local_checks_marked<
         // the edge's two faces' reach; it never trusts the stored
         // certificate. It meters the chart image the body stores where
         // the op metered it (`Body::stated_pair_image`, an
-        // `OnPair` rim's wall image), so rest and op read one image.
+        // `OnPair` rim's wall image), so rest and op read one image. The
+        // body is this door's input, so a span refusal is reported.
         let stated = match curve.description() {
             geom_brep::EdgeDescription::OnPair { pair } => body.stated_pair_image(edge_key, *pair),
             _ => None,
@@ -6951,7 +6956,9 @@ pub(crate) fn tier3_local_checks_marked<
             (t0, t1),
         );
         reaches.insert(edge_key, reach);
-        match curve.recertify_via_stated(
+        match crate::policy_lane::recertify_via_stated(
+            crate::policy_lane::Origin::Callers,
+            curve,
             p_start,
             p_end,
             |k| body.surfaces.get(k).cloned(),
@@ -11963,7 +11970,7 @@ mod tests {
                 "whether an edge is between faces wide enough, for how they curve, to measure \
                  their angle is undecided. Recourse: move the geometry so \
                  that edge's faces clearly run farther and none curves tightly there, or, \
-                 if this length or the gap its faces open is intended, tighten the tolerance \
+                 if this width or the gap its faces open is intended, tighten the tolerance \
                  below 5e-10 m"
                     .to_owned(),
             ),
@@ -11971,7 +11978,7 @@ mod tests {
                 "wedge arm, zero band",
                 sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
                 "Recourse: move the geometry so that edge's faces clearly run farther and none \
-                 curves tightly there, or, if this length or the gap its faces open is \
+                 curves tightly there, or, if this width or the gap its faces open is \
                  intended, tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
@@ -11986,7 +11993,7 @@ mod tests {
                 },
                 "an edge is not between faces wide enough, for how they curve, to measure their \
                  angle. Recourse: move the geometry so that edge's faces clearly run farther \
-                 and none curves tightly there, or, if this length or the gap its faces \
+                 and none curves tightly there, or, if this width or the gap its faces \
                  open is intended, tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
@@ -12114,9 +12121,8 @@ mod tests {
                         margin: MarginDiag::value(-1e-3),
                     },
                 },
-                "a torus face's tube radius is larger than its ring's (margin -0.001 m), so the \
-                 surface is a spindle. Recourse: make the tube radius clearly smaller than the \
-                 ring radius"
+                "a torus face's tube radius is larger than its ring's (margin -0.001 m). \
+                 Recourse: make the tube radius clearly smaller than the ring radius"
                     .to_owned(),
             ),
             (
@@ -12346,7 +12352,7 @@ mod tests {
     /// finding, the boolean seam's subject, and the merge door's
     /// kept-boundary arm. A definite arm names no tolerance before its
     /// recourse: the exact zero no tolerance decides reads it too.
-    /// Certify's [`CertCheck`] word is a noun naming the length, not the
+    /// Certify's [`CertCheck`] word is a noun naming the width, not the
     /// question, so it is held to that noun. The pin reads rendered text,
     /// so a door that re-spells the clause identically rather than
     /// composing the const passes it; that copy goes unseen until the
@@ -12420,8 +12426,8 @@ mod tests {
         );
         assert_eq!(
             CertCheck::TransversalityArm.to_string(),
-            "the length its faces' angle is measured over",
-            "certify's word is a noun for the length"
+            "the width the faces' angle is measured across",
+            "certify's word is a noun for the width"
         );
         let ssi = geom_brep::SsiError::Escalated {
             decision: geom_brep::TraceDecision::TransversalityArm,
@@ -16951,13 +16957,13 @@ mod certify_escalation_rows {
                         margin: MarginDiag::value(-1.0e-3),
                     },
                 }),
-                "its stored description does not match its geometry. There is no way through: \
-                 this is a kernel defect or a damaged file; report it",
+                "its parameter interval does not run forward. There is no way through: this is \
+                 a kernel defect or a damaged file; report it",
             ),
             (
                 says(CertifyError::WindingExceeded),
-                "its stored description does not match its geometry. There is no way through: \
-                 this is a kernel defect or a damaged file; report it",
+                "its arc spans more than one full turn. There is no way through: this is a \
+                 kernel defect or a damaged file; report it",
             ),
             // The tangent tube's margin is a lower bound: a Negative is
             // the certificate's limit, which the lever reaches.

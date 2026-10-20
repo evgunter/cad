@@ -12,15 +12,17 @@
 //! `r(1 − cos(θ/2))` sits at or below ε is read back as a straight
 //! segment, with no arc carrier for the declaration to be about.
 //!
-//! So the door now reads its own output the way validation will and
-//! refuses first. This row is the pin on that: at the turns the
-//! disagreement used to span, the door refuses, and nothing reaches
-//! validation to be contradicted.
+//! So the door reads its own output the way validation will. The
+//! stored chord turns from each leg by half the corner's turn over its
+//! own length, and a joint's turn is levered by the shorter leg's arm,
+//! the chord's: four times the sagitta, inside ε at every turn the
+//! disagreement used to span. The two sides now agree the other way —
+//! the declared tangency holds on the chord, the door builds the bend
+//! and validation accepts it — and this row is the pin on that.
 //!
-//! **The turn angles ride the run's own tolerance.** The joint's margin
-//! is sagitta-like, going as `θ²`, so the window sits at `θ ∝ √ε` and
-//! moves with the ε row the gate draws; the multiples below are the
-//! ones inside it at 1e-6, 1e-9 and 1e-12 alike.
+//! **The turn angles ride the run's own tolerance.** The window sits at
+//! `θ ∝ √ε` and moves with the ε row the gate draws; the multiples below
+//! are the ones inside it at 1e-6, 1e-9 and 1e-12 alike.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -47,23 +49,16 @@ fn bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 }
 
 #[test]
-fn small_bends_refuse_at_the_path_door_rather_than_building_what_validate_contradicts() {
+fn small_bends_build_and_validate_on_their_stored_chord() {
     let scale = tol().eps().sqrt();
     for c in [0.1, 0.3, 1.0, 2.0] {
         let theta = c * scale;
-        let err = bend(theta, 0.2).err().unwrap_or_else(|| {
-            panic!("c = {c}, theta = {theta:e}: the door refuses a fillet it cannot store")
+        let lp = bend(theta, 0.2).unwrap_or_else(|e| {
+            panic!("c = {c}, theta = {theta:e}: the stored chord carries the tangency, got {e}")
         });
-        assert!(
-            matches!(err, PathError::FilletArcFlattenedInStorage { .. }),
-            "c = {c}, theta = {theta:e}: the refusal is about the stored form, got {err}"
-        );
-        let shown = err.to_string();
-        assert!(
-            shown.contains("a chord and a carrier") && shown.contains("turn the corner further"),
-            "c = {c}, theta = {theta:e}: the sentence says what was lost and what to move, got \
-             {shown}"
-        );
+        Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(tol())
+            .unwrap_or_else(|e| panic!("c = {c}, theta = {theta:e}: and validates, got {e}"));
     }
     // The two sides agree once the turn is well clear of the band, as
     // they always did — and the loop the door builds there validates.

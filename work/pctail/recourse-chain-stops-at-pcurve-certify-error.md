@@ -162,3 +162,5 @@ edge's decision; the period gates stay apart, since a spline image can
 sweep past a period from input no door refuses.
 
 Note (PR 5393, 2026-10-19): rendering an `Unminted` refusal at a build no longer panics in geom-brep. The kernel-bug panic exists only at topo's `policy_lane::kernels_own`. Earlier notes here that cite the build panic in `SizedDecision::recourse` describe the state before this PR. (ENCL orchestrator)
+
+Note (PR 5401, 2026-10-19): `policy_lane::kernels_own` is gone. The kernel-bug panic now lives in `policy_lane::Origin::read`: every topo edge certification passes an `Origin`, and `Origin::Kernels(site)` panics on a span refusal. (ENCL implementer)
