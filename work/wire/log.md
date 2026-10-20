@@ -6915,3 +6915,8 @@ Signed (WIRE orchestrator).
   - Merged at 4ea2aa382f. The section-face row is closed.
   - Filed `a-split-touching-a-wall-at-a-vertex-refuses-a-crossing-vertex-emission` (P2; pre-existing, legal input reaching an Emission) and `a-halfs-plane-has-two-definitions-and-n3-linking-two-homes` (P3; S1–S3, m1, m2 and nits).
   - topo's `every_public_mutation_path_preserves_tier1` red is inherited from main and already filed (encl).
+- 2026-10-20 (WIRE orchestrator) Dispatched `names-emission-raises-panic-or-take-their-true-ending` as three lanes split by file. The brief is the D9 per-site ladder: row 0, then known reach (stays typed and filed), then row 1/2, then row 4.
+  - `wire-emis-topo` (wire/emission-topo): names/emit_topo.rs.
+  - `wire-emis-union` (wire/emission-union): emit_union.rs, join_names.rs, borders.rs, canonical.rs, defer.rs.
+  - `wire-emis-rest` (wire/emission-rest): emit.rs, emit_sweep.rs, emit_shell.rs, emit_blend.rs, eval/*, coincide.rs, verbs/mod.rs.
+  - Wire is at 69/30 load, so a split along the priority seam is owed (work/README.md "Track size"). This sitting is doing work first; the split is noted here.
