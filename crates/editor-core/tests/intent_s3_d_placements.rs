@@ -829,9 +829,17 @@ fn vertex_bounds<T: editor_core::EvalScalar>(
 /// the fraction (`geom_core::Angle`), never from the rounded radian,
 /// whose cosine is `6.1e-17`.
 ///
+/// An axis mate off the origin turns about its line: the box's edge on
+/// the world's `z` slid to `(1, 2)`, spun `turn/4`. There the copy's
+/// measured spin is undone before the written one is made, and at
+/// `Interval` an exact zero measured spin is the exact zero, not the
+/// backend `atan2`'s dust, whose cosine is an ulp wide and would widen
+/// the copy's translation by the line's lever.
+///
 /// *Breaks if* a rotation by a written fraction of a turn reads the
 /// sine and cosine of its value: a coordinate then carries `6.1e-17`
-/// at `f64` and an enclosure of that width at `Interval`.
+/// at `f64` and an enclosure of that width at `Interval`; or if an
+/// exactly zero measured spin is undone through a widened zero.
 #[test]
 fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes() {
     use editor_core::TargetAxis::{X, Y, Z};
@@ -888,7 +896,7 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
     );
     let stood = WorldRead::through(PoseRole::Xy).spin(WorldRead::through(PoseRole::X), quarter());
     let (by_read, p_read) = placed(
-        doc,
+        doc.clone(),
         b,
         mate(stood),
         vec![
@@ -898,10 +906,43 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
         ],
     );
 
+    // An axis mate off the origin: the box's lateral edge at its own
+    // origin on the world's `z` slid to (1, 2), spun a quarter turn about
+    // it, (x, y, z) ↦ (1 − y, 2 + x, z).
+    let edge = fixture::axis(Operand::select(
+        b,
+        vec![fixture::ename(
+            b,
+            editor_core::RoleSeg::LateralEdge(fixture::vpiece(&doc, b, 0, 0)),
+        )],
+    ));
+    let line = WorldRead::through(PoseRole::Z)
+        .slide(WorldRead::through(PoseRole::X), len(1.0))
+        .slide(WorldRead::through(PoseRole::Y), len(2.0));
+    let (by_axis, p_axis) = placed(
+        doc.clone(),
+        b,
+        Mate {
+            on: edge,
+            to: Target::World(line),
+            class: editor_core::ContactClass::Rest,
+        },
+        vec![
+            (Coord::Slide(Z), zero(editor_core::Dimension::Length)),
+            (Coord::Spin, quarter()),
+        ],
+    );
+    let about_the_line = corners(|[x, y, z]| [1.0 - y, 2.0 + x, z]);
     let rows = [
         ("no mate, spun about x", &by_values, p_values, &upright),
         ("a mated spin", &by_spin, p_spin, &about_z),
         ("a world read spun about x", &by_read, p_read, &upright),
+        (
+            "an axis mate off the origin",
+            &by_axis,
+            p_axis,
+            &about_the_line,
+        ),
     ];
     for (what, doc, p, want) in rows {
         assert_eq!(&vertex_bounds::<f64>(doc, p), want, "{what} at f64");

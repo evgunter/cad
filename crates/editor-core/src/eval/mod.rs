@@ -3346,9 +3346,15 @@ impl crate::mate::SolveScalar for geom_core::Interval {
     /// Across the negative `x` axis the principal branch's cut widens
     /// the enclosure to the whole circle, so there the angle is read on
     /// the branch about `π`: the solve reads an angle only through its
-    /// sine and cosine, which every branch encloses alike.
+    /// sine and cosine, which every branch encloses alike. An exact zero
+    /// `y` over a positive `x` is the angle zero exactly, which the
+    /// backend's `atan2` encloses as subnormal dust whose cosine is an
+    /// ulp wide.
     fn solve_atan2(y: Self, x: Self) -> Self {
         use geom_core::{Bounds, Real};
+        if y.lo() == 0.0 && y.hi() == 0.0 && x.lo() > 0.0 {
+            return Self::zero();
+        }
         if x.hi() < 0.0 && y.lo() <= 0.0 && 0.0 <= y.hi() {
             Self::pi() + (-y).atan2(-x)
         } else {

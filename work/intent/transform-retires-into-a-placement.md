@@ -283,7 +283,8 @@ Each has an `_in` form over an evaluation the caller holds. C's interim report m
 - The form crosses at one door: `Expr::constant_turns` reads a definition's form, and `Doc::bind_definition` (every environment ends there) records it in `VarEnv::turns`; `expr::eval_angle` and `eval::slots::angle` hand it to every rotation fed by an angle: pose and world-read spins, loft station spins, a revolve's heading, circular pattern steps, mated (`settle`'s `turn_to`, `Chart::turned`, `head_at`) and unmated placement spins. Decided from the recipe's form, never from a value.
 - Sym folds sin, cos and tan of `q·π` where the value is rational (`trig_at_rational_pi`, beside `unary_at_zero`).
 - Writers that mean an axis-aligned frame state it: `editor_core::moved_frame`/`FrameMove` and `corner_frame` (façade too); the corpus pips (`die_pips`, `die_composed`) and the tour die stand on lines stated from the cube's corner (`demo-tour die-corpus` regenerated `die_composed_tour.pncad`); the kitchen sink's revolve and the vessel stand upright by a bundle with no mate spun `turn/4`; `test_support::plane_on` reads a face with the stated normal, `axis_on` the meet of two, and `plane_on_frame` keeps the frame read for a normal no face carries. `test_support`'s placement helpers take the caller's `tol` (the witness gate).
-- Row: `intent_s3_d_placements::a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes` (`f64`, `Interval`, `Dual64`, `Sym`; a bundle with no mate, a mated spin, a world read spun by `turn/4`).
+- An axis mate off the origin at `Interval`: undoing a copy's measured spin read the backend `atan2`'s dust for an exact zero, whose cosine is an ulp wide, and widened the copy's translation by the line's lever; at ε = 1e-12 that left `die_composed`'s pip rims two curved-edge meetings the `Interval` census could not count. The box lanes' `solve_atan2` encloses an exact `(0, x > 0)` as the exact zero, and `turn_to` undoes nothing for an exactly zero measured spin.
+- Row: `intent_s3_d_placements::a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes` (`f64`, `Interval`, `Dual64`, `Sym`; a bundle with no mate, a mated spin, a world read spun by `turn/4`, an axis mate off the origin).
 
 #### Fixed in passing (each with a row)
 
@@ -373,7 +374,7 @@ The exact-turn lane (2026-10-20), each with its reason in its file:
 - Evidence added: `a-turn-by-the-nearest-quarter-turn-rounds` (m10_di_dual's 16 escalations still occur; die_composed's fillet refuses on the Interval lane at ε = 1e-12, so m10_p_fence's Interval fence reads another number on the nightly's 1e-12 row), `under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move` (the swap is gone; the parting stays).
 - TODO: from lanes.
 
-- The exact-turn lane: filed `work/carve/a-partial-revolve-by-a-fraction-of-a-turn-ends-off-its-axes.md` (P3) and `work/msolve/an-axis-mated-spin-at-interval-widens-the-copys-translation-by-the-measured-spins-dust.md` (P3); closed `a-turn-by-the-nearest-quarter-turn-rounds` and SYM's `sin-and-cos-of-rational-turns-fold-exactly`; recorded the helpers' `atan2` residue on D′'s item.
+- The exact-turn lane: filed `work/carve/a-partial-revolve-by-a-fraction-of-a-turn-ends-off-its-axes.md` (P3); closed `a-turn-by-the-nearest-quarter-turn-rounds` and SYM's `sin-and-cos-of-rational-turns-fold-exactly`; recorded the helpers' `atan2` residue on D′'s item.
 
 #### The anchor census (for the record)
 

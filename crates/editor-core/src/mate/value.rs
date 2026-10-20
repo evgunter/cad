@@ -500,7 +500,8 @@ pub(crate) fn settle<T: SolveScalar>(
 /// spun `measured` to `v`'s spin**: by the difference of the two, or,
 /// for a spin written as a fraction of a turn, the measured spin undone
 /// and then the written turn made, each from its own sine and cosine,
-/// so the written one is exact where its form is.
+/// so the written one is exact where its form is. A measured spin that
+/// is exactly zero has nothing to undo.
 fn turn_to<T: SolveScalar>(
     at: Point3<T>,
     d: UnitVec3<T>,
@@ -508,6 +509,9 @@ fn turn_to<T: SolveScalar>(
     measured: T,
 ) -> Affine3<T> {
     match v.turns {
+        Some(_) if measured.exactly_zero() => {
+            Affine3::rotation_about_unit_axis_by(at, d, v.angle())
+        }
         Some(_) => {
             Affine3::rotation_about_unit_axis_by(at, d, v.angle())
                 * Affine3::rotation_about_unit_axis_by(at, d, Angle::radians(-measured))
