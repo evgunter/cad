@@ -87,6 +87,16 @@ fn truth(profile: &[(f64, f64)], h: f64, p: [f64; 3]) -> (bool, f64) {
 #[test]
 fn narrow_needles_read_by_point_containment() {
     let tol = Tol::witness();
+    if ![1e-9, 1e-6]
+        .iter()
+        .any(|e| (tol.eps() - e).abs() < 1e-3 * e)
+    {
+        test_utils::vacuity::stood_down(
+            "eps other than 1e-9 or 1e-6",
+            "the turned needle is no planar prism at 1e-12: its faces' corners round off one plane",
+        );
+        return;
+    }
     let band = Band::linear(tol).expect("the run's band");
     let (e, ke) = (tol.eps(), tol.k() * tol.eps());
     let needles: [(&str, Vec<(f64, f64)>); 2] = [
