@@ -9,7 +9,9 @@ use crate::shared::surf::{at_apex, off_cone};
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{PlaneConeSection, plane_cone_section};
-use geom_brep::{EnvelopeStatement, FocalImage, Pcurve, PcurveCache, chart_pcurve};
+use geom_brep::{
+    EnvelopeStatement, FocalImage, Pcurve, PcurveCache, chart_pcurve, chart_pcurve_over,
+};
 use geom_core::{Affine3, Bounds, Interval, Point3, Real, Vec3};
 
 /// A cone off the origin about a skew axis, given with either axis
@@ -140,7 +142,10 @@ fn the_image_is_exact_on_both_nappes_and_both_traversals() {
                 let d = surface.eval(uv.x, uv.y).distance(carrier.eval(t));
                 assert!(d < 1e-12, "{what}: t {t}: {d:e}");
             }
-            let cache = PcurveCache::certify(image, 0.3, 4.0, &carrier, &surface, band())
+            // The row is the image placed over the span it certifies on
+            // (C4).
+            let row = chart_pcurve_over(&carrier, 0.3, 4.0, &surface, band()).unwrap();
+            let cache = PcurveCache::certify(row, 0.3, 4.0, &carrier, &surface, band())
                 .unwrap_or_else(|e| panic!("{what}: {e}"));
             let cert = cache.certificate();
             assert!(

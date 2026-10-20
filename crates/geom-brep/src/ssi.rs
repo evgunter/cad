@@ -4393,8 +4393,7 @@ mod budget_tests {
     /// The Bernstein coefficients on `[0, 1]` of degree `n` of the
     /// polynomial `Σ c[k]·tᵏ`, of at most that degree.
     fn bernstein(c: &[f64], n: usize) -> Vec<f64> {
-        let binom =
-            |n: usize, k: usize| (0..k).fold(1.0, |r, i| r * (n - i) as f64 / (i + 1) as f64);
+        let binom = geom_core::spline::pieces::binomial;
         (0..=n)
             .map(|i| {
                 (0..=i.min(c.len() - 1))

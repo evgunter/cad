@@ -1366,6 +1366,12 @@ pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy
 /// The result is a CLOSED thin solid in every case — the designated
 /// faces do not become holes, they become rims.
 ///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
 /// # Errors
 ///
 /// [`ShellError::Band`] when the committed tolerance admits no
@@ -2044,14 +2050,11 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             let made = out
                 .mfkrh(guest_ring, crate::euler::FaceSurface::Inherit)
                 .map_err(rim_error)?;
-            let specs = loop_rekeyed(&out, guest_ring, guest_surface, host_surface);
-            out.set_face_surfaces_describing(
-                vec![crate::attach::Rechart::shared(
-                    host_surface,
-                    made.face,
-                    host_sense,
-                )],
-                &specs,
+            rechart_rekeyed(
+                &mut out,
+                (made.face, guest_ring),
+                (guest_surface, host_surface),
+                host_sense,
                 tol,
             )
             .map_err(rim_error)?;
@@ -3122,9 +3125,9 @@ fn glue_ring<T: Decide + crate::props::AtRestPolicy>(
     let (guest_outer, guest_surface) = (guest_data.outer, guest_data.surface);
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     let mut carried: Vec<_> = Vec::new();
-    for (edge, spec) in loop_rekeyed(body, guest_outer, guest_surface, host_surface) {
+    for (edge, description) in loop_rekeyed(body, guest_outer, guest_surface, host_surface) {
         if carried.iter().all(|&(e, _)| e != edge) {
-            carried.push((edge, spec.description));
+            carried.push((edge, description));
         }
     }
     let fused = body
@@ -3783,6 +3786,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::ReanchorInconclusive { edge, .. }
         | ReplaceFaceError::NurbsLaneUnsupported { edge, .. }
         | ReplaceFaceError::NeighborPoseUnroutable { edge, .. }
+        | ReplaceFaceError::DegenerateTorus { edge, .. }
         | ReplaceFaceError::NeighborPairUnroutable { edge, .. }
         | ReplaceFaceError::FittedBoundaryUnsupported { edge, .. }
         | ReplaceFaceError::CarrierLaneUnsupported { edge, .. }
@@ -3850,8 +3854,7 @@ fn lift_to<T: Decide>(
 }
 
 /// Every edge on `r#loop`, in cycle order, with its stored description
-/// restated naming `live` wherever it names `dead`, carrier and
-/// interval verbatim. `r#loop` is one an Euler door just returned; its
+/// restated naming `live` wherever it names `dead`. `r#loop` is one an Euler door just returned; its
 /// walk and its edges are links, so a miss panics naming the record.
 #[track_caller]
 fn loop_rekeyed<T: Decide>(
@@ -3859,11 +3862,11 @@ fn loop_rekeyed<T: Decide>(
     r#loop: crate::entity::LoopKey,
     dead: crate::geometry::SurfaceKey,
     live: crate::geometry::SurfaceKey,
-) -> Vec<(crate::entity::EdgeKey, geom_brep::EdgeCurveSpec<T>)> {
+) -> Vec<(crate::entity::EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> {
     let LoopBoundary::Cycle { first } = proven(&body.loops, r#loop, EntityId::Loop).boundary else {
         return Vec::new();
     };
-    let mut specs = Vec::new();
+    let mut descriptions = Vec::new();
     for he in body.loop_walk(first).closed("loop", first) {
         let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
         let data = linked(
@@ -3879,22 +3882,32 @@ fn loop_rekeyed<T: Decide>(
                  surgery mints no null edge"
             )
         };
-        let (param_start, param_end) = curve.params();
-        specs.push((
+        descriptions.push((
             edge,
-            geom_brep::EdgeCurveSpec {
-                description: crate::replace_face::remap_description(
-                    curve.restated_description(),
-                    dead,
-                    live,
-                ),
-                carrier: curve.carrier().clone(),
-                param_start,
-                param_end,
-            },
+            crate::replace_face::remap_description(curve.restated_description(), dead, live),
         ));
     }
-    specs
+    descriptions
+}
+
+/// Moves `face` onto the shared chart `live` with `sense`, each edge of
+/// its loop `r#loop` re-keyed from `dead` to `live` ([`loop_rekeyed`]):
+/// a restatement of stored edges, so a span refusal is the kernel's.
+pub(crate) fn rechart_rekeyed<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    (face, r#loop): (FaceKey, crate::entity::LoopKey),
+    (dead, live): (crate::geometry::SurfaceKey, crate::geometry::SurfaceKey),
+    sense: bool,
+    tol: Tol,
+) -> Result<(), EulerOpError> {
+    let descriptions = loop_rekeyed(body, r#loop, dead, live);
+    body.rechart_restating(
+        crate::policy_lane::KernelSite::RimRechart,
+        vec![crate::attach::Rechart::shared(live, face, sense)],
+        &descriptions,
+        tol,
+    )
+    .map(drop)
 }
 
 /// **The closed-form wall-clearance gate** (module docs). Every pair of

@@ -24,6 +24,7 @@ test_utils::gated_to![
 
 use geom::NurbsCurve3;
 use geom_core::spline::KnotVector;
+use geom_core::spline::pieces::binomial;
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz;
 
@@ -41,10 +42,6 @@ fn meters(c: &NurbsCurve3<f64>) -> (f64, f64) {
     )
 }
 
-fn binom(n: usize, k: usize) -> f64 {
-    (0..k).fold(1.0, |r, i| r * (n - i) as f64 / (i + 1) as f64)
-}
-
 /// A one-span degree-`p` curve on `[off, off + len]` whose derivative,
 /// in the span's unit parameter `s`, is the power-form polynomial
 /// `Σᵢ aᵢ sⁱ` (vector coefficients, degree ≤ `p − 1`): the net is the
@@ -58,7 +55,7 @@ fn bezier_with_derivative(p: usize, a: &[Vec3<f64>], off: f64, len: f64) -> Nurb
             .enumerate()
             .take(k + 1)
             .fold(Vec3::new(0.0, 0.0, 0.0), |acc, (i, ai)| {
-                acc + *ai * (binom(k, i) / binom(q, i))
+                acc + *ai * (binomial(k, i) / binomial(q, i))
             });
         let last = *pts.last().unwrap();
         pts.push(last + beta * (1.0 / p as f64));

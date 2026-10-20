@@ -1023,6 +1023,10 @@ impl<T: Decide> Body<T> {
     ///
     /// As [`Body::kev`], and where a record a merged member reaches
     /// does not resolve: every public door keeps the body tier-1-valid.
+    ///
+    /// Also on a kernel bug: an edge the body stores, re-minted or
+    /// restated on its own carrier and interval, whose span or winding
+    /// reads certainly refused at the run's band.
     pub fn kev_describing(
         &mut self,
         he: HalfEdgeKey,
@@ -1467,6 +1471,7 @@ impl<T: Decide> Body<T> {
             let (p_start, p_end) = self.rebased_endpoints(edge, &plan.fan, survivor_point());
             let curve = self
                 .certify_edge_spec(
+                    crate::policy_lane::Origin::Callers,
                     Some(edge),
                     spec.clone(),
                     p_start,
@@ -1745,6 +1750,10 @@ impl<T: Decide> Body<T> {
     /// # Panics
     ///
     /// As [`Body::kef`].
+    ///
+    /// Also on a kernel bug: an edge the body stores, re-minted or
+    /// restated on its own carrier and interval, whose span or winding
+    /// reads certainly refused at the run's band.
     pub fn kef_describing(
         &mut self,
         he: HalfEdgeKey,

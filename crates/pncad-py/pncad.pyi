@@ -129,8 +129,10 @@ class EditError(PncadError):
       (`profile`, `target`, `from`, `cut`, `member`, ...), with
       `index` the position of a section or a member.
     - `count` is how many nodes a definition expands to
-      (`definition_too_large`), or how many entities a selection meant
-      to name one names (`selection_shape`). It is NOT `found`: a count
+      (`definition_too_large`), or how many names a selection holds
+      where its kind holds another count (`selection_shape`,
+      `name_count`: a singleton holds exactly one, a set of edges at
+      least one). It is NOT `found`: a count
       and a dimension are two types, and one attribute carries one.
     - `first` and `again` are POSITIONS in a selection's names, and
       the fault (`fault`) decides what `first` means. On `repeated` (a
@@ -2351,9 +2353,10 @@ class Node:
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
         set FREEZES at authoring time. `distance` is the SETBACK along
-        each support, not a radius. An empty selection, an unresolvable
-        name, or an edge whose supports are not both planes refuses
-        typed at `evaluate`. `distance` mints a literal in the node's
+        each support, not a radius. An empty selection refuses at the
+        insert (`EditError` `selection_shape`, `name_count`); an
+        unresolvable name or an edge whose supports are not both planes
+        refuses typed at `evaluate`. `distance` mints a literal in the node's
         `chamfer_distance` slot, moved by `DocEdit.set_param`; the
         selection is repaired by `DocEdit.rebind`.
         """
@@ -2454,8 +2457,9 @@ class Node:
         `Evaluation.all_edges` answers with, or the ones a role-name
         door mints (`band_rim` and its five siblings) for a node no
         evaluation has reached yet. The set FREEZES at
-        authoring time; an empty one, an unresolvable name, or an edge
-        the roller cannot enter refuses typed at `evaluate`. `radius`
+        authoring time. An empty one refuses at the insert (`EditError`
+        `selection_shape`, `name_count`); an unresolvable name or an
+        edge the roller cannot enter refuses typed at `evaluate`. `radius`
         mints a literal in the node's `radius` slot, moved by
         `DocEdit.set_param`; one name of the selection is repaired by
         `DocEdit.rebind`.
@@ -6934,11 +6938,13 @@ class CheckEvidence:
     examination, so nothing was read; do not take the silence for a
     clean body.
 
-    `unproven_coincidence` (`relation`, `site`, `reason`, and the row
-    as `coincidence`) — a node decided two cells one from values and
-    the coincidence door does not prove it structural. `reason` says
-    what separates the two constructions, or why a cell's could not be
-    read. A `profile_junction` row's `relation` is `tangent` or `cusp`
+    `unproven_coincidence` (`relation`, `site`, `reason`, the row as
+    `coincidence`, and `restated`) — a node decided a coincidence of
+    its cells from values and the coincidence door does not prove it
+    structural. `reason` says what separates the constructions, or why
+    a cell's could not be read. `restated` lists a union's fold-step
+    rows decided at a member vertex this row names, reported with it.
+    A `profile_junction` row's `relation` is `tangent` or `cusp`
     between two carriers and `same_oriented` on one. A report, never a
     refusal."""
 
@@ -6974,20 +6980,23 @@ class CheckEvidence:
     def site(self) -> Optional[str]: ...
     @property
     def coincidence(self) -> Optional[Coincidence]: ...
+    @property
+    def restated(self) -> Optional[list[Coincidence]]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class Coincidence:
     """One coincidence a node decided from values (D10), with what the
     coincidence door decided about it.
 
-    `cells` are pairs: an entity is `(read, name)`, the `Var` the
+    `cells` are two, or for a `meet` the two or more that share one
+    point, sorted, each a pair: an entity is `(read, name)`, the `Var` the
     deciding node took it in through, whose table names it, and the
     name there (the opaque text the materializers answer with); the
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
     `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
-    `axes_meet` or `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
+    `axes_meet`, `co_ruled` or `meet`; `site` is `plane_ladder`, `carrier_ladder`,
     `tangent_witness`, `coaxial_sphere`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
     `profile_junction`, `vertex_fusion` or
@@ -6998,10 +7007,17 @@ class Coincidence:
     proved it structural (`same_construction`, `carrier_verdict` or
     `margin_identity`), or `None`, and then `residual` says what separates
     the two constructions and what the replay with every variable a
-    symbol made of the row."""
+    symbol made of the row. `origin` is `None` for the node's own
+    operation, `("judged", p, q)` for a union's or an intersect's
+    judgement of its members at places `p < q` (its order-free rows),
+    and `("fold", k)` for the fold step folding in the member at `k`."""
 
     @property
     def cells(self) -> list[tuple[Var | NodeId, Optional[str]]]: ...
+    @property
+    def origin(
+        self,
+    ) -> tuple[Literal["judged"], int, int] | tuple[Literal["fold"], int] | None: ...
     @property
     def relation(self) -> str: ...
     @property

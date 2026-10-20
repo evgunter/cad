@@ -161,8 +161,8 @@ use super::knots::Span;
 use super::pieces::{binomial, span_row};
 
 /// The degree ceiling of the quotient bound (module docs): the highest
-/// common degree whose binomials are all exact `f64`s, `C(56, 28) < 2⁵³`.
-pub const QUOTIENT_MAX_DEGREE: usize = 56;
+/// common degree whose binomials are all exact `f64`s.
+pub const QUOTIENT_MAX_DEGREE: usize = super::pieces::BINOMIAL_EXACT_MAX;
 
 /// `p / (hi − lo)` in `T`, for the pair whose knot difference runs from
 /// `lo = u_{i+1}` to `hi = u_{i+p+1}`.
@@ -558,6 +558,13 @@ fn halving_count(splits: usize) -> usize {
     if splits == 0 { 1 } else { 1 << splits.ilog2() }
 }
 
+/// [`halving_count`] along each axis: the piece schedule `splits` read
+/// as halvings, the one reading [`CellFirstQuotients::axis_pieces`] and
+/// [`CellFirstQuotients::cut_pieces`] share.
+fn halving_counts(splits: (usize, usize)) -> (usize, usize) {
+    (halving_count(splits.0), halving_count(splits.1))
+}
+
 /// `whole` cut into `count` equal pieces along one axis by repeated
 /// halving at ½ (`halve`), in ascending order. `count` is a power of two.
 fn halvings<X>(whole: X, count: usize, halve: impl Fn(&X) -> Option<(X, X)>) -> Option<Vec<X>> {
@@ -876,44 +883,55 @@ impl<T: Real, const D: usize> Raised<T, D> {
         })
     }
 
-    /// The quotient halved along `u` (`along_u`) or `v`: numerator and
-    /// weight power halved alike, so each half is the statement on its
-    /// half of the block.
-    fn halved(&self, along_u: bool) -> Option<(Self, Self)> {
-        let (n0, n1) = self.numer.halved(along_u)?;
-        let (d0, d1) = self.denom.halved(along_u)?;
-        Some((
-            Self {
-                numer: n0,
-                denom: d0,
-            },
-            Self {
-                numer: n1,
-                denom: d1,
-            },
-        ))
-    }
-
     /// The quotient on `counts` equal pieces per axis (powers of two),
-    /// by halving at ½ along `u` and then along `v`, row-major in `u`
-    /// then `v`.
+    /// as [`shared_pieces`] cuts it.
     fn pieces(&self, counts: (usize, usize)) -> Option<Vec<QuotientPiece<T, D>>> {
-        let along_u = halvings(self.clone(), counts.0, |r| r.halved(true))?;
-        let mut out = Vec::with_capacity(counts.0 * counts.1);
-        for r in along_u {
-            for piece in halvings(r, counts.1, |r| r.halved(false))? {
-                out.push(piece.piece()?);
-            }
-        }
-        Some(out)
+        let [pieces] = shared_pieces([&self.numer], &self.denom, counts)?;
+        Some(pieces)
     }
+}
 
-    fn piece(&self) -> Option<QuotientPiece<T, D>> {
-        QuotientPiece::new(
-            self.numer.arrays(),
-            self.denom.c.iter().map(|w| w.0[0]).collect(),
-        )
+/// `grid` on `counts` equal pieces per axis (powers of two), by halving
+/// at ½ along `u` and then along `v`, row-major in `u` then `v`.
+fn grid_pieces<T: Real, const D: usize>(
+    grid: &Grid<T, D>,
+    counts: (usize, usize),
+) -> Option<Vec<Grid<T, D>>> {
+    let mut out = Vec::with_capacity(counts.0 * counts.1);
+    for g in halvings(grid.clone(), counts.0, |g| g.halved(true))? {
+        out.extend(halvings(g, counts.1, |g| g.halved(false))?);
     }
+    Some(out)
+}
+
+/// The quotients `numers[i] / denom` on `counts` equal pieces per axis,
+/// one list per numerator, each row-major in `u` then `v`. The weight
+/// power is halved into its pieces once and each piece paired with
+/// every numerator's: halving is deterministic, so a quotient that
+/// halved its own copy of the same weight power would read the same
+/// bits, and a weight power several quotients share costs one halving.
+fn shared_pieces<T: Real, const D: usize, const N: usize>(
+    numers: [&Grid<T, D>; N],
+    denom: &Grid<T, 1>,
+    counts: (usize, usize),
+) -> Option<[Vec<QuotientPiece<T, D>>; N]> {
+    #[cfg(test)]
+    tests::WEIGHT_HALVINGS.with(|n| n.set(n.get() + 1));
+    let denoms: Vec<Vec<T>> = grid_pieces(denom, counts)?
+        .iter()
+        .map(|d| d.c.iter().map(|w| w.0[0]).collect())
+        .collect();
+    let lists = numers.map(|numer| -> Option<Vec<_>> {
+        grid_pieces(numer, counts)?
+            .iter()
+            .zip(&denoms)
+            .map(|(n, d)| QuotientPiece::new(n.arrays(), d.clone()))
+            .collect()
+    });
+    if lists.iter().any(Option::is_none) {
+        return None;
+    }
+    Some(lists.map(Option::unwrap_or_default))
 }
 
 /// [`CellQuotients`] before it is cut.
@@ -1248,30 +1266,37 @@ fn cell_pieces<T: Real>(
 ) -> Option<CellPieces<T>> {
     let whole = cell_whole(axes, block, second)?;
     // Every quotient is formed once over the cell and halved into its
-    // pieces. With the second order the area is formed whatever `area`
-    // asks: it shares `W³` with the second partials, and
-    // `CellSecondQuotients` readers take it beside them.
-    let counts = (halving_count(splits.0), halving_count(splits.1));
+    // pieces, each weight power halved once for every quotient over it
+    // ([`shared_pieces`]): `S_u` and `S_v` share `W²`, and the area and
+    // the second partials share `W³`. With the second order the area is
+    // formed whatever `area` asks: `CellSecondQuotients` readers take it
+    // beside them.
+    let counts = halving_counts(splits);
     let first = whole.first_raised(area || whole.second.is_some())?;
-    let (u, v) = (first.u.pieces(counts)?, first.v.pieces(counts)?);
-    let area: Vec<_> = match &first.area {
-        Some(a) => a.pieces(counts)?.into_iter().map(Some).collect(),
-        None => vec![None; u.len()],
-    };
-    let second: Vec<_> = match whole.second_raised() {
-        Some(s) => {
-            let (uu, uv, vv) = (
-                s.uu.pieces(counts)?,
-                s.uv.pieces(counts)?,
-                s.vv.pieces(counts)?,
-            );
-            uu.into_iter()
+    let [u, v] = shared_pieces([&first.u.numer, &first.v.numer], &first.u.denom, counts)?;
+    let (area, second) = match (&first.area, whole.second_raised()) {
+        (Some(a), Some(s)) => {
+            // Every `W³` is `W²·W` of the same `W` (`area_raised`,
+            // `second_numerator`), so the area's serves all four.
+            let [area, uu, uv, vv] = shared_pieces(
+                [&a.numer, &s.uu.numer, &s.uv.numer, &s.vv.numer],
+                &a.denom,
+                counts,
+            )?;
+            let second = uu
+                .into_iter()
                 .zip(uv)
                 .zip(vv)
                 .map(|((uu, uv), vv)| Some(CellSecondQuotients { uu, uv, vv }))
-                .collect()
+                .collect();
+            (area.into_iter().map(Some).collect(), second)
         }
-        None => vec![None; u.len()],
+        (Some(a), None) => {
+            let [area] = shared_pieces([&a.numer], &a.denom, counts)?;
+            (area.into_iter().map(Some).collect(), vec![None; u.len()])
+        }
+        (None, None) => (vec![None; u.len()], vec![None; u.len()]),
+        (None, Some(_)) => unreachable!("the second order forms the area (`first_raised` above)"),
     };
     let out = u
         .into_iter()
@@ -1285,10 +1310,13 @@ fn cell_pieces<T: Real>(
 
 /// **A cell block's first-order quotients, formed once** (module docs):
 /// `S_u = N_u/W²` and `S_v = N_v/W²` over the whole block, each raised
-/// to `W²`'s bidegree. [`Self::pieces`] halves them into a schedule's
-/// pieces, as [`cell_quotients`] reads them; at the interval scalar
-/// [`CellFirstQuotients::restrict`] first cuts them to a sub-rectangle,
-/// restriction commuting with the ring operations that formed them.
+/// to `W²`'s bidegree. A reader takes one axis's pieces at a time:
+/// [`Self::axis_pieces`] halves the whole block into a schedule's pieces,
+/// as [`cell_quotients`] reads them, and at the interval scalar
+/// [`CellFirstQuotients::cut_pieces`] first cuts the asked axes to a
+/// sub-rectangle, restriction commuting with the ring operations that
+/// formed them. [`Self::pieces`] and [`CellFirstQuotients::restrict`]
+/// are the same readings of both axes together.
 #[derive(Clone, Debug)]
 pub struct CellFirstQuotients<T> {
     u: Raised<T, 3>,
@@ -1314,8 +1342,10 @@ impl<T: Real> CellFirstQuotients<T> {
     /// `v`, the area absent.
     #[must_use]
     pub fn pieces(&self, splits: (usize, usize)) -> Option<Vec<CellQuotients<T>>> {
-        let counts = (halving_count(splits.0), halving_count(splits.1));
-        let (u, v) = (self.u.pieces(counts)?, self.v.pieces(counts)?);
+        let (u, v) = (
+            self.axis_pieces(true, splits)?,
+            self.axis_pieces(false, splits)?,
+        );
         Some(
             u.into_iter()
                 .zip(v)
@@ -1323,7 +1353,22 @@ impl<T: Real> CellFirstQuotients<T> {
                 .collect(),
         )
     }
+
+    /// The pieces of `S_u` (`along_u`) or `S_v` alone, as
+    /// [`Self::pieces`] reads them, in the same order.
+    #[must_use]
+    pub fn axis_pieces(
+        &self,
+        along_u: bool,
+        splits: (usize, usize),
+    ) -> Option<Vec<QuotientPiece<T, 3>>> {
+        if along_u { &self.u } else { &self.v }.pieces(halving_counts(splits))
+    }
 }
+
+/// One axis's quotient pieces at [`Interval`](crate::interval::Interval),
+/// as [`CellFirstQuotients::cut_pieces`] hands them back.
+pub type IntervalPieces = Vec<QuotientPiece<crate::interval::Interval, 3>>;
 
 impl CellFirstQuotients<crate::interval::Interval> {
     /// The quotients on the part of the block over `[a, b]` along each
@@ -1341,19 +1386,70 @@ impl CellFirstQuotients<crate::interval::Interval> {
     /// too (module docs, "The `b_k` are positive").
     #[must_use]
     pub fn restrict(&self, cuts: (Option<AxisCut>, Option<AxisCut>)) -> Self {
-        // `S_u` and `S_v` share `W²` (`Homogeneous::first_raised`), so
-        // it is restricted once.
         let denom = self.u.denom.restricted(cuts);
         Self {
-            u: Raised {
-                numer: self.u.numer.restricted(cuts),
-                denom: denom.clone(),
-            },
-            v: Raised {
-                numer: self.v.numer.restricted(cuts),
-                denom,
-            },
+            u: restricted_over(&self.u, cuts, &denom),
+            v: restricted_over(&self.v, cuts, &denom),
         }
+    }
+
+    /// The pieces of `S_u` (`axes.0`) and `S_v` (`axes.1`) on the part
+    /// of the block a cut keeps ([`Self::restrict`]), each axis only
+    /// where asked, `None` where not asked or refused: a reader of one
+    /// axis restricts its numerator and `W²` alone. Bit for bit the
+    /// pieces [`Self::restrict`] then [`Self::pieces`] read.
+    ///
+    /// One axis never refuses while the other reads: each numerator is
+    /// raised to `W²`'s bidegree when formed ([`Raised::of`]), so both
+    /// share `W²`'s grid shape, and restriction and halving refuse only
+    /// on shape.
+    #[must_use]
+    pub fn cut_pieces(
+        &self,
+        cuts: (Option<AxisCut>, Option<AxisCut>),
+        axes: (bool, bool),
+        splits: (usize, usize),
+    ) -> (Option<IntervalPieces>, Option<IntervalPieces>) {
+        let counts = halving_counts(splits);
+        let (u, v) = self.restrict_axes(cuts, axes);
+        (
+            u.and_then(|r| r.pieces(counts)),
+            v.and_then(|r| r.pieces(counts)),
+        )
+    }
+
+    /// The asked axes' quotients restricted; `S_u` and `S_v` share `W²`
+    /// (`Homogeneous::first_raised`), so it is restricted once.
+    fn restrict_axes(
+        &self,
+        cuts: (Option<AxisCut>, Option<AxisCut>),
+        (want_u, want_v): (bool, bool),
+    ) -> (
+        Option<Raised<crate::interval::Interval, 3>>,
+        Option<Raised<crate::interval::Interval, 3>>,
+    ) {
+        if !(want_u || want_v) {
+            return (None, None);
+        }
+        let denom = self.u.denom.restricted(cuts);
+        (
+            want_u.then(|| restricted_over(&self.u, cuts, &denom)),
+            want_v.then(|| restricted_over(&self.v, cuts, &denom)),
+        )
+    }
+}
+
+/// `q`'s numerator restricted to `cuts`, over `denom`: `W²` restricted
+/// to the same cuts, which `S_u` and `S_v` share
+/// (`Homogeneous::first_raised`), so a caller restricts it once.
+fn restricted_over(
+    q: &Raised<crate::interval::Interval, 3>,
+    cuts: (Option<AxisCut>, Option<AxisCut>),
+    denom: &Grid<crate::interval::Interval, 1>,
+) -> Raised<crate::interval::Interval, 3> {
+    Raised {
+        numer: q.numer.restricted(cuts),
+        denom: denom.clone(),
     }
 }
 
@@ -1564,6 +1660,7 @@ mod tests {
     use crate::dual::Dual;
     use crate::interval::Interval;
     use crate::real::Real;
+    use interval_transcendentals::Decoration;
 
     /// Knot values at every edge the quotient has: equal (a zero
     /// difference), reversed, signed zeros, subnormal and huge
@@ -1853,6 +1950,221 @@ mod tests {
         assert!(zero_width(&cut), "the cut widened a constant quotient");
     }
 
+    /// **A one-axis cut reads the two-axis cut's pieces to the bit.**
+    /// [`super::CellFirstQuotients::cut_pieces`] restricts only the axes
+    /// its reader asks for (a reader of `S_u` restricts `N_u` and `W²`
+    /// alone); each asked axis's pieces equal, bit for bit and decoration
+    /// for decoration, the pieces [`super::CellFirstQuotients::restrict`]
+    /// then [`super::CellFirstQuotients::pieces`] read, and an unasked
+    /// axis is `None`. Drawn rational blocks of degree 1–3 per axis with
+    /// widened coefficients, on non-dyadic Bézier spans, cut along `u`,
+    /// `v` or both at drawn ends, at 1×1 and 2×2 pieces and the
+    /// asymmetric 1×2, 2×1 and 4×2, for every choice of axes. Red if a
+    /// one-axis cut restricts `W²` differently from the two-axis cut,
+    /// hands back the other axis's pieces, or reads the piece counts
+    /// swapped.
+    #[test]
+    fn a_one_axis_cut_reads_the_two_axis_cuts_pieces_to_the_bit() {
+        type Pieces = Vec<super::QuotientPiece<Interval, 3>>;
+        let piece_bits = |pieces: &Pieces| -> Vec<(u64, u64, Decoration)> {
+            pieces
+                .iter()
+                .flat_map(|q| q.numer().iter().flatten().chain(q.denom()).copied())
+                .map(|x| (x.lo().to_bits(), x.hi().to_bits(), x.decoration()))
+                .collect()
+        };
+        let mut rng = test_utils::fuzz::start("one-axis-cut");
+        for _ in 0..test_utils::fuzz::scaled(60) {
+            let (p, q) = (1 + rng.below(3), 1 + rng.below(3));
+            let n = (p + 1) * (q + 1);
+            let a: Vec<[Interval; 3]> = (0..n)
+                .map(|_| core::array::from_fn(|_| coefficient(&mut rng)))
+                .collect();
+            let w: Vec<Interval> = (0..n)
+                .map(|_| {
+                    let lo = rng.range(0.5, 3.0);
+                    Interval::from_bounds(lo, lo + rng.range(0.0, 1e-9))
+                })
+                .collect();
+            let span = |rng: &mut test_utils::fuzz::Rng| {
+                let s0 = rng.range(-1.0, 1.0);
+                (s0, s0 + rng.range(0.3, 2.0))
+            };
+            let (du, dv) = (span(&mut rng), span(&mut rng));
+            let vector = |d: usize, (s0, s1): (f64, f64)| {
+                let k: Vec<f64> = core::iter::repeat_n(s0, d + 1)
+                    .chain(core::iter::repeat_n(s1, d + 1))
+                    .collect();
+                super::super::KnotVector::clamped(k, d).expect("a Bézier vector")
+            };
+            let (ku, kv) = (vector(p, du), vector(q, dv));
+            let held_u: Vec<Interval> = ku.knots().iter().map(|&k| Interval::from_f64(k)).collect();
+            let held_v: Vec<Interval> = kv.knots().iter().map(|&k| Interval::from_f64(k)).collect();
+            let axes = (
+                super::CellAxis::Span(ku.span(p).expect("the span"), &held_u),
+                super::CellAxis::Span(kv.span(q).expect("the span"), &held_v),
+            );
+            let whole =
+                super::cell_first_quotients(axes, super::CellBlock::Homogeneous { a: &a, w: &w })
+                    .expect("a block under the ceiling");
+            let cut = |rng: &mut test_utils::fuzz::Rng, (s0, s1): (f64, f64)| {
+                let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+                ((s0, s1), (x.min(y), x.max(y)))
+            };
+            let which = rng.below(3);
+            let cuts = (
+                (which != 1).then(|| cut(&mut rng, du)),
+                (which != 0).then(|| cut(&mut rng, dv)),
+            );
+            for splits in [(1, 1), (2, 2), (1, 2), (2, 1), (4, 2)] {
+                let both = whole
+                    .restrict(cuts)
+                    .pieces(splits)
+                    .expect("the two-axis cut's pieces");
+                let (ref_u, ref_v): (Pieces, Pieces) = both.into_iter().map(|c| (c.u, c.v)).unzip();
+                for asked in [(true, true), (true, false), (false, true), (false, false)] {
+                    let (u, v) = whole.cut_pieces(cuts, asked, splits);
+                    for (got, want, on, axis) in
+                        [(u, &ref_u, asked.0, "S_u"), (v, &ref_v, asked.1, "S_v")]
+                    {
+                        match got {
+                            Some(got) => assert!(
+                                on && piece_bits(&got) == piece_bits(want),
+                                "{axis} asked {asked:?} at {splits:?} on cuts {cuts:?}: \
+                                 not the two-axis cut's pieces"
+                            ),
+                            None => assert!(!on, "{axis} asked {asked:?} came back refused"),
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// **A cut quotient holds the true derivative over its own region.**
+    /// An independent oracle for [`super::CellFirstQuotients::cut_pieces`]:
+    /// drawn rational blocks of degree 1–3 per axis, weights spread over
+    /// `[0.2, 5]`, on non-dyadic Bézier spans, cut along both axes at drawn
+    /// ends; over a 9×9 grid of the cut's own rectangle, `S_d` evaluated in
+    /// `f64` by the quotient rule on the Bernstein form (no code under test)
+    /// lies in the hull of every piece's coefficient ratios `a_k/b_k`.
+    /// Red when the numerators and `W²` are cut over different regions
+    /// (`W²` restricted along `u` only: the review of #5391's M3), at
+    /// either restriction site or both. The bit-for-bit guard row above
+    /// sees one site changed alone, since each side of it runs the other,
+    /// but not both changed alike.
+    #[test]
+    fn a_cut_quotient_holds_the_sampled_derivative_over_its_region() {
+        // `B_{n,i}(t)` and its derivative in `t`.
+        fn bern(n: usize, i: usize, t: f64) -> f64 {
+            if i > n {
+                return 0.0;
+            }
+            let binom = (0..i).fold(1.0, |b, k| b * (n - k) as f64 / (k + 1) as f64);
+            binom * t.powi(i as i32) * (1.0 - t).powi((n - i) as i32)
+        }
+        fn dbern(n: usize, i: usize, t: f64) -> f64 {
+            let left = if i == 0 { 0.0 } else { bern(n - 1, i - 1, t) };
+            n as f64 * (left - bern(n - 1, i, t))
+        }
+        let mut rng = test_utils::fuzz::start("cut-oracle");
+        for _ in 0..test_utils::fuzz::scaled(40) {
+            let (p, q) = (1 + rng.below(3), 1 + rng.below(3));
+            let n = (p + 1) * (q + 1);
+            let pts: Vec<[f64; 3]> = (0..n)
+                .map(|_| core::array::from_fn(|_| rng.range(-2.0, 2.0)))
+                .collect();
+            let wts: Vec<f64> = (0..n).map(|_| rng.range(0.2, 5.0)).collect();
+            let span = |rng: &mut test_utils::fuzz::Rng| {
+                let s0 = rng.range(-1.0, 1.0);
+                (s0, s0 + rng.range(0.3, 2.0))
+            };
+            let (du, dv) = (span(&mut rng), span(&mut rng));
+            let vector = |d: usize, (s0, s1): (f64, f64)| {
+                let k: Vec<f64> = core::iter::repeat_n(s0, d + 1)
+                    .chain(core::iter::repeat_n(s1, d + 1))
+                    .collect();
+                super::super::KnotVector::clamped(k, d).expect("a Bézier vector")
+            };
+            let (ku, kv) = (vector(p, du), vector(q, dv));
+            let held_u: Vec<Interval> = ku.knots().iter().map(|&k| Interval::from_f64(k)).collect();
+            let held_v: Vec<Interval> = kv.knots().iter().map(|&k| Interval::from_f64(k)).collect();
+            let axes = (
+                super::CellAxis::Span(ku.span(p).expect("the span"), &held_u),
+                super::CellAxis::Span(kv.span(q).expect("the span"), &held_v),
+            );
+            let points: Vec<[Interval; 3]> =
+                pts.iter().map(|x| x.map(Interval::from_f64)).collect();
+            let weights: Vec<Interval> = wts.iter().copied().map(Interval::from_f64).collect();
+            let block = super::CellBlock::Points {
+                points: &points,
+                weights: &weights,
+                origin: [Interval::from_f64(0.0); 3],
+            };
+            let whole =
+                super::cell_first_quotients(axes, block).expect("a block under the ceiling");
+            let cut = |rng: &mut test_utils::fuzz::Rng, (s0, s1): (f64, f64)| {
+                let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+                ((s0, s1), (x.min(y), x.max(y)))
+            };
+            let (cu, cv) = (cut(&mut rng, du), cut(&mut rng, dv));
+            // `S_u` (`along_u`) or `S_v` at `(x, y)`, by the quotient rule.
+            let truth = |along_u: bool, x: f64, y: f64| -> [f64; 3] {
+                let (tu, tv) = ((x - du.0) / (du.1 - du.0), (y - dv.0) / (dv.1 - dv.0));
+                let (mut nn, mut nd, mut w, mut wd) = ([0.0; 3], [0.0; 3], 0.0, 0.0);
+                for i in 0..=p {
+                    for j in 0..=q {
+                        let k = i * (q + 1) + j;
+                        let b = bern(p, i, tu) * bern(q, j, tv);
+                        let db = if along_u {
+                            dbern(p, i, tu) / (du.1 - du.0) * bern(q, j, tv)
+                        } else {
+                            bern(p, i, tu) * dbern(q, j, tv) / (dv.1 - dv.0)
+                        };
+                        w += wts[k] * b;
+                        wd += wts[k] * db;
+                        for c in 0..3 {
+                            nn[c] += wts[k] * pts[k][c] * b;
+                            nd[c] += wts[k] * pts[k][c] * db;
+                        }
+                    }
+                }
+                core::array::from_fn(|c| (nd[c] * w - nn[c] * wd) / (w * w))
+            };
+            for along_u in [true, false] {
+                let (u, v) = whole.cut_pieces((Some(cu), Some(cv)), (along_u, !along_u), (2, 2));
+                let pieces = if along_u { u } else { v }.expect("the cut's pieces");
+                let hull: [(f64, f64); 3] = core::array::from_fn(|c| {
+                    pieces
+                        .iter()
+                        .flat_map(|q| q.numer().iter().zip(q.denom()).map(move |(a, b)| a[c] / *b))
+                        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), r| {
+                            (lo.min(r.lo()), hi.max(r.hi()))
+                        })
+                });
+                for i in 0..=8 {
+                    for j in 0..=8 {
+                        let x = cu.1.0 + (cu.1.1 - cu.1.0) * f64::from(i) / 8.0;
+                        let y = cv.1.0 + (cv.1.1 - cv.1.0) * f64::from(j) / 8.0;
+                        let s = truth(along_u, x, y);
+                        for c in 0..3 {
+                            let slack = 1e-9 * s[c].abs().max(1.0);
+                            assert!(
+                                hull[c].0 - slack <= s[c] && s[c] <= hull[c].1 + slack,
+                                "S_{} component {c} at ({x}, {y}) = {} outside the cut's \
+                                 hull [{}, {}] (cuts {cu:?} × {cv:?}, degrees {p}×{q})",
+                                if along_u { "u" } else { "v" },
+                                s[c],
+                                hull[c].0,
+                                hull[c].1
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// An interval's two ends and its certification, as bits.
     fn bits(x: Interval) -> (u64, u64, bool) {
         (x.lo().to_bits(), x.hi().to_bits(), x.is_certified())
@@ -1973,5 +2285,207 @@ mod tests {
             }
         }
         assert_eq!(asked, DEGREES.len() * KNOTS.len() * KNOTS.len());
+    }
+
+    std::thread_local! {
+        /// How many weight powers this thread has halved into pieces.
+        pub(super) static WEIGHT_HALVINGS: core::cell::Cell<usize> =
+            const { core::cell::Cell::new(0) };
+    }
+
+    /// A rational bicubic-by-quadratic cell block, its weights uneven,
+    /// at the interval scalar.
+    struct RationalCell {
+        a: Vec<[Interval; 3]>,
+        w: Vec<Interval>,
+        knots_u: [Interval; 8],
+        knots_v: [Interval; 6],
+        ku: super::super::KnotVector,
+        kv: super::super::KnotVector,
+    }
+
+    fn rational_cell() -> RationalCell {
+        let (p, q) = (3, 2);
+        let n = (p + 1) * (q + 1);
+        let a = (0..n)
+            .map(|k| {
+                let (i, j) = ((k / (q + 1)) as f64, (k % (q + 1)) as f64);
+                [i, j, 0.1 * i * j + 0.3 * (k % 2) as f64].map(Interval::from_f64)
+            })
+            .collect();
+        let w = (0..n)
+            .map(|k| Interval::from_f64(1.0 + 0.25 * ((k * 7) % 5) as f64))
+            .collect();
+        let ku = super::super::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], p)
+            .expect("a Bézier vector");
+        let kv = super::super::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], q)
+            .expect("a Bézier vector");
+        RationalCell {
+            a,
+            w,
+            knots_u: [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0].map(Interval::from_f64),
+            knots_v: [0.0, 0.0, 0.0, 1.0, 1.0, 1.0].map(Interval::from_f64),
+            ku,
+            kv,
+        }
+    }
+
+    /// **A cell halves each weight power once.** `S_u` and `S_v` share
+    /// `W²`, and the area and the three second partials share `W³`, so a
+    /// cell's pieces halve one weight power at the first order without
+    /// the area and two otherwise, at any schedule: red if a quotient
+    /// halves its own copy of a shared weight power again (6 with the
+    /// second order).
+    #[test]
+    fn a_cell_halves_each_weight_power_once() {
+        let RationalCell {
+            a,
+            w,
+            knots_u,
+            knots_v,
+            ku,
+            kv,
+        } = rational_cell();
+        let axes = || {
+            (
+                super::CellAxis::Span(ku.span(3).expect("the span"), &knots_u[..]),
+                super::CellAxis::Span(kv.span(2).expect("the span"), &knots_v[..]),
+            )
+        };
+        let block = || super::CellBlock::Homogeneous { a: &a, w: &w };
+        let weight_halvings = |f: &dyn Fn() -> usize| {
+            let before = WEIGHT_HALVINGS.with(core::cell::Cell::get);
+            let pieces = f();
+            assert!(pieces > 1, "the schedule cuts the cell");
+            WEIGHT_HALVINGS.with(core::cell::Cell::get) - before
+        };
+        for splits in [(2, 1), (4, 2), (8, 8)] {
+            let first = || {
+                super::cell_quotients(axes(), block(), splits, false)
+                    .expect("pieces")
+                    .len()
+            };
+            let area = || {
+                super::cell_quotients(axes(), block(), splits, true)
+                    .expect("pieces")
+                    .len()
+            };
+            let second = || {
+                super::cell_second_quotients(axes(), block(), splits)
+                    .expect("pieces")
+                    .1
+                    .len()
+            };
+            assert_eq!(weight_halvings(&first), 1, "W² once, splits {splits:?}");
+            assert_eq!(
+                weight_halvings(&area),
+                2,
+                "W² and W³ once each, splits {splits:?}"
+            );
+            assert_eq!(
+                weight_halvings(&second),
+                2,
+                "W² and W³ once each, splits {splits:?}"
+            );
+        }
+    }
+
+    /// **A shared halving reads each quotient's own halving to the
+    /// bit.** Every piece [`super::cell_second_quotients`] serves (its
+    /// `S_u`, `S_v`, area and three second partials, numerator and
+    /// weight power) is the bits of that quotient halved as one,
+    /// numerator and its own weight power together, the area's and the
+    /// second partials' `W³` formed apart; and so is every piece
+    /// [`super::cell_quotients`] serves with the area and without it.
+    #[test]
+    fn a_shared_weight_halving_is_each_quotients_own_to_the_bit() {
+        let RationalCell {
+            a,
+            w,
+            knots_u,
+            knots_v,
+            ku,
+            kv,
+        } = rational_cell();
+        let axes = || {
+            (
+                super::CellAxis::Span(ku.span(3).expect("the span"), &knots_u[..]),
+                super::CellAxis::Span(kv.span(2).expect("the span"), &knots_v[..]),
+            )
+        };
+        let block = || super::CellBlock::Homogeneous { a: &a, w: &w };
+        let ends = |x: &Interval| (x.lo().to_bits(), x.hi().to_bits(), x.is_certified());
+        let same = |got: &super::QuotientPiece<Interval, 3>,
+                    want: &super::QuotientPiece<Interval, 3>,
+                    what: &str| {
+            let flat = |p: &super::QuotientPiece<Interval, 3>| {
+                (
+                    p.numer().iter().flatten().map(ends).collect::<Vec<_>>(),
+                    p.denom().iter().map(ends).collect::<Vec<_>>(),
+                )
+            };
+            assert_eq!(flat(got), flat(want), "{what}");
+        };
+        for splits in [(1, 1), (2, 4), (8, 2)] {
+            let counts = super::halving_counts(splits);
+            let whole =
+                super::cell_whole(axes(), block(), true).expect("a block under the ceiling");
+            let first = whole.first_raised(true).expect("the first order");
+            let area = first.area.as_ref().expect("the area");
+            let second = whole.second_raised().expect("the second order");
+            // The quotient halved as one: numerator and weight power
+            // halved together, pair by pair, along `u` and then `v`.
+            let own = |r: &super::Raised<Interval, 3>| -> Vec<super::QuotientPiece<Interval, 3>> {
+                let halve = |along_u: bool| {
+                    move |(n, d): &(super::Grid<Interval, 3>, super::Grid<Interval, 1>)| {
+                        let (n0, n1) = n.halved(along_u)?;
+                        let (d0, d1) = d.halved(along_u)?;
+                        Some(((n0, d0), (n1, d1)))
+                    }
+                };
+                super::halvings((r.numer.clone(), r.denom.clone()), counts.0, halve(true))
+                    .expect("halves")
+                    .into_iter()
+                    .flat_map(|nd| super::halvings(nd, counts.1, halve(false)).expect("halves"))
+                    .map(|(n, d)| {
+                        super::QuotientPiece::new(n.arrays(), d.c.iter().map(|w| w.0[0]).collect())
+                            .expect("a piece")
+                    })
+                    .collect()
+            };
+            let (u, v, ar) = (own(&first.u), own(&first.v), own(area));
+            let (uu, uv, vv) = (own(&second.uu), own(&second.uv), own(&second.vv));
+            let (got_counts, got) =
+                super::cell_second_quotients(axes(), block(), splits).expect("pieces");
+            assert_eq!(got_counts, counts);
+            assert_eq!(got.len(), u.len());
+            for (k, (f, s)) in got.iter().enumerate() {
+                same(&f.u, &u[k], &format!("S_u piece {k}, splits {splits:?}"));
+                same(&f.v, &v[k], &format!("S_v piece {k}, splits {splits:?}"));
+                same(
+                    f.area.as_ref().expect("the area"),
+                    &ar[k],
+                    &format!("area piece {k}"),
+                );
+                same(&s.uu, &uu[k], &format!("S_uu piece {k}, splits {splits:?}"));
+                same(&s.uv, &uv[k], &format!("S_uv piece {k}, splits {splits:?}"));
+                same(&s.vv, &vv[k], &format!("S_vv piece {k}, splits {splits:?}"));
+            }
+            for with_area in [true, false] {
+                let got =
+                    super::cell_quotients(axes(), block(), splits, with_area).expect("pieces");
+                assert_eq!(got.len(), u.len());
+                for (k, f) in got.iter().enumerate() {
+                    let at = format!("piece {k}, splits {splits:?}, area {with_area}");
+                    same(&f.u, &u[k], &format!("S_u {at}"));
+                    same(&f.v, &v[k], &format!("S_v {at}"));
+                    match &f.area {
+                        Some(area) => same(area, &ar[k], &format!("area {at}")),
+                        None => assert!(!with_area, "the area is absent at {at}"),
+                    }
+                    assert!(f.area.is_some() == with_area, "the area asked at {at}");
+                }
+            }
+        }
     }
 }

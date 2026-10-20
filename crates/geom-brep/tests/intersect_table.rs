@@ -16,6 +16,8 @@ use geom_brep::intersect::{
     SectionError, cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section,
     plane_cylinder_section, route,
 };
+use geom_brep::recourse::Refused;
+use geom_brep::{TorusConvention, TorusRefusal, TorusVerdict};
 use geom_core::{Point3, Real, Vec3};
 
 /// A metre's lever about a cylinder's stored origin (the world origin
@@ -2232,10 +2234,28 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
     assert_eq!(diag.predicate, Some("pt_axis_normal"));
 }
 
-/// The ring guard: a spindle torus (`r ≥ R`, hand-minted — no kernel
-/// door builds one, which is exactly why the guard exists) refuses
-/// typed before any classification, in every configuration; its
-/// in-band twin (`R − r` at 3ε) escalates. Wrong-lane kinds refuse
+/// The half of the ring convention `err` refused at, and whether it
+/// refused in band (`None`) or decided (`Some(negative)`).
+fn torus_refusal(err: &SectionError) -> (TorusConvention, Option<bool>) {
+    let SectionError::DegenerateTorus(TorusRefusal {
+        convention,
+        verdict,
+    }) = err
+    else {
+        panic!("expected the ring-convention refusal, got {err:?}");
+    };
+    let decided = match verdict {
+        TorusVerdict::Undecided(_) => None,
+        TorusVerdict::Refused(Refused::Zero(_)) => Some(false),
+        TorusVerdict::Refused(Refused::Negative { .. }) => Some(true),
+    };
+    (*convention, decided)
+}
+
+/// The ring guard: a spindle torus (`r > R`) and a horn (`r = R`)
+/// refuse at the ring half, decided negative and zero, before any
+/// classification; the in-band twin (`R − r` at 3ε) refuses at the same
+/// half undecided, naming the half's predicate. Wrong-lane kinds refuse
 /// typed, both sides.
 #[test]
 fn plane_torus_ring_guard_and_wrong_lane() {
@@ -2245,17 +2265,26 @@ fn plane_torus_ring_guard_and_wrong_lane() {
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
-    let spindle = torus_y(0.3, 0.75);
-    let err = plane_torus_section(&plane, &spindle, 1.0, band()).expect_err("spindle");
-    assert!(matches!(err, SectionError::DegenerateTorus), "got {err:?}");
-    let horn = torus_y(0.3, 0.3);
-    let err = plane_torus_section(&plane, &horn, 1.0, band()).expect_err("horn");
-    assert!(matches!(err, SectionError::DegenerateTorus), "got {err:?}");
+    for (what, tor, decided) in [
+        ("spindle", torus_y(0.3, 0.75), Some(true)),
+        ("horn", torus_y(0.3, 0.3), Some(false)),
+        ("near horn", torus_y(0.3 + 3.0 * eps(), 0.3), None),
+    ] {
+        let err = plane_torus_section(&plane, &tor, 1.0, band()).expect_err(what);
+        assert_eq!(
+            torus_refusal(&err),
+            (TorusConvention::Ring, decided),
+            "{what}: {err:?}"
+        );
+    }
     let near_horn = torus_y(0.3 + 3.0 * eps(), 0.3);
-    let err = plane_torus_section(&plane, &near_horn, 1.0, band())
-        .expect_err("in-band ring margin must escalate");
-    let SectionError::Escalated(diag) = err else {
-        panic!("expected escalation, got {err:?}");
+    let err = plane_torus_section(&plane, &near_horn, 1.0, band()).expect_err("near horn");
+    let SectionError::DegenerateTorus(TorusRefusal {
+        verdict: TorusVerdict::Undecided(diag),
+        ..
+    }) = err
+    else {
+        panic!("expected the ring half undecided, got {err:?}");
     };
     assert_eq!(diag.predicate, Some("ring_torus_convention"));
     // Wrong-lane kinds refuse typed, both sides.
@@ -2274,9 +2303,9 @@ fn plane_torus_ring_guard_and_wrong_lane() {
 /// (zero-radius meridian circles, and a spurious `TangentCircle` at
 /// the cap), and a doubly-negative pair (`R = −0.75, r = −0.9`:
 /// `R − r = 0.15` — the unguarded arm transposed the `±m` centres).
-/// `pt_tube_guard` (margin `r`, metres) refuses all three typed
-/// ([`SectionError::DegenerateTorus`]) before any classification, in
-/// every configuration; its in-band twin escalates naming itself.
+/// The tube half (`torus_tube_positive`, margin `r`, metres) refuses all
+/// three before any classification, in every configuration; its
+/// in-band twin refuses at the same half undecided, naming it.
 #[test]
 fn plane_torus_tube_guard_refuses_nonpositive_minor_radius() {
     use geom_brep::intersect::plane_torus_section;
@@ -2290,25 +2319,98 @@ fn plane_torus_tube_guard_refuses_nonpositive_minor_radius() {
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
-    for (what, tor, plane) in [
-        ("r < 0, meridian pose", torus_y(0.75, -0.3), &meridian),
-        ("r < 0, cap pose", torus_y(0.75, -0.3), &cap),
-        ("r = 0, cap pose", torus_y(0.75, 0.0), &cap),
-        ("R < 0 and r < 0", torus_y(-0.75, -0.9), &meridian),
+    for (what, tor, plane, negative) in [
+        ("r < 0, meridian pose", torus_y(0.75, -0.3), &meridian, true),
+        ("r < 0, cap pose", torus_y(0.75, -0.3), &cap, true),
+        ("r = 0, cap pose", torus_y(0.75, 0.0), &cap, false),
+        ("R < 0 and r < 0", torus_y(-0.75, -0.9), &meridian, true),
     ] {
         let err = plane_torus_section(plane, &tor, 1.0, band()).expect_err(what);
-        assert!(
-            matches!(err, SectionError::DegenerateTorus),
-            "{what}: got {err:?}"
+        assert_eq!(
+            torus_refusal(&err),
+            (TorusConvention::Tube, Some(negative)),
+            "{what}: {err:?}"
         );
     }
     // In-band twin: `r` at 3ε — neither a tube nor definitely not one.
     let err = plane_torus_section(&cap, &torus_y(0.75, 3.0 * eps()), 1.0, band())
         .expect_err("in-band tube radius must escalate");
-    let SectionError::Escalated(diag) = err else {
-        panic!("expected escalation, got {err:?}");
+    let SectionError::DegenerateTorus(TorusRefusal {
+        convention: TorusConvention::Tube,
+        verdict: TorusVerdict::Undecided(diag),
+    }) = err
+    else {
+        panic!("expected the tube half undecided, got {err:?}");
     };
-    assert_eq!(diag.predicate, Some("pt_tube_guard"));
+    assert_eq!(diag.predicate, Some("torus_tube_positive"));
+}
+
+/// **The section ends each half of the ring convention in that half's
+/// one lever, in band and decided alike** (D4 ¶1 (iv)), as tier 3 and
+/// the Boolean's pierce do: no arm renders the whole escalation's
+/// coincidence recourse, and none calls the torus corrupt, since the
+/// section reads bodies no one validated (`topo::replace_face_offset`'s).
+/// `route_pose` returns the same refusal rather than reading it as a
+/// pose it does not serve.
+#[test]
+fn the_ring_guard_ends_each_half_in_its_lever() {
+    use geom_brep::intersect::{plane_torus_section, route_pose};
+    const TUBE: &str =
+        "Recourse: reshape the torus so its tube is clearly thicker than the tolerance";
+    const RING: &str = "Recourse: make the tube radius clearly smaller than the ring radius";
+    let b = band();
+    let (z, e) = (b.zero(), b.escalate());
+    let mid = (z + e) / 2.0;
+    let plane = Surface::Plane {
+        origin: Point3::new(1.0, 2.0, 3.0),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    let reach = Reach::Measured {
+        at: Point3::new(1.0, 2.0, 3.0),
+        lever: 1.0,
+    };
+    for (what, tor, half, lever) in [
+        (
+            "tube in band",
+            torus_y(0.75, mid),
+            TorusConvention::Tube,
+            TUBE,
+        ),
+        (
+            "tube at zero",
+            torus_y(0.75, 0.5 * z),
+            TorusConvention::Tube,
+            TUBE,
+        ),
+        (
+            "tube negative",
+            torus_y(0.75, -0.3),
+            TorusConvention::Tube,
+            TUBE,
+        ),
+        (
+            "ring in band",
+            torus_y(0.3 + mid, 0.3),
+            TorusConvention::Ring,
+            RING,
+        ),
+        ("horn", torus_y(0.3, 0.3), TorusConvention::Ring, RING),
+        ("spindle", torus_y(0.3, 0.75), TorusConvention::Ring, RING),
+    ] {
+        let err = plane_torus_section(&plane, &tor, 1.0, b).expect_err(what);
+        assert_eq!(torus_refusal(&err).0, half, "{what}: {err:?}");
+        let text = err.to_string();
+        assert!(
+            text.contains(lever)
+                && !text.contains("corrupt")
+                && !text.contains("ill-conditioned")
+                && !text.contains(geom_core::COINCIDENCE_RECOURSE),
+            "{what}: the half's lever and nothing else's: {text}"
+        );
+        let routed = route_pose(&plane, &tor, &reach, b).expect_err(what);
+        assert_eq!(routed, err, "{what}: route_pose returns the arm's refusal");
+    }
 }
 
 /// Every axis-normal fixture above sits at `h > 0`, which left the

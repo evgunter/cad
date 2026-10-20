@@ -873,40 +873,48 @@ fn carries(err: &PathError<f64>, sentence: &str, what: &str) {
     );
 }
 
-/// **The flattening recourse, followed in its own regime.** Inside the
-/// window the sentence reaches the caller; both levers it names are
-/// then executed AT THE SAME ε and each builds and validates.
+/// **The flattening recourse, followed in its own regime.** A fillet
+/// whose arc is shorter than ε stores no segment at all — its two
+/// vertices coincide (`vertex_separation`) — and the sentence reaches
+/// the caller; both levers it names are then executed AT THE SAME ε and
+/// each builds and validates. (A fillet that merely flattens to its
+/// chord does not refuse: the chord turns from each leg by half the
+/// corner's turn over its own length, inside ε, and carries the
+/// tangency.)
 ///
 /// The larger-radius lever is offered conditionally, and this row is
 /// where that condition is read rather than assumed: the radius that
-/// lifts the sagitta clear of the band is `≈ 8Kε/θ²`, and past
+/// lifts the arc's length `r·θ` clear of the band is `≈ Kε/θ`, and past
 /// `ε/2^-52` the other loss takes it away again. Where the two bounds
 /// cross there is no radius at all, and the row asserts the sentence
 /// still leaves a lever standing — the unconditional one.
 #[test]
 fn the_flattened_recourse_is_followed_by_a_larger_turn_and_a_larger_radius() {
-    let radius = 0.2;
-    let theta = 0.5 * flattening_turn(radius);
-    let err = bend(0.0, theta, radius).expect_err("a turn inside the window refuses at the door");
+    // A milliradian corner, so the loop is no sliver, rounded by an arc
+    // half ε long.
+    let theta = 1e-3;
+    let radius = 0.5 * tol().eps() / theta;
+    let err = bend(0.0, theta, radius).expect_err("an arc shorter than ε refuses at the door");
     assert!(
         matches!(err, PathError::FilletArcFlattenedInStorage { .. }),
         "the window's refusal is the flattening one, got {err:?}"
     );
     carries(&err, FILLET_FLATTENED_RECOURSE, "the flattening refusal");
 
-    // Lever 1, the larger turn: unconditional, and clear of the band at
-    // a multiple of the threshold the sentence's own law fixes.
+    // Lever 1, the larger turn: unconditional. An arc twice the band's
+    // top long stores two vertices, and the chord it is stored as turns
+    // from each leg inside ε over its own length.
     builds_and_validates(
-        bend(0.0, 32.0 * flattening_turn(radius), radius),
+        bend(0.0, 2.0 * tol().eps() * tol().k() / radius, radius),
         "a larger turn",
     );
 
     // Lever 2, the larger radius, at the SAME turn — offered only while
     // the scene still resolves one.
-    let needed = 8.0 * tol().eps() * tol().k() / (theta * theta);
+    let needed = tol().eps() * tol().k() / theta;
     let ceiling = tol().eps() / f64::EPSILON;
     if needed * 4.0 < ceiling {
-        builds_and_validates(bend(0.0, theta, needed * 4.0), "a larger radius");
+        builds_and_validates(bend(0.0, theta, needed * 8.0), "a larger radius");
     } else {
         // The impossible regime, stated as impossible rather than
         // skipped: no radius is large enough to store the arc and small

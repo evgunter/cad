@@ -441,9 +441,10 @@ pub enum CertifyError {
     /// forward. A span `m ≤ 0` — none, or reversed within the tolerance
     /// — has no size to tighten below. Every public door reports one as
     /// its input's ([`CertifyError::StatedInterval`]), so none returns
-    /// this verdict on such a span; built by hand and read at a build it
-    /// panics ([`crate::recourse::RefusedSide::Unminted`]), and at rest
-    /// it is a defect of the kernel or the file.
+    /// this verdict on such a span; built by hand it ends as that refusal
+    /// does at a build, in the lever
+    /// ([`crate::recourse::RefusedSide::Unminted`]), and at rest it is a
+    /// defect of the kernel or the file.
     IntervalNotForward {
         /// The span's verdict, with its reporting margin.
         verdict: Refused,
@@ -470,9 +471,9 @@ pub enum CertifyError {
     /// pointwise sample matches then pin the winding *within* the
     /// period. Every public door reports one as its input's
     /// ([`CertifyError::StatedInterval`]), so none returns this refusal;
-    /// built by hand and read at a build it panics
-    /// ([`crate::recourse::RefusedSide::Unminted`]), and at rest it is a
-    /// defect of the kernel or the file.
+    /// built by hand it ends as that refusal does at a build, in the
+    /// lever ([`crate::recourse::RefusedSide::Unminted`]), and at rest it
+    /// is a defect of the kernel or the file.
     WindingExceeded,
     /// **The interval a door was handed runs no clear length forward, or
     /// past one full turn**: the span checks' reading is certainly on
@@ -2643,6 +2644,7 @@ pub struct IntersectionDraft<T: Real> {
     carrier: Curve3<T>,
     param_start: T,
     param_end: T,
+    kept: bool,
 }
 
 impl<T: SpanLocate> IntersectionDraft<T> {
@@ -2657,6 +2659,7 @@ impl<T: SpanLocate> IntersectionDraft<T> {
                     carrier: c.carrier().clone(),
                     param_start: t0,
                     param_end: t1,
+                    kept: true,
                 }
             }
             None => {
@@ -2666,6 +2669,7 @@ impl<T: SpanLocate> IntersectionDraft<T> {
                     carrier: chord.carrier,
                     param_start: chord.param_start,
                     param_end: chord.param_end,
+                    kept: false,
                 }
             }
         }
@@ -2679,18 +2683,36 @@ impl<T: Real> IntersectionDraft<T> {
         (&self.carrier, (self.param_start, self.param_end))
     }
 
-    /// The `Intersection` spec of `pair` at this draft's witness.
-    pub fn into_spec(self, pair: SurfacePair) -> EdgeCurveSpec<T> {
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                pair,
-                witness: self.witness,
-            },
-            carrier: self.carrier,
-            param_start: self.param_start,
-            param_end: self.param_end,
+    /// The `Intersection` of `pair` at this draft's witness: the
+    /// description alone where the draft kept the edge's own carrier and
+    /// interval, the whole chord spec where it drew one.
+    pub fn into_intersection(self, pair: SurfacePair) -> DraftedIntersection<T> {
+        let description = EdgeDescriptionSpec::Intersection {
+            pair,
+            witness: self.witness,
+        };
+        if self.kept {
+            DraftedIntersection::Kept(description)
+        } else {
+            DraftedIntersection::Chord(EdgeCurveSpec {
+                description,
+                carrier: self.carrier,
+                param_start: self.param_start,
+                param_end: self.param_end,
+            })
         }
     }
+}
+
+/// An [`IntersectionDraft`]'s `Intersection`, by whose carrier it is
+/// stated over.
+#[derive(Clone, Debug)]
+pub enum DraftedIntersection<T: Real> {
+    /// The edge's own certified carrier and interval, kept: only the
+    /// description, which restates them.
+    Kept(EdgeDescriptionSpec<T>),
+    /// The chord drawn between the edge's ends: a spec of its own.
+    Chord(EdgeCurveSpec<T>),
 }
 
 /// The honest spatial **extent** of an edge's own point set — the lever
@@ -3715,57 +3737,14 @@ fn run_checks<T: Decide>(
             // `|C(t) − S(P(t))| ≤ ε` (C4 verbatim), on the carrier's
             // own parameter — the same statement, the same predicate
             // name and the same dimension as every stored pcurve
-            // cache's schedule (`pcurve_map_residual`), because it is
-            // the same statement.
-            //
-            // **This is a different QUANTITY from the seam arm's
-            // pre-collapse meter, deliberately, and the change is a
-            // re-baseline rather than a bit move.** The old seam arm
-            // metered `implicit_residual`, the PERPENDICULAR distance
-            // from the carrier to the surface. This meters the
-            // distance to the surface point the pcurve NAMES. On a
-            // cone the chart image carries the carrier's own azimuth
-            // and its own axial height (`v = h / cos α`), so the
-            // displacement between them is purely RADIAL and the two
-            // quantities stand in the exact ratio
-            //
-            //     |C − S(P)| = |perpendicular| · sec α
-            //
-            // — 1.1547 at a 30° half-angle. A sphere and a
-            // small-radius cylinder move for the same reason in their
-            // own geometry.
-            //
-            // Which is right? This one, on three grounds, and the
-            // third is the one that makes the re-baseline safe:
-            //
-            // 1. It is the statement D1 ratified and C4 words, and it
-            //    is the ONLY statement a collapsed description can
-            //    make — `implicit_residual` needs a per-chart implicit
-            //    form, which is the per-class branching the collapse
-            //    exists to remove.
-            // 2. It is the statement every STORED pcurve cache already
-            //    certifies (`pcurve_map_residual` in
-            //    `pcurve_cache::schedule_residuals`). Before the
-            //    collapse an edge could certify as a description and
-            //    refuse as a cache on identical geometry, because the
-            //    two were measuring different things. They now agree
-            //    by construction.
-            // 3. **It is conservative.** `S(P(t))` is a point ON the
-            //    surface, so `|C − S(P)| ≥ dist(C, surface)` always,
-            //    with equality exactly when the pcurve names the foot
-            //    point. The collapse can therefore only REFUSE what
-            //    the old meter accepted; it can never ACCEPT what the
-            //    old meter refused. The direction of the change is
-            //    toward truth, and the bound is `sec α` on a cone.
-            //
-            // The consequence is stated rather than hidden: on a cone
-            // of half-angle α, an edge whose perpendicular drift lies
-            // in `(ε·cos α, ε]` certified before this unit and now
-            // refuses or escalates. `d2_bit_diff` and the cone
-            // re-baseline row measure it; the live minting class
-            // (`sweep::revolve::upgrade`'s `describe_wrap_edge` call)
-            // mints exact wrap edges and is unaffected, which the
-            // whole-body batteries show.
+            // cache's schedule (`pcurve_map_residual`), so an edge
+            // cannot certify as a description and refuse as a cache.
+            // `S(P(t))` is a point ON the surface, so the meter is never
+            // under `dist(C, surface)`, with equality where the image
+            // names the foot point: a cone's ruling and rim images
+            // project on the generator and read the perpendicular; a
+            // sphere's and a small-radius cylinder's read within bits
+            // of the implicit form (`tests/r2_probes.rs`).
             Resolved::Chart {
                 surface, declared, ..
             } => {
@@ -4988,11 +4967,8 @@ mod tests {
     /// over-read. Not the iso arm: that arm moves in the parameter
     /// ANCHOR, not in the drift, and is swept by
     /// [`d2_iso_move_is_unbounded_in_the_anchor_offset`] at zero
-    /// drift. Not the seam meter across CHART KINDS: a cone's
-    /// implicit residual reads the perpendicular distance to the
-    /// generator where `|C − S(P)|` reads the radial chord — a change
-    /// of QUANTITY, `sec α`, measured in `tests/r2_probes.rs` and
-    /// disposed of at the Chart arm.
+    /// drift. Not the seam meter across CHART KINDS, measured in
+    /// `tests/r2_probes.rs`.
     ///
     /// The mapped-line column is the control: the fenced scaffolding
     /// arm's meter is untouched by the collapse, so it must read zero
@@ -5941,9 +5917,9 @@ mod tests {
     /// Each arm of a split verdict ends as its own arm, at every
     /// reading. A span a smaller tolerance decides forward quotes it; a
     /// span of no length or reversed, in band or past it, and the winding
-    /// bound's refusal, are sides no construction mints: they panic at a
-    /// build and end over stored geometry in the defect ending (D4 ¶1
-    /// (iv)); an enclosure across zero, which shows neither a size nor its
+    /// bound's refusal, are sides no construction mints: built by hand,
+    /// they end in the lever at a build and over stored geometry in the
+    /// defect ending (D4 ¶1 (iv)); an enclosure across zero, which shows neither a size nor its
     /// absence, ends in the lever alone. The tangent tube's Zero is
     /// band-decided and its Negative the
     /// certificate's limit, the lever alone everywhere; the plane × NURBS
@@ -5976,19 +5952,21 @@ mod tests {
                     "{lever}, or, if this {size} is intended, tighten the tolerance below {below} m"
                 )
             };
-            // `None` where it panics: a side no construction mints.
-            let unminted = match reading {
-                Reading::Build => None,
+            let lever = |lever: &str| Some(lever.to_owned());
+            // A side no construction mints, built by hand.
+            let unminted = |at_build: &str| match reading {
+                Reading::Build => lever(at_build),
                 Reading::AtRest => Some(KERNEL_OR_FILE_DEFECT_ENDING.to_owned()),
             };
-            let lever = |lever: &str| Some(lever.to_owned());
+            let winding = "Recourse: move the geometry so this arc stays clearly short of a full \
+                           turn";
             let rows = [
                 (
                     forward(zero(5e-10)),
                     Some(tightened(span, "length", "5e-11")),
                 ),
-                (forward(zero(0.0)), unminted.clone()),
-                (forward(zero(-5e-10)), unminted.clone()),
+                (forward(zero(0.0)), unminted(span)),
+                (forward(zero(-5e-10)), unminted(span)),
                 // An enclosure across zero shows no size, nor that there
                 // is none: the lever alone, its payload printing it.
                 (
@@ -6000,8 +5978,8 @@ mod tests {
                     },
                     lever(span),
                 ),
-                (forward(negative(-1e-3)), unminted.clone()),
-                (CertifyError::WindingExceeded, unminted),
+                (forward(negative(-1e-3)), unminted(span)),
+                (CertifyError::WindingExceeded, unminted(winding)),
                 (
                     separated(zero(5e-10)),
                     Some(tightened(curve, "curvature difference", "5e-11")),
@@ -6015,15 +5993,8 @@ mod tests {
                 (tube(negative(-5e-9)), lever(cross)),
             ];
             for (error, want) in rows {
-                let mut ending = None;
-                let panicked =
-                    crate::recourse::panics_as_a_kernel_bug(|| ending = error.ending(reading));
-                assert_eq!(panicked, want.is_none(), "{reading:?}: {error:?} panics");
-                let Some(want) = want else {
-                    continue;
-                };
-                let got = ending.unwrap();
-                assert_eq!(got, want, "{reading:?}: {error:?}");
+                let got = error.ending(reading).unwrap();
+                assert_eq!(Some(&got), want.as_ref(), "{reading:?}: {error:?}");
                 if let Some((_, RefusedArm::SignCertain(_))) = error.decision() {
                     assert!(
                         !got.contains("tighten"),
@@ -6122,19 +6093,95 @@ mod tests {
         );
     }
 
-    /// **The span check's unminted side panics at a build**: every public
-    /// door reports such a reading as its input's
-    /// ([`CertifyError::StatedInterval`]), so only a refusal built by hand
-    /// reaches the check's own ending there.
+    /// **A refusal on the span checks' unminted side, built by hand,
+    /// renders at every door and ends as the door's own refusal of that
+    /// reading does** (`[failure]`): a public render of a value a caller
+    /// built is input, so it never panics. Each of the hand-built
+    /// refusals, and `recourse` on its check's arm, ends as the
+    /// [`CertifyError::StatedInterval`] a public door returns for the
+    /// same reading: the check's lever at a build, the kernel's or the
+    /// file's defect at rest, and the damaged file at the import door.
     #[test]
-    #[should_panic(expected = "a kernel bug")]
-    fn a_reversed_span_read_at_a_build_panics() {
-        let _ = CertifyError::IntervalNotForward {
-            verdict: Refused::Negative {
-                margin: MarginDiag::value(-1e-3),
-            },
+    fn a_hand_built_unminted_refusal_renders_at_every_door() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let in_band = Indeterminate {
+            margin: MarginDiag::value(-5e-9),
+            band,
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let reversed = Refused::Negative {
+            margin: MarginDiag::value(-1e-3),
+        };
+        let escalated = |check| CertifyError::Escalated {
+            check,
+            sample: 0,
+            cause: in_band,
+        };
+        let rows = [
+            (
+                CertifyError::IntervalNotForward { verdict: reversed },
+                StatedSpan::Forward(ForwardReading::Decided(reversed)),
+            ),
+            (
+                escalated(CertCheck::ParamSpan),
+                StatedSpan::Forward(ForwardReading::InBand(in_band)),
+            ),
+            (
+                CertifyError::WindingExceeded,
+                StatedSpan::Winding(WindingReading::Exceeded),
+            ),
+            (
+                escalated(CertCheck::ParamWinding),
+                StatedSpan::Winding(WindingReading::InBand(in_band)),
+            ),
+        ];
+        let doors = [
+            (ReadAt::Run(Reading::Build), None),
+            (
+                ReadAt::Run(Reading::AtRest),
+                Some(KERNEL_OR_FILE_DEFECT_ENDING),
+            ),
+            (
+                ReadAt::File(FileCoincidence::new(1e-12)),
+                Some(geom_core::DAMAGED_FILE_ENDING),
+            ),
+        ];
+        for (error, refused) in rows {
+            let lever = format!("Recourse: {}", refused.decision().lever());
+            let stated = CertifyError::StatedInterval { refused };
+            for (at, defect) in doors {
+                let want = defect.map_or_else(|| lever.clone(), str::to_owned);
+                assert_eq!(error.ending(at), Some(want.clone()), "{error:?} at {at:?}");
+                assert_eq!(
+                    error.ending(at),
+                    stated.ending(at),
+                    "{error:?} at {at:?} ends as the door's refusal"
+                );
+                assert_eq!(
+                    error.render(at),
+                    format!("{error}. {want}"),
+                    "{error:?} at {at:?}"
+                );
+                assert_eq!(
+                    recourse(refused.check(), refused.arm(), at),
+                    want,
+                    "recourse({:?}, {:?}) at {at:?}",
+                    refused.check(),
+                    refused.arm()
+                );
+            }
         }
-        .render(Reading::Build);
+        for (check, decision) in [
+            (CertCheck::ParamSpan, SpanDecision::Forward),
+            (CertCheck::ParamWinding, SpanDecision::Winding),
+        ] {
+            assert_eq!(
+                recourse(check, RefusedArm::SignCertain(None), Reading::Build),
+                format!("Recourse: {}", decision.lever()),
+                "{check:?}"
+            );
+        }
     }
 
     /// **A stored arc past a full turn at a caller's finer band ends
@@ -6180,11 +6227,7 @@ mod tests {
                 in_band,
                 "{finer:?}: {error:?}"
             );
-            let mut built = String::new();
-            assert!(
-                !crate::recourse::panics_as_a_kernel_bug(|| built = error.render(Reading::Build)),
-                "{error:?} panics at a build"
-            );
+            let built = error.render(Reading::Build);
             assert!(built.ends_with(lever), "{finer:?}: {built}");
             assert_eq!(
                 error.ending(FileCoincidence::new(1e-12)).as_deref(),
@@ -6764,8 +6807,9 @@ mod tests {
             recourse(check, RefusedArm::Undecided(&cause), reading)
         };
         let undecided = |check, margin| undecided_at(check, margin, Reading::Build);
-        // A span reading on a side no construction mints panics at a
-        // build, and is the kernel's or the file's at rest.
+        // A span reading on a side no construction mints, built by hand,
+        // ends in its lever at a build, and is the kernel's or the file's
+        // at rest.
         let unminted = [
             (CertCheck::ParamSpan, MarginDiag::value(-5e-9)),
             (CertCheck::ParamSpan, MarginDiag::value(0.0)),
@@ -6776,11 +6820,16 @@ mod tests {
             ),
         ];
         for (check, margin) in unminted {
-            assert!(
-                crate::recourse::panics_as_a_kernel_bug(|| {
-                    let _ = undecided(check, margin);
-                }),
-                "{check:?} {margin} panics at a build"
+            let lever = match check {
+                CertCheck::ParamSpan => {
+                    "Recourse: move the geometry so this edge runs forward over a clear length"
+                }
+                _ => "Recourse: move the geometry so this arc stays clearly short of a full turn",
+            };
+            assert_eq!(
+                undecided(check, margin),
+                lever,
+                "{check:?} {margin} at a build"
             );
             assert_eq!(
                 undecided_at(check, margin, Reading::AtRest),
@@ -7846,14 +7895,8 @@ mod tests {
                 Ending::Undefined(_) => Undefined,
             };
             assert_eq!(&got, want, "{check:?}");
-            // A lever is named exactly where the decision is sized; an
-            // unminted side panics at a build, so its lever is read whole.
-            let at_build = match check.ending() {
-                Ending::Sized(sized) if sized.side == RefusedSide::Unminted => {
-                    format!("Recourse: {}", sized.lever)
-                }
-                _ => recourse(check, RefusedArm::SignCertain(None), Reading::Build),
-            };
+            // A lever is named exactly where the decision is sized.
+            let at_build = recourse(check, RefusedArm::SignCertain(None), Reading::Build);
             let named = at_build.starts_with("Recourse: move the geometry");
             assert_eq!(named, matches!(want, Sized(_)), "{check:?}");
         }

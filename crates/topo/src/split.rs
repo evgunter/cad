@@ -216,6 +216,12 @@ impl<T: Decide> Body<T> {
     /// patch machinery generalizes (pinned in
     /// `review_m3_pr1_sweep.rs::split_circle_carrier_intersection_edge`).
     ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
+    ///
     /// # Errors
     ///
     /// The first failing precondition above, a tangent child the
@@ -490,14 +496,10 @@ impl<T: Decide> Body<T> {
         let spec1 = self.tangent_piece(edge, spec1, band)?;
         let spec2 = self.tangent_piece(edge, spec2, band)?;
         let faces = crate::edge_faces(self, edge);
+        let origin =
+            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SplitChild);
         let child = |spec, start, end| {
-            self.certify_edge_spec(Some(edge), spec, start, end, faces, tol)
-                .map_err(|refusal| match refusal {
-                    EulerOpError::Certification { error } => EulerOpError::Certification {
-                        error: crate::policy_lane::kernels_own(error, "a split child"),
-                    },
-                    other => other,
-                })
+            self.certify_edge_spec(origin, Some(edge), spec, start, end, faces, tol)
         };
         let cert1 = child(spec1, p_u, p_new)?;
         let cert2 = child(spec2, p_new, p_v)?;

@@ -134,6 +134,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// `pcurve_chart_cut_side` 0/0/0/26, the side of the principal window's
 /// cut line each of the 26 azimuths lies on.
 ///
+/// **Check 4 decides no whole period** (PCERT B2b): a row is its
+/// placed image, so fidelity reads its offsets raw and
+/// `pcurve_fidelity_branch` 0/0/0/24 decides nothing now, on every
+/// spelling; no other row moves.
+///
 /// **The circles store their authored carrier.** Each hole's rim is the
 /// authored centre and `|r|`, so the rim at a vertex folds onto the
 /// radius as the tier's own algebra: 8 of `carrier_endpoint_end`'s and
@@ -179,6 +184,14 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, not
 /// `value · 0` against a band, so `expr_non_finite` (37/0/0/0) leaves
 /// the table. Nothing else moves.
+///
+/// **The joint pass reads its turn** (#5354's ruling): validation
+/// decides each joint by `path_junction_turn` after carrier identity,
+/// so the two line/arc joints' `carrier_line_circle` reads move to it
+/// and the two line/line joints add one each: `carrier_line_circle`
+/// 0/5 -> 0/3, `path_junction_turn` 0/4 -> 0/8. Its fix pass reads
+/// each junction a departing leg follows again at the shorter leg's
+/// arm once that leg is stored, three more: 0/8 -> 0/11.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -189,7 +202,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("carrier_cyl_axis_parallel", [1, 0]),
     ("carrier_endpoint_end", [36, 0]),
     ("carrier_endpoint_start", [36, 0]),
-    ("carrier_line_circle", [0, 5]),
+    ("carrier_line_circle", [0, 3]),
     ("carrier_on_surface_1", [126, 18]),
     ("carrier_on_surface_2", [126, 18]),
     ("chord_side", [6, 12]),
@@ -204,13 +217,12 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("line_span", [6, 4]),
     ("newell_plane_residual", [30, 0]),
     ("path_circle_radius", [0, 1]),
-    ("path_junction_turn", [0, 4]),
+    ("path_junction_turn", [0, 11]),
     ("pcurve_chart_cut_side", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
     ("pcurve_chart_placement", [0, 52]),
     ("pcurve_chart_radial_moving", [14, 12]),
     ("pcurve_envelope", [8, 4]),
-    ("pcurve_fidelity_branch", [0, 24]),
     ("pcurve_interval_forward", [0, 12]),
     ("pcurve_loop_branch", [0, 25]),
     ("pcurve_map_residual", [18, 0]),
@@ -299,6 +311,12 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// **The final non-finite check decides nothing**
 /// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, so
 /// `expr_non_finite` (33/0/0/0) leaves the table. Nothing else moves.
+///
+/// **The joint pass reads its turn** (#5354's ruling): the two
+/// line/arc joints' `carrier_line_circle` reads move to
+/// `path_junction_turn`, 0/3 -> 0/1 and 0/2 -> 0/4. Its fix pass reads
+/// each door junction again at the shorter leg's arm once the leaving
+/// leg is stored, one more for the boss's arc junction: 0/4 -> 0/5.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -316,7 +334,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("carrier_cyl_axis_parallel", [1, 0]),
             ("carrier_endpoint_end", [24, 0]),
             ("carrier_endpoint_start", [24, 0]),
-            ("carrier_line_circle", [0, 3]),
+            ("carrier_line_circle", [0, 1]),
             ("carrier_matches_mapped_source", [126, 0]),
             ("carrier_on_surface_1", [90, 0]),
             ("carrier_on_surface_2", [90, 0]),
@@ -330,13 +348,12 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("line_span", [2, 0]),
             ("newell_plane_residual", [18, 0]),
             ("path_circle_radius", [0, 1]),
-            ("path_junction_turn", [0, 2]),
+            ("path_junction_turn", [0, 5]),
             ("pcurve_chart_cut_side", [0, 26]),
             ("pcurve_chart_orientation", [0, 12]),
             ("pcurve_chart_placement", [0, 52]),
             ("pcurve_chart_radial_moving", [14, 12]),
             ("pcurve_envelope", [12, 0]),
-            ("pcurve_fidelity_branch", [0, 24]),
             ("pcurve_interval_forward", [0, 12]),
             ("pcurve_loop_branch", [0, 25]),
             ("pcurve_map_residual", [18, 0]),

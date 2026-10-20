@@ -347,12 +347,11 @@ fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> Ber
 // Bernstein algebra (module docs step 3) — fixed association orders
 // ---------------------------------------------------------------------
 
-/// The largest row degree [`binom_row`] serves exactly. **Exactness is
-/// the recurrence's, not the values'**: at `n = 55` the intermediate
-/// product `C(55, 25)·31` exceeds 2⁵³ and rounds even though
-/// `C(55, 26)` itself is representable, so the honest cap is `n ≤ 54`
-/// (differentially pinned against `u128` arithmetic in the tests).
-const BINOM_EXACT_MAX: usize = 54;
+/// The largest row degree [`binom_row`] serves exactly. The rows are
+/// formed in integers ([`super::pieces::binomial`]), so the cap is the
+/// values' own, [`super::pieces::BINOMIAL_EXACT_MAX`] (differentially
+/// pinned against `u128` arithmetic in the tests).
+const BINOM_EXACT_MAX: usize = super::pieces::BINOMIAL_EXACT_MAX;
 
 /// Binomial row `C(n, 0..=n)` at `f64` — exact for `n ≤`
 /// [`BINOM_EXACT_MAX`], which covers every degree this module can
@@ -371,27 +370,17 @@ fn binom_row(n: usize) -> Vec<f64> {
         .unwrap_or_else(|| vec![f64::NAN; n + 1])
 }
 
-/// The binomial rows `0 ..= BINOM_EXACT_MAX`, built once. A memo, not
-/// a second spelling: the rows are exactly the recurrence
-/// [`binom_row`] used to run inline, bit for bit. It exists because
-/// the tensor composites ask for the same few rows hundreds of
-/// thousands of times per bound.
+/// The binomial rows `0 ..= BINOM_EXACT_MAX`, built once from
+/// [`super::pieces::binomial`]. A memo, not a second spelling: the
+/// tensor composites ask for the same few rows hundreds of thousands
+/// of times per bound. Every value is exact, so through `n = 54` the
+/// rows are the bits of the multiplicative recurrence they replaced,
+/// which fed the bounds' bit-identity pins (pinned in the tests).
 fn binom_table() -> &'static [Vec<f64>] {
     static TABLE: std::sync::OnceLock<Vec<Vec<f64>>> = std::sync::OnceLock::new();
     TABLE.get_or_init(|| {
         (0..=BINOM_EXACT_MAX)
-            .map(|n| {
-                let mut row = vec![1.0f64; n + 1];
-                for k in 1..=n {
-                    // The association is the original's, exactly:
-                    // `(row[k−1] · (n−k+1)) / k`, NOT
-                    // `row[k−1] · ((n−k+1)/k)`. The two differ in
-                    // rounding, and these rows feed bounds with
-                    // bit-identity pins.
-                    row[k] = row[k - 1] * ((n - k + 1) as f64) / (k as f64);
-                }
-                row
-            })
+            .map(|n| (0..=n).map(|k| super::pieces::binomial(n, k)).collect())
             .collect()
     })
 }
@@ -492,7 +481,7 @@ fn build_bern_weights(da: usize, db: usize) -> BernWeights {
 ///
 /// **A refused table is not what the grid excludes.** Every pair with
 /// `da + db >` [`BINOM_EXACT_MAX`] has an all-refused table, and plenty
-/// of those pairs are INSIDE the grid — `(27, 27)` is a slotted pair
+/// of those pairs are INSIDE the grid — `(28, 29)` is a slotted pair
 /// whose every entry is `NaN`. That is the correct answer for the pair
 /// and it is memoized like any other. What is served fresh rather than
 /// given a slot is a pair with a SINGLE degree past the cap, and that
@@ -502,7 +491,7 @@ fn build_bern_weights(da: usize, db: usize) -> BernWeights {
 /// without a second builder.
 ///
 /// **Retained memory**, all of it for the life of the process and
-/// never freed: `(BINOM_EXACT_MAX + 1)² = 55 × 55` `OnceLock` slots,
+/// never freed: `(BINOM_EXACT_MAX + 1)² = 57 × 57` `OnceLock` slots,
 /// plus, for each pair actually asked for, that pair's table —
 /// `da + db + 1` rows holding `(da + 1)·(db + 1)` certification values in
 /// total. A structural memo of a pure function, like [`binom_table`]
@@ -553,7 +542,8 @@ fn bern_mul_row_into(a: &[Interval], b: &[Interval], w: &BernWeights, out: &mut 
         let mut acc = Interval::zero();
         for (t, wt) in w.row(k).iter().enumerate() {
             let i = lo + t;
-            acc = acc + a[i] * b[k - i] * *wt;
+            // A binomial quotient is non-negative: [`Interval::mul_nonneg`].
+            acc = acc + (a[i] * b[k - i]).mul_nonneg(*wt);
         }
         out.push(acc);
     }
@@ -1948,6 +1938,59 @@ mod tests {
         x.lo().to_bits() == y.lo().to_bits() && x.hi().to_bits() == y.hi().to_bits()
     }
 
+    /// **The production weights, read two corners, are the general
+    /// product.** Every weight [`bern_weights`] serves for degrees
+    /// `0 ..= BINOM_EXACT_MAX / 2` each (the square whose every pair
+    /// has exact rows, `da + db <=` [`BINOM_EXACT_MAX`]) times operands drawn to provoke ties —
+    /// intervals over dyadic values with few significant bits (whose
+    /// products are often exact), random doubles, values near the
+    /// 2Prod floor and zeros, both signs — [`Interval::mul_nonneg`]
+    /// against `x * w`, bit for bit.
+    #[test]
+    fn every_production_weight_reads_two_corners_as_the_general_product() {
+        let mut s: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            s
+        };
+        let draw = |n: &mut dyn FnMut() -> u64| -> f64 {
+            let r = n();
+            let sign = if r & 1 == 0 { 1.0 } else { -1.0 };
+            let m = ((r >> 8) % 64) as f64;
+            let e = ((r >> 20) % 40) as i32 - 20;
+            match (r >> 40) % 4 {
+                0 => sign * m * 2f64.powi(e),
+                1 => sign * f64::from_bits((r >> 2) & 0x3FEF_FFFF_FFFF_FFFF),
+                2 => sign * m * 2f64.powi(-1060),
+                _ => 0.0,
+            }
+        };
+        let (mut n, mut shortcut) = (0usize, 0usize);
+        for da in 0..=BINOM_EXACT_MAX / 2 {
+            for db in 0..=BINOM_EXACT_MAX / 2 {
+                let table = bern_weights(da, db);
+                for k in 0..table.row_count() {
+                    for &w in table.row(k) {
+                        for _ in 0..4 {
+                            let (x0, x1) = (draw(&mut next), draw(&mut next));
+                            let x = Interval::from_bounds(x0.min(x1), x0.max(x1));
+                            let (got, want) = (x.mul_nonneg(w), x * w);
+                            assert!(same_bits(got, want), "({da}, {db}, {k}): {x:?} * {w:?}");
+                            n += 1;
+                            shortcut += usize::from(w.lo() < w.hi());
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            shortcut > n / 2,
+            "the weights reach the shortcut: {shortcut} of {n} products"
+        );
+    }
+
     #[test]
     fn the_memoized_weight_table_is_the_recurrence_it_replaces_bitwise() {
         // Every degree pair the kernel can produce, and then the
@@ -1963,6 +2006,8 @@ mod tests {
             (BINOM_EXACT_MAX, 0),
             (BINOM_EXACT_MAX - 1, 1),
             (27, 27),
+            (28, 28),
+            (28, 29),
             (BINOM_EXACT_MAX, 1),
             (BINOM_EXACT_MAX, BINOM_EXACT_MAX),
             (BINOM_EXACT_MAX + 1, 0),
@@ -2103,11 +2148,10 @@ mod tests {
         assert!(form.sup_bound().is_nan());
     }
 
-    /// MINOR-1 pin (adversarial review): the recurrence is exact through
+    /// MINOR-1 pin (adversarial review): the rows are exact through
     /// `BINOM_EXACT_MAX` (differential vs `u128` integer arithmetic) and
-    /// refuses — all-NaN, never a rounded weight — beyond it. The
-    /// first inexact recurrence row is n = 55, where the intermediate
-    /// product exceeds 2⁵³ although `C(55, 26)` is representable.
+    /// refuse — all-NaN, never a rounded weight — beyond it. Row 57 is
+    /// the first holding an unrepresentable value, `C(57, 25)`.
     #[test]
     fn binom_rows_are_exact_through_the_cap_and_nan_beyond_it() {
         for n in 0..=BINOM_EXACT_MAX {
@@ -2125,6 +2169,33 @@ mod tests {
         }
         assert!(binom_row(BINOM_EXACT_MAX + 1).iter().all(|v| v.is_nan()));
         assert!(binom_row(80).iter().all(|v| v.is_nan()));
+    }
+
+    /// **The rows the bounds were pinned on did not move.** Through
+    /// `n = 54` every row [`binom_row`] serves is, bit for bit, the
+    /// multiplicative recurrence it was before the rows were formed in
+    /// integers, `(row[k−1]·(n−k+1))/k` in that association. Every
+    /// weight [`bern_weights`] builds from them, and so every pin they
+    /// fed, is the old one; the rows the recurrence refused (55 and 56)
+    /// are the only ones that change, from refused to served.
+    #[test]
+    fn the_integer_rows_are_the_retired_recurrence_through_its_cap() {
+        for n in 0..=54 {
+            let mut old = vec![1.0f64; n + 1];
+            for k in 1..=n {
+                old[k] = old[k - 1] * ((n - k + 1) as f64) / (k as f64);
+            }
+            let new = binom_row(n);
+            for k in 0..=n {
+                assert_eq!(new[k].to_bits(), old[k].to_bits(), "C({n},{k})");
+            }
+        }
+        for n in [55, 56] {
+            assert!(
+                binom_row(n).iter().all(|v| v.is_finite()),
+                "row {n} is served"
+            );
+        }
     }
 
     #[test]
