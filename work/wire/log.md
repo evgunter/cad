@@ -6863,3 +6863,11 @@ Signed (WIRE orchestrator).
   - It retires ratified flush clauses rows 74 and 121 (first-minted / least).
   - The name_invariance history admissions go to empty, with no golden moved.
   - Rows needs_ev. Subscribed. FULL review dispatched in parallel.
+
+- 2026-10-20 (WIRE orchestrator) PR 5486 FULL review at dd014186b8: NOT MERGEABLE.
+  - MAJOR 1, demonstrated: a pocket+pin+moat split that evaluated at base now refuses an Emission. The island record is taken pre-merge, and end_maximal dissolves the ring.
+  - MAJOR 2, demonstrated: test_north_star 0 != 14, a stale one-segment pattern against the approved spelling.
+  - Q1: the second nest run adds verdicts to five existing fixtures. Q3: the witness doesn't red on the old index (the fixture is drawn in the xy frame; the swap needs u=z), and split_pinch_keeps' tilt row compares name sets only.
+  - The Emissions are reclassed under D9; tied-flag fold; limits row; NITs.
+  - Goldens confirmed spelling-only by a full dump. Fix pass sent.
+  - Class note: a lane's 'motivating defect is fixed' needs the witness to red on the base. 'Now passes' is not 'would have caught it'.
