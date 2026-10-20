@@ -1598,3 +1598,25 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **STANDARD review MERGEABLE, 0 MAJOR:** the `carrier_net` fold is bit-identical (the old fold first differs at C(55,26); this code uses n ≤ 6), and the slow sets match main at both ε.
   - **Routed:** the minors (three more test-only folds, `polynomial_area_pieces`' hand-written pair, `shared_pieces`' silent fallback) are added to `cut-side-quotients-halve-the-shared-weight-power-per-axis`, build C's next PR, which is now unblocked. Build A moves to the binomial item's PR 2 (the product and blossom homes).
   - **#5419:** the pairing check now runs in every build (head cd38b6f7, `SsiError::WrongLane`, two mismatched-chart rows). Both 1e-6 head reds are confirmed base reds, identical word for word on main (GERM's oblique rod; ssiedge's `TubeNotOneArc` at the post-frame mint). The reviewer is verifying the delta.
+- 2026-10-20 04:18Z — **Binomial item PR 3, Step A** (build A, read-only). Compared each restriction home's coefficient intervals against the pyramid at every real call (the geom-brep slow set plus sweep shelling/r1/shell_general_door). Worst case, other home vs the pyramid:
+  - section's general cuts, split: up to 98× wider (15% of coefficients by more than 4 ulp);
+  - section's exact halves, halving kernel: up to 2×;
+  - `cut_pieces`, split: up to 417× (absorbed by the cut's meet with the whole cell, #5123).
+  - The pyramid is never meaningfully wider.
+  - **Ruled:** three homes stay, each with its reason stated. The pyramid is section and props' door, `split_restrict` the cut's meet-protected fast form, `Grid::halved` derivative's halving. The one fold: `restrict_bernstein` (sole caller `props/quad.rs:4376`) reroutes to `restrict_segment`, bit-identical, and retires. STANDARD. The table goes into the item's record. Seam note on flux's log.
+- 2026-10-20 04:20Z — **Correction: the #5439 ruling was wrong.**
+  - **What happened:** at ~03:50Z I approved resolving the Bernstein-product half of the binomial item by a stated reason. The reason was that folding would move one side's pinned bits.
+  - **Why it was wrong:** `memories/output-stability-as-justification.md` forbids exactly that: bit-preservation "may never justify keeping a thing: not a second implementation".
+  - **How it was caught:** #5439's STANDARD review raised it as MAJOR and tried the fold. compose's memo holds exact integer numerators, read through `mul_nonneg`. Only the old-association bit rows and the rehearsal golden moved, and that golden's bound got tighter (1.865e-14 → 1.465e-14). Wall time was unchanged.
+  - **Re-ruled:** #5439 does the fold, now at FULL, with the golden re-baselined and the old bit rows retired. The same reviewer re-reviews.
+  - **Friction:** I ruled on a design-shaped question ("two homes, or one?") without re-reading the memory index for a rule that applies. The orchestrator's adjudication docs bind my own judgement too (CLAUDE.md). Before approving any "keep both" resolution, check it against this memory.
+  - PR 3's three homes rest on width and cost, which is allowed. Build A will audit its docs for the "kept because bits would move" tell.
+- 2026-10-20 05:10Z — **Degree elevation: P4 → P3, fix ruled** (build C measured it on main 43b23583).
+  - **The item's 1/g law holds only for p = 3–5.** p = 6–7 is 1/g², p = 8–9 about 1/g³, and the error is silent: p=8 with a 1e-5 interior gap is 1.7 m off after one `elevate_degree(1)`. It depends on a gap's ratio to neighbouring spans, not the absolute gap; uniform knots are clean at every degree. Double elevation compounds (p=5, `elevate_degree(2)`, g=1e-8 → 2.2).
+  - **Callers:**
+    - `skin` and `compose_chain` raise user sections to the maximum degree, so they carry it silently;
+    - `approximate` elevates only from p ≤ 2 (exact);
+    - `review_m5_pr3_attack::f5_*` is a latent ~4e-6 flake with the wrong law in its comment.
+  - **Ruled:** fix, at FULL. A conditioning-aware forward/backward split in elevation's recomposition only. If that doesn't reach ε·scale at p ≥ 6, report; the fallback is a typed refusal, never silent drift. Rows red on main; goldens over elevated geometry re-cut, with what moved stated; SWEEP and curves seam notes if their goldens move.
+- 2026-10-20 05:15Z — **#5446 CI red, base red.** `geom curves::tests::ellipse_constructor_trios` (`SemiAxisNotFinite`) is red on main since GERM's `53967a14` (#5156); build C bisected it. Filed on GERM's slate with a seam note. #5446 merges over it under the standing base-red ruling.
+  - **Friction:** the orchestrator's container hit 99% disk (a 24 GB stale target from earlier timing work) and couldn't build to check. Freed; lanes with warm builds now do base-red checks.

@@ -7,29 +7,26 @@ Track size). Nothing dispatched yet.
 
 ## The slate
 
-**25 budget points** of dispatchable work against a ceiling of 30.
+**11 budget points** of dispatchable work against a ceiling of 30 (at the 2026-10-20 hand-back). The charter's six P0 rows are closed; the P3/P4 tail moved to GERMCERT and GERMTAIL.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P0 | `VERBS-CONE` | H | cone and torus operand lanes |
-| P0 | `c5-gate-admits-every-pose-of-an-implemented-pair` | D | The C5 gate reads PairRoute::implemented per KIND pair - a pose the arm would refuse passes the gate; sibling arms divide unguarded |
-| P0 | `curved-face-containment-lacks-cone-torus` | H | curved_face_containment has no cone or torus arm while point_in_solid now answers both kinds |
-| P0 | `ray-torus-root-search-finds-a-counterexample-at-eps-1e-12` | H | the ray-torus root search disagrees with its geometric oracle on a rare pose at eps = 1e-12 |
-| P0 | `torus-coincident-pair-cannot-reach-the-covered-rung` | H | A coincident torus pair cannot reach the declared-cover rung: the sampled enclosure's chord-dip charge outruns every band |
-| P0 | `torus-operand-gate-admission` | D | Torus onto boolean_arm_exists - the stem glue's door sequence after the box and the residual arm (a gate-policy unit, CURVED's) |
+| P1 | `c5-plane-torus-cone-cylinder-arms` | H | C5 table - plane x torus and cone x cylinder section arms (blocking the Klein wall-pair debt) |
+| P2 | `a-sliver-crossings-long-bisector-ellipse-is-served-past-representability` | M | A sliver crossing of equal cylinders serves the long bisector ellipse past what f64 evaluates within the band |
+| P2 | `an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12` | E | an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms is red at CAD_TOLERANCE_EPS=1e-12 and 1e-6 on main (a rod clear: FallbackExtentUnsupported, near-tangent carriers) |
+| P2 | `conic-section-just-past-its-band-fails-certification-downstream` | M | plane x cylinder and plane x cone mint a section whose construction error outgrows the band just past their degenerate trilean, and it refuses at certification instead of at the arm |
 
 ## Order
 
-`ray-torus-root-search-finds-a-counterexample-at-eps-1e-12` first: it is
-the only row here with a recorded counterexample, it is a wrong answer
-rather than a refusal, and whatever it turns up about the torus root
-search bears on `torus-coincident-pair-cannot-reach-the-covered-rung`
-and `torus-operand-gate-admission` behind it.
-
-Then `curved-face-containment-lacks-cone-torus`, which is the row that
-makes the two containment doors agree, and `VERBS-CONE` behind it.
-`c5-gate-admits-every-pose-of-an-implemented-pair` is structural and
-can be specified in parallel with any of them.
+`an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12` first:
+it is cheap, and its repro is one row. Next is
+`conic-section-just-past-its-band-fails-certification-downstream`, a
+design read on how far past the band a conic section may be served.
+`a-sliver-crossings-long-bisector-ellipse-is-served-past-representability`
+is the same question on the bisector; take the two together.
+`c5-plane-torus-cone-cylinder-arms` is the largest row. Its plane
+containing the torus axis (two circles, closed form) can be specified
+now; anything that needs a touching pose waits on D10.
 
 ## Review posture
 

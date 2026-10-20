@@ -178,3 +178,15 @@ Two scope choices, both measured:
 The reproducers now pin the refusal at `f64` and `Interval`. The bridge
 step is unreachable from step 1. The row stays open for TANG's arm,
 items 3–4, which retires the refusal.
+
+## Superseded reading (2026-10-19)
+
+The "Designed" section's final state, the kissing union as two
+coincident wedge-2π slit edges, was overtaken by PR 4914 (2026-10-12):
+a line where no edge lies is a touch between faces, recorded like any
+touch, and no op cuts edges to make a junction of it. PR 4921 built
+that form (two solids and a face–face record, C7), and PR 4795 kept the
+clause in D1 tier 3. Noted by both designers of the pinch-crescent fork
+(`[ev]` branch `contacthold/ev-pinch-crescent`); the matching bullet in
+`validate.rs` is RESTFRONT's
+`validate-rs-reads-the-doubled-cusp-as-the-kissing-union-two-slit-edges`.

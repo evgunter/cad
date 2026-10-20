@@ -284,13 +284,6 @@ pub enum BlendDecision {
     /// to its spine, an ellipse at a definite departure. It escalates
     /// in band.
     CapTransverse,
-    /// `ellipse_axes_distinct`: an oblique end face's ellipse, whose
-    /// semi-axes `r` and `r·sec θ` differ by `r·(sec θ − 1)`, is one the
-    /// ellipse door admits. Decided in `geom` (`Curve3::ellipse`), whose
-    /// verdict the cut-off takes as its own; a definite departure whose
-    /// axes that door reads as one circle, or in band, is reported as
-    /// this decision.
-    CapEllipse,
     /// `fillet3_cut_off_feet`: two cut-offs at the two ends of one rim
     /// put their feet on it in order and definitely apart, so the
     /// second split lands on the piece the first leaves.
@@ -319,7 +312,7 @@ pub enum BlendDecision {
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 18] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -333,7 +326,6 @@ impl BlendDecision {
         Self::ContactSecondOrder,
         Self::CornerIndependence,
         Self::CapTransverse,
-        Self::CapEllipse,
         Self::CutOffFeet,
         Self::TurnFeetGap,
         Self::TurnOverrunChord,
@@ -369,7 +361,6 @@ impl BlendDecision {
             Self::ContactSecondOrder => "tangent_second_order",
             Self::CornerIndependence => "fillet3_corner_independence",
             Self::CapTransverse => "fillet3_cap_transverse",
-            Self::CapEllipse => "ellipse_axes_distinct",
             Self::CutOffFeet => "fillet3_cut_off_feet",
             Self::TurnFeetGap => "fillet3_turn_feet_gap",
             Self::TurnOverrunChord => "fillet3_turn_overrun_chord",
@@ -409,11 +400,6 @@ impl BlendDecision {
                 "whether a cylinder band's plane end face is perpendicular to its spine, \
                  cutting a circle from it, or tilted off it, cutting an ellipse (the margin is \
                  the sine of the tilt, levered at the link's length)"
-            }
-            Self::CapEllipse => {
-                "whether a tilted plane end face cuts a cylinder band in an ellipse distinct \
-                 from a circle (the margin is how far its semi-axes differ: r·(sec θ − 1) for \
-                 radius r and tilt θ)"
             }
             Self::CutOffFeet => {
                 "whether two cut-offs' feet on the rim they share stand definitely apart"
@@ -461,7 +447,6 @@ impl BlendDecision {
             Self::ContactSecondOrder => FILLET3_CONTACT_RECOURSE,
             Self::CornerIndependence => FILLET3_CORNER_INDEPENDENCE_RECOURSE,
             Self::CapTransverse => FILLET3_CAP_TILT_RECOURSE,
-            Self::CapEllipse => FILLET3_CAP_ELLIPSE_RECOURSE,
             Self::CutOffFeet => FILLET3_CORNER_RECOURSE,
             Self::TurnFeetGap | Self::TurnOverrunChord | Self::TurnFeet | Self::MitreSection => {
                 FILLET3_TURN_RECOURSE
@@ -481,9 +466,6 @@ impl BlendDecision {
             Self::FaceClearance | Self::RingClearance => Some(("clearance", SizedPass::Positive)),
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
             Self::CutOffFeet => Some(("separation of the feet", SizedPass::Positive)),
-            Self::CapEllipse => {
-                Some(("difference of the ellipse's semi-axes", SizedPass::Positive))
-            }
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
             // Either definite sign of the sagitta picks a description.
@@ -1124,33 +1106,17 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of o
 /// point, clearly apart, or the corner patch, which the third edge
 /// requested alongside builds. A chamfer's foot stands `d / sin φ` down
 /// the third edge, so its feet also meet at supplementary face angles.
-/// Feet clearly apart build the overrun, for either verb, except where a
-/// fillet's far band is cut off in an ellipse too near a circle: near a
-/// box corner, on the side whose far cut-off face is tilted off square,
-/// that ellipse stays in band out to a tilt of about `√(2e/r)`, which a
-/// larger setback barely moves, and its own recourse
-/// ([`FILLET3_CAP_ELLIPSE_RECOURSE`]) is the next step. Held to it by
+/// Feet clearly apart build the overrun, for either verb. Held to it by
 /// `blend_recourse_followability::the_turn_recourse_builds_at_each_end_it_names`.
 pub const FILLET3_TURN_RECOURSE: &str = "make the two bands' feet on the vertex's third edge meet \
      (equal face angles beside that edge, or for a chamfer supplementary ones), move them clearly \
-     apart (a larger setback, or a more asymmetric corner, after which a round band's end ellipse \
-     may escalate with its own recourse), or request that edge too, which builds the corner patch";
+     apart (a larger setback, or a more asymmetric corner), or request that edge too, which builds \
+     the corner patch";
 /// The lever of `fillet3_cap_transverse`: its in-band arm is the one
 /// refusal, between the two kinds it builds, so the way out is either
 /// kind, plainly.
 pub const FILLET3_CAP_TILT_RECOURSE: &str = "square the end face to the edge, where the band ends \
      in a circle, or tilt it clearly off square, where the band ends in an ellipse";
-/// The lever of the cut-off's ellipse ([`BlendDecision::CapEllipse`]):
-/// the ellipse's semi-axes differ by `r·(sec θ − 1) ≈ r·θ²/2`, so the
-/// tilt that clears the band's upper edge `e` is about `√(2e/r)`
-/// radians, and a larger radius clears it at a smaller tilt. At a
-/// turn's overrun the end face is the near band's face of the third
-/// edge, and squaring it may instead bring the two feet together, where
-/// the turn builds its mitre.
-pub const FILLET3_CAP_ELLIPSE_RECOURSE: &str = "tilt the end face further off square, until its \
-     ellipse's semi-axes r and r·sec θ differ by more than the band's upper edge e (a tilt θ past \
-     about √(2e/r) radians, which a larger radius lowers), or square it to the edge, where the \
-     band ends in a circle (at a turn, where its feet may instead meet in the mitre)";
 /// The lever of `fillet3_corner_independence`, shared by its in-band
 /// arm and its decided-Zero one ([`CornerConfig::DependentNormals`]).
 ///
@@ -2187,7 +2153,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 22] = [
+pub const ALL_RECOURSES: [(&str, &str); 21] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
@@ -2202,7 +2168,6 @@ pub const ALL_RECOURSES: [(&str, &str); 22] = [
     ("corner-independence", FILLET3_CORNER_INDEPENDENCE_RECOURSE),
     ("turn", FILLET3_TURN_RECOURSE),
     ("cap-tilt", FILLET3_CAP_TILT_RECOURSE),
-    ("cap-ellipse", FILLET3_CAP_ELLIPSE_RECOURSE),
     ("seam-vertex", FILLET3_SEAM_VERTEX_RECOURSE),
     ("assembly", FILLET3_ASSEMBLY_RECOURSE),
     ("geometry", FILLET3_GEOMETRY_RECOURSE),

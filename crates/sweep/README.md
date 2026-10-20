@@ -555,11 +555,10 @@ ends in that plane's section of it, an exact stored arc about the
 spine's crossing — of the circle of the band's radius, or of the
 ellipse whose minor semi-axis that radius is and whose major is the
 radius over the tilt's cosine, built through the ellipse door
-(`Curve3::ellipse`), whose own verdict on its axes is the second
-decision: the near-perpendicular tilts whose axes it cannot tell apart
-escalate as `CapEllipse` on that door's `ellipse_axes_distinct`, with
-the axes' difference `r·(sec θ − 1)` for margin
-(`RunOutPolicy::CutOffAtEndFace`; `CornerConfig::policy` maps
+(`Curve3::ellipse`). The departure is the one decision of circle
+against ellipse: a definite one is the exact ellipse however
+near-circular, its axes' difference `r·(sec θ − 1)` second order in
+the tilt (`RunOutPolicy::CutOffAtEndFace`; `CornerConfig::policy` maps
 the tag). An oblique cap whose three face normals are dependent — a
 cap that nearly contains the ruling — refuses
 `UnsupportedCorner { DependentNormals }` under

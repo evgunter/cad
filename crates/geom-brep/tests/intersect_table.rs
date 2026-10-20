@@ -295,26 +295,26 @@ fn plane_cylinder_axis_angle_trios() {
     let err = plane_cylinder_section(&plane, &cyl, &metre_on(&cyl), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
 
-    // Between the rim gate and the ellipse constructor: a small-but-
-    // definite tilt whose axis separation a − b = r(1/cos φ − 1) lands
-    // in the constructor's band — the constructor is the one deciding
-    // door for the KIND, and its escalation wins (documented double
-    // gate). sin φ = 1e-4 ⇒ margin ‖a×n‖·r = 2e-4 (definite),
-    // a − b ≈ r·φ²/2 = 1e-8 = in-band at ε = 1e-9… definite at
-    // ε = 1e-12, in the Zero band at ε = 1e-6 — so this row only runs
-    // at the default ε.
-    if (eps() - 1e-9).abs() < 1e-15 {
-        let s = 5.5e-5;
-        let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 7.0),
-            normal: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
-            u_ref: Vec3::unit_y(),
-        };
-        let err = plane_cylinder_section(&plane, &cyl, &metre_on(&cyl), band()).unwrap_err();
-        assert!(matches!(err, SectionError::Carrier(_)), "{err:?}");
-        let msg = err.to_string();
-        assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
-    }
+    // A small-but-definite tilt whose semi-axes differ by
+    // a − b = r(1/cos φ − 1) ≈ 6e-9, at or under the band at every ε
+    // row: the rim row is the one decision of the kind, so it is the
+    // exact ellipse. sin φ = 5.5e-5 ⇒ margin ‖a×n‖·r = 1.1e-4.
+    let s = 5.5e-5;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 7.0),
+        normal: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
+        u_ref: Vec3::unit_y(),
+    };
+    let got = plane_cylinder_section(&plane, &cyl, &metre_on(&cyl), band()).unwrap();
+    let PlaneCylinderSection::TiltedEllipse(Curve3::Ellipse { semi_u, semi_v, .. }) = got else {
+        panic!("the tilted ellipse, got {got:?}");
+    };
+    let want = 2.0 / (1.0 - s * s).sqrt() - 2.0;
+    assert!(
+        (semi_u - semi_v - want).abs() < 1e-15,
+        "a − b = {:e}, want {want:e}",
+        semi_u - semi_v
+    );
 }
 
 #[test]
@@ -680,12 +680,11 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
         }
     }
     // The circle limit: both semi-axes approach the axis-normal
-    // circle's |h|·tan α = 3·tan 30° as the tilt φ closes, at O(φ²). A
-    // tilt the band cannot tell from the circle is the constructor's
-    // `ellipse_axes_distinct` refusal, so the limit is read at tilts
-    // every ε row resolves.
+    // circle's |h|·tan α = 3·tan 30° as the tilt φ closes, at O(φ²),
+    // down to tilts whose semi-axes differ by far less than ε: the
+    // axis-normal row is the one decision of circle against ellipse.
     let rim = 3.0 * alpha.tan();
-    for phi in [0.04f64, 0.02, 0.01] {
+    for phi in [0.04f64, 0.02, 0.01, 1e-4, 1e-5] {
         let s =
             plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band()).unwrap();
         let PlaneConeSection::TiltedEllipse(Curve3::Ellipse { semi_u, semi_v, .. }) = s else {

@@ -2,10 +2,11 @@
 id: ring-path-readings-decide-past-their-resolution-at-far-frames
 kind: issue
 title: The ring lane's plane readings decide past their resolution at far frames (ε = 1e-12, origins ~1e6)
-status: review
+status: closed
 pr: 5012
 branch: germ/ring-path-far-frames
 opened: 2026-10-13
+closed: 2026-10-14
 ---
 
 

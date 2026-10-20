@@ -383,10 +383,8 @@ const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step"
 /// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge
 /// angle's adoption certification, by predicate name, so a regression
 /// that moves the refusal to another door fails these cells.
-const NEARPOLAR_WEDGE_ESCALATED: (&str, &str) = (
-    "the transversality margin at sample 1 escalated",
-    "dihedral_wedge",
-);
+const NEARPOLAR_WEDGE_ESCALATED: (&str, &str) =
+    ("the crossing angle at sample 1 escalated", "dihedral_wedge");
 const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
 const POLEBAND: &str = "tests/fixtures/poleguard/poleband.step";
 const POLEBAND12: &str = "tests/fixtures/poleguard/poleband_eps12.step";
@@ -491,7 +489,7 @@ const HALFCAP_EPS7_TIGHTEN: &str = "step import: joining the edges of the solid 
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: (&str, &str) = (
-    "the stored interval's span (not a sampled check) escalated",
+    "the stored parameter interval's length (not a sampled check) escalated",
     "interval_span_forward",
 );
 /// The MAPPED-CURVE arm's definite miss, read at the import door by its
