@@ -2921,8 +2921,9 @@ fn pierce_inside<T: Decide>(
 /// stretch `[lo, hi]` of `e`'s chord (longer than `2ε`, its ends read
 /// past `Kε` on one side of the boundary, `lever` an upper bound on
 /// the residual's change along the chord, [`pierce_span`]):
-/// `Some(false)` where it may, or where `f` is not a polygon; `None`
-/// where a reading refused (pushed).
+/// `Some(false)` where it may, where `f` is not a polygon, or where the
+/// band has no band `[(K − 1)ε, Kε]` under it; `None` where a reading
+/// refused (pushed).
 ///
 /// `S` is read on the edge's own line, at arc lengths `lo·len` to
 /// `hi·len` from its start ([`Stretch`]), so its direction is the
@@ -2969,7 +2970,8 @@ fn span_clear<T: Decide>(
 ) -> Option<bool> {
     // `(K − 1)ε` rounds below `Kε` unless K passes 2⁵³; such a band has
     // no band under it, and its clearance refuses: the caller pushes the
-    // place reading's refusal.
+    // half-span's cause where that reading refused, else the place
+    // reading's refusal.
     let Ok(within) = Band::new(band.escalate() - band.zero(), band.escalate()) else {
         return Some(false);
     };

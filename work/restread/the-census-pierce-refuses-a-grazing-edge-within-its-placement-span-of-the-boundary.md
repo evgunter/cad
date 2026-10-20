@@ -39,7 +39,8 @@ Measured with `census::pierce_fuzz`'s grazing draw at ε = 1e-12
   refusals fall only from 397 to 347 on the same seed. At 4u, 366 of
   the 438 would still have the span reaching the depth.
 
-At ε = 1e-9 the same draw refuses 66 of 1 200, and at 1e-6 none.
+At seed `0x4e6588c9abba038c` (effort 20, f64) the draw refuses 397 of
+1 200 at 1e-12, 35 at 1e-9 and none at 1e-6, and reads none wrong.
 
 **At `Interval` it refuses about as `f64` does, a little more.** A
 refusal of a valid body is a capability loss, hence P2. The clearance

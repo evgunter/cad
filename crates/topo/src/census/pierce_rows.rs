@@ -219,6 +219,18 @@ fn a_strip_whose_sides_hold_the_spans_ends_is_not_read_clear() {
     );
 }
 
+/// The body's level planar face whose stored origin stands at `z`.
+fn top_at(body: &Body<f64>, z: f64) -> FaceKey {
+    body.faces()
+        .find(|(_, f)| {
+            matches!(body.get_surface(f.surface),
+                Some(geom::Surface::Plane { origin, normal, .. })
+                    if normal.z.abs() > 0.5 && origin.z == z)
+        })
+        .map(|(k, _)| k)
+        .expect("a level face at z")
+}
+
 /// **A disc narrower than the span is pierced or refused, never read
 /// clear**: a disc of radius `2e-4` planted in a brick's top, its
 /// stored origin 42 m off, crossed at its centre by an edge whose span
@@ -230,15 +242,7 @@ fn a_disc_narrower_than_the_span_is_not_read_clear() {
     use crate::test_support_fixtures::{brick, plant_disc_face};
     let tol = Tol::witness();
     let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-    let host = body
-        .faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && origin.z == 1.0)
-        })
-        .map(|(k, _)| k)
-        .expect("the top");
+    let host = top_at(&body, 1.0);
     let at = body
         .half_edges()
         .find(|(_, h)| body.get_loop(h.parent_loop).unwrap().face == host)
@@ -341,21 +345,10 @@ pub(super) fn read_ends<T: Decide + crate::props::AtRestPolicy>(
 #[test]
 fn a_hole_narrower_than_the_span_is_no_pierce() {
     let band = Band::new(1e-12, 1e-11).unwrap();
-    let top = |body: &Body<f64>| {
-        body.faces()
-            .find(|(_, f)| {
-                matches!(body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { origin, normal, .. })
-                        if normal.z.abs() > 0.5 && origin.z == 2.0)
-            })
-            .map(|(k, _)| k)
-            .unwrap()
-    };
-    let top = top(&crate::test_support_fixtures::holed_block::<f64>(
-        3.0,
-        &[1.5],
-        Tol::witness(),
-    ));
+    let top = top_at(
+        &crate::test_support_fixtures::holed_block::<f64>(3.0, &[1.5], Tol::witness()),
+        2.0,
+    );
     fn go<T: Decide + crate::props::AtRestPolicy>(
         top: FaceKey,
         off: f64,
@@ -498,6 +491,59 @@ fn a_spans_reach_counts_the_band_and_the_slope() {
                     .all(|r| r.starts_with("pm_census_ef_pierce_height")),
             "h = {height}ε, σ = {slope}: read {read:?}, refused by {rows:?}"
         );
+    }
+}
+
+/// **A span overhanging its edge's start is read over the overhang**:
+/// the clearance read on the unit square cap `z = 1` at both scalars,
+/// over a window `[lo, hi]` of an edge's chord with `lo < 0`, a boundary
+/// meeting the window only at `s < 0`. Across the level edge
+/// `(0.25, 0.5) → (0.75, 0.5)`, the window `[−0.6, −0.4]` holds the
+/// side `x = 0` at `t = −0.5`; along the diagonal `(0.25, 0.25) →
+/// (0.75, 0.75)`, the window `[−0.6, 0.2]` holds the corner `(0, 0)`
+/// at `t = −0.5`. Each is a meeting, so neither reads clear.
+#[test]
+fn a_span_overhanging_its_edges_start_is_read_over_the_overhang() {
+    fn clear<T: Decide + crate::props::AtRestPolicy>(
+        ends: [(f64, f64); 2],
+        window: [f64; 2],
+    ) -> Option<bool> {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let prism = crate::test_support_fixtures::prism_z::<T>(&square, 0.0, 1.0, Tol::witness());
+        let ends = ends.map(|(x, y)| Point3::new(x, y, 1.0).map(T::from_f64));
+        let pair = Pair::new(&prism.body, prism.top_face, ends);
+        let lever = T::from_f64(1e-13);
+        let mut errors = Vec::new();
+        let read = span_clear(
+            &pair.geo,
+            &pair.e,
+            pair.f(),
+            window.map(T::from_f64),
+            lever,
+            band,
+            &mut errors,
+        );
+        assert!(
+            errors.is_empty(),
+            "{ends:?} over {window:?}: refused {errors:?}"
+        );
+        read
+    }
+    for (what, ends, window) in [
+        ("the side x = 0", [(0.25, 0.5), (0.75, 0.5)], [-0.6, -0.4]),
+        (
+            "the corner (0, 0)",
+            [(0.25, 0.25), (0.75, 0.75)],
+            [-0.6, 0.2],
+        ),
+    ] {
+        for (scalar, read) in [
+            ("f64", clear::<f64>(ends, window)),
+            ("Interval", clear::<Interval>(ends, window)),
+        ] {
+            assert_eq!(read, Some(false), "{scalar}: {what} in the overhang");
+        }
     }
 }
 
