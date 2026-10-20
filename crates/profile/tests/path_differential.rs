@@ -525,7 +525,12 @@ fn expected_trims(
     let v1 = corner - head;
     let v2 = next - corner;
     let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
-    let half_tan = v1.perp_dot(v2) / (m + v1.dot(v2));
+    let (across, along) = (v1.perp_dot(v2), v1.dot(v2));
+    let half_tan = if along >= 0.0 {
+        across / (m + along)
+    } else {
+        (m - along) / across
+    };
     let bulge = half_tan / (1.0 + (1.0 + half_tan * half_tan).sqrt());
     let setback = r * half_tan.abs();
     let len1 = v1.norm_squared().sqrt();

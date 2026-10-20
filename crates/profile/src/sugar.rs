@@ -244,10 +244,9 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     // factor must not poison the enclosure — ci.yml's
     // "interval-square powi(2) allowlist"); norm_squared is powi inside.
     let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
-    // tan(φ/2) of the corner's turn φ, which is under a half turn: the
-    // home's first arm, which cancels only at a hairpin
-    // (`work/paths/a-hairpin-line-fillets-half-tangent-cancels`).
-    let half_tan = split_half_tan_near(v1.perp_dot(v2), v1.dot(v2), m);
+    // tan(φ/2) of the corner's turn φ, by the home's select: its first
+    // arm cancels at a hairpin.
+    let half_tan = split_half_tan(v1.perp_dot(v2), v1.dot(v2), m);
     let bulge = half_tan / (T::one() + (T::one() + half_tan.powi(2)).sqrt());
     let setback = radius * half_tan.abs();
     let len1 = v1.norm_squared().sqrt();

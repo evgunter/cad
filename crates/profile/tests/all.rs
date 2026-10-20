@@ -110,6 +110,8 @@ mod fillet_recourse_followability;
 mod fillet_stored_tangency;
 #[path = "generic_replay.rs"]
 mod generic_replay;
+#[path = "hairpin_fillet_radius.rs"]
+mod hairpin_fillet_radius;
 #[path = "guided_replay.rs"]
 mod guided_replay;
 #[path = "interval_lane.rs"]
