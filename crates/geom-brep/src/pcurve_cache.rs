@@ -12559,4 +12559,52 @@ mod check_4_class_rows {
             );
         }
     }
+
+    /// **A lane choice with no general lane yet ends lever-only "not
+    /// yet"** (D3, `PcurveCheck::ChartClass`): its undecided reading and
+    /// its definite refusal (`GeneralLaneUnwritten`) both end in the
+    /// not-yet ending at every reading, never in a defect ending and
+    /// never in a tolerance offer. An identity check on a stored image's
+    /// copies (`ImageIdentity`) keeps the defect ending.
+    #[test]
+    fn a_lane_choice_with_no_lane_ends_not_yet_never_a_defect() {
+        use crate::recourse::Reading;
+        let cause = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("pcurve_torus_chart_axial"),
+            terminal_sliver: false,
+        };
+        let undecided = PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartClass,
+            sample: 0,
+            cause,
+        };
+        let unwritten = PcurveCertifyError::GeneralLaneUnwritten {
+            chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Circle,
+        };
+        for reading in [Reading::Build, Reading::AtRest] {
+            for e in [&undecided, &unwritten] {
+                let ending = e.ending(reading).unwrap();
+                assert!(
+                    ending.starts_with(geom_core::NOT_YET_ENDING),
+                    "{reading:?}: {e:?} ends {ending}"
+                );
+                for not in ["defect", "tolerance", "Recourse:"] {
+                    assert!(!ending.contains(not), "{reading:?}: {ending}");
+                }
+            }
+        }
+        let identity = PcurveCertifyError::Escalated {
+            check: PcurveCheck::ImageIdentity,
+            sample: 0,
+            cause,
+        };
+        let ending = identity.ending(Reading::AtRest).unwrap();
+        assert!(
+            !ending.starts_with(geom_core::NOT_YET_ENDING),
+            "an identity check ends as a defect: {ending}"
+        );
+    }
 }

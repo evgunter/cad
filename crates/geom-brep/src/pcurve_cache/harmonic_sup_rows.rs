@@ -750,3 +750,47 @@ fn the_closed_forms_are_the_sampled_sup() {
         );
     }
 }
+
+/// **An in-band class on the sphere takes the projected lane** (D3's lane
+/// choice): a circle exactly on the sphere, tilted off a parallel so its
+/// axial reading (`pcurve_sphere_chart_axial`) sits mid-band, is neither
+/// decided a parallel on that margin nor refused: the incidence test
+/// reads it on the sphere, and it takes the general lane, the projected
+/// image, which certifies over the turn, at `f64` and at `Interval`.
+#[test]
+fn an_in_band_class_on_the_sphere_takes_the_projected_lane() {
+    fn read<T: geom_core::Decide>(at: impl Fn(f64) -> T) -> Result<Pcurve<T>, PcurveCertifyError> {
+        let (h, rho) = (0.6, 0.8);
+        let mid = 0.5 * (band().zero() + band().escalate());
+        let theta = (mid / rho).asin();
+        let (s, c) = theta.sin_cos();
+        let n = Vec3::new(0.0, -s, c);
+        let carrier = Curve3::Circle {
+            center: Point3::origin() + n * h,
+            axis: n,
+            radius: rho,
+            u_ref: Vec3::unit_x(),
+        }
+        .map_scalar(&at);
+        let sphere = unit_sphere().map_scalar(&at);
+        let image = chart_pcurve(&carrier, &sphere, band())?;
+        let tau = at(core::f64::consts::TAU);
+        PcurveCache::certify(image.clone(), at(0.0), tau, &carrier, &sphere, band())?;
+        Ok(image)
+    }
+    for (lane, projected) in [
+        ("f64", matches!(read(|x| x), Ok(Pcurve::Projected(_)))),
+        (
+            "Interval",
+            matches!(
+                read(<geom_core::Interval as geom_core::Real>::from_f64),
+                Ok(Pcurve::Projected(_))
+            ),
+        ),
+    ] {
+        assert!(
+            projected,
+            "{lane}: the in-band class takes the projected lane"
+        );
+    }
+}
