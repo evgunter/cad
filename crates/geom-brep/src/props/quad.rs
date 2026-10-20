@@ -167,7 +167,7 @@ use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
     CoeffWindow, Derived, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs,
-    SplineCoeffsBuf, TensorChannels, diagonal_in_span, last_at_or_below, restrict_bernstein,
+    SplineCoeffsBuf, TensorChannels, diagonal_in_span, last_at_or_below, restrict_segment,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -4368,14 +4368,13 @@ fn vertex_slack(p: RPt2) -> f64 {
 /// `λ = ½`, each again a Bézier polygon of the same degree whose first
 /// and last points are the arc's endpoints there and whose hull
 /// contains its half of the arc. Each channel's row is restricted to
-/// `[0, ½]` and `[½, 1]` ([`restrict_bernstein`]), so both halves are
-/// certified enclosures of the same arc rather than re-approximations
-/// of it.
+/// `[0, ½]` and `[½, 1]` of its segment on `[0, 1]`
+/// ([`restrict_segment`]), so both halves are certified enclosures of
+/// the same arc rather than re-approximations of it.
 fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
-    let half = |channel: &[Interval], (a, b): (f64, f64)| {
-        restrict_bernstein(channel, (pt(a), pt(b)))
-            .unwrap_or_else(|_| vec![Interval::refused(); channel.len()])
-    };
+    #[cfg(test)]
+    tests::BISECTED.with(|b| b.borrow_mut().push(block.to_vec()));
+    let half = |channel: &[Interval], ends: (f64, f64)| restrict_segment(channel, (0.0, 1.0), ends);
     let xs: Vec<Interval> = block.iter().map(|q| q.0).collect();
     let ys: Vec<Interval> = block.iter().map(|q| q.1).collect();
     let zip = |x: Vec<Interval>, y: Vec<Interval>| x.into_iter().zip(y).collect::<Vec<RPt2>>();
@@ -7587,6 +7586,75 @@ mod tests {
         let b = bounds_of(&out);
         encloses(b.flux, c * 0.5, "Q5b flux");
         encloses(b.area, 0.5, "Q5b area");
+    }
+
+    std::thread_local! {
+        /// Every block [`super::bezier_bisect`] has halved on this thread.
+        pub(super) static BISECTED: core::cell::RefCell<Vec<Vec<RPt2>>> =
+            const { core::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// **The bisection's halves are the retired door's to the bit.**
+    /// Every block the Q5 and Q5b fixtures bisect, at every depth (four
+    /// blocks; on 2026-10-20 they were every block the props suite
+    /// bisected), is
+    /// halved by [`restrict_segment`] on `[0, 1]`; each channel's halves
+    /// are those of the arithmetic `restrict_bernstein` ran
+    /// (`geom_core::test_support::bernstein_restriction_as_retired`),
+    /// ends and certification bit for bit.
+    #[test]
+    fn the_bisection_halves_are_the_retired_doors_to_the_bit() {
+        BISECTED.with(|b| b.borrow_mut().clear());
+        let (ku, kvv, control, w) = flat_chart(1.0);
+        let fold = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (2.0, 2.0), (0.0, 0.0)], 0.0),
+        ];
+        let _ = trimmed(&ku, &kvv, &control, &w, &fold, RoundWindow::SCHEDULE);
+        let (ku, kvv, control, w) = flat_chart(3.0);
+        let looks_folded = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.2, 0.2), (0.8, 0.8), (0.0, 0.0)], 0.0),
+        ];
+        let _ = trimmed(
+            &ku,
+            &kvv,
+            &control,
+            &w,
+            &looks_folded,
+            RoundWindow::SCHEDULE,
+        );
+        let blocks = BISECTED.with(|b| b.borrow().clone());
+        assert_eq!(blocks.len(), 4, "the fixtures bisect four blocks");
+        let bits = |row: &[Interval]| -> Vec<(u64, u64, bool)> {
+            row.iter()
+                .map(|x| (x.lo().to_bits(), x.hi().to_bits(), x.is_certified()))
+                .collect()
+        };
+        for (n, block) in blocks.iter().enumerate() {
+            let (l, r) = super::bezier_bisect(block);
+            for (axis, pick) in [("u", 0usize), ("v", 1usize)] {
+                let channel: Vec<Interval> = block
+                    .iter()
+                    .map(|q| if pick == 0 { q.0 } else { q.1 })
+                    .collect();
+                let got = |h: &[RPt2]| -> Vec<Interval> {
+                    h.iter()
+                        .map(|q| if pick == 0 { q.0 } else { q.1 })
+                        .collect()
+                };
+                for ((a, b), half) in [((0.0, 0.5), got(&l)), ((0.5, 1.0), got(&r))] {
+                    let want = geom_core::test_support::bernstein_restriction_as_retired(
+                        &channel,
+                        (pt(a), pt(b)),
+                    )
+                    .expect("a half of [0, 1]");
+                    assert_eq!(bits(&half), bits(&want), "block {n} {axis} on [{a}, {b}]");
+                }
+            }
+        }
     }
 
     /// **Q6 — a chart outside the Newton–Cotes window refuses typed.**

@@ -822,3 +822,5 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-17 — B1's frame lane is decided across the window's cut (two designers concurred independently; (a) rotated read and (j) per-frame names withdrawn).
 
 - 2026-10-20 — B2b (PR 5343) merged: check 4 decides no whole period on any lane (a lifted copy refuses as its fidelity term), S1 through `Period::times`. The B2 item closes; B1, B2a and B2b all landed.
+
+- 2026-10-20 — Unit C (PR 5444) merged: a spline net closed in `v` has its own `v` period, so a seam keeps one image; both net gates read reach in metres; an undecided `v` gate refuses typed. PR 5137 closed in its favour. Next: E1 (lane choices end as lanes) → E1b (EdgeAuthority in topo endings) → E2 (cylinder line lane, D3 exception out) → E3 (edge_join coincidence).

@@ -1539,7 +1539,7 @@ fn cite_member_edges<T: geom_core::Decide>(
                 },
             ] => match (whole(a), whole(b)) {
                 (Some(m), None) | (None, Some(m)) => Some(m),
-                (Some(_), Some(_)) => return Err(bug(Unrankable::SidedVertexRank.what())),
+                (Some(_), Some(_)) => return Err(bug(SEAM_VERTEX_TWO_EDGES)),
                 (None, None) if respelled_bases.contains(&base) => {
                     let lines: Vec<_> = [a, b].into_iter().filter_map(|l| seam_of(l)).collect();
                     rank_along_seam(&t, &mut out, &mut tie, &base, rows, &lines, body, bnd)?;
@@ -1800,7 +1800,7 @@ type MemberFace = (usize, topo::FaceKey);
 ///
 /// A judgement is the two members' own union, so a pair it merged
 /// (`BooleanNaming::merge_groups`) or whose region it held through the
-/// other face (`BooleanNaming::covered`) is one its margins decided one
+/// other face (`BooleanNaming::substituted`) is one its margins decided one
 /// carrier (declared or not, D10), and that lies with one orientation:
 /// the kernel merges and covers no other. A certified pair the judgement
 /// never brought together is in neither record and links nothing.
@@ -1886,7 +1886,11 @@ impl<T: geom_core::Real> Links<T> {
                 }
             }
         }
-        for &(fa, fb) in &naming.covered {
+        for s in &naming.substituted {
+            let (fa, fb) = match s.operand {
+                topo::Operand::A => (s.face, s.by),
+                topo::Operand::B => (s.by, s.face),
+            };
             self.pairs.push((
                 (a, descent.clone_face(topo::Operand::A, fa)),
                 (b, descent.clone_face(topo::Operand::B, fb)),
@@ -2659,6 +2663,11 @@ const FOLD_CELL_UNSTRIPPED: &str =
 /// A fold row's cell is headed by a segment a fold step does not mint.
 const FOLD_CELL_FOREIGN: &str = "a union fold row's cell has a head no fold step mints";
 
+/// A seam vertex whose pair is two member edges: a `Crossing`'s second
+/// side is a face, and a seam vertex's sides are faces.
+const SEAM_VERTEX_TWO_EDGES: &str =
+    "a union's seam vertex group cites two member edges as its pair";
+
 /// The emission bug this module can raise: a fold table carrying a
 /// segment the pair emitter does not mint.
 const FOREIGN: &str = "a union fold's table carries a segment the boolean emitter does not mint";
@@ -2668,7 +2677,7 @@ const FOREIGN: &str = "a union fold's table carries a segment the boolean emitte
 const JUNCTION_LINES_COLLIDE: &str =
     "two lines of a union's seam junction collapse to one member-space line";
 
-use super::canonical::{self, Stop, Unrankable, is_junction};
+use super::canonical::{self, Stop, is_junction};
 use super::merged::NESTED_MERGED;
 
 /// One fold-table name, keyed by member.
@@ -2682,7 +2691,8 @@ use super::merged::NESTED_MERGED;
 ///
 /// Two halves. [`orient`] rewrites every name the path holds into this
 /// node's space and keeps the fold's order, so every seam pair is still
-/// A-first and every rank is still along the A-first line. The
+/// in the fold step's name order and every rank still along the line
+/// that order oriented. The
 /// canonical form (`names::canonical::collapsed`) then puts the
 /// name-ordered positions in order, and re-reads each rank against the
 /// line as the fold-space name and the collapsed one write it. Each
@@ -2799,7 +2809,7 @@ fn collapse_one<'s>(
 ///
 /// A fold-side `From` head is descended through by this same half, so
 /// the inner name's own positions stay in fold order, and its ranks
-/// along the fold's A-first line, until the one canonicalization at the
+/// along the fold's line, until the one canonicalization at the
 /// top. Every rank the flattened path carries lies along the one line
 /// the canonical form finds through the same wrapping: an edge's
 /// pieces all lie on its seam line, and a seam vertex's rank on its
@@ -2991,13 +3001,11 @@ fn orient<'s>(
 /// One seam line between two members, in the union's space and in the
 /// fold's order.
 ///
-/// The pair emitter's `a`/`b` are the crossing entities in the two
-/// OPERANDS' tables, which are this node's space on both sides, so
-/// each is collapsed the same way every other row is. The pair keeps
-/// the fold's A-first order here, and the canonicalization puts it in
-/// name order: a union is commutative, so "which side" would record
-/// only which of the two members the fold reached first, which is the
-/// position this node exists not to record.
+/// The pair emitter's `a`/`b` are the crossing faces' parents as the
+/// fold step's own table names them, in that table's name order, which
+/// is this node's space, so each is collapsed the same way every other
+/// row is. The pair keeps the fold's order here, and the
+/// canonicalization puts it in the member-space names' order.
 fn seam_line<'s>(
     a: &'s StableName,
     b: &'s StableName,
@@ -3127,10 +3135,10 @@ mod tests {
     #[test]
     fn a_seam_junction_collapses_to_its_sorted_member_space_lines() {
         let union = RecipeNodeId::new(0, 9);
-        // Two lines of one junction, as the pair emitter spells them at
-        // a step whose B operand is member 1: each line's A side is an
+        // Two lines of one junction, as a fold step writes them at a
+        // step whose B operand is member 1: each line's first side is an
         // accumulation row (members 3 and 2, reached through the
-        // descent) and its B side is member 1's face. In the fold's
+        // descent) and its second member 1's face. In the fold's
         // space the member-3 line sorts first; in the union's it sorts
         // second, and every line's sides swap.
         let folded = vertex(
@@ -3268,8 +3276,8 @@ mod tests {
     }
 
     /// **A seam edge piece whose pair canonicalization swaps keeps its
-    /// ends.** The emitter's A side here is member 5's face and its B
-    /// side member 2's; in name order member 2 comes first, and the
+    /// ends.** The fold writes member 5's face first here and member
+    /// 2's second; in name order member 2 comes first, and the
     /// piece's `Ends`, which orders nothing, comes through as it was
     /// written, each end collapsed.
     #[test]
@@ -3312,22 +3320,9 @@ mod tests {
         assert_eq!(rank_of(&out), 0, "{out:?}");
     }
 
-    /// **A seam vertex group ranked with an edge on each side refuses**:
-    /// its carrier was chosen by side, so no rank survives a reorder.
-    #[test]
-    fn a_ranked_seam_vertex_between_two_edges_refuses() {
-        let union = RecipeNodeId::new(0, 9);
-        let line = seam(through_a(member_edge(union, 5)), member_edge(union, 2));
-        let err = collapse(union, &ranked(EntityKind::Vertex, union, line, 1, 2)).unwrap_err();
-        assert!(
-            matches!(err, NamingError::Emission { what } if what == Unrankable::SidedVertexRank.what()),
-            "{err:?}"
-        );
-    }
-
-    /// A seam EDGE between member 5's and member 2's caps, as the emitter
-    /// minted it: `swap` puts member 5 on the A side, which name order
-    /// reverses.
+    /// A seam EDGE between member 5's and member 2's caps, as a fold
+    /// step wrote it: `swap` puts member 5 first, which the union's name
+    /// order reverses.
     fn seam_edge(union: RecipeNodeId, swap: bool) -> StableName {
         let line = if swap {
             seam(through_a(member_cap(union, 5)), member_cap(union, 2))

@@ -442,11 +442,17 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// (N3): the two seams beside its merged floor cite the floor's `Merged`
 /// parent where they cited one floor. The digest feeds the name table.
 /// No body moved.
+///
+/// RE-BLESSED, `crossing_slots` only, for a seam's sides and a
+/// crossing's lines named in the subtract's own table, in name order
+/// (N3). The digest feeds the name table. No body moved
+/// (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held).
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x47bd_54b5_90cd_cd63u64),
+        ("crossing_slots", 0x59be_e8ee_4d43_95b9u64),
         ("heat_sink", 0xd551_a6fc_787e_61ba),
         ("kiss_carry", 0x8ee4_89b1_9c55_7144),
     ] {

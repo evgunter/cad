@@ -1712,3 +1712,44 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Not covered by "one home":** topo `certify_undecided` (noted on the restfront row); PcurveCheck words (pctail); `MATERIAL_PAIRING` and `RecutAlign` lever/size splits (listed in the PR body).
   - **Filed:** ssiedge `the-tube-limbs-undecided-arm-names-a-limb-not-its-crossing-angle-bound`.
   (ENCL orchestrator)
+- 2026-10-20 07:50Z — **Seam note from NURBS: a second main red near PR 5418's follow-up.** `test-utils reader_census::every_site_that_reads_rust_source_is_in_the_ledger` is red on main; its ledger lacks `crates/sweep/src/lib.rs`, last changed by `f1cfa9146b` (sweep-restate review). Filed as `main-red-reader-census-lacks-sweep-lib-after-restate-review`, attributed by file history (not bisected), so please confirm or re-home.
+- 2026-10-20 — **Merged PR 5454**. It closes three rows: `a-defect-endings-culprit-has-two-choosers`, `import-door-residual-and-unsized-endings-past-eps-in-name-kernel-or-file` and `import-door-provenance-of-a-fit-residual-is-unsettled`.
+  - **One chooser.** `geom_brep::recourse::culprit(ReadAt, Provenance)` now picks the culprit, with `Reading::culprit` for the run doors. Every defect ending read through `recourse` goes through it, and so does `unreadable_margin_note`.
+  - **Types.** `geom_core::Culprit` is `Kernel | Stored(StoredCulprit{KernelOrFile, File})`, and `RefusedReading::Defect` takes a `StoredCulprit`, so a kernel culprit there is unrepresentable. `Provenance` is `Stored | Derived`.
+  - **Who gets blamed at the import door:**
+    - sized `StoredContradiction`/`Unminted` sides name the file;
+    - every unsized or residual check is `Derived` and names kernel-or-file, because the kernel derives what each one compares (endpoint parameters, minted seam carriers, witness midpoints).
+  - **Review MAJOR, fixed.** The first head labelled EndpointStart/End `Stored`, which would have told an in-tolerance file it was damaged. Three causes were filed with EXCH:
+    - `ellipse-edge-parameters-overstate-the-endpoint-miss`
+    - `minted-seam-generator-can-put-endpoint-end-two-eps-in-off`
+    - `partial-bspline-edges-are-refused-for-domain-pinned-parameters`
+  - **Gate.** `reporting-margin-door.sh` gains a culprit-choice list.
+  - **Endings.** No ending string moves against main.
+  - **Known exception.** ImageSpan names the file for a derived image; it stays on `pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache`.
+  (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5467**. It closes `the-stored-curve-read-ladder-is-written-three-times`.
+  - **One read.** topo's public `Body::stored_curve(edge)` borrows a stored edge's certified curve. A stale key comes back `BadArgument::Stale`, a scaffold edge `NullScaffoldCurve`, and a dangling link panics (`#[track_caller]`), because only a kernel bug reaches it (D2).
+  - **Routed sites.** topo restatement, `describe_at_rest` and `split_edge`; sweep extrude, revolve and swept; blend surgery and reach. Sweep's `stored_carrier` is deleted.
+  - **Also one home.** The curve-link read is now `live.rs` `edge_curve_linked`; `attach.rs` `edge_curve` is deleted.
+  - **Review.** No MAJOR findings. The fix pass took one home for the curve-link read, a should-panic row, blend's error mapping matched by name, swept's silent skip disclosed as a panic (unreachable), and the missed copies filed:
+    - wire: `naming-edge-curve-ladders-can-read-through-body-stored-curve`
+    - exch: `step-export-certified-carrier-can-read-through-body-stored-curve`
+    - mesh `chords.rs`, added to the tess row
+    - topo `props.rs`, added to the topo row
+  - **The validator keeps its own read.** A link miss is one of its findings, not a panic.
+  - **Output.** Bitwise unchanged.
+  (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5473**: the census for `a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids`. The row stays open.
+  - **Scope.** 56 sites append `KERNEL_DEFECT_ENDING` to a typed refusal (as of main 5df6e6c854; not guarded).
+  - **Classes.**
+    - class 1 (input reaches it): 7
+    - class 2 (bug-only): 47, of which 5 are HELD under D10
+    - class 3 (approximation limit): 2
+    - class 4 (import door): 0
+  - **Rows.** 12 child rows filed on the owners' slates. Five existing rows carry evidence; four of them planned the retired "tag → shared ending" swap and now say so.
+  - **Review MAJORs, fixed before merge.** Each would have turned a "bug-only" site into a panic input can reach:
+    - The Boolean volume backstop is reachable through the public `AtRestPolicy::gate_volume_backstop`.
+    - Replace-face `ResultNotClosed` has a known input trigger; the SHELF row is `blocked_on` the transport fix.
+    - `OffsetFitError::Structure` may collapse knots by rounding; it needs a proof before any panic.
+  - **Not yet classified.** About 25 sites reach the ending through helpers, and 18 spell "(kernel bug)" in prose.
+  (ENCL orchestrator)

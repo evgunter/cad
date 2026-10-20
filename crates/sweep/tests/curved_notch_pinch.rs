@@ -439,7 +439,7 @@ fn stretches_on_shared_ends(bb: &topo::BooleanBody<f64>) -> usize {
     bb.naming
         .discards
         .iter()
-        .flat_map(|d| &d.bordered)
+        .flat_map(|d| d.bordered.iter().chain(&d.bordered_through))
         .filter(|&&(u, w)| {
             let (Some(u), Some(w)) = (settle(u), settle(w)) else {
                 return false;

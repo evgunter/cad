@@ -1664,6 +1664,28 @@ pub struct ChartedNurbs<'a, T: geom_core::CertifiedBounds> {
     on_grid: Option<Rc<NurbsBoxes<'a, T>>>,
 }
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    static CHART_MINTS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+}
+
+/// Test-only: how many charts ([`ChartedNurbs::mint`] and its grid
+/// form) this thread has minted. An operation that mints each wall
+/// once is pinned by the count, which timing alone would otherwise
+/// carry.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[must_use]
+pub fn charted_nurbs_mints() -> usize {
+    CHART_MINTS.with(core::cell::Cell::get)
+}
+
+/// Counts one mint toward [`charted_nurbs_mints`]; nothing outside test builds.
+fn count_mint() {
+    #[cfg(any(test, feature = "test-support"))]
+    CHART_MINTS.with(|n| n.set(n.get() + 1));
+}
+
 impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// Mints the wall's `{u, v}` chart speeds over its domain.
     ///
@@ -1672,6 +1694,7 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// [`SsiError::ChartSpeed`], naming the axis whose speed is zero or
     /// not finite.
     pub fn mint(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
+        count_mint();
         let boxes = NurbsBoxes::new(surface);
         let speeds = boxes.chart_speeds()?;
         Ok(Self {
@@ -1699,6 +1722,7 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
         surface: &'a NurbsSurface<T>,
         grid: &'a enclose::CellGrid,
     ) -> Result<Self, SsiError> {
+        count_mint();
         let own = NurbsBoxes::new(surface);
         own.chart_speeds()?;
         let boxes = NurbsBoxes::on_grid(surface, grid);
@@ -2790,7 +2814,7 @@ fn plane_nurbs_ssi_within(
     band: Band,
     max_steps: usize,
 ) -> Result<SsiOutcome, SsiError> {
-    PlaneSection::within(plane, wall, domain, band, max_steps)?.all()
+    PlaneSection::within(plane, (wall, ChartedNurbs::mint), domain, band, max_steps)?.all()
 }
 
 /// The boundary pass over `wall`'s knot rectangle against `plane`, at

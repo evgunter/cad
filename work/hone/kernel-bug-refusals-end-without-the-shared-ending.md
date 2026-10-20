@@ -38,6 +38,9 @@ All are rows in `editor-core/tests/refusal_concision_chains.rs`
 
 ## Repair shape
 
+**Superseded in direction (ENCL, 2026-10-20): read "Evidence: the repair is the shape D2 retires" below before acting on this section.** Ending these arms in `KERNEL_DEFECT_ENDING` is the shape the parent census retires.
+
+
 Replace each tag with ". {KERNEL_DEFECT_ENDING}" (or the file
 variant where the body may have been read).
 
@@ -116,3 +119,14 @@ The pattern cannot see a corruption refusal whose variant has an
 ordinary name and whose text names no defect (the `quad_lane` arm was
 found by its `what` literal, not its variant), nor a `what` payload
 built outside a string literal.
+
+## Evidence: the repair is the shape D2 retires (ENCL, 2026-10-20)
+
+`work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` holds that a typed refusal ending in `KERNEL_DEFECT_ENDING` is wrong
+in both of `[failure]`'s classes. A state only a kernel bug reaches
+panics; a state input reaches names its lever. Replacing these
+"(kernel bug)" tags with the constant therefore moves them from one
+wrong shape to another. Classify each arm the way the census does, and
+panic where it is bug-only. The census's child row on this slate,
+`split-and-join-kernel-defect-endings-are-bug-only-typed-refusals`,
+carries the same files' arms that already append the constant.
