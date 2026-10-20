@@ -8676,6 +8676,28 @@ fn general_lane_refusal<T: Real>(
     }
 }
 
+/// The largest exact distance from `surface` ([`chart_distance`]) of
+/// `at(t)` at [`INCIDENCE_SAMPLES`] + 1 evenly spaced parameters of
+/// `[t0, t1]`, its ends included: an open carrier's sampled incidence. A
+/// poisoned distance is carried to the decision rather than dropped by
+/// `max`.
+fn farthest_over_span<T: Real>(
+    surface: &Surface<T>,
+    (t0, t1): (T, T),
+    at: impl Fn(T) -> Point3<T>,
+) -> T {
+    let n = f64::from(INCIDENCE_SAMPLES);
+    (0..=INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
+        let t = t0 + (t1 - t0) * T::from_f64(f64::from(i) / n);
+        let d = chart_distance(surface, at(t));
+        if far.is_poison() || d.is_poison() {
+            d + far
+        } else {
+            far.max(d)
+        }
+    })
+}
+
 /// The incidence test of a spline carrier: [`chart_incidence`]'s, at
 /// [`INCIDENCE_SAMPLES`] points of the edge's interval `span`, or of
 /// the knot domain where none is given: the net past the edge's ends is
@@ -8686,17 +8708,8 @@ fn net_incidence<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    let (t0, t1) = span.unwrap_or_else(|| net.knot_values().domain());
-    let n = f64::from(INCIDENCE_SAMPLES);
-    let farthest = (0..=INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
-        let t = t0 + (t1 - t0) * T::from_f64(f64::from(i) / n);
-        let d = chart_distance(surface, net.eval(t));
-        if far.is_poison() || d.is_poison() {
-            d + far
-        } else {
-            far.max(d)
-        }
-    });
+    let span = span.unwrap_or_else(|| net.knot_values().domain());
+    let farthest = farthest_over_span(surface, span, |t| net.eval(t));
     match decide("pcurve_spline_chart_incident", Margin::of(farthest), band)
         .map_err(incidence_escalated)?
     {
@@ -10129,8 +10142,8 @@ fn chart_incidence<T: Decide>(
 mod incidence {
     use super::{
         Curve3, Decide, Incidence, Indeterminate, OffChart, PcurveCertifyError, PcurveCheck,
-        Placement, Surface, Underived, chart_distance, chart_incidence, cone_conic_incidence,
-        decide, incidence_escalated,
+        Placement, Surface, Underived, chart_incidence, cone_conic_incidence, decide,
+        incidence_escalated,
     };
     use geom_core::{Band, Margin, Sign};
 
@@ -10197,19 +10210,10 @@ mod incidence {
     fn line_incidence<T: Decide>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
-        (t0, t1): (T, T),
+        span: (T, T),
         band: Band,
     ) -> Result<(), PcurveCertifyError> {
-        let n = f64::from(super::INCIDENCE_SAMPLES);
-        let farthest = (0..=super::INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
-            let t = t0 + (t1 - t0) * T::from_f64(f64::from(i) / n);
-            let d = chart_distance(surface, carrier.eval(t));
-            if far.is_poison() || d.is_poison() {
-                d + far
-            } else {
-                far.max(d)
-            }
-        });
+        let farthest = super::farthest_over_span(surface, span, |t| carrier.eval(t));
         match decide("pcurve_line_chart_incident", Margin::of(farthest), band)
             .map_err(incidence_escalated)?
         {
