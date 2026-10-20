@@ -2,11 +2,12 @@
 id: a-keel-in-the-plane-wrapped-round-at-both-ends-refuses-a-degenerate-section
 kind: issue
 title: A split whose plane holds a valley edge that the material above wraps round at both ends refuses DegenerateSection
-status: review
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
 branch: cleave/keel-slit-ring
+closed: 2026-10-19
 ---
 
 

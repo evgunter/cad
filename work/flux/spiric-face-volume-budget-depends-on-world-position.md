@@ -2,7 +2,9 @@
 id: spiric-face-volume-budget-depends-on-world-position
 kind: issue
 title: A spiric-bounded face's certified volume spends its quadrature budget in a turned frame 990 m out, inside the box
-status: open
+status: closed
+pr: 5442
+closed: 2026-10-20
 opened: 2026-10-14
 priority: P2
 cost: M
@@ -55,3 +57,31 @@ rounds 13 } } }`.
 The certified volume of a body in the box converges, or refuses,
 the same way at any rigid placement in the box. A row pins the pose
 above at s = 100 and asserts that all six ops build.
+
+## Cause, measured
+
+The lead held. At s = 100 turned, the plane face's lever from the world
+origin is ~990 m, its vector area's enclosure keeps ~7e-11 of width
+per component at round 12, and the flux's width is ~8.6e-8, so
+`width_len` reads 3.6e-8 against 1.024e-9. Translated only, the
+off-normal components enclose zero exactly and the lever multiplies
+nothing.
+
+## Fix
+
+Every face is read about its shell's reference (`topo::props`'
+`shell_reference`): the stored point of the vertex the outer loop of
+the shell's first face starts at, in the shell's own order, so the lever
+is bounded by the shell's diameter wherever the body sits. It is not
+bounded by the face's own distance from the origin, and it depends on
+the shell's stored face order:
+`work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`. Every walk
+(the whole body, a face list in any order, a solid, a shell, every
+resumption) reads a face about the same point, and a body sums its
+closed shells. `corner_of`, the re-derivation's centre, is the same
+point lifted. Rows: `sweep` tests
+`a_spiric_cut_far_off_and_turned_reads_as_at_home` (all six ops build at
+s = 100 turned and measure the s = 0 volume; every quadrature face meets
+its target at the same round; every pad is its pad at home) and
+`topo::props::shell_reference_rows` (a closed-form body's volume is
+unchanged in the reals).

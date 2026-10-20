@@ -487,8 +487,7 @@ mod tests {
                     let ctl = &net.coords[d][k * p..=k * p + p];
                     let si = Interval::from_f64(s);
                     let one = Interval::one();
-                    let binom =
-                        |i: usize| (0..i).fold(1.0, |acc, q| acc * (p - q) as f64 / (q + 1) as f64);
+                    let binom = |i: usize| geom_core::spline::pieces::binomial(p, i);
                     let val = ctl
                         .iter()
                         .enumerate()
