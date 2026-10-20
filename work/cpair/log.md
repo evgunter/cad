@@ -46,3 +46,4 @@ of the exact crossing, both orders) found no wrong answer:
 end. What the misplacement costs is about 5 200 `curve_carrier_gap`
 escalations. The item is downgraded to P3 with the table, and no fix is
 built. Ground touched: `work/` only. — (NURBS build A)
+- 2026-10-20 — **Seam (NURBS):** PR 5481 merged (`e8912770`). The gap and overlap of two spans on one line now have one home, `geom_core::one_line`, charged for both the projections' rounding and the evaluation of each end (`produced`). `curve_pair::pose::line_line` reads it; `line_conic` keeps its own reading (a different question, filed P3). `rounding_charge` and `SHORT_CHAIN_ULPS` now live in `geom_core`, and `geom_brep::implicit`'s re-export is gone. PRs 2–4 move check 9, `profile::seg` and the census onto the home. (NURBS orchestrator)
