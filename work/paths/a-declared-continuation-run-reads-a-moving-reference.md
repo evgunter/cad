@@ -47,3 +47,21 @@ the band's guarantee hold per run, with no run-level certifier. See the
 
 Ev has ruled, the ruled datum is implemented with `bool11`'s row
 re-pinned, and CPAIR's held PR 3 lands after it.
+
+## For the implementer, once ruled (from the designers' notes)
+
+- **Blast radius.**
+  - `Incoming` gains the line's anchor, or `carrier` becomes `Line { anchor, dir } | Arc(ArcData)`.
+  - The constructors are `leg_end_tip`'s callers.
+  - The readers are `continuation_ray` (both `continue_to` kernels), `tangent_kernel`/`cusp_kernel` (inherit) and `director` (rebind).
+  - The §2c seal's reader inventory, in the module header, gains the new reader.
+  - `resolve_fillet`'s `Pending::Ray.origin` and `junction_check` stay on the vertex.
+- **Siblings with the same anchoring shape. Check each one; file any that has it.**
+  1. `PendingRunOut::rides`: a fillet run-out ray is anchored at the arrival point, per leg. Does the run's carrier ride through a fillet's run-out extension onto the same line?
+  2. The closing seam's `Start.arrives_tangent()` check is weighted by the arriving leg's arm alone. When the closing leg ends a declared run, is the arm that matters the run's length?
+  3. `.tangent().line_to(p)`, if it can be spelled, reads its joint at the leg's own length.
+- **Rows.**
+  - Re-pin the bool11 row: it escalates at the first leg past the zero edge, and is typed `ContinuationTargetOffRay` at leg 21. Don't pin leg 2, which sits at the zero edge, where rounding can land either side.
+  - Add an alternating-sides row that passes.
+  - Add a row showing a turn starts a new run.
+- **Docs to change:** `path.rs` `emit_straight_leg_at` and `on_ray_extent`, and the two `ContinuationTargetOffRay` messages ("off the run's line").
