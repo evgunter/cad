@@ -161,8 +161,8 @@ use super::knots::Span;
 use super::pieces::{binomial, span_row};
 
 /// The degree ceiling of the quotient bound (module docs): the highest
-/// common degree whose binomials are all exact `f64`s, `C(56, 28) < 2⁵³`.
-pub const QUOTIENT_MAX_DEGREE: usize = 56;
+/// common degree whose binomials are all exact `f64`s.
+pub const QUOTIENT_MAX_DEGREE: usize = super::pieces::BINOMIAL_EXACT_MAX;
 
 /// `p / (hi − lo)` in `T`, for the pair whose knot difference runs from
 /// `lo = u_{i+1}` to `hi = u_{i+p+1}`.
