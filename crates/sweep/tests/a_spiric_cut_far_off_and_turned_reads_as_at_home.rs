@@ -3,9 +3,9 @@
 //! plane in a spiric: its caps are planes bounded by spirics and its
 //! walls tori, each measured by quadrature. A rigid motion preserves
 //! volume, and moving a body moves no face's width: every face's flux
-//! is read about a vertex of its shell (`topo::props`' `shell_reference`),
-//! so the lever a width scales with is the shell's diameter wherever the
-//! body sits.
+//! is read about a vertex of its shell's first quadrature face
+//! (`topo::props`' `shell_reference`), so the lever a width scales with
+//! is the extent of the shell's quadrature faces wherever the body sits.
 //!
 //! Read about the world origin, the same cut carried `s = 100` along
 //! `(8, −3, 5)` and turned by 0.7 rad about a skew axis stood ~990 m
@@ -118,13 +118,10 @@ fn every_spiric_face_meets_its_target_at_the_round_it_does_at_home() {
 }
 
 /// **What a point of the shell buys: a far-off body's pads are its pads
-/// at home.** Read about a vertex of its shell, a face's lever is at
-/// most the shell's diameter wherever the body sits, so a body carries
-/// the width it carries at home. That lever is the shell's, not the
-/// face's own, and it depends on the stored face order, so a face near
-/// the origin can carry many times the width it carried about the
-/// origin (the row below, and
-/// `work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`). Read about the
+/// at home.** Read about a vertex of the shell's first quadrature face,
+/// a quadrature face's lever is at most the extent of the shell's
+/// quadrature faces wherever the body sits, so a body carries the width
+/// it carries at home. Read about the
 /// world origin, this pose's spiric faces' widths grew with the
 /// placement's 990 m, to 35 times the target at 1e-12, and three ops
 /// refused. Far off and turned, every op's pad is its pad at home to the
@@ -143,33 +140,17 @@ fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
     }
 }
 
-/// **Known: a quadrature face's pad depends on its shell's stored face
-/// order.** `T ∪ P` and `P ∪ T` with a 900 m bar are one solid stored in
-/// two face orders. Each face is read about its shell's first face's
-/// vertex, at the bar's far end in one order and beside the torus in the
-/// other, so the torus walls' lever is 900 m in one and a few metres in
-/// the other. Measured: the two orders' pads 14.3× apart at ε 1e-9
-/// (4.10e-6 against 5.88e-5), 15.9× at 1e-12 and 911× at 1e-6, where on
-/// the merge base, every face read about the world origin, they sat
-/// within 2× (review of PR 5442). Pinned as known, from a ratio above 4
-/// to twice the measured one, so the fix
-/// (`work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`)
-/// turns this red on purpose: then assert the two pads within 2×.
+/// **One solid stored in two face orders carries one pad.** `T ∪ P` and
+/// `P ∪ T` with a 900 m bar are one solid in two face orders. Each face
+/// is read about the start of its shell's first quadrature face, a vertex
+/// beside the torus in either order, so the quadrature faces' lever is
+/// the torus's extent and not the bar's. Measured 1.04× apart at every ε
+/// row (4.27e-6 against 4.10e-6 at 1e-9). Read about the shell's first
+/// face's start, the far end of the bar in one order, they sat 14.3×
+/// apart at 1e-9, 15.9× at 1e-12 and 911× at 1e-6.
 #[test]
-fn one_solid_in_two_face_orders_carries_pads_apart_as_known() {
+fn one_solid_in_two_face_orders_carries_one_pad() {
     let tol = Tol::witness();
-    let measured = match tol.eps() {
-        1e-6 => 911.4,
-        1e-9 => 14.34,
-        1e-12 => 15.89,
-        _ => {
-            test_utils::vacuity::stood_down(
-                "non-matrix eps",
-                "the ratio is measured at the matrix rows",
-            );
-            return;
-        }
-    };
     let t = torus(2.0, 0.5);
     let p = finished(
         "a 900 m bar",
@@ -191,7 +172,7 @@ fn one_solid_in_two_face_orders_carries_pads_apart_as_known() {
     let (tp, pt) = (pad(&t, &p), pad(&p, &t));
     let ratio = tp.max(pt) / tp.min(pt);
     assert!(
-        (4.0..2.0 * measured).contains(&ratio),
-        "T ∪ P pad {tp:e}, P ∪ T pad {pt:e}: {ratio} apart, known at {measured}"
+        ratio <= 2.0,
+        "T ∪ P pad {tp:e}, P ∪ T pad {pt:e}: {ratio} apart"
     );
 }
