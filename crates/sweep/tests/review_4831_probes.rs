@@ -414,7 +414,21 @@ fn p5_the_plane_tangent_to_a_hole_by_membership() {
         [Some(96.0 - pi), Some(24.0 - pi), Some(60.0), Some(12.0)],
         &grid(),
     );
-    all_answer("p5", &got);
+    // `A ∖ B` leaves the hole's ruling in the cut face `x = 1`, the
+    // hole's wall tangent to that face on both sides of it. The material
+    // parts the ruling into two coincident edges, each bounding a cusp
+    // (D1's doubled cusp), and the reading of a cusp on a line of
+    // coincident edges is not built, so it refuses typed. Main built the
+    // ruling as one edge between the wall's two sides lying in the face,
+    // which the face passed through.
+    let [union, cut, cut_back, common] = got.as_slice() else {
+        panic!("p5: {got:#?}");
+    };
+    all_answer("p5", &[union.clone(), cut_back.clone(), common.clone()]);
+    assert!(
+        cut.starts_with("REFUSED EdgeInFace") && cut.contains("tangent to the face along it"),
+        "p5 A ∖ B: {cut}"
+    );
 }
 
 /// `wedge_end_doors::a_nested_aligned_touch_answers_every_op`, read by
@@ -706,7 +720,19 @@ fn p12_a_plane_tangent_to_the_middle_of_a_hole() {
         [Some(42.0 - pi), Some(30.0 - pi), Some(6.0), Some(6.0)],
         &grid(),
     );
-    all_answer("p12", &got);
+    // `A ∖ B` keeps the hole's ruling, a doubled cusp, lying in the
+    // pocket's wall along its middle half only: the parting D1 owes there
+    // is not built, and it refuses typed rather than return the ruling
+    // whole across the wall
+    // (`work/cleave/a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted.md`).
+    let [union, cut, cut_back, common] = got.as_slice() else {
+        panic!("p12: {got:#?}");
+    };
+    all_answer("p12", &[union.clone(), cut_back.clone(), common.clone()]);
+    assert!(
+        cut.starts_with("REFUSED EdgeInFace") && cut.contains("runs on past the face's boundary"),
+        "p12 A ∖ B: {cut}"
+    );
 }
 
 /// Opposite senses, void crescent, cylinder × cylinder outside each

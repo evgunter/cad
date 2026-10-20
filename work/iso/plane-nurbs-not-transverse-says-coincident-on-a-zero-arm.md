@@ -28,3 +28,7 @@ Both `TubeStraddles` Displays (`PlaneNurbsRefusal`'s and `AnalyticRung3Refusal`'
 ## Progress noted 2026-10-20 (ENCL, PR 5437)
 
 The first bullet is fixed by PR 5437: `PlaneNurbsRefusal::NotTransverse`'s `Display` (`crates/geom-brep/src/edge_nurbs.rs`) now renders certification's `CertifyError::NotTransverse` sentence, so it says "not shown to cross" on a Zero verdict, "do not cross" on a Negative one, and prints `(margin … m, their angle levered by …)`. The rest stays open: `TubeStraddles`' straddle wording on every reading, and the `{:e}` numbers of the section above.
+
+## Noted 2026-10-20 (ENCL, `encl/check-word-one-noun`)
+
+Both `TubeStraddles` payloads now open with the tube decision's one noun, `TUBE_CROSSING_BOUND` (`crates/geom-brep/src/certify.rs`): "the uniqueness tube's lower bound on the crossing angle is not clear of the zero band over … boxes of the chain …; the bound reads … m". `AnalyticRung3Refusal::TubeStraddles` says "the crossing angle's enclosure straddles zero" where it said "it straddles zero". Both open items above stay open: that straddle claim on every reading, and the `{:e}` numbers.

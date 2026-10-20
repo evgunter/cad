@@ -120,7 +120,7 @@ pub const GENERIC_SUBJECTS: &[&str] = &[
 ];
 
 /// The measured quantities an `… escalated` clause may name as its
-/// subject (`the transversality margin at sample 4 escalated`).
+/// subject (`the crossing angle at sample 4 escalated`).
 const QUANTITY_WORDS: &[&str] = &[
     "margin",
     "span",
@@ -130,8 +130,10 @@ const QUANTITY_WORDS: &[&str] = &[
     "clearance",
     "offset",
     "length",
+    "headroom",
     "width",
     "separation",
+    "curvature",
     "distance",
     "radius",
     "gap",
@@ -690,9 +692,12 @@ mod tests {
         for subject in [
             "whether the hollow tube's wall leaves a bore is undecided",
             "at an edge, whether the edge is convex or concave is too close to call",
-            "the transversality margin at sample 4 escalated",
+            "the crossing angle at sample 4 escalated",
+            "the curvature difference at sample 4 escalated",
             "the residual against one of the edge's surfaces at sample 4 escalated",
-            "the stored interval's span (not a sampled check) escalated",
+            "the stored parameter interval's length (not a sampled check) escalated",
+            "the stored arc's headroom to one full turn of its carrier (not a sampled check) \
+             escalated",
             "the fillet at this corner is undecided",
             "an authored leg extent could not be told from zero",
         ] {

@@ -1,0 +1,49 @@
+---
+id: eval-wiring-kernel-defect-endings-are-bug-only-typed-refusals
+kind: issue
+title: editor-core: seven eval wiring and profile-anchor refusals end in KERNEL_DEFECT_ENDING for states only a kernel bug reaches
+status: open
+opened: 2026-10-20
+parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
+priority: P3
+cost: M
+---
+
+A child of the census in `work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` (as of main 5df6e6c854); why a typed `KERNEL_DEFECT_ENDING` is wrong in either D2 class is that row's "What" and "Shape of the work".
+
+## Sites
+
+- `crates/editor-core/src/eval/mod.rs` `NodeErrorKind` `Display`,
+  `ProfileAnchor` (~2280). Door: evaluating a profile node. **Class 2,
+  likely**: validate's canonical form is an exact reindexing of its
+  input.
+- `eval/mod.rs` `NodeErrorKind` `Display`, `MissingSlot` (~2480).
+  Door: every verb node's slot reads (`eval/wire.rs` `need_scalar` and
+  its kin). **Class 2, likely**: `Node::slots` and the wire agree.
+- `eval/mod.rs` `NodeErrorKind` `Display`, `VerbArity` (~2496). Door:
+  the run doors. **Class 2, likely**: the per-verb correspondences and
+  the run doors agree.
+- `crates/editor-core/src/eval/anchor.rs` `PiecesFault` `Display`,
+  `NoRecord` (~190), `NoIds` (~195), `Length` (~205) and `NoStepId`
+  (~211). Door: evaluating a profile node (`NodeErrorKind::ProfilePieces`).
+  **Class 2, likely**, each: one evaluation of one program builds the
+  naming anchor, the replay record and the minted step ids.
+
+`ProfileRecordMissing` (`eval/mod.rs` ~2289) is HELD (parameters: the
+guided lift over a parameter box). It is class 2, likely, and is not
+this row's. Holding it is conservative: the record it misses is a replay
+record of this program's profile lift, not a variable.
+
+The variants' docs give the reason they are typed: "no panic paths in
+this crate". `[failure]` says otherwise, and so does the crate itself:
+`editor-core/src` already holds `unreachable!`/`panic!` sites
+(`program.rs`, `parse.rs`, `mint.rs`). The sentence goes with the
+repair. `work/wire/eval-kernel-bug-refusals-end-in-a-tag` (closed) moved
+`MissingSlot` and `VerbArity` onto the constant. That row's direction
+is the one the parent row retires.
+
+## Repair shape
+
+- **Class 2**: `unreachable!` or `debug_assert` per `[failure.taxonomy]` rows 4–5, answering row 0 first; the tests that pin the text move to `#[should_panic]`.
+
+Re-check each `likely` or `unsure` argument before acting on it; one that fails moves the site to class 1.

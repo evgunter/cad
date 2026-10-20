@@ -169,3 +169,31 @@ renamed `a_needle_reads_every_pair_of_its_cells_definite` and pins that.
 So a door census leaves these runs green. R2's other notch307 needles
 carry the same span escalation and are likely the same shape; they were
 not re-measured.
+
+## 2026-10-20: the slit-touch class (CLEAVE, PR 5380)
+
+PR 5380 builds D1's slit form for an edge lying in a face, and reads an
+operand's slit tip. Since then the door returns `Ok` on results where two
+solids touch along a slit's or zero-area ring's line, and 3′ refuses them
+`CensusUndecidable` `TouchUnanalysed`. Those results are right by
+material, volume and tier 3.
+
+The PR's re-review counted 414 such `Ok` calls across the corpus: 242 of
+them main refused `LineWedges` (overlap), and 172 were 3′-uncertified on
+main already. By test:
+
+| test | calls |
+|---|---|
+| `topo` `a_vertex_read_again_classes_every_edge::partners_along_the_face_build_sound_against_the_germ` | 306 |
+| void ray | 40 |
+| tipped partner | 37 |
+| `editor-core` `emit_topo` | 10 |
+| `read_again` | 10 |
+| touching vertex | 8 |
+| others | 3 |
+
+The void ray, tipped partner and touching vertex rows are in
+`a_vertex_read_by_two_sector_passes.rs`, whose tier-3′ check admits the
+class by name (`SLIT_TOUCH`). That admission is to come out when the door
+runs the census. The slit-line row is
+`work/cleave/a-boolean-places-two-germs-along-a-slit-line.md`.

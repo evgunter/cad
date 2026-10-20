@@ -513,9 +513,9 @@ pub enum SsiError {
         /// rest built no chain.
         refused: u32,
     },
-    /// Limb 3's transversality is not certified clear of the zero band
-    /// over the tube chain at any rung (its enclosure straddles zero, or
-    /// its clearance lies inside the band). Either two branches pass
+    /// Limb 3's lower bound on the crossing angle is not clear of the
+    /// zero band over the tube chain at any rung (its enclosure straddles
+    /// zero, or the bound lies inside the band). Either two branches pass
     /// within the band of each other, a genuine sliver (F6), or the
     /// enclosure's remaining slack does not resolve the pair; both
     /// escalate, typed, never retried.
@@ -1006,9 +1006,9 @@ impl core::fmt::Display for SsiError {
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "ssi: over its {boxes}-box chain the uniqueness tube cannot certify the surfaces \
-                 crossing clear of the tolerance band (certified clearance {:e} m), so a second \
-                 branch may lie inside the tube",
+                "ssi: over its {boxes}-box chain {} is not clear of the zero band (bound {:e} \
+                 m), so a second branch may lie inside the tube",
+                crate::certify::TUBE_CROSSING_BOUND,
                 verdict.margin()
             ),
             Self::TubeNotOneArc { rungs, cause } => write!(
@@ -2790,7 +2790,7 @@ fn plane_nurbs_ssi_within(
     band: Band,
     max_steps: usize,
 ) -> Result<SsiOutcome, SsiError> {
-    PlaneSection::within(plane, wall, domain, band, max_steps)?.all()
+    PlaneSection::within(plane, (wall, ChartedNurbs::mint), domain, band, max_steps)?.all()
 }
 
 /// The boundary pass over `wall`'s knot rectangle against `plane`, at

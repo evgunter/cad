@@ -71,7 +71,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface, ParentSide, RechartDoor};
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::live::{Arg, dangling_link, linked, lookup, proven, require_key};
+use crate::live::{Arg, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
 
@@ -408,7 +408,11 @@ impl<T: Decide> Body<T> {
                 return Err(EulerOpError::DuplicateRedescription { edge });
             }
             let curve_key = edge_data.curve;
-            if self.edge_curve(edge, curve_key).null_scaffold().is_some() {
+            if self
+                .edge_curve_linked(edge, edge_data)
+                .null_scaffold()
+                .is_some()
+            {
                 return Err(EulerOpError::NullScaffoldCurve { curve: curve_key });
             }
             let sides = self.sides(edge, moved);
@@ -668,12 +672,12 @@ impl<T: Decide> Body<T> {
     ) -> Result<Vec<EdgeKey>, EulerOpError> {
         let mut out = Vec::new();
         for edge in edges {
-            let curve_key = proven(&self.edges, edge, EntityId::Edge).curve;
+            let data = proven(&self.edges, edge, EntityId::Edge);
             let (spelling, curve) = match reading.written().iter().find(|(e, ..)| *e == edge) {
                 Some((.., curve)) => (Spelling::Listed, Some(curve)),
                 None => (
                     Spelling::Stored,
-                    self.edge_curve(edge, curve_key).certified(),
+                    self.edge_curve_linked(edge, data).certified(),
                 ),
             };
             let Some(curve) = curve else {
@@ -786,7 +790,7 @@ impl<T: Decide> Body<T> {
         let mut out = RechartEdges::default();
         for edge_key in edges {
             let edge = proven(&self.edges, edge_key, EntityId::Edge);
-            let named = Named::of(self.edge_curve(edge_key, edge.curve));
+            let named = Named::of(self.edge_curve_linked(edge_key, edge));
             if matches!(named, Named::Nothing) {
                 continue;
             }
@@ -1064,8 +1068,8 @@ impl<T: Decide> Body<T> {
             self.rechart_edges(edges.iter().copied(), moved, Spelling::Stored);
         let mut out = Vec::new();
         for (edge, sides) in stranded {
-            let curve = proven(&self.edges, edge, EntityId::Edge).curve;
-            let named = Named::of(self.edge_curve(edge, curve));
+            let data = proven(&self.edges, edge, EntityId::Edge);
+            let named = Named::of(self.edge_curve_linked(edge, data));
             if sides.coherent_after(named, Spelling::Listed) {
                 out.push((edge, self.carried_spec(edge, sides, &[]).description));
             }
@@ -1106,8 +1110,8 @@ impl<T: Decide> Body<T> {
     /// chart image is stated in its chart's coordinates, so it is left
     /// to be re-derived on a chart whose payload is not the old one's.
     fn carried_spec(&self, edge: EdgeKey, sides: Sides, charts: &[Rechart<T>]) -> EdgeCurveSpec<T> {
-        let curve_key = proven(&self.edges, edge, EntityId::Edge).curve;
-        let Some(certified) = self.edge_curve(edge, curve_key).certified() else {
+        let data = proven(&self.edges, edge, EntityId::Edge);
+        let Some(certified) = self.edge_curve_linked(edge, data).certified() else {
             unreachable!(
                 "{edge:?} is carried, and `rechart_edges` carries only a certified edge \
                  (it skips scaffold and null edges)"
@@ -1211,13 +1215,6 @@ impl<T: Decide> Body<T> {
                 self.linked_vertex_point(end, EntityId::HalfEdge(next), "start"),
             ),
         ]
-    }
-
-    /// The curve geometry `edge`'s `curve` field names.
-    #[track_caller]
-    fn edge_curve(&self, edge: EdgeKey, curve: CurveKey) -> &crate::CurveGeom<T> {
-        self.get_curve_geom(curve)
-            .unwrap_or_else(|| dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(curve)))
     }
 
     /// Sets `face`'s orientation sense ([`crate::Face::sense`]) in
@@ -1421,14 +1418,9 @@ impl<T: Decide> Body<T> {
         description: EdgeDescriptionSpec<T>,
         arg: Arg,
     ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
-        let curve_key = lookup(&self.edges, edge, EntityId::Edge, arg)?.curve;
-        let stored = self
-            .edge_curve(edge, curve_key)
-            .certified()
-            .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
         Ok(EdgeCurveSpec {
             description,
-            ..stored.restated_spec()
+            ..self.stored_curve_as(edge, arg)?.restated_spec()
         })
     }
 
@@ -1512,14 +1504,9 @@ impl<T: Decide> Body<T> {
             error: CertifyError::Band(e),
         })?;
         let data = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?;
-        let curve_key = data.curve;
         let sides = crate::readback::edge_sides_of(self, edge, data);
         let (s_plus, s_minus) = sides.surfaces();
-        let restated = self
-            .edge_curve(edge, curve_key)
-            .certified()
-            .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?
-            .restated_spec();
+        let restated = self.stored_curve(edge)?.restated_spec();
         let rest = crate::rest_locus(
             self,
             [
@@ -1875,8 +1862,8 @@ impl<T: Decide> Body<T> {
     ///
     /// If `edge` or a record it links to does not resolve.
     pub(crate) fn stored_description_adjacent(&self, edge: EdgeKey) -> bool {
-        let curve = proven(&self.edges, edge, EntityId::Edge).curve;
-        let stored = self.edge_curve(edge, curve);
+        let data = proven(&self.edges, edge, EntityId::Edge);
+        let stored = self.edge_curve_linked(edge, data);
         let sides = self.sides(edge, |_, _, _| None);
         Named::of(stored).adjacent_to(sides.before.map(Slot::Kept), Slot::Kept)
     }

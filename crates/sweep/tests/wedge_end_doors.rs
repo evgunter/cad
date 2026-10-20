@@ -776,7 +776,12 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
 /// along the ruling `x = 1, y = 0`, their outward normals agreeing
 /// there: the glue door glues the pair `Tangent`, claiming nothing of
 /// the materials, and each op's result is tier-3 valid at its closed
-/// form.
+/// form, but the plate less the cutter's. That leaves the ruling in the
+/// cut face, the hole's wall tangent to it on both sides: the material
+/// parts it into two coincident edges, each bounding a cusp (D1's
+/// doubled cusp), whose reading on a line of coincident edges is not
+/// built, and it refuses `EdgeInFace` (`Tangent`) rather than build the
+/// one edge the face passes through.
 #[test]
 fn a_plane_tangent_to_a_hole_answers_every_op() {
     let plate = finished("the holed plate", plate_with_hole(), tol());
@@ -786,12 +791,14 @@ fn a_plane_tangent_to_a_hole_answers_every_op() {
         tol(),
     );
     let pi = std::f64::consts::PI;
+    match topo::subtract(&plate, &cutter, tol()) {
+        Err(topo::BooleanError::EdgeInFace {
+            gap: topo::EdgeInFaceGap::Tangent,
+            ..
+        }) => {}
+        other => panic!("plate ∖ cutter: want EdgeInFace (Tangent), got {other:?}"),
+    }
     for (name, got, want) in [
-        (
-            "plate ∖ cutter",
-            topo::subtract(&plate, &cutter, tol()),
-            24.0 - pi,
-        ),
         (
             "cutter ∖ plate",
             topo::subtract(&cutter, &plate, tol()),

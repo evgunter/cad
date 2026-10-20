@@ -81,3 +81,7 @@ is its check's (`SsiLimb::check`, through `geom_brep::certify::recourse`).
 - `FittedEscalated { decision: SsiDecision, cause }` keeps the limb or trace decision, and ends by it at every door (`SsiDecision::ending`, shared with `SsiError::ending`). Its subject clause names the decision ("whether the fitted carrier passes limb 3 (uniqueness tube) is undecided").
 - Both escalation arms' `Display` now render `cause.payload()` plus one labelled ending read at a build (`Reading::Build`), and no longer offer the coincidence menu.
 - Still open here: the `{check:?}` `Debug` rendering, and the `pcurve certification:` stage prefix.
+
+## Noted 2026-10-20 (ENCL, `encl/check-word-one-noun`)
+
+When `PcurveCheck` gains words in place of `{check:?}`, each should say its decision's noun, as `CertCheck`'s now do (`CertCheck`'s `Display`, `crates/geom-brep/src/certify.rs`). `ParamSpan` routes through `SpanDecision::Forward`, whose size is "length". `AzimuthPeriod` and `TubePeriod` route through `SpanDecision::Winding`, whose size is "arc" (`SpanDecision::size` in `crates/geom-brep/src/recourse.rs`), as its lever's "this arc" is; the edge's check word names the margin's quantity on that arc, "the stored arc's headroom to one full turn of its carrier", so theirs would name the image's arc the same way. Their definite payloads (`AzimuthPeriodExceeded`, `TubePeriodExceeded`) say "more than one full period", where the edge's winding decision says "one full turn of its carrier".
