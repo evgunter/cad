@@ -212,10 +212,11 @@ pub struct ChartBound<T: Real> {
     /// chart that closes, `None` on a plane.
     ///
     /// One dimensional, deliberately: the second channel is never
-    /// lifted. A torus chart is periodic in `v` too, and a torus face
-    /// whose ring sits across the `v` seam gets no lift for it — the
-    /// description is then merely looser there, never wrong, which is
-    /// the direction every omission here runs.
+    /// lifted. A torus chart is periodic in `v` too, and so is a spline
+    /// net decided closed in `v`; a face on either whose ring sits
+    /// across the `v` seam gets no lift for it — the description is then
+    /// merely looser there, never wrong, which is the direction every
+    /// omission here runs.
     pub period: Option<T>,
 }
 

@@ -663,6 +663,10 @@ pub fn segment_curve<T: SpanLocate>(
 /// never the locus. Afterwards every section has the same degree, the
 /// same knots, and therefore the same control-point count — which is
 /// what makes a tensor-product skin possible at all.
+/// In floating point, elevation agrees with the authored section to
+/// about `1e-12` of its largest control coordinate up to degree 10 and
+/// a few `1e-11` at degree 12, and surfaces no bound
+/// (`geom_core::spline::algebra::elevate_plan`).
 ///
 /// They are the knot algebra, at every scalar: projective at an
 /// evaluation scalar, homogeneous at an enclosure scalar (C6 S4: the

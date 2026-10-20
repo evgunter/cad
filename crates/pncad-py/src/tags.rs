@@ -2403,6 +2403,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::EmptyLoop { .. } => "empty_loop",
         TessellateError::MissingEntity { .. } => "missing_entity",
         TessellateError::ResolutionOverflow { .. } => "resolution_overflow",
+        TessellateError::StepNotPositive { .. } => "step_not_positive",
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
@@ -3173,6 +3174,10 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CensusUnsupported { .. } => "census_unsupported",
         ValidationError::CensusLaneUnsupported { .. } => "census_lane_unsupported",
         ValidationError::CensusUndecidable { .. } => "census_undecidable",
+        ValidationError::FaceThroughEdgeWedge { .. } => "face_through_edge_wedge",
+        ValidationError::FaceThroughEdgeWedgeUndecided { .. } => {
+            "face_through_edge_wedge_undecided"
+        }
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
         ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
