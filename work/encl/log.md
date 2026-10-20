@@ -1686,3 +1686,4 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Notes added to iso `plane-nurbs-not-transverse…` (half fixed), ssimarch, and restfront `validate-window-leads…` (`classify_certify` is a hand-written second telling; sweep it as a class).
   - A container restart mid-fix-pass was resumed without loss.
   (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5451**, a cross-program main-red fix. `geom curves::tests::ellipse_constructor_trios` had been red on main since GERM's 53967a14d2 (bisected; it fails at opt-level 0 and 1 alike). The commit added `EllipseInvalid::SemiAxisNotFinite`, but the test row still expected a NaN minor to escalate; the row now expects the typed refusal. GERM had handed its track back (PR 5445), so ENCL fixed it because PR 5447 was red on it. `crates/geom` is CURVED ground, and the change touches a test row only. (ENCL orchestrator)
