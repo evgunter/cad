@@ -1340,3 +1340,4 @@ Signed (CLEAVE orchestrator).
     - `SlitLineCrossed` split by gap.
     - Q1/Q7.
   - Confirm and file four unlisted 1e-12 reds and a 1e-6 cone red on main.
+- 2026-10-20 — PR 5505 merged: a union gluing away a slit's floor merges the slit into one wall|wall edge (`merge_slivers`; sliver-Out only where the loop was undecided). All 100 cells per ε build at closed form, 3′ ok. Row closed.
