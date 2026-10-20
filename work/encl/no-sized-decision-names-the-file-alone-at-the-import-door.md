@@ -3,6 +3,7 @@ id: no-sized-decision-names-the-file-alone-at-the-import-door
 kind: issue
 title: recourse: no sized decision reads the file's own data at the import door, so DESIGN (iv)'s 'it is the file's' names no decision
 status: open
+needs_ev: true
 opened: 2026-10-20
 ---
 

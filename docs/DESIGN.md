@@ -532,12 +532,15 @@ says what its refused side is, and every definite reading of it ends
 by that at each door. A side the lever reaches tells the lever story
 everywhere. A contradiction between a stored description and its
 stored geometry tells the lever story at a build. At the import door
-it is the file's: the import refuses typed, naming the file. Past the
+it is the file's where the file's own stored values are what
+contradict: the import refuses typed, naming the file. Where adoption
+derives a value the reading compares (a parameter, a description it
+guesses, an image), the refusal names the kernel or the file. Past the
 import door no state is reachable only through import ([import]), so
 only a kernel bug reaches it, and it panics ([failure]). A side no
 kernel construction produces panics at a build and past the import
-door, and at the import door is the file's like any other. No refusal
-names a lever the decision does not.
+door, and at the import door ends as a stored contradiction does. No
+refusal names a lever the decision does not.
 
 How each door applies these (the import door's ε_in sentences and its
 stopgap, `Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
