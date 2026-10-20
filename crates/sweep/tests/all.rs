@@ -276,6 +276,8 @@ mod review_sixx_r2_probes;
 mod saddle_wall_offset_fit;
 #[path = "scaffolding_on_a_blend_support_face_does_not_finish.rs"]
 mod scaffolding_on_a_blend_support_face_does_not_finish;
+#[path = "seam_region_cover_census.rs"]
+mod seam_region_cover_census;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]

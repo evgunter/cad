@@ -3143,6 +3143,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
+        ValidationError::SeamRegionOvercovered { .. } => "seam_region_overcovered",
+        ValidationError::SeamRegionCoverUnresolved { .. } => "seam_region_cover_unresolved",
         ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",

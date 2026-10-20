@@ -42,3 +42,16 @@ Either of these:
 
 Until then the branch errs toward exemption, never toward a wrong read.
 
+## Not the cover census's either (2026-10-20)
+
+The cover census that closed
+`a-seam-region-covering-the-sphere-twice-is-unread` and
+`a-seam-region-whose-boundary-carries-both-poles-is-unread` skips the
+pinched region too (`crates/topo/src/validate.rs`, check 6). A pinched
+boundary cycle passes through one vertex twice, so it is no simple
+loop. The census reads each loop's area through `solid_angle`, whose
+Gauss–Bonnet anchor (`2π ∓ turning`) holds for a simple loop only, so
+it would read a figure-eight's turning, not its area. Splitting the
+cycle at its repeated vertex into simple loops would let the census
+read it, but no body reaches the branch for a row to pin that, so the
+row stays open as it is.

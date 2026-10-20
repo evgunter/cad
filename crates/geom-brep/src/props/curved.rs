@@ -3623,8 +3623,8 @@ fn agreed_side<T: Decide>(
 ///
 /// * **No boundary**: the members close the sphere. `Unencoded`. Once
 ///   over, they are a shell whose orientation tier 3's volume checks
-///   read; more than once, their faces overlap and no reading here
-///   tells.
+///   read; more than once, their faces overlap, which the cover census
+///   reads ([`sphere_region_cover`]), not the side.
 /// * **Two or more boundary loops**: the sign of the region's
 ///   Gauss–Bonnet area, as for a face with holes.
 /// * **One boundary loop**: read at each pole on an edge interior to
@@ -3636,7 +3636,8 @@ fn agreed_side<T: Decide>(
 ///   is read, among them a boundary carrying both poles: that region
 ///   and its complement are both legal, and for a region of one face,
 ///   flipping its bit describes the other one, a valid body and not a
-///   defect.
+///   defect. For a region of two faces or more, all flipped, the faces
+///   overlap, and the cover census refuses it.
 ///
 /// # Errors
 ///
@@ -3678,6 +3679,139 @@ pub fn sphere_region_material_sign<T: Decide>(
         }
         Ok(None)
     })
+}
+
+/// **How many times a seam region's faces cover it**, as their sense
+/// bits claim ([`sphere_region_cover`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SeamCover {
+    /// The members claim the region once: no overlap.
+    Once,
+    /// The members claim the region `times` times over (`times ≥ 2`):
+    /// their faces overlap. Both a double cover with no boundary and a
+    /// region of two or more one-loop members whose bits all flip read
+    /// this, the flip by `n − 1` spheres over `n` members.
+    Over {
+        /// How many times over the members claim the region.
+        times: usize,
+    },
+    /// A threshold read in the band, or a census below its floor of no
+    /// cover: the cover cannot be certified, so the census refuses
+    /// rather than read `Once`. No region of a body reaches it where its
+    /// loops read ([`sphere_region_cover`]'s slack); it is the loud end
+    /// of a census that is not a whole number of spheres.
+    Unresolved,
+    /// The members' sense bits disagree, so the claims are no cover
+    /// and the census says nothing. A member whose bit differs from a
+    /// neighbour's across a shared edge is a lamina there, check 4's to
+    /// refuse; the census does not read it.
+    MixedSense,
+}
+
+/// **The cover census of a seam region**: how many times its members
+/// claim it under their sense bits.
+///
+/// Each member claims the side of its loops its bit names, of
+/// Gauss–Bonnet area `Σ Ωᵢ − (n − 1)·4π` over its `n` loops (each
+/// `Ωᵢ` read by [`solid_angle`] on the claimed side). The members'
+/// half-edges agree across every edge they share, so the number of
+/// claims over a point jumps by one across the region's boundary and
+/// nowhere else: it is the boundary's claimed side plus a whole
+/// number `c` of spheres, and the census
+/// `S = Σ claims − boundary's claim` is `4π·c` steradians exactly (with
+/// no boundary, the boundary's claim is the whole sphere, `4π`). A
+/// region its members cover once reads `c = 0`, whatever its poles
+/// and whatever its boundary carries; no pole is read.
+///
+/// `c` is read against the half-sphere thresholds `(c ± ½)·4π` with
+/// the band's decide (`props_sphere_region_cover`), each a solid angle
+/// levered by the radius, as [`side_of_sphere_loops`] reads a face's
+/// area. A whole census stands `2πR` metres from both thresholds, at
+/// least the slack of each arc's own span read (`span·R`), so where
+/// the loops read the census is never in the band; a sphere too small
+/// for that refuses at its loops first. A threshold read in the band,
+/// and a census below `−½`, refuse [`SeamCover::Unresolved`].
+///
+/// What it does not read:
+///
+/// * a ringed member whose bit contradicts its own area reading claims
+///   a negative "area" (`4π(1 − r) − Area`). Signed Gauss–Bonnet area
+///   is additive, so that claim can keep `c = 0`; the member's own face
+///   read ([`sphere_loop_side`]) refuses it;
+/// * members whose bits disagree ([`SeamCover::MixedSense`]).
+///
+/// `boundary` is the region's boundary, chained into loops; `members`
+/// pairs each member's sense bit with every loop of it.
+///
+/// # Errors
+///
+/// [`sphere_loop`]'s premises over the boundary and the members;
+/// [`PropsError::SphereLoop`] for a surface that is not a sphere.
+pub fn sphere_region_cover<T: Decide>(
+    surface: &Surface<T>,
+    boundary: &[&[LoopEdge<T>]],
+    members: &[(bool, &[&[LoopEdge<T>]])],
+    band: Band,
+) -> Result<SeamCover, PropsError> {
+    let Surface::Sphere { center, radius, .. } = *surface else {
+        return Err(PropsError::SphereLoop {
+            what: "a seam region's cover read on a surface that is not a sphere",
+        });
+    };
+    let Some(&(sense, _)) = members.first() else {
+        return Err(PropsError::SphereLoop {
+            what: "a seam region with no member",
+        });
+    };
+    if members.iter().any(|&(s, _)| s != sense) {
+        return Ok(SeamCover::MixedSense);
+    }
+    let sphere = T::from_f64(2.0) * T::tau();
+    // The area the loops claim on their `left` side, in steradians.
+    let claim = |loops: &[&[LoopEdge<T>]], left: bool| -> Result<T, PropsError> {
+        let gauss = sphere_loops(center, radius, loops, band)?;
+        let whole = T::from_computed(gauss.len() as f64 - 1.0);
+        Ok(gauss
+            .iter()
+            .fold(T::zero(), |sum, lp| sum + solid_angle(center, lp, left))
+            - whole * sphere)
+    };
+    let mut census = if boundary.is_empty() {
+        -sphere
+    } else {
+        -claim(boundary, sense)?
+    };
+    for &(_, loops) in members {
+        census = census + claim(loops, sense)?;
+    }
+    // Above the threshold `(c + step)` spheres, or below it.
+    let above = |c: f64| {
+        classify(
+            "props_sphere_region_cover",
+            Margin::levered(census - T::from_computed(c) * sphere, radius),
+            band,
+            PropsCheck::Inventory,
+        )
+    };
+    let decided = |c: f64| match above(c) {
+        Ok(Sign::Positive) => Some(true),
+        Ok(Sign::Negative) => Some(false),
+        Ok(Sign::Zero) | Err(_) => None,
+    };
+    if decided(-0.5) != Some(true) {
+        return Ok(SeamCover::Unresolved);
+    }
+    // Each member claims at most the whole sphere, so the members claim
+    // the region at most `members + 1` times over.
+    for c in 0..=members.len() {
+        match decided(c as f64 + 0.5) {
+            Some(false) if c == 0 => return Ok(SeamCover::Once),
+            Some(false) => return Ok(SeamCover::Over { times: c + 1 }),
+            Some(true) => {}
+            None => return Ok(SeamCover::Unresolved),
+        }
+    }
+    Ok(SeamCover::Unresolved)
 }
 
 /// Where the point `p` on the sphere stands against `arc`: the side of
@@ -5300,5 +5434,131 @@ mod torus_lift_rows {
                 "k = {k}: the level less the rim's plus kτ is the zero polynomial"
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod sphere_region_cover_rows {
+    use super::*;
+    use geom_core::Tol;
+
+    /// A sphere of radius `r` about the origin, poled along `z`, and its
+    /// equator as one closed edge, run counter-clockwise about `z`
+    /// (`north`) or clockwise.
+    fn hemispheres(r: f64) -> (Surface<f64>, [LoopEdge<f64>; 2]) {
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let equator = |north: bool| {
+            LoopEdge::hand_built(
+                Curve3::Circle {
+                    center: o,
+                    axis: z,
+                    radius: r,
+                    u_ref: x,
+                },
+                0.0,
+                f64::tau(),
+                north,
+                0,
+                0,
+            )
+        };
+        (
+            Surface::Sphere {
+                center: o,
+                radius: r,
+                axis: z,
+                u_ref: x,
+            },
+            [equator(true), equator(false)],
+        )
+    }
+
+    fn cover(r: f64, eps: f64, boundary: &[bool], members: &[(bool, bool)]) -> SeamCover {
+        let band = Band::linear_at(Tol::witness(), eps).expect("band");
+        let (sphere, [north, south]) = hemispheres(r);
+        let pick = |n: bool| -> [&[LoopEdge<f64>]; 1] {
+            [core::slice::from_ref(if n { &north } else { &south })]
+        };
+        let boundary: Vec<_> = boundary.iter().map(|&n| pick(n)[0]).collect();
+        let loops: Vec<_> = members.iter().map(|&(_, n)| pick(n)).collect();
+        let claims: Vec<(bool, &[&[LoopEdge<f64>]])> = members
+            .iter()
+            .zip(&loops)
+            .map(|(&(sense, _), l)| (sense, &l[..]))
+            .collect();
+        sphere_region_cover(&sphere, &boundary, &claims, band)
+            .unwrap_or_else(|e| panic!("the census reads: {e:?}"))
+    }
+
+    /// Two hemispheres close the sphere once, under either common bit
+    /// (an inside-out ball is the volume checks'); four close it twice.
+    #[test]
+    fn hemispheres_cover_the_sphere_once_and_four_cover_it_twice() {
+        let two = [(true, true), (true, false)];
+        assert_eq!(cover(1.0, 1e-9, &[], &two), SeamCover::Once);
+        let inverted = [(false, true), (false, false)];
+        assert_eq!(cover(1.0, 1e-9, &[], &inverted), SeamCover::Once);
+        let four = [(true, true), (true, false), (true, true), (true, false)];
+        assert_eq!(cover(1.0, 1e-9, &[], &four), SeamCover::Over { times: 2 });
+    }
+
+    /// A lone hemisphere covers the region its boundary bounds once
+    /// under either bit: its flip is the complement, another valid body.
+    #[test]
+    fn a_lone_face_reads_once_under_either_bit() {
+        for sense in [true, false] {
+            assert_eq!(cover(1.0, 1e-9, &[true], &[(sense, true)]), SeamCover::Once);
+        }
+    }
+
+    /// Members whose bits disagree are no cover: check 4's lamina.
+    #[test]
+    fn members_whose_bits_disagree_are_not_read() {
+        let mixed = [(true, true), (false, false)];
+        assert_eq!(cover(1.0, 1e-9, &[], &mixed), SeamCover::MixedSense);
+    }
+
+    /// The thresholds are solid angles levered by the radius, a slack of
+    /// `2πR` metres, at least each arc's own span read (`span·R`,
+    /// `props_sphere_arc_span_forward`): where the loops read, the
+    /// census is never in the band. A sphere of radius `1e-13`
+    /// (`2πR ≈ 6.3e-13`) at ε = 1e-12 refuses at its loops, typed, which
+    /// check 6 leaves to the flux lane's same refusal; at ε = 1e-15 the
+    /// same sphere reads.
+    #[test]
+    fn a_sphere_below_the_bands_slack_refuses_at_its_loops() {
+        let (sphere, [north, south]) = hemispheres(1e-13);
+        let loops = [
+            [core::slice::from_ref(&north)],
+            [core::slice::from_ref(&south)],
+        ];
+        let claims: Vec<(bool, &[&[LoopEdge<f64>]])> =
+            loops.iter().map(|l| (true, &l[..])).collect();
+        let coarse = Band::linear_at(Tol::witness(), 1e-12).expect("band");
+        assert!(
+            matches!(
+                sphere_region_cover(&sphere, &[], &claims, coarse),
+                Err(PropsError::SphereLoop {
+                    what: "props_sphere_arc_span_forward"
+                })
+            ),
+            "the loops refuse first"
+        );
+        let two = [(true, true), (true, false)];
+        assert_eq!(cover(1e-13, 1e-15, &[], &two), SeamCover::Once);
+    }
+
+    /// A census on a half-sphere threshold refuses rather than read: one
+    /// hemisphere with no boundary claims half the sphere, `−½` of a
+    /// cover, which no region of a body reads.
+    #[test]
+    fn a_census_on_a_threshold_refuses() {
+        assert_eq!(
+            cover(1.0, 1e-9, &[], &[(true, true)]),
+            SeamCover::Unresolved
+        );
     }
 }

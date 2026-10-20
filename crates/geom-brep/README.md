@@ -974,12 +974,17 @@ region is the side of its boundary that holds such a pole
 (`sphere_region_material_sign`); a region with two or more boundary
 loops is read by the sign of its area. A region with no boundary covers
 the sphere and encodes no side: covered once, it is a shell whose
-orientation checks 7 and 10 read; covered more than once, its faces
-overlap and nothing here reads it. A region whose boundary carries both
+orientation checks 7 and 10 read. A region whose boundary carries both
 poles, or whose poles lie on no member's loop, encodes no side: the
 pole-free reading would assume the rule above, which validity does not
 yet enforce. For a region of one face the flipped bit describes the
-complement, another valid body. A loop with a pole off it on each side
+complement, another valid body. Where a region's faces overlap, tier 3
+refuses it by its cover census (`sphere_region_cover`): each member's
+Gauss–Bonnet area on the side its bit claims, summed, less the area its
+boundary claims (the sphere, with no boundary), is a whole number of
+spheres, zero for a region covered once. A cover of the sphere twice
+over reads one; a region of `n` one-loop faces whose bits all flip, each
+claiming its own complement, reads `n − 1`. A loop with a pole off it on each side
 encodes no side: under either sense its face holds a pole, which is
 validity's to refuse. Nor does a loop whose poles both read undecided: a
 pole within the ambiguity band of a great or near-great carrier's plane

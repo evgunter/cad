@@ -2169,6 +2169,8 @@ fn attribute(
         | ValidationError::JoinUndecidedAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
+        | ValidationError::SeamRegionOvercovered { .. }
+        | ValidationError::SeamRegionCoverUnresolved { .. }
         | ValidationError::NegativeVolume { .. }
         | ValidationError::SliverInsideOut { .. }
         | ValidationError::VolumeUncomputable { .. }

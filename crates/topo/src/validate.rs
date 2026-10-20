@@ -1424,16 +1424,17 @@ pub enum ValidationError {
     ///   boundary encodes a side by its Gauss–Bonnet area when it has
     ///   two loops or more, and by a pole on an edge interior to it
     ///   (`geom_brep::props::sphere_region_material_sign`). Unread: a
-    ///   region with no boundary, whose members close the sphere (once,
-    ///   a shell whose orientation checks 7 and 10 read; more than once,
-    ///   overlapping faces nothing reads,
-    ///   `work/flux/a-seam-region-covering-the-sphere-twice-is-unread.md`); a one-loop boundary with no pole on an interior edge,
-    ///   among them one carrying both poles; a boundary that touches
-    ///   itself at a vertex. A region of one face unread so is no
-    ///   defect: its flipped bit describes the complement, another
-    ///   valid body. A region of two faces or more, all flipped, has
-    ///   its faces overlap and passes
-    ///   (`work/flux/a-seam-region-whose-boundary-carries-both-poles-is-unread.md`);
+    ///   region with no boundary, whose members close the sphere (a
+    ///   shell whose orientation checks 7 and 10 read); a one-loop
+    ///   boundary with no pole on an interior edge, among them one
+    ///   carrying both poles; a boundary that touches itself at a
+    ///   vertex. A region of one face unread so is no defect: its
+    ///   flipped bit describes the complement, another valid body. Where
+    ///   the region's faces overlap instead (a cover of the sphere twice
+    ///   over, or two faces or more all flipped, each claiming its own
+    ///   complement), the cover census refuses the region
+    ///   ([`Self::SeamRegionOvercovered`]), for every region but the
+    ///   pinched one;
     /// * a one-loop sphere face with a chart pole off its loop on EACH
     ///   side — a rim-only cap or a tilted cap holding a pole. Under
     ///   either sense it holds a pole, which breaks the rule that a
@@ -1449,6 +1450,38 @@ pub enum ValidationError {
     CurvedSenseInverted {
         /// The inside-out face: its `sense` bit contradicts the
         /// material side its boundary traversal encodes.
+        face: FaceKey,
+    },
+    /// Tier 3, check 6 — **a sphere seam region's faces overlap**: under
+    /// their sense bits its members claim the region `times` times over
+    /// (`geom_brep::props::sphere_region_cover`, the cover census). Their
+    /// Gauss–Bonnet claims less the area their boundary claims is a
+    /// whole number of spheres, zero for a region covered once. Two
+    /// bodies read it: three faces whose loops all carry both poles
+    /// covering the sphere twice, with no boundary; and a region of two
+    /// or more one-loop faces whose bits all flip, each claiming its own
+    /// complement, which holds the others. Which face is wrong is not
+    /// read (the double cover flips no bit), so the subject is the
+    /// region, named by the member it was first read from. A region of
+    /// one face reads once under either bit: its flip describes the
+    /// complement, another valid body.
+    SeamRegionOvercovered {
+        /// The member the region was first read from.
+        face: FaceKey,
+        /// How many times over its members claim it (`≥ 2`).
+        times: usize,
+    },
+    /// Tier 3, check 6 — **a sphere seam region's cover census is
+    /// unresolved**: it lies within the band of a half-sphere threshold,
+    /// or below its floor of no cover
+    /// (`geom_brep::props::SeamCover::Unresolved`). A whole census
+    /// stands `2πR` from both thresholds, past each arc's own span read,
+    /// so no region whose loops read reaches this; it is the census's
+    /// loud end. Nothing else reads whether the region's faces overlap,
+    /// so it refuses rather than pass a cover it cannot certify
+    /// (escalate, never guess).
+    SeamRegionCoverUnresolved {
+        /// The member the region was first read from.
         face: FaceKey,
     },
     /// Tier 3, check 7: `solid` is **definitely inside out** — its faces
@@ -4049,6 +4082,16 @@ impl fmt::Display for ValidationError {
                 "a curved face is inside-out: its stored orientation disagrees with its \
                  boundary. {DEFECT}"
             ),
+            Self::SeamRegionOvercovered { times, .. } => write!(
+                f,
+                "the faces of one sphere overlap: together they cover their region {times} \
+                 times over. {DEFECT}"
+            ),
+            Self::SeamRegionCoverUnresolved { .. } => write!(
+                f,
+                "whether the faces of one sphere overlap cannot be decided at this tolerance. \
+                 Recourse: validate at a finer tolerance"
+            ),
             Self::NegativeVolume { .. } => write!(
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
@@ -5588,6 +5631,9 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
 struct SeamRegion<T: Real> {
     members: Vec<FaceKey>,
     loops: Vec<Vec<geom_brep::props::LoopEdge<T>>>,
+    /// Each member's sense bit and the run of `loops` that is its own,
+    /// in `members` order.
+    claims: Vec<(bool, core::ops::Range<usize>)>,
     boundary: Vec<Vec<geom_brep::props::LoopEdge<T>>>,
     /// Some boundary cycle passes through one vertex twice: the region
     /// touches itself there, and its boundary is no set of simple loops
@@ -5625,10 +5671,12 @@ fn seam_region<T: Decide>(body: &Body<T>, start: FaceKey) -> Option<SeamRegion<T
     let carrier = face(start).surface;
     let mut members = vec![start];
     let mut loops = Vec::new();
+    let mut claims = Vec::new();
     let mut half_edges = Vec::new();
     let mut i = 0;
     while let Some(&f) = members.get(i) {
         let rec = face(f);
+        let first = loops.len();
         for lk in core::iter::once(rec.outer).chain(rec.rings.iter().copied()) {
             let (edges, hes) = crate::props::loop_edges(body, lk).ok()?;
             for &h in &hes {
@@ -5640,6 +5688,7 @@ fn seam_region<T: Decide>(body: &Body<T>, start: FaceKey) -> Option<SeamRegion<T
             loops.push(edges);
             half_edges.extend(hes);
         }
+        claims.push((rec.sense, first..loops.len()));
         i += 1;
     }
     let inside = |h: HalfEdgeKey| members.contains(&across(h));
@@ -5684,6 +5733,7 @@ fn seam_region<T: Decide>(body: &Body<T>, start: FaceKey) -> Option<SeamRegion<T
     Some(SeamRegion {
         members,
         loops,
+        claims,
         boundary,
         pinched,
     })
@@ -7658,18 +7708,52 @@ pub(crate) fn tier3_local_checks_marked<
                         let Some(region) = seam_region(body, face_key) else {
                             continue; // derivation exempt (posture above)
                         };
+                        let boundary: Vec<&[_]> =
+                            region.boundary.iter().map(Vec::as_slice).collect();
+                        let loops: Vec<&[_]> = region.loops.iter().map(Vec::as_slice).collect();
                         let side = (!region.pinched)
                             .then(|| {
-                                let boundary: Vec<&[_]> =
-                                    region.boundary.iter().map(Vec::as_slice).collect();
-                                let loops: Vec<&[_]> =
-                                    region.loops.iter().map(Vec::as_slice).collect();
                                 geom_brep::props::sphere_region_material_sign(
                                     surface, &boundary, &loops, band,
                                 )
                                 .ok()
                             })
                             .flatten();
+                        // The cover census, once per region: the members'
+                        // claims under their bits cover it once, or their
+                        // faces overlap, whether or not the boundary
+                        // encodes a side. A refused derivation is exempt
+                        // (posture above); a threshold read in the band
+                        // refuses, as nothing else reads the overlap.
+                        if !region.pinched {
+                            let claims: Vec<(bool, &[&[_]])> = region
+                                .claims
+                                .iter()
+                                .map(|(sense, run)| (*sense, &loops[run.clone()]))
+                                .collect();
+                            match geom_brep::props::sphere_region_cover(
+                                surface, &boundary, &claims, band,
+                            ) {
+                                Ok(geom_brep::props::SeamCover::Over { times }) => {
+                                    errors.push(ValidationError::SeamRegionOvercovered {
+                                        face: face_key,
+                                        times,
+                                    });
+                                }
+                                Ok(geom_brep::props::SeamCover::Unresolved) => {
+                                    errors.push(ValidationError::SeamRegionCoverUnresolved {
+                                        face: face_key,
+                                    });
+                                }
+                                // Covered once; or members whose bits
+                                // disagree, a lamina check 4 refuses.
+                                Ok(
+                                    geom_brep::props::SeamCover::Once
+                                    | geom_brep::props::SeamCover::MixedSense,
+                                )
+                                | Err(_) => {}
+                            }
+                        }
                         let members = region.members;
                         regions.push((members, side));
                         side
