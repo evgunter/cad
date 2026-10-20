@@ -731,6 +731,10 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             half_edge,
             cause: diag(),
         },
+        PcurveMintError::NetStretchUndecided {
+            half_edge,
+            cause: diag(),
+        },
     ];
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
     v.extend(

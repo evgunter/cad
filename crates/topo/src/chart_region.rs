@@ -2651,7 +2651,7 @@ fn certified_arms<T: Decide + Bounds>(
             let v_abs = v_lo.abs().max(v_hi.abs());
             // **`cos` is monotone only on `[0, π/2]`, and the window
             // is not required to live there.** `v` is shifted by whole
-            // periods of `τ` by `shift_polar_branch`, so a stored
+            // periods of `τ` by `shift_v_branch`, so a stored
             // branch can carry `|v| > π/2`, and past `π` the cosine
             // comes back POSITIVE — `cos 6.5 ≈ 0.977` — while the
             // window it describes has swept the pole and the true inf
