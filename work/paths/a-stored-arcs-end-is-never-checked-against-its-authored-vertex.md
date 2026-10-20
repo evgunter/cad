@@ -2,7 +2,8 @@
 id: a-stored-arcs-end-is-never-checked-against-its-authored-vertex
 kind: issue
 title: paths: nothing checks a stored arc's end against the end vertex it was authored to, so a construction whose arithmetic misses passes validation silently (path.rs's 'verified-never-trusted' promise)
-status: open
+status: dispatched
+branch: paths/stored-arc-landing-check
 opened: 2026-10-19
 priority: P2
 ---
