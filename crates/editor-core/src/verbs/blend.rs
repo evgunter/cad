@@ -37,7 +37,7 @@ use sweep::blend::naming::BlendNaming;
 use topo::{Body, EdgeKey};
 #[cfg(test)]
 use verbs::VerbKind;
-use verbs::{ScalarParam, Verb, VerbRecord};
+use verbs::{Blend, ScalarParam, VerbRecord};
 
 use super::SlotJoin;
 use crate::names::{self, NameTable, NamingError};
@@ -58,7 +58,7 @@ pub(crate) type Emitter<T> = fn(
 /// **One blend verb's correspondence**, as data.
 ///
 /// Everything the generic lowering needs to turn a `Node` into a
-/// [`verbs::Verb`] and its result into a name table. Adding a field here is
+/// [`verbs::Blend`] and its result into a name table. Adding a field here is
 /// how a verb declares something the lowering must know; adding an
 /// arm to a match inside the lowering is not.
 ///
@@ -80,8 +80,8 @@ pub(crate) type Emitter<T> = fn(
 pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// **Slot value + resolved selection → the kernel verb.** The one
     /// place a document's evaluated size and canonical edge keys become
-    /// a [`verbs::Verb`] payload, per instance.
-    pub(crate) build: fn(Vec<EdgeKey>, T) -> Verb<T>,
+    /// a [`verbs::Blend`] payload, per instance.
+    pub(crate) build: fn(Vec<EdgeKey>, T) -> Blend<T>,
     /// This verb's naming emitter — see the module docs on what this
     /// choice does and does not decide.
     pub(crate) emitter: Emitter<T>,
@@ -122,13 +122,13 @@ pub(crate) const CHAMFER_SLOTS: SlotJoin = SlotJoin {
 
 /// The fillet's kernel payload. A named function rather than a closure
 /// so it can be a plain `fn` pointer in the struct above.
-fn build_fillet<T: geom_core::Real>(edges: Vec<EdgeKey>, radius: T) -> Verb<T> {
-    Verb::Fillet { edges, radius }
+fn build_fillet<T: geom_core::Real>(edges: Vec<EdgeKey>, radius: T) -> Blend<T> {
+    Blend::Fillet { edges, radius }
 }
 
 /// The chamfer's kernel payload.
-fn build_chamfer<T: geom_core::Real>(edges: Vec<EdgeKey>, distance: T) -> Verb<T> {
-    Verb::Chamfer { edges, distance }
+fn build_chamfer<T: geom_core::Real>(edges: Vec<EdgeKey>, distance: T) -> Blend<T> {
+    Blend::Chamfer { edges, distance }
 }
 
 /// The blend family's arm of the record channel. Exhaustive with no
@@ -195,8 +195,8 @@ mod tests {
     /// the check the deleted `kind` match used to make structurally.
     #[test]
     fn each_correspondence_builds_its_own_verb() {
-        let f: Verb<f64> = (fillet::<f64>().build)(Vec::new(), 1.0);
-        let c: Verb<f64> = (chamfer::<f64>().build)(Vec::new(), 1.0);
+        let f: Blend<f64> = (fillet::<f64>().build)(Vec::new(), 1.0);
+        let c: Blend<f64> = (chamfer::<f64>().build)(Vec::new(), 1.0);
         assert_eq!(f.kind(), VerbKind::Fillet, "the fillet built a {f:?}");
         assert_eq!(c.kind(), VerbKind::Chamfer, "the chamfer built a {c:?}");
         assert_eq!(

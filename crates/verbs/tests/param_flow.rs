@@ -40,7 +40,8 @@ use sweep::Revolution;
 use sweep::blend::naming::BlendNaming;
 use topo::{Body, BooleanInputs, BooleanOp, SweepStrategy};
 use verbs::{
-    Arity, EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord,
+    Arity, Blend, Boolean, EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Shell, Split,
+    Sweep, Verb, VerbKind, VerbRecord,
 };
 
 use crate::fixture::{disc, offset_disc, tol, x_axis, z_plane};
@@ -142,7 +143,7 @@ fn minted(rec: &BlendNaming) -> BTreeSet<RoleFamily> {
     out
 }
 
-fn record(verb: &Verb<f64>, operand: &Body<f64>) -> BlendNaming {
+fn record(verb: &Blend<f64>, operand: &Body<f64>) -> BlendNaming {
     let out = verb
         .run(&sweep::test_support::at_rest(operand, tol()), tol())
         .expect("the fixture is inside the door");
@@ -161,7 +162,7 @@ fn the_fillets_flow_names_families_the_record_mints() {
     let cube = sweep::test_support::cube(1.0, tol());
     let cube_edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
     let open = record(
-        &Verb::Fillet {
+        &Blend::Fillet {
             edges: cube_edges,
             radius: 0.1,
         },
@@ -171,7 +172,7 @@ fn the_fillets_flow_names_families_the_record_mints() {
     let dome = sweep::test_support::dome(1.0, tol());
     let rim = sweep::test_support::one_edge_rim_at(&dome, 1.0, 0.0);
     let closed = record(
-        &Verb::Fillet {
+        &Blend::Fillet {
             edges: vec![rim],
             radius: 0.05,
         },
@@ -206,7 +207,7 @@ fn the_chamfers_flow_is_empty_beside_a_real_record() {
     let cube = sweep::test_support::cube(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
     let rec = record(
-        &Verb::Chamfer {
+        &Blend::Chamfer {
             edges,
             distance: 0.1,
         },
@@ -246,7 +247,7 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
         .expect("a translation is rigid");
     let a = topo::AtRestBody::validate(a, tol()).expect("the unit cube is a finished body");
     let b = topo::AtRestBody::validate(b, tol()).expect("the shifted cube is a finished body");
-    let out = Verb::Boolean {
+    let out = Boolean {
         op: BooleanOp::Union,
         inputs: Box::new(BooleanInputs::default()),
     }
@@ -284,7 +285,7 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
 fn the_splits_flow_is_empty_beside_a_real_record() {
     let cube =
         sweep::test_support::finished("the cube", sweep::test_support::cube(1.0, tol()), tol());
-    let out = Verb::Split {
+    let out = Split {
         plane: z_plane(0.5),
     }
     .run_split(&cube, tol())
@@ -318,7 +319,7 @@ fn the_splits_flow_is_empty_beside_a_real_record() {
 #[test]
 fn the_shells_flow_is_empty_beside_a_real_record() {
     let cube = sweep::test_support::cube(1.0, tol());
-    let out = Verb::Shell {
+    let out = Shell {
         thickness: 0.1,
         open: Vec::new(),
     }
@@ -390,7 +391,7 @@ fn only_profile_operand_verbs_declare_a_profile_edge_source() {
 /// the only thing a per-edge source can be attached through.
 #[test]
 fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
-    let extruded = Verb::Extrude {
+    let extruded = Sweep::Extrude {
         distance: 1.0,
         side: ExtrudeSide::Along,
     }
@@ -404,7 +405,7 @@ fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
         "the extruded disc minted no side walls"
     );
 
-    let revolved = Verb::Revolve {
+    let revolved = Sweep::Revolve {
         axis: x_axis(),
         revolution: Revolution::Full,
     }
@@ -468,14 +469,14 @@ fn the_sweep_extents_reach_no_field() {
 /// A built verb's flow is its kind's — the payload does not enter it.
 #[test]
 fn the_flow_is_a_function_of_the_verb_name_only() {
-    let a = Verb::Fillet {
+    let a = Verb::Blend(Blend::Fillet {
         edges: Vec::new(),
         radius: 1.0_f64,
-    };
-    let b = Verb::Fillet {
+    });
+    let b = Verb::Blend(Blend::Fillet {
         edges: Vec::new(),
         radius: 2.0_f64,
-    };
+    });
     assert_eq!(a.param_flow(), b.param_flow());
     assert_eq!(a.param_flow(), VerbKind::Fillet.param_flow());
 }

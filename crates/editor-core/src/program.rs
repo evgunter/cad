@@ -466,14 +466,11 @@ pub struct ProfileProgram<S: crate::expr::Slot = crate::VarId> {
 /// The canonical `Doc` instantiation (the retired `ProfileDesc` seat).
 pub type ProfileDoc = crate::doc::Doc<ProfileProgram>;
 
-/// **What a replay of a whole program produces**: each loop as
-/// replayed at f64 and its structure record, both in program order
-/// and one per loop — the pair [`ProfileProgram::check`] and
-/// [`ProfileProgram::pieces`] read.
-type Replayed = (
-    Vec<profile::ConstructedLoop<f64>>,
-    Vec<profile::ReplayStructure>,
-);
+/// **What a validated replay of a whole program records**: each loop's
+/// replay structure record, in program order and one per loop, and the
+/// canonicalization the validation applied — the pair
+/// [`ProfileProgram::pieces`] names the canonical positions from.
+type Replayed = (Vec<profile::ReplayStructure>, profile::CanonicalStructure);
 
 // ------------------------------------------------------------------
 // The payload trait (Node<P> genericity's seam)
@@ -705,10 +702,6 @@ pub enum ProgramRefusal {
     /// [`StepIdFault::Shape`]), so they name no step reliably.
     /// Answered only by [`ProfileProgram::pieces`].
     StepIds(StepIdFault),
-    /// The program's replay record and its naming anchor do not
-    /// describe one program, so its pieces cannot be named — a kernel
-    /// bug. Answered only by [`ProfileProgram::pieces`].
-    Pieces(crate::eval::PiecesFault),
 }
 
 // LIB-DOORS F6 (reopened on review): a human-readable rendering. Each
@@ -743,7 +736,6 @@ impl core::fmt::Display for ProgramRefusal {
                  insert door mints them",
             ),
             Self::StepIds(fault) => write!(f, "the program's step ids are refused: {fault}"),
-            Self::Pieces(fault) => write!(f, "the program's pieces have no names: {fault}"),
         }
     }
 }
@@ -1859,20 +1851,18 @@ impl ProfileProgram {
     /// and this door answers any section through that section's own
     /// anchor.
     ///
-    /// The anchor is one record and `(3)` is another, so the two are
-    /// checked against each other rather than assumed to agree: the
-    /// permutation is derived from `(3)`, the decision canonicalization
-    /// recorded, and the anchor independently, by bit-matching the
-    /// canonical loop against the replayed one.
+    /// The anchor is read off `(3)` when the evaluation builds it
+    /// (`eval::anchor`'s `derive_naming`), so the two arrive here as two
+    /// arguments and are checked against each other rather than assumed
+    /// to be one evaluation's.
     ///
     /// # Why a disagreement ASSERTS rather than refusing typed
     ///
-    /// One evaluation produces both records, so two derivations of one
-    /// permutation that disagree are the evaluation contradicting
-    /// itself — a kernel bug, and kernel bugs panic (DM8). The one
-    /// cost is a caller that hands this door a `structure` and a
-    /// `naming` from two DIFFERENT evaluations: that mispairing panics
-    /// where it could have refused. It is a caller bug, no façade
+    /// One evaluation produces both records, the anchor from the
+    /// structure, so for one evaluation's pair they cannot disagree.
+    /// What a disagreement reports is a caller that handed this door a
+    /// `structure` and a `naming` from two DIFFERENT evaluations: that
+    /// mispairing panics where it could have refused. It is a caller bug, no façade
     /// caller can make it today, and it disappears by construction
     /// once the structure record rides on the evaluation's own value
     /// rather than arriving as a second argument
@@ -2094,18 +2084,13 @@ impl ProfileProgram {
         self.validated(env, tol).map(|_| ())
     }
 
-    /// The check's ladder, keeping what it produced: the validated
-    /// profile, and each loop as replayed with its
-    /// [`profile::ReplayStructure`], in program order — what
-    /// [`ProfileProgram::pieces`] names the canonical positions from.
-    /// Recording changes nothing about what is computed
+    /// The check's ladder, keeping what it recorded ([`Replayed`]):
+    /// what [`ProfileProgram::pieces`] names the canonical positions
+    /// from. Recording changes nothing about what is computed
     /// (`profile::replay_recording` is `replay` bit for bit plus the
-    /// account), so this and [`ProfileProgram::check`] cannot disagree.
-    fn validated(
-        &self,
-        env: &VarEnv<f64>,
-        tol: Tol,
-    ) -> Result<(profile::ValidatedProfile<f64>, Replayed), ProgramRefusal> {
+    /// account, and `validate_recording` is `validate` plus its record),
+    /// so this and [`ProfileProgram::check`] cannot disagree.
+    fn validated(&self, env: &VarEnv<f64>, tol: Tol) -> Result<Replayed, ProgramRefusal> {
         let (replayed, records) = self.replay_records(env, tol)?;
         // **The identity plane, and the check is honest about why.**
         // Validation is 2-D — `profile::validate` says so itself, and
@@ -2119,8 +2104,10 @@ impl ProfileProgram {
         // The loops are the replay's own construction, so validation
         // decides no arc's consistency checks (D1).
         let replayed = profile::ConstructedProfile::new(profile::SketchPlane::xy(), replayed);
-        let validated = replayed.validate(tol).map_err(ProgramRefusal::Validate)?;
-        Ok((validated, (replayed.into_parts().1, records)))
+        let (_, canonical) = replayed
+            .validate_recording(tol)
+            .map_err(ProgramRefusal::Validate)?;
+        Ok((records, canonical))
     }
 
     /// **The piece every canonical position of this program is**, under
@@ -2138,10 +2125,9 @@ impl ProfileProgram {
     /// # Errors
     ///
     /// [`ProfileProgram::check`]'s; [`ProgramRefusal::Unminted`] for a
-    /// program no document minted step ids for;
-    /// [`ProgramRefusal::StepIds`] for ids not shaped one list per loop
-    /// and one id per authored step; and [`ProgramRefusal::Pieces`]
-    /// where the replay and the naming anchor disagree.
+    /// program no document minted step ids for; and
+    /// [`ProgramRefusal::StepIds`] for ids not shaped one list per
+    /// loop and one id per authored step.
     pub fn pieces(
         &self,
         env: &VarEnv<f64>,
@@ -2151,15 +2137,11 @@ impl ProfileProgram {
             return Err(ProgramRefusal::Unminted);
         }
         self.check_id_shape().map_err(ProgramRefusal::StepIds)?;
-        let (validated, (loops, records)) = self.validated(env, tol)?;
-        let naming = crate::eval::derive_naming(&validated, &loops).unwrap_or_else(|| {
-            unreachable!(
-                "validation reindexes its input exactly, so its canonical loops match the \
-                 replayed ones they were minted from"
-            )
-        });
-        crate::eval::ProfilePieces::publish(&naming, &records, &self.ids)
-            .map_err(ProgramRefusal::Pieces)
+        let (records, canonical) = self.validated(env, tol)?;
+        let naming = crate::eval::derive_naming(&canonical);
+        Ok(crate::eval::ProfilePieces::publish(
+            &naming, &records, &self.ids,
+        ))
     }
 
     /// **Whether this program carries step ids at all.** A program no

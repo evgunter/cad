@@ -4840,7 +4840,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   holds and `NamingError` is what `NodeErrorKind::Naming` holds,
 ///   and both carriers are curated — so a consumer could match either
 ///   arm and had no way to name what it caught. That is the payload
-///   rule this list's own `VerbKind` entry states, and `crate::document`
+///   rule this list's own `NodeRefusal` entry states, and `crate::document`
 ///   and `crate::select` carry them now. `BifurcationKind` stays: its
 ///   carrier arm is not constructed before the M6 solver, so nothing
 ///   can hold one to name. (`ClassAdmission`/`class_admission` left this family

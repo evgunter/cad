@@ -27,19 +27,13 @@
 //!
 //! The profile value carries a per-loop [`LoopAnchor`] — which program
 //! loop a canonical loop came from and whether canonicalization
-//! reversed it, recovered by BIT-matching the canonical f64 loop
-//! against the replayed (program-order) f64 loop. A canonical segment
-//! is read back to the program segment it is (`s ↦ n − 1 − s` on a
-//! reversed loop), and the replay record names that segment's piece
-//! (`profile::ReplayStructure::pieces`).
-//!
-//! The match is exact: canonical loops are EXACT reindexings of their
-//! input (validate's own contract), starting at the authored vertex 0.
-//! Uniqueness needs positions AND arcs — an arc's sweep sign pins the
-//! orientation parity, which positions alone cannot decide at n = 2
-//! (see `derive_naming`).
+//! reversed it, read off the f64 validation's own record
+//! (`profile::CanonicalStructure`, `derive_naming`). A canonical
+//! segment is read back to the program segment it is (`s ↦ n − 1 − s`
+//! on a reversed loop), and the replay record names that segment's
+//! piece (`profile::ReplayStructure::pieces`).
 
-use profile::{ConstructedLoop, Segment, SegmentKind, ValidatedProfile};
+use profile::ValidatedProfile;
 
 use crate::names::{
     NamingError, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
@@ -139,148 +133,80 @@ pub struct ProfilePieces {
     pub reversed: Vec<bool>,
 }
 
-/// **Why a profile's pieces could not be published**: the naming
-/// anchor, the replay record and the minted ids do not describe one
-/// program. All three are built from one program in one pass, so each
-/// of these is a kernel bug, surfaced typed
-/// ([`crate::NodeErrorKind::ProfilePieces`],
-/// [`crate::ProgramRefusal::Pieces`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PiecesFault {
-    /// A canonical loop's anchor names a program loop the replay
-    /// record has no loop for.
-    NoRecord {
-        /// The program loop the anchor names.
-        loop_: u32,
-    },
-    /// A canonical loop's anchor names a program loop the minted ids
-    /// have no list for.
-    NoIds {
-        /// The program loop the anchor names.
-        loop_: u32,
-    },
-    /// The replay recorded a different number of segments for a loop
-    /// than the anchored canonical loop has.
-    Length {
-        /// The program loop.
-        loop_: u32,
-        /// Segments the replay recorded.
-        recorded: usize,
-        /// Segments the canonical loop has.
-        anchored: u32,
-    },
-    /// A recorded piece names a step past the loop's list of minted
-    /// ids.
-    NoStepId {
-        /// The program loop.
-        loop_: u32,
-        /// The step, in program order.
-        step: usize,
-        /// How many ids the loop's list holds.
-        ids: usize,
-    },
-}
-
-impl core::fmt::Display for PiecesFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::NoRecord { loop_ } => write!(
-                f,
-                "program loop {loop_} has no replay record to name its pieces by. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::NoIds { loop_ } => write!(
-                f,
-                "program loop {loop_} has no minted step ids to name its pieces by. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::Length {
-                loop_,
-                recorded,
-                anchored,
-            } => write!(
-                f,
-                "program loop {loop_} replayed {recorded} segments but its canonical loop has \
-                 {anchored}. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::NoStepId { loop_, step, ids } => write!(
-                f,
-                "step {step} of program loop {loop_} drew a piece but the loop has only {ids} \
-                 minted step ids. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-        }
-    }
-}
-
-impl core::error::Error for PiecesFault {}
-
 impl ProfilePieces {
     /// **An authored profile's pieces**: each canonical segment read
     /// back through its loop's anchor to the program segment it is,
     /// whose piece the replay recorded, spelled with the step's minted
     /// id.
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// [`PiecesFault`] where the three records do not describe one
-    /// program.
+    /// Where the three records do not describe one program, which only
+    /// a kernel bug reaches: the anchor is the validation's reindexing
+    /// of the loops the replay recorded ([`derive_naming`]), the replay
+    /// records one piece per segment of each loop, drawn by one of its
+    /// authored steps, and a document's profile carries one id list
+    /// per loop and one id per authored step
+    /// (`ProfileProgram::check_id_shape`, held at every door that
+    /// writes ids).
+    #[track_caller]
     pub(crate) fn publish(
         naming: &ProfileNaming,
         replay: &[profile::ReplayStructure],
         ids: &[Vec<StepId>],
-    ) -> Result<Self, PiecesFault> {
+    ) -> Self {
         let mut edges = Vec::with_capacity(naming.loops.len());
         let mut vertices = Vec::with_capacity(naming.loops.len());
         let reversed = naming.loops.iter().map(|a| a.reversed).collect();
         for anchor in &naming.loops {
             let loop_ = anchor.program_loop;
             let pl = loop_ as usize;
-            let pieces = &replay
-                .get(pl)
-                .ok_or(PiecesFault::NoRecord { loop_ })?
-                .pieces;
-            let steps = ids.get(pl).ok_or(PiecesFault::NoIds { loop_ })?;
-            if pieces.len() != anchor.len as usize {
-                return Err(PiecesFault::Length {
-                    loop_,
-                    recorded: pieces.len(),
-                    anchored: anchor.len,
-                });
-            }
-            let piece = |program_segment: u32| -> Result<ProfileEdgeRef, PiecesFault> {
-                let length = PiecesFault::Length {
-                    loop_,
-                    recorded: pieces.len(),
-                    anchored: anchor.len,
-                };
-                let p = pieces.get(program_segment as usize).ok_or(length)?;
-                let step = *steps.get(p.step).ok_or(PiecesFault::NoStepId {
-                    loop_,
-                    step: p.step,
-                    ids: steps.len(),
-                })?;
-                Ok(ProfileEdgeRef::Piece { step, role: p.role })
+            let (Some(record), Some(steps)) = (replay.get(pl), ids.get(pl)) else {
+                unreachable!(
+                    "program loop {loop_} has no replay record or no id list ({} records, {} \
+                     lists): the anchor names a loop of the program both were made from",
+                    replay.len(),
+                    ids.len()
+                )
             };
-            edges.push(
-                (0..anchor.len)
-                    .map(|k| piece(anchor.segment(k)))
-                    .collect::<Result<Vec<_>, _>>()?,
-            );
+            let pieces = &record.pieces;
+            if pieces.len() != anchor.len as usize {
+                unreachable!(
+                    "program loop {loop_} replayed {} segments but its canonical loop has {}: the \
+                     canonical loop is that loop reindexed",
+                    pieces.len(),
+                    anchor.len
+                )
+            }
+            // `segment` and `vertex` answer below `anchor.len`, which is
+            // `pieces.len()`.
+            let piece = |program_segment: u32| -> ProfileEdgeRef {
+                let p = &pieces[program_segment as usize];
+                let Some(&step) = steps.get(p.step) else {
+                    unreachable!(
+                        "step {} of program loop {loop_} drew a piece but the loop has only {} \
+                         minted step ids: a piece is drawn by an authored step, and there is \
+                         one id per authored step",
+                        p.step,
+                        steps.len()
+                    )
+                };
+                ProfileEdgeRef::Piece { step, role: p.role }
+            };
+            edges.push((0..anchor.len).map(|k| piece(anchor.segment(k))).collect());
             // Canonical vertex `v` is program vertex `anchor.vertex(v)`,
             // where the program segment of the same index starts.
             vertices.push(
                 (0..anchor.len)
-                    .map(|v| piece(anchor.vertex(v)).map(|e| e.start()))
-                    .collect::<Result<Vec<_>, _>>()?,
+                    .map(|v| piece(anchor.vertex(v)).start())
+                    .collect(),
             );
         }
-        Ok(Self {
+        Self {
             edges,
             vertices,
             reversed,
-        })
+        }
     }
 
     /// **A kernel-built section's pieces** — a tube's: loop 0 the outer
@@ -480,111 +406,31 @@ pub(crate) struct ProfilePre {
     pub decided: geom_core::k_stats::Recorded,
 }
 
-/// An arc's stored fields as bits — centre, radius, sweep — for the
-/// anchor's exact match.
-fn arc_bits(arc: geom_core::Arc2<f64>) -> [u64; 4] {
-    [
-        arc.centre.x.to_bits(),
-        arc.centre.y.to_bits(),
-        arc.radius.to_bits(),
-        arc.sweep.to_bits(),
-    ]
-}
-
-/// Derives the anchor by bit-matching the canonical f64 loops against
-/// the replayed program-order f64 loops. `None` on a failed match —
-/// an internal invariant break (validate's exact-reindexing contract),
-/// surfaced typed by the caller, never a panic.
-///
-/// The match covers vertex POSITIONS, each validated segment's KIND and
-/// an arc's carrier and sweep, and the constructed joint set. Positions
-/// alone are NOT enough (PR #291 review MAJOR-1, both reviewers,
-/// executed): on a 2-vertex loop the forward and reversed maps agree on
-/// every position (index arithmetic mod 2), so a reversed hole circle —
-/// `circle()` lowers CCW, canonicalization orients holes CW — would
-/// recover `reversed: false` and swap the two semicircles' program
-/// names. The arcs disambiguate the parity exactly: canonicalization's
-/// reversal copies each stored carrier and NEGATES its sweep
-/// (bit-exact) and reindexes the segments (canonical segment k =
-/// program segment n−1−k traversed backward), while the identity
-/// carries them verbatim — so the condition holds for precisely one
-/// orientation whenever any validated segment is an arc. A validated
-/// `Line` matches either stored kind, because a sub-tolerance stored
-/// arc classifies as one and keeps no carrier to compare; a loop with
-/// no validated arc needs n ≥ 3 to close, where positions already
-/// decide. Constructed joints ride the same maps and are checked as sets.
-pub(crate) fn derive_naming(
-    validated: &ValidatedProfile<f64>,
-    program_loops: &[ConstructedLoop<f64>],
-) -> Option<ProfileNaming> {
-    let mut anchors = Vec::with_capacity(validated.loops().len());
-    for vl in validated.loops() {
-        let cv = vl.vertices();
-        let mut found = None;
-        'progs: for (pi, pl) in program_loops.iter().enumerate() {
-            let pv = &pl.vertices();
-            if pv.len() != cv.len() || pv.is_empty() {
-                continue;
-            }
-            // An anchor stores its loop and count as `u32`; one that
-            // does not fit is no anchor, and the derivation fails typed
-            // rather than anchoring to a wrapped loop.
-            let program_loop = u32::try_from(pi).ok()?;
-            let n = u32::try_from(pv.len()).ok()?;
-            let bits = |p: &geom_core::Point2<f64>| (p.x.to_bits(), p.y.to_bits());
-            for reversed in [false, true] {
-                let a = LoopAnchor {
-                    program_loop,
-                    reversed,
-                    len: n,
-                };
-                let vmap = |k: u32| a.vertex(k) as usize;
-                let smap = |k: u32| a.segment(k) as usize;
-                let positions_ok = (0..n).all(|k| bits(&cv[k as usize]) == bits(&pv[vmap(k)]));
-                if !positions_ok {
-                    continue;
+/// **The anchor validation applied**, read off its own record: the
+/// canonical loop order is the outer loop and then the holes in program
+/// order, each loop reversed exactly where the record says
+/// canonicalization reversed it, and its length the canonical chain's
+/// segment count (a reversal keeps the count and the authored vertex 0),
+/// so the anchor is the reindexing itself rather than a match against
+/// its result.
+pub(crate) fn derive_naming(canonical: &profile::CanonicalStructure) -> ProfileNaming {
+    let outer = canonical
+        .loops
+        .iter()
+        .position(|l| l.role == profile::LoopRole::Outer);
+    let order = outer
+        .into_iter()
+        .chain((0..canonical.loops.len()).filter(|&i| Some(i) != outer));
+    ProfileNaming {
+        loops: order
+            .map(|i| {
+                let rec = &canonical.loops[i];
+                LoopAnchor {
+                    program_loop: crate::program::program_index(i),
+                    reversed: rec.reversed,
+                    len: crate::program::program_index(rec.segments.len()),
                 }
-                // Segments: verbatim forward, retraced under reversal
-                // (the carrier copied, the sweep negated) — bit-exact
-                // either way. A validated line may be a stored arc the
-                // classifier read as straight, so it matches either
-                // stored kind; a validated arc matches only its own
-                // carrier and sweep.
-                let segments_ok = (0..n).all(|k| {
-                    let stored = pl.segments()[smap(k)];
-                    match (vl.segments()[k as usize].kind, stored) {
-                        (SegmentKind::Line, _) => true,
-                        (SegmentKind::Arc { arc, .. }, Segment::Arc(p)) => {
-                            let want = if reversed { p.reversed() } else { p };
-                            arc_bits(arc) == arc_bits(want)
-                        }
-                        (SegmentKind::Arc { .. }, Segment::Line) => false,
-                    }
-                });
-                if !segments_ok {
-                    continue;
-                }
-                // Constructed joints as SETS under the vertex map
-                // (canonical joints are canonical vertex indices): the
-                // validated loop's tangent joints less the ones it
-                // decided from values are the ones the program's
-                // constructors made.
-                let decided = |j: &usize| vl.decided_joints().iter().any(|d| d.joint == *j);
-                let mut mapped: Vec<usize> = vl
-                    .tangent_joints()
-                    .iter()
-                    .filter(|j| !decided(j))
-                    .map(|&j| u32::try_from(j).ok().map(vmap))
-                    .collect::<Option<_>>()?;
-                mapped.sort_unstable();
-                if mapped != pl.constructed_joints() {
-                    continue;
-                }
-                found = Some(a);
-                break 'progs;
-            }
-        }
-        anchors.push(found?);
+            })
+            .collect(),
     }
-    Some(ProfileNaming { loops: anchors })
 }

@@ -737,14 +737,6 @@ BOUND_AS = {
     "CoherenceCondition": "CheckEvidence.chart_variant",
     "Unexaminable": "CheckEvidence.chart_variant",
     "CoherenceFinding": "CheckEvidence.metres",
-    # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
-    # internal wiring-bug refusal — and cross exactly as their carrier
-    # does: flattened to the `verb_arity` tag `EvaluationError.kind`
-    # answers (the same flattening the `Datum.direction` bullet above
-    # records for `UnitVec3Error`; the typed payload stays a Rust-side
-    # diagnosis surface).
-    "Arity": "EvaluationError.kind",
-    "VerbKind": "EvaluationError.kind",
     "UnevaluatedReason": "Verdict.reason",
     "PI": "pi_rad",
     # `DistributionField` names WHICH offset of a distribution a fault
@@ -1008,9 +1000,6 @@ BOUND_AS = {
     "keep_grid": "DocEdit.set_program",
     "ProfileEdgeRef": "Piece",
     "PieceRole": "Role",
-    # `PiecesFault` is what `NodeErrorKind::ProfilePieces` carries, and
-    # its arms cross at that carrier's second word.
-    "PiecesFault": "EvaluationError.inner_kind",
     # `MetaVersionError` is the same row one arm over, and it arrives
     # by the same reading failing. It was `NOT_CARRIED` under "the
     # curated face is a different shape", qualified: it is a nested
@@ -2450,9 +2439,8 @@ NOT_BOUND = {
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's
     # direction door refused and which of its four facts it reported.
     # It crosses as its carrier does, and its carrier does not cross
-    # (the row below) — the same flattening the `Arity`/`VerbKind`
-    # rows and the `Datum.direction` bullet's `UnitVec3Error` record,
-    # one level in.
+    # (the row below) — the same flattening the `Datum.direction`
+    # bullet's `UnitVec3Error` records, one level in.
     "DirectionRefusal": SHAPE,
     # `SnapshotError::InputList`'s payload: which of a node's own list
     # or designation rules a file broke. It crosses as its carrier does,

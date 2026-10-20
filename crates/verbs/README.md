@@ -147,19 +147,22 @@ is a different one; the naming convention between the two is stated in
 both crates' module docs.
 
 **V1 — the per-verb declaration is closed and kernel-side.** `Verb<T>`
-(`verbs/src/verb.rs`) holds an operation's parameters as data:
+(`verbs/src/verb.rs`) holds an operation's parameters as data, one
+variant per run door, each carrying that door's payload type:
 
-- `Fillet` and `Chamfer` — edge keys and a scalar;
-- `Extrude` — a depth and a side;
-- `Revolve` — a sketch-plane axis and a classified `Revolution`;
+- `Blend` — `Fillet` and `Chamfer`, edge keys and a scalar;
+- `Sweep` — `Extrude`, a depth and a side, and `Revolve`, a sketch-plane
+  axis and a classified `Revolution`;
 - `Boolean` — the regularized op and the declared coincidence intents in
   arena keys;
 - `Split` — the parting plane;
-- `Shell` — a thickness and the faces to open (one variant, since an
-  empty designation IS the sealed hollow).
+- `Shell` — a thickness and the faces to open (one verb, since an empty
+  designation IS the sealed hollow).
 
 Operand bodies are not in the payload: they are borrowed at the run
-doors, and what an operand IS, and how many, is declared data. The enum
+doors, and what an operand IS, and how many, is the door's signature. A
+door is a method of its payload type, so no verb can be handed to a door
+that does not answer it. The enum
 is `T: Real` (the revolve's axis is geometry) and carries no equality of
 any kind, deliberately: deciding whether two coordinates are the same is
 a classification band's question, never `==`'s.
@@ -168,16 +171,19 @@ The vocabulary's payload-free projection is `VerbKind`, and it names
 NINE verbs (`VerbKind::ALL`): the boolean's union, intersect and
 subtract are three kernel operations sharing one payload shape, and
 every commitment keyed on the vocabulary keeps them apart, so each is
-its own name. `VerbKind::arity` declares which door answers a verb;
-`Verb::kind` is the one place the projection is written, exhaustive.
+its own name. `VerbKind::arity` declares which door answers a verb and
+`Verb::arity` reads it off the variant; `tests/run_door.rs` holds the
+two to one answer. `Verb::kind` is the one place the projection is
+written, exhaustive.
 
 Each verb owns:
 
-- **its run door.** `Verb::run` (one body in, `VerbOut`), `run_pair`
-  (two bodies in, `PairOut` — the typed empty is part of the boolean's
-  contract, F8), `run_profile` (one borrowed `ValidatedProfile`, the
-  door's whole bundle back as the record), `run_split` (`SplitOut`, two
-  sides each a body or the typed empty) and `run_shell`. Every check,
+- **its run door.** `Blend::run` (one body in, `VerbOut`),
+  `Boolean::run_pair` (two bodies in, `PairOut` — the typed empty is part
+  of the boolean's contract, F8), `Sweep::run_profile` (one borrowed
+  `ValidatedProfile`, the door's whole bundle back as the record),
+  `Split::run_split` (`SplitOut`, two sides each a body or the typed
+  empty) and `Shell::run_shell`. Every check,
   refusal and minted entity is the op door's; these dispatch and re-wrap.
 - **its birth-record shape.** `VerbOut` carries the operation's own
   record in `VerbRecord`, one variant per record family, the kernel's
@@ -197,29 +203,28 @@ take the same operand and are two doors because their out-types differ.
 shell's op door demands certification rights
 (`Decide + CertifiedBounds + AtRestPolicy`) that no `Dual` scalar has.
 
-`run_shell` asks for those rights as a VALUE: a `topo::ShellDoor<T>`
+`Shell::run_shell` asks for those rights as a VALUE: a `topo::ShellDoor<T>`
 parameter whose one constructor is bounded on them. So the seat needs no
 second `impl` block, and the mixed pass instantiated at `Dual` still
 compiles against every door here — a scalar the per-scalar policy gives
 no door (`topo::AtRestPolicy::shell_door` answers `None`) has nothing to
 pass and refuses typed where it stands.
 
-The name `Arity` is kept for continuity: it crosses the document layer's
-refusal payload (`NodeErrorKind::VerbArity`, re-exported through
-`pncad`). Renaming it would cost approximately nothing, so keeping it is
-a decision that may be revisited, not a defect. `VerbError::Arity`
-speaks the rows in the doors' own names; `tests/run_door.rs` asserts
-that `Arity::ALL` and the door matrix name one set.
+The name `Arity` is kept for continuity. Renaming it would cost
+approximately nothing, so keeping it is a decision that may be
+revisited, not a defect. `tests/run_door.rs` asserts that every row of
+`Arity::ALL` is some verb's door.
 
 **A name is the vocabulary's to say, not a rendering each consumer
-picks.** `VerbKind` and `Arity` each carry a `Display` beside their
-`ALL`, written as an exhaustive match so a row the enum gains has no
-word until someone writes one, and the refusal renders through it. A
-fieldless row's word is its variant identifier — that is what the doors
-are called — and the boolean's three rows say their production door
-(`Union`, `Intersect`, `Subtract`) rather than the enum's coordinate for
-the verb. The censuses beside `ALL` hold the words apart: two rows
-saying the same word makes a refusal ambiguous about what it refused.
+picks.** `VerbKind` carries a `Display` beside its `ALL`, written as an
+exhaustive match so a verb the enum gains has no word until someone
+writes one, and the sentences naming a verb render through it. A
+fieldless verb's word is its variant identifier — that is what the
+doors are called — and the boolean's three rows say their production
+door (`Union`, `Intersect`, `Subtract`) rather than the enum's
+coordinate for the verb. The census beside `ALL` holds the words apart:
+two verbs saying the same word make a sentence ambiguous about which it
+names.
 
 **V2 — commitments are exhaustive matches to stable tags, held by their
 owners.** Every commitment a verb has is an exhaustive match over the

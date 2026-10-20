@@ -1384,7 +1384,7 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
 /// of them.**
 ///
 /// The permutation is recorded twice — once by canonicalization, once
-/// by the bit-match that anchors the names — and ONE evaluation
+/// in the anchor the names hang off, read from it — and ONE evaluation
 /// produces both. So a disagreement is not a question the caller asked
 /// badly, it is the evaluation contradicting itself, and DM8 rules
 /// that it panics. The `expected` text is the whole message: the

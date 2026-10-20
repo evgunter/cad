@@ -31,9 +31,9 @@
 //!
 //! A [`Verb`] is the operation's parameters reified as plain data:
 //! scalars at `T`, entity references as arena keys. Operand bodies are
-//! NOT in the payload — they are borrowed at run time, and the
-//! declaration states which door answers the verb instead
-//! ([`VerbKind::arity`]: one body in and one out for the blends, two
+//! NOT in the payload — they are borrowed at run time, and the verb's
+//! variant is the door that answers it instead
+//! ([`Verb::arity`]: one body in and one out for the blends, two
 //! bodies for the boolean, one validated PROFILE for the sweeps, one
 //! body in and TWO sides out for the split, and the shell's own row —
 //! the blends' two ends at a scalar that can certify — each behind its
@@ -86,4 +86,4 @@ mod verb;
 
 pub use flow::{EdgeScalar, FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
 pub use run::{PairOut, SplitOut, VerbError, VerbOut, VerbRecord};
-pub use verb::{Arity, Verb, VerbKind};
+pub use verb::{Arity, Blend, Boolean, Shell, Split, Sweep, Verb, VerbKind};

@@ -85,7 +85,7 @@
 // stop. A payload whose vocabulary one of the curated
 // lists owns lives on THAT list, spelled once; a payload whose only
 // home is the refusal holding it rides its carrier, which is what
-// `crate::document`'s `VerbKind` does. The cost is one extra `use`
+// `crate::document`'s `NodeRefusal` does. The cost is one extra `use`
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{

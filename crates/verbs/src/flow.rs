@@ -54,20 +54,20 @@ use crate::verb::{Verb, VerbKind};
 /// of a per-verb count copied into an assertion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarParam {
-    /// [`Verb::Fillet`]'s `radius`.
+    /// [`crate::Blend::Fillet`]'s `radius`.
     FilletRadius,
-    /// [`Verb::Chamfer`]'s `distance`.
+    /// [`crate::Blend::Chamfer`]'s `distance`.
     ChamferDistance,
-    /// [`Verb::Extrude`]'s `distance`.
+    /// [`crate::Sweep::Extrude`]'s `distance`.
     ExtrudeDistance,
-    /// [`Verb::Revolve`]'s angle — the scalar a `Revolution::Partial`
+    /// [`crate::Sweep::Revolve`]'s angle — the scalar a `Revolution::Partial`
     /// carries. `Revolution::Full` carries none, and the name still
     /// covers it: the flow is keyed on the parameter's NAME, and the
     /// row this name owns is empty for either spelling (an angle is an
     /// extent and reaches no stored field), so a full revolve has
     /// nothing to declare rather than a row that does not apply.
     RevolveAngle,
-    /// [`Verb::Shell`]'s `thickness`.
+    /// [`crate::Shell`]'s `thickness`.
     ShellThickness,
 }
 
