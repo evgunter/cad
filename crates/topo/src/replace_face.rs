@@ -1547,14 +1547,16 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
             }
         })
         .collect();
-    // The door's `SharedSurfaceKey` gate, which this hook does not run:
-    // a moved chart's slot is found by its `old_key`
-    // ([`moved_of`]), so two moves on one key would leave the second
-    // unread.
+    // The doors' gates, which this hook does not run: a moved chart's
+    // slot is found by its `old_key` ([`moved_of`]), so two moves on one
+    // key would leave the second unread. The public doors refuse them
+    // as `TogetherFaceRepeated` (one face named twice) or
+    // `SharedSurfaceKey` (two faces of one surface split across moves).
     for (i, chart) in charts.iter().enumerate() {
         assert!(
             charts[..i].iter().all(|c| c.old_key != chart.old_key),
-            "two moves on one surface key: the door refuses them (SharedSurfaceKey)"
+            "two moves on one surface key, which the public doors refuse \
+             (TogetherFaceRepeated for one face named twice, SharedSurfaceKey for two faces of one surface split across moves)"
         );
     }
     let mut boundary: Vec<EdgeKey> = Vec::new();

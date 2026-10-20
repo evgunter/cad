@@ -185,7 +185,7 @@ pub use props::{
 };
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
-pub use ssi::chart_mints;
+pub use ssi::charted_nurbs_mints;
 pub use ssi::{
     BandVerdict, BoundaryChart, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd,
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,

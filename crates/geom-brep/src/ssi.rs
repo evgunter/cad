@@ -1676,11 +1676,11 @@ thread_local! {
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 #[must_use]
-pub fn chart_mints() -> usize {
+pub fn charted_nurbs_mints() -> usize {
     CHART_MINTS.with(core::cell::Cell::get)
 }
 
-/// Counts one mint toward [`chart_mints`]; nothing outside test builds.
+/// Counts one mint toward [`charted_nurbs_mints`]; nothing outside test builds.
 fn count_mint() {
     #[cfg(any(test, feature = "test-support"))]
     CHART_MINTS.with(|n| n.set(n.get() + 1));

@@ -23,7 +23,7 @@ priority: P3
 
 ## Closed (2026-10-20)
 
-**The mint count.** `geom_brep::chart_mints()` is a test-only
+**The mint count.** `geom_brep::charted_nurbs_mints()` is a test-only
 (`test-support`) per-thread count of `ChartedNurbs::mint` and its grid
 form.
 
@@ -34,6 +34,13 @@ moves every chart of the planar prism and of the twisted loft through
 row asserts four mints per operation.
 - **M3** (a slot never filled) reads 8 on the prism and 16 on the
   loft, so it goes red.
+- **Held slots too.** Moving every chart never reads a held slot
+  (`WallCharts::held`), so a held-wall re-mint passes that row. The
+  second row,
+  `offd_r1_probes::moving_two_opposite_walls_mints_each_held_walls_chart_once`,
+  moves two opposite walls and holds the rest (moves of zero), so
+  each held wall is read by both its seams. It asserts four mints
+  (two moved, two held), and a held slot never read reads 6.
 - **Why not the shelling fixture.** It is in the slow set, which CI's
   default run skips, and it costs 54 s. The prism and loft rows run
   in 0.13 s in the default set, and their walls are each read by
