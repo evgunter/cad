@@ -211,7 +211,7 @@ thing it is about. Two ways of missing that are kept apart:
   ([placement.frame]).
 
 *Instantiated in:* [verdicts], [tolerance], [determinism],
-[placement], [edges].
+[placement], [edges], [identity] (the names' N0, `crates/editor-core/src/names/README.md`).
 
 ### Few kinds of thing, one way to do each `[one-way]`
 
