@@ -1808,9 +1808,11 @@ impl Doc {
     /// **Remove the constraint `mate` addresses, a mate with every value
     /// that names it**, as one action (ruling C-2): for a mate, each
     /// value's `DocEdit.remove_constraint` in bundle order, then the
-    /// mate's; for a value, its own; all applied or none
-    /// (`DocEdit::removing`). Answers the values' addresses that went
-    /// with a mate. `DocEdit.remove_constraint` stays the raw edit, which
+    /// mate's; for a value naming a mate, its own; for a value of a
+    /// bundle with no mate, the whole bundle, whose values state the
+    /// copy's motion together; all applied or none
+    /// (`DocEdit::removing`). Answers the addresses that went with the
+    /// one addressed. `DocEdit.remove_constraint` stays the raw edit, which
     /// refuses a mate a value names (`mate_named_by_value`).
     ///
     /// Refuses typed on `EditError`: `unknown_node`,
@@ -1830,18 +1832,24 @@ impl Doc {
                 constraint: at.id,
             });
         }
-        let values: Vec<super::mate::MateRef> = edits[..edits.len() - 1]
+        let values: Vec<super::mate::MateRef> = edits
             .iter()
-            .filter_map(|edit| match edit {
+            .flat_map(|edit| match edit {
                 d::DocEdit::RemoveConstraint {
                     placement,
                     constraint,
-                } => Some(super::mate::MateRef(d::MateRef::new(
-                    *placement,
-                    *constraint,
-                ))),
-                _ => None,
+                } => vec![d::MateRef::new(*placement, *constraint)],
+                d::DocEdit::RemoveConstraints {
+                    placement,
+                    constraints,
+                } => constraints
+                    .iter()
+                    .map(|c| d::MateRef::new(*placement, *c))
+                    .collect(),
+                _ => Vec::new(),
             })
+            .filter(|removed| *removed != at)
+            .map(super::mate::MateRef)
             .collect();
         let tol = Tol::witness();
         let mut action = d::Recording::start(&self.inner, tol);

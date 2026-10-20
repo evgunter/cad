@@ -3773,8 +3773,10 @@ class Doc:
         """Remove the constraint `mate` addresses as one action, a mate
         with every value that names it: each value's removal in bundle
         order, then the mate's, all applied or none; answers the removed
-        values' addresses. A value, or a mate no value
-        names is removed alone (answering `[]`).
+        values' addresses. A value naming a mate, or a mate no value
+        names, is removed alone (answering `[]`); a value of a bundle
+        with no mate takes the whole bundle with it, whose values state
+        the copy's motion together, and answers the others' addresses.
         `DocEdit.remove_constraint` stays the raw edit, which refuses a
         mate a value names (`mate_named_by_value`). Raises `EditError`:
         `unknown_node`, `constraint_on_non_placement`,
@@ -5867,6 +5869,10 @@ OVERCONSTRAINED_RECOURSE: Final[str]
 """The recourse an over-constrained bundle's refusal ends on: delete
 one of the named constraints, and where two copies also meet, assert
 it."""
+
+UNPINNED_RECOURSE: Final[str]
+"""The recourse a bundle with no mate that leaves a freedom unwritten
+refuses with (`mate_unpinned`): write every freedom as a value."""
 
 NO_AT_REST_RECORD_RECOURSE: Final[str]
 """The recourse the at-rest gate's `NoAtRestRecord` refusal ends on:

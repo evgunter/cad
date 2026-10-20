@@ -1809,7 +1809,8 @@ FAMILIES: dict[str, str] = {
 #:   over-constrained, outside the at-rest vocabulary, and pinned to a
 #:   version the store no longer holds — each end on a named sentence,
 #:   and binding two of the four would leave the other two assertable
-#:   only by re-typing prose.
+#:   only by re-typing prose. `UNPINNED_RECOURSE` is the under-determined
+#:   refusal's sentence for a bundle with no mate, bound with them.
 #: - *Structures Python's authoring surface replaces with its own.*
 #:   `Applied` and `EditRecord` are `apply`'s pair, and `Doc.apply`
 #:   mutates in place and answers `Optional[NodeId]`, so there is no
@@ -3827,6 +3828,11 @@ MEMBERS_BOUND_AS = {
     "MateFault::NoChart": "MateFault.variant",
     "MateFault::SideUnevaluated": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
+    "MateFault::Unpinned": "MateFault.variant",
+    # A bundle with no mate goes whole: `Doc.remove_mate` on any of its
+    # values writes this edit (`DocEdit::removing`) and answers the
+    # others' addresses.
+    "DocEdit::RemoveConstraints": "Doc.remove_mate",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
     "NodePickError::NotABody": "NodePickError.variant",
@@ -4210,6 +4216,14 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
+    # Two types, one word, in one crate: the resolver takes the first
+    # `Placed` `editor_core` declares, `coincide::Placed` (which copy a
+    # coincidence row's cell is on), where the façade's `Placed` is
+    # `mate::pin::Placed`, the placement gesture's answer, which
+    # Python's `Placed` mirrors (`mate`, `values`, `by`). Its arms have
+    # no Python namesake to be spelled on.
+    "Placed::Instance": SHAPE,
+    "Placed::World": SHAPE,
     # The document a report was taken of, which the kernel's `render`
     # checks it is handed. Python's `McReport` holds that document
     # itself and renders from it, so there is no second document to

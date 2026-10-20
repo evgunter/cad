@@ -1201,6 +1201,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;
     m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;
     m.add("OVERCONSTRAINED_RECOURSE", d::OVERCONSTRAINED_RECOURSE)?;
+    m.add("UNPINNED_RECOURSE", d::UNPINNED_RECOURSE)?;
     m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
     Ok(())
 }

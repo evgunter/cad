@@ -586,14 +586,13 @@ class TestBenchStand(BenchWorkspace):
             outcome.remainder.last_maintenance,
         )
         # The cut moves as selected: the instance left behind stands
-        # where its part's world stands — a mate on the world and its
-        # values — and the near post keeps its pin.
-        (_, left_behind), *values = outcome.remainder.bundle(outcome.instance)
-        self.assertIsInstance(left_behind, Mate)
-        self.assertIsInstance(left_behind.to, WorldRead)
-        self.assertTrue(values)
-        for _, value in values:
+        # where its part's world stands — the identity bundle, six values
+        # naming no mate — and the near post keeps its pin.
+        left_behind = outcome.remainder.bundle(outcome.instance)
+        self.assertEqual(len(left_behind), 6)
+        for _, value in left_behind:
             self.assertIsInstance(value, MateValue)
+            self.assertIsNone(value.mate)
 
         def pinned(part):
             return [
