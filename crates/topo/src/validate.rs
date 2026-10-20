@@ -12120,9 +12120,8 @@ mod tests {
                         margin: MarginDiag::value(-1e-3),
                     },
                 },
-                "a torus face's tube radius is larger than its ring's (margin -0.001 m), so the \
-                 surface is a spindle. Recourse: make the tube radius clearly smaller than the \
-                 ring radius"
+                "a torus face's tube radius is larger than its ring's (margin -0.001 m). \
+                 Recourse: make the tube radius clearly smaller than the ring radius"
                     .to_owned(),
             ),
             (
@@ -12353,7 +12352,7 @@ mod tests {
     /// kept-boundary arm. A definite arm names no tolerance before its
     /// recourse: the exact zero no tolerance decides reads it too.
     /// Certify's [`CertCheck`] word is a noun naming the length, not the
-    /// question, so it is held to that noun. The pin reads rendered text,
+    /// question, so it is held to [`geom_brep::DIHEDRAL_ARM_NOUN`]. The pin reads rendered text,
     /// so a door that re-spells the clause identically rather than
     /// composing the const passes it; that copy goes unseen until the
     /// clause changes. The SSI march's question is
@@ -12426,8 +12425,8 @@ mod tests {
         );
         assert_eq!(
             CertCheck::TransversalityArm.to_string(),
-            "the length its faces' angle is measured over",
-            "certify's word is a noun for the length"
+            geom_brep::DIHEDRAL_ARM_NOUN,
+            "certify's word is the arm's noun"
         );
         let ssi = geom_brep::SsiError::Escalated {
             decision: geom_brep::TraceDecision::TransversalityArm,

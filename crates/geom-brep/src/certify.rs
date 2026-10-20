@@ -308,7 +308,7 @@ impl core::fmt::Display for CertCheck {
             Self::WitnessMidpoint => "the witness-midpoint residual",
             Self::Transversality => "the transversality margin",
             Self::TransversalityTube => "the uniqueness tube's transversality bound",
-            Self::TransversalityArm => "the length its faces' angle is measured over",
+            Self::TransversalityArm => crate::DIHEDRAL_ARM_NOUN,
             Self::TangentPlanes => "the surfaces' tangent planes",
             Self::TangentParallel => "the normal-parallelism defect",
             Self::TangentGap => "the surfaces' separation along their shared normal",
@@ -526,10 +526,10 @@ pub enum CertifyError {
     },
     /// `Intersection` only: the folded lever arm the transversality
     /// margin is metered over was decided not positive at a sample — the
-    /// edge is too short, or a face curves too tightly there (a cone at
-    /// its apex), for an angle between the faces to be measured — the
-    /// definite arm of [`CertCheck::TransversalityArm`], whose undecided
-    /// arm is [`CertifyError::Escalated`].
+    /// faces' extent there, clamped by how tightly they curve (a cone at
+    /// its apex), leaves no width to measure an angle between them over —
+    /// the definite arm of [`CertCheck::TransversalityArm`], whose
+    /// undecided arm is [`CertifyError::Escalated`].
     ArmCollapsed {
         /// The interior sample index.
         sample: u32,
@@ -711,21 +711,9 @@ impl core::fmt::Display for CertifyError {
                 "wrap edge described on a non-periodic surface (a plane's \
                  chart closes in no direction)"
             ),
-            Self::IntervalNotForward {
-                verdict: Refused::Zero(Classified { margin, .. }),
-            } => write!(
-                f,
-                "the stored parameter interval is not shown to run forward (length {} m)",
-                margin.readable()
-            ),
-            Self::IntervalNotForward {
-                verdict: Refused::Negative { margin },
-            } => write!(
-                f,
-                "the stored interval runs backwards by {} m — the edge's parameter must increase \
-                 from its start vertex to its end",
-                margin.readable_below_zero()
-            ),
+            Self::IntervalNotForward { verdict } => {
+                StatedSpan::Forward(ForwardReading::Decided(*verdict)).tell(STORED_INTERVAL, f)
+            }
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
                 "the spline carrier's knot domain, metered at its certified speed floor, is {} \
@@ -733,30 +721,16 @@ impl core::fmt::Display for CertifyError {
                 verdict.worded("not shown above", "below"),
                 verdict.margin().readable()
             ),
-            Self::ArmCollapsed {
-                sample,
-                verdict: verdict @ Refused::Zero(_),
-            } => write!(
+            Self::ArmCollapsed { sample, verdict } => write!(
                 f,
-                "at sample {sample} the edge is not shown {} (margin {} m)",
+                "at sample {sample} the edge is {} {} (margin {} m)",
+                verdict.worded("not shown", "not"),
                 crate::DIHEDRAL_ARM_CLAUSE,
                 verdict.margin().readable()
             ),
-            Self::ArmCollapsed {
-                sample,
-                verdict: verdict @ Refused::Negative { .. },
-            } => write!(
-                f,
-                "at sample {sample} the length the faces' angle is measured over is below zero \
-                 (margin {} m)",
-                verdict.margin().readable()
-            ),
-            Self::WindingExceeded => write!(
-                f,
-                "a periodic carrier's parameter interval \
-                 spans more than one full period — |t₁ − t₀| ≤ τ is required to close the \
-                 sample-schedule winding alias (8kτ family)"
-            ),
+            Self::WindingExceeded => {
+                StatedSpan::Winding(WindingReading::Exceeded).tell(STORED_INTERVAL, f)
+            }
             Self::StatedInterval { refused } => write!(f, "{refused}"),
             // The check says its own noun ([`CertCheck`]'s `Display`);
             // this sentence decides only the grammar around it. Not
@@ -819,8 +793,8 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::TubeNotSeparated { verdict } => write!(
                 f,
-                "the certified lower bound on how far the faces curve apart is {} zero (margin \
-                 {} m) along the whole edge, so they are not proved to fix where it runs, though \
+                "along the whole edge the certified lower bound on how far the faces curve apart \
+                 is {} zero (margin {} m), so they are not proved to fix where it runs, though \
                  its description says they do",
                 verdict.worded("not shown above", "below"),
                 verdict.margin().readable()
@@ -1093,11 +1067,17 @@ impl StatedSpan {
     }
 }
 
-/// The reading's words come from its verdict, never its number: only a
-/// decided negative runs backwards by an amount.
-impl core::fmt::Display for StatedSpan {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let given = "this edge's parameter interval";
+/// The subject a refusal of the edge's own stored interval tells its span
+/// decision of ([`CertifyError::IntervalNotForward`],
+/// [`CertifyError::WindingExceeded`]).
+const STORED_INTERVAL: &str = "the stored parameter interval";
+
+impl StatedSpan {
+    /// **The span decisions' one sentence**, told of `given`: a door's
+    /// input ([`StatedSpan`]'s `Display`) or the stored interval
+    /// ([`STORED_INTERVAL`]). The words come from the verdict, never its
+    /// number: only a decided negative runs backwards by an amount.
+    fn tell(self, given: &str, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Forward(ForwardReading::Decided(Refused::Negative { margin })) => write!(
                 f,
@@ -1125,6 +1105,12 @@ impl core::fmt::Display for StatedSpan {
                 cause.margin.readable()
             ),
         }
+    }
+}
+
+impl core::fmt::Display for StatedSpan {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.tell("this edge's parameter interval", f)
     }
 }
 
@@ -7583,8 +7569,7 @@ mod tests {
             ),
             (
                 forward(below),
-                "the stored interval runs backwards by 5e-9 m — the edge's parameter must \
-                 increase from its start vertex to its end",
+                "the stored parameter interval runs backwards by 5e-9 m",
             ),
             (
                 meter(zero(sized)),
@@ -7609,8 +7594,8 @@ mod tests {
             ),
             (
                 arm(below),
-                "at sample 4 the length the faces' angle is measured over is below zero (margin \
-                 -5e-9 m)",
+                "at sample 4 the edge is not between faces wide enough, for how they curve, to \
+                 measure their angle (margin -5e-9 m)",
             ),
             (
                 crossing(None, zero(sized)),
@@ -7645,15 +7630,15 @@ mod tests {
             ),
             (
                 tube(zero(sized)),
-                "the certified lower bound on how far the faces curve apart is not shown above \
-                 zero (margin 5e-10 m) along the whole edge, so they are not proved to fix where \
-                 it runs, though its description says they do",
+                "along the whole edge the certified lower bound on how far the faces curve apart \
+                 is not shown above zero (margin 5e-10 m), so they are not proved to fix where it \
+                 runs, though its description says they do",
             ),
             (
                 tube(below),
-                "the certified lower bound on how far the faces curve apart is below zero \
-                 (margin -5e-9 m) along the whole edge, so they are not proved to fix where it \
-                 runs, though its description says they do",
+                "along the whole edge the certified lower bound on how far the faces curve apart \
+                 is below zero (margin -5e-9 m), so they are not proved to fix where it runs, \
+                 though its description says they do",
             ),
         ];
         // No payload claims no size or names a cause its verdict did not
@@ -7780,7 +7765,7 @@ mod tests {
 
     /// **The transversality margin's lever arm ends as a length, not an
     /// angle**: an escalation of the arm the wedge is metered over names
-    /// that edge's length and its faces' bend, and offers the tolerance
+    /// that edge's faces' extent and their bend, and offers the tolerance
     /// the arm gives, in band and in the zero band alike; the wedge's own
     /// escalation keeps the angle. (The review of PR 3513's fix pass
     /// rendered the arm under `Transversality`: "if this angle is
@@ -7805,7 +7790,7 @@ mod tests {
             };
             let arm = render(CertCheck::TransversalityArm);
             assert!(
-                arm.contains("the length its faces' angle is measured over")
+                arm.contains(crate::DIHEDRAL_ARM_NOUN)
                     && arm.ends_with(&format!(
                         "Recourse: move the geometry so that edge's faces clearly run farther and \
                          none curves tightly there, or, if this length or the gap its faces \

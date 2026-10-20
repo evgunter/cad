@@ -128,12 +128,40 @@ pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
 /// (D4 ¶1 (iv)).
 pub const DIHEDRAL_ARM_CLAUSE: &str = crate::dihedral_arm_clause!();
 
+/// The length [`DIHEDRAL_ARM`] decides, as a noun: the faces' width the
+/// clause asks for, for a door that names the quantity rather than the
+/// question. It and [`DIHEDRAL_ARM_CLAUSE`] read one spelling of what
+/// the width is for, so the noun and the question cannot drift apart.
+pub const DIHEDRAL_ARM_NOUN: &str = crate::dihedral_arm_noun!();
+
+/// What the dihedral arm's width is for: the one spelling
+/// [`DIHEDRAL_ARM_CLAUSE`] and [`DIHEDRAL_ARM_NOUN`] compose.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! dihedral_arm_measure {
+    () => {
+        "for how they curve, to measure their angle"
+    };
+}
+
 /// [`DIHEDRAL_ARM_CLAUSE`] as a literal, for `concat!`.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! dihedral_arm_clause {
     () => {
-        "between faces wide enough, for how they curve, to measure their angle"
+        concat!(
+            "between faces wide enough, ",
+            $crate::dihedral_arm_measure!()
+        )
+    };
+}
+
+/// [`DIHEDRAL_ARM_NOUN`] as a literal, for `concat!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! dihedral_arm_noun {
+    () => {
+        concat!("the faces' width, ", $crate::dihedral_arm_measure!())
     };
 }
 
