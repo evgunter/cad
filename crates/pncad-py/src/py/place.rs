@@ -240,6 +240,30 @@ impl Frame {
         .map_err(|err| super::doc::edit_err(py, &d::EditError::from(err)))
     }
 
+    /// Rotate by `num/den` of a turn about the axis through the WORLD
+    /// ORIGIN with direction `axis`, THEN translate by `v`: the
+    /// rotation's sine and cosine read from the fraction, so a whole
+    /// number of quarter turns about a coordinate axis has columns of
+    /// `0` and `±1` exactly. Refuses the axis as `rotate_then_translate`
+    /// does; a zero `den` is a `ValueError`.
+    #[staticmethod]
+    fn rotate_by_turns_then_translate(
+        py: Python<'_>,
+        axis: (f64, f64, f64),
+        num: i64,
+        den: u64,
+        v: (Length, Length, Length),
+    ) -> PyResult<Self> {
+        let turns = pncad::geom_core::Turns::new(num, den).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("a fraction of a turn has a nonzero denominator")
+        })?;
+        let band = pncad::geom_core::Band::linear(Tol::witness())
+            .map_err(|error| super::checks::checks_err(py, &d::ChecksError::Band { error }))?;
+        d::Frame::rotate_by_turns_then_translate([axis.0, axis.1, axis.2], turns, meters(v), band)
+            .map(Self)
+            .map_err(|err| super::doc::edit_err(py, &d::EditError::from(err)))
+    }
+
     /// The frame at `eye` whose local **+Z aims at** `target`, with
     /// local +X placed by `roll_reference`.
     ///

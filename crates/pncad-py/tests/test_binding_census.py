@@ -1119,6 +1119,8 @@ BOUND_AS = {
     # split's instance it cannot pin crosses as
     # `SplitError.inner_variant`.
     "place_at": "Doc.place_at",
+    # A body's own frame at a corner it has, as a pose to read.
+    "corner_frame": "Doc.corner_frame",
     # The other two placement gestures: a copy placed against another
     # body's geometry, and a copy standing where its own coordinates
     # put it — `Doc.place` with neither constraints nor a pose.
@@ -3055,12 +3057,11 @@ NOT_BOUND = {
     # themselves.
     "frame_at": INTERIOR,
     "frame_at_in": INTERIOR,
-    # A frame read off a body's corner, and a frame moved by stated
-    # turns and slides: Python spells both through the `PoseDef` doors
-    # they are made of (`PoseDef.through` of an edge's axis and a
-    # vertex's point; `PoseDef.spin` and `PoseDef.slide` by a `Formula`,
-    # `Formula.turn_over(4)` a quarter turn).
-    "corner_frame": INTERIOR,
+    # A frame read off a body's corner over an evaluation the caller
+    # holds (`Doc.corner_frame` evaluates its own), and a frame moved by
+    # stated turns and slides, which Python spells through the
+    # `PoseDef` doors it is made of (`PoseDef.spin` and `PoseDef.slide`
+    # by a `Formula`, `Formula.turn_over(4)` a quarter turn).
     "corner_frame_in": INTERIOR,
     "moved_frame": INTERIOR,
     "FrameMove": INTERIOR,

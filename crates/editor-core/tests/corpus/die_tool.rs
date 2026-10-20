@@ -73,27 +73,28 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// `+Z` pole onto the face normal it is cut by, so every chart stays
 /// polar to the plane that cuts it.
 ///
-/// Every angle is `0`, `±π/2` or `π` about a coordinate axis — the
-/// placement is DATA, not a runtime `cross`/`acos` branch, which is
-/// exactly what an explicit rule is for.
+/// Every turn is `0`, a quarter or a half turn about a coordinate axis,
+/// written as the fraction of a turn it is, so each frame's columns are
+/// `0` and `±1` exactly — the placement is DATA, not a runtime
+/// `cross`/`acos` branch, which is exactly what an explicit rule is for.
 fn placements() -> Vec<Frame> {
-    use std::f64::consts::{FRAC_PI_2, PI};
     let h = DIE_L / 2.0;
     let lo = DIE_L - PIP_C; // the −normal faces' centre coordinate
     let x = [1.0, 0.0, 0.0];
     let y = [0.0, 1.0, 0.0];
     let z = [0.0, 0.0, 1.0];
     [
-        (z, 0.0, [h, h, PIP_C]),
-        (x, PI, [h, h, lo]),
-        (y, FRAC_PI_2, [PIP_C, h, h]),
-        (y, -FRAC_PI_2, [lo, h, h]),
-        (x, -FRAC_PI_2, [h, PIP_C, h]),
-        (x, FRAC_PI_2, [h, lo, h]),
+        (z, (0, 1), [h, h, PIP_C]),
+        (x, (1, 2), [h, h, lo]),
+        (y, (1, 4), [PIP_C, h, h]),
+        (y, (-1, 4), [lo, h, h]),
+        (x, (-1, 4), [h, PIP_C, h]),
+        (x, (1, 4), [h, lo, h]),
     ]
     .into_iter()
-    .map(|(axis, angle, t)| {
-        Frame::rotate_then_translate(axis, angle, t, crate::fixture::band())
+    .map(|(axis, (num, den), t)| {
+        let turns = geom_core::Turns::new(num, den).expect("a fraction of a turn");
+        Frame::rotate_by_turns_then_translate(axis, turns, t, crate::fixture::band())
             .expect("a literal axis has a definite direction")
     })
     .collect()
@@ -129,10 +130,11 @@ pub fn document() -> CorpusDoc {
     ));
 
     // ---- the master in the cube's space, its pole along +Z ----
-    let master = r.against(
-        cube,
-        editor_core::Operand::output(ball, 0),
-        &crate::fixture::frame_at([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    let own = r.corner_frame(cube, [0.0; 3], [0.0, 0.0, DIE_L], [DIE_L, 0.0, 0.0]);
+    let master = r.on_axis(
+        ball,
+        own,
+        editor_core::Formula::zero(editor_core::Dimension::Length),
     );
 
     // ---- the whole cutting tool, in ONE node ----

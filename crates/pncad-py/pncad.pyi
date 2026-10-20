@@ -1969,6 +1969,20 @@ class Frame:
         finite."""
 
     @staticmethod
+    def rotate_by_turns_then_translate(
+        axis: tuple[float, float, float],
+        num: int,
+        den: int,
+        v: tuple[Length, Length, Length],
+    ) -> Frame:
+        """Rotate by `num/den` of a turn about `axis` through the WORLD
+        ORIGIN, THEN translate: the rotation's sine and cosine read from
+        the fraction, so a whole number of quarter turns about a
+        coordinate axis has columns of `0` and `±1` exactly. The axis
+        is decided as `rotate_then_translate`'s is; a zero `den` raises
+        ValueError."""
+
+    @staticmethod
     def point_at(
         eye: tuple[Length, Length, Length],
         target: tuple[Length, Length, Length],
@@ -3966,6 +3980,24 @@ class Doc:
         axis mate on a full revolve's or ring's own axis), and the
         values that put it there; one action, refusing as `place_at`
         does."""
+
+    def corner_frame(
+        self,
+        body: _Operand,
+        corner: tuple[Length, Length, Length],
+        up: tuple[Length, Length, Length],
+        toward: tuple[Length, Length, Length],
+        *,
+        resolver: Optional[Workspace] = None,
+    ) -> PoseDef:
+        """`body`'s own frame at a corner it has, as a pose to read: the
+        frame through its straight edge from `corner` to `up` (its `z`,
+        that way) and its vertex at `toward` (its `x` the way to it),
+        each picked where the evaluation puts it exactly, in `body`'s
+        own coordinates. A frame moved from it by exact turns
+        (`PoseDef.spin` by `Formula.turn_over(4)`) stands exactly where
+        it is meant. A body with no such edge and vertex raises
+        `EditError` under the pin refusal's word."""
 
     def sketch_on_face(
         self,

@@ -1777,6 +1777,51 @@ impl Doc {
         .map(|placed| placed.placement)
     }
 
+    /// **`body`'s own frame at a corner it has**, as a pose to read: the
+    /// frame through its straight edge from `corner` to `up` (its `z`,
+    /// that way) and its vertex at `toward` (its `x` the way to it),
+    /// each picked where the evaluation puts it exactly, in `body`'s own
+    /// coordinates. Where a box's edges run along its own axes this is
+    /// its own frame read with no number, so a frame moved from it by
+    /// exact turns (`PoseDef.spin` by `Formula.turn_over(4)`) stands
+    /// exactly where it is meant. A body with no such edge and vertex
+    /// raises `EditError` under the pin refusal's word.
+    #[pyo3(signature = (body, corner, up, toward, *, resolver=None))]
+    fn corner_frame(
+        &self,
+        py: Python<'_>,
+        body: OperandArg,
+        corner: (super::quantity::Length, super::quantity::Length, super::quantity::Length),
+        up: (super::quantity::Length, super::quantity::Length, super::quantity::Length),
+        toward: (super::quantity::Length, super::quantity::Length, super::quantity::Length),
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<super::pose::PoseDef> {
+        let at = |v: (super::quantity::Length, super::quantity::Length, super::quantity::Length)| {
+            [v.0.0.meters(), v.1.0.meters(), v.2.0.meters()]
+        };
+        let opts = d::EvalOptions {
+            resolver: seam(resolver),
+            ..d::EvalOptions::default()
+        };
+        d::corner_frame(
+            &self.inner,
+            &body.read(),
+            at(corner),
+            at(up),
+            at(toward),
+            &opts,
+            Tol::witness(),
+        )
+        .map(|inner| super::pose::PoseDef { inner })
+        .map_err(|refusal| {
+            boundary_edit_err(
+                py,
+                BoundaryEdit::Pin(&refusal),
+                format!("the body has no such corner: {refusal}"),
+            )
+        })
+    }
+
     /// **The "place part" gesture on a placement already in the
     /// document** — an instance, or a loose `Place` — answered as a
     /// `Placed`: `place_at`'s constraints added to its bundle, pinning

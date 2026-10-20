@@ -19,6 +19,8 @@ from pathlib import Path
 
 from pncad import (
     Bulge,
+    ContactClass,
+    Coord,
     Doc,
     DocEdit,
     FreeVar,
@@ -28,6 +30,7 @@ from pncad import (
     Formula,
     Frame,
     FrameError,
+    Mate,
     NamePat,
     Node,
     Open,
@@ -45,7 +48,7 @@ from pncad import (
     rad,
 )
 
-from placing import frame_at, own_frame
+from placing import own_frame
 
 
 def slab(doc, x, y, z):
@@ -219,26 +222,29 @@ def pip_placements():
     """The six face-centre frames, in the corpus document's order and
     with its rotations: each carries the master ball's +Z pole onto the
     face normal it cuts, so every chart stays polar to the plane that
-    cuts it. Every angle is 0, +-pi/2 or pi about a coordinate axis —
-    the placement is DATA, which is what an explicit rule is for."""
+    cuts it. Every turn is 0, a quarter or a half turn about a
+    coordinate axis, written as the fraction of a turn it is
+    (`Frame.rotate_by_turns_then_translate`), so each frame's columns
+    are 0 and +-1 exactly — the placement is DATA, which is what an
+    explicit rule is for."""
     h = DIE_L / 2.0
     lo = DIE_L - PIP_C  # the -normal faces' centre coordinate
     x = (1.0, 0.0, 0.0)
     y = (0.0, 1.0, 0.0)
     z = (0.0, 0.0, 1.0)
     rows = [
-        (z, 0.0, (h, h, PIP_C)),
-        (x, math.pi, (h, h, lo)),
-        (y, math.pi / 2.0, (PIP_C, h, h)),
-        (y, -math.pi / 2.0, (lo, h, h)),
-        (x, -math.pi / 2.0, (h, PIP_C, h)),
-        (x, math.pi / 2.0, (h, lo, h)),
+        (z, (0, 1), (h, h, PIP_C)),
+        (x, (1, 2), (h, h, lo)),
+        (y, (1, 4), (PIP_C, h, h)),
+        (y, (-1, 4), (lo, h, h)),
+        (x, (-1, 4), (h, PIP_C, h)),
+        (x, (1, 4), (h, lo, h)),
     ]
     return [
-        Frame.rotate_then_translate(
-            axis, angle * rad, (t[0] * m, t[1] * m, t[2] * m)
+        Frame.rotate_by_turns_then_translate(
+            axis, num, den, (t[0] * m, t[1] * m, t[2] * m)
         )
-        for axis, angle, t in rows
+        for axis, (num, den), t in rows
     ]
 
 
@@ -286,11 +292,24 @@ def die_tool_document():
     )
     ball_p = doc.insert(Node.profile(half_disc))
     ball = doc.insert(Node.revolve(ball_p, *axis, Formula.angle_in(2.0 * math.pi, rad)))
-    # The master ball stands in the cube's coordinates with its own xy
-    # on the cube's xz, so its pole-to-pole line is the cube's +Z.
-    master = doc.place_against(
-        cube, doc.output(ball, 0), frame_at((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+    # The master ball stands in the cube's coordinates, its pole on the
+    # cube's own frame at its origin corner (`Doc.corner_frame`: the
+    # edge up the cube's z, the vertex along its x): an axis mate from
+    # the revolve's own axis, slid zero along it and spun zero about
+    # it — the corpus document's `Recorder::on_axis`, edit for edit.
+    zero = (0 * m, 0 * m, 0 * m)
+    own = doc.corner_frame(cube, zero, (0 * m, 0 * m, DIE_L * m), (DIE_L * m, 0 * m, 0 * m))
+    master = doc.insert(Node.place(doc.output(ball, 0)))
+    pole = doc.constrain(
+        master,
+        Mate(
+            doc.output(ball, 1),
+            PoseDef.slide(RoleRead(own, "z"), RoleRead(own, "z"), Formula.zero("length")),
+            ContactClass.Rest,
+        ),
     )
+    doc.add_value(pole, Coord.slide("z"), Formula.zero("length"))
+    doc.add_value(pole, Coord.spin(), Formula.zero("angle"))
 
     # ---- the whole cutting tool, in ONE node ----
     tool = doc.insert(Node.placed_union_at(master, pip_placements()))
@@ -334,7 +353,7 @@ class TestTheDieTool(unittest.TestCase):
         ev = evaluate(doc)
 
         # EIGHT nodes: profile, extrude, profile, revolve, the master
-        # ball's placement against the cube, group, subtract, and the
+        # ball's placement on the cube's corner frame, group, subtract, and the
         # subtract's world placement. The pairwise tool this replaces
         # spends the same four upstream and then six placements, five
         # unions, the subtract and its placement, so the group's saving

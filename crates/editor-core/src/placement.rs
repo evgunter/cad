@@ -180,6 +180,35 @@ impl Frame {
         })
     }
 
+    /// **[`Frame::rotate_then_translate`] by `turns` of a turn**: the
+    /// rotation's sine and cosine read from the fraction
+    /// ([`geom_core::Angle`]), so a whole number of quarter turns about a
+    /// coordinate axis has columns of `0` and `±1` exactly, where the
+    /// rounded radian's carry `6.1e-17`. The axis is decided as
+    /// [`Frame::rotate_then_translate`] decides it.
+    ///
+    /// # Errors
+    ///
+    /// [`AxisRefusal`], as [`Frame::rotate_then_translate`]'s.
+    #[allow(clippy::cast_precision_loss)]
+    pub fn rotate_by_turns_then_translate(
+        axis: [f64; 3],
+        turns: geom_core::Turns,
+        v: [f64; 3],
+        band: Band,
+    ) -> Result<Self, AxisRefusal> {
+        let dir = crate::eval::unit_direction(Vec3::from_array(axis), PLACEMENT_AXIS_ROLE, band)
+            .map_err(|e| AxisRefusal(NodeRefusal::from(e)))?;
+        // The value the fraction stands for; the rotation reads the
+        // fraction itself.
+        let radians = core::f64::consts::TAU * (turns.num() as f64) / (turns.den() as f64);
+        Ok(Self {
+            columns: Mat3::rotation_about_unit_by(dir, geom_core::Angle::of_turns(radians, turns))
+                .to_cols_array(),
+            translation: v,
+        })
+    }
+
     /// The frame denoting an affine map — the inverse of
     /// [`Frame::affine`], for the mate solve's poses coming back from
     /// the coset algebra (ASM-R2a D-5).
