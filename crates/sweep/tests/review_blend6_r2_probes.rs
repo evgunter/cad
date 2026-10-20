@@ -302,11 +302,16 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
             .expect_err("a 0.55 m radius does not fit a 1 m face")
             .error,
     ));
-    let (leaning, turn) = crate::common::operands::leaning_turn_in_band(t);
+    let z = geom_core::Band::linear(t).expect("the run's band").zero() / 1e-9;
+    let (skewed, turn) =
+        crate::band_turn_overrun_verdict::corner(&crate::band_turn_overrun_probe::Cone::angles(
+            [60f64.to_radians(), (60.0 + 2e-6 * z).to_radians()],
+            90f64.to_radians(),
+        ));
     out.push((
         "fillet turn",
-        fillet_edges(&sweep::test_support::at_rest(&leaning, t), &turn, D, t)
-            .expect_err("a turn at a lean in band escalates")
+        fillet_edges(&sweep::test_support::at_rest(&skewed, t), &turn, D, t)
+            .expect_err("a 60° corner skewed in band escalates on the turn")
             .error,
     ));
     out
