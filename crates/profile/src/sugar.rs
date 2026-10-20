@@ -1480,7 +1480,12 @@ impl<T: Real> OffsetCentres<T> {
 /// [`split_half_tan`] of it is tan(θ/4); the sense picks θ in (0, 2π)
 /// or (−2π, 0), and past a half turn `σ·p` is negative. Algebraic in
 /// its inputs: no angle is read off an endpoint.
-pub(crate) fn centre_split<T: Real>(a: Point2<T>, b: Point2<T>, centre: Point2<T>, sgn: T) -> (T, T) {
+pub(crate) fn centre_split<T: Real>(
+    a: Point2<T>,
+    b: Point2<T>,
+    centre: Point2<T>,
+    sgn: T,
+) -> (T, T) {
     let chord = b - a;
     let len = chord.norm();
     let offset = (centre - a.lerp(b, T::from_f64(0.5))).dot(Vec2::new(-chord.y, chord.x)) / len;
