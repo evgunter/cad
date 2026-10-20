@@ -1643,3 +1643,11 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - unmutated topo+sweep release pass 6332/6332, and `limb_three` is byte-identical.
   - **The slow rows are under target:** shelling 1.66×, r1 1.33× (main + #5419, build C). The slow-rows item is closed with those numbers, and `cheapen-the-restriction-cut-steps-2-to-4` closed (step 4 not taken).
   - **Filed:** `mint-once-is-pinned-only-by-timing` (P3; the review's M3 survives, so a mint-count row is needed), with the review's style tail.
+- 2026-10-20 07:50Z — **#5459 is up** (build C, the degree-elevation fix, FULL, head 60954f25).
+  - **The fix:** `remove_once(.., ChainSplit)`, with elevation on `Conditioned`, which tracks a first-order error estimate per control point and takes the least-error split each pass (midpoint on a tie); knot removal keeps `Midpoint`. The plain α ≥ ½ rule failed on uniform knots, where α ties at ½ and error chained.
+  - **After it:** p ≤ 10 × g ≥ 1e-9 within 3e-15 of scale, the `WeightCollapse` refusals at p ≥ 8 gone, no golden moved, elevation 1.3–2.1× faster.
+  - **Base reds:**
+    - GERM's ellipse row, fixed on main by `2ee8a2ea` (my item is closed);
+    - a new `reader_census` red, filed on ENCL;
+    - ENCL's tier-1 roster red.
+  - **Friction (build C):** one `CARGO_TARGET_DIR` shared across worktrees silently reuses another worktree's build of a workspace package, because cargo's fingerprint checks the source paths of the last build. It made a red-on-main check pass on fixed code twice today, until `cargo clean -p <pkg>`. Lanes taking red-on-main or timing measurements use one target directory per worktree, or clean the switched packages. Raise it as an `[ev]` memory candidate if it recurs.

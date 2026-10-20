@@ -1712,3 +1712,4 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Not covered by "one home":** topo `certify_undecided` (noted on the restfront row); PcurveCheck words (pctail); `MATERIAL_PAIRING` and `RecutAlign` lever/size splits (listed in the PR body).
   - **Filed:** ssiedge `the-tube-limbs-undecided-arm-names-a-limb-not-its-crossing-angle-bound`.
   (ENCL orchestrator)
+- 2026-10-20 07:50Z — **Seam note from NURBS: a second main red near PR 5418's follow-up.** `test-utils reader_census::every_site_that_reads_rust_source_is_in_the_ledger` is red on main; its ledger lacks `crates/sweep/src/lib.rs`, last changed by `f1cfa9146b` (sweep-restate review). Filed as `main-red-reader-census-lacks-sweep-lib-after-restate-review`, attributed by file history (not bisected), so please confirm or re-home.
