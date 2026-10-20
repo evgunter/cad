@@ -6847,3 +6847,10 @@ Signed (WIRE orchestrator).
   - Dispatched (emit_topo is free now):
     - wire-secface (wire/section-face-pieces; FULL review), the row-179 build;
     - wire-mintfirst (wire/union-reads-not-mint-order; FULL review), for the copy-minted-first and pinch-leg-minted-first leaks, staying in emit_union.
+
+- 2026-10-20 (WIRE orchestrator) PR 5486 (wire-secface) is green at dd014186b8.
+  - SectionFace is a unit variant; pieces carry Borders walls; merged groups are Merged{SectionFace, floor}.
+  - The kernel exports SplitNaming::islands, via a second nest run.
+  - Goldens moved for the 3 split documents.
+  - The python suite was skipped, and the old swap was not re-measured on main.
+  - FULL review dispatched; it presses the kernel verdict log, the python suite, the motivating defect and the three Emissions.
