@@ -5301,6 +5301,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_side_unevaluated",
             "mate_targets_differ",
             "mate_unleverable",
+            "mate_unpinned",
             "mate_value_names_no_mate",
             "mate_world_read",
             "measure_clearance_refused",

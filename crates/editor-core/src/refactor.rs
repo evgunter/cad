@@ -4592,7 +4592,8 @@ pub fn inline(
         let host_vars = VarCarry::new(doc);
         let mut ids: BTreeMap<crate::node::ConstraintId, crate::node::ConstraintId> =
             BTreeMap::new();
-        if crate::mate::solve::unmated_bundle(&bundle) {
+        let unmated = crate::mate::solve::unmated_bundle(bundle);
+        if unmated {
             let whole = Node::Place {
                 shapes: Vec::new(),
                 constraints: bundle.clone(),
@@ -4606,10 +4607,10 @@ pub fn inline(
                 })
                 .map_err(refused)?;
         }
-        for constraint in bundle
-            .iter()
-            .filter(|_| !crate::mate::solve::unmated_bundle(&bundle))
-        {
+        // A bundle with a mate is carried one constraint at a time; one
+        // with no mate went whole above.
+        let one_by_one = if unmated { &bundle[..0] } else { &bundle[..] };
+        for constraint in one_by_one {
             let one = Node::Place {
                 shapes: Vec::new(),
                 constraints: vec![constraint.clone()],

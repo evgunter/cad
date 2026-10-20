@@ -215,6 +215,11 @@ So running the map at the nominal does not by itself make the lanes' decision li
 - m10_bulge: one D-tab table for both spellings (the overlay retired: the literal runs its map too); the boss's pcurve rows are main's (×5/3). m10_10: the plate's holes run their maps (carrier_matches_mapped_source 196→232, envelope 16→32). In flight.
 - FORK-REST moved only the plate among the sym/m10_9 documents (sym11 receipts equal the 434139ef1c measurements on annulus, link, bracket, pad); the plate's holes, which the narrowing's gap (b) kept snapping, run their maps.
 
+- Re-taken under the rulings, each with its reason in its file, attributed against `434139ef1c` measured in a worktree (and main `1fcd4bd807` for sym11's `frozen`): m10_bulge (one D-tab table), m10_10, m10_9, sym_9 (both rows), sym11 (its `frozen` column explained), m10_p_fence, m10_sym_profile, msolve14 a3, m10_6 keys, revalue_boss_union, review_pick_r2; `gallery_ring.pncad` regenerated, `plate_param.pncad` re-blessed. decide_3 and kstats pass.
+- The viewer is 770/770 locally after its fixes (the session's `DocEdit` match lacked `RemoveConstraints`; its rows read the place gesture's one `AddValues`), pncad 76/76, pncad-py 932 OK (`UNPINNED_RECOURSE` bound; `remove_mate` answers a whole bundle's other values; the census accounts the new names), `--features probe` 331/331 on its rows.
+- Items: closed `a-placed-copy-rests-at-the-identity-only-at-the-nominal`, `a-symbolic-runs-copy-decided-at-rest-keeps-its-map`, `a-stand-on-a-revolve-shares-its-written-axis-numbers`; D′'s item says what D builds; evidence on `a-turn-by-the-nearest-quarter-turn-rounds` (m10_di_dual's 16 escalations still occur; die_composed's fillet refuses at Interval at ε = 1e-12, which reds m10_p_fence's Interval row on the nightly's 1e-12 row) and on the boss_union inlane item; filed `lib/the-census-resolves-a-word-two-types-share-to-the-first`.
+- Not done: main has moved 472 commits past the merge base (`1fcd4bd807`); merging it is the next lane's.
+
 **Next, for a fresh lane**
 1. `git fetch origin && git checkout intent/s3-d-transform-retires-into-a-placement && git pull`, then `export CARGO_TARGET_DIR=<one target dir> CARGO_INCREMENTAL=0`, then `cargo nextest run -p editor-core --test all --no-fail-fast` and `cargo nextest run -p viewer --features app,test-support --test all --no-fail-fast`. Settle each red per the three lane logs. The logs live in `/home/user` and do not survive the container, so this section names what each said.
 2. Merge origin/main again if it has moved, then run `cargo clippy --workspace --all-targets -- -D warnings`, demos/tour's clippy and certified lane, and `python3 scripts/work.py lint`.
@@ -313,6 +318,12 @@ TODO table: document → how restated.
 #### Behaviour changes for callers
 
 TODO from lanes: Python API before → after; viewer ops before → after; tour stops' numbers.
+
+From rulings 1 and 2:
+- **Python:** `MateValue(None, coord, by)` is a value naming no mate; `Coord.spin_about("x" | "y" | "z")` beside `Coord.slide(axis)`; `DocEdit.add_values` and `Doc.add_values` write a bundle with no mate whole; `UNPINNED_RECOURSE`, and the `mate_unpinned` fault word; `Doc.place(shapes)` with neither constraints nor a pose writes the identity bundle; `Doc.remove_mate` on a value of a bundle with no mate removes the bundle and answers the other values' addresses.
+- **Façade:** `Placed.mate` is optional, `Placed::write` writes either kind of bundle, `Placed::identity`, `PlacedBy::Identity`; `DocEdit::AddValues`, `DocEdit::RemoveConstraints`, `DocEdit::unmated`, `MateFault::Unpinned`, `NoChartWhy::{NoMatedDirection, BesideAMate}`, `Coord::SpinAbout`, `TargetAxis` (was `SlideAxis`).
+- **Viewer:** "place where authored" and every new body's placement write `stand`'s identity bundle as one edit (one undo step, where the mate and three values were four).
+- **Tour:** the certified lane reads its published numbers: plate study 211/512, the chain's 1- and 4-link drives certify, chaintol 3/3.
 
 #### Hit lists (the class swept)
 
