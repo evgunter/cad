@@ -26,10 +26,14 @@ lever. Line numbers are as of the merge of main into PR 5089.
 refuses).** `geom_brep::ladder::read_identity` fits these as it is:
 - `crates/geom-brep/src/pcurve_cache.rs:3745`: the winding lane's
   trigonometric coefficients (`affine_name`). `ChartWinding`'s
-  escalation comes before `ChartWindingUnsupported`.
-- `crates/geom-brep/src/pcurve_cache.rs:5434`: the spiric image's
+  escalation comes before `ChartWindingUnsupported`. (Since B2a the
+  windings are structural and this loop is gone; the site is kept for
+  the record.)
+- `crates/geom-brep/src/pcurve_cache.rs:6531`: the spiric image's
   stored scalars (`pcurve_spiric_major`, `_minor`, `_offset`).
-  `ChartWinding`'s escalation comes before `ImageMismatch`.
+  `ImageIdentity`'s escalation comes before `ImageMismatch`. (E1 split
+  check 4's copy readings out of `ChartWinding` as `ImageIdentity`;
+  the shape is unchanged.)
 
 **Positivity-shaped (every gate required Positive; Zero or Negative
 refuses):**
@@ -56,9 +60,11 @@ refuses):**
 **Sequential stages a loop sweep cannot see.** `run_spiric_checks`
 decides three stages one after another, each returning on its first
 in-band reading:
-- the image's stored scalars (:5434);
-- the wall's `pcurve_spiric_sense` (:5462);
-- the chart ladder (:5516, which reads `read_identity` within itself).
+- the image's stored scalars (:6531);
+- the wall's `pcurve_spiric_sense` (:6559);
+- the chart ladder (:6621, which reads `read_identity` within itself).
+
+All three escalate as `ImageIdentity` since E1.
 
 An in-band `_sense` therefore still masks a definite chart gate, as an
 in-band image scalar masks both. Any function that decides several
