@@ -150,12 +150,50 @@ use crate::m10_9_pins_interval::measured_studies;
 /// bracket `[1312, 1046, 2112]` → `[1316, 1051, 2112]`. This is the
 /// finding the row asks for, and its cause is that fix; no dispute
 /// fired.
+///
+/// INTENT stage 3 D (Transform retires into a placement, then
+/// FORK-REST: only the identity bundle as written places by no map).
+/// Measured on three trees with the same replay and the freezes'
+/// profile (`FreezeCause`, by op): main before D (`1fcd4bd807`, which
+/// reads exactly the receipts this table held), D's head before
+/// FORK-REST (`434139ef1c`) and D's head. No dispute fired on any.
+///
+/// The decisions. Plate `[939, 693]` -> `[945, 701]` -> `[1253, 1043]`:
+/// D's charts, then FORK-REST, whose holes are placed by plane mates
+/// the narrowing's walk let snap and now run their maps, so their
+/// transforms and the copies' re-certification decide past the ceiling.
+/// Annulus `[475, 431]` -> `[632, 605]`, link `[295, 271]` -> `[295,
+/// 269]`, bracket `[1316, 1051]` -> `[1630, 1401]`, pad `[1413, 1162]`
+/// -> `[1570, 1336]`: D's charts, the narrowing (each placement reads a
+/// declared or toleranced variable and runs its map) and main's merge
+/// at `0a1d95321e`, all on D's head before FORK-REST; FORK-REST moves
+/// none of the four.
+///
+/// The `frozen` column moved with how the geometry is spelled to the
+/// tier, not with what it decides. Before D a construction sat on a
+/// datum frame read off the document's variables, so each of its points
+/// was a product of the frame's forms and its own: the freezes were the
+/// DEGREE budget's, on products (plate 712 of 729 `Degree`, 624 of them
+/// `Mul`; annulus 940 of 940; link 362 of 558; bracket 2103 of 2112;
+/// pad 3293 of 4310). In D a construction is built in its own
+/// coordinates and enters through a placement's map, so a body no map
+/// moves carries low-degree forms: on D's head before FORK-REST the
+/// plate's holes were snapped and its 161 freezes are the coefficient
+/// bound's on `Powi` (153) with 8 `Degree`; the link reads 263 (292
+/// `Coefficient` logged, 4 `Degree`), the pad 3035 (743 `Degree`, 2537
+/// `Coefficient`), the annulus 844 (708, 136). The bracket's two
+/// placements run their maps, so its `Degree` freezes stay (2231) and
+/// it rose to 2409. FORK-REST runs the plate's holes' maps, whose
+/// entries are forms in the spacing, so its `Degree` freezes return
+/// (1404 of 1557, on `Sub`, `Powi` and `Mul`), more than before D
+/// because each hole is walked twice, built in its own coordinates and
+/// re-certified placed.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [939, 693, 729]),
-    ("r1_annulus", [475, 431, 940]),
-    ("r2_link", [295, 271, 558]),
-    ("r2_filleted_bracket", [1316, 1051, 2112]),
-    ("r2_rounded_pad", [1413, 1162, 4310]),
+    ("two_hole_plate", [1253, 1043, 1557]),
+    ("r1_annulus", [632, 605, 844]),
+    ("r2_link", [295, 269, 263]),
+    ("r2_filleted_bracket", [1630, 1401, 2409]),
+    ("r2_rounded_pad", [1570, 1336, 3035]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

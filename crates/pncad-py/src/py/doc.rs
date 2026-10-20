@@ -1661,9 +1661,8 @@ impl Doc {
     /// numbers. `pose` is refused beside `constraints`. `place_at`
     /// answers how the copy was placed; this door answers the placement
     /// alone. Neither: the copy stands where its body's own coordinates
-    /// put it, by the kernel's `stand` — a plane mate on a face of the
-    /// copy no variable reaches (a full revolve's or ring's own axis
-    /// where it has none) and constant-zero values.
+    /// put it, by the kernel's `stand` — the identity bundle, no mate
+    /// and the constant zero on every freedom.
     ///
     /// The one door that puts a body in the product: nothing places as
     /// a side effect, so a boolean of two placed bodies leaves both
@@ -1685,7 +1684,7 @@ impl Doc {
     ) -> PyResult<NodeId> {
         let Some(mates) = constraints else {
             // Neither: the copy stands where its body's own coordinates
-            // put it, on a face no variable reaches (or its own axis).
+            // put it, by the identity bundle.
             if pose.is_none() {
                 return self
                     .placed(py, shapes, Gesture::Stand, resolver, label)

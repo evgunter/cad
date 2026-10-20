@@ -738,6 +738,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// point-target leg as an angle puts a `sin_cos(π/2)` round trip back,
 /// and the ladder reaches thirty-eight. It is the heaviest leaf here:
 /// this row costs minutes in a debug build.
+///
+/// Re-taken on INTENT stage 3 D after FORK-REST: the leaf reads [1419,
+/// 1452, 34] shipped and [1385, 1486, 0] bare. The shipped receipt is
+/// the one D's head read before FORK-REST (`434139ef1c`, D's handoff):
+/// the pad's one placement reads a declared variable and ran its map
+/// before FORK-REST as after. It moved with main's merge at
+/// `0a1d95321e`, from the [1504, 1442, 4] and [1500, 1446, 0] these
+/// pins last held; the ladder now reaches thirty-four where the
+/// paragraphs above count thirty-eight, each a decision moved from
+/// `numeric` to `symbolic`.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
@@ -773,19 +783,19 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1504, 1442, 4],
+        [1419, 1452, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains(" retried=38\n"),
+        line.contains(" retried=34\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 38 of those discharges reached only by a second attempt"),
-        "the human form names the thirty-eight as the ladder's: {human}"
+        human.contains("; 34 of those discharges reached only by a second attempt"),
+        "the human form names the thirty-four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1500, 1446, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1385, 1486, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

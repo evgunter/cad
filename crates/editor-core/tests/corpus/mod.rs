@@ -78,12 +78,11 @@ pub mod vessel;
 pub use super::fixture::Recorder;
 
 /// **A body placed in the world where it stands, recorded**: the
-/// placement and the mate [`editor_core::stand`] writes (a plane mate
-/// on a face no variable reaches, or a plane-less construction's own
-/// axis, and the constant `0` on the freedoms it leaves), which the
-/// Python bindings' `Doc.place(shapes)` writes too, so a corpus
-/// document and its bound re-authoring are one log. The mate reads
-/// nothing, so the copy follows every variable its body reads.
+/// placement and the identity bundle [`editor_core::stand`] writes (no
+/// mate, and the constant `0` on every freedom), which the Python
+/// bindings' `Doc.place(shapes)` writes too, so a corpus document and
+/// its bound re-authoring are one log. The bundle reads nothing, so the
+/// copy follows every variable its body reads.
 pub trait PlacePart {
     /// **One copy of `body` in the world** (A10), placed where it
     /// stands. Returns the placement.

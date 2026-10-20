@@ -366,8 +366,8 @@ pub fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
 
 /// **The copy `placement` defines, pinned to the world at `pose`**:
 /// at the identity standing where its body stands
-/// ([`editor_core::stand`]: a plane mate on a face no variable reaches
-/// and the constant `0` on its freedoms); elsewhere through the one
+/// ([`editor_core::stand`]: the identity bundle, no mate and the
+/// constant `0` on every freedom); elsewhere through the one
 /// migration helper ([`editor_core::pin_at`]), a frame read off the
 /// copy's geometry equated with the world's frame moved to where that
 /// frame sits at `pose`. A `Place` is read through its first shape, an

@@ -3888,9 +3888,8 @@ class Doc:
         the "place part" gesture, `place_at(shapes, pose)`, answering the
         placement alone; `pose` beside `constraints` raises ValueError.
         Neither: the copy stands where its body's own coordinates put
-        it — a plane mate on a face of the copy no variable reaches (a
-        full revolve's or ring's own axis where it has none) and
-        constant-zero values, the kernel's `stand`.
+        it — the identity bundle, no mate and the constant zero on
+        every freedom, the kernel's `stand`.
 
         The one door that puts a body in the product: nothing places as
         a side effect, so a boolean of two placed bodies leaves both
