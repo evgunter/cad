@@ -219,7 +219,8 @@ pub(crate) const JUNCTION_TANGENT_LEVER: &str = "for tangency onto a new carrier
 
 use crate::path::num;
 use crate::seg::{
-    self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_loop_seg,
+    self, CKind, Consistency, Contact, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue,
+    build_loop_seg,
 };
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
@@ -2788,8 +2789,23 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
         }
     }
 
-    let outcome = seg::pair_contacts(&loop_segs[li][si], &loop_segs[lj][sj], band)
-        .map_err(|source| ProfileError::Escalated { site, source })?;
+    let (s1, s2) = (&loop_segs[li][si], &loop_segs[lj][sj]);
+    let outcome = match seg::pair_contacts(s1, s2, band) {
+        Ok(outcome) => outcome,
+        // An adjacent pair of lines whose overlap along the first is
+        // within the band touches only at the vertex they share, which
+        // the discount below reads; any other escalation stands.
+        Err(_)
+            if matches!(shared[..], [_])
+                && seg::lines_touch_only_near_a_shared_end(s1, s2, band) =>
+        {
+            PairOutcome::Contacts(vec![Contact {
+                point: shared[0],
+                kind: CKind::Touch,
+            }])
+        }
+        Err(source) => return Err(ProfileError::Escalated { site, source }),
+    };
     let contacts = match outcome {
         PairOutcome::Overlap => {
             return Err(ProfileError::NonSimple {

@@ -1437,6 +1437,45 @@ fn gaps_apart<T: Decide>(s1: &Seg<T>, s2: &Seg<T>, band: Band) -> bool {
     apart(s1, s2) || apart(s2, s1)
 }
 
+/// Whether two straight segments that share a stored vertex, an end of
+/// each, can meet only within the band of it: `other` read along
+/// `host`'s axis ([`geom_core::one_line`]), on the
+/// **`collinear_overlap`** predicate, where the overlap's upper bound
+/// (`extent + noise`) reads no more than Zero.
+///
+/// The shared vertex is an end of both, so its projection lies in both
+/// projected intervals, and the true overlap contains it and is no
+/// longer than that bound. A point on both segments projects into the
+/// overlap, and along `host` its projection is its distance from
+/// `host`'s end, so every such point is within the band of the shared
+/// vertex: the vertex's own touch. No angle between the two enters, so
+/// it holds at a straight joint, a turned one and a reversal alike. The
+/// caller supplies the adjacency, as stored identity
+/// (`validate::judge_pair`), and asks only where [`pair_contacts`] has
+/// escalated, so a decided verdict never moves.
+///
+/// topo's check 9 (`lines_meet`) has no such pair to read: it pairs a
+/// ring's edges with its outer loop's, and a vertex the two loops share
+/// is its arm 1's contact before any edge pair is read.
+pub(crate) fn lines_touch_only_near_a_shared_end<T: Decide>(
+    host: &Seg<T>,
+    other: &Seg<T>,
+    band: Band,
+) -> bool {
+    if !matches!((&host.kind, &other.kind), (SegKind::Line, SegKind::Line)) {
+        return false;
+    }
+    let along = on_one_line_2d(host.unit, (host.a, host.b), (other.a, other.b), T::zero());
+    matches!(
+        decide(
+            "collinear_overlap",
+            Margin::of(along.extent() + along.noise),
+            band
+        ),
+        Ok(Sign::Zero | Sign::Negative)
+    )
+}
+
 /// The collinear arm of [`line_line`]: `other` read along `host`'s axis,
 /// through the one reading of two spans on one line
 /// ([`geom_core::one_line`]), on the **`collinear_overlap`** predicate —
