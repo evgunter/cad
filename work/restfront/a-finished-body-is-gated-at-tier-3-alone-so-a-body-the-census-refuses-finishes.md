@@ -4,7 +4,7 @@ kind: issue
 title: A finished body is gated at tier 3 alone, so a body the census refuses finishes and reaches every door as an operand
 status: open
 opened: 2026-10-21
-refs: [boolean-door-runs-the-census-over-its-result, the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass, a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass]
+refs: [boolean-door-runs-the-census-over-its-result, a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass]
 priority: P1
 cost: H
 ---
@@ -54,9 +54,13 @@ an operand.
   `crates/topo/tests/the_fin_crown_winds_as_a_solid.rs`. SECTOR's
   `a-thin-fin-voids-boolean-refuses-tier-3-prime-with-an-edge-face-pierce`
   was this body's pierces seen through a boolean result.
-- **FLUX's witness B** (the 1e-12 dimple's flip). It finishes, and the
-  census refuses it `CensusEscalated` on `curve_carrier_gap` (by the
-  PR 5534 review, `flush/fin-crown-fixture-review` @ `ee3e585c3`).
+
+FLUX's seam-region witness B (the 1e-12 dimple's flip) was a second
+witness: the census refused it `CensusEscalated` while the gate passed
+it. Since PR 5516, check 6 refuses it at tier 3
+(`SeamRegionOvercovered`), so the old crown is the witness left. It is a
+fixture, and no verb is known to build a body the census refuses that
+tier 3 passes.
 
 ## Proposed
 

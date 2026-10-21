@@ -99,10 +99,8 @@ certified volume. On an embedded boundary whose faces are oriented
 coherently, every aim reads what one aim reads, so the extra rays
 differ only on self-crossing or overlapping boundaries. They miss most
 of those too (FLUX's witness B passes). The class every-aim sampled is
-self-intersection at rest. The census catches most of it, but the
-at-rest gate runs no census
+self-intersection at rest. The census catches it on the fin crown, but
+the at-rest gate runs no census
 (`a-finished-body-is-gated-at-tier-3-alone-so-a-body-the-census-refuses-finishes`,
-RESTFRONT). The rest is overlap on one carrier, which the census misses
-too
-(`the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass`,
-RESTREAD).
+RESTFRONT). FLUX's seam-region witnesses are refused at tier 3 since
+PR 5516.

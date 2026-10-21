@@ -145,5 +145,5 @@ is the at-rest gate, which runs tier 3 alone
 **The check half was not built.** Reading every aim
 (`check-7-casts-a-ray-per-face-so-the-at-rest-gate-is-quadratic-in-faces`,
 closed) adds nothing on an embedded boundary, where one ray reads what
-every aim reads. The one body the census also misses, FLUX's witness A,
-is `work/restread/the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass.md`.
+every aim reads. FLUX's seam-region witnesses, which it also refused,
+are refused at tier 3 since PR 5516 (`SeamRegionOvercovered`).
