@@ -48,20 +48,21 @@
 //!
 //! # The lattice metric
 //!
-//! The NURBS lane's CDT does not run in raw UV. Delaunay is not
+//! Neither lane's CDT runs in raw UV. Delaunay is not
 //! stretch-invariant, and a ruled wall's lattice is a strip whose
 //! columns are many times narrower than its rows (a lofted circle's
-//! wall: `s_u/s_v ≈ 0.03`); there, any point off the lattice — a trim
+//! wall: `s_u/s_v ≈ 0.03`; a cylinder of radius `r`, whose lattice is
+//! square in 3-D, `≈ 1/r` in (θ, z)); there, any point off the lattice — a trim
 //! chord point between two rows, a band interface's foreign column, a
 //! refinement centroid — has an empty circle many columns wide and a
 //! sliver across them. So points enter the CDT at `(u/k, v)`, with `k`
-//! the schedule's lattice metric (`crate::nurbs_cert::lattice_metric`,
-//! a power of two near the bands' mean realized aspect), where the
-//! lattice is near square. The map is affine, so constraint segments
+//! the lattice metric (`crate::nurbs_cert::lattice_metric`, a power of
+//! two near the mean realized aspect: of the NURBS schedule's bands, or
+//! of the cylinder lane's one uniform lattice), where the lattice is
+//! near square. The map is affine, so constraint segments
 //! stay straight; and exact, so every coincidence in UV is one in the
 //! CDT. Only the CDT sees it: `meta`, the creases, the polygon's
-//! orientation and every certificate read UV. The cylinder lane keeps
-//! raw UV (`work/tess/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
+//! orientation and every certificate read UV.
 //!
 //! # C⁰ creases
 //!
@@ -141,7 +142,7 @@ use topo::{Body, FaceKey};
 
 use crate::cert;
 use crate::chords::ChordPass;
-use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells, lattice_metric};
 use crate::planar::{Crossings, Pinches, Walk, classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::tessellate::{Patch, PatchVertex};
@@ -298,7 +299,7 @@ pub(crate) fn tessellate_trimmed(
         v0 = v0.min(v);
         v1 = v1.max(v);
     }
-    let (mut candidates, nurbs_stats) = match lane {
+    let (mut candidates, nurbs_stats, metric) = match lane {
         Lane::Cylinder { radius, .. } => {
             let hu = sagitta_step(tol.delta_s, radius);
             let nu = ceil_count(u1 - u0, hu)?;
@@ -328,14 +329,24 @@ pub(crate) fn tessellate_trimmed(
                  with a single interior column (nu = 2, nv = {nv}) — the shape \
                  #678's non-manifold fan needs (curved::pole_columns)"
             );
-            (uniform_candidates((u0, u1), (v0, v1), nu, nv), None)
+            // The lattice is square in 3-D (`r·hu` by `hu` radians), so
+            // in (θ, v) it is a strip of aspect ~1/r: its CDT runs in the
+            // same lattice metric as the NURBS lane's, from its one
+            // lattice's realized spacing.
+            #[allow(clippy::cast_precision_loss)]
+            let aspect = ((u1 - u0) / nu as f64) / ((v1 - v0) / nv as f64);
+            (
+                uniform_candidates((u0, u1), (v0, v1), nu, nv),
+                None,
+                lattice_metric(std::iter::once(aspect)),
+            )
         }
         Lane::Nurbs { ref grid, .. } => {
             let (mut cand, stats) = per_cell_candidates(grid, (u0, u1), (v0, v1), tol.delta_s)?;
             if let Some(c) = &creases {
                 c.cut_candidates(&mut cand);
             }
-            (cand, Some(stats))
+            (cand, Some(stats), stats.metric)
         }
     };
     // Grid candidates are a fixed, deduplicated, (v, u)-sorted list
@@ -375,10 +386,6 @@ pub(crate) fn tessellate_trimmed(
     // after the loop: an attempt asks for a rebuild only below
     // `MAX_GRID_RETRIES`, so the last attempt accepts or refuses.
     let mut outcome: Option<Result<Patch, TessellateError>> = None;
-    // THE LATTICE METRIC (`nurbs_cert::lattice_metric`): the CDT runs
-    // on `(u/k, v)`, where the NURBS lattice is near square; the
-    // cylinder lane keeps raw UV.
-    let metric = nurbs_stats.map_or(1.0, |s| s.metric);
     let trimmed = TrimmedFace {
         fk,
         metric,
