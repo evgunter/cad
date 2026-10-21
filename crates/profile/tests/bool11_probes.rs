@@ -286,7 +286,8 @@ fn the_off_ray_message_names_the_intent_and_the_miss() {
         .expect_err("definitely off the ray");
     let msg = err.to_string();
     assert!(msg.contains("declared straight continuation"), "{msg}");
-    assert!(msg.contains("across the ray"), "{msg}");
+    assert!(msg.contains("not on its run's line"), "{msg}");
+    assert!(msg.contains("across the line"), "{msg}");
     assert!(msg.contains("line_to"), "{msg}");
 }
 
@@ -449,74 +450,173 @@ fn a_seam_at_a_subdivision_vertex_still_refuses_as_a_mid_carrier_seam() {
     }
 }
 
-/// **The band's guarantee is PER LEG, and the run-level certifier is
-/// the data gate.** (R1 MIN-3, adopted.)
-///
-/// Each `continue_to` checks THIS leg's target against THIS leg's
-/// declared ray. That is the honest scope of the on-ray band, and it
-/// composes the way any per-step tolerance composes: forty legs each
-/// accepting a same-side miss of `0.5·ε` put the run's end `20·ε` — two
-/// full ε_input — off the ray the run started on, with every per-leg
-/// check green and correctly so.
-///
-/// This row exists to state that the drift does NOT escape quietly. The
-/// data gate is the run-level certifier, it sees the accumulated bow the
-/// per-leg checks cannot, and it ESCALATES on `chord_side` rather than
-/// accepting: the loud outcome, not silence. So the composition story is
-/// "the per-leg bound is per leg, and the gate catches the sum" — which
-/// is a recorded limit, not a hole.
-///
-/// R1's `r1_in_band_misses_accumulate_along_a_declared_run` builds the
-/// same chain and prints the measurement; this row PINS the gate's
-/// verdict, which is the part that must not regress silently.
-#[test]
-fn the_per_leg_band_composes_and_the_data_gate_catches_the_sum() {
-    let t = Tol::witness();
-    let eps = t.eps();
-    // An accepted miss (well inside the zero edge), same side every leg.
-    let bias = 0.5 * eps;
-    let n = 40usize;
+/// A run along x from the origin: `line(1)` to `(1, 0)`, then a
+/// `continue_to` through each of `ys`, the `k`-th to `(1 + k, ys[k])`.
+/// The first refusal, with its leg, or the run's tip.
+#[allow(clippy::type_complexity)]
+fn run_through(
+    ys: &[f64],
+    t: Tol,
+) -> Result<
+    profile::PartialPath<
+        f64,
+        profile::path::HasPos<profile::path::WithIncoming>,
+        profile::path::NoAng,
+    >,
+    (usize, PathError<f64>),
+> {
     let mut chain = Open
         .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap();
-    for i in 0..n {
-        let step = i as f64 + 1.0;
+    for (k, &y) in ys.iter().enumerate() {
         chain = chain
-            .continue_to(Point2::new(1.0 + step, step * bias), t)
-            .unwrap_or_else(|e| panic!("leg {i} must pass its OWN per-leg check: {e:?}"));
+            .continue_to(Point2::new(2.0 + k as f64, y), t)
+            .map_err(|e| (k, e))?;
     }
-    let closed = chain
-        .line_to(Point2::new(1.0 + n as f64, 50.0), t)
+    Ok(chain)
+}
+
+/// **The band's guarantee is PER RUN: a run's misses never sum.**
+/// (PATHS-DESIGN §4, as ruled on #5498.)
+///
+/// Every `continue_to` of a run asks its departing point `lands_on_ray`,
+/// which reads the line bound at the run's first vertex, never one
+/// re-anchored at an accepted target. So an author who biases every
+/// target `0.5·ε` further to one side (the targets `(1 + k, k·ε/2)`, R1's
+/// chain) is read against `y = 0` throughout:
+/// - the first leg's `0.5·ε` passes;
+/// - the run refuses by the third leg, `1.5·ε` off, in band:
+///   `Escalated` on `path_continuation_target_offset`, not a silent
+///   accept (the second, `1.0·ε`, sits on the zero edge, where rounding
+///   lands either side, so it is not pinned);
+/// - the target the twenty-first leg would aim at, `10.5·ε` off at
+///   `K = 10`, is read definitely off the run's line
+///   (`ContinuationTargetOffRay`) from the run's own tip.
+///
+/// Before the ruling, each leg was read against its own vertex, every
+/// leg passed, and forty of them put the run's end `20·ε` off its line.
+#[test]
+fn a_runs_misses_are_read_against_its_own_line_and_never_sum() {
+    let t = Tol::witness();
+    let eps = t.eps();
+    let bias = 0.5 * eps;
+    let ys: Vec<f64> = (1..=40).map(|k| k as f64 * bias).collect();
+    match run_through(&ys, t) {
+        Err((leg, PathError::Escalated { source }))
+            if (1..=2).contains(&leg)
+                && source.predicate == Some("path_continuation_target_offset") => {}
+        Err((leg, e)) => panic!("leg {leg} refused, but not as the in-band run: {e:?}"),
+        Ok(_) => panic!("a run biased past its band was accepted"),
+    }
+    let first = run_through(&ys[..1], t).expect("the first leg's 0.5·ε passes");
+    let off = (2.0 * t.k()).ceil() + 1.0;
+    match first.continue_to(Point2::new(1.0 + off, off * bias), t) {
+        Err(PathError::ContinuationTargetOffRay { across, .. }) => {
+            assert!(
+                (across - off * bias).abs() < eps,
+                "read off the run's line: {across:e}"
+            );
+        }
+        other => panic!("the {off}th leg's target must be off the run's line: {other:?}"),
+    }
+}
+
+/// **A run whose misses alternate sides passes.** Forty targets at
+/// `±0.5·ε` from the run's line, alternating: each is read against the
+/// line, so every one passes, and every vertex of the run lies within
+/// `ε` of it.
+#[test]
+fn a_run_whose_misses_alternate_sides_passes() {
+    let t = Tol::witness();
+    let eps = t.eps();
+    let ys: Vec<f64> = (0..40)
+        .map(|k| if k % 2 == 0 { 0.5 * eps } else { -0.5 * eps })
+        .collect();
+    let closed = run_through(&ys, t)
+        .unwrap_or_else(|(leg, e)| panic!("leg {leg} refused: {e:?}"))
+        .line_to(Point2::new(41.0, 50.0), t)
         .unwrap()
         .line_to(Point2::new(0.0, 50.0), t)
         .unwrap()
         .line_to(Start, t)
         .unwrap();
     let loop_ = pinned(closed);
+    for v in &loop_.vertices()[..=41] {
+        assert!(v.y.abs() <= eps, "a run vertex {v:?} off its line");
+    }
+}
 
-    // The drift is real and is larger than any single leg's bound: it is
-    // the SUM of n accepted misses, so it passes ε_input (= K·ε).
-    let drift = loop_.vertices()[n + 1].y;
-    assert!(
-        drift > t.k() * eps,
-        "the accumulated drift {drift:e} should exceed one full input tolerance \
-         ({:e}), which is the whole point of this row",
-        t.k() * eps
+/// **A turn starts a new run.** Two runs along x joined by a step up
+/// (`turn(π/2)`, `line(1)`, `turn(−π/2)`): the second run's line is bound
+/// at its own first vertex, so a miss the first run accepted (`0.9·ε`)
+/// is not charged to the second. Its targets `0.9·ε` above its own
+/// first vertex pass, where the same offsets read against the first run
+/// would sum past the zero edge.
+#[test]
+fn a_turn_starts_a_new_run() {
+    let t = Tol::witness();
+    let eps = t.eps();
+    let miss = 0.9 * eps;
+    let up = run_through(&[miss], t)
+        .unwrap_or_else(|(leg, e)| panic!("leg {leg} refused: {e:?}"))
+        .turn(core::f64::consts::FRAC_PI_2, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .turn(-core::f64::consts::FRAC_PI_2, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap();
+    // The second run starts at (2, 1 + 0.9·ε) and its first leg ends at
+    // (3, 1 + 0.9·ε); a target 0.9·ε above that line passes.
+    up.continue_to(Point2::new(4.0, 1.0 + 2.0 * miss), t)
+        .expect("the second run reads its own line, not the first run's");
+}
+
+/// **`.tangent()` and `.cusp()` keep the run.** The verbs that inherit
+/// the direction bitwise hand the run on (PATHS-DESIGN §2c): a straight
+/// leg off the inherited direction continues it, so its next
+/// `continue_to` is still read against the run's first line. After one
+/// accepted `0.6·ε` miss, `.tangent().line(1)` and `.cusp().line(1)` land
+/// on the run, and a target `1.2·ε` off the run's line (only `0.6·ε` off
+/// the leg's own end) escalates as the plain continuation's does.
+#[test]
+fn tangent_and_cusp_keep_the_run() {
+    let t = Tol::witness();
+    let eps = t.eps();
+    let miss = 0.6 * eps;
+    let in_band = |r: Result<_, PathError<f64>>, what: &str| match r {
+        Err(PathError::Escalated { source })
+            if source.predicate == Some("path_continuation_target_offset") => {}
+        Err(e) => panic!("{what}: refused, but not in band of the run's line: {e:?}"),
+        Ok(_) => panic!("{what}: read against the leg's own end, not the run's line"),
+    };
+    let tip = || run_through(&[miss], t).unwrap_or_else(|(leg, e)| panic!("leg {leg}: {e:?}"));
+    in_band(
+        tip()
+            .continue_to(Point2::new(3.0, 2.0 * miss), t)
+            .map(|_| ()),
+        "continue_to",
     );
-
-    // And the run-level certifier catches it LOUDLY. Escalation, not a
-    // silent accept and not a definite refusal: the bow puts `chord_side`
-    // inside the ambiguity band, which is exactly the honest verdict.
-    let err = Profile::new(SketchPlane::xy(), vec![loop_])
-        .validate(t)
-        .expect_err("the data gate must not silently accept a run bowed past its tolerance");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("is undecided: ") && format!("{err:?}").contains("chord_side"),
-        "the gate should escalate on chord_side rather than refusing definitely or \
-         accepting: {msg}"
+    in_band(
+        tip()
+            .tangent()
+            .line(1.0, t)
+            .unwrap()
+            .continue_to(Point2::new(4.0, 2.0 * miss), t)
+            .map(|_| ()),
+        ".tangent().line",
+    );
+    in_band(
+        tip()
+            .cusp()
+            .line(1.0, t)
+            .unwrap()
+            .continue_to(Point2::new(0.5, 2.0 * miss), t)
+            .map(|_| ()),
+        ".cusp().line",
     );
 }
