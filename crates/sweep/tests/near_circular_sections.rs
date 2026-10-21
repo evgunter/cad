@@ -884,3 +884,64 @@ fn a_turned_near_square_rod_minus_a_box_builds() {
         }
     }
 }
+
+// ---- review 5576 probes ----
+
+/// Claim 2: bodies stood at far coordinates by an EXACT translation (every
+/// stored coordinate checked to round-trip), so the stored solid is the
+/// closed form's; measure props' own error there.
+#[test]
+fn review_5576_far_built_bodies() {
+    let u = f64::EPSILON / 2.0;
+    let offsets = [0.0, 1e2, 1e3, 1e4, 1e5, 1e6];
+    for scale in SCALES {
+        let f = frustum(scale);
+        let want_f = PI * scale / 3.0 * (f.r0 * f.r0 + f.r0 * f.r1 + f.r1 * f.r1);
+        let r = scale;
+        let ball = sweep::test_support::ball_poled_y(r, Vec3::new(0.0, 0.0, 0.0), tol());
+        let want_b = 4.0 / 3.0 * PI * r * r * r;
+        for (name, body, want) in [("frustum", &f.body, want_f), ("ball", &ball, want_b)] {
+            for off in offsets {
+                let c = Vec3::new(off, -0.5 * off, 0.25 * off);
+                let moved = topo::transform_rigid(
+                    body,
+                    &geom_core::RigidMotion::translation(c).unwrap(),
+                    tol(),
+                )
+                .unwrap();
+                let back = |p0: Point3<f64>, p1: Point3<f64>| {
+                    p1.x - c.x == p0.x && p1.y - c.y == p0.y && p1.z - c.z == p0.z
+                };
+                let anchor = |s: &Surface<f64>| match *s {
+                    Surface::Plane { origin, .. } => Some(origin),
+                    Surface::Cone { apex, .. } => Some(apex),
+                    Surface::Sphere { center, .. } => Some(center),
+                    _ => None,
+                };
+                let exact = body
+                    .vertex_points()
+                    .zip(moved.vertex_points())
+                    .all(|((_, p0), (_, p1))| back(p0, p1))
+                    && body
+                        .surfaces()
+                        .zip(moved.surfaces())
+                        .all(|((_, s0), (_, s1))| match (anchor(s0), anchor(s1)) {
+                            (Some(a), Some(b)) => back(a, b),
+                            _ => true,
+                        });
+                let at = finished("far", moved, tol());
+                let (props, terms) =
+                    topo::props::mass_properties_with_face_terms(&at, tol()).expect("measures");
+                let s: f64 = terms.iter().map(|t| t.1.abs()).sum();
+                let err = (props.volume - want).abs();
+                println!(
+                    "PROBE {name} scale {scale:e} off {off:e} exact_vertices {exact} pad {} V {:?} err/(u·V) {:.2} err/(u·Σ|t|/3) {:.2}",
+                    props.volume_pad,
+                    props.volume,
+                    err / (u * want.abs()),
+                    err / (u * s / 3.0)
+                );
+            }
+        }
+    }
+}

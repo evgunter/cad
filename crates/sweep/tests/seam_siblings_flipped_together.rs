@@ -419,3 +419,21 @@ fn a_lone_lune_through_both_poles_flips_into_another_valid_body() {
         "the flipped lune measures the dimpled brick, {dimple}"
     );
 }
+
+/// Review 5576, claim 8: a whole ball with one lune flipped, at the door.
+#[test]
+fn review_5576_whole_sphere_door_naming() {
+    let tol = Tol::witness();
+    let ball = finished(
+        "ball",
+        ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol),
+        tol,
+    );
+    let faces = sphere_faces(&ball);
+    for (i, f) in faces.iter().enumerate() {
+        let body = flipped(&ball, &[*f]);
+        let got = topo::mass_properties(&body, tol);
+        let terms = topo::props::face_flux_terms(&body, tol);
+        println!("PROBE8 flipped lune {i} ({f:?}) of {faces:?}: door {got:?}; own arms {terms:?}");
+    }
+}

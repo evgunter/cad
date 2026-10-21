@@ -4234,3 +4234,165 @@ fn a_lane_free_read_never_takes_the_rounded_sums_sign() {
         "upright through the structural door: {read:?}"
     );
 }
+
+mod review_5576 {
+    use super::far_anchored_slab;
+    use crate::AtRestPolicy;
+    use crate::BooleanOp;
+    use crate::props::QuadLane;
+    use geom_core::{Band, Sign, Tol};
+
+    fn ops() -> [BooleanOp; 3] {
+        [BooleanOp::Intersect, BooleanOp::Union, BooleanOp::Subtract]
+    }
+
+    /// Claim 4, planted: R ≡ A geometrically, A at far 0, R anchored far.
+    #[test]
+    fn p1_planted_arm2() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (mut n, mut refused) = (0, 0);
+        for far in [0.0, 1e2, 1e3, 1e4, 1e5, 1e6] {
+            for t in [3e-11, 1e-9, 1e-8, 1e-7, 1e-5, 1e-3] {
+                if t < band.escalate() {
+                    continue;
+                }
+                let a = far_anchored_slab(0.0, 1e-3, t, 0.0, tol);
+                let r = far_anchored_slab(0.0, 1e-3, t, far, tol);
+                for op in ops() {
+                    n += 1;
+                    let got = crate::boolean::volume_backstop(
+                        op,
+                        &a,
+                        &a,
+                        &r,
+                        band,
+                        tol,
+                        QuadLane::certified(),
+                    );
+                    if let Err(e) = got {
+                        refused += 1;
+                        println!("PROBE1 far {far:e} t {t:e} {op:?}: {e:?}");
+                    }
+                }
+            }
+        }
+        println!("PROBE1 eps {:e}: {refused} of {n} refuse", tol.eps());
+    }
+
+    /// Claim 1: the operand gate (`bounded`) on an inside-out thin far slab.
+    #[test]
+    fn p3_operand_gate() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        println!(
+            "PROBE3 eps {:e} band zero {:e} escalate {:e}",
+            tol.eps(),
+            band.zero(),
+            band.escalate()
+        );
+        let boxed =
+            crate::test_support_fixtures::brick::<f64>((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol);
+        for far in [0.0, 1e3, 5e3, 1e4, 1e5] {
+            for t in [
+                band.escalate(),
+                band.escalate() * 1.5,
+                band.escalate() * 3.0,
+                1e-7,
+            ] {
+                let up = far_anchored_slab(0.0, 1e-3, t, far, tol);
+                let inv = up.revert().unwrap();
+                let p = crate::mass_properties(&inv, tol).unwrap();
+                let e = p.enclosure();
+                let gate = geom_core::k_stats::decide_invariant(
+                    "probe",
+                    e.volume_lo / e.surface_area,
+                    band,
+                );
+                let at_rest = f64::gate_at_rest_kept(inv.clone(), tol).is_ok();
+                let planted = crate::boolean::volume_backstop(
+                    BooleanOp::Intersect,
+                    &inv,
+                    &boxed,
+                    &boxed,
+                    band,
+                    tol,
+                    QuadLane::certified(),
+                );
+                let door = if at_rest {
+                    let a = f64::gate_at_rest_kept(inv.clone(), tol).unwrap();
+                    let b = f64::gate_at_rest_kept(boxed.clone(), tol).unwrap();
+                    format!("{:?}", crate::intersect(&a, &b, tol).map(|_| "ok"))
+                } else {
+                    "n/a".into()
+                };
+                let exact_va = -(1e-3 * 1e-3 * t) / (2e-6 + 4e-3 * t);
+                println!(
+                    "PROBE3 far {far:e} t {t:e} exactV/A {exact_va:e} f64 V {:e} gate {:?} (want Negative/Zero) at_rest {at_rest} planted {:?} door {door}",
+                    p.volume,
+                    gate.map_err(|_| "esc"),
+                    planted.map_err(|e| format!("{e:?}").chars().take(90).collect::<String>())
+                );
+                let _ = Sign::Zero;
+            }
+        }
+    }
+
+    /// Claim 3: far slivers through check 7, the volume's role and point
+    /// containment, upright and inside out.
+    #[test]
+    fn p5_sliver_sweep() {
+        use crate::boolean::SolidContainment::{In, Out};
+        use crate::validate::{ValidationError, validate_geometric};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (mut n, mut wrong, mut f64_wrong) = (0, 0, 0);
+        for far in [0.0, 1e2, 1e3, 5e3, 1e4, 1e5, 1e6] {
+            for t in [
+                band.escalate() * 1.5,
+                band.escalate() * 10.0,
+                1e-7,
+                1e-5,
+                1e-3,
+            ] {
+                let up = far_anchored_slab(0.0, 1e-3, t, far, tol);
+                let inv = up.revert().unwrap();
+                for (body, upright) in [(&up, true), (&inv, false)] {
+                    n += 1;
+                    let v = crate::mass_properties(body, tol).unwrap().volume;
+                    if (v > 0.0) != upright {
+                        f64_wrong += 1;
+                    }
+                    let c7 = validate_geometric(body, tol);
+                    let c7_ok = if upright {
+                        c7 == Ok(())
+                    } else {
+                        matches!(
+                            c7.as_ref().map_err(Vec::as_slice),
+                            Err([ValidationError::NegativeVolume { .. }])
+                        )
+                    };
+                    let role = std::panic::catch_unwind(|| super::volume_role_of(body, tol));
+                    let role_ok = matches!(
+                        (&role, upright),
+                        (Ok(crate::ShellRole::Outer), true) | (Ok(crate::ShellRole::Void), false)
+                    );
+                    let inside = geom_core::Point3::new(5e-4, 5e-4, t / 2.0);
+                    let pin = crate::boolean::point_in_solid(body, inside, band, tol);
+                    let pin_ok = matches!((&pin, upright), (Ok(In), true) | (Ok(Out), false));
+                    if !(c7_ok && role_ok && pin_ok) {
+                        wrong += 1;
+                        println!(
+                            "PROBE5 far {far:e} t {t:e} upright {upright} f64V {v:e} c7 {c7:?} role {:?} pin {pin:?}",
+                            role.map_err(|_| "panic")
+                        );
+                    }
+                }
+            }
+        }
+        println!(
+            "PROBE5 eps {:e}: {wrong} of {n} wrong or refused; f64 sign wrong on {f64_wrong}",
+            tol.eps()
+        );
+    }
+}
