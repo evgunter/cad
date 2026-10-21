@@ -89,3 +89,9 @@ crossing lane and the edge-on-face lane (plan.md, Order).
     - `the-depth-gaps-least-point-is-placed-over-axis-dot-n-uncharged` (P3);
     - `scalar/band-k-is-spelled-escalate-over-zero-at-every-site` (P4);
     - `issues/a-torn-body-kill-row-asserts-a-30-s-wall-clock-and-reds-under-load` (P3). — (RESTREAD orchestrator)
+- 2026-10-21 — The vertex-touch fork (`tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid`) is put to Ev as [ev] PR 5517 and raised to P1.
+  - **Why P1:** a probe on main built one solid whose two planar faces cross, showing only vertex-on-face touches. With those touches recorded it passes tier 3′, a silent wrong pass. The cavity-corner pit passes, rightly.
+  - **Designers:** two (byte 129 on `analysis/design-fork/vertex-own-face`), run concurrently with one problem statement. They converged after two rounds on the whole-link winding at a point where one solid touches itself.
+  - **What moved:** B moved after working A's two-pits-and-a-needle witness. The wording crossed in round 1 and was settled in round 2.
+  - **On the PR:** the cells-at-a-point sentence is a separate decision, as B corrected it.
+  - Fork-log row 185. — (RESTREAD orchestrator)
