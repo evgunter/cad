@@ -6286,6 +6286,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "null_face_at_rest",
             "null_scaffold_shared",
             "orbit_foreign_member",
+            "orientation_opposed",
             "orientation_undecided",
             "orphan_entity",
             "orphan_geometry",
