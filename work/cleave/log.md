@@ -1346,3 +1346,7 @@ Signed (CLEAVE orchestrator).
   - The gap enum split: Closes / Flush / CrossedTwice. Placement is absolute.
   - Main reds filed: lib `main-red-lattice-built-loop-…`; tess P1 `demo-tour-wall-8-no-longer-refuses-at-1e-12`; CLEAVE P2 `the-meeting-axes-pose-escalates-…`.
   - Narrow re-review dispatched, aimed at over-refusal by Flush.
+- 2026-10-21 — PR 5479 merged: recl places germs apart along a slit line.
+  - 120 cells correct at 3 ε; unions refuse `SlitLineCrossed{Closes}`; flush flanks refuse `{Flush}`. Row closed.
+  - Filed P1 `a-glued-slit-intersection-refuses-a-classification-invariant-since-5505`, a regression of my 5505 that the 5479 re-review found.
+  - Cleanup notes on the parting row.
