@@ -327,21 +327,19 @@ fn arc_kissing_a_line_is_a_tangential_contact() {
     );
 }
 
-/// **A segment's end in band of another's carrier but past its end
-/// along it is no contact** (the line×line row of
-/// `paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
-/// The chain `(0,0) (2,0) (2,2) (4,2) (4,b) (6,−1) (6,3) (0,3)` with `b`
-/// in band of segment 0's carrier `y = 0`: `(4, b)` lies two metres past
-/// segment 0's end along it. On main the pair pass read the four ends'
-/// sides of the other's carrier first and escalated
-/// `SegmentPair(0, 3)` on `chord_side`; read from the two spans' gap
-/// along segment 0 first, they are apart, and the loop validates, at
-/// `f64` and `Interval` alike.
-#[test]
-fn an_end_in_band_of_a_carrier_but_past_its_segment_is_no_contact() {
+/// The in-band height the line×line rows place an end at: half way
+/// across the band, `ε·(1 + K)/2`.
+fn line_band() -> f64 {
     let t = tol().get();
-    let b = t.eps * ((1.0 + t.k) / 2.0);
-    let p = profile(vec![chain(&[
+    t.eps * ((1.0 + t.k) / 2.0)
+}
+
+/// The step fixture of the line×line rows:
+/// `(0,0) (2,0) (2,2) (4,2) (4,b) (6,−1) (6,3) (0,3)`, with `(4, b)` in
+/// band of segment 0's carrier `y = 0` and two metres past its end.
+fn step_chain() -> Vec<(f64, f64, f64)> {
+    let b = line_band();
+    vec![
         (0.0, 0.0, 0.0),
         (2.0, 0.0, 0.0),
         (2.0, 2.0, 0.0),
@@ -350,8 +348,120 @@ fn an_end_in_band_of_a_carrier_but_past_its_segment_is_no_contact() {
         (6.0, -1.0, 0.0),
         (6.0, 3.0, 0.0),
         (0.0, 3.0, 0.0),
+    ]
+}
+
+/// **A segment's end in band of another's carrier but past its end
+/// along it is no contact, whichever way the loop is authored** (the
+/// line×line row of
+/// `paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+/// The step fixture validates as authored; re-seamed to start at
+/// `(4, 2)`, where the in-band pair is read with the vertical segment
+/// first and its own axis puts the gap at `b`, in band; and reversed. In
+/// each, `(0,0)` and `(2,0)` lie definitely on one side of the vertical
+/// segment's carrier, so the pair is apart however `(4, b)`'s side of
+/// `y = 0` reads. At `f64` and `Interval` alike.
+#[test]
+fn an_end_in_band_of_a_carrier_but_past_its_segment_is_no_contact() {
+    let as_authored = step_chain();
+    let mut reseamed = as_authored.clone();
+    reseamed.rotate_left(3);
+    let mut reversed = as_authored.clone();
+    reversed.reverse();
+    for (name, vs) in [
+        ("as authored", as_authored),
+        ("re-seamed", reseamed),
+        ("reversed", reversed),
+    ] {
+        validate_both(&profile(vec![chain(&vs)]))
+            .unwrap_or_else(|e| panic!("{name}: the end two metres past segment 0: {e:?}"));
+    }
+}
+
+/// **An end in band of a carrier past its segment, its segment's
+/// projection overlapping, is no contact.** The chain
+/// `(0,0) (1,0) (1,−1) (3,−1) (2,b) (0.5,1) (−1,1)`: `(2, b)` is in band
+/// of segment 0's carrier, a metre past its end, and segment 4 runs back
+/// over segment 0 at least `0.55` m above it, so their projections
+/// overlap on both axes and no gap separates them. Segment 0's ends lie
+/// definitely on one side of segment 4's carrier, which does. At `f64`
+/// and `Interval` alike.
+#[test]
+fn an_end_in_band_of_a_carrier_over_an_overlapping_projection_is_no_contact() {
+    let b = line_band();
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, -1.0, 0.0),
+        (3.0, -1.0, 0.0),
+        (2.0, b, 0.0),
+        (0.5, 1.0, 0.0),
+        (-1.0, 1.0, 0.0),
     ])]);
-    validate_both(&p).expect("the end two metres past segment 0 is no contact");
+    validate_both(&p).expect("segment 0 lies wholly below segment 4's carrier");
+}
+
+/// The NOTE witness of PR 5536's review: a run along `y = 0.9ε` from
+/// `(−2, 0.9ε)`, its last head at `(−0.5, last)`, closed onto `Start`
+/// tangent, so the closing leg and segment 0 meet at `Start` through a
+/// joint straight within the band.
+fn straight_joint_at_start(last: f64) -> profile::Profile<f64> {
+    let t = tol();
+    let e = t.get().eps;
+    let closed = Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .line_to(Point2::new(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Point2::new(-2.0, 0.9 * e), t)
+        .unwrap()
+        .angle(0.0, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .continue_to(Point2::new(-0.5, last * e), t)
+        .unwrap()
+        .continue_to(Start.arrives_tangent(), t)
+        .unwrap();
+    profile(vec![common::pinned(closed)])
+}
+
+/// **A run's end in band of a carrier a metre past its segment is no
+/// contact**: [`straight_joint_at_start`] with the last head on the
+/// run's line (`0.9ε`). `(1, 0)`, segment 1's start, stands in band of
+/// the closing leg's carrier and a metre past its span, and that pair
+/// (`SegmentPair(1, 5)`) is no contact. What the loop still escalates on
+/// is the adjacent pair at `Start`, the next row's.
+#[test]
+fn a_run_end_in_band_of_a_carrier_past_its_segment_is_no_contact() {
+    match validate_both(&straight_joint_at_start(0.9)) {
+        Err(ProfileError::Escalated { site, .. }) => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 5)));
+        }
+        other => panic!("only the adjacent pair at Start may escalate, got {other:?}"),
+    }
+}
+
+/// **An adjacent pair through a joint straight within the band still
+/// escalates.** [`straight_joint_at_start`] as the review wrote it
+/// (`1.8ε`): segment 0 and the closing leg share `Start`, their far ends
+/// stand in band of each other's carrier, and their projections touch
+/// at the shared vertex, so neither the gap nor a carrier side decides
+/// the pair, and it escalates `SegmentPair(0, 5)` on `chord_side`. Its
+/// only possible contact is that vertex
+/// (`paths/an-adjacent-pair-through-a-joint-straight-within-the-band-escalates-on-chord-side`).
+#[test]
+fn an_adjacent_pair_through_a_joint_straight_within_the_band_escalates() {
+    match validate_both(&straight_joint_at_start(1.8)) {
+        Err(ProfileError::Escalated { site, source }) => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 5)));
+            assert_eq!(source.predicate, Some("chord_side"));
+        }
+        other => panic!("the straight joint at Start must escalate, got {other:?}"),
+    }
 }
 
 /// One circle, its lowest point an in-band height above the bottom

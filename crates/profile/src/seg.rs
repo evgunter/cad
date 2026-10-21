@@ -1423,29 +1423,85 @@ fn joint(
     }
 }
 
-/// Whether two straight segments' projections on `s1`'s axis lie apart
-/// past the band (the **`segment_gap`** predicate, [`line_line`]).
+/// Whether two straight segments' projections lie apart past the band
+/// on either one's axis (the **`segment_gap`** predicate, [`line_line`]):
+/// on `s1`'s axis first, then on `s2`'s where `s1`'s did not decide.
+/// Either axis apart holds every pair of points apart, so the reading is
+/// the pair's, whichever segment is named first, as check 9's
+/// (`topo::validate`'s `gaps_apart`) is.
 fn gaps_apart<T: Decide>(s1: &Seg<T>, s2: &Seg<T>, band: Band) -> bool {
-    let along = on_one_line_2d(s1.unit, (s1.a, s1.b), (s2.a, s2.b), T::zero());
-    decide("segment_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+    let apart = |a: &Seg<T>, b: &Seg<T>| {
+        let along = on_one_line_2d(a.unit, (a.a, a.b), (b.a, b.b), T::zero());
+        decide("segment_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+    };
+    apart(s1, s2) || apart(s2, s1)
 }
 
-/// Line/line contacts. First the **`segment_gap`** predicate — margin:
-/// the gap between the two spans' projections on `s1`'s axis, past its
-/// rounding ([`geom_core::one_line`]; meters, positive = apart): spans
-/// apart along it past the band hold every pair of points apart by as
-/// much, so the pair has no contact whatever its sides would read. The
-/// four points are the loop's stored vertices (`build_loop_seg`), the
-/// geometry the simplicity pass reads, so nothing here computed them
-/// and none is charged for its making. Then the four `chord_side`
-/// orientations (the Shewchuk-style segment test, trileanized). Strictly opposite sides
-/// both ways ⇒ one proper crossing; any Zero ⇒ endpoint-on-carrier
-/// configurations resolved by `line_span`; both of one segment's
-/// endpoints on the other's carrier ⇒ collinear, resolved by the
-/// **`collinear_overlap`** predicate — margin: the length of the
-/// parameter-interval intersection (meters; positive = overlap, Zero =
-/// endpoint touch, negative = disjoint), computed with lattice min/max
-/// (value operations, not branches).
+/// The collinear arm of [`line_line`]: `other` read along `host`'s axis,
+/// through the one reading of two spans on one line
+/// ([`geom_core::one_line`]), on the **`collinear_overlap`** predicate —
+/// margin: the overlap's signed length (meters; positive = overlap, Zero
+/// = endpoint touch, negative = disjoint), decided past its charge both
+/// ways. An overlap where even its lower bound is definitely positive;
+/// disjoint where even its upper bound is definitely negative; a touch,
+/// at the overlap's middle, where both read zero; and the bounds'
+/// straddle otherwise.
+fn collinear_overlap<T: Decide>(
+    host: &Seg<T>,
+    other: &Seg<T>,
+    band: Band,
+) -> Result<PairOutcome<T>, Indeterminate> {
+    let along = on_one_line_2d(host.unit, (host.a, host.b), (other.a, other.b), T::zero());
+    let lower = decide_reported(
+        "collinear_overlap",
+        Margin::of(along.extent() - along.noise),
+        band,
+    )?;
+    if lower.sign == Sign::Positive {
+        return Ok(PairOutcome::Overlap);
+    }
+    let upper = decide_reported(
+        "collinear_overlap",
+        Margin::of(along.extent() + along.noise),
+        band,
+    )?;
+    Ok(match (lower.sign, upper.sign) {
+        (Sign::Negative, Sign::Negative) => PairOutcome::Contacts(Vec::new()),
+        (Sign::Zero, Sign::Zero) => PairOutcome::Contacts(vec![Contact {
+            point: host.a + host.unit * along.mid(),
+            kind: CKind::Touch,
+        }]),
+        _ => {
+            return Err(geom_core::k_stats::straddle(
+                "collinear_overlap",
+                lower,
+                upper,
+                band,
+            ));
+        }
+    })
+}
+
+/// Line/line contacts, read as check 9 reads two straight edges
+/// (`topo::validate`'s `lines_meet`), so the two doors give one answer.
+///
+/// - First the **`segment_gap`** predicate ([`gaps_apart`]): the gap
+///   between the two spans' projections on either one's axis, past its
+///   rounding ([`geom_core::one_line`]; meters, positive = apart). Spans
+///   apart along either axis past the band hold every pair of points
+///   apart by as much, so the pair has no contact whatever its sides
+///   would read. The four points are the loop's stored vertices
+///   (`build_loop_seg`), the geometry the simplicity pass reads, so
+///   nothing here computed them and none is charged for its making.
+/// - Then the four `chord_side` orientations (the Shewchuk-style segment
+///   test, trileanized), each end against the other's carrier. Both of
+///   one segment's ends definitely on one side of the other's carrier
+///   separates them, so the pair has no contact, however the other two
+///   sides read. Only then does an in-band side escalate.
+/// - Strictly opposite sides both ways ⇒ one proper crossing; any Zero ⇒
+///   endpoint-on-carrier configurations resolved by `line_span`; both of
+///   one segment's ends on the other's carrier ⇒ collinear, resolved by
+///   [`collinear_overlap`] along that carrier's axis.
 fn line_line<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
@@ -1454,30 +1510,26 @@ fn line_line<T: Decide>(
     if gaps_apart(s1, s2, band) {
         return Ok(PairOutcome::Contacts(Vec::new()));
     }
-    let (o_c, _) = chord_side(s1, s2.a, band)?;
-    let (o_d, _) = chord_side(s1, s2.b, band)?;
-    if o_c == Sign::Zero && o_d == Sign::Zero {
-        // Collinear carriers: 1-D overlap on s1's arc-length axis.
-        let tc = (s2.a - s1.a).dot(s1.unit);
-        let td = (s2.b - s1.a).dot(s1.unit);
-        let lo = tc.min(td).max(T::zero());
-        let hi = tc.max(td).min(s1.len);
-        return Ok(
-            match decide("collinear_overlap", Margin::of(hi - lo), band)? {
-                Sign::Positive => PairOutcome::Overlap,
-                Sign::Zero => {
-                    let mid = (lo + hi) * T::from_f64(0.5);
-                    PairOutcome::Contacts(vec![Contact {
-                        point: s1.a + s1.unit * mid,
-                        kind: CKind::Touch,
-                    }])
-                }
-                Sign::Negative => PairOutcome::Contacts(Vec::new()),
-            },
-        );
+    let side = |host: &Seg<T>, q: Point2<T>| chord_side(host, q, band).map(|(sign, _)| sign);
+    let on_1 = [side(s1, s2.a), side(s1, s2.b)];
+    let on_2 = [side(s2, s1.a), side(s2, s1.b)];
+    let separated = |pair: &[Result<Sign, Indeterminate>; 2]| {
+        matches!(
+            pair,
+            [Ok(Sign::Positive), Ok(Sign::Positive)] | [Ok(Sign::Negative), Ok(Sign::Negative)]
+        )
+    };
+    if separated(&on_1) || separated(&on_2) {
+        return Ok(PairOutcome::Contacts(Vec::new()));
     }
-    let (o_a, _) = chord_side(s2, s1.a, band)?;
-    let (o_b, _) = chord_side(s2, s1.b, band)?;
+    let [o_c, o_d] = [on_1[0]?, on_1[1]?];
+    let [o_a, o_b] = [on_2[0]?, on_2[1]?];
+    if o_c == Sign::Zero && o_d == Sign::Zero {
+        return collinear_overlap(s1, s2, band);
+    }
+    if o_a == Sign::Zero && o_b == Sign::Zero {
+        return collinear_overlap(s2, s1, band);
+    }
     let opposite = |x: Sign, y: Sign| {
         matches!(
             (x, y),
@@ -1498,9 +1550,7 @@ fn line_line<T: Decide>(
     } else {
         // Non-collinear with some endpoint on a carrier: the carriers
         // meet exactly once, at that endpoint, read by [`touches`]' rule
-        // from the side read above. The crossing test needs all four
-        // sides definite, so an in-band side escalates before its span
-        // is read (`validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+        // from the side read above.
         for (host, o, q) in [
             (s1, o_c, s2.a),
             (s1, o_d, s2.b),
