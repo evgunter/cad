@@ -39,7 +39,7 @@ the tolerance and MC cells move.
 |---|---|---|---|---|
 | uncut (shipped): web read off the hole extrudes | 193 of 512 leaves | answers | answers | the blank slab |
 | **cut**: blank ∖ hole_a ∖ hole_b, flush caps declared (`plate::cut_plate`) | no box certifies, not even 1e-9 of the study whole (the subtract's volume-bound tie, `work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`) | `NothingCertified` | answers, the study's web bit for bit | `NoBodyRoots` (`work/recipe/a-measured-part-is-not-a-product-root.md`) |
-| **sketched**: one extrude, two inner-loop circles | whole boxes to 1e-2 of the study; 0 of 512 over the real study (`work/profile/inner-loop-circles-bound-the-plate-study-at-arc-span.md`) | refuses with it | answers | `NoBodyRoots` (inferred: the measure reads the extrude) |
+| **sketched**: one extrude, two inner-loop circles | whole boxes to 1e-2 of the study; 0 of 512 over the real study (`work/profiletail/inner-loop-circles-bound-the-plate-study-at-arc-span.md`) | refuses with it | answers | `NoBodyRoots` (inferred: the measure reads the extrude) |
 
 The cut is pinned live as two walls: `tolerance::cut_wall` (wall 1, in
 `demo-tour certified`) and `gallery::tests::the_cut_plate_has_no_product`

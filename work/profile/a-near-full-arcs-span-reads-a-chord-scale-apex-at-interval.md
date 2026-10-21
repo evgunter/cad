@@ -5,6 +5,8 @@ title: paths: an arc near a full turn reads its span off the chord-scale apex, w
 status: open
 opened: 2026-10-19
 priority: P2
+cost: M
+design: true
 ---
 
 
@@ -36,4 +38,4 @@ and its doc both change.
 
 ## Re-homed at PATHS's close (2026-10-21)
 
-Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PROFILE was opened at this close as PATHS's successor for the profile lattice (`docs/PATHS-EXIT-WALK.md`). The item's id, content and history are unchanged.
+Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/PATHS-EXIT-WALK.md`). The item's id, content and history are unchanged.

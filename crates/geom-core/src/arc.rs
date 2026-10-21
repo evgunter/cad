@@ -108,7 +108,7 @@ impl<T: Real> Arc2<T> {
     /// below carries one, and it builds a second rotation's nodes at
     /// every `Sym` sample. Endpoint authority is held by the caller's
     /// endpoints, never this evaluation
-    /// (`work/profile/sketch-segment-eval-could-be-exact-at-both-ends.md`).
+    /// (`work/profilerest/sketch-segment-eval-could-be-exact-at-both-ends.md`).
     ///
     /// **The rotation is anchored on `a`, not on the centre**: the
     /// evaluated form is `a + (R − I)·v` (v = a − centre, R the

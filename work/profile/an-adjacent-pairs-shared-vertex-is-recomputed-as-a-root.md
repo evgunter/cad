@@ -5,7 +5,7 @@ title: validation's pair pass recomputes an adjacent pair's shared vertex as a r
 status: open
 opened: 2026-09-26
 priority: P2
-cost: D
+cost: M
 refs: [the-apothems-sign-is-a-value-read, arc-arc-shallow-corner-legs-escalate-arc-span]
 ---
 
@@ -77,4 +77,4 @@ The early forms are in `crates/editor-core/tests/m10_bulge_renders.txt`
 
 ## Re-homed at PATHS's close (2026-10-21)
 
-Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PROFILE was opened at this close as PATHS's successor for the profile lattice (`docs/PATHS-EXIT-WALK.md`). The item's id, content and history are unchanged.
+Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/PATHS-EXIT-WALK.md`). The item's id, content and history are unchanged.

@@ -786,7 +786,11 @@ Ev approved the closing plan in chat on 2026-10-21 ("your closing plan sounds go
 
 Every live row moves with its id kept, and each carries a dated "Re-homed at PATHS's close" section:
 
-- **46 rows go to PROFILE** (`work/profile/`), the successor opened here. It opens `ready` with no orchestrator, not `blocked`, because the check-9 arm-5 dedupe and the P2 validation rows are dispatchable. It opens at 98/30, and its first sitting owes the priority-seam split.
+- **46 rows go to four new tracks,** cut along their priority seam so that none opens over budget. Eight unbanded rows were banded first, and every unpriced or legacy-`D` row was re-priced from its body. All four open `ready` with no orchestrator, because each holds dispatchable rows:
+  - PROFILE: the goal (P1s, the planar-primitive dedupe, the validation P2s), 30/30;
+  - PROFILEREST: the P2 remainder and validation's P3 reads, 29.5/30;
+  - PROFILETAIL: the path door's and the lift's P3s, 24/30;
+  - PROFILEPROSE: the P3/P4 refusal-text rows, 12.5/30.
 - **One row goes to INLANE:** `a-path-sweeps-station-turn-at-interval-widens-its-walls-past-the-band-at-the-tightest-eps`. Its site is `crates/sweep/src/skin.rs` and its question is about the lane scalar.
 
 Citations of the moved rows in code comments, docs and other programs' rows are rewritten to the new paths; logs are left as written. `work/paths/` now holds only closed rows. The directory sweep and the ledger note follow Ev's ratification of the walk. (PATHS orchestrator)

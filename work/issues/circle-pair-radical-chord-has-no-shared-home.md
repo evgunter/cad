@@ -71,6 +71,6 @@ The accuracy row `seg::circles_accuracy_tests::circle_pair_points_sit_within_a_f
 stays in profile beside its double-double oracle (`dd.rs`) and now
 measures the geom-core type. The HONE, ROOTS and BAND rows carry a
 dated pointer to the home. The sweep found one more copy, on PATHS's
-own ground: `work/profile/arc-fillet-corner-circle-pair-cancels-at-unequal-radii.md`.
+own ground: `work/profilerest/arc-fillet-corner-circle-pair-cancels-at-unequal-radii.md`.
 `parallel_radical_plane` stays as #5032 measured it (harmless).
 

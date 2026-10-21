@@ -6,7 +6,7 @@ status: parked
 blocked_on: [a-boss-over-a-hole-tangent-inside-its-rim-at-its-vertex-unites-as-two-shells]
 opened: 2026-09-25
 priority: P1
-cost: D
+cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 ---
 
@@ -73,6 +73,6 @@ a pocket tangent inside it on the `+x` side builds the wrong body.
 
 ## Re-homed at PATHS's close (2026-10-21)
 
-Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PROFILE was opened at this close as PATHS's successor for the profile lattice (`docs/PATHS-EXIT-WALK.md`). The item's id, content and history are unchanged.
+Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/PATHS-EXIT-WALK.md`). The item's id, content and history are unchanged.
 
 The four regression groups PATHS's log named on 2026-10-14, still to be attributed when the unit resumes: `CurvedPierceUnsupported`, `CarryRefused{Found, Unread}`, the containment verdict `None`, and `verbs_germarms`. The log goes with PATHS's directory; its ledger note gives the SHA to read it at.

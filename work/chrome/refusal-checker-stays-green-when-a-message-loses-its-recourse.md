@@ -101,7 +101,7 @@ is written, and they sit on eight programs' ground. They are admitted
 by exact id (`FILED_NO_RECOURSE` in `refusal_concision_chains.rs` and
 `refusal_concision_edits.rs`) and filed:
 `work/wire/wire-refusals-short-of-the-shape-guard.md` (94),
-`work/profile/paths-refusals-short-of-the-shape-guard.md`,
+`work/profilerest/paths-refusals-short-of-the-shape-guard.md`,
 `work/hone/reach-refusals-short-of-the-shape-guard.md` (24),
 `work/carvetail/carve-refusals-short-of-the-shape-guard.md` (18),
 `work/shell/shell-refusals-short-of-the-shape-guard.md` (12),

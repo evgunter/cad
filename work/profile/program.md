@@ -1,27 +1,34 @@
 ---
 id: profile
 kind: program
-title: PROFILE — the profile lattice after PATHS: the lowering epic's tail, the validation pair pass and the path door's residue
+title: PROFILE — the profile lattice after PATHS, its goal: the lowering epic's tail, the planar-primitive dedupe and the validation pair pass
 status: ready
 opened: 2026-10-21
 area: kernel
 prefix: profile/
 tag: (PROFILE orchestrator)
 paths: [crates/profile/*, docs/PATHS-DESIGN.md]
-keep_out: [opened at PATHS's close (docs/PATHS-EXIT-WALK.md) with the 46 live rows PATHS left on crates/profile - ids kept and each row carries a dated Re-homed at PATHS's close section, crates/profile/src/validate.rs and crates/profile/src/fillet_select.rs are shared with ROUND (the profile fillet family cut from PATHS on 2026-09-20) by design - run scripts/work.py territory on your branch and announce the seam in the PR, the Python façade over the lattice (pncad-py's path bindings and .pyi) is LIB's - a vocabulary change announces there before landing, docs/PATHS-DESIGN.md is a RATIFIED design page - a change to what a clause decides is an [ev] PR and a re-word forced by an approved change lands with it, the persist schema is contended ground - announce on the away channel before landing, check 9's arm 5 lives in crates/topo (the at-rest validator - RESTFRONT's ground) so the arm-5 dedupe announces there]
+keep_out: [opened at PATHS's close (docs/PATHS-EXIT-WALK.md) - PATHS's 46 profile rows were cut along their priority seam into PROFILE PROFILEREST PROFILETAIL and PROFILEPROSE (work/README.md Track size) - the four share crates/profile and docs/PATHS-DESIGN.md by design and ids were kept with a dated Re-homed at PATHS's close section on each row, crates/profile/src/validate.rs and crates/profile/src/fillet_select.rs are shared with ROUND (the profile fillet family cut from PATHS on 2026-09-20) by design - run scripts/work.py territory on your branch and announce the seam in the PR, the Python façade over the lattice (pncad-py's path bindings and .pyi) is LIB's - a vocabulary change announces there before landing, docs/PATHS-DESIGN.md is a RATIFIED design page - a change to what a clause decides is an [ev] PR and a re-word forced by an approved change lands with it, the persist schema is contended ground - announce on the away channel before landing, check 9's arm 5 lives in crates/topo (the at-rest validator - RESTFRONT's ground) so the arm-5 dedupe announces there]
 ---
 
 PATHS's successor for the profile lattice (`crates/profile`), opened
-at PATHS's close on 2026-10-21 (`docs/PATHS-EXIT-WALK.md`) with the
-live rows PATHS left. Nobody holds it: it opens `ready`, not `blocked`,
-because rows on it are dispatchable now (the check-9 arm-5 dedupe and
-the P2 validation rows). Its rows came from PATHS by `git mv` with
-their ids kept; each one's history is in its own file, and PATHS's
-narrative is recoverable from the SHA its ledger note names.
+at PATHS's close on 2026-10-21 (`docs/PATHS-EXIT-WALK.md`). PATHS left
+46 rows on this ground, about 96 budget points, so they were cut along
+their priority seam into four tracks (`work/README.md`, Track size):
+
+- **PROFILE** (this one) holds the goal: the P1s and the
+  validation P2s.
+- **PROFILEREST** holds the remaining P2s and the P3s about validation's
+  reads.
+- **PROFILETAIL** holds the remaining P3s on the path door and the lift.
+- **PROFILEPROSE** holds the P3 and P4 rows about refusal text.
+
+Nobody holds PROFILE. It opens `ready`, not `blocked`, because rows on
+it are dispatchable now. Its rows came from PATHS by `git mv` with their
+ids kept. PATHS's narrative is recoverable from the SHA its ledger note
+names.
 
 ## Charter
-
-The profile lattice and its validation after PATHS, in this order:
 
 - **The #3218 lowering epic's tail.**
   `lower-profiles-to-carrier-and-interval-not-vertex-and-bulge` (P1)
@@ -32,26 +39,16 @@ The profile lattice and its validation after PATHS, in this order:
   CLEAVE's row closes, unit 4 resumes, and it still owes the attribution
   of its four further regression groups, which its re-home section
   names.
-- **The check-9 arm-5 dedupe**
-  (`check-9-arm-5-is-a-second-copy-of-seg-planar-edge-pair-intersector`,
-  P1, open). It crosses into `crates/topo`'s at-rest validator, so it
-  is cross-program work.
-- **The validation pair pass's P2s.** Adjacent pairs, near-concentric
-  crossings, in-band carriers read before spans, and the near-full
-  arcs at `Interval`.
-- **The path door's residue (P2–P4).** Refusal wording and recourse
-  rows, the arrival-vocabulary gaps (`radius-arrival-has-no-start-anchored-close`,
-  `no-fused-verb-takes-a-departure-tangent-arc-toward-a-point`), fixture
-  and fuzz coverage, and two rows that wait on a ratification rather
-  than on an item:
-  - `arc-fillet-corner-circle-pair-cancels-at-unequal-radii` (P2) needs
-    Ev's ruling on LB4;
-  - `arc-carrier-refusal-register-misses-two-format-arms` (P4) has its
-    design half open.
-
-**Budget.** The slate opens at about 98 points against the default 30.
-The split along its priority seam is owed by the first orchestrator to
-take the track up (`work/README.md`, Track size).
+- **One home for the planar arc-aware primitives.**
+  - `check-9-arm-5-is-a-second-copy-of-seg-planar-edge-pair-intersector`
+    (P1). It crosses into `crates/topo`'s at-rest validator.
+  - Its sibling `point-in-carrier-loop-is-a-second-copy-of-seg-ray-crossings`
+    (P2). The two rows are one consolidation question.
+- **The fillet refusal's step** (P1): Ev's report from the viewer,
+  `a-fillet-refusal-names-the-step-that-resolved-it-not-the-fillet`.
+- **Validation's pair pass (P2):** adjacent pairs, near-concentric
+  crossings, in-band carriers read before spans, and near-full arcs at
+  `Interval`.
 
 ## Ratified ground (cited, not re-litigated)
 

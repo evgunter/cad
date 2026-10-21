@@ -23,4 +23,4 @@ The fix reads the pair's clearance at the door too, when it stores a fillet whos
 
 ## Re-homed at PATHS's close (2026-10-21)
 
-Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PROFILE was opened at this close as PATHS's successor for the profile lattice (`docs/PATHS-EXIT-WALK.md`). The item's id, content and history are unchanged.
+Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/PATHS-EXIT-WALK.md`). The item's id, content and history are unchanged.

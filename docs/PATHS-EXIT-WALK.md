@@ -33,4 +33,4 @@
 - **The arc read-back tripwire** (#5449): every constructed arc is read back against what was authored, at the door. It also found and fixed the `Via` cross term.
 - **The hairpin line fillet** (#5441), re-banded P0 at review.
 
-**Re-homed:** 46 live rows go to PROFILE (`work/profile/`), and the station-turn row goes to INLANE.
+**Re-homed:** 46 live rows are cut along their priority seam into four new tracks, none over budget: PROFILE (10 rows, 30/30), PROFILEREST (13, 29.5), PROFILETAIL (12, 24) and PROFILEPROSE (8, 12.5). The station-turn row goes to INLANE.
