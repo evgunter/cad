@@ -97,25 +97,53 @@ and every union carried it unchanged.
 
 ## Fix
 
-The fin crown's bottom is `FIN_BOTTOM = (0, 0, −0.6)`
-(`test_support_meeting.rs`). That is straight under `MEET` on the
-slit's bearing, and it is the dented crown's bottom too.
-`crates/topo/tests/the_fin_crown_winds_as_a_solid.rs` pins two things,
-at every pose:
-- the exact crossing test finds no crossing on the fixed crown, and
-  finds one on the old crown, which the at-rest gate passes;
-- the winding probe reads 0 or 1 on the fixed crown and on all 30 of
-  its unions with probes 1, 2 and 4 in both orders, and −1 on the old
-  crown.
+**No single-apex bottom works.** The bottom straight under `MEET`
+crosses nothing, but it holds `MEET` within 8.7e-10 of the planes of
+both bottom faces on the fin's long edges, because the fin face
+`c0 c1 MEET` is only 3.5e-5 tall. The census reads the fin's edges in
+band of them at ε 1e-9 (two `EdgeFaceOverlap`, two `EdgeEdgeCross`, at
+all five poses; the PR 5534 review). Its sweep found no single-apex
+bottom that clears this without crossing again.
 
-`posed_crown_kept` and `crown_body` keep the old crown as a witness.
-Every fin scene of `a_vertex_read_again_classes_every_edge` builds, with
-no wrong, missing or doubled row: probes 2 and 4 build 30 cells each,
-where main refused 5 and built 25. `KNOWN_INSIDE_OUT` and `KNOWN_WRONG`
-are gone.
+`meeting::posed_fin_crown` (`test_support_meeting.rs`) keeps the top,
+the ring fanned to `MEET`, and the slit. It closes the slit from above
+with one lid face over the slit's three corners, `c0 c1 c2`, so the fin
+is a thin ridge on the crown's top. The bottom fans from `FIN_BOTTOM`
+to the ring without the slit's inner corner, `c0 c2 c3 c4`, which is
+star-shaped about that point. The lid meets each fin face at about 90°,
+so `MEET` lies 3.5e-5 off its plane.
 
-The check half, reading every aim so face order no longer decides, was
-not built (`check-7-casts-a-ray-per-face-so-the-at-rest-gate-is-quadratic-in-faces`,
-closed): on an embedded boundary one ray reads what every aim reads. The
-self-crossing class it sampled is
-`the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass`.
+The two faces that hold both mouth corners, the lid and the bottom face
+under the mouth, are pinned by the 7e-7 edge `c0 c2`. Newell's centroid
+sum cancels there to about 1e-11, which fails `newell_plane_residual` at
+ε 1e-12. So each takes the plane through its corner at `c0`, where its
+edges meet square.
+
+`crates/topo/tests/the_fin_crown_winds_as_a_solid.rs` checks every
+pose, at ε 1e-9 and 1e-12:
+- the census (tier 3′, no contacts) passes the fin crown;
+- the exact crossing test finds no crossing;
+- the winding probe reads 0 or 1 on the crown and on all 30 of its
+  unions with probes 1, 2 and 4.
+
+The old crown is pinned as refused by the census, crossing itself,
+winding −1, and passed by the at-rest gate. At 1e-6 the fin's fold is
+in band and nothing builds.
+
+In `a_vertex_read_again_classes_every_edge`, every fin scene builds
+with no wrong, missing or doubled row. `KNOWN_INSIDE_OUT` and
+`KNOWN_WRONG` are gone.
+
+## Resolution
+
+**The census does catch the old crown.** Despite this row's title, it
+refuses the old crown with two `EdgeFacePierce` (edge 8 × face 2,
+edge 15 × face 5) at every pose, at 1e-9 and 1e-12. What let it through
+is the at-rest gate, which runs tier 3 alone
+(`work/restfront/a-finished-body-is-gated-at-tier-3-alone-so-a-body-the-census-refuses-finishes.md`).
+
+**The check half was not built.** Reading every aim
+(`check-7-casts-a-ray-per-face-so-the-at-rest-gate-is-quadratic-in-faces`,
+closed) adds nothing on an embedded boundary, where one ray reads what
+every aim reads. The one body the census also misses, FLUX's witness A,
+is `work/restread/the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass.md`.

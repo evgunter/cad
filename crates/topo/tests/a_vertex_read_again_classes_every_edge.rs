@@ -27,8 +27,8 @@
 use crate::common;
 
 use common::meeting::{
-    FIN_BOTTOM, MEET, PLATE, Pose, along_lying_ray, apex_pyramid, apex_pyramid_kept, at, bearing,
-    corners, fin, lying, mix, near_flat, nest, nest_polygon, posed_box, posed_crown, poses,
+    MEET, PLATE, Pose, along_lying_ray, apex_pyramid, apex_pyramid_kept, at, bearing, corners, fin,
+    lying, mix, near_flat, nest, nest_polygon, posed_box, posed_crown, posed_fin_crown, poses,
 };
 use geom_core::{Band, Tol, Vec3};
 use std::collections::BTreeMap;
@@ -883,7 +883,7 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             );
         }
         let fin_scene = fin_builds.then(|| {
-            let fin_b = posed_crown(&fin(), FIN_BOTTOM, &pose, t());
+            let fin_b = posed_fin_crown(&pose, t());
             let fin_void_b = built("a fin void buried", subtract(&block_b, &fin_b, t()));
             (fin_b, fin_void_b)
         });

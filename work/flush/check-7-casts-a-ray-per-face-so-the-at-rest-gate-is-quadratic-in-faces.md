@@ -29,9 +29,13 @@ table).
 
 ## Measured
 
+Every number in this section was measured on that branch. The probe
+and the every-aim code exist only there; neither is on main.
+
 `check_7_reads_every_aim_at_a_cost`
-(`crates/topo/tests/the_fin_crown_winds_as_a_solid.rs`, ignored, release,
-ε 1e-9) times `validate_geometric` on a prism over a regular `n`-gon:
+(`crates/topo/tests/the_fin_crown_winds_as_a_solid.rs` on
+`flush/fin-crown-winding` @ `b02b7d5cc2107baf260d84b40fed92fffd5faaca`, PR 5520's branch;
+ignored, release, ε 1e-9) times `validate_geometric` on a prism over a regular `n`-gon:
 
 | faces | first ray that decides | every aim |
 |---|---|---|
@@ -54,7 +58,7 @@ replays each operand's at-rest validation at `Sym<f64>`, where every
 arithmetic step is interned in the session. Reading every aim makes that
 replay quadratic too: `docm5_subject::the_registry_wrapper_and_its_door_agree_on_every_corpus_document`
 (slow set, release, ε 1e-9) holds 2.9 GB and takes 79 s on main, and on
-the branch passes 13 GB on the corpus's first document (`die`) and is
+that branch passes 13 GB on the corpus's first document (`die`) and is
 killed. A stack sample puts it in `cast_aims` → `ray_crossings` →
 `census::ee_lines_closest` → `sym::intern`, under
 `wire::finished_operand` at `Sym<f64>`. Running the extra rays detached,
@@ -95,5 +99,10 @@ certified volume. On an embedded boundary whose faces are oriented
 coherently, every aim reads what one aim reads, so the extra rays
 differ only on self-crossing or overlapping boundaries. They miss most
 of those too (FLUX's witness B passes). The class every-aim sampled is
-self-intersection at rest, filed as
-`the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass`.
+self-intersection at rest. The census catches most of it, but the
+at-rest gate runs no census
+(`a-finished-body-is-gated-at-tier-3-alone-so-a-body-the-census-refuses-finishes`,
+RESTFRONT). The rest is overlap on one carrier, which the census misses
+too
+(`the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass`,
+RESTREAD).

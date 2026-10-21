@@ -74,7 +74,10 @@ row exists so no one "fixes" it into a refusal.
 FLUSH tried a check 7 that reads every aimed ray (PR 5520, not landed).
 It refused witness A on two opposed rays, but never caught witness B,
 the 1e-12 dimple's flip: no aimed ray's count enters the overlap there.
-Both witnesses are now also cited on FLUSH's
-`the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass`,
-which asks for an embedding check at rest. This row's seam-region read
-is still the direct remedy.
+Witness B does not finish through the census: it refuses
+`CensusEscalated` on `curve_carrier_gap`. It finishes because the at-rest
+gate runs tier 3 alone
+(`work/restfront/a-finished-body-is-gated-at-tier-3-alone-so-a-body-the-census-refuses-finishes.md`).
+Witness A passes the census too
+(`work/restread/the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass.md`).
+This row's seam-region read is still the direct remedy for both.
