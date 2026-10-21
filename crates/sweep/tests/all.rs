@@ -254,6 +254,8 @@ mod point_in_loop_arc_cap;
 mod point_touch_records;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
+#[path = "quad_frame_remeasure.rs"]
+mod quad_frame_remeasure;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
