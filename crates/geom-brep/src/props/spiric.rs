@@ -2054,4 +2054,96 @@ mod tests {
             }
         }
     }
+    /// Review 5567 probe: per-loop closure does not read a ring's
+    /// orientation or position. One closed loop, the same loop twice
+    /// (a ring coincident with and wound like the outer loop), and the
+    /// loop with a reversed copy as its ring.
+    #[test]
+    fn review_5567_ring_orientation_is_not_read() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let tau = 2.0 * PI;
+        let (oval, _) = framed(
+            (1.2, 0.275, 0.05),
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            [0.0; 3],
+            [0.0; 3],
+            (0.0, tau),
+            true,
+        );
+        let oval = SpiricEdgeQ {
+            wall: Some(WallImageQ {
+                sense: 1.0,
+                v0: Interval::zero(),
+                env: Interval::zero(),
+            }),
+            ..oval
+        };
+        let ends = spiric_wall_ends(&oval, Interval::zero()).unwrap();
+        let back = ChartEndsQ {
+            start: ends.end,
+            end: (ends.end.0, ends.start.1),
+            env: Interval::zero(),
+        };
+        let meridian = MeridianQ {
+            dv: ends.start.1 - ends.end.1,
+            env: Interval::zero(),
+        };
+        let rev = |e: ChartEndsQ| ChartEndsQ {
+            start: e.end,
+            end: e.start,
+            env: e.env,
+        };
+        let rev_oval = SpiricEdgeQ {
+            forward: false,
+            ..oval
+        };
+        let rev_mer = MeridianQ {
+            dv: -meridian.dv,
+            env: Interval::zero(),
+        };
+        let mk = |spirics: Vec<SpiricEdgeQ>,
+                  meridians: Vec<MeridianQ>,
+                  ends: Vec<Vec<ChartEndsQ>>| SpiricFaceQ {
+            closed_va: [Interval::zero(); 3],
+            spirics,
+            lever: [Interval::zero(); 3],
+            perimeter: 40.0,
+            wall: Some(WallChartQ {
+                major: pt(1.2),
+                minor: pt(0.275),
+                rims: vec![],
+                meridians,
+                ends,
+            }),
+        };
+        let run =
+            |f: &SpiricFaceQ| spiric_face_rounds::<f64>(f, tol.eps(), band, RoundWindow::SCHEDULE);
+        let one = run(&mk(vec![oval], vec![meridian], vec![vec![ends, back]]));
+        let twice = run(&mk(
+            vec![oval, oval],
+            vec![meridian, meridian],
+            vec![vec![ends, back], vec![ends, back]],
+        ));
+        let hole = run(&mk(
+            vec![oval, rev_oval],
+            vec![meridian, rev_mer],
+            vec![vec![ends, back], vec![rev(back), rev(ends)]],
+        ));
+        let ivtwice = spiric_face_rounds::<Interval>(
+            &mk(
+                vec![oval, oval],
+                vec![meridian, meridian],
+                vec![vec![ends, back], vec![ends, back]],
+            ),
+            tol.eps(),
+            band,
+            RoundWindow::SCHEDULE,
+        );
+        eprintln!("REVIEW one   = {one:?}");
+        eprintln!("REVIEW twice = {twice:?}");
+        eprintln!("REVIEW twice(iv) = {ivtwice:?}");
+        eprintln!("REVIEW hole  = {hole:?}");
+    }
 }
