@@ -263,12 +263,20 @@ fn both_blends_evaluate_in_one_document() {
 /// `Transform` (a construction is built in its own coordinates and
 /// placed into the world by a `Place`), so its nodes, their ids and the
 /// names they mint moved.
+///
+/// RE-BLESSED, both rows, for a minted reference that comes from the
+/// inputs (PR #5547): the digest feeds each plane's `u_ref`, which a
+/// cap now takes from the sketch's `x` axis and an extruded wall from
+/// its segment, where `orthonormal_basis` picked it off the axes. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x6799_aef6_110d_a34bu64),
-        ("die_chamfer", 0x7912_002b_4c0b_0437),
+        ("die_fillet", 0x7a9c_21c7_17c5_dedd_u64),
+        ("die_chamfer", 0xcb28_64b7_d722_3f09),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -469,13 +477,22 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// came in through, and in D a later operand is a placed copy, so the
 /// names it spells moved under both changes and the value is neither
 /// tree's. No other row moved.
+///
+/// RE-BLESSED, `crossing_slots`, `heat_sink` and `kiss_carry`, for a
+/// minted reference that comes from the inputs (PR #5547): the digest
+/// feeds each plane's `u_ref`, which a cap now takes from the sketch's
+/// `x` axis and an extruded wall from its segment, where
+/// `orthonormal_basis` picked it off the axes. No outcome or point
+/// moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xc686_087f_4f50_550eu64),
-        ("heat_sink", 0xf1a2_5a30_b135_72a2),
-        ("kiss_carry", 0xfb95_fe3f_5408_dbd8),
+        ("crossing_slots", 0x23bf_b703_02a0_43eb_u64),
+        ("heat_sink", 0xc0e3_3930_ea4a_1486),
+        ("kiss_carry", 0xb7ee_bd48_8202_c020),
     ] {
         let doc = corpus::documents()
             .into_iter()
