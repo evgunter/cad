@@ -4,6 +4,8 @@ kind: issue
 title: An undecided ring at the first converged round refuses instead of refining
 status: open
 opened: 2026-10-10
+priority: P1
+cost: M
 ---
 
 

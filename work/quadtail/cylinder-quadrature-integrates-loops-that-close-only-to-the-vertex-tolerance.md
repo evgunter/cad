@@ -4,6 +4,8 @@ kind: issue
 title: The cylinder quadrature integrates pcurve chains that close only to the vertex tolerance, and pads no junction gap
 status: open
 opened: 2026-10-10
+priority: P2
+cost: H
 ---
 
 

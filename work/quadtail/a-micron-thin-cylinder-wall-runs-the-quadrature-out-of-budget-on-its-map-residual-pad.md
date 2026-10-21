@@ -4,6 +4,8 @@ kind: issue
 title: A micron-thin cylinder wall runs the cylinder quadrature out of budget at 1e-12 on its map-residual pad
 status: open
 opened: 2026-10-12
+priority: P2
+cost: M
 ---
 
 

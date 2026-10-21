@@ -4,6 +4,8 @@ kind: issue
 title: Four rows tolerate a convergence escalation that no longer happens below the last round, and can assert their answers
 status: open
 opened: 2026-10-12
+priority: P3
+cost: E
 ---
 
 

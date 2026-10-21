@@ -4,6 +4,8 @@ kind: issue
 title: A rational patch whose weights all sit near one end of the f64 range refuses the quadrature as a weight hull straddling zero
 status: open
 opened: 2026-10-12
+priority: P3
+cost: E
 ---
 
 
