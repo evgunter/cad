@@ -47,7 +47,7 @@ fn two_picks_one_choice_one_committed_edit() {
     assert!(matches!(tool.state(), MateToolState::One(_)));
     tool.pick(session.doc(), shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
-    // post_b's world pin off, so the mate places it: its bundle is the
+    // post_b's world mate off, so the mate places it: its bundle is the
     // empty one.
     asm::unpin(&mut session, bench.post_b);
 
@@ -406,7 +406,7 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
         own.path.first()
     );
 
-    // And it SOLVES: the shelf's world pin comes off, the mate places
+    // And it SOLVES: the shelf's world mate comes off, the mate places
     // the shelf on copy 1, and the two picked faces rest in the world
     // the evaluation draws. A tool that read the master's face would
     // land the shelf one step away from copy 1.
@@ -664,7 +664,7 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
 
     // And it SOLVES: the shelf's underside rests on the spun copy's cap
     // in the world the evaluation draws, which is the pattern's
-    // rotation being applied exactly once. The shelf's world pin comes
+    // rotation being applied exactly once. The shelf's world mate comes
     // off, so the mate places the shelf against the spun copy.
     asm::unpin(&mut session, bench.shelf_i);
     let mate = common::commit_mate(&mut session, spun.op());
@@ -762,13 +762,13 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
             tol,
         )
     });
-    // The instances stand on their own world pins; of the copies, only
+    // The instances stand on their own world mates; of the copies, only
     // those no other drawn copy coincides with are placed: `part` (inner
     // copy 1, which outer copy 0 repeats) and outer copy 1. Inner copy 0
     // is where post_i itself is drawn.
     let _ = loose;
     for body in [part, outer_copies[1]] {
-        doc = common::placed_read(&doc, body.into(), &bench.opts(), tol).0;
+        doc = common::placed_read(&doc, body.into(), tol).0;
     }
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
     let path = ws.create(&doc, tol).expect("the nested assembly stores");
@@ -841,7 +841,7 @@ fn a_nested_copy_pick_is_a_target_and_seats() {
         "the inner copy rides in the inner head: {of:?}"
     );
 
-    // The shelf's world pin off, so the mate places the shelf against
+    // The shelf's world mate off, so the mate places the shelf against
     // the nested copy.
     asm::unpin(&mut session, shelf);
     let mate = common::commit_mate(&mut session, proposal.op());
@@ -896,7 +896,7 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
         "the copy rides in the head: {own:?}"
     );
 
-    // The shelf's world pin off, so the mate places the shelf against
+    // The shelf's world mate off, so the mate places the shelf against
     // the Part's copy.
     asm::unpin(&mut session, shelf);
     let mate = common::commit_mate(&mut session, proposal.op());

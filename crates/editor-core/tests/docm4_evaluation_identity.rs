@@ -69,7 +69,7 @@ fn assembly_of(
 }
 
 /// `placement` pinned to the world at `pose`: its bundle replaced by
-/// one world pin.
+/// one world mate.
 fn pinned_at(
     doc: ProfileDoc,
     placement: RecipeNodeId,

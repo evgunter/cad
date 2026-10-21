@@ -62,8 +62,8 @@ implementation under both.
   consume `Node`'s structural traversal doors instead of matching
   variants. Every door migrated after §2 is costed against it (§6).
 - **The K census.** The one decided selector site here is
-  `sel_datum_distance` in `topo::query`, with `datum_unit_norm` under it
-  as the datum vocabulary's own decision; both carry K-REPORT rows.
+  `sel_plane_distance` in `topo::query`, with `pose_unit_norm` under it
+  as the pose vocabulary's own decision; both carry K-REPORT rows.
 - **The demand this answers.** Whole-body edge sets spelled as arena
   walks (#757).
 
@@ -86,9 +86,9 @@ layer whose types it serves (`topo/src/query.rs`):
   mirrors (`Curve3::kind`, `Surface::kind`). This seat owns the
   comparand sets `CurveKindSet` and `SurfaceKindSet`, their bit
   numbering, and the predicates that read them.
-- The DECIDED atom is not here: `datum_distance_sign` measures an
+- The DECIDED atom is not here: `pose_distance_sign` measures an
   entity's point against a passed-in `PoseValue` through the
-  `SEL_DATUM_DISTANCE` funnel site in `geom-core`'s `k_stats`, with an
+  `SEL_PLANE_DISTANCE` funnel site in `geom-core`'s `k_stats`, with an
   honest `Margin` door and a typed indeterminate in band, and it lives in
   `editor-core`'s `pose.rs` beside the type it measures against, whose
   kinds are `editor-core`'s `VarKind`s (D10). Resolving the plane a
@@ -98,8 +98,8 @@ layer whose types it serves (`topo/src/query.rs`):
   not a selection question: `geom_core::decide_unit_direction`, the
   workspace's one `Margin::norm3` decide-then-normalize body under
   `geom_core::UnitVec3::new`. It is reached under two ratified funnel
-  names — `topo`'s `DATUM_UNIT_NORM`, passed by the evaluation layer's
-  datum door, and the evaluation layer's own `EVAL_DIRECTION_NORM`. The
+  names — `topo`'s `POSE_UNIT_NORM`, passed by the evaluation layer's
+  pose door, and the evaluation layer's own `EVAL_DIRECTION_NORM`. The
   finiteness question it asks first, `geom-core`'s `is_finite_length`,
   lives beside `Real`/`is_poison` and `Vec3::normalize`'s overflow note
   rather than here: every crate with directions must be able to ask it,
@@ -116,8 +116,8 @@ layer whose types it serves (`topo/src/query.rs`):
   `RimError` and its `RimBreak` payload.
 
 **S2 — `select_where` is a wrapper.** `editor-core`'s `geompred` keeps
-everything name-flavored — the `GeomPred` atom vocabulary whose datum is
-a recipe reference, `prepare`, the tie trilean, the `SelectRefusal`
+everything name-flavored — the `GeomPred` atom vocabulary whose reference
+face is a recipe read, `prepare`, the tie trilean, the `SelectRefusal`
 payloads that name the candidate — and `candidate_matches` delegates
 atom by atom to `topo::query`, re-exporting the kind mirrors and
 kind-set comparands upward. One implementation of the geometry, two

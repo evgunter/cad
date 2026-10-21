@@ -395,7 +395,7 @@ pub fn instance_in(session: &mut DocSession, id: pncad::document::DocumentId) ->
 /// **Every mate `doc` holds between two copies**: each mate whose
 /// target is a pose rather than the world, by its address, in placement
 /// order and bundle order within one — the recipe's own mates, without
-/// the world pins and without the values.
+/// the world mates and without the values.
 pub fn mates_in(doc: &Doc<ProfileProgram>) -> Vec<pncad::document::MateRef> {
     doc.placements()
         .into_iter()

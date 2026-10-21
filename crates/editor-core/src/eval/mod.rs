@@ -808,16 +808,17 @@ pub struct NodeValue<T: Decide> {
     /// parts as the referenced document's root outputs, each counted at
     /// its own `parts` — a sub-assembly's parts count through. Two root
     /// outputs that are a split's two halves are two parts. The placers
-    /// (`Transform`, `Pattern`) and `Part` carry the count through; every
+    /// (`Place`, `Pattern`) and `Part` carry the count through; every
     /// other op builds a body of its own and counts 1, an explicit union
     /// (the fuse) included. More than one makes the value a PRODUCT,
     /// which every op that fuses or reshapes a single body operand
     /// refuses ([`NodeErrorKind::ProductOperand`]); a reader of its
-    /// geometry (a datum's face frame) reads it as it is.
+    /// geometry (a pose read off a face) reads it as it is.
     pub parts: usize,
     /// **A placement's solved motion** (D10): where its copies sit
-    /// relative to the shapes they copy, `None` for the bit-exact
-    /// identity and for every value that is no placement's. A carried
+    /// relative to the shapes they copy, `None` for a copy the identity
+    /// bundle places by no map and for every value that is no
+    /// placement's. A carried
     /// pose reads it ([`crate::pose::PoseDef::Carried`]).
     pub motion: Option<geom_core::RigidMotion<T>>,
     /// **The space the value lives in** (D10, Spaces): a placement's
@@ -1015,8 +1016,8 @@ pub enum ValuePayload<T: Decide> {
     Profile(Arc<ProfileValue<T>>),
     /// A single body: every one-body op (extrude, revolve, the tubes,
     /// loft, sweep, blends, shell, union, placed union, instantiate,
-    /// `Part`) and a `Transform` of one body — a transform's value has
-    /// its input's shape, so a transform of instances is
+    /// `Part`) and a `Place` of one body — a placement over one shape
+    /// has that shape's shape, so a placement of instances is
     /// [`Self::Instances`].
     Body(Arc<Body<T>>),
     /// A boolean's result: a body with its contact records, or the
@@ -1035,14 +1036,14 @@ pub enum ValuePayload<T: Decide> {
     /// layout).
     ///
     /// **Who takes it, and who refuses.** The placers take it WHOLE
-    /// and are shape-preserving over it: `Transform` yields the same
+    /// and are shape-preserving over it: `Place` yields the same
     /// instances under one rigid map, `Pattern` yields their `N·M`
     /// placements, both as `Instances`, because a rigid map of N
     /// bodies is N rigid maps and needs no guess. `Part` takes one
     /// instance out of it by index, and the product gather takes
     /// every instance in order. Every other consumer of a body
-    /// operand — the set is `wire::read_body`'s callers (a datum's
-    /// face frame) and `wire::body_operand`'s (a blend's and a shell's
+    /// operand — the set is `wire::read_body`'s callers (a pose read
+    /// off a face) and `wire::body_operand`'s (a blend's and a shell's
     /// body, a split's target, a boolean's and a union's members, a
     /// placed union's prototype) —
     /// takes ONE body and refuses this value typed (`WrongOperand`):
@@ -1108,8 +1109,8 @@ pub enum ValuePayload<T: Decide> {
 // `every_family_word_has_exactly_one_const` reads. An arm with no
 // const, or a const with no arm, reds that row.
 macro_rules! family_word {
-    (datum) => {
-        "datum"
+    (pose) => {
+        "pose"
     };
     (profile) => {
         "profile"
@@ -1142,7 +1143,7 @@ macro_rules! family_word {
 /// written once. [`ValuePayload::kind_name`] says them over a value,
 /// and `eval::wire`'s operand door says them in the refusals it builds.
 pub(crate) mod family {
-    pub(crate) const DATUM: &str = family_word!(datum);
+    pub(crate) const POSE: &str = family_word!(pose);
     pub(crate) const PROFILE: &str = family_word!(profile);
     pub(crate) const BODY: &str = family_word!(body);
     pub(crate) const BOOLEAN: &str = family_word!(boolean);
@@ -1175,8 +1176,8 @@ pub(crate) mod family {
 ///
 /// # The three shapes, and how each is composed
 ///
-/// - **Narrower than a family** ([`phrase::DATUM_FRAME`], [`phrase::DATUM_AXIS`],
-///   [`phrase::DATUM_PLANE`]): a variant WITHIN a family. The family word is
+/// - **Narrower than a family** ([`phrase::FRAME_POSE`], [`phrase::AXIS_POSE`],
+///   [`phrase::PLANE_POSE`]): a variant WITHIN a family. The family word is
 ///   still in the phrase — and is exactly the word `found:` answers
 ///   beside it — so it is composed from `family_word!` rather than
 ///   respelled.
@@ -1197,24 +1198,16 @@ pub(crate) mod family {
 /// is a named const rather than a literal at its call site — that half
 /// of the rule they do follow.
 ///
-/// **What they do NOT do is compose: they RESPELL.** Four of them open
-/// with a phrase declared here and write it out again as a literal —
-/// `"datum frame x axis"`, `"datum frame y axis"`, `"datum plane
-/// normal"`, `"datum axis direction"`. That is not a boundary and not
-/// a choice: `concat!` takes literals and a `const` is not one, so
-/// composing them needs this module's macro layer extended from the
-/// WORDS to the PHRASES, which is a design step rather than a rename.
-/// It is a residue, and it has a row —
-/// `work/wire/direction-role-words-respell-the-operand-phrases.md`.
-/// `TRANSFORM_AXIS_ROLE` and `PATTERN_DIRECTION_ROLE` share no family
-/// word with anything here, so they are not that row.
+/// They name a vector's role (`"frame x axis"`, `"plane normal"`,
+/// `"axis direction"`), not a value family, so they share no word with
+/// this module.
 pub(crate) mod phrase {
     /// A frame pose: a read that carries a [`super::PoseValue::Frame`].
-    pub(crate) const DATUM_FRAME: &str = concat!(family_word!(datum), " frame");
+    pub(crate) const FRAME_POSE: &str = concat!("frame ", family_word!(pose));
     /// An axis pose ([`super::PoseValue::Axis`]).
-    pub(crate) const DATUM_AXIS: &str = concat!(family_word!(datum), " axis");
+    pub(crate) const AXIS_POSE: &str = concat!("axis ", family_word!(pose));
     /// A plane pose ([`super::PoseValue::Plane`]).
-    pub(crate) const DATUM_PLANE: &str = concat!(family_word!(datum), " plane");
+    pub(crate) const PLANE_POSE: &str = concat!("plane ", family_word!(pose));
     /// What a placer places: one body, or a list of placed ones.
     pub(crate) const BODY_OR_INSTANCES: &str =
         concat!(family_word!(body), " or ", family_word!(instances));
@@ -1310,7 +1303,8 @@ pub struct KeyedCopy<T: Decide> {
     /// holds its part's bodies where the part put them, and is placed
     /// when a reader reads that one copy, so an instance that nothing
     /// reads copy by copy places its part once. `None` for bodies that
-    /// stand where they are read, and for the bit-exact identity.
+    /// stand where they are read, and for a copy the identity bundle
+    /// places.
     pub motion: Option<geom_core::RigidMotion<T>>,
 }
 
@@ -1665,7 +1659,7 @@ pub enum NodeErrorKind {
     /// (`docs/DESIGN.md`, "A solid is one piece of material"): which
     /// solids are one part is recipe structure, and an explicit union is
     /// what makes the parts one body. The placers carry a product
-    /// through instead, and a reader of geometry (a datum's face frame)
+    /// through instead, and a reader of geometry (a pose read off a face)
     /// consumes no material and reads it as it is.
     ProductOperand {
         /// The operand node.
@@ -1772,8 +1766,8 @@ pub enum NodeErrorKind {
     Band(geom_core::BandError),
     /// A slot the wiring expected was absent from the node's evaluated
     /// values, which only a kernel bug reaches (`Node::slots` and its
-    /// wire disagreeing). Raised by the datum, placement, pattern and
-    /// instance readers; every other reader panics on the same state
+    /// wire disagreeing). Raised by the slot readers of the patterns,
+    /// the loft's stations and the instance picks; every other reader panics on the same state
     /// (`wire`'s `declared`).
     MissingSlot {
         /// The absent slot.
@@ -1805,8 +1799,8 @@ pub enum NodeErrorKind {
         /// The escalation, unaltered.
         source: Indeterminate,
     },
-    /// **A pose's or datum's direction escalated** (D10's pose ground):
-    /// a datum's axis, normal or frame axis, or a pose construction's
+    /// **A pose's direction escalated** (D10's pose ground): a pose's
+    /// axis, normal or frame axis, or a pose construction's
     /// direction, in its own sentence,
     /// which [`Self::Escalated`]'s does not speak for. Its class is
     /// [`NodeErrorClass::Escalated`].
@@ -2026,7 +2020,7 @@ pub enum NodeErrorKind {
     /// A `Node::Measure` reference resolved into a value that carries
     /// no bodies, or into an output body its value does not have — the
     /// naming emission and the value disagree, or the reference names
-    /// a datum. Carries the interrogation layer's own words.
+    /// a pose. Carries the interrogation layer's own words.
     MeasureRefUnreadable {
         /// The reference.
         slot: crate::OperandSlot,
@@ -4453,7 +4447,10 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v16: a value writes whether it names a mate before the
+            /// v17: a scalar writes the fraction of a turn its
+            /// definition is (`slot`'s `TURNS`), and a value whether
+            /// its number is written as the constant zero
+            /// (`value_form`). v16: a value writes whether it names a mate before the
             /// mate's id, and a spin about the target's own axis is a
             /// coordinate. (v15: an extrude no longer writes a side, and
             /// a tube reads no frame. v14: a mate writes its class and its target's word, a
@@ -4474,7 +4471,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 16,
+            VERSION = 17,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4642,8 +4639,25 @@ mod tag {
         /// through — no reader of that nominal could have read it
         /// either, so a value keyed on "the nominal is unreadable"
         /// would be a value no reader can produce.
+        ///
+        /// **`TURNS`**, written after the nominal of every scalar (a
+        /// slot's, a pose definition's), then a [`presence`] word and,
+        /// when present, the reduced fraction of a turn the scalar's
+        /// definition is ([`crate::expr::VarEnv::turns`]). The rotations
+        /// read their sine and cosine off that fraction, so two
+        /// spellings of one angle's bits (`turn/4`, a typed `π/2 rad`)
+        /// evaluate apart and key apart.
         slot {
             NOMINAL = 1,
+            TURNS = 2,
+        }
+        /// Whether a value's number is written as the constant zero,
+        /// which is what decides the identity bundle
+        /// ([`crate::mate::solve::identity_bundle`]): a typed `0 mm`
+        /// keys apart from the constant `0`.
+        value_form {
+            ZERO = 1,
+            NUMBER = 2,
         }
         /// The words that structure a profile node's program payload,
         /// read where a loop or a stream may end. **Every LOOP list
@@ -5148,7 +5162,7 @@ where
             // Its bundle: the fold is a function of what this feeds and
             // of the reads its upstream keys carry, so a constraint
             // edit, or a parameter a pose reads, moves the key.
-            feed_bundle(&mut h, constraints);
+            feed_bundle(&mut h, defs, constraints);
             h.write_u64(interface.crossings.len() as u64);
             for crossing in &interface.crossings {
                 let crate::node::InterfaceCrossing::Mate {
@@ -5168,7 +5182,7 @@ where
             constraints,
         } => {
             h.write_u64(shapes.len() as u64);
-            feed_bundle(&mut h, constraints);
+            feed_bundle(&mut h, defs, constraints);
         }
         Node::World => {}
         // The operands and the members are input edges.
@@ -5428,10 +5442,12 @@ where
         debug_assert_eq!(slot, nominal_slot, "the two slot lists are one order");
         h.write_u64(i as u64);
         match (val, nominal) {
-            (slots::SlotVal::Scalar(v, _), slots::SlotVal::Scalar(n, _)) => {
+            (slots::SlotVal::Scalar(v, turns), slots::SlotVal::Scalar(n, nominal_turns)) => {
+                debug_assert_eq!(turns, nominal_turns, "one definition, one form");
                 v.feed(&mut h);
                 h.write_tag(tag::slot::NOMINAL);
                 h.write_f64_bits(*n);
+                feed_turns(&mut h, *turns);
             }
             // A count feeds no nominal ([`tag::slot`]).
             (slots::SlotVal::Count(c), slots::SlotVal::Count(_)) => h.write_i64(*c),
@@ -5483,10 +5499,11 @@ where
                 wire::pose::PoseWord::Tag(t) => h.write_tag(*t),
                 wire::pose::PoseWord::Count(n) => h.write_u64(*n),
                 wire::pose::PoseWord::Name(name) => feed_stable_name(&mut h, name),
-                wire::pose::PoseWord::Value(v, n) => {
+                wire::pose::PoseWord::Value(v, n, turns) => {
                     v.feed(&mut h);
                     h.write_tag(tag::slot::NOMINAL);
                     h.write_f64_bits(*n);
+                    feed_turns(&mut h, *turns);
                 }
             }
         }
@@ -5931,7 +5948,24 @@ fn feed_doc_ref(h: &mut KeyHasher, doc_ref: &crate::ident::DocRef) {
 /// by its arms and roles. The poses it reads are reads, keyed by the
 /// node's pose words and its upstream keys, and a world read's scalars
 /// are slots, fed with every slot.
-fn feed_bundle(h: &mut KeyHasher, constraints: &[crate::mate::Constraint]) {
+/// A scalar's turn form, under [`tag::slot`]'s `TURNS`.
+fn feed_turns(h: &mut KeyHasher, turns: Option<crate::expr::Ratio>) {
+    h.write_tag(tag::slot::TURNS);
+    match turns {
+        Some(turns) => {
+            h.write_tag(tag::presence::PRESENT);
+            h.write_i64(turns.num());
+            h.write_u64(turns.den());
+        }
+        None => h.write_tag(tag::presence::ABSENT),
+    }
+}
+
+fn feed_bundle(
+    h: &mut KeyHasher,
+    defs: crate::param_source::Definitions<'_, '_>,
+    constraints: &[crate::mate::Constraint],
+) {
     h.write_u64(constraints.len() as u64);
     for c in constraints {
         h.write_u64(u64::from(c.id.0.ordinal()));
@@ -5957,6 +5991,11 @@ fn feed_bundle(h: &mut KeyHasher, constraints: &[crate::mate::Constraint]) {
                     Coord::SpinAbout(TargetAxis::X) => tag::value_coord::SPIN_X,
                     Coord::SpinAbout(TargetAxis::Y) => tag::value_coord::SPIN_Y,
                     Coord::SpinAbout(TargetAxis::Z) => tag::value_coord::SPIN_Z,
+                });
+                h.write_tag(if crate::mate::solve::written_as_zero(defs, value.by) {
+                    tag::value_form::ZERO
+                } else {
+                    tag::value_form::NUMBER
                 });
                 continue;
             }
@@ -6978,8 +7017,15 @@ mod bundle_key {
     }
 
     fn key(bundle: &[Constraint]) -> crate::eval::ContentKey {
+        key_over(&|_| None, bundle)
+    }
+
+    fn key_over(
+        defs: crate::param_source::Definitions<'_, '_>,
+        bundle: &[Constraint],
+    ) -> crate::eval::ContentKey {
         let mut h = KeyHasher::new();
-        feed_bundle(&mut h, bundle);
+        feed_bundle(&mut h, defs, bundle);
         h.finish()
     }
 
@@ -7013,6 +7059,21 @@ mod bundle_key {
                 assert_ne!(a, b, "each value keys distinctly");
             }
         }
+    }
+
+    /// A value's number written as the constant `0` keys apart from
+    /// one with the same bits that is not: only the first makes the
+    /// identity bundle.
+    #[test]
+    fn a_values_constant_zero_form_moves_the_key() {
+        let zero = crate::expr::Expr::zero(crate::expr::Dimension::Angle);
+        let defined = |var| (var == BY).then_some(&zero);
+        let bundle = [value(id(10), Coord::Spin)];
+        assert_ne!(
+            key_over(&defined, &bundle),
+            key(&bundle),
+            "the constant zero and a free number key apart"
+        );
     }
 }
 

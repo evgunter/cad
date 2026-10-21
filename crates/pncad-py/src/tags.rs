@@ -2511,7 +2511,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
         SplitError::CutsTheWorld => "cuts_the_world",
-        SplitError::InstanceUnstood => "instance_unstood",
         SplitError::NoMaterial { .. } => "no_material",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
         SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",

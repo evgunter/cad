@@ -2209,10 +2209,10 @@ class TestHollowring(unittest.TestCase):
 
     This is the easiest row in the tour to be sure of, because the
     Rust scene settles it itself: `ring::through_the_document` builds
-    the same ring as a three-node recipe — a two-loop `Profile`, a
-    `Datum::Axis`, a full `Revolve` — and the scene asserts the plain
-    door and the recipe agree on volume EXACTLY, not merely on census.
-    Those three nodes are exactly what Python binds, so this rebuilds
+    the same ring as a recipe — a two-loop `Profile` and a full
+    `Revolve` about the profile's own `+y` — and the scene asserts the
+    plain door and the recipe agree on volume EXACTLY, not merely on
+    census. Those nodes are exactly what Python binds, so this rebuilds
     that recipe and checks the scene's own oracles.
 
     The torus closed forms, outer minus bore:

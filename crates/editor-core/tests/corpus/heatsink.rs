@@ -6,12 +6,12 @@
 //! - a `Pattern` node (Linear, count driven by the `fins` Count
 //!   document parameter through `SetStructuralParam`) whose value is
 //!   the `Instances` payload — the A8/N1 instance substrate; and
-//! - the explicit Transform + Union chain that makes ONE solid, since
+//! - the explicit placement + union chain that makes ONE solid, since
 //!   a Boolean node cannot consume a Pattern's `Instances` payload in
 //!   v1 (the F4 note the demo records honestly). The exact oracle
 //!   below is the chain's.
 //!
-//! Vocabulary: Profile, Extrude, Transform, Pattern (Linear),
+//! Vocabulary: Profile, Extrude, Place, Pattern (Linear),
 //! Boolean (Union), `InsertNode`, `DeclareVar`,
 //! `SetStructuralParam`, `SetParam`.
 //!

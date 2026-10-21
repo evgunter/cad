@@ -1127,7 +1127,7 @@ fn the_family_meet_spans_the_intersection_in_general_position() {
     use geom_core::{Point3, Vec3};
     let band = geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
     let unit = |x: f64, y: f64, z: f64| {
-        UnitVec3::new(Vec3::new(x, y, z), topo::query::DATUM_UNIT_NORM, band).unwrap()
+        UnitVec3::new(Vec3::new(x, y, z), topo::query::POSE_UNIT_NORM, band).unwrap()
     };
     // One general placing per side: no two of these directions are
     // parallel or perpendicular, and neither point lies on the other

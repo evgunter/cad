@@ -2,7 +2,7 @@
 //!
 //! These rows attack the PR #1400 claims by execution:
 //! - P1: a seat on a pattern copy at a NON-IDENTITY world frame `F`
-//!   (the target's world pin), against the plane the seat pins composed
+//!   (the target's world mate), against the plane the seat pins composed
 //!   by hand (Rodrigues written in this file, never read back from the
 //!   solver);
 //! - P1b: the same seat with the GATE as the independent oracle (a seat

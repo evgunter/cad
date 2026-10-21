@@ -858,18 +858,10 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
         tol,
     );
     let doc_with_both = {
-        let (with_first, first) = common::placed_read(
-            &doc,
-            pncad::document::Operand::output(split, 0),
-            &pncad::document::EvalOptions::default(),
-            tol,
-        );
-        let (with_both, second) = common::placed_read(
-            &with_first,
-            pncad::document::Operand::output(split, 1),
-            &pncad::document::EvalOptions::default(),
-            tol,
-        );
+        let (with_first, first) =
+            common::placed_read(&doc, pncad::document::Operand::output(split, 0), tol);
+        let (with_both, second) =
+            common::placed_read(&with_first, pncad::document::Operand::output(split, 1), tol);
         (with_both, [first, second])
     };
     let (doc, copies) = doc_with_both;

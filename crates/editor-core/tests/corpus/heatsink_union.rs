@@ -3,7 +3,7 @@
 //!
 //! `heat_sink` carries the gap in its own body: a `Pattern` node whose
 //! `Instances` payload no `Boolean` can consume, and BESIDE it the
-//! explicit Transform + Union chain that assembles the fins. The demo
+//! explicit placement + union chain that assembles the fins. The demo
 //! tour says the same thing in demo code, "honestly outside the
 //! document", because `body_operand` refuses `Instances`.
 //!

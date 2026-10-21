@@ -68,8 +68,8 @@ impl<T: SolveScalar> Chart<T> {
     /// has no chart.
     ///
     /// Beside each body's swing (one [`super::reference_about`] verdict
-    /// each), its three directions are minted as a datum's are
-    /// (`DATUM_UNIT_NORM`), and every refusal is the chart's.
+    /// each), its three directions are minted as a pose's are
+    /// (`POSE_UNIT_NORM`), and every refusal is the chart's.
     ///
     /// # Errors
     ///
@@ -99,7 +99,7 @@ impl<T: SolveScalar> Chart<T> {
             (to_dir, on_dir)
         };
         let unit = |v: Vec3<T>| {
-            UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).map_err(|_| {
+            UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).map_err(|_| {
                 NodeErrorKind::PoseDegenerate {
                     construction: crate::pose::PoseConstruction::Chart,
                 }

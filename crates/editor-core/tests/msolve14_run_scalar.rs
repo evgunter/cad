@@ -10,7 +10,7 @@
 //! - **A3, the `f64` fence**: a mate corpus — every kind of mate the
 //!   fold has a branch for, a LOOSE bundle and an OVERCONSTRAINED one,
 //!   a parametric seat under a pattern, a parametric standoff, a
-//!   parametric world pin, a chain of bundles — solved and evaluated
+//!   parametric world mate, a chain of bundles — solved and evaluated
 //!   at `f64`, digested, and pinned; and the same corpus at `Dual64`
 //!   reading the `f64` bits on its value channel.
 //! - **A2**: a parameter a bundle reads — a value's slide, a standoff,
@@ -656,7 +656,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let l = lifted("msolve14-c-lift");
     out.push(("standoff", l.doc, l.opts));
 
-    // A parametric world pin — the world's frame slid and turned, two
+    // A parametric world mate — the world's frame slid and turned, two
     // of its moves reading parameters — and a seat on the pinned slab,
     // and a seat on that: a chain of bundles back to the world.
     let p = parts("msolve14-c-pin");
@@ -867,7 +867,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// constraint of the placement it places, so the corpus's documents
 /// changed shape — the lone rest is a loose copy rather than a refusal,
 /// the contradictory pair is an overconstrained bundle, the gauge chain
-/// is a three-step world pin, the closing loop is a chain of bundles,
+/// is a three-step world mate, the closing loop is a chain of bundles,
 /// and both shafts' bundles are overconstrained — and the digest feeds
 /// each node's space and fault where it fed a mate's role and a
 /// group's root.
@@ -876,7 +876,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// read off geometry, so every seat of the corpus is a rest and its
 /// values, the coaxial document is one edge mate and its slide and
 /// spin values, the pin documents read the parts' edges, the
-/// world pin is a frame read off the slab equated with a world read,
+/// world mate is a frame read off the slab equated with a world read,
 /// the patterned bolt and the standoff carry their parameters in a
 /// value and a pose construction rather than a placer, and the clocked
 /// shaft is gone with the rider; every instance is pinned over its
@@ -1318,8 +1318,7 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
 }
 
 /// **Over a wide box the bolt meets the placement door's refusal** —
-/// the residual every boxed placer meets today (a `Transform` node with
-/// a boxed translation refuses the same way): the bolt's own refusal is
+/// the residual every boxed placer meets today: the bolt's own refusal is
 /// the rigid motion's, not its bundle's, and the pattern, which reads
 /// the bolt, is poisoned through it.
 ///
@@ -1470,7 +1469,7 @@ fn slid_bolt(label: &str) -> Slid {
 /// **A seed on a value moves the mated part in that lane**: seeded on
 /// the slide, the bolt moves by `(1, 0, 0)`; seeded on the spin, each
 /// vertex by its `f64` builds' central difference — a value's own
-/// parameters, a set of names a run binds beside a world pin's and a
+/// parameters, a set of names a run binds beside a world mate's and a
 /// pose construction's.
 ///
 /// *Breaks if* a value's number is read anywhere but the lane's own

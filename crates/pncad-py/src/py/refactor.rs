@@ -184,9 +184,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
     };
     let none = || py.None();
     let (node, consumer, input, param, name, doc_id) = match err {
-        E::EmptyCut | E::CutsTheWorld | E::InstanceUnstood => {
-            (none(), none(), none(), none(), none(), none())
-        }
+        E::EmptyCut | E::CutsTheWorld => (none(), none(), none(), none(), none(), none()),
         E::UnknownCutNode { id: n } | E::NoMaterial { node: n } => {
             (id(n), none(), none(), none(), none(), none())
         }

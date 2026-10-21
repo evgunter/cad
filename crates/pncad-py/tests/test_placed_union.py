@@ -571,7 +571,7 @@ class TestTheFrameValue(unittest.TestCase):
 
     def test_a_frame_compares_and_does_not_hash(self):
         """`editor_core::Frame` derives `PartialEq` and no `Hash`, and
-        this class mirrors its derives: a pose is a datum the solver
+        this class mirrors its derives: a pose is a value the solver
         consumes, not a key, so `__hash__` is `None`."""
         self.assertIsNone(Frame.__hash__)
         with self.assertRaises(TypeError):

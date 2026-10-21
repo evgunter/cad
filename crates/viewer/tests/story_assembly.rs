@@ -457,7 +457,7 @@ fn the_windmill_story() {
     assert_eq!(session.selection().face(), Some(&picked));
 
     // ── 7. THE FREE-MOVE PROBE. A free-move moves a loose space
-    // (DI5), so the hub's world pin comes off first: pinned at the
+    // (DI5), so the hub's world mate comes off first: pinned at the
     // identity, it is drawn where it stood. A cancelled probe on the
     // hub leaves no trace at all; then the user parks the hub clear of
     // the tower (a committed display value, never a document edit).
@@ -626,7 +626,7 @@ fn the_windmill_story() {
     // blade's solved direction, not assumed from the walls' charts.
     let sail_a = common::instance_in(&mut session, sail_id);
     let sail_b = common::instance_in(&mut session, sail_id);
-    // Their world pins off, each a loose space of its own, so each
+    // Their world mates off, each a loose space of its own, so each
     // parks; pinned at the identity, each is drawn where it stood.
     asm::unpin(&mut session, sail_a);
     asm::unpin(&mut session, sail_b);

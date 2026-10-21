@@ -67,7 +67,7 @@ fn assembly(
     (doc, ids)
 }
 
-/// `placement`'s bundle replaced by one world pin at `translation`.
+/// `placement`'s bundle replaced by one world mate at `translation`.
 fn repinned(
     doc: ProfileDoc,
     placement: RecipeNodeId,

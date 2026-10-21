@@ -686,7 +686,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     let bench = common::asm::bench("view7-two-gestures", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let post = bench.post_a;
-    // Its world pin off, post_a is a loose space of its own, which the
+    // Its world mate off, post_a is a loose space of its own, which the
     // probe moves; pinned at the identity, it is drawn where it stood.
     common::asm::unpin(&mut session, post);
 
@@ -1401,7 +1401,7 @@ fn the_free_move_door_is_live_exactly_while_the_probe_is() {
     let bench = common::asm::bench("view-cancel-door-free-move", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let post = bench.post_a;
-    // Its world pin off, post_a is a loose space the probe moves.
+    // Its world mate off, post_a is a loose space the probe moves.
     common::asm::unpin(&mut session, post);
 
     let door = |session: &DocSession| {
@@ -1622,7 +1622,7 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
     let instance = bench.post_a;
     for op in every_op(instance, &dir.join("saved.pncad")) {
         let mut session = common::asm::open_bench(&bench, tol);
-        // Its world pin off, post_a is a loose space the probe moves.
+        // Its world mate off, post_a is a loose space the probe moves.
         common::asm::unpin(&mut session, instance);
         assert!(
             session

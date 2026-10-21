@@ -40,7 +40,7 @@ use step_export::{StepExportError, StepOptions, step_string};
 pub enum ExportError {
     /// The node has no value in this evaluation.
     Standing(NodeStanding),
-    /// The node's value is not a single body (`profile`, `datum`,
+    /// The node's value is not a single body (`profile`, `pose`,
     /// `split`, `instances`, ...).
     NotABody {
         /// The node whose value was refused.

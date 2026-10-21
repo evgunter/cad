@@ -24,12 +24,8 @@
 //! kind the slot admits — so a door that stopped refusing it, and
 //! started shipping the evaluation's refusal to users, reds here.
 //!
-//! **No row is document-reachable**: the last three that were — an
-//! axis in a sketch frame, and a half or an instance of a plain body —
-//! left with the in-plane axis datum (a revolve's axis is a line on
-//! the node) and with the split-half projection (a split's halves are
-//! read by port; a `Part` reads a pattern's copies alone, which the
-//! edit door checks). Every row is an edit-door refusal.
+//! **No row is document-reachable**: every row is an edit-door
+//! refusal.
 //!
 //! These refusals are DOCUMENT-REACHABLE: the strings here are what an
 //! author reads. The SOURCE rules behind them (one construction site,
@@ -458,7 +454,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
 ///
 /// **What these rows cannot see**, stated so the receipt is honest: a
 /// refusal built in another module (`mate/member.rs` builds one; it
-/// reads `eval::phrase::DATUM_AXIS` since #2984, so the phrase is
+/// reads `eval::phrase::AXIS_POSE` since #2984, so the phrase is
 /// shared and only the construction is out of this scan's reach — the
 /// row that asked for it closed with DOOR),
 /// a phrase reached through a helper that takes it as an argument from

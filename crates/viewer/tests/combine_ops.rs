@@ -2720,12 +2720,7 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
         },
     );
     let below = pncad::document::Operand::output(split, SplitHalf::Below.port());
-    let (doc, placed) = common::placed_read(
-        session.committed_doc(),
-        below.clone(),
-        &pncad::document::EvalOptions::default(),
-        tol,
-    );
+    let (doc, placed) = common::placed_read(session.committed_doc(), below.clone(), tol);
 
     // A pick on the placed half's copy seats the half it places.
     let mut tool = TransformTool::new();
@@ -3182,13 +3177,7 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     let whole_box = common::copy_of(&doc, body);
     common::edit_into(&mut doc, DocEdit::DeleteNode { id: whole_box }, tol);
     for port in [0, 1] {
-        doc = common::placed_read(
-            &doc,
-            pncad::document::Operand::output(split, port),
-            &pncad::document::EvalOptions::default(),
-            tol,
-        )
-        .0;
+        doc = common::placed_read(&doc, pncad::document::Operand::output(split, port), tol).0;
     }
     let mut session = DocSession::inline(doc, tol);
     session.pump();

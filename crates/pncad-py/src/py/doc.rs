@@ -2543,7 +2543,7 @@ fn gesture(
     let doc = action.doc();
     let placed = match how {
         Gesture::At(pose) => d::place_at(doc, &copy, pose, opts, tol),
-        Gesture::Stand => d::stand(doc, &copy, opts, tol),
+        Gesture::Stand => Ok(d::stand()),
         Gesture::Against(target, pose) => d::place_against(doc, target, &copy, pose, opts, tol),
     }
     .map_err(|refusal| {

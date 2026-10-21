@@ -411,10 +411,10 @@ fn row2_inline_inverts_split_and_undo_restores() {
             "{name:?} re-resolves as {expected:?} after the round trip"
         );
     }
-    // And the restored world pin is the original, bit for bit.
+    // And the restored world mate is the original, bit for bit.
     assert!(
         fixture::same_offset(&inlined.doc, back, &doc, ids[1]),
-        "the round trip restores the instance's world pin exactly"
+        "the round trip restores the instance's world mate exactly"
     );
     let _ = names1;
 }
@@ -771,10 +771,10 @@ fn row3_further_typed_refusals() {
         .expect("an identity-placed plain part inlines");
 }
 
-// ---- Row 4: placements and world pins, both sides ----
+// ---- Row 4: placements and world mates, both sides ----
 
 /// Row 4 — the A10 maintenance and A4's placement rules, through the
-/// recorded edits, produce the expected placements and world pins on
+/// recorded edits, produce the expected placements and world mates on
 /// both sides, each its own assertion.
 #[test]
 fn row4_placements_and_pins_land_as_the_rules_say() {
@@ -805,10 +805,10 @@ fn row4_placements_and_pins_land_as_the_rules_say() {
     );
     assert!(
         fixture::same_offset(&out.part, mapped, &doc, ids[1]),
-        "the cut instance keeps its world pin in the part"
+        "the cut instance keeps its world mate in the part"
     );
 
-    // The several-instance cut: both world pins MOVE, the remainder
+    // The several-instance cut: both world mates MOVE, the remainder
     // instance sits at the identity, and the part keeps the cut
     // placements' order.
     let mut store = PartStore::default();
@@ -842,7 +842,7 @@ fn row4_placements_and_pins_land_as_the_rules_say() {
     );
     assert!(
         fixture::same_offset(&out2.part, out2.node_map[&i2], &doc2, i2),
-        "the moved world pin is verbatim"
+        "the moved world mate is verbatim"
     );
     assert!(
         fixture::same_offset(&out2.part, out2.node_map[&i0], &doc2, i0)
@@ -1033,14 +1033,14 @@ fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps
             "{name:?} re-resolves as {expected:?} after the round trip"
         );
     }
-    // And the moved world pins ride verbatim, both hops.
+    // And the moved world mates ride verbatim, both hops.
     assert!(
         fixture::same_offset(&out.part, out.node_map[&i0], &doc, i0),
-        "the moved world pin is verbatim in the part"
+        "the moved world mate is verbatim in the part"
     );
     assert!(
         fixture::same_offset(&inlined.doc, back(i2), &doc, i2),
-        "the round trip restores the world pin bit for bit"
+        "the round trip restores the world mate bit for bit"
     );
 }
 

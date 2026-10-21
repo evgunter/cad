@@ -1145,7 +1145,7 @@ pub enum PatternKind<S: Slot = crate::VarId> {
         /// copies step.
         spacing: S,
     },
-    /// Instances stepped around a datum axis.
+    /// Instances stepped around an axis read.
     Circular {
         /// The axis revolved about ([`crate::OperandSlot::Axis`]): an
         /// `Axis` read, or a frame's axis read through its role.
@@ -1482,8 +1482,8 @@ impl core::fmt::Display for ListFault {
 /// variable of another kind is the read walks' fault (VR4).
 ///
 /// The domain is [`Node::slots`], which is EVERY node kind: a profile
-/// program's step arguments, an extrude's distance, a datum's
-/// coordinates and a pattern's count are the same question asked of
+/// program's step arguments, an extrude's distance, a value's number
+/// and a pattern's count are the same question asked of
 /// different addresses.
 /// ONE fact, so a struct: the dimensions disagree. A slot
 /// [`Node::slots`] names and [`Node::expr`] cannot answer for is not a
@@ -2039,8 +2039,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// A projection, not an operation: the selected body is the
     /// instance's own (the same `Arc`, no clone, no re-stamp), and the
     /// node's name table is the input's table restricted to that body
-    /// with every name VERBATIM — a pass-through in `Transform`'s
-    /// sense, contributing no role segment, so every selector already
+    /// with every name VERBATIM — a pass-through, contributing no role
+    /// segment, so every selector already
     /// spelled against that instance resolves here unchanged.
     ///
     /// Because it moves nothing and renames nothing, it is a

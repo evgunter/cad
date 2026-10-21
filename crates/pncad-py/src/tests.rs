@@ -90,18 +90,11 @@ fn stood(
     doc: pncad::document::ProfileDoc,
     placement: pncad::document::RecipeNodeId,
 ) -> pncad::document::ProfileDoc {
-    use pncad::document::{Node, Operand};
-    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
+    use pncad::document::Node;
+    let Some(Node::Place { .. }) = doc.node(placement) else {
         panic!("{placement} is a placement");
     };
-    let copy = Operand::Var(shapes[0].read);
-    let placed = pncad::document::stand(
-        &doc,
-        &copy,
-        &pncad::document::EvalOptions::default(),
-        pncad::tolerance::Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the copy stands: {e}"));
+    let placed = pncad::document::stand();
     let mut doc = doc;
     placed
         .write(placement, |edit| {
@@ -5960,7 +5953,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cuts_the_world",
             "definition_straddles_cut",
             "empty_cut",
-            "instance_unstood",
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",

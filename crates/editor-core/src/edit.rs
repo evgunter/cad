@@ -5878,7 +5878,7 @@ enum Writes {
 /// - its payload's names and read sites live ([`check_payload_refs`]),
 ///   where the door writes the payload (`writes`);
 /// - DM5 and the list floor ([`check_node_inputs`]);
-/// - a transform's literal steps ([`Node::placement_frame_fault`]);
+/// - the world, which no edit writes;
 /// - the variable every slot and payload expression reads, a measure's
 ///   reference indices, and an assertion's bound against the dimension
 ///   of the measure it reads ([`check_node_slots`]);

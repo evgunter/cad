@@ -11,8 +11,8 @@
 //! layering shape (defined lowest, re-exported upward), so the
 //! document door and a kernel-direct caller run the same one
 //! implementation. What this module OWNS is everything name-flavored:
-//! the [`GeomPred`] atom vocabulary (whose datum is a recipe
-//! reference), its resolution against an evaluation ([`prepare`]),
+//! the [`GeomPred`] atom vocabulary (whose reference face is a recipe
+//! read), its resolution against an evaluation ([`prepare`]),
 //! and the [`SelectRefusal`]s that name the candidate a refusal is
 //! about.
 //!
@@ -74,7 +74,7 @@ use crate::names::table::EntityKey;
 // The kernel query seat's vocabulary, re-exported at its historical
 // home so this crate's public surface is unchanged (see the module
 // docs' layering note).
-pub use crate::pose::SEL_DATUM_DISTANCE;
+pub use crate::pose::SEL_PLANE_DISTANCE;
 pub use topo::query::{CurveKind, CurveKindSet, SurfaceKindSet};
 
 /// The comparison a [`GeomPred::PlaneDistance`] makes against its
@@ -204,7 +204,7 @@ pub enum SelectRefusal {
     InBand {
         /// The candidate whose margin was indeterminate.
         name: Box<StableName>,
-        /// The funnel site ([`SEL_DATUM_DISTANCE`]).
+        /// The funnel site ([`SEL_PLANE_DISTANCE`]).
         predicate: &'static str,
         /// The funnel's own diagnostic (margin, band, recourse).
         source: geom_core::Indeterminate,
@@ -270,7 +270,7 @@ pub enum SelectRefusal {
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM in the query's own vocabulary — candidate, tie, band,
-// datum, comparand — and NAMES the candidate the refusal is about, in
+// reference, comparand — and NAMES the candidate the refusal is about, in
 // its words.
 //
 // The in-band arms say the band once, through the funnel's own payload
@@ -400,7 +400,7 @@ impl From<BandError> for SelectRefusal {
 // ---------------------------------------------------------------
 
 /// An atom with its recipe references already resolved against the
-/// evaluation: the datum read once and the value expression evaluated
+/// evaluation: the reference read once and the value expression evaluated
 /// once, rather than per candidate.
 pub(crate) enum Prepared<T: Decide> {
     /// [`GeomPred::CurveKind`].
@@ -469,7 +469,7 @@ pub(crate) fn prepare<T: Decide>(
                 let at = topo::readback::face_pose(body, f).map_err(|_| unresolved())?;
                 let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
                 let band = Band::linear(tol)?;
-                let normal = geom_core::UnitVec3::new(normal, query::DATUM_UNIT_NORM, band)
+                let normal = geom_core::UnitVec3::new(normal, query::POSE_UNIT_NORM, band)
                     .map_err(|_| unresolved())?;
                 Ok(Prepared::Distance {
                     plane: PoseValue::Plane {
@@ -528,7 +528,7 @@ pub(crate) fn candidate_matches<T: Decide>(
                         error,
                     }
                 })?;
-                let sign = crate::pose::datum_distance_sign(plane, point, *value, band)
+                let sign = crate::pose::pose_distance_sign(plane, point, *value, band)
                     .unwrap_or_else(|| unreachable!("`prepare` admits no direction"));
                 match sign {
                     Ok(sign) => match cmp {
@@ -539,7 +539,7 @@ pub(crate) fn candidate_matches<T: Decide>(
                     Err(source) => {
                         return Err(SelectRefusal::InBand {
                             name: Box::new(name.clone()),
-                            predicate: SEL_DATUM_DISTANCE,
+                            predicate: SEL_PLANE_DISTANCE,
                             source,
                         });
                     }
@@ -600,7 +600,7 @@ mod census {
         geom_core::Indeterminate {
             margin: geom_core::MarginDiag::value(3e-11),
             band: Band::new(1e-12, 1e-9).expect("zero < escalate"),
-            predicate: Some(SEL_DATUM_DISTANCE),
+            predicate: Some(SEL_PLANE_DISTANCE),
             terminal_sliver: false,
         }
     }
@@ -610,7 +610,7 @@ mod census {
         let samples = [
             SelectRefusal::InBand {
                 name: name(),
-                predicate: SEL_DATUM_DISTANCE,
+                predicate: SEL_PLANE_DISTANCE,
                 source: in_band(),
             },
             SelectRefusal::TiedDisagrees {

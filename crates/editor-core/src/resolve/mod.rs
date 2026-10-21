@@ -943,7 +943,7 @@ pub enum ReadEdit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolveRefusal {
     /// The read is the document's but is no output holding a body or a
-    /// profile — a scalar, a selection, a datum's output — so no table
+    /// profile — a scalar, a selection, a pose output — so no table
     /// names what it holds. A reference is read in a body output.
     ReadNotAnOutput {
         /// The read named.
@@ -1632,7 +1632,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         }));
     }
     // A live read that is no output holding a body — a scalar, a
-    // selection, a datum's — has no table to ask: the question is
+    // selection, a pose output — has no table to ask: the question is
     // refused, never answered.
     if new.doc.var(site).is_some() && !new.doc.holds_body(site) {
         return Err(ResolveRefusal::ReadNotAnOutput { read: site });

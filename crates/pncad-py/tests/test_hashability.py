@@ -129,7 +129,7 @@ UNHASHABLE = {
     "derives. Three counts read like a key, but the kernel reports a "
     "census beside the region it counted and never tallies by one",
     "Frame": "by design: `editor_core::Frame` derives `PartialEq` and "
-    "no `Hash`, and this class mirrors its derives. A pose is a datum "
+    "no `Hash`, and this class mirrors its derives. A pose is a value "
     "the solver consumes, not a key it tallies by, and it bottoms out "
     "in `f64`",
     "Mate": "by design: `editor_core::Mate` derives `PartialEq` and no "

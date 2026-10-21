@@ -2150,18 +2150,11 @@ fn stood(
     doc: pncad::document::ProfileDoc,
     placement: pncad::document::RecipeNodeId,
 ) -> pncad::document::ProfileDoc {
-    use pncad::document::{Node, Operand};
-    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
+    use pncad::document::Node;
+    let Some(Node::Place { .. }) = doc.node(placement) else {
         panic!("{placement} is a placement");
     };
-    let copy = Operand::Var(shapes[0].read);
-    let placed = pncad::document::stand(
-        &doc,
-        &copy,
-        &pncad::document::EvalOptions::default(),
-        pncad::tolerance::Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the copy stands: {e}"));
+    let placed = pncad::document::stand();
     let mut doc = doc;
     placed
         .write(placement, |edit| {
@@ -6551,7 +6544,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 mod unit_vector_witness_through_the_facade {
     use pncad::document::PoseValue;
     use pncad::geom_core::{Band, Point3, Tol, UnitVec3, UnitVec3Error, Vec3};
-    use pncad::topo::DATUM_UNIT_NORM;
+    use pncad::topo::POSE_UNIT_NORM;
 
     fn bits(v: Vec3<f64>) -> [u64; 3] {
         [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]
@@ -6566,9 +6559,9 @@ mod unit_vector_witness_through_the_facade {
         use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
         let band = Band::linear(Tol::witness()).unwrap();
         let origin = Point3::new(1.0, 2.0, 3.0);
-        let normal = UnitVec3::new(Vec3::new(0.0, 0.0, 2.5), DATUM_UNIT_NORM, band).unwrap();
+        let normal = UnitVec3::new(Vec3::new(0.0, 0.0, 2.5), POSE_UNIT_NORM, band).unwrap();
         let ao = Point3::origin();
-        let dir = UnitVec3::new(Vec3::new(3.0, 4.0, 0.0), DATUM_UNIT_NORM, band).unwrap();
+        let dir = UnitVec3::new(Vec3::new(3.0, 4.0, 0.0), POSE_UNIT_NORM, band).unwrap();
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));
         assert_eq!(bits(dir.get()), bits(Vec3::new(0.6, 0.8, 0.0)));
 
@@ -6598,12 +6591,12 @@ mod unit_vector_witness_through_the_facade {
     }
 
     /// The funnel-site name is the caller's: a direction minted under
-    /// ANY name builds a `PoseValue`, so "a datum's direction is
-    /// decided under `datum_unit_norm`" is `editor-core`'s convention
-    /// at its `datum_unit` door, not a property of the type. The
-    /// refusals under the datum name are the constructor's typed ones.
+    /// ANY name builds a `PoseValue`, so "a pose's direction is
+    /// decided under `pose_unit_norm`" is `editor-core`'s convention
+    /// at its `pose_unit` door, not a property of the type. The
+    /// refusals under that name are the constructor's typed ones.
     #[test]
-    fn any_site_name_mints_a_datum_direction() {
+    fn any_site_name_mints_a_pose_direction() {
         let band = Band::linear(Tol::witness()).unwrap();
         let n = UnitVec3::new(
             Vec3::new(0.0, 0.0, 2.0),
@@ -6616,11 +6609,11 @@ mod unit_vector_witness_through_the_facade {
             normal: n,
         };
         let PoseValue::Plane { normal, .. } = d else {
-            panic!("a plane datum");
+            panic!("a plane pose");
         };
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));
         assert_eq!(
-            UnitVec3::new(Vec3::new(0.0, 0.0, 0.0), DATUM_UNIT_NORM, band).err(),
+            UnitVec3::new(Vec3::new(0.0, 0.0, 0.0), POSE_UNIT_NORM, band).err(),
             Some(UnitVec3Error::Degenerate)
         );
     }

@@ -2003,15 +2003,9 @@ impl DocSession {
         };
         // A creation: the instance, which is a placement, placed in the
         // world at the identity over its own copies.
-        let opts = self.eval_options();
-        let tol = self.tol;
         self.commit_placing(|run| {
             let instance = run.insert(Node::instantiate_part(DocRef { id, pin }))?;
-            let copies = run
-                .doc()
-                .output(instance, 0)
-                .map_or_else(|| instance.into(), Operand::Var);
-            Ok(vec![place_copy(run, instance, &copies, &opts, tol)?])
+            Ok(vec![place_copy(run, instance)?])
         })
     }
 
@@ -3157,15 +3151,13 @@ impl DocSession {
             Ok(kind) => combine::pattern_node(input, combine::DUPLICATE_COUNT, kind),
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
-        let opts = self.eval_options();
-        let tol = self.tol;
         self.commit_placing(|run| {
             let pattern = run.insert(pattern)?;
             let copy = run.insert(combine::part_node(
                 pattern,
                 PartSelectSpec::Instance(combine::DUPLICATE_COUNT - 1),
             ))?;
-            Ok(vec![place_in_world(run, copy.into(), &opts, tol)?])
+            Ok(vec![place_in_world(run, copy.into())?])
         })
     }
 
@@ -3231,12 +3223,10 @@ impl DocSession {
     /// What is placed is the made node's first `Body` output: a revolve
     /// defines its body and its axis, and naming it alone reads neither.
     fn create_placed(&mut self, node: AuthoredNode) -> OpOutcome {
-        let opts = self.eval_options();
-        let tol = self.tol;
         self.commit_placing(|run| {
             let made = run.insert(node)?;
             let body = body_of(run.doc(), made);
-            Ok(vec![place_in_world(run, body, &opts, tol)?])
+            Ok(vec![place_in_world(run, body)?])
         })
     }
 
@@ -3806,7 +3796,7 @@ fn in_one_space(
                 let target = body_of(run.doc(), root);
                 pncad::document::place_against_in(run.doc(), &ev, &target, &body, &at, tol)
             }
-            (Space::World, None) => pncad::document::stand_in(run.doc(), &ev, &body),
+            (Space::World, None) => Ok(pncad::document::stand()),
             (Space::World, Some(_)) => {
                 pncad::document::place_at_in(run.doc(), &ev, &body, &at, tol)
             }
@@ -4017,27 +4007,15 @@ fn space_evaluation<'a>(derived: &'a Derived, history: &History) -> Option<&'a E
     (*run.doc == *committed || *run.doc == *shown).then(|| run.evaluation.as_ref())
 }
 
-/// **The "place where authored" gesture over the copy `body` reads**
-/// ([`editor_core::stand`]): the identity bundle, no mate and the
-/// constant `0` on every freedom, written onto `placement`'s bundle, so
-/// the copy stands where its body stands at every value. A body `stand`
-/// refuses stands loose, and the report says why.
+/// **The "place where authored" gesture** ([`editor_core::stand`]):
+/// the identity bundle, no mate and the constant `0` on every freedom,
+/// written onto `placement`'s bundle, so the copy stands where its body
+/// stands at every value.
 fn place_copy(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
-    body: &Operand,
-    opts: &EvalOptions,
-    tol: Tol,
 ) -> Result<PlaceReport, EditError> {
-    let placed = match editor_core::stand(run.doc(), body, opts, tol) {
-        Ok(placed) => placed,
-        Err(refusal) => {
-            return Ok(PlaceReport {
-                placement,
-                by: Err(refusal),
-            });
-        }
-    };
+    let placed = editor_core::stand();
     let by = placed.by;
     constrain(run, placement, placed)?;
     Ok(PlaceReport {
@@ -4047,23 +4025,13 @@ fn place_copy(
 }
 
 /// **`body` placed in the world**: a `Place` of it inserted, loose, and
-/// standing where its body stands by [`place_copy`] over the shape the
-/// placement copies.
+/// standing where its body stands by [`place_copy`].
 fn place_in_world(
     run: &mut Recording<'_, ProfileProgram>,
     body: Operand,
-    opts: &EvalOptions,
-    tol: Tol,
 ) -> Result<PlaceReport, EditError> {
     let placement = run.insert(Node::place(vec![pncad::document::BodyRead::plain(body)]))?;
-    let shape = match run.doc().node(placement) {
-        Some(Node::Place { shapes, .. }) => match shapes.first() {
-            Some(shape) => Operand::Var(shape.read),
-            None => unreachable!("a placement of one body copies one shape"),
-        },
-        _ => unreachable!("a placement was just inserted"),
-    };
-    place_copy(run, placement, &shape, opts, tol)
+    place_copy(run, placement)
 }
 
 /// **Whether `node`'s value is a placement's copies**: a placement or

@@ -41,8 +41,7 @@ impl core::fmt::Display for AxisRefusal {
 }
 
 /// The role word a PLACEMENT frame's rotation axis is normalized
-/// under — the fourth of the direction roles, beside a transform's
-/// rotation axis, a pattern's direction and a datum axis's. One
+/// under, beside a pattern's direction and an axis pose's. One
 /// spelling, so the refusal a user reads names the vector they
 /// authored rather than the frame it was going to build.
 pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
@@ -58,9 +57,9 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// the R4 equivariance prerequisite would be invisible in the format.
 ///
 /// Rigidity is not a field invariant — it is a decided predicate with
-/// one home, [`RigidMotion::check_rigid`], which a literal step asks
-/// when it evaluates ([`Placement`]) and [`Frame::admission_fault`]
-/// asks of every frame a document admits.
+/// one home, [`RigidMotion::check_rigid`], which a listed frame asks
+/// when it evaluates and [`Frame::admission_fault`] asks of every frame
+/// a document admits.
 ///
 /// # Exactness
 ///
@@ -77,32 +76,16 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// [`Frame::compose`]'s general arm.
 ///
 /// A BIT-exact identity is a fast path, and only a bit-exact one may
-/// be, since any other value could round: [`Motion::compose`] — the one
-/// composition rule, which [`Frame::compose`] and a [`Placement`]'s
-/// chain both fold through — returns the other operand verbatim on one,
-/// admitted by [`Frame::is_identity_bits`] over [`Frame::bit_eq`]. That
-/// is what makes the split/inline round trip exact — the offsets a split
-/// moves and the empty chain it leaves behind compose back with zero
-/// arithmetic, so D-4's bit-level volume identity never meets a
-/// rounding step — and what makes an identity step in a chain move no
-/// bit.
-///
-/// A placement and a modeled transform of the same part agree BIT FOR
-/// BIT: [`Frame::rotate_then_translate`] is the `Transform` node's own
-/// composition order (D9) built from the same expressions, down to
-/// deciding the axis into a witness on this side and rotating about it
-/// as given ([`Mat3::rotation_about_unit`]), because that node does.
+/// be, since any other value could round: [`Frame::compose`] returns
+/// the other operand verbatim on one, admitted by
+/// [`Frame::is_identity_bits`] over [`Frame::bit_eq`]. That is what
+/// makes the split/inline round trip exact — the offsets a split moves
+/// compose back with zero arithmetic, so D-4's bit-level volume
+/// identity never meets a rounding step.
 ///
 /// Every claim above is guarded, and each guard names the claim it
 /// keeps rather than being listed here: one row per claim in this
 /// module's `tests`, which is where to read what is actually pinned.
-///
-/// The exception is the bit agreement, whose guard needs a whole
-/// document —
-/// `r1_the_placement_frame_matches_the_transform_node_bit_for_bit` in
-/// this crate's `asm2a_instantiate` suite. **A test function is not an
-/// intra-doc link target, so that name is hand-written and no gate
-/// reads it**: treat it as a hint and grep for the assertion.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Frame {
@@ -141,22 +124,14 @@ impl Frame {
 
     /// The rotation by `angle` radians (right-hand rule) about the axis
     /// through the origin with direction `axis`, then translation by
-    /// `v` — the `Transform` node's own composition order (D9; see
-    /// [`Frame`]'s exactness rule for what that order buys).
-    ///
-    /// **Deciding the axis here is what keeps the bit agreement.** The
-    /// transform node decides its axis into a witness (`eval::wire`'s
-    /// `unit`) and rotates about the witness as given
-    /// ([`Mat3::rotation_about_unit`]); so does this door, so the two
-    /// take the same rounding steps for any axis.
+    /// `v` (D9's composition order).
     ///
     /// **The axis is DECIDED here**, through the evaluation layer's
     /// own direction door ([`crate::eval::unit_direction`]) under
-    /// [`PLACEMENT_AXIS_ROLE`] — the same door, and the same four
-    /// answers below, that the transform node's axis takes. So the two
-    /// constructions agree on their REFUSALS as well as on their bits,
-    /// and a caller reads which vector of theirs was refused instead of
-    /// being told the frame this door built is not finite.
+    /// [`PLACEMENT_AXIS_ROLE`], and the frame rotates about that
+    /// witness as given ([`Mat3::rotation_about_unit`]). So a caller
+    /// reads which vector of theirs was refused instead of being told
+    /// the frame this door built is not finite.
     ///
     /// # Errors
     ///
@@ -290,7 +265,6 @@ impl Frame {
     pub(crate) fn from_motion(motion: Motion<f64>) -> Self {
         match motion {
             Motion::Identity => Frame::IDENTITY,
-            Motion::Rigid(rigid) => Frame::from_affine(rigid.to_affine()),
             Motion::Map(map) => Frame::from_affine(map),
         }
     }
@@ -318,15 +292,13 @@ impl Frame {
     ///
     /// One predicate with one home, asked wherever a document admits a
     /// frame — a placement rule's listed frames
-    /// ([`crate::node::PlacementRuleFault`]) and a placement's literal
-    /// steps ([`Placement::frame_fault`]) — so none of them can come to
-    /// hold frames to a different standard. Each caller keeps its own
-    /// arms, says WHICH frame is at fault in its own vocabulary
-    /// ([`FrameSite`]), and forwards this answer's sentence rather than
-    /// restating it.
+    /// ([`crate::node::PlacementRuleFault`]) — so no door can come to
+    /// hold frames to a different standard. Its caller says WHICH frame
+    /// is at fault in its own vocabulary ([`FrameSite`]), and forwards
+    /// this answer's sentence rather than restating it.
     ///
     /// Rigidity is [`RigidMotion::check_rigid`] at `tol`'s linear band,
-    /// the door a literal step's evaluation asks, so a frame admitted
+    /// the door a listed frame's evaluation asks, so a frame admitted
     /// here is one the evaluation moves a body by. A tolerance that forms no band decides nothing, and
     /// every evaluation at it refuses before it reads a frame, so the
     /// rigidity half is left to the next door that holds a band: the
@@ -463,28 +435,16 @@ impl Default for Frame {
     }
 }
 
-/// **A motion with its bit-exact identity marked** — the one
-/// composition rule ([`Frame`]'s exactness rule), generic over the
-/// scalar so a [`Placement`]'s chain folds through the same rule
-/// [`Frame::compose`] does at `f64`.
+/// **A motion with its bit-exact identity marked** — [`Frame`]'s
+/// composition rule, which [`Frame::compose`] folds through.
 ///
 /// The identity is marked rather than detected: only a stored frame
-/// knows it is the identity, by its bits ([`Frame::motion`]); a map
-/// computed from expressions is a [`Motion::Rigid`] or a [`Motion::Map`]
-/// whatever its value.
-///
-/// A motion a placement's chain built is a [`Motion::Rigid`] witness —
-/// minted by construction, or admitted at the decided door — and a
-/// product of two witnesses is one, not decided again. A
-/// [`Motion::Map`] is a map nothing witnessed (a frame composed as a
-/// general map, a pose the mate solve composed), and it is decided at
-/// the door that moves a body by it ([`Motion::rigid`]).
+/// knows it is the identity, by its bits ([`Frame::motion`]); any other
+/// frame is a [`Motion::Map`] whatever its value.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Motion<T: Real> {
     /// The bit-exact identity: composes with anything by returning it.
     Identity,
-    /// A rigid motion, witnessed.
-    Rigid(RigidMotion<T>),
     /// Any other motion, as a general map.
     Map(Affine3<T>),
 }
@@ -493,29 +453,12 @@ impl<T: Real> Motion<T> {
     /// `self ∘ inner`, `inner` acting first. A bit-exact identity on
     /// either side returns the other operand verbatim, with zero
     /// arithmetic; otherwise [`Affine3`]'s own product in its fixed
-    /// association — two witnesses through [`RigidMotion::compose`],
-    /// which is that product bit for bit and stays a witness. A
-    /// product whose translation overflows is no witness, and stays the
-    /// general map, which the decided door then refuses.
+    /// association.
     #[must_use]
     pub(crate) fn compose(self, inner: Self) -> Self {
         match (self, inner) {
             (Self::Identity, other) | (other, Self::Identity) => other,
-            (Self::Rigid(outer), Self::Rigid(inner)) => outer.compose(inner).map_or_else(
-                |_| Self::Map(outer.to_affine() * inner.to_affine()),
-                Self::Rigid,
-            ),
-            (outer, inner) => Self::Map(outer.affine() * inner.affine()),
-        }
-    }
-
-    /// The map, the identity included.
-    #[must_use]
-    pub(crate) fn affine(self) -> Affine3<T> {
-        match self {
-            Self::Identity => Affine3::identity(),
-            Self::Rigid(rigid) => rigid.to_affine(),
-            Self::Map(map) => map,
+            (Self::Map(outer), Self::Map(inner)) => Self::Map(outer * inner),
         }
     }
 }
@@ -524,7 +467,7 @@ impl<T: Real> Motion<T> {
 mod tests {
     //! [`Frame`]'s exactness rule, at the stored-arrays-to-geometry
     //! doors — which the eval-level tests exercise only through whole
-    //! documents — and [`Placement`]'s, at its one-step chains.
+    //! documents.
     #![allow(clippy::expect_used)]
 
     use super::*;

@@ -102,7 +102,7 @@ const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
 /// A placement standing where its body stands ([`fixture::place`]): the
 /// identity bundle, which the fold places by no map, deciding nothing.
 const PLACEMENT_LOG: usize = 0;
-/// Each instance's own op: its pin's fold off the identity (two datum
+/// Each instance's own op: its pin's fold off the identity (two pose
 /// normals and the map's seven rigidity margins, run as every
 /// placement but the identity bundle runs its map), then placement and
 /// validation of the placed body.
@@ -330,7 +330,7 @@ fn the_profile_nodes_log_at_f64_opens_with_the_pre_pass() {
         *histogram.entry(v.predicate).or_default() += 1;
     }
     assert!(
-        !histogram.contains_key("datum_unit_norm"),
+        !histogram.contains_key("pose_unit_norm"),
         "the plane's axes are the FRAME's decision, not the profile's: {histogram:?}"
     );
     // Seven from the replay's junctions (each read at its arriving

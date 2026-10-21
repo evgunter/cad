@@ -82,7 +82,7 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
     //
     // It is authored here rather than driven through the session
     // because **the viewer has no `SessionOp` that sets a placement**:
-    // an instance's pose is either the world pin the file already holds
+    // an instance's pose is either the world mate the file already holds
     // or what a mate solves, so a rotated instance can only be arranged
     // from outside. (A finding in its own right; here it is just why this
     // fixture exists.)
@@ -155,7 +155,7 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
         "the to side is the shelf's own underside"
     );
 
-    // The edit lands once, into the post's bundle once its world pin
+    // The edit lands once, into the post's bundle once its world mate
     // is off, and the document stays green.
     asm::unpin(&mut session, rot_post);
     common::commit_mate(&mut session, proposal.op());
@@ -200,7 +200,7 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
     let tol = Tol::witness();
     let bench = asm::bench("r1rotprobe", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b's world pin off: a loose space the probe moves, the frame
+    // post_b's world mate off: a loose space the probe moves, the frame
     // composed so it moves the post from where its pin stood it.
     asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
@@ -304,7 +304,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     let mut session = asm::open_bench(&bench, tol);
     let s = asm::POST_SECTION;
 
-    // Probe post_b — its world pin off, a loose space of its own, drawn
+    // Probe post_b — its world mate off, a loose space of its own, drawn
     // where its pin stood it — then hide the probed instance.
     asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
@@ -361,7 +361,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         "unhiding restores the probe's drawn marking"
     );
 
-    // Mate it onto the shelf, which the world pins: the mate puts it
+    // Mate it onto the shelf, which the world mates: the mate puts it
     // in the world's space, and the landing discards the probe and
     // reports it.
     let first = session.perform(asm::seat_op(
@@ -632,7 +632,7 @@ fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() 
     // A committed Tangent: green document, refused assembly.
     let bench = asm::bench("r1tangent", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // A Tangent mate commits, post_b's world pin off: the constraint
+    // A Tangent mate commits, post_b's world mate off: the constraint
     // door admits it.
     asm::unpin(&mut session, bench.post_b);
     common::commit_mate(
@@ -672,7 +672,7 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     let tol = Tol::witness();
     let bench = asm::bench("r1edges", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b's world pin off: a loose space of its own, which the probe
+    // post_b's world mate off: a loose space of its own, which the probe
     // moves, and which the mate below places.
     asm::unpin(&mut session, bench.post_b);
 
@@ -881,7 +881,7 @@ fn r1_a_patterned_instance_hides_its_pattern_and_probes_its_own_space() {
     let scope = std::collections::BTreeMap::new();
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-pattern-bench"), tol);
-    // A loose instance — no world pin — so its space is what the probe
+    // A loose instance — no world mate — so its space is what the probe
     // moves; loose, it is drawn at the part's own coordinates.
     let instance = common::insert_into(&mut doc, crate::fixture::mated_instance(bench.post), tol);
     let pattern = common::insert_into(
@@ -913,7 +913,7 @@ fn r1_a_patterned_instance_hides_its_pattern_and_probes_its_own_space() {
             },
             tol,
         );
-        doc = common::placed_read(&doc, copy.into(), &bench.opts(), tol).0;
+        doc = common::placed_read(&doc, copy.into(), tol).0;
     }
     let path = ws.create(&doc, tol).expect("the pattern assembly stores");
 

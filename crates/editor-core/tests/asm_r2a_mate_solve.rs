@@ -167,7 +167,7 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, Kit) {
     (doc, ids, kit)
 }
 
-/// **`placement`'s bundle replaced by one world pin at `frame`** — how
+/// **`placement`'s bundle replaced by one world mate at `frame`** — how
 /// a copy is put at a world pose ([`fixture::pin`]).
 fn repin(doc: ProfileDoc, placement: RecipeNodeId, frame: &Frame, o: &EvalOptions) -> ProfileDoc {
     let doc = fixture::emptied(doc, placement);
@@ -317,9 +317,9 @@ fn row1_a_coaxial_slid_and_clocked_pair_is_determined_and_evaluates() {
     assert!(
         poses
             .relative(ids[0])
-            .expect("the world-pinned instance")
+            .expect("the world-mated instance")
             .is_identity_bits(),
-        "the world-pinned instance's own pose is the bit-exact identity"
+        "the world-mated instance's own pose is the bit-exact identity"
     );
 
     let ev = run(&doc, &o);
@@ -489,13 +489,13 @@ fn row4b_removing_the_placing_constraint_leaves_the_orphan_loose() {
     ));
     assert!(
         fixture::same_offset(&doc, ids[0], &applied.doc, ids[0]),
-        "the surviving copy keeps its world pin verbatim"
+        "the surviving copy keeps its world mate verbatim"
     );
     assert!(
         near(
             poses
                 .placement(&applied.doc, ids[0])
-                .expect("the world-pinned instance is placed"),
+                .expect("the world-mated instance is placed"),
             Frame::translation([0.0, 0.0, 4.0]),
             1e-12
         ),
@@ -549,7 +549,7 @@ fn row4c_deleting_the_target_strands_the_constraint_on_it() {
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
 }
 
-/// Row 4d — a lone instance's world pose is where its world pin puts
+/// Row 4d — a lone instance's world pose is where its world mate puts
 /// it (A11 (5)), and a mate-less document round-trips identically.
 ///
 /// *Breaks if* a lone pin is folded off its pose, or the round trip
@@ -569,7 +569,7 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
             placed,
             1e-12
         ),
-        "a lone instance stands where its world pin puts it"
+        "a lone instance stands where its world mate puts it"
     );
     assert!(
         poses
@@ -616,7 +616,7 @@ fn two_pairs() -> (ProfileDoc, Vec<RecipeNodeId>, Kit) {
 }
 
 /// Row 4e — a cut of ONE WHOLE pinned pair moves as selected (A4): the
-/// part's world-pinned instance keeps its pin, and the remainder
+/// part's world-mated instance keeps its pin, and the remainder
 /// instance stands on the world at the identity.
 ///
 /// *Breaks if* the cut rewrites a pin it carries or leaves, or the
@@ -637,7 +637,7 @@ fn row4e_a_whole_pair_cut_moves_as_selected() {
     .expect("a whole-pair cut splits");
     assert!(
         fixture::same_offset(&out.part, out.node_map[&ids[0]], &doc, ids[0]),
-        "the part's world-pinned instance keeps its pin"
+        "the part's world-mated instance keeps its pin"
     );
     let instance = *out
         .remainder

@@ -199,7 +199,7 @@ fn placed_assembly(
     (doc, ids)
 }
 
-/// `placement`'s bundle replaced by one world pin at `pose`, `opts`
+/// `placement`'s bundle replaced by one world mate at `pose`, `opts`
 /// resolving its part.
 fn repinned(
     doc: ProfileDoc,
@@ -475,7 +475,7 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both lose the same decisions. 465 is
     // the placing op's own log on this part: its pin's fold off the
-    // identity (the two datum normals, and the map's rigidity, which
+    // identity (the two pose normals, and the map's rigidity, which
     // every placement but the identity bundle runs), then placement and
     // validation of the placed body; 802 is the part's, on its own
     // nodes — its profile's pre-pass on the Profile node's log, then
@@ -599,9 +599,9 @@ fn row3_instance_qualified_names_round_trip_persistence() {
     assert!(loaded.bit_eq(&doc), "the whole document round-trips");
 }
 
-// ---- Row 4: the world pin ----
+// ---- Row 4: the world mate ----
 
-/// Row 4 — an inserted instance is loose; a world pin's pose moves the
+/// Row 4 — an inserted instance is loose; a world mate's pose moves the
 /// copy without changing its volume; the pre-edit document is untouched
 /// (undo = keeping the prior value); a non-instance target refuses
 /// typed.
@@ -783,7 +783,7 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
 
 // ---- Row 6: pin semantics ----
 
-/// Row 6 — the assembly's own pin moves on a world pin's pose and on a
+/// Row 6 — the assembly's own pin moves on a world mate's pose and on a
 /// pin-bump of a reference, and an untouched-content re-save leaves it
 /// fixed.
 #[test]
@@ -1516,63 +1516,6 @@ fn r1_both_sweep_strategies_agree_on_a_part_carrying_a_boolean() {
         volumes[0], volumes[1],
         "the tree prunes and the predicates decide — same bits either way"
     );
-}
-
-/// MINOR-5 — `Frame::rotate_then_translate` really does agree with the
-/// `Transform` node, BIT FOR BIT, including for a NON-UNIT axis (the
-/// case the claim used to get wrong).
-///
-/// **This is an AGREEMENT row between two callers, not a value pin on
-/// `Mat3::rotation_about`, and the axis list makes it read like one.**
-/// The expected side below re-spells `eval::wire::wire_transform`'s
-/// own expression — deliberately, because that is the right oracle for
-/// agreement — so it calls `Mat3::rotation_about` itself and both
-/// sides move together. **Any change INSIDE the rotation is invisible
-/// here**, oblique axis and `to_bits()` notwithstanding — an oracle
-/// that re-spells its caller's expression moves with the code and pins
-/// nothing about it. The value pins that do object live next to the
-/// subject,
-/// in `geom-core`'s `linalg::mat` test module — the two rows named
-/// `rotation_diagonal_takes_the_square_before_the_scale` and
-/// `rotation_off_diagonals_scale_by_t_before_the_second_component`.
-/// Strengthen those, not this.
-#[test]
-fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
-    let angle = 0.37;
-    let translation = [2.0, -3.5, 0.25];
-    for axis in [
-        [0.0, 0.0, 1.0],      // unit
-        [0.0, 0.0, 5.0],      // non-unit, axis-aligned
-        [1.0, 2.0, 3.0],      // non-unit, oblique
-        [-0.5, 0.25, -0.125], // non-unit, short
-    ] {
-        let frame = Frame::rotate_then_translate(axis, angle, translation, fixture::band())
-            .expect("a literal axis has a definite direction");
-        // `eval::wire::wire_transform`'s own expression, verbatim: the
-        // axis normalized (its `unit`), then `Mat3::rotation_about`,
-        // then `Affine3::from_parts` with the translation.
-        let unit = geom_core::Vec3::from_array(axis).normalize();
-        let expected = geom_core::Affine3::from_parts(
-            geom_core::Mat3::rotation_about(unit, angle),
-            geom_core::Vec3::from_array(translation),
-        );
-        let got = frame.affine::<f64>();
-        let cols = [
-            (got.linear.c0, expected.linear.c0),
-            (got.linear.c1, expected.linear.c1),
-            (got.linear.c2, expected.linear.c2),
-            (got.translation, expected.translation),
-        ];
-        for (g, e) in cols {
-            for (g, e) in [(g.x, e.x), (g.y, e.y), (g.z, e.z)] {
-                assert_eq!(
-                    g.to_bits(),
-                    e.to_bits(),
-                    "axis {axis:?}: the frame and the transform node must agree by BITS"
-                );
-            }
-        }
-    }
 }
 
 /// Two instances of a unit cube, the second a unit along `x`, glued on

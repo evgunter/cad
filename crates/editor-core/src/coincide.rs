@@ -175,7 +175,7 @@ pub enum NamedCell {
         /// Its name there.
         name: StableName,
     },
-    /// The plane the deciding node cuts with: its tool read, a datum
+    /// The plane the deciding node cuts with: its tool read, a pose
     /// rather than a cell of any body.
     Tool {
         /// The tool read.

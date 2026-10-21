@@ -13,7 +13,7 @@
 //!    from the evaluator.
 //!
 //! And the corpus as a whole must cover EVERY F4 node kind, every node
-//! sub-kind (datum flavours, boolean operators, pattern kinds) and
+//! sub-kind (boolean operators, pattern kinds) and
 //! EVERY `DocEdit` kind.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

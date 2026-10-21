@@ -22,7 +22,7 @@
 //! authors — and leaves the pips 0.764 m apart centre to centre against
 //! a 0.09 m radius, comfortably certifiable.
 //!
-//! Vocabulary: Profile, Datum (Axis), Revolve, PlacedUnion (Explicit),
+//! Vocabulary: Profile, Revolve, Place, PlacedUnion (Explicit),
 //! Boolean (Subtract), `InsertNode`, `SetParam`.
 //!
 //! # It crosses to Python, byte for byte
@@ -31,7 +31,7 @@
 //! behind its Revolve/datum half)" from LIB-PYPU on: that unit bound
 //! the placement vocabulary and authored the LINEAR twin
 //! (`heat_sink_fins`, extrude-only), while this document's prototype is
-//! a Revolve about a `Datum::Axis` whose meridian runs pole to pole —
+//! a Revolve about its own axis whose meridian runs pole to pole —
 //! the chart `die_pips`' retired deviation (b) existed to dodge.
 //!
 //! LIB-DIETOOL measured that half CLEARED, by construction. The recipe
@@ -52,7 +52,7 @@
 //! `cap(r, h) = π h²(3r − h)/3`, π-valued and so not dyadic, while
 //! [`MassPin`](super::MassPin) asserts with `==`. What this document
 //! pins is validity and the census; `lib_placedunion.rs` pins the tool
-//! against the pairwise Transform + Union chain it replaces.
+//! against the pairwise placement + union chain it replaces.
 
 use super::PlacePart;
 use editor_core::{DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};

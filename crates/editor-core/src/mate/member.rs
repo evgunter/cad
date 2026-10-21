@@ -19,9 +19,9 @@ use crate::names::{RoleSeg, VerbatimEdge};
 use crate::node::{Node, PartSelect, RecipeNodeId};
 
 /// **The member a mate reference resolves to** (A11's member
-/// vocabulary): a live `InstantiatePart`, reached from the
-/// reference's operand through the nodes that place a body without
-/// renaming it — any number of `Transform`s and `Part` instance
+/// vocabulary): a live `InstantiatePart`, `Place` or construction,
+/// reached from the reference's operand through the nodes that carry a
+/// body to it without renaming it — any number of `Part` instance
 /// selections, any number of `Pattern` levels, each of which the name
 /// qualifies `Instance(i)`, and any number of `Union`s, each of which
 /// the name qualifies `From`, keyed by the member's read.
@@ -32,7 +32,7 @@ use crate::node::{Node, PartSelect, RecipeNodeId};
 /// offsets, so they are different members, and a bundle holding a
 /// mate on each refuses (`MateFault::TargetsDiffer`) instead of
 /// folding them as one pair. Two references through ONE placement spelled two
-/// ways — read at a transform, and at a union above it naming that
+/// ways — read at a placement, and at a union above it naming that
 /// member; read at a `Part` selecting a copy, and at the pattern naming
 /// that copy — are one member, and their mates fold.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -281,9 +281,9 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
 ///
 /// The rule is a WALK, from the operation defining the selection's
 /// body down its reads to the selected name's head, which must be a
-/// live `InstantiatePart`.
-/// Between them it admits exactly the nodes that place a body without
-/// renaming it: any number of `Transform`s, any number of `Part`
+/// live `InstantiatePart`, `Place` or construction.
+/// Between them it admits exactly the nodes that carry a body without
+/// renaming it: any number of `Part`
 /// nodes selecting an `Instance`, any number of `Pattern` levels,
 /// each of which must carry its `Instance(i)` qualifier in the name,
 /// and any number of `Union`s, each of which must carry a `From`

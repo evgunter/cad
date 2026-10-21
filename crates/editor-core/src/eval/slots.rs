@@ -9,14 +9,9 @@
 //! - `eval_node`, twice per node: once at the evaluation scalar, whose
 //!   values the op runs on and the key's lane half holds, and once at
 //!   the document's nominal, whose values the key's other half holds
-//!   (`super::tag::slot`). An authored frame's f64 placement is minted
-//!   from the nominal list (`super::wire::mint_frame_placement`) and
-//!   rides the frame's value, so a profile drawn on that frame READS it
-//!   rather than asking this door for the frame's nine slots again;
-//! - the mate solve, for a placer's slots at the nominal
-//!   (`crate::mate::member`'s `node_slots`);
-//! - [`crate::Placement::eval`], over a placement's own rows
-//!   ([`eval_rows`]), for a caller holding a placement and no node.
+//!   (`super::tag::slot`);
+//! - a pose read of a revolve's axis output (`super::wire::pose`),
+//!   which reads the revolve's slots at the lane.
 //!
 //! A slot's variable is read in exactly one loop
 //! ([`eval_rows`]), and a refusal at any of them arrives in one shape.

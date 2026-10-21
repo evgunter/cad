@@ -912,7 +912,7 @@ fn the_seat_round_trips_byte_for_byte() {
 /// accept.
 ///
 /// **The mate half is near-vacuous today**: no tracked document holds
-/// a mate between copies, so the walk meets only world pins, if any.
+/// a mate between copies, so the walk meets only world mates, if any.
 /// It is kept for the day one is checked in — a mated document on an
 /// older wire would load-fail here, and one on this wire is checked
 /// key by key — and the load-and-re-save half runs over every file

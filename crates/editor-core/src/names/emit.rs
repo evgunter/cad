@@ -734,8 +734,8 @@ pub(crate) fn ent(body: u32, key: EntityKey) -> EntityRef {
     EntityRef { body, key }
 }
 
-/// The empty table (nodes with no output bodies: datum, profile,
-/// declare, empty boolean).
+/// The empty table (nodes with no output bodies: profile, measure,
+/// assertion, empty boolean).
 pub(crate) fn empty() -> Arc<NameTable> {
     Arc::new(NameTable::new())
 }

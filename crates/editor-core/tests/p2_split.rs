@@ -275,7 +275,7 @@ fn round_trip(doc: &ProfileDoc, ids: &[RecipeNodeId], p: &Parts, label: &str) ->
 // ---- S2: a cut moved verbatim ----
 
 /// **A cut of pinned instances moves verbatim** (A4): two instances
-/// pinned to the world, one labelled. Each keeps its world pin in the
+/// pinned to the world, one labelled. Each keeps its world mate in the
 /// part, the label follows its node, the evaluation is unchanged, a cut
 /// face resolves through the instance qualifier, and the round trip is
 /// the document up to node ids.
@@ -298,7 +298,7 @@ fn s2_a_cut_of_pinned_instances_moves_verbatim_and_round_trips() {
         assert!(
             offset_of(&doc, id).is_some()
                 && fixture::same_offset(&out.part, out.node_map[&id], &doc, id),
-            "{id:?} keeps its world pin in the part"
+            "{id:?} keeps its world mate in the part"
         );
     }
     assert_eq!(

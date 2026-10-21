@@ -20,16 +20,10 @@
 //! through member lineage ([`given_pairs`]), with each operand's own
 //! records carried in; the kernel takes them as [`BooleanInputs`].
 //!
-//! **The placement-rule arithmetic.** [`transform_map`],
-//! [`SteppedOperands`], [`stepped_rule_map`] and the direction-role
-//! words beside them ([`TRANSFORM_AXIS_ROLE`], [`DATUM_AXIS_ROLE`];
-//! a linear rule's [`PATTERN_DIRECTION_ROLE`] is read inside its
-//! constructor) are the ONE spelling of "where does a placer put
-//! instance `i`". They are
-//! `pub(crate)` because the mate solve's derived offset
-//! (`crate::mate::member`) re-derives a placer's map from the recipe
-//! and must get the same affine and the same refusal words as the
-//! evaluation does.
+//! **The placement-rule arithmetic.** [`SteppedOperands`] and
+//! [`stepped_rule_map`] are the ONE spelling of "where does a pattern
+//! put instance `i`"; a linear rule's direction is decided under
+//! [`PATTERN_DIRECTION_ROLE`] inside its constructor.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -41,7 +35,7 @@ use geom_core::{
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
-use topo::{Body, BooleanInputs, DATUM_UNIT_NORM};
+use topo::{Body, BooleanInputs, POSE_UNIT_NORM};
 
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
@@ -199,10 +193,8 @@ pub(crate) struct LaneEnv<'a, T> {
     pub params: &'a crate::expr::VarEnv<T>,
     /// The document's own f64 parameter environment, under no box and
     /// no seed, built once per evaluation beside `params`. Every
-    /// f64-pinned decision the evaluation makes reads it — the nominal
-    /// slots an authored frame's placement is minted from
-    /// ([`mint_frame_placement`]), a profile's program resolution —
-    /// so it is what a content key owes
+    /// f64-pinned decision the evaluation makes reads it — a profile's
+    /// program resolution — so it is what a content key owes
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
@@ -927,10 +919,9 @@ where
             });
         }
     }
-    // The identity fast-path is the composition rule's
-    // (`placement::Motion`): taken only for a BIT-exact identity, since
-    // any other value could round, and `transform_rigid` is what
-    // decides whether it stayed rigid.
+    // The identity bundle places the part's body by no map, a clone
+    // ([`place`]); `transform_rigid` decides whether any other map
+    // keeps it rigid.
     let placed = place(&part.body, map.as_ref(), tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive
@@ -1041,9 +1032,8 @@ where
     })
 }
 
-/// **A rigid placement of `body`**. `None` is the bit-exact identity
-/// the instantiate door admits: a clone, so no re-certification is
-/// owed.
+/// **A rigid placement of `body`**. `None` is the identity bundle's
+/// placement by no map: a clone, so no re-certification is owed.
 ///
 /// # Errors
 ///
@@ -1214,7 +1204,7 @@ fn finished_operand<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// **A body read for its geometry**: a Body value, or a boolean's
 /// non-empty result — [`placeable_operand`]'s `Body` arm, refusing the
 /// other in its own one-body word. A reader consumes no material (a
-/// datum's face frame reads a face), so a product is read as it is;
+/// pose read off a face reads a face), so a product is read as it is;
 /// the product refusal is [`body_operand`]'s.
 ///
 /// An instance's copies are read as its part product, one body, where
@@ -1266,8 +1256,8 @@ pub(super) fn read_named_body<T: Decide>(
 }
 
 /// **What a placer places**: the two value shapes a rigid map is
-/// defined over. The placers (`Transform`, `Pattern`) are
-/// shape-preserving — `Body → Body`, `Instances → Instances`.
+/// defined over. A pattern is shape-preserving — `Body → Body`,
+/// `Instances → Instances`.
 enum Placeable<T: Decide> {
     /// One body: a `Body` value or a boolean's non-empty result.
     Body(Arc<Body<T>>),
@@ -1349,12 +1339,12 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
 /// a user reads which vector of theirs was refused.
 ///
 /// **Two names, one body** (Ev's ruling on the direction-family home):
-/// the layer that OWNS a value names its length decision. A datum's
-/// directions are decided under [`DATUM_UNIT_NORM`] inside
+/// the layer that OWNS a value names its length decision. A pose's
+/// directions are decided under [`POSE_UNIT_NORM`] inside
 /// [`UnitVec3::new`], because `PoseValue` has no unnormalized
 /// spelling. The mate solve derives its offsets through this function,
-/// so a circular pattern's datum axis is decided under this name on
-/// the solve road and under [`DATUM_UNIT_NORM`] on the evaluation road:
+/// so a circular pattern's axis is decided under this name on
+/// the solve road and under [`POSE_UNIT_NORM`] on the evaluation road:
 /// same arithmetic, two names by road (`crate::mate::solve`,
 /// `docs/K-REPORT.md`).
 pub(crate) fn unit<T: Decide>(
@@ -1384,7 +1374,7 @@ pub(crate) fn unit<T: Decide>(
 /// reads; `escalated` is the arm the door puts an escalation in: the
 /// evaluation's ([`NodeErrorKind::Escalated`]), a placement frame's
 /// rotation axis ([`NodeErrorKind::PlacementAxisEscalated`]), or a pose's
-/// or datum's direction ([`pose_direction_escalated`]).
+/// direction ([`pose_direction_escalated`]).
 fn refusal(
     e: UnitVec3Error,
     role: &'static str,
@@ -1398,12 +1388,12 @@ fn refusal(
     }
 }
 
-/// A pose's or datum's direction length that could not be called,
-/// decided under [`DATUM_UNIT_NORM`]: the arm D10's pose ground keeps,
+/// A pose's direction length that could not be called,
+/// decided under [`POSE_UNIT_NORM`]: the arm D10's pose ground keeps,
 /// [`NodeErrorKind::PoseDirectionEscalated`].
 fn pose_direction_escalated(source: geom_core::Indeterminate) -> NodeErrorKind {
     NodeErrorKind::PoseDirectionEscalated {
-        predicate: DATUM_UNIT_NORM,
+        predicate: POSE_UNIT_NORM,
         source,
     }
 }
@@ -1506,15 +1496,15 @@ fn axis_heading<T: Decide>(vals: &SlotValues<T>) -> Vec2<T> {
 /// Every road spells it through [`DirectionRefusal::node_error`].
 #[derive(Debug, Clone, Copy)]
 pub struct DirectionRefusal {
-    /// Which vector refused, in the words a user reads — "datum frame
-    /// x axis", "datum frame y axis".
+    /// Which vector refused, in the words a user reads — "frame x axis",
+    /// "frame y axis".
     pub role: &'static str,
     /// What the kernel's direction door said.
     pub error: UnitVec3Error,
 }
 
 impl DirectionRefusal {
-    /// The node error this refusal spells, under [`DATUM_UNIT_NORM`],
+    /// The node error this refusal spells, under [`POSE_UNIT_NORM`],
     /// because on this road the kernel type owns the value. **The one
     /// spelling** from a refusal to a [`NodeErrorKind`]. `pub` because
     /// the refusal is: a consumer holding one asks for the raise here
@@ -1524,15 +1514,15 @@ impl DirectionRefusal {
     }
 }
 
-/// A slot's vector as a datum direction, through the kernel type's own
+/// A vector as a pose's direction, through the kernel type's own
 /// constructor: the decision and its three refusals live there, and
 /// this layer names the ROLE.
-fn datum_unit<T: Decide>(
+fn pose_unit<T: Decide>(
     v: Vec3<T>,
     role: &'static str,
     band: Band,
 ) -> Result<UnitVec3<T>, DirectionRefusal> {
-    UnitVec3::new(v, DATUM_UNIT_NORM, band).map_err(|error| DirectionRefusal { role, error })
+    UnitVec3::new(v, POSE_UNIT_NORM, band).map_err(|error| DirectionRefusal { role, error })
 }
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
@@ -1550,7 +1540,7 @@ pub(crate) fn frame_axes<T: Decide>(
     v_raw: Vec3<T>,
     band: Band,
 ) -> Result<RigidMotion<T>, DirectionRefusal> {
-    RigidMotion::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(|e| {
+    RigidMotion::gram_schmidt(origin, u_raw, v_raw, POSE_UNIT_NORM, band).map_err(|e| {
         DirectionRefusal {
             role: match e.axis {
                 OrthoAxis::U => FRAME_X_ROLE,
@@ -2528,12 +2518,12 @@ fn wire_assertion<T: Decide>(
 }
 
 /// **The split's lowering**, driven by its correspondence
-/// ([`crate::verbs::split`]): one body and one DATUM operand in, TWO
+/// ([`crate::verbs::split`]): one body and one POSE operand in, TWO
 /// sides out under one record, stamped in one index space.
 ///
 /// # Refusals
 ///
-/// A tool that is not a plane datum is `WrongOperand`, decided before
+/// A tool that is not a plane pose is `WrongOperand`, decided before
 /// any verb exists. Failure of the op itself is
 /// [`NodeErrorKind::Split`] through [`verb_refused`]; nothing here
 /// re-derives the plane.
@@ -4077,24 +4067,24 @@ const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
 
 /// The role word a frame's authored +x direction is normalized under
 /// ([`frame_axes`]).
-pub(crate) const FRAME_X_ROLE: &str = "datum frame x axis";
+pub(crate) const FRAME_X_ROLE: &str = "frame x axis";
 
 /// The role word a frame's authored +y direction is normalized under,
 /// after Gram-Schmidt ([`frame_axes`]).
-pub(crate) const FRAME_Y_ROLE: &str = "datum frame y axis";
+pub(crate) const FRAME_Y_ROLE: &str = "frame y axis";
 
-/// The role word a plane datum's normal is normalized under.
-pub(crate) const PLANE_NORMAL_ROLE: &str = "datum plane normal";
+/// The role word a plane pose's normal is normalized under.
+pub(crate) const PLANE_NORMAL_ROLE: &str = "plane normal";
 
-/// The role word a DATUM AXIS's direction is normalized under — one
+/// The role word an axis pose's direction is normalized under — one
 /// word on both roads, though the funnel name differs by road (see
 /// [`unit()`]).
-pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
+pub(crate) const AXIS_DIRECTION_ROLE: &str = "axis direction";
 
 /// **A placement's copies** (D10): each shape read, projected to the
 /// value it reads (a split's half, one copy of a placement's copies, a
 /// family's member), placed at the one motion `map` its bundle solved
-/// to (`None` the bit-exact identity) and named under this node.
+/// to (`None` for the identity bundle) and named under this node.
 ///
 /// Over one shape the copy has the shape's shape: a body is one copy
 /// ([`names::name_placed`]), a family is a family, and a placement's
@@ -4709,7 +4699,7 @@ fn station_plane<T: Decide>(
 ///
 /// Every RECIPE door still runs first — the structural slots, and both
 /// operands read as profiles ([`section_value`]) — because a Sweep on a
-/// datum, or with a bad Count, is a recipe error and must read as one.
+/// pose, or with a bad Count, is a recipe error and must read as one.
 /// The geometry is out of reach: see [`SWEEP_FRONTIER`].
 fn wire_sweep<T: Decide>(
     profile: RecipeNodeId,

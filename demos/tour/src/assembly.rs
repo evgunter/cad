@@ -398,8 +398,7 @@ fn place_in_world(
 /// ([`stand`]: the identity bundle, no mate and the constant `0` on
 /// every freedom) and returns the placement's id.
 fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
-    let placed = stand(doc, &body.into(), &EvalOptions::default(), tol)
-        .unwrap_or_else(|refusal| panic!("the copy stands: {refusal}"));
+    let placed = stand();
     let placement = insert(doc, Node::place(vec![body.into()]), tol);
     placed
         .write(placement, |e| {
@@ -485,8 +484,8 @@ fn product_of(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> (Body<f64>, N
 /// lets the post declare TWO parameters and spend one of them twice —
 /// a square section is one dimension, not two.
 ///
-/// The extrusion runs +z from the sketch plane at z = 0, so the part's
-/// SEATING face is its top cap and its datum face is the origin plane.
+/// The extrusion runs up its own +z from z = 0, so the part's SEATING
+/// face is its top cap and its base cap lies on the origin plane.
 fn prism_part(
     label: &str,
     params: &[(&'static str, f64)],

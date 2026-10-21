@@ -167,7 +167,7 @@ pub use mate::{
     class_admission, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
     member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,
     place_at, place_at_in, reference_about, relative_freedom_components, solve_document, stand,
-    stand_in, unobservable,
+    unobservable,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
@@ -186,7 +186,7 @@ pub use names::{
     EntityRef, Entry, FIT_DEFERRAL, FaceName, FragmentGroups, GeomPred, InterrogateError,
     KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError,
     NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
-    Qualifier, RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_DATUM_DISTANCE,
+    Qualifier, RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE,
     SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side,
     SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
     attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation, edge_carrier_kind,

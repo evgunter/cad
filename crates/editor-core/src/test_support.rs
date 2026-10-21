@@ -301,11 +301,10 @@ pub fn in_world(
     let body = body.into();
     let opts = crate::EvalOptions::default();
     let placed = if *at == crate::Frame::IDENTITY {
-        crate::stand(&doc, &body, &opts, tol)
+        crate::stand()
     } else {
-        crate::place_at(&doc, &body, at, &opts, tol)
-    }
-    .expect("the copy places over its geometry");
+        crate::place_at(&doc, &body, at, &opts, tol).expect("the copy places over its geometry")
+    };
     let (doc, placement) = place_of(doc, body, tol);
     (constrained(doc, placement, placed, tol), placement)
 }

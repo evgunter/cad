@@ -97,9 +97,11 @@ pub trait SolveScalar: Decide {
     }
 
     /// **Whether this scalar is exactly zero** (a point enclosure of
-    /// zero). It tightens what a reading encloses ([`tightened`]) and
-    /// never chooses which predicates are decided, so every lane
-    /// decides one list.
+    /// zero; never at `f64`, whose zero is read exactly anyway). It
+    /// asks no predicate and skips none: it tightens what a reading
+    /// encloses ([`tightened`], the measured spin `turn_to` undoes),
+    /// which changes the inputs of the predicates that follow, so a box
+    /// lane may decide one of them where it would otherwise escalate.
     fn exactly_zero(self) -> bool {
         false
     }
@@ -364,8 +366,17 @@ pub use crate::eval::solve_document_at;
 /// frame, so the witness encloses every point's map, and its third
 /// axis is the cross product, which a map of turns alone holds.
 /// Neither a decided defect nor a map the door calls is touched, so a
-/// map read at a point keeps its bits. Every lane asks this one door of
-/// every map it places, so every lane decides the same margins.
+/// map read at a point keeps its bits.
+///
+/// Every mated placement's map passes this door, whole or as the part
+/// the solve did not compose as motions ([`super::value::Composed`]); a
+/// bundle with no mate is composed as motions and asks it nothing
+/// ([`super::value::unmated_motion`]).
+/// Where the band decides the seven margins, every lane decides the
+/// same seven. Where a box lane's cannot, the undecided margin is
+/// logged as an escalation, so that leaf never certifies, and the
+/// re-witness's own decisions ride only such a leaf: they never make a
+/// certified leaf's decisions differ from the nominal's.
 ///
 /// # Errors
 ///
@@ -1007,16 +1018,22 @@ pub(crate) fn unmated_bundle<S: crate::Slot>(bundle: &[super::Constraint<S>]) ->
 /// ([`overconstrained`], [`unpinned`]) is asked before it, so the
 /// values are the six freedoms.
 pub(crate) fn identity_bundle<P>(doc: &Doc<P>, bundle: &[super::Constraint]) -> bool {
+    let defs = crate::param_source::definitions_of(doc);
     !bundle.is_empty()
         && bundle.iter().all(|c| {
-            c.value().is_some_and(|v| {
-                v.mate.is_none()
-                    && matches!(
-                        doc.var(v.by).map(crate::Var::def),
-                        Some(crate::var::VarDef::Defined(expr)) if expr.is_zero()
-                    )
-            })
+            c.value()
+                .is_some_and(|v| v.mate.is_none() && written_as_zero(&defs, v.by))
         })
+}
+
+/// **Whether `var` is defined as the lone constant `0`** — the recipe
+/// form [`identity_bundle`] reads, and which a content key therefore
+/// keys beside the value's bits.
+pub(crate) fn written_as_zero(
+    defs: crate::param_source::Definitions<'_, '_>,
+    var: crate::VarId,
+) -> bool {
+    defs(var).is_some_and(crate::expr::Expr::is_zero)
 }
 
 /// **A bundle's equations, read off its definitions** — what the doors

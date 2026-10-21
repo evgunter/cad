@@ -133,7 +133,7 @@ pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
 }
 
 /// **[`place_instances`] at `at`**: each instance placed in the world
-/// at the frame its construction's datum put it.
+/// at the frame `at`.
 pub fn place_instances_at(
     r: &mut Recorder,
     pattern: RecipeNodeId,
@@ -305,9 +305,9 @@ pub fn documents() -> Vec<CorpusDoc> {
         // oracle (`lib_placedunion.rs`).
         heatsink_union::document(),
         die_tool::document(),
-        // `face_sketch` (DOCM-1): a boss sketched ON the box's top face
-        // through a derived frame — the first `Datum::FaceFrame` in the
-        // registry, so the derived frame carries the standard rows
+        // `face_sketch` (DOCM-1): a boss sketched ON the box's top face,
+        // placed by a plane mate naming that face, so the placement
+        // carries the standard rows
         // (every ε, the Interval lane under DM1c, persistence, latency).
         face_sketch::document(),
         // `part_select` (DOCM-2): a split's two halves read by port and

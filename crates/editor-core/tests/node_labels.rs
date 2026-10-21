@@ -631,7 +631,7 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     let pair_ref = store.insert(pair, tol);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty_derived("node-labels-inline-host", tol);
-    // The instance's bundle is empty: placed by no world pin, so only
+    // The instance's bundle is empty: placed by no world mate, so only
     // a part whose one world placement is an instance at the identity
     // could take it, and this part's is a copy of a body.
     let (host, inst) = insert(host, fixture::mated_instance(doc_ref));

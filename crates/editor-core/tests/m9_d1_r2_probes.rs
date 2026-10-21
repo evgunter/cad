@@ -27,7 +27,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-/// XY-plane revolve about the y datum axis, from loop programs.
+/// XY-plane revolve about the y axis, from loop programs.
 fn revolve_programs(loops: Vec<LoopProgram<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_d1_r2_probes", Tol::witness());
     let (doc, p) = insert(

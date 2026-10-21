@@ -68,7 +68,7 @@ pub(crate) use emit_union::{
     member_view, name_lone_member, name_union,
 };
 pub use geompred::{
-    Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,
+    Cmp, CurveKind, CurveKindSet, GeomPred, SEL_PLANE_DISTANCE, SelectRefusal, SurfaceKindSet,
 };
 pub(crate) use groups::Emitted;
 pub use groups::FragmentGroups;

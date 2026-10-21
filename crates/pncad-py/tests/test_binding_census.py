@@ -1778,7 +1778,7 @@ FAMILIES: dict[str, str] = {
 #:   PERFORMANCE door — "evaluate this in parallel" — would be a new
 #:   unit and a new entry, not this one.
 #: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
-#:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE` and `REGENERATE_RECOURSE`
+#:   `FIT_DEFERRAL`, `SEL_PLANE_DISTANCE` and `REGENERATE_RECOURSE`
 #:   are the prose a Rust refusal cites; Python's refusals carry theirs
 #:   in the exception's message.
 #:
@@ -2620,7 +2620,7 @@ NOT_BOUND = {
     "RoleSeg": SHAPE,
     "RunLine": SHAPE,
     "ASSERT_BOUND": SHAPE,
-    "SEL_DATUM_DISTANCE": SHAPE,
+    "SEL_PLANE_DISTANCE": SHAPE,
     # A crossing's sense: a field of a `RoleSeg`, the inside of a name,
     # for `RoleSeg`'s reason.
     "Sense": SHAPE,
@@ -3036,7 +3036,6 @@ NOT_BOUND = {
     "pin_at_in": INTERIOR,
     "place_at_in": INTERIOR,
     "place_against_in": INTERIOR,
-    "stand_in": INTERIOR,
     # A frame read off a body's geometry at a pose, as the pose operand
     # a placement gesture's mate reads: Python spells a frame read off
     # geometry through the `PoseDef` it names (`PoseDef.through` of an
@@ -3929,7 +3928,6 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::BadValue": "SelectRefusal.reason",
     "SelectRefusal::Band": "SelectRefusal.reason",
     "SplitError::EmptyCut": "SplitError.variant",
-    "SplitError::InstanceUnstood": "SplitError.variant",
     "SplitError::UnknownCutNode": "SplitError.variant",
     "SplitError::CutsTheWorld": "SplitError.variant",
     "SplitError::PartIdCollides": "SplitError.variant",

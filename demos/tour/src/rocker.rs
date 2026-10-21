@@ -354,7 +354,7 @@ fn cylinder_plane_lines<S: Scalar>(body: &Body<S>) -> Vec<EdgeKey> {
 /// end's two corners are plane×plane.
 ///
 /// **Why the extrude's provenance localises here, not a distance.**
-/// The Python mirror (`TestRocker`) localises with `datum_distance` to
+/// The Python mirror (`TestRocker`) localises with `pose_distance` to
 /// an axis at the keyhole's centre, because the document selector has
 /// no pattern for "the struts of this loop". At this seat the extrude
 /// answers that question itself: the struts of the loop the author

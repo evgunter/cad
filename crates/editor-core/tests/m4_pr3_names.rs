@@ -128,7 +128,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
 
 // ---- Revolve: the M2 band/pole/seam taxonomy, all four shapes. ----
 
-/// Profile on the xy plane (the y datum axis lies in it).
+/// Profile on the xy plane (the y axis lies in it).
 fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
     let (doc, p) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);

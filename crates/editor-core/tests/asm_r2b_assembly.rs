@@ -1669,7 +1669,7 @@ fn a_flush_seat_certifies_at_the_gate() {
 #[test]
 fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
-    // The mate replaced by a world pin at the seat it solved: the
+    // The mate replaced by a world mate at the seat it solved: the
     // instances still touch, and no record backs it.
     let o = with_resolver(store);
     let doc = pinned_where_solved(doc, &o);

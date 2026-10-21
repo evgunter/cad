@@ -8,10 +8,10 @@
 //! Geometry is deliberately tiny (three small prisms, all disjoint)
 //! so every suite's evaluations stay cheap; what matters is the
 //! STRUCTURE: two pinned part documents, three instances, each pinned
-//! to the world by one world pin (a frame mate read off the copy's
+//! to the world by one world mate (a frame mate read off the copy's
 //! geometry, `editor_core::pin_at`) and related by no mate. A pinned
 //! copy lives in the world's space, which the free-move probe does not
-//! move (DI5), so a free-move row takes post_b's world pin off first
+//! move (DI5), so a free-move row takes post_b's world mate off first
 //! ([`unpin`]) and probes the loose post with [`where_b_stood`]; a
 //! mate-tool row takes it off too, so the mate it commits places post_b
 //! rather than overconstraining it.
@@ -185,7 +185,7 @@ impl Bench {
 }
 
 /// **An instance of `part` pinned to the world at the translation
-/// `at`**: an instance whose bundle is empty, then one world pin.
+/// `at`**: an instance whose bundle is empty, then one world mate.
 pub fn instance_at(
     asm: &mut ProfileDoc,
     part: DocRef,
@@ -240,12 +240,12 @@ pub fn world_pin_of(
         })
         .collect();
     let [pin] = pins.as_slice() else {
-        panic!("{placement:?} holds one world pin: {pins:?}")
+        panic!("{placement:?} holds one world mate: {pins:?}")
     };
     pncad::document::MateRef::new(placement, pin.id)
 }
 
-/// **Take `instance`'s world pin off through the session**, and pump:
+/// **Take `instance`'s world mate off through the session**, and pump:
 /// its bundle empties (the session takes any value naming the pin with
 /// it), so it is a loose copy and the next mate a row commits on it
 /// places it, where a pinned one would refuse overconstrained.
@@ -454,7 +454,7 @@ pub fn seat_op_under(
 /// **The shelf resting on `post`'s top, `offset` above it**, as the op
 /// the session takes: the shelf's underside on the post's top cap,
 /// flipped and slid `offset` along its own normal (a standoff), in the
-/// shelf's bundle once the shelf's world pin is off ([`unpin`]). It
+/// shelf's bundle once the shelf's world mate is off ([`unpin`]). It
 /// fixes the shelf's seating plane and nothing else, so the shelf is a
 /// loose copy; a second rest beside it fixes the plane again, which the
 /// edit door refuses.
@@ -514,8 +514,8 @@ pub fn no_centre_seat_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
 }
 
 /// **The shelf's bundle refused, and post_b chained to it**: post_b's
-/// world pin off and post_b seated under the shelf's middle (`sound`,
-/// in post_b's bundle), then the shelf's world pin off and its bundle
+/// world mate off and post_b seated under the shelf's middle (`sound`,
+/// in post_b's bundle), then the shelf's world mate off and its bundle
 /// one mate the evaluation refuses ([`no_centre_op`], the `offender`,
 /// against post_a). The shelf has no pose, and post_b, placed against
 /// the shelf, has none either; post_a, which only the shelf's

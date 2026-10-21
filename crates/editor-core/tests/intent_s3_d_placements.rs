@@ -6,7 +6,7 @@
 //! where its body stands (the identity bundle, no mate and the constant
 //! `0` on every freedom), a bundle with no mate and its door, the chart
 //! a world mate's
-//! values are read on (from the world's own frame, so a datum's in-plane
+//! values are read on (from the world's own frame, so an in-plane
 //! offset rides on the values), and a loft's stations.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -118,17 +118,16 @@ fn shifted(points: &[[f64; 3]], by: [f64; 3]) -> Vec<[f64; 3]> {
         .collect()
 }
 
-/// **A datum's in-plane offset rides on the values** (§5, row 161's
-/// finding): a world mate's values are charted from the world's own
-/// frame, not from the target read's moved one. A construction that
-/// sat on a datum at (3, 4, 0), normal z, is placed by a plane mate to
-/// the world's `xy` with `Slide X = 3`, `Slide Y = 4` and spin 0, and
-/// stands at (3, 4, 0). The spelling §5 first wrote — the chain on the
-/// world read, the constant `0` on every freedom — measures the slides
-/// from the world's origin, so it stands at the origin, not at the
-/// datum.
+/// **An in-plane offset rides on the values** (§5, row 161's finding):
+/// a world mate's values are charted from the world's own frame, not
+/// from the target read's moved one. A construction meant at
+/// (3, 4, 0), normal z, is placed by a plane mate to the world's `xy`
+/// with `Slide X = 3`, `Slide Y = 4` and spin 0, and stands at
+/// (3, 4, 0). The spelling §5 first wrote — the chain on the world
+/// read, the constant `0` on every freedom — measures the slides from
+/// the world's origin, so it stands at the origin, not at (3, 4, 0).
 #[test]
-fn a_datums_in_plane_offset_rides_on_the_values() {
+fn an_in_plane_offset_rides_on_the_values() {
     let doc = ProfileDoc::empty_derived("d", Tol::witness());
     let (doc, b) = unit_box(doc);
     let own = vertices(&doc, b);
@@ -224,8 +223,7 @@ fn every_copy_stands_by_the_identity_bundle() {
     for body in [b, rev, ring] {
         let own = vertices(&doc, body);
         let read = fixture::body_read(&doc, body.into());
-        let stood = editor_core::stand(&doc, &read, &EvalOptions::default(), Tol::witness())
-            .unwrap_or_else(|refusal| panic!("{body} stands: {refusal}"));
+        let stood = editor_core::stand();
         assert_eq!(stood.by, editor_core::PlacedBy::Identity, "{body}");
         assert_eq!(stood.mate, None, "{body}: the identity bundle has no mate");
         let coords: Vec<Coord> = stood.values.iter().map(|(coord, _)| *coord).collect();
@@ -730,12 +728,7 @@ fn an_instance_stands_by_the_identity_bundle() {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(editor_core::DocumentId::derive("d-host"), Tol::witness());
     let (doc, instance) = insert(doc, Node::instantiate_part(post_ref));
-    let copies = Operand::Var(
-        doc.output(instance, 0)
-            .expect("an instance defines its copies"),
-    );
-    let stood =
-        editor_core::stand(&doc, &copies, &opts, Tol::witness()).expect("the instance stands");
+    let stood = editor_core::stand();
     assert_eq!(stood.by, editor_core::PlacedBy::Identity);
     assert_eq!(stood.mate, None, "nothing of the part is read");
     let doc = fixture::written(doc, instance, stood);
@@ -962,4 +955,259 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
             "{what} at Sym"
         );
     }
+}
+
+/// What a run makes of the copy `node`: its vertices' bounds, whether it
+/// is placed by a map, and its content key.
+fn read_copy<T: editor_core::EvalScalar>(
+    ev: &editor_core::Evaluation<T>,
+    node: RecipeNodeId,
+) -> (Vec<[(f64, f64); 3]>, bool, editor_core::ContentKey) {
+    let Some(NodeResult::Ok(value)) = ev.result(node) else {
+        panic!("{node} evaluates: {:?}", ev.result(node));
+    };
+    let bodies = match &value.payload {
+        ValuePayload::Body(b) => std::slice::from_ref(b),
+        ValuePayload::Copies(copies) => copies.bodies.as_slice(),
+        other => panic!("{node} is a placement: {other:?}"),
+    };
+    let mut points: Vec<[(f64, f64); 3]> = bodies
+        .iter()
+        .flat_map(|body| {
+            body.vertices().map(|(v, _)| {
+                let p = topo::readback::vertex_point(body, v).expect("a vertex point");
+                [p.x, p.y, p.z].map(|c| (c.lo(), c.hi()))
+            })
+        })
+        .collect();
+    points.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
+    (points, value.motion.is_some(), value.content_key)
+}
+
+/// `doc` with the slot `slot` of `node` set to `value`.
+fn retyped(
+    doc: &ProfileDoc,
+    node: RecipeNodeId,
+    slot: editor_core::SlotId,
+    value: editor_core::SlotValue,
+) -> ProfileDoc {
+    doc.apply(
+        &editor_core::DocEdit::SetParam {
+            node,
+            slot,
+            value,
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    )
+    .unwrap_or_else(|refusal| panic!("{slot:?} takes the retyped value: {refusal}"))
+    .doc
+}
+
+/// The memo-primed run of `after` against `before`'s, and a fresh one,
+/// agree on the copy `p` at the lane `T`, and the edit moved its key.
+fn primed_agrees_with_fresh<T: editor_core::EvalScalar>(
+    what: &str,
+    before: &ProfileDoc,
+    after: &ProfileDoc,
+    p: RecipeNodeId,
+) -> (Vec<[(f64, f64); 3]>, bool) {
+    let run = |doc, prior| {
+        editor_core::evaluate::<T>(
+            doc,
+            prior,
+            &editor_core::CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        )
+    };
+    let prior = run(before, None);
+    let primed = read_copy(&run(after, Some(&prior)), p);
+    let fresh = read_copy(&run(after, None), p);
+    assert_eq!(
+        (&primed.0, primed.1),
+        (&fresh.0, fresh.1),
+        "{what}: the memo-primed run is the fresh one"
+    );
+    assert_ne!(
+        read_copy(&prior, p).2,
+        fresh.2,
+        "{what}: the retyped form moves the copy's key"
+    );
+    (fresh.0, fresh.1)
+}
+
+/// **A content key keys the form the evaluator reads off the recipe,
+/// not only the value's bits** (D8 `[recipe.forms]`). A spin written
+/// `turn/4` and one typed `π/2 rad` have the same bits, yet the
+/// rotation reads its sine and cosine off the first's fraction; a value
+/// written as the constant `0` and one typed `0 rad` have the same bits,
+/// yet only the first makes the identity bundle, placed by no map. So
+/// retyping either moves the placement's key, and a run primed with the
+/// one before (as the viewer primes every edit's) builds what a fresh
+/// run builds: at a mateless spin, a mated spin, a world read's spin, a
+/// pose definition's spin on the copy's side, and the identity bundle.
+///
+/// *Breaks if* a slot's or a pose definition's turn form, or a value's
+/// constant-zero form, is left out of the key: the primed run then
+/// serves the exact turn's vertices for the typed number, or a copy
+/// "placed by no map" for a bundle that is no identity bundle.
+#[test]
+fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
+    use editor_core::TargetAxis::{X, Y, Z};
+    use editor_core::{MateSide, OperandSlot, SlotId, SlotValue};
+    let quarter = || Formula::turn_over(4).expect("a quarter turn");
+    let zero = |d| Formula::zero(d);
+    let typed_quarter = || SlotValue::Formula(ang(core::f64::consts::FRAC_PI_2));
+    let doc = ProfileDoc::empty_derived("d", Tol::witness());
+    let (doc, b) = unit_box(doc);
+    let value_slot = |doc: &ProfileDoc, p, coord| {
+        let c = fixture::bundle(doc, p)
+            .into_iter()
+            .find(|c| c.value().is_some_and(|v| v.coord == coord))
+            .expect("the value");
+        match coord {
+            Coord::Slide(_) => SlotId::ValueSlide { constraint: c.id },
+            Coord::Spin | Coord::SpinAbout(_) => SlotId::ValueSpin { constraint: c.id },
+        }
+    };
+    let mate_id = |doc: &ProfileDoc, p| {
+        fixture::bundle(doc, p)
+            .into_iter()
+            .find(|c| c.value().is_none())
+            .expect("the mate")
+            .id
+    };
+    let slides = || {
+        vec![
+            (Coord::Slide(X), zero(editor_core::Dimension::Length)),
+            (Coord::Slide(Y), zero(editor_core::Dimension::Length)),
+        ]
+    };
+    let mate = |on: Operand, to: WorldRead<Formula>| Mate {
+        on,
+        to: Target::World(to),
+        class: editor_core::ContactClass::Rest,
+    };
+    let mut cases: Vec<(&str, ProfileDoc, ProfileDoc, RecipeNodeId)> = Vec::new();
+
+    // A mateless spin, `turn/4` about the world's `x`.
+    let mut values: Vec<(Coord, Formula)> = [X, Y, Z]
+        .into_iter()
+        .map(|axis| (Coord::Slide(axis), zero(editor_core::Dimension::Length)))
+        .collect();
+    values.push((Coord::SpinAbout(X), quarter()));
+    values.push((Coord::SpinAbout(Y), zero(editor_core::Dimension::Angle)));
+    values.push((Coord::SpinAbout(Z), zero(editor_core::Dimension::Angle)));
+    let (before, p) = insert(
+        doc.clone(),
+        Node::place(vec![BodyRead::plain(Operand::from(b))]),
+    );
+    let before = before
+        .apply(&editor_core::DocEdit::unmated(p, values), Tol::witness())
+        .expect("the values are admitted")
+        .doc;
+    let slot = value_slot(&before, p, Coord::SpinAbout(X));
+    let after = retyped(&before, p, slot, typed_quarter());
+    cases.push(("a mateless spin", before, after, p));
+
+    // A mated spin.
+    let mut values = slides();
+    values.push((Coord::Spin, quarter()));
+    let (before, p) = placed(
+        doc.clone(),
+        b,
+        mate(start_cap(b), WorldRead::through(PoseRole::Xy)),
+        values,
+    );
+    let slot = value_slot(&before, p, Coord::Spin);
+    let after = retyped(&before, p, slot, typed_quarter());
+    cases.push(("a mated spin", before, after, p));
+
+    // A world read spun `turn/4` about the world's `x`.
+    let mut values = slides();
+    values.push((Coord::Spin, zero(editor_core::Dimension::Angle)));
+    let stood = WorldRead::through(PoseRole::Xy).spin(WorldRead::through(PoseRole::X), quarter());
+    let (before, p) = placed(doc.clone(), b, mate(start_cap(b), stood), values);
+    let slot = SlotId::WorldSpin {
+        constraint: mate_id(&before, p),
+        step: 0,
+    };
+    let after = retyped(&before, p, slot, typed_quarter());
+    cases.push(("a world read's spin", before, after, p));
+
+    // The copy's side read through a pose definition spun a sixth of a
+    // turn about the rim of the box's start cap (a quarter turn's copy lands on
+    // the world's axes either way, which would hide a stale memo).
+    let edge = || {
+        fixture::axis(Operand::select(
+            b,
+            vec![fixture::rim_edge(
+                b,
+                editor_core::CapEnd::Start,
+                fixture::piece(&doc, b, 0, 0),
+            )],
+        ))
+    };
+    let spun = |by: Formula| {
+        Operand::Pose(Box::new(PoseDef::Spin {
+            pose: editor_core::pose::RoleRead::plain(start_cap(b)),
+            about: editor_core::pose::RoleRead::plain(edge()),
+            by,
+        }))
+    };
+    let mut values = slides();
+    values.push((Coord::Spin, zero(editor_core::Dimension::Angle)));
+    let (before, p) = placed(
+        doc.clone(),
+        b,
+        mate(
+            spun(Formula::turn_over(6).expect("a sixth of a turn")),
+            WorldRead::through(PoseRole::Xy),
+        ),
+        values,
+    );
+    let slot = SlotId::Operand(OperandSlot::Side {
+        constraint: mate_id(&before, p),
+        side: MateSide::On,
+    });
+    let after = retyped(
+        &before,
+        p,
+        slot,
+        SlotValue::Read(spun(ang(core::f64::consts::TAU / 6.0))),
+    );
+    cases.push(("a pose definition's spin", before, after, p));
+
+    for (what, before, after, p) in &cases {
+        let (exact, _) = primed_agrees_with_fresh::<f64>(what, after, before, *p);
+        let (typed, _) = primed_agrees_with_fresh::<f64>(what, before, after, *p);
+        assert_ne!(
+            exact, typed,
+            "{what}: the two spellings build apart, so the row can see a stale memo"
+        );
+        primed_agrees_with_fresh::<geom_core::Interval>(what, before, after, *p);
+    }
+
+    // The identity bundle with one spin retyped to a typed `0 rad`: no
+    // longer the identity bundle, so placed by a map (its turn form keys
+    // it apart).
+    let read = fixture::body_read(&doc, b.into());
+    let stood = editor_core::stand();
+    let (next, p) = insert(doc.clone(), Node::place(vec![BodyRead::plain(read)]));
+    let before = fixture::written(next, p, stood);
+    let slot = value_slot(&before, p, Coord::SpinAbout(Z));
+    let after = retyped(&before, p, slot, SlotValue::Formula(ang(0.0)));
+    let (_, mapped) = primed_agrees_with_fresh::<f64>("the identity bundle", &before, &after, p);
+    assert!(mapped, "a typed `0 rad` is placed by its map");
+    let (_, mapped) = primed_agrees_with_fresh::<f64>("the identity bundle", &after, &before, p);
+    assert!(!mapped, "the identity bundle is placed by no map");
+    primed_agrees_with_fresh::<geom_core::Interval>("the identity bundle", &before, &after, p);
+    // A slide retyped to a typed `0 mm`: a length has no turn form, so
+    // only the constant-zero form tells the two apart.
+    let slot = value_slot(&before, p, Coord::Slide(Y));
+    let after = retyped(&before, p, slot, SlotValue::Formula(len(0.0)));
+    let (_, mapped) =
+        primed_agrees_with_fresh::<f64>("the identity bundle's slide", &before, &after, p);
+    assert!(mapped, "a typed `0 mm` is placed by its map");
 }

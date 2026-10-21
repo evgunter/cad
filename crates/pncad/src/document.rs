@@ -142,7 +142,7 @@ pub use editor_core::{Label, LabelFault};
 // value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
 // half — the payload an evaluated assertion carries — and E10's whole
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
-// the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
+// the funnel site name, carried like `SEL_PLANE_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
 // `MeasureUnavailableAt` and `ClearanceRefusal` are carried for the
 // reason a payload's payload always is: they are what
@@ -289,10 +289,10 @@ pub use editor_core::DocParamField;
 // enum that carries them.
 // `PoseValue`'s direction fields are `geom_core::UnitVec3`, reached
 // through the re-exported `geom_core` crate rather than curated here:
-// a consumer cannot read a datum's normal, or build a datum at all,
+// a consumer cannot read a pose's normal, or build a pose at all,
 // without naming the type that makes it unit, and it names it at the
 // crate that mints it — the constructor's refusal (`UnitVec3Error`,
-// there too) is the only way a datum direction is rejected.
+// there too) is the only way a pose direction is rejected.
 // `NodeRefusal` rides with `NodeErrorKind` for the same reason: it is
 // what `MateFault::PlacerRefused` and `EditError::PlacementAxis` carry
 // an evaluation refusal in, so a consumer can match either variant but
@@ -448,7 +448,7 @@ pub use editor_core::{
     WorldReadFault, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
     member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,
     place_at, place_at_in, reference_about, relative_freedom_components, solve_document, stand,
-    stand_in, unobservable,
+    unobservable,
 };
 
 // The class-admission table (`ClassAdmission`, read through

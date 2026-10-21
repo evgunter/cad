@@ -430,8 +430,8 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
             vec!["whole body", "faces, edges, or vertices"],
         ),
         (
-            InterrogateError::NoBodies { payload: "datum" },
-            vec!["datum", "no bodies"],
+            InterrogateError::NoBodies { payload: "pose" },
+            vec!["pose", "no bodies"],
         ),
         (
             InterrogateError::NoSuchBody { index: 2 },
@@ -525,8 +525,8 @@ fn select_refusal_display_names_its_content_not_its_struct() {
         (
             SelectRefusal::InBand {
                 name: Box::new(face_name()),
-                predicate: editor_core::SEL_DATUM_DISTANCE,
-                source: in_band(editor_core::SEL_DATUM_DISTANCE),
+                predicate: editor_core::SEL_PLANE_DISTANCE,
+                source: in_band(editor_core::SEL_PLANE_DISTANCE),
             },
             vec![
                 "the end cap",

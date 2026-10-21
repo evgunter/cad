@@ -233,7 +233,7 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
 }
 
 // ---------------------------------------------------------------
-// PROBE 2 — an OBLIQUE circular datum axis, off the origin, with a
+// PROBE 2 — an OBLIQUE circular axis read, off the origin, with a
 // leg pinned at a non-identity frame. The expected offset is recomputed in the
 // test by Rodrigues, independently of the evaluator.
 // ---------------------------------------------------------------

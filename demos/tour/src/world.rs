@@ -37,12 +37,9 @@ pub struct Placed {
 ///
 /// # Panics
 ///
-/// If the copy offers no geometry to stand on, or an edit refuses.
+/// If an edit refuses.
 pub fn place_in_world(doc: &Doc<ProfileProgram>, body: impl Into<Operand>, tol: Tol) -> Placed {
-    let body = body.into();
-    let placed = stand(doc, &body, &EvalOptions::default(), tol)
-        .unwrap_or_else(|e| panic!("the copy stands over its geometry: {e}"));
-    written(doc, body, placed, tol)
+    written(doc, body.into(), stand(), tol)
 }
 
 /// One copy of `body` in the world at `at` ([`place_at`]; at the
