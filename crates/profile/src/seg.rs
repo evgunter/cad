@@ -1384,13 +1384,17 @@ pub(crate) enum PairOutcome<T: Real> {
 /// Classifies every contact between two segments — the simplicity core.
 /// Dispatches on carrier kinds; all closed form. Errors are in-band /
 /// poisoned classifications, propagated for the caller to wrap (D4 ¶3).
+/// `shared` is a stored vertex the pair shares, an end of each (an
+/// adjacent pair, `validate::judge_pair`); only two lines read it, where
+/// their sides escalate ([`line_line`]).
 pub(crate) fn pair_contacts<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
+    shared: Option<Point2<T>>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
     match (&s1.kind, &s2.kind) {
-        (SegKind::Line, SegKind::Line) => line_line(s1, s2, band),
+        (SegKind::Line, SegKind::Line) => line_line(s1, s2, shared, band),
         (SegKind::Line, SegKind::Arc(g2)) => line_arc(s1, s2, g2, band),
         (SegKind::Arc(g1), SegKind::Line) => line_arc(s2, s1, g1, band),
         (SegKind::Arc(g1), SegKind::Arc(g2)) => arc_arc(s1, g1, s2, g2, band),
@@ -1449,22 +1453,22 @@ fn gaps_apart<T: Decide>(s1: &Seg<T>, s2: &Seg<T>, band: Band) -> bool {
 /// overlap, and along `host` its projection is its distance from
 /// `host`'s end, so every such point is within the band of the shared
 /// vertex: the vertex's own touch. No angle between the two enters, so
-/// it holds at a straight joint, a turned one and a reversal alike. The
-/// caller supplies the adjacency, as stored identity
-/// (`validate::judge_pair`), and asks only where [`pair_contacts`] has
-/// escalated, so a decided verdict never moves.
+/// it holds at a straight joint, a turned one and a reversal alike.
+///
+/// [`line_line`] asks it only where a carrier side has escalated, so a
+/// decided verdict never moves. That pair's joint is then read in band
+/// too: the short leg's far end stands off the long one's carrier by
+/// `sin θ` times the short leg, the turn [`joint_tangency`] reads levered
+/// by the shorter arm. So the escalation moves to the joint, the question
+/// it is, and a refusal later in the pass is read. The collinear arm's
+/// straddle is not asked: there the joint can read a continuation, and
+/// the pair would validate where the overlap's charge, far from the
+/// origin, passes the band.
 ///
 /// topo's check 9 (`lines_meet`) has no such pair to read: it pairs a
 /// ring's edges with its outer loop's, and a vertex the two loops share
 /// is its arm 1's contact before any edge pair is read.
-pub(crate) fn lines_touch_only_near_a_shared_end<T: Decide>(
-    host: &Seg<T>,
-    other: &Seg<T>,
-    band: Band,
-) -> bool {
-    if !matches!((&host.kind, &other.kind), (SegKind::Line, SegKind::Line)) {
-        return false;
-    }
+fn touches_only_near_the_shared_end<T: Decide>(host: &Seg<T>, other: &Seg<T>, band: Band) -> bool {
     let along = on_one_line_2d(host.unit, (host.a, host.b), (other.a, other.b), T::zero());
     matches!(
         decide(
@@ -1547,6 +1551,7 @@ fn collinear_overlap<T: Decide>(
 fn line_line<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
+    shared: Option<Point2<T>>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
     if gaps_apart(s1, s2, band) {
@@ -1575,8 +1580,22 @@ fn line_line<T: Decide>(
     if collinear(&on_2) {
         return collinear_overlap(s2, s1, band);
     }
-    let [o_c, o_d] = [on_1[0]?, on_1[1]?];
-    let [o_a, o_b] = [on_2[0]?, on_2[1]?];
+    let sides = (|| Ok([on_1[0]?, on_1[1]?, on_2[0]?, on_2[1]?]))();
+    let [o_c, o_d, o_a, o_b] = match sides {
+        Ok(sides) => sides,
+        // An in-band side of an adjacent pair whose overlap along `s1`
+        // is within the band: its only contact is the shared vertex.
+        Err(_)
+            if let Some(v) = shared
+                && touches_only_near_the_shared_end(s1, s2, band) =>
+        {
+            return Ok(PairOutcome::Contacts(vec![Contact {
+                point: v,
+                kind: CKind::Touch,
+            }]));
+        }
+        Err(source) => return Err(source),
+    };
     let opposite = |x: Sign, y: Sign| {
         matches!(
             (x, y),
@@ -2585,7 +2604,7 @@ mod pair_contact_tests {
             band,
         );
         for (name, a, b) in [("s1 first", &s1, &s2), ("s2 first", &s2, &s1)] {
-            match pair_contacts(a, b, band) {
+            match pair_contacts(a, b, None, band) {
                 Ok(PairOutcome::Contacts(c)) if c.is_empty() => {}
                 Ok(PairOutcome::Contacts(c)) => panic!("{name}: {} contacts", c.len()),
                 Ok(PairOutcome::Overlap) => panic!("{name}: an overlap"),
@@ -2726,6 +2745,231 @@ mod pair_contact_tests {
             Ok(PairOutcome::Overlap) => panic!("read an overlap"),
             Ok(PairOutcome::Contacts(c)) => panic!("read {} contacts", c.len()),
         }
+    }
+
+    /// **An adjacent pair reads a touch near its shared end only where
+    /// every point it shares is within the band of it, on exact points.**
+    /// [`the_collinear_arm_keeps_its_contract_on_the_real_overlap`]'s
+    /// draw: `s1` runs `k` times a Pythagorean direction `(a, b)` from a
+    /// point up to `2·10⁵` m out, every point on the `2⁻³⁴` m grid. `s2`
+    /// shares one of `s1`'s ends and reaches to a grid point whose
+    /// projection along `s1` stands an exact `n ∈ [−30ε, 30ε]` past that
+    /// end ([`along_exactly`]) and `j` grid steps across it, `j` from 1 to
+    /// `10¹²`, arriving or leaving at random. The real overlap is `−n`
+    /// where `s2` reaches back over `s1`, else zero, exact in `i128`. At
+    /// ε `10⁻⁹`, `K` 10, wherever [`touches_only_near_the_shared_end`]
+    /// fires the real overlap is at most `ε`. A counterexample sweep: the
+    /// draws stand at the band's zero edge, where the charge acts.
+    #[test]
+    fn a_pair_reads_a_touch_near_its_shared_end_only_within_the_band_of_it() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let eps = band.zero();
+        let grid = 2f64.powi(-34);
+        let unit = 1i128 << 34;
+        let mut rng = test_utils::fuzz::start("seg-adjacent-touch-exact");
+        let dirs: [(i128, i128, i128); 5] = [
+            (3, 4, 5),
+            (5, 12, 13),
+            (8, 15, 17),
+            (7, 24, 25),
+            (20, 21, 29),
+        ];
+        let on_grid = |x: f64| (x / grid).round() as i128;
+        let sign = |rng: &mut test_utils::fuzz::Rng| if rng.range(0.0, 1.0) < 0.5 { -1 } else { 1 };
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let (mut a, mut b, c) = dirs[(rng.range(0.0, 5.0) as usize).min(4)];
+            if rng.range(0.0, 1.0) < 0.5 {
+                core::mem::swap(&mut a, &mut b);
+            }
+            a *= sign(&mut rng);
+            b *= sign(&mut rng);
+            let k = 10f64.powf(rng.range(2.0, 4.0)).round() as i128;
+            let p0 = [on_grid(rng.range(-2e5, 2e5)), on_grid(rng.range(-2e5, 2e5))];
+            let p1 = [p0[0] + k * a * unit, p0[1] + k * b * unit];
+            // `n` past the shared end, outward positive: the overlap is
+            // `−n` where `s2` reaches back over `s1`.
+            let (shared, away) = if rng.range(0.0, 1.0) < 0.5 {
+                (p0, -1)
+            } else {
+                (p1, 1)
+            };
+            let reach = 30.0 * eps / grid * c as f64;
+            let n = rng.range(-reach, reach) as i128;
+            let off = along_exactly(n * away, (a, b, c));
+            let j = 10f64.powf(rng.range(0.0, 12.0)).round() as i128 * sign(&mut rng);
+            let q = [shared[0] + off[0] - j * b, shared[1] + off[1] + j * a];
+            let f = |q: [i128; 2]| pt::<f64>((q[0] as f64 * grid, q[1] as f64 * grid));
+            let (from, to) = if rng.range(0.0, 1.0) < 0.5 {
+                (shared, q)
+            } else {
+                (q, shared)
+            };
+            let Ok(s2) = build_seg(f(from), f(to), Segment::Line, Consistency::Decide, band) else {
+                continue;
+            };
+            let s1: Seg<f64> = build_seg(f(p0), f(p1), Segment::Line, Consistency::Decide, band)
+                .unwrap_or_else(|e| panic!("s1: {}", e.predicate()));
+            if !touches_only_near_the_shared_end(&s1, &s2, band) {
+                continue;
+            }
+            let overlap = (-n).max(0) as f64 * grid / c as f64;
+            assert!(
+                overlap <= eps,
+                "read a touch near the shared end at a real overlap of {overlap:e} m \
+                 (ε {eps:e}): s1 {:?}→{:?}, s2 {:?}→{:?} — {}",
+                f(p0),
+                f(p1),
+                f(from),
+                f(to),
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+
+    /// **A shared-end touch is read only past the overlap's charge.** A
+    /// case of
+    /// [`a_pair_reads_a_touch_near_its_shared_end_only_within_the_band_of_it`]'s
+    /// draw, every point on the `2⁻³⁴` m grid: `s1` runs `7680` times
+    /// `(−7, 24)`, `192` km, to an end about `3.4·10⁵` m out, and `s2`
+    /// arrives at that end from back over `s1`: their real overlap is
+    /// `1.0082·10⁻⁹` m, past ε. The overlap as computed reads within the
+    /// band's zero, and only its charge lifts the upper bound past it, so
+    /// [`touches_only_near_the_shared_end`] does not hold. With the charge
+    /// dropped it would, and the pair would read a touch at a vertex it
+    /// overlaps past.
+    #[test]
+    fn a_shared_end_touch_is_read_only_past_the_overlaps_charge() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let end = (-85837.30740873661, 327155.61704938876);
+        let s1 = line::<f64>((-32077.30740873661, 142835.61704938876), end, band);
+        let s2 = line::<f64>((-86069.63265372172, 327087.8555196004), end, band);
+        let along = on_one_line_2d(s1.unit, (s1.a, s1.b), (s2.a, s2.b), 0.0);
+        assert_eq!(
+            decide("collinear_overlap", Margin::of(along.extent()), band),
+            Ok(Sign::Zero),
+            "the overlap as computed reads within the band's zero"
+        );
+        assert!(!touches_only_near_the_shared_end(&s1, &s2, band));
+    }
+
+    /// **A straight continuation whose overlap straddles its charge still
+    /// escalates.** A case of
+    /// [`every_pair_the_shared_end_touch_rescues_escalates_at_its_joint`]'s
+    /// draw at ε `10⁻⁹`, `K` 10: a leg about `5.4·10⁵` m long arrives at
+    /// `(4195.4, 1159.4)`, and a `960` m leg leaves it on the same line,
+    /// its far end within the band's zero of the long leg's carrier. Both
+    /// of the short leg's ends read on the long carrier, so [`line_line`]
+    /// reads the pair collinear, and [`collinear_overlap`] straddles: the
+    /// overlap's lower bound is in band, its upper bound Zero. That upper
+    /// bound is what [`touches_only_near_the_shared_end`] reads, so the
+    /// shared-end touch would hold here and the joint reads a continuation
+    /// (`SameCarrier`): asked on the straddle, the rule would accept the
+    /// pair. It is correct by the rule's argument and deliberately not
+    /// accepted: the rule is asked only on an in-band side, so the pair
+    /// escalates, shared vertex or not.
+    #[test]
+    fn a_straight_continuation_straddling_its_overlaps_charge_still_escalates() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let v = (4195.37792743973, 1159.414105497221);
+        let leaving = line::<f64>(v, (5051.600599898648, 719.9751542338354), band);
+        let arriving = line::<f64>((-483370.8154819185, 251392.89144105796), v, band);
+        assert!(touches_only_near_the_shared_end(&leaving, &arriving, band));
+        match joint_tangency(&arriving, &leaving, "path_junction_turn", band) {
+            Ok(reading) => assert!(
+                matches!(reading.class, JointClass::SameCarrier),
+                "the joint reads a continuation, got {:?}",
+                reading.class
+            ),
+            Err(e) => panic!("the joint decides, got an escalation on {:?}", e.predicate),
+        }
+        for shared in [None, Some(pt(v))] {
+            match pair_contacts(&leaving, &arriving, shared, band) {
+                Err(e) => assert_eq!(e.predicate, Some("collinear_overlap"), "{shared:?}"),
+                Ok(_) => panic!("{shared:?}: the straddle must escalate"),
+            }
+        }
+    }
+
+    /// **The pairs the shared-end touch rescues escalate at their joint.**
+    /// Two lines meeting at a vertex at angle `θ`, the shorter `Ls` from
+    /// `10⁻²` to `10³` m and the longer up to `10³` times it, about a
+    /// vertex up to `10⁵` m out, with `sin θ·Ls` drawn across the band
+    /// (`0.5ε` … `1.5Kε`), arriving and leaving either way round. Wherever
+    /// [`pair_contacts`] escalates and [`touches_only_near_the_shared_end`]
+    /// rescues the pair (read with either segment as host, as
+    /// `validate::judge_pair` reads a pair in pass order), the joint pass
+    /// ([`joint_tangency`]) escalates too: the short leg's far end stands
+    /// off the long one's carrier by `sin θ·Ls`, which is the turn the
+    /// joint reads, levered by the shorter arm. So the rule moves an
+    /// escalation to the joint and never accepts a loop the pair pass
+    /// escalated; a change to the joint pass that lets one through reds
+    /// here, and owes the rule's soundness its review then. A floor on the
+    /// rescues keeps the row from passing empty.
+    #[test]
+    fn every_pair_the_shared_end_touch_rescues_escalates_at_its_joint() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let (eps, k_eps) = (band.zero(), band.escalate());
+        let mut rng = test_utils::fuzz::start("seg-adjacent-joint-coupling");
+        let mut rescued = 0usize;
+        let draws = test_utils::fuzz::scaled(20_000);
+        for _ in 0..draws {
+            let far = 10f64.powf(rng.range(0.0, 5.0));
+            let v = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
+            let short = 10f64.powf(rng.range(-2.0, 3.0));
+            let long = short * 10f64.powf(rng.range(0.0, 3.0));
+            let h = rng.range(0.5 * eps, 1.5 * k_eps);
+            let theta = (h / short).asin();
+            let th = rng.range(0.0, core::f64::consts::TAU);
+            // The long leg arrives along `th`; the short one leaves at
+            // `θ` off it, either side, or the other way round.
+            let turn = if rng.range(0.0, 1.0) < 0.5 {
+                theta
+            } else {
+                -theta
+            };
+            let (lu, su) = (th, th + turn);
+            let at = |len: f64, ang: f64| (v.0 + len * ang.cos(), v.1 + len * ang.sin());
+            let (far_long, far_short) = (at(-long, lu), at(short, su));
+            let (prev, next) = if rng.range(0.0, 1.0) < 0.5 {
+                ((far_long, v), (v, far_short))
+            } else {
+                // Reversed traversal: the short leg arrives.
+                ((at(-short, su), v), (v, at(long, lu)))
+            };
+            let build = |(a, b): ((f64, f64), (f64, f64))| {
+                build_seg::<f64>(pt(a), pt(b), Segment::Line, Consistency::Decide, band)
+            };
+            let (Ok(prev), Ok(next)) = (build(prev), build(next)) else {
+                continue;
+            };
+            for (host, other) in [(&prev, &next), (&next, &prev)] {
+                if pair_contacts(host, other, None, band).is_ok() {
+                    continue;
+                }
+                if pair_contacts(host, other, Some(prev.b), band).is_err() {
+                    continue;
+                }
+                rescued += 1;
+                if let Ok(reading) = joint_tangency(&prev, &next, "path_junction_turn", band) {
+                    panic!(
+                        "rescued, and the joint decided {:?} on {}: prev {:?}→{:?}, \
+                         next {:?}→{:?} — {}",
+                        reading.class,
+                        reading.predicate,
+                        prev.a,
+                        prev.b,
+                        next.a,
+                        next.b,
+                        test_utils::fuzz::replay()
+                    );
+                }
+            }
+        }
+        assert!(
+            rescued * 10 >= draws,
+            "only {rescued} rescues in {draws} draws — {}",
+            test_utils::fuzz::replay()
+        );
     }
 
     /// **A far, long pair reads apart only past its charge.** `a` runs
@@ -3251,7 +3495,7 @@ mod pair_contact_tests {
             for (order, (p, q)) in [("", (first, second)), (", reversed", (second, first))] {
                 let read = build(p).and_then(|p| {
                     let q = build(q)?;
-                    match pair_contacts(&p, &q, band) {
+                    match pair_contacts(&p, &q, None, band) {
                         Ok(PairOutcome::Contacts(contacts)) => {
                             Ok(contacts.iter().map(|c| c.kind).collect())
                         }
@@ -3369,7 +3613,7 @@ mod pair_contact_tests {
     ) -> Result<Vec<(CKind, Point2<T>)>, Option<&'static str>> {
         let s1 = arc::<T>(c1, r1, t1 - 0.5, 1.0, band);
         let s2 = arc::<T>(c2, r2, t2 - 0.5, 1.0, band);
-        match pair_contacts(&s1, &s2, band) {
+        match pair_contacts(&s1, &s2, None, band) {
             Ok(PairOutcome::Contacts(contacts)) => {
                 Ok(contacts.into_iter().map(|c| (c.kind, c.point)).collect())
             }

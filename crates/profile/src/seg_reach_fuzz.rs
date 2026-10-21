@@ -264,7 +264,7 @@ fn kernel<T: Decide>(s1: Shape, s2: Shape, band: Band) -> Read {
     let (Some((seg1, read1)), Some((seg2, read2))) = (build(s1), build(s2)) else {
         return Read::Unbuilt;
     };
-    match pair_contacts(&seg1, &seg2, band) {
+    match pair_contacts(&seg1, &seg2, None, band) {
         Ok(PairOutcome::Contacts(contacts)) => Read::Contacts(contacts.len(), read1, read2),
         Ok(PairOutcome::Overlap) => Read::Contacts(1, read1, read2),
         Err(_) => Read::Escalated,
