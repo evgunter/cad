@@ -27,7 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 
 use pncad::authoring::{p2, p3, polygon, v3, validated};
 use pncad::geom_core::{RigidMotion, Tol};

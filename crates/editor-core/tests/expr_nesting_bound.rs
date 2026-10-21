@@ -18,7 +18,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -29,7 +28,7 @@ use editor_core::{
     ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval, eval_count,
     parse_formula, unparse,
 };
-use fixture::{Recorder, len, run, scl, xy_frame};
+use fixture::{Recorder, len, run, scl};
 use geom_core::{Interval, Tol};
 use serde_json::Value;
 use test_utils::own_thread::on_the_smallest_stack;
@@ -77,9 +76,7 @@ fn refused_bound(error: &DimensionError) -> usize {
 /// writes), an extrude's distance, and a measurement.
 fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(2.0), len(0.0)])),
@@ -95,7 +92,6 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: deep_length(0.5, levels),
-        side: ExtrudeSide::Along,
     });
     let measure = r.insert(Node::Assertion {
         value: deep_sum(0.5, levels, levels.div_ceil(2)),
@@ -109,15 +105,12 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
 /// `distance`, and the extrude.
 fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(xy_frame());
-    let profile = r.insert(Node::Profile(fixture::desc(
-        plane,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
+    let profile = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),
         distance,
-        side: ExtrudeSide::Along,
     });
     (r, extrude)
 }
@@ -810,6 +803,7 @@ fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
             let r = Recorder {
                 doc: d.doc,
                 edits: d.edits,
+                last: None,
             };
             (d.name.to_string(), r)
         })

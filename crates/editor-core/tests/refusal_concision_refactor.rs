@@ -95,8 +95,8 @@ test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict, InstanceOutputUncarried,
-        UnresolvedVarCrossesCut, ConstructionReadsCopy, CopyPinnedToConstruction, PinReadsVariable,
-        ValueOnAMovedWorld, WorldPinOnAMovedWorld, InstanceUnsolved, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
+        UnresolvedVarCrossesCut, ConstructionReadsCopy, PinReadsVariable,
+        ValueOnAMovedWorld, RepinRefused, InstanceUnsolved, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
         StrandedPartName,
         StrandedPartRead, Edit,
     ];
@@ -285,10 +285,6 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::ConstructionReadsCopy {
             node: s(3, "Union"),
         },
-        InlineError::CopyPinnedToConstruction {
-            placement: s(8, "Place"),
-            construction: s(3, "Union"),
-        },
         InlineError::PinReadsVariable {
             instance: s(7, "InstantiatePart"),
             var: Box::new(var()),
@@ -297,8 +293,9 @@ fn inline_refusals() -> Vec<InlineError> {
             placement: s(8, "Place"),
             value: constraint(),
         },
-        InlineError::WorldPinOnAMovedWorld {
+        InlineError::RepinRefused {
             placement: s(8, "Place"),
+            refusal: editor_core::PinRefusal::NoFrame { node: n(8) },
         },
         InlineError::InstanceUnsolved {
             instance: s(7, "InstantiatePart"),

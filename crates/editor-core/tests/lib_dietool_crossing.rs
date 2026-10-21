@@ -8,7 +8,7 @@
 //! the placement vocabulary (`Node.placed_union_at`, `Frame`,
 //! `PatternKind`) and authored the LINEAR twin — `heat_sink_fins`,
 //! which is extrude-only — while `die_tool`'s prototype is a REVOLVE
-//! about a `Datum::Axis`, and the Python die scene reached its ball
+//! about its own axis, and the Python die scene reached its ball
 //! only through the retired equator workaround
 //! (`crates/editor-core/tests/corpus/die_pips.rs`'s deviation (b),
 //! deleted at `7581fb65d`: the revolve name emitter refused an
@@ -20,7 +20,7 @@
 //! workaround's deletion by one commit, and `die_pips::half_disc_
 //! program`, which it reuses, is the bulge-1 semicircle pole to pole.
 //! What was left banked was the crossing: nothing executed the whole
-//! `die_tool` vocabulary — Profile, Datum(Axis), Revolve,
+//! `die_tool` vocabulary — Profile, Revolve, Place,
 //! PlacedUnion(Explicit), Boolean(Subtract) — from Python.
 //!
 //! # What this file pins, and why as BYTES

@@ -132,16 +132,16 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, SlotValue, Took, apply,
-    apply_replayed, cascade_delete_order, measure,
+    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, SketchOutcome, SketchedOnFace,
+    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, sketch_on_face,
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
-    Evaluation, FramePlacement, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
-    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PoseValue, ProfileLane,
-    ProfilePieces, SplitSide, StepTurns, ValuePayload, evaluate,
+    Evaluation, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
+    NodeResult, NodeStanding, NodeValue, PartFault, PoseValue, ProfileLane, ProfilePieces,
+    SplitSide, StepTurns, ValuePayload, evaluate,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -159,13 +159,15 @@ pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    Anchor, CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset,
+    CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset, FrameMove,
     FreedomRefusal, LeverRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateRef, MateSide, Member,
     NO_AT_REST_RECORD_RECOURSE, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy,
-    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SlideAxis, SolvedPoses, Space, Subgroup,
-    SubgroupFamily, Target, Unobservable, Value, WorldPin, WorldRead, WorldReadFault,
-    class_admission, head_face, head_of, member_of, member_reading, pin_at, pinned_at, place_at,
-    reference_about, relative_freedom_components, solve_document, unobservable,
+    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup, SubgroupFamily,
+    Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead, WorldReadFault,
+    class_admission, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
+    member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,
+    place_at, place_at_in, reference_about, relative_freedom_components, solve_document, stand,
+    unobservable,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
@@ -185,7 +187,7 @@ pub use names::{
     FragmentGroups, GeomPred, InterrogateError, JoinShape, KindMismatch, LeafRole, MeridianEnd,
     NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName, OpGroup,
     PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
-    RolePath, RoleSeg, RunLine, SEL_DATUM_DISTANCE, SeamSidesShape, SeamVertexShape,
+    RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE, SeamSidesShape, SeamVertexShape,
     SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side,
     SplitHalf, StableName, SurfaceKindSet, TagPat, UnionNameShape, WayShape, all_bodies, all_edges,
     all_faces, all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation,
@@ -193,9 +195,9 @@ pub use names::{
     role_leaf, select, select_where, vertex_position,
 };
 pub use node::{
-    AuthoredNode, Axis3, ConstraintId, CountMismatch, Datum, ExtrudeSide, InputFault,
-    InterfaceCrossing, InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg,
+    AuthoredNode, Axis3, ConstraintId, CountMismatch, InputFault, InterfaceCrossing,
+    InterfaceRecord, ListFault, LoftSection, Node, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, SitedFace, SitedRef, SlotId, StationMove, StepArg,
     StepId, TubeWindow, VectorSlot,
 };
 pub use operand::{Bodies, BodyRead, CopyKey, Operand, OperandSlot, SlotKind};
@@ -206,7 +208,7 @@ pub use persist::{
     load, save,
 };
 pub use persist::{NonFiniteSite, OutputFault, ProgramFault, SelectionBodyFault, SnapshotError};
-pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
+pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{

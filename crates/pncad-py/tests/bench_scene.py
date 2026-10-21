@@ -27,7 +27,7 @@ prisms here are drawn from literal quantities and declare no
 parameters. The bodies are the same; the recipes are not.
 
 A second difference is a job rather than a choice: the tour stands
-its stand on a TURNTABLE — the near post's world pin turns by a
+its stand on a TURNTABLE — the near post's world mate turns by a
 document parameter's swing — and sets a crate on the shelf. `stand`
 here pins the near post to the world where the turntable puts it at
 the tour's authored swing of zero, and authors no crate
@@ -125,10 +125,10 @@ STAND_SEED = "pncad-demo-stand"
 def prism(seed, width, depth, height):
     """A rectangular prism part document, rooted at the origin.
 
-    The extrusion runs +z from the sketch plane at z = 0, so the part's
-    SEATING face is its top cap and its datum face is the origin plane.
-    Four nodes: the sketch frame, the section drawn on it, the extrude
-    that consumes both, and the placement that puts the extrude in the
+    The extrusion runs up its own +z from z = 0, so the part's SEATING
+    face is its top cap and its base cap lies on the origin plane.
+    Three nodes: the section, the extrude that consumes it, and the
+    placement that puts the extrude in the
     part's world where it stands — what an instance of the part
     delivers. The placement rests the extrude's base cap on the world's
     floor, a plane mate with three zero values: the body's own
@@ -144,7 +144,6 @@ def prism(seed, width, depth, height):
                 (Formula.length_in(width, m), Formula.length_in(depth, m)),
                 (Formula.length_in(0, m), Formula.length_in(depth, m)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
     # A part with no height has no faces to read its seat off: it is

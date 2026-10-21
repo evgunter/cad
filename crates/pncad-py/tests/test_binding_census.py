@@ -86,15 +86,12 @@ accounted for in exactly one of three ways:
    neither a spelling nor a row fails here naming itself.
 
    The reason is that rule 1 is exactly as strong as the coincidence
-   that the two sides picked the same word, and twice that coincidence
-   has hidden a whole door. Rust's `Datum` is the AUTHORING enum whose
-   arms a recipe holds; Python's is the READ-side value `Value.datum()`
-   answers with, and it spells none of the six — so `Datum::FaceFrame`
-   was invisible for the life of the family chartered to bind it.
-   `Node::Union` and `DocEdit::SetMembers` were the same shape behind
-   two names this file accounts whole, and only a hand-kept roster in
-   `tests/test_north_star.py` could see them. The member rule would
-   have demanded a row for each on the day the name matched.
+   that the two sides picked the same word: two types can share a
+   spelling and differ, and an arm of one is then invisible behind the
+   match. `Node::Union` and `DocEdit::SetMembers` sat behind two names
+   this file accounts whole, and only a hand-kept roster in
+   `tests/test_north_star.py` could see them. The member rule demands a
+   row for each on the day the name matches.
 
    WHAT IT STILL CANNOT SEE, because a rule with an unstated blind
    spot is an unverified claim:
@@ -398,21 +395,19 @@ def curated_declarations():
     A curated name enters only if `pncad.pyi` declares it top-level — a
     name in `BOUND_AS` or `NOT_BOUND` is argued WHOLE, with its reason at
     its entry, and the member rule is about what a name match accounts for.
-    The resolution is the sweep's: the declaration in the crate the `pub
-    use` statement named, falling back to the declaration set for that
-    spelling where the carrying crate does not declare it.
+    The resolution is the sweep's (`resolve_curated`): the declaration the
+    `pub use` chain that exports the name leads to.
     """
     sweep = resolver()
-    index = sweep.declarations(REPO, sweep.dependency_set(REPO))
+    crates = sweep.dependency_set(REPO)
+    index = sweep.declarations(REPO, crates)
     lists = tuple(stem.removesuffix(".rs") for stem in FACADE_FILES)
     top, _ = stub_surface()
     found = {}
-    for name, where in sweep.curated(REPO, lists).items():
+    for name, where in sweep.resolve_curated(REPO, lists, crates, index).items():
         if name not in top:
             continue
-        roots = {root for statements in where.values() for root in statements}
-        decls = [d for d in index.get(name, []) if d.crate in roots]
-        decls = decls or index.get(name, [])
+        decls = [d for stem in sorted(where) for d in where[stem]]
         if not decls:
             continue
         members = sweep.declared_members(decls[0])
@@ -555,25 +550,20 @@ def audit_gap_ids():
 #:   and `transform_rigid` arrive as `Node.*`, and the three Boolean
 #:   verbs plus their `_with` siblings arrive as `Node.union`,
 #:   `Node.intersect` and `Node.subtract`.
-#: - **A type became the door that reads it.** `PoseValue` is what
-#:   `Value.datum` answers, and `geom_core::UnitVec3` — the witness
-#:   that makes a datum's normal unit, so that an unnormalized one has
-#:   no spelling in Rust either; not a curated façade name, since it
-#:   is reached through the re-exported `geom_core` crate — is what
-#:   `Datum.direction` answers, as the plain triple it always was; its
+#: - **A type became the door that reads it.** `geom_core::UnitVec3` —
+#:   the witness that makes a direction unit; not a curated façade
+#:   name, since it is reached through the re-exported `geom_core`
+#:   crate — crosses as the plain triple a pose's axis answers; its
 #:   constructor's refusals (`UnitVec3Error`, there too) cross the way
-#:   every other typed refusal does, as tags on `EvaluationError.kind`
-#:   (Python builds datums through
-#:   `Node.datum_plane`/`Node.datum_axis`, never by naming the type).
+#:   every other typed refusal does, as tags on `EvaluationError.kind`.
 #:   Four tags carry them, and all four are Python-visible:
 #:   `degenerate_direction` for a zero-length direction,
 #:   `non_finite_direction` for one whose length overflows the norm or
 #:   is not a number, `underflowed_direction` for one whose components
 #:   are too small for their squares to be represented — a direction
-#:   with no measurable length — and `escalated`, whose `predicate` payload reads
-#:   `datum_unit_norm` for a datum, the kernel constructor's funnel
-#:   name, where the same field reads `eval_direction_norm` for the
-#:   directions the evaluation layer owns.
+#:   with no measurable length — and `escalated`, whose `predicate`
+#:   payload reads `eval_direction_norm` for the directions the
+#:   evaluation layer owns.
 #:   `NodeValue` IS `Value` and
 #:   `ValuePayload`'s discriminant is `Value.kind`; `NodeErrorKind`'s
 #:   tag is `EvaluationError.kind`;
@@ -638,7 +628,7 @@ BOUND_AS = {
     "AuthoredNode": "Node",
     # A name a formula reads that the document does not answer: Python
     # meets it as the `EvalError` the lowering raises (`Doc.eval`,
-    # `Doc.eval_count`, `GeomPred.datum_distance`), `unlowered_name`
+    # `Doc.eval_count`, `GeomPred.plane_distance`), `unlowered_name`
     # or `var_kind_mismatch`.
     "NameFault": "EvalError.variant",
     # The lowering's refusal outside an edit (`Doc::lowered`): a name,
@@ -649,7 +639,6 @@ BOUND_AS = {
     "FreshFault": "EvalError.variant",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
-    "PoseValue": "Value.datum",
     "DocumentId": "Doc.id",
     "IN": "inch",
     "M": "m",
@@ -660,7 +649,7 @@ BOUND_AS = {
     # operator check — `1 * m + 1 * rad`, with `op`/`left`/`right` —
     # while the curated name is `editor_core`'s document-layer refusal,
     # a different type answering a different question; rule 1 matched
-    # them on spelling alone, exactly as it matched the two `Datum`s.
+    # them on spelling alone.
     # The quantity refusal now crosses under its own Rust name
     # (`QuantityOpMismatch`), so no Python class shares this spelling
     # and rule 1 has nothing to match — the name is argued whole, here.
@@ -1114,7 +1103,7 @@ BOUND_AS = {
     # leaves a value no freedom crosses as the fault's own word
     # (`mate_not_a_freedom`, `mate_no_chart`), and why one has no chart
     # as `MateFault.why`.
-    "SlideAxis": "Coord.slide",
+    "TargetAxis": "Coord.slide",
     "FreedomRefusal": "MateFault.variant",
     "NoChartWhy": "MateFault.why",
     # Why a world read is no pose: the word `mate_world_read` carries
@@ -1127,6 +1116,20 @@ BOUND_AS = {
     # split's instance it cannot pin crosses as
     # `SplitError.inner_variant`.
     "place_at": "Doc.place_at",
+    # A body's own frame at a corner it has, as a pose to read.
+    "corner_frame": "Doc.corner_frame",
+    # The other two placement gestures: a copy placed against another
+    # body's geometry, and a copy standing where its own coordinates
+    # put it — `Doc.place` with neither constraints nor a pose.
+    "place_against": "Doc.place_against",
+    "stand": "Doc.place",
+    # "Sketch on this face", one recorded action answering its four
+    # nodes.
+    "sketch_on_face": "Doc.sketch_on_face",
+    "SketchOutcome": "Doc.sketch_on_face",
+    # A loft's later section: `Node.loft`'s `then` entries, a profile
+    # and its `StationMove`s.
+    "LoftSection": "Node.loft",
     "PlacedBy": "Placed.by",
     "PinRefusal": "EditError.variant",
     # What a frame fails to be a placement: the edit door spreads it
@@ -1422,7 +1425,7 @@ BOUND_AS = {
     "step_string": "Evaluation.step_string",
     "subtract": "Node.subtract",
     "tessellate": "Body.tessellate",
-    "transform_rigid": "Node.transform",
+    "transform_rigid": "Doc.place",
     "union": "Node.union",
     "validate": "Body.validate",
     "validate_closed": "Body.validate_closed",
@@ -1522,7 +1525,7 @@ FAMILIES: dict[str, str] = {
     # Python spells identically, so the name match accounted it and no
     # roster here could report it until members were counted. The
     # rule's other two findings closed at LIB-GAPS-1, which bound
-    # `Node.datum_point`, `Node.datum_frame` and `Mesh.boundaries`.
+    # `Mesh.boundaries` among others.
     # `test_every_gap_entry_names_a_defined_id` reads this map in both
     # directions: no entry may cite a key that is not here, and no key
     # here may go uncited.
@@ -1679,8 +1682,8 @@ FAMILIES: dict[str, str] = {
 #: Python, and binding the name would ADD ceremony rather than reach.**
 #:
 #: - *Values that cross as builtins.* `Point2`/`Point3`/`Vec2`/`Vec3`
-#:   are `tuple[float, ...]` throughout the stub (`SketchPlane.u`,
-#:   `Node.datum_axis`, `Node.transform`), `Real` is `float`, `Mat3`
+#:   are `tuple[float, ...]` throughout the stub (`Ray.direction`,
+#:   `Pose.axis`), `Real` is `float`, `Mat3`
 #:   and `Affine3` never cross at all, and the `crate::authoring`
 #:   constructors that exist so a Rust literal needs no `from_f64`
 #:   (`p2`, `p3`, `v2`, `v3`, `real`) have nothing to construct.
@@ -1785,7 +1788,7 @@ FAMILIES: dict[str, str] = {
 #:   PERFORMANCE door — "evaluate this in parallel" — would be a new
 #:   unit and a new entry, not this one.
 #: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
-#:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE` and `REGENERATE_RECOURSE`
+#:   `FIT_DEFERRAL`, `SEL_PLANE_DISTANCE` and `REGENERATE_RECOURSE`
 #:   are the prose a Rust refusal cites; Python's refusals carry theirs
 #:   in the exception's message.
 #:
@@ -1805,7 +1808,8 @@ FAMILIES: dict[str, str] = {
 #:   over-constrained, outside the at-rest vocabulary, and pinned to a
 #:   version the store no longer holds — each end on a named sentence,
 #:   and binding two of the four would leave the other two assertable
-#:   only by re-typing prose.
+#:   only by re-typing prose. `UNPINNED_RECOURSE` is the under-determined
+#:   refusal's sentence for a bundle with no mate, bound with them.
 #: - *Structures Python's authoring surface replaces with its own.*
 #:   `Applied` and `EditRecord` are `apply`'s pair, and `Doc.apply`
 #:   mutates in place and answers `Optional[NodeId]`, so there is no
@@ -2037,26 +2041,13 @@ FAMILIES: dict[str, str] = {
 #: was real missing surface — the read-back carried the bool and
 #: Python could not read it, so the outward normal was unformable.
 #:
-#: `Datum.face_frame` is the other half, and it is stranger. The
-#: curated authoring name is `Datum` (the `editor_core` enum), Python
-#: declares a top-level `Datum`, and rule 1 accounts it on SPELLING
-#: ALONE — which is exactly what rule 1 claims to do and no more. The
-#: two are not the same type: Rust's is the AUTHORING enum whose arms
-#: Python spells as `Node.datum_*` constructors, Python's is the
-#: READ-side value `Value.datum()` answers with. So a whole authoring
-#: arm went unbound behind a name-for-name match. The module docstring
-#: says outright that semantics are not checked ("nothing here
-#: verifies that Python's `Frame` is the `Frame` the façade
-#: curates"); this is that sentence with a bill attached, banked as
-#: `work/lib/datum-crosses-name-for-name-as-two-types.md`.
-#:
-#: What closing it bound: `Node.datum_face_frame(at, face, spin)` — a
-#: DAG input, an opaque face name and an angle with no default —
-#: `Evaluation.face_carrier_kind`, and `Pose.sense`. The positive form
-#: is `tests/test_face_frame.py`, where the three meet: the frame's
+#: What it binds: `Doc.sketch_on_face(body, face, outline, distance,
+#: spin)` — a body, an opaque face name and an angle — beside
+#: `Evaluation.face_carrier_kind` and `Pose.sense`. The positive form
+#: is `tests/test_face_frame.py`, where the three meet: the sketch's
 #: origin is the pose's, its normal is `sense * axis`, its +x is
 #: `u_ref` turned by the spin about that normal, and the face whose
-#: kind reads `Torus` is the face the frame refuses.
+#: kind reads `Torus` is the face the sketch refuses.
 #: **B-PART is CLOSED and no longer a `gap` id here**
 #: (LIB-B-PART), and it is B-FACE-FRAME's lesson arriving twice more,
 #: once at each level this file cannot see into. It cited ONE name —
@@ -2174,7 +2165,7 @@ FAMILIES: dict[str, str] = {
 #: unchanged in what it measures: "a profile step whose argument is
 #: an EXPRESSION rather than a literal" — the door still blocking
 #: `plate_param` from scratch, and the one
-#: `GeomPred.datum_distance`'s comparand waits on. What changed is
+#: `GeomPred.plane_distance`'s comparand waits on. What changed is
 #: that THAT residue is now a SIGNATURE rather than a missing name,
 #: so this census cannot see it and does not pretend to;
 #: `tests/test_north_star.py` executes a `Formula` against the arc and
@@ -2446,10 +2437,10 @@ NOT_BOUND = {
     "KeyedCopy": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
-    # `FramePlacement::Unreadable`'s payload: which axis the kernel's
-    # direction door refused and which of its four facts it reported.
-    # It crosses as its carrier does, and its carrier does not cross
-    # (the row below) — the same flattening the `Datum.direction`
+    # A direction refusal before it is spelled as a node error: which
+    # vector the kernel's direction door refused and what it said. It
+    # crosses as the node error it spells, a tag on
+    # `EvaluationError.kind` — the same flattening the `UnitVec3`
     # bullet's `UnitVec3Error` records, one level in.
     "DirectionRefusal": SHAPE,
     # `SnapshotError::InputList`'s payload: which of a node's own list
@@ -2517,16 +2508,6 @@ NOT_BOUND = {
     "EvalOutcome": SHAPE,
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
-    # Which placement a FRAME node's value carries for the profiles
-    # drawn on it — an authored frame's nine slots at the document's
-    # NOMINAL, a derived frame's "read it off the lane", or the
-    # refusal that says the authored pair spans no plane there. It is
-    # the input to C6 structure selection, and the question a Python
-    # caller asks of a frame — where does a sketch drawn on this land
-    # — is answered by the LANDED value, `Value.datum`, which is the
-    # same numbers on the build path. The two come apart only under an
-    # analysis box, which has no Python door to come apart behind.
-    "FramePlacement": SHAPE,
     "ImportOptions": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
@@ -2649,7 +2630,7 @@ NOT_BOUND = {
     "RoleSeg": SHAPE,
     "RunLine": SHAPE,
     "ASSERT_BOUND": SHAPE,
-    "SEL_DATUM_DISTANCE": SHAPE,
+    "SEL_PLANE_DISTANCE": SHAPE,
     # A crossing's sense: a field of a `RoleSeg`, the inside of a name,
     # for `RoleSeg`'s reason.
     "Sense": SHAPE,
@@ -2679,13 +2660,6 @@ NOT_BOUND = {
     # into the word (`origin_x`), so a family and its axis read off
     # one string rather than off a type Python would have to hold.
     "VectorSlot": SHAPE,
-    # A rigid step's component, the index `SlotId::rigid` maps onto a
-    # slot at any step: `VectorSlot`'s argument, one level in.
-    "RigidArg": SHAPE,
-    # A placement's step: Python builds each as a one-step `Placement`
-    # (`Placement.rigid`, `Placement.literal`) and chains them with
-    # `Placement.compose`, so no value of the step type crosses.
-    "Step": SHAPE,
     "VertexKey": SHAPE,
     "attribute": SHAPE,
     # A name's leaf role in words. Python holds a name as its opaque
@@ -2982,16 +2956,13 @@ NOT_BOUND = {
     "ShellOrientation": INTERIOR,
     # The rigid-motion WITNESS — a frame's origin and right-handed
     # orthonormal triple, minted where its axes were decided or by a
-    # construction that keeps it rigid. Python never holds one:
-    # `SketchPlane.from_frame` takes the two directions a caller means
-    # and mints the frame behind the door, `Node.tube` /
-    # `Node.hollow_tube` take the spine datum and a reference triple
-    # and mint it at `evaluate`, and a placement's steps are minted or
-    # decided at `evaluate`. What crosses is the refusal when the pair
-    # spans no plane (`FrameError.variant`, `orthonormalize_error_tag` /
-    # `degenerate_direction`), a placement's motion refusal (`motion`),
-    # and the placement the frame becomes (`SketchPlane`'s four
-    # accessors) — never the witness itself.
+    # construction that keeps it rigid. Python never holds one: a
+    # `Frame` is minted into one behind the door that takes it
+    # (`Doc.place(pose=...)`, `Doc.place_against`), and a placement's
+    # motion is minted or decided at `evaluate`. What crosses is the
+    # refusal when a frame's axes span no plane (`FrameError.variant`)
+    # and a placement's motion refusal (`motion`) — never the witness
+    # itself.
     "RigidMotion": INTERIOR,
     # The evaluation environment, and the entry that had been on the
     # WRONG side of the line: it was listed as a `G1` gap on the
@@ -3069,11 +3040,38 @@ NOT_BOUND = {
     # for a copy with no planar face, which Python reaches as
     # `Doc.place_at` / `Doc.pin` answering `Placed.by == "pin"`.
     "pin_at": INTERIOR,
-    # `pin_at` with what its anchor reads, and that answer: the
-    # migration's and the fixtures' report, which Python's gesture does
-    # not surface.
-    "pinned_at": INTERIOR,
-    "Anchor": INTERIOR,
+    # The gestures over an evaluation the caller already holds: each
+    # `Doc` door evaluates the document it writes into itself, so a
+    # Python caller never hands one an evaluation.
+    "pin_at_in": INTERIOR,
+    "place_at_in": INTERIOR,
+    "place_against_in": INTERIOR,
+    # A frame read off a body's geometry at a pose, as the pose operand
+    # a placement gesture's mate reads: Python spells a frame read off
+    # geometry through the `PoseDef` it names (`PoseDef.through` of an
+    # axis and a point), and the gestures that need one read it
+    # themselves.
+    "frame_at": INTERIOR,
+    "frame_at_in": INTERIOR,
+    # A frame read off a body's corner over an evaluation the caller
+    # holds (`Doc.corner_frame` evaluates its own), and a frame moved by
+    # stated turns and slides, which Python spells through the
+    # `PoseDef` doors it is made of (`PoseDef.spin` and `PoseDef.slide`
+    # by a `Formula`, `Formula.turn_over(4)` a quarter turn).
+    "corner_frame_in": INTERIOR,
+    "moved_frame": INTERIOR,
+    "FrameMove": INTERIOR,
+    # A pose variable's evaluated value, read by the mates and the
+    # splits that consume it: a Python caller reads where a face sits
+    # off the geometry (`Evaluation.face_frame`, `Pose`), never a pose
+    # variable's value.
+    "PoseValue": INTERIOR,
+    # The kernel's extrusion side and sketch plane, curated for the
+    # kernel-level `extrude` and `validated`: a document profile is
+    # 2-D and its extrude goes up its own z, so no Python door takes
+    # either.
+    "ExtrudeSide": INTERIOR,
+    "SketchPlane": INTERIOR,
     # A body's frame swung onto a mate's direction: the chart every
     # value is measured on, behind `MateValue`.
     "reference_about": INTERIOR,
@@ -3580,8 +3578,8 @@ NOT_BOUND = {
 #:   A few VALUE enums cross the same way and are noted where their attribute
 #:   is not called `variant`.
 #: - **An arm that crosses as a CONSTRUCTOR** — the `Node::Extrude` ->
-#:   `Node.extrude` shift, at the arms rule 1 could not see: `Datum`'s are
-#:   `Node.datum_*`, and `DocEdit::SetStructuralParam` is one door per slot.
+#:   `Node.extrude` shift, at the arms rule 1 could not see:
+#:   `DocEdit::SetStructuralParam` is one door per slot.
 #: - **A field that crosses as a READER**, the struct half: `Ray::dir` is
 #:   `Ray.direction`, `Mesh::patches` is `Mesh.patch`.
 #:
@@ -3710,7 +3708,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::LoftSectionsSpelled": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
-    "EditError::SetExtrudeSideOnNonExtrude": "EditError.variant",
+    "EditError::LoftSectionCount": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::OperandUnresolved": "EditError.variant",
@@ -3809,7 +3807,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::NotAnInstance": "InlineError.variant",
     "InlineError::UnplaceablePart": "InlineError.variant",
     "InlineError::ConstructionReadsCopy": "InlineError.variant",
-    "InlineError::CopyPinnedToConstruction": "InlineError.variant",
     "InlineError::InstanceReadUncarried": "InlineError.variant",
     "InlineError::Unresolved": "InlineError.variant",
     "InlineError::EpsilonSeam": "InlineError.variant",
@@ -3819,9 +3816,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
     "InlineError::PinReadsVariable": "InlineError.variant",
     "InlineError::ValueOnAMovedWorld": "InlineError.variant",
-    "InlineError::WorldPinOnAMovedWorld": "InlineError.variant",
-    # The named interim's one world pin: the class is its one arm.
-    "WorldPin::Identity": "WorldPin",
+    "InlineError::RepinRefused": "InlineError.variant",
     "InlineError::InstanceUnsolved": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
@@ -3842,6 +3837,11 @@ MEMBERS_BOUND_AS = {
     "MateFault::NoChart": "MateFault.variant",
     "MateFault::SideUnevaluated": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
+    "MateFault::Unpinned": "MateFault.variant",
+    # A bundle with no mate goes whole: `Doc.remove_mate` on any of its
+    # values writes this edit (`DocEdit::removing`) and answers the
+    # others' addresses.
+    "DocEdit::RemoveConstraints": "Doc.remove_mate",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
     "NodePickError::NotABody": "NodePickError.variant",
@@ -3932,8 +3932,8 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::InBand": "SelectRefusal.reason",
     "SelectRefusal::TiedDisagrees": "SelectRefusal.reason",
     "SelectRefusal::Unreadable": "SelectRefusal.reason",
-    "SelectRefusal::NotADatum": "SelectRefusal.reason",
-    "SelectRefusal::DatumHasNoValue": "SelectRefusal.reason",
+    "SelectRefusal::NotAPlane": "SelectRefusal.reason",
+    "SelectRefusal::FaceUnresolved": "SelectRefusal.reason",
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",
     "SelectRefusal::Band": "SelectRefusal.reason",
@@ -4037,6 +4037,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::LaminaWedge": "ValidationFinding.variant",
     "ValidationError::LoopRoleInverted": "ValidationFinding.variant",
     "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
+    "ValidationError::SeamRegionOvercovered": "ValidationFinding.variant",
+    "ValidationError::SeamRegionCoverUnresolved": "ValidationFinding.variant",
     "ValidationError::NegativeVolume": "ValidationFinding.variant",
     "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",
@@ -4135,21 +4137,6 @@ MEMBERS_BOUND_AS = {
     # read back only as two counts.
     "ClosedLoop::loop_": "ClosedLoop.vertex_count",
     "ClosedLoop::program": "ClosedLoop.step_count",
-    # THE ARM THIS RULE WAS RULED FOR. `Datum` is the `editor_core`
-    # AUTHORING enum; `pncad.pyi`'s `Datum` is the READ-side value
-    # `Value.datum()` answers with, and it spells none of these six. So
-    # rule 1 accounted the whole enum on a spelling coincidence and
-    # `FaceFrame` was invisible for the life of its family
-    # (`work/lib/datum-crosses-name-for-name-as-two-types.md`). All six
-    # arms cross as `Node.datum_*` constructors, one per arm. `Point`
-    # and `Frame` were the family B-DATUM-DOORS chartered, closed at
-    # LIB-GAPS-1: a Python author now builds six of six datum kinds,
-    # and each reads back through `Value.datum()`.
-    "Datum::Plane": "Node.datum_plane",
-    "Datum::Axis": "Node.datum_axis",
-    "Datum::FaceFrame": "Node.datum_face_frame",
-    "Datum::Point": "Node.datum_point",
-    "Datum::Frame": "Node.datum_frame",
     # `Tied` is the arm the namesake spells; `Unique` is that attribute
     # being false.
     "Denotation::Unique": "Denotation.tied",
@@ -4183,11 +4170,10 @@ MEMBERS_BOUND_AS = {
     # `class_` because `class` is a Python keyword — the `IN`/`inch`
     # shift, one level in.
     "MintedDeclaration::class": "MintedDeclaration.class_",
+    # The copies no part claims, read as the loose list the stub names.
+    "Evaluation::loose_copies": "Evaluation.loose",
     # The entity-kind filter, named for what it does at the door.
     "NamePat::kind": "NamePat.of_kind",
-    # The datum arm crosses as one constructor per `Datum` arm (see the
-    # `Datum` rows above); this points at the first of the six.
-    "Node::Datum": "Node.datum_plane",
     # Spelled out, as the stub spells every direction.
     "Ray::dir": "Ray.direction",
     # The nested patterns a segment pattern matches its arguments with.
@@ -4265,10 +4251,6 @@ MEMBERS_NOT_BOUND = {
     # so its report never does.
     "ChecksReport::pending": INTERIOR,
     "CheckRefusal::document": SHAPE,
-    # The chain is authored through `Placement`'s constructors and
-    # `then`, and read back only as its length: the steps are the
-    # `Step` entry's `different-shape` argument, one level in.
-    "Placement::steps": SHAPE,
     # THE PATH VERBS' ARC SPECS, one family. A spec's fields are its
     # CONSTRUCTOR's arguments — `Bulge(p, b)`, `Center(c, winding, p)` —
     # and nothing reads one back: the spec is consumed by the verb it is

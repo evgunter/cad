@@ -3323,6 +3323,46 @@ fn unary_at_zero(op: SymOp) -> Option<Form> {
     }
 }
 
+/// **The value a sine, cosine or tangent atom takes at a rational
+/// multiple of π, where that value is rational** (D10: a rational
+/// fraction of a turn is a constant): `0`, `±1/2` or `±1` for a sine or
+/// cosine, `0` or `±1` for a tangent. π is an indeterminate of the
+/// form, so the argument `q·π` is read off it exactly and the fold is
+/// an equality of reals.
+fn trig_at_rational_pi(op: SymOp, a: &Form) -> Option<Form> {
+    if !matches!(op, SymOp::Sin | SymOp::Cos | SymOp::Tan) || a.poisoned {
+        return None;
+    }
+    let [(mono, c)] = a.num.terms() else {
+        return None;
+    };
+    if mono.as_slice() != [(INDET_PI, 1)] {
+        return None;
+    }
+    // `q`, the multiple of π, as an integer fraction `p / s`.
+    let q = c.mul(&a.den.as_constant()?.recip()?)?;
+    let (rational::Int::Small(num), rational::Int::Small(den)) = (&q.num, &q.den) else {
+        return None;
+    };
+    let shift = q.exp2.unsigned_abs();
+    let (p, s) = if q.exp2 >= 0 {
+        (num.checked_mul(1i128.checked_shl(shift)?)?, *den)
+    } else {
+        (*num, den.checked_mul(1i128.checked_shl(shift)?)?)
+    };
+    // `q·π` is `q/2` turns.
+    let turns = crate::Turns::new(
+        i64::try_from(p).ok()?,
+        u64::try_from(s.checked_mul(2)?).ok()?,
+    )?;
+    let halves = |h: i8| Rat::new(i128::from(h), 2, 0).map(|r| Form::poly(Poly::constant(r)));
+    match op {
+        SymOp::Sin => halves(turns.sin_halves()?),
+        SymOp::Cos => halves(turns.cos_halves()?),
+        _ => halves(2 * turns.tan_rational()?),
+    }
+}
+
 /// The PLAIN form of one node, given its children's forms — every atom
 /// opaque, no rule applied — `None` for anything the caller must freeze
 /// (an overflow, a budget, an unrepresentable literal, a reciprocal of
@@ -3360,6 +3400,9 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
         if a.is_zero()
             && let Some(f) = unary_at_zero(op)
         {
+            return Some(f);
+        }
+        if let Some(f) = trig_at_rational_pi(op, a) {
             return Some(f);
         }
         let id = indet_atom(op.tag(), node.payload, &[a.digest()]);
@@ -5474,6 +5517,43 @@ mod tests {
         crate::k_stats::decide("sym_test", Margin::of(m), band()) == Ok(Sign::Zero)
     }
 
+    /// **Sine, cosine and tangent of a rational multiple of π fold where
+    /// the value is rational** (`trig_at_rational_pi`), so a copy spun
+    /// by `turn/4` is parallel as a theorem: each row's residual against
+    /// its rational value is the zero form. An irrational value (the
+    /// sine of an eighth of a turn) stays an atom and decides nothing
+    /// symbolically.
+    #[test]
+    fn trig_of_a_rational_multiple_of_pi_folds_where_it_is_rational() {
+        fn pi() -> Sym<f64> {
+            <Sym<f64> as Real>::pi()
+        }
+        fn lit(x: f64) -> Sym<f64> {
+            Sym::from_f64(x)
+        }
+        type Row = (&'static str, fn() -> Sym<f64>, f64);
+        let rows: [Row; 7] = [
+            ("sin(π/2)", || (pi() / lit(2.0)).sin(), 1.0),
+            ("cos(π/2)", || (pi() / lit(2.0)).cos(), 0.0),
+            ("cos(π)", || pi().cos(), -1.0),
+            ("sin(−3π/2)", || (-(pi() * lit(1.5))).sin(), 1.0),
+            ("sin(π/6)", || (pi() / lit(6.0)).sin(), 0.5),
+            ("cos(2π/3)", || (pi() * lit(2.0) / lit(3.0)).cos(), -0.5),
+            ("tan(π/4)", || (pi() / lit(4.0)).tan(), 1.0),
+        ];
+        for (what, f, value) in rows {
+            let (zero, counts) = with_session(budget(), || decides_zero(f() - lit(value)));
+            assert!(zero && counts.symbolic == 1, "{what} = {value}: {counts:?}");
+        }
+        let (_, counts) = with_session(budget(), || {
+            decides_zero((pi() / lit(4.0)).sin() - lit(core::f64::consts::FRAC_1_SQRT_2))
+        });
+        assert_eq!(
+            counts.symbolic, 0,
+            "sin(π/4) is irrational and folds to no constant"
+        );
+    }
+
     /// **A pair of spellings of one constant whose product the shipped
     /// ring REFUSES and a 512-bit ring does not.** Each factor is
     /// `1/3`'s `f64`, a 53-bit odd mantissa; six of them multiply to
@@ -6883,10 +6963,12 @@ mod tests {
 
     /// **Rule D's third fold: `sin`/`cos` at an exact half-multiple of
     /// π** — `cos π = −1`, `sin π = 0`, `cos(π/2) = 0`, `sin(3π/2) =
-    /// −1`, `cos(2π) = 1` decide as theorems; `cos(π/3)` and
+    /// −1`, `cos(2π) = 1` decide as theorems. So does `cos(π/3) = 1/2`,
+    /// by the fold of a rational multiple of π whose value is rational
+    /// (`trig_at_rational_pi`). `cos(π/5)`, which is irrational, and
     /// `cos(π + atan X)` never fold.
     #[test]
-    fn rule_d_folds_trig_at_half_multiples_of_pi_and_nothing_else() {
+    fn rule_d_folds_trig_at_rational_multiples_of_pi_and_nothing_else() {
         let (rows, counts) = with_session(budget(), || {
             let pi = Sym::<f64>::pi();
             let one = Sym::from_f64(1.0);
@@ -6897,16 +6979,18 @@ mod tests {
                 how((pi * half).sin_cos().1),
                 how((pi * Sym::from_f64(1.5)).sin_cos().0 + one),
                 how(Sym::tau().sin_cos().1 - one),
+                how((pi / Sym::from_f64(3.0)).sin_cos().1 - half),
             ]
         });
-        assert_eq!(rows, ["proven"; 5], "{counts:?}");
+        assert_eq!(rows, ["proven"; 6], "{counts:?}");
         let (rows, _) = with_session(budget(), || {
             let pi = Sym::<f64>::pi();
             let x = p("x", 0.3);
             // A value-equal spelling on the other side keeps each row
             // a genuine identity that must stay NUMERIC.
             [
-                how((pi / Sym::from_f64(3.0)).sin_cos().1 - Sym::from_f64(0.5)),
+                how((pi / Sym::from_f64(5.0)).sin_cos().1
+                    + (pi * Sym::from_f64(4.0) / Sym::from_f64(5.0)).sin_cos().1),
                 how((pi + x.atan()).sin_cos().1 + x.atan().sin_cos().1),
             ]
         });

@@ -1168,8 +1168,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
-        // A side is one of two words.
-        | DocEdit::SetExtrudeSide { .. }
         | DocEdit::SetExpression { .. }
         | DocEdit::Rebind { .. }
         | DocEdit::ReWitness { .. }
@@ -1181,10 +1179,10 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // door lowers.
         | DocEdit::AddConstraint { .. }
         | DocEdit::AddValue { .. }
-        // A world pin holds no number.
-        | DocEdit::PinWhereItStands { .. }
+        | DocEdit::AddValues { .. }
         // A constraint's id is minted, not a float.
         | DocEdit::RemoveConstraint { .. }
+        | DocEdit::RemoveConstraints { .. }
         // A label is text.
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => None,
@@ -1304,7 +1302,7 @@ pub enum SnapshotError {
     },
     /// An appearance entry is read in a variable the document holds
     /// live that is no output holding a body — a scalar, a selection,
-    /// a datum's output — so no table names what it holds. No edit
+    /// a pose output — so no table names what it holds. No edit
     /// writes one (`EditError::AppearanceBodyNotARead`); a deleted
     /// operation's read, the stranded key, is legal.
     AppearanceReadNotABody {
@@ -1644,21 +1642,7 @@ pub enum SnapshotError {
     },
 }
 
-impl SnapshotError {
-    /// The arm a frame the admission rule refused is reported under,
-    /// at `at` on `node`.
-    fn placement_frame(node: SpokenNode, at: FrameSite, fault: FrameFault) -> Self {
-        match fault {
-            FrameFault::NonFinite => Self::PlacementNonFinite { node, at },
-            FrameFault::Improper { determinant } => Self::PlacementImproper {
-                node,
-                at,
-                determinant,
-            },
-            FrameFault::NotRigid { check } => Self::PlacementNonRigid { node, at, check },
-        }
-    }
-}
+impl SnapshotError {}
 
 /// **A placement frame's refusal at load**: the frame's subject at its
 /// site and the frame rule's own clause, then what a user holding the
@@ -2051,13 +2035,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 fault,
             });
         }
-        // Literal placement frames — a transform's, a constraint's
-        // frame offsets — held by the predicate the edit door asks,
-        // for the rule's reason: the snapshot is the one road
-        // to a document that does not pass `apply`.
-        if let Some((at, fault)) = node.placement_frame_fault(tol) {
-            return Err(SnapshotError::placement_frame(doc.spoken(id), at, fault));
-        }
         // DM5's third caller, for the reason the placement rule above
         // has one: a saved file is DATA, and a SNAPSHOT is the one way
         // a node reaches a document without passing `apply`. The edit
@@ -2095,7 +2072,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 crate::mate::ConstraintKind::Value(value) => {
                     crate::mate::solve::admit_value(doc, at, bundle, value)
                 }
-                crate::mate::ConstraintKind::WorldPin(_) => Ok(()),
             };
             if let Err(fault) = admitted {
                 return Err(SnapshotError::MateRefused {
@@ -2104,16 +2080,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                     fault,
                 });
             }
-        }
-        if let Err(fault) = crate::mate::solve::world_pin_stands_alone(id, bundle) {
-            let crate::MateFault::Overconstrained { constraints, .. } = &*fault else {
-                unreachable!("a bundle beside a world pin is overconstrained")
-            };
-            return Err(SnapshotError::MateRefused {
-                node: doc.spoken(id),
-                constraint: constraints[0],
-                fault,
-            });
         }
     }
     // Every `StableName` the document holds, in ONE pass over the
@@ -2659,16 +2625,16 @@ mod tests {
             },
             SnapshotError::PlacementNonFinite {
                 node: node(),
-                at: FrameSite::Step { index: 0 },
+                at: FrameSite::Listed { index: 0 },
             },
             SnapshotError::PlacementImproper {
                 node: node(),
-                at: FrameSite::Step { index: 1 },
+                at: FrameSite::Listed { index: 1 },
                 determinant: -1.0,
             },
             SnapshotError::PlacementNonRigid {
                 node: node(),
-                at: FrameSite::Step { index: 1 },
+                at: FrameSite::Listed { index: 1 },
                 check: "transform_rigid_col0_unit",
             },
             SnapshotError::MateRefused {
@@ -2797,13 +2763,11 @@ mod tests {
             (doc, id)
         };
         let doc = ProfileDoc::empty_derived("check-speak", tol);
-        let (doc, plane) = insert(doc, Box::new(crate::test_support::xy_frame()));
         let triangle = crate::program::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)])
             .expect("finite corners");
         let (doc, profile) = insert(
             doc,
             Box::new(Node::Profile(crate::program::ProfileProgram {
-                frame: plane.into(),
                 loops: vec![triangle],
                 ids: Vec::new(),
             })),

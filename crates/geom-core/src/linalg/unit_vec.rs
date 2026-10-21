@@ -273,7 +273,7 @@ impl std::error::Error for LeveredUnitError {}
 /// the value while the decision belongs here.** A value's owner is
 /// what its telemetry has to be readable by: a datum's normal is
 /// decided under the datum boundary's name (`topo`'s
-/// `DATUM_UNIT_NORM`), a transform axis or a pattern direction under
+/// `POSE_UNIT_NORM`), a transform axis or a pattern direction under
 /// the evaluation layer's (`editor-core`'s `EVAL_DIRECTION_NORM`).
 /// One name for both would erase which layer decided; one body for
 /// both is what keeps the arithmetic and the refusals from drifting.

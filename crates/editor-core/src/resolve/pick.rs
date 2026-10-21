@@ -596,7 +596,7 @@ pub enum NodePickError {
     /// The node has no value in this evaluation, so there is no body
     /// to index.
     Standing(NodeStanding),
-    /// The node's value denotes no output body at all (datum,
+    /// The node's value denotes no output body at all (pose,
     /// profile, declarations, mate).
     NotABody {
         /// The non-body node.
@@ -636,7 +636,7 @@ impl crate::spoken::Say for NodePickError {
             }
             Self::NotABody { node } => write!(
                 f,
-                "pick: {}'s value is not body-denoting (a datum, profile, declaration, or \
+                "pick: {}'s value is not body-denoting (a pose, profile, declaration, or \
                  mate), so there is nothing to tessellate and index — offer a body-producing \
                  node instead",
                 by.node(*node)
@@ -1233,7 +1233,7 @@ impl NodePick {
     /// narrower than it looks: the node's payload IS body-denoting but
     /// currently denotes none — a boolean that annihilated, a split
     /// whose sides are both empty. A node whose payload is not
-    /// body-denoting at all (datum, profile, declarations, mate)
+    /// body-denoting at all (pose, profile, declarations, mate)
     /// answers [`NodePickError::NotABody`] instead, because "this kind
     /// of node never draws" and "this node draws nothing today" are
     /// different states and only the second changes under an edit.

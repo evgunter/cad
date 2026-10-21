@@ -2,11 +2,13 @@
 id: a-seam-region-whose-boundary-carries-both-poles-is-unread
 kind: issue
 title: A seam region of two or more sphere faces whose boundary carries both poles encodes no side, so flipping all its faces passes tier 3
-status: open
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
 refs: [a-pair-of-seam-siblings-flipped-together-is-silent]
+pr: 5516
+closed: 2026-10-21
 ---
 
 ## What is unread
@@ -69,15 +71,13 @@ accepts it and `mass_properties` measures the dimpled brick
 `a_lone_lune_through_both_poles_flips_into_another_valid_body`). That
 row exists so no one "fixes" it into a refusal.
 
-## Witness B and the every-aim check 7 (FLUSH, 2026-10-21)
+## Closed (PR 5516)
 
-FLUSH tried a check 7 that reads every aimed ray (PR 5520, not landed).
-It refused witness A on two opposed rays, but never caught witness B,
-the 1e-12 dimple's flip: no aimed ray's count enters the overlap there.
-Witness B does not finish through the census: it refuses
-`CensusEscalated` on `curve_carrier_gap`. It finishes because the at-rest
-gate runs tier 3 alone
-(`work/restfront/a-finished-body-is-gated-at-tier-3-alone-so-a-body-the-census-refuses-finishes.md`).
-Witness A passes the census too
-(`work/restread/the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass.md`).
-This row's seam-region read is still the direct remedy for both.
+Tier 3's check 6 reads each seam region's cover census
+(`crates/geom-brep/src/props/curved.rs`, `sphere_region_cover`). Under
+their bits, the members' Gauss–Bonnet claims less the area their
+boundary claims is a whole number of spheres, zero for a region covered
+once. A region its faces claim more than once refuses
+`SeamRegionOvercovered`. The witness rows now pin that refusal, plus the
+door's wrong volume, which
+`mass-properties-measures-a-flipped-seam-region-without-tier-3` owns.

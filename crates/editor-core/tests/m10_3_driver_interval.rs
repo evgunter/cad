@@ -49,7 +49,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -70,7 +69,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Interval, Tol};
 
-use fixture::{Recorder, ang, len, scl, xy_frame};
+use fixture::{Recorder, len, scl};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -116,16 +115,13 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
             distribution: Some(uniform(half)),
         }),
     });
-    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: param("depth"),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -163,9 +159,7 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> P
             distribution: Some(dist),
         }),
     });
-    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [len(0.5), height],
@@ -178,7 +172,6 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> P
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -211,9 +204,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
             distribution: Some(depth),
         }),
     });
-    let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_1.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                 .expect("finite plate corners"),
@@ -227,16 +218,15 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: param("depth"),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }
 
-/// **The terminal-sliver fixture**: a rigid transform whose rotation
-/// AXIS length is a document parameter, over a box reaching into the
+/// **The terminal-sliver fixture**: a linear pattern whose DIRECTION
+/// length is a document parameter, over a box reaching into the
 /// ambiguity band.
 ///
-/// The axis's norm is a margin like any other. At the nominal (`20ε`)
+/// The direction's norm is a margin like any other. At the nominal (`20ε`)
 /// it is definitely positive, so the witness builds; a leaf whose whole
 /// enclosure lands strictly inside `(ε, Kε)` is deciding a quantity
 /// that IS in the band, and no amount of narrowing moves it out. That
@@ -254,29 +244,26 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
             distribution: Some(uniform(15.0 * eps())),
         }),
     });
-    let xy_frame_2 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_2.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
-    r.insert(Node::transform(
-        block,
-        editor_core::Step::Rigid {
-            translation: [len(0.0), len(0.0), len(0.0)],
-            axis: [
+    r.insert(Node::Pattern {
+        input: block.into(),
+        count: Formula::count(2),
+        kind: editor_core::PatternKind::Linear {
+            direction: [
                 scl(0.0),
                 scl(0.0),
                 Formula::named(name("axis"), Dimension::Scalar),
             ],
-            angle: ang(0.0),
+            spacing: len(2.0),
         },
-    ));
+    });
     r.doc
 }
 

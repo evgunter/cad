@@ -35,7 +35,6 @@ def square(doc):
     return doc.insert(
         Node.polygon(
             [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)],
-            plane=doc.sketch_frame(),
         )
     )
 

@@ -16,7 +16,6 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     CapEnd, DocEdit, EditError, EntityKind, Node, Operand, PersistError, ProfileDoc, RecipeNodeId,
@@ -37,7 +36,6 @@ fn prism() -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: fixture::len(1.0),
-        side: ExtrudeSide::Along,
     });
     (r.doc, solid)
 }

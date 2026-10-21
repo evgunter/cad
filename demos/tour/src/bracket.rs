@@ -48,13 +48,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, SQRT_2};
-use pncad::document::ExtrudeSide;
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::Operand;
 use pncad::geom_core::Tol;
 use pncad::prelude::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation, Formula,
+    CancelToken, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation, Formula,
     LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag, Selector,
     SplitHalf, StableName, Start, ValuePayload, apply, evaluate, p2, select,
 };
@@ -78,10 +77,6 @@ const SETBACK: f64 = 0.1;
 fn len(v: f64) -> Formula {
     Formula::literal(v, Dimension::Length).expect("a length")
 }
-fn scl(v: f64) -> Formula {
-    Formula::literal(v, Dimension::Scalar).expect("a scalar")
-}
-
 /// The outline, in the PATHS algebra.
 ///
 /// `fillet` computes the tangent points `(1.5, 1)` and `(1, 1.5)` and
@@ -130,19 +125,9 @@ fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
 /// The bracket's recipe and its extrude node.
 fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("bracket", tol);
-    let frame = insert(
-        &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            frame: frame.into(),
             loops: vec![
                 LoopProgram::from_recorded(&outline(tol).program)
                     .expect("a literal recording lifts"),
@@ -156,7 +141,6 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(DEPTH),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -209,19 +193,12 @@ fn half_read(
 /// corner piece's four cap chords.
 fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> Trimmed {
     let mut doc = doc.clone();
-    let tool = insert(
-        &mut doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(CUT), len(0.0), len(0.0)],
-            normal: [scl(1.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
+    let tool = crate::world::plane_on(&doc, body, [CUT, 0.0, 0.0], [1.0, 1.0, 0.0], tol);
     let split = insert(
         &mut doc,
         Node::Split {
             target: body.into(),
-            tool: tool.into(),
+            tool,
         },
         tol,
     );

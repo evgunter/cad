@@ -30,7 +30,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -57,7 +56,6 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -133,9 +131,8 @@ const COPY: u32 = 2;
 /// [`COPY`]. Returns `(doc, leg, pattern, top, mate, leg_body)`, the
 /// last the leg part's body.
 ///
-/// A bare datum sits AHEAD of the instances and is never cut, so the part
-/// document's id space is offset from the host's — which is what makes
-/// the recorded map's rewrite observable rather than an identity.
+/// The part document mints its own id space, so the recorded map's
+/// rewrite is observable rather than an identity.
 fn four_legs(
     label: &str,
 ) -> (
@@ -148,7 +145,6 @@ fn four_legs(
 ) {
     let o = legs_reach();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, _kept) = insert(doc, fixture::xy_frame());
     let (leg_ref, leg_body) = block_ref("fix-xs-leg");
     let (doc, leg) = fixture::insert_pinned(doc, Node::instantiate_part(leg_ref), &o);
     let (doc, pattern) = insert(
@@ -235,6 +231,16 @@ fn copy_placement(doc: &ProfileDoc, pattern: RecipeNodeId, i: u32) -> RecipeNode
         .expect("the copy is placed")
 }
 
+/// [`fixture::mate_members`] for `mate` alone: every copy here also
+/// stands in the world by a mate of its own, whose side lands on its
+/// own instance and is not what these rows ask about.
+fn seam_members(doc: &ProfileDoc, mate: MateRef) -> Vec<(MateRef, RecipeNodeId)> {
+    fixture::mate_members(doc)
+        .into_iter()
+        .filter(|&(m, _)| m == mate)
+        .collect()
+}
+
 fn crossings(
     doc: &editor_core::ProfileDoc,
     instance: RecipeNodeId,
@@ -253,7 +259,7 @@ fn crossings(
 fn a_pattern_headed_mate_is_an_edge_and_reads_the_pattern_input_instance() {
     let (doc, leg, _pattern, top, mate, _) = four_legs("fix-xs-edge");
     assert_eq!(
-        crate::fixture::mate_members(&doc),
+        seam_members(&doc, mate),
         vec![(mate, top), (mate, leg)],
         "the pattern-placed head reads through the pattern's input instance"
     );
@@ -495,7 +501,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 
     // No member at the nested head: only the top's side resolves.
     assert_eq!(
-        crate::fixture::mate_members(&doc),
+        seam_members(&doc, mate),
         vec![(mate, top)],
         "an underqualified head resolves to no member"
     );
@@ -534,7 +540,6 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 #[test]
 fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-stranded"), Tol::witness());
-    let (doc, _datum) = insert(doc, fixture::xy_frame());
     // A live instance that consumes nothing: it neither places nor
     // projects `leg`, so no walk from it reaches `leg`.
     let (doc, stranger, _) = pinned_block(doc, "fix-xs-st-other");
@@ -553,7 +558,7 @@ fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
         ),
     );
     assert_eq!(
-        crate::fixture::mate_members(&doc),
+        seam_members(&doc, mate),
         vec![(mate, top)],
         "the stranded target resolves to no member; only the top's side does"
     );

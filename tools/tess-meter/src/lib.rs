@@ -315,9 +315,10 @@ pub struct NurbsColumns {
     /// (either direction — columns added, or columns traded for rows).
     pub snap_bands: usize,
     /// Max over bands of the emitted lattice's post-`ceil` spacing
-    /// ratio `s_u/s_v` — the realized aspect `SAFE_ASPECT` judges,
-    /// reported so "which faces sit above the sliver line, under which
-    /// protection" is read off the CSV.
+    /// ratio `s_u/s_v`, in raw UV. `SAFE_ASPECT` judges each band's
+    /// aspect over the face's lattice metric, which the CSV does not
+    /// carry, so this column says how anisotropic the lattice is, not
+    /// which side of the sliver line a face sits on.
     pub realized_aspect: f64,
 }
 

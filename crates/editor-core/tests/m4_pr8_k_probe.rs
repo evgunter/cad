@@ -258,11 +258,11 @@ fn arm<T: geom_core::Decide>(r: Option<&NodeResult<T>>) -> &'static str {
 /// confined to a NURBS control net, or to a face's surface with every
 /// stored point unmoved, passes this row.
 ///
-/// **The record.** `NodeValue` declares ten fields. Nine are read here
-/// — payload, name table, verdicts, escalations, content key, naming
-/// key, contacts, carried declarations, placement — and the tenth,
-/// `witness`, is a reserved empty slot with nothing to compare. Two of
-/// the nine are read but EMPTY on today's corpus: `contacts` and
+/// **The record.** Of `NodeValue`'s fields, eight are read here —
+/// payload, name tables, verdicts, escalations, content key, naming
+/// key, contacts, carried declarations — and a placement's motion is
+/// read through the payload of the copy it places. Two of the eight are
+/// read but EMPTY on today's corpus: `contacts` and
 /// `carried` are filled at the instantiate op alone and the registry
 /// has none, so those two comparisons hold vacuously and are counted
 /// as covered by nothing. A boolean's surviving contacts are a
@@ -401,20 +401,6 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
                     assert!(
                         vf.carried == vp.carried,
                         "{}: node {id:?}: carried mate declarations",
-                        d.name
-                    );
-                    // `FramePlacement` carries a `SketchPlane<f64>` —
-                    // the document's NOMINAL, minted at `f64` under
-                    // every lane — so it is compared as text rather
-                    // than through the value channel. `Debug`'s `f64`
-                    // rendering is the shortest round-tripping decimal,
-                    // a bijection with the bits for every finite value
-                    // and for `-0.0`; a NaN PAYLOAD is the one thing it
-                    // would not separate.
-                    assert_eq!(
-                        format!("{:?}", vf.placement),
-                        format!("{:?}", vp.placement),
-                        "{}: node {id:?}: frame placement",
                         d.name
                     );
                     // WHERE A BOOLEAN'S RECORDS ACTUALLY LIVE — on the
