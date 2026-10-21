@@ -32,6 +32,7 @@ from pncad import (
     Center,
     Doc,
     Formula,
+    Frame,
     Node,
     Open,
     Radius,
@@ -126,7 +127,7 @@ class TestTheLatticeWalks(unittest.TestCase):
         )
         self.assertEqual(lune.vertex_count, 3)
         doc = Doc()
-        node = doc.insert(Node.profile(lune, plane=doc.sketch_frame()))
+        node = doc.insert(Node.profile(lune))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(node))
         self.assertEqual(ev.coincidences(node), [])
@@ -407,7 +408,7 @@ class TestTheSeamArrival(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "seam_tangent")
         loop = close(Start.arrives_tangent())
         doc = Doc()
-        node = doc.insert(Node.profile(loop, plane=doc.sketch_frame()))
+        node = doc.insert(Node.profile(loop))
         self.assertTrue(evaluate(doc).succeeded(node))
         return loop
 
@@ -555,7 +556,7 @@ class TestTheProfileNode(unittest.TestCase):
 
     def test_an_arc_bearing_profile_evaluates(self):
         doc = Doc()
-        solid = doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Formula.length_in(1, m)))
+        solid = doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded())), Formula.length_in(1, m)))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
         body = ev.value(solid).body()
@@ -567,16 +568,16 @@ class TestTheProfileNode(unittest.TestCase):
     def test_the_carrier_form_lands_as_its_own_program_arm(self):
         doc = Doc()
         solid = doc.insert(
-            Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 0.5 * m), plane=doc.sketch_frame())), Formula.length_in(2, m))
+            Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 0.5 * m))), Formula.length_in(2, m))
         )
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
         volume = ev.value(solid).body().mass_properties().volume
         self.assertAlmostEqual(volume, math.pi * 0.25 * 2.0, delta=1e-12)
 
-    def test_the_elevation_is_the_polygon_plane_story_unchanged(self):
-        # A boss on a plate, raised half its own height: the fused
-        # volume names where `elevation` put the boss — at z = 0 the
+    def test_a_boss_placed_half_up_fuses_where_it_stands(self):
+        # A boss on a plate, placed half its own height up: the fused
+        # volume names where the placement put the boss — at z = 0 the
         # boss would be swallowed whole and the union would be 4.0.
         def rect(x0, x1, y0, y1):
             return (
@@ -589,16 +590,15 @@ class TestTheProfileNode(unittest.TestCase):
 
         doc = Doc()
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile(rect(0, 2, 0, 2), plane=doc.sketch_frame())), Formula.length_in(1, m))
+            Node.extrude(doc.insert(Node.profile(rect(0, 2, 0, 2))), Formula.length_in(1, m))
         )
         boss = doc.insert(
             Node.extrude(
-                doc.insert(
-                    Node.profile(rect(0.5, 1.5, 0.5, 1.5), plane=doc.sketch_frame(elevation=Formula.length_in(0.5, m)))
-                ),
+                doc.insert(Node.profile(rect(0.5, 1.5, 0.5, 1.5))),
                 Formula.length_in(1, m),
             )
         )
+        boss = doc.place_against(plate, boss, Frame.translation((0 * m, 0 * m, 0.5 * m)))
         fused = doc.insert(Node.union([plate, boss]))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(fused))
@@ -607,7 +607,7 @@ class TestTheProfileNode(unittest.TestCase):
 
     def test_the_program_survives_persistence_bit_for_bit(self):
         doc = Doc()
-        doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Formula.length_in(1, m)))
+        doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded())), Formula.length_in(1, m)))
         replayed = load(doc.save()).doc
         self.assertTrue(doc.bit_eq(replayed), "replay is bit-identical, not merely close")
 

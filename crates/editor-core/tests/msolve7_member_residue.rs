@@ -20,12 +20,11 @@
 
 use crate::fixture;
 use crate::wire;
-use editor_core::ExtrudeSide;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CapEnd, ContactClass, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,
     EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SlideAxis, StableName, Value, VarName, apply,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, Value, VarName, apply,
     load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -153,7 +152,6 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -209,8 +207,8 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         ),
     );
     for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), x),
-        (Coord::Slide(SlideAxis::Y), len(1.0)),
+        (Coord::Slide(TargetAxis::X), x),
+        (Coord::Slide(TargetAxis::Y), len(1.0)),
         (Coord::Spin, turn),
     ] {
         doc = with_value(doc, rest, coord, by);
@@ -230,7 +228,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -516,15 +514,21 @@ fn a4_a_stray_key_on_a_constraint_refuses_at_the_load_door() {
 }
 
 /// **Every checked-in document still loads under the attribute** —
-/// the stop clause's measurement, made rather than assumed. None of
-/// the four carries a mate between copies, so the corpus does not
-/// exercise the attribute at all: what it proves is that nothing
-/// checked in is refused, not that the attribute is reached.
+/// the stop clause's measurement, made rather than assumed. Since
+/// INTENT stage 3 D every placement is a bundle of mates and values (a
+/// construction stands in the world by a mate, and `die_tool.pncad`
+/// places one copy against another), so the corpus exercises the
+/// attribute: what it proves is that the bundles checked in load.
 ///
-/// *Breaks if* a tracked document stops loading, or starts carrying a
-/// mate this row would then have to reach.
+/// The documents are authored at the default ε, and at another ε row
+/// the load door refuses each at its last door (`ToleranceConflict`),
+/// after the attribute has read every field. Nothing loads there to
+/// count, so that row says it skips the count.
+///
+/// *Breaks if* a tracked document stops loading, or the corpus stops
+/// carrying a bundle for the attribute to reach.
 #[test]
-fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
+fn a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let listed = std::process::Command::new("git")
         .args(["ls-files", "-z", "--", "*.pncad"])
@@ -539,6 +543,7 @@ fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
         .map(str::to_owned)
         .collect();
     assert_eq!(walked.len(), 4, "the corpus this row walks: {walked:?}");
+    let (mut loaded_here, mut bundles) = (0, 0);
     for path in &walked {
         let text = std::fs::read_to_string(root.join(path)).expect("readable");
         let loaded = match load(&text, Tol::witness()) {
@@ -549,11 +554,22 @@ fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
             Err(PersistError::ToleranceConflict { .. }) => continue,
             Err(e) => panic!("{path}: loads under the attribute: {e}"),
         };
-        // A world pin is a constraint too, and targets the world: a
-        // mate between copies targets a pose of a space.
-        let mated = fixture::constrained(&loaded.doc);
-        assert!(mated.is_empty(), "{path}: the corpus carries no mate");
+        loaded_here += 1;
+        bundles += fixture::constrained(&loaded.doc).len();
     }
+    if loaded_here == 0 {
+        println!(
+            "SKIPPED at ε {}: no tracked document is authored at this ε, so the load door \
+             refuses each at its last door and there is no bundle to count; the default ε \
+             row counts them",
+            Tol::witness().eps()
+        );
+        return;
+    }
+    assert!(
+        bundles > 0,
+        "the corpus carries bundles the attribute reaches"
+    );
 }
 
 /// **The same bundle without the key loads**, bit for bit: the

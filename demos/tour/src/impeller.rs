@@ -52,12 +52,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Bodies, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
-    Formula, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
+    Bodies, BooleanValue, CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
+    Frame, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
     ValuePayload, VarName, apply, evaluate, parse_formula,
 };
 use pncad::geom_core::Tol;
@@ -186,20 +185,10 @@ fn build_doc(tol: Tol) -> Recipe {
     doc = applied.doc;
 
     let len = |v: f64| Formula::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
-    let frame_at = |z: f64| {
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        })
-    };
 
-    let hub_plane = insert(&mut doc, Box::new(frame_at(0.0)));
     let hub_p = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            frame: hub_plane.into(),
             loops: vec![hub_polygon()],
             ids: Vec::new(),
         })),
@@ -209,15 +198,12 @@ fn build_doc(tol: Tol) -> Recipe {
         Box::new(Node::Extrude {
             profile: hub_p.into(),
             distance: len(HUB_H),
-            side: ExtrudeSide::Along,
         }),
     );
 
-    let blade_plane = insert(&mut doc, Box::new(frame_at(BLADE_Z0)));
     let blade_p = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            frame: blade_plane.into(),
             loops: vec![blade_polygon()],
             ids: Vec::new(),
         })),
@@ -227,18 +213,23 @@ fn build_doc(tol: Tol) -> Recipe {
         Box::new(Node::Extrude {
             profile: blade_p.into(),
             distance: len(BLADE_H),
-            side: ExtrudeSide::Along,
         }),
     );
 
-    // The axis the blades step about: the hub's own.
-    let axis = insert(
-        &mut doc,
-        Box::new(Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
-        })),
+    // The blade is drawn on its own `xy`; its copy seated `BLADE_Z0` up
+    // the hub is the blade the pattern steps, in the hub's space.
+    let seated = crate::world::against(
+        &doc,
+        hub_e,
+        blade_e,
+        &Frame::translation([0.0, 0.0, BLADE_Z0]),
+        tol,
     );
+    doc = seated.doc;
+    let blade_e = seated.placement;
+    // The axis the blades step about: the hub's own, read off its
+    // geometry.
+    let axis = crate::world::axis_on(&doc, hub_e, [0.0; 3], [0.0, 0.0, 1.0], tol);
 
     // **The two slots, one parameter.** The count IS `blades`; the
     // step is `360°/blades` through the grammar's Count→Scalar
@@ -250,7 +241,7 @@ fn build_doc(tol: Tol) -> Recipe {
                 blade_e,
                 pe("blades"),
                 PatternKind::Circular {
-                    axis: axis.into(),
+                    axis,
                     step: pe("360 deg / scalar(blades)"),
                 },
             )
@@ -422,8 +413,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                         it was authored when a box leaving a cylinder through its wall \
                         refused to union; that pose builds now, and the faceted hub is \
                         what the scene was authored as",
-                ops: "Datum::Frame x2 -> Profile(24-gon) -> Extrude; Profile(blade) -> \
-                      Extrude; Datum::Axis -> Node::placed_union(blade, count = \
+                ops: "Profile(24-gon) -> Extrude; Profile(blade) -> Extrude -> Place \
+                      against the hub; the hub's axis -> Node::placed_union(blade, count = \
                       blades, Circular { axis, step = 360 deg / scalar(blades) }) -> \
                       Boolean(Union) with the hub; then DocEdit::SetVarValue",
                 delta: DELTA,

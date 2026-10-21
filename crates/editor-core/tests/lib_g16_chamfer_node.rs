@@ -35,7 +35,6 @@
 use crate::corpus;
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use corpus::{body_of, die_chamfer, eval, failures};
 use editor_core::{EvalOutcome, Node, ProfileDoc, RecipeNodeId, SlotId};
@@ -196,7 +195,6 @@ fn an_empty_selection_refuses_as_a_chamfer() {
         Node::Extrude {
             profile: profile.into(),
             distance: fixture::len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let err = fixture::insert_refused(&doc, Node::chamfer(cube, fixture::len(0.1), Vec::new()));

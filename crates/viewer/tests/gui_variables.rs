@@ -8,7 +8,6 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::common;
-use editor_core::ExtrudeSide;
 use pncad::document::{
     Dimension, Doc, DocEdit, EditError, FreeVar, Node, ProfileProgram, RecipeNodeId, SlotId, VarId,
     VarName,
@@ -23,11 +22,10 @@ use viewer::session::{BoundsTarget, DocSession, Refusal, SessionOp};
 fn two_extrudes() -> (DocSession, RecipeNodeId, RecipeNodeId, VarId, VarId) {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-variables", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let extrude = |distance: f64| Node::Extrude {
         profile: profile.into(),
         distance: common::len(distance),
-        side: ExtrudeSide::Along,
     };
     let (doc, a) = common::inserted(&doc, extrude(0.008), tol);
     let (doc, b) = common::inserted(&doc, extrude(0.010), tol);
@@ -600,30 +598,37 @@ fn a_lone_zero_draws_no_offer_and_is_never_offered() {
 }
 
 /// **A pose's angle is offered only free variables of its value** (the
-/// spec's tilted-seat row): the sketch frame's xy plane spun 15° about
+/// spec's tilted-seat row): the block's own xy plane spun 15° about
 /// its x axis holds its 15° as a written angle, offered the declared
 /// free `a` of 15° and not `c`, defined as `turn/24`, a constant of the
 /// same value.
 #[test]
 fn a_spins_angle_is_offered_only_free_values() {
-    use editor_core::test_support::{ang, len, xy_frame};
+    use editor_core::test_support::{ang, len};
     use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
     use pncad::document::{Formula, Operand, VarDecl, VarDef};
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-spin-offer", tol);
-    let (doc, frame) = common::inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
+    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
     let (doc, block) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
     let tilt = 15.0_f64.to_radians();
-    let through = |role| RoleRead::through(Operand::output(frame, 0), role);
+    // The block's own xy frame, read off its geometry.
+    let frame = pncad::document::frame_at(
+        &doc,
+        &Operand::from(block),
+        &pncad::document::Frame::IDENTITY,
+        &pncad::document::EvalOptions::default(),
+        tol,
+    )
+    .expect("the block offers a frame");
+    let through = |role| RoleRead::through(frame.clone(), role);
     let (mut doc, split) = common::inserted(
         &doc,
         Node::Split {

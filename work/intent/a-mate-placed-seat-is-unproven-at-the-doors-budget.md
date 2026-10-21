@@ -2,13 +2,12 @@
 id: a-mate-placed-seat-is-unproven-at-the-doors-budget
 kind: issue
 title: a mate-placed seat replays at Sym but stays unproven within the door's budget: the fold's frames hold component symbols renormalised at every hop
-status: parked
+status: open
 opened: 2026-10-18
 priority: P0
 cost: H
 design: true
 refs: [placed-carriers-compare-through-their-frames, mates-declare-no-contact, a-pose-is-moved-by-lengths-and-angles]
-blocked_on: [transform-retires-into-a-placement]
 ---
 
 ## What

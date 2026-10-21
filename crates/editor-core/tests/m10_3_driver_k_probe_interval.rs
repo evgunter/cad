@@ -48,7 +48,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::io::Write;
 
@@ -61,7 +60,7 @@ use editor_core::{
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
 
-use fixture::{Recorder, xy_frame};
+use fixture::Recorder;
 
 /// The fixture: a square extruded by a document-parameter depth, over a
 /// box narrow enough that the driver certifies most of it. Deliberately
@@ -81,9 +80,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
             }),
         }),
     });
-    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite square corners"),
@@ -93,7 +90,6 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: editor_core::Formula::named(VarName::from_static("depth"), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }

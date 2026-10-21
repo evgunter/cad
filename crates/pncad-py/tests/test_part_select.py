@@ -10,16 +10,17 @@ bound doors rather than restated as prose.
 
 WHAT A READ OF A HALF MEANS, and what the rows below check. Nothing is
 moved, re-stamped or recomputed: a reader of the half reads the
-split's own side, so a still transform of it weighs what the side
-`Value.split` hands back weighs (`TestTheHalfIsItsPort`), the two
-halves unioned are the box again
-(`test_the_halves_rejoin_into_the_box`), and the names pass through
-verbatim, so a face read through a port is a face of the split
-(`test_the_names_pass_through`). A Part's index is STRUCTURAL, so
+split's own side, so a reader of it weighs what the side `Value.split`
+hands back weighs (`TestTheHalfIsItsPort`), the two halves unioned are
+the box again (`test_the_halves_rejoin_into_the_box`), and the names
+pass through, so every face a reader names carries a face name of the
+split's half unchanged (`test_the_names_pass_through`). A Part's index
+is STRUCTURAL, so
 moving it recomputes the Part and nothing upstream
 (`test_moving_the_index_recomputes_the_part_alone`).
 """
 
+import json
 import unittest
 
 from pncad import (
@@ -29,14 +30,16 @@ from pncad import (
     EditError,
     EvaluationError,
     Formula,
+    Frame,
     Node,
     VarName,
     PartSelect,
     PatternKind,
     evaluate,
     m,
-    rad,
 )
+
+from placing import plane_on
 
 #: The box's footprint half-extent and height, metres — the corpus
 #: document's own constants, so the dyadic pins below are its pins.
@@ -60,7 +63,6 @@ def box(doc, half=BOX_HALF, height=BOX_H):
                 (Formula.length_in(half, m), Formula.length_in(half, m)),
                 (Formula.length_in(-half, m), Formula.length_in(half, m)),
             ],
-            plane=doc.sketch_frame(),
         )
     )
     return doc.insert(Node.extrude(square, Formula.length_in(height, m)))
@@ -68,15 +70,7 @@ def box(doc, half=BOX_HALF, height=BOX_H):
 
 def split_at(doc, target, z=CUT_Z):
     """`target` cut by a horizontal plane at height `z`."""
-    tool = doc.insert(Node.datum_plane((
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-        Formula.length_in(z, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-    )))
+    tool = plane_on(doc, target, (0.0, 0.0, z), (0.0, 0.0, 1.0))
     return doc.insert(Node.split(target, tool))
 
 
@@ -92,19 +86,15 @@ def pattern_of(doc, prototype, count=COUNT, pitch=PITCH):
 
 
 def still(doc, read):
-    """A transform of `read` that moves nothing: a node holding the
-    body a read of it hands on, names verbatim."""
-    return doc.insert(
-        Node.transform(read, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        ), Formula.angle_in(0, rad))
-    )
+    """A reader of `read` that changes nothing: a union of that one
+    member, which holds its body."""
+    return doc.insert(Node.union([read]))
+
+
+def canonical(name):
+    """A face name's wire form, keys sorted, so two spellings of one
+    name compare equal."""
+    return json.dumps(name, sort_keys=True)
 
 
 def mass_of(ev, node):
@@ -174,8 +164,8 @@ class TestTheHalfIsItsPort(unittest.TestCase):
         box's four walls are each cut into two coplanar pieces facing
         the same way out. The union glues all five pairs, as it glues
         any touching members: that it decides them AT ALL across the
-        two halves is itself the pass-through claim — the faces it matches
-        are the split's, carried verbatim.
+        two halves is itself the claim that each reader holds its half
+        whole.
         """
         doc, _, above, below = self.build()
         whole = doc.insert(Node.union([above, below]))
@@ -184,18 +174,23 @@ class TestTheHalfIsItsPort(unittest.TestCase):
         self.assertEqual(mass.surface_area, 2 * 2.0 * 2.0 + 4 * 2.0 * 1.0)
 
     def test_the_names_pass_through(self):
-        """A read of a half hands on that half's table verbatim — so
-        every face name a reader answers with is a face name of the
-        split's half, unchanged as text. A split's names spell no half:
+        """A read of a half hands on that half's table: every face name
+        a reader answers with is the reader's own `From` layer over a
+        face name of the split's half, unchanged, and the names it
+        carries are exactly that half's. A split's names spell no half:
         each half is its own table, so the section face and each wall's
         fragment are ONE name the two halves' tables each hold."""
         doc, split, above, below = self.build()
         ev = evaluate(doc)
-        upper_half = set(ev.all_faces(doc.output(split, 0)))
-        lower_half = set(ev.all_faces(doc.output(split, 1)))
-        upper, lower = set(ev.all_faces(above)), set(ev.all_faces(below))
-        self.assertEqual(upper, upper_half)
-        self.assertEqual(lower, lower_half)
+        upper = set(ev.all_faces(doc.output(split, 0)))
+        lower = set(ev.all_faces(doc.output(split, 1)))
+        for reader, half in ((above, upper), (below, lower)):
+            carried = []
+            for name in ev.all_faces(reader):
+                (seg,) = json.loads(name)["path"]
+                carried.append(canonical(seg["From"]["of"]))
+            self.assertEqual(len(carried), len(half), "one name per face")
+            self.assertEqual(set(carried), {canonical(json.loads(n)) for n in half})
         # What the halves share is what the split's names no longer
         # tell apart by half: the section face and the four walls'
         # fragments, each one name that each half's table holds. The
@@ -249,21 +244,11 @@ class TestTheInstanceIsTheInstance(unittest.TestCase):
     def test_an_instance_is_an_ordinary_operand(self):
         """What the projection BUYS: the plural value feeds nothing,
         and one body out of it feeds everything. The middle copy is
-        lifted by a transform, exactly as the corpus document lifts
+        lifted by a placement, exactly as the corpus document lifts
         it."""
         doc, _, family = self.build()
         middle = doc.insert(Node.part(family, PartSelect.instance(Formula.count(1))))
-        lifted = doc.insert(
-            Node.transform(middle, (
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-                Formula.length_in(2, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ), Formula.angle_in(0, rad))
-        )
+        lifted = doc.place(middle, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(lifted))
         self.assertEqual(mass_of(ev, lifted).volume, 2.0 * 2.0 * 1.0)

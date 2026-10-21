@@ -26,7 +26,6 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::{CancelToken, EvalOptions, Node, NodeResult, ProfileDoc, RecipeNodeId, evaluate};
 use geom_core::Tol;
@@ -45,7 +44,6 @@ fn cube_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: fixture::len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, cube)

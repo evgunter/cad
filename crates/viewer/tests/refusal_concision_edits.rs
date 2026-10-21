@@ -665,7 +665,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "ImproperPlacement",
             EditError::ImproperPlacement {
                 node: s(5, "InstantiatePart"),
-                at: FrameSite::Step { index: 1 },
+                at: FrameSite::Listed { index: 1 },
                 determinant: -1.0,
             },
         ),
@@ -673,7 +673,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "NonFinitePlacement",
             EditError::NonFinitePlacement {
                 node: s(5, "InstantiatePart"),
-                at: FrameSite::Step { index: 0 },
+                at: FrameSite::Listed { index: 0 },
             },
         ),
         (
@@ -842,7 +842,7 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
 
 /// A mate fault of every arm, for the two edit arms that forward one.
 fn mate_faults() -> Vec<(&'static str, MateFault)> {
-    use editor_core::{Coord, LeverRefusal, MateSide, SlideAxis, VarKind};
+    use editor_core::{Coord, LeverRefusal, MateSide, TargetAxis, VarKind};
     let doc_ref = editor_core::DocRef {
         id: DocumentId::derive("bracket"),
         pin: ContentPin::of_bytes(b"bracket v3"),
@@ -901,7 +901,7 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             "NotAFreedom",
             MateFault::NotAFreedom {
                 value: r(9),
-                coord: Coord::Slide(SlideAxis::Z),
+                coord: Coord::Slide(TargetAxis::Z),
                 kind: VarKind::Plane,
             },
         ),

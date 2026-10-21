@@ -2,15 +2,15 @@
 
 The Python mirror of `crates/editor-core/tests/lib_placedunion.rs`:
 ONE prototype, a placement rule, ONE BODY OUT. The load-bearing rows
-are the same ones — the group equals the transform-union chain it
+are the same ones — the group equals the placement-union chain it
 replaces, the rule's refusals are typed, and per-instance names are
 one segment deep — asserted through the bound doors rather than
 restated as prose.
 
 Both corpus twins are here: the LINEAR rule's `heat_sink_fins`
 (extrude-only, bound at LIB-PYPU) and the EXPLICIT rule's `die_tool`,
-whose prototype is a REVOLVE about a `Datum::Axis` and which was
-banked behind that half until LIB-DIETOOL measured it cleared.
+whose prototype is a REVOLVE about its own axis and which was banked
+behind that half until LIB-DIETOOL measured it cleared.
 """
 
 import math
@@ -19,6 +19,8 @@ from pathlib import Path
 
 from pncad import (
     Bulge,
+    ContactClass,
+    Coord,
     Doc,
     DocEdit,
     FreeVar,
@@ -28,15 +30,17 @@ from pncad import (
     Formula,
     Frame,
     FrameError,
+    Mate,
     NamePat,
     Node,
     Open,
+    PoseDef,
+    RoleRead,
     VarName,
     PatternKind,
     SegPat,
     SegTag,
     Selector,
-    SketchPlane,
     Start,
     deg,
     evaluate,
@@ -44,9 +48,13 @@ from pncad import (
     rad,
 )
 
+from placing import own_frame
+
 
 def slab(doc, x, y, z):
-    """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1], in metres."""
+    """The box [x0,x1] x [y0,y1] x [0, z1 - z0] in its own coordinates,
+    in metres: a prototype alone, whose height is all that its `z`
+    says."""
     profile = doc.insert(
         Node.polygon(
             [
@@ -55,10 +63,21 @@ def slab(doc, x, y, z):
                 (Formula.length_in(x[1], m), Formula.length_in(y[1], m)),
                 (Formula.length_in(x[0], m), Formula.length_in(y[1], m)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.length_in(z[0], m)),
         )
     )
     return doc.insert(Node.extrude(profile, Formula.length_in(z[1] - z[0], m)))
+
+
+def z_axis(doc, box):
+    """The z axis through the origin of the block `slab(doc, (2, 3),
+    (-0.5, 0.5), ...)` draws, read off its geometry: its frame at its
+    corner `(2, -0.5, 0)`, its z slid back to the origin."""
+    frame = own_frame(doc, box, (2.0, -0.5, 0.0), (3.0, -0.5, 0.0))
+    return PoseDef.slide(
+        PoseDef.slide(RoleRead(frame, "z"), RoleRead(frame, "x"), -2 * m),
+        RoleRead(frame, "y"),
+        0.5 * m,
+    )
 
 
 def mass_of(doc, node):
@@ -70,8 +89,8 @@ def mass_of(doc, node):
 
 
 # The heat-sink fin, constant for constant with the corpus document
-# `heat_sink_fins`: footprint 0.1875 x 0.75 at z = 0.1875, extruded
-# 0.8125, stepped 0.3125 apart — which leaves 0.125 of clear air
+# `heat_sink_fins`: footprint 0.1875 x 0.75, extruded 0.8125, stepped
+# 0.3125 apart — which leaves 0.125 of clear air
 # between neighbours, the clearance the disjointness certificate needs.
 PITCH = 0.3125
 FIN_VOLUME = 0.1875 * 0.75 * 0.8125
@@ -85,7 +104,7 @@ def fin_only(doc):
 
 class TestTheFinGroup(unittest.TestCase):
     """ONE node, ONE body: the group says with a single `PlacedUnion`
-    what the tour's heat sink says with a pattern plus five transforms
+    what the tour's heat sink says with a pattern plus five placements
     and five booleans."""
 
     def test_the_group_is_one_node_and_one_body(self):
@@ -110,29 +129,19 @@ class TestTheFinGroup(unittest.TestCase):
         self.assertEqual(mass.volume, 5 * FIN_VOLUME)
         self.assertEqual(mass.surface_area, 5 * FIN_AREA)
 
-    def test_the_group_equals_the_transform_union_chain(self):
+    def test_the_group_equals_the_placement_union_chain(self):
         """The design's byte-level promise: the group and the chain it
-        replaces are the same solid, bit for bit on both oracles."""
+        replaces — each later fin a copy placed against the first,
+        `i` pitches along x — are the same solid, bit for bit on both
+        oracles."""
         chain_doc = Doc()
         fin = fin_only(chain_doc)
-        acc = None
-        for i in range(5):
-            placed = chain_doc.insert(
-                Node.transform(fin, (
-                    Formula.length_in(i * PITCH, m),
-                    Formula.length_in(0, m),
-                    Formula.length_in(0, m),
-                ), (
-                    Formula.literal(0.0),
-                    Formula.literal(0.0),
-                    Formula.literal(1.0),
-                ), Formula.angle_in(0, rad))
+        acc = fin
+        for i in range(1, 5):
+            placed = chain_doc.place_against(
+                fin, fin, Frame.translation((i * PITCH * m, 0 * m, 0 * m))
             )
-            acc = (
-                placed
-                if acc is None
-                else chain_doc.insert(Node.union([acc, placed]))
-            )
+            acc = chain_doc.insert(Node.union([acc, placed]))
 
         group_doc = Doc()
         group = group_doc.insert(
@@ -213,26 +222,29 @@ def pip_placements():
     """The six face-centre frames, in the corpus document's order and
     with its rotations: each carries the master ball's +Z pole onto the
     face normal it cuts, so every chart stays polar to the plane that
-    cuts it. Every angle is 0, +-pi/2 or pi about a coordinate axis —
-    the placement is DATA, which is what an explicit rule is for."""
+    cuts it. Every turn is 0, a quarter or a half turn about a
+    coordinate axis, written as the fraction of a turn it is
+    (`Frame.rotate_by_turns_then_translate`), so each frame's columns
+    are 0 and +-1 exactly — the placement is DATA, which is what an
+    explicit rule is for."""
     h = DIE_L / 2.0
     lo = DIE_L - PIP_C  # the -normal faces' centre coordinate
     x = (1.0, 0.0, 0.0)
     y = (0.0, 1.0, 0.0)
     z = (0.0, 0.0, 1.0)
     rows = [
-        (z, 0.0, (h, h, PIP_C)),
-        (x, math.pi, (h, h, lo)),
-        (y, math.pi / 2.0, (PIP_C, h, h)),
-        (y, -math.pi / 2.0, (lo, h, h)),
-        (x, -math.pi / 2.0, (h, PIP_C, h)),
-        (x, math.pi / 2.0, (h, lo, h)),
+        (z, (0, 1), (h, h, PIP_C)),
+        (x, (1, 2), (h, h, lo)),
+        (y, (1, 4), (PIP_C, h, h)),
+        (y, (-1, 4), (lo, h, h)),
+        (x, (-1, 4), (h, PIP_C, h)),
+        (x, (1, 4), (h, lo, h)),
     ]
     return [
-        Frame.rotate_then_translate(
-            axis, angle * rad, (t[0] * m, t[1] * m, t[2] * m)
+        Frame.rotate_by_turns_then_translate(
+            axis, num, den, (t[0] * m, t[1] * m, t[2] * m)
         )
-        for axis, angle, t in rows
+        for axis, (num, den), t in rows
     ]
 
 
@@ -255,7 +267,6 @@ def die_tool_document():
                 (Formula.length_in(DIE_L, m), Formula.length_in(DIE_L, m)),
                 (Formula.length_in(0, m), Formula.length_in(DIE_L, m)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
     cube = doc.insert(Node.extrude(square, Formula.length_in(DIE_L, m)))
@@ -264,19 +275,14 @@ def die_tool_document():
     # `die_pips::half_disc_program` verbatim: ONE bulge-1 semicircle
     # pole to pole, closed by its on-axis diameter. BOTH vertices are
     # on the revolve axis — the chart the retired equator workaround
-    # existed to dodge, and the whole Revolve/datum half of this
-    # document.
-    plane = doc.sketch_frame(
-        plane=SketchPlane.from_frame(
-            (0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0)
-        )
-    )
-    # The revolve axis is written IN that frame: world +Z is the
-    # frame's own v direction, so the meridian's pole-to-pole line is
-    # (0, 1) through the origin. Being in the plane is no longer a
-    # tolerance question — it is what the four numbers mean.
+    # existed to dodge, and the whole Revolve half of this document.
+    # The revolve axis is written in the profile's own plane: the
+    # meridian's pole-to-pole line is its own +y through its origin,
+    # which is the constant zero (`Formula.zero`), not a written 0 m:
+    # the axis passes through the origin by construction and reads no
+    # number, as the corpus document writes it.
     axis = (
-        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.zero("length"), Formula.zero("length")),
         Formula.turn_over(4),
     )
     half_disc = (
@@ -284,18 +290,36 @@ def die_tool_document():
         .arc_to(Bulge((0 * m, PIP_R * m), 1.0))
         .line_to(Start)
     )
-    ball_p = doc.insert(Node.profile(half_disc, plane=plane))
+    ball_p = doc.insert(Node.profile(half_disc))
     ball = doc.insert(Node.revolve(ball_p, *axis, Formula.angle_in(2.0 * math.pi, rad)))
+    # The master ball stands in the cube's coordinates, its pole on the
+    # cube's own frame at its origin corner (`Doc.corner_frame`: the
+    # edge up the cube's z, the vertex along its x): an axis mate from
+    # the revolve's own axis, slid zero along it and spun zero about
+    # it — the corpus document's `Recorder::on_axis`, edit for edit.
+    zero = (0 * m, 0 * m, 0 * m)
+    own = doc.corner_frame(cube, zero, (0 * m, 0 * m, DIE_L * m), (DIE_L * m, 0 * m, 0 * m))
+    master = doc.insert(Node.place(doc.output(ball, 0)))
+    pole = doc.constrain(
+        master,
+        Mate(
+            doc.output(ball, 1),
+            PoseDef.slide(RoleRead(own, "z"), RoleRead(own, "z"), Formula.zero("length")),
+            ContactClass.Rest,
+        ),
+    )
+    doc.add_value(pole, Coord.slide("z"), Formula.zero("length"))
+    doc.add_value(pole, Coord.spin(), Formula.zero("angle"))
 
     # ---- the whole cutting tool, in ONE node ----
-    tool = doc.insert(Node.placed_union_at(doc.output(ball, 0), pip_placements()))
+    tool = doc.insert(Node.placed_union_at(master, pip_placements()))
     pipped = doc.insert(
         Node.subtract(cube, tool)
     )
     # The pipped die is the product: placed once, last, as the corpus
     # document places it.
     doc.place(pipped)
-    return doc, ball, tool, pipped
+    return doc, master, tool, pipped
 
 
 class TestTheDieTool(unittest.TestCase):
@@ -306,8 +330,8 @@ class TestTheDieTool(unittest.TestCase):
     This is the row `work/lib/log.md` carried as "die_tool's Python
     re-authoring (banked behind its Revolve/datum half)". The bank was
     the ball: `heat_sink_fins` is extrude-only, while this prototype is
-    a `Node.revolve` about a `Node.datum_axis` whose meridian runs pole
-    to pole. LIB-DIETOOL measured the half CLEARED — the natural
+    a `Node.revolve` about its own axis whose meridian runs pole to
+    pole. LIB-DIETOOL measured the half CLEARED — the natural
     meridian is what the document below authors, and it is not a
     re-chart of anything.
     """
@@ -322,28 +346,25 @@ class TestTheDieTool(unittest.TestCase):
     )
 
     def test_the_tool_is_one_node_and_still_cuts(self):
-        """The tour's recipe spends N transforms and N-1 unions on this
+        """The tour's recipe spends N placements and N-1 unions on this
         shape; the group spends ONE node — and the collapsed tool is
         still a legal boolean operand."""
         doc, _ball, tool, pipped = die_tool_document()
         ev = evaluate(doc)
 
-        # NINE nodes: frame, profile, extrude, frame, profile, revolve,
-        # group, subtract, and the subtract's world placement.
-        # Two of the nine are the sketch frames the cube and the meridian
-        # are drawn on — the cube's is the xy plane, the meridian's is
-        # the xz plane, and they are different planes, so they are
-        # different nodes. The pairwise tool this replaces spends the
-        # same seven upstream and then six transforms, five unions, the
-        # subtract and its placement, so the group's saving is the
-        # eleven it collapses into one.
-        self.assertEqual(len(doc), 9)
+        # EIGHT nodes: profile, extrude, profile, revolve, the master
+        # ball's placement on the cube's corner frame, group, subtract, and the
+        # subtract's world placement. The pairwise tool this replaces
+        # spends the same four upstream and then six placements, five
+        # unions, the subtract and its placement, so the group's saving
+        # is the eleven it collapses into one.
+        self.assertEqual(len(doc), 8)
 
         # The claim itself, counted BY KIND — the mirror of
         # `crates/editor-core/tests/lib_placedunion.rs`'s
         # `the_die_tool_is_one_node_and_still_cuts`, which counts
-        # `Node::PlacedUnion` / `Node::Union` /
-        # `Node::Transform` over `doc.order()` and asserts (1, 0, 0).
+        # `Node::PlacedUnion` / `Node::Union` / `Node::Place` over
+        # `doc.order()`: one group, no union, and the two placements.
         # The byte pin below still holds and its text still names
         # every node's kind; it is no longer what settles this, and a
         # structural claim no longer routes through the persistence
@@ -353,9 +374,9 @@ class TestTheDieTool(unittest.TestCase):
             (
                 kinds.count("placed_union"),
                 kinds.count("union"),
-                kinds.count("transform"),
+                kinds.count("place"),
             ),
-            (1, 0, 0),
+            (1, 0, 2),
         )
         self.assertEqual(doc.node_kind(tool), "placed_union")
         self.assertEqual(doc.node_kind(pipped), "subtract")
@@ -542,7 +563,7 @@ class TestTheFrameValue(unittest.TestCase):
 
     def test_equality_is_bit_exact(self):
         """A frame carries no epsilon, so `-0.0` keeps its own
-        identity — the sketch-plane rule, unchanged."""
+        identity."""
         zero = Frame.translation((0 * m, 0 * m, 0 * m))
         minus = Frame.translation((-0.0 * m, 0 * m, 0 * m))
         self.assertEqual(zero, Frame.translation((0 * m, 0 * m, 0 * m)))
@@ -550,40 +571,11 @@ class TestTheFrameValue(unittest.TestCase):
 
     def test_a_frame_compares_and_does_not_hash(self):
         """`editor_core::Frame` derives `PartialEq` and no `Hash`, and
-        this class mirrors its derives: a pose is a datum the solver
+        this class mirrors its derives: a pose is a value the solver
         consumes, not a key, so `__hash__` is `None`."""
         self.assertIsNone(Frame.__hash__)
         with self.assertRaises(TypeError):
             {Frame.translation((0 * m, 0 * m, 0 * m))}
-
-    def test_a_placement_and_a_transform_agree_bit_for_bit(self):
-        """The D9 promise the group-versus-chain equality rests on:
-        `rotate_then_translate` is the transform node's own
-        composition order, normalized at the same step."""
-        doc = Doc()
-        box = slab(doc, (0, 1), (0, 1), (0, 1))
-        placed = doc.insert(
-            Node.placed_union_at(
-                box,
-                [
-                    Frame.rotate_then_translate(
-                        (0.0, 0.0, 2.0), 30 * deg, (5 * m, 0 * m, 0 * m)
-                    )
-                ],
-            )
-        )
-        moved = doc.insert(
-            Node.transform(box, (
-                Formula.length_in(5, m),
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(2.0),
-            ), Formula.angle_in(30, deg))
-        )
-        self.assertEqual(mass_of(doc, placed).volume, mass_of(doc, moved).volume)
 
     def test_the_frame_trio_builds_and_refuses(self):
         """`point_at`, `path_start_frame`, `mirror_across_plane` — the
@@ -705,20 +697,12 @@ class TestTheFrameValue(unittest.TestCase):
 
 
 class TestTheCircularRule(unittest.TestCase):
-    def test_a_circular_group_places_around_a_datum_axis(self):
+    def test_a_circular_group_places_around_an_axis(self):
         """The rule vocabulary is the pattern node's, reused whole:
         the stepped map is literally the same one."""
         doc = Doc()
         box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
-        axis = doc.insert(Node.datum_axis((
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
+        axis = z_axis(doc, box)
         group = doc.insert(
             Node.placed_union(box, Formula.count(4), PatternKind.circular(axis, Formula.angle_in(90, deg)))
         )
@@ -730,21 +714,10 @@ class TestTheStepsReadBack(unittest.TestCase):
     signed angle within a turn; each refusal reaches Python by its
     own tag, on the pattern and on the group alike."""
 
-    def axis(self, doc):
-        return doc.insert(Node.datum_axis((
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-
     def refusal(self, kind, count=3, union=False):
         doc = Doc()
         box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
-        rule = kind(self.axis(doc))
+        rule = kind(z_axis(doc, box))
         node = doc.insert(
             Node.placed_union(box, Formula.count(count), rule)
             if union
@@ -788,7 +761,7 @@ class TestTheStepsReadBack(unittest.TestCase):
         if th is not None:
             doc.apply(DocEdit.declare_var(VarName("th"), FreeVar.angle(th * deg)))
         box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
-        rule = PatternKind.circular(self.axis(doc), doc.parse_formula(step))
+        rule = PatternKind.circular(z_axis(doc, box), doc.parse_formula(step))
         return doc, doc.insert(Node.pattern(box, Formula.count(5), rule))
 
     def refused(self, built):

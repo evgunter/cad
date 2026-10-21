@@ -7,7 +7,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use editor_core::{
     EntityKey, Entry, EvalOptions, LoopProgram, NameTable, Node, NodeResult, ProfileDoc,
     ProfileProgram, RecipeNodeId, RoleSeg, StableName,
@@ -23,11 +22,9 @@ const R: f64 = 0.05;
 /// A circular profile loop of radius `r` at `(cx, cy)` on the xy frame,
 /// extruded `h` along `+z`.
 fn disc(doc: ProfileDoc, cx: f64, cy: f64, r: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::circle(cx, cy, r).expect("a finite circle")],
             ids: Vec::new(),
         }),
@@ -37,7 +34,6 @@ fn disc(doc: ProfileDoc, cx: f64, cy: f64, r: f64, h: f64) -> (ProfileDoc, Recip
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -71,6 +67,26 @@ fn rim_names(t: &NameTable, body: &Body<f64>, z: f64) -> Vec<StableName> {
     names.sort();
     assert_eq!(names.len(), 2, "each rim arc is uniquely named");
     names
+}
+
+/// The box `[-1, 1]² × [0.5, 2.5]`, placed against `root`: the
+/// placement.
+fn raised_box(doc: ProfileDoc, root: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, block) = fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.0, 0.0, 1.0)],
+    );
+    let (doc, block) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: block.into(),
+            distance: len(2.0),
+        },
+    );
+    fixture::slid(doc, root, block, [0.0, 0.0, 0.5])
 }
 
 fn fillet_both(
@@ -151,11 +167,9 @@ fn assert_two_bands(doc: &ProfileDoc, fillet: RecipeNodeId, what: &str) {
 #[test]
 fn a_plate_holes_two_rims_fillet_in_one_node() {
     let doc = ProfileDoc::empty_derived("edit_bore_two_rims_plate", tol());
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon(fixture::square(0.0, 0.0, 1.0)).expect("a square"),
                 LoopProgram::circle(0.0, 0.0, 0.3).expect("a finite hole"),
@@ -168,7 +182,6 @@ fn a_plate_holes_two_rims_fillet_in_one_node() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, fillet) = fillet_both(doc, block, 0.0, 1.0);
@@ -178,22 +191,8 @@ fn a_plate_holes_two_rims_fillet_in_one_node() {
 #[test]
 fn a_box_minus_a_cylinder_has_both_rims_filleted_in_one_node() {
     let doc = ProfileDoc::empty_derived("edit_bore_two_rims_box", tol());
-    let (doc, block) = fixture::on_frame(
-        doc,
-        [0.0, 0.0, 0.5],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![fixture::square(0.0, 0.0, 1.0)],
-    );
-    let (doc, block) = fixture::insert(
-        doc,
-        Node::Extrude {
-            profile: block.into(),
-            distance: len(2.0),
-            side: ExtrudeSide::Along,
-        },
-    );
     let (doc, drill) = disc(doc, 0.0, 0.0, 0.3, 3.0);
+    let (doc, block) = raised_box(doc, drill);
     let (doc, holed) = fixture::insert(
         doc,
         Node::Subtract {
@@ -231,25 +230,11 @@ fn holds_a_piece_qualifier(edge: &StableName) -> bool {
 #[test]
 fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
     let doc = ProfileDoc::empty_derived("edit_bore_two_rims_piece", tol());
-    let (doc, block) = fixture::on_frame(
-        doc,
-        [0.0, 0.0, 0.5],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![fixture::square(0.0, 0.0, 1.0)],
-    );
-    let (doc, block) = fixture::insert(
-        doc,
-        Node::Extrude {
-            profile: block.into(),
-            distance: len(2.0),
-            side: ExtrudeSide::Along,
-        },
-    );
     let (doc, drill) = disc(doc, 0.0, 0.0, 0.3, 3.0);
+    let (doc, block) = raised_box(doc, drill);
     let (doc, notch) = fixture::on_frame(
         doc,
-        [0.0, 0.0, 1.4],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![fixture::square(0.3, 0.0, 0.05)],
@@ -259,9 +244,9 @@ fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
         Node::Extrude {
             profile: notch.into(),
             distance: len(0.2),
-            side: ExtrudeSide::Along,
         },
     );
+    let (doc, notch) = fixture::slid(doc, drill, notch, [0.0, 0.0, 1.4]);
     let (doc, notched) = fixture::insert(
         doc,
         Node::Subtract {

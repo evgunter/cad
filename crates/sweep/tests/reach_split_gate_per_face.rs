@@ -13,7 +13,7 @@ use profile::{ArcSweep, bulge_from_center, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, SplitResult, split};
-use topo::{AtRestBody, Body, DATUM_UNIT_NORM, validate, validate_closed, validate_geometric};
+use topo::{AtRestBody, Body, POSE_UNIT_NORM, validate, validate_closed, validate_geometric};
 
 /// The chain revolved about the y axis, finished.
 fn revolved(chain: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
@@ -31,7 +31,7 @@ fn revolved(chain: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
 /// A cut normal minted the way a caller holding a direction mints one.
 fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
     let band = Band::linear(Tol::witness()).expect("the witness tolerance forms a band");
-    UnitVec3::new(v, DATUM_UNIT_NORM, band).expect("a cut normal has a length")
+    UnitVec3::new(v, POSE_UNIT_NORM, band).expect("a cut normal has a length")
 }
 
 /// The plane through `(0, qy, 0)` with normal `(sin φ, cos φ, 0)`.

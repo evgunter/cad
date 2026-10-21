@@ -17,7 +17,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -25,7 +24,7 @@ use editor_core::{
     DocEdit, EntityKind, MetaError, MetaValue, Node, PersistError, ProfileDoc, RoleSeg, StableName,
     content_pin, from_value, to_value,
 };
-use fixture::{Recorder, len, xy_frame};
+use fixture::{Recorder, len};
 use geom_core::Tol;
 use serde::ser::{SerializeSeq as _, Serializer};
 use test_utils::own_thread::on_the_smallest_stack;
@@ -223,15 +222,12 @@ fn refused_read<T: std::fmt::Debug>(result: Result<T, MetaError>) -> usize {
 /// recorder holding it.
 fn extrude_body() -> (Recorder, StableName) {
     let mut r = Recorder::new();
-    let plane = r.insert(xy_frame());
-    let profile = r.insert(Node::Profile(fixture::desc(
-        plane,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
+    let profile = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(0.5),
-        side: ExtrudeSide::Along,
     });
     let body = StableName {
         kind: EntityKind::Body,

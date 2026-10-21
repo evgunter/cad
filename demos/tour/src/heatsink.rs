@@ -7,9 +7,9 @@
 //! `SetStructuralParam`. Each re-eval feeds the PRIOR evaluation as the
 //! memo, so the caption's recompute counters are the ratified
 //! downstream-only-recompute story: the count edit re-runs the group,
-//! the union and the fillet below it, and the six nodes upstream of the
-//! edited slot — both frames, both profiles, both extrudes — are reused
-//! by content key. Stable names
+//! the union and the fillet below it, and the five nodes upstream of the
+//! edited slot — both profiles, both extrudes and the fin's placement
+//! on the base — are reused by content key. Stable names
 //! (N1 `Instance(i)` wrapping) survive the edits, counted live.
 //!
 //! The fin group is a `PlacedUnion`, not a `Pattern`: a `Boolean`
@@ -58,14 +58,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
-    LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply,
-    evaluate, parse_formula,
+    Bodies, CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Formula, Frame, LoopProgram, Node,
+    PatternKind, ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply, evaluate,
+    parse_formula,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
@@ -193,20 +192,9 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         .expect("finite corners"),
     ];
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("heatsink", tol);
-    let len = |v: f64| Formula::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
-    let frame_at = |z: f64| {
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        })
-    };
-    let base_plane = insert(&mut doc, frame_at(0.0), tol);
     let base_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            frame: base_plane.into(),
             loops: base_loops,
             ids: Vec::new(),
         }),
@@ -217,7 +205,6 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         Node::Extrude {
             profile: base_p.into(),
             distance: pe("250 mm"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -225,11 +212,9 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         Seat::Sunk => (0.1875, "812.5 mm"),
         Seat::Flush => (0.25, "750 mm"),
     };
-    let fin_plane = insert(&mut doc, frame_at(fin_z), tol);
     let fin_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            frame: fin_plane.into(),
             loops: fin_loops,
             ids: Vec::new(),
         }),
@@ -240,10 +225,20 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         Node::Extrude {
             profile: fin_p.into(),
             distance: pe(fin_height),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
+    // The fin is drawn on its own `xy`; its copy seated `fin_z` up the
+    // base is the fin the pattern repeats, in the base's space.
+    let seated = crate::world::against(
+        &doc,
+        base,
+        fin_e,
+        &Frame::translation([0.0, 0.0, fin_z]),
+        tol,
+    );
+    doc = seated.doc;
+    let fin_e = seated.placement;
     // `placed_union` is the PARAMETRIC-rule constructor, so the count
     // is a structural slot.
     let group = insert(
@@ -388,7 +383,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // Evaluate at 5, then EDIT the structural count and re-evaluate
     // against the prior — the memo counters are the demo.
     let ev5 = eval(&r.doc, None, tol);
-    assert_eq!(ev5.recomputed, 9, "a cold evaluation computes every node");
+    assert_eq!(
+        ev5.recomputed,
+        r.doc.ids().len(),
+        "a cold evaluation computes every node"
+    );
     let names5 = ev5.table_at(r.group).expect("the fin group @ 5").clone();
 
     let mut doc = r.doc.clone();
@@ -403,14 +402,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             ev.recomputed, ev.reused
         );
         // The fin group, the union that consumes it and the fillet on
-        // the union re-run; both frames, both profiles and both
-        // extrudes are upstream of the edited slot and reuse by content
+        // the union re-run; both profiles, both extrudes and the fin's
+        // placement are upstream of the edited slot and reuse by content
         // key.
         assert_eq!(
             ev.recomputed, 3,
             "a count edit re-runs exactly the fin group, the union and the fillet below it"
         );
-        assert_eq!(ev.reused, 6, "everything upstream reuses by content key");
+        assert_eq!(
+            ev.reused,
+            doc.ids().len() - 3,
+            "everything upstream reuses by content key"
+        );
         evs.push((n, ev, caption));
     }
 

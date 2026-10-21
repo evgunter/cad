@@ -109,7 +109,9 @@ fn a_round_trip_re_derives_bit_identical_caches() {
 #[test]
 fn the_persisted_bytes_carry_nothing_pcurve_shaped() {
     let doc = corpus::cut_cylinder::document();
-    let text = save(&doc.doc, &doc.edits, Tol::witness()).unwrap();
+    // The recorder's shape: the empty snapshot, the log everything.
+    let empty = editor_core::ProfileDoc::empty_derived("mod", Tol::witness());
+    let text = save(&empty, &doc.edits, Tol::witness()).unwrap();
     for needle in ["pcurve", "Pcurve", "Harmonic", "chart"] {
         assert!(
             !text.contains(needle),

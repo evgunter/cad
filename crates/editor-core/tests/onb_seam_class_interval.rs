@@ -16,7 +16,7 @@
 //!   goes through. On the earlier ratio (`|n.z| = max(|n.x|, |n.y|)`)
 //!   this face sat exactly on the seam, the frame came back as the hull
 //!   of two orthogonal candidates, and this door escalated on
-//!   `datum_unit_norm` with a margin of `[0, 1.4142]`;
+//!   `pose_unit_norm` with a margin of `[0, 1.4142]`;
 //! * a face at the seam's OWN elevation, `atan(1/2) ≈ 26.57°`, where
 //!   the comparison cannot decide over an enclosure: the frame is a
 //!   hull, and the row states what a hull is and is not — bounded, but
@@ -30,7 +30,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -44,9 +43,9 @@ use editor_core::{
 use geom::Surface;
 use geom_brep::newell_plane;
 use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, UnitVec3, Vec3};
-use topo::DATUM_UNIT_NORM;
+use topo::POSE_UNIT_NORM;
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, len};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -141,7 +140,7 @@ fn a_chamfer_face_decides_and_its_frame_is_a_unit_direction() {
         // The frame is a direction: the door a derived sketch frame
         // goes through accepts it, and its norm is 1 to within the
         // normal's own width.
-        UnitVec3::new(u_ref, DATUM_UNIT_NORM, band()).unwrap_or_else(|e| {
+        UnitVec3::new(u_ref, POSE_UNIT_NORM, band()).unwrap_or_else(|e| {
             panic!(
                 "{name} chamfer: the stored u_ref is not a unit direction: {e:?} \
                  (u_ref = ([{}, {}], [{}, {}], [{}, {}]))",
@@ -242,7 +241,7 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
         u_ref.x.hi()
     );
     assert!(
-        UnitVec3::new(u_ref, DATUM_UNIT_NORM, band()).is_err(),
+        UnitVec3::new(u_ref, POSE_UNIT_NORM, band()).is_err(),
         "the direction door accepted a hull spanning two antiparallel candidates"
     );
     // The same direction as a POINT enclosure: the tie decides.
@@ -259,7 +258,7 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
         d.hi()
     );
     let (b1, _) = point.orthonormal_basis();
-    UnitVec3::new(b1, DATUM_UNIT_NORM, band()).expect("a point enclosure on the seam decides");
+    UnitVec3::new(b1, POSE_UNIT_NORM, band()).expect("a point enclosure on the seam decides");
     assert!(
         b1.x.hi() < 0.0,
         "the tie did not take the e_z arm: b1.x = [{}, {}]",
@@ -268,15 +267,14 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
     );
 }
 
-/// A prism extruded from a sketch frame tilted `deg` about `+x`.
+/// A prism extruded on its own xy, standing in the world on a frame
+/// tilted `deg` about `+x`, slid along the world's `x` by `place`.
 fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     let (c, s) = deg.to_radians().sin_cos();
     let (s, c) = (c, s);
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, c, s]));
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)].into_iter())
                 .expect("finite corners"),
@@ -286,23 +284,25 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(0.5),
-        side: ExtrudeSide::Along,
     });
-    let placed = r.insert(Node::Transform {
-        input: solid.into(),
-        placement: editor_core::placement::Step::Rigid {
-            translation: [
-                Formula::named(
-                    VarName::new("place").expect("a valid parameter name"),
-                    Dimension::Length,
-                ),
-                len(0.0),
-                len(0.0),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Formula::literal(0.0, Dimension::Angle).expect("finite angle"),
-        }
+    let placed = r.in_world(
+        solid,
+        &fixture::frame_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, c, s]),
+    );
+    let slide_x = fixture::value_slot(
+        &r.doc,
+        placed,
+        editor_core::Coord::Slide(editor_core::TargetAxis::X),
+    );
+    r.push(editor_core::DocEdit::SetParam {
+        node: placed,
+        slot: slide_x,
+        value: Formula::named(
+            VarName::new("place").expect("a valid parameter name"),
+            Dimension::Length,
+        )
         .into(),
+        fresh: Vec::new(),
     });
     (r.doc, placed)
 }

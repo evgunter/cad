@@ -8,10 +8,10 @@
 //! Geometry is deliberately tiny (three small prisms, all disjoint)
 //! so every suite's evaluations stay cheap; what matters is the
 //! STRUCTURE: two pinned part documents, three instances, each pinned
-//! to the world by one world pin (a frame mate read off the copy's
+//! to the world by one world mate (a frame mate read off the copy's
 //! geometry, `editor_core::pin_at`) and related by no mate. A pinned
 //! copy lives in the world's space, which the free-move probe does not
-//! move (DI5), so a free-move row takes post_b's world pin off first
+//! move (DI5), so a free-move row takes post_b's world mate off first
 //! ([`unpin`]) and probes the loose post with [`where_b_stood`]; a
 //! mate-tool row takes it off too, so the mate it commits places post_b
 //! rather than overconstraining it.
@@ -21,14 +21,13 @@
 // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::expect_used)]
 
-use pncad::document::ExtrudeSide;
 use pncad::document::Formula;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use pncad::document::{
     CancelToken, Coord, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
-    RecipeNodeId, SlideAxis, evaluate,
+    RecipeNodeId, TargetAxis, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -87,18 +86,12 @@ pub struct Bench {
 /// One extruded box, placed, authored through the ordinary doors.
 fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let plane = insert_into(&mut doc, super::xy_frame(), tol);
-    let profile = insert_into(
-        &mut doc,
-        super::rectangle(plane, [0.0, 0.0], width, depth),
-        tol,
-    );
+    let profile = insert_into(&mut doc, super::rectangle([0.0, 0.0], width, depth), tol);
     let extrude = insert_into(
         &mut doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -192,7 +185,7 @@ impl Bench {
 }
 
 /// **An instance of `part` pinned to the world at the translation
-/// `at`**: an instance whose bundle is empty, then one world pin.
+/// `at`**: an instance whose bundle is empty, then one world mate.
 pub fn instance_at(
     asm: &mut ProfileDoc,
     part: DocRef,
@@ -217,16 +210,28 @@ pub fn instance_posed(
     instance
 }
 
-/// **The world pin `placement`'s bundle holds**, by its address.
+/// **What places `placement` in the world**, by its address: the one
+/// mate its bundle holds reading the world, or, for a bundle with no
+/// mate (the identity bundle the place gesture writes), its first value,
+/// whose removal takes the bundle whole (`DocEdit::removing`).
 ///
 /// # Panics
 ///
-/// Unless the bundle holds exactly one mate reading the world.
+/// Unless the bundle holds exactly one mate reading the world, or is a
+/// bundle with no mate.
 pub fn world_pin_of(
     doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
     placement: RecipeNodeId,
 ) -> pncad::document::MateRef {
-    let pins: Vec<_> = crate::fixture::bundle(doc, placement)
+    let bundle = crate::fixture::bundle(doc, placement);
+    if let Some(first) = bundle.first()
+        && bundle
+            .iter()
+            .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
+    {
+        return pncad::document::MateRef::new(placement, first.id);
+    }
+    let pins: Vec<_> = bundle
         .into_iter()
         .filter(|constraint| {
             constraint
@@ -235,12 +240,12 @@ pub fn world_pin_of(
         })
         .collect();
     let [pin] = pins.as_slice() else {
-        panic!("{placement:?} holds one world pin: {pins:?}")
+        panic!("{placement:?} holds one world mate: {pins:?}")
     };
     pncad::document::MateRef::new(placement, pin.id)
 }
 
-/// **Take `instance`'s world pin off through the session**, and pump:
+/// **Take `instance`'s world mate off through the session**, and pump:
 /// its bundle empties (the session takes any value naming the pin with
 /// it), so it is a loose copy and the next mate a row commits on it
 /// places it, where a pinned one would refuse overconstrained.
@@ -357,9 +362,9 @@ pub use super::{down_at, up_at};
 /// shelf's `−y`.
 pub fn seat_values(b_x: f64) -> Vec<(Coord, pncad::document::Formula)> {
     vec![
-        (Coord::Slide(SlideAxis::X), len(b_x - POST_SECTION / 2.0)),
+        (Coord::Slide(TargetAxis::X), len(b_x - POST_SECTION / 2.0)),
         (
-            Coord::Slide(SlideAxis::Y),
+            Coord::Slide(TargetAxis::Y),
             len(POST_SECTION / 2.0 - SHELF_DEPTH / 2.0),
         ),
         (Coord::Spin, ang(0.0)),
@@ -449,7 +454,7 @@ pub fn seat_op_under(
 /// **The shelf resting on `post`'s top, `offset` above it**, as the op
 /// the session takes: the shelf's underside on the post's top cap,
 /// flipped and slid `offset` along its own normal (a standoff), in the
-/// shelf's bundle once the shelf's world pin is off ([`unpin`]). It
+/// shelf's bundle once the shelf's world mate is off ([`unpin`]). It
 /// fixes the shelf's seating plane and nothing else, so the shelf is a
 /// loose copy; a second rest beside it fixes the plane again, which the
 /// edit door refuses.
@@ -509,8 +514,8 @@ pub fn no_centre_seat_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
 }
 
 /// **The shelf's bundle refused, and post_b chained to it**: post_b's
-/// world pin off and post_b seated under the shelf's middle (`sound`,
-/// in post_b's bundle), then the shelf's world pin off and its bundle
+/// world mate off and post_b seated under the shelf's middle (`sound`,
+/// in post_b's bundle), then the shelf's world mate off and its bundle
 /// one mate the evaluation refuses ([`no_centre_op`], the `offender`,
 /// against post_a). The shelf has no pose, and post_b, placed against
 /// the shelf, has none either; post_a, which only the shelf's
