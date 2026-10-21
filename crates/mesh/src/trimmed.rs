@@ -631,7 +631,7 @@ impl TrimmedFace<'_> {
         // pass makes and for the same class (issue 897): an edge
         // incident to a vertex this walk placed at two distinct UV
         // locations, used more than twice inside ONE patch, is the
-        // non-manifold state the duplicate-id drop above is claimed
+        // non-manifold state the duplicate-id drop in `emit` is claimed
         // never to produce. This lane's only source of such a vertex
         // is the full-2π seam double-traversal — no chart singularity
         // reaches it — so on every other face the set is empty and the
@@ -842,7 +842,7 @@ impl TrimmedFace<'_> {
         // Pass 1: which grid candidates the kept triangles use; number
         // them in (v, u) row-major order over the FINAL kept set —
         // sorted by coordinates, not by candidate index, so refinement
-        // candidates appended by a later round (below) keep the same
+        // candidates appended by a later round (`attempt`) keep the same
         // determinism contract. The indices are this attempt's own: a
         // retry starts a fresh `interior` and only the accepted
         // attempt's becomes the patch.
