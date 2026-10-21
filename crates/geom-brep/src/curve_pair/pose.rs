@@ -879,7 +879,10 @@ fn line_conic<T: Decide>(
     );
     let screened = noise + geom_core::rounding_charge(ends(a));
     // A conic's extent is no second span: its projection is read from the
-    // line's origin, charged as the router's screens are.
+    // line's origin, charged as the router's screens are. That anchor
+    // charges the carrier origin's metres once, where a read from the
+    // span's start would charge both ends' evaluation, twice as many
+    // (`work/cpair/the-line-conic-router-reads-its-projections-from-the-lines-carrier-origin`).
     let at = OnOneLine::of(
         on_line((o, u), a),
         (c - k.speed_hi(), c + k.speed_hi()),
