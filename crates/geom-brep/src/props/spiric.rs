@@ -82,7 +82,7 @@ use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::{Band, Bounds, Decide, Margin, Sign};
 
 use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
-use super::closure::{IntervalJunction, interval_loop_turns, require_boundary_windings};
+use super::closure::{IntervalJunction, interval_loop_turns};
 use super::quad::{
     FaceCutBounds, QUAD_INIT_PIECES, QUAD_MAX_ROUNDS, QUAD_TARGET_LEN_FACTOR, RVec3, RoundOutcome,
     RoundWindow, classify_len, mean_boundary_displacement, rotate, round_exit, spread_cos,
@@ -445,9 +445,10 @@ pub struct WallChartQ {
     pub rims: Vec<RimQ>,
     /// Its meridians.
     pub meridians: Vec<MeridianQ>,
-    /// Every edge of its loop on the lift, in traversal order: what the
-    /// closure decision reads ([`wall_windings`]).
-    pub ends: Vec<ChartEndsQ>,
+    /// Every edge of each of its loops on the lift, loop by loop, each in
+    /// traversal order: what the closure decision reads
+    /// ([`wall_windings`]).
+    pub ends: Vec<Vec<ChartEndsQ>>,
 }
 
 /// One edge of a torus wall's loop on its lift: where its traversal
@@ -652,38 +653,46 @@ fn face_bounds(
     })
 }
 
-/// **A torus wall's loop closes on its chart and winds it not at all**
-/// — the periodic-chart closure decision ([`super::closure`]) on the
-/// loop's lifted images ([`WallChartQ::ends`]).
+/// **A torus wall's loops each close on its chart and wind it not at
+/// all** — the periodic-chart closure decision ([`super::closure`]) on
+/// each loop's lifted images ([`WallChartQ::ends`]), the outer loop and
+/// every ring alike.
 ///
 /// At each junction the azimuth's gap is metered at the junction's own
 /// distance from the axis, `ρ = R + r·cos v`, enclosed over the after
 /// edge's start, and the tube angle's at `r`; the slack is the two
 /// images' envelopes. Reading `ρ` at one end is sound: the two ends'
 /// `ρ` differ by at most `r·|Δv|`, so the azimuth term moves by at most
-/// `r·|Δv|·|Δu|`, second order in a gap the decision admits. A wall
-/// carries one loop, so its turns must be zero.
+/// `r·|Δv|·|Δu|`, second order in a gap the decision admits. The wall's
+/// Green form is read on the lifted chart, where it bounds a region only
+/// when every loop closes there, so each loop's turns must be zero: a
+/// face whose loops wind the torus in pairs is a band the lane does not
+/// read, and refuses [`PropsError::LoopsWindChart`].
 fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsError> {
-    if chart.ends.is_empty() {
+    if chart.ends.is_empty() || chart.ends.iter().any(Vec::is_empty) {
         return Err(PropsError::QuadratureUnsupported {
             what: "a spiric torus wall handed no loop to decide closed",
         });
     }
     let (big, r) = (chart.major, chart.minor);
-    let junctions = chart
-        .ends
-        .iter()
-        .zip(chart.ends.iter().cycle().skip(1))
-        .map(|(e, next)| {
-            let (cos_v, _) = trig_of(next.start.1);
-            IntervalJunction {
-                delta: [e.end.0 - next.start.0, e.end.1 - next.start.1],
-                lever: [big + r * cos_v, r],
-                slack: certified_hi(e.env + next.env),
-            }
-        });
-    let turns = interval_loop_turns::<T, 2>(junctions, [true, true], band)?;
-    require_boundary_windings(&[turns])
+    for ends in &chart.ends {
+        let junctions = ends
+            .iter()
+            .zip(ends.iter().cycle().skip(1))
+            .map(|(e, next)| {
+                let (cos_v, _) = trig_of(next.start.1);
+                IntervalJunction {
+                    delta: [e.end.0 - next.start.0, e.end.1 - next.start.1],
+                    lever: [big + r * cos_v, r],
+                    slack: certified_hi(e.env + next.env),
+                }
+            });
+        let turns = interval_loop_turns::<T, 2>(junctions, [true, true], band)?;
+        if turns != [0, 0] {
+            return Err(PropsError::LoopsWindChart);
+        }
+    }
+    Ok(())
 }
 
 /// **The certified flux and area of a spiric-bounded face** over a
@@ -692,9 +701,9 @@ fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsE
 /// `QUAD_TARGET_LEN_FACTOR·ε` of mean boundary displacement, the
 /// face-extent gate, the budget refusal).
 ///
-/// On a wall, the loop must close and wind the torus not at all
-/// ([`wall_windings`]): the Green form bounds a region of the lifted
-/// chart only then.
+/// On a wall, every loop, the outer one and each ring, must close and
+/// wind the torus not at all ([`wall_windings`]): the Green form, summed
+/// over them all, bounds a region of the lifted chart only then.
 ///
 /// # Errors
 ///
@@ -1536,7 +1545,7 @@ mod tests {
                             dv: oval.start.1 - oval.end.1,
                             env: Interval::zero(),
                         }],
-                        ends: vec![oval, back],
+                        ends: vec![vec![oval, back]],
                     }),
                 }
             };
@@ -1599,14 +1608,14 @@ mod tests {
                     dv: oval.start.1 - oval.end.1,
                     env: Interval::zero(),
                 }],
-                ends: vec![
+                ends: vec![vec![
                     oval,
                     ChartEndsQ {
                         start: (wide, oval.end.1),
                         end: (oval.start.0, oval.start.1),
                         env: Interval::zero(),
                     },
-                ],
+                ]],
             }),
         };
         for got in [
@@ -1618,6 +1627,85 @@ mod tests {
                 "an undecidable junction escalates: {got:?}"
             );
         }
+    }
+
+    /// **A wall's ring is decided closed on its own** ([`wall_windings`],
+    /// loop by loop): beside a closed loop (a whole oval closed by a
+    /// meridian back), a second closed loop measures. A ring whose lift
+    /// stays open by a part of a period, as a ring crossing the chart's
+    /// seam would where its images do not continue across it, refuses
+    /// [`PropsError::ChartLoopOpen`]; one whose lift restarts a whole
+    /// period across the seam reads as winding the tube, and refuses
+    /// [`PropsError::LoopsWindChart`]. Neither is read as closed.
+    #[test]
+    fn a_ring_on_a_wall_is_decided_closed_on_its_own() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let tau = 2.0 * PI;
+        let (oval, _) = framed(
+            (1.2, 0.275, 0.05),
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            [0.0; 3],
+            [0.0; 3],
+            (0.0, tau),
+            true,
+        );
+        let oval = SpiricEdgeQ {
+            wall: Some(WallImageQ {
+                sense: 1.0,
+                v0: Interval::zero(),
+                env: Interval::zero(),
+            }),
+            ..oval
+        };
+        let ends = spiric_wall_ends(&oval, Interval::zero()).unwrap();
+        let back = ChartEndsQ {
+            start: ends.end,
+            end: (ends.end.0, ends.start.1),
+            env: Interval::zero(),
+        };
+        let meridian = MeridianQ {
+            dv: ends.start.1 - ends.end.1,
+            env: Interval::zero(),
+        };
+        let face = |ring: Vec<ChartEndsQ>| SpiricFaceQ {
+            closed_va: [Interval::zero(); 3],
+            spirics: vec![oval, oval],
+            lever: [Interval::zero(); 3],
+            perimeter: 40.0,
+            wall: Some(WallChartQ {
+                major: pt(1.2),
+                minor: pt(0.275),
+                rims: vec![],
+                meridians: vec![meridian, meridian],
+                ends: vec![vec![ends, back], ring],
+            }),
+        };
+        let run =
+            |f: &SpiricFaceQ| spiric_face_rounds::<f64>(f, tol.eps(), band, RoundWindow::SCHEDULE);
+        let closed = run(&face(vec![ends, back]));
+        assert!(closed.is_ok(), "two closed loops measure: {closed:?}");
+        // The ring's meridian back lands `0.3` short of its start in `u`.
+        let short = ChartEndsQ {
+            end: (back.end.0 + pt(0.3), back.end.1),
+            ..back
+        };
+        let open = run(&face(vec![ends, short]));
+        assert!(
+            matches!(open, Err(PropsError::ChartLoopOpen)),
+            "a ring open on the chart: {open:?}"
+        );
+        // The ring's meridian back restarts one period round in `u`.
+        let period = ChartEndsQ {
+            end: (back.end.0 + pt(tau), back.end.1),
+            ..back
+        };
+        let winds = run(&face(vec![ends, period]));
+        assert!(
+            matches!(winds, Err(PropsError::LoopsWindChart)),
+            "a ring a period open across the seam: {winds:?}"
+        );
     }
 
     /// **The closure decision refuses an open loop and a winding one,
@@ -1687,7 +1775,7 @@ mod tests {
                     minor: pt(0.275),
                     rims: vec![],
                     meridians,
-                    ends,
+                    ends: vec![ends],
                 }),
             }
         };
@@ -1704,9 +1792,9 @@ mod tests {
         // azimuth, so its end meets the meridian `≈ 0.0107` away in `u`.
         let mut f = face(wall(0.05, 0.3, 2.1), true);
         if let Some(chart) = f.wall.as_mut() {
-            let u_start = chart.ends[0].start.0;
-            chart.ends[1].start.0 = u_start;
-            chart.ends[1].end.0 = u_start;
+            let u_start = chart.ends[0][0].start.0;
+            chart.ends[0][1].start.0 = u_start;
+            chart.ends[0][1].end.0 = u_start;
         }
         let open_u = run(&f);
         assert!(
@@ -1716,7 +1804,8 @@ mod tests {
         // The oval twice round winds the tube twice.
         let mut twice = face(wall(0.05, 0.0, tau), false);
         if let Some(chart) = twice.wall.as_mut() {
-            chart.ends.push(chart.ends[0]);
+            let first = chart.ends[0][0];
+            chart.ends[0].push(first);
         }
         twice.spirics.push(twice.spirics[0]);
         let twice = run(&twice);
@@ -1728,7 +1817,7 @@ mod tests {
         // oval's end: within the vertex slack, so the loop closes.
         let mut near = face(wall(0.05, 0.0, tau), true);
         if let Some(chart) = near.wall.as_mut() {
-            chart.ends[1].start.1 = chart.ends[1].start.1 + pt(2.0 * tol.eps() / 0.275);
+            chart.ends[0][1].start.1 = chart.ends[0][1].start.1 + pt(2.0 * tol.eps() / 0.275);
         }
         let near = run(&near);
         assert!(near.is_ok(), "open by 2ε at the junction: {near:?}");

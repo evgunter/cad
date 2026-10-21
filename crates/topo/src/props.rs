@@ -3202,12 +3202,17 @@ fn face_flux_about<T: Decide>(
             // over every loop), and the torus's closed form over rims
             // and rulings, the sphere's over circles (Gauss–Bonnet over
             // every loop), and the spiric lane every loop of a
-            // spiric-bounded plane. No other kind reads one.
+            // spiric-bounded plane or torus wall. No other kind reads one.
+            let spiric = loops
+                .iter()
+                .flat_map(|(edges, _)| edges)
+                .any(|e| matches!(e.carrier, geom::Curve3::Spiric { .. }));
             let reads_rings = match surface {
                 // A plane reaches this arm only bounded by a spiric, and
                 // the spiric lane reads every loop of its face.
                 Surface::Cone { .. } | Surface::Cylinder { .. } | Surface::Plane { .. } => true,
-                Surface::Torus { .. } | Surface::Sphere { .. } => !trimmed,
+                Surface::Torus { .. } => !trimmed || spiric,
+                Surface::Sphere { .. } => !trimmed,
                 _ => false,
             };
             if loops.len() > 1 && !reads_rings {

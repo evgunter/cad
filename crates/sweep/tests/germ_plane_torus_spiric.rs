@@ -4,14 +4,15 @@
 //! ovals, and the join takes an arc of the oval its chord's sites lie
 //! on, on the oval's own parameter.
 //!
-//! Every op of every pose either builds its true body, held to the truth
-//! three ways (its volume against a closed-form oracle of the analytic
+//! Every op of every pose builds its true body, held to the truth three
+//! ways (its volume against a closed-form oracle of the analytic
 //! operands, itself held to a Monte Carlo of them; tier 3; and
 //! `point_in_solid` at sampled points against the analytic memberships
-//! under the op), or stops past the join where the result's volume does
-//! not read a torus face holding a ring bounded by ovals
-//! (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`),
-//! named per op.
+//! under the op), a result whose torus face holds a ring bounded by
+//! ovals among them: the spiric wall lane reads every loop of the face
+//! (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`).
+//! The `v` answer, the volume's stop past the join, is kept for an op
+//! that may still reach one.
 //!
 //! No op returns a wrong body. The poses run on the donut, the one-face
 //! torus (its vertex at three phases), the torus seamed on `y = 0`, and,
@@ -310,12 +311,12 @@ fn donut_poses_answer(name: &str, t: AtRestBody<f64>, want: &[(&str, &str)]) {
     }
 }
 
-/// **The donut's spiric poses build their true bodies, or stop past the
-/// join**: S1, M3, P4 and the box between two ovals' planes build in
-/// every op; B1, B2 and the tie bar stop where a result's torus face
-/// holds a ring.
+/// **The donut's spiric poses build their true bodies** in every op: S1,
+/// M3, P4, the box between two ovals' planes, and B1, B2 and the tie bar,
+/// whose results keep a torus face holding a ring that spiric ovals
+/// bound, which the spiric wall lane reads loop by loop.
 #[test]
-fn the_donuts_spiric_poses_build_their_true_bodies_or_stop_past_the_join() {
+fn the_donuts_spiric_poses_build_their_true_bodies() {
     donut_poses_answer(
         "the donut",
         torus(2.0, 0.5),
@@ -324,49 +325,34 @@ fn the_donuts_spiric_poses_build_their_true_bodies_or_stop_past_the_join() {
             ("M3", "BBBBBB"),
             ("P4", "BBBBBB"),
             ("the spiric box", "BBBBBB"),
-            ("B1", "vvBBvB"),
-            ("B2", "vvBBvB"),
-            ("the tie bar", "vvBBvB"),
+            ("B1", "BBBBBB"),
+            ("B2", "BBBBBB"),
+            ("the tie bar", "BBBBBB"),
         ],
     );
 }
 
 /// **On the one-face tori and the seamed torus the spiric poses build
-/// their true bodies, or stop past the join**: an oval of S1 crosses a
+/// their true bodies**: an oval of S1 crosses a
 /// one-face torus's wrap edges once, so a section's two loops are two
 /// one-site records of one face pair, and on the seamed torus both ovals
-/// cross both faces. Measured: S1 and M3 build in every op on all four;
-/// P4 builds in every op on the one-face torus with its vertex off the
-/// equators and keeps a ring the volume does not read on the other three;
-/// B1 and the tie bar build in every op where the torus has an edge on its
-/// inner equator (the one-face torus with its vertex there, and the
-/// seamed torus); elsewhere B1, B2 and the tie bar keep a ring the volume
-/// does not read where the result holds the torus less the bar.
+/// cross both faces. Every pose builds in every op on all four, those
+/// whose result keeps a torus face holding a ring that spiric ovals bound
+/// among them (P4 where the torus has no vertex off its equators, and B1,
+/// B2 and the tie bar where it has no edge on its inner equator).
 #[test]
 fn the_one_face_and_seamed_tori_s_spiric_poses_answer_as_the_donuts() {
-    let ring_stops = [
+    let every_op = [
         ("S1", "BBBBBB"),
         ("M3", "BBBBBB"),
-        ("P4", "vvBBvB"),
+        ("P4", "BBBBBB"),
         ("the spiric box", "BBBBBB"),
-        ("B1", "vvBBvB"),
-        ("B2", "vvBBvB"),
-        ("the tie bar", "vvBBvB"),
+        ("B1", "BBBBBB"),
+        ("B2", "BBBBBB"),
+        ("the tie bar", "BBBBBB"),
     ];
-    let mut off_equator = ring_stops;
-    off_equator[2] = ("P4", "BBBBBB");
-    let mut across = ring_stops;
-    across[4] = ("B1", "BBBBBB");
-    across[6] = ("the tie bar", "BBBBBB");
     for (name, t) in tori_of_one_face_pair(2.0, 0.5) {
-        let want = if name.ends_with("vertex at 1") {
-            &off_equator
-        } else if name.ends_with("vertex at 0") {
-            &ring_stops
-        } else {
-            &across
-        };
-        donut_poses_answer(&name, t, want);
+        donut_poses_answer(&name, t, &every_op);
     }
 }
 
@@ -602,21 +588,16 @@ fn the_corner_bars_lens_is_well_above_the_rows_tolerance() {
 /// oval's arc between the corners, through the arc rule every curved
 /// chord takes. A body is held to the truth, carries the eight oval arcs
 /// on its end squares and sides (or more, where a torus's own edge
-/// splits them), and is held to `point_in_solid` at every lens point;
-/// every other op stops past the join. Red against the mutant that chords the end square along its
+/// splits them), and is held to `point_in_solid` at every lens point, in
+/// every op. Red against the mutant that chords the end square along its
 /// own edges, skipping the oval arcs between the corners: its bodies
 /// miss the lens.
 #[test]
-fn the_fat_corner_bars_lens_is_the_true_body_or_a_typed_refusal() {
+fn the_fat_corner_bars_lens_is_the_true_body() {
     let (big_r, r) = (1.0, 0.6);
     for (name, body) in fat_tori() {
         let t = ring(body, (big_r, r));
-        let want =
-            if name.ends_with("vertex at 3.141592653589793") || name.ends_with("seamed torus") {
-                "BBBBBB"
-            } else {
-                "vvBBvB"
-            };
+        let want = "BBBBBB";
         for (pose, w) in [("B5", 0.1), ("B5′", 0.3)] {
             let (bar, meet) = corner(big_r, r, w);
             let what = format!("{name}, {pose}");

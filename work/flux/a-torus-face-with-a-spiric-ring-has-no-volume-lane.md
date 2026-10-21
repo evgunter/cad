@@ -4,6 +4,8 @@ kind: issue
 title: mass_properties refuses RingOnCurvedFace on a torus face holding a ring that spiric ovals bound, which the plane x torus boolean now mints
 status: open
 opened: 2026-10-12
+priority: P2
+cost: M
 ---
 
 
