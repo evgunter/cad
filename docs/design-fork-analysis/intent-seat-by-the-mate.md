@@ -16,3 +16,4 @@ Protocol deviation: the byte was drawn after both reports were delivered (dispat
 - Round 1: crossed (A moved to B's flush row; B moved to A's nothing-at-rest).
 - Round 2: crossed back (each to their original: A nothing at rest, B the aligned face-pair row). Both likely-leaning-sure.
 - Round 3: a further designer (Opus, fresh) weighs X (nothing at rest) vs Y (aligned row), brief scratchpad forks/flush-third.md.
+- Round 3 (further designer, Opus): X (nothing at rest) with a carve-out for confirmed face pairs' boundary cells; found today's in-band near-flush escalation refuses. Posted to Ev as a 2-1 recommendation (PR 5555 comment 6320771190); diff e01b9978f7.
