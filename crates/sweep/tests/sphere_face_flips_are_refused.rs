@@ -141,6 +141,36 @@ fn every_sphere_face_flip_is_refused_and_named() {
             }
         }
     }
+    // The double cover split until each face reads its own side, and the
+    // valid ball split so (review of PR 5516, R2's `p2`): the door reads
+    // their seam regions as tier 3 does, the bodies themselves included.
+    {
+        use crate::seam_region_common::{
+            split_faces_at_equator, split_meridians_at_equator, split_outside, v,
+        };
+        let ball = finished(
+            "ball",
+            ball_poled(1.0, v([0.0; 3]), v([0.0, 0.0, 1.0]), tol),
+            tol,
+        );
+        let mut control = Body::clone(&ball);
+        split_meridians_at_equator(&mut control, tol);
+        split_faces_at_equator(&mut control, tol);
+        let mut cover = Body::clone(&ball);
+        assert!(split_outside(&mut cover, v([0.0, 1.0, 0.0]), tol));
+        split_meridians_at_equator(&mut cover, tol);
+        split_faces_at_equator(&mut cover, tol);
+        for (name, body) in [("split ball", &control), ("split double cover", &cover)] {
+            total += flips(name, body, &mut failures) + 1;
+            let tier3 = topo::validate_geometric(body, tol).is_ok();
+            let door = topo::mass_properties(body, tol).is_ok();
+            if tier3 != door {
+                failures.push(format!(
+                    "{name}: tier 3 passes = {tier3}, the door measures = {door}"
+                ));
+            }
+        }
+    }
     println!("{total} flips, {} failures", failures.len());
     assert!(
         failures.is_empty(),

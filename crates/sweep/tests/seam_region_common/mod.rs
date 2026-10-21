@@ -183,3 +183,163 @@ pub(crate) fn split_at_meridian(body: &mut Body<f64>, key: FaceKey, dir: Vec3<f6
     )
     .unwrap();
 }
+
+// Splits of the review of PR 5516 (R2), lifted into rows.
+
+pub(crate) fn volume(body: &Body<f64>, tol: Tol) -> Option<f64> {
+    topo::mass_properties(body, tol).ok().map(|m| m.volume)
+}
+
+/// Splits the face of `body` that a meridian in direction `dir` passes
+/// through INSIDE it (the split that keeps the volume), returning
+/// whether one did.
+pub(crate) fn split_inside(body: &mut Body<f64>, dir: Vec3<f64>, tol: Tol) -> bool {
+    let before = volume(body, tol).unwrap();
+    for f in sphere_faces(body) {
+        let mut b = body.clone();
+        let ok = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            split_at_meridian(&mut b, f, dir, tol)
+        }))
+        .is_ok();
+        if ok && volume(&b, tol).is_some_and(|w| (w - before).abs() <= 1e-9 * before.abs()) {
+            *body = b;
+            return true;
+        }
+    }
+    false
+}
+
+/// Splits the face of `body` that a meridian in direction `dir` passes
+/// OUTSIDE (the split that adds a cover), returning whether one did: the
+/// volume moves, or the door refuses the split as an over-cover.
+pub(crate) fn split_outside(body: &mut Body<f64>, dir: Vec3<f64>, tol: Tol) -> bool {
+    let before = volume(body, tol).unwrap();
+    for f in sphere_faces(body) {
+        let mut b = body.clone();
+        let ok = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            split_at_meridian(&mut b, f, dir, tol)
+        }))
+        .is_ok();
+        let moved = match topo::mass_properties(&b, tol) {
+            Ok(m) => (m.volume - before).abs() > 1e-6 * before.abs(),
+            Err(topo::MassPropsError::Face {
+                source: geom_brep::props::PropsError::SeamRegionOvercovered { .. },
+                ..
+            }) => true,
+            Err(_) => false,
+        };
+        if ok && moved {
+            *body = b;
+            return true;
+        }
+    }
+    false
+}
+
+pub(crate) fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, Point3<f64>)> {
+    body.vertex_points().collect()
+}
+
+/// Splits every sphere edge running pole to pole at the equator.
+pub(crate) fn split_meridians_at_equator(body: &mut Body<f64>, tol: Tol) {
+    let f0 = sphere_faces(body)[0];
+    let (center, radius, pole) = sphere_of(body, f0);
+    let mut todo = Vec::new();
+    for (ek, e) in body.edges() {
+        let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+            continue;
+        };
+        let carrier = c.carrier().clone();
+        if !matches!(carrier, Curve3::Circle { .. }) {
+            continue;
+        }
+        let (t0, t1) = c.params();
+        let h = |t: f64| (carrier.eval(t) - center).dot(pole);
+        let (a, b) = (h(t0), h(t1));
+        if (a.abs() - radius).abs() > 1e-9 || (b.abs() - radius).abs() > 1e-9 || a * b > 0.0 {
+            continue;
+        }
+        let (mut lo, mut hi) = (t0, t1);
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if (h(mid) > 0.0) == (a > 0.0) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        todo.push((ek, 0.5 * (lo + hi)));
+    }
+    for (ek, t) in todo {
+        body.split_edge(ek, t, tol).unwrap();
+    }
+}
+
+/// Splits each sphere face whose loop holds both poles along the
+/// equator, through its own interior.
+pub(crate) fn split_faces_at_equator(body: &mut Body<f64>, tol: Tol) {
+    let f0 = sphere_faces(body)[0];
+    let (center, radius, pole) = sphere_of(body, f0);
+    for f in sphere_faces(body) {
+        let face = body.faces().find(|(k, _)| *k == f).unwrap().1.clone();
+        if !face.rings.is_empty() {
+            continue;
+        }
+        let (_, hes) = topo::props::loop_edges(body, face.outer).unwrap();
+        let pts = points(body);
+        let at = |h: topo::HalfEdgeKey| {
+            let v = body.get_half_edge(h).unwrap().start;
+            pts.iter().find(|(k, _)| *k == v).unwrap().1
+        };
+        let on_eq: Vec<_> = hes
+            .iter()
+            .copied()
+            .filter(|&h| (at(h) - center).dot(pole).abs() < 1e-9)
+            .collect();
+        if on_eq.len() != 2 {
+            continue;
+        }
+        // The half-edge leaving the equator downward starts the face's
+        // CCW (about the pole, under sense) sweep.
+        let next_z = |h: topo::HalfEdgeKey| {
+            let i = hes.iter().position(|&x| x == h).unwrap();
+            let n = hes[(i + 1) % hes.len()];
+            (at(n) - center).dot(pole)
+        };
+        let (down, up) = if next_z(on_eq[0]) < 0.0 {
+            (on_eq[0], on_eq[1])
+        } else {
+            (on_eq[1], on_eq[0])
+        };
+        let a = (at(down) - center) / radius;
+        let b = (at(up) - center) / radius;
+        let p = pole;
+        let w = p.cross(a);
+        let mut ang = b.dot(w).atan2(b.dot(a));
+        if !face.sense {
+            ang = -ang;
+        }
+        if ang <= 0.0 {
+            ang += std::f64::consts::TAU;
+        }
+        let axis = if face.sense { p } else { -p };
+        let circle = Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref: a,
+        };
+        let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, ang)
+            .unwrap()
+            .at_rest_in_chart(face.surface, false);
+        let r = body.mef(
+            MefSite::Chords { he1: down, he2: up },
+            spec,
+            FaceSurface::Inherit,
+            tol,
+        );
+        if let Err(e) = r {
+            panic!("equator mef on {f:?} refused: {e:?}");
+        }
+    }
+}

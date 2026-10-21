@@ -3096,19 +3096,18 @@ impl<T: Decide> References<T> {
     /// The references of the shells `faces` lie on, and the seam
     /// regions they reach, read in `band`.
     fn of(body: &Body<T>, faces: impl IntoIterator<Item = FaceKey>, band: Band) -> Self {
+        let faces: Vec<FaceKey> = faces.into_iter().collect();
         let mut shells = std::collections::BTreeMap::new();
-        let mut seams = std::collections::BTreeMap::new();
-        let mut read = Vec::new();
-        for key in faces {
+        for &key in &faces {
             let shell = resolve_face(body, key).0.shell;
             shells
                 .entry(shell)
                 .or_insert_with(|| shell_reference(body, shell));
-            if !read.contains(&key) {
-                seam_refusals(body, key, band, &mut read, &mut seams);
-            }
         }
-        Self { shells, seams }
+        Self {
+            shells,
+            seams: seam_refusals(body, &faces, band),
+        }
     }
 
     /// The references alone, for a reading after a walk over the same
@@ -3147,86 +3146,158 @@ impl<T: Decide> References<T> {
     }
 }
 
-/// **What `face`'s seam region says of its members at the door**, as
-/// tier 3's check 6 reads it: refusals added to `seams` by member, and
-/// every member read added to `read`, so a region is read once.
+/// **A sphere seam region, read once** for tier 3's check 6 and the
+/// measurement door alike: its members, each member's bit and run of
+/// loops, the loops both its reads take ([`geom_brep::props::SeamLoops`];
+/// `None` for a pinched region or one whose loops do not parse, either of
+/// which is left unread), its cover census, and the side the pole read
+/// gives it, read at most once ([`ReadRegion::side`]).
+pub(crate) struct ReadRegion<T: Real> {
+    pub(crate) members: Vec<FaceKey>,
+    pub(crate) claims: Vec<(bool, core::ops::Range<usize>)>,
+    pub(crate) loops: Option<geom_brep::props::SeamLoops<T>>,
+    /// The census (`geom_brep::props::sphere_region_cover`), for a region
+    /// of two faces or more whose loops parse. A region of one face is
+    /// not read: its boundary is the face's own loops, so its census is
+    /// zero by construction.
+    pub(crate) cover: Option<Result<geom_brep::props::SeamCover, PropsError>>,
+    side: Option<Option<geom_brep::props::MaterialSign>>,
+}
+
+impl<T: Decide> ReadRegion<T> {
+    /// The side the pole read gives the region
+    /// (`geom_brep::props::sphere_region_material_sign`), read once; `None`
+    /// where it is unread or refuses.
+    pub(crate) fn side(&mut self, band: Band) -> Option<geom_brep::props::MaterialSign> {
+        let loops = self.loops.as_ref();
+        *self.side.get_or_insert_with(|| {
+            loops.and_then(|loops| geom_brep::props::sphere_region_material_sign(loops, band).ok())
+        })
+    }
+}
+
+/// **Every seam region of a sphere that `faces` reach**, each read once
+/// ([`ReadRegion`]), whatever its members' own boundaries encode: the
+/// census reads no pole, so a region whose every member reads its own
+/// side is read as one whose members encode none. A region whose loops
+/// do not flatten ([`seam_region`]'s `None`) is a region of that face
+/// alone, unread.
+pub(crate) fn read_seam_regions<T: Decide>(
+    body: &Body<T>,
+    faces: impl IntoIterator<Item = FaceKey>,
+    band: Band,
+) -> Vec<ReadRegion<T>> {
+    let mut regions: Vec<ReadRegion<T>> = Vec::new();
+    for key in faces {
+        let (_, surface) = resolve_face(body, key);
+        if !matches!(surface, Surface::Sphere { .. })
+            || regions.iter().any(|r| r.members.contains(&key))
+        {
+            continue;
+        }
+        let Some(region) = seam_region(body, key) else {
+            regions.push(ReadRegion {
+                members: vec![key],
+                claims: Vec::new(),
+                loops: None,
+                cover: None,
+                side: None,
+            });
+            continue;
+        };
+        let loops = (!region.pinched)
+            .then(|| {
+                let boundary: Vec<&[_]> = region.boundary.iter().map(Vec::as_slice).collect();
+                let held: Vec<&[_]> = region.loops.iter().map(Vec::as_slice).collect();
+                geom_brep::props::seam_loops(surface, &boundary, &held, band).ok()
+            })
+            .flatten();
+        let cover = loops
+            .as_ref()
+            .filter(|_| region.members.len() > 1)
+            .map(|loops| geom_brep::props::sphere_region_cover(loops, &region.claims, band));
+        regions.push(ReadRegion {
+            members: region.members,
+            claims: region.claims,
+            loops,
+            cover,
+            side: None,
+        });
+    }
+    regions
+}
+
+/// **What the seam regions `faces` reach say of their members at the
+/// door**, as tier 3's check 6 reads them ([`read_seam_regions`]), by
+/// member:
 ///
-/// A region is read from a sphere face whose own boundary encodes no
-/// side (`MaterialSign::Unencoded`), as check 6 does, and a region that
-/// is pinched or whose loops do not flatten is left unread, as there.
-/// Its reads:
-///
-/// * the **pole read** (`sphere_region_material_sign`): a member whose
-///   own side is unencoded and whose bit contradicts the region's side
+/// * the **cover census**: an over-cover refuses every member, whatever
+///   its own boundary encodes ([`PropsError::SeamRegionOvercovered`]), as
+///   does a census in the band ([`PropsError::SeamRegionCoverUnresolved`]).
+///   Members whose bits disagree are the lamina tier 3's check 4 names
+///   (`ValidationError::LaminaWedge`), which the door does not run: each
+///   member whose own boundary encodes no side refuses
+///   [`PropsError::SeamRegionSensesDisagree`]. An encoded member's own
+///   read judges its own bit, so the flipped member is refused either way
+///   and no member whose bit is right is named for it;
+/// * the **pole read**, for a member whose own boundary encodes no side
+///   (`MaterialSign::Unencoded`): a bit that contradicts the region's side
 ///   refuses [`PropsError::SenseContradicted`], the refusal an encoded
-///   face's own contradicted bit earns in the flux arm;
-/// * the **cover census** (`sphere_region_cover`), for every member,
-///   encoded or not: an over-cover refuses
-///   [`PropsError::SeamRegionOvercovered`], an undecided census
-///   [`PropsError::SeamRegionCoverUnresolved`], and members whose bits
-///   disagree [`PropsError::SeamRegionSensesDisagree`], the lamina
-///   tier 3's check 4 names (`ValidationError::LaminaWedge`) and the door
-///   does not run.
+///   face's own contradicted bit earns in the flux arm.
 ///
-/// A member's pole contradiction is its own finding and is named over
-/// the region's. A ringed member's flip needs nothing here: its own
-/// boundary encodes its side, and the flux arm refuses it
-/// ([`PropsError::SenseInverted`]).
+/// A member's own finding is named over the region's. One whose own
+/// boundary encodes a side its bit contradicts is left to the flux arm,
+/// which refuses it by its own variant ([`PropsError::SenseContradicted`],
+/// or [`PropsError::SenseInverted`] for a ringed one), so a ringed
+/// member's flip needs nothing here; one whose bit contradicts the
+/// region's pole read refuses by that; any other member, by the census.
 fn seam_refusals<T: Decide>(
     body: &Body<T>,
-    face: FaceKey,
+    faces: &[FaceKey],
     band: Band,
-    read: &mut Vec<FaceKey>,
-    seams: &mut std::collections::BTreeMap<FaceKey, PropsError>,
-) {
+) -> std::collections::BTreeMap<FaceKey, PropsError> {
     use geom_brep::props::{MaterialSign, SeamCover};
-    let (rec, surface) = resolve_face(body, face);
-    if !matches!(surface, Surface::Sphere { .. }) {
-        return;
-    }
-    let own = |loops: &[&[LoopEdge<T>]]| {
-        geom_brep::props::boundary_material_sign_loops(surface, loops, band)
+    let own = |member: FaceKey| {
+        let (rec, surface) = resolve_face(body, member);
+        face_loops(body, rec).ok().and_then(|loops| {
+            let loops: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
+            geom_brep::props::boundary_material_sign_loops(surface, &loops, band).ok()
+        })
     };
-    let Ok(loops) = face_loops(body, rec) else {
-        return;
-    };
-    let loops: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
-    if own(&loops) != Ok(MaterialSign::Unencoded) {
-        return;
-    }
-    let Some(region) = seam_region(body, face) else {
-        return;
-    };
-    read.extend(region.members.iter().copied());
-    if region.pinched {
-        return;
-    }
-    let boundary: Vec<&[_]> = region.boundary.iter().map(Vec::as_slice).collect();
-    let loops: Vec<&[_]> = region.loops.iter().map(Vec::as_slice).collect();
-    let side = geom_brep::props::sphere_region_material_sign(surface, &boundary, &loops, band);
-    let claims: Vec<(bool, &[&[_]])> = region
-        .claims
-        .iter()
-        .map(|(sense, run)| (*sense, &loops[run.clone()]))
-        .collect();
-    let cover = match geom_brep::props::sphere_region_cover(surface, &boundary, &claims, band) {
-        Ok(SeamCover::Over { times }) => Some(PropsError::SeamRegionOvercovered { times }),
-        Ok(SeamCover::Unresolved) => Some(PropsError::SeamRegionCoverUnresolved),
-        Ok(SeamCover::MixedSense) => Some(PropsError::SeamRegionSensesDisagree),
-        Ok(SeamCover::Once) | Err(_) => None,
-    };
-    for (&member, (sense, run)) in region.members.iter().zip(&region.claims) {
-        let contradicted = matches!(side, Ok(MaterialSign::Encoded(s)) if (s == Sign::Positive) != *sense)
-            && own(&loops[run.clone()]) == Ok(MaterialSign::Unencoded);
-        let refusal = if contradicted {
-            Some(PropsError::SenseContradicted)
-        } else {
-            cover.clone()
+    let mut seams = std::collections::BTreeMap::new();
+    for mut region in read_seam_regions(body, faces.iter().copied(), band) {
+        let mixed = matches!(region.cover, Some(Ok(SeamCover::MixedSense)));
+        let cover = match region.cover {
+            Some(Ok(SeamCover::Over { times })) => {
+                Some(PropsError::SeamRegionOvercovered { times })
+            }
+            Some(Ok(SeamCover::Unresolved)) => Some(PropsError::SeamRegionCoverUnresolved),
+            Some(Ok(SeamCover::MixedSense | SeamCover::Once) | Err(_)) | None => None,
         };
-        if let Some(refusal) = refusal {
-            seams.insert(member, refusal);
+        let members = region.members.clone();
+        let bits: Vec<bool> = region.claims.iter().map(|(sense, _)| *sense).collect();
+        for (i, member) in members.into_iter().enumerate() {
+            let sense = bits
+                .get(i)
+                .copied()
+                .unwrap_or(resolve_face(body, member).0.sense);
+            let wrong = |side: Option<MaterialSign>| matches!(side, Some(MaterialSign::Encoded(s)) if (s == Sign::Positive) != sense);
+            let own = own(member);
+            let refusal = if wrong(own) {
+                None
+            } else if own == Some(MaterialSign::Unencoded) && wrong(region.side(band)) {
+                Some(PropsError::SenseContradicted)
+            } else if mixed && own == Some(MaterialSign::Unencoded) {
+                Some(PropsError::SeamRegionSensesDisagree)
+            } else {
+                cover.clone()
+            };
+            if let Some(refusal) = refusal {
+                seams.insert(member, refusal);
+            }
         }
     }
+    seams
 }
 
 /// **A face's seam region**: the faces on its surface entity it reaches

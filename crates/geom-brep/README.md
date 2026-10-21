@@ -979,16 +979,22 @@ poles, or whose poles lie on no member's loop, encodes no side: the
 pole-free reading would assume the rule above, which validity does not
 yet enforce. For a region of one face the flipped bit describes the
 complement, another valid body. Where a region's faces overlap, tier 3
-refuses it by its cover census (`sphere_region_cover`): each member's
-Gauss–Bonnet area on the side its bit claims, summed, less the area its
-boundary claims (the sphere, with no boundary), is a whole number of
-spheres, zero for a region covered once. A cover of the sphere twice
-over reads one; a region of `n` one-loop faces whose bits all flip, each
-claiming its own complement, reads `n − 1`. The measurement door reads
-the same seam regions without tier 3 (`topo/src/props.rs`,
-`seam_refusals`), so it refuses the regions tier 3 refuses, and a region
-whose faces' bits disagree, which tier 3 refuses as check 4's lamina. A
-loop with a pole off it on each side
+refuses it by its cover census (`sphere_region_cover`), read for every
+seam region of two faces or more, whatever its members' own boundaries
+encode: each member's Gauss–Bonnet area on the side its bit claims,
+summed, less the area its boundary claims (the sphere, with no
+boundary), is a whole number of spheres, so the members claim the region
+a whole number of times, once for a region covered once. A cover of the
+sphere twice over is claimed twice. A region whose members all carry the
+wrong bit is claimed `Σ χ_f − χ_R + 1` times, `χ` the Euler
+characteristic of each member and of the region as spheres with holes:
+`n + m − 1` times for `n` one-loop faces bounded by `m` loops, so twice
+for a both-poles pair, and `n − 1` times for a ball of `n` lunes turned
+inside out, which the census refuses from three lunes on. The
+measurement door reads the same seam regions without tier 3
+(`topo/src/props.rs`, `seam_refusals`), so it refuses the regions tier 3
+refuses, and a region whose faces' bits disagree, which tier 3 refuses
+as check 4's lamina. A loop with a pole off it on each side
 encodes no side: under either sense its face holds a pole, which is
 validity's to refuse. Nor does a loop whose poles both read undecided: a
 pole within the ambiguity band of a great or near-great carrier's plane
