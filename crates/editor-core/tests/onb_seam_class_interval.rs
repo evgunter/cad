@@ -16,7 +16,7 @@
 //!   goes through. On the earlier ratio (`|n.z| = max(|n.x|, |n.y|)`)
 //!   this face sat exactly on the seam, the frame came back as the hull
 //!   of two orthogonal candidates, and this door escalated on
-//!   `datum_unit_norm` with a margin of `[0, 1.4142]`;
+//!   `pose_unit_norm` with a margin of `[0, 1.4142]`;
 //! * a face at the seam's OWN elevation, `atan(1/2) ≈ 26.57°`, where
 //!   the comparison cannot decide over an enclosure: the frame is a
 //!   hull, and the row states what a hull is and is not — bounded, but
@@ -43,7 +43,7 @@ use editor_core::{
 use geom::Surface;
 use geom_brep::newell_plane;
 use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, UnitVec3, Vec3};
-use topo::DATUM_UNIT_NORM;
+use topo::POSE_UNIT_NORM;
 
 use fixture::{Recorder, len};
 
@@ -140,7 +140,7 @@ fn a_chamfer_face_decides_and_its_frame_is_a_unit_direction() {
         // The frame is a direction: the door a derived sketch frame
         // goes through accepts it, and its norm is 1 to within the
         // normal's own width.
-        UnitVec3::new(u_ref, DATUM_UNIT_NORM, band()).unwrap_or_else(|e| {
+        UnitVec3::new(u_ref, POSE_UNIT_NORM, band()).unwrap_or_else(|e| {
             panic!(
                 "{name} chamfer: the stored u_ref is not a unit direction: {e:?} \
                  (u_ref = ([{}, {}], [{}, {}], [{}, {}]))",
@@ -241,7 +241,7 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
         u_ref.x.hi()
     );
     assert!(
-        UnitVec3::new(u_ref, DATUM_UNIT_NORM, band()).is_err(),
+        UnitVec3::new(u_ref, POSE_UNIT_NORM, band()).is_err(),
         "the direction door accepted a hull spanning two antiparallel candidates"
     );
     // The same direction as a POINT enclosure: the tie decides.
@@ -258,7 +258,7 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
         d.hi()
     );
     let (b1, _) = point.orthonormal_basis();
-    UnitVec3::new(b1, DATUM_UNIT_NORM, band()).expect("a point enclosure on the seam decides");
+    UnitVec3::new(b1, POSE_UNIT_NORM, band()).expect("a point enclosure on the seam decides");
     assert!(
         b1.x.hi() < 0.0,
         "the tie did not take the e_z arm: b1.x = [{}, {}]",

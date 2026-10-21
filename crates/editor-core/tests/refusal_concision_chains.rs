@@ -1918,8 +1918,8 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "PoseDirectionEscalated",
             NodeErrorKind::PoseDirectionEscalated {
-                predicate: topo::DATUM_UNIT_NORM,
-                source: named(topo::DATUM_UNIT_NORM),
+                predicate: topo::POSE_UNIT_NORM,
+                source: named(topo::POSE_UNIT_NORM),
             },
         ),
         row(

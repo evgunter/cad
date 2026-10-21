@@ -41,7 +41,7 @@ The atoms split, and the split is the whole design:
   the other direction.
 - **DECIDED** — `GeomPred::PlaneDistance` is a real length
   comparison, so it is a `k_stats` funnel site
-  (`SEL_DATUM_DISTANCE`) with an honest margin, and an in-band
+  (`SEL_PLANE_DISTANCE`) with an honest margin, and an in-band
   candidate REFUSES rather than being silently included or dropped.
 
 Position is relative to the body's own geometry, never world-frame:

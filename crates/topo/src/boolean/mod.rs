@@ -285,7 +285,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => refusal_routes::CYLINDER_AXES_PARALLEL,
-        crate::query::DATUM_UNIT_NORM
+        crate::query::POSE_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
         | boxes::BOX_CYLINDER_AXIS
         | boxes::BOX_SPHERE_AXIS

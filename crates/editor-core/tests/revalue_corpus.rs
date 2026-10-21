@@ -569,7 +569,7 @@ rows! {
     revalue_boss_union: "boss_union", InStep, 3236, [];
     // Apart: the cutter's placement reads a variable, so both builds run
     // its map and decide its transform and unit norms alike (were `p0`
-    // to snap it at rest, the builds would part at `datum_unit_norm`).
+    // to snap it at rest, the builds would part at `pose_unit_norm`).
     revalue_cut_cylinder: "cut_cylinder", Apart, 1302, [];
     revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
     revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
