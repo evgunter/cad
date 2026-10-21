@@ -7,6 +7,7 @@ opened: 2026-10-18
 priority: P0
 cost: H
 design: true
+needs_ev: true
 refs: [placed-carriers-compare-through-their-frames, mates-declare-no-contact, a-pose-is-moved-by-lengths-and-angles]
 ---
 

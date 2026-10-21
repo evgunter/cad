@@ -1258,7 +1258,7 @@ pinned and an unwritten freedom cannot be represented. A body's symmetry pins no
 written value it makes unobservable, a placement's or a pose move's,
 is reported, never refused). A placed copy's frame is not a variable:
 it is the construction its bundle states, which the coincidence door
-replays like any other.
+reads by what its mates state and replays where they state nothing.
 
 **Constraints are on equal footing.** A placement's mates and values
 are on equal footing, and a constraint any of whose equations the
@@ -1348,7 +1348,12 @@ coincidence holds across the family of the variables' values.
 **Structural.** `[coincidence.structural]` Two cells are structurally
 one when the document establishes them as one, decided by two rungs at
 one door. The first is the same construction read twice, directly or
-as projections of one construction. The second reads each output
+as projections of one construction. A mate is that rung's statement:
+the two poses a placement's mate equates, read with the sense it
+states, are one construction read twice, wherever the placement
+evaluates; a pose a value moves off the mate's target (a standoff) is
+not. Being one construction is the equivalence the document's
+constructions and mates generate. The second reads each output
 carrier as the function of its construction's inputs that the
 construction's own code computes, by evaluating that code with every
 variable a symbol: no operation describes its outputs a second time
@@ -1433,7 +1438,10 @@ space's carried bodies pairwise, and nothing it finds refuses. An
 **arrival** is what one definer of the space brought in under one
 rigid motion: one placement's copies at one value of its indices, or
 one construction's or operation's output. Between two arrivals the
-census decides each pair. Contact is an `unproven-coincidence` finding
+census decides each pair, once, at the highest-dimensional cells that
+touch: two faces meeting over an area are one pair, and the edges and
+vertices on that area's boundary are part of it, not pairs of their
+own. Contact is an `unproven-coincidence` finding
 unless it is structural (a mate-placed face is); an overlap of their
 material is an interference finding; and a pair the census has no
 lane for is a finding too, saying it could not look, so no outcome of
