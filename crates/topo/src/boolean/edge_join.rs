@@ -703,11 +703,15 @@ pub enum JoinRefusal {
         closed: bool,
     },
     /// The kill, the re-description or the re-mint refused on a body
-    /// that passed tier 2. Euler certification runs there, and user
-    /// geometry reaches its limit at a build, so a build ends in the
-    /// last resort ([`geom_core::KERNEL_LIMIT_RECOURSE`]); read over a
-    /// body at rest or a file, it is a stored contradiction and ends in
-    /// the door's defect ending.
+    /// that passed tier 2: every other [`BooleanError`] the join
+    /// raises ([`JoinRefusal::of`]). That mixes causes: Euler
+    /// certification's limit, which user geometry reaches at a build;
+    /// the pair rule's refusal over the joined span (a seam's lever
+    /// rung, its undecided jet, a mixed seam); and the bug-only
+    /// [`BooleanError::JoinDesync`]. A build ends in the last resort
+    /// ([`geom_core::KERNEL_LIMIT_RECOURSE`]), the one ending honest
+    /// across that mix; read over a body at rest or a file, it is a
+    /// stored contradiction and ends in the door's defect ending.
     Kernel {
         /// The boolean refusal's kind.
         kind: super::BooleanErrorKind,

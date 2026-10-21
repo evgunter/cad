@@ -43,6 +43,8 @@ reaching it is a construction or file defect.
 
 ## Repair shape
 
+(For `NullScaffold*` the defect reading is overturned at a build for the public mid-edit path; see the ENCL note below.)
+
 Pick the defect reading for every `RingOnCurvedFace` and
 `NullScaffold*` arm, and give the sentence one home: a constant beside
 `props.rs`'s arm that `validate.rs` and `mesh/src/types.rs` render,
@@ -95,8 +97,17 @@ The public `mvfs` → `set_face_surface(plane)` →
 caller holds, so the caller reaches these arms mid-edit. PR 5528 made
 `TransformError::NullScaffold` end in
 `topo::Unfinished::SCAFFOLDING_RECOURSE` ("finish that edit first") at
-every door. `MassPropsError::NullScaffoldEdge` (`props.rs`, still
-`KERNEL_OR_FILE_DEFECT_ENDING`; `tests/review_m3_pr1.rs` reaches it
-the same way) and `mesh::TessellateError::NullScaffoldEdge` ("finish
-the surgery first", a near-copy) remain. The one home for them is that
-constant.
+a build; read at rest or at the import door it keeps the door's defect
+ending, since tier 2 refuses scaffolding at rest and the import door
+mints none. Three readings remain:
+
+- `MassPropsError::NullScaffoldEdge` (`props.rs` `Display`, ~273):
+  `KERNEL_OR_FILE_DEFECT_ENDING` at every door, since it takes no door.
+  The public `mass_properties` on a caller's mid-edit body reaches it
+  (`tests/review_m3_pr1.rs`), so one state now reads two ways at a
+  build: the lever through `transform_rigid`, the defect through
+  `mass_properties`. The repair gives it a door and the same reading.
+- `validate.rs` `classify_mass_props`'s `DEFECT` reading of
+  `NullScaffoldEdge` (~3384), at rest.
+- `mesh::TessellateError::NullScaffoldEdge` ("finish the surgery
+  first", a near-copy of the lever outside its one home).

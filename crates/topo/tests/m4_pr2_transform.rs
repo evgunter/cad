@@ -239,17 +239,26 @@ fn moving_a_body_mid_edit_asks_to_finish_the_edit() {
         matches!(err, topo::TransformError::NullScaffold { .. }),
         "{err:?}"
     );
-    let want = "the body still carries a placeholder edge an edit left behind, which has no \
-                curve for the map to move. Recourse: finish that edit first";
-    assert_eq!(err.to_string(), want, "a build");
+    assert_eq!(
+        err.to_string(),
+        "the body still carries what an edit left behind, which the map cannot move. \
+         Recourse: finish that edit first",
+        "a build"
+    );
+    let topo::TransformError::NullScaffold { edge } = &err else {
+        unreachable!()
+    };
+    let stored = format!(
+        "edge {edge:?} carries a transient null-scaffold curve, which a body at rest never does. "
+    );
     assert_eq!(
         err.render(geom_brep::recourse::Reading::AtRest),
-        want,
+        format!("{stored}{}", geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
         "at rest"
     );
     assert_eq!(
         err.render(geom_core::FileCoincidence::new(1e-6)),
-        want,
+        format!("{stored}{}", geom_core::DAMAGED_FILE_ENDING),
         "the import door"
     );
 }

@@ -264,7 +264,7 @@ caller renders them (`topo/src/offset_derive.rs` prints the payload,
 
 ### SHELF — `crates/topo/src/transform.rs` (row `shell-and-replace-face-kernel-defect-endings-split-by-class`)
 
-- `TransformError::render`, `NullScaffold` (~202) — `topo::transform_rigid` — **1**, likely: the public `mvfs` → `set_face_surface(plane)` → `Body::mev_null(MevSite::Lone)` leaves a null-scaffold edge, and the tree treats scaffolding as the caller's unfinished edit elsewhere (`Unfinished::SCAFFOLDING_REFUSAL`, blend's breach arm, mesh `NullScaffoldEdge`). Its lever is to finish the edit first. PR 5464 made its build-side `Display` end in `KERNEL_DEFECT_ENDING`. **Fixed by PR 5528**: it ends in `Unfinished::SCAFFOLDING_RECOURSE` at every door.
+- `TransformError::render`, `NullScaffold` (~202) — `topo::transform_rigid` — **1**, likely: the public `mvfs` → `set_face_surface(plane)` → `Body::mev_null(MevSite::Lone)` leaves a null-scaffold edge, and the tree treats scaffolding as the caller's unfinished edit elsewhere (`Unfinished::SCAFFOLDING_REFUSAL`, blend's breach arm, mesh `NullScaffoldEdge`). Its lever is to finish the edit first. PR 5464 made its build-side `Display` end in `KERNEL_DEFECT_ENDING`. **Fixed by PR 5528**: at a build it ends in `Unfinished::SCAFFOLDING_RECOURSE`; at rest and at import it keeps the door's defect ending.
 - `TransformError::render`, `Corrupt` (~227) — same — **2**, likely: a dangling key is a tier-1 break, and tier 1 holds at every public door (`[failure]`'s closure property).
 
 ### CARVEREST — `crates/sweep/src/loft.rs` (row `cap-plane-refusals-end-as-typed-kernel-defects`)
