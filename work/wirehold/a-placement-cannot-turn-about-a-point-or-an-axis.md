@@ -2,10 +2,9 @@
 id: a-placement-cannot-turn-about-a-point-or-an-axis
 kind: issue
 title: a Placement step turns only about an axis through the origin: turning about a pivot is a three-step chain, and no step reads a Datum::Axis
-status: parked
+status: open
 opened: 2026-10-02
 priority: P3
-blocked_on: [transform-retires-into-a-placement]
 ---
 
 

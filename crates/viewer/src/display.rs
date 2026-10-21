@@ -27,7 +27,7 @@
 //! the admission test ([`free_move_check`]) reads it off an evaluation
 //! that answers the document, and refuses typed while none has landed
 //! ([`AdmissionFault::NotEvaluated`]) rather than waiting. A copy the
-//! world pins, or one mated onto a copy in the world, lives in the
+//! world mates, or one mated onto a copy in the world, lives in the
 //! world's space and refuses ([`AdmissionFault::InTheWorld`]): its pose
 //! is the document's, and a display value contradicting it would draw
 //! a relation the document does not have. Two copies mated to each
@@ -37,7 +37,7 @@
 //!
 //! The scene and the pick index emit geometry per WORLD PLACEMENT's
 //! copy (A10), and a placement reads whatever body it places — an
-//! instance, or a `Pattern`, `Transform` or `Part` over one. A hide
+//! instance, or a `Pattern` or `Part` over one. A hide
 //! therefore PROPAGATES: it names the instance, and [`drawn_targets`]
 //! resolves it to every placement whose geometry derives from that
 //! instance alone (hiding a patterned instance hides all its placed
@@ -221,7 +221,7 @@ pub enum AdmissionFault {
         node: SpokenNode,
     },
     /// The instance's copy lives in the world's space: its placement
-    /// pins it there, by a world pin or a mate onto a copy in the world.
+    /// pins it there, by a world mate or a mate onto a copy in the world.
     /// Free-move moves the picture of a loose space (DI5) and a world
     /// copy is drawn where the document puts it, so the probe refuses.
     InTheWorld {
@@ -288,7 +288,7 @@ impl core::fmt::Display for AdmissionFault {
             Self::InTheWorld { instance } => write!(
                 f,
                 "{instance} lives in the world's space: its placement pins it there (a world \
-                 pin, or a mate onto a copy in the world), so the free-move probe refuses. \
+                 mate, or a mate onto a copy in the world), so the free-move probe refuses. \
                  Free-move moves a loose space, a copy nothing pins to the world"
             ),
             Self::NotEvaluated { instance } => write!(
@@ -516,13 +516,13 @@ pub fn instance_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(
 ///
 /// This is the map display state PROPAGATES through: the drawn scene
 /// is keyed by placements, and a placement reads whatever body it
-/// places — an instance, or a `Pattern` or `Transform` chain over one.
+/// places — an instance, or a `Pattern` chain over one.
 /// Display state names the INSTANCE (the thing with an identity a user
 /// hides or probes); this map says which drawn copies that names.
 fn instances_by_placement(
     doc: &Doc<ProfileProgram>,
 ) -> Vec<(RecipeNodeId, BTreeSet<RecipeNodeId>)> {
-    doc.placements()
+    crate::world::world_copies(doc)
         .into_iter()
         .map(|placement| {
             let instances = ancestry(doc, placement)
@@ -586,9 +586,8 @@ fn geometry_upstream(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<RecipeN
 /// [`placements_deriving_from`]'s question asked of ONE pair, over the same
 /// walk. What it is for: an entity minted at `source` and carried
 /// upward reaches `node`'s output, so a node whose op leaves no trace
-/// in a name — a `Transform`, which contributes no role segment by
-/// construction — can still be told which drawn entities passed
-/// through it.
+/// in a name — one that contributes no role segment — can still be
+/// told which drawn entities passed through it.
 pub fn derives_from(doc: &Doc<ProfileProgram>, node: RecipeNodeId, source: RecipeNodeId) -> bool {
     ancestry(doc, node).contains(&source)
 }
@@ -599,8 +598,8 @@ pub fn derives_from(doc: &Doc<ProfileProgram>, node: RecipeNodeId, source: Recip
 ///
 /// The inverse of [`ancestry`], and the answer to "if I am looking at
 /// this recipe node, what in the picture is it responsible for". A
-/// node that draws nothing on its own — a profile, a datum, a sketch
-/// plane — has a non-empty answer here, which is exactly the case that
+/// node that draws nothing on its own — a profile — has a non-empty
+/// answer here, which is exactly the case that
 /// makes the question worth asking: the profile IS the shape of the
 /// walls the extrude above it drew.
 ///
@@ -615,7 +614,7 @@ pub fn placements_deriving_from(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
 ) -> BTreeSet<RecipeNodeId> {
-    doc.placements()
+    crate::world::world_copies(doc)
         .into_iter()
         .filter(|&placement| ancestry(doc, placement).contains(&node))
         .collect()

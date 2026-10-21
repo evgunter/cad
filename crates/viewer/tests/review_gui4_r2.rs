@@ -53,7 +53,7 @@ fn proposal_sides_agree_with_the_standalone_part_documents() {
     let bench = asm::bench("r2oracle", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
-    // post_b's world pin off, so the mate places post_b.
+    // post_b's world mate off, so the mate places post_b.
     asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
@@ -140,7 +140,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let bench = asm::bench("r2seatgeom", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
-    // post_b's world pin off, so the mate places post_b.
+    // post_b's world mate off, so the mate places post_b.
     asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
@@ -204,7 +204,7 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
     let tol = Tol::witness();
     let bench = asm::bench("r2rotpick", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b's world pin off: a loose space the probe moves, the frame
+    // post_b's world mate off: a loose space the probe moves, the frame
     // composed so it moves the post from where its pin stood it.
     asm::unpin(&mut session, bench.post_b);
     session.perform(SessionOp::BeginFreeMove {
@@ -296,7 +296,7 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
     let bench = asm::bench("r2contra", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
-    // post_b's world pin off, so the mate places post_b.
+    // post_b's world mate off, so the mate places post_b.
     asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a.clone());
@@ -366,7 +366,7 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     let bench = asm::bench("r2gesture", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
-    // post_b's world pin off, so the mate places post_b.
+    // post_b's world mate off, so the mate places post_b.
     asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
@@ -422,7 +422,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     let bench = asm::bench("r2hidemate", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
-    // post_b's world pin off, so the mate places post_b.
+    // post_b's world mate off, so the mate places post_b.
     asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);

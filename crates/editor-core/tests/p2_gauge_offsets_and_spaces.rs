@@ -1,6 +1,6 @@
 //! **EDIT-PLACEMENT P2 over placements — poses, the constraint door
 //! and the spaces** (ASSEMBLY.md A4, A9, A11; D10, Spaces): a seat
-//! under a parametric world pin, a loose stack joining the world
+//! under a parametric world mate, a loose stack joining the world
 //! through one seat, split and
 //! inline over pinned and mate-placed instances, and the readers that
 //! must not compare a loose copy with anything outside its space — the
@@ -11,7 +11,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::fixture;
@@ -24,7 +23,7 @@ use editor_core::{
     Target, VarName, WorldRead, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, head, insert, len, on_frame, run, solve, step, xform};
+use fixture::{ang, head, insert, len, on_frame, run, solve, step};
 use geom_core::{Bounds, Interval, Tol};
 use topo::Body;
 
@@ -45,7 +44,6 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -315,9 +313,8 @@ fn pinned_lifted(
     (pin_lifted(doc, id, index, angle, then, o), id)
 }
 
-/// **A seat under a world pin whose pose composes a parametric lift, a
-/// fixed turn and a rotated offset**, and a Transform of the pinned
-/// base, against an independent 4x4 composition in f64 and in the
+/// **A seat under a world mate whose pose composes a parametric lift, a
+/// fixed turn and a rotated offset**, against an independent 4x4 composition in f64 and in the
 /// interval lane at two values of the driving parameter.
 #[test]
 fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
@@ -333,8 +330,8 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
         Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [1.0, 2.0, 0.0], band()).unwrap();
     let (doc, base) = pinned_lifted(doc, p.base, 2, 0.25, &gin_frame.compose(&off_frame), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    // A transform over the pinned base, reading its world copy.
-    let (doc, tp) = insert(doc, xform(base, [0.0, 0.0, 4.0], [1.0, 0.0, 0.0], 0.5));
+    // A second base stacked on the pinned base, reading its world copy.
+    let (doc, tp) = crate::p2_gauges::stacked(doc, p.base, p.base_body, head(p.base_cap(base)));
     let (doc, mate) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
 
     let part_base = run(&p.base_doc, &EvalOptions::default());
@@ -350,9 +347,9 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
             &of_frame(&gin_frame),
         );
         let w_base = mul(&g, &of_frame(&off_frame));
-        let t_p = rigid([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], 0.5);
+        let t_p = rigid([0.0, 0.0, BASE_HEIGHT], [0.0, 0.0, 1.0], 0.0);
         let w_top = mul(&w_base, &rel);
-        (w_base, mul(&t_p, &w_base), w_top)
+        (w_base, mul(&w_base, &t_p), w_top)
     };
 
     for liftv in [2.0, 7.0] {
@@ -465,7 +462,7 @@ fn one_seat_puts_a_loose_stack_in_the_world_and_the_target_stays() {
 }
 
 /// **The memo does not carry a measure across a space change**: with
-/// the top's world pin removed and the prior evaluation handed in, the
+/// the top's world mate removed and the prior evaluation handed in, the
 /// measure must re-evaluate, and then refuses across the two spaces.
 #[test]
 fn a_measure_reused_across_a_pin_removal_refuses_across_spaces() {
@@ -580,7 +577,7 @@ fn a_cut_of_a_pinned_instance_and_plain_geometry_moves_nothing() {
     let before_ids: std::collections::BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let (doc, prof) = on_frame(
         doc,
-        [50.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
@@ -590,10 +587,9 @@ fn a_cut_of_a_pinned_instance_and_plain_geometry_moves_nothing() {
         Node::Extrude {
             profile: prof.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
-    let (doc, _) = fixture::place(doc, ext);
+    let (doc, _) = fixture::in_world(doc, ext, &Frame::translation([50.0, 0.0, 0.0]));
     let mut cut: std::collections::BTreeSet<RecipeNodeId> = doc
         .ids()
         .iter()
@@ -687,7 +683,7 @@ fn a_document_of_loose_copies_alone_names_them_and_still_checks_their_space() {
     own_space_refuses(&doc, &ev);
 }
 
-/// **A parametric world pin moves with the cut** (A4): the base's pin
+/// **A parametric world mate moves with the cut** (A4): the base's pin
 /// reads `lift`, which a kept instance's pin reads too, so the cut of
 /// the pair refuses `UncutVarReference` naming the parameter, the cut
 /// node and the kept one, with the recourse.
@@ -719,7 +715,7 @@ fn a_parametric_pin_read_on_both_sides_of_a_cut_refuses() {
 }
 
 /// **The memo key carries what places a copy**: an evaluation
-/// handed its prior moves an instance whose world pin's parameter moved,
+/// handed its prior moves an instance whose world mate's parameter moved,
 /// and a mate-placed instance with its target when the target's pin
 /// moved — neither changes a slot of the mate-placed instance's own,
 /// so only what its key folds of its target can tell the two runs
@@ -837,7 +833,7 @@ fn the_unplaceable_part_recourse_followed_inlines_in_place() {
 
 /// **Inline at a turned pose over a part of two pinned instances moves
 /// nothing** (A4): the host instance's pose composes into each inner
-/// instance's world pin, and no world pose moves.
+/// instance's world mate, and no world pose moves.
 #[test]
 fn an_inline_at_a_turned_pose_over_two_pinned_instances_moves_nothing() {
     let p = parts("minted-vs-hand");

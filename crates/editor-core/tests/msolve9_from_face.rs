@@ -20,7 +20,6 @@
 
 use crate::fixture;
 use crate::wire;
-use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use std::sync::Arc;
@@ -31,7 +30,7 @@ use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, EvalOptions,
     Evaluation, FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind,
     NodeResult, PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE,
-    RecipeNodeId, RoleSeg, SlideAxis, SlotId, StableName, Target, Value, VarDef, VarKind,
+    RecipeNodeId, RoleSeg, SlotId, StableName, Target, TargetAxis, Value, VarDef, VarKind,
     all_faces, face_carrier_kind, face_frame, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -57,7 +56,6 @@ fn block(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -105,7 +103,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -137,8 +135,8 @@ fn seated_on(
         ),
     );
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ]
     .into_iter()
@@ -172,7 +170,8 @@ fn seat(label: &str, post_height: f64) -> Seat {
         store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
     let opts = with_resolver(store.clone());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, post_i) = fixture::insert_pinned(doc, Node::instantiate_part(post_ref), &opts);
+    let (doc, post_i) = insert(doc, Node::instantiate_part(post_ref));
+    let doc = stood_on_its_base(doc, post_i, post_body);
     let (doc, block_i) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, mate) = seated_on(
         doc,
@@ -192,6 +191,37 @@ fn seat(label: &str, post_height: f64) -> Seat {
         store,
         post,
     }
+}
+
+/// **`instance` standing in the world on its part's base**: its copy's
+/// start cap of `body` resting on the world's floor, the three values
+/// zero — so an edit growing the part moves its top and keeps its base
+/// where it stands.
+fn stood_on_its_base(doc: ProfileDoc, instance: RecipeNodeId, body: RecipeNodeId) -> ProfileDoc {
+    let copy = editor_core::Operand::Var(
+        doc.output(instance, 0)
+            .expect("an instance defines its copies"),
+    );
+    let mate = editor_core::Mate {
+        on: fixture::plane(editor_core::Operand::select(
+            copy,
+            vec![in_part(instance, body, CapEnd::Start)],
+        )),
+        to: editor_core::Target::World(
+            editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy).flip(),
+        ),
+        class: ContactClass::Rest,
+    };
+    fixture::with_values(
+        doc,
+        instance,
+        mate,
+        vec![
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, ang(0.0)),
+        ],
+    )
 }
 
 /// The post's cap pose, read off the post document's OWN evaluation
@@ -356,10 +386,9 @@ fn a1_the_mate_follows_the_edited_face() {
     );
 }
 
-/// `loops` on the xz plane revolved a full turn about the plane's y
-/// axis (the world z).
+/// `loops` revolved a full turn about the profile's own y axis.
 fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
-    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], loops);
+    let (doc, profile) = insert(doc, Node::Profile(fixture::desc(loops)));
     let (doc, _) = insert(
         doc,
         fixture::revolve_about(
@@ -424,7 +453,7 @@ fn a2_a_nurbs_face_refuses_not_planar_where_its_reader_evaluates() {
     );
     let (doc, upper) = on_frame(
         doc,
-        [0.0, 0.0, 1.0],
+        [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.3)],
@@ -432,7 +461,14 @@ fn a2_a_nurbs_face_refuses_not_planar_where_its_reader_evaluates() {
     let (part, loft) = insert(
         doc,
         Node::Loft {
-            profiles: vec![lower.into(), upper.into()],
+            first: lower.into(),
+            then: vec![editor_core::LoftSection {
+                profile: upper.into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: len(1.0),
+                }],
+            }],
             v_degree: Formula::count(1),
         },
     );
@@ -623,19 +659,31 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
             new_pin: new_ref.pin,
         },
     );
-    // The post's own pin was read off the edges the extrude had: the
+    // The post's own pin was read off a face the extrude had: the
     // author re-pins the round post over its own geometry, so what
-    // remains unresolved is the seat's face alone.
-    let [pin] = &fixture::bundle(&doc, s.post_i)[..] else {
-        panic!("the post is pinned by one constraint");
-    };
-    let (doc, _) = step(
-        doc.clone(),
-        DocEdit::RemoveConstraint {
-            placement: s.post_i,
-            constraint: pin.id,
-        },
+    // remains unresolved is the seat's face alone. Its pin is one mate
+    // and the values on its freedoms: the values go first, then the
+    // mate they are read in.
+    let bundle = fixture::bundle(&doc, s.post_i);
+    assert_eq!(
+        bundle.iter().filter(|c| c.mate().is_some()).count(),
+        1,
+        "the post is pinned by one mate"
     );
+    let order = bundle
+        .iter()
+        .filter(|c| c.value().is_some())
+        .chain(bundle.iter().filter(|c| c.mate().is_some()));
+    let doc = order.fold(doc, |doc, c| {
+        step(
+            doc,
+            DocEdit::RemoveConstraint {
+                placement: s.post_i,
+                constraint: c.id,
+            },
+        )
+        .0
+    });
     let doc = fixture::pinned(doc, s.post_i, &s.opts);
     let ev = run(&doc, &s.opts);
     assert!(
@@ -767,18 +815,14 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         "the solved pose followed the face: {grown:?}"
     );
 
-    // An edit to the part that leaves the face where it was: a datum
-    // frame inserted into the post. The cap's pose is the same bits,
+    // An edit to the part that leaves the face where it was: a spare
+    // profile inserted into the post. The cap's pose is the same bits,
     // and the key moves anyway — the pin is the part's, not the face's.
     let cap_before = cap_pose(&s.post, s.post_body, CapEnd::End);
     edit_the_post(
         &mut s,
         DocEdit::InsertNode {
-            node: Box::new(fixture::frame(
-                [0.0, 0.0, 5.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-            )),
+            node: Box::new(Node::Profile(fixture::desc(vec![square(0.0, 0.0, 0.5)]))),
             fresh: Vec::new(),
         },
     );
@@ -817,11 +861,11 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         "to the same pose"
     );
 
-    // An edit outside the part: a datum inserted beside the assembly's
-    // nodes.
+    // An edit outside the part: a profile inserted beside the
+    // assembly's nodes.
     let (doc, _) = insert(
         s.doc.clone(),
-        fixture::frame([0.0, 0.0, 5.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        Node::Profile(fixture::desc(vec![square(0.0, 0.0, 0.5)])),
     );
     let fourth = editor_core::evaluate::<f64>(
         &doc,
@@ -868,7 +912,7 @@ fn the_seat_round_trips_byte_for_byte() {
 /// accept.
 ///
 /// **The mate half is near-vacuous today**: no tracked document holds
-/// a mate between copies, so the walk meets only world pins, if any.
+/// a mate between copies, so the walk meets only world mates, if any.
 /// It is kept for the day one is checked in — a mated document on an
 /// older wire would load-fail here, and one on this wire is checked
 /// key by key — and the load-and-re-save half runs over every file

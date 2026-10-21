@@ -7,11 +7,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
-    CapEnd, DocEdit, EntityKind, MetaError, MetaValue, Node, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RoleSeg, StableName, content_pin, from_value, load, save, to_value,
+    CapEnd, DocEdit, EntityKind, MetaError, MetaValue, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName, content_pin, from_value, load, save, to_value,
 };
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
@@ -36,7 +35,6 @@ fn minted_high() -> (ProfileDoc, RecipeNodeId) {
                 Node::Extrude {
                     profile: profile.into(),
                     distance: len(f64::from(d)),
-                    side: ExtrudeSide::Along,
                 },
             )
         })
@@ -156,32 +154,4 @@ fn metadata_holding_a_name_minted_above_i64_max_saves_and_loads() {
         Ok(&name),
         "the loaded value reads back as the name"
     );
-}
-
-/// **A node id read by a door with its own visitor comes back through
-/// `from_value` at every id**, as it does through the saved text: a
-/// profile's `plane` reads through `plane_ref`, whose visitor takes the
-/// id's string alone, so an id spelled any other way would be refused.
-#[test]
-fn a_profile_program_comes_back_through_metadata_at_every_plane_id() {
-    for (ordinal, id) in [
-        (1, 5),
-        (2, i64::MAX as u64),
-        (3, i64::MAX as u64 + 1),
-        (u32::MAX, u64::MAX),
-    ] {
-        let program: ProfileProgram = ProfileProgram {
-            frame: editor_core::VarId::new(ordinal, id),
-            loops: Vec::new(),
-            ids: Vec::new(),
-        };
-        let value = to_value(&program).expect("a profile program is metadata");
-        let back = from_value::<ProfileProgram>(&value)
-            .unwrap_or_else(|e| panic!("plane {id} comes back through from_value: {e}"));
-        assert_eq!(back.frame, program.frame, "plane {id} comes back as itself");
-        let json = serde_json::to_string(&program).unwrap();
-        let read = serde_json::from_str::<ProfileProgram>(&json)
-            .unwrap_or_else(|e| panic!("plane {id} reads back from text: {e}"));
-        assert_eq!(read.frame, program.frame, "plane {id} reads back from text");
-    }
 }

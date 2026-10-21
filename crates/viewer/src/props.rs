@@ -231,7 +231,7 @@ pub fn unit_options(dimension: Dimension) -> Vec<UnitDef> {
 /// (`crate::session::DocSession::notation`), persisted through
 /// [`crate::prefs::Prefs`] by unit symbol, and never enters the
 /// document. The creation forms' unit pickers are its control: a
-/// person who authors a datum in millimetres is not then authoring the
+/// person who authors a profile in millimetres is not then authoring the
 /// extrude that consumes it in metres, and reads in millimetres too.
 ///
 /// A literal's own remembered unit always wins over it
@@ -292,7 +292,7 @@ impl Notation {
         Formula::written_angle(WrittenAngle::canonical_in(radians, self.angle))
     }
 
-    /// Three `Length` literals — a datum origin, a translation.
+    /// Three `Length` literals — a point, a translation.
     ///
     /// # Errors
     ///
@@ -1328,10 +1328,10 @@ pub fn variable_edit(var: VarId, value: SlotValue) -> DocEdit<ProfileProgram> {
 ///
 /// # Why the panel groups at all
 ///
-/// A datum plane's origin is three `SlotId`s and one idea. Shown as
-/// three stacked rows it reads as three unrelated numbers that happen
-/// to sort adjacently, and a plane with an origin and a normal is six
-/// of them; shown as `origin  [x] [y] [z]` it reads as the point it is.
+/// A linear pattern's direction is three `SlotId`s and one idea. Shown
+/// as three stacked rows it reads as three unrelated numbers that
+/// happen to sort adjacently; shown as `direction  [x] [y] [z]` it reads
+/// as the vector it is.
 /// The grouping is presentation and nothing else — the underlying
 /// edits are still per-slot `SetParam`s, one per component, and a
 /// gesture on the y field is a gesture on `Origin(Y)`.

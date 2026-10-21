@@ -80,7 +80,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -205,7 +204,6 @@ const APART: f64 = 0.35;
 /// every one of the record channels the mutants permute.
 fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("edit_ladder_rim", tol());
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let outline = LoopProgram::Chain(vec![
         ProgramStep::At([len(-PLATE), len(-PLATE)]),
         ProgramStep::LineTo(ProgramTarget::Point([len(PLATE), len(-PLATE)])),
@@ -232,7 +230,6 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -242,7 +239,6 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(THICK),
-            side: ExtrudeSide::Along,
         },
     );
     let at = &doc;

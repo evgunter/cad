@@ -275,7 +275,7 @@ fn round_trip(doc: &ProfileDoc, ids: &[RecipeNodeId], p: &Parts, label: &str) ->
 // ---- S2: a cut moved verbatim ----
 
 /// **A cut of pinned instances moves verbatim** (A4): two instances
-/// pinned to the world, one labelled. Each keeps its world pin in the
+/// pinned to the world, one labelled. Each keeps its world mate in the
 /// part, the label follows its node, the evaluation is unchanged, a cut
 /// face resolves through the instance qualifier, and the round trip is
 /// the document up to node ids.
@@ -298,7 +298,7 @@ fn s2_a_cut_of_pinned_instances_moves_verbatim_and_round_trips() {
         assert!(
             offset_of(&doc, id).is_some()
                 && fixture::same_offset(&out.part, out.node_map[&id], &doc, id),
-            "{id:?} keeps its world pin in the part"
+            "{id:?} keeps its world mate in the part"
         );
     }
     assert_eq!(
@@ -636,7 +636,7 @@ fn without(host: ProfileDoc, m: editor_core::MateRef) -> ProfileDoc {
     fixture::bundle(&host, m.placement)
         .into_iter()
         .rev()
-        .filter(|c| c.id == m.id || c.value().is_some_and(|v| v.mate == m.id))
+        .filter(|c| c.id == m.id || c.value().is_some_and(|v| v.mate == Some(m.id)))
         .fold(host, |host, c| {
             step(
                 host,
@@ -798,25 +798,20 @@ fn r1_a_cut_with_a_parametric_pin_round_trips_exactly() {
 // ---- No material ----
 
 /// **A cut that holds no material refuses** (A4: split-then-evaluate
-/// equals the unsplit evaluation): a spare frame datum beside placed
+/// equals the unsplit evaluation): a spare profile beside placed
 /// material refuses `NoMaterial` naming it, with a recourse, rather
 /// than leave an instance of a part with no body.
 #[test]
-fn a_cut_of_a_datum_alone_refuses_no_material() {
+fn a_cut_of_a_profile_alone_refuses_no_material() {
     let p = parts("no-material");
     let o = p.opts();
-    let (block, body) = crate::p2_gauges::block("no-material-datum", 2.0, 1.0);
+    let (block, body) = crate::p2_gauges::block("no-material-profile", 2.0, 1.0);
     let block = fixture::place(block, body).0;
-    let frame = *block
-        .ids()
-        .iter()
-        .find(|&&id| matches!(block.node(id), Some(Node::Datum(_))))
-        .expect("the block's frame");
-    let (with_datum, spare) = insert(
+    let (with_profile, spare) = insert(
         block.clone(),
-        block.node(frame).map(|n| n.written(&block)).expect("live"),
+        Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])),
     );
-    let err = split(&with_datum, &[spare], "no-material", &o).expect_err("a spare frame datum");
+    let err = split(&with_profile, &[spare], "no-material", &o).expect_err("a spare profile");
     assert!(
         matches!(&err, SplitError::NoMaterial { node } if node.id() == spare),
         "{err:?}"
@@ -848,7 +843,7 @@ fn s2_a_constraint_chain_authored_backwards_round_trips() {
 
 // ---- The comparator's own rows ----
 
-/// The comparator's scene: a block's frame, profile and extrude, an
+/// The comparator's scene: a block's profile and extrude, an
 /// anchor pinned at a parametric pose and labelled, a base pinned
 /// beside it, a top mated onto the base, and a lone top mated onto the
 /// anchor. `tweak` changes one thing; every variant mints the same ids

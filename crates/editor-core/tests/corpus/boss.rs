@@ -13,10 +13,9 @@
 //! are pinned by the boolean's own acceptance suites.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
-use crate::fixture::{frame, len, xy_frame};
+use crate::fixture::len;
 
 use super::{CorpusDoc, Recorder};
 
@@ -28,16 +27,13 @@ pub fn document() -> CorpusDoc {
 
     let plate_loop =
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
-    let plate_plane = r.insert(xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plate_plane.into(),
         loops: vec![plate_loop],
         ids: Vec::new(),
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(0.8),
-        side: ExtrudeSide::Along,
     });
 
     // v4 (LIB-SWITCH corpus ruling (a)): the three-arc boss authors as
@@ -48,20 +44,24 @@ pub fn document() -> CorpusDoc {
     // deviation: the boss's export bits shift; geometry is the same
     // circle).
     let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
-    let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        frame: boss_plane.into(),
         loops: vec![boss_loop],
         ids: Vec::new(),
     }));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
 
+    // The boss stands against the plate with its foot 0.3 up, inside
+    // the plate's slab.
+    let placed = r.against(
+        plate,
+        boss,
+        &editor_core::Frame::translation([0.0, 0.0, 0.3]),
+    );
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+        members: editor_core::Bodies::Spelled(vec![plate.into(), placed.into()]),
     });
 
     r.place_part(union);
@@ -74,7 +74,8 @@ pub fn document() -> CorpusDoc {
         result: Some(union),
         pin: None, // π volume is not dyadic; the doc probe pins the closed form
         // D2's incremental probe: grow the boss — the plate chain is
-        // reused, the boss extrude + union recompute.
+        // reused, the boss extrude, its placement and the union
+        // recompute.
         bump: DocEdit::SetParam {
             node: boss,
             slot: SlotId::Distance,

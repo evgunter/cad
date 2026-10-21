@@ -6,8 +6,8 @@
 //!
 //! `Node::Split` has two inputs and no slot: a `target` whose evaluated
 //! body AND name table the lowering reads, and a `tool` whose evaluated
-//! value must be a datum PLANE. The plane is the verb's whole payload —
-//! a kernel value read off a datum node, exactly as the boolean's
+//! value must be a plane POSE. The plane is the verb's whole payload —
+//! a kernel value read off a pose, exactly as the boolean's
 //! declarations reach the kernel already resolved — and the body is the
 //! one operand, borrowed at the split door.
 //!
@@ -15,7 +15,7 @@
 //! and which the tool (the node's own shape), and the refusal a tool
 //! that is not a plane draws (`NodeErrorKind::WrongOperand` — document
 //! semantics, the class the revolve's axis check keeps upstairs). What
-//! is declared HERE is the correspondence proper: how a datum value
+//! is declared HERE is the correspondence proper: how a pose value
 //! becomes the verb's plane ([`SplitVerb::tool`] and the label its
 //! refusal carries), how the plane becomes the kernel verb (`build`),
 //! and which emitter mints names from the birth record and the two
@@ -28,8 +28,8 @@
 //! As in the sibling modules: function pointers and literals per
 //! instance, no match over the kernel's verb vocabulary anywhere in this file, so
 //! a future verb never has to open it. The one match here is over the
-//! DATUM vocabulary — which kind of datum is a split's tool — and it is
-//! exhaustive with no wildcard arm (D3), so a datum kind added upstairs
+//! POSE vocabulary — which kind of pose is a split's tool — and it is
+//! exhaustive with no wildcard arm (D3), so a pose kind added upstairs
 //! is a visit here that says whether a split can take it.
 //!
 //! # Where an operand's expected-kind label lives, by convention
@@ -40,7 +40,7 @@
 //! **The convention is about which DECLARATION carries the label, not
 //! about who picks the word.** `tool_expected` is correspondence DATA
 //! because the reading it labels is the correspondence's (`tool`):
-//! whoever declares which datum kinds a verb accepts declares WHICH
+//! whoever declares which pose kinds a verb accepts declares WHICH
 //! label the refusal carries. The profile lowering's
 //! `expected: family::PROFILE` is the LOWERING's, because every
 //! profile verb takes a profile — the operand contract belongs to
@@ -52,12 +52,12 @@
 //! `expected:` in the evaluation comes from `crate::eval::family` or
 //! `crate::eval::phrase`, which is where the vocabulary a refusal
 //! speaks is enumerable; a correspondence choosing its own spelling of
-//! "a plane datum" is how one vocabulary becomes several. So the field
-//! stays here and its value is `eval::phrase::DATUM_PLANE`.
+//! "a plane pose" is how one vocabulary becomes several. So the field
+//! stays here and its value is `eval::phrase::PLANE_POSE`.
 //!
 //! The `assert_eq!` below pins that value BYTE-EXACT, from the
 //! correspondence's side: the label is document-reachable (a split
-//! whose tool is an axis datum refuses with it), and a const is
+//! whose tool is an axis pose refuses with it), and a const is
 //! exactly as easy to re-word as a literal was. The same two bytes are
 //! pinned from the OTHER side by
 //! `crates/editor-core/tests/wire_operand_door.rs`, which asserts the
@@ -94,8 +94,8 @@ pub(crate) type SplitEmitter<T> = fn(
 /// sides into a name table. Adding a field here is how the verb
 /// declares something the lowering must know.
 pub(crate) struct SplitVerb<T: Decide> {
-    /// **The tool datum → the verb's plane.** The reading of a datum
-    /// value as a parting plane, per instance: a plane datum is one, an
+    /// **The tool pose → the verb's plane.** The reading of a pose
+    /// value as a parting plane, per instance: a plane pose is one, an
     /// axis or a point is not. `None` is the document-layer refusal's
     /// cue, never a default plane.
     pub(crate) tool: fn(&PoseValue<T>) -> Option<SplitPlane<T>>,
@@ -146,8 +146,8 @@ fn split_record<T: Decide>(record: VerbRecord<T>) -> Option<SplitNaming> {
 /// through the projection that says so (D10). The pose's normal is the
 /// [`UnitVec3`](geom_core::UnitVec3) witness the kernel's split plane
 /// takes, and its sense says which half is above.
-fn plane_of<T: Decide>(datum: &PoseValue<T>) -> Option<SplitPlane<T>> {
-    match datum {
+fn plane_of<T: Decide>(pose: &PoseValue<T>) -> Option<SplitPlane<T>> {
+    match pose {
         PoseValue::Plane { origin, normal } => Some(SplitPlane {
             origin: *origin,
             normal: *normal,
@@ -167,7 +167,7 @@ fn plane_of<T: Decide>(datum: &PoseValue<T>) -> Option<SplitPlane<T>> {
 pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
     SplitVerb {
         tool: plane_of,
-        tool_expected: crate::eval::phrase::DATUM_PLANE,
+        tool_expected: crate::eval::phrase::PLANE_POSE,
         build: build_split,
         emitter: names::name_split,
         record: split_record,
@@ -179,7 +179,7 @@ pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
 #[allow(clippy::expect_used)] // a fixture that will not build is a failure, not a value
 mod tests {
     use geom_core::{Band, Point3, UnitVec3, Vec3};
-    use topo::DATUM_UNIT_NORM;
+    use topo::POSE_UNIT_NORM;
     use verbs::VerbKind;
 
     use super::*;
@@ -211,11 +211,11 @@ mod tests {
     fn the_tool_reading_takes_a_plane_only() {
         let corr = split::<f64>();
         let band = Band::linear(Tol::witness()).expect("the witnessed band");
-        let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), DATUM_UNIT_NORM, band)
+        let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), POSE_UNIT_NORM, band)
             .expect("a unit direction");
         let origin = Point3::new(0.0, 0.0, 0.5);
         let plane = (corr.tool)(&PoseValue::Plane { origin, normal: up })
-            .expect("a plane datum is a parting plane");
+            .expect("a plane pose is a parting plane");
         assert_eq!(plane.normal.get().z, 1.0);
         assert_eq!(plane.origin.z, 0.5);
         assert!(
@@ -227,10 +227,10 @@ mod tests {
             "a point was read as a parting plane"
         );
         // Byte-exact, not `contains`: this label is DOCUMENT-REACHABLE
-        // — a split whose tool is an axis datum refuses `WrongOperand
+        // — a split whose tool is an axis pose refuses `WrongOperand
         // { expected }` with it — so a word moved here is a refusal
         // string moved at the document layer.
-        assert_eq!(corr.tool_expected, "datum plane");
+        assert_eq!(corr.tool_expected, "plane pose");
     }
 
     /// The wrong-family sentence, byte-exact. It names its door (the

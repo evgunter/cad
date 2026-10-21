@@ -27,7 +27,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use test_utils::refusal::tagged;
 
@@ -36,7 +35,7 @@ use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKey, EntityKind,
     EntityRef, Entry, EvalOptions, FaceName, InterfaceCrossing, Mate, MateFault, MateRef, MateSide,
     MintRefusal, Node, NodeErrorClass, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, RoleSeg,
-    SlideAxis, StableName, Value, assemble, content_pin, inline, product_recorded,
+    StableName, TargetAxis, Value, assemble, content_pin, inline, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, relations, run, solve, split_world as split, step};
@@ -47,18 +46,12 @@ use std::sync::Arc;
 
 // ---- Documents ----
 
-/// An axis-aligned block: `[x]×[y]` on the plane at `z0`, extruded
-/// `dz`. Its extrude node is the returned id.
-fn block(
-    doc: ProfileDoc,
-    x: (f64, f64),
-    y: (f64, f64),
-    z0: f64,
-    dz: f64,
-) -> (ProfileDoc, RecipeNodeId) {
+/// An axis-aligned block: `[x]×[y]` on its own xy, extruded `dz`. Its
+/// extrude node is the returned id.
+fn block(doc: ProfileDoc, x: (f64, f64), y: (f64, f64), dz: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
@@ -68,7 +61,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -79,7 +71,6 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     )
 }
@@ -90,8 +81,9 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// declared contact records of its own — row 1's subject.
 fn kiss_part(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0);
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0, 0.0, 1.0]);
     let (doc, union) = insert(
         doc,
         Node::Union {
@@ -155,8 +147,8 @@ fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f
 fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
     let (doc, mate) = fixture::constrain_at(doc, placement, seat.mate);
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(seat.slide[0])),
-        (Coord::Slide(SlideAxis::Y), len(seat.slide[1])),
+        (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
+        (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
         (Coord::Spin, fixture::ang(0.0)),
     ]
     .into_iter()
@@ -166,7 +158,7 @@ fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, Ma
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -235,6 +227,43 @@ fn seated_pair(
     (doc, vec![base, seated])
 }
 
+/// `instance` pinned to the world standing on its bottom: its part's
+/// start cap, flipped to face up its `z`, on the world's `xy`, with the
+/// constant `0` on the three freedoms that leaves. The bottom holds at
+/// `z = 0` whatever the part's height.
+fn standing_on_its_bottom(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    body: RecipeNodeId,
+) -> ProfileDoc {
+    let mate = Mate {
+        on: fixture::flip(fixture::plane(fixture::head(in_part(
+            instance,
+            body,
+            CapEnd::Start,
+        )))),
+        to: editor_core::Target::World(editor_core::WorldRead::through(PoseRole::Xy)),
+        class: ContactClass::Rest,
+    };
+    let zero = |dim| Formula::zero(dim);
+    fixture::with_values(
+        doc,
+        instance,
+        mate,
+        vec![
+            (
+                Coord::Slide(TargetAxis::X),
+                zero(editor_core::Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                zero(editor_core::Dimension::Length),
+            ),
+            (Coord::Spin, zero(editor_core::Dimension::Angle)),
+        ],
+    )
+}
+
 /// An instance of `doc_ref` carrying `record`, pinned to the world at
 /// the identity. `store` holds the part.
 fn pinned_with(
@@ -263,18 +292,7 @@ fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
         .collect();
     let mut doc = doc;
     for (placement, frame) in placed {
-        let mut bundle = fixture::bundle(&doc, placement);
-        bundle.sort_by_key(|c| c.mate().is_some());
-        for c in bundle {
-            doc = step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0;
-        }
+        doc = fixture::emptied(doc, placement);
         doc = fixture::pin(doc, placement, &frame, o);
     }
     doc
@@ -488,7 +506,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
 #[test]
 fn row3_a_an_unmated_touching_pair_is_rows_of_the_two_copies() {
     // The same touching geometry, with the mate REPLACED by a world
-    // pin at the pose it solved — the pin is document data, so the
+    // mate at the pose it solved — the mate is document data, so the
     // instances still touch and no mate relates them.
     let (doc, ids, mate, store, _) = stacked("asm-r2b-row3a", 1.0);
     let o = with_resolver(store);
@@ -779,7 +797,6 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -806,16 +823,16 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
 
     // The move: the SAME document id, re-modelled so the declared
     // entity's minting node is no longer the one the crossing names.
-    // A leading datum shifts the extrude off the id `body` names — the
+    // A leading profile shifts the extrude off the id `body` names — the
     // part still has a product, and the crossing's reference is simply
     // gone.
     let (shifted, _) = insert(
         ProfileDoc::empty(part_id, Tol::witness()),
-        Node::Datum(editor_core::Datum::Point {
-            position: [len(0.0), len(0.0), len(0.0)],
-        }),
+        Node::Profile(crate::fixture::desc(vec![crate::fixture::square(
+            5.0, 5.0, 0.5,
+        )])),
     );
-    let (shifted, shifted_body) = block(shifted, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (shifted, shifted_body) = block(shifted, (0.0, 1.0), (0.0, 1.0), 1.0);
     let shifted = crate::fixture::place(shifted, shifted_body).0;
     assert_ne!(shifted_body, body, "the move re-mints the extrude");
     let new_pin = content_pin(&shifted, Tol::witness()).expect("the pin computes");
@@ -871,7 +888,6 @@ fn row5_c_inline_dissolves_the_crossing_record() {
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -935,13 +951,18 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc_ref, body) = store.insert_part((part.clone(), body), Tol::witness());
     // The stored part, placed: what the value edit below re-models.
     let part = crate::fixture::place(part, body).0;
-    let (doc, ids) = seated_pair("asm-r2b-row5e", doc_ref, &store);
+    // The base stands on its bottom, so the pin move below moves its
+    // top, the contact face, and nothing else.
+    let doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-row5e"), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(doc_ref));
+    let doc = standing_on_its_bottom(doc, base, body);
+    let (doc, seated) = insert(doc, fixture::mated_instance(doc_ref));
+    let ids = [base, seated];
     let (doc, mate) = seat(doc, ids[1], rest_mate(body, ids[0], ids[1], 1.0));
 
     // Pre-move: the declared pair touches — no contradiction.
@@ -1028,7 +1049,6 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -1079,7 +1099,6 @@ fn a_crossing_record_keys_on_each_of_its_fields() {
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -1546,7 +1565,6 @@ fn slab_part(label: &str, x: (f64, f64), y: (f64, f64), dz: f64) -> (ProfileDoc,
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         x,
         y,
-        0.0,
         dz,
     )
 }
@@ -1651,7 +1669,7 @@ fn a_flush_seat_certifies_at_the_gate() {
 #[test]
 fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
-    // The mate replaced by a world pin at the seat it solved: the
+    // The mate replaced by a world mate at the seat it solved: the
     // instances still touch, and no record backs it.
     let o = with_resolver(store);
     let doc = pinned_where_solved(doc, &o);
@@ -1919,8 +1937,8 @@ fn a_mated_assembly_is_silent_and_the_declaration_is_why() {
 /// subject where the box rule cannot separate them.
 fn twinned_part(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     crate::fixture::place_all(doc, &[a, b])
 }
 

@@ -83,7 +83,7 @@ pub fn unobservable(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> Vec<Uno
             }
             let Some(mate) = bundle
                 .iter()
-                .find(|m| m.id == value.mate)
+                .find(|m| Some(m.id) == value.mate)
                 .and_then(super::Constraint::mate)
             else {
                 continue;
@@ -220,7 +220,7 @@ fn round_about(
         ) else {
             return false;
         };
-        let axis = UnitVec3::new(at.axis, topo::query::DATUM_UNIT_NORM, band);
+        let axis = UnitVec3::new(at.axis, topo::query::POSE_UNIT_NORM, band);
         let along = |a: UnitVec3<f64>| directions_parallel(a, dir, band, arm).unwrap_or(false);
         let on = |p: Point3<f64>| on_the_line(p, point, dir, band).unwrap_or(false);
         match kind {

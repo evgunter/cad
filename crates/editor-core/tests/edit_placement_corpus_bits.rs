@@ -1,7 +1,5 @@
-//! **Every corpus `Transform` places its body by the same bits** — the
-//! value channel of each `Node::Transform` in the registry, pinned per
-//! node against digests taken on the merge base before the node held a
-//! `Placement`.
+//! **Every corpus placement places its body by the same bits** — the
+//! value channel of each `Node::Place` in the registry, pinned per node.
 //!
 //! The digest is the fixture's value channel (`value_digest_nodes`):
 //! the placed bodies' arena counts and every stored point, so a motion
@@ -14,7 +12,7 @@ use crate::fixture::value_channel::value_digest_nodes;
 use corpus::{eval, failures};
 use editor_core::Node;
 
-/// `(document, node's mint ordinal, digest)` for every `Transform` the
+/// `(document, node's mint ordinal, digest)` for every placement the
 /// registry holds, in registry then document order, the same at the
 /// default, `1e-6` and `1e-12` ε rows. The digest feeds the node id, so
 /// a re-minted id moves the word with no geometry moving; so does a
@@ -54,79 +52,215 @@ use editor_core::Node;
 /// spells the half, so the union and every node minted after it took
 /// new ids; the transform's word hashes its id. The id-masked geometry
 /// fence held.
+///
+/// **Re-pinned for INTENT stage 3 D** (Transform retires into a
+/// placement): a rigid motion of a body that was a `Transform` is a
+/// `Place`, and a construction that stood on a moved datum frame is
+/// built in its own coordinates and placed where the frame stood, so the
+/// registry holds 118 placements where it held 51 and every document
+/// has rows. The documents were re-spelled without `Datum` or
+/// `Transform`, so every id moved and every word with it.
+///
+/// **Re-pinned merging main into D**: `declared_tangency`'s placement
+/// moved with main's chord director (its components, not `atan2`); the
+/// kitchen sink's eight with its lone block's copies hung below the
+/// world's xy as its retired `SetExtrudeSide` edit had them (placed at
+/// a pose, which mints one id fewer than standing, so the ordinals after
+/// them moved by one); `corner_table`'s
+/// one with its union's arena order under main's union fold, its points
+/// at their exact values. Every other row held.
+///
+/// **Re-pinned for the identity bundle** (FORK-REST): a copy standing
+/// where its body stands is placed by no mate and the constant `0` on
+/// every freedom, written as one `AddValues`, which mints a different number of ids
+/// from the plane mate and three values it replaces, so every node
+/// minted after a stand moved its id, and this digest feeds ids: the
+/// placements after a stand in `heat_sink`, `declared_tangency`,
+/// `kitchen_sink`, `cut_cylinder` and `part_select`, whose ordinals moved.
+/// Every standing copy is bit-identical to its source.
+///
+/// **Re-pinned for exact turns** (INTENT stage 3 D): a turn written as a
+/// fraction of a turn takes its sine and cosine from the fraction, so a
+/// revolve whose heading is `turn/4` has its axis on its profile's `y`
+/// exactly, and the placements of such a revolve, or of a pose spun by
+/// `turn/4`, carry exact turns. `die_tool`'s two rows moved by that
+/// alone. The writers that mean an axis-aligned frame state it: the
+/// pips of `die_pips` and `die_composed` (two rows each) and of the
+/// tour die (22) stand on lines stated from the cube's corner, and the
+/// kitchen sink's revolve stands upright by a bundle with no mate spun
+/// `turn/4`, its split's plane and its pattern's axis read off its faces
+/// (nine rows). Every other row held, across main's merge at
+/// `557e581a64` too.
+///
+/// `die_tool`'s two rows moved again when its master ball came to
+/// stand on the cube's corner frame by an axis mate whose slide and
+/// spin are the constant `0`, where `place_against` had turned it by
+/// `atan2`'s rounded quarter turns. Its explicit rule's frames are now
+/// built from the fraction of a turn each is
+/// (`Frame::rotate_by_turns_then_translate`). The rows are the ball's
+/// copy and the product. The product's ordinal fell from 101 to 59:
+/// the master's placement mints 42 fewer ids than `place_against`'s
+/// did.
+///
+/// `tube_arc`'s and `hollow_tube_elbow`'s rows moved when each tube,
+/// built about its own `z`, came to stand about the world's `+y` again
+/// as its retired spine frame had it: a bundle with no mate spun
+/// `−turn/4` about `x`, so its world copy is where it stood before D.
+///
+/// Merging main at `be82e5ad6b` into D moved `die_composed`'s row and
+/// the tour document's last: each is the world placement of the
+/// filleted die, minted after the fillet, whose stored selection names
+/// the pip rim by seam sides carried in through their reads (N3,
+/// main's); the fillet's id moved with its payload, and the
+/// placement's with it. Neither tree moved these words alone; every
+/// other row held.
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
 const PINNED: &[(&str, u32, u64)] = &[
-    ("die", 206, 0x1d1f8e2cc2c77841),
-    ("die", 217, 0x3785f6c2ba33c653),
-    ("die", 228, 0x3363eb4ff73f9450),
-    ("die", 239, 0x7c530731603cf65d),
-    ("die", 250, 0x16a67e6236d9b604),
-    ("die", 261, 0x45be4dfc27529307),
-    ("die", 272, 0xbe821eb0e7022f3d),
-    ("die", 283, 0x1913295a11edfb23),
-    ("die", 294, 0x7b63f6965d66520b),
-    ("die", 305, 0x6ccbe66957580fd1),
-    ("die", 316, 0x86490582263f56a0),
-    ("die", 327, 0xcb52fa219a088672),
-    ("die", 338, 0x6595f3d39824a5c4),
-    ("die", 349, 0xeb30370b669c0ef6),
-    ("die", 360, 0x196dc6fb4191848f),
-    ("die", 371, 0x691c8c2dadb72338),
-    ("die", 382, 0x40f78ac17a0954c5),
-    ("die", 393, 0x680102bdf5bb645a),
-    ("die", 404, 0x348213346708f0f1),
-    ("die", 415, 0x79dacbb4b3757f7d),
-    ("die", 426, 0x07a07e93956ce3bd),
-    ("heat_sink", 74, 0x489cb40be1b10601),
-    ("heat_sink", 85, 0xc48f84c3a2ca7050),
-    ("heat_sink", 96, 0x861a4c449370dbcd),
-    ("heat_sink", 107, 0x3c57788966584962),
-    ("heat_sink", 118, 0xb3a54c8e814e0680),
-    ("kitchen_sink", 95, 0x804d2736f9974e1d),
-    ("die_pips", 65, 0xe4cf3b1479e5bd07),
-    ("part_select", 60, 0x36f2cf9c61b0b7b5),
-    ("die_composed", 65, 0xe4cf3b1479e5bd07),
-    ("die_composed_tour", 69, 0xf26b930607f0d71f),
-    ("die_composed_tour", 78, 0x0f065bc442238444),
-    ("die_composed_tour", 87, 0x20990428e4bfbe29),
-    ("die_composed_tour", 96, 0x840174787a213b73),
-    ("die_composed_tour", 105, 0x4475498bd52abc42),
-    ("die_composed_tour", 114, 0x480a23c6ceffba0b),
-    ("die_composed_tour", 123, 0xc9e87da066fc9b4a),
-    ("die_composed_tour", 132, 0x55087709634b3feb),
-    ("die_composed_tour", 141, 0xf794f7bc5f7ae5eb),
-    ("die_composed_tour", 150, 0x4026e2a242742308),
-    ("die_composed_tour", 159, 0xc04428db66a1bff3),
-    ("die_composed_tour", 168, 0x98c72e3a322bb58e),
-    ("die_composed_tour", 177, 0x17e9fc4185377444),
-    ("die_composed_tour", 186, 0xa2ca63c2993448a8),
-    ("die_composed_tour", 195, 0x3fa325a9c74bc6b0),
-    ("die_composed_tour", 204, 0x7237eff2c8caab01),
-    ("die_composed_tour", 213, 0x09aaa94f9d2f8909),
-    ("die_composed_tour", 222, 0x4576951c362850f0),
-    ("die_composed_tour", 231, 0x003cd7e8f1876425),
-    ("die_composed_tour", 240, 0xadd664dba16453ae),
-    ("die_composed_tour", 249, 0x4bd1dcb8a1b5255d),
+    ("die", 122, 0xedc88b0c9768a183),
+    ("die", 158, 0x44c5cf62038ec9cc),
+    ("die", 194, 0xcc6d54ad10842867),
+    ("die", 230, 0x4dad9803fef921db),
+    ("die", 266, 0x2c7b3b7aaf508ab7),
+    ("die", 302, 0xfeb0e75e6ecd7964),
+    ("die", 338, 0x60446c01a7f5733f),
+    ("die", 388, 0x7ada9a0b99178a2b),
+    ("die", 438, 0xdef64afbf6c8cf99),
+    ("die", 481, 0xd601870d990ce63a),
+    ("die", 524, 0x73931045601fe762),
+    ("die", 567, 0xc6e09dc860e05ea9),
+    ("die", 610, 0x1199acdbf9c83db6),
+    ("die", 653, 0xe89616ee222c4234),
+    ("die", 703, 0x1a29d0fde7541362),
+    ("die", 753, 0xa0ef4b37e92acf68),
+    ("die", 803, 0x4b3fe894cd06ee7b),
+    ("die", 839, 0x5cc3a42a8cfd4f54),
+    ("die", 875, 0x7978939343e08d64),
+    ("die", 911, 0x23755dc536577ce8),
+    ("die", 947, 0xe322a2d269e1f78f),
+    ("die", 990, 0x9f9f378f938e1c87),
+    ("corner_table", 37, 0x56f145c8b37bfabf),
+    ("corner_table", 74, 0xa47b8bb17613453b),
+    ("corner_table", 111, 0x2f6fbc248977629d),
+    ("corner_table", 148, 0xecbb08f6357cbe88),
+    ("corner_table", 167, 0xbc01ca62da96a73b),
+    ("heat_sink", 45, 0x59eb201168d53e62),
+    ("heat_sink", 64, 0x6feed66357f7b1f9),
+    ("heat_sink", 83, 0x844acb67c35c5496),
+    ("heat_sink", 102, 0xde9f81c590c8c25f),
+    ("heat_sink", 121, 0x89c3ef16b6713708),
+    ("heat_sink", 140, 0x061244a94671bfea),
+    ("heat_sink", 157, 0x6519f38af27728a2),
+    ("heat_sink", 174, 0xdb9ce54b22fc3bdf),
+    ("heat_sink", 191, 0x151fccc34c36966e),
+    ("heat_sink", 208, 0xa6aa8944480d3fc9),
+    ("heat_sink", 225, 0xd8557bc183d8d5d2),
+    ("crossing_slots", 37, 0xb33e8149db30dd57),
+    ("crossing_slots", 74, 0x532a33f7f1dbae57),
+    ("crossing_slots", 93, 0x02461850bc4c912d),
+    ("nested_islands_105", 55, 0x88e7f1ef719a5cf8),
+    ("nested_islands_105", 74, 0x7a6913ba24a39ec8),
+    ("nested_islands_105", 111, 0xb8efb01e9a0de104),
+    ("nested_islands_105", 130, 0x4c418b25a00ecb5f),
+    ("nested_islands_106_depth1", 55, 0x88e7f1ef719a5cf8),
+    ("nested_islands_106_depth1", 74, 0x7a6913ba24a39ec8),
+    ("nested_islands_106_depth1", 111, 0x97bbeb3fe3e04923),
+    ("nested_islands_106_depth1", 130, 0x800549462906b820),
+    ("nested_islands_106_depth2", 55, 0x88e7f1ef719a5cf8),
+    ("nested_islands_106_depth2", 74, 0x7a6913ba24a39ec8),
+    ("nested_islands_106_depth2", 111, 0xb8efb01e9a0de104),
+    ("nested_islands_106_depth2", 148, 0xa7a414ba8b756515),
+    ("nested_islands_106_depth2", 167, 0xe3280332ac0be665),
+    ("declared_tangency", 58, 0x7e78a08f2a744c2f),
+    ("declared_tangency", 72, 0x649e278463aeac31),
+    ("kitchen_sink", 55, 0x81164dd184014339),
+    ("kitchen_sink", 79, 0x1c3f92b6b0bea147),
+    ("kitchen_sink", 144, 0x134a9422371eccdd),
+    ("kitchen_sink", 160, 0xa09e4da0f77f9429),
+    ("kitchen_sink", 173, 0x0474d4565c93d5e3),
+    ("kitchen_sink", 187, 0xf67752f3182120e6),
+    ("kitchen_sink", 204, 0x221c396cd531c0f2),
+    ("kitchen_sink", 221, 0x6613cd214ec834c4),
+    ("kitchen_sink", 238, 0x608bb95e5bb420d8),
+    ("kitchen_sink", 252, 0x21fedfe14f7bac56),
+    ("cut_cylinder", 38, 0x15a3fea54fe3b8ad),
+    ("cut_cylinder", 52, 0xce579141ff4b8726),
+    ("measured_web", 36, 0xa5bbabae356adcca),
+    ("measured_web", 56, 0x5d19d653bc1dae6e),
+    ("boss_union", 29, 0x23bc53fbff8503fc),
+    ("boss_union", 48, 0x8da75c0cefa2f056),
+    ("die_fillet", 23, 0xaee8dc9b01474e9e),
+    ("die_chamfer", 23, 0x2fb1046258e6be88),
+    ("die_pips", 36, 0x9799e9408a965673),
+    ("die_pips", 85, 0xabdcdd68d6103dcc),
+    ("heat_sink_fins", 27, 0xb641d0c4ac52804e),
+    ("die_tool", 36, 0x3ff90e3ab6223307),
+    ("die_tool", 59, 0xe1197d85a85e8d88),
+    ("face_sketch", 37, 0x7786f1eb617ac49b),
+    ("face_sketch", 53, 0xd5e58b4c5b896c38),
+    ("part_select", 42, 0x82790a172f72402b),
+    ("part_select", 56, 0xd6c1e39940b5f496),
+    ("loft_prism", 51, 0x7b39a360638cd8a1),
+    ("die_composed", 36, 0x9799e9408a965673),
+    ("die_composed", 89, 0x9e11aafa0ce9cf70),
+    ("die_composed_tour", 40, 0xa6ebce75136e3f6c),
+    ("die_composed_tour", 101, 0x3cfecee20be34e65),
+    ("die_composed_tour", 176, 0x298467248d835200),
+    ("die_composed_tour", 251, 0xe42829bb9f30f475),
+    ("die_composed_tour", 326, 0xda0ea6e70a2c7e79),
+    ("die_composed_tour", 401, 0x676cf08c5458dfca),
+    ("die_composed_tour", 476, 0xf32a0f21c91d27b1),
+    ("die_composed_tour", 551, 0xb099dfebc9bc425e),
+    ("die_composed_tour", 626, 0xc86bbbd6130f79b1),
+    ("die_composed_tour", 701, 0xc4165615472b34d8),
+    ("die_composed_tour", 776, 0xdd0d89f19bb05a89),
+    ("die_composed_tour", 851, 0x1b18a7ca52bc0351),
+    ("die_composed_tour", 926, 0xe9dc547d60f518df),
+    ("die_composed_tour", 1001, 0xbb2dd41e075deea7),
+    ("die_composed_tour", 1076, 0x7772470d20d26dec),
+    ("die_composed_tour", 1151, 0x2a03587052a71a2b),
+    ("die_composed_tour", 1226, 0xeb45494e859ee144),
+    ("die_composed_tour", 1301, 0x195d14ca4037e882),
+    ("die_composed_tour", 1376, 0xe8227e6c4f410265),
+    ("die_composed_tour", 1451, 0x6b1a01b34ed6d881),
+    ("die_composed_tour", 1526, 0xa264fe57d2a657e2),
+    ("die_composed_tour", 1613, 0x2941f42aa64024d9),
+    ("plate_param", 44, 0xb131b90c7283e469),
+    ("plate_param", 63, 0x778c16d8f77b1175),
+    ("kiss_carry", 37, 0x5327fb974bfe45c1),
+    ("kiss_carry", 74, 0x21f1f9dbf876d243),
+    ("kiss_carry", 93, 0xf9d9270ccbfdcf21),
+    ("tube_ring", 5, 0x28708aadf200c24a),
+    ("tube_arc", 7, 0x78b0777814e2560d),
+    ("hollow_tube_elbow", 8, 0x34e28ea09a5238fe),
+    ("hollow_tube_ring", 6, 0xc17178d9cde4a81e),
+    ("reshaped_rod", 48, 0x6713d9dd15ba1cb2),
 ];
 
 #[test]
-fn every_corpus_transform_places_its_body_by_the_pinned_bits() {
+fn every_corpus_placement_places_its_body_by_the_pinned_bits() {
     let mut got: Vec<(&'static str, u32, u64)> = Vec::new();
     for doc in corpus::documents() {
-        let transforms: Vec<_> = doc
+        let placements: Vec<_> = doc
             .doc
             .ids()
             .iter()
             .copied()
-            .filter(|id| matches!(doc.doc.node(*id), Some(Node::Transform { .. })))
+            .filter(|id| matches!(doc.doc.node(*id), Some(Node::Place { .. })))
             .collect();
-        if transforms.is_empty() {
+        if placements.is_empty() {
             continue;
         }
         let ev = eval::<f64>(&doc.doc);
         let bad = failures(&ev);
         assert!(bad.is_empty(), "{} failed to evaluate: {bad:?}", doc.name);
         for (id, word, fed) in value_digest_nodes(&ev) {
-            if transforms.contains(&id) {
+            if placements.contains(&id) {
                 assert!(fed > 0, "{} node {}: nothing was digested", doc.name, id);
                 got.push((doc.name, id.0.ordinal(), word));
             }
@@ -138,6 +272,6 @@ fn every_corpus_transform_places_its_body_by_the_pinned_bits() {
     assert_eq!(
         got.as_slice(),
         PINNED,
-        "a corpus transform's placed body moved"
+        "a corpus placement's placed body moved"
     );
 }

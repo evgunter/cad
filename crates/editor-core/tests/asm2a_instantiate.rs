@@ -15,7 +15,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -26,7 +25,7 @@ use editor_core::{
     RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, content_pin, evaluate, load,
     product, product_named, save,
 };
-use fixture::{ang, insert, len, on_frame, scl, square, step};
+use fixture::{insert, len, on_frame, scl, square, step};
 use geom_core::Tol;
 
 // ---- The stub store ----
@@ -103,14 +102,13 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     crate::fixture::place(doc, body).0
 }
 
 /// A part whose product is a BOOLEAN: a 3x3x0.8 plate with a
-/// square boss sketched at z = 0.3 and extruded 1.0, poking out of the
+/// square boss placed at z = 0.3 and extruded 1.0, poking out of the
 /// top (the `corpus::boss` shape, squared). Strictly interior in x/y,
 /// so no face of the boss is coincident with one of the plate's — the
 /// union is a genuine one-solid result with nothing declared.
@@ -128,12 +126,11 @@ fn boolean_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: plate_p.into(),
             distance: len(0.8),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, boss_p) = on_frame(
         doc,
-        [0.0, 0.0, 0.3],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(1.2, 1.7, 0.35)],
@@ -143,9 +140,9 @@ fn boolean_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: boss_p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
+    let (doc, boss) = crate::fixture::slid(doc, plate, boss, [0.0, 0.0, 0.3]);
     let (doc, fused) = insert(
         doc,
         Node::Union {
@@ -171,7 +168,6 @@ fn two_solid_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     crate::fixture::place(doc, body).0
@@ -203,7 +199,7 @@ fn placed_assembly(
     (doc, ids)
 }
 
-/// `placement`'s bundle replaced by one world pin at `pose`, `opts`
+/// `placement`'s bundle replaced by one world mate at `pose`, `opts`
 /// resolving its part.
 fn repinned(
     doc: ProfileDoc,
@@ -268,20 +264,10 @@ fn placed_nominally(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeN
     (nominally_pinned(doc, placement), placement)
 }
 
-/// `placement` with its bundle emptied.
+/// `placement` with its bundle emptied: its values first, so no value
+/// is left naming a mate already removed.
 fn unpinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
-    fixture::bundle(&doc, placement)
-        .into_iter()
-        .fold(doc, |doc, c| {
-            step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        })
+    fixture::emptied(doc, placement)
 }
 
 /// The one product body an instance's copies carry.
@@ -487,17 +473,17 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         second.len()
     );
     // The counts are literals on purpose: a row that only compares the
-    // two instances passes when both lose the same decisions. 466 is
+    // two instances passes when both lose the same decisions. 465 is
     // the placing op's own log on this part: its pin's fold off the
-    // identity (the two datum normals, and the at-rest predicate,
-    // decided once by the fold's snap), then placement and validation
-    // of the placed body; 806 is the part's, on its own
+    // identity (the two pose normals, and the map's rigidity, which
+    // every placement but the identity bundle runs), then placement and
+    // validation of the placed body; 802 is the part's, on its own
     // nodes — its profile's pre-pass on the Profile node's log, then
     // what the second pass the `f64` lane skips decides, logged in its
-    // place (`editor_core::ProfileLane`); its placement's world pin
-    // reads nothing and decides nothing.
-    assert_eq!(first.len(), 466, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 806, "the part's decisions on its own nodes");
+    // place (`editor_core::ProfileLane`). Its placement's stand is the
+    // identity bundle, placed by no map, which decides nothing.
+    assert_eq!(first.len(), 465, "the instantiate op's own decisions");
+    assert_eq!(direct_total, 802, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
@@ -613,9 +599,9 @@ fn row3_instance_qualified_names_round_trip_persistence() {
     assert!(loaded.bit_eq(&doc), "the whole document round-trips");
 }
 
-// ---- Row 4: the world pin ----
+// ---- Row 4: the world mate ----
 
-/// Row 4 — an inserted instance is loose; a world pin's pose moves the
+/// Row 4 — an inserted instance is loose; a world mate's pose moves the
 /// copy without changing its volume; the pre-edit document is untouched
 /// (undo = keeping the prior value); a non-instance target refuses
 /// typed.
@@ -797,7 +783,7 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
 
 // ---- Row 6: pin semantics ----
 
-/// Row 6 — the assembly's own pin moves on a world pin's pose and on a
+/// Row 6 — the assembly's own pin moves on a world mate's pose and on a
 /// pin-bump of a reference, and an untouched-content re-save leaves it
 /// fixed.
 #[test]
@@ -1188,7 +1174,6 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
         Node::Extrude {
             profile: profile.into(),
             distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
-            side: ExtrudeSide::Along,
         },
     );
     let p3 = placed_nominally(p3, p3_root).0;
@@ -1233,15 +1218,15 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
 }
 
 /// **A part whose root was poisoned carries the failure that poisoned
-/// it.** The part's extrude refuses and its one placement, of a
-/// transform over the extrude, never runs: the instance names both nodes, points at
+/// it.** The part's extrude refuses and its one placement, of the
+/// extrude, never runs: the instance names both nodes, points at
 /// the extrude, and carries the extrude's own refusal typed — the last
 /// level of its chain is the extrude's line exactly as the part's own
 /// evaluation draws it.
 #[test]
 fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     let tol = Tol::witness();
-    let (part, extrude, moved) = poisoned_part("asm2a-poisoned-part");
+    let (part, extrude, placed) = poisoned_part("asm2a-poisoned-part");
     let own = own_line(&part, extrude, &EvalOptions::default());
     let mut store = StubStore::default();
     let part_ref = store.insert(part, tol);
@@ -1258,7 +1243,7 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     else {
         panic!("expected PartRootPoisoned, got {fault:?}");
     };
-    assert_eq!((*root, *through), (moved, extrude), "both nodes are named");
+    assert_eq!((*root, *through), (placed, extrude), "both nodes are named");
     assert!(
         matches!(refusal.kind(), NodeErrorKind::Expr { .. }),
         "the extrude's refusal travels typed: {refusal:?}"
@@ -1270,7 +1255,7 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
             test_utils::refusal::tag(extrude.0.digest())
         )) && rendered.contains(&format!(
             "Place {}",
-            test_utils::refusal::tag(moved.0.digest())
+            test_utils::refusal::tag(placed.0.digest())
         )),
         "the instance names the root and points at the failed node: {rendered}"
     );
@@ -1295,24 +1280,8 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     );
 }
 
-/// A transform over `input`: the root a part's move makes.
-fn moved_over(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::transform(
-            input,
-            editor_core::Step::Rigid {
-                translation: [len(0.1), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    )
-}
-
 /// A part whose extrude refuses (its distance is 1/0) and whose one
-/// placement places a transform over it: the extrude, then the
-/// placement.
+/// placement places it: the extrude, then the placement.
 fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let part = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (part, profile) = on_frame(
@@ -1327,11 +1296,9 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
-            side: ExtrudeSide::Along,
         },
     );
-    let (part, moved) = moved_over(part, extrude);
-    let (part, placed) = placed_nominally(part, moved);
+    let (part, placed) = placed_nominally(part, extrude);
     (part, extrude, placed)
 }
 
@@ -1350,7 +1317,7 @@ fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String 
 /// **Two documents down, the chain still ends at the failing node.**
 /// The bracket holds an instance of the poisoned part, and the instance
 /// is a placement in the bracket's product: it fails in its own right
-/// (the placement a transform over it also reads is poisoned through
+/// (the placement that places it also reads is poisoned through
 /// it), and its own fault is the part's poisoned root in turn. The assembly's
 /// instance carries both levels, typed, each drawn as its own document
 /// draws it, and the last is the extrude's line.
@@ -1365,8 +1332,7 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let bracket = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-deep-bracket"), tol);
     let (bracket, inner) = insert(bracket, Node::instantiate_part(part_ref));
     let bracket = nominally_pinned(bracket, inner);
-    let (bracket, moved) = moved_over(bracket, inner);
-    let (bracket, _) = placed_nominally(bracket, moved);
+    let (bracket, _) = placed_nominally(bracket, inner);
     let bracket_ref = store.insert(bracket.clone(), tol);
 
     let (doc, ids) = assembly("asm2a-poisoned-deep-asm", &[bracket_ref]);
@@ -1550,63 +1516,6 @@ fn r1_both_sweep_strategies_agree_on_a_part_carrying_a_boolean() {
         volumes[0], volumes[1],
         "the tree prunes and the predicates decide — same bits either way"
     );
-}
-
-/// MINOR-5 — `Frame::rotate_then_translate` really does agree with the
-/// `Transform` node, BIT FOR BIT, including for a NON-UNIT axis (the
-/// case the claim used to get wrong).
-///
-/// **This is an AGREEMENT row between two callers, not a value pin on
-/// `Mat3::rotation_about`, and the axis list makes it read like one.**
-/// The expected side below re-spells `eval::wire::wire_transform`'s
-/// own expression — deliberately, because that is the right oracle for
-/// agreement — so it calls `Mat3::rotation_about` itself and both
-/// sides move together. **Any change INSIDE the rotation is invisible
-/// here**, oblique axis and `to_bits()` notwithstanding — an oracle
-/// that re-spells its caller's expression moves with the code and pins
-/// nothing about it. The value pins that do object live next to the
-/// subject,
-/// in `geom-core`'s `linalg::mat` test module — the two rows named
-/// `rotation_diagonal_takes_the_square_before_the_scale` and
-/// `rotation_off_diagonals_scale_by_t_before_the_second_component`.
-/// Strengthen those, not this.
-#[test]
-fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
-    let angle = 0.37;
-    let translation = [2.0, -3.5, 0.25];
-    for axis in [
-        [0.0, 0.0, 1.0],      // unit
-        [0.0, 0.0, 5.0],      // non-unit, axis-aligned
-        [1.0, 2.0, 3.0],      // non-unit, oblique
-        [-0.5, 0.25, -0.125], // non-unit, short
-    ] {
-        let frame = Frame::rotate_then_translate(axis, angle, translation, fixture::band())
-            .expect("a literal axis has a definite direction");
-        // `eval::wire::wire_transform`'s own expression, verbatim: the
-        // axis normalized (its `unit`), then `Mat3::rotation_about`,
-        // then `Affine3::from_parts` with the translation.
-        let unit = geom_core::Vec3::from_array(axis).normalize();
-        let expected = geom_core::Affine3::from_parts(
-            geom_core::Mat3::rotation_about(unit, angle),
-            geom_core::Vec3::from_array(translation),
-        );
-        let got = frame.affine::<f64>();
-        let cols = [
-            (got.linear.c0, expected.linear.c0),
-            (got.linear.c1, expected.linear.c1),
-            (got.linear.c2, expected.linear.c2),
-            (got.translation, expected.translation),
-        ];
-        for (g, e) in cols {
-            for (g, e) in [(g.x, e.x), (g.y, e.y), (g.z, e.z)] {
-                assert_eq!(
-                    g.to_bits(),
-                    e.to_bits(),
-                    "axis {axis:?}: the frame and the transform node must agree by BITS"
-                );
-            }
-        }
-    }
 }
 
 /// Two instances of a unit cube, the second a unit along `x`, glued on

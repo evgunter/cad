@@ -1,17 +1,17 @@
 //! **The at-rest badge on a mate read below a pattern.**
 //!
 //! A mate's at-rest record is minted on the world copies of the bodies
-//! its sides read. On the issue's document — a pattern over a transform
-//! over the shelf, the mate read AT the transform — no placement reads
-//! the transform, so the mate records nothing, and the seat it places
-//! the post on reaches the checks as a touch between two copies.
+//! its sides read. On the issue's document — a pattern over a moved
+//! body of the shelf, the mate read AT that body — no world placement
+//! reads the moved body, so the mate records nothing, and the seat it
+//! places the post on reaches the checks as a touch between two copies.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
 use crate::common;
-use crate::common::{ang, insert_into, len, scl};
+use crate::common::{insert_into, len, scl};
 
 use common::asm;
 use pncad::document::{DocumentId, Formula, Node, PatternKind, ProfileDoc};
@@ -21,24 +21,33 @@ use pncad::workspace::Workspace;
 use viewer::session::{AtRestBadge, DocSession, SessionOp};
 
 /// The issue's document over the bench's parts: the shelf on the world,
-/// lifted by a transform clear of itself, a two-copy pattern of the
-/// lifted shelf with both copies placed, and the post placed by the
-/// seat mate read AT the transform. Stored beside the bench's parts so
-/// the session's resolver finds them.
+/// lifted clear of itself as the second copy of a pattern of it — a
+/// body no placement copies — a two-copy pattern of the lifted shelf
+/// with both copies placed, and the post placed by the seat mate read
+/// AT the lifted body. Stored beside the bench's parts so the session's
+/// resolver finds them.
 fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
     let mut asm = ProfileDoc::empty(DocumentId::derive("msolve5-viewer"), tol);
     let post = insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
     let shelf = asm::instance_at(&mut asm, bench.shelf, [0.0; 3], &bench.opts(), tol);
+    let lift = insert_into(
+        &mut asm,
+        Node::Pattern {
+            input: shelf.into(),
+            count: Formula::count(2),
+            kind: PatternKind::Linear {
+                direction: [scl(0.0), scl(0.0), scl(1.0)],
+                spacing: len(0.1),
+            },
+        },
+        tol,
+    );
     let lifted = insert_into(
         &mut asm,
-        Node::transform(
-            shelf,
-            pncad::document::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.1)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
+        Node::Part {
+            of: lift.into(),
+            select: pncad::document::PartSelect::Instance(Formula::count(1)),
+        },
         tol,
     );
     // The second copy clears the post and the first copy.
@@ -65,9 +74,18 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
             },
             tol,
         );
-        asm = common::placed_read(&asm, copy.into(), &bench.opts(), tol).0;
+        asm = common::placed_read(&asm, copy.into(), tol).0;
     }
-    let b = asm::in_part(shelf, &bench.shelf_bottom);
+    // The shelf's bottom as the lifted body names it: the instance's
+    // name, as the lift's second copy.
+    let b = pncad::prelude::StableName {
+        kind: pncad::prelude::EntityKind::Face,
+        node: lift,
+        path: vec![pncad::prelude::RoleSeg::Instance {
+            i: 1,
+            of: pncad::prelude::NameRef::new(asm::in_part(shelf, &bench.shelf_bottom)),
+        }],
+    };
     common::mate_into(
         &mut asm,
         post,
