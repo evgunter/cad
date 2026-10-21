@@ -31,8 +31,9 @@
 //! (a second director on a Directed tip is ill-typed); the INCOMING
 //! direction is never a slot — it is intrinsic data on a leg end,
 //! consultable by [`tangent`](PartialPath::tangent) /
-//! [`turn`](PartialPath::turn), the junction check and the straight
-//! continuation, settable by nothing.
+//! [`turn`](PartialPath::turn), the junction check, the straight
+//! continuation and `lands_on_ray` (the declared continuation's on-ray
+//! reading, PATHS-DESIGN §2c), settable by nothing.
 //!
 //! # Closure
 //!
@@ -962,8 +963,9 @@ pub enum PathError<T: Real> {
     /// **The declared point-target continuation's consistency
     /// refusal**: [`continue_to(target)`](PartialPath::continue_to)
     /// declares the leg to be the straight continuation of the run
-    /// LANDING on `target`, and the target does not lie on the
-    /// departing point's ray.
+    /// LANDING on `target`, and the target does not lie on the run's
+    /// line: the line bound where the run's direction was bound, which
+    /// the departing point's `lands_on_ray` reads (PATHS-DESIGN §2c).
     ///
     /// This is authored data contradicting itself — the arc verbs'
     /// consistency class ([`ArcCenterNotEquidistant`](Self::ArcCenterNotEquidistant)
@@ -1760,10 +1762,11 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::ContinuationTargetOffRay { across, along } => write!(
                 f,
-                "the declared straight continuation\'s target is not on the departing ray: it \
-                 misses by {across} m across the ray, {along} m along it. Recourse: move the \
-                 target onto the ray (or widen the input tolerance); if a TURN was meant, \
-                 author the direction (.turn(delta)/.angle(theta)) and use line_to",
+                "the declared straight continuation\'s target is not on its run\'s line (the \
+                 line bound where the run\'s direction was bound): it misses by {across} m \
+                 across the line, {along} m along it from the departing point. Recourse: move \
+                 the target onto the run\'s line (or widen the input tolerance); if a TURN was \
+                 meant, author the direction (.turn(delta)/.angle(theta)) and use line_to",
                 across = num(across),
                 along = num(along)
             ),
@@ -2078,9 +2081,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 match source.predicate {
                     Some("path_continuation_target_offset") => write!(
                         f,
-                        "the declared straight continuation's target is neither on the \
-                     departing ray nor definitely off it: {payload}. Recourse: move the \
-                     target onto the ray, or widen the input tolerance (K·ε) so this miss is \
+                        "the declared straight continuation's target is neither on its \
+                     run's line nor definitely off it: {payload}. Recourse: move the target \
+                     onto the run's line, or widen the input tolerance (K·ε) so this miss is \
                      admissible",
                         payload = source.payload()
                     ),
@@ -3685,23 +3688,17 @@ fn emit_straight_leg<T: Decide>(
 /// whole of the difference between the two, and it is bounded by the
 /// check that let the target through.
 ///
-/// **That bound is PER LEG, and this is where to read it.** The tip
-/// leaves on the declared ray while the vertex sits up to one accepted
-/// miss off it, so a RUN of declared continuations can accumulate: n
-/// legs each accepting a same-side miss below ε put the run's end up to
-/// n·ε off the ray it started on, and every per-leg check is green,
-/// correctly. R1's review measured it — forty legs at 0.5·ε reach 20·ε,
-/// two full ε_input.
-///
-/// This is a recorded LIMIT, not a hole, because the run-level
-/// certifier exists and is loud: the data gate sees the accumulated bow
-/// that no per-leg check can and ESCALATES on `chord_side` rather than
-/// accepting it. Escalation, not silence and not a guess.
-/// `the_per_leg_band_composes_and_the_data_gate_catches_the_sum` pins
-/// that verdict; PATHS-DESIGN §4 records it beside the band decisions.
-/// Tightening the per-leg band would not change the shape of this — any
-/// per-step tolerance composes — so the answer is the gate, which is
-/// already the design's answer for run-level facts.
+/// **That bound is PER RUN, because the line does not move.** The
+/// vertex sits up to one accepted miss off the declared line, so the end
+/// point is handed `run`, the line its own target was checked against
+/// ([`Incoming::continuing`]): the next continuation's `lands_on_ray`
+/// reads that line again, bound at the run's first vertex, never one
+/// re-anchored at this vertex. So every vertex of a declared straight
+/// run lies within the band of one line, and n accepted misses are n
+/// misses of it, never a sum (PATHS-DESIGN §4). `run` is `None` for a
+/// leg whose direction was bound where it starts, and the end point
+/// then starts afresh. `bool11_probes`'
+/// `a_runs_misses_are_read_against_its_own_line_and_never_sum` pins it.
 fn emit_straight_leg_at<T: Decide>(
     core: &mut Core<T>,
     end: Point2<T>,
@@ -5105,7 +5102,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// point-target continuation whose target is [`Start`].
     ///
     /// One check is the point row's — the entry vertex must lie on the
-    /// departing ray — and it replaces the closer's departure junction
+    /// run's line (`lands_on_ray`) — and it replaces the closer's departure junction
     /// check outright: there is no authored direction here to classify,
     /// so §4 item 1 has nothing to say and no departure junction is
     /// classified at all. The SEAM check still runs,

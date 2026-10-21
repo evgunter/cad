@@ -286,7 +286,8 @@ fn the_off_ray_message_names_the_intent_and_the_miss() {
         .expect_err("definitely off the ray");
     let msg = err.to_string();
     assert!(msg.contains("declared straight continuation"), "{msg}");
-    assert!(msg.contains("across the ray"), "{msg}");
+    assert!(msg.contains("not on its run's line"), "{msg}");
+    assert!(msg.contains("across the line"), "{msg}");
     assert!(msg.contains("line_to"), "{msg}");
 }
 
