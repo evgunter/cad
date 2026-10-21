@@ -74,3 +74,25 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - CLEAVE's `boolean::slit` landed on main meanwhile. The Boolean's keel-in-face results now build the slit form and pass, so the refusal guards hand-built rider bodies, witnessed by a keel prism.
   - Rows filed: `tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid` (P2, a design fork, also carrying the arm-2 vertex-on-face gap), `tier-3-prime-reads-no-side-between-coincident-edges-on-one-line` (P2), `tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face` (P2).
   - Merged with only the main-red `band_turn_overrun_fillet` 1e-12 row failing. — (RESTREAD orchestrator)
+- 2026-10-21 — PR 5421 (`restread/ef-pierce-charge`) merges. It closes `the-census-edge-face-pierce-point-is-placed-from-residuals-read-off-the-face-origin` (P2) and `the-census-circle-plane-touch-point-direction-carries-u-over-sin` (P3).
+  - **Before:** main read 46 of 1 198 grazing far-origin poses wrong at f64.
+  - **After:** 0 wrong at both scalars. At 1e-12, 397 of 1 200 refuse at f64. At Interval, refusals are near main's (tilted caps 0/29/316 against 0/19/292).
+  - **Tier:** dual, arm sequential (byte 226).
+    - Review 1 raised two MAJORs: a span narrower feature read wrong, and a reachable `unreachable!`.
+    - Review 2 on the fix head returned APPROVE-WITH-FIXES.
+    - Verifier 1 refused an Interval capability regression the fix had caused. Pass 3 read the span on the edge's own line through the shared edge–edge readers, now windowed and bit-identical for whole edges.
+    - Verifier 2 returned VERIFIED-WITH-NITS, and a fourth pass pinned the window.
+  - **Process:** the first fix lane was lost to a container restart with two commits unpushed. I pushed them, and a fresh lane finished.
+  - **Rows filed:**
+    - `the-census-pierce-refuses-a-grazing-edge-within-its-placement-span-of-the-boundary` (P2, compensated residuals);
+    - `the-census-plane-residual-decisions-read-off-a-stored-origin-are-uncharged` (P3);
+    - `the-depth-gaps-least-point-is-placed-over-axis-dot-n-uncharged` (P3);
+    - `scalar/band-k-is-spelled-escalate-over-zero-at-every-site` (P4);
+    - `issues/a-torn-body-kill-row-asserts-a-30-s-wall-clock-and-reds-under-load` (P3). — (RESTREAD orchestrator)
+- 2026-10-21 — The vertex-touch fork (`tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid`) is put to Ev as [ev] PR 5517 and raised to P1.
+  - **Why P1:** a probe on main built one solid whose two planar faces cross, showing only vertex-on-face touches. With those touches recorded it passes tier 3′, a silent wrong pass. The cavity-corner pit passes, rightly.
+  - **Designers:** two (byte 129 on `analysis/design-fork/vertex-own-face`), run concurrently with one problem statement. They converged after two rounds on the whole-link winding at a point where one solid touches itself.
+  - **What moved:** B moved after working A's two-pits-and-a-needle witness. The wording crossed in round 1 and was settled in round 2.
+  - **On the PR:** the cells-at-a-point sentence is a separate decision, as B corrected it.
+  - Fork-log row 185. — (RESTREAD orchestrator)
+- 2026-10-21 — Ev ruled on [ev] PR 5517. Decision 1 is accepted: the whole-link winding at a point where one solid touches itself. On the cells sentence Ev has no opinion; it is kept as practice, not ratified, and struck from the README. Fork-log row 185 is completed with the decision and the A/B mapping. The row is now the build of decision 1. — (RESTREAD orchestrator)

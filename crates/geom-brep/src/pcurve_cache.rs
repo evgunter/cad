@@ -187,7 +187,8 @@ use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
 use crate::recourse::{
-    Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision, Unsized,
+    ReadAt, Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
+    Unsized,
 };
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -2131,8 +2132,10 @@ pub enum PcurveCertifyError {
     Band(BandError),
 }
 
-impl core::fmt::Display for PcurveCertifyError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl PcurveCertifyError {
+    /// Every arm's text but an escalation's, whose ending reads the door
+    /// ([`PcurveCertifyError::render`]).
+    fn write_payload(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::UnsupportedChart { chart } => write!(
                 f,
@@ -2228,14 +2231,9 @@ impl core::fmt::Display for PcurveCertifyError {
                 "pcurve certification: the fitted lane's certificate refused at limb 2 — \
                  {refusal}"
             ),
-            // Each escalation ends in its decision's own labelled
-            // ending, read at a build: the door that reads it at rest
-            // asks `ending` instead of rendering this.
-            Self::FittedEscalated { decision, cause } => write!(
-                f,
-                "pcurve certification: the fitted lane's certificate escalated — {}",
-                cause.undecided(decision, decision.ending(cause, Reading::Build))
-            ),
+            Self::FittedEscalated { .. } | Self::Escalated { .. } => {
+                unreachable!("`render` writes an escalation")
+            }
             Self::IntervalNotForward => write!(
                 f,
                 "pcurve certification: the carrier-parameter interval is not forward — a \
@@ -2300,18 +2298,16 @@ impl core::fmt::Display for PcurveCertifyError {
                      metres)"
                 )
             }
-            Self::Escalated {
-                check,
-                sample,
-                cause,
-            } => write!(
-                f,
-                "pcurve certification: {check:?} at sample {sample} escalated: {}. {}",
-                cause.payload(),
-                check.recourse(RefusedArm::Undecided(cause), Reading::Build)
-            ),
             Self::Band(e) => write!(f, "pcurve certification: {e}"),
         }
+    }
+}
+
+/// Read at a build: the mint or certification a body's own operation
+/// runs.
+impl core::fmt::Display for PcurveCertifyError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.render(Reading::Build))
     }
 }
 
@@ -2366,18 +2362,42 @@ impl PcurveCertifyError {
         })
     }
 
-    /// The ending this refusal's decision gives it, read at `reading`
+    /// The ending this refusal's decision gives it, read at `at`
     /// ([`PcurveCheck::recourse`], or the SSI decision an escalation
     /// there names), or `None` for a refusal that is no decision's
     /// refused arm (an unsupported class, a missing operand, a band the
     /// tolerance cannot form, a fitted certificate's structural refusal).
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
+    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
+        let at = at.into();
         if let Self::FittedEscalated { decision, cause } = self {
-            return Some(decision.ending(cause, reading));
+            return Some(decision.ending(cause, at));
         }
-        self.decided()
-            .map(|(check, arm)| check.recourse(arm, reading))
+        self.decided().map(|(check, arm)| check.recourse(arm, at))
+    }
+
+    /// This refusal's text read at `at`: an escalation, whose text
+    /// carries its ending, ends as its decision does there; every other
+    /// refusal is its payload alone.
+    #[must_use]
+    pub fn render(&self, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
+        match self {
+            Self::FittedEscalated { decision, cause } => format!(
+                "pcurve certification: the fitted lane's certificate escalated — {}",
+                cause.undecided(decision, decision.ending(cause, at))
+            ),
+            Self::Escalated {
+                check,
+                sample,
+                cause,
+            } => format!(
+                "pcurve certification: {check:?} at sample {sample} escalated: {}. {}",
+                cause.payload(),
+                check.recourse(RefusedArm::Undecided(cause), at)
+            ),
+            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
+        }
     }
 
     /// Whether this is a definite refusal on a certified upper bound on
@@ -2410,7 +2430,7 @@ impl PcurveCheck {
             },
             // The winding on a spline image, which can sweep past a period
             // no edge check counts (the projected lane's gate): a stored
-            // contradiction, over a cache the kernel derives.
+            // contradiction.
             Self::AzimuthPeriod | Self::TubePeriod => {
                 Routing::Sized(SpanDecision::Winding.on(StoredContradiction))
             }
@@ -2435,12 +2455,13 @@ impl PcurveCheck {
     }
 
     /// The one ending a refusal of this check carries on `arm`, read at
-    /// `reading` (D4 ¶1 (i)).
+    /// `at` (D4 ¶1 (i)).
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
         match self.routing() {
-            Routing::Sized(decision) => decision.recourse(arm, reading),
-            Routing::Unsized(decision) => decision.recourse(arm, reading),
+            Routing::Sized(decision) => decision.recourse(arm, at),
+            Routing::Unsized(decision) => decision.recourse(arm, at),
         }
     }
 
@@ -10217,6 +10238,108 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **A pcurve escalation renders at the door it is read at**
+    /// ([`PcurveCertifyError::render`]): its defect ending names the
+    /// kernel at a build, as its `Display` does, the kernel or the file at
+    /// rest, and the file at the import door. Red if a door's render
+    /// reads a build.
+    #[test]
+    fn a_pcurve_escalation_renders_at_its_door() {
+        use geom_core::{
+            DAMAGED_FILE_ENDING, FileCoincidence, KERNEL_DEFECT_ENDING,
+            KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag,
+        };
+
+        let error = PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartWinding,
+            sample: 0,
+            cause: Indeterminate {
+                margin: MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: None,
+                terminal_sliver: false,
+            },
+        };
+        assert!(error.to_string().ends_with(KERNEL_DEFECT_ENDING), "{error}");
+        for (at, want) in [
+            (ReadAt::Run(Reading::Build), KERNEL_DEFECT_ENDING),
+            (ReadAt::Run(Reading::AtRest), KERNEL_OR_FILE_DEFECT_ENDING),
+            (
+                ReadAt::File(FileCoincidence::new(1e-6)),
+                DAMAGED_FILE_ENDING,
+            ),
+        ] {
+            let text = error.render(at);
+            assert!(text.ends_with(want), "{at:?}: {text}");
+        }
+    }
+
+    /// **Each pcurve check's sized decision names its refused side**
+    /// (D4 ¶1 (iv)): the image's span and its period gates are each a
+    /// stored contradiction, and past ε_in at the import door a reading
+    /// in band wholly on it names the file. The table and the roster are
+    /// exhaustive matches, so a check or envelope term added without a
+    /// row does not compile; red if a side is flipped or the door names
+    /// the kernel.
+    #[test]
+    fn each_pcurve_check_names_its_refused_side() {
+        use crate::recourse::RefusedSide;
+        use geom_core::{DAMAGED_FILE_ENDING, FileCoincidence, MarginDiag};
+
+        let stored = Some(RefusedSide::StoredContradiction);
+        let want = |check: PcurveCheck| match check {
+            PcurveCheck::ParamSpan | PcurveCheck::AzimuthPeriod | PcurveCheck::TubePeriod => stored,
+            PcurveCheck::MapResidual
+            | PcurveCheck::Envelope
+            | PcurveCheck::EnvelopeTerm(_)
+            | PcurveCheck::ChartWinding
+            | PcurveCheck::ChartIncidence
+            | PcurveCheck::Sector => None,
+        };
+        let in_band = Indeterminate {
+            margin: MarginDiag::value(-2e-6),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let past = RefusedArm::Undecided(&in_band);
+        let file = FileCoincidence::new(1e-6);
+        // One list spells both the roster iterated and an exhaustive
+        // match over it.
+        macro_rules! every_check {
+            ($($check:ident),+; $($term:ident),+) => {{
+                let _ = |check: PcurveCheck| match check {
+                    $(PcurveCheck::$check)|+ | PcurveCheck::EnvelopeTerm(_) => (),
+                };
+                let _ = |term: EnvelopeTerm| match term {
+                    $(EnvelopeTerm::$term)|+ => (),
+                };
+                [$(PcurveCheck::$check),+]
+                    .into_iter()
+                    .chain([$(EnvelopeTerm::$term),+].map(PcurveCheck::EnvelopeTerm))
+            }};
+        }
+        let checks = every_check!(
+            ParamSpan, MapResidual, Envelope, ChartWinding, AzimuthPeriod, TubePeriod,
+            ChartIncidence, Sector;
+            Frame, Centre, Radius, Line, Drift, FidelityU, FidelityV, Incidence, Fidelity
+        );
+        for check in checks {
+            let side = match check.routing() {
+                Routing::Sized(decision) => {
+                    assert_eq!(
+                        decision.recourse(past, file),
+                        DAMAGED_FILE_ENDING,
+                        "{check:?} past ε_in at the import door"
+                    );
+                    Some(decision.side)
+                }
+                Routing::Unsized(_) => None,
+            };
+            assert_eq!(side, want(check), "{check:?}");
+        }
     }
 
     /// **A sphere parallel's twin read is one sign, and undecided it

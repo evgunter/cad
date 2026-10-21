@@ -129,10 +129,9 @@
 //!    - the walls are `circle_split(.., 4, ..)`, not `circle` ([`annulus`]
 //!      carries the gap comment). The `circle` loop is wall 5 (tier 3
 //!      refuses `QuadratureBudget` at the default ε and finer,
-//!      `work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`)
-//!      and wall 8 (its semicircle walls' C0 knot, which the mesher
-//!      refuses at every ε,
-//!      `work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`);
+//!      `work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`);
+//!      its mesh was wall 8 (its semicircle walls' C0 knot, which the
+//!      mesher refused until #5499 cut along it — retired, kept live);
 //!    - the station count and skin degree decide whether the quartered
 //!      loop meshes at the stop's δ, so [`STATIONS`] / [`V_DEGREE`] sit
 //!      inside a measured neighbourhood of settings that all pass
@@ -572,14 +571,13 @@ fn exact_spine(m: &Meridian) -> NurbsCurve3<f64> {
 /// about `(cx, 0)` in its sketch plane.
 ///
 /// GAP (library finding,
-/// `work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`):
+/// `work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`):
 /// a `lofted` section says each wall as FOUR quarter arcs
-/// (`circle_split`) where the natural spelling is `circle`. A
-/// `circle` is two semicircles, a semicircle is not one rational
-/// Bézier, so every lofted wall would carry a C0 knot the mesher
-/// refuses — after the body built and validated, naming a `FaceKey`
-/// (wall 8). The circle is the same circle; only its seam count is
-/// authored.
+/// (`circle_split`) where the natural spelling is `circle`. The
+/// `circle` loop builds and meshes (wall 8, retired: its semicircle
+/// walls' C0 knot was the mesher's refusal until #5499), but tier 3
+/// cannot decide its volume sign at the default ε (wall 5). The
+/// circle is the same circle; only its seam count is authored.
 fn annulus<S: Scalar>(m: &Meridian, cx: f64, lofted: bool, tol: Tol) -> Vec<ConstructedLoop<S>> {
     [m.ro, m.ri]
         .into_iter()
@@ -1284,7 +1282,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                     }]
                 )
             },
-            "and if wall 8 has retired too, spell [`annulus`]'s lofted walls as `circle`: \
+            "spell [`annulus`]'s lofted walls as `circle` (wall 8 has retired): \
              the scene's loop takes the natural section, and findings entry 5 and \
              `annulus`'s gap comment go",
         ),
@@ -1433,21 +1431,26 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         );
     }
 
-    // Wall 8: the `circle` loop's mesh. Each wall is two semicircles,
-    // a semicircle is not one rational Bézier, so every lofted wall
-    // carries an interior knot of multiplicity = degree — the C0
-    // crease the mesher refuses, at every ε and every station count
-    // and skin degree measured (9–65, 2 and 3).
+    // Wall 8, RETIRED by #5499: the `circle` loop's mesh. Each wall is
+    // two semicircles, a semicircle is not one rational Bézier, so
+    // every lofted wall carries an interior knot of multiplicity =
+    // degree — a C0 crease the mesher refused by name until the
+    // trimmed lane learned to cut along it
+    // (`work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`).
+    // Kept LIVE, as wall 7 is: the loop must keep meshing at the stop's
+    // δ, and a regression reappears here.
     let round64 = lofted_loop::<f64>(&loop_spine(&m), &annulus::<f64>(&m, 0.0, false, tol), tol)
         .expect("the `circle` loop builds at f64");
-    crate::walls::wall(
-        "bottle",
-        8,
-        "tessellate the loop lofted with `circle` sections",
-        pncad::mesh::tessellate(&round64, DELTA, tol),
-        |e| matches!(e, pncad::mesh::TessellateError::UnsupportedNurbsFace { .. }),
-        "and if wall 5 has retired too, spell [`annulus`]'s lofted walls as `circle` \
-         (work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late)",
+    let round_mesh = pncad::mesh::tessellate(&round64, DELTA, tol).unwrap_or_else(|e| {
+        panic!(
+            "the `circle` loop refuses {e:?} at the stop's δ — wall 8 was retired when \
+             the trimmed lane learned to mesh a lofted circle's crease; re-derive the \
+             wall and findings entry 5 before trusting either"
+        )
+    });
+    println!(
+        "   wall 8 RETIRED — the loop lofted with `circle` sections tessellates: {} triangles",
+        pncad::mesh::validate::triangle_count(&round_mesh)
     );
 
     // Wall 9: the loop SWEPT along its EXACT spine — the two arcs as
