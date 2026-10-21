@@ -53,13 +53,26 @@ use crate::validate::ValidationError;
 
 /// Exact-B-rep integral properties of a body.
 ///
-/// Closed-form faces contribute exact values; curved-CUT faces (M5
-/// PR 11) contribute **certified quadrature enclosures**, carried as
-/// the enclosure midpoint in `volume`/`surface_area` plus the summed
-/// half-widths in the `*_pad` fields — so the certified brackets are
-/// `volume ± volume_pad` and `surface_area ± area_pad`. Both pads are
-/// exactly `0.0` for bodies whose every face has a closed form (the
-/// pre-PR-11 behaviour, bit-identical).
+/// A face with a closed form contributes it, evaluated at the scalar;
+/// a curved-CUT face (M5 PR 11) contributes a **certified quadrature
+/// enclosure**, carried as the enclosure midpoint in
+/// `volume`/`surface_area` plus the summed half-widths in the `*_pad`
+/// fields, so the quadrature's brackets are `volume ± volume_pad` and
+/// `surface_area ± area_pad`.
+///
+/// **A zero pad means every face took a closed form**, not that the value
+/// is exact (the pre-PR-11 behaviour, bit-identical). The value carries
+/// its closed forms' rounding and its sum's, which no pad states: a few
+/// ulps of the faces' flux terms where each face is read about its own
+/// geometry, and more where a face's closed form is levered by a carrier
+/// stored far from it
+/// (`work/fluxtail/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
+/// however small the body. So a decision about the volume's sign reads
+/// the body's interval re-derivation, or a stated bound on that rounding
+/// (`certify_role`), and never a zero pad as exactness. The one consumer
+/// known to read it as exact is the boolean volume backstop's magnitude
+/// arm
+/// (`work/cleave/the-backstops-magnitude-arm-meters-the-f64-margin-after-the-interval-has-cleared-it`).
 #[derive(Clone, Copy, Debug)]
 pub struct MassProperties<T: Real> {
     /// The **signed** enclosed volume by the divergence theorem —
@@ -72,8 +85,9 @@ pub struct MassProperties<T: Real> {
     /// quadrature faces the enclosure midpoint (bracket `± area_pad`).
     pub surface_area: T,
     /// Certified half-width of the volume bracket (m³) — the summed
-    /// quadrature enclosure half-widths; `0.0` when every face is
-    /// closed-form. The tier-3 +V backstop consumes this.
+    /// quadrature enclosure half-widths; `0.0` when every face took a
+    /// closed form, which states nothing of that value's rounding (the
+    /// type's docs). The tier-3 +V backstop consumes this.
     pub volume_pad: f64,
     /// Certified half-width of the area bracket (m²).
     pub area_pad: f64,
@@ -849,8 +863,10 @@ impl<U: Real> SignReading<U> {
 }
 
 impl<T: Real> MassProperties<T> {
-    /// This sum as a role read takes it: exact where no face carried a
-    /// quadrature pad, else the bracket.
+    /// This sum as a role read takes it: one value where no face carried
+    /// a quadrature pad, else the bracket. One value is not an exact one:
+    /// its rounding is the reader's to state ([`certify_role`]; the type's
+    /// docs name the reader that does not).
     pub(crate) fn reading(&self) -> SignReading<T> {
         if self.volume_pad == 0.0 {
             SignReading::exact(self.volume, self.surface_area)

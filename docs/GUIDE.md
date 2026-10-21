@@ -691,22 +691,28 @@ let props = mass_properties(&result.body, tol)?;
 assert!((props.volume - 2.984e-5).abs() < 1e-15);       // m³
 assert!((props.surface_area - 1.0696e-2).abs() < 1e-12); // m²
 
-// Every face here has a closed form, so the certified pads are
-// exactly zero — the measure is not approximate.
+// Every face here has a closed form, so the pads are exactly zero:
+// no face needed a quadrature.
 assert_eq!(props.volume_pad, 0.0);
 assert_eq!(props.area_pad, 0.0);
 # Ok::<(), E>(())
 ```
 
-The **pads** are the part people miss. `volume` and `surface_area`
-are not bare numbers, they are the midpoints of *certified
-enclosures*, and `volume_pad`/`area_pad` are the half-widths. The
-true value is inside `volume ± volume_pad`, guaranteed, not
-estimated. Planar and other closed-form faces contribute exactly, so
-their pads are `0.0`; a curved *cut* face contributes a certified
-quadrature bracket and widens the pad. A nonzero pad is the kernel
-telling you how much it does not know, and a program that cares about
-a tolerance should read it rather than assume it.
+The **pads** are the part people miss. Where a face needs a
+quadrature, `volume` and `surface_area` are the midpoints of
+*certified enclosures*, and `volume_pad`/`area_pad` are their
+half-widths: a curved *cut* face contributes a certified quadrature
+bracket and widens the pad. Planar and other closed-form faces
+contribute their closed form, evaluated in floating point, and no pad.
+So a pad of `0.0` means every face had a closed form, not that the
+value is exact, and the true value lies within `volume ± volume_pad`
+up to the floating-point rounding of the closed forms and their sum,
+which the pad does not state. That rounding is a few ulps for a body
+whose surfaces are stated about the body. It is more for a face whose
+surface is stated through a point far from it, a plane through a
+point kilometres away for instance. A nonzero pad is the kernel
+telling you how much its quadrature does not know, and a program that
+cares about a tolerance should read it rather than assume it.
 
 **Gating and then measuring pays for one quadrature, not two — if you
 ask for it that way.** Tier 3's orientation check *is* a certified
