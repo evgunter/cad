@@ -13,3 +13,6 @@ Protocol deviation: the byte was drawn after both reports were delivered (dispat
 - A (Opus): one face-pair row; edge/vertex touches in the closed overlap are part of it; the flush side walls are alignment, not contact: record nothing at rest (likely). Wording: "where a face of each meets the other over an area ... a touch of an edge or vertex lying in the closed overlap is part of it". Build note: confined check, not grandfathered backing.
 - B (Fable): one face-pair row for the seat; the shared bounding edge is the trace of two carrier coincidences, the second being the flush wall, a value coincidence nothing records today; record it as its own SameOriented face-pair row sharing a boundary, proved by rung 2 when the slide is written from the widths, else a finding (sure on the implication analysis). Wording: "each coincidence of carriers once".
 - Split: whether the flush wall is recorded at rest. Reconciliation round 1: each shown the other's report.
+- Round 1: crossed (A moved to B's flush row; B moved to A's nothing-at-rest).
+- Round 2: crossed back (each to their original: A nothing at rest, B the aligned face-pair row). Both likely-leaning-sure.
+- Round 3: a further designer (Opus, fresh) weighs X (nothing at rest) vs Y (aligned row), brief scratchpad forks/flush-third.md.
