@@ -2254,7 +2254,7 @@ impl TraceDecision {
     }
 
     /// The ending this decision's escalation on `cause` carries, read at
-    /// `reading`: the one its decided verdicts carry (D4 ¶1 (iv)).
+    /// `at`: the one its decided verdicts carry (D4 ¶1 (iv)).
     ///
     /// - The transversality decision ends by [`CertCheck::Transversality`],
     ///   and its arm gate by [`CertCheck::TransversalityArm`], as a
@@ -2273,28 +2273,27 @@ impl TraceDecision {
     ///   poisoned margin, no lever of theirs is what refused: the march's
     ///   own arithmetic went unreadable, which is the kernel's.
     #[must_use]
-    pub fn ending(self, cause: &Indeterminate, reading: Reading) -> String {
+    pub fn ending(self, cause: &Indeterminate, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
         let arm = RefusedArm::Undecided(cause);
         match self {
             Self::TransversalityArm => {
-                crate::certify::recourse(CertCheck::TransversalityArm, arm, reading)
+                crate::certify::recourse(CertCheck::TransversalityArm, arm, at)
             }
-            Self::Transversality => {
-                crate::certify::recourse(CertCheck::Transversality, arm, reading)
-            }
-            Self::PairTangency => PAIR_TANGENCY.recourse(arm, reading),
+            Self::Transversality => crate::certify::recourse(CertCheck::Transversality, arm, at),
+            Self::PairTangency => PAIR_TANGENCY.recourse(arm, at),
             Self::StepProgress | Self::ClosureTangent | Self::BranchOpenEnd
                 if cause.margin.is_invalid() =>
             {
-                defect_ending(reading).to_owned()
+                defect_ending(at).to_owned()
             }
-            Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain(None), reading),
-            Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain(None), reading),
-            Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain(None), reading),
-            Self::ClosureReturn => Unsized::Fit.recourse(arm, reading),
+            Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain(None), at),
+            Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain(None), at),
+            Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain(None), at),
+            Self::ClosureReturn => Unsized::Fit.recourse(arm, at),
             // Every arm is reported; a poisoned distance is no input's,
             // since both operands are refused at the door unless finite.
-            Self::BoundarySection => defect_ending(reading).to_owned(),
+            Self::BoundarySection => defect_ending(at).to_owned(),
         }
     }
 }
@@ -2319,7 +2318,7 @@ impl SsiDecision {
     #[must_use]
     pub fn ending(self, cause: &Indeterminate, at: impl Into<ReadAt>) -> String {
         match self {
-            Self::Trace(decision) => decision.ending(cause, at.into().reading()),
+            Self::Trace(decision) => decision.ending(cause, at),
             Self::Limb(limb) => {
                 crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), at)
             }
@@ -3121,6 +3120,38 @@ mod ending_tests {
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **A trace escalation's defect ending reads the door it is given**
+    /// ([`TraceDecision::ending`] through [`super::SsiDecision::ending`]):
+    /// the boundary section's defect names the kernel at a build, the
+    /// kernel or the file at rest, and the file at the import door. Red
+    /// if the trace reads the import door as at rest.
+    #[test]
+    fn a_trace_defect_reads_its_door() {
+        let cause = Indeterminate {
+            margin: MarginDiag::INVALID,
+            band: band(),
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let decision = super::SsiDecision::Trace(TraceDecision::BoundarySection);
+        for (at, want) in [
+            (
+                crate::recourse::ReadAt::Run(Reading::Build),
+                KERNEL_DEFECT_ENDING,
+            ),
+            (
+                crate::recourse::ReadAt::Run(Reading::AtRest),
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                crate::recourse::ReadAt::File(geom_core::FileCoincidence::new(1e-6)),
+                geom_core::DAMAGED_FILE_ENDING,
+            ),
+        ] {
+            assert_eq!(decision.ending(&cause, at), want, "{at:?}");
+        }
     }
 
     /// An escalation of `margin` against [`band`].

@@ -734,15 +734,23 @@ impl JoinRefusal {
     }
 }
 
-impl core::fmt::Display for JoinRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let undecided = |f: &mut core::fmt::Formatter<'_>, diag: &Indeterminate| {
-            write!(
-                f,
-                "{JOIN_SUBJECT} is undecided ({}). {}",
-                diag.payload(),
-                diag.ending(JOIN_LEVER)
-            )
+impl JoinRefusal {
+    /// This refusal's text read at `at`: a reading in band ends in the
+    /// join's lever, a poisoned one with the door's unreadable-margin
+    /// note ([`geom_brep::recourse::unreadable_margin_note`]), and a
+    /// defect in the door's defect ending
+    /// ([`geom_brep::recourse::defect_ending`]).
+    #[must_use]
+    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
+        use geom_brep::recourse::{ReadAt, Reading, defect_ending, unreadable_margin_note};
+        let at = at.into();
+        let defect = defect_ending(at);
+        let undecided = |diag: &Indeterminate| {
+            let ending = match at {
+                ReadAt::Run(Reading::Build) => diag.ending(JOIN_LEVER),
+                _ => diag.ending_noted(JOIN_LEVER, unreadable_margin_note(at)),
+            };
+            format!("{JOIN_SUBJECT} is undecided ({}). {ending}", diag.payload())
         };
         match self {
             Self::Undecided(JoinUndecided {
@@ -752,18 +760,15 @@ impl core::fmt::Display for JoinRefusal {
             | Self::Undecided(JoinUndecided {
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(diag)),
                 ..
-            }) => undecided(f, diag),
+            }) => undecided(diag),
             Self::Undecided(JoinUndecided {
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
                 ..
-            }) => write!(
-                f,
+            }) => format!(
                 "two edges meeting at a vertex on one surface have no chart image to read \
-                 their family off ({e}). {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                 their family off ({e}). {defect}"
             ),
-            Self::CarrierUnsupported { carrier, closed } => write!(
-                f,
+            Self::CarrierUnsupported { carrier, closed } => format!(
                 "two edges meet at a vertex on one {} carrier, which the join cannot run an \
                  edge on {} yet (work/hone/joining-a-spline-carrier-is-unbuilt); there is no \
                  way through this yet",
@@ -774,13 +779,19 @@ impl core::fmt::Display for JoinRefusal {
                     "through the vertex"
                 }
             ),
-            Self::Kernel { kind } => write!(
-                f,
-                "the join of two edges meeting at a vertex on one curve refused ({}). {}",
-                kind_word(*kind),
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            Self::Kernel { kind } => format!(
+                "the join of two edges meeting at a vertex on one curve refused ({}). {defect}",
+                kind_word(*kind)
             ),
         }
+    }
+}
+
+/// Read at a build: every operation that reports it joins the edges of
+/// a body it built.
+impl core::fmt::Display for JoinRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
     }
 }
 

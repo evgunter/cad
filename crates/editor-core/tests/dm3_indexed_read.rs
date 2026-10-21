@@ -469,7 +469,7 @@ fn set_members_writes_indexed_members() {
 /// the cut mints seam vertices whose parentage reads both seats.
 ///
 /// Red if the pair emitter sides a carried edge by its read: every edge
-/// lands on one side and the seam vertex refuses `SeamVertexParentage`.
+/// lands on one side and the seam vertex refuses `UnsupportedSeamVertex`.
 #[test]
 fn a_subtract_of_two_overlapping_members_of_one_family_builds_as_two_parts_do() {
     use crate::eval6_placers_over_instances::part;

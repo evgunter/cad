@@ -1,7 +1,7 @@
 ---
 id: merge-faces-undescribed-ending-is-a-typed-kernel-defect
 kind: issue
-title: topo: merge_faces' undescribed_ending ends a bug-only describe failure in a typed KERNEL_DEFECT_ENDING
+title: topo: merge_faces ends its undescribed edge and its unread pair reach in a typed KERNEL_DEFECT_ENDING
 status: open
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
@@ -30,3 +30,10 @@ row's second pass lists those; they are not classified here.
 - **Class 2**: `unreachable!` or `debug_assert` per `[failure.taxonomy]` rows 4–5, answering row 0 first; the tests that pin the text move to `#[should_panic]`.
 
 Re-check each `likely` or `unsure` argument before acting on it; one that fails moves the site to class 1.
+
+## Second-pass sites
+
+(Census second pass, as of main 69ab780194: `## Census, second pass` in the parent row.)
+
+- `crates/topo/src/merge_faces.rs` `MergeDecision::ending`, `PairReach` (~1114), through `Unsized::Defect.recourse(_, Reading::Build)`. Door: `merge_coplanar_faces`. **Class 2, unsure**: the merge reads a caller's body under a build reading. An extent that does not read over stored geometry is the file's at rest, so the reading may be mislabelled rather than the state bug-only. Settle that before converting.
+- `MergeDecision::ending`, `DeclaredPlanes(Parallel | Norm)` and `DeclaredOffset` (~1108). **Class 2, likely**. **HELD** (declared pairs, D10): it is listed so the census is whole, and it is not this row's to repair.
