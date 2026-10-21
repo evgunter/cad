@@ -80,7 +80,7 @@
 //!
 //!    It then asks [`is_underflowed_length`](crate::is_underflowed_length), against that vector's
 //!    largest `|component|` as the witness ([`Vec3::norm_witness`]).
-//!    A direction below [`Vec3::normalize`]'s ~1e-162 underflow band
+//!    A direction below [`Vec3::norm`]'s ~1e-162 underflow band
 //!    squares to zero, so its norm is EXACTLY zero and the sign
 //!    decision answers `Zero` definitely — a true statement about the
 //!    arithmetic and a false one about the input, which has a
@@ -153,7 +153,7 @@ pub enum FrameInput {
     /// poisoned.
     ///
     /// It also names a reference whose own perpendicular offset has no
-    /// finite length — a reference past [`Vec3::normalize`]'s ~1e154
+    /// finite length — a reference past [`Vec3::norm`]'s ~1e154
     /// overflow band, whose cross product with the unit aim overflows
     /// — through [`FrameError::NonFiniteLength`]. That is this
     /// input's own failure, decided here: the aim is asked about

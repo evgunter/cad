@@ -8,7 +8,7 @@
 use core::convert::Infallible;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::real::Real;
+use crate::real::{Real, pow2};
 
 /// A vector of the 2-D linear (tangent) space.
 #[derive(Clone, Copy, Debug)]
@@ -30,35 +30,56 @@ pub struct Vec3<T: Real> {
     pub z: T,
 }
 
-/// `2⁵²⁴`: a witness at or above `2⁵⁰⁰` overflows when scaled by it.
-const TWO_POW_524: f64 = 5.491_838_128_104_488e157;
-/// `2⁻⁵⁷⁵`: a witness at or below `2⁻⁵⁰⁰` flushes to zero when scaled by it.
-const TWO_POW_M575: f64 = 8.086_349_223_904_39e-174;
-/// The prescale for a witness at or above `2⁵⁰⁰`, into `[2⁻¹⁰⁰, 2⁴²⁴)`.
-const TWO_POW_M600: f64 = 2.409_919_865_102_884e-181;
-/// The prescale for a witness at or below `2⁻⁵⁰⁰`, into `[2⁻⁴⁷⁴, 2¹⁰⁰]`.
-const TWO_POW_600: f64 = 4.149_515_568_880_993e180;
-
-/// The exact power of two [`Vec3::normalize`] and [`Vec2::normalize`]
-/// scale by before taking the norm, given the vector's largest
-/// `|component|` ([`Vec3::norm_witness`]); `None` where the witness lies
-/// in `(2⁻⁵⁰⁰, 2⁵⁰⁰)`, in which every square that carries weight is a
-/// normal, finite number and the norm needs no help.
+/// The exact power of two [`Vec3::normalize`], [`Vec2::normalize`] and
+/// [`Vec3::orthonormal_basis`] scale by before taking the norm, given
+/// the vector's largest `|component|` `w` ([`Vec3::norm_witness`]).
 ///
-/// Both questions are [`Real::is_bounded`] reads of a scaled witness —
-/// facts about the representation, as at the length doors, not sign
-/// decisions: the first overflows exactly when the witness is at or
-/// above `2⁵⁰⁰` (or is not finite), the second's reciprocal is
-/// unbounded exactly when the witness flushes to zero, at or below `2⁻⁵⁰⁰`
-/// (the zero vector included, which then poisons through `0/0` as
-/// before). Every arm computes the same real function, so the choice
-/// is of a spelling and never of a value: an enclosure near a
-/// threshold is enclosed by whichever arm it takes.
-fn normalizing_scale<T: Real>(witness: T) -> Option<f64> {
-    if !witness.scale_pow2(TWO_POW_524).is_bounded() {
-        Some(TWO_POW_M600)
-    } else if !(T::one() / witness.scale_pow2(TWO_POW_M575)).is_bounded() {
-        Some(TWO_POW_600)
+/// | `w` | scale | scaled `w` |
+/// |---|---|---|
+/// | `[2⁷⁶⁷, ∞]`, or poison | `2⁻⁶⁰⁰` | `[2¹⁶⁷, 2⁴²⁴)` |
+/// | `[2⁵¹¹, 2⁷⁶⁷)` | `2⁻²⁵⁶` | `[2²⁵⁵, 2⁵¹¹)` |
+/// | `(2⁻⁵¹¹, 2⁵¹¹)` | none (`None`) | — |
+/// | `(2⁻⁷⁶⁷, 2⁻⁵¹¹]` | `2²⁵⁶` | `(2⁻⁵¹¹, 2⁻²⁵⁵]` |
+/// | `[0, 2⁻⁷⁶⁷]` | `2⁶⁰⁰` | `[2⁻⁴⁷⁴, 2⁻¹⁶⁷]` |
+///
+/// The unscaled spelling is kept exactly where `w²` is a normal number
+/// and `3w²` is finite, so no bit moves there. Outside it a finite,
+/// nonzero `w` scales into `[2¹⁶⁷, 2⁵¹¹)` or `(2⁻⁵¹¹, 2⁻¹⁶⁷]`, where the
+/// same holds.
+/// Scaling up is exact. Scaling down by `2⁻ˢ` keeps `s ≤ log₂ w`, so a
+/// component `c` whose unit-vector entry `c/‖v‖` is a normal number
+/// (`c ≥ 2⁻¹⁰²²·w`) scales to at least `2⁻¹⁰²²` and stays exact: the
+/// only bits the prescale can drop are of entries that are themselves
+/// below the normal range.
+///
+/// Each cut is a [`Real::is_bounded`] read of the witness or its
+/// reciprocal times a power of two, which overflows exactly at the cut
+/// (`w·2⁵¹³` at `w ≥ 2⁵¹¹`, `(1/w)·2⁵¹³` at `w ≤ 2⁻⁵¹¹`, `2²⁵⁷` for the
+/// outer cuts; `1/0` is `∞`, so the zero vector takes the last arm and
+/// poisons through `0/0`). These are reads of the representation, not
+/// sign decisions. Every arm computes the same real function, so the
+/// read picks a spelling and never a value. At the interval scalar the
+/// high cuts read the upper end and the low cuts the lower end, and any
+/// arm encloses the truth; one enclosure that spans more than about
+/// `2⁵¹⁰` of magnitude fits no arm and comes back wide (`[1e-300, 1]`
+/// loses the sign of its lower end, which the unscaled spelling kept).
+/// At the dual scalar the tangent is scaled with the value, so in a
+/// scaled arm a tangent past `2¹⁰²⁴⁻ˢ` overflows; those arms are where
+/// the unscaled value channel was already out of the format.
+fn normalizing_scale<T: Real>(w: T) -> Option<f64> {
+    let overflows = |x: T, e: i32| !x.scale_pow2(pow2(e)).is_bounded();
+    if overflows(w, 513) {
+        Some(if overflows(w, 257) {
+            pow2(-600)
+        } else {
+            pow2(-256)
+        })
+    } else if overflows(T::one() / w, 513) {
+        Some(if overflows(T::one() / w, 257) {
+            pow2(600)
+        } else {
+            pow2(256)
+        })
     } else {
         None
     }
@@ -194,11 +215,11 @@ impl<T: Real> Vec2<T> {
     /// The unit vector in this direction: `self / self.norm()`, after an
     /// exact power-of-two prescale where the squares would leave the
     /// format ([`normalizing_scale`]). Wherever the largest component
-    /// lies in `(2⁻⁵⁰⁰, 2⁵⁰⁰)` no prescale is applied and the body is
+    /// lies in `(2⁻⁵¹¹, 2⁵¹¹)` no prescale is applied and the body is
     /// exactly `self / self.norm()`, one division per component.
-    /// Outside that range the prescale moves only exponents, so the
-    /// result is this vector's direction, unit to rounding, at every
-    /// finite magnitude — `(1e200, 0)` normalizes to `(1, 0)`, not to
+    /// Outside that range the result is this vector's direction, unit
+    /// to rounding, at every finite magnitude, and drops no bit of an
+    /// entry that is a normal number — `(1e200, 0)` normalizes to `(1, 0)`, not to
     /// the zero vector, and `(1e-170, 0)` to `(1, 0)`, not to `±∞`.
     ///
     /// **Total.** The zero vector yields all-NaN components (0/0), a
@@ -396,11 +417,11 @@ impl<T: Real> Vec3<T> {
     /// The unit vector in this direction: `self / self.norm()`, after an
     /// exact power-of-two prescale where the squares would leave the
     /// format ([`normalizing_scale`]). Wherever the largest component
-    /// lies in `(2⁻⁵⁰⁰, 2⁵⁰⁰)` no prescale is applied and the body is
+    /// lies in `(2⁻⁵¹¹, 2⁵¹¹)` no prescale is applied and the body is
     /// exactly `self / self.norm()`, one division per component.
-    /// Outside that range the prescale moves only exponents, so the
-    /// result is this vector's direction, unit to rounding, at every
-    /// finite magnitude — an axis `(1e160, 1, 1)` normalizes to
+    /// Outside that range the result is this vector's direction, unit
+    /// to rounding, at every finite magnitude, and drops no bit of an
+    /// entry that is a normal number — an axis `(1e160, 1, 1)` normalizes to
     /// `(1, 1e-160, 1e-160)`, not to the zero vector, and
     /// `(1e-170, 0, 0)` to `(1, 0, 0)`, not to `(±∞, NaN, NaN)`.
     ///
@@ -452,8 +473,9 @@ impl<T: Real> Vec3<T> {
     /// `norm_squared` to ∞, collapsing the coefficient — and hence the
     /// projection — to a silent zero (∞ is not f64 poison); the
     /// symmetric underflow end blows it up instead. Both bands are far
-    /// outside the session box (D4 ¶4) — the same posture and
-    /// boundaries as [`Vec3::normalize`]'s doc note.
+    /// outside the session box (D4 ¶4); unlike [`Vec3::normalize`],
+    /// nothing prescales here (`work/frame/
+    /// project-and-reject-collapse-past-the-squares-range`).
     pub fn project_onto(self, onto: Self) -> Self {
         onto * (self.dot(onto) / onto.norm_squared())
     }
@@ -531,10 +553,10 @@ impl<T: Real> Vec3<T> {
     /// subtractive spelling was exact; `onto` below ~1e-140 pushes the
     /// numerator into the subnormals and then to zero, so a `self`
     /// entirely orthogonal to `onto` rejects to a silent exact zero.
-    /// Both bands are far outside the session box (D4 ¶4) — the same
-    /// posture and the same kind of boundary [`Vec3::normalize`]'s doc
-    /// note states for its own ~1e154 band — and both are pinned in
-    /// `props1_review_rows.rs`.
+    /// Both bands are far outside the session box (D4 ¶4), nothing
+    /// prescales here as [`Vec3::normalize`] does (`work/frame/
+    /// project-and-reject-collapse-past-the-squares-range`), and both
+    /// are pinned in `props1_review_rows.rs`.
     pub fn reject_from(self, onto: Self) -> Self {
         onto.cross(self).cross(onto) / onto.norm_squared()
     }
@@ -586,15 +608,17 @@ impl<T: Real> Vec3<T> {
     /// **The scale `s` is `min(‖n‖, max|n_i|)`** — the norm and its own
     /// witness ([`Vec3::norm_witness`]), which bracket each other
     /// within `√3` wherever both are computed. Both are taken of `n`
-    /// after [`Vec3::normalize`]'s exact power-of-two prescale, which
-    /// moves no bit of `b1` and keeps every square in the format at
-    /// every finite magnitude; `b2` is crossed with the unscaled `n`,
-    /// so it carries `‖n‖` as before.
+    /// after [`Vec3::normalize`]'s power-of-two prescale
+    /// ([`normalizing_scale`]): none where the largest component lies
+    /// in `(2⁻⁵¹¹, 2⁵¹¹)`, so no bit of the frame moves there, and
+    /// outside it every square stays in the format and no normal entry
+    /// of `b1` loses a bit. `b2` is crossed with the unscaled `n`, so it
+    /// carries `‖n‖` as before.
     ///
     /// **Boundedness — unbounded only where the box contains the ZERO
-    /// VECTOR** (DL6), or where one enclosure's witness runs from below
-    /// `2⁻¹⁰⁰` to past `2⁵⁰⁰`, more than one prescale can bring into the
-    /// format. A denominator's lower bound is zero only when `s`'s is,
+    /// VECTOR** (DL6), or where one enclosure's witness spans more
+    /// magnitude than one prescale can bring into the format
+    /// ([`normalizing_scale`]'s interval note). A denominator's lower bound is zero only when `s`'s is,
     /// and `s`'s is zero exactly when every component of `n` encloses
     /// zero — a box holding the vector that names no direction — or
     /// when the squared norm flushed to zero. Everywhere else both candidates are bounded, so the
@@ -810,11 +834,12 @@ mod tests {
         (coord(), coord(), coord()).prop_map(|(x, y, z)| Vec3::new(x, y, z))
     }
 
-    /// A component anywhere in `±[2⁻⁴⁹⁹, 2⁵⁰⁰)`, or zero.
+    /// A component anywhere in `±[2⁻⁵¹¹, 2⁵¹¹)`, or zero; the zero
+    /// vector and a witness of exactly `2⁻⁵¹¹` are filtered out below.
     fn wide_coord() -> impl Strategy<Value = f64> {
         prop_oneof![
             1 => Just(0.0),
-            8 => (1.0..2.0f64, -499..500i32, any::<bool>())
+            8 => (1.0..2.0f64, -511..511i32, any::<bool>())
                 .prop_map(|(m, e, neg)| if neg { -m * pow2(e) } else { m * pow2(e) }),
         ]
     }
@@ -822,7 +847,9 @@ mod tests {
     fn wide_vec3() -> impl Strategy<Value = Vec3<f64>> {
         (wide_coord(), wide_coord(), wide_coord())
             .prop_map(|(x, y, z)| Vec3::new(x, y, z))
-            .prop_filter("not the zero vector", |v| v.norm_witness() != 0.0)
+            .prop_filter("witness in (2^-511, 2^511)", |v| {
+                v.norm_witness() > pow2(-511)
+            })
     }
 
     #[test]
@@ -902,26 +929,35 @@ mod tests {
         assert!(n2.x.is_nan() && n2.y.is_nan());
     }
 
+    /// Each cut sits exactly where `normalizing_scale`'s table puts it,
+    /// at `f64` and at a point enclosure: the last witness on either
+    /// side of every boundary.
     #[test]
-    fn normalizing_scale_constants_are_the_powers_they_name() {
-        for (k, e) in [
-            (TWO_POW_524, 524),
-            (TWO_POW_M575, -575),
-            (TWO_POW_M600, -600),
-            (TWO_POW_600, 600),
+    fn normalizing_scale_cuts_where_its_table_says() {
+        use crate::Interval;
+        let below = |x: f64| f64::from_bits(x.to_bits() - 1);
+        let above = |x: f64| f64::from_bits(x.to_bits() + 1);
+        for (w, want) in [
+            (f64::INFINITY, Some(pow2(-600))),
+            (pow2(767), Some(pow2(-600))),
+            (below(pow2(767)), Some(pow2(-256))),
+            (pow2(511), Some(pow2(-256))),
+            (below(pow2(511)), None),
+            (1.0, None),
+            (above(pow2(-511)), None),
+            (pow2(-511), Some(pow2(256))),
+            (above(pow2(-767)), Some(pow2(256))),
+            (pow2(-767), Some(pow2(600))),
+            (pow2(-1074), Some(pow2(600))),
+            (0.0, Some(pow2(600))),
         ] {
-            assert_eq!(k.to_bits(), pow2(e).to_bits(), "2^{e}");
+            assert_eq!(normalizing_scale(w), want, "f64 witness {w:e}");
+            if w.is_finite() {
+                let at = normalizing_scale(Interval::from_f64(w));
+                assert_eq!(at, want, "point enclosure {w:e}");
+            }
         }
-    }
-
-    /// `2^e` built from its bits, exact across the subnormal range too
-    /// (`powi` with a negative exponent overflows before it inverts).
-    fn pow2(e: i32) -> f64 {
-        if e >= -1022 {
-            f64::from_bits(u64::try_from(e + 1023).unwrap() << 52)
-        } else {
-            f64::from_bits(1u64 << (e + 1074))
-        }
+        assert_eq!(normalizing_scale(f64::NAN), Some(pow2(-600)));
     }
 
     /// One vector carried through every binade the format holds it in:
@@ -1117,7 +1153,7 @@ mod tests {
             prop_assert!((a.normalize().norm() - 1.0).abs() <= 1e-14);
         }
 
-        /// Wherever the largest component lies in `(2⁻⁵⁰⁰, 2⁵⁰⁰)`,
+        /// Wherever the largest component lies in `(2⁻⁵¹¹, 2⁵¹¹)`,
         /// `normalize` is the unscaled `v / ‖v‖` bit for bit — components
         /// drawn across that whole span of binades, zeros included.
         #[test]

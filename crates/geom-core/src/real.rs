@@ -378,6 +378,13 @@ pub trait Real:
     /// be what its type claims — a rigid motion's angle and
     /// translation (`linalg::RigidMotion`'s mints and decided door).
     ///
+    /// It is also how a generic body asks which binade a value is in
+    /// without a comparison surface: `x · 2ᵏ` is unbounded exactly when
+    /// `|x| ≥ 2¹⁰²⁴⁻ᵏ`, so `normalizing_scale` (`linalg/vec.rs`) reads
+    /// its cuts as overflows of the witness and of its reciprocal. That
+    /// use is sound only where every answer selects the same real
+    /// function — a choice of spelling, never of value.
+    ///
     /// Required, with no default: `is_finite_length` is the waving
     /// answer at an enclosure, so a scalar that inherited it would
     /// pass an unbounded enclosure silently. Each scalar states its
@@ -837,6 +844,25 @@ pub trait Real:
     /// distance to the half-period through the predicate layer.
     fn reduce_periodic_centred(self, period: Self) -> Self {
         self - period * self.periodic_branch(period)
+    }
+}
+
+/// `2^e`, exactly, built from its bits: subnormal for `e < -1022`, `0`
+/// below `-1074`, `∞` above `1023`. The one spelling of an exact power
+/// of two — `2f64.powi(e)` rounds past the exponent range (its own
+/// docs' `powi(2.0, -1074) = 0`) — and the argument every
+/// [`Real::scale_pow2`] call takes.
+#[must_use]
+#[allow(clippy::cast_sign_loss)]
+pub const fn pow2(e: i32) -> f64 {
+    if e > 1023 {
+        f64::INFINITY
+    } else if e >= -1022 {
+        f64::from_bits(((e + 1023) as u64) << 52)
+    } else if e >= -1074 {
+        f64::from_bits(1u64 << (e + 1074))
+    } else {
+        0.0
     }
 }
 

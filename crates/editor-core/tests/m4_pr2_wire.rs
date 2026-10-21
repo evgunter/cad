@@ -236,9 +236,8 @@ fn typed_refusal_doors() {
 ///
 /// Components of 1e200 are finite VALUES, so the expression layer
 /// passes them; their norm is what overflows to +∞, and an ∞ margin
-/// reads as maximally definite, which normalizes the vector to zero.
-/// The rule then steps by a zero direction and mints coincident
-/// copies out of a decided path.
+/// reads as maximally definite. The door asks whether the length is a
+/// number before it asks its sign, and refuses here.
 ///
 /// The refusal's own SENTENCE is pinned, not just its variant: a
 /// reader is told which vector refused, and the role word is a

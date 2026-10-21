@@ -293,7 +293,7 @@ pub(crate) struct SectorShape<T: Real> {
 /// `min` and [`Real::min`] propagates `NaN` but not infinity — so
 /// `min` hides an OVERFLOWED chord behind a finite one (`min(3, ∞) =
 /// 3`) while a poisoned one stops rung 1 on its own. A chord past
-/// [`Vec3::normalize`]'s ~1e154 overflow band has an infinite norm;
+/// [`Vec3::norm`]'s ~1e154 overflow band has an infinite norm;
 /// hidden under the `min`, rung 1 sees a healthy arm and passes on a
 /// length that is not a number.
 ///

@@ -48,3 +48,11 @@ the filing unit: `Mat3` is PROPS' ground and the bits argument (no
 change on a unit input) is what makes the second divide harmless
 today, so which door retires is this program's decision, not a
 one-line take.
+
+**2026-10-21 (FRAME, `frame/normalize-overflow`).** The bare door no
+longer collapses: `Vec3::normalize` prescales by an exact power of two
+past the squares' range, so an overflowed or underflowed axis
+normalizes to its direction and `rotation_about` builds the rotation
+about it, not `cos θ · I`. The paragraph above that calls the two rows
+closing together is about that collapse; the re-divide this row is
+about is unchanged.

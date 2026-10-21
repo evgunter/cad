@@ -7,6 +7,7 @@ opened: 2026-10-21
 refs: [normalize-overflow-yields-zero-axis]
 priority: P2
 cost: M
+design: true
 ---
 
 Found while landing `normalize-overflow-yields-zero-axis`, whose fix
@@ -34,6 +35,16 @@ collapse that is now gone:
 - `topo`'s `sector_shape` rung 0 (`NonFiniteChord`, and its underflow
   twin) refuses an overflowed or underflowed chord before normalizing
   it.
+- `step-import`'s `entities.rs`: the DIRECTION door (the
+  `ratios.norm()` gate, "a zero triple names no direction") and
+  AXIS2_PLACEMENT_3D's reference-direction door (the
+  `perpendicular.norm()` gate, "a parallel pair states no frame") test
+  `norm.is_finite() && norm > 0.0` on the unscaled norm. They refuse
+  `(1e200, 0, 0)` under a false cause (it is neither zero nor
+  parallel), and `(1e-170, 0, 0)` as "a zero triple".
+- `profile`'s `unit_from_components` (`crates/profile/src/path.rs`) has
+  the finiteness gate but no underflow gate: `(1e-170, 0)` squares to
+  zero and refuses as `ZeroDirection`, a false cause.
 
 Under DUAL-DESIGN DL6 a refusal is legal only where the input poses no
 real question, and `(1e200, 0, 0)` names a direction. Two readings to
