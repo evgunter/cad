@@ -165,6 +165,8 @@ mod join1_r2_topo_probes;
 mod join_star_fixture;
 #[path = "join_whole_orbit_rows.rs"]
 mod join_whole_orbit_rows;
+#[path = "long_edges_on_one_line.rs"]
+mod long_edges_on_one_line;
 #[path = "loop_reparenting_pcurve_rows.rs"]
 mod loop_reparenting_pcurve_rows;
 #[path = "m3_pr1_surgery.rs"]

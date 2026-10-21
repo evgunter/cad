@@ -41,3 +41,14 @@ the cut cannot read a corner at a slit's tip. `ClassificationInvariant`
 claims a kernel defect. The row "the slab inside ∪ slit" is left out of CLEAVE's pin
 `a_face_glued_to_the_slit_floor_merges_its_two_edges` until this
 lands; put it back there.
+
+## More witnesses (CLEAVE, `cleave/glued-slit-intersection-regression`)
+
+The plate less a pyramid lying under its top (`below(lying(0))`) holds
+a zero-area ring in its top. The box `[1,2]×[0.5,1.5]×[lo,1]` lies
+flush under that top, `lo ∈ {0, 0.3, 0.6}`, at rest and turned. Both
+refusals predate PR 5505, at `df1ed8d476`:
+- `y ∩ x` (the plate first) refuses "a fate cut leaves a slit in the
+  dropped face";
+- `x ∪ y` refuses "a fate cut's end lies in no corner of the dropped
+  face".
