@@ -157,25 +157,93 @@ pub(crate) mod refusal;
 pub(crate) mod strict;
 pub(crate) mod wire;
 
+use std::collections::BTreeMap;
+
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
 use crate::edit::{DocEdit, EditError, EditRecord, apply_replayed};
 use crate::ident::DocumentId;
+use crate::node::{Node, RecipeNodeId};
 use crate::program::{ProfileDoc, ProfileProgram};
 use crate::sentence::{Labelled, Labels, Staged};
+use crate::var::{Var, VarId};
 use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
 pub use check::{NonFiniteSite, OutputFault, ProgramFault, SelectionBodyFault, SnapshotError};
 
 /// The serialized body under the header: snapshot + edit log (D1).
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileBody {
-    /// The full document snapshot.
-    snapshot: ProfileDoc,
+    /// The document snapshot, as parsed: a [`ProfileDoc`] only once
+    /// [`load`] has run the shared validator over it.
+    snapshot: SnapshotWire,
     /// The recorded edits since the snapshot, replayed on load.
     edits: Vec<DocEdit<ProfileProgram>>,
+}
+
+/// **The reading half of [`crate::Doc`]'s wire**, and the one
+/// deserializer that reaches a document: `Doc` derives `Serialize`
+/// alone, so a document built from bytes is one [`load`] has judged.
+/// Field for field `Doc`'s, under the same names and `with` modules,
+/// so the two halves spell one format. [`Self::into_unchecked`] names
+/// every field of both, so neither gains a FIELD the other lacks; the
+/// field attributes (`with`, `default` here, `skip_serializing_if` on
+/// `Doc`) are kept in step by hand. A refusal says the type the file
+/// spells (`expected struct Doc`), as it did when `Doc` read itself.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields, expecting = "struct Doc")]
+struct SnapshotWire {
+    id: DocumentId,
+    mint: crate::Mint,
+    #[serde(with = "strict::nodes")]
+    nodes: BTreeMap<RecipeNodeId, Node<ProfileProgram>>,
+    #[serde(with = "strict::vars")]
+    vars: BTreeMap<VarId, Var>,
+    #[serde(default, with = "strict::var_names")]
+    var_names: BTreeMap<VarId, crate::doc::VarName>,
+    epsilon: f64,
+    #[serde(with = "strict::witnesses")]
+    witnesses: BTreeMap<RecipeNodeId, crate::witness::WitnessDatum>,
+    #[serde(with = "strict::doc_metadata")]
+    metadata: BTreeMap<String, String>,
+    #[serde(with = "pairs")]
+    appearance: crate::appearance::AppearanceMap,
+    #[serde(default, with = "strict::labels")]
+    labels: BTreeMap<RecipeNodeId, crate::Label>,
+}
+
+impl SnapshotWire {
+    /// The parsed fields as a document no check has judged yet. Two
+    /// callers: [`load`], which validates it before anything else sees
+    /// it, and [`snapshot_unchecked`], the test fixture's.
+    fn into_unchecked(self) -> ProfileDoc {
+        let Self {
+            id,
+            mint,
+            nodes,
+            vars,
+            var_names,
+            epsilon,
+            witnesses,
+            metadata,
+            appearance,
+            labels,
+        } = self;
+        crate::Doc {
+            id,
+            mint,
+            nodes,
+            vars,
+            var_names,
+            epsilon,
+            witnesses,
+            metadata,
+            appearance,
+            labels,
+        }
+    }
 }
 
 /// A loaded document: the parsed snapshot, the parsed edit log, and
@@ -559,7 +627,8 @@ pub fn save(
     Ok(format!("id: {}\n{json}\n", snapshot.id()))
 }
 
-/// The borrowing twin of [`FileBody`] (save side).
+/// The body as save writes it, borrowing; [`FileBody`] is the body as
+/// load reads it.
 #[derive(serde::Serialize)]
 struct SerBody<'a> {
     snapshot: &'a ProfileDoc,
@@ -580,24 +649,25 @@ pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
     // before the body so a malformed header refuses in header terms,
     // then verified against the snapshot below.
     let (header_id, body_text) = parse_id_line(text)?;
-    let body = parse_body(body_text)?;
+    let FileBody { snapshot, edits } = parse_body(body_text)?;
+    let snapshot = snapshot.into_unchecked();
     // Header/snapshot id agreement (ASM-1 D-6): the save door writes
     // the snapshot's own id, so disagreement is tampering, refused.
-    if header_id != body.snapshot.id() {
+    if header_id != snapshot.id() {
         return Err(PersistError::IdMismatch {
             header: header_id,
-            snapshot: body.snapshot.id(),
+            snapshot: snapshot.id(),
         });
     }
     // The ONE shared validator — the same call the save door makes
     // (convention 2): a parsed document passes exactly the checks an
     // in-memory document must pass to be saved.
-    check::validate_document(&body.snapshot, &body.edits, tol)?;
+    check::validate_document(&snapshot, &edits, tol)?;
     // Replay through apply's doors: the loaded current state is the
     // replayed state, never trusted bytes.
-    let mut doc = body.snapshot.clone();
-    let mut records = Vec::with_capacity(body.edits.len());
-    for (index, edit) in body.edits.iter().enumerate() {
+    let mut doc = snapshot.clone();
+    let mut records = Vec::with_capacity(edits.len());
+    for (index, edit) in edits.iter().enumerate() {
         let applied =
             apply_replayed(&doc, edit, tol).map_err(|error| PersistError::EditReplay {
                 index,
@@ -608,11 +678,20 @@ pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
     }
     reconcile_epsilon(doc.epsilon())?;
     Ok(Loaded {
-        snapshot: body.snapshot,
-        edits: body.edits,
+        snapshot,
+        edits,
         doc,
         records,
     })
+}
+
+/// The snapshot `text` spells, parsed and NOT validated — the test
+/// fixture [`crate::test_support::past_the_load_door`]'s, and nothing
+/// else's.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn snapshot_unchecked(text: &str) -> Result<ProfileDoc, PersistError> {
+    let (_header_id, body_text) = parse_id_line(text)?;
+    Ok(parse_body(body_text)?.snapshot.into_unchecked())
 }
 
 /// D4's ε wiring: commit the document's recorded ε as the process

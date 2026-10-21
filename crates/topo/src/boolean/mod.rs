@@ -3708,9 +3708,10 @@ pub enum BooleanError {
     },
     /// The face carrying an operand's slit or zero-area ring is glued
     /// away by the other solid, so the slit's two coincident edges would
-    /// be one edge between its two walls, which the join does not yet
-    /// build: its ring run along the slit encloses no area. A
-    /// construction gap, with no lever.
+    /// be one edge between its two walls, and the join's run along the
+    /// slit, which encloses no area, walls off the sliver between them
+    /// from neither side without separating a pending pair, or runs on
+    /// a curved face's ring lane. A construction gap, with no lever.
     SlitFaceGlued {
         /// The operand holding the slit.
         operand: Operand,
@@ -5024,7 +5025,8 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the other solid glues away face {face:?} of the {} solid, which carries a slit \
                  or zero-area ring, so the slit's two coincident edges would become one edge \
-                 between its two walls, which the join does not yet build. {}",
+                 between its two walls, and the join cannot wall off the sliver between them \
+                 there. {}",
                 operand_word(*operand),
                 geom_core::NOT_YET_ENDING
             ),
