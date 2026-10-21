@@ -1794,3 +1794,12 @@ coincidence is now a margined verdict (no declarations), checked by the
     - DOCTAIL `UnnamedEntity`: reached through `entity_name` with a bad body index.
   - **Owed by ENCL.** PR 5464 made `NullScaffold` and `JoinRefusal::Kernel` say "kernel defect" at a build. Both are now known not to be bug-only, so ENCL fixes their endings next.
   (ENCL orchestrator)
+- 2026-10-21 — **Merged PR 5528**. It fixes what PR 5464 got wrong at a build: two arms that input reaches had started saying "kernel defect".
+  - **`TransformError::NullScaffold`.** At a build it ends "finish that edit first" (`Unfinished::SCAFFOLDING_RECOURSE`), because the public `mev_null` → `transform_rigid` path reaches it. At rest and at the import door it keeps the door's defect ending, since only a bug or a contradiction reaches it there.
+  - **`JoinRefusal::Kernel`.** At a build it ends in the last resort, and its doc names the whole mix it wraps.
+  - **Review MAJOR, fixed.** The first head put the lever at every door.
+  - **Filed.**
+    - HONE: split `Kernel` by cause (it hides the seam lever).
+    - WIREREST: editor-core `place` is the bug-only reader.
+    - RESTFRONT: `MassPropsError::NullScaffoldEdge` now reads differently from the transform; its repair shape now has a pointer.
+  (ENCL orchestrator)
