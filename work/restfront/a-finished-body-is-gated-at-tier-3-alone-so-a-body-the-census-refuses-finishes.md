@@ -25,7 +25,7 @@ door that built it."). REACHHOLD's
 
 ## What the code does
 
-- `AtRestBody::validate` (`validate.rs`, near line 9676) is "the one
+- `AtRestBody::validate` (`validate.rs`, near line 9811) is "the one
   constructor of `AtRestOutcome::Validated`", and it runs
   `validate_geometric`: tier 3 alone, with no census.
 - `AtRestPolicy::gate_at_rest_kept` at `f64` (`props.rs`, near line 4795)
