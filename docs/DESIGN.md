@@ -1439,9 +1439,13 @@ space's carried bodies pairwise, and nothing it finds refuses. An
 rigid motion: one placement's copies at one value of its indices, or
 one construction's or operation's output. Between two arrivals the
 census decides each pair, once, at the highest-dimensional cells that
-touch: two faces meeting over an area are one pair, and the edges and
-vertices on that area's boundary are part of it, not pairs of their
-own. Contact is an `unproven-coincidence` finding
+touch: two faces meeting over an area are one pair, and the census
+asks nothing of a cell bounding one of them against a cell bounding
+the other, since wherever such cells meet is inside that area's
+closure and leaves the same contact. Two faces whose carriers are one
+but whose interiors do not meet are no contact; where an operation
+makes them one face, that operation's door records it
+([coincidence.door]). Contact is an `unproven-coincidence` finding
 unless it is structural (a mate-placed face is); an overlap of their
 material is an interference finding; and a pair the census has no
 lane for is a finding too, saying it could not look, so no outcome of
