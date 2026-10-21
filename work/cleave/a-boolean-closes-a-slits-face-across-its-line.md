@@ -57,3 +57,66 @@ Close F across the line in the join: the slit's two edges, each with
 its wall dropped, become one F | F edge, which the merge then removes
 with the ring or slit it bounded. Then let recl place the germs there
 too, and pin the void-ray unions building the box.
+
+## Built (branch `cleave/boolean-closes-a-slits-face`)
+
+recl places the germs on the slit's line in the union too: the
+`Closes` arm of `recl_edges` and the `SlitLineGap::Closes` case are
+gone (`crates/topo/src/boolean/recl.rs`, `recl_edges`;
+`crates/topo/src/boolean/mod.rs`, `SlitLineGap`). Two pieces build
+what it then reaches.
+
+- **The zip keeps a strut section.** Where the result keeps only F
+  about the line, one operand's section along it is a strut (an edge
+  of the other's, both halves in the section face) and the other's is
+  the slit's two edges. Each seam pair's loop of two dies by `kef`
+  across B's edge; where B's edge is that strut, both its halves are
+  paired, and the first `kef` killed the second pair's half too (the
+  `y ∪ x` panic in `glue`). `kill_pair`
+  (`crates/topo/src/boolean/zip.rs`, `kill_pair`, called from `glue`)
+  kills across A's edge there instead, and the report names the strut
+  as the surviving seam edge; both edges so paired refuses
+  `ZipCorrespondence`. Either order then leaves F's halves of the two
+  slit edges glued into one edge, F on both sides.
+- **The output stage closes F across it.** `close_struts`
+  (`crates/topo/src/boolean/slit.rs`, `close_struts`; module docs,
+  *Closing*) runs first in `finish_output`
+  (`crates/topo/src/boolean/ops.rs`, `finish_output`), before the
+  coplanar merge, whose entry gate refused the strut (`Merge`
+  `InputNotClosed`, `ScaffoldingStrutVertex`): `kev` deletes each edge
+  with both halves in one face toward its free end, and a ring closed
+  whole leaves a lone vertex that `mekr` to the outline then `kev`
+  delete, as the merge prunes its own dangling seam edges. The edge
+  and its vertices substitute onto F in the op's lineage and naming
+  (`output_substitutions`), and the strut leaves the seam edges.
+
+It is the mirror of `merge_slivers`: there the sheets on the line are
+the two walls and a sliver between them dies by `kef`; here they are F
+twice and the strut between them dies by `kev`.
+
+Measured on main (`f742e4c97b`) and head at ε = default, 1e-6 and
+1e-12: the 20 void-ray unions per ε of
+`a_ring_crossed_along_its_line_places_its_germs_apart.rs` (two scenes,
+five poses, both orders) refuse `SlitLineCrossed` `Closes` on main and
+build on head, tier 3 and 3′: "around" is the plate box v8 e12 f6 at
+volume 6 (the partner holds the void), "under" v15 e24 f12, the ring
+closed from the apex to the partner's edge end and kept beyond; at
+sampled points along the line the result's edges are the creases the
+operands' material decides, and `|x ∪ y| + |x ∩ y| = |x| + |y|`. The
+test now builds every op. `REFUSING` in
+`a_vertex_read_by_two_sector_passes.rs` drops "around the lying
+pyramid, mirrored into the void" `x ∪ y` and `y ∪ x` (10 cells per ε),
+which build sound at every pose. `PARTNERS_SLIT_GAPS` in
+`a_vertex_read_again_classes_every_edge.rs` pins 0 `SlitLineCrossed`
+at every ε (was 20, 18, 20); those cells build and the germ probe
+reads them right, the other counts unchanged (`EdgeInFace` 8, 3, 7;
+overlaps 40, 26, 35).
+
+No definite sub-case stays typed for this gap. Two guards stay, each
+a state the join never builds: a strut with both ends free that is its
+face's outline (a face of no area) refuses `JoinDesync`, and a seam
+pair whose two edges are both struts of their section faces refuses
+`ZipCorrespondence`. A ring closed whole on a curved face would take
+the same `mekr`, whose chord is scaffolding killed at once; no witness
+reaches one, since the slit form parts only line edges and
+`EdgeInFaceGap::Curved` refuses an arc.
