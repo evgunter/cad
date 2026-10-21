@@ -1051,8 +1051,7 @@ impl NurbsCellGrid {
         let raise_rows = true;
         for b in bands.iter_mut().filter(|_| raise_rows) {
             let residual = b.aspect(du) / metric;
-            if residual.is_finite() && residual > 0.0 && residual * residual * MAX_RESIDUAL_SQ < 1.0
-            {
+            if residual.is_finite() && residual > 0.0 && residual.powi(2) * MAX_RESIDUAL_SQ < 1.0 {
                 // `ceil(nvc / (residual·√15))`, through the crate's one
                 // count door: a spread too wide to row refuses typed
                 // (`ResolutionOverflow`) rather than allocating.
@@ -2415,7 +2414,7 @@ pub(crate) mod tests {
         assert_eq!((bands[2].nuc, bands[2].nvc), (53, 7), "{bands:?}");
         let residual = bands[2].aspect(1.0) / metric;
         assert!(
-            residual * residual * MAX_RESIDUAL_SQ >= 1.0,
+            residual.powi(2) * MAX_RESIDUAL_SQ >= 1.0,
             "band 2 reaches the residual line: {residual}"
         );
         assert_ne!(bands[1].nuc, 45, "band 1 keeps its own columns: {bands:?}");
