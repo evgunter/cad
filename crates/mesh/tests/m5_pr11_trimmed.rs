@@ -22,10 +22,10 @@ const H: f64 = 2.5;
 const PHI: f64 = 0.3;
 const DELTAS: [f64; 3] = [0.1, 0.01, 0.001];
 
-fn disc() -> ValidatedProfile<f64> {
+fn disc_of(r: f64) -> ValidatedProfile<f64> {
     let lp = bulge_loop(vec![
-        (Point2::new(-R, 0.0), 1.0),
-        (Point2::new(R, 0.0), 1.0),
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -33,8 +33,13 @@ fn disc() -> ValidatedProfile<f64> {
 }
 
 fn halves() -> (Body<f64>, Body<f64>) {
+    halves_of(R)
+}
+
+/// [`halves`] at cylinder radius `r` (same height, same cut).
+fn halves_of(r: f64) -> (Body<f64>, Body<f64>) {
     let cylinder = extrude(
-        &disc(),
+        &disc_of(r),
         Extrusion::Distance {
             depth: H,
             side: ExtrudeSide::Along,
@@ -88,6 +93,35 @@ fn tilted_halves_tessellate_watertight_across_the_delta_schedule() {
             "{label}: finest mesh within 0.15% of πr²H/2 (inscribed, δ = 1e-3 ⇒ \
              mean sag ~ δ), got {last_err}"
         );
+    }
+}
+
+/// **A wide trimmed cylinder triangulates in the lattice metric**
+/// (`work/tess/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
+/// The lane's lattice is square in 3-D, `hu` radians by `r·hu`, so in
+/// (θ, z) it is a strip of aspect ~1/r; triangulated there, an
+/// ellipse trim point between two rows fanned a sliver across many
+/// columns, and the halves refused `CertificateExceeded` at r = 5 for
+/// all twenty δ below, at r = 20 for 19, at r = 100 for 7 (bound up
+/// to ~128·δ). In the lattice metric (`nurbs_cert::lattice_metric`)
+/// every one meshes watertight, at πr²H/2 within the chordal sag.
+#[test]
+fn a_wide_tilted_cylinder_meshes_at_every_delta() {
+    for r in [5.0, 20.0, 100.0] {
+        let (above, _) = halves_of(r);
+        let exact = core::f64::consts::PI * r * r * H / 2.0;
+        for k in 0..20 {
+            // The review's twenty δ, log-spaced 5e-2 → 3e-4, scaled by r.
+            let delta = r * 5e-2 * (3e-4f64 / 5e-2).powf(f64::from(k) / 19.0);
+            let mesh = mesh::tessellate(&above, delta, Tol::witness())
+                .unwrap_or_else(|e| panic!("r = {r}, δ = {delta:e}: {e:?}"));
+            check_mesh(&mesh).unwrap_or_else(|e| panic!("r = {r}, δ = {delta:e}: {e:?}"));
+            let rel = (signed_volume(&mesh) - exact).abs() / exact;
+            assert!(
+                rel < 3.0 * delta / r,
+                "r = {r}, δ = {delta:e}: volume off πr²H/2 by {rel}"
+            );
+        }
     }
 }
 
