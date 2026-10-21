@@ -145,7 +145,7 @@ use topo::{Body, FaceKey};
 use crate::cert;
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells};
-use crate::planar::{Pinches, Walk, classify_faces, edge_key, shoelace2};
+use crate::planar::{Crossings, Pinches, Walk, classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
@@ -378,8 +378,9 @@ pub(crate) fn tessellate_trimmed(
     // THE FACE'S ONE EXIT. Every path out of the retry loop lands
     // here, so the measurement hand-off below is on all of them —
     // including the two typed REFUSALS, which is the case the
-    // falsification accumulator above exists for. `None` after the
-    // loop is the retries-exhausted path.
+    // falsification accumulator above exists for. It is never `None`
+    // after the loop: an attempt asks for a rebuild only below
+    // `MAX_GRID_RETRIES`, so the last attempt accepts or refuses.
     let mut outcome: Option<Result<Patch, TessellateError>> = None;
     // THE LATTICE METRIC (`nurbs_cert::lattice_metric`): the CDT runs
     // on `(u/k, v)`, where the NURBS lattice is near square; the
@@ -473,13 +474,13 @@ pub(crate) fn tessellate_trimmed(
             dev_samples: measure.dev_samples,
         });
     }
-    // The retries-exhausted path leaves no verdict of its own.
-    outcome.unwrap_or(Err(TessellateError::Triangulation { face: fk }))
+    outcome.unwrap_or_else(|| {
+        unreachable!(
+            "the last attempt accepts or refuses: `TrimmedFace::attempt` asks for a \
+             rebuild only below MAX_GRID_RETRIES"
+        )
+    })
 }
-
-/// Each realised boundary edge's crossing count (the planar #116
-/// pattern), keyed by [`edge_key`].
-type Crossings = HashMap<(usize, usize), u32>;
 
 /// Handle-index → (mesh id or grid candidate index, uv).
 #[derive(Clone, Copy)]
@@ -541,14 +542,18 @@ struct TrimmedFace<'a> {
 /// One attempt's triangulation, between inserting its points and
 /// emitting its triangles.
 struct Cdt {
+    /// The triangulation, in the lattice metric
+    /// ([`TrimmedFace::cdt_point`]).
     cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
-    // The first entry's slot at each handle; [`Pinches`] overrides
-    // a boundary slot per triangle at a pinch handle.
+    /// The first entry's slot at each handle; [`Pinches`] overrides
+    /// a boundary slot per triangle at a pinch handle.
     meta: Vec<(f64, f64, Slot)>,
+    /// The trim polygon's handles, in walk order.
     handles: Vec<FixedVertexHandle>,
-    // Every vertex exactly on a crease, with the crease and its
-    // position along it: the crease lines' constraint chain.
+    /// Every vertex exactly on a crease, with the crease and its
+    /// position along it: the crease lines' constraint chain.
     on_crease: Vec<(f64, f64, FixedVertexHandle)>,
+    /// The walk's pinch handles ([`Pinches`]).
     pinches: Pinches,
 }
 
