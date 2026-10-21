@@ -1636,7 +1636,9 @@ mod tests {
     /// seam would where its images do not continue across it, refuses
     /// [`PropsError::ChartLoopOpen`]; one whose lift restarts a whole
     /// period across the seam reads as winding the tube, and refuses
-    /// [`PropsError::LoopsWindChart`]. Neither is read as closed.
+    /// [`PropsError::LoopsWindChart`]. Neither is read as closed. Nor is a
+    /// band of two loops winding the tube both ways, which refuses
+    /// [`PropsError::LoopsWindChart`] typed.
     #[test]
     fn a_ring_on_a_wall_is_decided_closed_on_its_own() {
         let tol = geom_core::Tol::witness();
@@ -1705,6 +1707,37 @@ mod tests {
         assert!(
             matches!(winds, Err(PropsError::LoopsWindChart)),
             "a ring a period open across the seam: {winds:?}"
+        );
+        // A band: the oval alone winds the tube once, and the same oval
+        // run back winds it once the other way. The two bound a band of
+        // the wall, which `require_boundary_windings` admits as a
+        // boundary; the lifted chart's Green form does not read it, so
+        // the wall refuses it typed rather than misread it
+        // (`work/flux/a-spiric-bounded-torus-band-has-no-volume-lane.md`).
+        let back_oval = SpiricEdgeQ {
+            forward: false,
+            ..oval
+        };
+        let band_face = SpiricFaceQ {
+            closed_va: [Interval::zero(); 3],
+            spirics: vec![oval, back_oval],
+            lever: [Interval::zero(); 3],
+            perimeter: 40.0,
+            wall: Some(WallChartQ {
+                major: pt(1.2),
+                minor: pt(0.275),
+                rims: vec![],
+                meridians: vec![],
+                ends: vec![
+                    vec![ends],
+                    vec![spiric_wall_ends(&back_oval, Interval::zero()).unwrap()],
+                ],
+            }),
+        };
+        let band = run(&band_face);
+        assert!(
+            matches!(band, Err(PropsError::LoopsWindChart)),
+            "a band of two loops winding the tube both ways: {band:?}"
         );
     }
 
