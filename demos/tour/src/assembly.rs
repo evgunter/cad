@@ -96,7 +96,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use pncad::prelude::AuthoredNode;
 use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::PI;
@@ -105,13 +104,13 @@ use std::sync::Arc;
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, AssemblyError, CancelToken, Constraint, Coord, Datum, Dimension, DocEdit, DocRef,
+    Assembly, AssemblyError, CancelToken, Constraint, Coord, Dimension, DocEdit, DocRef,
     DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, InlineError,
     LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node,
     OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedFace, SlideAxis, Space, Target, Value, ValuePayload,
+    ProfileProgram, RecipeNodeId, SitedFace, Space, Target, TargetAxis, Value, ValuePayload,
     VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
-    parse_formula, pin_at, place_at, product_named, save, solve_document, split,
+    parse_formula, pin_at, place_at, product_named, save, solve_document, split, stand,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -337,7 +336,7 @@ fn set_values(
             &DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -352,8 +351,8 @@ fn set_values(
 /// and `y`, in metres, and no spin.
 fn seated_at(x: f64, y: f64) -> [(Coord, Formula); 3] {
     [
-        (Coord::Slide(SlideAxis::X), length(x)),
-        (Coord::Slide(SlideAxis::Y), length(y)),
+        (Coord::Slide(TargetAxis::X), length(x)),
+        (Coord::Slide(TargetAxis::Y), length(y)),
         (
             Coord::Spin,
             Formula::literal(0.0, Dimension::Angle).expect("a zero angle"),
@@ -386,16 +385,28 @@ fn place_in_world(
 ) {
     let placed = place_at(doc, &copy_read(doc, placement), pose, opts, tol)
         .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
-    let mate = constrain(doc, placement, placed.mate, tol);
+    let mate = constrain(
+        doc,
+        placement,
+        placed.mate.expect("the gesture places by a mate"),
+        tol,
+    );
     set_values(doc, mate, placed.values, tol);
 }
 
-/// Places one copy of `body` in the world where it stands — pinned by
-/// the named interim's world pin, which reads nothing — and returns the
-/// placement's id.
+/// Places one copy of `body` in the world where it stands
+/// ([`stand`]: the identity bundle, no mate and the constant `0` on
+/// every freedom) and returns the placement's id.
 fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
+    let placed = stand();
     let placement = insert(doc, Node::place(vec![body.into()]), tol);
-    edit(doc, &DocEdit::PinWhereItStands { placement }, tol);
+    placed
+        .write(placement, |e| {
+            let applied = apply(doc, &e, tol)?;
+            *doc = applied.doc;
+            Ok::<_, pncad::document::EditError>(applied.record.minted_constraints)
+        })
+        .unwrap_or_else(|err| panic!("the identity bundle is admitted: {err:?}"));
     placement
 }
 
@@ -473,8 +484,8 @@ fn product_of(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> (Body<f64>, N
 /// lets the post declare TWO parameters and spend one of them twice —
 /// a square section is one dimension, not two.
 ///
-/// The extrusion runs +z from the sketch plane at z = 0, so the part's
-/// SEATING face is its top cap and its datum face is the origin plane.
+/// The extrusion runs up its own +z from z = 0, so the part's SEATING
+/// face is its top cap and its base cap lies on the origin plane.
 fn prism_part(
     label: &str,
     params: &[(&'static str, f64)],
@@ -497,17 +508,6 @@ fn prism_part(
         scope.insert(name, Dimension::Length);
     }
     let zero = pe("0 mm", &scope);
-    let plane = insert(
-        &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [pe("0 mm", &scope), pe("0 mm", &scope), pe("0 mm", &scope)],
-            // A bare integer parses as a Count; the frame's axes are
-            // Scalars, so they are spelled as decimals.
-            u: [pe("1.0", &scope), pe("0.0", &scope), pe("0.0", &scope)],
-            v: [pe("0.0", &scope), pe("1.0", &scope), pe("0.0", &scope)],
-        }),
-        tol,
-    );
     // The section, counter-clockwise from the origin corner: the two
     // extents are the document's own named parameters, so the corners
     // are expressions and the loop is built from them directly.
@@ -515,7 +515,6 @@ fn prism_part(
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::polygon_expr([
                 [zero.clone(), zero.clone()],
                 [width.clone(), zero.clone()],
@@ -531,7 +530,6 @@ fn prism_part(
         Node::Extrude {
             profile: profile.into(),
             distance: pe(length, &scope),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1137,7 +1135,7 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
 }
 
 /// The assembled bench at its authored swing: the near post's world
-/// pin places it through the turntable, the mates place the rest onto
+/// mate places it through the turntable, the mates place the rest onto
 /// it, the mates mint their declarations, and the gate reports what it
 /// could decide.
 fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evaluation<f64> {
@@ -1185,7 +1183,7 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
             bundle(doc, mate.placement)
                 .iter()
                 .filter_map(|c| c.value())
-                .all(|v| v.mate == mate.id),
+                .all(|v| v.mate == Some(mate.id)),
             "{what}'s values each set a freedom of that mate"
         );
         assert!(

@@ -29,11 +29,11 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
-    Attr, AttrKind, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Maintenance,
+    Attr, AttrKind, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Maintenance,
     MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
     cascade_delete_order,
 };
-use fixture::{ang, fname, insert, len, wall};
+use fixture::{fname, insert, len, wall};
 use geom_core::Tol;
 
 /// The strand rows an accepted edit reported, in the order it reported
@@ -125,12 +125,11 @@ fn delete(
 #[test]
 fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let doc = ProfileDoc::empty_derived("dm7_carriers", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
 
     let f0 = fname(victim, wall(&doc, victim, 0));
     let f2 = fname(victim, wall(&doc, victim, 2));
-    let f3 = fname(victim, RoleSeg::Cap(CapEnd::End));
     let f4 = fname(victim, RoleSeg::Cap(CapEnd::Start));
     let e0 = crate::fixture::end_rim(&doc, victim, 0);
     let e1 = crate::fixture::end_rim(&doc, victim, 1);
@@ -156,13 +155,6 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             open: editor_core::Operand::select(body, vec![f2.clone()]),
         },
     );
-    let (doc, derived) = insert(
-        doc,
-        Node::Datum(Datum::FaceFrame {
-            face: editor_core::Operand::select(body, vec![f3.clone()]),
-            spin: ang(0.0),
-        }),
-    );
     let (doc, measure) = crate::fixture::measure_node(
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
@@ -186,7 +178,6 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             Node::Fillet { .. } => expected.push((id, e0.clone())),
             Node::Chamfer { .. } => expected.push((id, e1.clone())),
             Node::Shell { .. } => expected.push((id, f2.clone())),
-            Node::Datum(Datum::FaceFrame { .. }) => expected.push((id, f3.clone())),
             // Argument order, which is meaning for a measure.
             Node::Measure { .. } => expected.extend([(id, f4.clone()), (id, f0.clone())]),
             // An instance's crossing `outer`s need an interface
@@ -214,8 +205,8 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     // The report walks the carriers in the order they were minted.
     assert_eq!(
         expected.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
-        vec![fillet, chamfer, shell, derived, measure, measure],
-        "five carriers, six names, as minted"
+        vec![fillet, chamfer, shell, measure, measure],
+        "four carriers, five names, as minted"
     );
 
     let applied = delete(&doc, victim);
@@ -237,8 +228,8 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
 #[test]
 fn a_delete_that_strands_nothing_reports_nothing() {
     let doc = ProfileDoc::empty_derived("dm7_silent", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, spare) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, spare) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let node = Node::Fillet {
         radius: len(0.1),
         selection: editor_core::Operand::select(body, vec![crate::fixture::end_rim(&doc, body, 0)]),
@@ -260,7 +251,7 @@ fn a_delete_that_strands_nothing_reports_nothing() {
 #[test]
 fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let doc = ProfileDoc::empty_derived("dm7_self", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let node1 = Node::Fillet {
         radius: len(0.1),
         selection: editor_core::Operand::select(body, vec![crate::fixture::end_rim(&doc, body, 0)]),
@@ -290,16 +281,16 @@ fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
 
 /// **A cascade reports the strand at the step that made it.**
 ///
-/// The fillet is deleted because its target is, and a derived frame
-/// outside the cascade names the fillet's space. Deleting the body
-/// through `cascade_delete_order` therefore strands that frame — at
+/// The fillet is deleted because its target is, and a shell of another
+/// body outside the cascade names the fillet's space. Deleting the body
+/// through `cascade_delete_order` therefore strands that shell — at
 /// the step that removed the FILLET, not at the step that removed the
 /// body, because the name says which node minted it and nothing else.
 #[test]
 fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let doc = ProfileDoc::empty_derived("dm7_cascade", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, other) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, other) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let node2 = Node::Fillet {
         radius: len(0.1),
         selection: editor_core::Operand::select(body, vec![crate::fixture::end_rim(&doc, body, 0)]),
@@ -308,17 +299,17 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let face = fname(fillet, wall(&doc, fillet, 2));
     let (doc, derived) = insert(
         doc,
-        Node::Datum(Datum::FaceFrame {
-            face: editor_core::Operand::select(other, vec![face.clone()]),
-            spin: ang(0.0),
-        }),
+        Node::Shell {
+            thickness: len(0.1),
+            open: editor_core::Operand::select(other, vec![face.clone()]),
+        },
     );
 
     let order = cascade_delete_order(&doc, body);
     assert_eq!(
         order,
         vec![fillet, body],
-        "the derived frame is no consumer of the body: it survives the cascade"
+        "the shell is no consumer of the body: it survives the cascade"
     );
     let mut doc = doc;
     let mut per_step = Vec::new();
@@ -339,8 +330,8 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     // says the cascade does not reach it. What is asserted is that it
     // still CARRIES the dead name: the report is a report, and the
     // repair is the user's `Rebind`.
-    let Some(Node::Datum(Datum::FaceFrame { face: still, .. })) = doc.node(derived) else {
-        panic!("the survivor is still a derived frame")
+    let Some(Node::Shell { open: still, .. }) = doc.node(derived) else {
+        panic!("the survivor is still a shell")
     };
     assert_eq!(
         doc.selection(*still).map(|select| select.names.clone()),
@@ -383,7 +374,7 @@ fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName 
 fn a_mates_side_strands_as_a_read() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("dm7_mate_part", Tol::witness());
-    let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 1.0);
     let doc_ref = store.insert(part, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_mate"), Tol::witness());
@@ -433,8 +424,8 @@ fn a_mates_side_strands_as_a_read() {
 #[test]
 fn a_round_tripped_document_reports_the_same_strands() {
     let doc = ProfileDoc::empty_derived("dm7_round_trip", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let rim_of_b = crate::fixture::end_rim(&doc, b, 0);
     let (doc, _) = insert(
         doc,
@@ -478,8 +469,8 @@ fn a_round_tripped_document_reports_the_same_strands() {
 #[test]
 fn a_delete_reports_the_appearance_keys_it_stranded() {
     let doc = ProfileDoc::empty_derived("dm7_appearance", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let one = fname(victim, wall(&doc, victim, 0));
     let two = fname(victim, wall(&doc, victim, 2));
     let live = fname(body, wall(&doc, body, 0));
@@ -518,8 +509,8 @@ fn a_delete_reports_the_appearance_keys_it_stranded() {
 #[test]
 fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_live", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let live = fname(body, wall(&doc, body, 0));
     let doomed = fname(victim, wall(&doc, victim, 0));
     let doc = paint(&doc, &live);
@@ -548,8 +539,8 @@ fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
 #[test]
 fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_order", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     // The fillet's selection reads `body`; what it NAMES is an edge of
     // `victim`, which is a name and not a read, so deleting `victim` is
     // accepted and strands it.
@@ -597,7 +588,7 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
 fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("dm7_app_order_part", Tol::witness());
-    let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 1.0);
     let doc_ref = store.insert(part, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_app_order"), Tol::witness());
@@ -653,7 +644,7 @@ fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
 #[test]
 fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_cascade", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let node3 = Node::Fillet {
         radius: len(0.1),
         selection: editor_core::Operand::select(body, vec![crate::fixture::end_rim(&doc, body, 0)]),
@@ -697,8 +688,8 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
 #[test]
 fn a_reported_appearance_strand_is_still_clearable() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_clear", Tol::witness());
-    let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let painted = fname(victim, wall(&doc, victim, 0));
     let doc = paint(&doc, &painted);
 
@@ -734,8 +725,8 @@ fn a_reported_appearance_strand_is_still_clearable() {
 #[test]
 fn a_round_tripped_document_reports_the_same_appearance_strands() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_round_trip", Tol::witness());
-    let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let doc = paint(&doc, &fname(victim, wall(&doc, victim, 0)));
     let doc = paint(&doc, &fname(victim, wall(&doc, victim, 2)));
 

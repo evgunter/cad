@@ -98,6 +98,10 @@ pub use editor_core::{
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.
 pub use editor_core::cascade_delete_order;
+// "Sketch on this face" (DM1): the profile, its extrude, the copy placed
+// on the face and the union, as one action (`Recording::sketch_on_face`
+// composes it into a longer one).
+pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 
 // Node vocabulary. A union or intersect takes one `Bodies` argument (a
 // family read, or spelled reads); a subtract is binary. `CountMismatch`
@@ -109,9 +113,10 @@ pub use editor_core::cascade_delete_order;
 // `CopyKey`; a placement's constraints are addressed by their
 // `ConstraintId`.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, CopyKey, CountMismatch, Datum, ExtrudeSide, InputFault,
-    ListFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
+    Axis3, Bodies, BodyRead, ConstraintId, CopyKey, CountMismatch, InputFault, ListFault,
+    LoftSection, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove, TubeWindow,
+    VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -127,10 +132,6 @@ pub use editor_core::{
 // kernel stores and speaks, never identity.
 pub use editor_core::{Label, LabelFault};
 
-// Placement: the chain a `Node::Transform` holds — rigid steps of
-// expressions and literal frames — and its steps.
-pub use editor_core::{Placement, Step};
-
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
 // A `Node::Measure` holds one `MeasurePrimitive`; the builder (`measure`,
 // `Recording::measure`) records one measure per primitive and answers
@@ -141,7 +142,7 @@ pub use editor_core::{Placement, Step};
 // value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
 // half — the payload an evaluated assertion carries — and E10's whole
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
-// the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
+// the funnel site name, carried like `SEL_PLANE_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
 // `MeasureUnavailableAt` and `ClearanceRefusal` are carried for the
 // reason a payload's payload always is: they are what
@@ -288,10 +289,10 @@ pub use editor_core::DocParamField;
 // enum that carries them.
 // `PoseValue`'s direction fields are `geom_core::UnitVec3`, reached
 // through the re-exported `geom_core` crate rather than curated here:
-// a consumer cannot read a datum's normal, or build a datum at all,
+// a consumer cannot read a pose's normal, or build a pose at all,
 // without naming the type that makes it unit, and it names it at the
 // crate that mints it — the constructor's refusal (`UnitVec3Error`,
-// there too) is the only way a datum direction is rejected.
+// there too) is the only way a pose direction is rejected.
 // `NodeRefusal` rides with `NodeErrorKind` for the same reason: it is
 // what `MateFault::PlacerRefused` and `EditError::PlacementAxis` carry
 // an evaluation refusal in, so a consumer can match either variant but
@@ -318,9 +319,9 @@ pub use editor_core::DocParamField;
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
-    EvalOptions, EvalOutcome, Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorClass,
-    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide,
-    StepTurns, ValuePayload, evaluate,
+    EvalOptions, EvalOutcome, Evaluation, Mispaired, NodeError, NodeErrorClass, NodeErrorKind,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide, StepTurns,
+    ValuePayload, evaluate,
 };
 // A placement's copies, keyed (`ValuePayload::Copies`): each copy by
 // its key, with its own names.
@@ -383,8 +384,8 @@ pub use editor_core::{
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
 
-// Instantiated parts. `Frame` is the rigid motion a `Placement`
-// evaluates to;
+// Instantiated parts. `Frame` is the rigid motion a placement solves
+// to;
 // `PartResolver` is the document seam evaluation crosses to reach a
 // referenced document, `ResolveFailure`/`ResolveFault` its classified
 // refusal, and `PartFault` the evaluation-side cause an
@@ -400,20 +401,26 @@ pub use editor_core::{
 // `MateRef`), each a `Mate` of two poses of one kind — `on` read off
 // the copy's geometry, `to` a `Target`: a pose of the space the copy
 // joins, or the world read inside the mate (`WorldRead`) — or a
-// `Value` setting one freedom (`Coord`, a `SlideAxis` or the spin) its
-// mate leaves. The solve's outcome (`SolvedPoses`, each copy's
+// `Value` setting one freedom (`Coord`: a slide along a `TargetAxis`,
+// the spin about the mated direction, or a spin about a `TargetAxis`)
+// its mate leaves, or, naming no mate, one of the target space's own
+// axes. The solve's outcome (`SolvedPoses`, each copy's
 // `Space`; a pose kind's symmetry `Subgroup` and its `SubgroupFamily`,
 // whose meeting decides a bundle), and `MateFault` — the typed refusal
-// every door carries. `pin_at` pins a copy to the world at a pose over
-// its own geometry; `place_at` is the "place part" gesture's
+// every door carries. A gesture's answer is a `Placed` — its mate, if
+// any, its values and how it placed the copy (`PlacedBy`) — which
+// `Placed::write` writes onto a placement. `stand` writes the identity
+// bundle, no mate and the constant `0` on every freedom; `pin_at` pins a copy to the world
+// at a pose over its own geometry; `place_at` is the "place part" gesture's
 // constraints (`PlacedBy` saying whether the copy had a planar face to
 // rest). `unobservable` reports each number an evaluation shows moves
 // nothing (`Unobservable`): a pose move inside its pose's own symmetry,
 // a spin value about a line its copy is round about. `member_of` is A11's member vocabulary itself
 // (`Member` is its answer); `member_reading` is the same walk with the
 // name it reached at the member's instance, and `head_face` the face
-// of the member's part a head names. `OVERCONSTRAINED_RECOURSE` is the
-// recourse sentence a bundle's refusal ends on.
+// of the member's part a head names. `OVERCONSTRAINED_RECOURSE` and
+// `UNPINNED_RECOURSE` are the recourse sentences a bundle's refusals
+// end on.
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `NodeRefusal`.
@@ -434,12 +441,14 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Anchor, Constraint, ConstraintKind, Coord, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate,
-    MateFault, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal,
-    PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SlideAxis, SolvedPoses, Space,
-    Subgroup, SubgroupFamily, Target, Unobservable, Value, WorldPin, WorldRead, WorldReadFault,
-    head_face, head_of, member_of, member_reading, pin_at, pinned_at, place_at, reference_about,
-    relative_freedom_components, solve_document, unobservable,
+    Constraint, ConstraintKind, Coord, FrameMove, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate,
+    MateFault, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed,
+    PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup,
+    SubgroupFamily, Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead,
+    WorldReadFault, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
+    member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,
+    place_at, place_at_in, reference_about, relative_freedom_components, solve_document, stand,
+    unobservable,
 };
 
 // The class-admission table (`ClassAdmission`, read through

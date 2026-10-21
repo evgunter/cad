@@ -29,7 +29,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     Advisory, Assembly, AssemblyError, CheckId, ChecksConfig, ChecksError, ChecksReport,
@@ -61,7 +60,6 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, Re
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (part_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -689,7 +687,6 @@ fn twin(id: &str) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     crate::fixture::place(doc, body).0
@@ -703,26 +700,41 @@ fn twin(id: &str) -> ProfileDoc {
 fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
-    let (doc, a) = slab(doc, 0.0, 1.0);
+    // The lower slab half as tall at first, so the union evaluates and
+    // its copy stands in the world on the lower slab's bottom.
+    let (doc, a) = slab(doc, 0.5);
     // A gap strictly inside the ambiguity band: the margins decide the
     // two caps neither one carrier nor two, so the union refuses.
     let band = tol.get();
     let gap = 0.5 * (band.eps + band.k * band.eps);
-    let (doc, b) = slab(doc, 1.0 + gap, 1.0);
+    let (doc, b) = slab(doc, 1.0);
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0, 0.0, 1.0 + gap]);
     let (doc, fused) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
-    crate::fixture::place(doc, fused)
+    let (doc, root) = crate::fixture::place(doc, fused);
+    // Then the lower slab raised to a unit height, its top `gap` under
+    // the upper slab's bottom.
+    let (doc, _) = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::SetParam {
+            node: a,
+            slot: editor_core::SlotId::Distance,
+            value: len(1.0).into(),
+            fresh: Vec::new(),
+        },
+    );
+    (doc, root)
 }
 
-/// A unit-footprint slab from `z0` up by `dz`.
-fn slab(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+/// A unit-footprint slab on its own xy, up by `dz`.
+fn slab(doc: ProfileDoc, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
@@ -732,7 +744,6 @@ fn slab(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -796,22 +807,20 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         Node::Extrude {
             profile: first.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, second) = on_frame(
         doc,
-        [apart, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
+        vec![square(apart, 0.0, 0.5)],
     );
     let (doc, b) = insert(
         doc,
         Node::Extrude {
             profile: second.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     crate::fixture::place_all(doc, &[a, b])

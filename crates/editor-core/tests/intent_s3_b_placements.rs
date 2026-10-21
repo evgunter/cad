@@ -17,10 +17,9 @@ use crate::fixture::{
 use editor_core::eval::bound_pose;
 use editor_core::pose::{PoseDef, PoseRole};
 use editor_core::{
-    BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions,
-    ExtrudeSide, Formula, Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand,
-    OperandSlot, PoseValue, ProductError, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
-    Target, WorldRead,
+    BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions, Formula,
+    Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
+    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName, Target, WorldRead,
 };
 use geom_core::Tol;
 use geom_core::UnitVec3;
@@ -43,7 +42,6 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -117,11 +115,11 @@ fn place_at(doc: ProfileDoc, body: RecipeNodeId, pose: &Frame) -> (ProfileDoc, R
 fn zero_values(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
     [
         (
-            editor_core::Coord::Slide(editor_core::SlideAxis::X),
+            editor_core::Coord::Slide(editor_core::TargetAxis::X),
             len(0.0),
         ),
         (
-            editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+            editor_core::Coord::Slide(editor_core::TargetAxis::Y),
             len(0.0),
         ),
         (editor_core::Coord::Spin, fixture::ang(0.0)),
@@ -133,7 +131,7 @@ fn zero_values(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(editor_core::Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -339,7 +337,6 @@ fn block_at(doc: ProfileDoc, half: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -638,8 +635,8 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
         &DocEdit::AddValue {
             placement: c,
             value: Box::new(editor_core::Value {
-                mate: direction.id,
-                coord: editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                mate: Some(direction.id),
+                coord: editor_core::Coord::Slide(editor_core::TargetAxis::X),
                 by: len(0.1),
             }),
             fresh: Vec::new(),
@@ -661,7 +658,7 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
 }
 
 /// **A mate on a pinned copy is overconstrained**: on a copy its world
-/// pin already pins, a rest on another copy in the world that holds
+/// mate already pins, a rest on another copy in the world that holds
 /// where the pin puts it is a mate the pin already fixes, refused at
 /// the door, naming both — the case `(Trivial, _)`.
 #[test]
@@ -710,9 +707,9 @@ fn a_constraint_off_its_copy_refuses() {
 // ---- An instance's copies ----
 
 /// **A construction reads one copy of an instance by its key**, and a
-/// raw construction stands at the identity of the document's one kind,
-/// so a union of a pinned instance's copy and a block of this document
-/// evaluates (the stage's interim until D).
+/// block of this document placed in the world joins the instance's
+/// space, so a union of a pinned instance's copy and the block's copy
+/// evaluates.
 #[test]
 fn a_union_of_an_instances_copy_and_a_block_evaluates() {
     let (doc, store, doc_ref, part_body) = host("s3b-union");
@@ -720,7 +717,7 @@ fn a_union_of_an_instances_copy_and_a_block_evaluates() {
     let (doc, instance) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let (doc, profile) = on_frame(
         doc,
-        [3.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
@@ -730,8 +727,12 @@ fn a_union_of_an_instances_copy_and_a_block_evaluates() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
+    );
+    let (doc, other) = fixture::in_world(
+        doc,
+        other,
+        &editor_core::Frame::translation([3.0, 0.0, 0.0]),
     );
     let (doc, union) = insert(
         doc,
@@ -871,19 +872,20 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
     let (doc, first) = block("s3b-place-several");
     let (doc, profile) = on_frame(
         doc,
-        [3.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
+        vec![square(3.0, 0.0, 0.5)],
     );
     let (doc, second) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
+    // Both shapes in `first`'s space, so one pin stands them both.
+    let (doc, second) = fixture::slid(doc, first, second, [0.0; 3]);
     let (doc, place) = insert(doc, Node::place(vec![first.into(), second.into()]));
     let doc = fixture::pinned(doc, place, &EvalOptions::default());
     assert_eq!(
@@ -891,13 +893,14 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
         1,
         "one output, however many shapes"
     );
-    let second_read = doc.output(second, 0).expect("the block's body");
+    let second_read = doc.output(second, 0).expect("the block's copy");
+    let first_read = doc.output(first, 0).expect("the block's body");
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![
                 BodyRead::keyed(Operand::Node(place), CopyKey::Read(second_read)),
-                first.into(),
+                BodyRead::keyed(Operand::Node(place), CopyKey::Read(first_read)),
             ]),
         },
     );

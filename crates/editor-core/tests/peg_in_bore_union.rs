@@ -8,7 +8,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, NodeResult, ProfileDoc,
@@ -44,11 +43,9 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         centre: [len(0.0), len(0.0)],
         radius: len(r),
     };
-    let (doc, peg_plane) = insert(doc, fixture::xy_frame());
     let (doc, peg_profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: peg_plane.into(),
             loops: vec![circle(PEG_R)],
             ids: Vec::new(),
         }),
@@ -58,17 +55,11 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: peg_profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
-    );
-    let (doc, block_plane) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, -0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
     );
     let (doc, block_profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: block_plane.into(),
             loops: vec![
                 LoopProgram::polygon(square(0.0, 0.0, 1.0)).expect("finite corners"),
                 circle(bore_r),
@@ -81,17 +72,19 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: block_profile.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
+    let (doc, block) = fixture::slid(doc, peg, block, [0.0, 0.0, -0.5]);
     (doc, peg, block)
 }
 
-/// The evaluated body of one node.
+/// The evaluated body of one node: an extrude's, or a placement's one
+/// copy.
 fn body_of(ev: &Evaluation<f64>, n: RecipeNodeId) -> &Body<f64> {
-    match &ev.value(n).expect("the extrude evaluates").payload {
+    match &ev.value(n).expect("the node evaluates").payload {
         ValuePayload::Body(b) => b,
-        other => panic!("an extrude's payload is a body, got {}", other.kind_name()),
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
+        other => panic!("{n}'s payload is one body, got {}", other.kind_name()),
     }
 }
 

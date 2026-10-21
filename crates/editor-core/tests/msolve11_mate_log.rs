@@ -16,13 +16,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
     Formula, Mate, MateRef, NameRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SitedRef, SlideAxis, StableName, Target, Value,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, Target, TargetAxis, Value,
     WorldRead, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
@@ -51,7 +50,6 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -212,7 +210,7 @@ impl Scene {
             &DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -236,7 +234,7 @@ impl Scene {
                 ContactClass::Rest,
             ),
         );
-        self.value(coaxial, Coord::Slide(SlideAxis::Z), len(BLOCK_HEIGHT));
+        self.value(coaxial, Coord::Slide(TargetAxis::Z), len(BLOCK_HEIGHT));
         self.value(coaxial, Coord::Spin, ang(0.0));
     }
 
@@ -247,8 +245,8 @@ impl Scene {
             self.other,
             fixture::rest(self.bottom(self.other), self.base_top(), ContactClass::Rest),
         );
-        self.value(rest, Coord::Slide(SlideAxis::X), len(x));
-        self.value(rest, Coord::Slide(SlideAxis::Y), len(y));
+        self.value(rest, Coord::Slide(TargetAxis::X), len(x));
+        self.value(rest, Coord::Slide(TargetAxis::Y), len(y));
         self.value(rest, Coord::Spin, ang(0.0));
         rest
     }

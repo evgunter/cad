@@ -18,7 +18,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use std::collections::BTreeMap;
@@ -41,12 +40,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-/// An extruded square: half-width `h` centered at `(cx, 0)` on the
-/// z = `z0` plane, extruded `dz` up.
-fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+/// An extruded square: half-width `h` centered at `(cx, 0)` on its own
+/// xy, extruded `dz` up.
+fn slab(doc: ProfileDoc, cx: f64, h: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, h)],
@@ -56,9 +55,21 @@ fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, Reci
         Node::Extrude {
             profile: profile.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
+}
+
+/// [`slab`] placed against `root`, `z0` up its own z: the placement.
+fn slab_on(
+    doc: ProfileDoc,
+    root: RecipeNodeId,
+    cx: f64,
+    h: f64,
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, b) = slab(doc, cx, h, dz);
+    fixture::slid(doc, root, b, [0.0, 0.0, z0])
 }
 
 /// Two disjoint unit cubes, deliberately united and placed: one copy,
@@ -66,8 +77,8 @@ fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, Reci
 /// subject.
 fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-disjoint", Tol::witness());
-    let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
-    let (doc, b) = slab(doc, 3.0, 0.5, 0.0, 1.0);
+    let (doc, a) = slab(doc, 0.0, 0.5, 1.0);
+    let (doc, b) = slab_on(doc, a, 3.0, 0.5, 0.0, 1.0);
     let (doc, result) = insert(
         doc,
         Node::Union {
@@ -81,8 +92,8 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
 /// component, two shells.
 fn voided() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-voided", Tol::witness());
-    let (doc, a) = slab(doc, 0.0, 1.5, 0.0, 3.0);
-    let (doc, b) = slab(doc, 0.0, 0.5, 1.0, 1.0);
+    let (doc, a) = slab(doc, 0.0, 1.5, 3.0);
+    let (doc, b) = slab_on(doc, a, 0.0, 0.5, 1.0, 1.0);
     let (doc, result) = insert(
         doc,
         Node::Subtract {
@@ -215,8 +226,8 @@ fn connectedness_is_labeled_certified() {
 /// subjects — and its placement.
 fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-annihilated", Tol::witness());
-    let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
-    let (doc, b) = slab(doc, 3.0, 0.5, 0.0, 1.0);
+    let (doc, a) = slab(doc, 0.0, 0.5, 1.0);
+    let (doc, b) = slab_on(doc, a, 3.0, 0.5, 0.0, 1.0);
     let (doc, result) = insert(
         doc,
         Node::Intersect {
@@ -297,7 +308,7 @@ fn a_thin_slab_counts_as_one_component() {
     let tol = Tol::witness();
     let dz = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin", Tol::witness());
-    let (doc, thin) = slab(doc, 0.0, 0.5, 0.0, dz);
+    let (doc, thin) = slab(doc, 0.0, 0.5, dz);
     let (doc, _root) = fixture::place(doc, thin);
     let report = checks(&doc, &ChecksConfig::default());
     assert!(report.findings.is_empty(), "{report}");
@@ -316,8 +327,8 @@ fn a_thin_void_shell_is_a_cavity_and_the_count_reads_one() {
     let tol = Tol::witness();
     let t = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin-void", Tol::witness());
-    let (doc, a) = slab(doc, 0.0, 1.5, 0.0, 3.0);
-    let (doc, b) = slab(doc, 0.0, 0.5, 1.0, 1.0);
+    let (doc, a) = slab(doc, 0.0, 1.5, 3.0);
+    let (doc, b) = slab_on(doc, a, 0.0, 0.5, 1.0, 1.0);
     let (doc, hollow) = insert(
         doc,
         Node::Subtract {
@@ -325,7 +336,11 @@ fn a_thin_void_shell_is_a_cavity_and_the_count_reads_one() {
             tool: b.into(),
         },
     );
-    let (doc, c) = slab(doc, 0.0, 0.8, 0.5, 1.5 - t);
+    // The filler a unit tall at first, so the union evaluates and its
+    // copy stands in the world; then raised to leave the cavity `t`
+    // thin over it.
+    let (doc, filler) = slab(doc, 0.0, 0.8, 1.0);
+    let (doc, c) = fixture::slid(doc, a, filler, [0.0, 0.0, 0.5]);
     let (doc, root) = insert(
         doc,
         Node::Union {
@@ -333,6 +348,15 @@ fn a_thin_void_shell_is_a_cavity_and_the_count_reads_one() {
         },
     );
     let (doc, _placement) = fixture::place(doc, root);
+    let (doc, _) = fixture::step(
+        doc,
+        editor_core::DocEdit::SetParam {
+            node: filler,
+            slot: editor_core::SlotId::Distance,
+            value: len(1.5 - t).into(),
+            fresh: Vec::new(),
+        },
+    );
     let report = checks(&doc, &ChecksConfig::default());
     assert!(report.findings.is_empty(), "{report}");
 }
@@ -398,8 +422,8 @@ fn a_findings_attribution_resolves_to_its_subject() {
 /// grows when a body is placed beside what it was meant to join.
 fn two_roots(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-two-roots", Tol::witness());
-    let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
-    let (doc, b) = slab(doc, cx, 0.5, 0.0, 1.0);
+    let (doc, a) = slab(doc, 0.0, 0.5, 1.0);
+    let (doc, b) = slab(doc, cx, 0.5, 1.0);
     let (doc, a) = fixture::place(doc, a);
     let (doc, b) = fixture::place(doc, b);
     (doc, a, b)
@@ -549,7 +573,6 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (part_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -771,7 +794,7 @@ fn washer() -> (ProfileDoc, RecipeNodeId) {
         ProfileDoc::empty_derived("dsc-checks-washer", Tol::witness()),
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
     let (doc, washer) = insert(

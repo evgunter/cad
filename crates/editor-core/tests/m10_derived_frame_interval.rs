@@ -1,12 +1,12 @@
-//! **A profile placed on a DERIVED frame whose placement is a pure
+//! **A body placed on a DERIVED pose whose placement is a pure
 //! TRANSLATION, on the symbolic lane** — DOCM-1 review lane R1's two
 //! rows (`docm/1-review-r1`, `docm1_review_r1_probes_interval.rs`),
 //! ported unchanged in what they assert, and the measurement of what
 //! answers them.
 //!
-//! A derived frame (`Datum::FaceFrame`) reads its axes off the body it
-//! is placed on, so those axes are the kernel's ALREADY-normalised
-//! stored vectors and the boss extrude above normalises them again.
+//! A derived placement reads its pose off the body its copy rests on
+//! (a face of it, read as its plane), so its axes are the kernel's
+//! stored vectors, which the placed boss carries.
 //! On THIS document the widened parameter is the cube's HEIGHT, so
 //! every normalised quantity in the chain is CONSTANT in it: the
 //! `sqrt` atoms are `sqrt(16384/256)` and friends, rule A0 folds them
@@ -36,16 +36,15 @@
 //! `work/sym/interval-test-preamble-is-copied-across-the-m10-files`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
-use crate::fixture::{self, Recorder, ang, len, scl};
+use crate::fixture::{self, Recorder, len};
 use crate::m10_8_harness::head;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
+    CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
     FreeVar, Node, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, UnitSym, VarName, evaluate,
 };
 use geom_core::{Interval, SymRules, Tol};
@@ -132,9 +131,70 @@ fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .collect()
 }
 
-/// **The derived-frame document**: a unit box whose HEIGHT is the
-/// widened parameter, a frame derived from its top cap, a profile on
-/// that frame, and an extrude of the profile.
+/// The zero values a seat at rest names: no slide, no spin.
+fn at_rest() -> Vec<(editor_core::Coord, Formula)> {
+    use editor_core::{Coord, TargetAxis};
+    vec![
+        (
+            Coord::Slide(TargetAxis::X),
+            Formula::zero(Dimension::Length),
+        ),
+        (
+            Coord::Slide(TargetAxis::Y),
+            Formula::zero(Dimension::Length),
+        ),
+        (Coord::Spin, Formula::zero(Dimension::Angle)),
+    ]
+}
+
+/// The plane of `body`'s `end` cap, read at `site` (the body itself, or
+/// a placement of it, whose copy wears the cap's name under its
+/// `Placed` layer).
+fn cap_plane(site: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> editor_core::Operand {
+    let name = fixture::fname(body, RoleSeg::Cap(end));
+    let name = if site == body {
+        name
+    } else {
+        crate::m10_5_clearance_interval::in_placement(site, name)
+    };
+    fixture::plane(editor_core::Operand::select(site, vec![name]))
+}
+
+/// **`body` seated on `to`**: a copy of it whose start cap rests on the
+/// plane `to`, at rest in that plane. Returns the placement.
+fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> RecipeNodeId {
+    let placement = r.insert(Node::place(vec![editor_core::BodyRead::plain(
+        editor_core::Operand::from(body),
+    )]));
+    r.constrain(
+        placement,
+        editor_core::Mate {
+            on: cap_plane(body, body, CapEnd::Start),
+            to: editor_core::Target::Pose(to),
+            class: editor_core::ContactClass::Rest,
+        },
+        at_rest(),
+    );
+    placement
+}
+
+/// `body`'s start-cap plane slid `by` up its own z and turned to face
+/// up it: the plane a copy of `body` rests on to stand `by` up.
+fn raised(body: RecipeNodeId, by: Formula) -> editor_core::Operand {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let start = || cap_plane(body, body, CapEnd::Start);
+    let down = editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(start()),
+        along: RoleRead::through(start(), PoseRole::Normal),
+        by: Formula::neg(by).expect("a length negates"),
+    }));
+    fixture::flip(down)
+}
+
+/// **The derived-placement document**: a unit box whose HEIGHT is the
+/// widened parameter, and a boss whose copy rests on the box's top cap
+/// — a pose read off the box's geometry, which the height reaches.
+/// Returns the document, the boss's profile and the boss's placement.
 pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     param_doc("h", 1.0, half, &mut r);
@@ -147,57 +207,40 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     let cube = r.insert(Node::Extrude {
         profile: p.into(),
         distance: Formula::named(VarName::from_static("h"), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
-    let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        face: editor_core::Operand::select(
-            cube,
-            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
-        ),
-        spin: ang(0.0),
-    }));
-    let boss_p = r.insert(Node::Profile(fixture::desc(
-        frame,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
+    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
-    (r.doc, boss_p, boss)
+    let placed = seated(&mut r, boss, cap_plane(cube, cube, CapEnd::End));
+    (r.doc, boss_p, placed)
 }
 
-/// **The authored twin**: a frame whose ORIGIN z is the widened
-/// parameter, a profile on it, an extrude — the placement is at `T`
-/// exactly as a derived frame's is.
+/// **The authored twin**: a boss whose copy stands the widened
+/// parameter `z0` up its own z, on a pose of its own geometry the
+/// parameter moves — the placement is at `T` exactly as the derived
+/// placement's is.
 pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     param_doc("z0", 1.0, half, &mut r);
-    let frame = r.insert(Node::Datum(Datum::Frame {
-        origin: [
-            len(0.0),
-            len(0.0),
-            Formula::named(VarName::from_static("z0"), Dimension::Length),
-        ],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
-    let boss_p = r.insert(Node::Profile(fixture::desc(
-        frame,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
+    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
-    (r.doc, boss)
+    let z0 = Formula::named(VarName::from_static("z0"), Dimension::Length);
+    let placed = seated(&mut r, boss, raised(boss, z0));
+    (r.doc, placed)
 }
 
-/// **The transform-lifted document**: an EXACT box lifted by a widened
-/// rigid transform, a derived frame on the lifted body's top cap, a
-/// profile, and an extrude above it.
+/// **The lifted document**: an EXACT box whose copy is lifted by a
+/// widened slide, and a boss whose copy rests on the lifted copy's top
+/// cap.
 pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     param_doc("lift", 0.0, half, &mut r);
@@ -210,36 +253,17 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     let cube = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
-    let lifted = r.insert(Node::transform(
-        cube,
-        editor_core::Step::Rigid {
-            translation: [
-                len(0.0),
-                len(0.0),
-                Formula::named(VarName::from_static("lift"), Dimension::Length),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
-    let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        face: editor_core::Operand::select(
-            lifted,
-            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
-        ),
-        spin: ang(0.0),
-    }));
-    let boss_p = r.insert(Node::Profile(fixture::desc(
-        frame,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
-    r.insert(Node::Extrude {
+    let lift = Formula::named(VarName::from_static("lift"), Dimension::Length);
+    let lifted = seated(&mut r, cube, raised(cube, lift));
+    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
+    let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
+    seated(&mut r, boss, cap_plane(lifted, cube, CapEnd::End));
     r.doc
 }
 
@@ -247,7 +271,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
 /// unchanged in what it asserts: whatever the kernel does with a
 /// widened placement, it must do the same for the two frame kinds.
 #[test]
-#[ignore = "red at half = 5e-2 only: work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum"]
+#[ignore = "red on the plain lane only: the derived document's widened-height box extrude refuses its own attachment gate at every width; the symbolic lane agrees at every width"]
 fn m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin() {
     let e = eps();
     let mut mismatch = Vec::new();
@@ -503,28 +527,23 @@ fn sym5_phase1_the_normalisation_chain_under_the_plain_form() {
 }
 
 /// **The measured state of the parity row**, pinned while the row
-/// above stays red at one width. Two claims, both measured at all
-/// three ε rows:
+/// above stays ignored. Measured at all three ε rows: at every
+/// half-width up to `5e-2` the two frame kinds AGREE on the symbolic
+/// lane — the derived-frame boss certifies exactly where its authored
+/// twin does, which is what the tier buys the derived frame (with every
+/// rule off it refuses, on `carrier_endpoint_start`).
 ///
-/// - up to a half-width of `1e-3` the two frame kinds AGREE on the
-///   symbolic lane — the derived-frame boss certifies exactly where its
-///   authored twin does, which is what the tier buys the derived frame
-///   (with every rule off it refuses at every width, on
-///   `carrier_endpoint_start`);
-/// - at `5e-2` the derived one refuses, and the refusal is NOT the
-///   tier's: it is a clause-1 invalid margin on `newell_plane_residual`
-///   — `Vec3::normalize` divides the boss's side-plane cross-sum by a
-///   norm whose enclosure contains zero, so the value channel has no
-///   certified value and the identity test is never asked. The tier's
-///   own early form for that residual is the ZERO form.
-///
-/// A pin of what the kernel does: when the value channel stops
-/// widening that cross-sum, this row fails and the parity row above
-/// goes green and takes its place.
+/// At `5e-2` the derived boss used to refuse on a clause-1 invalid
+/// margin on `newell_plane_residual` (`Vec3::normalize` dividing the
+/// boss's side-plane cross-sum by a norm whose enclosure contained
+/// zero). Under D's placement solve (a direction exactly on an axis
+/// read as that axis, a spin set from the two charts' frames) the
+/// placement's map no longer widens that cross-sum to zero, and the
+/// boss certifies there too.
 #[test]
 fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width() {
     let e = eps();
-    for w in [e / 8.0, 1.0e-6, 1.0e-3] {
+    for w in [e / 8.0, 1.0e-6, 1.0e-3, 5.0e-2] {
         let (derived, _, _) = boss_on_widened_box(w);
         let (authored, _) = boss_on_widened_authored_frame(w);
         assert!(
@@ -536,41 +555,22 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
             "half={w:e}: the authored twin must certify"
         );
     }
-    // The one width where they part, and the reason, read off the
-    // refusal the kernel reports. Both lifts, because the derived
-    // placement is at `T` under either and the refusal is identical.
-    let (derived, _, _) = boss_on_widened_box(5.0e-2);
-    let (authored, _) = boss_on_widened_authored_frame(5.0e-2);
-    let refusal = sym_failures(&derived);
-    assert_eq!(refusal.len(), 1, "one refusal at 5e-2: {refusal:?}");
-    assert!(
-        refusal[0].contains("newell_plane_residual") && refusal[0].contains("margin is invalid"),
-        "THIS ROW PINS A DEFECT AS THE CURRENT BEHAVIOUR, NOT A DESIRED ONE: at 5e-2 the \
-         derived-frame boss still refuses where its authored twin certifies, on a clause-1 \
-         invalid margin from newell's normalisation of a straddling cross-sum \
-         (work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum). When \
-         that row is answered this assertion FAILS, and the ported parity row above — the \
-         acceptance test — takes its place: {refusal:?}"
-    );
-    assert!(
-        sym_failures(&authored).is_empty(),
-        "the authored twin still certifies at 5e-2"
-    );
 }
 
-/// **With A0, the freeze population is not what refuses.** The
-/// derived-frame document's profile is elaborated at the lane, so with
-/// every rule off its plain form freezes, and the first refusal is the
-/// extrude's attachment gate: `carrier_endpoint_start` escalates over
-/// a residual the plain tier could not settle. With A0 alone NOTHING
-/// freezes, and what refuses at `5e-2` is the boss's side plane, where
-/// the value channel's `newell_plane_residual` is `Invalid` and no tier
-/// is asked at all (`Decide for Sym<T>` turns a domain violation into
-/// no symbolic question). So no rule of the atom algebra past A0 stands
-/// between the derived frame and its authored twin. The forms that
-/// used to freeze at A0's rung sat under
-/// `1/max(1, min(1, max(0, 1))/4)` — a `max`/`min` of two CONSTANTS —
-/// and A0 decides those exactly now
+/// **The freeze population is not what refuses, with A0.** With A0's
+/// constant fold the derived-frame document freezes NOTHING and
+/// certifies at `5e-2`: on the sign-hull construction the gate's
+/// residual is a plain THEOREM — the opaque `Select` atoms of an
+/// axis-aligned frame cancel as `X − X` — and the boss's side plane,
+/// whose `newell_plane_residual` was a clause-1 `Invalid` while the
+/// placement's map widened its cross-sum to zero, is decided under D's
+/// placement solve. With every rule off, the plain
+/// tier freezes twelve forms and refuses earlier, at the boss extrude's
+/// start-endpoint certification over an enclosure of [0, 0.32]; whether
+/// those freezes are what widens it is
+/// `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`. The ten forms that used to freeze at A0's rung sat
+/// under `1/max(1, min(1, max(0, 1))/4)` — a `max`/`min` of two
+/// CONSTANTS — and A0 decides those exactly now
 /// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
 ///
 /// The `none` rung read `newell_plane_residual` with nothing frozen
@@ -618,11 +618,10 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
          `1/max(1, min(1, max(0, 1))/4)`, a `max`/`min` of two CONSTANTS, and A0 decides \
          those exactly now: {a0_counts:?}"
     );
-    assert_eq!(a0_fails.len(), 1, "and still refuses once: {a0_fails:?}");
     assert!(
-        a0_fails[0].contains("newell_plane_residual") && a0_fails[0].contains("margin is invalid"),
-        "with no freeze left the refusal is clause 1's, the same one the plain tier \
-         reaches: {a0_fails:?}"
+        a0_fails.is_empty(),
+        "with no freeze left A0 alone certifies: the clause-1 refusal on the side plane is \
+         gone with the placement's widening: {a0_fails:?}"
     );
 }
 

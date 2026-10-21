@@ -23,16 +23,12 @@ use crate::part::ResolveFault;
 /// variant per value, named for the arm and then the value. The two
 /// blends share one kernel error type and one arm, so the VERB decides
 /// ([`Self::Fillet`], [`Self::Chamfer`], and their selection refusals);
-/// a placement rule's fault, a carried frame direction's fact, an
-/// instantiation's fault and a mate's fault each decide theirs. Nothing
-/// else in a payload is read.
+/// a placement rule's fault, an instantiation's fault and a mate's
+/// fault each decide theirs. Nothing else in a payload is read.
 ///
 /// [`NodeErrorKind::class`] matches exhaustively, and so does every
-/// split inside it but the carried frame direction's — an arm added to
-/// the error, or a value added to a split, reds `class` itself, here in
-/// this crate. The frame direction's split is read off the raise it
-/// carries ([`Self::raised`]), so a new direction fact reds at that
-/// raise's own map in `wire`.
+/// split inside it — an arm added to the error, or a value added to a
+/// split, reds `class` itself, here in this crate.
 ///
 /// A variant HERE with no arm behind it is a phantom: nothing constructs
 /// it, so no test can reach it. This module's tests therefore carry the
@@ -162,22 +158,6 @@ pub enum NodeErrorClass {
     Shell,
     /// [`NodeErrorKind::ShellLaneUnsupported`].
     ShellLaneUnsupported,
-    /// [`NodeErrorKind::FaceFrameNotPlanar`].
-    FaceFrameNotPlanar,
-    /// [`NodeErrorKind::FaceFrameReadback`].
-    FaceFrameReadback,
-    /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`geom_core::UnitVec3Error::Degenerate`].
-    FrameDirectionDegenerate,
-    /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`geom_core::UnitVec3Error::NonFiniteLength`].
-    FrameDirectionNonFiniteLength,
-    /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`geom_core::UnitVec3Error::UnderflowedLength`].
-    FrameDirectionUnderflowedLength,
-    /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`geom_core::UnitVec3Error::Escalated`].
-    FrameDirectionEscalated,
     /// [`NodeErrorKind::WitnessBifurcation`].
     WitnessBifurcation,
     /// [`NodeErrorKind::Part`] carrying [`PartFault::NoResolver`].
@@ -213,6 +193,8 @@ pub enum NodeErrorClass {
     MateClassNotAdmitted,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Overconstrained`].
     MateOverconstrained,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unpinned`].
+    MateUnpinned,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::TargetsDiffer`].
     MateTargetsDiffer,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotOnTheCopy`].
@@ -315,19 +297,6 @@ impl NodeErrorKind {
             Self::UnionFoldStep { .. } => C::UnionFoldStep,
             Self::Shell(_) => C::Shell,
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
-            Self::FaceFrameNotPlanar { .. } => C::FaceFrameNotPlanar,
-            Self::FaceFrameReadback { .. } => C::FaceFrameReadback,
-            Self::FrameDirection { refusal, .. } => {
-                let raised = refusal.node_error().class();
-                FRAME_DIRECTION
-                    .into_iter()
-                    .find(|carried| carried.raised() == raised)
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "a direction refusal raises one of four classes, not {raised:?}"
-                        )
-                    })
-            }
             Self::WitnessBifurcation(_) => C::WitnessBifurcation,
             Self::Part { fault, .. } => match fault {
                 PartFault::NoResolver => C::PartNoResolver,
@@ -358,15 +327,6 @@ impl NodeErrorKind {
     }
 }
 
-/// The classes of [`NodeErrorKind::FrameDirection`], one per fact the
-/// carried refusal can report.
-const FRAME_DIRECTION: [NodeErrorClass; 4] = [
-    NodeErrorClass::FrameDirectionDegenerate,
-    NodeErrorClass::FrameDirectionNonFiniteLength,
-    NodeErrorClass::FrameDirectionUnderflowedLength,
-    NodeErrorClass::FrameDirectionEscalated,
-];
-
 impl NodeErrorClass {
     /// The class of the node refusal that carries a placement-rule
     /// fault. Every door that publishes the fault reads it through this
@@ -391,6 +351,7 @@ impl NodeErrorClass {
             MateFault::PosesOfAnotherDocument { .. } => Self::MatePosesOfAnotherDocument,
             MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
+            MateFault::Unpinned { .. } => Self::MateUnpinned,
             MateFault::TargetsDiffer { .. } => Self::MateTargetsDiffer,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
@@ -400,28 +361,6 @@ impl NodeErrorClass {
             MateFault::ValueNamesNoMate { .. } => Self::MateValueNamesNoMate,
             MateFault::NotAFreedom { .. } => Self::MateNotAFreedom,
             MateFault::NoChart { .. } => Self::MateNoChart,
-        }
-    }
-
-    /// The class the same refusal has where the direction door raises
-    /// it. A frame direction refusal carried to a profile is the fact
-    /// the frame raised, so each of its classes answers the raise's
-    /// class; every other class answers itself.
-    ///
-    /// This is the one place the carried classes are paired with the
-    /// raised ones, and the question to ask of a direction: "any
-    /// zero-length direction, raised or carried" is
-    /// `class.raised() == NodeErrorClass::DegenerateDirection`, and
-    /// likewise [`Self::NonFiniteDirection`] and
-    /// [`Self::UnderflowedDirection`].
-    #[must_use]
-    pub fn raised(self) -> Self {
-        match self {
-            Self::FrameDirectionDegenerate => Self::DegenerateDirection,
-            Self::FrameDirectionNonFiniteLength => Self::NonFiniteDirection,
-            Self::FrameDirectionUnderflowedLength => Self::UnderflowedDirection,
-            Self::FrameDirectionEscalated => Self::Escalated,
-            other => other,
         }
     }
 }
@@ -440,7 +379,7 @@ mod tests {
     use super::{NodeErrorClass as C, NodeErrorKind as K};
     use crate::names::{EntityKind, StableName};
     use crate::node::RecipeNodeId;
-    use geom_core::{Band, BandError, Indeterminate, MarginDiag, Tol, UnitVec3Error};
+    use geom_core::{Band, BandError, Indeterminate, MarginDiag, Tol};
     use sweep::blend::BlendKind;
 
     /// Every class, declared ONCE for two uses: [`ALL`], which the
@@ -518,12 +457,6 @@ mod tests {
         UnionFoldStep,
         Shell,
         ShellLaneUnsupported,
-        FaceFrameNotPlanar,
-        FaceFrameReadback,
-        FrameDirectionDegenerate,
-        FrameDirectionNonFiniteLength,
-        FrameDirectionUnderflowedLength,
-        FrameDirectionEscalated,
         WitnessBifurcation,
         PartNoResolver,
         PartPinMismatch,
@@ -539,6 +472,7 @@ mod tests {
         MatePosesOfAnotherDocument,
         MateClassNotAdmitted,
         MateOverconstrained,
+        MateUnpinned,
         MateTargetsDiffer,
         MateNotOnTheCopy,
         MateUnleverable,
@@ -612,17 +546,6 @@ mod tests {
 
     fn mate(fault: crate::MateFault) -> K {
         K::Mate(Box::new(fault))
-    }
-
-    fn frame_direction(error: UnitVec3Error) -> K {
-        K::FrameDirection {
-            profile: RecipeNodeId::new(0, 4),
-            frame: RecipeNodeId::new(0, 2),
-            refusal: crate::DirectionRefusal {
-                role: "frame normal",
-                error,
-            },
-        }
     }
 
     /// **The census and the phantom visit, in one match.** One witness
@@ -834,16 +757,6 @@ mod tests {
             },
             C::Shell => K::Shell(Box::new(topo::ShellError::Thickness { thickness: -0.5 })),
             C::ShellLaneUnsupported => K::ShellLaneUnsupported { scalar: "interval" },
-            C::FaceFrameNotPlanar => K::FaceFrameNotPlanar {
-                carrier: geom::SurfaceKind::Cylinder,
-            },
-            C::FaceFrameReadback => K::FaceFrameReadback {
-                error: topo::readback::ReadbackError::NoCarrier,
-            },
-            C::FrameDirectionDegenerate => frame_direction(UnitVec3Error::Degenerate),
-            C::FrameDirectionNonFiniteLength => frame_direction(UnitVec3Error::NonFiniteLength),
-            C::FrameDirectionUnderflowedLength => frame_direction(UnitVec3Error::UnderflowedLength),
-            C::FrameDirectionEscalated => frame_direction(UnitVec3Error::Escalated(diag())),
             C::WitnessBifurcation => K::WitnessBifurcation(crate::WitnessBifurcation {
                 kind: crate::BifurcationKind::FoldProximity,
                 margin: crate::BranchMarginEvidence {
@@ -906,6 +819,10 @@ mod tests {
                 constraints: vec![c(1), c(2)],
                 free: 1,
             }),
+            C::MateUnpinned => mate(crate::MateFault::Unpinned {
+                placement: n(6),
+                free: 2,
+            }),
             C::MateTargetsDiffer => mate(crate::MateFault::TargetsDiffer {
                 placement: n(6),
                 constraints: vec![c(1), c(2)],
@@ -939,7 +856,7 @@ mod tests {
             }),
             C::MateNotAFreedom => mate(crate::MateFault::NotAFreedom {
                 value: m(9),
-                coord: crate::mate::Coord::Slide(crate::mate::SlideAxis::Z),
+                coord: crate::mate::Coord::Slide(crate::mate::TargetAxis::Z),
                 kind: crate::VarKind::Plane,
             }),
             C::MateNoChart => mate(crate::MateFault::NoChart {

@@ -12,7 +12,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use editor_core::ExtrudeSide;
 
 use pncad::document::{Dimension, Distribution, DocEdit, EditError, FreeVar, SlotId, VarName};
 use pncad::geom_core::Tol;
@@ -52,14 +51,13 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
     let (doc, profile) = {
         let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
             pncad::document::Doc::empty_derived("gui3-literal", tol);
-        common::framed_square(&doc, 0.04, tol)
+        common::square_profile(&doc, 0.04, tol)
     };
     let (doc, extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.008),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -122,13 +120,12 @@ fn literal_and_pattern_doc(
 ) {
     let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
         pncad::document::Doc::empty_derived("gui3-literal-range", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.008),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -464,14 +461,13 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
     let (doc, profile) = {
         let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
             pncad::document::Doc::empty_derived("gui3-gesture", tol);
-        common::framed_square(&doc, 0.04, tol)
+        common::square_profile(&doc, 0.04, tol)
     };
     let (doc, extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.008),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -699,6 +695,7 @@ test_utils::f6_variants! {
         WrongNodeKind,
         NotABodyRead,
         Duplicate,
+        Frame,
         Edit,
         Dimension,
         Parse,
@@ -865,14 +862,13 @@ fn an_abandoned_gesture_leaves_no_trace() {
     let (doc, profile) = {
         let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
             pncad::document::Doc::empty_derived("gui3-abandon", tol);
-        common::framed_square(&doc, 0.04, tol)
+        common::square_profile(&doc, 0.04, tol)
     };
     let (doc, extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.008),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

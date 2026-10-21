@@ -37,7 +37,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -53,7 +52,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -105,9 +104,7 @@ fn dumbbell() -> Dumbbell {
             }),
         }),
     });
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon(
                 [
@@ -133,34 +130,37 @@ fn dumbbell() -> Dumbbell {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(2.0),
-        side: ExtrudeSide::Along,
     });
     // A rigid translation by the document parameter: identity rotation,
     // so every stored direction passes through the interval lane
     // exactly (M10-5's finding, and the reason its fixtures are placed
     // rather than sized).
-    let placed = r.insert(Node::transform(
+    let placed = crate::m10_5_clearance_interval::slid_by(
+        &mut r,
         solid,
-        editor_core::Step::Rigid {
-            translation: [
-                Formula::named(name("place"), Dimension::Length),
-                len(0.0),
-                len(0.0),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+        solid,
+        [
+            Formula::named(name("place"), Dimension::Length),
+            len(0.0),
+            len(0.0),
+        ],
+    );
     let measured = r.measure(
         &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                crate::m10_5_clearance_interval::in_placement(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ),
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+                crate::m10_5_clearance_interval::in_placement(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+                ),
             ),
         ],
     );
@@ -185,7 +185,7 @@ struct Dumbbell {
     doc: ProfileDoc,
     /// The extrude that MINTED the wall names.
     solid: RecipeNodeId,
-    /// The transform the measure READS them at.
+    /// The placement the measure READS them at.
     placed: RecipeNodeId,
     measure: RecipeNodeId,
     assertion: RecipeNodeId,
@@ -193,7 +193,7 @@ struct Dumbbell {
 
 /// The neck pair, read out of an evaluation the way the engine's
 /// caller does: the placed body, and the two wall faces the names
-/// resolve to AT the transform.
+/// resolve to AT the placement.
 ///
 /// It exists so the rows can ask the engine the same question the
 /// measure asks it, without either of them going through the other.
@@ -209,10 +209,13 @@ impl<'v> Neck<'v> {
             panic!("the placed body evaluated");
         };
         let ValuePayload::Body(body) = &value.payload else {
-            panic!("a transform's value is one body");
+            panic!("a placement's value is one body");
         };
         let key = |seg: u32| {
-            let n = fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg));
+            let n = crate::m10_5_clearance_interval::in_placement(
+                f.placed,
+                fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg)),
+            );
             let Some(editor_core::Entry::Unique(ent)) =
                 ev.table_at(f.placed).expect("one table").lookup(&n)
             else {
@@ -506,9 +509,7 @@ fn a_pairing_the_wedge_rule_empties_refuses_typed() {
 #[test]
 fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -518,7 +519,6 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     // A real EDGE name — the extrude's own lateral edge at profile
     // vertex 0 — so the refusal is about its KIND rather than about a

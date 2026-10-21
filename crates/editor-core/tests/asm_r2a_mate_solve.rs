@@ -21,15 +21,14 @@
 
 use crate::fixture;
 use crate::wire::doctored;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::CapEnd;
 use editor_core::{
     ContactClass, Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation,
     Frame, Maintenance, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
-    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, SlideAxis, Space,
-    StableName, Value, apply, load, product, relative_freedom_components, save,
+    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, Space, StableName,
+    TargetAxis, Value, apply, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{
@@ -55,7 +54,6 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -169,21 +167,10 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, Kit) {
     (doc, ids, kit)
 }
 
-/// **`placement`'s bundle replaced by one world pin at `frame`** — how
+/// **`placement`'s bundle replaced by one world mate at `frame`** — how
 /// a copy is put at a world pose ([`fixture::pin`]).
 fn repin(doc: ProfileDoc, placement: RecipeNodeId, frame: &Frame, o: &EvalOptions) -> ProfileDoc {
-    let doc = fixture::bundle(&doc, placement)
-        .into_iter()
-        .fold(doc, |doc, c| {
-            step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        });
+    let doc = fixture::emptied(doc, placement);
     fixture::pin(doc, placement, frame, o)
 }
 
@@ -199,7 +186,7 @@ fn add_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Profi
         DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -282,7 +269,7 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, Kit, MateRef) {
     let (doc, ids, kit) = assembly("asm-r2a-row1", 2);
     let (doc, coaxial) = add(doc, ids[1], pin(&kit, ids[0], ids[1], 0, 0));
     let doc = add_value(doc, coaxial, Coord::Spin, ang(0.0));
-    let doc = add_value(doc, coaxial, Coord::Slide(SlideAxis::Z), len(2.0));
+    let doc = add_value(doc, coaxial, Coord::Slide(TargetAxis::Z), len(2.0));
     (doc, ids, kit, coaxial)
 }
 
@@ -330,9 +317,9 @@ fn row1_a_coaxial_slid_and_clocked_pair_is_determined_and_evaluates() {
     assert!(
         poses
             .relative(ids[0])
-            .expect("the world-pinned instance")
+            .expect("the world-mated instance")
             .is_identity_bits(),
-        "the world-pinned instance's own pose is the bit-exact identity"
+        "the world-mated instance's own pose is the bit-exact identity"
     );
 
     let ev = run(&doc, &o);
@@ -502,13 +489,13 @@ fn row4b_removing_the_placing_constraint_leaves_the_orphan_loose() {
     ));
     assert!(
         fixture::same_offset(&doc, ids[0], &applied.doc, ids[0]),
-        "the surviving copy keeps its world pin verbatim"
+        "the surviving copy keeps its world mate verbatim"
     );
     assert!(
         near(
             poses
                 .placement(&applied.doc, ids[0])
-                .expect("the world-pinned instance is placed"),
+                .expect("the world-mated instance is placed"),
             Frame::translation([0.0, 0.0, 4.0]),
             1e-12
         ),
@@ -562,7 +549,7 @@ fn row4c_deleting_the_target_strands_the_constraint_on_it() {
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
 }
 
-/// Row 4d — a lone instance's world pose is where its world pin puts
+/// Row 4d — a lone instance's world pose is where its world mate puts
 /// it (A11 (5)), and a mate-less document round-trips identically.
 ///
 /// *Breaks if* a lone pin is folded off its pose, or the round trip
@@ -582,7 +569,7 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
             placed,
             1e-12
         ),
-        "a lone instance stands where its world pin puts it"
+        "a lone instance stands where its world mate puts it"
     );
     assert!(
         poses
@@ -629,7 +616,7 @@ fn two_pairs() -> (ProfileDoc, Vec<RecipeNodeId>, Kit) {
 }
 
 /// Row 4e — a cut of ONE WHOLE pinned pair moves as selected (A4): the
-/// part's world-pinned instance keeps its pin, and the remainder
+/// part's world-mated instance keeps its pin, and the remainder
 /// instance stands on the world at the identity.
 ///
 /// *Breaks if* the cut rewrites a pin it carries or leaves, or the
@@ -650,7 +637,7 @@ fn row4e_a_whole_pair_cut_moves_as_selected() {
     .expect("a whole-pair cut splits");
     assert!(
         fixture::same_offset(&out.part, out.node_map[&ids[0]], &doc, ids[0]),
-        "the part's world-pinned instance keeps its pin"
+        "the part's world-mated instance keeps its pin"
     );
     let instance = *out
         .remainder
@@ -782,6 +769,14 @@ fn row6a_mated_instances_share_an_a9_component() {
             .iter()
             .any(|c| c.contains(&ids[0]) && c.contains(&ids[1])),
         "the constraint COUPLES the components: {together:?}"
+    );
+    // The first instance stands by the identity bundle, which reads no
+    // pose, so the one mate's two poses land on the two instances.
+    assert!(
+        fixture::bundle(&doc, ids[0])
+            .iter()
+            .all(|c| c.mate().is_none()),
+        "the first instance stands with no mate"
     );
     assert_eq!(
         fixture::mate_members(&doc),
@@ -1108,7 +1103,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             "a plane's normal slide",
             &planed,
             rest,
-            Coord::Slide(SlideAxis::Z),
+            Coord::Slide(TargetAxis::Z),
             len(0.5),
             editor_core::VarKind::Plane,
         ),
@@ -1118,7 +1113,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             &DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),

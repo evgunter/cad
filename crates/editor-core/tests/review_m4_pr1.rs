@@ -5,7 +5,6 @@
 #![allow(clippy::float_cmp)]
 
 use crate::fixture::{ang, len, scl};
-use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, DocEdit, EditError, Formula, FreeVar, RecipeNodeId, SlotId, VarEnv, VarName, eval,
     eval_count,
@@ -24,10 +23,6 @@ impl editor_core::ProfilePayload for Fake {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
-        _: &mut dyn FnMut(
-            editor_core::OperandSlot,
-            &editor_core::Operand,
-        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(*authored)
     }
@@ -49,15 +44,23 @@ impl editor_core::ProfilePayload for Fake {
 type Doc = editor_core::Doc<Fake>;
 type Edit = DocEdit<Fake>;
 
-/// Insert a datum point whose x-component is `x` (bit-exact carrier).
-fn point_edit(x: Formula) -> Edit {
+/// Insert a node whose first length slot ([`X`]) carries `x`
+/// (bit-exact carrier): a tube, which reads no operand.
+fn carrier_edit(x: Formula) -> Edit {
     DocEdit::InsertNode {
-        node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
-            position: [x, len(0.0), len(0.0)],
-        })),
+        node: Box::new(editor_core::Node::Tube {
+            major_radius: x,
+            window: editor_core::TubeWindow::Full,
+            minor_radius: len(0.0),
+        }),
         fresh: Vec::new(),
     }
 }
+
+/// The carrier's first length slot.
+const X: SlotId = SlotId::TubeMajorRadius;
+/// Its sibling length slot.
+const Z: SlotId = SlotId::TubeMinorRadius;
 
 /// Insert a body: an extrude of a stand-in profile, for a row whose
 /// operand slot reads a body.
@@ -75,7 +78,6 @@ fn body(doc: Doc) -> (Doc, RecipeNodeId) {
             node: Box::new(editor_core::Node::Extrude {
                 profile: ids[0].into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         }],
@@ -124,7 +126,7 @@ fn r1_replay_bit_identity_adversarial() {
         .doc;
     let mut minted = Vec::new();
     for &v in &adversarial {
-        let e = point_edit(len(v));
+        let e = carrier_edit(len(v));
         let a = doc.apply(&e, Tol::witness()).unwrap();
         minted.push(a.record.minted.unwrap());
         doc = a.doc;
@@ -136,7 +138,7 @@ fn r1_replay_bit_identity_adversarial() {
         doc = doc.apply(&e, Tol::witness()).unwrap().doc;
         log.push(e);
     }
-    let e = point_edit(len(-0.0));
+    let e = carrier_edit(len(-0.0));
     let a = doc.apply(&e, Tol::witness()).unwrap();
     // D3: an id is never reused, even after deleting the newest one.
     let fresh = a.record.minted.unwrap();
@@ -148,7 +150,7 @@ fn r1_replay_bit_identity_adversarial() {
     log.push(e);
     // Re-insert a last-ulp carrier after the churn — replay must
     // carry its exact bits through the re-minted id stream.
-    let e = point_edit(len(-ulp1));
+    let e = carrier_edit(len(-ulp1));
     doc = doc.apply(&e, Tol::witness()).unwrap().doc;
     log.push(e);
     let replayed = Doc::replay(doc.id(), &log.to_vec(), Tol::witness()).unwrap();
@@ -167,13 +169,11 @@ fn r1_replay_bit_identity_adversarial() {
 fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     let (pos, _) = apply_all(
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
-        &[point_edit(len(0.0))],
+        &[carrier_edit(len(0.0))],
     );
     // The signed zero written by a value edit on the slot's own
-    // variable, so the point keeps its id and its slot its variable.
-    let x = pos
-        .slot(pos.ids()[0], SlotId::Origin(editor_core::Axis3::X))
-        .expect("the point reads its x");
+    // variable, so the carrier keeps its id and its slot its variable.
+    let x = pos.slot(pos.ids()[0], X).expect("the carrier reads its x");
     let (neg, _) = apply_all(
         pos.clone(),
         &[DocEdit::SetVarValue {
@@ -183,14 +183,12 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     );
     // Bitwise the docs DIFFER…
     let vp = eval::<f64>(
-        &pos.slot_expansion(pos.ids()[0], SlotId::Origin(editor_core::Axis3::X))
-            .unwrap(),
+        &pos.slot_expansion(pos.ids()[0], X).unwrap(),
         &pos.var_env(),
     )
     .unwrap();
     let vn = eval::<f64>(
-        &neg.slot_expansion(neg.ids()[0], SlotId::Origin(editor_core::Axis3::X))
-            .unwrap(),
+        &neg.slot_expansion(neg.ids()[0], X).unwrap(),
         &neg.var_env(),
     )
     .unwrap();
@@ -317,7 +315,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
         )
         .unwrap()
         .doc;
-    let res = doc.apply(&point_edit(expr), Tol::witness());
+    let res = doc.apply(&carrier_edit(expr), Tol::witness());
     assert!(
         matches!(res, Err(EditError::SlotVarKind { .. })),
         "got {res:?}"
@@ -365,13 +363,15 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
 /// consumer may assume same-slot edits are detectable.
 #[test]
 fn r3_ancestor_replace_silently_repoints_exprpath() {
-    use editor_core::{Axis3, ExprPath};
+    use editor_core::ExprPath;
     // Slot: x = 1.0 + 2.0; path [1] refers to the literal 2.0.
     let e0 = Formula::add(len(1.0), len(2.0)).unwrap();
     let ins = DocEdit::InsertNode {
-        node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
-            position: [e0, len(0.0), len(0.0)],
-        })),
+        node: Box::new(editor_core::Node::Tube {
+            major_radius: e0,
+            window: editor_core::TubeWindow::Full,
+            minor_radius: len(0.0),
+        }),
         fresh: Vec::new(),
     };
     let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
@@ -380,7 +380,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
     let id = a.record.minted.unwrap();
     let path = ExprPath {
         node: id,
-        slot: SlotId::Origin(Axis3::X),
+        slot: X,
         path: vec![1],
     };
     let before = eval::<f64>(&a.doc.expr_at(&path).unwrap(), &a.doc.var_env()).unwrap();
@@ -392,7 +392,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
             &Edit::SetExpression {
                 path: ExprPath {
                     node: id,
-                    slot: SlotId::Origin(Axis3::X),
+                    slot: X,
                     path: vec![],
                 },
                 expr: Formula::add(len(5.0), len(7.0)).unwrap(),
@@ -411,7 +411,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
             &Edit::SetExpression {
                 path: ExprPath {
                     node: id,
-                    slot: SlotId::Origin(Axis3::X),
+                    slot: X,
                     path: vec![],
                 },
                 expr: len(9.0),
@@ -428,13 +428,15 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
 /// (c) SetParam on a different slot of the same node — bit-checked.
 #[test]
 fn r3_referent_survives_out_of_claim_edits_bitwise() {
-    use editor_core::{Axis3, ExprPath};
+    use editor_core::ExprPath;
     let marker = f64::from_bits(0x3FF00000000000AB); // recognizable bits
     let e0 = Formula::add(len(marker), len(2.0)).unwrap();
     let ins = DocEdit::InsertNode {
-        node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
-            position: [e0, len(0.0), len(0.0)],
-        })),
+        node: Box::new(editor_core::Node::Tube {
+            major_radius: e0,
+            window: editor_core::TubeWindow::Full,
+            minor_radius: len(0.0),
+        }),
         fresh: Vec::new(),
     };
     let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
@@ -443,7 +445,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
     let id = a.record.minted.unwrap();
     let referent = ExprPath {
         node: id,
-        slot: SlotId::Origin(Axis3::X),
+        slot: X,
         path: vec![0],
     };
     let check = |d: &Doc| {
@@ -452,7 +454,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
     };
     check(&a.doc);
     // (a) edit ANOTHER node entirely.
-    let (d, _) = apply_all(a.doc, &[point_edit(len(4.0))]);
+    let (d, _) = apply_all(a.doc, &[carrier_edit(len(4.0))]);
     check(&d);
     // (b) replace the SIBLING subtree [1] of the same slot.
     let d = d
@@ -460,7 +462,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
             &Edit::SetExpression {
                 path: ExprPath {
                     node: id,
-                    slot: SlotId::Origin(Axis3::X),
+                    slot: X,
                     path: vec![1],
                 },
                 expr: Formula::mul(scl(3.0), len(8.0)).unwrap(),
@@ -475,7 +477,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
         .apply(
             &Edit::SetParam {
                 node: id,
-                slot: SlotId::Origin(Axis3::Z),
+                slot: Z,
                 value: len(6.0).into(),
                 fresh: Vec::new(),
             },
@@ -508,7 +510,6 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
                 node: Box::new(Node::Extrude {
                     profile: ids[0].into(),
                     distance: len(1.0),
-                    side: ExtrudeSide::Along,
                 }),
                 fresh: Vec::new(),
             },
@@ -521,7 +522,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     // insert) is refused: the id isn't live yet.
     // The id the next insert would mint, read by making it on a copy.
     let next_would_be = doc
-        .apply(&point_edit(len(0.0)), Tol::witness())
+        .apply(&carrier_edit(len(0.0)), Tol::witness())
         .unwrap()
         .record
         .minted
@@ -562,7 +563,10 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .doc;
     let (doc, _) = apply_all(
         doc,
-        &[point_edit(Formula::named(name.clone(), Dimension::Length))],
+        &[carrier_edit(Formula::named(
+            name.clone(),
+            Dimension::Length,
+        ))],
     );
     // Dimension flip under the referencing slot: refused, because a
     // variable's kind is fixed whatever reads it.
@@ -624,13 +628,13 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
 fn r5_apply_pure_and_deterministic_bitwise() {
     let (doc, ids) = apply_all(
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
-        &[point_edit(len(-0.0)), point_edit(len(5e-324))],
+        &[carrier_edit(len(-0.0)), carrier_edit(len(5e-324))],
     );
     let snapshot = doc.clone();
     // Successful apply: input untouched.
     let e = Edit::SetParam {
         node: ids[0],
-        slot: SlotId::Origin(editor_core::Axis3::Y),
+        slot: Z,
         value: len(f64::from_bits(0x3FF0000000000001)).into(),
         fresh: Vec::new(),
     };

@@ -11,36 +11,25 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
-    AssertionRelation, CancelToken, CapEnd, ContactClass, ContentPin, Datum, Dimension, DocEdit,
-    DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula, Frame, FreeVar, InterfaceRecord,
-    LoopProgram, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SlotId, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
+    AssertionRelation, CancelToken, CapEnd, ContactClass, ContentPin, Dimension, DocEdit, DocRef,
+    DocumentId, EditError, EvalOptions, ExprPath, Formula, FreeVar, InterfaceRecord, LoopProgram,
+    Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
+    StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
 
-// Every document below is a frame and then the profile drawn on it,
-// in that order: `doc.ids()[0]` and `doc.ids()[1]`.
+// Every document below holds its profile as its first node:
+// `doc.ids()[0]`.
 
 fn circle_doc(r: f64) -> ProfileDoc {
-    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
-        .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(fixture::xy_frame()),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .doc;
+    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness());
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                frame: doc.ids()[0].into(),
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
             })),
@@ -66,7 +55,7 @@ fn radius_slot() -> SlotId {
 #[test]
 fn profile_nodes_enumerate_program_slots() {
     let doc = circle_doc(0.5);
-    let Some(node) = doc.node(doc.ids()[1]) else {
+    let Some(node) = doc.node(doc.ids()[0]) else {
         panic!("profile node");
     };
     let slots = node.slots();
@@ -101,7 +90,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
     let grown = doc
         .apply(
             &DocEdit::SetParam {
-                node: doc.ids()[1],
+                node: doc.ids()[0],
                 slot: radius_slot(),
                 value: len(0.75).into(),
                 fresh: Vec::new(),
@@ -120,7 +109,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let Some(v) = ev.value(doc.ids()[1]) else {
+    let Some(v) = ev.value(doc.ids()[0]) else {
         panic!("profile evaluates");
     };
     let ValuePayload::Profile(pv) = &v.payload else {
@@ -145,7 +134,7 @@ fn set_expression_and_expr_at_route_into_programs() {
     let doc = doc
         .apply(
             &DocEdit::SetParam {
-                node: doc.ids()[1],
+                node: doc.ids()[0],
                 slot: radius_slot(),
                 value: sum.into(),
                 fresh: Vec::new(),
@@ -155,7 +144,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         .unwrap()
         .doc;
     let path = ExprPath {
-        node: doc.ids()[1],
+        node: doc.ids()[0],
         slot: radius_slot(),
         path: vec![0],
     };
@@ -193,7 +182,7 @@ fn program_slots_refuse_wrong_dimensions() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: doc.ids()[1],
+            node: doc.ids()[0],
             slot: radius_slot(),
             value: ang(0.5).into(),
             fresh: Vec::new(),
@@ -218,7 +207,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: doc.ids()[1],
+            node: doc.ids()[0],
             slot: radius_slot(),
             value: len(0.0).into(),
             fresh: Vec::new(),
@@ -226,7 +215,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         Tol::witness(),
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
-            assert_eq!(node.id(), doc.ids()[1]);
+            assert_eq!(node.id(), doc.ids()[0]);
             match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,
@@ -260,18 +249,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Box::new(fixture::xy_frame()),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .doc;
-    let doc = doc
-        .apply(
-            &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    frame: doc.ids()[0].into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Formula::named(VarName::from_static("r"), Dimension::Length),
@@ -304,7 +282,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    match ev.nodes.get(&doc.ids()[1]) {
+    match ev.nodes.get(&doc.ids()[0]) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::ProfileReplay { loop_: 0, error } => {
                 assert_eq!(error.step, 0, "the circle step names itself");
@@ -324,18 +302,8 @@ fn insert_node_checks_program_dimensions() {
     // INPUTS resolve before it walks the slot dimensions, so a profile
     // naming a plane the document does not have is turned away as an
     // unresolved input — which is not the refusal this row is about.
-    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
-        .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(fixture::xy_frame()),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .doc;
+    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness());
     let bad = ProfileProgram {
-        frame: doc.ids()[0].into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             // An Angle where the Radius role demands Length.
@@ -425,16 +393,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         ),
     ];
 
-    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
-        .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(fixture::xy_frame()),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .doc;
+    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness());
 
     for (spec, spec2, incoming, arrival, authored, replacement) in rows {
         let fused = SlotId::Profile {
@@ -443,7 +402,6 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             arg: arrival,
         };
         let mut program: ProfileNode = Node::Profile(ProfileProgram {
-            frame: doc.ids()[0].into(),
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At([len(0.0), len(0.0)]),
                 ProgramStep::ArcFilletArc {
@@ -538,7 +496,6 @@ test_utils::f6_variants! {
     /// non-exhaustive, and the row below reds until the new kind has a
     /// value in `one_of_every_node_shape`.
     const NODE_KIND: ProfileNode = [
-        Datum,
         Profile,
         Extrude,
         Revolve,
@@ -553,7 +510,6 @@ test_utils::f6_variants! {
         Subtract,
         Union,
         Intersect,
-        Transform,
         Place,
         World,
         Pattern,
@@ -563,14 +519,6 @@ test_utils::f6_variants! {
         Measure,
         Assertion,
     ];
-}
-
-test_utils::f6_variants! {
-    /// **Every datum kind**, welded the same way: the five shapes carry
-    /// five different slot lists (a plane's origin and normal, a
-    /// point's position alone, a face frame's spin), so the node-level
-    /// roster above would pass over a disagreement inside one of them.
-    const DATUM_KIND: Datum = [Plane, Axis, Point, Frame, FaceFrame];
 }
 
 type ProfileNode = AuthoredNode;
@@ -621,79 +569,57 @@ fn world_z() -> editor_core::WorldRead<Formula> {
     editor_core::WorldRead::through(editor_core::pose::PoseRole::Z)
 }
 
-fn datum_shapes() -> Vec<Datum<Formula>> {
-    vec![
-        Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        },
-        Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-        },
-        Datum::Point {
-            position: [len(0.0), len(0.0), len(0.0)],
-        },
-        Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        },
-        Datum::FaceFrame {
-            face: editor_core::Operand::select(
-                nid(0),
-                vec![fixture::fname(nid(0), RoleSeg::Cap(CapEnd::Start))],
-            ),
-            spin: ang(0.0),
-        },
-    ]
-}
-
 /// One value per node SHAPE — every kind of the roster above, and
-/// every payload shape that answers a different slot list: the five
-/// datums, a tube window open and closed, the three pattern kinds, a
+/// every payload shape that answers a different slot list: a tube
+/// window open and closed, the three pattern kinds, a
 /// part selected two ways, and a placed union with and without its
 /// count.
 pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
-    let mut nodes: Vec<ProfileNode> = datum_shapes().into_iter().map(Node::Datum).collect();
+    let mut nodes: Vec<ProfileNode> = Vec::new();
     let window = || TubeWindow::Arc {
         t0: ang(0.0),
         t1: ang(1.0),
     };
     nodes.extend([
-        Node::Profile(fixture::desc(nid(0), vec![fixture::square(0.0, 0.0, 0.5)])),
+        Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])),
         Node::Extrude {
             profile: nid(1).into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
         Node::Revolve {
             profile: nid(1).into(),
-            axis_through: [len(0.0), len(0.0)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::zero(Dimension::Angle),
             angle: ang(1.0),
         },
         Node::Tube {
-            frame: nid(0).into(),
             major_radius: len(1.0),
             window: TubeWindow::Full,
             minor_radius: len(0.5),
         },
         Node::Tube {
-            frame: nid(0).into(),
             major_radius: len(1.0),
             window: window(),
             minor_radius: len(0.5),
         },
         Node::HollowTube {
-            frame: nid(0).into(),
             major_radius: len(1.0),
             window: window(),
             minor_radius: len(0.5),
             wall: len(0.1),
         },
         Node::Loft {
-            profiles: vec![nid(1).into(), nid(2).into()],
+            first: nid(1).into(),
+            then: vec![editor_core::LoftSection {
+                profile: nid(2).into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: len(1.0),
+                }],
+            }],
             v_degree: Formula::count(1),
         },
         Node::Sweep {
@@ -727,39 +653,6 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
-        },
-        Node::transform(
-            nid(1),
-            editor_core::Step::Rigid {
-                translation: [len(1.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-        // A chain: rigid, literal, rigid — the literal takes no slot and
-        // its index is skipped, so the second rigid step is step 2.
-        Node::Transform {
-            input: nid(1).into(),
-            placement: Placement {
-                steps: vec![
-                    Step::Rigid {
-                        translation: [len(1.0), len(0.0), len(0.0)],
-                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: ang(0.0),
-                    },
-                    Step::Literal(Frame::translation([0.0, 1.0, 0.0])),
-                    Step::Rigid {
-                        translation: [len(0.0), len(0.0), len(1.0)],
-                        axis: [scl(1.0), scl(0.0), scl(0.0)],
-                        angle: ang(0.5),
-                    },
-                ],
-            },
-        },
-        // A literal alone: no slot at all.
-        Node::Transform {
-            input: nid(1).into(),
-            placement: Placement::literal(&Frame::translation([0.0, 0.0, 2.0])),
         },
         // A world mate reading the world's plane as it stands: its read
         // holds no scalar, so no slot.
@@ -861,7 +754,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                 value(
                     3,
                     editor_core::Value {
-                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 2)),
+                        mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 2))),
                         coord: editor_core::Coord::Spin,
                         by: ang(0.5),
                     },
@@ -869,8 +762,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                 value(
                     4,
                     editor_core::Value {
-                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 2)),
-                        coord: editor_core::Coord::Slide(editor_core::SlideAxis::Z),
+                        mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 2))),
+                        coord: editor_core::Coord::Slide(editor_core::TargetAxis::Z),
                         by: len(0.5),
                     },
                 ),
@@ -897,8 +790,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
 /// from the first of.
 ///
 /// `profile_nodes_enumerate_program_slots` pins the same thing for one
-/// kind. This row is the whole vocabulary, welded by `NODE_KIND` and
-/// `DATUM_KIND` so a node kind added tomorrow cannot join it unpinned.
+/// kind. This row is the whole vocabulary, welded by `NODE_KIND` so a
+/// node kind added tomorrow cannot join it unpinned.
 #[test]
 fn every_node_kinds_slots_are_all_readable() {
     let nodes = one_of_every_node_shape();
@@ -926,32 +819,19 @@ fn every_node_kinds_slots_are_all_readable() {
         }
     }
 
-    for (rostered, walked) in [
-        (
-            NODE_KIND.identifiers(),
-            nodes
-                .iter()
-                .map(test_utils::f6::variant_identifier)
-                .collect::<Vec<_>>(),
-        ),
-        (
-            DATUM_KIND.identifiers(),
-            datum_shapes()
-                .iter()
-                .map(test_utils::f6::variant_identifier)
-                .collect::<Vec<_>>(),
-        ),
-    ] {
-        let covered: Vec<&str> = walked.iter().map(String::as_str).collect();
-        if let Some(report) = test_utils::census::set_difference(
-            rostered,
-            &covered,
-            "the node roster and the shapes this row walks disagree",
-            "walked here and absent from the roster — add it, spelled as `Debug` renders it",
-            "in the roster and walked by no value — give it one in `one_of_every_node_shape`",
-        ) {
-            panic!("{report}");
-        }
+    let walked: Vec<String> = nodes
+        .iter()
+        .map(test_utils::f6::variant_identifier)
+        .collect();
+    let covered: Vec<&str> = walked.iter().map(String::as_str).collect();
+    if let Some(report) = test_utils::census::set_difference(
+        NODE_KIND.identifiers(),
+        &covered,
+        "the node roster and the shapes this row walks disagree",
+        "walked here and absent from the roster — add it, spelled as `Debug` renders it",
+        "in the roster and walked by no value — give it one in `one_of_every_node_shape`",
+    ) {
+        panic!("{report}");
     }
 }
 
@@ -1148,7 +1028,7 @@ fn tag_operands(
 ) {
     let mut next = reads.iter().copied();
     let retagged = node.try_map_slots(
-        |p, f, r| p.try_map_slots(&mut |e| f(e), &mut |at, read| r(at, read)),
+        |p, f| p.try_map_slots(&mut |e| f(e)),
         &mut |e: &editor_core::VarId| Ok::<_, core::convert::Infallible>(*e),
         &mut |_, _| Ok(next.next().expect("one tag per operand")),
     );

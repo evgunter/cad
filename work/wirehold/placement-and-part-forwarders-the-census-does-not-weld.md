@@ -2,11 +2,10 @@
 id: placement-and-part-forwarders-the-census-does-not-weld
 kind: issue
 title: The part, transform, motion and face-frame refusals NodeErrorKind forwards are not welded to their arms in the feature-tree census
-status: parked
+status: open
 opened: 2026-10-20
 priority: P4
 cost: E
-blocked_on: [transform-retires-into-a-placement]
 ---
 
 

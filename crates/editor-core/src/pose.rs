@@ -26,7 +26,7 @@ use crate::mate::{PoseSymmetry, Subgroup};
 ///
 /// A K row name reaching the funnel through a const, so it is a roster
 /// carrier (`docs/K-REPORT.md`, "The inventory method, restated").
-pub const SEL_DATUM_DISTANCE: &str = "sel_datum_distance";
+pub const SEL_PLANE_DISTANCE: &str = "sel_plane_distance";
 
 /// **An evaluated pose**, one arm per pose kind (D10's five).
 #[derive(Debug, Clone)]
@@ -104,9 +104,9 @@ impl<T: Real> PoseSymmetry<T> for PoseValue<T> {
 /// plane it lies in. `None` for a direction, which has no position.
 ///
 /// Arithmetic only: deciding what the distance means is
-/// [`datum_distance_sign`]'s.
+/// [`pose_distance_sign`]'s.
 #[must_use]
-pub fn datum_distance<T: Real>(pose: &PoseValue<T>, p: Point3<T>) -> Option<T> {
+pub fn pose_distance<T: Real>(pose: &PoseValue<T>, p: Point3<T>) -> Option<T> {
     Some(match pose {
         PoseValue::Plane { origin, normal } => (p - *origin).dot(normal.get()),
         PoseValue::Axis { origin, dir } => {
@@ -121,22 +121,22 @@ pub fn datum_distance<T: Real>(pose: &PoseValue<T>, p: Point3<T>) -> Option<T> {
 }
 
 /// DECIDED: which side of the stated `value` the point's
-/// [`datum_distance`] lands on, through the [`SEL_DATUM_DISTANCE`]
+/// [`pose_distance`] lands on, through the [`SEL_PLANE_DISTANCE`]
 /// funnel. `None` for a direction.
 ///
 /// # Errors
 ///
 /// The funnel's [`Indeterminate`] when the margin lands strictly
 /// inside the ambiguity band.
-pub fn datum_distance_sign<T: Decide>(
+pub fn pose_distance_sign<T: Decide>(
     pose: &PoseValue<T>,
     p: Point3<T>,
     value: T,
     band: Band,
 ) -> Option<Result<Sign, Indeterminate>> {
-    let d = datum_distance(pose, p)?;
+    let d = pose_distance(pose, p)?;
     Some(geom_core::k_stats::decide(
-        SEL_DATUM_DISTANCE,
+        SEL_PLANE_DISTANCE,
         Margin::of(d - value),
         band,
     ))
@@ -1065,10 +1065,10 @@ impl core::fmt::Display for PoseConstruction {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
-    use super::{PoseValue, datum_distance, datum_distance_sign};
+    use super::{PoseValue, pose_distance, pose_distance_sign};
     use geom_core::linalg::{Point3, UnitVec3, Vec3};
     use geom_core::predicate::{Band, Sign};
-    use topo::DATUM_UNIT_NORM;
+    use topo::POSE_UNIT_NORM;
 
     /// **A pose built from any scale measures a LENGTH**: the same
     /// plane spelled at scale 1e6 answers the same distance.
@@ -1078,31 +1078,31 @@ mod tests {
         let p = Point3::new(3.0, 4.0, -2.0);
         let at = |v| PoseValue::Plane {
             origin: Point3::new(0.0, 0.0, 0.0),
-            normal: UnitVec3::new(v, DATUM_UNIT_NORM, band).expect("a vector with a length"),
+            normal: UnitVec3::new(v, POSE_UNIT_NORM, band).expect("a vector with a length"),
         };
         assert_eq!(
-            datum_distance(&at(Vec3::new(0.0, 0.0, 1e6)), p),
-            datum_distance(&at(Vec3::new(0.0, 0.0, 1.0)), p)
+            pose_distance(&at(Vec3::new(0.0, 0.0, 1e6)), p),
+            pose_distance(&at(Vec3::new(0.0, 0.0, 1.0)), p)
         );
     }
 
     #[test]
     fn the_decided_door_partitions_on_the_band() {
         let band = Band::new(1e-6, 1e-3).expect("a well-ordered band");
-        let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), DATUM_UNIT_NORM, band).expect("a unit z");
+        let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), POSE_UNIT_NORM, band).expect("a unit z");
         let origin = Point3::new(0.0, 0.0, 0.0);
         let plane = PoseValue::Plane { origin, normal: up };
         let axis = PoseValue::Axis { origin, dir: up };
         let point = PoseValue::Point { position: origin };
         let p = Point3::new(3.0, 4.0, -2.0);
         // SIGNED along a plane's normal, UNSIGNED to an axis or point.
-        assert_eq!(datum_distance(&plane, p), Some(-2.0));
-        assert_eq!(datum_distance(&axis, p), Some(5.0));
-        assert!(datum_distance(&point, p).is_some_and(|d| (d - 29.0_f64.sqrt()).abs() < 1e-12));
-        assert_eq!(datum_distance(&PoseValue::Direction { dir: up }, p), None);
+        assert_eq!(pose_distance(&plane, p), Some(-2.0));
+        assert_eq!(pose_distance(&axis, p), Some(5.0));
+        assert!(pose_distance(&point, p).is_some_and(|d| (d - 29.0_f64.sqrt()).abs() < 1e-12));
+        assert_eq!(pose_distance(&PoseValue::Direction { dir: up }, p), None);
         for pose in [&plane, &axis, &point] {
-            let d = datum_distance(pose, p).expect("a pose with a position");
-            let sign = |value| datum_distance_sign(pose, p, value, band).expect("a position");
+            let d = pose_distance(pose, p).expect("a pose with a position");
+            let sign = |value| pose_distance_sign(pose, p, value, band).expect("a position");
             for dv in [0.0, 1e-7, -1e-7] {
                 assert_eq!(sign(d - dv), Ok(Sign::Zero), "dv={dv}");
             }

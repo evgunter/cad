@@ -86,7 +86,7 @@ const MAX_DISTANCE_FACTOR: f64 = 100.0;
 /// its target.
 ///
 /// Tied to the eye rather than to the scene, because the scene is
-/// not the only thing drawn: a datum plane runs out toward the
+/// not the only thing that may be drawn: a plane running out toward the
 /// horizon and back under the eye, and at a grazing view its nearest
 /// visible point sits a vanishing fraction of the orbit distance in
 /// front of the eye. A near plane at the front of the scene's sphere
@@ -237,7 +237,7 @@ pub enum CameraError {
     /// - [`Camera::projection_matrix`] takes only an aspect, so here
     ///   the arm is an aspect at or below zero — which is how a pane of
     ///   infinite height reaches it (its width over `inf` is `0.0`).
-    /// - [`Camera::ray_through`] and [`crate::datums::datum_view`] take
+    /// - [`Camera::ray_through`] and [`crate::screen::view_of`] take
     ///   only a viewport, and refuse a non-finite side as
     ///   [`CameraError::NotFinite`] first, so here the arm is a side of
     ///   zero pixels or fewer.
@@ -715,7 +715,7 @@ impl Camera {
     /// where this puts the far field, so resolution stays roughly
     /// relative to depth everywhere instead of being spent next to the
     /// near plane. And with no far plane nothing drawn is ever clipped
-    /// for being far — a datum plane receding to its horizon included.
+    /// for being far — a plane receding to its horizon included.
     ///
     /// # Errors
     ///

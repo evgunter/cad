@@ -13,36 +13,36 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, MateFault, MateRef, Node,
-    NodeErrorClass, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SlideAxis, Space,
-    StableName, Value,
+    NodeErrorClass, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, Space, StableName,
+    TargetAxis, Value,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, insert, len, on_frame, run, solve};
+use fixture::{ang, insert, len, run, solve};
 use geom_core::Tol;
 
 // ---- Substrate ----
 
-/// A unit box, the square `[0, 1]²` moved `x0` along `x` and extruded
-/// 1 tall, and its body.
+/// A unit box, the square `[x0, x0 + 1] × [0, 1]` on its own xy
+/// extruded 1 tall, and its body.
 fn unit_box(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = on_frame(
+    let (doc, profile) = insert(
         doc,
-        [x0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        Node::Profile(fixture::desc(vec![vec![
+            (x0, 0.0),
+            (x0 + 1.0, 0.0),
+            (x0 + 1.0, 1.0),
+            (x0, 1.0),
+        ]])),
     );
     insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -116,7 +116,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -171,8 +171,8 @@ fn c4_poses_of_another_document_reaches_no_row() {
             ),
         );
         doc = [
-            (Coord::Slide(SlideAxis::X), len(0.0)),
-            (Coord::Slide(SlideAxis::Y), len(0.0)),
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
             (Coord::Spin, ang(0.0)),
         ]
         .into_iter()
@@ -236,11 +236,11 @@ fn c4_poses_of_another_document_reaches_no_row() {
 fn a_determined_bundle_and_a_v_block_keep_their_verdicts_under_the_witness() {
     let mut r = rig("msolve8-determined");
     let coaxial = r.add(r.lateral(r.b, 0), r.lateral(r.t, 0));
-    r.doc = with_value(r.doc, coaxial, Coord::Slide(SlideAxis::Z), len(1.0));
+    r.doc = with_value(r.doc, coaxial, Coord::Slide(TargetAxis::Z), len(1.0));
     r.doc = with_value(r.doc, coaxial, Coord::Spin, ang(0.0));
     let poses = solve(&r.doc, &EvalOptions::default(), Tol::witness());
     assert!(
-        poses.fault(r.copy).is_none() && poses.space(r.copy) == Some(Space::World),
+        poses.fault(r.copy).is_none() && poses.space(r.copy) == Some(Space::Loose { root: r.t }),
         "the exemplar is DETERMINED: {:?}",
         poses.fault(r.copy)
     );

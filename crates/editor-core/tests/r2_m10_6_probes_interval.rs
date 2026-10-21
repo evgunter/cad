@@ -49,7 +49,6 @@ test_utils::roster! {
 }
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -65,7 +64,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -159,9 +158,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
             }),
         }),
     });
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -171,31 +168,31 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(2.0),
-        side: ExtrudeSide::Along,
     });
-    let placed = r.insert(Node::transform(
-        solid,
-        editor_core::Step::Rigid {
-            translation: [
-                Formula::named(name("place"), Dimension::Length),
-                len(0.0),
-                len(0.0),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+    // A copy of the block slid along its own x by `place`.
+    let placed = r.against(solid, solid, &editor_core::Frame::IDENTITY);
+    let slide_x = fixture::value_slot(
+        &r.doc,
+        placed,
+        editor_core::Coord::Slide(editor_core::TargetAxis::X),
+    );
+    r.push(DocEdit::SetParam {
+        node: placed,
+        slot: slide_x,
+        value: Formula::named(name("place"), Dimension::Length).into(),
+        fresh: Vec::new(),
+    });
     // The two facing walls of the unit square: their distance is 1.0.
     let measured = r.measure(
         &[MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 1)).in_copy(placed),
             ),
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 3)).in_copy(placed),
             ),
         ],
     );
@@ -298,10 +295,8 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
 /// between the two WALLS is `d − 2r`, written into the geometry.
 fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r_ = Recorder::new();
-    let plane = r_.insert(fixture::xy_frame());
     let mut pin = |cx: f64| {
         let profile = r_.insert(Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
@@ -311,7 +306,6 @@ fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         r_.insert(Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         })
     };
     let a = pin(0.0);
@@ -396,9 +390,7 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
 /// (`y = 0.7`) against the neck's lower wall (`y = 0.8`).
 fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::xy_frame());
     let c_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (0.0, 0.0),
@@ -421,10 +413,8 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let c = r.insert(Node::Extrude {
         profile: c_profile.into(),
         distance: len(2.0),
-        side: ExtrudeSide::Along,
     });
     let block_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(2.2, 0.1), (2.8, 0.1), (2.8, 0.7), (2.2, 0.7)])
                 .expect("finite corners"),
@@ -434,8 +424,8 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let block = r.insert(Node::Extrude {
         profile: block_profile.into(),
         distance: len(2.0),
-        side: ExtrudeSide::Along,
     });
+    let block = r.against(c, block, &editor_core::Frame::IDENTITY);
     let measured = r.measure(
         &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[

@@ -5,7 +5,7 @@
 //! unioned back together (a rest contact across the two section faces,
 //! which is what a union of two resting bodies is); a three-instance
 //! linear pattern of the box with its MIDDLE instance selected by a
-//! `Part` and placed by a transform. Every standard row — evaluation at
+//! `Part` and placed in the world lifted. Every standard row — evaluation at
 //! every CI ε row and under `interval`, persistence round-trip (D6.1),
 //! the latency table — runs both end to end.
 //!
@@ -20,17 +20,16 @@
 //! IS the half: nothing was moved, re-stamped or lost on the way
 //! through.
 //!
-//! D2 bump: the tool plane's height (mid-DAG — its cone is the plane,
-//! the split and the union; the pattern chain is reused).
+//! D2 bump: the tool plane's height, the parameter `cut` (mid-DAG — its
+//! cone is the split and the union; the pattern chain is reused).
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind, RecipeNodeId,
-    RoleSeg, SlotId, SplitHalf, StableName, UnitSym, VarName,
+    RoleSeg, SplitHalf, StableName, UnitSym, VarName,
 };
 
-use crate::fixture::{ang, desc, len, scl, xy_frame};
+use crate::fixture::{desc, len, scl, start_cap_at};
 
 use super::{CorpusDoc, MassPin, Recorder};
 
@@ -49,6 +48,9 @@ const LIFT: f64 = 2.0;
 
 /// The document parameter the box's height reads.
 pub const H: &str = "h";
+
+/// The document parameter the tool plane's height reads.
+pub const CUT: &str = "cut";
 
 /// The split's section face, in the naming vocabulary — the name each
 /// read of a half carries for its own copy of the section (NAMES N1: the
@@ -73,32 +75,30 @@ pub fn document() -> CorpusDoc {
             distribution: None,
         }),
     });
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static(CUT),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, CUT_Z)),
+    });
 
     // ---- the box, [-1, 1]² × [0, h] ----
-    let box_plane = r.insert(xy_frame());
-    let box_p = r.insert(Node::Profile(desc(
-        box_plane,
-        vec![vec![
-            (-BOX_HALF, -BOX_HALF),
-            (BOX_HALF, -BOX_HALF),
-            (BOX_HALF, BOX_HALF),
-            (-BOX_HALF, BOX_HALF),
-        ]],
-    )));
+    let box_p = r.insert(Node::Profile(desc(vec![vec![
+        (-BOX_HALF, -BOX_HALF),
+        (BOX_HALF, -BOX_HALF),
+        (BOX_HALF, BOX_HALF),
+        (-BOX_HALF, BOX_HALF),
+    ]])));
     let cube = r.insert(Node::Extrude {
         profile: box_p.into(),
         distance: Formula::named(VarName::from_static(H), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
 
     // ---- the cut at mid-height, and its two halves as bodies ----
-    let tool = r.insert(Node::Datum(editor_core::Datum::Plane {
-        origin: [len(0.0), len(0.0), len(CUT_Z)],
-        normal: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
     let split = r.insert(Node::Split {
         target: cube.into(),
-        tool: tool.into(),
+        tool: start_cap_at(
+            cube,
+            Formula::named(VarName::from_static(CUT), Dimension::Length),
+        ),
     });
     let half = |r: &Recorder, side: SplitHalf| {
         r.doc
@@ -126,16 +126,56 @@ pub fn document() -> CorpusDoc {
         of: pattern.into(),
         select: PartSelect::Instance(Formula::count(1)),
     });
-    let lifted = r.insert(Node::transform(
-        middle,
-        editor_core::Step::Rigid {
-            translation: [len(0.0), len(0.0), len(LIFT)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
     r.place_part(whole);
-    r.place_part(lifted);
+    // The middle copy stands on its instance's start cap, `LIFT` up the
+    // world's z, the three values zero. Its end cap, the face the
+    // height moves, would carry that width into the placement at
+    // `Interval` (`docm2_part_interval::a7`). `stand` cannot see that an
+    // instance's start cap reads only the pattern's pitch, so it is
+    // written here.
+    let base = {
+        let ev = r.evaluated();
+        crate::fixture::table(ev, middle)
+            .iter()
+            .map(|(name, _)| name)
+            .find(|name| {
+                matches!(name.path.as_slice(), [RoleSeg::Instance { of, .. }]
+                    if of.path == [RoleSeg::Cap(editor_core::CapEnd::Start)])
+            })
+            .cloned()
+            .expect("the middle copy carries its instance's start cap")
+    };
+    let lifted = r.insert(Node::place(vec![editor_core::BodyRead::plain(
+        editor_core::Operand::from(middle),
+    )]));
+    r.constrain(
+        lifted,
+        editor_core::Mate {
+            on: editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Flip {
+                pose: editor_core::pose::RoleRead::plain(crate::fixture::plane(
+                    editor_core::Operand::select(middle, vec![base]),
+                )),
+            })),
+            to: editor_core::Target::World(
+                editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy).slide(
+                    editor_core::WorldRead::through(editor_core::pose::PoseRole::Z),
+                    len(LIFT),
+                ),
+            ),
+            class: editor_core::ContactClass::Rest,
+        },
+        vec![
+            (
+                editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                len(0.0),
+            ),
+            (
+                editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                len(0.0),
+            ),
+            (editor_core::Coord::Spin, crate::fixture::ang(0.0)),
+        ],
+    );
 
     CorpusDoc {
         name: "part_select",
@@ -147,12 +187,10 @@ pub fn document() -> CorpusDoc {
             volume: (2.0 * BOX_HALF) * (2.0 * BOX_HALF) * BOX_H,
             area: Some(2.0 * (2.0 * BOX_HALF) * (2.0 * BOX_HALF) + 4.0 * (2.0 * BOX_HALF) * BOX_H),
         }),
-        bump: DocEdit::SetParam {
-            node: tool,
-            slot: SlotId::Origin(editor_core::Axis3::Z),
-            value: len(0.25).into(),
-            fresh: Vec::new(),
+        bump: DocEdit::SetVarValue {
+            var: VarName::from_static(CUT).into(),
+            value: editor_core::FreeValue::Continuous(0.25),
         },
-        bump_root: tool,
+        bump_root: split,
     }
 }

@@ -5,23 +5,23 @@
 //! reads a `Face`), so a pose definition is evaluated when its reader
 //! is, after every operation it reaches ([`crate::Doc::read_ports`] puts
 //! them upstream of the reader). One door, [`eval_pose`], answers an
-//! operation's pose output (a datum's, a revolve's axis) and a pose
+//! operation's pose output (a revolve's axis) and a pose
 //! definition alike; a definition reading another pose reads it through
 //! the same door.
 //!
 //! Every read off geometry copies a stored fact out — a carrier's tag,
 //! its distinguished point, its axis, a face's sense — and decides
 //! nothing. The constructions decide one length each, under the pose
-//! direction funnel ([`DATUM_UNIT_NORM`]), and refuse its zero as their
+//! direction funnel ([`POSE_UNIT_NORM`]), and refuse its zero as their
 //! degenerate case ([`PoseConstruction`]).
 
 use geom_brep::OutwardNormal;
 use geom_core::{Decide, Point3, RigidMotion, Tol, UnitVec3, UnitVec3Error, Vec3};
-use topo::DATUM_UNIT_NORM;
+use topo::POSE_UNIT_NORM;
 
 use super::{
-    DATUM_AXIS_ROLE, DirectionRefusal, PLANE_NORMAL_ROLE, Results, band, datum_unit, frame_axes,
-    pose_direction_escalated, refusal, select_one, slots, value_of,
+    AXIS_DIRECTION_ROLE, DirectionRefusal, PLANE_NORMAL_ROLE, Results, band, frame_axes,
+    pose_direction_escalated, pose_unit, refusal, select_one, slots, value_of,
 };
 use crate::eval::{NodeErrorKind, ValuePayload};
 use crate::expr::{VarEnv, eval_var};
@@ -48,7 +48,7 @@ fn carried<T: Decide>(
     b: geom_core::Band,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     let turn = |dir: UnitVec3<T>| {
-        datum_unit(motion.transform_vec(dir.get()), CARRIED_DIRECTION_ROLE, b)
+        pose_unit(motion.transform_vec(dir.get()), CARRIED_DIRECTION_ROLE, b)
             .map_err(DirectionRefusal::node_error)
     };
     Ok(match value {
@@ -173,8 +173,7 @@ fn eval_pose_as<T: Decide>(
     Ok(value)
 }
 
-/// **An operation's pose output**: a datum's value, or a revolve's
-/// axis, the lift of its 2-D axis line through its profile's plane.
+/// **An operation's pose output**: a revolve's axis, the lift of its 2-D axis line through its profile's plane.
 fn output<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -186,9 +185,6 @@ fn output<T: Decide>(
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     let value = value_of(results, node)?;
     match (&value.payload, doc.node(node)) {
-        (ValuePayload::Datum(pose), _) if !matches!(admits, crate::SlotKind::Is(kind) if kind != pose.kind()) => {
-            Ok(pose.clone())
-        }
         (_, Some(revolve @ Node::Revolve { profile, .. })) if port == 1 => {
             let at = super::super::read_at(doc, OperandSlot::Profile, *profile)?;
             let ValuePayload::Profile(drawn) = &value_of(results, at)?.payload else {
@@ -203,9 +199,9 @@ fn output<T: Decide>(
             // sketch and turned by the plane's frame, so the line this
             // port answers is the one the body turns about.
             let plane = drawn.validated.plane();
-            let sketch = datum_unit(
+            let sketch = pose_unit(
                 Vec3::new(dir.x, dir.y, T::zero()),
-                DATUM_AXIS_ROLE,
+                AXIS_DIRECTION_ROLE,
                 band(tol)?,
             )
             .map_err(DirectionRefusal::node_error)?;
@@ -215,14 +211,14 @@ fn output<T: Decide>(
             })
         }
         // A read the door would have refused, in a document built past
-        // it: the datum the seat asks for, in the operand door's words.
+        // it: the pose the seat asks for, in the operand door's words.
         _ => {
             use super::super::phrase;
             let expected = match admits {
-                crate::SlotKind::Is(K::Axis) => phrase::DATUM_AXIS,
-                crate::SlotKind::Is(K::Plane) => phrase::DATUM_PLANE,
-                crate::SlotKind::Is(K::Frame) => phrase::DATUM_FRAME,
-                _ => super::super::family::DATUM,
+                crate::SlotKind::Is(K::Axis) => phrase::AXIS_POSE,
+                crate::SlotKind::Is(K::Plane) => phrase::PLANE_POSE,
+                crate::SlotKind::Is(K::Frame) => phrase::FRAME_POSE,
+                _ => super::super::family::POSE,
             };
             Err(super::wrong_operand(value, node, expected))
         }
@@ -275,7 +271,8 @@ fn definition<T: Decide>(
             let PoseValue::Axis { origin, dir } = pose(about)? else {
                 unreachable!("the door admits an axis alone at a spin's axis")
             };
-            let angle = scalar(*by, crate::expr::Dimension::Angle)?;
+            let angle = crate::expr::eval_angle(*by, env)
+                .map_err(|source| NodeErrorKind::PoseScalar { var: *by, source })?;
             spin(pose(read)?, origin, dir, angle)?
         }
         PoseDef::Through { axis, point } => {
@@ -287,7 +284,7 @@ fn definition<T: Decide>(
             let a = dir.get();
             let along = (position - origin).dot(a);
             let foot = origin + a * along;
-            RigidMotion::from_aim_and_reference(foot, dir, position - origin, DATUM_UNIT_NORM, b)
+            RigidMotion::from_aim_and_reference(foot, dir, position - origin, POSE_UNIT_NORM, b)
                 .map(PoseValue::Frame)
                 .map_err(|e| degenerate(e.error, PoseConstruction::Through))?
         }
@@ -306,7 +303,7 @@ fn definition<T: Decide>(
                 unreachable!("the door admits two planes at a meeting line")
             };
             let d = na.get().cross(nb.get());
-            let dir = UnitVec3::new(d, DATUM_UNIT_NORM, b)
+            let dir = UnitVec3::new(d, POSE_UNIT_NORM, b)
                 .map_err(|e| degenerate(e, PoseConstruction::Meet))?;
             // The line's point nearest `a`'s origin: from it across `a`
             // along `d × na` to `b`. `nb · (d × na) = |d|²`, decided
@@ -375,7 +372,8 @@ pub(crate) fn eval_world<T: Decide>(
             let PoseValue::Axis { origin, dir } = eval_world(about, env, b)? else {
                 unreachable!("a world read spins about an axis: its kind was checked")
             };
-            let angle = scalar(*by, crate::expr::Dimension::Angle)?;
+            let angle = crate::expr::eval_angle(*by, env)
+                .map_err(|source| NodeErrorKind::PoseScalar { var: *by, source })?;
             spin(eval_world(pose, env, b)?, origin, dir, angle)?
         }
         W::Flip { pose } => flip(eval_world(pose, env, b)?, b)?,
@@ -428,13 +426,13 @@ pub(crate) fn spin<T: Decide>(
     value: PoseValue<T>,
     origin: Point3<T>,
     dir: UnitVec3<T>,
-    angle: T,
+    angle: geom_core::Angle<T>,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     let turn =
-        RigidMotion::rotation_about_axis(origin, dir, angle).map_err(NodeErrorKind::Motion)?;
+        RigidMotion::rotation_about_axis_by(origin, dir, angle).map_err(NodeErrorKind::Motion)?;
     // A turned point takes `q + R·(p − q)`, which widens by its offset
     // from the axis, not by the composite map's anchor.
-    let point = |p| geom_core::Affine3::rotate_point_about_unit_axis(origin, dir, angle, p);
+    let point = |p| geom_core::Affine3::rotate_point_about_unit_axis_by(origin, dir, angle, p);
     Ok(match value {
         PoseValue::Point { position } => PoseValue::Point {
             position: point(position),
@@ -519,7 +517,7 @@ fn read_off<T: Decide>(
     let readback = |error| fault(PoseReadFault::Readback { error });
     // A carrier's stored direction is unit up to its rounding, and is
     // decided as any pose direction is.
-    let unit = |v: Vec3<T>, role| datum_unit(v, role, band).map_err(DirectionRefusal::node_error);
+    let unit = |v: Vec3<T>, role| pose_unit(v, role, band).map_err(DirectionRefusal::node_error);
     if let Some(vertex) = names::EntityKey::vertex(key) {
         return match pose {
             K::Point => Ok(PoseValue::Point {
@@ -543,7 +541,7 @@ fn read_off<T: Decide>(
             {
                 Ok(PoseValue::Axis {
                     origin: pose_of.origin,
-                    dir: unit(pose_of.axis, DATUM_AXIS_ROLE)?,
+                    dir: unit(pose_of.axis, AXIS_DIRECTION_ROLE)?,
                 })
             }
             K::Axis => Err(fault(PoseReadFault::NoAxis { carrier })),
@@ -578,7 +576,7 @@ fn read_off<T: Decide>(
             let face_pose = topo::readback::face_pose(&body, face).map_err(readback)?;
             Ok(PoseValue::Axis {
                 origin: face_pose.origin,
-                dir: unit(face_pose.axis, DATUM_AXIS_ROLE)?,
+                dir: unit(face_pose.axis, AXIS_DIRECTION_ROLE)?,
             })
         }
         (K::Axis, _) => Err(fault(PoseReadFault::NoAxis { carrier })),
@@ -592,6 +590,63 @@ fn read_off<T: Decide>(
     }
 }
 
+/// **The direction of the pose `read`, in the own coordinates of the
+/// body `copy` places**: a plane's normal or an axis's direction read
+/// off `copy`'s one placed body as that body stands before the
+/// placement moves it (the copy holds it under the same keys), through
+/// the definition's slides and flips. The carrier's stored direction,
+/// read and not decided, so the lanes decide alike. `None` for a pose
+/// that reads anything else.
+pub(crate) fn own_direction<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    read: RoleRead<VarId>,
+    copy: crate::RecipeNodeId,
+) -> Option<Vec3<T>> {
+    if read.role.is_some() {
+        return None;
+    }
+    let VarDef::Pose(def) = doc.var(read.read)?.def() else {
+        return None;
+    };
+    let off = |of: VarId| {
+        let (at, ent) = select_one(doc, results, OperandSlot::Frame, of).ok()?;
+        let Some(Node::Place { shapes, .. }) = doc.node(copy) else {
+            return None;
+        };
+        let ([shape], true, 0) = (shapes.as_slice(), at == copy, ent.body) else {
+            return None;
+        };
+        let placed = doc.read_operation(shape.read)?;
+        let ValuePayload::Body(body) = &value_of(results, placed).ok()?.payload else {
+            return None;
+        };
+        Some((std::sync::Arc::clone(body), ent.key))
+    };
+    match def {
+        PoseDef::Plane { face } => {
+            let (body, key) = off(*face)?;
+            let face = names::EntityKey::face(key)?;
+            let at = topo::readback::face_pose(&body, face).ok()?;
+            Some(OutwardNormal::from_chart(at.axis, at.sense).vec())
+        }
+        PoseDef::Axis { of } => {
+            let (body, key) = off(*of)?;
+            if let Some(edge) = names::EntityKey::edge(key) {
+                return Some(topo::readback::edge_pose(&body, edge).ok()?.axis);
+            }
+            Some(
+                topo::readback::face_pose(&body, names::EntityKey::face(key)?)
+                    .ok()?
+                    .axis,
+            )
+        }
+        PoseDef::Slide { pose, .. } => own_direction(doc, results, *pose, copy),
+        PoseDef::Flip { pose } => own_direction(doc, results, *pose, copy).map(|v| -v),
+        _ => None,
+    }
+}
+
 /// **One word of the stream a node's content key reads off the pose
 /// definitions it reads** (`tag::pose` states the grammar).
 pub(crate) enum PoseWord<T> {
@@ -601,8 +656,9 @@ pub(crate) enum PoseWord<T> {
     Count(u64),
     /// A selection's name.
     Name(names::StableName),
-    /// A scalar at the lane and at the nominal.
-    Value(T, f64),
+    /// A scalar at the lane and at the nominal, and the fraction of a
+    /// turn its definition is.
+    Value(T, f64, Option<crate::expr::Ratio>),
 }
 
 /// **The words a node's content key reads off its pose definitions**,
@@ -689,6 +745,7 @@ fn walk<T: Decide>(
                 out.push(PoseWord::Value(
                     eval_var(scalar, dim, env).map_err(at)?,
                     eval_var(scalar, dim, nominal).map_err(at)?,
+                    env.turns.get(&scalar).copied(),
                 ));
             }
         }
@@ -742,7 +799,7 @@ mod held_text {
         let source = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).expect("zero < escalate"),
-            predicate: Some(topo::DATUM_UNIT_NORM),
+            predicate: Some(topo::POSE_UNIT_NORM),
             terminal_sliver: false,
         };
         let got = super::degenerate(UnitVec3Error::Escalated(source), PoseConstruction::Through);

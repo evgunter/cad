@@ -9,8 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::eval;
-use crate::fixture::{Recorder, ang, frame, len, revolve_about};
-use editor_core::ExtrudeSide;
+use crate::fixture::{Recorder, ang, len, revolve_about};
 
 use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 
@@ -20,9 +19,7 @@ use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 /// this is the refusal the sentence below is about.
 fn cone_block_union_refusal() -> String {
     let mut r = Recorder::new();
-    let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let cone_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.4, 1.0), (0.0, 1.0)]).unwrap(),
         ],
@@ -34,9 +31,7 @@ fn cone_block_union_refusal() -> String {
         crate::fixture::along_y(),
         ang(std::f64::consts::TAU),
     ));
-    let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let block_p = r.insert(Node::Profile(ProfileProgram {
-        frame: block_plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
         ],
@@ -45,13 +40,13 @@ fn cone_block_union_refusal() -> String {
     let block = r.insert(Node::Extrude {
         profile: block_p.into(),
         distance: len(0.5),
-        side: ExtrudeSide::Along,
     });
+    // Both in the world, the block straddling the cone's z = 0 meridian
+    // plane: z ∈ [-0.25, 0.25].
+    let cone = r.in_world(cone, &editor_core::Frame::IDENTITY);
+    let block = r.in_world(block, &editor_core::Frame::translation([0.0, 0.0, -0.25]));
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
-            editor_core::Operand::output(cone, 0).into(),
-            block.into(),
-        ]),
+        members: editor_core::Bodies::Spelled(vec![cone.into(), block.into()]),
     });
     let ev = eval::<f64>(&r.doc);
     match ev.nodes.get(&union) {

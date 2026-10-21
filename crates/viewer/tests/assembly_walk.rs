@@ -19,7 +19,7 @@
 //! exercised
 //!
 //! The walk needs, in one document: an instance to hide and one to
-//! probe, loose once its world pin is off, two matable faces, and no
+//! probe, loose once its world mate is off, two matable faces, and no
 //! pre-existing mate. **No single real gallery document has that
 //! shape** — the tour's stand has all three instances in the world's
 //! space (the free-move stage is unreachable there), and its flat-pack has no second part to mate
@@ -115,7 +115,7 @@ fn the_exit_demo_walk() {
     );
 
     // ── 5. FREE-MOVE post_b: the G3 fit probe over a loose space (DI5).
-    // Its world pin comes off first, so it is a loose space, read off
+    // Its world mate comes off first, so it is a loose space, read off
     // the landed evaluation; the gesture is preview-stream + one
     // committed value; the probed part is drawn DISPLACED and MARKED —
     // the honesty treatment, asserted as a value in the scene rows. The
@@ -178,7 +178,7 @@ fn the_exit_demo_walk() {
     // `to`, flipped — and the seat's values; the session commits the
     // mate and its three values as one action — and the evaluation
     // answering it reports the free-move superseded: discarded, not
-    // zeroed. post_b's world pin came off at step 5, so the mate places
+    // zeroed. post_b's world mate came off at step 5, so the mate places
     // post_b rather than refusing beside the pin.
     assert!(session.display().free_move_of(bench.post_b).is_some());
     let (doc, _) = session.landed_pair().expect("landed");

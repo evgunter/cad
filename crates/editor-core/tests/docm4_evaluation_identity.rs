@@ -14,7 +14,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     AssemblyError, CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, EvalOutcome, Evaluation,
@@ -49,7 +48,6 @@ fn part_of(id: DocumentId, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     fixture::place(doc, body).0
@@ -71,25 +69,14 @@ fn assembly_of(
 }
 
 /// `placement` pinned to the world at `pose`: its bundle replaced by
-/// one world pin.
+/// one world mate.
 fn pinned_at(
     doc: ProfileDoc,
     placement: RecipeNodeId,
     pose: &Frame,
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let doc = fixture::bundle(&doc, placement)
-        .into_iter()
-        .fold(doc, |doc, c| {
-            fixture::step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        });
+    let doc = fixture::emptied(doc, placement);
     fixture::pin(doc, placement, pose, o)
 }
 

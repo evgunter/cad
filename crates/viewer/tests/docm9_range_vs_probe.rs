@@ -8,7 +8,6 @@
 //! reproduce the probe's QUESTION. This one runs the probe.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::common;
@@ -43,14 +42,12 @@ fn slab(depth: f64) -> ProfileDoc {
         },
         tol(),
     );
-    let f = common::insert_into(&mut doc, common::xy_frame(), tol());
-    let p = common::insert_into(&mut doc, common::square(f, 1.0), tol());
+    let p = common::insert_into(&mut doc, common::square(1.0), tol());
     common::insert_into(
         &mut doc,
         Node::Extrude {
             profile: p.into(),
             distance: Formula::named(name("depth"), Dimension::Length),
-            side: ExtrudeSide::Along,
         },
         tol(),
     );

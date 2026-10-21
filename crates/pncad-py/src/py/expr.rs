@@ -542,7 +542,7 @@ impl Expr {
 /// spells, and `var_kind_mismatch` the word the evaluator's own arm
 /// speaks for the same fact. It rides `EvalError` because the doors
 /// that raise it (`Doc.eval`, `Doc.eval_count`,
-/// `GeomPred.datum_distance`) are the evaluation surface's, with
+/// `GeomPred.plane_distance`) are the evaluation surface's, with
 /// `name` the name as written and, for a kind, `expected` the dimension
 /// it is read at and `found` the one its variable holds.
 pub(crate) fn name_fault_err(py: Python<'_>, fault: &d::NameFault) -> PyErr {

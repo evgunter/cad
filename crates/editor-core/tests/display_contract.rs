@@ -430,8 +430,8 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
             vec!["whole body", "faces, edges, or vertices"],
         ),
         (
-            InterrogateError::NoBodies { payload: "datum" },
-            vec!["datum", "no bodies"],
+            InterrogateError::NoBodies { payload: "pose" },
+            vec!["pose", "no bodies"],
         ),
         (
             InterrogateError::NoSuchBody { index: 2 },
@@ -471,8 +471,8 @@ fn select_refusal_is_exhaustive(e: &SelectRefusal) {
         SelectRefusal::InBand { .. }
         | SelectRefusal::TiedDisagrees { .. }
         | SelectRefusal::Unreadable { .. }
-        | SelectRefusal::NotADatum { .. }
-        | SelectRefusal::DatumHasNoValue(_)
+        | SelectRefusal::NotAPlane { .. }
+        | SelectRefusal::FaceUnresolved { .. }
         | SelectRefusal::NotALength { .. }
         | SelectRefusal::BadValue(_)
         | SelectRefusal::Band(_) => (),
@@ -495,8 +495,8 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
             "InBand",
             "TiedDisagrees",
             "Unreadable",
-            "NotADatum",
-            "DatumHasNoValue",
+            "NotAPlane",
+            "FaceUnresolved",
             "NotALength",
             "BadValue",
             "Band",
@@ -525,8 +525,8 @@ fn select_refusal_display_names_its_content_not_its_struct() {
         (
             SelectRefusal::InBand {
                 name: Box::new(face_name()),
-                predicate: editor_core::SEL_DATUM_DISTANCE,
-                source: in_band(editor_core::SEL_DATUM_DISTANCE),
+                predicate: editor_core::SEL_PLANE_DISTANCE,
+                source: in_band(editor_core::SEL_PLANE_DISTANCE),
             },
             vec![
                 "the end cap",
@@ -557,23 +557,21 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec!["the end cap", "node 000000000007", "whole body"],
         ),
         (
-            SelectRefusal::NotADatum {
-                datum: RecipeNodeId::new(0, tagged(9)),
-                found: "a body",
+            SelectRefusal::NotAPlane {
+                face: Box::new(face_name()),
             },
-            vec!["node 000000000009", "a body", "evaluated datum"],
+            vec![
+                "the end cap",
+                "node 000000000007",
+                "not planar",
+                "planar face",
+            ],
         ),
         (
-            SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
-                node: RecipeNodeId::new(0, tagged(9)),
-                through: RecipeNodeId::new(0, tagged(4)),
-            }),
-            vec![
-                "distance query's datum",
-                "node 000000000009",
-                "poisoned",
-                "node 000000000004",
-            ],
+            SelectRefusal::FaceUnresolved {
+                face: Box::new(face_name()),
+            },
+            vec!["the end cap", "node 000000000007", "names no readable face"],
         ),
         (
             SelectRefusal::NotALength {
@@ -1433,23 +1431,23 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::PlacementImproper {
-                node: held(5, "Transform"),
-                at: editor_core::FrameSite::Step { index: 1 },
+                node: held(5, "PlacedUnion"),
+                at: editor_core::FrameSite::Listed { index: 1 },
                 determinant: -1.0,
             },
             vec![
-                "step 2 of Transform 000000000005's placement",
+                "placement 1 of PlacedUnion 000000000005",
                 "improper (mirroring)",
             ],
         ),
         (
             SnapshotError::PlacementNonRigid {
-                node: held(5, "InstantiatePart"),
-                at: editor_core::FrameSite::Step { index: 0 },
+                node: held(5, "PlacedUnion"),
+                at: editor_core::FrameSite::Listed { index: 0 },
                 check: "transform_rigid_col01_orth",
             },
             vec![
-                "step 1 of InstantiatePart 000000000005's placement",
+                "placement 0 of PlacedUnion 000000000005",
                 "not definitely rigid",
                 "may shear",
             ],
@@ -2970,12 +2968,12 @@ fn maintenance_display_says_what_the_edit_did() {
     let cases = [
         (
             Maintenance::Strand {
-                node: held(5, "Datum frame (on face)"),
+                node: held(5, "Shell"),
                 name: spoken_face_name(),
                 took: editor_core::Took::Node,
             },
             vec![
-                "Datum frame (on face) 000000000005 carries a name for the end cap of Extrude \
+                "Shell 000000000005 carries a name for the end cap of Extrude \
                  000000000007",
                 // The sentence says what the edit took, never that the
                 // name went.
@@ -2986,14 +2984,14 @@ fn maintenance_display_says_what_the_edit_did() {
         (
             Maintenance::StrandedSelection {
                 var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
-                readers: vec![held(5, "Datum frame (on face)")],
+                readers: vec![held(5, "Shell")],
                 name: spoken_face_name(),
                 took: editor_core::Took::Piece,
             },
             vec![
-                "Datum frame (on face) 000000000005 selects the end cap of Extrude 000000000007",
+                "Shell 000000000005 selects the end cap of Extrude 000000000007",
                 "this edit kept a step it names but no longer draws that piece",
-                "so Datum frame (on face) 000000000005 refuses until the name is rebound",
+                "so Shell 000000000005 refuses until the name is rebound",
             ],
         ),
         (
