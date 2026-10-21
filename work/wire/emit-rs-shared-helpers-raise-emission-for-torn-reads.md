@@ -2,7 +2,7 @@
 id: emit-rs-shared-helpers-raise-emission-for-torn-reads
 kind: issue
 title: names/emit.rs's shared helpers (to_u32, output_body, Incidence::of, the rim consts, vertex_point, face_half_edges, edge_ends) still raise NamingError::Emission for torn-body reads and u32 narrowings no body reaches
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: M
