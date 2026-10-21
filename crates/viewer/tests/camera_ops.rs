@@ -351,7 +351,7 @@ fn dolly_clamps_to_the_scene_derived_band() {
 
 /// **Depth is reversed and nothing is clipped for being far.**
 ///
-/// A datum plane recedes to its horizon, so the projection is asked
+/// A plane may recede to its horizon, so the projection is asked
 /// to hold points from just past the near plane out to a million orbit
 /// distances: every one lands inside `(0, 1]`, and a nearer point
 /// lands at a GREATER depth — the order every depth pipeline in

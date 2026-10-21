@@ -14,7 +14,6 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -132,11 +131,9 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         ProgramStep::LineTo(ProgramTarget::Point([len(-0.6), len(0.4)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let (doc, xy) = insert(&doc, fixture::xy_frame());
     let (doc, profile) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            frame: xy.into(),
             loops: vec![outer],
             ids: Vec::new(),
         }),
@@ -146,7 +143,6 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, slab)
@@ -403,11 +399,9 @@ fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNod
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let (doc, xy) = insert(doc, fixture::xy_frame());
     let (doc, p) = insert(
-        &doc,
+        doc,
         Node::Profile(ProfileProgram {
-            frame: xy.into(),
             loops: vec![meridian],
             ids: Vec::new(),
         }),
@@ -433,6 +427,13 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
         let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-balls"), Tol::witness());
         let (doc, socket) = ball(&doc, 1.0, 0.0);
         let (doc, pin) = ball(&doc, 0.25, c);
+        // The ball joins the socket's space on its axis.
+        let (doc, pin) = fixture::against(
+            doc,
+            editor_core::Operand::output(socket, 0),
+            editor_core::Operand::output(pin, 0),
+            &editor_core::Frame::IDENTITY,
+        );
         let ev = eval(&doc);
         let socket_face = faces_of_kind(&ev, socket, geom::SurfaceKind::Sphere)
             .first()
@@ -462,10 +463,8 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
 /// `pin_r` offset by `off` along x.
 fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-cyl"), Tol::witness());
-    let (doc, xy) = insert(&doc, fixture::xy_frame());
     let circle = |cx: f64, r: f64| {
         Node::Profile(ProfileProgram {
-            frame: xy.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
@@ -479,7 +478,6 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
         Node::Extrude {
             profile: p1.into(),
             distance: len(0.1),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, p2) = insert(&doc, circle(off, pin_r));
@@ -488,16 +486,16 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
         Node::Extrude {
             profile: p2.into(),
             distance: len(0.1),
-            side: ExtrudeSide::Along,
         },
     );
-    let _ = p2;
+    // The pin joins the bore's space where it stands.
+    let (doc, pin) = fixture::against(doc, bore, pin, &editor_core::Frame::IDENTITY);
     (doc, bore, pin)
 }
 
 /// Read every reference AT ITS MINTING NODE — the spelling this suite
-/// means throughout, because none of these fixtures places the
-/// geometry it measures (the one that does builds its refs by hand).
+/// means throughout: a copy's names are minted by its placement, so a
+/// placed body's references read the copy.
 ///
 /// Each is the selection of its name in its minting node's body port
 /// (a revolve also defines its axis); the rows and their oracles are
@@ -582,17 +580,9 @@ fn r1_cylinder_gap_role_swap_negates() {
 #[test]
 fn r1_skew_cylinder_axes_refuse_typed() {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-skew"), Tol::witness());
-    let (doc, xy) = insert(&doc, fixture::xy_frame());
-    // The pin is drawn on the YZ frame, so its axis is x̂ against the
-    // bore's ẑ — the skew this row is about. Two planes, two frames.
-    let (doc, yz) = insert(
-        &doc,
-        fixture::frame([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
-    );
     let (doc, p1) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            frame: xy.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius: len(0.3),
@@ -605,13 +595,11 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         Node::Extrude {
             profile: p1.into(),
             distance: len(0.1),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, p2) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            frame: yz.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(1.0)],
                 radius: len(0.2),
@@ -624,8 +612,15 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         Node::Extrude {
             profile: p2.into(),
             distance: len(0.1),
-            side: ExtrudeSide::Along,
         },
+    );
+    // The pin stands on the bore's YZ plane, so its axis is x̂ against
+    // the bore's ẑ — the skew this row is about.
+    let (doc, pin) = fixture::against(
+        doc,
+        bore,
+        pin,
+        &fixture::frame_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
     );
     let ev = eval(&doc);
     let (b_wall, p_wall) = (wall(&ev, bore), wall(&ev, pin));
@@ -841,17 +836,12 @@ fn r1_ops_refuse_measurement_operands_typed() {
         matches!(&refusal, editor_core::EditError::DefinesNothing { input, .. } if input.id() == a),
         "{refusal:?}"
     );
-    // Transform of the MEASURE: a measured length is not placeable.
+    // A placement of the MEASURE: a measured length is not placeable.
     let refusal = crate::fixture::insert_refused(
         &doc,
-        Node::transform(
-            m,
-            editor_core::Step::Rigid {
-                translation: [len(0.1), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
+        Node::place(vec![editor_core::BodyRead::plain(
+            editor_core::Operand::from(m),
+        )]),
     );
     assert!(
         matches!(
@@ -863,68 +853,6 @@ fn r1_ops_refuse_measurement_operands_typed() {
             }
         ),
         "{refusal:?}"
-    );
-}
-
-// ---- deviation 3: what a reference to a MOVED entity reads ----
-
-/// EVIDENCE-ONLY (deviation 3, "carriers as minted"): a wall selected
-/// FROM THE TRANSFORM node's own selection door measures at its
-/// UNMOVED position. The pin sits at x = 0.5 and the transform moves
-/// it to x = 0.75, yet the measure over the name the transform's door
-/// hands out reports 0.5 — because the transform re-emits the
-/// EXTRUDE's name (the observed mint below) and resolution reads the
-/// minting node's value.
-///
-/// The deviation's own escape hatch — "measuring the moved one means
-/// referencing the moving node's own emission" — is checked here too:
-/// this row also asserts the transform's table carries NO
-/// transform-minted cylinder-face name, i.e. the escape hatch does
-/// not exist through the public selection door. If either half goes
-/// red, the semantics changed and the review record should be
-/// revisited.
-#[test]
-fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
-    let (doc, bore, pin) = cylinders(0.3, 0.2, 0.5);
-    let (doc, moved) = insert(
-        &doc,
-        Node::transform(
-            pin,
-            editor_core::Step::Rigid {
-                translation: [len(0.25), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
-    let ev = eval(&doc);
-    let bore_wall = wall(&ev, bore);
-    let transform_walls = faces_of_kind(&ev, moved, geom::SurfaceKind::Cylinder);
-    assert!(
-        !transform_walls.is_empty(),
-        "the moved body still has its wall"
-    );
-    // The escape-hatch check: every name the transform's door hands
-    // out is minted by the EXTRUDE, so there is no "moving node's own
-    // emission" to reference.
-    for w in &transform_walls {
-        assert_eq!(
-            w.node, pin,
-            "the transform re-emits the extrude's names; a transform-minted \
-             name would be the deviation's escape hatch, and it appeared: {w:?}"
-        );
-    }
-    let moved_wall = transform_walls[0].clone();
-    let (doc, m) = fixture::measure_node(
-        &doc,
-        MeasurePrimitive::Distance { a: 0, b: 1 },
-        at_mint([bore_wall, moved_wall]),
-    );
-    let (d, _) = measured(&eval(&doc), m);
-    assert!(
-        (d - 0.5).abs() < 1e-12,
-        "pinned observed semantics: the measure reads the carrier as \
-         MINTED (0.5), not as placed (0.75); got {d}"
     );
 }
 
@@ -998,10 +926,10 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
         other => panic!("a mismatched bound dim must refuse AssertionBound, got {other:?}"),
     }
 
-    // (b) The assertion's value: point it at the sketch FRAME (the
-    // first node), which defines no scalar. The slab is frame, profile
-    // and extrude, so the measure is the fourth node.
-    let [frame, _, extrude, measure] = doc.ids()[..4] else {
+    // (b) The assertion's value: point it at the PROFILE (the first
+    // node), which defines no scalar. The slab is profile and extrude,
+    // so the measure is the third node.
+    let [profile, extrude, measure] = doc.ids()[..3] else {
         panic!("a slab and its measure");
     };
     let read = |node| doc.output(node, 0).expect("the node defines a value");
@@ -1011,7 +939,7 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
         1,
         "{target:?} must be unique"
     );
-    let corrupt = text.replace(&target, &format!("\"value\": \"{}\"", read(frame).0));
+    let corrupt = text.replace(&target, &format!("\"value\": \"{}\"", read(profile).0));
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PayloadVarKind { .. })) => {}
         other => panic!("a value of no scalar kind must refuse by kind, got {other:?}"),
@@ -1108,10 +1036,8 @@ fn r1_own_document_web_and_flip() {
             }),
         },
     );
-    let (doc, xy) = insert(&doc, fixture::xy_frame());
     let circle = |cx: f64| {
         Node::Profile(ProfileProgram {
-            frame: xy.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: Formula::named(VarName::from_static("r"), Dimension::Length),
@@ -1125,7 +1051,6 @@ fn r1_own_document_web_and_flip() {
         Node::Extrude {
             profile: p1.into(),
             distance: len(0.05),
-            side: ExtrudeSide::Along,
         },
     );
     let (d4, p2) = insert(&d3, circle(0.25));
@@ -1134,10 +1059,10 @@ fn r1_own_document_web_and_flip() {
         Node::Extrude {
             profile: p2.into(),
             distance: len(0.05),
-            side: ExtrudeSide::Along,
         },
     );
-    let _ = p2;
+    // The second hole joins the first's space where it stands.
+    let (d5, e2) = fixture::against(d5, e1, e2, &editor_core::Frame::IDENTITY);
     let ev = eval(&d5);
     let (d6, measured) = fixture::measure(
         d5,

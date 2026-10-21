@@ -51,7 +51,7 @@ use crate::doc::Doc;
 use crate::label::Label;
 use crate::names::words::Detail;
 use crate::names::{NameTable, StableName};
-use crate::node::{Datum, MintId, Node, RecipeNodeId, StepId};
+use crate::node::{MintId, Node, RecipeNodeId, StepId};
 use crate::program::ProfilePayload;
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -1391,18 +1391,11 @@ pub(crate) fn assert_taken_of<P>(what: &str, taken_of: crate::DocumentId, doc: &
 
 /// **The kind noun of a recipe node** — the word a sentence, a feature
 /// tree row, a delete confirmation and a kind census all say.
-///
-/// **The datum FLAVOURS are named apart** (`Datum plane`, not
-/// `Datum`): a plane and a frame are the same surface differing only
-/// in whether the spin about the normal is pinned, so a sentence that
-/// called both "Datum" would ask a reader to tell them apart by
-/// looking.
 pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
     match node {
         Node::Profile(_) => "Profile",
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
-        Node::Transform { .. } => "Transform",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
         Node::World => "World",
@@ -1412,11 +1405,6 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
-        Node::Datum(Datum::Plane { .. }) => "Datum plane",
-        Node::Datum(Datum::Frame { .. }) => "Datum frame",
-        Node::Datum(Datum::FaceFrame { .. }) => "Datum frame (on face)",
-        Node::Datum(Datum::Axis { .. }) => "Datum axis",
-        Node::Datum(Datum::Point { .. }) => "Datum point",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
         Node::Shell { .. } => "Shell",
@@ -1479,7 +1467,11 @@ mod tests {
     fn a_held_node_is_its_kind_and_tag_and_an_absent_one_is_a_node() {
         let tol = Tol::witness();
         let empty: Doc<ProfileProgram> = Doc::empty_derived("spoken", tol);
-        let node = test_support::xy_frame();
+        let node = crate::node::Node::Tube {
+            major_radius: test_support::len(1.0),
+            window: crate::node::TubeWindow::Full,
+            minor_radius: test_support::len(0.25),
+        };
         let kind = node_kind_noun(&node);
         let doc = empty
             .apply(
@@ -1489,15 +1481,15 @@ mod tests {
                 },
                 tol,
             )
-            .expect("the frame inserts")
+            .expect("the tube inserts")
             .doc;
-        let id = *doc.ids().last().expect("the inserted frame");
-        assert_eq!(kind, "Datum frame");
+        let id = *doc.ids().last().expect("the inserted tube");
+        assert_eq!(kind, "Tube");
         let spoken = doc.spoken(id);
-        assert_eq!((spoken.id(), spoken.kind()), (id, Some("Datum frame")));
+        assert_eq!((spoken.id(), spoken.kind()), (id, Some("Tube")));
         assert_eq!(
             spoken.to_string(),
-            format!("Datum frame {}", test_utils::refusal::tag(id.0.digest()))
+            format!("Tube {}", test_utils::refusal::tag(id.0.digest()))
         );
         let gone = empty.spoken(id);
         assert_eq!(gone.kind(), None);
@@ -1517,18 +1509,22 @@ mod tests {
         let doc = empty
             .apply(
                 &DocEdit::InsertNode {
-                    node: Box::new(test_support::xy_frame()),
+                    node: Box::new(crate::node::Node::Tube {
+                        major_radius: test_support::len(1.0),
+                        window: crate::node::TubeWindow::Full,
+                        minor_radius: test_support::len(0.25),
+                    }),
                     fresh: Vec::new(),
                 },
                 tol,
             )
-            .expect("the frame inserts")
+            .expect("the tube inserts")
             .doc;
-        let id = *doc.ids().last().expect("the inserted frame");
+        let id = *doc.ids().last().expect("the inserted tube");
         let stranger = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
         let forged = SpokenNode::forged(
             id,
-            Some("Datum frame"),
+            Some("Tube"),
             Some(Label::new("floor").expect("a label")),
         );
         let kept: HeldNodes = [forged.clone()].into_iter().collect();
@@ -1536,12 +1532,12 @@ mod tests {
         let said = |by: Speaker<'_>, id| by.node(id).to_string();
         assert_eq!(
             said(Speaker::of(&doc).or_held(&kept), id),
-            format!("Datum frame {t}"),
+            format!("Tube {t}"),
             "the document holds it, so the document says it"
         );
         assert_eq!(
             said(Speaker::of(&empty).or_held(&kept), id),
-            format!("Datum frame \"floor\" ({t})"),
+            format!("Tube \"floor\" ({t})"),
             "the document does not hold it, so it is said as kept"
         );
         assert_eq!(

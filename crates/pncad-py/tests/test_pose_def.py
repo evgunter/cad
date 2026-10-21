@@ -28,12 +28,13 @@ from pncad import (
     m,
 )
 
+from placing import own_frame
+
 
 def cube(doc):
     """A unit cube standing on the ground."""
     square = doc.insert(Node.polygon(
         [(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in ((0, 0), (1, 0), (1, 1), (0, 1))],
-        plane=doc.sketch_frame(),
     ))
     return doc.insert(Node.extrude(square, Formula.length_in(1, m)))
 
@@ -75,7 +76,7 @@ class TestAFaceReadsAsItsPlane(unittest.TestCase):
 
     def test_a_curved_face_has_no_plane(self):
         doc = Doc()
-        profile = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
+        profile = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m)))
         rod = doc.insert(Node.extrude(profile, Formula.length_in(2, m)))
         ev = evaluate(doc)
         wall = [f for f in ev.all_faces(rod) if ev.face_carrier_kind(rod, f) == SurfaceKind.Cylinder]
@@ -130,7 +131,7 @@ class TestASeatHoldsItsKind(unittest.TestCase):
         is neither."""
         doc = Doc()
         body = cube(doc)
-        frame = doc.sketch_frame()
+        frame = own_frame(doc, body)
         with self.assertRaises(EditError) as caught:
             doc.insert(Node.split(body, PoseDef.slide(
                 RoleRead(frame, "xy"), RoleRead(frame, "xy"), 0.5 * m,
@@ -162,14 +163,14 @@ class TestTheConstructors(unittest.TestCase):
     def test_a_role_word_is_one_of_the_nine(self):
         doc = Doc()
         with self.assertRaises(ValueError):
-            RoleRead(doc.sketch_frame(), "line")
+            RoleRead(cube(doc), "line")
 
     def test_a_frames_plane_slid_along_its_axis_splits(self):
-        """The sketch frame's xy plane slid half a metre along its own
-        z halves the cube."""
+        """The cube's own frame's xy plane slid half a metre along its
+        own z halves the cube."""
         doc = Doc()
         body = cube(doc)
-        frame = doc.sketch_frame()
+        frame = own_frame(doc, body)
         cut = doc.insert(Node.split(body, PoseDef.slide(
             RoleRead(frame, "xy"), RoleRead(frame, "z"), 0.5 * m,
         )))
@@ -183,7 +184,7 @@ class TestTheConstructors(unittest.TestCase):
         lies on each side, whichever way it turns."""
         doc = Doc()
         body = cube(doc)
-        frame = doc.sketch_frame()
+        frame = own_frame(doc, body)
         mid = PoseDef.slide(RoleRead(frame, "xy"), RoleRead(frame, "z"), 0.5 * m)
         line = PoseDef.slide(
             PoseDef.slide(RoleRead(frame, "x"), RoleRead(frame, "y"), 0.5 * m),
@@ -196,12 +197,12 @@ class TestTheConstructors(unittest.TestCase):
             self.assertAlmostEqual(half.mass_properties().volume, 0.5, delta=1e-9)
 
     def test_a_point_in_a_frame_is_its_origin_slid(self):
-        """The plane through the sketch frame's z axis and the point
+        """The plane through the cube's own frame's z axis and the point
         `(1, 0.5, 0)` in it cuts the cube's footprint along the line from
         the origin through `(1, 0.5)`, leaving a quarter on one side."""
         doc = Doc()
         body = cube(doc)
-        frame = doc.sketch_frame()
+        frame = own_frame(doc, body)
         through = PoseDef.through(
             RoleRead(frame, "z"), PoseDef.point_in(frame, 1 * m, 0.5 * m, 0 * m),
         )
@@ -213,7 +214,7 @@ class TestTheConstructors(unittest.TestCase):
 
     def test_a_slide_length_must_be_a_length(self):
         doc = Doc()
-        frame = doc.sketch_frame()
+        frame = own_frame(doc, cube(doc))
         with self.assertRaises((ValueError, TypeError, pncad.EditError)):
             PoseDef.slide(RoleRead(frame, "origin"), RoleRead(frame, "x"), Formula.literal(0.5))
 

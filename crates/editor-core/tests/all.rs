@@ -719,8 +719,6 @@ mod sym11_exact_channel_rows;
 
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
-#[path = "wire_frame_placement_carry.rs"]
-mod wire_frame_placement_carry;
 #[path = "wire_legal_union_refusals.rs"]
 mod wire_legal_union_refusals;
 #[path = "wire_operand_door.rs"]
@@ -814,6 +812,8 @@ mod intent_s3_a_prime_moves;
 mod intent_s3_b_placements;
 #[path = "intent_s3_c_mates.rs"]
 mod intent_s3_c_mates;
+#[path = "intent_s3_d_placements.rs"]
+mod intent_s3_d_placements;
 #[path = "intent_s4_h_placed.rs"]
 mod intent_s4_h_placed;
 #[path = "intent_s5_a_relation.rs"]

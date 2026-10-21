@@ -26,7 +26,7 @@ The recipe admits three reference shapes, and every node is built from them:
   are frozen, and it defines a set (`Faces`, `Edges`) or a singleton
   (`Face`, `Edge`, `Vertex`) that a node reads like any variable — a
   `Fillet`'s or `Chamfer`'s edges, a `Shell`'s open faces, a
-  `Datum::FaceFrame`'s face, a `Plane { face }` pose's face, a
+  `Plane { face }` pose's face, a
   `Measure`'s refs, a `Mate`'s two sides. The N5 ladder runs in the
   selection's evaluation and nowhere else for these. A **payload** is a
   name a node holds itself: an `InstantiatePart`'s interface crossings'
@@ -58,73 +58,60 @@ reader's seat.
 Also kept from elsewhere: a selection freezes (#217, `node.rs`); selectors
 materialize and are never stored (`names/select.rs`); `PlacedUnion` is a node
 beside `Pattern`, not a flag on it, because forking a result type on a variant
-is the silent-dispatch trap D3 forbids (`node.rs`); `Datum::Frame` carries
-nine `Expr`s and no reference, orthonormalized at evaluation (`node.rs`).
+is the silent-dispatch trap D3 forbids (`node.rs`).
 
-## DM1 — A derived frame is a datum carrying a face name
+## DM1 — A sketch on a face is placed against the face's plane
 
-`Datum::FaceFrame { face: S::Read, spin: S }` is a `Datum::Frame` whose
-pose is computed at evaluation from a named face. `face` reads a `Face`
-selection: its body read is the DAG edge to the body whose value the face is
-read out of, and its one name is a frozen face name resolved through that
-value's name table under the N5 ladder; `spin` is the authored rotation of
-sketch +x about the normal. It is the `SitedRef` shape applied to a datum,
-held as a definition the frame reads. The frame it yields has its origin
-at the carrier's origin projected to the face's plane (the carrier's own
-distinguished point, `readback.rs` rule 2), its normal along the face's
-outward normal (DM1a), and sketch +x along the carrier's u-reference rotated
-by `spin`.
-
-A reader that reads the face as a plane reads the pose definition
-`Plane { face }` (`pose.rs`), not a frame: the same `Face` selection, the
-plane through the face with its outward normal (DM1a), and no `spin` and no
+A profile is drawn on its own plane and a construction computes in its
+own coordinates (D10), so a sketch on a face is a placement: the
+construction placed against the face's body by a `Plane` mate from its
+own start cap, flipped to look up its own `z` (`Flip`), to the pose
+`Plane { face }` (`pose.rs`), and values setting the freedoms the mate
+leaves — the slides along the face's swung axes and the spin about its
+normal. `face` reads a `Face` selection: its body read is the DAG edge
+to the body whose value the face is read out of, and its one name is
+frozen and resolved through that value's name table under the N5 ladder.
+It is the `SitedRef` shape applied to a mate's target. The plane is the
+plane through the face with its outward normal (DM1a), and no
 u-reference, because a plane has no in-plane direction (D10: no pose
-definition takes a carrier's reference direction; the `FaceFrame` above still
-does, for its `spin`). A split's tool is such a reader. A frame
-on a face, which a sketch on the face reads, is the `FaceFrame` above.
+definition takes a carrier's reference direction): where the sketch is
+turned on the face is the spin value's. A split's tool reads the same
+pose.
 
-- **Why derived, not frozen.** A sketch carries no twelve-float plane snapshot
-  (`program.rs`); a frame read off a face and written into nine literals
-  would reintroduce that snapshot one node out, and lie about why it sits
-  where it sits. A derived frame is a DAG input: the face's body is upstream,
-  the frame moves when the face moves, and it participates in the memo and
-  content key like every node.
-- **The failure mode is the fillet's.** The frame reads its face through a
+- **Why derived, not frozen.** A sketch carries no twelve-float plane
+  snapshot (`program.rs`); a placement whose target were nine literals
+  copied off the face would reintroduce that snapshot one node out, and lie
+  about why the construction sits where it sits. The face is a DAG input:
+  its body is upstream, the copy moves when the face moves, and the
+  placement participates in the memo and content key like every node.
+- **The failure mode is the fillet's.** The plane reads its face through a
   `Face` selection, as a fillet reads its edges through an `Edges` one, so a
-  face name that stops resolving fails the frame typed and poisons the
-  sketch above it with the same refusal (`SelectResolve`); the repair is
+  face name that stops resolving fails the pose typed and poisons the
+  placement above it with the same refusal (`SelectResolve`); the repair is
   `Rebind` on the selection's body.
-  It is the first datum with an N5 failure mode, and that is the honest
-  behaviour.
 - **DM1a — the read-back grows a sense, it does not fold one in.**
   `Pose.axis` is the chart's direction, deliberately uncorrected by the face's
   orientation sense (`readback.rs`): two facts, two answers. The sense
   travels beside the pose as `Pose::sense`, one more stored value copied out
   of the face record (`entity.rs`, `Face::sense`), returned by `face_pose`
-  and `names::interrogate::face_frame`; DM1's datum states in its own
-  vocabulary that its normal is sense times chart axis. The mate tool's
-  frozen frames are unaffected: A11 keeps the solve over authored numbers.
-  The asymmetry is principled — a sketch frame is consumed by evaluation,
-  which reads geometry constantly; a mate frame by a solve that must not.
-- **DM1b — a non-planar carrier refuses typed at evaluation** (a
-  `NodeErrorKind` arm naming the carrier kind found: `FaceFrameNotPlanar`
-  for a frame, `PoseRead` with `PoseReadFault::NotPlanar` for a plane read),
-  so a headless author gets the same answer the chrome pre-empts under
-  DM2.
-- **DM1c — the lanes.** A derived frame has no document elaboration, so the
-  profile lift's "the sketch plane stays f64" fence (PP6,
-  `crates/editor-core/README.md`, which carries the same rule) does not apply
-  to it. A profile on a derived frame is placed at the lane scalar through
-  the by-value reader (`frame_plane_lane`) under every lift, its 2-D
-  structure record staying f64-pinned as PP1 says. An authored frame's
-  profile is unchanged. The two
-  placement paths are keyed by frame kind because the two kinds differ in
-  where their numbers come from.
-- **In the chrome**, "on a new XY frame" is two inserts in one committed
-  action (`commit_action`); "on this face" mints one `FaceFrame` and one
-  profile the same way.
+  and `names::interrogate::face_frame`; DM1's plane states in its own
+  vocabulary that its normal is sense times chart axis. The asymmetry is
+  principled: a pose read off a face is consumed by evaluation, which reads
+  geometry constantly.
+- **DM1b — a non-planar carrier refuses typed at evaluation**
+  (`PoseRead` with `PoseReadFault::NotPlanar`, naming the carrier kind
+  found), so a headless author gets the same answer the chrome pre-empts
+  under DM2.
+- **DM1c — the lanes.** A pose read off a face has no document
+  elaboration: it is read off the evaluated body at the lane scalar, so at
+  `Interval` it is an enclosure, which is what a face's plane is at that
+  scalar. The profile itself is 2-D and stays f64-pinned (PP1).
+- **In the chrome**, "on this face" is one committed action
+  (`commit_action`): the profile, the construction, its placement against
+  the face (mate and values) and the combine with the face's body.
 
-*Built: DOCM-1 (PR 1829), with DM1a, DM1b and DM2.*
+*Built: DOCM-1 (PR 1829), with DM1a, DM1b and DM2; the placement form,
+INTENT stage 3 D.*
 
 ## DM2 — A carrier-kind read is a value, not a verdict
 
@@ -139,7 +126,7 @@ is stored. `select_where` filters on `SurfaceKind` exactly
   `SurfaceKind` tag, copied out) and `names::interrogate` its `StableName`
   twin (`face_carrier_kind` in both); rule 1 restricts *numeric* predicates,
   in `readback.rs` and its mirror in `interrogate.rs`.
-- The chrome offers DM1's frame only for a planar carrier; DM1b is the
+- The chrome offers DM1's sketch only on a planar carrier; DM1b is the
   kernel's own refusal when a caller bypasses the offer.
 
 *Built: DOCM-1 (PR 1829).*
@@ -156,8 +143,8 @@ index (VR4); an index outside the
 range leaves the reader unresolved and typed at evaluation, never
 re-pointed. `xs[i]` is not a variable: it is the read a per-`k` reader
 makes implicitly, with the index written in the slot rather than supplied
-by the evaluation. Names pass through unchanged, as `Transform`'s do
-(`role.rs`): the member keeps its `Member { (i, …), of }` names, keyed by
+by the evaluation. Names pass through unchanged (`role.rs`): the member
+keeps its `Member { (i, …), of }` names, keyed by
 the index variables' ids and the integers, and an operation reading it
 keys them by `xs` (DM4), the index said once, in `Member`. So
 `Union(xs)` and `Union([xs[0], …, xs[N−1]])` name alike, because they read

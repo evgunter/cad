@@ -28,7 +28,7 @@ use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{SketchPlane, circle_split};
 use sweep::test_support::{brick, extruded, finished, sketch_at, sketch_from_axes};
 use topo::splitting::{SplitPart, SplitPlane, split};
-use topo::{Body, DATUM_UNIT_NORM, subtract, union};
+use topo::{Body, POSE_UNIT_NORM, subtract, union};
 
 const R: f64 = 0.1875;
 
@@ -113,7 +113,7 @@ fn cutaway_plane() -> SplitPlane<f64> {
     let band = Band::linear(tol()).expect("the witness tolerance forms a band");
     SplitPlane {
         origin: Point3::new(1.5, 1.0, 0.75),
-        normal: UnitVec3::new(authored_normal(), DATUM_UNIT_NORM, band)
+        normal: UnitVec3::new(authored_normal(), POSE_UNIT_NORM, band)
             .expect("the cutaway normal has a length"),
     }
 }

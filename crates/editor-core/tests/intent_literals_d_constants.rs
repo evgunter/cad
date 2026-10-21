@@ -12,9 +12,9 @@ use crate::corpus::failures;
 use crate::fixture::{insert, len, on_frame, prism_edges, revolve_about, square};
 use editor_core::{
     CancelToken, Dimension, DimensionError, Distribution, DistributionRefusal, DocEdit, DocumentId,
-    EvalError, EvalOptions, Evaluation, Expr, ExtrudeSide, Formula, FreeVar, LowerFault, Node,
-    ParamValue, PersistError, ProfileDoc, ProfileProgram, Ratio, RecipeNodeId, SlotId, VarDecl,
-    VarEnv, VarId, VarName, VarNameReason, apply, eval, evaluate, load, parse_formula, save,
+    EvalError, EvalOptions, Evaluation, Expr, Formula, FreeVar, LowerFault, Node, ParamValue,
+    PersistError, ProfileDoc, ProfileProgram, Ratio, RecipeNodeId, SlotId, VarDecl, VarEnv, VarId,
+    VarName, VarNameReason, apply, eval, evaluate, load, parse_formula, save,
 };
 use geom_core::{Bounds, Interval, Tol};
 
@@ -63,7 +63,6 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let edges = prism_edges(&doc, cube, 4);
@@ -712,7 +711,6 @@ fn a_count_a_definition_reads_does_not_reproduce() {
                     Formula::count_to_scalar(Formula::fresh(0, Dimension::Count)).unwrap(),
                 )
                 .unwrap(),
-                side: ExtrudeSide::Along,
             }),
             fresh: vec![VarDecl::Free(FreeVar::Count { value: 2 }).into()],
         },

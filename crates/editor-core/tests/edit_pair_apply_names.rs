@@ -36,7 +36,6 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -76,13 +75,12 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     if n == 4 {
         return (doc, extrude);
     }
-    let loops = fixture::desc(profile, vec![ngon(n)]).loops;
+    let loops = fixture::desc(vec![ngon(n)]).loops;
     let ids = loops
         .iter()
         .map(|lp| vec![None; lp.authored_steps()])

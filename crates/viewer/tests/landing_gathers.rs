@@ -24,7 +24,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -262,14 +261,12 @@ fn a_gather_refusal_lands_with_a_fault_and_no_report() {
 fn a_stranded_placement_lands_with_a_fault_and_no_report() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("docm5-stranded-landing", tol);
-    let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
-    let (doc, profile) = common::inserted(&doc, common::square(plane, 0.02), tol);
+    let (doc, profile) = common::inserted(&doc, common::square(0.02), tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.02),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -419,7 +416,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let tol = Tol::witness();
     let bench = common::asm::bench("refused-gather-assembly", tol);
     let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
-    let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
+    let (mut asm, profile) = common::square_profile(&asm, 0.04, tol);
     // The instance stands on the world by its own pin.
     common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
     let extrude = common::insert_into(
@@ -428,7 +425,6 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
             profile: profile.into(),
             distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

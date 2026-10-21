@@ -14,15 +14,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::resolver::{PartStore, with_resolver};
-use crate::fixture::{insert, insert_pinned, len, on_frame, pin, place, square};
+use crate::fixture::{in_world, insert, insert_pinned, len, on_frame, pin, square};
 use editor_core::{
-    Assembly, AssemblyError, CancelToken, EvalOptions, Evaluation, ExtrudeSide, Frame, Node,
-    ProfileDoc, RecipeNodeId, assemble, evaluate,
+    Assembly, AssemblyError, CancelToken, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    RecipeNodeId, assemble, evaluate,
 };
 use geom_core::Tol;
 
 /// A block extruded `height` from a square of half-side `h` at
-/// `(cx, cy)`, on a frame `z` up the world's z axis.
+/// `(cx, cy)` on its own xy, its copy standing in the world `z` up the
+/// world's z axis: the placement.
 fn block(
     doc: ProfileDoc,
     (cx, cy, z): (f64, f64, f64),
@@ -31,19 +32,19 @@ fn block(
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, z],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(cx, cy, h)],
     );
-    insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
-    )
+    );
+    in_world(doc, body, &Frame::translation([0.0, 0.0, z]))
 }
 
 /// A part of two copies: a unit block, and a smaller block whose −x
@@ -51,10 +52,8 @@ fn block(
 /// inside the first across y and z.
 fn two_blocks(label: &str, x: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
-    let (doc, a) = block(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
-    let (doc, b) = block(doc, (x + 0.3, 0.0, 0.25), 0.3, 0.5);
-    let (doc, _) = place(doc, a);
-    place(doc, b).0
+    let (doc, _) = block(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
+    block(doc, (x + 0.3, 0.0, 0.25), 0.3, 0.5).0
 }
 
 /// The two copies overlap in one slab, 0.05 deep: one interference
@@ -409,10 +408,8 @@ impl editor_core::PartResolver for Versions {
 #[test]
 fn two_pins_of_one_document_are_two_part_rows() {
     let v1 = in_band("seam-two-pins-part");
-    let (v2, a) = block(v1.clone(), (10.0, 0.0, 0.0), 0.5, 1.0);
-    let (v2, b) = block(v2, (10.8 + in_band_gap(), 0.0, 0.25), 0.3, 0.5);
-    let (v2, _) = place(v2, a);
-    let v2 = place(v2, b).0;
+    let (v2, _) = block(v1.clone(), (10.0, 0.0, 0.0), 0.5, 1.0);
+    let v2 = block(v2, (10.8 + in_band_gap(), 0.0, 0.25), 0.3, 0.5).0;
     let count = |doc: &ProfileDoc| match gate(doc, &EvalOptions::default()) {
         Err(AssemblyError::AtRest { findings }) => findings.len(),
         other => panic!("each version refuses in band: {other:?}"),

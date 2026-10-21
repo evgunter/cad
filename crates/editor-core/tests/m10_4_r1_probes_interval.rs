@@ -14,7 +14,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, std_deviation};
 use editor_core::drive::{DriveConfig, drive};
@@ -29,7 +28,7 @@ use editor_core::{
 };
 use geom_core::{Dual64, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len, scl};
 
 fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
@@ -126,11 +125,7 @@ fn stepped_shaft_sized(
         name: name("h2"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, h2, d2)),
     });
-    // One frame, named by both profiles: two sketches meant to share
-    // a plane bind the same id, which is how sharing is said now.
-    let frame = r.insert(fixture::xy_frame());
     let base_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-o, -o), (o, -o), (o, o), (-o, o)]).expect("finite corners"),
         ],
@@ -139,10 +134,8 @@ fn stepped_shaft_sized(
     let base = r.insert(Node::Extrude {
         profile: base_p.into(),
         distance: param("h1", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-i, -i), (i, -i), (i, i), (-i, i)]).expect("finite corners"),
         ],
@@ -151,19 +144,24 @@ fn stepped_shaft_sized(
     let boss_raw = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: param("h2", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
-    let boss = r.insert(Node::transform(
+    // The boss stands on the base's top: placed against the base, slid
+    // `h1` up its own z.
+    let boss = crate::m10_5_clearance_interval::slid_by(
+        &mut r,
+        base,
         boss_raw,
-        editor_core::Step::Rigid {
-            translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+        [len(0.0), len(0.0), param("h1", Dimension::Length)],
+    );
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
-        SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(
+            boss,
+            crate::m10_5_clearance_interval::in_placement(
+                boss,
+                fname(boss_raw, RoleSeg::Cap(CapEnd::End)),
+            ),
+        ),
     ];
     let m = r
         .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
@@ -224,16 +222,13 @@ fn arc_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall; their
     // distance is `w`, so ∂m/∂w = 1 exactly.
@@ -983,12 +978,14 @@ fn r1_seed_env_refuses_a_foreign_name() {
         seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), editor_core::VarId::new(0, 0)).is_err(),
         "an unknown name refuses"
     );
-    // And the bindings it does produce carry exactly one unit tangent.
+    // And the free bindings it does produce carry exactly one unit
+    // tangent (a definition reading `h1` carries its chain rule's).
     let env = seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), a.var_named("h1").expect("h1"))
         .expect("h1");
+    let free = |id: &editor_core::VarId| a.var(*id).is_some_and(|v| v.def().free().is_some());
     let mut ones = 0_usize;
     let mut zeros = 0_usize;
-    for v in env.bindings.values() {
+    for (_, v) in env.bindings.iter().filter(|(id, _)| free(id)) {
         if let ParamValue::Continuous { value, .. } = v {
             if value.deriv.to_bits() == 1.0f64.to_bits() {
                 ones += 1;
@@ -1001,8 +998,8 @@ fn r1_seed_env_refuses_a_foreign_name() {
     }
     let continuous = env
         .bindings
-        .values()
-        .filter(|v| matches!(v, ParamValue::Continuous { .. }))
+        .iter()
+        .filter(|(id, v)| free(id) && matches!(v, ParamValue::Continuous { .. }))
         .count();
     assert_eq!(ones, 1, "exactly one seeded lift");
     assert_eq!(

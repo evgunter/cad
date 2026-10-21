@@ -95,7 +95,7 @@ pub use editor_core::{
     DuplicateName, EntityKind, EntityNamed, FIT_DEFERRAL, GeomPred, InterrogateError, JoinShape,
     KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
     OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare,
-    RimSupport, RolePath, RoleSeg, RunLine, SEL_DATUM_DISTANCE, SeamSidesShape, SeamVertexShape,
+    RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE, SeamSidesShape, SeamVertexShape,
     SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side,
     SplitHalf, StepId, SurfaceKindSet, TagPat, UnionNameShape, WayShape, all_bodies, all_edges,
     all_faces, all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation,

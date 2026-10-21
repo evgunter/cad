@@ -15,10 +15,10 @@
 
 use crate::fixture;
 use editor_core::{
-    Bodies, BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, ExtrudeSide, Node,
-    Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload, VarId, evaluate,
+    Bodies, BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, Node, Operand,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload, VarId, evaluate,
 };
-use fixture::{insert, len, on_frame, scl, table};
+use fixture::{insert, len, on_frame, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -50,7 +50,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -212,18 +211,12 @@ fn a_union_or_intersect_of_no_body_is_the_typed_empty_body() {
 #[test]
 fn the_union_of_a_splits_two_halves_builds_the_block() {
     let (doc, target) = unit_block("dm4-halves");
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let tool = crate::fixture::plane_on(&doc, target, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: target.into(),
-            tool: plane.into(),
+            tool,
         },
     );
     let (above, below) = (
@@ -270,7 +263,9 @@ fn a_three_member_intersect_with_coincident_faces_folds() {
     let doc = ProfileDoc::empty_derived("dm4-three-intersect", Tol::witness());
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (1.0, 3.0), (0.0, 1.0), 1.0);
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0; 3]);
     let (doc, c) = block(doc, (0.0, 3.0), (0.0, 1.0), 0.5);
+    let (doc, c) = crate::fixture::slid(doc, a, c, [0.0; 3]);
     let (doc, i) = insert(
         doc,
         Node::Intersect {
@@ -297,6 +292,7 @@ fn a_read_spelled_twice_beside_a_resting_partner_builds_in_every_order() {
     let doc = ProfileDoc::empty_derived("dm5-decl-twice", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (0.0, 1.0), 1.0);
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0; 3]);
     let mut doc = doc;
     let mut unions = Vec::new();
     for order in [[a, a, b], [a, b, a], [b, a, a]] {
@@ -333,6 +329,7 @@ fn a_stored_name_carrying_a_read_the_document_never_minted_refuses_at_load() {
     let doc = ProfileDoc::empty_derived("dm4-carry-read-at-load", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 1.0);
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0; 3]);
     let (doc, union) = insert(
         doc,
         Node::Union {

@@ -6,7 +6,7 @@
 //! member re-pointed forward saves, loads and deletes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, insert, len, on_frame, on_frame_keeping, scl, xform};
+use crate::fixture::{self, insert, len, on_frame, plane_on, scl, slid, xform};
 use crate::wire::up_to_ids;
 use editor_core::{
     Dimension, DocEdit, EditError, Formula, Maintenance, Node, NodeErrorKind, Operand, OperandSlot,
@@ -14,9 +14,9 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-/// A frame, a square on it and an extrude of the square, `dx` along x.
+/// A square and an extrude of the square, `dx` along its own x.
 fn block(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, _, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -28,7 +28,6 @@ fn block(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     (doc, profile, extrude)
@@ -308,13 +307,14 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     );
 
     // Acyclicity: a union re-pointed at its own reader is a cycle.
+    let (doc, b_at) = slid(doc, a, b, [0.0; 3]);
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::Spelled(vec![a.into(), b_at.into()]),
         },
     );
-    let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, moved) = xform(doc, union, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0);
     assert!(
         matches!(
             refused(&doc, set(union, OperandSlot::Member(1), moved.into())),
@@ -330,31 +330,6 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
         volume(&ev, a),
         "a member read twice is that member's body"
     );
-
-    // A placer's output kind is fixed at minting: a transform of a body
-    // re-pointed at a pattern's list refuses, at a body is a write.
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: b.into(),
-            count: editor_core::Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    assert!(
-        matches!(
-            refused(&doc, set(moved, OperandSlot::Input, pattern.into())),
-            EditError::SlotVarKind {
-                found: VarKind::Bodies,
-                ..
-            }
-        ),
-        "a body's placement does not become a list's"
-    );
-    applied(&doc, set(moved, OperandSlot::Input, b.into()));
 }
 
 /// **One door, the slot typed by kind** (Q1 ruled): the door that
@@ -749,25 +724,21 @@ fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
     );
 }
 
-/// A block split across its middle, and a second block clear of it: the
-/// two halves are ports 0 (above) and 1 (below) of the split.
+/// A block split across its middle, and a second block clear of it in
+/// the block's space: the two halves are ports 0 (above) and 1 (below)
+/// of the split.
 fn split_block(name: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, target) = block(ProfileDoc::empty_derived(name, Tol::witness()), 0.0);
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let tool = plane_on(&doc, target, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: target.into(),
-            tool: plane.into(),
+            tool,
         },
     );
     let (doc, _, far) = block(doc, 5.0);
+    let (doc, far) = fixture::slid(doc, target, far, [0.0; 3]);
     (doc, split, far)
 }
 
@@ -926,7 +897,7 @@ fn dm5_is_over_the_variables_read() {
 
 /// **Every operand family in one document** (review A's MINOR-2): a
 /// union, a loft, a sweep, a linear pattern and a part of one of its
-/// instances, a transform, a split read at each half, a fillet, a
+/// instances, a placement, a split read at each half, a fillet, a
 /// circular pattern of a revolve's body, and an instance of a part — so
 /// the one-shot's roots and reads cover each family, a list member
 /// among them. Inserted, never evaluated: what the one-shot compares is
@@ -943,29 +914,32 @@ pub(crate) fn families_document() -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![fixture::square(0.5, 0.5, 0.5)],
     );
-    let (doc, _, high) = on_frame_keeping(
+    let (doc, high) = insert(
         doc,
-        [0.0, 0.0, 2.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![fixture::square(0.5, 0.5, 0.25)],
+        Node::Profile(fixture::desc(vec![fixture::square(0.5, 0.5, 0.25)])),
     );
     let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: low.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: vec![low.into(), high.into()],
+            first: low.into(),
+            then: vec![editor_core::LoftSection {
+                profile: high.into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: len(2.0),
+                }],
+            }],
             v_degree: editor_core::Formula::count(1),
         },
     );
-    let (doc, sweep) = insert(
+    let (doc, _) = insert(
         doc,
         Node::Sweep {
             profile: high.into(),
@@ -1012,21 +986,15 @@ pub(crate) fn families_document() -> ProfileDoc {
             select: editor_core::PartSelect::Instance(editor_core::Formula::count(1)),
         },
     );
-    let (doc, cut) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let cut = plane_on(&doc, body, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: loft.into(),
-            tool: cut.into(),
+            tool: cut,
         },
     );
-    let (doc, moved) = insert(doc, xform(sweep, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, moved) = xform(doc, body, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0);
     let (doc, rounded) = insert(doc, Node::fillet(body, len(0.1), Vec::new()));
     let (doc, instance) = insert(
         doc,
@@ -1062,19 +1030,21 @@ fn families_pair() -> (serde_json::Value, serde_json::Value) {
     (crate::wire::wire_body(&base), crate::wire::wire_body(&text))
 }
 
-/// A union of two blocks under a transform, saved: the file the load
-/// door rows below doctor.
-fn union_under_a_transform() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+/// A union of two blocks under a placement, saved: the file the load
+/// door rows below doctor. Returns the second member (the placement of
+/// the second block), the union and the union's placement.
+fn union_under_a_placement() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("s2b-load-door", Tol::witness());
     let (doc, _, a) = block(doc, 0.0);
     let (doc, _, b) = block(doc, 3.0);
+    let (doc, b) = slid(doc, a, b, [0.0; 3]);
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
-    let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, moved) = xform(doc, union, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0);
     (doc, b, union, moved)
 }
 
@@ -1107,12 +1077,12 @@ fn member_re_read(text: &str, from: &str, to: &str) -> String {
 }
 
 /// **A file whose reads close a loop refuses `ReadCycle`** (review B's
-/// m5): a union member doctored to read the output of the transform
+/// m5): a union member doctored to read the output of the placement
 /// that reads the union. The load door walks the read relation, not
 /// the file's order.
 #[test]
 fn a_file_whose_reads_close_a_loop_refuses_read_cycle() {
-    let (doc, b, union, moved) = union_under_a_transform();
+    let (doc, b, union, moved) = union_under_a_placement();
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let out = |node| doc.output(node, 0).expect("an output").0.to_string();
     let corrupt = member_re_read(&text, &out(b), &out(moved));
@@ -1133,7 +1103,7 @@ fn a_file_whose_reads_close_a_loop_refuses_read_cycle() {
 /// the regenerate recourse in its sentence.
 #[test]
 fn a_file_reading_an_unminted_variable_refuses_operand_unminted() {
-    let (doc, b, union, _) = union_under_a_transform();
+    let (doc, b, union, _) = union_under_a_placement();
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let out_b = doc.output(b, 0).expect("an output").0.to_string();
     // The member spelled as the node id, as a pre-B file spells it.

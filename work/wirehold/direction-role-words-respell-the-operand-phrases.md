@@ -2,11 +2,11 @@
 id: direction-role-words-respell-the-operand-phrases
 kind: issue
 title: Four direction-role words respell an eval::phrase const plus a suffix; composing them needs the macro layer extended from words to phrases
-status: parked
+status: closed
 opened: 2026-09-12
+closed: 2026-10-21
 priority: P1
 cost: D
-blocked_on: [transform-retires-into-a-placement]
 ---
 
 
@@ -69,3 +69,12 @@ the Python suite and a re-wording would red there.
 Read against the tree at `fd218851f9`. The four role consts are still literal respellings, and all four name `Datum` subjects, which retire in stage 3 D. `DATUM_AXIS_ROLE` is also read by `wire/pose.rs`; re-check after D. Parked on `transform-retires-into-a-placement`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+## Closed (2026-10-21)
+
+Moot in D, which retired the datum. The value family is the pose
+(`eval::family::POSE`, `"pose"`), its narrower phrases are `"frame pose"`,
+`"axis pose"` and `"plane pose"`, and the four role words name a vector's
+role alone: `"frame x axis"`, `"frame y axis"`, `"plane normal"`,
+`"axis direction"` (`AXIS_DIRECTION_ROLE`). None opens with a phrase, so
+none respells one.

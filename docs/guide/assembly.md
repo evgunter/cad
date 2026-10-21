@@ -24,7 +24,7 @@ Everything below runs. The Python blocks are executed by
 `test_assembly_eval.py` and `test_assembly_author.py` (which build
 one scene, `crates/pncad-py/tests/bench_scene.py`), and the same scene
 in Rust is `demos/tour/src/assembly.rs`, which goes one step further:
-it stands the stand on a turntable — the near post's world pin, whose
+it stands the stand on a turntable — the near post's world mate, whose
 frame turns about the turntable's pivot by a `swing` parameter — and
 sets a crate on the shelf by a mate and values in the crate's own
 bundle.
@@ -80,7 +80,7 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -192,11 +192,9 @@ world's space, and the world's space is the product.
 A pose is read off a face of a NODE by a NAME — the instance-qualified
 text `Evaluation.select` answers with when you query it on an
 instantiate node, so no name is ever composed by hand. The node is the
-geometry the pose is about. It is the instance itself in the plain
-case, and it diverges the moment something moves an instance: a
-`Node.transform` moves a body and mints no name of its own, so the
-name alone cannot tell the face on the instance from the face on the
-transformed instance, and the node read is what does.
+geometry the pose is about: the instance itself in the plain case,
+and a placement of it when the pose is read off a placed copy — the
+node read is what says which body the face is on.
 
 ```python
 import tempfile
@@ -237,7 +235,7 @@ def prism(seed, width, depth, height):
     drawn by the "place part" gesture."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -463,7 +461,7 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -556,7 +554,7 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -686,7 +684,7 @@ def prism(seed, width, depth, height):
     drawn by the "place part" gesture."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -842,7 +840,7 @@ def prism(seed, width, depth, height):
     drawn by the "place part" gesture."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -1048,8 +1046,8 @@ sub-assembly refuse even where the world beside them certifies.
 ## 6. Moving a part in or out: `split`, `inline`, and the pin door
 
 `split(doc, cut, part_id, resolver=)` cuts a closed node set out into
-a new document and leaves **one instance** of it behind, pinned where
-the part's world stands by the world pin, which reads nothing. `inline(doc,
+a new document and leaves **one instance** of it behind, standing where
+the part's world stands by the identity bundle, which reads nothing. `inline(doc,
 instance, resolver)` is its inverse: splice the referenced document's
 nodes back in.
 
@@ -1090,7 +1088,7 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -1213,7 +1211,7 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -1288,7 +1286,7 @@ held by mates onto two different copies refuses `mate_targets_differ`,
 naming the placement and the constraints whose targets differ. And the
 solve reads a face only of an instance, or of a pattern's copy of one:
 a face side on a copy `Doc.place` made of a body refuses typed, while
-a world pin works on any placement.
+a world mate works on any placement.
 
 **Only a placement places.** The product is the copies the
 document's placements define in the world's space — each instance

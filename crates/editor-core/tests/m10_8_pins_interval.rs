@@ -115,9 +115,11 @@ fn a0_alone() -> SymRules {
 /// line/line joints each decide one more, numerically. They rose by
 /// three more (269 -> 272, 261 -> 264) when the path door began reading
 /// each junction a departing leg follows again at the shorter of its
-/// two legs' arms, once that leg is stored. They rose by six more
-/// (272 -> 278, 264 -> 270) when the simplicity pass began reading each
-/// line/line pair's gap along one of them first (`segment_gap`).
+/// two legs' arms, once that leg is stored.
+///
+/// Under INTENT stage 3 D the slab's placement decides two fewer
+/// numeric comparisons in both tiers (272 -> 270, 264 -> 262), at every
+/// ε row. Symbolic and frozen do not move, and neither does A0's yield.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -147,13 +149,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=456 numeric=278 frozen=0",
+        "decisions symbolic=456 numeric=270 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=464 numeric=270 frozen=0",
-        "eight of the 278 numeric refusals are comparisons of two rational CONSTANTS, which \
+        "decisions symbolic=464 numeric=262 frozen=0",
+        "eight of the 270 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly"
     );
     assert_eq!(

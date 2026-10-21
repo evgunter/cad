@@ -10,10 +10,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::fixture::{self, ang, insert, len, on_frame, scl};
+use crate::fixture::{self, against, ang, desc, frame_at, insert, len, on_frame};
 use editor_core::{
-    CancelToken, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, ExtrudeSide, Formula,
-    Node, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, SplitHalf, StableName, evaluate,
+    CancelToken, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Formula, Node, ProfileDoc,
+    Qualifier, RecipeNodeId, RoleSeg, SplitHalf, StableName, evaluate,
 };
 use geom_core::{Point3, Tol};
 
@@ -53,7 +53,7 @@ pub(crate) const PENTAGON: &[(f64, f64)] =
 pub(crate) const REVOLVED: &[(f64, f64)] =
     &[(1.0, 0.0), (3.0, 0.0), (3.0, 2.0), (2.0, 1.0), (1.0, 2.0)];
 
-/// How the operand is made from its outline, drawn on the `xy` plane.
+/// How the operand is made from its outline, drawn on its own `xy`.
 #[derive(Clone, Copy)]
 enum Solid {
     /// Extruded 1 along `z`.
@@ -71,7 +71,7 @@ fn split_at_y1(
     solid: Solid,
     ny: f64,
 ) -> (Evaluation<f64>, RecipeNodeId, RecipeNodeId) {
-    let (doc, target, _, sp) = split_doc(outline, solid, [0.0, 1.0, 0.0], [0.0, ny, 0.0]);
+    let (doc, target, sp) = split_doc(outline, solid, [0.0, 1.0, 0.0], [0.0, ny, 0.0]);
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -88,55 +88,91 @@ fn split_at_y1(
 }
 
 /// A split of `outline` made `solid` by the plane through `origin` with
-/// `normal`: the document, the operand's node, the plane's and the
-/// split's.
+/// `normal`, both in the world: the document, the operand's node and
+/// the split's.
 fn split_doc(
     outline: &[(f64, f64)],
     solid: Solid,
     origin: [f64; 3],
     normal: [f64; 3],
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("split_pinch_keeps", Tol::witness());
-    let u = match solid {
-        Solid::PrismAlongZ => [0.0, 0.0, 1.0],
-        Solid::Prism | Solid::Turned => [1.0, 0.0, 0.0],
-    };
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        u,
-        [0.0, 1.0, 0.0],
-        vec![outline.to_vec()],
-    );
-    let operand = match solid {
-        Solid::Prism | Solid::PrismAlongZ => Node::Extrude {
-            profile: p.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-        Solid::Turned => Node::Revolve {
-            profile: p.into(),
-            axis_through: [len(0.0), len(0.0)],
-            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
-            angle: ang(std::f64::consts::TAU),
-        },
-    };
-    let (doc, target) = insert(doc, operand);
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: origin.map(len),
-            normal: normal.map(scl),
-        }),
-    );
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, target) = operand_doc(outline, solid);
+    let tool = plane_tool(&doc, target, solid, origin, normal);
     let (doc, sp) = insert(
         doc,
         Node::Split {
             target: editor_core::Operand::output(target, 0).into(),
-            tool: plane.into(),
+            tool,
         },
     );
-    (doc, target, plane, sp)
+    (doc, target, sp)
+}
+
+/// `outline` made `solid`, in a document of its own: the document and
+/// the operand's node — for [`Solid::PrismAlongZ`], the placement that
+/// stands the prism in the world, spun `−turn/4` about `y`.
+fn operand_doc(outline: &[(f64, f64)], solid: Solid) -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("split_pinch_keeps", Tol::witness());
+    let (doc, p) = insert(doc, Node::Profile(desc(vec![outline.to_vec()])));
+    let prism = |doc| {
+        insert(
+            doc,
+            Node::Extrude {
+                profile: p.into(),
+                distance: len(1.0),
+            },
+        )
+    };
+    match solid {
+        Solid::Prism => prism(doc),
+        Solid::PrismAlongZ => {
+            let (doc, body) = prism(doc);
+            let quarter = Formula::turn_over(4).expect("a quarter turn");
+            let back = Formula::neg(quarter).expect("an angle negates");
+            fixture::in_world_by(
+                doc,
+                body,
+                fixture::turned_to([0.0; 3], &[(editor_core::TargetAxis::Y, back)]),
+            )
+        }
+        Solid::Turned => insert(
+            doc,
+            Node::Revolve {
+                profile: p.into(),
+                axis_through: [len(0.0), len(0.0)],
+                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+                angle: ang(std::f64::consts::TAU),
+            },
+        ),
+    }
+}
+
+/// **The plane through `origin` with `normal`, both in the world, read
+/// off `target`** ([`operand_doc`]'s): exactly, off a face it is
+/// parallel to ([`fixture::plane_on`]), where the operand has one — every
+/// axis plane but one through a turned operand's axis — and otherwise
+/// off a frame on the operand ([`fixture::plane_on_frame`]). A plane on
+/// a [`Solid::PrismAlongZ`] operand is given in the prism's own
+/// coordinates, the world's turned back.
+fn plane_tool(
+    doc: &ProfileDoc,
+    target: RecipeNodeId,
+    solid: Solid,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> editor_core::pose::RoleRead<editor_core::Operand> {
+    let own = |p: [f64; 3]| match solid {
+        Solid::PrismAlongZ => [p[2], p[1], -p[0]],
+        Solid::Prism | Solid::Turned => p,
+    };
+    let (origin, normal) = (own(origin), own(normal));
+    let axis = normal.iter().filter(|c| **c != 0.0).count() == 1;
+    let body = editor_core::Operand::output(target, 0);
+    if axis && !(matches!(solid, Solid::Turned) && normal[1] == 0.0) {
+        fixture::plane_on(doc, body, origin, normal)
+    } else {
+        fixture::plane_on_frame(doc, body, origin, normal)
+    }
 }
 
 /// What each of `side`'s names denotes: the name, spelled with the
@@ -560,7 +596,6 @@ fn a_lower_half_on_the_plane_takes_a_box_hole() {
             Solid::Prism | Solid::PrismAlongZ => Node::Extrude {
                 profile: p.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
             Solid::Turned => Node::Revolve {
                 profile: p.into(),
@@ -570,23 +605,18 @@ fn a_lower_half_on_the_plane_takes_a_box_hole() {
             },
         };
         let (doc, target) = insert(doc, operand);
-        let (doc, plane) = insert(
-            doc,
-            Node::Datum(Datum::Plane {
-                origin: [len(0.0), len(1.0), len(0.0)],
-                normal: [scl(0.0), scl(1.0), scl(0.0)],
-            }),
-        );
+        let body = editor_core::Operand::output(target, 0);
+        let tool = crate::fixture::plane_on(&doc, body.clone(), [0.0, 1.0, 0.0], [0.0, 1.0, 0.0]);
         let (doc, sp) = insert(
             doc,
             Node::Split {
-                target: editor_core::Operand::output(target, 0).into(),
-                tool: plane.into(),
+                target: body.clone().into(),
+                tool,
             },
         );
         let (doc, q) = on_frame(
             doc,
-            [0.0, 0.0, z0],
+            [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![vec![(x0, 0.2), (x1, 0.2), (x1, 0.5), (x0, 0.5)]],
@@ -596,9 +626,9 @@ fn a_lower_half_on_the_plane_takes_a_box_hole() {
             Node::Extrude {
                 profile: q.into(),
                 distance: len(dz),
-                side: ExtrudeSide::Along,
             },
         );
+        let (doc, hole) = crate::fixture::slid(doc, body, hole, [0.0, 0.0, z0]);
         let (doc, cut) = insert(
             doc,
             Node::Subtract {
@@ -735,8 +765,45 @@ fn sorted(mut names: Vec<StableName>) -> Vec<StableName> {
 /// own classification of the apex.
 #[test]
 fn a_pentagons_upper_section_is_bare_below_its_apex_and_two_borders_pieces_above() {
-    let (doc, target, plane, sp) =
-        split_doc(PENTAGON, Solid::Prism, [0.0, 0.9, 0.0], [0.0, 1.0, 0.0]);
+    // The plane `y = 0.9`, its slide off the floor the variable `cut`
+    // an edit can move.
+    let (doc, target) = operand_doc(PENTAGON, Solid::Prism);
+    let (doc, _) = fixture::step(
+        doc,
+        editor_core::DocEdit::DeclareVar {
+            name: editor_core::VarName::from_static("cut"),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                editor_core::Dimension::Length,
+                0.9,
+            )),
+        },
+    );
+    let cut = doc.var_named("cut").expect("declared");
+    let tool = match plane_tool(&doc, target, Solid::Prism, [0.0, 0.9, 0.0], [0.0, 1.0, 0.0]) {
+        editor_core::pose::RoleRead {
+            read: editor_core::Operand::Pose(def),
+            role: None,
+        } => match *def {
+            editor_core::pose::PoseDef::Slide { pose, along, .. } => {
+                editor_core::pose::RoleRead::plain(editor_core::Operand::Pose(Box::new(
+                    editor_core::pose::PoseDef::Slide {
+                        pose,
+                        along,
+                        by: Formula::var(cut, editor_core::Dimension::Length),
+                    },
+                )))
+            }
+            other => panic!("the plane is slid off the floor: {other:?}"),
+        },
+        other => panic!("the plane is a pose: {other:?}"),
+    };
+    let (doc, sp) = insert(
+        doc,
+        Node::Split {
+            target: editor_core::Operand::output(target, 0).into(),
+            tool,
+        },
+    );
     let before = fixture::run(&doc, &Default::default());
     assert_eq!(
         plane_pieces(&before, sp, SplitHalf::Above),
@@ -745,11 +812,9 @@ fn a_pentagons_upper_section_is_bare_below_its_apex_and_two_borders_pieces_above
     );
     let (moved, _) = fixture::step(
         doc.clone(),
-        editor_core::DocEdit::SetParam {
-            node: plane,
-            slot: editor_core::SlotId::Origin(editor_core::Axis3::Y),
-            value: len(1.1).into(),
-            fresh: Vec::new(),
+        editor_core::DocEdit::SetVarValue {
+            var: cut.into(),
+            value: editor_core::FreeValue::Continuous(1.1),
         },
     );
     let after = fixture::run(&moved, &Default::default());
@@ -817,7 +882,7 @@ fn a_pentagons_upper_section_is_bare_below_its_apex_and_two_borders_pieces_above
 #[test]
 fn a_notched_blocks_three_sections_keep_their_names_under_a_tilt() {
     let eval = |normal| {
-        let (doc, _, _, sp) = split_doc(NOTCHED, Solid::PrismAlongZ, [0.0, 1.5, 0.0], normal);
+        let (doc, _, sp) = split_doc(NOTCHED, Solid::PrismAlongZ, [0.0, 1.5, 0.0], normal);
         (fixture::run(&doc, &Default::default()), sp)
     };
     let (flat, sp) = eval([0.0, 1.0, 0.0]);
@@ -872,24 +937,31 @@ fn a_sections_hole_with_no_island_cites_nothing_of_the_hole() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
-    // A bore along +y: drawn in z (u) and x (v), so its normal is +y.
-    let (doc, q) = on_frame(
+    // A bore along +y: drawn on its own xy, its copy placed against the
+    // U with its x along z and its y along x, so its normal is +y.
+    let (doc, q) = insert(
         doc,
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        vec![vec![(0.25, 0.5), (0.75, 0.5), (0.75, 1.5), (0.25, 1.5)]],
+        Node::Profile(desc(vec![vec![
+            (0.25, 0.5),
+            (0.75, 0.5),
+            (0.75, 1.5),
+            (0.25, 1.5),
+        ]])),
     );
     let (doc, bore) = insert(
         doc,
         Node::Extrude {
             profile: q.into(),
             distance: len(4.0),
-            side: ExtrudeSide::Along,
         },
+    );
+    let (doc, bore) = against(
+        doc,
+        ext,
+        bore,
+        &frame_at([0.0, -1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
     );
     let (doc, cut) = insert(
         doc,
@@ -898,18 +970,17 @@ fn a_sections_hole_with_no_island_cites_nothing_of_the_hole() {
             tool: bore.into(),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(1.5), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+    let plane = fixture::plane_on(
+        &doc,
+        editor_core::Operand::output(cut, 0),
+        [0.0, 1.5, 0.0],
+        [0.0, 1.0, 0.0],
     );
     let (doc, sp) = insert(
         doc,
         Node::Split {
             target: editor_core::Operand::output(cut, 0).into(),
-            tool: plane.into(),
+            tool: plane,
         },
     );
     let ev = fixture::run(&doc, &Default::default());
@@ -956,24 +1027,26 @@ fn a_ring_holding_an_island_cites_the_ring_and_the_island() {
         Node::Extrude {
             profile: p.into(),
             distance: len(4.0),
-            side: ExtrudeSide::Along,
         },
     );
-    // The groove along +y from y = 0.5: drawn in z (u) and x (v).
-    let (doc, q) = on_frame(
+    // The groove along +y from y = 0.5: drawn on its own xy, its copy
+    // placed against the block with its x along z and its y along x.
+    let (doc, q) = insert(
         doc,
-        [0.0, 0.5, 0.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        vec![square(1.0, 3.0), square(1.5, 2.5)],
+        Node::Profile(desc(vec![square(1.0, 3.0), square(1.5, 2.5)])),
     );
     let (doc, groove) = insert(
         doc,
         Node::Extrude {
             profile: q.into(),
             distance: len(4.0),
-            side: ExtrudeSide::Along,
         },
+    );
+    let (doc, groove) = against(
+        doc,
+        block,
+        groove,
+        &frame_at([0.0, 0.5, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
     );
     let (doc, cut) = insert(
         doc,
@@ -982,18 +1055,17 @@ fn a_ring_holding_an_island_cites_the_ring_and_the_island() {
             tool: groove.into(),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(2.0), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+    let plane = fixture::plane_on(
+        &doc,
+        editor_core::Operand::output(cut, 0),
+        [0.0, 2.0, 0.0],
+        [0.0, 1.0, 0.0],
     );
     let (doc, sp) = insert(
         doc,
         Node::Split {
             target: editor_core::Operand::output(cut, 0).into(),
-            tool: plane.into(),
+            tool: plane,
         },
     );
     let ev = fixture::run(&doc, &Default::default());
@@ -1042,7 +1114,7 @@ fn an_island_in_a_ring_the_merge_made_cites_the_moat() {
 #[test]
 fn a_ring_cut_through_its_axis_ties_its_two_sections() {
     const SQUARE: &[(f64, f64)] = &[(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)];
-    let (doc, ring, _, sp) = split_doc(SQUARE, Solid::Turned, [0.0; 3], [1.0, 0.0, 0.0]);
+    let (doc, ring, sp) = split_doc(SQUARE, Solid::Turned, [0.0; 3], [1.0, 0.0, 0.0]);
     let ev = fixture::run(&doc, &Default::default());
     assert!(ev.value(sp).is_some(), "{:?}", ev.node_error(sp));
     let bands: Vec<StableName> = ev
@@ -1084,8 +1156,9 @@ fn square(a: f64, b: f64) -> Vec<(f64, f64)> {
 /// [`an_island_in_a_ring_the_merge_made_cites_the_moat`], split at
 /// `y = 1`: a 4 × 3 × 4 block, the pocket `[0.5, 3.5]²` down to `y = 1`
 /// round the pin of outline `pin`, and a moat of outline `moat` round the
-/// pin cut on down to `y = 0.5`, each outline drawn in `z` (u) and `x`
-/// (v). The evaluation, the cut's node and the split's.
+/// pin cut on down to `y = 0.5`, each outline drawn on its own `xy` and
+/// placed against the block with its `x` along `z` and its `y` along `x`.
+/// The evaluation, the cut's node and the split's.
 fn moat_split(
     pin: Vec<(f64, f64)>,
     moat: Vec<(f64, f64)>,
@@ -1103,25 +1176,23 @@ fn moat_split(
         Node::Extrude {
             profile: p.into(),
             distance: len(4.0),
-            side: ExtrudeSide::Along,
         },
     );
     // A tool along +y from `y = floor`, round the pin.
     let tool = |doc, floor: f64, outer: Vec<(f64, f64)>| {
-        let (doc, q) = on_frame(
-            doc,
-            [0.0, floor, 0.0],
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            vec![outer, pin.clone()],
-        );
-        insert(
+        let (doc, q) = insert(doc, Node::Profile(desc(vec![outer, pin.clone()])));
+        let (doc, tool) = insert(
             doc,
             Node::Extrude {
                 profile: q.into(),
                 distance: len(4.0),
-                side: ExtrudeSide::Along,
             },
+        );
+        against(
+            doc,
+            block,
+            tool,
+            &frame_at([0.0, floor, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
         )
     };
     let (doc, pocket) = tool(doc, 1.0, square(0.5, 3.5));
@@ -1140,18 +1211,17 @@ fn moat_split(
             tool: moat.into(),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(1.0), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+    let plane = fixture::plane_on(
+        &doc,
+        editor_core::Operand::output(cut, 0),
+        [0.0, 1.0, 0.0],
+        [0.0, 1.0, 0.0],
     );
     let (doc, sp) = insert(
         doc,
         Node::Split {
             target: editor_core::Operand::output(cut, 0).into(),
-            tool: plane.into(),
+            tool: plane,
         },
     );
     (fixture::run(&doc, &Default::default()), cut, sp)
@@ -1239,7 +1309,7 @@ fn assert_moat_split(
     }
     let face = |p, n| operand_face_on(&ev, cut, p, n);
     // A tool's faces round `outline` at height `y`, each through its
-    // edge's midpoint, an outline point `(u, v)` lying at `x = v`, `z = u`.
+    // edge's midpoint, an outline point `(u, v)` placed at `x = v`, `z = u`.
     let walls = |outline: &[(f64, f64)], y: f64| {
         sorted(
             (0..outline.len())

@@ -22,7 +22,6 @@
 
 use crate::common;
 use pncad::document::Bodies;
-use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -45,13 +44,12 @@ fn plate(
     side: f64,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
-    let (doc, profile) = common::framed_square(doc, side, tol);
+    let (doc, profile) = common::square_profile(doc, side, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

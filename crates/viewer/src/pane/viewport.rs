@@ -12,7 +12,6 @@ use pncad::prelude::StableName;
 
 use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
-use crate::datums::{self, datum_view};
 use crate::display::DisplayView;
 use crate::drafts::ProfileDoors;
 use crate::frame;
@@ -23,6 +22,7 @@ use crate::marks;
 use crate::narrowing::Narrow;
 use crate::pickcache;
 use crate::pickindex::{PickError, PickIndex, PictureKey};
+use crate::screen::{self, view_of};
 use crate::session::SessionOp;
 use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
 
@@ -105,7 +105,7 @@ fn push_loop(
 fn push_preview(
     lane: &mut marks::LegLane,
     drawn: &sketch::ProfilePreview,
-    view: Option<datums::View>,
+    view: Option<screen::View>,
 ) {
     let plane = drawn.plane;
     for polyline in &drawn.loops {
@@ -175,7 +175,7 @@ pub(crate) fn push_committed(
 pub(crate) fn push_previews(
     lane: &mut marks::LegLane,
     previews: &ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>,
-    view: Option<datums::View>,
+    view: Option<screen::View>,
 ) {
     let drawn = previews
         .as_ref()
@@ -250,16 +250,13 @@ mod composed {
             &self.edges
         }
 
-        /// Add the lanes a pick implies nothing about — the datums,
-        /// the committed profiles and the preview — which the pane
-        /// composes itself.
+        /// Add the lanes a pick implies nothing about — the committed
+        /// profiles and the preview — which the pane composes itself.
         pub(crate) fn with_lanes(
             mut self,
-            datums: Vec<[f32; 3]>,
             profiles: Vec<[f32; 3]>,
             preview: Vec<[f32; 3]>,
         ) -> Self {
-            self.edges.datums = datums;
             self.edges.profiles = profiles;
             self.edges.preview = preview;
             self
@@ -858,7 +855,7 @@ impl ViewerBehavior<'_> {
             .held_refused
             .clone()
             .map(|refused| frame::Spelled::in_landed(refused, landed));
-        // **The three lanes this pane composes itself**, each as the
+        // **The two lanes this pane composes itself**, each as the
         // value that owns the display seam's rule
         // ([`marks::LegLane`]) rather than as a bare `Vec` each block
         // narrows into on its own. What they carry beyond the
@@ -869,69 +866,12 @@ impl ViewerBehavior<'_> {
         // say so and the field that would carry it between frames are
         // `crate::frame`'s and `crate::app`'s. That half is the VNEWS
         // row `an-overlay-leg-past-the-display-seam-is-not-badged`.
-        let mut datums = marks::LegLane::default();
         let mut profiles = marks::LegLane::default();
         let mut preview = marks::LegLane::default();
-        // **The document's construction geometry.** Which lane is drawn
-        // over which is `marks::EdgeLane::DRAW_ORDER`'s, not the order
-        // these blocks fill them in. Sized against the VIEW
-        // (`datums::draws`): a datum has no size of its own, and one
-        // sized against the model opens into a hole the moment the
-        // camera is closer than a grid cell is wide.
-        if let Some((doc, evaluation)) = self.session.landed_pair().filter(|_| *self.show_datums) {
-            // **A window this camera has no view of is the projection
-            // refusal, said one step earlier and by name.** The door
-            // refuses exactly the two quantities `view_projection`
-            // refuses below — a viewport dimension that is not finite,
-            // or a viewport with no area — so every input that gets
-            // here is one the matrix would decline a hundred lines
-            // down. `aspect()` has already answered `Some` above, so
-            // the arm that actually reaches this door is a dimension
-            // that is INFINITE, and the matrix declines those by two
-            // different names: an infinite width gives an aspect of
-            // `inf` and `NotFinite { what: "aspect" }`, an infinite
-            // height an aspect of `0.0` and `UnusableBounds`. Either
-            // way the badge names an argument nobody passed; what
-            // this writes names the side of the pane that was not a
-            // number of pixels. Held in the same field for the same
-            // reason: it is true of this camera and this pane on
-            // every frame until one of them changes, which is what a
-            // badge reads.
-            let view = match datum_view(self.camera, viewport) {
-                Ok(view) => view,
-                Err(error) => {
-                    *self.projection_fault = Some(error);
-                    return;
-                }
-            };
-            let drawn = datums::draws(doc, evaluation, view);
-            // **Counted every frame, never latched.** The count is
-            // recomputed here from this frame's drawings and written
-            // back by the frame entry point whether or not this pane
-            // drew — so a viewport tabbed away reports none rather
-            // than leaving yesterday's count standing, which is the
-            // hole `work/view/projection-fault-has-no-sweeper.md`
-            // records in the field above.
-            *self.datums_vanished = drawn.vanished();
-            for drawn in drawn.drawn {
-                // The same seam and the same rule as [`push_segment`],
-                // through the same value: a datum mark's endpoint the
-                // GPU cannot hold is not drawn. `datums::draws` sizes
-                // every mark against the view and refuses on its own
-                // scale, so nothing in tree produces one — the lane is
-                // here so the crate has ONE disposition for the
-                // narrowing rather than a cast that happens not to
-                // fail.
-                for leg in drawn.segments.chunks_exact(2) {
-                    datums.leg(leg[0], leg[1]);
-                }
-            }
-        }
         // **The profiles the document holds**, from the landed
-        // evaluation, every frame — the treatment datums get, because a
-        // profile node has no body until something extrudes it and so
-        // nothing else would draw it. Not behind the datum toggle: a
-        // profile is authored content, not construction geometry.
+        // evaluation, every frame, because a profile node has no body
+        // until something extrudes it and so nothing else would draw
+        // it.
         //
         // Left out: the profile the edit door is previewing, if any
         // ([`ViewerBehavior::profile_edited`]) — drawn by its live
@@ -967,17 +907,13 @@ impl ViewerBehavior<'_> {
         // Both doors of the one profile editor draw the same way: the
         // add-profile form's loops and an edit's, each where it lands.
         // The marks are sized in pixels, read at each vertex's own
-        // depth — the same door the datum glyphs go through. A window
-        // this camera has no view of draws the chain and no marks; the
+        // depth ([`screen::View::screen_metres_at`]). A window this
+        // camera has no view of draws the chain and no marks; the
         // projection refusal below is what says why.
-        let view = datum_view(self.camera, viewport).ok();
+        let view = view_of(self.camera, viewport).ok();
         push_previews(&mut preview, self.profile_previews, view);
 
-        let marks = composed.with_lanes(
-            datums.into_segments(),
-            profiles.into_segments(),
-            preview.into_segments(),
-        );
+        let marks = composed.with_lanes(profiles.into_segments(), preview.into_segments());
 
         // **Held, not said.** A view matrix that cannot be formed is
         // true of this camera on every frame until it moves somewhere
@@ -2542,7 +2478,7 @@ mod tests {
 
     /// A view of the xy plane from a tenth of a metre, looking at the
     /// centimetre square the preview rows below draw in.
-    fn a_view() -> crate::datums::View {
+    fn a_view() -> crate::screen::View {
         let camera = Camera::new(
             pncad::geom_core::Point3::new(0.005, 0.005, 0.0),
             0.1,
@@ -2552,7 +2488,7 @@ mod tests {
             0.05,
         )
         .expect("a camera");
-        crate::datums::datum_view(
+        crate::screen::view_of(
             &camera,
             ViewportSize {
                 width_px: 800.0,
@@ -2919,12 +2855,11 @@ mod tests {
         use pncad::profile::{Step, TipState, Verb};
 
         use crate::drafts::{Drafts, ProfileDoors, RowEdit};
-        use crate::session::ProfilePlane;
 
         let tol = Tol::witness();
         let chord = 1.0e-4;
         let side = 0.02;
-        let (doc, profile) = crate::test_support::framed_square(
+        let (doc, profile) = crate::test_support::square_profile(
             &Doc::empty_derived("c5-refused-edit", tol),
             side,
             tol,
@@ -2940,12 +2875,11 @@ mod tests {
         drafts
             .profile_edit(&doc, profile)
             .expect("the square is held");
-        let frame = match drafts.door_loops().edit.and_then(|held| held.plane) {
-            Some(ProfilePlane::Existing(frame)) => Some(frame),
-            _ => None,
-        }
-        .expect("the edit door draws on the square's own frame");
-        let placement = sketch::frame_placement(&doc, &evaluation, frame).expect("placed");
+        assert!(
+            drafts.door_loops().edit.is_some(),
+            "the edit door holds the square"
+        );
+        let placement = sketch::profile_plane();
         let segments = |lane: &marks::LegLane| -> Vec<[[f64; 2]; 2]> {
             lane.segments()
                 .chunks_exact(2)

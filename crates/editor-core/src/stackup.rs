@@ -35,7 +35,7 @@
 //!    the anchor at EVERY node on its result arm (`Ok`/`Failed`/
 //!    `Poisoned`, same poison source) and, where both built, on a
 //!    digest of the VALUE CHANNEL of the whole payload — every body
-//!    point, datum frame, profile vertex, measured value and verdict,
+//!    point, profile vertex, measured value and verdict,
 //!    read through each scalar's own value bracket. That is DL3's
 //!    "value-channel equality" taken literally and per node; the dual
 //!    contract says the two are bit-identical, and the driver checks
@@ -133,7 +133,7 @@ use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::measure::Observed;
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind,
-    NodeResult, PoseValue, SplitSide, ValuePayload, evaluate,
+    NodeResult, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
 use crate::node::RecipeNodeId;
@@ -844,12 +844,6 @@ impl Digest {
         self.scalar(p.z);
     }
 
-    fn vec3<T: ValueChannel>(&mut self, v: geom_core::Vec3<T>) {
-        self.scalar(v.x);
-        self.scalar(v.y);
-        self.scalar(v.z);
-    }
-
     fn body<T: ValueChannel>(&mut self, body: &Body<T>) {
         self.u64(body.solids().count() as u64);
         self.u64(body.faces().count() as u64);
@@ -862,7 +856,7 @@ impl Digest {
 }
 
 /// The value-channel digest of one payload: its arm, its counts, and
-/// every scalar it stores — body points, datum frames, profile
+/// every scalar it stores — body points, profile
 /// vertices and arc carriers, measured values, verdict numbers — through the
 /// scalar's own value bracket, so an `f64` build and a `Dual64` pass
 /// digest identically exactly when their value channels agree.
@@ -872,30 +866,6 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
     // `value_digest_tags_reuse_no_retired_number` reads: each arm's
     // first `d.u64` after its `=>` is its tag.
     match payload {
-        ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
-            d.u64(10);
-            d.point3(*origin);
-            d.vec3(normal.get());
-        }
-        ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
-            d.u64(11);
-            d.point3(*origin);
-            d.vec3(dir.get());
-        }
-        ValuePayload::Datum(PoseValue::Point { position }) => {
-            d.u64(12);
-            d.point3(*position);
-        }
-        ValuePayload::Datum(PoseValue::Frame(f)) => {
-            d.u64(13);
-            d.point3(f.origin());
-            d.vec3(f.u().get());
-            d.vec3(f.v().get());
-        }
-        ValuePayload::Datum(PoseValue::Direction { dir }) => {
-            d.u64(27);
-            d.vec3(dir.get());
-        }
         ValuePayload::Profile(p) => {
             d.u64(14);
             for lp in p.validated.loops() {
@@ -950,7 +920,7 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
                 d.body(b);
             }
         }
-        // 20, 21 and 26 are retired (`RETIRED_VALUE_DIGEST_TAGS`).
+        // 10 to 13, 20, 21, 26 and 27 are retired (`RETIRED_VALUE_DIGEST_TAGS`).
         // The material the table indexes; its copies are the same
         // material read copy by copy.
         ValuePayload::Copies(copies) => {
@@ -994,8 +964,16 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
 /// The tag numbers [`payload_digest`]'s arms may not use: retired with
 /// the payloads that held them, and dead for good.
 #[cfg(test)]
-const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] =
-    &[(20, "Declarations"), (21, "Mate"), (26, "Gauge")];
+const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[
+    (10, "Datum plane"),
+    (11, "Datum axis"),
+    (12, "Datum point"),
+    (13, "Datum frame"),
+    (20, "Declarations"),
+    (21, "Mate"),
+    (26, "Gauge"),
+    (27, "Datum direction"),
+];
 
 // ------------------------------------------------- the verdict's tie
 

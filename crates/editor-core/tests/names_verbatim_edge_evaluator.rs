@@ -14,14 +14,12 @@
 //!
 //! | `verbatim_kind`  | the node's table                         |
 //! |------------------|------------------------------------------|
-//! | `Some(Whole)`    | at least one row, and every row foreign  |
 //! | `Some(Selected)` | at least one row, and every row foreign  |
 //! | `Some(Intact)`   | at least one foreign and one own row     |
 //! | `None`           | no foreign row                           |
 //!
-//! A transform or a part mints nothing, so one own row there is a
-//! partial re-mint the walks would carry a name across wrongly. A split
-//! publishes its intact entities under their original minters and its
+//! A part mints nothing, so one own row there is a partial re-mint
+//! the walks would carry a name across wrongly. A split publishes its intact entities under their original minters and its
 //! cut faces under its own id, so it carries both.
 //!
 //! **Why the head.** An op that re-mints by WRAPPING a foreign name
@@ -50,7 +48,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use std::collections::BTreeSet;
 
@@ -60,7 +57,7 @@ use crate::fixture;
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId,
-    SlideAxis, StableName, Value,
+    StableName, TargetAxis, Value,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame};
@@ -74,7 +71,6 @@ test_utils::f6_variants! {
     /// non-exhaustive until it is named here, and the census below then
     /// reds until the corpus samples one.
     const NODE_KIND: ProfileNode = [
-        Datum,
         Profile,
         Extrude,
         Revolve,
@@ -89,7 +85,6 @@ test_utils::f6_variants! {
         Intersect,
         Subtract,
         Union,
-        Transform,
         Place,
         World,
         Pattern,
@@ -101,12 +96,12 @@ test_utils::f6_variants! {
     ];
 }
 
-/// **The node kinds whose value carries no names**: a datum, a profile,
-/// the world, a measurement and an assertion verdict are not bodies, so
+/// **The node kinds whose value carries no names**: a profile, the
+/// world, a measurement and an assertion verdict are not bodies, so
 /// their tables are empty and the equivalence holds of them vacuously.
 /// Listed so that vacuity is asserted — every sample publishes zero rows — rather than counted as
 /// coverage.
-const ROW_FREE: [&str; 4] = ["Datum", "Profile", "Measure", "Assertion"];
+const ROW_FREE: [&str; 3] = ["Profile", "Measure", "Assertion"];
 
 /// The unit cube `[0,1]³` as a whole part document, and its body.
 fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
@@ -123,7 +118,6 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -153,8 +147,8 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     // The freedoms the rest leaves, each zero: the top stands square on
     // the base.
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, fixture::ang(0.0)),
     ]
     .into_iter()
@@ -164,7 +158,7 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -247,9 +241,7 @@ fn evaluated() -> Vec<Sample> {
 fn disagreement(s: &Sample) -> Option<String> {
     let (foreign, own) = (s.foreign.is_some(), s.own.is_some());
     let wanted = match s.edge {
-        Some(VerbatimKind::Whole | VerbatimKind::Selected) if !foreign || own => {
-            "every row headed by another node"
-        }
+        Some(VerbatimKind::Selected) if !foreign || own => "every row headed by another node",
         Some(VerbatimKind::Intact) if !foreign || !own => {
             "rows headed by another node AND rows headed by itself"
         }

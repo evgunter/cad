@@ -29,11 +29,10 @@
 //! `f64` rounding of an irrational rather than the geometry. The
 //! `die_chamfer` disposition, and both siblings'.
 
-use super::PlacePart;
-use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
+use editor_core::{DocEdit, Node, SlotId, TubeWindow};
 
-use super::super::fixture::{ang, len, scl};
-use super::{CorpusDoc, Recorder};
+use super::super::fixture::{ang, len};
+use super::{CorpusDoc, Recorder, spun_about_y};
 
 /// The spine circle's radius, meters (dyadic).
 pub const R: f64 = 2.0;
@@ -52,17 +51,7 @@ pub const T1_BUMPED: f64 = 2.0;
 /// The windowed-solid-tube corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-
-    // A different spine axis from `tube_ring`'s deliberately: that
-    // document turns about +z and this one about +y, so a lowering
-    // that assumed one world axis has two documents to disagree with.
-    let spine = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(0.0), scl(-1.0)],
-    }));
     let bend = r.insert(Node::Tube {
-        frame: spine.into(),
         major_radius: len(R),
         window: TubeWindow::Arc {
             t0: ang(T0),
@@ -71,7 +60,11 @@ pub fn document() -> CorpusDoc {
         minor_radius: len(MINOR),
     });
 
-    r.place_part(bend);
+    // The tube turns about its own z; in the world it turns about +y,
+    // a different spine axis from `tube_ring`'s deliberately, so a
+    // lowering that assumed one world axis has two documents to
+    // disagree with.
+    r.in_world_by(bend, spun_about_y());
 
     CorpusDoc {
         name: "tube_arc",

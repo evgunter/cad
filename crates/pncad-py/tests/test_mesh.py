@@ -21,10 +21,10 @@ import pncad
 from pncad import (
     Doc,
     Formula,
+    Frame,
     Node,
     NodePick,
     Open,
-    SketchPlane,
     Start,
     TubeWindow,
     circle,
@@ -33,6 +33,8 @@ from pncad import (
     m,
     mm,
 )
+
+from placing import frame_at
 
 
 def mesh_signed_volume(mesh):
@@ -91,7 +93,7 @@ def box(doc, width, depth, height):
         .line_to((0 * m, depth * m))
         .line_to(Start)
     )
-    return doc.insert(Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), Formula.length_in(height, m)))
+    return doc.insert(Node.extrude(doc.insert(Node.profile(outline)), Formula.length_in(height, m)))
 
 
 def body_of(doc, node):
@@ -257,21 +259,8 @@ class TestBoundaryPolylines(unittest.TestCase):
             self.assertNotEqual(line[0], line[-1])
 
         doc = Doc()
-        frame = doc.insert(Node.datum_frame((
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(1.0),
-            Formula.literal(0.0),
-            Formula.literal(0.0),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-            Formula.literal(0.0),
-        )))
         ring = doc.insert(
-            Node.tube(frame, Formula.length_in(0.5, m), TubeWindow.full(), Formula.length_in(0.1, m))
+            Node.tube(Formula.length_in(0.5, m), TubeWindow.full(), Formula.length_in(0.1, m))
         )
         lines = body_of(doc, ring).tessellate(20 * mm).boundaries
         closed = [line for line in lines if line[0] == line[-1]]
@@ -306,7 +295,7 @@ class TestWatertight(unittest.TestCase):
         that makes a mesh watertight by construction rather than by a
         repair pass."""
         doc = Doc()
-        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
+        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m)))
         cyl = doc.insert(Node.extrude(disc, Formula.length_in(2, m)))
         self.assertEqual(unmatched_half_edges(body_of(doc, cyl).tessellate(5 * mm)), [])
 
@@ -321,7 +310,7 @@ class TestWatertight(unittest.TestCase):
         )
         hole = circle((0 * m, 0 * m), 0.7 * m)
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile([outer, hole], plane=doc.sketch_frame())), Formula.length_in(0.6, m))
+            Node.extrude(doc.insert(Node.profile([outer, hole])), Formula.length_in(0.6, m))
         )
         self.assertEqual(unmatched_half_edges(body_of(doc, plate).tessellate(5 * mm)), [])
 
@@ -331,7 +320,7 @@ class TestBudget(unittest.TestCase):
 
     def test_a_finer_budget_buys_more_triangles_on_a_curve(self):
         doc = Doc()
-        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
+        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m)))
         body = body_of(doc, doc.insert(Node.extrude(disc, Formula.length_in(2, m))))
         coarse = body.tessellate(20 * mm)
         fine = body.tessellate(1 * mm)
@@ -454,10 +443,13 @@ class TestCrossCheckOnBooleanGeometry(unittest.TestCase):
                     (Formula.length_in(3, m), Formula.length_in(3, m)),
                     (Formula.length_in(1, m), Formula.length_in(3, m)),
                 ],
-                plane=doc.sketch_frame(elevation=Formula.length_in(0.5, m)),
             )
         )
-        tool = doc.insert(Node.extrude(tool_p, Formula.length_in(1, m)))
+        tool = doc.place_against(
+            base,
+            doc.insert(Node.extrude(tool_p, Formula.length_in(1, m))),
+            Frame.translation((0 * m, 0 * m, 0.5 * m)),
+        )
         cut = doc.insert(Node.subtract(base, tool))
         body = body_of(doc, cut)
         body.validate()
@@ -470,16 +462,13 @@ class TestCrossCheckOnBooleanGeometry(unittest.TestCase):
         self.assertLess(abs(mesh_signed_volume(mesh) - exact) / exact, 1e-12)
 
 
-class TestCrossCheckOnASketchPlane(unittest.TestCase):
-    """The same check on a body whose faces are not axis-aligned —
-    a prism on a general `from_frame` plane, where a winding mistake
-    would not cancel."""
+class TestCrossCheckOnATiltedPlacement(unittest.TestCase):
+    """The same check on a body whose faces are not axis-aligned — a
+    prism standing in the world on a general frame, where a winding
+    mistake would not cancel."""
 
     def test_a_tilted_prism_measures_the_same_both_ways(self):
         s = math.sqrt(0.5)
-        plane = SketchPlane.from_frame(
-            (0 * m, 0 * m, 0 * m), (s, s, 0.0), (0.0, 0.0, 1.0)
-        )
         doc = Doc()
         sketch = doc.insert(
             Node.polygon(
@@ -489,10 +478,12 @@ class TestCrossCheckOnASketchPlane(unittest.TestCase):
                     (Formula.length_in(2, m), Formula.length_in(1, m)),
                     (Formula.length_in(0, m), Formula.length_in(1, m)),
                 ],
-                plane=doc.sketch_frame(plane=plane),
             )
         )
-        prism = doc.insert(Node.extrude(sketch, Formula.length_in(3, m)))
+        prism = doc.place(
+            doc.insert(Node.extrude(sketch, Formula.length_in(3, m))),
+            pose=frame_at((0.0, 0.0, 0.0), (s, s, 0.0), (0.0, 0.0, 1.0)),
+        )
         body = body_of(doc, prism)
         body.validate()
 
@@ -517,15 +508,14 @@ class TestCrossCheckConverges(unittest.TestCase):
             .line_to((0.5 * m, 2 * m))
             .line_to(Start)
         )
-        frame = doc.sketch_frame()
-        # The axis in the sketch's own coordinates: the frame's v is
-        # world +y, so the world y axis IS its own +y through (0, 0).
+        # The axis in the profile's own coordinates: its own +y
+        # through (0, 0).
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
             Formula.turn_over(4),
         )
         ring = doc.insert(
-            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), *axis, Formula.angle_in(360, deg))
+            Node.revolve(doc.insert(Node.profile(outline)), *axis, Formula.angle_in(360, deg))
         )
         body = body_of(doc, ring)
         body.validate()

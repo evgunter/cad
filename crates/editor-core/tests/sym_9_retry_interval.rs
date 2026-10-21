@@ -604,6 +604,52 @@ fn sym_9_what_each_retry_recovers() {
 /// 1047 → 1007, the link 687 → 655. `symbolic` and `retried` hold. (The
 /// pad's leaf is `sym_9_the_drive_writes_the_ladders_receipt`'s.)
 ///
+/// INTENT stage 3 D places each construction a document combines into
+/// its target's space by a plane mate and its values, and each
+/// placement's chart decides with the ladder and without it alike:
+/// `symbolic` +3 and `numeric` +3 per placement (the plate and the
+/// bracket +6/+8 over two, the annulus, the boss and the link +3/+3),
+/// and the pad's leaf 1315/1280 -> 1318/1283 (1311/1284 -> 1314/1287
+/// without the ladder). `retried` does not move.
+///
+/// A placement whose bundle reads a declared or toleranced variable
+/// runs its map at the nominal (C-5 narrowed, the orchestrator's
+/// ruling), so its transform and its copy's re-certification decide
+/// there, with the ladder and without it alike: `symbolic` +186 per
+/// such placement (bracket +372 over two; annulus, boss and link +186)
+/// and `numeric` +159 per placement (+318; +159), the link's
+/// `carrier_on_surface_2` 100 -> 136 and `witness_on_surface_2` 16 ->
+/// 20, and the pad's leaf 1318/1283 -> 1504/1442 (1314/1287 ->
+/// 1500/1446 without the ladder). Every row that moved, moved up;
+/// `retried` does not move. The plate's holes, placed by their start
+/// caps and written numbers alone, read no variable and still snap.
+///
+/// Re-taken on INTENT stage 3 D under FORK-REST (only the identity
+/// bundle as written places by no map). The plate moved by FORK-REST
+/// alone, [945, 701] -> [1253, 1043] with the ladder and without it:
+/// its two holes are placed by plane mates, which the narrowing's walk
+/// let snap, and now run their maps, so their transforms and their
+/// copies' re-certification decide at the nominal. The other four read
+/// on D before FORK-REST what they read now, measured on its head
+/// (`434139ef1c`): their placements read a declared or toleranced
+/// variable and already ran their maps. They moved from the narrowing's
+/// receipts above with main's merge at `0a1d95321e` (annulus [728, 561]
+/// -> [632, 605], boss [705, 538] -> [625, 573], bracket [1765, 1330]
+/// -> [1625, 1397], link [1016, 825] -> [924, 861]); on the plate the
+/// same merge read [1009, 662] -> [945, 701]. `retried` holds at 0
+/// everywhere, and with the ladder and without it read alike: no retry
+/// takes a decision away. The rows that fell fell with main's merge,
+/// between two trees, not between the ladder's two dials, which is what
+/// the paragraph below constrains.
+///
+/// Main's merge at `557e581a64` (check 4 deciding no whole period, PCERT
+/// B2b) takes fidelity's numeric branch decisions out, with the ladder
+/// and without it alike: the plate's `numeric` 1043 -> 979, the annulus
+/// 605 -> 557, the boss 573 -> 533, the bracket 1397 -> 1325, the link
+/// 861 -> 813. `symbolic` and `retried` hold, and the fall is between two
+/// trees, not between the ladder's dials. Measured identical with a
+/// written fraction of a turn read as its rounded radian.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -613,11 +659,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [939, 661], [939, 661], 0),
-        ("r1_annulus", [475, 399], [475, 399], 0),
-        ("r1_segment_boss", [468, 375], [468, 375], 0),
-        ("r2_filleted_bracket", [1311, 1007], [1311, 1007], 0),
-        ("r2_link", [767, 655], [767, 655], 0),
+        ("two_hole_plate", [1253, 979], [1253, 979], 0),
+        ("r1_annulus", [632, 557], [632, 557], 0),
+        ("r1_segment_boss", [625, 533], [625, 533], 0),
+        ("r2_filleted_bracket", [1625, 1325], [1625, 1325], 0),
+        ("r2_link", [924, 813], [924, 813], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -637,8 +683,8 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
             // named second, so rule G's trade lands half on each slot:
             // `[76, 0, 16, 16]` became `[92, 0, 8, 8]` here.
             for (pred, want) in [
-                ("carrier_on_surface_2", [100, 8]),
-                ("witness_on_surface_2", [16, 0]),
+                ("carrier_on_surface_2", [136, 8]),
+                ("witness_on_surface_2", [20, 0]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 2]);
                 if got != want {
@@ -715,6 +761,24 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// point-target leg as an angle puts a `sin_cos(π/2)` round trip back,
 /// and the ladder reaches thirty-eight. It is the heaviest leaf here:
 /// this row costs minutes in a debug build.
+///
+/// Re-taken on INTENT stage 3 D after FORK-REST: the leaf reads [1419,
+/// 1452, 34] shipped and [1385, 1486, 0] bare. The shipped receipt is
+/// the one D's head read before FORK-REST (`434139ef1c`, D's handoff):
+/// the pad's one placement reads a declared variable and ran its map
+/// before FORK-REST as after. It moved with main's merge at
+/// `0a1d95321e`, from the [1504, 1442, 4] and [1500, 1446, 0] these
+/// pins last held; the ladder now reaches thirty-four where the
+/// paragraphs above count thirty-eight, each a decision moved from
+/// `numeric` to `symbolic`.
+///
+/// Main's merge at `557e581a64` moved the leaf to [1421, 1386, 34]
+/// shipped and [1387, 1420, 0] bare: check 4 decides no whole period
+/// (PCERT B2b), so fidelity's numeric branch decisions go (`numeric`
+/// 1452 -> 1386 and 1486 -> 1420), and two more decisions discharge
+/// symbolically on the first attempt alike (1419 -> 1421, 1385 -> 1387).
+/// The ladder still retries thirty-four. Measured identical with a
+/// written fraction of a turn read as its rounded radian.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
@@ -750,19 +814,19 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1264, 1228, 39],
+        [1421, 1386, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains(" retried=39\n"),
+        line.contains(" retried=34\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 39 of those discharges reached only by a second attempt"),
-        "the human form names the thirty-nine as the ladder's: {human}"
+        human.contains("; 34 of those discharges reached only by a second attempt"),
+        "the human form names the thirty-four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1225, 1267, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1387, 1420, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

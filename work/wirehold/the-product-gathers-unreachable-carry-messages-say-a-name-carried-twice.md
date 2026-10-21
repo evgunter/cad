@@ -2,11 +2,10 @@
 id: the-product-gathers-unreachable-carry-messages-say-a-name-carried-twice
 kind: issue
 title: The product gather's unreachable carry refusals say a name was carried twice, whatever SeatingRefusal arm they caught
-status: parked
+status: open
 opened: 2026-10-19
 priority: P4
 cost: E
-blocked_on: [transform-retires-into-a-placement]
 ---
 
 

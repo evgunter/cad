@@ -525,7 +525,7 @@ impl NodePick {
     /// exactly right — they are the ones on screen.
     ///
     /// Raises `NodePickError`, typed: `not_a_body` for a node whose
-    /// value never draws (a datum, profile, declaration or mate),
+    /// value never draws (a profile, declaration or mate),
     /// `no_such_body` for an index this node's value does not have,
     /// the standing ladder (`node_not_evaluated`, `node_failed`,
     /// `node_poisoned`) for a node this evaluation has no `Ok` value

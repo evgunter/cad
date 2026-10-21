@@ -23,21 +23,20 @@
 use crate::common;
 use pncad::document::AuthoredNode;
 use pncad::document::Bodies;
-use pncad::document::ExtrudeSide;
 use pncad::topo::BooleanOp;
 use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
-use common::{ang, body_volume, len, len2, len3, near, scl3, session_insert, shape};
+use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, Datum, Dimension, DimensionError, Doc, DocEdit, EditError, Expr, Formula, LoopProgram,
-    Node, NodeError, NodeErrorKind, NodeResult, NodeStanding, Operand, OperandSlot, PartSelect,
+    Axis3, Dimension, DimensionError, Doc, DocEdit, EditError, Expr, Formula, LoopProgram, Node,
+    NodeError, NodeErrorKind, NodeResult, NodeStanding, Operand, OperandSlot, PartSelect,
     PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, ValuePayload};
+use pncad::prelude::ValuePayload;
 use pncad::select::SplitHalf;
 use viewer::combine::{
     BooleanTool, DUPLICATE_GAP, DuplicateFault, MEASURE_CHORD, PatternOutputChoice, PatternTool,
@@ -46,8 +45,8 @@ use viewer::combine::{
 use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
-    DatumSpec, DocSession, FaceSelection, NodeKindWanted, PartSelectSpec, PatternRuleSpec,
-    ProfilePlane, ProfileShape, Refusal, Selection, SessionOp, face_frame_seat,
+    DocSession, GestureFrameFault, NodeKindWanted, PartSelectSpec, PatternRuleSpec, ProfileShape,
+    Refusal, Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, Tools};
 use viewer::tree::{self, RowStatus};
@@ -226,9 +225,10 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
 /// **Nothing places as a side effect, and the combine gesture takes its
 /// operands' place in the world** (spec §9 row 9, the viewer's half).
 ///
-/// Two placed bodies `a`, `b`: the combine gesture leaves the world
-/// `[c]` — `a`'s placement re-pointed to `c` through the slot door and
-/// `b`'s deleted, in ONE recorded action — and one undo restores
+/// Two placed bodies `a`, `b` (`b` moved): the combine gesture leaves
+/// the world `[c]` — `b` placed against `a` where it stands, `a`'s
+/// placement re-pointed to `c` through the slot door and `b`'s
+/// deleted, in ONE recorded action — and one undo restores
 /// `[a, b]` bit for bit. Breaks if the gesture leaves the boolean
 /// unplaced (the world stays `[a, b]`), places it beside them, or
 /// records the world edits as a second action.
@@ -239,8 +239,8 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     session.pump();
     let before = session.committed_doc().clone();
     assert_eq!(common::world(&before), [a, b], "both operands are placed");
-    let [a_placement, b_placement] = before.placements()[..] else {
-        panic!("two placements: {:?}", before.placements());
+    let [a_placement, b_placement] = viewer::world::world_copies(&before)[..] else {
+        panic!("two copies: {:?}", viewer::world::world_copies(&before));
     };
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![a.into(), b.into()]),
@@ -251,6 +251,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
         matches!(
             &outcome.committed[..],
             [
+                replaced @ ..,
                 DocEdit::InsertNode { .. },
                 DocEdit::SetParam {
                     node,
@@ -259,13 +260,26 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
                     ..
                 },
                 DocEdit::DeleteNode { id },
-            ] if *node == a_placement && *read == union && *id == b_placement
+            ] if *node == a_placement
+                && *read == union
+                && *id == b_placement
+                && replaced.iter().all(|edit| matches!(
+                    edit,
+                    DocEdit::RemoveConstraint { placement, .. }
+                        | DocEdit::AddConstraint { placement, .. }
+                        | DocEdit::AddValue { placement, .. } if *placement == b
+                ))
         ),
-        "the boolean, a's placement re-pointed to it, b's deleted: {:?}",
+        "b, moved, placed against a where it stands; the boolean; a's \
+         placement re-pointed to it, b's deleted: {:?}",
         outcome.committed
     );
     let doc = session.committed_doc();
-    assert_eq!(doc.placements(), [a_placement], "a's placement stands");
+    assert_eq!(
+        viewer::world::world_copies(doc),
+        [a_placement],
+        "a's placement stands"
+    );
     assert_eq!(common::world(doc), [union], "and places the boolean");
     let va = A[0] * A[1] * A[2];
     let vb = B[0] * B[1] * B[2];
@@ -317,13 +331,12 @@ fn a_combine_takes_the_placement_of_the_operand_the_world_places() {
 fn a_feature_re_points_each_placement_of_its_target() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("combine-two-copies", tol);
-    let (doc, profile) = common::framed_square(&doc, A[0], tol);
+    let (doc, profile) = common::square_profile(&doc, A[0], tol);
     let (doc, body) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(A[2]),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -353,10 +366,20 @@ fn a_feature_re_points_each_placement_of_its_target() {
         rotation_angle: ang(0.0),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(
-        outcome.committed.len(),
-        1,
-        "the body is no longer placed, so its second transform places nothing"
+    assert!(
+        matches!(
+            &outcome.committed[..],
+            [
+                DocEdit::InsertNode { .. },
+                DocEdit::AddConstraint { .. },
+                DocEdit::AddValue { .. },
+                DocEdit::AddValue { .. },
+                DocEdit::AddValue { .. },
+            ]
+        ),
+        "the body is no longer placed, so its second transform re-points nothing: \
+         its placement, its mate and its values: {:?}",
+        outcome.committed
     );
     assert_eq!(common::world(session.committed_doc()), world);
 }
@@ -417,29 +440,18 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let a = common::xy_box_in(&mut session, A);
-    let plane = common::xy_frame_in(&mut session);
     let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
             })],
         },
     );
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0; 3]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
-    // A profile, a datum and an id the document never held are each
-    // "not a body" at any operand.
-    for wrong in [profile, plane, RecipeNodeId::new(0, tagged(999))] {
+    // A profile and an id the document never held are each "not a
+    // body" at any operand.
+    for wrong in [profile, RecipeNodeId::new(0, tagged(999))] {
         for spec in [
             BooleanSpec::Union(vec![wrong.into(), a.into()]),
             BooleanSpec::Intersect(vec![a.into(), a.into(), wrong.into()]),
@@ -489,66 +501,59 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
     );
 }
 
-/// A split's two seats want different kinds, and what it authors cuts.
+/// A split's target seat wants a body, its plane is numbers in the
+/// target's own coordinates, and what it authors cuts.
 #[test]
-fn the_split_door_takes_a_body_and_a_datum_plane() {
+fn the_split_door_takes_a_body_and_a_plane_in_its_coordinates() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
     let cut = 0.004;
-    let plane = session_insert(
+    let profile = session_insert(
         &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, cut]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
+        SessionOp::AddProfile {
+            loops: vec![shape(&ProfileShape::Circle {
+                centre: [0.0, 0.0],
+                radius: 0.01,
+            })],
         },
     );
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
-    // The tool seat wants a PLANE — an axis datum and a body are both
-    // refused there — and the target seat wants a body.
-    for wrong in [axis, body] {
-        let refused = session.perform(SessionOp::AddSplit {
-            target: body.into(),
-            tool: wrong,
-        });
-        assert!(
-            matches!(
-                &refused.refusal,
-                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Plane })
-                    if node.id() == wrong
-            ),
-            "{:?}",
-            refused.refusal
-        );
-    }
     let refused = session.perform(SessionOp::AddSplit {
-        target: plane.into(),
-        tool: plane,
+        target: profile.into(),
+        origin: len3([0.0, 0.0, cut]),
+        normal: scl3([0.0, 0.0, 1.0]),
     });
     assert!(
         matches!(
             &refused.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body }) if node.id() == plane
+            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body }) if node.id() == profile
         ),
         "{:?}",
         refused.refusal
     );
+    // A normal that names no direction refuses typed, before any edit.
+    let states = session.history().len();
+    let refused = session.perform(SessionOp::AddSplit {
+        target: body.into(),
+        origin: len3([0.0, 0.0, cut]),
+        normal: scl3([0.0; 3]),
+    });
+    assert!(
+        matches!(
+            refused.refusal.as_ref(),
+            Some(Refusal::Frame(fault)) if matches!(**fault, GestureFrameFault::Direction { .. })
+        ),
+        "{:?}",
+        refused.refusal
+    );
+    assert_eq!(session.history().len(), states, "a refusal records nothing");
 
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, cut]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     let (up, down) = split_volumes(&mut session, split, tol);
@@ -565,20 +570,12 @@ fn several_bodies_are_not_one_body_at_a_seat() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, 0.004]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, 0.004]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     let pattern = session_insert(
@@ -605,7 +602,8 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             },
             SessionOp::AddSplit {
                 target: wrong.into(),
-                tool: plane,
+                origin: len3([0.0, 0.0, 0.004]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         ] {
             let refused = session.perform(op);
@@ -622,10 +620,11 @@ fn several_bodies_are_not_one_body_at_a_seat() {
     }
 }
 
-/// The transform door places a body rigidly, with literal slots the
-/// property panel then owns.
+/// The transform door places a body rigidly: a placement of it against
+/// its own geometry, standing at the frame the form's numbers make, with
+/// values the property panel then owns.
 #[test]
-fn the_transform_door_places_a_body_with_literal_slots() {
+fn the_transform_door_places_a_body_with_values() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -638,25 +637,57 @@ fn the_transform_door_places_a_body_with_literal_slots() {
             rotation_angle: ang(core::f64::consts::FRAC_PI_2),
         },
     );
-    // A rigid placement preserves the volume, and the slots it landed
-    // with are the numbers the form held.
+    // A rigid placement preserves the volume, and the copy stands at
+    // the frame the form's numbers make, in its body's own space.
     assert_volume(&mut session, placed, A[0] * A[1] * A[2], tol);
     let doc = session.committed_doc();
-    for (axis, want) in [
-        (Axis3::X, OFFSET[0]),
-        (Axis3::Y, OFFSET[1]),
-        (Axis3::Z, OFFSET[2]),
+    assert!(
+        matches!(doc.node(placed), Some(Node::Place { .. })),
+        "the transform is a placement"
+    );
+    let want = pncad::document::Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        core::f64::consts::FRAC_PI_2,
+        OFFSET,
+        common::band(),
+    )
+    .expect("a rotation axis with a direction");
+    let poses = pncad::document::solve_document(doc, &pncad::document::EvalOptions::default(), tol);
+    let at = poses
+        .relative(placed)
+        .expect("the copy stands in its body's space");
+    let close = |a: f64, b: f64| (a - b).abs() <= 1.0e-12;
+    assert!(
+        at.translation
+            .iter()
+            .zip(want.translation)
+            .all(|(a, b)| close(*a, b))
+            && at
+                .columns
+                .iter()
+                .flatten()
+                .zip(want.columns.iter().flatten())
+                .all(|(a, b)| close(*a, *b)),
+        "the copy stands at {at:?}, not {want:?}"
+    );
+    // Its values are the placement's slots: two slides and a spin.
+    for (coord, dim) in [
+        (
+            pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
+            Dimension::Length,
+        ),
+        (
+            pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
+            Dimension::Length,
+        ),
+        (pncad::document::Coord::Spin, Dimension::Angle),
     ] {
+        let slot = crate::fixture::value_slot(doc, placed, coord);
         let expr = doc
-            .slot_expansion(placed, SlotId::Translation(axis))
-            .expect("the translation slot is there");
-        assert_eq!(expr.literal_value(), Some(want));
-        assert_eq!(expr.dim(), Dimension::Length);
+            .slot_expansion(placed, slot)
+            .expect("the value slot is there");
+        assert_eq!(expr.dim(), dim, "{coord:?}");
     }
-    let angle = doc
-        .slot_expansion(placed, SlotId::RotationAngle)
-        .expect("the angle slot is there");
-    assert_eq!(angle.dim(), Dimension::Angle);
 
     // A non-finite field never reaches the document, and now cannot
     // reach the OP either: the literal door refuses it where the
@@ -667,8 +698,7 @@ fn the_transform_door_places_a_body_with_literal_slots() {
     ));
 
     // What the door still refuses is a wrong-DIMENSION expression —
-    // an angle where a translation belongs — through the edit door,
-    // which is the one authority on what a slot may hold.
+    // an angle where a translation belongs — typed, before any edit.
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddTransform {
         input: body.into(),
@@ -677,7 +707,10 @@ fn the_transform_door_places_a_body_with_literal_slots() {
         rotation_angle: ang(0.0),
     });
     assert!(
-        matches!(refused.refusal, Some(Refusal::Edit(_))),
+        matches!(
+            refused.refusal.as_ref(),
+            Some(Refusal::Frame(fault)) if matches!(**fault, GestureFrameFault::Dimension { .. })
+        ),
         "{:?}",
         refused.refusal
     );
@@ -691,15 +724,6 @@ fn the_pattern_door_spells_its_count_structurally() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     let linear = session_insert(
         &mut session,
         SessionOp::AddPattern {
@@ -736,15 +760,17 @@ fn the_pattern_door_spells_its_count_structurally() {
     };
     assert_eq!(instances.len(), 3, "three instances, unfused");
 
-    // The circular rule takes the axis from the tool's second seat,
-    // and that seat wants an axis datum.
+    // The circular rule's axis is a point and a direction in the
+    // body's own coordinates, read off its geometry; one that names no
+    // direction refuses typed.
     let circular = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: body.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
-                axis,
+                through: len3([0.0; 3]),
+                direction: scl3([0.0, 0.0, 1.0]),
                 step: ang(core::f64::consts::FRAC_PI_2),
             },
         },
@@ -760,14 +786,15 @@ fn the_pattern_door_spells_its_count_structurally() {
         input: body.into(),
         count: 4,
         rule: PatternRuleSpec::Circular {
-            axis: body,
+            through: len3([0.0; 3]),
+            direction: scl3([0.0; 3]),
             step: ang(1.0),
         },
     });
     assert!(
         matches!(
-            &refused.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Axis }) if node.id() == body
+            refused.refusal.as_ref(),
+            Some(Refusal::Frame(fault)) if matches!(**fault, GestureFrameFault::Direction { .. })
         ),
         "{:?}",
         refused.refusal
@@ -1072,13 +1099,11 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
+    // A node of the wrong kind at every body seat: a profile.
     let plane = session_insert(
         &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0; 3]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
+        SessionOp::AddProfile {
+            loops: vec![common::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
         },
     );
     let other = common::xy_box_in(&mut session, B);
@@ -1113,7 +1138,8 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddSplit {
             target: body.into(),
-            tool: plane,
+            origin: len3([0.0; 3]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
         SessionOp::AddTransform {
             input: body.into(),
@@ -1159,7 +1185,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
 
     // The SEAT refusals record nothing either — a wrong-kind pick at
     // any of the doors, a union member and a subtraction's tool among
-    // them.
+    // them — nor does a plane or an axis that names no direction.
     for op in [
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![plane.into(), body.into()]),
@@ -1172,11 +1198,13 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddSplit {
             target: plane.into(),
-            tool: plane,
+            origin: len3([0.0; 3]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
         SessionOp::AddSplit {
             target: body.into(),
-            tool: body,
+            origin: len3([0.0; 3]),
+            normal: scl3([0.0; 3]),
         },
         SessionOp::AddTransform {
             input: plane.into(),
@@ -1196,7 +1224,8 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
-                axis: body,
+                through: len3([0.0; 3]),
+                direction: scl3([0.0; 3]),
                 step: ang(1.0),
             },
         },
@@ -1212,7 +1241,8 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
-                axis: body,
+                through: len3([0.0; 3]),
+                direction: scl3([0.0; 3]),
                 step: ang(1.0),
             },
         },
@@ -1231,7 +1261,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         assert!(
             matches!(
                 refused.refusal,
-                Some(Refusal::WrongNodeKind { .. } | Refusal::Edit(_))
+                Some(Refusal::WrongNodeKind { .. } | Refusal::Edit(_) | Refusal::Frame(_))
             ),
             "{:?}",
             refused.refusal
@@ -1365,13 +1395,18 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     boolean.pick(session.committed_doc(), a);
     assert_eq!(boolean.picks(), [a, a]);
 
+    // The split tool's one seat is its target; the plane is fields.
     let mut split = SplitTool::new();
+    assert!(matches!(
+        split.op(len3([0.0; 3]), scl3([0.0, 0.0, 1.0])),
+        Err(SeatError::Empty {
+            seat: Seat::SplitTarget
+        })
+    ));
     split.pick(session.committed_doc(), a);
     assert!(matches!(
-        split.op(),
-        Err(SeatError::Empty {
-            seat: Seat::SplitPlane
-        })
+        split.op(len3([0.0; 3]), scl3([0.0, 0.0, 1.0])),
+        Ok(SessionOp::AddSplit { .. })
     ));
 
     let mut transform = TransformTool::new();
@@ -1395,8 +1430,8 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     );
     assert_eq!(transform.input(), None);
 
-    // The pattern tool's axis seat is required by the CIRCULAR rule
-    // and by nothing else.
+    // The pattern tool's one seat is its body, whichever rule; a
+    // circular rule's axis is fields.
     let mut pattern = PatternTool::new();
     pattern.pick(session.committed_doc(), a);
     assert!(matches!(
@@ -1409,14 +1444,18 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
         Ok(SessionOp::AddPattern { count: 3, .. })
     ));
     assert!(matches!(
-        pattern.circular_op(PatternOutputChoice::Instances, 3, ang(1.0)),
-        Err(SeatError::Empty {
-            seat: Seat::PatternAxis
-        })
+        pattern.circular_op(
+            PatternOutputChoice::Instances,
+            3,
+            len3([0.0; 3]),
+            scl3([0.0, 0.0, 1.0]),
+            ang(1.0)
+        ),
+        Ok(SessionOp::AddPattern { count: 3, .. })
     ));
     // The output choice picks the op and changes nothing else: the
-    // same seats, the same count, the same rule — so an empty seat is
-    // still the error whichever node the form would have minted.
+    // same seat, the same count, the same rule — so an empty seat is
+    // the error whichever node the form would have minted.
     assert!(matches!(
         pattern.linear_op(
             PatternOutputChoice::Fused,
@@ -1426,14 +1465,16 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
         ),
         Ok(SessionOp::AddPlacedUnion { count: 3, .. })
     ));
-    assert!(matches!(
-        pattern.circular_op(PatternOutputChoice::Fused, 3, ang(1.0)),
-        Err(SeatError::Empty {
-            seat: Seat::PatternAxis
-        })
-    ));
     pattern.clear();
-    assert_eq!((pattern.input(), pattern.axis()), (None, None));
+    assert_eq!(pattern.input(), None);
+    for output in [PatternOutputChoice::Instances, PatternOutputChoice::Fused] {
+        assert!(matches!(
+            pattern.circular_op(output, 3, len3([0.0; 3]), scl3([0.0, 0.0, 1.0]), ang(1.0)),
+            Err(SeatError::Empty {
+                seat: Seat::PatternBody
+            })
+        ));
+    }
 }
 
 /// Which tools are actually holding state, read through the per-tool
@@ -1520,26 +1561,7 @@ fn only_one_modal_tool_is_open_at_a_time() {
 fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     let tol = Tol::witness();
     let (mut session, body, _) = two_boxes(tol);
-    let sketch_frame = common::xy_frame_in(&mut session);
-    let profile = common::rectangle_in(&mut session, sketch_frame, 0.01, 0.01);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, 0.005]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
+    let profile = common::rectangle_in(&mut session, 0.01, 0.01);
     // The two multi-body values the part selectors read. Each is a
     // legal node of SOME kind, so what the part seats refuse is the
     // kind and never the absence — and each is the OTHER's near miss.
@@ -1547,7 +1569,8 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, 0.005]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     let pattern = session_insert(
@@ -1564,20 +1587,11 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     let right = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => body,
         NodeKindWanted::Profile => profile,
-        NodeKindWanted::Plane => plane,
-        NodeKindWanted::Frame => sketch_frame,
-        NodeKindWanted::Axis => axis,
         NodeKindWanted::Instances => pattern,
     };
     let wrong = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => profile,
         NodeKindWanted::Profile => body,
-        NodeKindWanted::Plane => axis,
-        // A datum PLANE is the near miss a sketch frame has: it names
-        // the same surface and carries no spin, which is exactly the
-        // distinction the frame pick exists for.
-        NodeKindWanted::Frame => plane,
-        NodeKindWanted::Axis => plane,
         // The near miss the part selector has is a split: both are
         // several bodies, and a split's are read by port, not picked.
         NodeKindWanted::Instances => split,
@@ -1596,7 +1610,10 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         let op = match seat {
             Seat::RevolveProfile => SessionOp::AddRevolve {
                 profile: filled(Seat::RevolveProfile),
-                axis_through: len2([0.0, 0.0]),
+                axis_through: [
+                    Formula::zero(Dimension::Length),
+                    Formula::zero(Dimension::Length),
+                ],
                 axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: ang(core::f64::consts::TAU),
             },
@@ -1611,9 +1628,10 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                     tool: (filled(Seat::SubtractTool)).into(),
                 },
             },
-            Seat::SplitTarget | Seat::SplitPlane => SessionOp::AddSplit {
+            Seat::SplitTarget => SessionOp::AddSplit {
                 target: filled(Seat::SplitTarget).into(),
-                tool: filled(Seat::SplitPlane),
+                origin: len3([0.0, 0.0, 0.005]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
             Seat::TransformBody => SessionOp::AddTransform {
                 input: filled(Seat::TransformBody).into(),
@@ -1628,13 +1646,12 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             Seat::DuplicateBody => SessionOp::Duplicate {
                 input: filled(Seat::DuplicateBody).into(),
             },
-            // The CIRCULAR rule, because it is the only one with an
-            // axis seat to refuse about.
-            Seat::PatternBody | Seat::PatternAxis => SessionOp::AddPattern {
+            Seat::PatternBody => SessionOp::AddPattern {
                 input: filled(Seat::PatternBody).into(),
                 count: 3,
                 rule: PatternRuleSpec::Circular {
-                    axis: filled(Seat::PatternAxis),
+                    through: len3([0.0; 3]),
+                    direction: scl3([0.0, 0.0, 1.0]),
                     step: ang(1.0),
                 },
             },
@@ -1664,57 +1681,6 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     }
 }
 
-/// **A pick only one seat can hold goes to that seat.**
-///
-/// A split's seats are a BODY and a PLANE. Under the plain
-/// fill-then-replace rule a user with both seats full who clicked a
-/// second body put that body in the plane seat — a pick that can only
-/// ever refuse at the commit, having silently displaced a plane that
-/// was fine. The only thing such a click can mean is "split this body
-/// instead", so that is where it lands, and the plane stays put.
-#[test]
-fn a_second_body_re_targets_the_split_rather_than_displacing_its_plane() {
-    let tol = Tol::witness();
-    let (mut session, a, b) = two_boxes(tol);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, 0.005]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
-    let doc = session.committed_doc();
-
-    let mut split = SplitTool::new();
-    split.pick(doc, a);
-    split.pick(doc, plane);
-    assert_eq!((split.target(), split.plane()), (Some(a), Some(plane)));
-
-    split.pick(doc, b);
-    assert_eq!(
-        (split.target(), split.plane()),
-        (Some(b), Some(plane)),
-        "the second body re-targets the split; the plane is untouched",
-    );
-
-    // And the routing runs the other way too: a second PLANE replaces
-    // the plane, not the body it would otherwise displace.
-    let lower = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, 0.002]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
-    let doc = session.committed_doc();
-    split.pick(doc, lower);
-    assert_eq!((split.target(), split.plane()), (Some(b), Some(lower)));
-}
-
 /// The routing is NARROW: a pick both seats admit follows the plain
 /// rule, so a subtraction's operands still fill in order and a third
 /// pick still replaces the second — which is what makes `A ∖ B`'s
@@ -1740,25 +1706,29 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
         "two body seats: the third pick replaces the second, as before",
     );
 
-    // A profile is neither a body nor a plane, so the split tool has
-    // no seat to steer it to.
-    let plane = common::xy_frame_in(&mut session);
-    let profile = common::rectangle_in(&mut session, plane, 0.01, 0.01);
+    // A profile is no body, so the split tool has no seat to steer it
+    // to: it replaces the one pick, as the plain rule says.
+    let profile = common::rectangle_in(&mut session, 0.01, 0.01);
     let doc = session.committed_doc();
     let mut split = SplitTool::new();
     split.pick(doc, a);
     split.pick(doc, profile);
     assert_eq!(
-        (split.target(), split.plane()),
-        (Some(a), Some(profile)),
+        split.target(),
+        Some(profile),
         "an unroutable pick lands where the plain rule puts it",
     );
+    let op = split
+        .op(len3([0.0, 0.0, 0.005]), scl3([0.0, 0.0, 1.0]))
+        .expect("the seat is filled");
+    let refused = session.perform(op);
     assert!(
         matches!(
-            split.op(),
-            Ok(SessionOp::AddSplit { tool, .. }) if tool == profile
+            &refused.refusal,
+            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body }) if node.id() == profile
         ),
-        "and is refused at the commit door, not here",
+        "and is refused at the commit door, not here: {:?}",
+        refused.refusal
     );
 }
 
@@ -1940,7 +1910,8 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Split,
             SessionOp::AddSplit {
                 target: (RecipeNodeId::new(0, tagged(1))).into(),
-                tool: RecipeNodeId::new(0, tagged(2)),
+                origin: len3([0.0; 3]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         ),
         (
@@ -1967,7 +1938,10 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Revolve,
             SessionOp::AddRevolve {
                 profile: RecipeNodeId::new(0, tagged(1)),
-                axis_through: len2([0.0, 0.0]),
+                axis_through: [
+                    Formula::zero(Dimension::Length),
+                    Formula::zero(Dimension::Length),
+                ],
                 axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: ang(1.0),
             },
@@ -2036,37 +2010,15 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     let tol = Tol::witness();
     let mut doc = Doc::empty_derived("operand-door", tol);
     // The substrate every candidate is built out of.
-    // Named apart from the datum PLANE below, which is a different
-    // node kind with a confusingly similar name.
-    let (next, sketch_frame) = common::inserted(&doc, common::xy_frame(), tol);
+    let (next, profile) = common::inserted(&doc, common::square(0.02), tol);
     doc = next;
-    let (next, profile) = common::inserted(&doc, common::square(sketch_frame, 0.02), tol);
-    doc = next;
-    // A parallel plane one centimetre up: its own frame, because it is
-    // its own plane.
-    let (next, lifted) = common::inserted(
-        &doc,
-        common::frame([0.0, 0.0, 0.01], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-        tol,
-    );
-    doc = next;
-    let (next, profile_b) = common::inserted(&doc, common::square(lifted, 0.02), tol);
+    let (next, profile_b) = common::inserted(&doc, common::square(0.02), tol);
     doc = next;
     let (next, ring) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            frame: sketch_frame.into(),
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
             ids: Vec::new(),
-        }),
-        tol,
-    );
-    doc = next;
-    let (next, plane) = common::inserted(
-        &doc,
-        Node::Datum(Datum::Plane {
-            origin: [common::len(0.0), common::len(0.0), common::len(0.005)],
-            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
         }),
         tol,
     );
@@ -2076,7 +2028,6 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -2093,37 +2044,16 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         Node::Extrude {
             profile: profile_b.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
     doc = next;
-    let (next, body_b) = common::inserted(
-        &doc,
-        Node::transform(
-            extruded_b,
-            pncad::document::Step::Rigid {
-                translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
-                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: common::ang(0.0),
-            },
-        ),
-        tol,
-    );
+    let (next, body_b) = crate::fixture::slid(doc, body, extruded_b, [0.1, 0.0, 0.0]);
     doc = next;
-    let (next, other) = common::inserted(
-        &doc,
-        Node::transform(
-            body,
-            pncad::document::Step::Rigid {
-                translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
-                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: common::ang(0.0),
-            },
-        ),
-        tol,
-    );
+    let (next, other) = crate::fixture::slid(doc, body, body, [0.01, 0.002, 0.002]);
     doc = next;
+    // The split's tool: a plane read off the body's own geometry.
+    let plane = crate::fixture::plane_on(&doc, body, [0.0, 0.0, 0.005], [0.0, 0.0, 1.0]);
     // A pattern for the Part candidate to read: SEVERAL bodies
     // (refused at the seat below, as a candidate in its own right), and
     // a Part of it is one.
@@ -2162,19 +2092,12 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     // answer beside it. The seat's answer is READ, never restated: a
     // kind that moves sides moves in one place.
     let candidates: Vec<(&str, AuthoredNode)> = vec![
-        (
-            "datum",
-            Node::Datum(Datum::Point {
-                position: [common::len(0.0), common::len(0.0), common::len(0.0)],
-            }),
-        ),
-        ("profile", common::square(sketch_frame, 0.01)),
+        ("profile", common::square(0.01)),
         (
             "extrude",
             Node::Extrude {
                 profile: profile.into(),
                 distance: common::len(0.004),
-                side: ExtrudeSide::Along,
             },
         ),
         (
@@ -2183,7 +2106,10 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
                 profile: ring.into(),
                 // The revolve's axis is its own: a line in the ring's
                 // plane, its +y through (0, 0).
-                axis_through: [common::len(0.0), common::len(0.0)],
+                axis_through: [
+                    Formula::zero(Dimension::Length),
+                    Formula::zero(Dimension::Length),
+                ],
                 axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: common::ang(core::f64::consts::TAU),
             },
@@ -2196,12 +2122,11 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             },
         ),
         // The n-ary union at its minimal size. Its two members are
-        // `body` and the SECOND extrude rather than `other` because
-        // those two stand CLEAR of each other, so the candidate asks
-        // only the seat's question. `other` is a placement of `body`, which
-        // a union names perfectly well — the member edge tells the two
-        // apart even though a transform passes names through — but it
-        // sits where `body` is.
+        // `body` and the SECOND extrude's placement rather than `other`
+        // because those two stand CLEAR of each other, so the candidate
+        // asks only the seat's question. `other` is a placement of
+        // `body`, which a union names perfectly well — the member edge
+        // tells the two apart — but it sits where `body` is.
         (
             "union",
             Node::Union {
@@ -2215,21 +2140,14 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             },
         ),
         (
-            "transform",
-            Node::transform(
-                body,
-                pncad::document::Step::Rigid {
-                    translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                    angle: common::ang(0.0),
-                },
-            ),
+            "placement",
+            Node::place(vec![pncad::document::BodyRead::plain(Operand::from(body))]),
         ),
         (
             "split",
             Node::Split {
                 target: body.into(),
-                tool: plane.into(),
+                tool: plane.clone(),
             },
         ),
         (
@@ -2255,7 +2173,14 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         (
             "loft",
             Node::Loft {
-                profiles: vec![profile.into(), profile_b.into()],
+                first: profile.into(),
+                then: vec![pncad::document::LoftSection {
+                    profile: profile_b.into(),
+                    station: vec![pncad::document::StationMove::Slide {
+                        along: Axis3::Z,
+                        by: common::len(0.01),
+                    }],
+                }],
                 v_degree: Formula::count(1),
             },
         ),
@@ -2348,28 +2273,6 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
     assert_eq!(tools.pick_kinds(), PickKinds::Any);
 }
 
-/// The vocabulary a datum-plane split needs is the one the datum form
-/// already authors: a plane node built by [`SessionOp::AddDatum`] is
-/// what the split's tool seat takes, with no second spelling.
-#[test]
-fn the_split_plane_is_the_datum_form_s_own_plane() {
-    let tol = Tol::witness();
-    let mut session = session(tol);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, 0.001]),
-                normal: scl3([0.0, 1.0, 0.0]),
-            },
-        },
-    );
-    assert!(matches!(
-        session.committed_doc().node(plane),
-        Some(Node::Datum(Datum::Plane { .. }))
-    ));
-}
-
 // ---------------------------------------------------------------
 // AUTH-4: projecting one body out of several, and duplicating one.
 // ---------------------------------------------------------------
@@ -2407,27 +2310,19 @@ fn box_and_pattern(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
 }
 
 /// **A split's half is a body at a seat, read by its port**: a
-/// transform of the split's `below` output reads that output's
-/// variable, and its body is the lower half.
+/// transform's placement of the split's `below` output reads that
+/// output's variable, and its body is the lower half.
 #[test]
 fn a_split_half_is_read_by_its_port_at_a_body_seat() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, A[2] / 4.0]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, A[2] / 4.0]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     let (above, below) = split_volumes(&mut session, split, tol);
@@ -2444,10 +2339,11 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
     assert!(
         matches!(
             doc.node(moved),
-            Some(Node::Transform { input, .. })
-                if Some(*input) == doc.output(split, SplitHalf::Below.port())
+            Some(Node::Place { shapes, .. })
+                if shapes.first().map(|shape| shape.read)
+                    == doc.output(split, SplitHalf::Below.port())
         ),
-        "the transform reads the split's below output"
+        "the transform's placement reads the split's below output"
     );
     let read = body_volume(&mut session, moved, tol);
     assert!(near(read, below), "the lower half {read} vs {below}");
@@ -2508,20 +2404,12 @@ fn a_part_indexes_a_patterns_instances_by_an_exact_count() {
 fn the_part_door_refuses_a_split() {
     let tol = Tol::witness();
     let (mut session, body, _) = box_and_pattern(tol);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, A[2] / 4.0]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, A[2] / 4.0]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     let before = session.committed_doc().clone();
@@ -2593,9 +2481,9 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        7,
+        4,
         "a pattern of two, its copy's projection, and that projection's placement with its \
-         mate and three values"
+         identity bundle, written as one edit"
     );
     let minted = outcome.minted.clone();
     let [pattern, copy, placement] = minted[..] else {
@@ -2692,24 +2580,16 @@ fn a_duplicates_copy_moves_on_its_own() {
         near(both, one * 2.0),
         "both copies are still drawn after one of them moved: {both}",
     );
-    // And the two are apart in SPACE, not merely in the tree: a datum
+    // And the two are apart in SPACE, not merely in the tree: a
     // plane between them cuts each entirely to one side. `split` is
     // the probe because it is a door this suite already drives, and
     // an empty side is a typed value rather than a number to compare.
-    let between = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, A[1] * 2.0, 0.0]),
-                normal: scl3([0.0, 1.0, 0.0]),
-            },
-        },
-    );
     let cut_copy = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: placed.into(),
-            tool: between,
+            origin: len3([0.0, A[1] * 2.0, 0.0]),
+            normal: scl3([0.0, 1.0, 0.0]),
         },
     );
     let (copy_above, copy_below) = split_volumes(&mut session, cut_copy, tol);
@@ -2723,7 +2603,8 @@ fn a_duplicates_copy_moves_on_its_own() {
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            tool: between,
+            origin: len3([0.0, A[1] * 2.0, 0.0]),
+            normal: scl3([0.0, 1.0, 0.0]),
         },
     );
     let (original_above, original_below) = split_volumes(&mut session, cut_original, tol);
@@ -2747,20 +2628,12 @@ fn the_part_seats_track_the_part_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, A[2] / 4.0]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, A[2] / 4.0]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     let pattern = session_insert(
@@ -2774,19 +2647,14 @@ fn the_part_seats_track_the_part_door() {
             },
         },
     );
-    // A transform of the pattern, authored past the viewer's own body
-    // seat because that seat refuses a pattern.
+    // A placement of the pattern's copies, authored past the viewer's
+    // own body seat because that seat refuses a pattern.
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
-        Node::transform(
+        Node::place(vec![pncad::document::BodyRead::plain(Operand::from(
             pattern,
-            pncad::document::Step::Rigid {
-                translation: len3([0.0; 3]),
-                axis: scl3([0.0, 0.0, 1.0]),
-                angle: ang(0.0),
-            },
-        ),
+        ))]),
         tol,
     );
 
@@ -2794,8 +2662,7 @@ fn the_part_seats_track_the_part_door() {
         ("the split", split),
         ("the pattern", pattern),
         ("the body", body),
-        ("the datum plane", plane),
-        ("a transform of the pattern", placed_pattern),
+        ("a placement of the pattern", placed_pattern),
     ];
     for (name, candidate) in candidates {
         {
@@ -2844,29 +2711,16 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, B);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, B[2] / 4.0]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, B[2] / 4.0]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     let below = pncad::document::Operand::output(split, SplitHalf::Below.port());
-    let (doc, placed) = common::placed_read(
-        session.committed_doc(),
-        below.clone(),
-        &pncad::document::EvalOptions::default(),
-        tol,
-    );
+    let (doc, placed) = common::placed_read(session.committed_doc(), below.clone(), tol);
 
     // A pick on the placed half's copy seats the half it places.
     let mut tool = TransformTool::new();
@@ -3196,8 +3050,7 @@ fn a_duplicate_keeps_the_notes_promise() {
 }
 
 /// **A body whose value is several bodies is refused, typed** — a
-/// transform of a pattern, whose transform would be several bodies
-/// again, which no world placement reads. The body seat refuses it
+/// placement of a pattern's copies, which are several bodies again. The body seat refuses it
 /// by the kind of the variable it defines, before the duplicate door
 /// asks its value.
 #[test]
@@ -3209,14 +3062,9 @@ fn duplicating_a_several_body_value_is_refused() {
     let mut doc = session.committed_doc().clone();
     let placed = common::insert_into(
         &mut doc,
-        Node::transform(
+        Node::place(vec![pncad::document::BodyRead::plain(Operand::from(
             pattern,
-            pncad::document::Step::Rigid {
-                translation: len3([0.0, 0.05, 0.0]),
-                axis: scl3([0.0, 0.0, 1.0]),
-                angle: ang(0.0),
-            },
-        ),
+        ))]),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
@@ -3235,7 +3083,7 @@ fn duplicating_a_several_body_value_is_refused() {
         .map(ToString::to_string)
         .unwrap_or_default();
     assert!(
-        said.starts_with("Transform \"moved\" ("),
+        said.starts_with("Place \"moved\" ("),
         "it names the input as labelled: {said}"
     );
     assert!(
@@ -3316,20 +3164,12 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, A[2] / 2.0]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, A[2] / 2.0]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     // The world places the two halves in place of the box.
@@ -3337,13 +3177,7 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     let whole_box = common::copy_of(&doc, body);
     common::edit_into(&mut doc, DocEdit::DeleteNode { id: whole_box }, tol);
     for port in [0, 1] {
-        doc = common::placed_read(
-            &doc,
-            pncad::document::Operand::output(split, port),
-            &pncad::document::EvalOptions::default(),
-            tol,
-        )
-        .0;
+        doc = common::placed_read(&doc, pncad::document::Operand::output(split, port), tol).0;
     }
     let mut session = DocSession::inline(doc, tol);
     session.pump();
@@ -3456,29 +3290,18 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
             },
         },
     );
-    session.pump();
-    let top = FaceSelection {
-        name: StableName {
-            kind: EntityKind::Face,
-            node: block,
-            path: vec![RoleSeg::Cap(CapEnd::End)],
-        },
-        node: block,
-        body: 0,
-    };
-    let (at, face) = face_frame_seat(session.landed_pair(), Some(&top))
-        .expect("the block's top cap is planar and resolves");
-    let frame = session_insert(
+    // The boss, stood on the block's top: its own box, moved up by the
+    // block's height.
+    let (_, raw_boss) = common::box_in(&mut session, BOSS);
+    let boss = session_insert(
         &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::FaceFrame {
-                at,
-                face,
-                spin: ang(0.0),
-            },
+        SessionOp::AddTransform {
+            input: raw_boss.into(),
+            translation: len3([0.0, 0.0, common::BOSS_BLOCK[2]]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
         },
     );
-    let (_, boss) = common::box_in(&mut session, frame, BOSS);
     session.pump();
 
     let steps = session.history().len();
@@ -3510,20 +3333,12 @@ fn the_boolean_tools_picks_carry_their_ports_across_the_operation() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, B);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, B[2] / 4.0]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, B[2] / 4.0]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     let doc = session.committed_doc().clone();

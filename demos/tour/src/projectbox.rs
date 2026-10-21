@@ -18,7 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 
 use pncad::geom::NurbsCurve3;
 use pncad::geom_core::Point3;

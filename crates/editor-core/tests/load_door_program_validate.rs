@@ -17,7 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::eval;
-use crate::fixture::{desc, on_frame_keeping, square};
+use crate::fixture::{desc, on_frame, square};
 use crate::wire::doctored;
 use editor_core::{
     DocEdit, EditError, Node, NodeErrorKind, NodeResult, ProfileDoc, ProgramRefusal, apply, load,
@@ -48,7 +48,7 @@ fn is_the_bowtie_crossing(e: &ProfileError) -> bool {
 
 #[test]
 fn a_program_failing_validate_loads_clean_and_refuses_typed_at_evaluation() {
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         ProfileDoc::empty_derived("load_door_program_validate", Tol::witness()),
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -61,7 +61,7 @@ fn a_program_failing_validate_loads_clean_and_refuses_typed_at_evaluation() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Profile(desc(plane, vec![BOWTIE.to_vec()]))),
+            node: Box::new(Node::Profile(desc(vec![BOWTIE.to_vec()]))),
             fresh: Vec::new(),
         },
         Tol::witness(),
