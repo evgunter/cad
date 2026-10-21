@@ -4,7 +4,7 @@ kind: issue
 title: Tier 3′ reads no side where a face of a solid touches one of its own vertices, and the literal D1 corollary would refuse a cavity's corner on a face
 status: open
 opened: 2026-10-19
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -79,3 +79,45 @@ silent pass. No test asserts that finding:
 `Bad`. A judge that admits a body refused by `FaceThroughEdgeWedge`
 alone, as the `Verdict::Rider` this branch carried until the slit
 parting reached it did, hides the finding's absence.
+
+## Measured on main (2026-10-21, `d1e5e7f3e3`)
+
+A single solid whose two planar faces cross, showing only vertex-on-face events, passes tier 3′ once its touches are recorded. This is a silent wrong pass, not only a missing secondary finding.
+
+**The crossing body.**
+- Two interlocked tetrahedra in one shell, joined through a triangular tube between holes in faces away from the crossing:
+  - P = (0,0,0), (4,1,1), (4,−1,−1), (−10,5,−1);
+  - Q = (2,0,0), (−2,2,0), (−2,−2,0), (8,1,2).
+- Faces A and B are the witness triangles above.
+- The body has 20 vertices, 17 faces and genus 0, and passes tiers 1–3.
+
+**Tier 3′ readings.**
+- Without records: exactly four `UnrecordedContact { VertexOnFace }`, at (0,0,0), (2,0,0), (4,1,1) and (−2,2,0).
+- With those four recorded: `Ok(())`.
+- Control: Q lifted by 0.125 refuses four `EdgeFacePierce`.
+- An exact check of every cell pair finds only the four vertex-on-face-interior events.
+
+**The pit.** The slab `[0,4]² × [0,1]` less a pyramid with its apex resting on the floor: tier 3′ refuses `UnrecordedContact` without its record, and returns `Ok(())` with it.
+
+Both were built through step-import's `assemble::build_one_solid` from generated STEP. The generators are probe scripts in the orchestrator's scratch, not committed.
+
+## The design question, weighed
+
+Two designers weighed it and converged after two rounds. The `[ev]` PR states the clause in `crates/topo/README.md` tier 3: the whole-link winding at a point where one solid touches itself.
+
+## Ev's ruling (2026-10-21, PR 5517)
+
+**Decision 1, accepted:** "decision 1 makes sense". At an isolated point where one solid touches itself, the solid's whole link there bounds one material, so its winding takes two consecutive values. It is now in `crates/topo/README.md` D1 tier 3, and is what this row builds.
+
+**Decision 2, no opinion:** "we can keep doing it but i don't want it to seem like it's a solid decision". The cells sentence stays out of the README. It describes only what the kernel builds today, so nothing should cite it as ratified. As the designers corrected it:
+- the cells at such a point are one per boundary circle of the material;
+- a circle inside one face is that face;
+- a circle creased only along an edge through the point is that edge;
+- any other circle is a vertex.
+
+**What to build (designers' sketch, for the lane):**
+- a winding reader beside `Link::reads`;
+- one unit per (solid, point) wherever ties or shared keys name two or more cells of one solid;
+- a finding for the failure, mapped in `Named::of` as a pierce of the solid;
+- the crossing body and the pit as witnesses;
+- the two-pits-and-a-needle body as a control that must pass.

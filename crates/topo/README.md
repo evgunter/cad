@@ -603,9 +603,16 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    the sheets differently, so a door that complements material across
    such a line re-pairs there.
    Tier 3′ reads every touch for sides, the coincident edges on one
-   line included: touching cells' material lies on opposite sides of
-   each other, except at a touch of one solid at an isolated point,
-   where no crease exists and a shared crescent is legal (C4).
+   line included. Along a line, touching cells' materials lie on
+   opposite sides of each other (each material sector has its own
+   edge). At an isolated point where one solid touches itself, no
+   crease runs through the touch, and the solid's whole link there
+   (every face of the solid through the point) bounds one material:
+   no two sheets cross, and each region about the point reads one
+   sense from every face bordering it (its winding over the sphere of
+   directions takes two consecutive values). A region two solids'
+   materials share is interference (C6); one solid's own material
+   shared across a point touch is legal (C4).
    Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
    sector classification), and none for a body's curve-touch records,
    refuse typed at the consumer.

@@ -1765,3 +1765,17 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Gate.** It waited on main's 1e-12 needle red, which NURBS fixed in PR 5477; I merged main in, then the gate went green.
   (ENCL orchestrator)
 - 2026-10-20 — **Seam (NURBS):** PR 5499 merged (`16b6b72f`, NURBS build C, TESS ground, FULL). **Lofted `Circle` sections now mesh.** The mesher's only door, `geom_brep::patch_bound::patch_cells_across_creases`, admits degree-≥2 creases on the rational arm; the integral arm, degree-1 creases and every other `patch_cells` caller (offset_fit, offset_meters) stay C¹-gated. A crease becomes a CDT constraint in `mesh::trimmed`. `geom_brep::sub_arc_joint(k, m)` is the one spelling of a sub-arc joint (shared by `sweep::skin::segment_curve`, `IsoArc` breaks and chord schedules; bits identical). An `IsoArc` rim with m ≥ 2 sub-arcs rounds its chord count to a multiple of m, so the joint is a chord point. A boundary crossing a crease off a chord point refuses `UnsupportedCurve`; creases in both directions refuse `UnsupportedNurbsFace`. No golden moved; the falsifier stays ≤ 0.4999 over 11 lofts × 20 δ. Closes `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`. Still open: `work/tess/lofted-rational-walls-refuse-at-some-deltas` (P0, design), refusals away from the crease. (NURBS orchestrator)
+- 2026-10-21 — **Merged PR 5464** (was `[ev]`). It implements Ev's ruling on the import door.
+  - **The ruling** (Ev, PR 5464, 10-20): "if it's reachable by a bad file then we don't need to posit that it's a bug"; "those should all blame the file". Ev signed off on the clause wording on 10-21: "looks good!".
+  - **Clause.** `[tolerance.recourse]` (iv) adds one sentence to PR 5134's text: every defect ending a bad file reaches at the import door past ε_in names the file, whether the reading compares a stored or a derived value, and a sound file such an ending reaches is a kernel bug to fix.
+  - **Code.**
+    - `Provenance` is retired, and the chooser is `ReadAt::culprit()`.
+    - Every import-door defect ending and unreadable note names the file (`DAMAGED_FILE_ENDING`, `UNREADABLE_FILE_MARGIN_NOTE`), through new `render(at)` doors on `JoinRefusal`, `TransformError`, `PcurveMintError` and `PcurveCertifyError`. Each type's `Display` is `render(Build)`.
+    - At rest is unchanged.
+  - **Rows.**
+    - Closed: `no-sized-decision-names-the-file-alone-at-the-import-door`, `pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache`, `param-span-provenance-is-per-decision-not-per-import-route` (moot).
+    - Filed: `import-door-last-resort-endings-say-may-indicate-a-kernel-bug`, with options; it goes through the designer protocol before Ev.
+    - The three EXCH sound-file rows are noted: their defect now also makes the message false.
+    - The one known departure is step-import's `TierInvalid` gate, on the parked import-validation row.
+  - **Census.** New build-side `KERNEL_DEFECT_ENDING` sites (`PcurveFit`, Join `Kernel`/`ChartClass(Image)`, Transform `NullScaffold`/`Corrupt`) are added to the census row.
+  (ENCL orchestrator)
