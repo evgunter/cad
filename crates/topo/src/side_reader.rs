@@ -982,3 +982,143 @@ mod pre_filter_tests {
         assert!(!aimed(&log).is_empty(), "an aimed ray is cast");
     }
 }
+
+#[cfg(test)]
+mod cull_probe {
+    #![allow(clippy::expect_used, clippy::panic, clippy::cast_precision_loss)]
+    use super::*;
+    use crate::boolean::boxes::{face_box, sweep_pad};
+    use bvh::Ray;
+    use geom_core::Tol;
+
+    fn profile(n: usize, star: bool) -> Vec<(f64, f64)> {
+        (0..n)
+            .map(|k| {
+                let a = core::f64::consts::TAU * k as f64 / n as f64;
+                let r = if star && k % 2 == 1 { 0.6 } else { 1.0 };
+                (r * a.cos(), r * a.sin())
+            })
+            .collect()
+    }
+
+    /// Per aimed ray: faces whose padded box it enters at all, and
+    /// before its aim; edges with a kept face; the edge pass's time.
+    #[test]
+    #[ignore]
+    fn boxes_a_ray_enters() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("band");
+        let pad = sweep_pad(band);
+        for (n, h, star) in [
+            (256, 1.0, false),
+            (1024, 1.0, false),
+            (1024, 0.1, false),
+            (1024, 0.01, false),
+            (1024, 1.0, true),
+            (1024, 0.01, true),
+        ] {
+            let body = crate::test_support_fixtures::prism::<f64>(&profile(n, star), h, tol).body;
+            let solid = body.solids().next().expect("a solid").0;
+            let sel = SolidFaces::of(&body, solid).expect("select");
+            let faces = sel.faces();
+            let boxes: Vec<(FaceKey, bvh::Aabb)> = faces
+                .iter()
+                .map(|&f| (f, face_box(&body, f, pad, band).expect("box")))
+                .collect();
+            let geos: Vec<(FaceKey, FaceGeo<f64>)> = faces
+                .iter()
+                .map(|&f| (f, face_geo(&body, f, &sel.charts, band).expect("geo")))
+                .collect();
+            let edges: Vec<(crate::entity::EdgeKey, FaceKey, FaceKey)> = body
+                .edges
+                .keys()
+                .filter_map(|e| {
+                    let s = crate::readback::edge_sides(&body, e).ok()?;
+                    let (a, b) = s.faces();
+                    Some((e, a, b))
+                })
+                .collect();
+            let (along, across) = AIM_INCIDENCE;
+            let (mut full, mut before, mut kept_edges, mut rays) = (0usize, 0usize, 0usize, 0usize);
+            let (mut max_full, mut max_before) = (0usize, 0usize);
+            let mut t_edges = std::time::Duration::ZERO;
+            let mut t_cross = std::time::Duration::ZERO;
+            let (mut t_kept, mut t_whole) = (std::time::Duration::ZERO, std::time::Duration::ZERO);
+            for (face, geo) in &geos {
+                let Some((aim, normal)) = aim_at(&body, *face, geo, band).expect("aim") else {
+                    continue;
+                };
+                rays += 1;
+                let (b1, b2) = normal.orthonormal_basis();
+                let (ts, tc) = aim_turn();
+                let tangent = b1 * tc + b2 * ts;
+                let out = normal * along + tangent * across;
+                let from = aim + out * (beyond(&body, faces, aim).expect("beyond") * 2.0);
+                let d = (aim - from).normalize();
+                let t_aim = (aim - from).norm();
+                let ray = Ray { origin: from, dir: d };
+                let mut kept = std::collections::BTreeSet::new();
+                let (mut f_full, mut f_before) = (0, 0);
+                for (f, b) in &boxes {
+                    if let Some(t) = ray.slab_enter(b) {
+                        f_full += 1;
+                        if t <= t_aim + pad {
+                            f_before += 1;
+                            kept.insert(*f);
+                        }
+                    }
+                }
+                full += f_full;
+                before += f_before;
+                max_full = max_full.max(f_full);
+                max_before = max_before.max(f_before);
+                kept_edges += edges
+                    .iter()
+                    .filter(|(_, a, b)| kept.contains(a) || kept.contains(b))
+                    .count();
+                if rays <= 8 {
+                    let reach = selection_reach(&body, faces, from).expect("reach");
+                    let regeo = |f: &FaceKey| (*f, face_geo(&body, *f, &sel.charts, band).expect("geo"));
+                    let kept_geos: Vec<(FaceKey, FaceGeo<f64>)> =
+                        faces.iter().filter(|f| kept.contains(f)).map(regeo).collect();
+                    let whole_geos: Vec<(FaceKey, FaceGeo<f64>)> = faces
+                        .iter()
+                        .filter(|f| boxes.iter().any(|(k, b)| k == *f && ray.slab_enter(b).is_some()))
+                        .map(regeo)
+                        .collect();
+                    let s = std::time::Instant::now();
+                    let culled = ray_crossings(&body, &kept_geos, from, d, reach, band, AIMED_ROWS);
+                    t_kept += s.elapsed();
+                    let s = std::time::Instant::now();
+                    let _ = ray_crossings(&body, &whole_geos, from, d, reach, band, AIMED_ROWS);
+                    t_whole += s.elapsed();
+                    if rays == 1 {
+                        eprintln!("  culled ray reads {:?}", culled.as_ref().map(|c| "crossings").map_err(|e| format!("{e:?}")));
+                    }
+                    let s = std::time::Instant::now();
+                    let far = from + d * (reach * 2.0);
+                    let passes = crate::census::line_passes(&body, (from, far), |_, _, _| true);
+                    t_edges += s.elapsed();
+                    assert!(!passes.is_empty());
+                    let s = std::time::Instant::now();
+                    let _ = ray_crossings(&body, &geos, from, d, reach, band, AIMED_ROWS);
+                    t_cross += s.elapsed();
+                }
+            }
+            eprintln!(
+                "prism n={n} h={h} star={star}: {} faces, {} edges, {rays} rays; boxes entered per ray: \
+                 whole ray mean {:.1} max {max_full}, before the aim mean {:.1} max {max_before}; \
+                 edges with a kept face per ray mean {:.1}; first 8 rays: edge pass {:?}, ray_crossings all faces {:?}, boxes on the whole ray {:?}, boxes before the aim {:?}",
+                faces.len(),
+                edges.len(),
+                full as f64 / rays as f64,
+                before as f64 / rays as f64,
+                kept_edges as f64 / rays as f64,
+                t_edges / 8,
+                t_cross / 8,
+                t_whole / 8,
+                t_kept / 8,
+            );
+        }
+    }
+}
