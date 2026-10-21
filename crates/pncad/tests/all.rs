@@ -6878,29 +6878,68 @@ fn consistency_asked(run: impl FnOnce()) -> Vec<&'static str> {
         .collect()
 }
 
-/// A lattice-authored D-shape, 40 km out: the arc whose landing the
-/// public door once read as a definite inconsistency at ε 1e-12.
-fn far_d_shape(tol: Tol) -> ClosedLoop<f64> {
-    Open.at(p2(40_699.090_051_304_694, -8_736.154_085_499_025))
+/// A lattice-authored D-shape, scaled by `s` about the origin; at `s = 1`
+/// it stands 40 km out, the arc whose landing the public door once read
+/// as a definite inconsistency at ε 1e-12. The bulge is a ratio, so the
+/// scaled shape is the same D.
+fn d_shape(s: f64, tol: Tol) -> Result<ClosedLoop<f64>, PathError<f64>> {
+    Open.at(p2(40_699.090_051_304_694 * s, -8_736.154_085_499_025 * s))
         .arc_to(
             Bulge {
-                p: p2(36_968.901_970_701_314, -16_772.046_835_665_85),
+                p: p2(36_968.901_970_701_314 * s, -16_772.046_835_665_85 * s),
                 b: -1.308_736_876_905_907_8,
             },
             tol,
         )
         .and_then(|c| c.line_to(Start, tol))
-        .expect("the builder authors the arc")
+}
+
+/// How far out the path door's arc read-back can tell a landing miss
+/// from its own rounding at the run's ε: `K·ε/(16·2⁻⁵²)` m, the scale at
+/// which the read-back's headroom (`profile::seg::resolution_headroom`,
+/// `LANDING_ULPS = 16`) reaches zero. Past it, an f64 landing cannot be
+/// read within the band's zero except by landing bit for bit (at 40 km
+/// one coordinate ulp is already `7.3·10⁻¹²`), and a definite miss is
+/// refused `ArcMissBelowSceneResolution`, the tripwire's honest verdict:
+/// about 2.8 km at ε 1e-12, 2.8·10⁶ m at the default 1e-9.
+fn landing_reach(tol: Tol) -> f64 {
+    tol.k() * tol.eps() / (16.0 * f64::EPSILON)
+}
+
+/// How far the unscaled [`d_shape`]'s start stands from the origin.
+fn d_shape_reach() -> f64 {
+    40_699.090_051_304_694_f64.hypot(8_736.154_085_499_025)
+}
+
+/// The D-shape the row reads: the 40 km one wherever the run's ε reads
+/// it (the default ε and 1e-6), and otherwise the same D scaled to a
+/// quarter of [`landing_reach`] from the origin, so the builder can
+/// author its arc at every ε.
+fn far_d_shape(tol: Tol) -> ClosedLoop<f64> {
+    let s = (0.25 * landing_reach(tol) / d_shape_reach()).min(1.0);
+    d_shape(s, tol).expect("the builder authors the arc within its reach")
 }
 
 /// **The public door validates a lattice-built loop by its provenance.**
 /// `validated` takes the loops the lattice constructed, whose arcs were
 /// verified at their construction (D1), and decides none of their
 /// consistency checks; the same loop given up to a table and validated
-/// as one decides them.
+/// as one decides them. The loop is [`far_d_shape`]: 40 km out wherever
+/// the run's ε can read it there. Where it cannot (ε 1e-12), the 40 km
+/// D's arc is refused at the builder, below the scene's resolution, as
+/// the arc-landing tripwire says it must be, and the row reads the same
+/// D scaled within reach.
 #[test]
 fn validated_decides_no_consistency_check_on_a_lattice_built_loop() {
     let tol = Tol::witness();
+    if 0.25 * landing_reach(tol) < d_shape_reach() {
+        match d_shape(1.0, tol) {
+            Err(PathError::ArcMissBelowSceneResolution { predicate, .. }) => {
+                assert_eq!(predicate, "path_arc_landing");
+            }
+            other => panic!("the 40 km D past the scene's resolution: {other:?}"),
+        }
+    }
     let mut door = None;
     let asked = consistency_asked(|| {
         door = Some(validated(

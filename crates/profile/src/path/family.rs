@@ -1360,7 +1360,6 @@ impl Open {
             Tip {
                 pos: None,
                 ang: None,
-                ang_run: None,
                 ang_by_tangent: false,
             },
         ))
@@ -1457,7 +1456,6 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_run: None,
                 ang_by_tangent: false,
             },
         ))
@@ -1555,7 +1553,6 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_run: None,
                 ang_by_tangent: false,
             },
         ))
@@ -1626,7 +1623,6 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_run: None,
                 ang_by_tangent: false,
             },
         ))
@@ -1676,7 +1672,6 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_run: None,
                 ang_by_tangent: false,
             },
         ))

@@ -36,3 +36,9 @@ Found while ruling on CENSUS PR 5513's `SPAN_PRECISION_RECOURSE`, which
 copied this precedent and was corrected to its geometry levers (FULL review
 M2). Scan the other programs' recourse constants for the same shape when
 this is picked up: `grep -rn "coarser tolerance" crates --include=*.rs`.
+
+**A third instance to weigh (found on PR 5536):** both `ContinuationTargetOffRay`
+messages end "or widen the input tolerance", beside the geometry lever
+(move the target onto the run's line). That is ε_input rather than ε, so
+check first whether D4 ¶1 (iii)/(iv) or PATHS-DESIGN §4's ε_input story
+permits it before treating it as the same shape.
