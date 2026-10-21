@@ -573,7 +573,10 @@ fn a_frustums_zero_pad_carries_its_closed_forms_rounding() {
             let (props, terms) =
                 topo::props::mass_properties_with_face_terms(&body, tol()).expect("it measures");
             let terms: f64 = terms.iter().map(|t| t.1.abs()).sum();
-            assert_eq!(props.volume_pad, 0.0, "{scale:e} {pose}: every face is closed-form");
+            assert_eq!(
+                props.volume_pad, 0.0,
+                "{scale:e} {pose}: every face is closed-form"
+            );
             let err = (props.volume - want).abs();
             assert!(
                 err <= 4.0 * u * terms / 3.0,
