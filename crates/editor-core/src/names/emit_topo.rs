@@ -1223,39 +1223,17 @@ fn name_split_edges_vertices<T: Decide>(
                 tie.carry(up, ent(0, EntityKey::Vertex(v)))?;
                 continue;
             }
-            // Resolve the birth record — directly, or through the
-            // null-pair copy rows (a copy can be minted at an earlier
-            // copy; the original's record lives in whichever side kept
-            // it).
+            // The vertex it stands for: itself, or the original its
+            // null-pair copy rows end at.
             let src = pair_original(&copy_to_original, v);
-            let parent_edge = sides
-                .iter()
-                .find_map(|sb| match sb.body.vertex_provenance_of(src) {
-                    Some(Provenance::SplitEdge { edge }) => {
-                        Some(chase_split_edge_to_table(sides, target_table, *edge))
-                    }
-                    _ => None,
-                });
-            if let Some(parent_edge) = parent_edge {
-                // Crossing vertex: minted where the plane crossed an
-                // operand edge's interior.
-                match crossings.get_mut(&parent_edge) {
-                    Some((_, vs)) => vs.push(v),
-                    None => {
-                        let parent = upstream_name(
-                            target_table,
-                            target_node,
-                            ent(0, EntityKey::Edge(parent_edge)),
-                        )?;
-                        crossings.insert(parent_edge, (parent, vec![v]));
-                    }
-                }
-            } else if target_table
+            if target_table
                 .name_of(&ent(0, EntityKey::Vertex(src)))
                 .is_some()
             {
                 // The plane passed THROUGH an operand vertex: its
-                // copies in this half, named below.
+                // copies in this half, named below. Its own birth
+                // record, if any, is the operation that made the
+                // operand, never a crossing of this plane.
                 match on_tool.get_mut(&src) {
                     Some((_, vs)) => vs.push(v),
                     None => {
@@ -1267,13 +1245,38 @@ fn name_split_edges_vertices<T: Decide>(
                         on_tool.insert(src, (of, vec![v]));
                     }
                 }
-            } else {
+                continue;
+            }
+            // A vertex the split minted: the original's record lives in
+            // whichever side kept it.
+            let parent_edge = sides
+                .iter()
+                .find_map(|sb| match sb.body.vertex_provenance_of(src) {
+                    Some(Provenance::SplitEdge { edge }) => {
+                        Some(chase_split_edge_to_table(sides, target_table, *edge))
+                    }
+                    _ => None,
+                });
+            let Some(parent_edge) = parent_edge else {
                 unreachable!(
                     "split vertex {v:?} (standing for {src:?}) has neither a `SplitEdge` record \
                      nor an operand identity: a split mints a vertex only where the plane crosses \
                      an operand edge, recording the edge, or as a copy of an operand vertex in the \
                      plane, recorded in `SplitNaming::vertex_pairs`"
                 );
+            };
+            // Crossing vertex: minted where the plane crossed an operand
+            // edge's interior.
+            match crossings.get_mut(&parent_edge) {
+                Some((_, vs)) => vs.push(v),
+                None => {
+                    let parent = upstream_name(
+                        target_table,
+                        target_node,
+                        ent(0, EntityKey::Edge(parent_edge)),
+                    )?;
+                    crossings.insert(parent_edge, (parent, vec![v]));
+                }
             }
         }
         for (corner, (of, copies)) in on_tool {
