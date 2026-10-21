@@ -182,7 +182,12 @@ impl FateCuts {
 /// edge is the split's scaffolding, not an edge of the face, and an
 /// edge whose two faces both cover the dropped face (a seam between two
 /// coplanar faces of the kept copy, or a face meeting itself) lies
-/// inside the held region; both are dropped. Sorted and deduplicated.
+/// inside the held region; both are dropped. So are a slit's or ring's
+/// two edges where both bound the kept copy over one dropped face: two
+/// line edges on one segment by structure
+/// ([`crate::census::shared_segments`]), each with the kept face on
+/// its side, which are the two wedges' sides of the line, so the kept
+/// copy holds the dropped face across it. Sorted and deduplicated.
 pub(super) fn border_fates<T: geom_core::Real>(
     mut fates: Fates<T>,
     covered: &[(FaceKey, FaceKey)],
@@ -223,6 +228,25 @@ pub(super) fn border_fates<T: geom_core::Real>(
         }
         edges.push(h);
     }
+    let mut across = Vec::new();
+    for (holder, body) in [(Operand::A, a), (Operand::B, b)] {
+        if !edges.iter().any(|h| h.holder == holder) {
+            continue;
+        }
+        for pair in crate::census::shared_segments(body) {
+            let fate = |e: EdgeKey| {
+                edges
+                    .iter()
+                    .filter(move |h| h.holder == holder && h.edge == e)
+                    .map(|h| h.face)
+            };
+            let [e0, e1] = pair.edges;
+            for face in fate(e0).filter(|&f| fate(e1).any(|g| g == f)) {
+                across.extend([(holder, e0, face), (holder, e1, face)]);
+            }
+        }
+    }
+    edges.retain(|h| !across.contains(&(h.holder, h.edge, h.face)));
     fates.edges = edges;
     Ok(fates)
 }
@@ -314,10 +338,11 @@ fn contained(e: super::ContainError, what: &'static str) -> BooleanError {
 
 /// Whether unit `d` lies strictly inside the corner swept
 /// counterclockwise about `n` from unit `out` to unit `back`, or along
-/// `out` (`None`); `strut` where both bounds are one dangling edge.
+/// `out` (`None`); `wraps` where the face wraps round its bounds' one
+/// ray: one dangling edge, or a slit's or ring's two edges at its tip.
 fn corner_holds<T: Decide>(
     d: Vec3<T>,
-    (out, back, strut): (Vec3<T>, Vec3<T>, bool),
+    (out, back, wraps): (Vec3<T>, Vec3<T>, bool),
     n: Vec3<T>,
     arm: T,
     band: Band,
@@ -331,10 +356,11 @@ fn corner_holds<T: Decide>(
     let holds = match turn {
         Sign::Positive => s1 == Sign::Positive && s2 == Sign::Positive,
         Sign::Negative => s1 == Sign::Positive || s2 == Sign::Positive,
-        // A dangling edge's tip: the corner is the whole turn but the
-        // edge itself, which `along` read above. Two edges leaving
-        // tangent bound a cusp, which holds no direction at this order.
-        Sign::Zero if sign(out.dot(back), arm, band)? == Sign::Positive => strut,
+        // A dangling edge's tip, or a slit's: the corner is the whole
+        // turn but the edge itself, which `along` read above. Two other
+        // edges leaving tangent bound a cusp, which holds no direction
+        // at this order.
+        Sign::Zero if sign(out.dot(back), arm, band)? == Sign::Positive => wraps,
         Sign::Zero => s1 == Sign::Positive,
     };
     Ok(Some(holds))
@@ -342,7 +368,11 @@ fn corner_holds<T: Decide>(
 
 /// Every place, among the faces of `body` divided from `root`, a chord
 /// leaving `at` (or a null-edge copy of it) along unit `d` may start;
-/// `None` where none of those faces holds `at`.
+/// `None` where none of those faces holds `at`. A corner whose two
+/// bounds are distinct line edges leaving along one ray lies between a
+/// slit's or zero-area ring's two edges at its tip, and is the full turn
+/// round it, except in a sliver ([`super::slit::sliver_halves`]), whose
+/// outline is that one segment run twice and holds no direction.
 fn places<T: Decide>(
     body: &Body<T>,
     at: &[VertexKey],
@@ -422,9 +452,13 @@ fn places<T: Decide>(
                 Ok(None) | Err(_) => return Err(no_normal),
             };
             let arm = out_len.min(back.1);
-            let strut =
-                body.get_half_edge(p).map(|x| x.edge) == body.get_half_edge(h).map(|x| x.edge);
-            match corner_holds(d, (out, back.0, strut), normal.vec(), arm, band)? {
+            let bounds = [p, h].map(|x| body.get_half_edge(x).map(|x| x.edge));
+            let wraps = bounds[0] == bounds[1]
+                || (bounds
+                    .iter()
+                    .all(|e| e.is_some_and(|e| crate::census::edge_is_line(body, e)))
+                    && super::slit::sliver_halves(body, f).is_none());
+            match corner_holds(d, (out, back.0, wraps), normal.vec(), arm, band)? {
                 None => found.push(Place::Along(h)),
                 Some(true) => found.push(Place::Corner(h)),
                 Some(false) => {}

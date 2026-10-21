@@ -23,9 +23,10 @@
 //! closes it across the line, which the join does not build: it refuses
 //! `SlitLineCrossed` `Closes`
 //! (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
-//! A partner with a face flush with the top beside the ring refuses
-//! `Flush` where the op keeps one of the two flush faces
-//! (`work/cleave/a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line.md`).
+//! A partner with a face flush with the top beside the ring builds
+//! where the op keeps one of the two flush faces: the dropped one is cut
+//! along the line, the cut ending in the full turn the ring leaves at its
+//! tip.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -285,16 +286,20 @@ fn an_edge_along_a_ring_places_its_germs_apart_in_every_op_it_builds() {
     }
 }
 
-/// **A partner flush with the ring's face, kept once, refuses typed.**
-/// The partner's edge runs along the ring, one of its faces lies on the
-/// top beside it and the other in the far wall's wedge, on either side
-/// of the ray. Where the op keeps one copy of the two flush faces and
-/// the line holds two germs (`x ∩ y`, `y ∪ x`), the cut in the dropped
-/// copy has no corner to end in: `SlitLineCrossed` `Flush`, no lever.
-/// The other ops build, tier 3 and 3′, their edges on the line the
+/// **A partner flush with the ring's face, kept once, builds.** The
+/// partner's edge runs along the ring, one of its faces lies on the top
+/// beside it and the other in the far wall's wedge, on either side of
+/// the ray. Where the op keeps one copy of the two flush faces and the
+/// line holds two germs, the dropped copy is cut along the line, the cut
+/// ending at the ring's tip in the full turn the ring leaves there:
+/// `x ∩ y` builds as `y ∩ x` does. `y ∪ x` keeps only the top on the
+/// line, on both sides, and closes it across the line, which the join
+/// does not build: `SlitLineCrossed` `Closes`
+/// (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
+/// The others build, tier 3 and 3′, their edges on the line the
 /// material's creases, their volumes adding up.
 #[test]
-fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
+fn a_partner_flush_with_the_rings_face_builds_where_one_copy_is_kept() {
     let poses = poses();
     let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
     for (side, base) in [
@@ -336,16 +341,16 @@ fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
             let mut vol = Vec::new();
             for (op, keep, r) in ops {
                 let what = format!("flush {side}, {}, {op}", pose.label);
-                if op == "x ∩ y" || op == "y ∪ x" {
+                if op == "y ∪ x" {
                     assert!(
                         matches!(
                             r,
                             Err(BooleanError::SlitLineCrossed {
-                                gap: SlitLineGap::Flush,
+                                gap: SlitLineGap::Closes,
                                 ..
                             })
                         ),
-                        "{what}: refuses the flush gap, got {:?}",
+                        "{what}: refuses the closing gap, got {:?}",
                         r.map(|_| ())
                     );
                     continue;
@@ -375,11 +380,12 @@ fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
                     assert_eq!(held, want, "{what}: the result's own material at {at}");
                 }
             }
-            let [xy, yx, i, u] = vol[..] else {
-                unreachable!("four ops build")
+            let [xy, yx, i, u, i2] = vol[..] else {
+                unreachable!("five ops build")
             };
             let (vx, vy) = (volume(&x), volume(&y));
             let what = format!("flush {side}, {}", pose.label);
+            assert!((i - i2).abs() < 1e-12, "{what}: |x ∩ y| in both orders");
             assert!(
                 (xy + i - vx).abs() < 1e-9,
                 "{what}: |x − y| + |x ∩ y| = |x|"
