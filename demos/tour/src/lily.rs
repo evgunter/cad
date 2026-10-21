@@ -69,8 +69,8 @@
 //! - the long basal **leaf** and the three **sepals** are the same
 //!   blade said as a LOFT, and they do both. `loft_body` takes the
 //!   sections and the placements as two lists, so the section may
-//!   change station to station — rectangle at the stem, wide flat
-//!   diamond at the belly, small diamond at the tip — and the frame
+//!   change station to station — the swept leaves' lens, narrow at
+//!   the stem, wide and flat at the belly, small at the tip — and the frame
 //!   may roll about the spine on the way. The long leaf turns 160
 //!   degrees, eased hard toward the tip, which is what a real
 //!   *Calochortus* leaf lying along the ground does. Both are pinned
@@ -78,19 +78,10 @@
 //!   `review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
 //!
 //!   What the loft still cannot do is close the tip to a POINT (a
-//!   zero-width section refuses, though as a NON-SIMPLE profile
-//!   rather than the degenerate segment it looks like — see
-//!   [`Plan::tip`]) or be
-//!   JOINED to the stem it grows from (probe 8). The tip diamonds are
+//!   zero-width section has no chord — see [`Plan::tip`]) or be
+//!   JOINED to the stem it grows from (probe 8). The tip lenses are
 //!   therefore small but real, and left visibly so rather than shrunk
 //!   until the blunt end stops showing.
-//!
-//! **The lofted blades' sections are straight lines, and that is a
-//! live wall rather than a choice.** The same lens on the long leaf
-//! and the sepals skins and meshes, and then tier 3 refuses it:
-//! check 7's quadrature gives up at the reporting target on a solid
-//! whose sign is not in doubt (probe 16). The swept leaves carry the
-//! lens at the same cubic fit along the path, and certify.
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -152,7 +143,7 @@
 use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 
-use pncad::geom_core::{Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, Vec2, Vec3};
+use pncad::geom_core::{Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
@@ -718,11 +709,9 @@ fn bud<S: Scalar>(
 /// across and carries no interior crease. The margins are the
 /// section's only corners.
 ///
-/// It is not the lofted blades' [`Section`] said with arcs: that one is
-/// an eight-vertex ring because a loft matches segment to segment and
-/// its sections morph rectangle to diamond on one vertex budget, where
-/// this is two segments carried rigid down a sweep. Folding the two
-/// waits on the lofted blades taking a lens (probe 16).
+/// The lofted blades take the same lens, one per station, its three
+/// numbers eased along the spine ([`Plan`]): every section is two arcs
+/// on the same two margins, so a loft matches them segment to segment.
 #[derive(Clone, Copy, Debug)]
 struct Lance {
     /// Chord length, margin to margin — the blade's width.
@@ -758,6 +747,16 @@ impl Lance {
             )
             .expect("the blade's keel arc");
         vec![closed.into()]
+    }
+
+    /// Linear blend, field by field.
+    fn lerp(self, other: Self, s: f64) -> Self {
+        let f = |a: f64, b: f64| a + (b - a) * s;
+        Self {
+            width: f(self.width, other.width),
+            ridge: f(self.ridge, other.ridge),
+            keel: f(self.keel, other.keel),
+        }
     }
 
     /// The section's area: two circular segments on one chord, each
@@ -881,35 +880,29 @@ const LEAF_A_LEN: f64 = 5.10;
 /// a basal leaf lying along the ground does.
 const LEAF_A_CURL: f64 = -0.62;
 
-/// The long basal leaf's section plan: a rectangle where it meets the
-/// stem, a wide flat diamond at the belly a fifth of the way out, and
-/// a small diamond — never a point — at the tip. The roll is 160
+/// The long basal leaf's section plan: a narrow lens where it meets
+/// the stem, a wide flat one at the belly a fifth of the way out, and
+/// a small one — never a point — at the tip. The roll is 160
 /// degrees eased hard toward the tip (exponent 2.6), so the blade lies
 /// flat for most of its length and does its turning near the end, the
 /// way a real *Calochortus* leaf does.
 fn leaf_a_plan() -> Plan {
     Plan {
-        base: Section {
+        base: Lance {
             width: 0.170,
             ridge: 0.028,
             keel: 0.020,
-            shoulder: 1.0,
-            corners: Corners::Shoulders,
         },
-        belly: Section {
+        belly: Lance {
             width: 0.420,
             ridge: 0.034,
             keel: 0.016,
-            shoulder: 0.0,
-            corners: Corners::Tips,
         },
         belly_at: 0.22,
-        tip: Section {
+        tip: Lance {
             width: 0.060,
             ridge: 0.010,
             keel: 0.006,
-            shoulder: 0.0,
-            corners: Corners::Tips,
         },
         roll0: 0.0,
         twist: deg(160.0),
@@ -993,215 +986,19 @@ fn leaf<S: Scalar>(
 // The LOFTED blade: the two things a sweep cannot say
 // ---------------------------------------------------------------
 
-/// A lofted blade's cross-section: a KITE — two sharp margins at
-/// `±width/2` on a chord, a ridge above it and a keel below — with two
-/// extra pairs of vertices, SHOULDERS, on the way from each margin to
-/// the ridge and the keel.
-///
-/// The shoulder parameter is what lets one section list carry a
-/// rectangle and a diamond at once. At `shoulder = 0` each shoulder
-/// sits exactly on the straight line between its two neighbours, so
-/// the outline IS the kite, said with eight segments instead of four.
-/// At `shoulder = 1` it sits at the corner of the bounding rectangle,
-/// so the outline IS the rectangle. Everything between is the eased
-/// morph the leaf's base needs — a rectangle where it meets the stem,
-/// a diamond a fifth of the way out.
-///
-/// Eight segments and not four because a loft matches segment `j` of
-/// every section to segment `j` of every other
-/// ([`pncad::sweep::LoftError`]'s `SectionShapeMismatch` arm): there
-/// is no correspondence between a 4-gon's corners and a 4-gon's tips,
-/// so the two shapes must be spelled on a common vertex budget. The
-/// collinear vertices at `shoulder = 0` are exact, not approximate —
-/// a midpoint of two authored points.
-/// Which vertices of a [`Section`]'s eight-vertex ring the outline
-/// actually TURNS at — a structural property of the section the PLAN
-/// authors, not a fact to be read back off its coordinates.
-///
-/// It has to be authored rather than derived, and the reason is
-/// measured: deriving it from `shoulder == 0.0` / `== 1.0` is an exact
-/// float compare on a LERPED parameter, and a section whose shoulder
-/// lands a hair off an endpoint has a junction inside the tangency band
-/// that the algebra correctly refuses. R2's review measured the knife
-/// edge (shoulder 1e-6 authors, 1e-8 refuses `JunctionTangent`), and it
-/// is pinned as a row in `profile`'s `bool12r2_probes`. So the plan
-/// says which sections are the kite and which the rectangle, and
-/// [`Section::lerp`] carries that forward only where it is structurally
-/// true — at the ends of a blend, and through a blend whose two ends
-/// agree.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Corners {
-    /// The kite: each shoulder is the midpoint of two tips, so the
-    /// shoulders SUBDIVIDE and the tips turn.
-    Tips,
-    /// The bounding rectangle: each tip lies on the edge its two
-    /// neighbouring corners span, so the tips subdivide and the
-    /// SHOULDERS turn.
-    Shoulders,
-    /// The eased sections in between: every vertex turns.
-    Every,
-}
-
-impl Corners {
-    /// Does the outline turn at ring index `i`? Even indices are tips.
-    fn turns_at(self, i: usize) -> bool {
-        match self {
-            Corners::Tips => i.is_multiple_of(2),
-            Corners::Shoulders => !i.is_multiple_of(2),
-            Corners::Every => true,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct Section {
-    /// Chord length, margin to margin.
-    width: f64,
-    /// Rise above the chord.
-    ridge: f64,
-    /// Drop below the chord.
-    keel: f64,
-    /// 0 = kite, 1 = the bounding rectangle.
-    shoulder: f64,
-    /// Which vertices this section turns at — authored beside
-    /// `shoulder`, never derived from it.
-    corners: Corners,
-}
-
-impl Section {
-    /// The eight-vertex outline, wound counterclockwise in the sketch
-    /// `(s, t)` frame from the `+s` margin.
-    fn outline(self, tol: Tol) -> Vec<ConstructedLoop<f64>> {
-        // The shoulder between tips `a` and `b`: their midpoint at
-        // `shoulder = 0`, their vector sum (the rectangle corner) at 1.
-        let shoulder = |a: Vec2<f64>, b: Vec2<f64>| {
-            let m = (a + b) * 0.5;
-            m + m * self.shoulder
-        };
-        let right = Vec2::new(0.5 * self.width, 0.0);
-        let ridge = Vec2::new(0.0, self.ridge);
-        let left = Vec2::new(-0.5 * self.width, 0.0);
-        let keel = Vec2::new(0.0, -self.keel);
-        // The outline is FOUR corners said on EIGHT vertices, because a
-        // loft matches segment j to segment j and the tip and
-        // attachment sections must be spelled on one vertex budget. So
-        // one junction per side is a straight run SUBDIVIDED, at both
-        // ends of the shoulder parameter — and which vertices are the
-        // corners MOVES between the two ends:
-        //
-        // - `shoulder = 0` (the kite): each shoulder is the midpoint of
-        //   two tips, so the shoulders subdivide and the TIPS turn;
-        // - `shoulder = 1` (the rectangle): each tip lies on the
-        //   rectangle edge its two neighbouring corners span, so the
-        //   tips subdivide and the SHOULDERS turn;
-        // - in between: every vertex turns.
-        //
-        // A loft pins ONE rotation for every section and this ring
-        // starts at a TIP, so the kite's seam is a CORNER and the
-        // rectangle's is a SUBDIVISION. Both are spellings now — the
-        // structural closer for the first and the DECLARED STRAIGHT
-        // ARRIVAL for the second (PATHS-DESIGN §6's revised PQ4) — which
-        // is what lets this section finally author through the
-        // presented surface instead of the kernel's raw door.
-        //
-        // Nothing here is inferred from a coordinate. The corner set is
-        // AUTHORED beside the shoulder parameter (`Corners`, whose doc
-        // says why it is not derived from it), and every declaration
-        // this makes is then CHECKED by the kernel against the points
-        // the section authored.
-        // The ring is authored as offsets from the sketch origin —
-        // the shoulder SCALES them, which a point cannot do — and each
-        // becomes a sketch point at the door it is handed to.
-        let p = |v: Vec2<f64>| Point2::origin() + v;
-        let ring = [
-            right,
-            shoulder(right, ridge),
-            ridge,
-            shoulder(ridge, left),
-            left,
-            shoulder(left, keel),
-            keel,
-            shoulder(keel, right),
-        ];
-        // The entry authors the first side; from there each leg is
-        // named by the junction it DEPARTS — `line_to` where the
-        // outline turns, `continue_to` where the side continues onto a
-        // named point.
-        let mut path = Open
-            .at(p(ring[0]))
-            .line_to(p(ring[1]), tol)
-            .expect("the section's first side");
-        for (i, v) in ring.iter().enumerate().skip(2) {
-            path = if self.corners.turns_at(i - 1) {
-                path.line_to(p(*v), tol).expect("a section corner")
-            } else {
-                path.continue_to(p(*v), tol).expect("a section subdivision")
-            };
-        }
-        // The seam. Its DEPARTURE is the junction at the last vertex and
-        // its ARRIVAL is the junction at the entry, and the two are
-        // independent: this family reaches three of the four
-        // combinations across its own shoulder range.
-        let closed = match (self.corners.turns_at(7), self.corners.turns_at(0)) {
-            (true, true) => path.line_to(Start, tol),
-            (true, false) => path.line_to(Start.arrives_tangent(), tol),
-            (false, true) => path.continue_to(Start, tol),
-            (false, false) => path.continue_to(Start.arrives_tangent(), tol),
-        };
-        vec![closed.expect("the section's seam").into()]
-    }
-
-    /// Linear blend, field by field — except the corner set, which is
-    /// STRUCTURAL and does not interpolate.
-    ///
-    /// It carries through only where it is true: at either END of the
-    /// blend (`s` at its own bounds, not a compare on a blended value),
-    /// and across a blend whose two ends already agree. Anywhere else
-    /// the outline turns at every vertex, which is what a section
-    /// strictly between a kite and a rectangle does.
-    fn lerp(self, other: Self, s: f64) -> Self {
-        let f = |a: f64, b: f64| a + (b - a) * s;
-        Self {
-            width: f(self.width, other.width),
-            ridge: f(self.ridge, other.ridge),
-            keel: f(self.keel, other.keel),
-            shoulder: f(self.shoulder, other.shoulder),
-            corners: if s <= 0.0 {
-                self.corners
-            } else if s >= 1.0 {
-                other.corners
-            } else if self.corners == other.corners {
-                self.corners
-            } else {
-                Corners::Every
-            },
-        }
-    }
-}
-
 /// How a lofted blade's section changes from attachment to tip, and
 /// how it rolls on the way.
 #[derive(Clone, Copy, Debug)]
 struct Plan {
-    /// The attachment section: a rectangle where the blade meets the
-    /// stem (`shoulder = 1`).
-    base: Section,
+    /// The attachment section, where the blade meets the stem.
+    base: Lance,
     /// The widest section — the blade's belly.
-    belly: Section,
+    belly: Lance,
     /// Where the belly sits, as a fraction of the spine.
     belly_at: f64,
-    /// The tip section. A smaller diamond, never a POINT — but the
-    /// refusal is not the one the shape suggests. Setting `width` to
-    /// 0 while the tip keeps its rises leaves the two margins on top
-    /// of each other and the four-line section stops being SIMPLE:
-    /// the loft refuses `Skin(SectionProfile { NonSimple { kind:
-    /// Touch, .. } })`, naming the two segments that meet.
-    /// `DegenerateSegment` is the OTHER collapse — `width`, `ridge`
-    /// and `keel` all 0, the whole section gone to a point — and
-    /// arrives only then. Both measured on this plan; neither is
-    /// pinned by a test, because a wall probe here would have to
-    /// build a whole second blade to reach it.
-    tip: Section,
+    /// The tip section: a small lens, never a POINT, since a section
+    /// of zero width has no chord for its arcs to stand on.
+    tip: Lance,
     /// Roll about the spine AT THE BASE, radians. The spine's bend
     /// and the blade's facing are independent choices, and this is
     /// what separates them: `curl` decides which way the spine arcs
@@ -1222,7 +1019,7 @@ struct Plan {
 
 impl Plan {
     /// The section at fraction `s` of the spine.
-    fn at(self, s: f64) -> Section {
+    fn at(self, s: f64) -> Lance {
         if s < self.belly_at {
             self.base.lerp(self.belly, s / self.belly_at)
         } else {
@@ -1292,60 +1089,6 @@ fn try_lofted_blade<S: Scalar>(
     stations: usize,
     tol: Tol,
 ) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
-    loft_plan(
-        base,
-        dir,
-        up,
-        len,
-        curl,
-        plan,
-        stations,
-        |section| section.outline(tol),
-        tol,
-    )
-}
-
-/// Probe 16's attempt: the long basal leaf lofted exactly as the scene
-/// lofts it, each section of [`leaf_a_plan`] said as the [`Lance`] of
-/// its own width, ridge and keel — then asked of the gate.
-fn try_lofted_lance<S: Scalar>(tol: Tol) -> Result<(), Vec<pncad::topo::ValidationError>> {
-    let lens = loft_plan::<S>(
-        LEAF_A_BASE,
-        LEAF_A_DIR,
-        LEAF_A_UP,
-        LEAF_A_LEN,
-        LEAF_A_CURL,
-        leaf_a_plan(),
-        LOFT_STATIONS,
-        |section| {
-            Lance {
-                width: section.width,
-                ridge: section.ridge,
-                keel: section.keel,
-            }
-            .outline(tol)
-        },
-        tol,
-    )
-    .expect("the lanceolate long leaf lofts")
-    .body;
-    pncad::topo::validate_geometric_certificate(&lens, tol).map(|_| ())
-}
-
-/// The loft both of those are: section `k` is `said(plan.at(s_k))`,
-/// placed on the spine frame at `s_k` rolled by the plan's eased twist.
-#[allow(clippy::too_many_arguments)] // the 9th is the run-tolerance witness
-fn loft_plan<S: Scalar>(
-    base: Point3<f64>,
-    dir: Vec3<f64>,
-    up: Vec3<f64>,
-    len: f64,
-    curl: f64,
-    plan: Plan,
-    stations: usize,
-    said: impl Fn(Section) -> Vec<ConstructedLoop<f64>>,
-    tol: Tol,
-) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
     let (d, v, u) = blade_frame(dir, up, tol);
     let r = len / curl;
     let mut sections: Vec<Vec<ConstructedLoop<f64>>> = Vec::with_capacity(stations);
@@ -1365,7 +1108,7 @@ fn loft_plan<S: Scalar>(
         let (st, ct) = (th.sin(), th.cos());
         let uu = u * ct + vk * st;
         let vv = vk * ct - u * st;
-        sections.push(said(plan.at(s)));
+        sections.push(plan.at(s).outline(tol));
         places.push(sketch_frame::<S>(
             p.map(S::from_computed),
             uu.map(S::from_computed),
@@ -1614,27 +1357,21 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     // then tapering hard to a near-point. The roll is gentle and
     // spread evenly (ease 1.0) — a sepal curls, it does not corkscrew.
     let sepal_plan = Plan {
-        base: Section {
+        base: Lance {
             width: 0.105,
             ridge: 0.014,
             keel: 0.008,
-            shoulder: 1.0,
-            corners: Corners::Shoulders,
         },
-        belly: Section {
+        belly: Lance {
             width: 0.265,
             ridge: 0.017,
             keel: 0.008,
-            shoulder: 0.0,
-            corners: Corners::Tips,
         },
         belly_at: 0.30,
-        tip: Section {
+        tip: Lance {
             width: 0.036,
             ridge: 0.006,
             keel: 0.004,
-            shoulder: 0.0,
-            corners: Corners::Tips,
         },
         // Appressed at the base (the face lies on the globe), rolling
         // its face outward toward the tip.
@@ -1826,12 +1563,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          keeled blades (one lanceolate section — two arcs meeting \
          at the margins — carried along an arching NURBS spine), and \
          4 LOFTED ones — the long basal leaf and the three sepals — which taper AND roll, the two things a \
-         sweep cannot be asked for. The long leaf runs rectangle at \
-         the stem to wide diamond to small diamond, turning 160 \
+         sweep cannot be asked for, on the same lanceolate section. \
+         The long leaf runs narrow at the stem to wide to small, turning 160 \
          degrees about its own spine on the way, eased toward the tip. \
          The sepals stand TANGENT to the globe: the stand-off is the \
-         section's own keel, and no vertex of any sepal is inside the \
-         sphere. The eight analytic bodies approximate nothing — torus, \
+         section's own keel, and no point of any sepal's section rims \
+         is inside the sphere. The eight analytic bodies approximate nothing — torus, \
          sphere, cylinder, cone and plane exactly, parameters included; \
          the blades are fitted skins, the price of leaving the plane. \
          Nothing above ground is JOINED — the leaf to its own sheath \
@@ -1854,7 +1591,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
               u_ref/radii, windowed) tubes; revolve(Full) sphere-zone \
               lantern and revolve(Partial) x3 on a tilted tripod for the \
               bud; sweep_body(lanceolate arc section, arched NURBS \
-              spine) for the two short leaves; loft_body(rectangle -> diamond -> diamond \
+              spine) for the two short leaves; loft_body(tapering lanceolate \
               sections on rolled placements) for the long leaf and the sepals",
         delta: 5e-3,
         note: Some(note),
@@ -2168,23 +1905,6 @@ fn wall<T, E: core::fmt::Debug>(
     crate::walls::wall("lily", n, what, outcome, pinned, retire);
 }
 
-/// Wall 16's refusal: a lanceolate blade the gate refuses on the
-/// quadrature's REPORTING budget (`1024·ε`). Through
-/// [`crate::walls::wall_from_default_eps`], since the refusal is the
-/// reporting target's and a looser ε clears it.
-fn reporting_budget_refusal(e: &[pncad::topo::ValidationError]) -> bool {
-    matches!(
-        e[..],
-        [pncad::topo::ValidationError::VolumeUncomputable {
-            source: pncad::topo::MassPropsError::Face {
-                source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
-                ..
-            },
-            ..
-        }]
-    )
-}
-
 /// Where wall 7 stops: the carve itself, or drawing what it built.
 #[derive(Debug)]
 #[allow(dead_code)] // the payloads are read through `Debug` in the wall's report
@@ -2495,10 +2215,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "give the lanterns their three tepal seams",
     );
     // 8. The leaf wants to GROW OUT OF the stem, not merely start
-    //    beside it: a sheath of rectangular section leaving the stem
+    //    beside it: a sheath of the blade's base section leaving the stem
     //    and turning into the blade's own base angle, then joined
     //    there. That contact is as clean as a contact gets — the two
-    //    bodies are authored on the SAME rectangle in the same plane,
+    //    bodies are authored on the SAME section in the same plane,
     //    so the mate is exact rather than tolerated, and the union
     //    decides it on its zero.
     //
@@ -2514,7 +2234,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     let sheath = {
         let base_section = leaf_a_plan().base;
         // Runs back out of the leaf's base along -dir, so its bottom
-        // cap IS the leaf's bottom cap: same plane, same rectangle,
+        // cap IS the leaf's bottom cap: same plane, same section,
         // opposite outward normals.
         let sheath = lofted_blade::<S>(
             LEAF_A_BASE,
@@ -2538,7 +2258,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     };
     wall(
         8,
-        "graft the leaf's sheath onto its blade at their shared rectangle",
+        "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
         // The KIND is the claim, as in wall 1: a curved EDGE stops
         // this, not a curved face and not the planar contact. If this
@@ -2580,28 +2300,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //      tour's own gate (`gated` in `main.rs`) holds every body to
     //      tier 3 at each ε row the tour runs, so no probe repeats it.
 
-    // 16. The lofted blades with the swept leaves' lens. They skin,
-    //     validate at tiers 1-2 and mesh; tier 3 refuses them on the
-    //     reporting budget. The variant census below was measured on
-    //     2026-10-02, under the domain grid's earlier ulp-count
-    //     clearance, and has not been re-measured under the
-    //     spacing-fraction clearance (`grid_clearance`): the long leaf
-    //     at 5, 9, 17 and 33 stations and degrees 2 and 3, and with
-    //     each arc split in two; the three sepals, about 2.7 m out, at
-    //     the scene's 13 stations and at 33. Every one of those refused
-    //     but three, which admitted a bracket about 2.5x wide; none
-    //     certified a number. The scene's own setting is what this probe
-    //     re-asks at every run. So the lofted blades keep their straight
-    //     kite-and-rectangle sections.
-    crate::walls::wall_from_default_eps(
-        "lily",
-        16,
-        "loft the long basal leaf with lanceolate sections, and validate it",
-        try_lofted_lance::<S>(tol),
-        |e: &Vec<_>| reporting_budget_refusal(e),
-        "give the long leaf and the sepals lanceolate sections",
-        tol,
-    );
+    // 16 — RETIRED. The lofted blades take the swept leaves' lens,
+    //      and the tour's gate holds them to tier 3 at each ε row as it
+    //      does every body, so no probe repeats it.
 
     println!(
         "   (wall 9 — a TAPERING SWEEP — is still an ABSENCE rather than a \
@@ -3364,39 +3065,32 @@ mod review_probes {
     ///
     /// Both are read through the body's two planar cap faces, which
     /// are the loft's end sections placed in the world. For each cap:
-    /// the vertices lying on it, their centroid, the width axis `u`
-    /// (the direction of the two farthest-apart vertices, which for
-    /// both a rectangle-with-midpoints and a kite-with-midpoints are
-    /// the two MARGINS, the section being far wider than it is thick),
-    /// and `v = n x u`.
+    /// its two vertices, the MARGINS, whose chord is the width and
+    /// whose direction is the width axis `u`, and `v = n x u`.
     ///
     /// The section's ridge/keel ASYMMETRY is what makes the roll
     /// measurable at all: `v`'s sign is otherwise a coin flip, because
-    /// a `u` read off a farthest-pair is only defined up to sign. The
-    /// ridge is authored strictly deeper than the keel, so the signed
-    /// extent along `v` picks the orientation out uniquely, and the
-    /// angle from the base frame to the tip frame is then a full
-    /// signed turn rather than a turn mod pi.
+    /// a `u` read off two margins is only defined up to sign. The
+    /// ridge is authored strictly deeper than the keel, so the side of
+    /// the chord the deeper rim's apex lies on picks the orientation
+    /// out uniquely, and the angle from the base frame to the tip frame
+    /// is then a full signed turn rather than a turn mod pi.
     #[test]
     fn the_lofted_blade_tapers_and_rolls_in_the_stored_geometry() {
         let ps = pieces();
         let b = body(&ps, "lily_leaf_a");
         let caps = cap_frames(b);
-        // The BASE cap is the wide one (the rectangle at the stem);
-        // the TIP cap the narrow one.
+        // The BASE cap is the wide one; the TIP cap the narrow one.
         let (base, tip) = if caps[0].width > caps[1].width {
             (&caps[0], &caps[1])
         } else {
             (&caps[1], &caps[0])
         };
-        // TAPER. The authored base rectangle is 0.170 margin to margin
-        // with rises 0.028/0.020, so its farthest pair is the diagonal
-        // hypot(0.170, 0.048) = 0.17665; the authored tip diamond is
-        // 0.060 margin to margin, and its farthest pair IS that chord
-        // (0.060 > hypot(0.010, 0.006)). A sweep could produce neither
-        // number from the other — one profile goes down the path.
+        // TAPER. The authored base lens is 0.170 margin to margin and
+        // the tip lens 0.060. A sweep could produce neither number from
+        // the other — one profile goes down the path.
         assert!(
-            (base.width - 0.176_646_5).abs() < 1e-6,
+            (base.width - 0.170).abs() < 1e-9,
             "base cap width {}",
             base.width
         );
@@ -3408,10 +3102,8 @@ mod review_probes {
         // ROLL, isolated. Comparing the blade's own two ends does NOT
         // measure the roll: the caps live in different planes (the
         // spine turns through `curl` between them), so any angle read
-        // across them mixes the roll with the spine's own turn, and
-        // the base cap's farthest pair is a rectangle DIAGONAL rather
-        // than its width axis, tilting the frame a further 15.8
-        // degrees. Both effects vanish if the comparison is made
+        // across them mixes the roll with the spine's own turn. That
+        // vanishes if the comparison is made
         // against the SAME blade built with the twist set to zero:
         // identical spine, identical stations, identical sections, so
         // the two tip caps are coplanar and their frames differ by the
@@ -3454,8 +3146,9 @@ mod review_probes {
     }
 
     /// The sepals' TANGENCY claim, checked against the globe the
-    /// lantern actually stores: every vertex of every sepal is at
-    /// least `FLOWER_GLOBE` from the globe centre, so no sepal enters
+    /// lantern actually stores: every margin and every cap rim apex of
+    /// every sepal is at least `FLOWER_GLOBE` from the globe centre, so
+    /// no sepal enters
     /// the flower. The doc comment on [`sepals`] argues this for the
     /// SPINE; this measures it on the built solid, section thickness
     /// and all.
@@ -3478,44 +3171,55 @@ mod review_probes {
         let mut closest = f64::INFINITY;
         for name in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"] {
             let s = body(&ps, name);
-            for (_, p) in s.vertex_points() {
+            // The margins, and the apex of each cap's two rims: the
+            // keel's apex is the section's deepest point.
+            let mut points: Vec<Point3<f64>> = s.vertex_points().map(|(_, p)| p).collect();
+            for (_, f) in s.faces() {
+                if let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) =
+                    s.get_surface(f.surface)
+                {
+                    let margins: Vec<Point3<f64>> = s
+                        .vertex_points()
+                        .map(|(_, p)| p)
+                        .filter(|p| (*p - origin).dot(normal).abs() < 1e-9)
+                        .collect();
+                    let mid = margins[0] + (margins[1] - margins[0]) * 0.5;
+                    points.extend(rim_apices(s, origin, normal, mid));
+                }
+            }
+            for p in points {
                 let d = p.distance(g);
-                // 1e-12, not 0: the base keel vertex is placed AT the
+                // 1e-12, not 0: the base keel apex is placed AT the
                 // sphere by construction, and it gets there through a
                 // rotation composed into the section placement, so it
                 // lands within an ulp or two of R rather than on it.
-                // MEASURED: the nearest of the three sepals' vertices
-                // sits 5.551e-17 inside R — one ulp of 0.44 exactly —
-                // so this is a bound with four orders of headroom,
-                // not a number fitted to the result. Anything that
-                // actually entered the flower would be inside by a
-                // section thickness, six orders of magnitude past
-                // this.
+                // Anything that actually entered the flower would be
+                // inside by a section thickness, six orders of
+                // magnitude past this.
                 assert!(
                     d >= FLOWER_GLOBE - 1e-12,
-                    "{name}: a vertex is {d} from the globe centre, inside R = {FLOWER_GLOBE}"
+                    "{name}: a rim point is {d} from the globe centre, inside R = {FLOWER_GLOBE}"
                 );
                 closest = closest.min(d);
             }
         }
         // Two-sided: the sepals must GRAZE, not merely miss. The base
         // section's keel is authored 0.008 and the stand-off is
-        // R + keel, so the nearest vertex sits at R + 0 (the keel
-        // vertex itself, on the sphere) — within the float noise of a
-        // rotation composed through the placement.
+        // R + keel, so the nearest rim point sits at R + 0 (the keel's
+        // apex, on the sphere) — within the float noise of a rotation
+        // composed through the placement.
         //
         // 1e-12, the SAME window as the inside bound above, so the
         // pair is a symmetric ±1e-12 collar on R and the claim "the
-        // nearest sepal vertex is within 1e-12 of the globe" is the
-        // literal assertion rather than a summary of it. This was
-        // 1e-9 and reading as a floor; it is not one. The measured
-        // margin is a single ulp (see above), so the collar could be
-        // four orders tighter still — 1e-12 is where it stops being
-        // a claim about the plant and starts being a claim about
-        // float arithmetic.
+        // nearest sepal rim point is within 1e-12 of the globe" is the
+        // literal assertion rather than a summary of it.
+        println!(
+            "sepal tangency: nearest rim point {:e} from R",
+            closest - FLOWER_GLOBE
+        );
         assert!(
             closest < FLOWER_GLOBE + 1e-12,
-            "nearest sepal vertex {closest} — tangency claimed, {} of clearance found",
+            "nearest sepal rim point {closest} — tangency claimed, {} of clearance found",
             closest - FLOWER_GLOBE
         );
 
@@ -3773,7 +3477,7 @@ mod review_probes {
     struct Cap {
         /// The cap plane's stored unit normal.
         n: Vec3<f64>,
-        /// Distance between the two farthest-apart vertices on it.
+        /// Distance between its two margins.
         width: f64,
         /// The in-plane axis perpendicular to the width, signed so it
         /// points from the chord toward the RIDGE (the deeper of the
@@ -3791,6 +3495,31 @@ mod review_probes {
     /// per-face `on.len() == 8` below cannot catch that: it fires on
     /// the vertex set of whatever plane it is looking at, one plane
     /// too late to say the SET of planes is wrong.
+    /// The apices of a lofted blade's section rims on the cap plane
+    /// `(origin, normal)` whose chord midpoint is `mid`: each rim is a
+    /// stored circle arc through both margins, under a half turn, so
+    /// its apex lies on the chord's bisector one radius from its centre,
+    /// on the side away from it.
+    fn rim_apices(
+        b: &Body<f64>,
+        origin: Point3<f64>,
+        normal: Vec3<f64>,
+        mid: Point3<f64>,
+    ) -> Vec<Point3<f64>> {
+        b.edges()
+            .filter_map(|(_, e)| {
+                let geom = b.get_curve_geom(e.curve)?.certified()?;
+                let pncad::geom::Curve3::Circle { center, radius, .. } = *geom.carrier() else {
+                    return None;
+                };
+                ((center - origin).dot(normal).abs() < 1e-9).then(|| {
+                    let out = mid - center;
+                    center + out * (radius / out.norm())
+                })
+            })
+            .collect()
+    }
+
     fn cap_frames(b: &Body<f64>) -> Vec<Cap> {
         let mut out = Vec::new();
         for (_, f) in b.faces() {
@@ -3799,41 +3528,26 @@ mod review_probes {
             else {
                 continue;
             };
-            // The vertices ON this plane.
+            let on_plane = |p: Point3<f64>| (p - origin).dot(normal).abs() < 1e-9;
             let on: Vec<Point3<f64>> = b
                 .vertex_points()
                 .map(|(_, p)| p)
-                .filter(|p| (*p - origin).dot(normal).abs() < 1e-9)
+                .filter(|p| on_plane(*p))
                 .collect();
-            assert_eq!(on.len(), 8, "a blade section has eight vertices");
-            // Farthest pair -> the width and its axis.
-            let mut width = 0.0;
-            let mut axis = Vec3::zero();
-            for (i, a) in on.iter().enumerate() {
-                for bp in &on[i + 1..] {
-                    let d = (*bp - *a).norm();
-                    if d > width {
-                        width = d;
-                        axis = (*bp - *a) / d;
-                    }
-                }
-            }
+            assert_eq!(on.len(), 2, "a lens section's vertices are its two margins");
+            let width = (on[1] - on[0]).norm();
+            let axis = (on[1] - on[0]) / width;
+            let mid = on[0] + (on[1] - on[0]) * 0.5;
             // v completes the frame; its SIGN is fixed by asking which
-            // side the deeper rise (the ridge) is on.
+            // side of the chord the deeper rim (the ridge) rises on.
             let mut v = normal.cross(axis);
-            let c = on
-                .iter()
-                .fold(Vec3::zero(), |acc, p| acc + (*p - Point3::origin()))
-                / 8.0;
-            let centroid = Point3::origin() + c;
-            let hi = on
-                .iter()
-                .map(|p| (*p - centroid).dot(v))
-                .fold(f64::NEG_INFINITY, f64::max);
-            let lo = on
-                .iter()
-                .map(|p| (*p - centroid).dot(v))
-                .fold(f64::INFINITY, f64::min);
+            let rises: Vec<f64> = rim_apices(b, origin, normal, mid)
+                .into_iter()
+                .map(|p| (p - mid).dot(v))
+                .collect();
+            assert_eq!(rises.len(), 2, "a lens section has two rims: {rises:?}");
+            let hi = rises.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let lo = rises.iter().copied().fold(f64::INFINITY, f64::min);
             if hi < -lo {
                 v = -v;
             }
