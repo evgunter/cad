@@ -3282,6 +3282,15 @@ pub(crate) fn read_seam_regions<T: Decide>(
 ///    Where it encodes none, each member whose own boundary encodes no
 ///    side refuses [`PropsError::SeamRegionSensesDisagree`].
 ///
+/// A region with no boundary (its members close the sphere) is the case
+/// where (4) cannot tell the flipped member from the others: nothing on
+/// it encodes a side (`sphere_region_material_sign`'s `Unencoded`), and
+/// flipping either set of members would make a ball of it. Each member
+/// whose own boundary encodes no side refuses, so the door names the
+/// first of them in arena order, as it names any body's first refusing
+/// face. That member is the lamina's, not necessarily the one whose
+/// bit is wrong. An over-cover of such a region refuses every member by (3).
+///
 /// A region whose structure the walk cannot follow refuses its start face
 /// [`MassPropsError::Corrupt`], typed, where tier 1 would refuse the body.
 ///
