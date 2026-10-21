@@ -79,6 +79,8 @@ fn r6_pocketed_dice_kiss_e2e() {
     // is asserted HERE, not inferred from admesh part count).
     assert_eq!(assembly.body.shells().count(), 2);
     let m = mass_properties(&assembly.body, Tol::witness()).unwrap();
+    // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
+    // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(m.volume, 1.75, "exact volume oracle");
     assert_eq!(m.surface_area, 14.0, "exact area oracle");
     // Tessellate → watertight mesh → exact mesh volume → STL.

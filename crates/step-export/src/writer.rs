@@ -236,11 +236,12 @@ pub fn spiric_export_spline(
         // A structure the hull cannot license is not a tolerance
         // question: it is a spline this lane should not have
         // built, and the search stops rather than doubling into it.
-        let m_s = geom::nonrational_second_derivative_sup(&spline)
-            .map_err(|_| StepExportError::UnsupportedCurve {
+        let m_s = geom::nonrational_second_derivative_sup(&spline).map_err(|_| {
+            StepExportError::UnsupportedCurve {
                 edge: edge_key,
-                kind: "spiric: the export-only cubic's second-derivative hull states                            no bound",
-            })?;
+                kind: "spiric: the export-only cubic's second-derivative hull states no bound",
+            }
+        })?;
         let bound = (m_s + curvature * dt.powi(2)) / (8.0 * n.powi(2));
         if bound.is_finite() && bound <= eps / 4.0 {
             return Ok((spline, bound));

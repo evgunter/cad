@@ -2414,6 +2414,8 @@ fn the_persist_doors_round_trip_through_the_facade() {
     )
     .expect("mass properties")
     .volume;
+    // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
+    // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(volume, 6.0);
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
@@ -6699,6 +6701,8 @@ mod the_hollowed_box_through_the_facade {
         let props = pncad::topo::mass_properties(body, Tol::witness()).expect("the cup measures");
         let inner: f64 = 1.0 - 0.25;
         let want = 1.0 - inner * inner * (1.0 - 0.125);
+        // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
+        // their sum are exact in f64 (a zero pad states no rounding; here there is none).
         assert_eq!(props.volume, want, "the cup's volume is its closed form");
     }
 

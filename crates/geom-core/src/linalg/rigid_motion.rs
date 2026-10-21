@@ -1243,7 +1243,7 @@ mod tests {
         }
         assert!(
             differed > 0,
-            "no aim-minted frame in the corpus separated w from u × v, so this row              cannot witness the distinction its subject is about"
+            "no aim-minted frame in the corpus separated w from u × v, so this row cannot witness the distinction its subject is about"
         );
     }
 

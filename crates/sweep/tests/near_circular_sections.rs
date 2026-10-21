@@ -550,6 +550,44 @@ fn frustum(scale: f64) -> Frustum {
     }
 }
 
+/// **A zero pad is the closed form's, rounding and all.** A frustum
+/// measures with `volume_pad == 0.0` (every face takes a closed form),
+/// and its volume is off its exact value by the rounding of its faces'
+/// flux terms, which no pad states (`topo::MassProperties`): within
+/// `4·u·|V|`, as built and turned, at every body scale ([`SCALES`]).
+/// Measured at 2.2 or less of `u·|V|`. The bound is in units of the
+/// volume, not of the terms: a walk that read the faces about a point
+/// far from the body would grow its terms and its error together, and
+/// reds here (moving every shell's reference 1 km off does).
+///
+/// A pose carried far is not a row here. There the rigid motion rounds
+/// each vertex by about `u` of its distance, which moves the stored
+/// geometry off the frustum this row's closed form names; that is
+/// the motion's rounding, not the measurement's.
+#[test]
+fn a_frustums_zero_pad_carries_its_closed_forms_rounding() {
+    let u = f64::EPSILON / 2.0;
+    for scale in SCALES {
+        let f = frustum(scale);
+        let want = PI * scale / 3.0 * (f.r0 * f.r0 + f.r0 * f.r1 + f.r1 * f.r1);
+        for (pose, map) in [("as built", Affine3::identity()), ("turned", turn())] {
+            let body = moved_body(&f.body, &map);
+            let props = topo::mass_properties(&body, tol()).expect("it measures");
+            assert_eq!(
+                props.volume_pad, 0.0,
+                "{scale:e} {pose}: every face is closed-form"
+            );
+            let err = (props.volume - want).abs();
+            assert!(
+                err <= 4.0 * u * want,
+                "{scale:e} {pose}: {} against {want}, off by {err:e}, {:.2} of u·|V|",
+                props.volume,
+                err / (u * want)
+            );
+        }
+    }
+}
+
 fn tilted_y(s: f64) -> Vec3<f64> {
     Vec3::new(s, (1.0 - s * s).sqrt(), 0.0)
 }
