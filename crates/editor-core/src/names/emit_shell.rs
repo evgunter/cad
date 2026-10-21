@@ -149,7 +149,10 @@ pub(crate) fn name_shell<T: geom_core::Real>(
                 EntityKey::Face(hole.face),
                 RoleSeg::HoleRim {
                     of: f.name.clone(),
-                    hole: super::emit::to_u32(j, "a shell rim's hole index exceeds u32")?,
+                    hole: super::emit::to_u32(
+                        j,
+                        "a shell rim's hole index, one per hole face of the body",
+                    ),
                 },
                 f.tied,
             )?;
