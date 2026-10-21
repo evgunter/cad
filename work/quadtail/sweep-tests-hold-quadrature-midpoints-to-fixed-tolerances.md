@@ -4,6 +4,8 @@ kind: issue
 title: Sweep tests hold certified-quadrature volume midpoints to fixed tolerances, ignoring volume_pad
 status: open
 opened: 2026-10-06
+priority: P4
+cost: E
 ---
 
 

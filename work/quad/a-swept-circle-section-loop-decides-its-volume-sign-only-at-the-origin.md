@@ -4,7 +4,7 @@ kind: issue
 title: tier 3's volume-sign check on a rational swept wall refuses QuadratureBudget or decides by the section's knot structure, the skin's degree and the body's position — not by the shape
 status: open
 opened: 2026-10-02
-priority: P2
+priority: P1
 cost: H
 ---
 

@@ -5,6 +5,7 @@ title: check 7 refuses QuadratureBudget at the reporting target on a rational bl
 status: open
 opened: 2026-10-02
 priority: P0
+cost: M
 ---
 
 Met while giving the tour lily's blades lanceolate sections

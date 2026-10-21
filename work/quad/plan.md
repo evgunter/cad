@@ -27,8 +27,21 @@ this plan, never this file. Branch prefix `quad/`; away-channel tag
   specifying.
 - **The dial** (`[ev]`, ask early):
   `quad2-rational-max-rounds-dial-decision`.
-- **Parked on a consumer**: `purchasable-area-tightness-valve` — a
-  demand-triggered valve with no demand yet; it waits.
+- **Frame dependence** (P1, Ev 2026-10-21): a certified width or a
+  verdict that moves when the body is translated or rotated.
+  `quad-rational-patch-cross-grows-with-translation`,
+  `quadrature-interval-floor-grows-with-the-body-past-the-band`,
+  `a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`,
+  `a-translated-arc-prism-panics-the-area-gauge-through-mass-properties`
+  and `quad-area-pads-read-the-cross-norm-off-per-coordinate-boxes`.
+  INTENT stage 3 E's test 13 (`docs/INTENT-STAGE3-SPEC.md`) computes
+  every corpus operation in a second, rotated and translated frame and
+  expects the same verdicts, so these rows sit on that P0's path.
+  Most were measured before FLUX's `shell_reference` (2026-10-20) moved
+  the props fold's flux origin to a vertex of each shell, so re-measure
+  every one of them on current main first.
+- **The P2–P4 tail** moved to QUADTAIL (2026-10-21), including
+  `purchasable-area-tightness-valve`.
 
 ## Review posture
 

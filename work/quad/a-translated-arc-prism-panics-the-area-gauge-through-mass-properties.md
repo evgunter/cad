@@ -4,6 +4,8 @@ kind: issue
 title: mass_properties panics (A2 area gauge, perimeter arm) on a small arc prism translated far from the origin
 status: open
 opened: 2026-09-24
+priority: P1
+cost: M
 ---
 
 
