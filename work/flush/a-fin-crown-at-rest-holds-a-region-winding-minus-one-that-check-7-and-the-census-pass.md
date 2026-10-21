@@ -7,6 +7,7 @@ opened: 2026-10-14
 priority: P1
 cost: M
 branch: flush/fin-crown-fixture
+pr: 5534
 ---
 
 
