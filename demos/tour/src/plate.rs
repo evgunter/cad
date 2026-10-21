@@ -224,7 +224,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
             doc,
             Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::Circle {
-                    centre: [centre, len(0.0)],
+                    centre: [centre, Formula::zero(Dimension::Length)],
                     radius: param(radius),
                 }],
                 ids: Vec::new(),

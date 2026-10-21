@@ -732,7 +732,10 @@ fn spout_loft(
     // kernel finding this scene exhibits rather than dodges.
     let mut sections = stations.iter().map(|(station, outer)| {
         let arcs = |radius: f64| LoopProgram::CircleSplit {
-            centre: lpt(0.0, 0.0),
+            centre: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             radius: len(radius),
             n: SPOUT_ARCS,
             phase: Formula::zero(Dimension::Angle),
