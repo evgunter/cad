@@ -55,3 +55,14 @@ samples the gates now keep out, which `docs/K-REPORT.md` counts.
 divide by a hand-spelled norm rather than calling `normalize`, so they
 still collapse past ~1e154 and their refusals still prevent a wrong
 answer; under reading 1 they would respell onto `normalize`.
+
+**The lanes already disagree on one document.** A linear pattern with
+direction `(1e200, 0, 0)` refuses at `f64`
+(`m4_pr2_wire::non_finite_pattern_direction_refuses_at_the_direction_door`)
+and, at the interval scalar — where `is_finite_length` waves an
+overflowed enclosure through by design — now places its three
+instances at `x = 0, 2, 4`
+(`m4_pr2_wire::a_non_finite_pattern_direction_places_its_instances_at_the_interval_scalar`).
+Before the prescale the interval lane failed downstream on a collapsed,
+wide direction. The ruling here decides which of the two answers the
+other lane converges on.
