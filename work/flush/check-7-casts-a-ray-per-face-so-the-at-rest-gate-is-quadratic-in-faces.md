@@ -2,21 +2,21 @@
 id: check-7-casts-a-ray-per-face-so-the-at-rest-gate-is-quadratic-in-faces
 kind: issue
 title: Check 7 reads every aim, one ray per face across every face, so the at-rest gate is quadratic in a body's faces
-status: open
+status: closed
 opened: 2026-10-20
+closed: 2026-10-21
 refs: [a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass]
 priority: P1
 cost: M
-design: true
 ---
 
 
 Found by FLUSH's fin-crown unit. Its check half, check 7 reading every
 aim that decides (D1 tier 3: definitely inside out by any reading is
-invalid), is built on `flush/fin-crown-winding`, PR 5520, which is
-parked on this row. The fixture half landed apart.
+invalid), was built on `flush/fin-crown-winding`, PR 5520. The fixture
+half landed apart (PR 5534).
 
-## Why it is worth solving
+## What it caught
 
 Reading every aim refused a wrong body that passes tier 3 today: FLUX's
 seam-region witness A (`a_seam_region_carrying_both_poles`, both halves
@@ -86,3 +86,14 @@ Either candidate moves the aimed rays' recorded verdicts
 (`side_reader::FAMILY`), and the ball also moves where each ray starts,
 so a fix re-reads the batteries. The reading itself must not change:
 every aim that decides is still read.
+
+## Resolution
+
+Not built: one ray suffices on an embedded boundary (both designers,
+2026-10-21). In check 7, "any reading" means the aimed ray or the
+certified volume. On an embedded boundary whose faces are oriented
+coherently, every aim reads what one aim reads, so the extra rays
+differ only on self-crossing or overlapping boundaries. They miss most
+of those too (FLUX's witness B passes). The class every-aim sampled is
+self-intersection at rest, filed as
+`the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass`.

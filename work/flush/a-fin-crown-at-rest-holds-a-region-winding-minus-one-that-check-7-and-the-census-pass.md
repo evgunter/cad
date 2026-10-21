@@ -114,7 +114,8 @@ no wrong, missing or doubled row: probes 2 and 4 build 30 cells each,
 where main refused 5 and built 25. `KNOWN_INSIDE_OUT` and `KNOWN_WRONG`
 are gone.
 
-The check half, reading every aim so face order no longer decides, is
-parked on its cost
-(`check-7-casts-a-ray-per-face-so-the-at-rest-gate-is-quadratic-in-faces`,
-PR 5520).
+The check half, reading every aim so face order no longer decides, was
+not built (`check-7-casts-a-ray-per-face-so-the-at-rest-gate-is-quadratic-in-faces`,
+closed): on an embedded boundary one ray reads what every aim reads. The
+self-crossing class it sampled is
+`the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass`.

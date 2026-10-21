@@ -68,3 +68,13 @@ accepts it and `mass_properties` measures the dimpled brick
 (`crates/sweep/tests/seam_siblings_flipped_together.rs`,
 `a_lone_lune_through_both_poles_flips_into_another_valid_body`). That
 row exists so no one "fixes" it into a refusal.
+
+## Witness B and the every-aim check 7 (FLUSH, 2026-10-21)
+
+FLUSH tried a check 7 that reads every aimed ray (PR 5520, not landed).
+It refused witness A on two opposed rays, but never caught witness B,
+the 1e-12 dimple's flip: no aimed ray's count enters the overlap there.
+Both witnesses are now also cited on FLUSH's
+`the-at-rest-gate-certifies-no-embedding-so-adjacent-faces-crossing-away-from-shared-cells-pass`,
+which asks for an embedding check at rest. This row's seam-region read
+is still the direct remedy.
