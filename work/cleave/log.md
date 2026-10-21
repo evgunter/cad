@@ -1341,3 +1341,8 @@ Signed (CLEAVE orchestrator).
     - Q1/Q7.
   - Confirm and file four unlisted 1e-12 reds and a 1e-6 cone red on main.
 - 2026-10-20 — PR 5505 merged: a union gluing away a slit's floor merges the slit into one wall|wall edge (`merge_slivers`; sliver-Out only where the loop was undecided). All 100 cells per ε build at closed form, 3′ ok. Row closed.
+- 2026-10-21 — PR 5479 fix pass (`802d9aee69`).
+  - `SlitLineCrossed{Flush}` refuses a flank reading Along before placing germs. The first unnarrowed version over-refused `x − y`, and the check was narrowed.
+  - The gap enum split: Closes / Flush / CrossedTwice. Placement is absolute.
+  - Main reds filed: lib `main-red-lattice-built-loop-…`; tess P1 `demo-tour-wall-8-no-longer-refuses-at-1e-12`; CLEAVE P2 `the-meeting-axes-pose-escalates-…`.
+  - Narrow re-review dispatched, aimed at over-refusal by Flush.
