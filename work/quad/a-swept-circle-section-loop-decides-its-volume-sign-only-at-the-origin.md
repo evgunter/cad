@@ -105,3 +105,20 @@ could then be spelled with `circle` once the tess crease row closes),
 and the quartered 17/21-station v-degree-3 bodies hand back a bracket
 at 1e-6 — or each remaining refusal is shown to be the correct answer
 for that wall, with its mechanism named.
+
+## 2026-10-21 — the sign lane's `rounds: 1` refusals were the budget exit (PR 5568)
+
+Every tier-3 refusal in the first table carried `rounds: 1`. That was
+the lanes' after-round-0 budget exit, answering the reporting question
+inside the sign walk: `check-7-refuses-the-reporting-budget-on-a-definite-sign`.
+PR 5568 lets the sign walk refine past it. The Klein bottle's
+`circle` loop (13 stations, v-degree 2, at the scene's position) now
+passes tier 3 at ε = 1e-6, 1e-9 and 1e-12, so wall 5 is retired and
+the scene's loop is spelled with `circle` (findings entry 5 rewritten).
+The tess crease row it waited on had already closed (#5499).
+
+What this does not touch is the REPORTING half, which still stands:
+the widths themselves, and their dependence on knot structure, degree
+and position; the quartered bodies' bracket-less continuation at 1e-6;
+and the helix (`projectbox` wall 1), which refuses at
+`mass_properties`, a number caller.
