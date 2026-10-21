@@ -513,9 +513,10 @@ fn a_short_segment_continuing_a_long_one_straight_within_eps_is_simple() {
 /// **A loop that comes back to a vertex along a straight continuation
 /// touches itself there.** `(0,0) (1,0) (1,−1) (1.2,−1) (1.2, 0.5ε) (1,0)`:
 /// segment 4 returns to `(1, 0)` within the band's zero of segment 0's
-/// carrier. Read collinear with segment 0, the pair touches
-/// at `(1, 0)`, which is not their shared vertex, so the loop is not
-/// simple: `NonSimple` with a `Touch`, not an escalation.
+/// carrier, and the closing leg retraces segment 0 back to `(0, 0)`.
+/// Read collinear with segment 0, segment 4 touches it at `(1, 0)`,
+/// which is not their shared vertex, so the loop is not simple:
+/// `NonSimple` with a `Touch`, not an escalation.
 #[test]
 fn a_loop_returning_to_a_vertex_along_a_straight_continuation_touches() {
     let e = tol().get().eps;

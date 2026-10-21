@@ -1,7 +1,7 @@
 ---
 id: check-9-lines-meet-escalates-an-in-band-side-before-its-collinear-arm
 kind: issue
-title: Check 9's lines_meet escalates an in-band side before reading a collinear pair, an order profile::seg dropped; unreachable through validate today
+title: "Check 9's lines_meet escalates an in-band side before reading a collinear pair, an order profile::seg dropped; reachable only in a sliver, with the same verdict"
 status: open
 opened: 2026-10-21
 priority: P3
@@ -29,21 +29,23 @@ the other edge's ends stands in band of the first's carrier, it reports
 `b`'s, in band. These are the witnesses PR 5542 fixed in `seg`
 (`rejections::a_short_segment_continuing_a_long_one_straight_within_eps_is_simple`).
 
-**Through validate it does not reach, by argument (not built as a body).**
-Check 9 compares a ring with its face's outer loop. Arm 5
+**Through validate it is reachable only in a sliver, with the same
+verdict.** Check 9 compares a ring with its face's outer loop, and arm 5
 (`segments_meet` → `lines_meet`) runs only after arms 1–3 have cleared
-every vertex of each loop against the other. Take a collinear pair
-whose gap does not read apart, so their projections overlap or touch
-within the band:
-- an end of one lies within the other's span on its carrier, so it is
-  a vertex standing on the other loop;
-- or the two spans touch within the band at an end.
+every vertex of each loop against the other. A collinear pair whose
+gap does not read apart has a vertex within the band of the other loop
+almost everywhere, which arms 1–3 read first. PR 5542's delta review
+found the sliver that passes them, through `lamina_with_ring`:
+- outer `(0,0) (4,0) (4,−2) (10,−2) (10,10) (0,10)`;
+- ring `(4+g, h₀ε) (5, h₁ε) (5,1) (4+g,1)`;
+- at `g = 1.000001·Kε`, check 9 escalates `ring_outer_meet_side`.
 
-Either way arms 1–3 read a vertex on the other loop, as a touch or in
-band, and do not clear the pair. The witnesses above share a vertex,
-which arms 1–3 catch outright. `seg` meets the case because its pair
-pass reads adjacent segments of one loop through `line_line`; check 9
-never reads adjacent edges.
+With collinear-first it would escalate `ring_outer_meet_overlap`
+instead. The verdict is the same, an escalation, under a different
+predicate: the gap screen and the overlap's upper bound read the same
+`extent + noise`, so a pair the gap did not read apart cannot read
+definitely disjoint in the overlap. The defect is the two doors' order
+differing, not a wrong verdict.
 
 ## Proposed shape
 
@@ -51,5 +53,5 @@ The same order as PR 5542's `line_line`: read `collinear(&on_a)` and
 `collinear(&on_b)` before propagating any side's `Err`. Both of one
 edge's ends within the band's zero of the other's carrier put the whole
 edge within it, so the overlap along that carrier decides the pair.
-Land it so that the two doors stay one reading; PR 5542 left check 9's
-order alone because nothing reaches it today.
+Land it so that the two doors stay one reading. PR 5542 left check 9's
+order alone because the only reach is that sliver, with the same verdict.
