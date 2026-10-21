@@ -247,7 +247,8 @@ pub struct BooleanNaming {
     pub graft_dead_edges: Vec<(EdgeKey, EdgeKey)>,
     /// B-side face graft lineage (see `graft_vertices`).
     pub graft_faces: Vec<(FaceKey, FaceKey)>,
-    /// Seam edges surviving the zips, in zip/cycle order, result keys.
+    /// Seam edges surviving the zips, each once, in the zip/cycle order
+    /// that first reports it, result keys.
     pub seam_edges: Vec<EdgeKey>,
     /// Vertex fusions `(dead, kept)` in mint order, result keys: the
     /// zips'.
@@ -944,7 +945,13 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
             } => zip_split(&mut body, (a_faces, b_faces), edges, tol)?,
         };
         desc.absorb_zip(&rep)?;
-        seam_edges.extend(rep.seam_edges);
+        // An edge two zips each glue one of its half-edges along
+        // survives once: the record lists it once.
+        for e in rep.seam_edges {
+            if !seam_edges.contains(&e) {
+                seam_edges.push(e);
+            }
+        }
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
     super::zip::share_points(&mut body, &points)?;
@@ -1010,7 +1017,11 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .map_err(|source| BooleanError::Pcurves { source })?;
     }
     // Each parted edge now bounds a face of each operand, as a seam does.
-    seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
+    for e in parted.iter().flat_map(|p| [p.kept, p.minted]) {
+        if !seam_edges.contains(&e) {
+            seam_edges.push(e);
+        }
+    }
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
     interior_loops?;

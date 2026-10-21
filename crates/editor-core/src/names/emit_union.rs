@@ -258,7 +258,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
         &by_parents.seams,
         body,
         members,
-        &flush,
+        (&flush, fold),
         (&lines, links),
         bnd,
     )?;
@@ -1502,17 +1502,15 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// **The name of the member vertices finished vertex `v` sits at**,
     /// if any: each vertex `w` of a member `n` at `v`'s point that lies on
     /// a face of `n` a face around `v` descends from, the one such vertex
-    /// or `Merged` of the several; and whether a member's table ties
-    /// one of them, a tie its citing name descends from (N2).
+    /// or `Merged` of the several; whether a member's table ties one of
+    /// them, a tie its citing name descends from (N2); and the vertices,
+    /// each by its member's index.
     ///
     /// # Errors
     ///
     /// [`NamingError::Escalated`] where a member vertex's point is
     /// undecided against `v`'s.
-    fn member_vertices(
-        &self,
-        v: topo::VertexKey,
-    ) -> Result<Option<(StableName, bool)>, NamingError> {
+    fn member_vertices(&self, v: topo::VertexKey) -> Result<Option<MemberVertices>, NamingError> {
         let mut cited = BTreeSet::new();
         for k in self.inc.vertex_edges.get(&v).into_iter().flatten() {
             for f in self.inc.edge_faces.get(k).into_iter().flatten() {
@@ -1522,6 +1520,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let p = vertex_point(self.body, v)?;
         let mut seen = BTreeSet::new();
         let mut at_v: BTreeSet<MemberEntity> = BTreeSet::new();
+        let mut corners = BTreeSet::new();
         let mut tied = false;
         for (i, f) in cited {
             let m = self.member_by_index(i);
@@ -1563,6 +1562,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     });
                 tied |= m.table.is_tied(name.name());
                 at_v.insert((m.read, name.clone()));
+                corners.insert((i, w));
             }
         }
         let name = match at_v.iter().collect::<Vec<_>>().as_slice() {
@@ -1574,8 +1574,19 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 several.iter().map(|w| entity_name(self.union, w)),
             ),
         };
-        Ok(Some((name, tied)))
+        Ok(Some(MemberVertices {
+            name,
+            tied,
+            corners,
+        }))
     }
+}
+
+/// What [`Flush::member_vertices`] reads at a finished vertex.
+struct MemberVertices {
+    name: StableName,
+    tied: bool,
+    corners: BTreeSet<(usize, topo::VertexKey)>,
 }
 
 /// The member faces a face name of the union descends from: its own
@@ -1662,7 +1673,9 @@ fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
 /// group with a moved name and no single seam, or a seam citing no
 /// edge, refuses. A group with no moved name and no member edge to rank
 /// along keeps its names: its ranks, if any, lie along a seam, in the
-/// orientation the collapse put in canonical form.
+/// orientation the collapse put in canonical form. A group at one member
+/// corner is the copies the finished body holds it as
+/// ([`name_corner_copies`]).
 #[allow(clippy::too_many_arguments)]
 fn cite_member_edges<T: geom_core::Decide>(
     t: NameTable,
@@ -1670,13 +1683,15 @@ fn cite_member_edges<T: geom_core::Decide>(
     seams: &[PieceGroup],
     body: &topo::Body<T>,
     members: &[Member<'_, T>],
-    flush: &Flush<'_, T>,
+    (flush, fold): (&Flush<'_, T>, &Fold),
     (lines, links): (&EdgeLines<'_>, &Links<T>),
     bnd: geom_core::Band,
 ) -> Result<NameTable, NamingError> {
     let bug = |what| NamingError::Emission { what };
     let mut out = NameTable::new();
     let mut tie = TieRows::default();
+    // A member-vertex name → the member corners its rows sit at.
+    let mut corners: BTreeMap<StableName, BTreeSet<(usize, topo::VertexKey)>> = BTreeMap::new();
     // base → (name as it stands, entry, whether the rewrite moved it)
     let mut vertices: BTreeMap<StableName, Vec<(StableName, Entry, bool)>> = BTreeMap::new();
     // The bases of groups a seam cited by its head moved.
@@ -1705,11 +1720,14 @@ fn cite_member_edges<T: geom_core::Decide>(
             _ => None,
         };
         let cited = match (member_vertex, crossing) {
-            (Some(((vertex, true), e)), _) => {
-                tie.push(vertex, e);
+            (Some((m, e)), _) if m.tied => {
+                tie.push(m.name, e);
                 continue;
             }
-            (Some(((vertex, false), _)), _) => vertex,
+            (Some((m, _)), _) => {
+                corners.entry(m.name.clone()).or_default().extend(m.corners);
+                m.name
+            }
             (None, Some(crossing)) => crossing,
             (None, None) => {
                 let whole = name.clone().rewrite_path(&mut WholeMemberEdges {
@@ -1738,6 +1756,10 @@ fn cite_member_edges<T: geom_core::Decide>(
         let moved = rows.iter().any(|&(_, _, moved)| moved);
         if let [(name, entry, _)] = rows.as_slice() {
             put_entry(&mut out, if moved { base } else { name.clone() }, entry)?;
+            continue;
+        }
+        if let Some(at) = corners.get(&base) {
+            name_corner_copies(&mut out, &mut tie, &base, rows, at, body, (flush, fold))?;
             continue;
         }
         let whole = |n: &StableName| {
@@ -1847,6 +1869,77 @@ fn cite_member_edges<T: geom_core::Decide>(
     }
     tie.flush(&mut out)?;
     Ok(out)
+}
+
+/// **A member corner the finished body holds as several vertices**,
+/// `rows`: each copy is a fragment of it, `Fragment(Borders)` over the
+/// divider walls it meets (N2), read over the fold's discards as a
+/// face piece's are ([`Obstacles::split_corner`]), each wall cited by
+/// its parent. Copies with one set tie.
+fn name_corner_copies<T: geom_core::Decide>(
+    out: &mut NameTable,
+    tie: &mut TieRows,
+    base: &StableName,
+    rows: Vec<(StableName, Entry, bool)>,
+    at: &BTreeSet<(usize, topo::VertexKey)>,
+    body: &topo::Body<T>,
+    (flush, fold): (&Flush<'_, T>, &Fold),
+) -> Result<(), NamingError> {
+    let mut copies = BTreeMap::new();
+    for (_, entry, _) in rows {
+        let Entry::Unique(e) = entry else {
+            unreachable!(
+                "member corner {base:?} holds a tied row: a tied member vertex's rows are \
+                 seated as its tie, never grouped as copies"
+            );
+        };
+        let EntityKey::Vertex(v) = e.key else {
+            unreachable!(
+                "member corner {base:?} holds a row on {:?}: a table seats a row only on \
+                 entities of its name's kind, and a rewrite keeps a name's kind",
+                e.key
+            );
+        };
+        copies.insert(v, e);
+    }
+    let mut parent: BTreeSet<MemberFace> = BTreeSet::new();
+    for &(i, w) in at {
+        let faces = flush
+            .member_by_index(i)
+            .body
+            .faces_of_vertex(w)
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "member {i}'s corner {w:?} has no faces: `Flush::member_vertices` read it \
+                     off a live face's loop"
+                )
+            });
+        parent.extend(faces.into_iter().map(|f| (i, f)));
+    }
+    let pieces: BTreeSet<topo::FaceKey> = flush
+        .face_ents
+        .iter()
+        .filter(|(_, ents)| !ents.is_disjoint(&parent))
+        .map(|(&f, _)| f)
+        .collect();
+    let keys: Vec<topo::VertexKey> = copies.keys().copied().collect();
+    let wall = |g: topo::FaceKey| {
+        Ok(flush.face_names.get(&g).cloned().unwrap_or_else(|| {
+            unreachable!("finished face {g:?} has no parent: `Parents::of` gives every face one")
+        }))
+    };
+    for (walls, vs) in fold
+        .obstacles
+        .split_corner(body, &parent, &keys, &pieces, wall)?
+    {
+        let mut piece = base.clone();
+        piece
+            .path
+            .push(RoleSeg::Fragment(Qualifier::Borders(walls)));
+        let ents = vs.iter().map(|v| copies[v]).collect();
+        mint_candidates(out, tie, false, canonical::minted(piece), ents)?;
+    }
+    Ok(())
 }
 
 /// **Vertices ranked along a union seam they lie on**: along the first
@@ -3911,7 +4004,7 @@ mod tests {
                 &[],
                 &self.body,
                 &members,
-                &flush,
+                (&flush, &Fold::new(0, &self.body)),
                 (&lines, &Links::default()),
                 bnd,
             )
@@ -4522,7 +4615,7 @@ mod tests {
         let tied = m.tie(EntityKey::Vertex(v0), EntityKey::Vertex(v1));
         let members = m.members();
         let flush = m.flush(&members);
-        let cited = |v| flush.member_vertices(v).unwrap();
+        let cited = |v| flush.member_vertices(v).unwrap().map(|m| (m.name, m.tied));
         let tied_ref = m
             .table
             .name_ref_of(&ent(0, EntityKey::Vertex(v0)))
@@ -4566,7 +4659,7 @@ mod tests {
             &[],
             &m.body,
             &members,
-            &flush,
+            (&flush, &Fold::new(0, &m.body)),
             (&lines, &Links::default()),
             flush.bnd,
         )
@@ -4638,7 +4731,7 @@ mod tests {
             )
         };
         assert_eq!(
-            flush.member_vertices(v0).unwrap(),
+            flush.member_vertices(v0).unwrap().map(|m| (m.name, m.tied)),
             Some((held(v0), true)),
             "candidate 0: both members' vertices, one of them tied"
         );
@@ -4663,7 +4756,7 @@ mod tests {
             &[],
             &tied.body,
             &members,
-            &flush,
+            (&flush, &Fold::new(0, &tied.body)),
             (&lines, &Links::default()),
             flush.bnd,
         )
