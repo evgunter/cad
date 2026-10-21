@@ -1120,7 +1120,9 @@ pub fn fin_crown_body(pose: &Pose, tol: Tol) -> Body<f64> {
                 let n = corners.len();
                 let (a, b) = (corners[(k + 1) % n], corners[(k + 2) % n]);
                 let normal = (a - c0).cross(b - c0).normalize();
-                let (u_ref, _) = normal.orthonormal_basis();
+                // The edge from `c0`, which lies in the plane: a reference
+                // the construction holds, not one picked off the axes.
+                let u_ref = (a - c0).normalize();
                 geom::Surface::Plane {
                     origin: c0,
                     normal,
