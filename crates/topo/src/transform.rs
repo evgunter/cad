@@ -133,8 +133,13 @@ pub enum TransformError {
         /// The certification refusal, unaltered.
         source: CertifyError,
     },
-    /// The body carries a transient null-scaffold curve (M3 boolean
-    /// machinery mid-flight); bodies at rest never do (tier 2).
+    /// The body carries a null-scaffold edge: what an unfinished edit
+    /// leaves behind (a lone `mev_null` on a fresh face, say). At a
+    /// build, a caller reaches it by moving a body in the middle of its
+    /// own edit, so it ends in that edit's lever
+    /// ([`crate::Unfinished::SCAFFOLDING_RECOURSE`]). Tier 2 refuses it
+    /// at rest, and the import door mints none, so read there it is a
+    /// stored contradiction and ends in the door's defect ending.
     NullScaffold {
         /// The offending edge.
         edge: EdgeKey,
@@ -186,8 +191,9 @@ pub enum TransformError {
 
 impl TransformError {
     /// This refusal's text read at `at`: a nested certification or
-    /// pcurve refusal renders at that door, and a defect ends in the
-    /// door's defect ending ([`geom_brep::recourse::defect_ending`]).
+    /// pcurve refusal renders at that door, a defect ends in the door's
+    /// defect ending ([`geom_brep::recourse::defect_ending`]), and
+    /// scaffolding ends in its edit's lever at a build.
     #[must_use]
     pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
         let at = at.into();
@@ -199,11 +205,19 @@ impl TransformError {
                 "an edge the map moved failed re-certification: {}",
                 source.render(at)
             ),
-            Self::NullScaffold { edge } => format!(
-                "edge {edge:?} carries a transient null-scaffold curve, which a body at rest \
-                 never does. {}",
-                defect
-            ),
+            Self::NullScaffold { edge } => match at {
+                geom_brep::recourse::ReadAt::Run(geom_brep::recourse::Reading::Build) => {
+                    format!(
+                        "the body still carries what an edit left behind, which the map cannot \
+                         move. Recourse: {}",
+                        crate::Unfinished::SCAFFOLDING_RECOURSE
+                    )
+                }
+                _ => format!(
+                    "edge {edge:?} carries a transient null-scaffold curve, which a body at \
+                     rest never does. {defect}"
+                ),
+            },
             Self::ApproxLaneUnsupported { scalar } => format!(
                 "an approximating surface cannot be moved at the {scalar} scalar with no \
                  offset-fit door in hand: its certificate is re-derived on the moved pair, and \
