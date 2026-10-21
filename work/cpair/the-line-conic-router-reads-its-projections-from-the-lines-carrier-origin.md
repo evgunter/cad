@@ -2,11 +2,13 @@
 id: the-line-conic-router-reads-its-projections-from-the-lines-carrier-origin
 kind: issue
 title: curve_pair's line_conic router reads its overlap from the line carrier's origin, not through geom_core::one_line; whether the anchor costs any decision is unshown
-status: open
+status: closed
 priority: P3
 cost: E
 refs: [5481, two-spans-projections-on-one-line-are-read-four-ways]
 opened: 2026-10-20
+closed: 2026-10-21
+branch: nurbs/line-conic-anchor-witness
 ---
 
 
@@ -74,3 +76,45 @@ points alone: that is the cut #5481's review caught.
 `line_conic`'s gap margins and its offset's evaluation point
 (`a₀ + u·mid`) move. That bits move is never a reason to keep the
 old anchoring: re-baseline whatever golden moves, and name it.
+
+## Closed
+
+Not a defect, and the fix above would cost decisions. A line against
+a conic's extent is not the two-spans-on-one-line reading, so
+`line_conic` is no second home for `geom_core::one_line`; it keeps its
+own anchor, and `pose.rs` now says why at `line_conic`.
+
+**The witness** (commit `8c00c108` on `nurbs/line-conic-anchor-witness`,
+`curve_pair::pose::line_conic_anchor_witness::probe_the_gap_under_both_anchors`;
+removed in the next commit, re-run by checking that commit out):
+- **The poses.** At `ε = 1e-12` (`K = 10`), 20 000 per placement of the
+  line's origin: a line span `0.01`–`10` m long beside a circle of
+  radius `0.1`–`10` m, off the line, whose extent along it starts
+  `1e-13`–`1e-9` m past the span's end. The line's origin stands at
+  the span, `10³` m or `10⁶` m back along it.
+- **The two readings of the gap row** (`curve_pair_pose_gap`,
+  Positive = apart):
+  - **main**: projected from the carrier's origin, with
+    `line_conic`'s `screened` charge;
+  - **the recipe above**: projected from the span's start through
+    `OnOneLine::of`, charged for both chains (each end's evaluation,
+    `|o| + |d|·|t|`, plus the projections, `|a₁ − a₀| + |centre − a₀| + r`).
+- **The oracle.** Every apart is checked against the real gap, the
+  circle's extent start less the span's end, enclosed in `Interval`
+  from the carrier's exact data; an apart whose enclosure is not past
+  `ε` counts as unproven.
+
+Two runs (the fuzz seed is drawn per run):
+
+| origin | main apart | recipe apart | recipe gains | recipe loses | unproven apart (main / recipe) |
+|---|---|---|---|---|---|
+| at the span | 9849 / 9923 | 9863 / 9928 | 14 / 5 | 0 / 0 | 0 / 0 |
+| `10³` m back | 9603 / 9677 | 8796 / 8882 | 0 / 0 | 807 / 795 | 0 / 0 |
+| `10⁶` m back | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+
+Neither reading misdecides. Main's charge is honest, and cheaper far
+from the origin: its gap carries the carrier origin's metres once,
+where a span-anchored read charges both ends' evaluation (`2|o|`). At
+the span the anchor gains a handful of marginal poses in 20 000; `10³` m
+back it loses about 8% of the aparts. At `10⁶` m every charge passes
+every gap drawn.
