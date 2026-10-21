@@ -51,10 +51,10 @@ re-pinned, and CPAIR's held PR 3 lands after it.
 ## For the implementer, once ruled (from the designers' notes)
 
 - **Blast radius.**
-  - `Incoming` gains the line's anchor, or `carrier` becomes `Line { anchor, dir } | Arc(ArcData)`.
-  - The constructors are `leg_end_tip`'s callers.
-  - The readers are `continuation_ray` (both `continue_to` kernels), `tangent_kernel`/`cusp_kernel` (inherit) and `director` (rebind).
-  - The §2c seal's reader inventory, in the module header, gains the new reader.
+  - The shape is Ev's, on the `[ev]` PR: the directed point holds its tangent as a ray, in a family of internal representations behind one API (position, tangent, `lands_on_ray(target)`). No verb reads the anchor or learns which representation it holds; in particular, no verb reads the previous leg's carrier. So it is not a `carrier: Line | Arc` field that verbs consult.
+  - The constructors are `leg_end_tip`'s callers. A straight continuation hands its end point the ray it was checked against; a binder anchors the ray at the point.
+  - The readers are `continuation_ray` (both `continue_to` kernels, which become `lands_on_ray`), `tangent_kernel`/`cusp_kernel` (inherit the ray; `.cusp()` negates it) and `director` (rebind).
+  - The §2c seal's reader inventory, in the module header, gains `lands_on_ray`.
   - `resolve_fillet`'s `Pending::Ray.origin` and `junction_check` stay on the vertex.
 - **Siblings with the same anchoring shape. Check each one; file any that has it.**
   1. `PendingRunOut::rides`: a fillet run-out ray is anchored at the arrival point, per leg. Does the run's carrier ride through a fillet's run-out extension onto the same line?

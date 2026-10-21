@@ -74,6 +74,20 @@ junction check's lever arm and the §4 item 4 identity data are the
 CHAIN's own emission-layer bookkeeping, not anything a verb can
 consult.)
 
+**The tangent is held as a RAY, behind one API.** A directed point
+stores its tangent as a ray, in one of a family of internal
+representations. The API is common to all of them: the position, the
+tangent, and `lands_on_ray(target)`, the on-ray reading of a point
+target. No verb can see which representation a point holds. Where the
+direction is bound (`.angle`/`.turn`/`toward`, `line_to`'s chord, an
+arc's end tangent), the ray is anchored at the point itself. A straight
+continuation (`continue_to`, `line(len)`, and the verbs that inherit the
+direction bitwise) hands its end point the ray it was itself checked
+against, unchanged. So the ray a run of continuations reads is bound once
+and never re-anchored at an accepted vertex, and it cannot drift. This
+adds nothing about the previous leg: the point carries its own ray,
+which a verb can consult only through that API.
+
 ### Binders and directors
 
 - **`.angle(θ)`** — adds the angle bit wherever it is missing
@@ -964,7 +978,7 @@ typestate, and it retires:
 | `.tangent()` | directed point → Directed | inherit + declared; ill-typed on plain points |
 | `.toward(dx, dy)` | Point → Directed; Open → Angle | **G1** — the exact director: same slot as `.angle`, ray stored verbatim |
 | `line(len)` | Directed → Point; directed point → directed point | off a directed point, the straight continuation: the leg departs along the point's own intrinsic tangent. Binding bits only; there is no junction (no authored direction exists to classify) and nothing is declared. The minted vertex is a structural subdivision of the carrier — the loft vertex-budget shape. |
-| `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the RUN's carrier line — the line bound where the run's direction was bound, carried unchanged by every verb that inherits the direction, and never re-anchored at an accepted vertex — within ε_input, metered as the target's own lateral displacement from that line (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, refusing `SeamTangent` when the seam is undeclared and zero-turn; `Start.arrives_tangent()` is the target that DECLARES it (§6's revised PQ4) and inverts that verdict. The zero-turn joint the leg itself mints is CONSTRUCTED by the verb (2026-09-02), so it enters the loop's constructed joints (`ConstructedLoop::constructed_joints`). The closer classifies no departure junction at all (there is no authored direction), and where a closing leg DOES have one it refuses `JunctionTangent` like any other verb. |
+| `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the departing point's RAY (`lands_on_ray`, §2c: bound where the direction was bound and handed on unchanged by each continuation, so never re-anchored at an accepted vertex) within ε_input, metered as the target's own lateral displacement from that ray (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, refusing `SeamTangent` when the seam is undeclared and zero-turn; `Start.arrives_tangent()` is the target that DECLARES it (§6's revised PQ4) and inverts that verdict. The zero-turn joint the leg itself mints is CONSTRUCTED by the verb (2026-09-02), so it enters the loop's constructed joints (`ConstructedLoop::constructed_joints`). The closer classifies no departure junction at all (there is no authored direction), and where a closing leg DOES have one it refuses `JunctionTangent` like any other verb. |
 | `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs; the NURBS pair awaits the segment vocabulary (VQ7) |
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
 | `arc_onto(target)` | Point → pending director → directed Point; `Start` → pending director → complete loop; `Start.arrives_tangent()` → complete loop | §2a item 6 — `tangent_arc_to`'s mirror: the arc to the target whose END tangent is the one director that follows; departure derived and junction-checked; the token supplies `Start`'s direction; refuses `ArcLegOnOpenFillet` on a fillet arrival's bare anchor |
@@ -1437,19 +1451,16 @@ no departure has (the entry cannot carry `.tangent()`), so naming it as
 a departure sent the reader to a spelling the seam does not have. Both
 arc closers pass `true` now.
 
-**The band's guarantee is PER RUN, because the datum is the run's
-carrier.** A run is the chain of straight legs since the direction was
-last bound (`.angle`/`.turn`/`toward`, `line_to`'s chord, an arc's end
-tangent); its carrier is the line anchored at the vertex where that
-direction was bound. Every `continue_to` in the run checks its target
-against that one line, never against a ray re-anchored at the previous
-accepted vertex, so n accepted misses are n misses of one line and never
-a sum: every vertex of a declared straight run lies within the band of
-one line, and n appears nowhere. `validate` certifies nothing about
-runs; it reads the materialized joints by their turn at its own lever,
-as ruled. The fillet and junction readers keep the ray at the vertex:
-their questions are about the leg ending there, and the two rays differ
-by that vertex's accepted miss, which the band already admits.
+**The band's guarantee is PER RUN, because the ray does not drift.**
+A run is the chain of straight legs since the direction was last bound.
+Every `continue_to` in it reads the one ray its departing point carries
+(§2c), which is the ray bound at the run's first vertex. So n accepted
+misses are n misses of one line and never a sum: every vertex of a
+declared straight run lies within the band of that line, and n appears
+nowhere. `validate` certifies nothing about runs; it reads the
+materialized joints by their turn at its own lever, as ruled. The fillet
+and junction readers read the point's position and tangent, not the
+ray's anchor: their questions are about the leg ending at that vertex.
 
 **The ε_input story of the new arms** (D4 consequence (iv): for every
 arm added to a decision, name which ε_input story it belongs to, or say
