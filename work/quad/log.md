@@ -121,3 +121,38 @@ seam:
 - the P0 `check-7-refuses-the-reporting-budget-on-a-definite-sign`;
 - the dial's designer pair, then its `[ev]` PR;
 - the frame-dependence re-measure.
+
+## 2026-10-21 — dispatched: check 7's sign walk; the frame rows re-measured
+
+- **`check-7-refuses-the-reporting-budget-on-a-definite-sign`** (P0, M), branch
+  `quad/check7-sign-walk`. Measure wall 16 on main first. Then the sign walk
+  refines past round 0 when the reporting target is out of reach, through one
+  mechanism across the three patch lanes. **Review tier: single FULL review**
+  (claims plus style): it changes when a certified walk stops in three
+  lanes, so a confident wrong sign is the failure mode, and believing it takes
+  more than reading it.
+- **Frame-dependence re-measure** (measurement only, branch
+  `quad/frame-remeasure`). It re-takes the five rows on main after FLUX's
+  `shell_reference`, and appends the numbers to each row. No review: it changes
+  no code, and it folds on the orchestrator's read.
+- **Sequencing:** the dial (`quad2-rational-max-rounds-dial-decision`) waits for
+  check 7. `last_round_refuses` asks exactly the question the dial moves, and the
+  row's numbers date from August, so the designer pair weighs it on check 7's
+  head with re-taken numbers. The alternative was weighing it now in parallel;
+  it was not taken because the pair would be designing against a stop rule the
+  P0 is about to change.
+- **The nightly's quad red** (run 39549991622, `tour_runs_green_at_eps_1e_6`:
+  projectbox wall 1 "NO LONGER REFUSES") ran on `8c7db2ae`, before #5548
+  retired that wall, so it is already fixed on main. Its other reds are not on
+  quad's ground: `sweep::ray_wall_margin_twins` (`curve_foot_branch`), the full
+  suite, and rustdoc.
+
+## 2026-10-21 — frame rows re-measured (folded from `quad/frame-remeasure`)
+
+Measured on main `258dc6c7c2`, with `ec32861499` (just before FLUX's #5442) as the control. The probes are kept as `#[ignore]`d rows in `crates/sweep/tests/quad_frame_remeasure.rs`.
+- **arc-prism panic: gone** (#5442). Closed.
+- **rational cross: stands at the `nurbs_patch_face` door** (refuses from 1 m, linear in distance; it also refuses under rotation when the face is off-centre). It is gone through `topo`, which re-centres each net. Stays P2: only a direct caller of the door meets it.
+- **interval floor: shrunk.** Still `VolumeUndecided` at scale 4·10³ at 1e-9, and 10³ at 1e-12. The 1 km pipe is gone (#5442). Stays P2.
+- **swept circle: the position half is gone** (#5442). The knot-structure and degree findings stand: every `circle`-section cell refuses at the default ε, at widths 6e-6 to 2e-5. Stays P1: it still blocks ordinary round tubes. The row's own recipe now hits tour wall 9 (`PathTangentReversal`), so the lofted twin was measured instead.
+- **area pads: stands, first measurement.** The bracket width varies 1.13× under rotation, and the flux width 2.8×. Stays P3.
+- **Class finding, sent to FLUX's log:** #5442 reads a shell about its first quadrature face's start, which costs bodies at the origin. That is evidence for FLUX's `a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first`.
