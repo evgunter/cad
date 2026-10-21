@@ -10,9 +10,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::seam_region_common::{flipped, seam_region, sphere_faces, split_at_meridian, v};
+use geom_brep::props::PropsError;
 use geom_core::Tol;
 use sweep::test_support::{ball_poled, brick, finished};
-use geom_brep::props::PropsError;
 use topo::{Body, ValidationError};
 
 fn census(e: &ValidationError) -> bool {

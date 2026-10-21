@@ -984,7 +984,11 @@ Gauss–Bonnet area on the side its bit claims, summed, less the area its
 boundary claims (the sphere, with no boundary), is a whole number of
 spheres, zero for a region covered once. A cover of the sphere twice
 over reads one; a region of `n` one-loop faces whose bits all flip, each
-claiming its own complement, reads `n − 1`. A loop with a pole off it on each side
+claiming its own complement, reads `n − 1`. The measurement door reads
+the same seam regions without tier 3 (`topo/src/props.rs`,
+`seam_refusals`), so it refuses the regions tier 3 refuses, and a region
+whose faces' bits disagree, which tier 3 refuses as check 4's lamina. A
+loop with a pole off it on each side
 encodes no side: under either sense its face holds a pole, which is
 validity's to refuse. Nor does a loop whose poles both read undecided: a
 pole within the ambiguity band of a great or near-great carrier's plane
