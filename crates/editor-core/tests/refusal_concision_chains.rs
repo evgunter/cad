@@ -71,7 +71,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
-    "Transform/NullScaffold",
     "UnfinishedOperand/ScaffoldingEmptyLoop",
     "UnfinishedOperand/ScaffoldingStrutVertex",
     "Loft/Pcurve",

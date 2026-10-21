@@ -703,8 +703,11 @@ pub enum JoinRefusal {
         closed: bool,
     },
     /// The kill, the re-description or the re-mint refused on a body
-    /// that passed tier 2: a kernel or file defect, by the refusal's
-    /// kind.
+    /// that passed tier 2. Euler certification runs there, and user
+    /// geometry reaches its limit at a build, so a build ends in the
+    /// last resort ([`geom_core::KERNEL_LIMIT_RECOURSE`]); read over a
+    /// body at rest or a file, it is a stored contradiction and ends in
+    /// the door's defect ending.
     Kernel {
         /// The boolean refusal's kind.
         kind: super::BooleanErrorKind,
@@ -737,9 +740,9 @@ impl JoinRefusal {
 impl JoinRefusal {
     /// This refusal's text read at `at`: a reading in band ends in the
     /// join's lever, a poisoned one with the door's unreadable-margin
-    /// note ([`geom_brep::recourse::unreadable_margin_note`]), and a
-    /// defect in the door's defect ending
-    /// ([`geom_brep::recourse::defect_ending`]).
+    /// note ([`geom_brep::recourse::unreadable_margin_note`]), a refused
+    /// kill or re-mint as [`Self::Kernel`] says, and a defect in the
+    /// door's defect ending ([`geom_brep::recourse::defect_ending`]).
     #[must_use]
     pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
         use geom_brep::recourse::{ReadAt, Reading, defect_ending, unreadable_margin_note};
@@ -780,8 +783,12 @@ impl JoinRefusal {
                 }
             ),
             Self::Kernel { kind } => format!(
-                "the join of two edges meeting at a vertex on one curve refused ({}). {defect}",
-                kind_word(*kind)
+                "the join of two edges meeting at a vertex on one curve refused ({}). {}",
+                kind_word(*kind),
+                match at {
+                    ReadAt::Run(Reading::Build) => geom_core::KERNEL_LIMIT_RECOURSE,
+                    _ => defect,
+                }
             ),
         }
     }
@@ -1405,5 +1412,47 @@ mod undecided_text {
              its description-driven iso/fitted lanes instead of this door, and an image outside \
              the chart's harmonic family belongs to the fitted lane where one exists"
         );
+    }
+}
+
+#[cfg(test)]
+mod kernel_text {
+    //! **A refused kill or re-mint ends by its door**: at a build, the
+    //! kernel-limit last resort, since user geometry reaches Euler
+    //! certification's limit there; at rest, the kernel-or-file defect
+    //! ending; at the import door, the file's.
+
+    use geom_brep::recourse::Reading;
+    use geom_core::FileCoincidence;
+
+    use super::JoinRefusal;
+
+    #[test]
+    fn a_refused_join_ends_by_its_door() {
+        let refusal = JoinRefusal::Kernel {
+            kind: crate::BooleanErrorKind::Euler,
+        };
+        let lead = "the join of two edges meeting at a vertex on one curve refused (Euler). ";
+        let rows = [
+            (
+                "a build",
+                refusal.to_string(),
+                "Recourse: loosen the tolerance, as a last resort; this refusal may indicate \
+                 a kernel bug worth reporting",
+            ),
+            (
+                "at rest",
+                refusal.render(Reading::AtRest),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "the import door",
+                refusal.render(FileCoincidence::new(1e-6)),
+                geom_core::DAMAGED_FILE_ENDING,
+            ),
+        ];
+        for (door, got, ending) in rows {
+            assert_eq!(got, format!("{lead}{ending}"), "{door}");
+        }
     }
 }

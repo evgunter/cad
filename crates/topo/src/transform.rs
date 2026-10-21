@@ -133,8 +133,11 @@ pub enum TransformError {
         /// The certification refusal, unaltered.
         source: CertifyError,
     },
-    /// The body carries a transient null-scaffold curve (M3 boolean
-    /// machinery mid-flight); bodies at rest never do (tier 2).
+    /// The body carries a null-scaffold edge: what an unfinished edit
+    /// leaves behind (a lone `mev_null` on a fresh face, say), which
+    /// tier 2 refuses at rest. A caller reaches it by moving a body in
+    /// the middle of its own edit, so it ends in that edit's lever
+    /// ([`crate::Unfinished::SCAFFOLDING_RECOURSE`]) at every door.
     NullScaffold {
         /// The offending edge.
         edge: EdgeKey,
@@ -186,8 +189,9 @@ pub enum TransformError {
 
 impl TransformError {
     /// This refusal's text read at `at`: a nested certification or
-    /// pcurve refusal renders at that door, and a defect ends in the
-    /// door's defect ending ([`geom_brep::recourse::defect_ending`]).
+    /// pcurve refusal renders at that door, a defect ends in the door's
+    /// defect ending ([`geom_brep::recourse::defect_ending`]), and
+    /// scaffolding ends in its edit's lever at every door.
     #[must_use]
     pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
         let at = at.into();
@@ -199,10 +203,10 @@ impl TransformError {
                 "an edge the map moved failed re-certification: {}",
                 source.render(at)
             ),
-            Self::NullScaffold { edge } => format!(
-                "edge {edge:?} carries a transient null-scaffold curve, which a body at rest \
-                 never does. {}",
-                defect
+            Self::NullScaffold { .. } => format!(
+                "the body still carries a placeholder edge an edit left behind, which has no \
+                 curve for the map to move. Recourse: {}",
+                crate::Unfinished::SCAFFOLDING_RECOURSE
             ),
             Self::ApproxLaneUnsupported { scalar } => format!(
                 "an approximating surface cannot be moved at the {scalar} scalar with no \
