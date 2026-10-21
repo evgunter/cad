@@ -113,6 +113,8 @@ mod m10_7_r1_sym_probes;
 mod m5_pr1_refusal_conservation;
 #[path = "m5_pr7b_tensor_compose.rs"]
 mod m5_pr7b_tensor_compose;
+#[path = "normalize_prescale_review_rows.rs"]
+mod normalize_prescale_review_rows;
 #[path = "review_m0_pr2.rs"]
 mod review_m0_pr2;
 #[path = "review_m0_pr3.rs"]
