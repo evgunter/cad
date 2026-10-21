@@ -2788,6 +2788,35 @@ pub fn mass_properties_with_face_terms(
     Ok((props, terms))
 }
 
+/// Every face's own flux term and its area, in face-arena order,
+/// each read about its shell's reference by its own lane ([`face_flux`])
+/// WITHOUT the door's seam-region reads ([`seam_refusals`]): what each
+/// face's arm measures of a body the door refuses as a whole, such as a
+/// sphere seam region whose members' bits disagree. Test vocabulary: the
+/// rows that pin how one face's arm reads its own bit.
+///
+/// # Errors
+///
+/// A face's own refusal, as [`mass_properties`] reports it.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn face_flux_terms(
+    body: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<(FaceKey, f64, f64)>, MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let hook = reporting_hook(Some(QuadLane::certified()));
+    let refs = References::points(body, faces.iter().copied());
+    faces
+        .iter()
+        .map(|&face| {
+            let run = face_flux(body, face, band, &hook, tol, RoundWindow::SCHEDULE, &refs)?;
+            Ok((face, run.contribution.flux, run.contribution.area))
+        })
+        .collect()
+}
+
 /// Every shell of `body` with the point its faces are read about
 /// ([`shell_reference`]), in arena order. Test vocabulary.
 #[cfg(any(test, feature = "test-support"))]
