@@ -116,7 +116,7 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// quadrature lane's pad (zero on a closed-form `f64` inventory, the
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
-pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds>(body: &Body<T>) -> (f64, f64) {
+pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(body: &Body<T>) -> (f64, f64) {
     let p = mass_properties(body, tol()).expect("certified props");
     let (lo, hi) = (p.volume.lo(), p.volume.hi());
     (0.5 * (lo + hi), 0.5 * (hi - lo) + p.volume_pad)

@@ -334,10 +334,30 @@ impl std::error::Error for MassPropsError {}
 /// The two rows differ in one identifier and every path either names
 /// resolves, so the second fails on the bound alone — `E0277`,
 /// `CertifiedEnclosure` not implemented for `Dual<f64>`.
-pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
-    body: &Body<T>,
+pub trait ZzDoorBody<T: Real> {
+    const RAW: bool;
+    fn zz_body(&self) -> &Body<T>;
+}
+impl<T: Real> ZzDoorBody<T> for Body<T> {
+    const RAW: bool = true;
+    fn zz_body(&self) -> &Body<T> { self }
+}
+impl<T: Real> ZzDoorBody<T> for crate::AtRestBody<T> {
+    const RAW: bool = false;
+    fn zz_body(&self) -> &Body<T> { self }
+}
+pub static ZZ_RAW: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub fn mass_properties<T: Decide + geom_core::CertifiedBounds + AtRestPolicy, B: ZzDoorBody<T> + ?Sized>(
+    body: &B,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
+    let body = body.zz_body();
+    if B::RAW {
+        ZZ_RAW.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if std::env::var_os("ZZ_GATE").is_some() {
+            let _ = T::gate_at_rest_kept(body.clone(), tol);
+        }
+    }
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     mass_properties_with(body, band, tol, Some(QuadLane::certified()))
 }

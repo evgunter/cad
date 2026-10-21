@@ -43,7 +43,7 @@ fn certified<T: geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Doors<T> {
     Doors {
         pseudomanifold: topo::validate_pseudomanifold::<T>,
         marks: |body, tol| topo::contact_marks(body, tol).map(|m| sorted_marks(m.iter())),
-        mass: topo::mass_properties::<T>,
+        mass: topo::mass_properties::<T, topo::Body<T>>,
     }
 }
 
