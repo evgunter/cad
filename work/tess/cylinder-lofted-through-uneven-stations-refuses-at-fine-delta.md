@@ -2,10 +2,13 @@
 id: cylinder-lofted-through-uneven-stations-refuses-at-fine-delta
 kind: issue
 title: A cylinder lofted through uneven stations refuses CertificateExceeded at fine δ, independent of the column snap
-status: open
+status: closed
 opened: 2026-10-21
 priority: P2
 cost: M
+closed: 2026-10-21
+pr: 5570
+branch: tess/low-residual-rows
 ---
 
 
