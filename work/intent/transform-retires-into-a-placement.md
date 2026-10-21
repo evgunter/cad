@@ -2,12 +2,13 @@
 id: transform-retires-into-a-placement
 kind: issue
 title: D10 stage 3 PR D: constructions read no frame and nothing moves a body; Datum, Transform and PlacedFrom retire, each use becoming a placement
-status: review
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: H
 refs: [intent-stage3-is-built]
 branch: intent/s3-d-transform-retires-into-a-placement
+closed: 2026-10-21
 ---
 
 INTENT stage 3, PR D. Spec: `docs/INTENT-STAGE3-SPEC.md` §5. Built on FORK-S3P (row 95, PR 4324) and FORK-S3M (row 97, PR 4326).
@@ -409,3 +410,7 @@ Runtime census of plane-less and loft constructions in the test trees before D (
 
 https://claude.ai/code/session_01ERgAp2pYACAfH3eGXR4Ppw
 
+
+## Closed
+
+PR #5506 (2026-10-21). D builds what its spec §5 says, plus two orchestrator rulings: FORK-REST, under which only the identity bundle as written places by no map, and the mateless bundle brought forward from D′, under which `stand` writes the identity bundle. A turn written as a rational fraction of a turn is exact in every lane, decided from the recipe's form. The concurrent dual review is row PR-5506 in `docs/dual-review-log/`. Its fix pass keys the recipe forms in the content key. Left for D′ (`a-placement-pins-by-written-values-without-a-mate`): the placement helpers that read geometry, mixed bundles' mateless values, picks, and loose-space retirement. That last waits on Ev's answer on PR 5494.

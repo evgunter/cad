@@ -1,12 +1,13 @@
 ---
 id: a-placement-pins-by-written-values-without-a-mate
 kind: issue
-title: "A placement pins by written values without a mate: stage 3 D′, the placement pivot"
+title: A placement pins by written values without a mate: stage 3 D′, the placement pivot
 status: open
 opened: 2026-10-18
 priority: P0
 cost: H
 refs: [transform-retires-into-a-placement]
+needs_ev: true
 ---
 
 Stage 3 D′, which follows D (`transform-retires-into-a-placement`); opened by the item `a-placement-relates-two-frames` (PR 5312). D10 `[placement]` was restated by PR 5312 (fork-log row 162; Ev approved). The clauses this builds:

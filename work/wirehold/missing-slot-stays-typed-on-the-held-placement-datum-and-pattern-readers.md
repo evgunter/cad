@@ -4,7 +4,7 @@ kind: issue
 title: MissingSlot stays a typed arm at the datum, placement, pattern and instance slot readers the D10 hold keeps; every other reader panics
 status: parked
 opened: 2026-10-20
-blocked_on: [transform-retires-into-a-placement, patterns-are-index-variables]
+blocked_on: [patterns-are-index-variables]
 priority: P3
 cost: E
 ---

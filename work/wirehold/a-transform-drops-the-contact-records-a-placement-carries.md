@@ -2,9 +2,8 @@
 id: a-transform-drops-the-contact-records-a-placement-carries
 kind: issue
 title: Transform drops its input's contact records while PlaceInWorld carries them verbatim, though both are rigid motions that keep arena keys
-status: parked
+status: open
 opened: 2026-10-08
-blocked_on: [transform-retires-into-a-placement]
 ---
 
 Found by the review of INTENT stage 2 C (PR #4359, NOTE-3).

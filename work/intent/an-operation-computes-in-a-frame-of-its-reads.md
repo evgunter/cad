@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-09
 priority: P0
 cost: M
-blocked_on: [transform-retires-into-a-placement]
+blocked_on: [a-placement-pins-by-written-values-without-a-mate]
 refs: [intent-stage3-is-built, each-space-computes-in-its-earliest-members-frame]
 ---
 
