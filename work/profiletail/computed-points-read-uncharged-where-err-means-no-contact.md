@@ -33,3 +33,7 @@ per 100k draws.
 **Next.** Probe first: an exact oracle sweep over that regime for each
 site, as the review ran for PR 5552. Charge only the sites a witness
 reaches. No witness yet.
+
+## Re-homed at PATHS's close (2026-10-21)
+
+Filed on PATHS's slate on the day it closed (PR 5552's review) and moved to PROFILETAIL (`work/profiletail/`) with the merge that closes PATHS. PROFILEREST holds validation's other reads but was at budget. The item's id, content and history are unchanged.

@@ -33,3 +33,7 @@ reading there only moves a refusal. Measure first: no witness through
 `validate` yet. A sibling of
 `computed-points-read-uncharged-where-err-means-no-contact`, in the same
 regime.
+
+## Re-homed at PATHS's close (2026-10-21)
+
+Filed on PATHS's slate on the day it closed (PR 5552's review) and moved to PROFILETAIL (`work/profiletail/`) with the merge that closes PATHS. PROFILEREST holds validation's other reads but was at budget. The item's id, content and history are unchanged.
