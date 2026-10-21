@@ -1135,7 +1135,7 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
 }
 
 /// The assembled bench at its authored swing: the near post's world
-/// pin places it through the turntable, the mates place the rest onto
+/// mate places it through the turntable, the mates place the rest onto
 /// it, the mates mint their declarations, and the gate reports what it
 /// could decide.
 fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evaluation<f64> {

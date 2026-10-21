@@ -506,7 +506,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
 #[test]
 fn row3_a_an_unmated_touching_pair_is_rows_of_the_two_copies() {
     // The same touching geometry, with the mate REPLACED by a world
-    // pin at the pose it solved — the pin is document data, so the
+    // mate at the pose it solved — the mate is document data, so the
     // instances still touch and no mate relates them.
     let (doc, ids, mate, store, _) = stacked("asm-r2b-row3a", 1.0);
     let o = with_resolver(store);

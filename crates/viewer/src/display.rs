@@ -288,7 +288,7 @@ impl core::fmt::Display for AdmissionFault {
             Self::InTheWorld { instance } => write!(
                 f,
                 "{instance} lives in the world's space: its placement pins it there (a world \
-                 pin, or a mate onto a copy in the world), so the free-move probe refuses. \
+                 mate, or a mate onto a copy in the world), so the free-move probe refuses. \
                  Free-move moves a loose space, a copy nothing pins to the world"
             ),
             Self::NotEvaluated { instance } => write!(

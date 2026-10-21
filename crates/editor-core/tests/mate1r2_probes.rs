@@ -131,7 +131,7 @@ fn seat(
 }
 
 /// **An instance pinned to the world at `pose`**: a bundle of one world
-/// pin, read off its geometry through `o`.
+/// mate, read off its geometry through `o`.
 fn instance_at(
     doc: ProfileDoc,
     part: editor_core::DocRef,

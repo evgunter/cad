@@ -1364,7 +1364,7 @@ pub enum InlineError {
         node: SpokenNode,
     },
     /// **The instance is placed by other constraints than one world
-    /// pin, and the part is not one instance pinned to its world at the
+    /// mate, and the part is not one instance pinned to its world at the
     /// identity** (A4): only such a part's one placement can take the
     /// instance's bundle and move the part's copies as the instance
     /// moved them.
