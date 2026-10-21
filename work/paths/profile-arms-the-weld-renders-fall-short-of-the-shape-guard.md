@@ -39,3 +39,8 @@ Cut `ArcBelowSceneResolution` to the budget (the provenance clause is
 the candidate) and fix the determiner, then take it off
 `OVER_BUDGET`. End `InconsistentArc` in a
 labelled `Recourse:` and take it off `FILED_NO_RECOURSE`.
+
+**2026-10-21.** The recourse's "a coarser tolerance also reads it" is
+gone (`nurbs/scene-resolution-recourse`, D4 ¶1 (i)). The row now
+renders 85 words and stands on `OVER_BUDGET` at 85, still over the
+75-word budget, so the cut above is still owed.

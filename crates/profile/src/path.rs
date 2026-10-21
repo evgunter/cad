@@ -1765,7 +1765,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "the declared straight continuation\'s target is not on its run\'s line (the \
                  line bound where the run\'s direction was bound): it misses by {across} m \
                  across the line, {along} m along it from the departing point. Recourse: move \
-                 the target onto the run\'s line (or widen the input tolerance); if a TURN was \
+                 the target onto the run\'s line; if a TURN was \
                  meant, author the direction (.turn(delta)/.angle(theta)) and use line_to",
                 across = num(across),
                 along = num(along)
@@ -2083,22 +2083,20 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         f,
                         "the declared straight continuation's target is neither on its \
                      run's line nor definitely off it: {payload}. Recourse: move the target \
-                     onto the run's line, or widen the input tolerance (K·ε) so this miss is \
-                     admissible",
+                     onto the run's line",
                         payload = source.payload()
                     ),
                     Some("path_seam_arrival_turn" | "path_seam_arrival_side") => write!(
                         f,
                         "the declared seam arrival is neither continuing the entry\'s outgoing \
                      direction nor definitely off it: {payload}; the declaration is the target. \
-                     Recourse: move the geometry so the two directions agree, or widen the \
-                     input tolerance (K·ε); LOWERING the tolerance is the wrong direction here",
+                     Recourse: move the geometry so the two directions agree",
                         payload = source.payload()
                     ),
                     Some("path_leg_length") => write!(
                         f,
                         "an authored leg extent could not be told from zero: {payload}. \
-                     Recourse: author a longer leg, or widen the input tolerance (K·ε)",
+                     Recourse: author a longer leg",
                         payload = source.payload()
                     ),
                     // The STORED-FORM read's own classifications
