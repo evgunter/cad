@@ -4833,6 +4833,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "crossing_senses_shape_tag",
+        values: &[
+            "unsupported_crossing_senses_name_reads_two_senses",
+            "unsupported_crossing_senses_pieces_both_sides",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "crossing_side_tag",
         values: &["opposite_sides", "same_side", "undecided"],
         delegates: &[],
@@ -4852,6 +4860,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "split_on",
             "tangent_witness",
             "vertex_fusion",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "disagree_shape_tag",
+        values: &[
+            "band_verdicts_disagree_flush_senses_disagree",
+            "band_verdicts_disagree_joined_edge_off_members",
+            "band_verdicts_disagree_pieces_at_one_vertex",
+            "band_verdicts_disagree_vertex_off_joined_set",
         ],
         delegates: &[],
     },
@@ -5181,6 +5199,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
         ],
     },
     TagEntry {
+        function: "join_shape_tag",
+        values: &[
+            "unsupported_join_chord_beside_merged_face",
+            "unsupported_join_chord_with_piece",
+            "unsupported_join_outright",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "label_fault_tag",
         values: &[
             "label_blank",
@@ -5291,18 +5318,28 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "entity_named",
             "escalated",
+            "joined_piece_off_root",
             "kind_mismatch",
             "member_edge_tied",
             "missing_upstream",
             "partner_unread",
-            "seam_vertex_parentage",
             "seam_vertex_partners",
             "short_tie",
             "split_lineage_cycle",
             "unnamed",
             "unsettled_vertex",
         ],
-        delegates: &["band_error_tag", "rim_share_tag"],
+        delegates: &[
+            "band_error_tag",
+            "crossing_senses_shape_tag",
+            "disagree_shape_tag",
+            "join_shape_tag",
+            "rim_share_tag",
+            "seam_sides_shape_tag",
+            "seam_vertex_shape_tag",
+            "union_name_shape_tag",
+            "way_shape_tag",
+        ],
     },
     TagEntry {
         function: "no_chart_why_tag",
@@ -5532,6 +5569,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "arc_center_not_equidistant",
             "arc_leg_on_open_fillet",
+            "arc_miss_below_scene_resolution",
+            "arc_misses_authored_point",
             "arc_sweep_not_short_of_full_turn",
             "arc_via_collinear",
             "band",
@@ -5824,6 +5863,25 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "vertex_on_edge",
             "vertex_on_ring_edge",
             "vertex_vertex",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "seam_sides_shape_tag",
+        values: &[
+            "unsupported_seam_sides_inside_one_parent",
+            "unsupported_seam_sides_name_spells_two_seams",
+            "unsupported_seam_sides_not_two_faces",
+            "unsupported_seam_sides_within_one_operand",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "seam_vertex_shape_tag",
+        values: &[
+            "unsupported_seam_vertex_line_across_several_faces",
+            "unsupported_seam_vertex_no_edge_pair",
+            "unsupported_seam_vertex_one_operand_seam",
         ],
         delegates: &[],
     },
@@ -6209,6 +6267,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "union_name_shape_tag",
+        values: &[
+            "unsupported_union_name_junction_lines_collide",
+            "unsupported_union_name_run_least_line_moved",
+            "unsupported_union_name_seam_group_no_member_edge",
+            "unsupported_union_name_several_parents",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "unlocalized_tag",
         values: &[
             "containment",
@@ -6342,6 +6410,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "validate_geometric",
             "validate_pseudomanifold",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "way_shape_tag",
+        values: &["way_in_zero_band_carrier", "way_in_zero_band_line"],
         delegates: &[],
     },
     TagEntry {

@@ -592,6 +592,19 @@ pub fn beside_past_the_bundle_rule(
     (out, id)
 }
 
+/// **A save's snapshot, read past the load door's validator**: the
+/// state a doctored save leaves, which [`crate::persist::load`]
+/// refuses; for rows that hold the save door's half of the shared
+/// validator. The edit log is parsed and dropped.
+///
+/// # Panics
+///
+/// If `text` is not a save's spelling the reader accepts.
+pub fn past_the_load_door(text: &str) -> ProfileDoc {
+    crate::persist::snapshot_unchecked(text)
+        .unwrap_or_else(|e| panic!("the text reads as a save: {e}"))
+}
+
 // --- a union's fold rows, as their steps named them ---------------
 
 /// **One fold-step row as the step named it**: its two cells' names in

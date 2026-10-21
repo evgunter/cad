@@ -1362,17 +1362,12 @@ pub enum RoleSeg {
     // split role says which half — the variable a reader reads does.
     /// A split output body: the body of the half whose table holds it.
     SplitBody,
-    /// A section face: the split-minted face on the tool plane bounding
-    /// its half; `section` is the position in that half's section
-    /// completion order — a function of the recipe + the recorded
-    /// `split_join_order_*` verdicts (the exact-order sort), so
-    /// covariant in N4's sense (reorderings are recorded flips).
-    SectionFace {
-        /// Position in section completion order (covariance: module
-        /// docs of `topo::splitting::order` — the sort runs through
-        /// named exact-order predicates).
-        section: u32,
-    },
+    /// The tool plane, as the parent of the faces a split's cut drew in
+    /// a half (N2, a Split's section faces): one such face is the bare
+    /// `SectionFace`, several are each told apart by `Fragment(Borders)`,
+    /// and a merged group holding the plane cites it bare among its
+    /// constituents (N3).
+    SectionFace,
     /// A section-boundary edge: where the section meets an operand
     /// face (argument: the operand face's name). Each half owns its own
     /// coincident copy, in its own table.
@@ -1873,7 +1868,7 @@ macro_rules! inert_seg {
             | $crate::names::RoleSeg::Cap(_)
             | $crate::names::RoleSeg::RevolveCap(_)
             | $crate::names::RoleSeg::SplitBody
-            | $crate::names::RoleSeg::SectionFace { .. }
+            | $crate::names::RoleSeg::SectionFace
     };
 }
 
@@ -2498,7 +2493,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::Pole(_)
             | $crate::names::RoleSeg::AxisEdge(_)
             | $crate::names::RoleSeg::SplitBody
-            | $crate::names::RoleSeg::SectionFace { .. }
+            | $crate::names::RoleSeg::SectionFace
             | $crate::names::RoleSeg::SectionEdge { .. }
             | $crate::names::RoleSeg::SplitFragment { .. }
             | $crate::names::RoleSeg::CrossingVertex { .. }

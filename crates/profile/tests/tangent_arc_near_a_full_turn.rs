@@ -65,6 +65,105 @@ fn f64_miss(lp: &ConstructedLoop<f64>, what: &str) -> f64 {
     (first_arc(lp, what).landing(v[0]) - v[1]).norm()
 }
 
+/// The `f64` replay of `steps`, or `None` where the door's read-back
+/// refused it on a scene that cannot resolve the read: an arc of radius
+/// `r`, whose read's rounding at that magnitude (16 ulps for its
+/// landing, 8 for a `Via` arc's through-point) reaches the band,
+/// refuses loudly as the scene-resolution sibling or escalates in the
+/// band, naming the read. Any other refusal, or either of those on a
+/// scene that resolves the read, fails the row.
+///
+/// Which rows refuse is pinned at the ε rows the gate runs
+/// ([`REFUSES_PAST_RESOLUTION`]); at any other ε either answer stands.
+fn f64_replay_or_unresolvable(
+    steps: &[Step<f64>],
+    r: f64,
+    what: &str,
+) -> Option<ConstructedLoop<f64>> {
+    let eps = tol().get().eps;
+    let pinned = REFUSES_PAST_RESOLUTION
+        .iter()
+        .find(|(e, _)| *e == eps)
+        .map(|(_, rows)| rows.contains(&what));
+    let refusal = match try_replay_at::<f64>(steps) {
+        Ok(lp) => {
+            assert_ne!(
+                pinned,
+                Some(true),
+                "{what}: pinned to refuse at ε = {eps:e}, built"
+            );
+            return Some(lp);
+        }
+        Err(e) => e,
+    };
+    assert_ne!(
+        pinned,
+        Some(false),
+        "{what}: pinned to build at ε = {eps:e}, refused: {refusal}"
+    );
+    let (eps, k) = (tol().get().eps, tol().get().k);
+    let ulps = |read: &str| {
+        if read.starts_with("path_arc_through_point")
+            || read.starts_with("path_arc_start_on_carrier")
+        {
+            Some(profile::READ_BACK_RIM_ULPS)
+        } else if read.starts_with("path_arc_landing") || read.starts_with("path_arc_branch") {
+            Some(profile::READ_BACK_LANDING_ULPS)
+        } else {
+            None
+        }
+    };
+    let unresolvable =
+        |read: &str, scale: f64| ulps(read).is_some_and(|u| u * scale * ULP >= k * eps);
+    let answered = match &refusal.kind {
+        ReplayErrorKind::Path(PathError::ArcMissBelowSceneResolution {
+            predicate, scale, ..
+        }) => unresolvable(predicate, *scale),
+        ReplayErrorKind::Path(PathError::Escalated { source }) => {
+            source.predicate.is_some_and(|read| unresolvable(read, r))
+        }
+        _ => false,
+    };
+    assert!(answered, "{what}: f64 replay refused: {refusal}");
+    None
+}
+
+/// **The rows whose `f64` replay the door refuses, per ε row the gate
+/// runs**: each a sound arc on a scene that cannot resolve the door's
+/// read of it. Every row not listed builds at that ε.
+const REFUSES_PAST_RESOLUTION: &[(f64, &[&str])] = &[
+    (
+        1e-9,
+        &[
+            "Via, R 1.37e7",
+            "Via, R 1.37e8",
+            "arc_onto, R 1.37e7",
+            "arc_onto, R 1.37e8",
+            "tangent_arc_to, R 1.37e7",
+            "tangent_arc_to, R 1.37e8",
+        ],
+    ),
+    (1e-6, &[]),
+    (
+        1e-12,
+        &[
+            "Center, R 1.37e5",
+            "Center, R 1.37e6",
+            "Center, R 1e6, turn 1e-4",
+            "Via, R 1.36e4",
+            "Via, R 1.37e7",
+            "Via, R 1.37e8",
+            "Via, R 1e4, turn 1e-2",
+            "Via, R 1e4, turn 1e-3",
+            "Via, R 1e6, turn 1e-4",
+            "arc_onto, R 1.37e7",
+            "arc_onto, R 1.37e8",
+            "tangent_arc_to, R 1.37e7",
+            "tangent_arc_to, R 1.37e8",
+        ],
+    ),
+];
+
 /// Whether the `Interval` first arc, landed from its start vertex,
 /// holds the next vertex, and the wider side of that landing.
 fn interval_landing(lp: &ConstructedLoop<Interval>, what: &str) -> (bool, f64) {
@@ -149,13 +248,16 @@ fn validated<T: profile::ArcCarrierScalar>(lp: &ConstructedLoop<T>) -> Result<()
 
 /// **The row's three radii**, by both verbs. At `f64` the stored arc
 /// lands within 8 ulps of its radius of its end vertex (the cancelling
-/// quarter-tangent missed by 3.4e-8, 4.4e-2 and the whole chord); at
+/// quarter-tangent missed by 3.4e-8, 4.4e-2 and the whole chord), and
+/// where the scene cannot resolve the door's landing read the replay
+/// refuses on that read instead of storing the arc; at
 /// `Interval` its sweep is an enclosure ~1e-14 wide whose landing holds
 /// the vertex (it was 2e-11 wide, then `[−2π, 2π]`). Validation answers
 /// the clearance rule: at the default ε the 1.37e8 arc is short of a
 /// full circle by 3.3e-9 m, inside the band, and escalates on that
-/// rather than reading `NearFullArc`; at `f64` the 1.36e4 arc, clear
-/// and inside the scene's resolution, validates.
+/// rather than reading `NearFullArc` wherever the replay stores it; at
+/// `f64` the 1.36e4 arc, clear and inside the scene's resolution,
+/// validates.
 #[test]
 fn the_rows_three_radii_keep_their_end_vertex() {
     let a = Point2::new(0.0, 0.0);
@@ -193,28 +295,28 @@ fn the_rows_three_radii_keep_their_end_vertex() {
                 }
                 continue;
             }
-            let lp = try_replay_at::<f64>(&steps)
-                .unwrap_or_else(|e| panic!("{what}: f64 replay refused: {e}"));
-            let miss = f64_miss(&lp, &what);
-            assert!(
-                miss <= 8.0 * r * ULP,
-                "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps \
-                 of its radius"
-            );
-            let result = validated(&lp);
-            let (near_full, undecided) = clearance_reading(&result);
-            let answered = match class {
-                Clearance::NearFull => near_full,
-                Clearance::Undecided => undecided,
-                Clearance::Clear => !near_full && !undecided,
-            };
-            assert!(
-                answered,
-                "{what}: f64 validation {result:?} does not answer the clearance \
-                 {clearance:e} m ({class:?})"
-            );
-            if class == Clearance::Clear && 64.0 * r * ULP <= eps {
-                assert!(result.is_ok(), "{what}: f64 validation refused: {result:?}");
+            if let Some(lp) = f64_replay_or_unresolvable(&steps, r, &what) {
+                let miss = f64_miss(&lp, &what);
+                assert!(
+                    miss <= 8.0 * r * ULP,
+                    "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps \
+                     of its radius"
+                );
+                let result = validated(&lp);
+                let (near_full, undecided) = clearance_reading(&result);
+                let answered = match class {
+                    Clearance::NearFull => near_full,
+                    Clearance::Undecided => undecided,
+                    Clearance::Clear => !near_full && !undecided,
+                };
+                assert!(
+                    answered,
+                    "{what}: f64 validation {result:?} does not answer the clearance \
+                     {clearance:e} m ({class:?})"
+                );
+                if class == Clearance::Clear && 64.0 * r * ULP <= eps {
+                    assert!(result.is_ok(), "{what}: f64 validation refused: {result:?}");
+                }
             }
 
             let li = try_replay_at::<Interval>(&steps)
@@ -313,7 +415,9 @@ fn near_behind_targets_land_on_their_end_vertex_at_both_scalars() {
 /// origin with radius `r`, through its top `(0, 2r)`, to the point 2.7 m
 /// of arc short of the full turn, and home by way of a vertex below
 /// the chord. The stored arc lands on its end vertex within 8 ulps of
-/// its radius at `f64`, and its `Interval` landing holds the vertex.
+/// its radius at `f64` where the scene resolves its through-point read,
+/// and past that the door refuses on that read; its `Interval` landing
+/// holds the vertex.
 #[test]
 fn the_through_point_arc_near_a_full_turn_keeps_its_end_vertex() {
     let a = Point2::new(0.0, 0.0);
@@ -330,14 +434,16 @@ fn the_through_point_arc_near_a_full_turn_keeps_its_end_vertex() {
             Step::LineTo(Target::Start),
         ];
         let what = format!("Via, R {r:e}");
-        let lp = try_replay_at::<f64>(&steps)
-            .unwrap_or_else(|e| panic!("{what}: f64 replay refused: {e}"));
-        let miss = f64_miss(&lp, &what);
-        assert!(
-            miss <= 8.0 * r * ULP,
-            "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps of its \
-             radius"
-        );
+        // The through-point is the read the cancelling quarter-tangent
+        // moves; its landing stays within 8 ulps whatever X is.
+        if let Some(lp) = f64_replay_or_unresolvable(&steps, r, &what) {
+            let miss = f64_miss(&lp, &what);
+            assert!(
+                miss <= 8.0 * r * ULP,
+                "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps of its \
+                 radius"
+            );
+        }
         let li = try_replay_at::<Interval>(&steps)
             .unwrap_or_else(|e| panic!("{what}: Interval replay refused: {e}"));
         let (holds, width) = interval_landing(&li, &what);
@@ -393,9 +499,10 @@ fn on_the_departure_line_the_refusal_reports_the_chord_its_ends_span() {
 /// from the origin to the point 2.7 m of arc short of the full turn,
 /// home by way of a vertex below the chord. At `f64` it lands within 8
 /// ulps of its radius of the end vertex (the radius-plus-apothem
-/// quarter-tangent missed by 2.5e-8, 5.0e-6 and 2.1e-4, and validated),
-/// and so does its `Interval` landing, whose sweep stays under 1e-13
-/// wide.
+/// quarter-tangent missed by 2.5e-8, 5.0e-6 and 2.1e-4, and validated)
+/// where the scene resolves the door's landing read, and refuses on
+/// that read where it does not; its `Interval` landing holds the
+/// vertex, and its sweep stays under 1e-13 wide.
 #[test]
 fn the_centre_arc_near_a_full_turn_keeps_its_end_vertex() {
     let a = Point2::new(0.0, 0.0);
@@ -413,14 +520,14 @@ fn the_centre_arc_near_a_full_turn_keeps_its_end_vertex() {
             Step::LineTo(Target::Start),
         ];
         let what = format!("Center, R {r:e}");
-        let lp = try_replay_at::<f64>(&steps)
-            .unwrap_or_else(|e| panic!("{what}: f64 replay refused: {e}"));
-        let miss = f64_miss(&lp, &what);
-        assert!(
-            miss <= 8.0 * r * ULP,
-            "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps of its \
-             radius"
-        );
+        if let Some(lp) = f64_replay_or_unresolvable(&steps, r, &what) {
+            let miss = f64_miss(&lp, &what);
+            assert!(
+                miss <= 8.0 * r * ULP,
+                "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps of \
+                 its radius"
+            );
+        }
         // Past the scene's resolution the Interval lane cannot read the
         // authored centre's equidistance, and says so.
         let li = match try_replay_at::<Interval>(&steps) {
@@ -460,7 +567,7 @@ fn the_centre_arc_near_a_full_turn_keeps_its_end_vertex() {
 /// arc through a point and an arc about a centre, each turning `θ` from
 /// 1e-4 to 1e-2 on a carrier of radius `r`, its sagitta well clear of
 /// the band. Each stored arc lands on its end vertex within 8 ulps of its
-/// radius at `f64`. Here `along` is near `len`, where the home's second
+/// radius at `f64`, where the scene resolves the door's read of it. Here `along` is near `len`, where the home's second
 /// arm `(len − along)/across` cancels: read alone, it misses by about
 /// `r·θ·2⁻⁵²·8/θ²`, a thousand times the bound and more.
 #[test]
@@ -504,14 +611,14 @@ fn short_arcs_keep_their_end_vertex_by_every_mode() {
                 ],
             };
             let what = format!("{mode}, R {r:e}, turn {theta:e}");
-            let lp = try_replay_at::<f64>(&steps)
-                .unwrap_or_else(|e| panic!("{what}: f64 replay refused: {e}"));
-            let miss = f64_miss(&lp, &what);
-            assert!(
-                miss <= 8.0 * r * ULP,
-                "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps of \
-                 its radius"
-            );
+            if let Some(lp) = f64_replay_or_unresolvable(&steps, r, &what) {
+                let miss = f64_miss(&lp, &what);
+                assert!(
+                    miss <= 8.0 * r * ULP,
+                    "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps \
+                     of its radius"
+                );
+            }
         }
     }
 }

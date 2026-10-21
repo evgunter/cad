@@ -925,7 +925,7 @@ fn role<'n, 's>(
             items
         }
         RoleSeg::SplitBody => one("the split's body".to_owned()),
-        RoleSeg::SectionFace { section } => one(format!("the split's section face {section}")),
+        RoleSeg::SectionFace => one("the split's section face".to_owned()),
         RoleSeg::SectionEdge { face } => {
             vec![text("the split's section edge across "), cites.one(face)]
         }

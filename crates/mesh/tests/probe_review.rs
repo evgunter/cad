@@ -12,7 +12,7 @@ use sweep::loft_body;
 // The corpus swept elbow is the kernel crate's fixture, not this
 // suite's: the falsification rows below need the SAME solid the
 // skin-integrality bracket and the STEP fixture meter.
-use sweep::test_support::{loft_prism, loft_prism_at, swept_elbow};
+use sweep::test_support::{loft_prism, loft_prism_at, lofted_cylinder, swept_elbow};
 use topo::Body;
 
 use geom_core::Tol;
@@ -36,11 +36,11 @@ fn rational_pie() -> Body<f64> {
         .body
 }
 
-/// The four fixtures the Z1 rows drive, and the two deltas they drive
+/// The five fixtures the Z1 rows drive, and the two deltas they drive
 /// them at. Shared by the armed row and its default-build counterpart
 /// so the two cannot drift into "the falsifier covers a corpus the
 /// default build never tessellates".
-fn z1_fixtures() -> [(&'static str, Body<f64>); 4] {
+fn z1_fixtures() -> [(&'static str, Body<f64>); 5] {
     [
         ("loft_prism", loft_prism(Tol::witness())),
         (
@@ -54,6 +54,10 @@ fn z1_fixtures() -> [(&'static str, Body<f64>); 4] {
         // armed per-triangle falsifier covers the RATIONAL lane end to
         // end — which is what its retirement condition asked for.
         ("rational_pie", rational_pie()),
+        // The creased rational wall: every triangle beside the crease
+        // line, sampled against its own certificate, which reads the
+        // cells of its own side only.
+        ("lofted_cylinder", lofted_cylinder(1.0, Tol::witness())),
     ]
 }
 
@@ -61,7 +65,7 @@ fn z1_fixtures() -> [(&'static str, Body<f64>); 4] {
 const Z1_DELTAS: [f64; 2] = [3e-2, 6e-3];
 
 /// Z1: per-triangle |S - Pi| vs cert on every NURBS triangle of all
-/// four fixtures at two deltas, at the falsifier's own 12-samples-per-
+/// five fixtures at two deltas, at the falsifier's own 12-samples-per-
 /// edge density.
 ///
 /// The check is `worst_ratio <= 1` — the largest `|S-Pi| / (cert + eps)`

@@ -2426,7 +2426,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
         | RoleSeg::SplitBody
-        | RoleSeg::SectionFace { .. }
+        | RoleSeg::SectionFace
         | RoleSeg::LoftWall(_)
         | RoleSeg::LoftSeam(_) => Vec::new(),
     }

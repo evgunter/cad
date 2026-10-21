@@ -32,7 +32,7 @@
 //!
 //! An operand's arena storage permuted is not among them: `topo` has no
 //! helper that permutes a body
-//! (`work/wire/topo-has-no-arena-permuting-helper-for-a-storage-order-name-check.md`).
+//! (`work/namecheck/topo-has-no-arena-permuting-helper-for-a-storage-order-name-check.md`).
 //!
 //! Each test settles two lists. Its admissions are the cases a
 //! perturbation moves today, each with its exact count of differing
@@ -937,7 +937,7 @@ const BRIDGE_LISTED_FIRST: &str = "work/wire/a-pair-union-of-a-bridge-listed-fir
 /// The bridging prism folded last, after the plate and both wedges,
 /// refuses the union's fold step.
 const BRIDGE_FOLDED_LAST: &str =
-    "work/wire/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
+    "work/wirerest/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
 
 /// A bridge met with the union of the wedges and the other bridge
 /// refuses: vertices share a name that is no single seam.
@@ -1031,6 +1031,9 @@ fn sunk_boss_cut(tool: &[Spans], pose: CutPose) -> Published {
 #[derive(Clone, Copy)]
 enum Target {
     Prism(&'static [(f64, f64)]),
+    /// [`Target::Prism`] with the outline's `x` drawn along `z`, so the
+    /// prism runs along `-x`.
+    PrismAlongZ(&'static [(f64, f64)]),
     Turned(&'static [(f64, f64)]),
     Union(Members),
 }
@@ -1039,9 +1042,14 @@ enum Target {
 /// one, and the node split.
 fn target(doc: ProfileDoc, t: Target) -> (ProfileDoc, (Option<RecipeNodeId>, RecipeNodeId)) {
     match t {
-        Target::Prism(outline) | Target::Turned(outline) => {
-            let (doc, p) = on_frame(doc, [0.0; 3], X, Y, vec![outline.to_vec()]);
-            let node = if matches!(t, Target::Prism(_)) {
+        Target::Prism(outline) | Target::PrismAlongZ(outline) | Target::Turned(outline) => {
+            let u = if matches!(t, Target::PrismAlongZ(_)) {
+                Z
+            } else {
+                X
+            };
+            let (doc, p) = on_frame(doc, [0.0; 3], u, Y, vec![outline.to_vec()]);
+            let node = if matches!(t, Target::Prism(_) | Target::PrismAlongZ(_)) {
                 Node::Extrude {
                     profile: p.into(),
                     distance: len(1.0),
@@ -1365,6 +1373,27 @@ fn pentagon_split_turned(deg: f64) -> Halves {
     )
 }
 
+/// The notched block, drawn along `z`, split by the plane `y = 1.5`,
+/// which cuts three sections from each half, turned `deg` about `z`.
+fn notched_split_turned(deg: f64) -> Halves {
+    split(
+        Target::PrismAlongZ(crate::split_pinch_keeps::NOTCHED),
+        Tool::Plane([0.0, 1.5, 0.0], turned(Y, Z, deg)),
+        &unedited,
+    )
+}
+
+/// A split whose plane is posed by a tilt, by name.
+type TurnedSplit = fn(f64) -> Halves;
+
+const TURNED_SPLITS: &[(&str, TurnedSplit)] = &[
+    ("notched pentagon, plane turned", pentagon_split_turned),
+    (
+        "notched block's three sections, plane turned",
+        notched_split_turned,
+    ),
+];
+
 /// Compares `subject`'s poses at [`TILTS`] with its pose at 0°, each
 /// as `pose` builds it: its tables and its bodies' counts. A pose whose
 /// bodies' counts differ is another topology, and is not compared but
@@ -1422,15 +1451,16 @@ fn a_tilt_within_one_topology_moves_no_name() {
             "{what}: {compared} tilts keep the topology"
         );
     }
-    let what = "notched pentagon, plane turned";
-    let compared = tilt(&mut found, what, &|deg| {
-        let h = pentagon_split_turned(deg);
-        (h.tables.to_vec(), h.counts)
-    });
-    assert!(
-        compared >= COMPARED_TILTS,
-        "{what}: {compared} tilts keep the topology"
-    );
+    for &(what, pose) in TURNED_SPLITS {
+        let compared = tilt(&mut found, what, &|deg| {
+            let h = pose(deg);
+            (h.tables.to_vec(), h.counts)
+        });
+        assert!(
+            compared >= COMPARED_TILTS,
+            "{what}: {compared} tilts keep the topology"
+        );
+    }
     found.settle(ADMITTED_TILT, VACUOUS_TILT);
 }
 

@@ -777,8 +777,8 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         cap(SplitHalf::Below, 0.5, 1.0),
     );
     assert!(
-        matches!(above_cap.path.as_slice(), [RoleSeg::SectionFace { .. }])
-            && matches!(below_cap.path.as_slice(), [RoleSeg::SectionFace { .. }]),
+        matches!(above_cap.path.as_slice(), [RoleSeg::SectionFace])
+            && matches!(below_cap.path.as_slice(), [RoleSeg::SectionFace]),
         "the premise: each cap is a section face of the split, {above_cap:?}, {below_cap:?}"
     );
     let (above_read, below_read) = (
