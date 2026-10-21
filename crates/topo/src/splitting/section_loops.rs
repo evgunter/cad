@@ -39,9 +39,11 @@ pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
 
 /// The in-plane `u` axis a section loop `l` on a plane of normal `n` is
 /// charted with: its first chord's component in the plane, normalized,
-/// or for a loop of one corner the first axis of `n`'s own basis
-/// (`orthonormal_basis`, a fixed function of `n`'s bits). Deterministic
-/// data; which `n` it reads is the caller's to state.
+/// or for a loop of one corner the in-plane component of its section
+/// conic's principal direction (the conic's `u_ref`). Either way it is a
+/// direction the section already holds, so it moves with the inputs
+/// under a rigid motion (D10 `[placement.frame]`). Which `n` it reads is
+/// the caller's to state.
 ///
 /// A corner is a vertex the split read ON, which lies within ε of the
 /// plane but not necessarily in it, so the chord itself can lean out
@@ -61,42 +63,45 @@ pub(super) fn chord_u_ref<T: Real>(
     points: &[Point3<T>],
     n: UnitVec3<T>,
 ) -> Vec3<T> {
+    let in_plane = |d: Vec3<T>| {
+        let n = n.get();
+        (d - n * d.dot(n)).normalize()
+    };
     if let [a, b, ..] = points {
-        let (chord, n) = (*b - *a, n.get());
-        return (chord - n * chord.dot(n)).normalize();
+        return in_plane(*b - *a);
     }
     let first = match body.get_loop(l).map(|lp| lp.boundary) {
         Some(LoopBoundary::Cycle { first }) => first,
         other => unreachable!("section loop {l:?} has one corner and is no cycle: {other:?}"),
     };
-    assert!(
-        one_whole_conic(body, first),
-        "section loop {l:?} has one corner and no whole section conic: the join refuses a loop of \
-         lone-site placeholders before it is charted"
-    );
-    n.orthonormal_basis().0
+    let Some(principal) = whole_conic_principal(body, first) else {
+        unreachable!(
+            "section loop {l:?} has one corner and no whole section conic: the join refuses a \
+             loop of lone-site placeholders before it is charted"
+        )
+    };
+    in_plane(principal)
 }
 
-/// Whether the cycle at `first` is one edge on a section conic that is
-/// no placeholder ([`crate::chord_join::lone_site_placeholder`]).
-fn one_whole_conic<T: Real>(body: &Body<T>, first: crate::entity::HalfEdgeKey) -> bool {
-    let Some(he) = body.get_half_edge(first) else {
-        return false;
-    };
+/// The principal direction (`u_ref`) of the section conic the cycle at
+/// `first` is, when that cycle is one edge on a section conic that is no
+/// placeholder ([`crate::chord_join::lone_site_placeholder`]).
+fn whole_conic_principal<T: Real>(
+    body: &Body<T>,
+    first: crate::entity::HalfEdgeKey,
+) -> Option<Vec3<T>> {
+    let he = body.get_half_edge(first)?;
     let curve = body
         .get_edge(he.edge)
         .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(crate::null::CurveGeom::certified);
-    match (curve, body.half_edge_end(first)) {
-        (Some(curve), Some(end)) => {
-            he.next == first
-                && !crate::chord_join::lone_site_placeholder(he.start, end, curve)
-                && matches!(
-                    curve.carrier(),
-                    geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
-                )
-        }
-        _ => false,
+        .and_then(crate::null::CurveGeom::certified)?;
+    let end = body.half_edge_end(first)?;
+    if he.next != first || crate::chord_join::lone_site_placeholder(he.start, end, curve) {
+        return None;
+    }
+    match *curve.carrier() {
+        geom::Curve3::Circle { u_ref, .. } | geom::Curve3::Ellipse { u_ref, .. } => Some(u_ref),
+        _ => None,
     }
 }
 

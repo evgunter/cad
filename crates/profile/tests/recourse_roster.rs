@@ -544,8 +544,7 @@ fn the_undecided_endings_follow_the_decisions_kind() {
             "at loop 0 segment 1, whether the scene can read an arc's difference from its \
              vertices at its magnitude is undecided: margin 5e-9 lies inside the ambiguity band \
              (1e-9, 1e-8). Recourse: move the profile nearer the origin, or author the arc with \
-             a smaller radius (a flatter arc stores its centre farther out); a coarser tolerance \
-             also reads it",
+             a smaller radius (a flatter arc stores its centre farther out)",
         ),
         (
             "validation, the junction's side, value",
@@ -615,4 +614,32 @@ fn each_lever_row_ends_in_its_lever_on_a_value_reading() {
             "`{name}` should end \"{tail}\": {text}"
         );
     }
+}
+
+/// **No lever ending advises a coarser tolerance.** Every decision row
+/// whose ending is a lever (`EndingKind::Lever`: no size the user
+/// chose) names the geometry's lever, and none advises loosening ε:
+/// D4 ¶1 (i) allows that only as a last resort where a refusal would
+/// otherwise name no recourse at all, and every lever here names one
+/// (`docs/DESIGN.md`, `[tolerance.recourse]`).
+#[test]
+fn no_lever_ending_advises_a_coarser_tolerance() {
+    let loosening = [
+        "coarser",
+        "widen",
+        "loosen",
+        "larger tolerance",
+        "raise the tolerance",
+    ];
+    let offenders: Vec<String> = profile::DECISION_ENDINGS
+        .iter()
+        .filter_map(|row| match row.kind {
+            geom_core::EndingKind::Lever(text) => loosening
+                .iter()
+                .any(|word| text.contains(word))
+                .then(|| format!("{}: {text}", row.name)),
+            geom_core::EndingKind::Sized => None,
+        })
+        .collect();
+    assert!(offenders.is_empty(), "{offenders:#?}");
 }

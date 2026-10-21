@@ -876,7 +876,7 @@ pub enum PlaneCylinderSection<T: Real> {
 /// [`SectionError`] — wrong-lane kinds, in-band escalations (F6), or a
 /// carrier-constructor refusal.
 pub fn plane_cylinder_section<T: Decide>(
-    plane: &Surface<T>,
+    plane: &impl SectionPlane<T>,
     cylinder: &Surface<T>,
     reach: &Reach<T>,
     band: Band,
@@ -894,7 +894,7 @@ pub fn plane_cylinder_section<T: Decide>(
 ///
 /// As [`plane_cylinder_section`].
 pub fn plane_cylinder_section_read<T: Decide>(
-    plane: &Surface<T>,
+    plane: &impl SectionPlane<T>,
     cylinder: &Surface<T>,
     reach: &Reach<T>,
     band: Band,
@@ -1122,18 +1122,13 @@ pub(crate) struct PlaneCylinder<T: Real> {
 
 /// The pair's data and the cylinder's seam, or the wrong-lane refusal.
 fn plane_cylinder_data<T: Real>(
-    plane: &Surface<T>,
+    plane: &impl SectionPlane<T>,
     cylinder: &Surface<T>,
 ) -> Result<(PlaneCylinder<T>, Vec3<T>), SectionError> {
     let wrong = || SectionError::WrongLane {
         expected: "plane×cylinder",
     };
-    let &Surface::Plane {
-        origin: q,
-        normal: n,
-        ..
-    } = plane
-    else {
+    let Some((q, n)) = plane.site() else {
         return Err(wrong());
     };
     let &Surface::Cylinder {
@@ -1149,6 +1144,44 @@ fn plane_cylinder_data<T: Real>(
 }
 
 // ---------------------------------------------------------------------
+// the plane a plane×carrier section reads
+// ---------------------------------------------------------------------
+
+/// What a plane×carrier section reads of its plane: a point of it and
+/// its unit normal, and never its chart. A stored [`Surface::Plane`]
+/// serves, and so does a [`PlaneSite`], a plane no output keeps, which
+/// has no `u_ref` to pick.
+pub trait SectionPlane<T: Real> {
+    /// The plane's `(origin, normal)`, or `None` for a surface that is
+    /// not a plane (the section's wrong-lane refusal).
+    fn site(&self) -> Option<(Point3<T>, Vec3<T>)>;
+}
+
+impl<T: Real> SectionPlane<T> for Surface<T> {
+    fn site(&self) -> Option<(Point3<T>, Vec3<T>)> {
+        match *self {
+            Surface::Plane { origin, normal, .. } => Some((origin, normal)),
+            _ => None,
+        }
+    }
+}
+
+/// A plane as a section reads it: a point of it and its unit normal.
+#[derive(Clone, Copy, Debug)]
+pub struct PlaneSite<T: Real> {
+    /// A point of the plane.
+    pub origin: Point3<T>,
+    /// The plane's unit normal.
+    pub normal: Vec3<T>,
+}
+
+impl<T: Real> SectionPlane<T> for PlaneSite<T> {
+    fn site(&self) -> Option<(Point3<T>, Vec3<T>)> {
+        Some((self.origin, self.normal))
+    }
+}
+
+// ---------------------------------------------------------------------
 // plane × sphere (M5 S13: the die-pips join lane's C5 row)
 // ---------------------------------------------------------------------
 
@@ -1160,7 +1193,8 @@ pub enum PlaneSphereSection<T: Real> {
     /// Definite cut: the exact `Circle` — centered at the sphere
     /// center's foot on the plane, radius `√((r−|s|)(r+|s|))` for `s`
     /// the signed center-to-plane gap, carrier axis the plane normal,
-    /// `u_ref` the plane's own `u_ref` (in-plane by construction).
+    /// `u_ref` read off the sphere's chart frame (`n̂ × û`, or `n̂ × â`
+    /// where that is short; in-plane by construction).
     /// Zero-residual-by-construction against both surfaces.
     Circle(Curve3<T>),
     /// Gap coincident with r: the tangency **point** — classification
@@ -1186,16 +1220,11 @@ pub enum PlaneSphereSection<T: Real> {
 ///
 /// [`SectionError`] — wrong-lane kinds or the in-band escalation.
 pub fn plane_sphere_section<T: Decide>(
-    plane: &Surface<T>,
+    plane: &impl SectionPlane<T>,
     sphere: &Surface<T>,
     band: Band,
 ) -> Result<PlaneSphereSection<T>, SectionError> {
-    let &Surface::Plane {
-        origin: q,
-        normal: n,
-        ..
-    } = plane
-    else {
+    let Some((q, n)) = plane.site() else {
         return Err(SectionError::WrongLane {
             expected: "plane×sphere",
         });
@@ -1215,12 +1244,9 @@ pub fn plane_sphere_section<T: Decide>(
     let foot = c - n * s;
     // The circle's `u_ref` is a PLACEMENT convention (D2): every
     // downstream margin is a frame DIFFERENCE, so any in-plane unit
-    // vector serves — but it must be genuinely in-plane. The plane
-    // operand's own `u_ref` is deliberately NOT consulted: the
-    // splitting/boolean lanes hand transient classification planes
-    // whose `u_ref` is a placeholder (sometimes the normal itself,
-    // which would degenerate the frame and collapse every section
-    // angle to zero). Derived instead from the sphere's chart frame:
+    // vector serves — but it must be genuinely in-plane. Derived from
+    // the sphere's chart frame, an input, so it moves with the inputs
+    // and not with the computing axes:
     // `n̂ × û` unless that sine is small, then `n̂ × â` — with
     // `û ⊥ â` the two sines satisfy sin²(û,n̂) + sin²(â,n̂) ≥ 1, so
     // the second candidate is definitely nonzero whenever the first
@@ -2305,17 +2331,12 @@ pub enum PlaneConeSection<T: Real> {
 /// (F6), a carrier-constructor refusal, or the parabola/hyperbola
 /// refusal (R1).
 pub fn plane_cone_section<T: Decide>(
-    plane: &Surface<T>,
+    plane: &impl SectionPlane<T>,
     cone: &Surface<T>,
     reach: &Reach<T>,
     band: Band,
 ) -> Result<PlaneConeSection<T>, SectionError> {
-    let &Surface::Plane {
-        origin: q,
-        normal: n,
-        ..
-    } = plane
-    else {
+    let Some((q, n)) = plane.site() else {
         return Err(SectionError::WrongLane {
             expected: "plane×cone",
         });
@@ -2810,7 +2831,7 @@ pub enum PlaneTorusSection<T: Real> {
 /// in-band escalations (F6), the general-rung routing refusal, or the
 /// spiric constructor's own refusal ([`SectionError::Spiric`]).
 pub fn plane_torus_section<T: Decide>(
-    plane: &Surface<T>,
+    plane: &impl SectionPlane<T>,
     torus: &Surface<T>,
     extent: T,
     band: Band,
@@ -2818,12 +2839,7 @@ pub fn plane_torus_section<T: Decide>(
     let wrong = || SectionError::WrongLane {
         expected: "plane×torus",
     };
-    let &Surface::Plane {
-        origin: q,
-        normal: n,
-        ..
-    } = plane
-    else {
+    let Some((q, n)) = plane.site() else {
         return Err(wrong());
     };
     let &Surface::Torus {

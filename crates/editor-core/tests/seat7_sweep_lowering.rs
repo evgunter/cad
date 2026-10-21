@@ -428,14 +428,22 @@ fn both_sweeps_evaluate_in_one_document() {
 /// written `atan2`'s rounded turns: the die's world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
 /// placements, their ids and the names under them are new.
+///
+/// RE-BLESSED, every row, for a minted reference that comes from the
+/// inputs (PR #5547): the digest feeds each plane's `u_ref`, which a
+/// cap now takes from the sketch's `x` axis and an extruded wall from
+/// its segment, where `orthonormal_basis` picked it off the axes. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x6d2a_4b69_714e_5884),
-        ("corner_table", 0xd125_80bc_7a18_9468),
-        ("cut_cylinder", 0x4a6a_99bb_d540_29d3),
-        ("boss_union", 0xd486_5e6b_6a43_0069),
-        ("kitchen_sink", 0x9050_359e_8f31_a962),
+        ("die", 0x173c_8d8f_8a5a_b25c),
+        ("corner_table", 0xdc30_620e_06fd_8d9e),
+        ("cut_cylinder", 0xabec_a5a8_aa58_3491),
+        ("boss_union", 0x00d8_2bf5_fee5_3525),
+        ("kitchen_sink", 0x53da_49ea_7e4c_e120),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

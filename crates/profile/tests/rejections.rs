@@ -763,6 +763,24 @@ fn arcs_away_from_an_in_band_external_tangency_are_no_contact() {
     validate_both(&half_discs_outside(in_band(), false)).expect("the arcs stand two metres apart");
 }
 
+/// **One arc away from an in-band external tangency is enough.** As
+/// [`arcs_away_from_an_in_band_external_tangency_are_no_contact`], but
+/// the second hole's arc faces the near-tangency at `(1, 0)`, so only the
+/// first arc is clear of the other's circle, and that suffices: the pair
+/// validates, where reading only the second arc's certificate would
+/// escalate `SegmentPair((1, 0), (2, 1))` (the FULL review's witness,
+/// PR 5552).
+#[test]
+fn one_arc_away_from_an_in_band_external_tangency_is_no_contact() {
+    let x = 2.0 + in_band();
+    let p = profile(vec![
+        rect(-5.0, -5.0, 10.0, 10.0),
+        chain(&[(0.0, 1.0, 1.0), (0.0, -1.0, 0.0)]),
+        chain(&[(x, -1.0, 0.0), (x, 1.0, 1.0)]),
+    ]);
+    validate_both(&p).expect("the first arc stands a metre and more from the second circle");
+}
+
 /// **Arcs that face an in-band external tangency still escalate.** The
 /// control for the row above: each arc holds the near-tangency at
 /// `(1, 0)`, so neither is clear of the other's circle, and the

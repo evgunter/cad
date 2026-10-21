@@ -145,14 +145,14 @@ pub struct FaceMeasure {
     /// Bands whose step selection the 3-D aspect cap clamped — the
     /// constraint-activity indicator's A-cap kind (TESS-SPLIT D-3).
     pub cap_bands: usize,
-    /// Bands the malign-band snap projected onto the patch column
-    /// schedule with changed counts (either direction) — the
-    /// indicator's sliver/snap kind.
+    /// Always 0: no band schedule projects a band onto another column
+    /// count (`nurbs_cert::NurbsCellGrid::band_schedule`). The column
+    /// stays for the CSV's shape until the budget lane's re-cut drops it
+    /// (`work/budget/snap-bands-column-reads-zero-since-the-snap-retired`).
     pub snap_bands: usize,
     /// Max over bands of the emitted lattice's post-`ceil` spacing
-    /// ratio `s_u/s_v`, in raw UV. `SAFE_ASPECT` judges each band's
-    /// aspect over the face's lattice metric, which this record does
-    /// not carry, so the residual is not recomputable from it.
+    /// ratio `s_u/s_v`, in raw UV. The lane triangulates over the
+    /// face's lattice metric, which this record does not carry.
     pub realized_aspect: f64,
     /// `sup ‖S_uu‖` of the whole-patch bound.
     pub muu: f64,

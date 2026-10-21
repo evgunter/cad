@@ -350,13 +350,21 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// crossing line with the read it came in through, and in D a later
 /// operand is a placed copy, so the names it spells moved under both
 /// changes and the value is neither tree's. No other row moved.
+///
+/// RE-BLESSED, every row, for a minted reference that comes from the
+/// inputs (PR #5547): the digest feeds each plane's `u_ref`, which a
+/// cap now takes from the sketch's `x` axis and an extruded wall from
+/// its segment, where `orthonormal_basis` picked it off the axes. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x4a6a_99bb_d540_29d3u64),
-        ("part_select", 0x60d5_4797_17cb_f087),
-        ("kitchen_sink", 0x9050_359e_8f31_a962),
+        ("cut_cylinder", 0xabec_a5a8_aa58_3491_u64),
+        ("part_select", 0x909e_06e1_e24c_6bdd),
+        ("kitchen_sink", 0x53da_49ea_7e4c_e120),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -474,6 +482,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// reads a face with the stated normal) where it was a frame read off
 /// the cube's edges moved by turns read off by `atan2`, so its pose's
 /// nodes and the names the split mints moved.
+///
+/// RE-BLESSED when a minted plane's `u_ref` became a direction its
+/// construction holds: the cube's caps are charted along its sketch's
+/// `x` axis and its walls along their swept segments, where
+/// `orthonormal_basis` picked both off the axes. No plane moved as a
+/// point set.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -494,7 +508,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x9ddd_e390_4cc2_ff78,
+        got, 0x2408_3521_d2dd_0000,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

@@ -59,3 +59,21 @@ crates can build), and that crosses programs. The reason for doing it:
 the two copies have already drifted in five places, and each drift is a
 place where a profile the sketch door accepts could be refused at rest,
 or the other way round.
+
+## Drift 6 (2026-10-21, PR 5552)
+
+**Radial span certificates.** Where a carrier clearance reads in band,
+seg now asks whether either segment certainly keeps off the other's
+whole circle before it escalates:
+- `segment_clear_of_circle`: the centre's foot past the line's span,
+  and both ends outside the circle;
+- `arc_clear_of_circle`: the arc's span past its point nearest the other
+  centre with both ends outside, or past the farthest with both ends
+  inside.
+
+Each margin is charged, on `circle_foot_past_segment`,
+`circle_extreme_past_arc` and `circle_end_clear`. Arm 5 has no such
+reading: it carries the in-band existence reading forward and windows
+the foot and chord ends against both trims (`meet_at`). Whether it
+escalates where the spans are radially clear was not measured. A shared
+home should take the certificates with their charges.
