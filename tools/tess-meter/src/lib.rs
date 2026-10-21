@@ -105,7 +105,7 @@
 //! | factor | ratio | what it says |
 //! |---|---|---|
 //! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing (both sides through the shipped selection). Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |
-//! | **split slack** | `grid_cells / span_opt_cells` | grid cells still recoverable by picking a cheaper point on each cell's constraint ellipse. Since TESS-SPLIT the shipped selection IS the cell-minimizing point under the ratified A = 16 aspect cap, so this reads ~1.0 where no constraint is active; the residue above 1.0 is the PRICE of the cap and the sliver snap (the denominator is the UNCONSTRAINED optimum — the anisotropy caveat below), attributed per face by `cap_bands` / `snap_bands`. |
+//! | **split slack** | `grid_cells / span_opt_cells` | grid cells still recoverable by picking a cheaper point on each cell's constraint ellipse. Since TESS-SPLIT the shipped selection IS the cell-minimizing point under the ratified A = 16 aspect cap, so this reads ~1.0 where no constraint is active; the residue above 1.0 is the PRICE of the cap (the denominator is the UNCONSTRAINED optimum — the anisotropy caveat below), attributed per face by `cap_bands`. |
 //! | **budget slack** | `delta / worst_cert` | the sizing heuristic's headroom — two-cells-per-axis budgeting, the `ceil`, and trim boxes smaller than a full grid cell. |
 //! | **certificate slack** | `worst_cert / worst_dev` | how far the Hessian interpolation bound sits above the deviation actually attained. Irreducible in part (a bound must dominate). |
 //!
@@ -310,15 +310,15 @@ pub struct NurbsColumns {
     /// Reported by the lane, never re-derived — the selection rule is
     /// not re-spelled outside it.
     pub cap_bands: usize,
-    /// The indicator's sliver/snap kind: bands the malign-band snap
-    /// projected onto the patch column schedule with changed counts
-    /// (either direction — columns added, or columns traded for rows).
+    /// Always 0: no band schedule projects a band onto another column
+    /// count (`mesh::nurbs_cert`'s `band_schedule`). The column stays
+    /// until the budget lane's re-cut drops it
+    /// (`work/budget/snap-bands-column-reads-zero-since-the-snap-retired`).
     pub snap_bands: usize,
     /// Max over bands of the emitted lattice's post-`ceil` spacing
-    /// ratio `s_u/s_v`, in raw UV. `SAFE_ASPECT` judges each band's
-    /// aspect over the face's lattice metric, which the CSV does not
-    /// carry, so this column says how anisotropic the lattice is, not
-    /// which side of the sliver line a face sits on.
+    /// ratio `s_u/s_v`, in raw UV: how anisotropic the lattice is. The
+    /// lane triangulates over the face's lattice metric, which the CSV
+    /// does not carry.
     pub realized_aspect: f64,
 }
 
@@ -1363,8 +1363,8 @@ pub fn split_scan<F: Fn(f64, f64) -> f64>(
 /// which `(h_u, h_v)` on the constraint ellipse gets picked. Since
 /// TESS-SPLIT the shipped selection is the cell minimizer under the
 /// A = 16 first-fundamental-form aspect cap, so this UNCONSTRAINED
-/// optimum differs from it exactly where the cap (or the sliver snap)
-/// binds — which is what the split column now measures.
+/// optimum differs from it exactly where the cap binds — which is
+/// what the split column now measures.
 ///
 /// The lane's own steps are evaluated too, so the answer can never
 /// come out worse than what the lane already does.
