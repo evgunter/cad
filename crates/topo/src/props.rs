@@ -67,12 +67,17 @@ use crate::validate::ValidationError;
 /// geometry, and more where a face's closed form is levered by a carrier
 /// stored far from it
 /// (`work/fluxtail/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
-/// however small the body. So a decision about the volume's sign reads
-/// the body's interval re-derivation, or a stated bound on that rounding
-/// (`certify_role`), and never a zero pad as exactness. The one consumer
-/// known to read it as exact is the boolean volume backstop's magnitude
-/// arm
-/// (`work/cleave/the-backstops-magnitude-arm-meters-the-f64-margin-after-the-interval-has-cleared-it`).
+/// however small the body.
+///
+/// **The rule for a reader:** a decision on a zero-pad value re-derives
+/// it (`certify_role`: the body's interval re-derivation, or a stated
+/// bound on its rounding where there is no lane), or decides on an
+/// enclosure of it. It never takes a zero pad as exactness. The readers
+/// known to break the rule are the boolean volume backstop's: its
+/// magnitude arm
+/// (`work/cleave/the-backstops-magnitude-arm-meters-the-f64-margin-after-the-interval-has-cleared-it`),
+/// and its Bound arm's held read, its operand gate and its +V posture
+/// (`work/cleave/the-backstop-reads-an-unpadded-f64-volume-as-exact-where-it-passes-or-switches-off-a-bound`).
 #[derive(Clone, Copy, Debug)]
 pub struct MassProperties<T: Real> {
     /// The **signed** enclosed volume by the divergence theorem —
@@ -84,12 +89,13 @@ pub struct MassProperties<T: Real> {
     /// The total surface area (a sum of unsigned face areas); for
     /// quadrature faces the enclosure midpoint (bracket `± area_pad`).
     pub surface_area: T,
-    /// Certified half-width of the volume bracket (m³) — the summed
-    /// quadrature enclosure half-widths; `0.0` when every face took a
-    /// closed form, which states nothing of that value's rounding (the
-    /// type's docs). The tier-3 +V backstop consumes this.
+    /// Half-width of the quadrature's volume bracket (m³): the summed
+    /// half-widths of the certified quadrature enclosures; `0.0` when
+    /// every face took a closed form, which states nothing of the
+    /// value's rounding (the type's docs), so it certifies nothing there.
+    /// The tier-3 +V backstop consumes this.
     pub volume_pad: f64,
-    /// Certified half-width of the area bracket (m²).
+    /// Half-width of the quadrature's area bracket (m²), as `volume_pad`.
     pub area_pad: f64,
 }
 
@@ -3305,10 +3311,20 @@ pub(crate) fn read_seam_regions<T: Decide>(
 /// where (4) cannot tell the flipped member from the others: nothing on
 /// it encodes a side (`sphere_region_material_sign`'s `Unencoded`), and
 /// flipping either set of members would make a ball of it. Each member
-/// whose own boundary encodes no side refuses, so the door names the
-/// first of them in arena order, as it names any body's first refusing
-/// face. That member is the lamina's, not necessarily the one whose
-/// bit is wrong. An over-cover of such a region refuses every member by (3).
+/// whose own boundary reads and encodes no side refuses
+/// [`PropsError::SeamRegionSensesDisagree`], so the door names the first
+/// of them in arena order, as it names any body's first refusing face.
+/// The member named is one face of the lamina check 4 names, not
+/// necessarily the one whose bit is wrong.
+///
+/// The match reads a member's own boundary first, in every region:
+/// - a member whose own read encodes a side its bit contradicts is the
+///   flux arm's (1), even where the census over-covers;
+/// - a member whose own read fails (its loops do not flatten, or their
+///   side does not decide) is given no seam refusal: it is not one that
+///   "encodes no side", and what its own flux arm reads of it stands.
+///
+/// So an over-cover (3) refuses every member but those two kinds.
 ///
 /// A region whose structure the walk cannot follow refuses its start face
 /// [`MassPropsError::Corrupt`], typed, where tier 1 would refuse the body.
@@ -3859,8 +3875,9 @@ pub struct ShellClassification<T: Real> {
     /// The shell's signed enclosed volume (midpoint; bracket
     /// `± volume_pad`).
     pub volume: T,
-    /// Certified half-width of the volume bracket (m³); `0.0` when
-    /// every face of the shell is closed-form.
+    /// Half-width of the quadrature's volume bracket (m³); `0.0` when
+    /// every face of the shell took a closed form, which states nothing
+    /// of the value's rounding ([`MassProperties`]).
     pub volume_pad: f64,
     /// The shell's surface area (midpoint; bracket `± area_pad`).
     pub surface_area: T,

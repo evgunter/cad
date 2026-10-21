@@ -140,15 +140,16 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64
     body
 }
 
-/// Certify at all three tiers and return the closed-form volume,
-/// asserting that no part of it came from an enclosure.
+/// Validate at all three tiers and return the closed-form volume,
+/// asserting that no part of it came from an enclosure (its pad is zero:
+/// every face took a closed form, rounding and all).
 ///
 /// The rim's two half-arcs meet at two vertices nothing else does, so
 /// the body is construction state until the join takes them back into
 /// one closed edge: tier 3 refuses exactly those two vertices (check
 /// 11) and nothing else. The half-arcs stay, because their spans
 /// summing back to `2π` is part of what these rows check.
-fn certified_volume(name: &str, body: &Body<f64>) -> f64 {
+fn tier_checked_volume(name: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
     assert_eq!(topo::validate(body), Ok(()), "{name}: tier 1");
     assert_eq!(topo::validate_closed(body), Ok(()), "{name}: tier 2");
@@ -180,7 +181,7 @@ fn a_ball_cut_by_one_plane_weighs_the_spherical_cap() {
         // The disc caps the solid from BELOW, so its outward normal
         // points down.
         let body = cut_ball(z, unit_sphere(), Some(cut_plane(z, false)));
-        let got = certified_volume(&format!("cap above z={z}"), &body);
+        let got = tier_checked_volume(&format!("cap above z={z}"), &body);
         let want = cap_volume(1.0 - z);
         assert!(
             (got - want).abs() <= 1e-12 * want,
@@ -201,7 +202,7 @@ fn the_other_traversal_of_the_same_rim_weighs_the_rest_of_the_ball() {
         // Now the DISC is the seed face (rim `+u`, outward normal up)
         // and the sphere is the `−u` face.
         let body = cut_ball(z, cut_plane(z, true), Some(unit_sphere()));
-        let got = certified_volume(&format!("ball below z={z}"), &body);
+        let got = tier_checked_volume(&format!("ball below z={z}"), &body);
         let want = ball - cap_volume(1.0 - z);
         assert!(
             (got - want).abs() <= 1e-12 * want,
@@ -217,7 +218,7 @@ fn the_other_traversal_of_the_same_rim_weighs_the_rest_of_the_ball() {
 fn a_sphere_split_into_two_rim_only_caps_weighs_the_ball() {
     for z in [0.5_f64, 0.0, -0.75] {
         let body = cut_ball(z, unit_sphere(), None);
-        let got = certified_volume(&format!("two caps at z={z}"), &body);
+        let got = tier_checked_volume(&format!("two caps at z={z}"), &body);
         let want = 4.0 * core::f64::consts::PI / 3.0;
         assert!(
             (got - want).abs() <= 1e-12 * want,

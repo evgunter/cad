@@ -1898,8 +1898,12 @@ class TestTiltedcut(unittest.TestCase):
                 self.assertIsNotNone(half)
                 half.validate()
                 props = half.mass_properties()
-                self.assertLessEqual(props.volume - props.volume_pad, exact)
-                self.assertLessEqual(exact, props.volume + props.volume_pad)
+                # The pad bounds the wall's quadrature; the closed forms'
+                # floating-point rounding, which no pad states, needs a
+                # few ulps more.
+                slack = props.volume_pad + 1e-12 * exact
+                self.assertLessEqual(props.volume - slack, exact)
+                self.assertLessEqual(exact, props.volume + slack)
 
     def test_a_split_value_is_not_a_body(self):
         """The value's KIND is the honest one: a split denotes two

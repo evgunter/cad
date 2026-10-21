@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-21
 priority: P1
 cost: E
-refs: [a-planar-face-sums-its-area-about-a-far-carrier-origin, a-correct-intersect-a-sub-ulp-outside-its-operand-refuses-at-the-backstops-exact-band, a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop]
+refs: [the-backstop-reads-an-unpadded-f64-volume-as-exact-where-it-passes-or-switches-off-a-bound, a-planar-face-sums-its-area-about-a-far-carrier-origin, a-correct-intersect-a-sub-ulp-outside-its-operand-refuses-at-the-backstops-exact-band, a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop]
 ---
 
 
@@ -32,10 +32,17 @@ that take a zero `volume_pad` as exact.
    margin, against the band, and refuses `ResultVolumeImplausible`.
 
 So a margin the interval has cleared is refused on the rounding it was
-re-derived to get past. Arm 2 is the one sign or magnitude decision
-FLUX #2's audit found reading a zero pad as exact: check 7, check 10,
-`shell_role` and point containment read through `props::certify_role`
-(the interval re-derivation, or `rounding_bound` with no lane).
+re-derived to get past.
+
+**The rule this breaks:** a reader that decides on a zero-pad value
+re-derives it (`props::certify_role`: the interval re-derivation, or
+`rounding_bound` with no lane), or decides on an enclosure of it. Check 7,
+check 10, `shell_role` and point containment do. Arm 2 is not the only
+backstop reader that doesn't, as FLUX #2's audit first said: its review
+found three more, filed together as
+`the-backstop-reads-an-unpadded-f64-volume-as-exact-where-it-passes-or-switches-off-a-bound`
+(the Bound arm's held read, a silent pass; the `bounded` operand gate;
+the +V posture).
 
 ## Witness, through the public doors
 
@@ -93,7 +100,10 @@ far)` and A is the same slab at `far = 0`, so R ≡ A geometrically and
 every inequality holds exactly. Its interval margin is [−6.5e-27,
 +6.5e-27], yet arm 2 refuses `∩` and `∪`: 24 of 79 rows at 1e-9 (far ≥
 1e4), 63 of 159 at 1e-12 (far ≥ 1e3) and 0 of 19 at 1e-6. Any thickness
-from 3e-11 to 1e-5 m refuses, so these are not slivers.
+from 3e-11 to 1e-5 m refuses, so these are not slivers. The 1e-6 count is
+this corpus's: R1's planted corpus on PR 5576's review
+(`review/5576-017Nyiv2`, `review_5576_cleave_planted`) refuses 1 of 8 at
+1e-6 (8 of 32 at 1e-9, 27 of 56 at 1e-12), and R2's refuses at 1e-6 too.
 
 ## The fix proposed
 
@@ -110,3 +120,18 @@ unpadded sum as exact, so this fix stands on its own.
   (P2) and
   `a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop`
   (P0): the same backstop, other arms.
+
+## From PR 5576's review (2026-10-21)
+
+- **Arm 2 has no test.** R2's mutant, arm 2 never refusing, survives all
+  2250 `topo` tests. A fix lands with a row that reds when arm 2 refuses
+  on an interval margin that holds (either witness above), and with one
+  that reds when it passes a margin the interval certifies violated
+  beyond the band.
+- **The fix moves an opaque pin:** R2 measured that metering the
+  interval margin in arm 2 moves `boolean::ops::from_computed_rows`'
+  re-valued count from 2 to 4. Re-baseline it and say what moved.
+- **The naming invites the read:** `SignReading::Exact`,
+  `SignReading::exact()` and `is_exact()` mean "one value, no quadrature
+  bracket", not "exact" (R1, style). The sibling row carries the case
+  for one fix over all four readers.

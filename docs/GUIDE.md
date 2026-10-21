@@ -957,8 +957,8 @@ assert abs(props.volume - 2.984e-5) < 1e-15
 assert props.volume_pad == 0.0
 
 # Export through the document layer, and re-import to prove it. The
-# report's `enclosure` is the IMPORT GATE's own certified measurement
-# of the body it just adopted — reading it re-measures nothing.
+# report's `enclosure` is the IMPORT GATE's own measurement of the
+# body it just adopted — reading it re-measures nothing.
 step = ev.step_string(lightened, product_name="bracket")
 assert step.startswith("ISO-10303-21;")
 report = import_step(step)
@@ -1526,7 +1526,8 @@ cup = doc.insert(Node.shell(box, Formula.length_in(T, m), top))
 body = evaluate(doc).value(cup).body()
 body.validate()
 inner = L - 2 * T
-assert body.mass_properties().volume == L**3 - inner * inner * (L - T)
+want = L**3 - inner * inner * (L - T)
+assert abs(body.mass_properties().volume - want) <= 1e-12 * want
 
 # The cup's own vocabulary: one rim (named for the top it replaced)
 # and five cavity twins group as the SHELL's; the five outer faces are
