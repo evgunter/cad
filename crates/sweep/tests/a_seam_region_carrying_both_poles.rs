@@ -137,24 +137,3 @@ fn a_dimple_beside_its_polar_axis_flips_by_the_run_band() {
         n => panic!("the dimple is {n} faces"),
     }
 }
-
-/// Review probe (PR 5534): does tier 3′ (the census, no contacts) pass
-/// witnesses A and B's flips, as the embedding row says?
-#[test]
-fn review_5534_the_flips_at_tier_3_prime() {
-    let tol = Tol::witness();
-    let ball = finished("ball", ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol), tol);
-    let block = finished("block", brick((-3.0, 0.0), (-2.0, 2.0), (-2.0, 2.0), tol), tol);
-    let mut body = Body::clone(&topo::boolean::union(&ball, &block, tol).unwrap().body().unwrap().body);
-    let lune = sphere_faces(&body);
-    split_at_meridian(&mut body, lune[0], v([1.0, 0.0, 0.0]), tol);
-    let faces = sphere_faces(&body);
-    let a = flipped(&body, &faces);
-    eprintln!("REVIEW A tier3' {:?}", topo::validate_pseudomanifold(&a, &topo::ContactRecords::default(), tol));
-    let ball = finished("ball", ball_poled(1.0, v([0.0; 3]), v([0.0, 0.6, 0.8]), tol), tol);
-    let block = finished("block", brick((-3.0, 1e-11), (-2.0, 2.0), (-2.0, 2.0), tol), tol);
-    let body = Body::clone(&topo::boolean::subtract(&block, &ball, tol).unwrap().body().unwrap().body);
-    let faces = sphere_faces(&body);
-    let b = flipped(&body, &faces);
-    eprintln!("REVIEW B faces {} tier3' {:?}", faces.len(), topo::validate_pseudomanifold(&b, &topo::ContactRecords::default(), tol));
-}
