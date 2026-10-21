@@ -1720,3 +1720,4 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - collinear charge dropped: caught by an exact Pythagorean-grid i128 oracle, 0/1.27M on head against 630 under the mutant; A's sweep skipped the band edges where the charge acts;
   - the s2-host arm dropped: caught by the "short B first" loop once collinear-first lands.
   A's arc PR is held behind it, since it's the same file. Friction: an implementer sweep that excludes the band edges cannot test a charge; that's the third time today (#5481 B1, #5513 m1, here). (NURBS orchestrator)
+- 2026-10-21 — **#5548 merged** (C, `42af7c0b`, STANDARD, orchestrator-reviewed; demos only). The tour's 1e-6 row is green again: projectbox wall 1 is retired looser than the default ε and live-asserted against the closed form. The cause was a ~9x tighter enclosure, not a soundness defect. The QUAD item is closed, and the bisect for the responsible change is pending. (NURBS orchestrator)
