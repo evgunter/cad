@@ -1516,3 +1516,137 @@ mod polish_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod line_conic_anchor_witness {
+    use super::*;
+    use geom_core::{Bounds, Interval, Real};
+
+    /// Measurement (not a gate): the gap row's verdict under the line
+    /// carrier's origin as anchor (main) against the span start's, each
+    /// charged for the line ends' evaluation.
+    #[test]
+    fn probe_the_gap_under_both_anchors() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let mut rng = test_utils::fuzz::start("line-conic-anchor");
+        let (mut flips_to_apart, mut flips_to_not, mut wrong_cur, mut wrong_alt) = (0, 0, 0, 0);
+        let mut apart = [0usize; 2];
+        let mut total = 0usize;
+        for back in [0.0, 1e3, 1e6] {
+            for _ in 0..20_000 {
+                let d = Vec3::new(
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                )
+                .normalize();
+                let a0 = Point3::new(
+                    rng.range(-10.0, 10.0),
+                    rng.range(-10.0, 10.0),
+                    rng.range(-10.0, 10.0),
+                );
+                let o = a0 - d * back;
+                let len = 10f64.powf(rng.range(-2.0, 1.0));
+                let line = Curve3::Line { origin: o, dir: d };
+                let sa = Span::new(&line, (back, back + len));
+                let r = 10f64.powf(rng.range(-1.0, 1.0));
+                let gap = 10f64.powf(rng.range(-13.0, -9.0));
+                let side = u_perp(d);
+                let off = rng.range(0.0, 1.0) * r;
+                let center = a0 + d * (len + gap + r) + side * off;
+                let axis = side.cross(d).normalize();
+                let circle = Curve3::Circle {
+                    center,
+                    axis,
+                    radius: r,
+                    u_ref: d,
+                };
+                let sb = Span::new(&circle, (0.0, 1.0));
+                let k = conic_of(sb.carrier()).unwrap();
+                let u = unit(d);
+                // main: from the carrier's origin
+                let lever = reach(&sa).max(k.speed_hi());
+                let origin = Point3::origin();
+                let noise = geom_core::rounding_charge(
+                    (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
+                );
+                let screened = noise + geom_core::rounding_charge(ends(&sa));
+                let c = (k.center - o).dot(u);
+                let cur = OnOneLine::of(
+                    on_line((o, u), &sa),
+                    (c - k.speed_hi(), c + k.speed_hi()),
+                    screened,
+                );
+                // the span start's anchor, charged for both chains
+                let (t0, t1) = sa.params();
+                let (e0, e1) = (sa.carrier().eval(t0), sa.carrier().eval(t1));
+                let produced = ((o - origin).norm() + d.norm() * t0.abs())
+                    + ((o - origin).norm() + d.norm() * t1.abs());
+                let ca = (k.center - e0).dot(u);
+                let charge = geom_core::rounding_charge(
+                    produced + (e1 - e0).norm() + (k.center - e0).norm() + k.speed_hi(),
+                );
+                let alt = OnOneLine::of(
+                    ((e0 - e0).dot(u), (e1 - e0).dot(u)),
+                    (ca - k.speed_hi(), ca + k.speed_hi()),
+                    charge,
+                );
+                let reads = |m: f64| decide(row::GAP, Margin::of(m), band) == Ok(Sign::Positive);
+                let (rc, ra) = (reads(cur.apart()), reads(alt.apart()));
+                total += 1;
+                apart[0] += usize::from(rc);
+                apart[1] += usize::from(ra);
+                if ra && !rc {
+                    flips_to_apart += 1;
+                }
+                if rc && !ra {
+                    flips_to_not += 1;
+                }
+                // the real gap along the line: the conic's extent start
+                // less the span's end, from the carrier's exact data.
+                let iv = |p: Point3<f64>| {
+                    Point3::new(
+                        Interval::from_f64(p.x),
+                        Interval::from_f64(p.y),
+                        Interval::from_f64(p.z),
+                    )
+                };
+                let ivv = |v: Vec3<f64>| {
+                    Vec3::new(
+                        Interval::from_f64(v.x),
+                        Interval::from_f64(v.y),
+                        Interval::from_f64(v.z),
+                    )
+                };
+                let (io, id) = (iv(o), ivv(d));
+                let iu = id * (Interval::one() / id.norm());
+                let real = (iv(center) - io).dot(iu)
+                    - Interval::from_f64(r)
+                    - Interval::from_f64(back + len) * id.norm();
+                let real_lo = real.lo();
+                if rc && !(real_lo > 1e-12) {
+                    wrong_cur += 1;
+                }
+                if ra && !(real_lo > 1e-12) {
+                    wrong_alt += 1;
+                }
+            }
+            eprintln!(
+                "PROBE back={back:e}: apart main {} alt {} | flips to apart {flips_to_apart} to not {flips_to_not} | unproven apart main {wrong_cur} alt {wrong_alt} of {total}",
+                apart[0], apart[1]
+            );
+            (flips_to_apart, flips_to_not, wrong_cur, wrong_alt, total) = (0, 0, 0, 0, 0);
+            apart = [0; 2];
+        }
+    }
+
+    fn u_perp(d: Vec3<f64>) -> Vec3<f64> {
+        let k = if d.x.abs() < 0.9 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
+        (k - d * k.dot(d)).normalize()
+    }
+}
