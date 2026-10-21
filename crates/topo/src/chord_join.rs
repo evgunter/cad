@@ -1416,7 +1416,7 @@ pub(crate) struct WallReach<T: geom_core::Real> {
 /// two sides of the band, and the conic lane's rim and tilted ellipse
 /// read no reach.
 pub(crate) fn agreed_section<T: Decide>(
-    plane: &geom::Surface<T>,
+    plane: &impl geom_brep::SectionPlane<T>,
     wall: &geom::Surface<T>,
     reach: WallReach<T>,
     band: Band,
@@ -1511,6 +1511,20 @@ fn section_case<T: Decide>(
             ));
         }
     };
+    plane_wall_case(face, band, plane_s, wall, reach)
+}
+
+/// [`section_case`] past its pair normalization: the section of `wall`
+/// by `plane`, of which the table reads a point and the normal and
+/// never a chart ([`geom_brep::SectionPlane`]).
+fn plane_wall_case<T: Decide>(
+    face: FaceKey,
+    band: Band,
+    plane_s: &impl geom_brep::SectionPlane<T>,
+    wall: &geom::Surface<T>,
+    reach: SectionReach<T>,
+) -> Result<SectionCase<T>, SplitJoinError> {
+    let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     let table = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
         other => SplitJoinError::Section {
@@ -1590,7 +1604,7 @@ fn section_case<T: Decide>(
                  divided face",
             ));
         };
-        let &geom::Surface::Plane { normal, .. } = plane_s else {
+        let Some((_, normal)) = plane_s.site() else {
             return Err(invariant("the pair normalization put no plane first"));
         };
         let section = geom_brep::plane_torus_section(plane_s, wall, reach, band).map_err(table)?;
@@ -2363,12 +2377,11 @@ pub(crate) fn wall_section<T: Decide>(
             });
         }
     }
-    let plane_s = geom::Surface::Plane {
+    let plane_s = geom_brep::PlaneSite {
         origin,
         normal: normal.get(),
-        u_ref: across_wall(normal.get(), &wall),
     };
-    let case = section_case(
+    let case = plane_wall_case(
         face,
         band,
         &plane_s,
@@ -2376,25 +2389,6 @@ pub(crate) fn wall_section<T: Decide>(
         section_reach(body, at, face, (&wall, None), band)?,
     )?;
     Ok(Some(WallSection { wall, case }))
-}
-
-/// An in-plane direction for the section plane of normal `n` against a
-/// wall, read off the wall's own chart frame: `n × û` or `n × â`,
-/// whichever is longer. With `û ⊥ â` unit and `n` unit,
-/// `|n × û|² + |n × â|² ≥ 1`, so the longer has length at least `1/√2`.
-/// Both lengths are rigid invariants, so the choice moves with the
-/// inputs and not with the computing axes (D10 `[placement.frame]`).
-fn across_wall<T: Real>(n: Vec3<T>, wall: &geom::Surface<T>) -> Vec3<T> {
-    let (axis, u_ref) = match *wall {
-        geom::Surface::Cylinder { axis, u_ref, .. }
-        | geom::Surface::Sphere { axis, u_ref, .. }
-        | geom::Surface::Cone { axis, u_ref, .. }
-        | geom::Surface::Torus { axis, u_ref, .. } => (axis, u_ref),
-        _ => unreachable!("wall_section reads a section plane against a curved wall only"),
-    };
-    let (along_u, along_axis) = (n.cross(u_ref), n.cross(axis));
-    let d = along_u.norm_squared() - along_axis.norm_squared();
-    Vec3::select(d, along_axis, along_u).normalize()
 }
 
 /// [`wall_section`]'s answer.

@@ -1470,13 +1470,14 @@ struct LoopSwept {
 /// loop's [`swept::Join`]s and the walls minted so far (`faces`, in
 /// segment order). A line is one wall on a freshly built plane (Newell
 /// over its quad corners in loop order — outward by the orientation
-/// contract — charted along the swept segment's direction). An arc is one wall on a fresh cylinder (turn-signed axis,
-/// crate docs) whose `u_ref` aims at its start vertex — except across a
-/// circle's canonical cut ([`swept::Join::Cut`]), where each wall after
-/// the first shares its key ([`swept::shared_wall`]). Every arm
-/// states the segment's [`WallSeg::wall_sense`]: a concave arc's wall has
-/// its material outside the carrier cylinder, against the
-/// outward-radial chart normal.
+/// contract — charted along the swept segment's direction). An arc is
+/// one wall on a fresh cylinder (turn-signed axis, crate docs) whose
+/// `u_ref` aims at its start vertex — except across a circle's
+/// canonical cut ([`swept::Join::Cut`]), where each wall after the
+/// first shares its key ([`swept::shared_wall`]). Every arm states the
+/// segment's [`WallSeg::wall_sense`]: a concave arc's wall has its
+/// material outside the carrier cylinder, against the outward-radial
+/// chart normal.
 #[allow(clippy::too_many_arguments)] // one internal call site (see sweep_loop).
 fn side_surface<T: Decide>(
     body: &Body<T>,

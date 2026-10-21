@@ -812,14 +812,15 @@ impl std::error::Error for CapPlaneError {}
 /// residual certification — charted with the profile's own `x` axis
 /// lifted by `place` (`place.linear.c0`), so its `u_ref` is a function
 /// of the sweep's inputs and not of the computing axes, and oriented by
-/// the REGION's winding, not the polygon's. A validated outer loop winds counterclockwise about
-/// its sketch normal (`profile` decides it arc-exactly at validation),
-/// so the swept chain's region normal is `place`'s sketch normal,
-/// negated when the traversal `reversed` the canonical chain; the start
-/// cap faces opposite it, the end cap along it. The polygon is
-/// inscribed in the region and a large convex arc can make it wind the
-/// other way, so when Newell's normal opposes the region's the plane is
-/// flipped; its `u_ref` lies in the plane either way and is kept.
+/// the REGION's winding, not the polygon's. A validated outer loop
+/// winds counterclockwise about its sketch normal (`profile` decides it
+/// arc-exactly at validation), so the swept chain's region normal is
+/// `place`'s sketch normal, negated when the traversal `reversed` the
+/// canonical chain; the start cap faces opposite it, the end cap along
+/// it. The polygon is inscribed in the region and a large convex arc
+/// can make it wind the other way, so when Newell's normal opposes the
+/// region's the plane is flipped; its `u_ref` lies in the plane either
+/// way and is kept.
 ///
 /// `forward` is `cap_points` of the swept chain at this cap's station.
 ///

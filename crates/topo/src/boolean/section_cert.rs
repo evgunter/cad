@@ -1991,8 +1991,9 @@ fn cone_cylinder<T: Decide>(
         Some(Sign::Positive | Sign::Negative) => {}
         _ => return Section::Tangent("section_cone_cylinder_aperture"),
     }
-    // A scratch chart of the cylinder for the ruling reader: no output
-    // keeps it, and its verdict reads the section, not the chart.
+    // A chart of the cylinder for the ruling reader, picked off the axes.
+    // No output keeps it, but the reader's verdict may read it
+    // (`work/issues/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
     let (f1, f2) = d.orthonormal_basis();
     let zero = Vec3::new(T::zero(), T::zero(), T::zero());
     let wall = ruling::Chart {
@@ -2547,7 +2548,10 @@ fn sphere_plane<T: Decide>(
     match signs([(REACH, rho - d.abs())], band) {
         Ok([true]) => {
             let rad = ((rho - d.abs()) * (rho + d.abs())).sqrt();
-            // The witness is scratch: no output keeps it.
+            // A witness picked off the axes. No output keeps it, but W3
+            // and the no-event decision read it, so which point decides
+            // can follow the computing frame
+            // (`work/issues/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
             let (b1, _) = n.orthonormal_basis();
             lone(cs - n * d + b1 * rad)
         }
@@ -2567,7 +2571,7 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
             let k = (c2 - c1) / dd;
             let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
             let rad = ((r1 - x) * (r1 + x)).sqrt();
-            // The witness is scratch: no output keeps it.
+            // Picked off the axes, as `sphere_plane`'s witness is.
             let (b1, _) = k.orthonormal_basis();
             lone(c1 + k * x + b1 * rad)
         }

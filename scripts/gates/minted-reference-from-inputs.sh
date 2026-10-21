@@ -23,8 +23,11 @@
 #   topo/src/boolean/boxes.rs     `BoxFrame::aimed`, a box frame read
 #                                 only as a support along its aim;
 #   topo/src/side_reader.rs       a ray's aim, which no output keeps;
-#   topo/src/boolean/section_cert.rs  a scratch ruling chart and the
-#                                 section witnesses, which no output keeps.
+#   topo/src/boolean/section_cert.rs  a ruling chart and the section
+#                                 witnesses: no output keeps them, but a
+#                                 verdict may read them, which is filed
+#                                 (`work/issues/a-section-certificates-
+#                                 witness-point-is-picked-off-the-axes.md`).
 #
 # KNOWN GAPS. A home's file can grow a second read that does reach a
 # stored reference, and nothing here sees it: a skip is per file. A
