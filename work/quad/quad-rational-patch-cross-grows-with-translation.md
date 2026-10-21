@@ -62,3 +62,41 @@ restriction of the cell's window and `CellAxis::Bezier`, giving `g_hull`
 as `[inf_norm, sup_norm]`. The pads `∂_d g` are the quotient
 `(M̃_d·W − 3·M̃·W_d)/W⁴`, which the statement does not form today. Swept
 from `work/nurbs/other-rational-speed-readings-read-relaxed-quotient-recipes.md`.
+
+## Re-measured on main 258dc6c7c2 (QUAD, 2026-10-21)
+
+**Verdict: stands at the door `geom_brep::props::quad::nurbs_patch_face`;
+gone through `topo::mass_properties`.** FLUX's `shell_reference`
+(PR #5442, `topo::props`) moves each face's net to a vertex of its
+shell before the quadrature reads it (`quad_lane.rs`, `about`), so a
+body's translation no longer reaches this lane. The lane itself
+still assembles in whatever frame its caller hands it.
+
+Probe: `crates/sweep/tests/quad_frame_remeasure.rs`
+`row1_rational_wall_translated` (`#[ignore]`d; run command in its
+header). It drives `nurbs_patch_face::<f64>` on this row's
+`rational_wall` net, translated by `(t, t, t)`, over the full
+rectangle, perimeter 3.8, default ε:
+
+| t | result |
+|---|---|
+| 0 | area [0.81342, 0.93714], width 0.124; flux width 1.43e-6 |
+| 1 m | refuses `QuadratureBudget { width_len 8.33e-6, target 1.024e-6, rounds 1 }` |
+| 10 m | refuses, width_len 4.56e-4 |
+| 100 m | refuses, width_len 1.12e-2 |
+| 1 km | refuses, width_len 0.125 |
+| 100 km | refuses, width_len 12.7 |
+
+These are the same numbers to every printed digit on main before
+#5442 (`ec32861499`). The flux refusal width grows about linearly with
+`t`, and `nurbs_patch_face` still refuses from 1 m. The 100 m and 1 km
+area widths in the table above are not reachable at this door because
+it refuses first.
+
+Through a body, the rational lofted walls of
+`a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`
+read the same refusal widths to four digits at the origin and at
+(100, 0, 0) m and (1000, −700, 400) m on main. Before #5442 the
+circle loop's v-degree-3 widths grew 2.8–4× from the origin to 100 m.
+What is left open is the door's own frame: a caller that hands it a
+net far from the origin still gets these widths.
