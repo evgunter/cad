@@ -1470,7 +1470,7 @@ struct LoopSwept {
 /// loop's [`swept::Join`]s and the walls minted so far (`faces`, in
 /// segment order). A line is one wall on a freshly built plane (Newell
 /// over its quad corners in loop order — outward by the orientation
-/// contract). An arc is one wall on a fresh cylinder (turn-signed axis,
+/// contract — charted along the swept segment's direction). An arc is one wall on a fresh cylinder (turn-signed axis,
 /// crate docs) whose `u_ref` aims at its start vertex — except across a
 /// circle's canonical cut ([`swept::Join::Cut`]), where each wall after
 /// the first shares its key ([`swept::shared_wall`]). Every arm
@@ -1503,10 +1503,12 @@ fn side_surface<T: Decide>(
             // Quad corners in the side loop's next order starting at
             // the segment's start: v_j′, v_j, v_end, v_end′.
             let corners = [qs[j] + w, qs[j], qs[end], qs[end] + w];
-            let plane = newell_plane(&corners, band).map_err(|source| ExtrudeError::SidePlane {
-                loop_index,
-                segment_index: segs[j].chord.canonical_segment,
-                source,
+            let plane = newell_plane(&corners, qs[end] - qs[j], band).map_err(|source| {
+                ExtrudeError::SidePlane {
+                    loop_index,
+                    segment_index: segs[j].chord.canonical_segment,
+                    source,
+                }
             })?;
             Ok(FaceSurface::New {
                 surface: plane,

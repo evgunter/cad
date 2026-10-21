@@ -5787,8 +5787,9 @@ struct SphereRecut<T: Real> {
     /// The stored seam direction (`u_ref`), which `seam` turns to.
     u_ref: Vec3<T>,
     /// Where the group escapes through a sphere: the seam direction the
-    /// re-chart turns `u_ref` to about `align`. A's group takes the first
-    /// of `align`'s orthonormal pair and B's the second, so two balls
+    /// re-chart turns `u_ref` to about `align`. A's group takes the
+    /// first escape's [`pair_seam`] in the plane across `align`, and B's
+    /// that direction turned a quarter about `align`, so two balls
     /// re-charted along one centre line keep their seams in planes a
     /// quarter turn apart, and neither seam meets the circle where the
     /// other does.
@@ -5914,6 +5915,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // A closed group's sphere escapes, one cut each, for where
             // one re-chart cannot serve them all.
             let mut sphere_escapes: Vec<SphereCutIn<T>> = Vec::new();
+            // The first sphere escape's pair seam ([`pair_seam`]).
+            let mut first_pair_seam: Option<Vec3<T>> = None;
             for (y_row, (yf, _)) in y_rows.iter().zip(y.faces()) {
                 if y_row.face != yf {
                     return Err(BooleanError::ClassificationInvariant {
@@ -6155,6 +6158,14 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                                 band,
                                             )?;
                                             if group.is_some() {
+                                                if first_pair_seam.is_none() {
+                                                    first_pair_seam = Some(pair_seam(
+                                                        x_is,
+                                                        x_surface,
+                                                        &y_row.surface,
+                                                        band,
+                                                    )?);
+                                                }
                                                 escape_normals.push(cut.normal);
                                                 sphere_escapes.push(cut);
                                             } else {
@@ -6271,11 +6282,11 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         },
                     });
                 }
-                let seam = (!sphere_escapes.is_empty()).then(|| {
-                    let (first, second) = align.orthonormal_basis();
+                let seam = first_pair_seam.map(|pair| {
+                    let first = (pair - align * align.dot(pair)).normalize();
                     match x_is {
                         Operand::A => first,
-                        Operand::B => second,
+                        Operand::B => align.cross(first),
                     }
                 });
                 out.push(SphereRecut {
@@ -6339,6 +6350,34 @@ fn sphere_pair_cut<T: Decide>(
         Ok(_) | Err(_) => Err(corrupt(
             "extent scan: spheres the scan decided cross have no section circle",
         )),
+    }
+}
+
+/// **The seam a sphere pair's re-charts share**: the `u_ref` of the
+/// pair's section circle as read from operand A's sphere
+/// ([`geom_brep::sphere_sphere_section`] with A's sphere first), whichever
+/// operand `x` (on `x_is`) is. Both groups of a pair read the same
+/// direction, and it is a function of the operands, never of the
+/// computing axes (D10 `[placement.frame]`).
+fn pair_seam<T: Decide>(
+    x_is: Operand,
+    x: &geom::Surface<T>,
+    y: &geom::Surface<T>,
+    band: Band,
+) -> Result<Vec3<T>, BooleanError> {
+    let (a, b) = match x_is {
+        Operand::A => (x, y),
+        Operand::B => (y, x),
+    };
+    match geom_brep::sphere_sphere_section(a, b, band) {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle { u_ref, .. })) => Ok(u_ref),
+        Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
+            diag,
+        }),
+        Ok(_) | Err(_) => Err(BooleanError::ClassificationInvariant {
+            what: "extent scan: spheres the scan decided cross have no section circle",
+        }),
     }
 }
 

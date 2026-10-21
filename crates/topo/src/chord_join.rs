@@ -2363,13 +2363,10 @@ pub(crate) fn wall_section<T: Decide>(
             });
         }
     }
-    // A transient classification value: only origin/normal are read by
-    // the table (u_ref is a placement convention the classification
-    // never consumes; a STORED aux plane gets an honest one).
     let plane_s = geom::Surface::Plane {
         origin,
         normal: normal.get(),
-        u_ref: normal.get(),
+        u_ref: across_wall(normal.get(), &wall),
     };
     let case = section_case(
         face,
@@ -2379,6 +2376,25 @@ pub(crate) fn wall_section<T: Decide>(
         section_reach(body, at, face, (&wall, None), band)?,
     )?;
     Ok(Some(WallSection { wall, case }))
+}
+
+/// An in-plane direction for the section plane of normal `n` against a
+/// wall, read off the wall's own chart frame: `n × û` or `n × â`,
+/// whichever is longer. With `û ⊥ â` unit and `n` unit,
+/// `|n × û|² + |n × â|² ≥ 1`, so the longer has length at least `1/√2`.
+/// Both lengths are rigid invariants, so the choice moves with the
+/// inputs and not with the computing axes (D10 `[placement.frame]`).
+fn across_wall<T: Real>(n: Vec3<T>, wall: &geom::Surface<T>) -> Vec3<T> {
+    let (axis, u_ref) = match *wall {
+        geom::Surface::Cylinder { axis, u_ref, .. }
+        | geom::Surface::Sphere { axis, u_ref, .. }
+        | geom::Surface::Cone { axis, u_ref, .. }
+        | geom::Surface::Torus { axis, u_ref, .. } => (axis, u_ref),
+        _ => unreachable!("wall_section reads a section plane against a curved wall only"),
+    };
+    let (along_u, along_axis) = (n.cross(u_ref), n.cross(axis));
+    let d = along_u.norm_squared() - along_axis.norm_squared();
+    Vec3::select(d, along_axis, along_u).normalize()
 }
 
 /// [`wall_section`]'s answer.
@@ -2505,8 +2521,8 @@ fn bool_planar_chord_spec<T: Decide>(
             wall: wall.kind(),
         });
     }
-    let (p_o, p_n) = match body.get_surface(plane_key) {
-        Some(&geom::Surface::Plane { origin, normal, .. }) => (origin, normal),
+    let plane_s = match body.get_surface(plane_key) {
+        Some(plane_s @ geom::Surface::Plane { .. }) => plane_s.clone(),
         // The two failures are different things and are typed apart: a
         // key that does not resolve is corruption, a key that resolves
         // to the wrong kind is this lane's invariant. A single `_` arm
@@ -2518,11 +2534,6 @@ fn bool_planar_chord_spec<T: Decide>(
                 what: "the section context's auxiliary plane key does not name a plane surface",
             });
         }
-    };
-    let plane_s = geom::Surface::Plane {
-        origin: p_o,
-        normal: p_n,
-        u_ref: p_n,
     };
     let conic = match section_case(
         face,

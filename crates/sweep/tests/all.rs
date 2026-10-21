@@ -1216,6 +1216,8 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_body_built_turned_is_the_body_turned.rs"]
+mod a_body_built_turned_is_the_body_turned;
 #[path = "a_closed_conic_in_the_partners_face.rs"]
 mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]

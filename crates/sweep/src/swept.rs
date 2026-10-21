@@ -808,17 +808,18 @@ impl std::error::Error for CapPlaneError {}
 
 /// The certified plane of a sweep's cap.
 ///
-/// The plane is Newell's over [`cap_points`] — origin, normal, `u_ref`
-/// and residual certification — oriented by the REGION's winding, not
-/// the polygon's. A validated outer loop winds counterclockwise about
+/// The plane is Newell's over [`cap_points`] — origin, normal and
+/// residual certification — charted with the profile's own `x` axis
+/// lifted by `place` (`place.linear.c0`), so its `u_ref` is a function
+/// of the sweep's inputs and not of the computing axes, and oriented by
+/// the REGION's winding, not the polygon's. A validated outer loop winds counterclockwise about
 /// its sketch normal (`profile` decides it arc-exactly at validation),
 /// so the swept chain's region normal is `place`'s sketch normal,
 /// negated when the traversal `reversed` the canonical chain; the start
 /// cap faces opposite it, the end cap along it. The polygon is
 /// inscribed in the region and a large convex arc can make it wind the
 /// other way, so when Newell's normal opposes the region's the plane is
-/// flipped (`u_ref` re-derived from the flipped normal, as Newell
-/// derives it).
+/// flipped; its `u_ref` lies in the plane either way and is kept.
 ///
 /// `forward` is `cap_points` of the swept chain at this cap's station.
 ///
@@ -846,8 +847,13 @@ pub(crate) fn cap_plane<T: Decide>(
             .copied()
             .collect(),
     };
-    let plane = newell_plane(&ordered, band).map_err(CapPlaneError::Newell)?;
-    let Surface::Plane { origin, normal, .. } = plane else {
+    let plane = newell_plane(&ordered, place.linear.c0, band).map_err(CapPlaneError::Newell)?;
+    let Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    } = plane
+    else {
         unreachable!("newell_plane mints a plane")
     };
     let sketch_normal = place.linear.c2.normalize();
@@ -880,11 +886,9 @@ pub(crate) fn cap_plane<T: Decide>(
         Sign::Zero => return Err(CapPlaneError::EdgeOn),
         Sign::Negative => {}
     }
-    let flipped = -normal;
-    let (u_ref, _) = flipped.orthonormal_basis();
     Ok(Surface::Plane {
         origin,
-        normal: flipped,
+        normal: -normal,
         u_ref,
     })
 }
