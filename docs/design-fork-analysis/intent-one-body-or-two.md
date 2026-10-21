@@ -9,3 +9,4 @@ Byte 165, drawn 2026-10-21T01:34:11Z, so A = Fable, B = Opus.
 
 ## Round 3 (Ev's 2026-10-21T16:03Z comment: written order / an expression with parentheses)
 Fresh pair dispatched 2026-10-21T16:06:45Z with the whole thread as brief (scratchpad forks/expression.md). Byte 110, so C = Opus, D = Fable.
+- C (Opus) delivered ~16:30Z: expression with parentheses stored, list = façade sugar of a left fold; operators ∪ − ∩ and ⊔ assemble (pieces; − and ∩ distribute over ⊔, ∪ fuses); DM4 nodes stay plus `Assemble`; space = members + one stated result; census = ⊔'s door, arrival = an operand of an ⊔; per-meeting decided by the nearest operator holding both leaves; sub-assembly ∪ x welds, citing S's records; Space folds into Body (unsure). Likely.
