@@ -14,3 +14,4 @@ Fresh pair dispatched 2026-10-21T16:06:45Z with the whole thread as brief (scrat
 - Round 3 reconciliation 1: each shown the other's position on (1) where placements live (scope vs per-operand bundles) and (2) S under union (glue citing S vs records kept).
 - Reconciliation 1: (1) D moved to C's scope: converged (space = members + result expression; parentheses combine, a space boundary separates coordinates). (2) crossed: C to records kept, D to weld.
 - Reconciliation 2 on (2): crossed back (C weld, D records kept). Further designer (Fable, fresh) weighs W vs K, brief forks/subassembly-third.md.
+- Further designer (Fable) on S under union: W, restated as one law, ∪ absorbs ⊔ (∪ alone; − and ∩ distribute over ⊔ and keep records); a record over an area inside one solid is a slit, a tier-3 defect. Likely. Posted to Ev as the converged design, 2-1 on this point.
