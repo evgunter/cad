@@ -2242,13 +2242,16 @@ mod pair_contact_tests {
             .unwrap_or_else(|e| panic!("line {a:?} → {b:?}: {}", e.predicate()))
     }
 
+    /// A segment's two stored ends.
+    type Ends = [(f64, f64); 2];
+
     /// The real gap between two stored segments on `a`'s axis and on
     /// `b`'s, enclosed in `Interval`: each the distance between the two
     /// projected intervals on that segment's real unit chord, negative
     /// where they overlap.
-    fn real_gaps(a: [(f64, f64); 2], b: [(f64, f64); 2]) -> [Interval; 2] {
+    fn real_gaps(a: Ends, b: Ends) -> [Interval; 2] {
         let p = pt::<Interval>;
-        let gap = |[o0, o1]: [(f64, f64); 2], [q0, q1]: [(f64, f64); 2]| {
+        let gap = |[o0, o1]: Ends, [q0, q1]: Ends| {
             let (o0, o1) = (p(o0), p(o1));
             let chord = o1 - o0;
             let unit = chord * (Interval::one() / chord.norm());
@@ -2408,7 +2411,7 @@ mod pair_contact_tests {
             let b1 = (b0.0 + dx * len, b0.1 + dy * len);
             ([a0, a1], [b0, b1])
         };
-        let read = |([a0, a1], [b0, b1]): ([(f64, f64); 2], [(f64, f64); 2])| {
+        let read = |([a0, a1], [b0, b1]): (Ends, Ends)| {
             gaps_apart(&line::<f64>(a0, a1, band), &line(b0, b1, band), band)
         };
         let (a, b) = pair(1e-7);
