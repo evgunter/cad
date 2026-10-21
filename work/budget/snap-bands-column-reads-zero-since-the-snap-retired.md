@@ -23,3 +23,13 @@ one pending), drop `snap_bands` from `FaceMeasure`, the tess-meter
 `CSV_HEADER` and row, tess-lint's parser, admissibility table and report line,
 and the baseline. `report_columns_pin` and tess-meter's derivation tests pin
 the column list and move with it.
+
+## Also from #5551's review
+
+- tess-lint's report line still prints the snap-projected count, always 0
+  (`tools/tess-lint/src/main.rs`, the constraint-activity block). It goes
+  with the column.
+- `Lane::Nurbs` still builds the whole-patch bound (`grid.patch()`) for
+  every NURBS face, and since the snap retired its only reader is the
+  budget meter's `muu`…`mv1` columns. Building it under the meter only, or
+  reading those columns off the cell grid, saves a pass per face.

@@ -109,9 +109,8 @@
 //! lofted circle's wall, where the ladder walked the sliver inward a
 //! step per round: `work/tess/lofted-rational-walls-refuse-at-some-deltas`).
 //! The cure is the lattice metric (above), which makes the lattice
-//! near square where the CDT runs (the column snap that backed it up
-//! is retired, [`crate::nurbs_cert::NurbsCellGrid::band_schedule`]);
-//! an attempt
+//! near square where the CDT runs
+//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
 //! that still certifies above δ after the shared round budget refuses
 //! typed ([`TessellateError::CertificateExceeded`]) — the
 //! certificate, as everywhere, is the guarantee. An attempt's interior
@@ -440,7 +439,7 @@ pub(crate) fn tessellate_trimmed(
             grid_cells: stats.grid_cells,
             bands: stats.bands,
             cap_bands: stats.cap_bands,
-            // The retired column snap's column, kept for the CSV's shape
+            // No band is projected; the column stays for the CSV's shape
             // until the budget lane's re-cut drops it
             // (`work/budget/snap-bands-column-reads-zero-since-the-snap-retired`).
             snap_bands: 0,
@@ -1098,8 +1097,7 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
 /// tensor** from the ONE shipped schedule derivation,
 /// [`crate::nurbs_cert::NurbsCellGrid::band_schedule`] — per-band
 /// `nuc × nvc` through the aspect-capped split selection
-/// (TESS-SPLIT), each band at its own counts (the retired column
-/// snap's argument lives there).
+/// (TESS-SPLIT), each band at its own counts.
 ///
 /// * Row lines land exactly on the band cuts (never through the lerp,
 ///   whose rounding would put two almost-coincident lines an ulp

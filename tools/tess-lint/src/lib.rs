@@ -30,8 +30,7 @@
 //!   since TESS-SPLIT the shipped schedule IS the cell minimizer
 //!   under the ratified A = 16 aspect cap, so this reads ~1.0 where
 //!   no constraint is active and the residue is the indicated price
-//!   of the cap (`cap_bands`; `snap_bands` reads 0 since the column
-//!   snap retired).
+//!   of the cap (`cap_bands`; `snap_bands` always reads 0).
 //! * **total** = `delta / worst_dev` — the deviation budget that went
 //!   unspent, when the sweep ran with `--deviation`. A softer number
 //!   than the ones above: `worst_dev` is sampled (so it under-reports
@@ -379,8 +378,8 @@ pub struct Nurbs {
     /// The constraint-activity indicator (TESS-SPLIT): bands whose
     /// step selection the 3-D aspect cap clamped.
     pub cap_bands: f64,
-    /// Always 0 since the malign-band column snap retired; the column
-    /// stays until the budget lane's re-cut drops it
+    /// Always 0: no band schedule projects a band onto another column
+    /// count. The column stays until the budget lane's re-cut drops it
     /// (`work/budget/snap-bands-column-reads-zero-since-the-snap-retired`).
     pub snap_bands: f64,
     /// Max over bands of the emitted lattice's post-`ceil` spacing

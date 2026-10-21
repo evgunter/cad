@@ -1,7 +1,7 @@
 ---
 id: uneven-station-lofts-cost-triangles-without-the-column-snap
 kind: issue
-title: Uneven-station lofts cost up to ~10% triangles without the retired column snap; a cost lever if a real body needs it
+title: Uneven-station lofts cost up to 14% triangles at degree 2, and 62% on a degree-3 loft, without the retired column snap; a cost lever if a real body needs it
 status: open
 opened: 2026-10-21
 priority: P3
@@ -35,8 +35,11 @@ at the rows where the snap changed counts:
 | 2 | 0.001 | 5.000e-02 | 34 | 8516 | 8868 | 1.041x |
 | 2 | 0.001 | 3.820e-02 | 34 | 9596 | 10108 | 1.053x |
 
-Up to 14% more triangles without it, and one row with fewer. On the tour, 0%:
-the snap fired on no tour band over the metric.
+Up to 14% more triangles without it on this degree-2 family, and one row
+with fewer. **At degree 3 the cost is larger**: #5551's FULL review measured
+a degree-3 loft at 11820 triangles with the snap and 19100 without at
+δ = 3.82e-2 (1.616x, https://github.com/evgunter/cad/pull/5551#issuecomment-6314358748).
+On the tour it is 0%: the snap fired on no tour band over the metric.
 
 ## If a real body needs it
 

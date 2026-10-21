@@ -10,7 +10,7 @@ aspect cap (`mesh::nurbs_cert::ASPECT_CAP` and
 the trimmed lane triangulating over the face's lattice metric — the
 post-fix split ratio reads ~1.0 at constraint-inactive cells and
 the CSV's `cap_bands` column says where the cap bound the rest
-(`snap_bands` reads 0 since the column snap retired).** #320 asked whether the NURBS-wall grid
+(`snap_bands` always reads 0).** #320 asked whether the NURBS-wall grid
 sizing is "honestly tight … or systematically over-conservative", and
 asked for measurement first. This document is that measurement, the
 instrument that produced it, and what the numbers said a fix would
@@ -730,16 +730,11 @@ power of two near the bands' mean realized aspect,
 `mesh::nurbs_cert::lattice_metric`), where a ruled wall's strip is near
 square. That is what keeps slivers out on ruled walls.
 
-Before the metric, lattice ALIGNMENT kept them out: a band whose
-realized aspect passed a measured line (`SAFE_ASPECT` = 5) snapped,
-with its neighbours, to the whole-patch column count the chord pass
-shares. Over the metric the snap went dormant (0 of the tour's bands,
-against 2573 in raw UV), and on faces built to fire it the outcomes
-were the same with it and without it, so it is retired
-(`work/tess/the-lower-malign-arm-is-unwitnessed`;
-`NurbsCellGrid::band_schedule` carries the numbers). A band whose
-residual over the metric is large still slivers; such a face refuses
-typed (`CertificateExceeded`). The one aspect bound left is
+Bands are not aligned to a shared column count: each keeps its own
+(`NurbsCellGrid::band_schedule`; the measurement that alignment keeps
+no face sound over the metric is `work/tess/the-lower-malign-arm-is-unwitnessed`).
+A band whose residual over the metric is large still slivers; such a
+face refuses typed (`CertificateExceeded`). The one aspect bound is
 `mesh::nurbs_cert::ASPECT_CAP`, on 3-D cell shape.
 
 Two live caveats. The cheapest split is a strip at a parameter aspect

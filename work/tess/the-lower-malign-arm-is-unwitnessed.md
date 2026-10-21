@@ -103,3 +103,6 @@ So the snap kept no face sound, and it is retired with `SAFE_ASPECT`,
 `malign` and `NurbsFaceBound::step_v_at`. The typed `CertificateExceeded` is
 the backstop. The meter's `snap_bands` column reads 0
 (`work/budget/snap-bands-column-reads-zero-since-the-snap-retired`).
+
+This item's to-do 2 (the `FaceMeasure` metric column) is not done here; it is
+scheduled as `work/budget/face-measure-carries-no-lattice-metric`.

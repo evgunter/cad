@@ -106,12 +106,10 @@
 //! above per v-band with that band's own bounds
 //! ([`NurbsCellGrid::row_bound`]), rows landing on the band
 //! boundaries so a grid triangle's certificate is the certificate of
-//! the band containing it ([`NurbsCellGrid::cert`]). Malign bands and
-//! their neighbours snap their u-columns to the whole-patch schedule:
-//! they stay phase-aligned with the chord pass's boundary points
-//! (sized from the same steps), which is what keeps anisotropic
-//! boundary slivers certified (`crate::trimmed` module docs tell the
-//! measured story); that forfeit is metered.
+//! the band containing it ([`NurbsCellGrid::cert`]). Each band keeps
+//! its own column count; the trimmed lane triangulates over the face's
+//! [`lattice_metric`], which is what keeps anisotropic boundary slivers
+//! out ([`NurbsCellGrid::band_schedule`]).
 //!
 //! The whole-patch steps still bound the BOUNDARY chord schedule of
 //! every adjacent edge (`chords`: the adjacent-torus tightening
@@ -973,26 +971,19 @@ impl NurbsCellGrid {
     /// sliver of certificate ~`(aspect² + 1)/8 · δ_s` beside any point
     /// off its columns (a neighbour band's columns on the shared cut
     /// line, a rim chord point, a refinement centroid), and no local
-    /// insertion cures it. Until #5531 the lane triangulated in raw UV
-    /// and cured it by ALIGNMENT: a band whose realized aspect passed a
-    /// measured line (`SAFE_ASPECT` = 5) snapped, with its neighbours,
-    /// to the whole-patch column count, which the chord pass shares.
-    /// Since #5531 the CDT runs in the metric returned here, where each
-    /// band's lattice is near square, and the snap went dormant: 0 of
-    /// the tour's bands against 2573 before. Retired with its evidence
-    /// (`work/tess/the-lower-malign-arm-is-unwitnessed`):
-    /// - over the metric, the tour's worst band residual is 0.41–1.88;
-    /// - on uneven-station lofts built to fire it (residuals 0.03–30),
-    ///   at twenty δ with the falsifier armed, every outcome is the
-    ///   same with and without it, worst ratio 0.4996 without;
-    /// - its one effect there was cost, up to 14% fewer triangles
-    ///   (`work/budget/uneven-station-lofts-cost-triangles-without-the-column-snap`).
+    /// insertion cures it. The trimmed lane triangulates over the
+    /// metric returned here, where each band's lattice is near square,
+    /// so bands are not aligned to a shared column count. Aligning them
+    /// keeps no measured face sound
+    /// (`work/tess/the-lower-malign-arm-is-unwitnessed` carries the
+    /// measurement); on uneven-station lofts it saves triangles
+    /// (`work/budget/uneven-station-lofts-cost-triangles-without-the-column-snap`).
     ///
-    /// A band whose residual over the metric is large still slivers.
-    /// No corpus face has one, and on a face that does the triangle's
-    /// certificate exceeds δ and the face refuses typed
+    /// A band whose residual aspect over the metric is far from 1 still
+    /// slivers, and the face then refuses typed
     /// ([`TessellateError::CertificateExceeded`]): loud, never a wrong
-    /// mesh.
+    /// mesh. `lofted_circle::an_uneven_station_cylinder_refuses_typed`
+    /// pins that refusal.
     ///
     /// # Errors
     ///
@@ -1029,6 +1020,11 @@ impl NurbsCellGrid {
         Ok(BandSchedule { bands, metric })
     }
 
+    /// The index of the half-open cell `[cut_i, cut_{i+1})` containing
+    /// `x`, clamped to the covered range (a trim polygon evaluated
+    /// through pcurve arithmetic can stray an ulp outside the chart
+    /// rectangle; the edge cell's bound is the honest answer there —
+    /// the surface is not defined beyond it).
     fn cell_lo(cuts: &[f64], x: f64) -> usize {
         cuts.partition_point(|c| *c <= x)
             .saturating_sub(1)
@@ -2296,12 +2292,10 @@ pub(crate) mod tests {
         );
     }
 
-    /// **Every band keeps its own counts** (the column snap is retired,
-    /// [`NurbsCellGrid::band_schedule`]). The fixture is the retired
-    /// snap's own: three bands whose realized aspects (9.09, ≈ 1.04,
-    /// ≈ 0.113) put the metric at 1 and made bands 0 and 2 malign on
-    /// either side of the old line, so the snap projected all three
-    /// onto the patch's 45 columns. Now each takes its own split steps.
+    /// **Every band keeps its own counts** ([`NurbsCellGrid::band_schedule`]).
+    /// Three bands whose realized aspects (9.09, ≈ 1.04, ≈ 0.113) put the
+    /// metric at 1, bands 0 and 2 far from it on either side; each takes
+    /// its own split steps, none the patch's 45 columns.
     #[test]
     fn every_band_keeps_its_own_counts() {
         let cells = [
@@ -2355,8 +2349,7 @@ pub(crate) mod tests {
         assert_eq!(bands.len(), 3);
         // Band 0: h_u ≈ 0.0950 → nuc 11; h_v ≈ 0.0190 over 0.02 → nvc 2
         // (realized 9.09). Band 2: h_u ≈ 0.0190 → nuc 53; h_v ≈ 0.173
-        // over 0.5 → nvc 3 (realized ≈ 0.113). The retired snap set
-        // all three to the patch's 45 columns.
+        // over 0.5 → nvc 3 (realized ≈ 0.113).
         assert_eq!((bands[0].nuc, bands[0].nvc), (11, 2), "{bands:?}");
         assert_eq!((bands[2].nuc, bands[2].nvc), (53, 3), "{bands:?}");
         assert_ne!(bands[1].nuc, 45, "band 1 keeps its own columns: {bands:?}");

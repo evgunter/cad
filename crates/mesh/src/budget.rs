@@ -145,9 +145,9 @@ pub struct FaceMeasure {
     /// Bands whose step selection the 3-D aspect cap clamped — the
     /// constraint-activity indicator's A-cap kind (TESS-SPLIT D-3).
     pub cap_bands: usize,
-    /// Always 0: the malign-band column snap this counted is retired
-    /// (`nurbs_cert::NurbsCellGrid::band_schedule`). The column stays
-    /// for the CSV's shape until the budget lane's re-cut drops it
+    /// Always 0: no band schedule projects a band onto another column
+    /// count (`nurbs_cert::NurbsCellGrid::band_schedule`). The column
+    /// stays for the CSV's shape until the budget lane's re-cut drops it
     /// (`work/budget/snap-bands-column-reads-zero-since-the-snap-retired`).
     pub snap_bands: usize,
     /// Max over bands of the emitted lattice's post-`ceil` spacing

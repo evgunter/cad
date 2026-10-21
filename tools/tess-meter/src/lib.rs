@@ -310,9 +310,9 @@ pub struct NurbsColumns {
     /// Reported by the lane, never re-derived — the selection rule is
     /// not re-spelled outside it.
     pub cap_bands: usize,
-    /// Always 0: the malign-band column snap it counted is retired
-    /// (`mesh::nurbs_cert`'s `band_schedule`). The column stays until
-    /// the budget lane's re-cut drops it
+    /// Always 0: no band schedule projects a band onto another column
+    /// count (`mesh::nurbs_cert`'s `band_schedule`). The column stays
+    /// until the budget lane's re-cut drops it
     /// (`work/budget/snap-bands-column-reads-zero-since-the-snap-retired`).
     pub snap_bands: usize,
     /// Max over bands of the emitted lattice's post-`ceil` spacing
