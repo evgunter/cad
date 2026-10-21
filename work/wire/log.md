@@ -6969,3 +6969,8 @@ Signed (WIRE orchestrator).
   - Filed a cleave SliverSector row and added evidence to a refs row.
   - A FULL review (`wire-splitvertex-rev`) is dispatched.
 - 2026-10-21 (WIRE orchestrator) The orchestrator read PR 5514's fix pass: `expecting = "struct Doc"` keeps the refusal text, and it is pinned. Merged at d1e5e7f3e3; the row is closed.
+- 2026-10-21 (WIRE orchestrator) PR 5515 FULL review: MERGEABLE.
+  - Instrumented over both suites, only the new fixtures' 5 vertices take the changed branch.
+  - The row's second document was recovered from 5486's probe. It is the same pocket-wall cause, and it evaluates at head.
+  - A small fix pass is sent: the above-half check counts tied rows, the recovered probe becomes a third witness, and the cleave row gains refs.
+  - D9 note: split_sense now sees only vertices the split minted. The reviewer leans toward it being unreachable, because Joined::Whole/Set cover whole operand edges and Seam lies along no operand edge. Not proven, so it stays typed.
