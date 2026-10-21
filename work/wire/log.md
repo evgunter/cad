@@ -6968,3 +6968,4 @@ Signed (WIRE orchestrator).
   - The diamond and kite witnesses evaluate. The row's second document did not reproduce.
   - Filed a cleave SliverSector row and added evidence to a refs row.
   - A FULL review (`wire-splitvertex-rev`) is dispatched.
+- 2026-10-21 (WIRE orchestrator) The orchestrator read PR 5514's fix pass: `expecting = "struct Doc"` keeps the refusal text, and it is pinned. Merged at d1e5e7f3e3; the row is closed.
