@@ -21,10 +21,10 @@ times:
 - again in the flux arm (`sphere_face`).
 
 On the seam corpus (the six `seam_siblings_flipped_together` pairs, the
-split lune, the slab band; release; 300 iterations), `mass_properties`
-cost about +22% with the pass (1.18 ms against 0.97 ms per corpus pass,
-about 25 µs a body), and `validate_geometric` about +4% (measured
-2026-10-21, before the census read every region).
+split lune, the slab band; release; 300 iterations, three interleaved
+runs each way), `mass_properties` costs about +25% with the pass
+(1.32 ms against 1.06 ms per corpus pass, about 33 µs a body), and
+`validate_geometric` about +5% (9.32 ms against 8.86 ms), 2026-10-21.
 
 ## What closes it
 
