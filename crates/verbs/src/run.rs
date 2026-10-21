@@ -70,8 +70,8 @@ pub enum VerbRecord<T: Real> {
     /// A blend door's per-entity birth records. The `Option` is the op
     /// door's own and its whole point is that an EMPTY record must not
     /// be constructible: `None` says "this body has no birth records",
-    /// which the document layer refuses as a kernel bug, and an empty
-    /// struct would be refused by nothing.
+    /// which the document layer panics on as a kernel bug, and an empty
+    /// struct would be caught by nothing.
     Blend(Option<BlendNaming>),
     /// The boolean's non-body result, whole — the fields of the
     /// kernel's `BooleanBody` beside the body and its coincidences,

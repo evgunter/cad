@@ -33,3 +33,7 @@ plane be named as that operand face's piece (`split_base`), with
 singleton today (`parent_band`), so it re-baselines with the fix.
 
 Signed (WIRE, section-face lane).
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).
