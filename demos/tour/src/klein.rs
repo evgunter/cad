@@ -243,7 +243,7 @@
 
 use core::f64::consts::PI;
 
-use pncad::authoring::{p2, p3, v2, v3, validated};
+use pncad::authoring::{p2, p3, v2, validated};
 use pncad::geom::NurbsCurve3;
 use pncad::geom_brep::PropsError;
 use pncad::geom_core::linalg::frame::path_start_frame;
@@ -259,7 +259,7 @@ use pncad::topo::{
 };
 
 use crate::booleans::finished;
-use crate::scalar::{Scalar, sketch_frame};
+use crate::scalar::{Scalar, xz_plane};
 use crate::{SceneBody, Stop, View};
 
 // ---------------------------------------------------------------
@@ -482,12 +482,7 @@ fn sharp_band<S: Scalar>(m: &Meridian, tol: Tol) -> ConstructedLoop<S> {
 /// bulb; the partial form exists only so wall 2 can ask the same
 /// question of an OPEN rim (findings entry 2).
 fn bulb<S: Scalar>(loop_: ConstructedLoop<S>, revolution: Revolution<S>, tol: Tol) -> Body<S> {
-    let plane = sketch_frame(
-        p3::<S>(0.0, 0.0, 0.0),
-        v3::<S>(1.0, 0.0, 0.0),
-        v3::<S>(0.0, 0.0, 1.0),
-        tol,
-    );
+    let plane = xz_plane(p3::<S>(0.0, 0.0, 0.0));
     revolve(
         &validated(plane, vec![loop_], tol).expect("the meridian band validates"),
         RevolveAxis {
@@ -1299,12 +1294,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // forms for planar faces only, so a multi-shell CURVED solid
     // refuses typed — OFFSET-DESIGN O6's known standing demo gate,
     // recorded here and never worked around.
-    let ring_plane = sketch_frame(
-        p3::<S>(0.0, 0.0, 0.0),
-        v3::<S>(1.0, 0.0, 0.0),
-        v3::<S>(0.0, 0.0, 1.0),
-        tol,
-    );
+    let ring_plane = xz_plane(p3::<S>(0.0, 0.0, 0.0));
     let ring = validated(ring_plane, annulus::<S>(&m, RLOOP, false, tol), tol)
         .expect("the annulus validates");
     let hollow = revolve::<S>(
@@ -1338,12 +1328,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // f64: `step_export` is a rendering/interchange-side door and
     // takes the run's own numbers (the wall-7 posture).
     let ring_f64 = validated(
-        sketch_frame(
-            p3::<f64>(0.0, 0.0, 0.0),
-            v3::<f64>(1.0, 0.0, 0.0),
-            v3::<f64>(0.0, 0.0, 1.0),
-            tol,
-        ),
+        xz_plane(p3::<f64>(0.0, 0.0, 0.0)),
         annulus::<f64>(&m, RLOOP, false, tol),
         tol,
     )

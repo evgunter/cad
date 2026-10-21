@@ -63,6 +63,10 @@
 //!   the same rotation with a translation stored verbatim beside it;
 //! - [`RigidMotion::rotation_about_axis`] — about a [`UnitVec3`]
 //!   through a point;
+//! - [`RigidMotion::rotation_by`] and
+//!   [`RigidMotion::rotation_about_axis_by`] — the same by an
+//!   [`Angle`], whose sine and cosine are its written fraction of a
+//!   turn's where it has one ([`Angle::from_turns`]);
 //! - the exact half-turns [`RigidMotion::half_turn_x`],
 //!   [`RigidMotion::half_turn_y`], [`RigidMotion::half_turn_z`] and
 //!   the exact world frames [`RigidMotion::axes_xy`],
@@ -73,6 +77,16 @@
 //! - [`RigidMotion::compose`] — products of witnesses are not decided
 //!   again;
 //! - [`RigidMotion::inverse`] — the transpose.
+//!
+//! **An axis-aligned frame is a written turn.** An exact axis
+//! ([`UnitVec3::exact_x`] and its siblings, or a frame's own axes)
+//! turned by a whole number of quarter turns has columns of `0` and
+//! `±1` exactly at every scalar, and a product of such turns is not
+//! decided again, so every frame whose axes are signed basis vectors
+//! is reached with no decision: `(x̂, ẑ)` is a quarter turn about `x̂`.
+//! The named half-turns and world frames are shortcuts for the
+//! commonest of them. [`RigidMotion::gram_schmidt`] is for a pair the
+//! caller computed.
 //!
 //! The rotation mints take their axis as a witness and do not
 //! normalize it a second time ([`Mat3::rotation_about`]'s Rodrigues
@@ -1094,6 +1108,8 @@ const TURN_RECOURSE: &str = "turn through an intermediate direction, or state th
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::interval::Interval;
+    use crate::real::Bounds;
     use crate::tolerance::Tol;
 
     pub(super) const SITE: &str = "rigid_motion_test_axis";
@@ -1236,6 +1252,92 @@ mod tests {
                 assert_eq!(got, want, "at {u_raw:?} {v_raw:?}");
             }
         }
+    }
+
+    fn quarter_turns<T: Real>(axis: UnitVec3<T>, n: i64) -> RigidMotion<T> {
+        let turns = crate::Turns::new(n, 4).expect("a nonzero denominator");
+        RigidMotion::rotation_by(axis, Angle::from_turns(turns)).unwrap()
+    }
+
+    /// **A quarter turn about `x̂` IS the frame Gram–Schmidt decides
+    /// from `(x̂, ẑ)`** — bit for bit at `f64`, signed zeros included,
+    /// and as the same exact points at `Interval` — so a caller that
+    /// means that plane writes the turn and pays no decision.
+    #[test]
+    fn a_quarter_turn_about_x_is_the_decided_x_z_frame() {
+        let turned = quarter_turns(UnitVec3::exact_x(), 1);
+        let decided = RigidMotion::gram_schmidt(
+            Point3::origin(),
+            Vec3::unit_x(),
+            Vec3::unit_z(),
+            SITE,
+            band(),
+        )
+        .unwrap();
+        assert_eq!(
+            bits12(&turned.to_affine()),
+            bits12(&decided.to_affine()),
+            "f64"
+        );
+        let turned = quarter_turns(UnitVec3::<Interval>::exact_x(), 1);
+        let decided = RigidMotion::gram_schmidt(
+            Point3::origin(),
+            Vec3::unit_x().map(Interval::from_f64),
+            Vec3::unit_z().map(Interval::from_f64),
+            SITE,
+            band(),
+        )
+        .unwrap();
+        let ends =
+            |a: Affine3<Interval>| a.components().map(|x| (x.lo().to_bits(), x.hi().to_bits()));
+        assert_eq!(
+            ends(turned.to_affine()),
+            ends(decided.to_affine()),
+            "Interval"
+        );
+    }
+
+    /// **Every frame whose axes are signed basis vectors is a product of
+    /// quarter turns about the exact axes**, with entries `0` and `±1`
+    /// exactly and the axes Gram–Schmidt would decide from its own
+    /// `(u, v)`: the 64 products `R_z^a ∘ R_y^b ∘ R_x^c` reach all 24.
+    #[test]
+    fn every_signed_basis_frame_is_a_product_of_quarter_turns() {
+        let vals = |f: RigidMotion<f64>| cols(f).map(|v| [v.x, v.y, v.z]);
+        let mut reached: Vec<[[f64; 3]; 3]> = Vec::new();
+        for a in 0..4 {
+            for b in 0..4 {
+                for c in 0..4 {
+                    let f = quarter_turns(UnitVec3::exact_z(), a)
+                        .compose(
+                            quarter_turns(UnitVec3::exact_y(), b)
+                                .compose(quarter_turns(UnitVec3::exact_x(), c))
+                                .unwrap(),
+                        )
+                        .unwrap();
+                    let axes = vals(f);
+                    for x in axes.iter().flatten() {
+                        assert!(
+                            *x == 0.0 || x.abs() == 1.0,
+                            "an entry {x} of R_z^{a} R_y^{b} R_x^{c} is not exact"
+                        );
+                    }
+                    let decided = RigidMotion::gram_schmidt(
+                        Point3::origin(),
+                        f.u().get(),
+                        f.v().get(),
+                        SITE,
+                        band(),
+                    )
+                    .unwrap();
+                    assert_eq!(vals(decided), axes, "R_z^{a} R_y^{b} R_x^{c}");
+                    if !reached.contains(&axes) {
+                        reached.push(axes);
+                    }
+                }
+            }
+        }
+        assert_eq!(reached.len(), 24, "the signed basis frames reached");
     }
 
     /// The three world frames ARE the exact basis vectors, in the

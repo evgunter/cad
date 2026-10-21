@@ -21,7 +21,7 @@ mod certified {
     use geom_core::{Bounds, Interval};
     use profile::{Profile, test_support::bulge_loop};
     use sweep::blend::build::fillet_edges;
-    use sweep::test_support::{cube, finished, sketch_from_axes};
+    use sweep::test_support::{cube, finished, sketch_xz_at};
     use sweep::{Revolution, RevolveAxis, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
     use topo::{Body, mass_properties};
@@ -46,17 +46,9 @@ mod certified {
         // the straight diameter back.
         let lp =
             bulge_loop::<Interval>(vec![(p2(0.0, -PIP_R), iv(1.0)), (p2(0.0, PIP_R), iv(0.0))]);
-        let profile = Profile::new(
-            sketch_from_axes(
-                p3(0.0, 0.0, 0.0),
-                v3(1.0, 0.0, 0.0),
-                v3(0.0, 0.0, 1.0),
-                Tol::witness(),
-            ),
-            vec![lp],
-        )
-        .validate(Tol::witness())
-        .unwrap();
+        let profile = Profile::new(sketch_xz_at(p3(0.0, 0.0, 0.0)), vec![lp])
+            .validate(Tol::witness())
+            .unwrap();
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
             dir: v2(0.0, 1.0),

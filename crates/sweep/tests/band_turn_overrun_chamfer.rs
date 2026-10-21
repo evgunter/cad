@@ -26,7 +26,7 @@
 use geom::Surface;
 use geom_core::{Bounds, Interval, Point3};
 use sweep::blend::build::{Blended, chamfer_edges};
-use sweep::test_support::{assert_naming_totality, at_rest, realized};
+use sweep::test_support::{assert_naming_totality, at_rest, realized, sketch_yz_at};
 use topo::boolean::BooleanOp;
 use topo::{Body, ContactRecords, EdgeKey, mass_properties, validate_geometric};
 use topo::{VertexKey, validate_pseudomanifold};
@@ -681,12 +681,7 @@ fn a_slot_through_the_overrun_is_never_consumed() {
     let r2 = core::f64::consts::FRAC_1_SQRT_2;
     let (y, z, h) = (-0.1 * D, 1.0 - 1.1 * D * r2, 0.003);
     let pin = sweep::test_support::prism_on(
-        sweep::test_support::sketch_from_axes(
-            Point3::new(-1.5, y, z),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        ),
+        sketch_yz_at(Point3::new(-1.5, y, z)),
         sweep::test_support::corners(&[(-h, -h), (h, -h), (h, h), (-h, h)]),
         4.0,
         tol(),

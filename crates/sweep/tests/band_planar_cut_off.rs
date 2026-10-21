@@ -17,13 +17,13 @@
 use core::f64::consts::PI;
 
 use geom::{Curve3, Surface};
-use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol};
 use sweep::blend::battery::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
-    assert_naming_totality, block, cube, pocket_die, prism, prism_on, realized, sketch_from_axes,
+    assert_naming_totality, block, cube, pocket_die, prism, prism_on, realized, sketch_yz_at,
 };
 use topo::{Body, EdgeKey, mass_properties, query, validate_geometric};
 
@@ -334,12 +334,7 @@ fn a_chamfered_box_edge_matches_the_boolean_less_its_prism() {
     // `z = 1` along `x`, the material on the `toward` side in `y`.
     let beyond = |y0: f64, toward: f64| {
         let out = -toward;
-        let plane = sketch_from_axes(
-            Point3::new(-0.5, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        );
+        let plane = sketch_yz_at(Point3::new(-0.5, 0.0, 0.0));
         let mut verts = vec![
             (Point2::new(y0 + out * 0.5, 0.5 - D), 0.0),
             (Point2::new(y0 + toward * (D + 0.5), 1.5), 0.0),

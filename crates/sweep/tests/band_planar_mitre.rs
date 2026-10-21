@@ -18,14 +18,15 @@
 use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
-use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
+use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, UnitVec3, Vec3};
+use profile::SketchPlane;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     BlendDecision, BlendError, CornerConfig, FILLET3_CORNER_RECOURSE, run_battery_for,
 };
 use sweep::test_support::{
     assert_naming_totality, block, finished, pocket_die, prism, prism_on, realized,
-    sketch_from_axes,
+    sketch_from_axes, sketch_xz_at, sketch_yz_at, turned,
 };
 use topo::boolean::BooleanOp;
 use topo::{AtRestBody, Body, EdgeKey, mass_properties, validate_geometric};
@@ -287,10 +288,9 @@ fn a_mitred_chamfer_matches_the_boolean_less_its_two_prisms() {
     let front = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     let left = edge(&body, [0.0, 0.0, 1.0], [0.0, 1.5, 1.0]);
     // The prism beyond the plane `u + (1 − z) = d`, `u` the distance
-    // into the box from the wall along `across`, extruded along
-    // `across × z` from `origin`.
-    let beyond = |origin: Point3<f64>, across: Vec3<f64>| {
-        let plane = sketch_from_axes(origin, across, Vec3::new(0.0, 0.0, 1.0), tol());
+    // into the box from the wall along the sketch's `u`, its `v` up ẑ,
+    // extruded along its normal.
+    let beyond = |plane: SketchPlane<f64>| {
         let verts = vec![
             (Point2::new(-0.5, 0.5 - D), 0.0),
             (Point2::new(D + 0.5, 1.5), 0.0),
@@ -298,8 +298,8 @@ fn a_mitred_chamfer_matches_the_boolean_less_its_two_prisms() {
         ];
         prism_on(plane, verts, 3.0, tol())
     };
-    let cut_front = beyond(Point3::new(-0.5, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
-    let cut_left = beyond(Point3::new(0.0, 2.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let cut_front = beyond(sketch_yz_at(Point3::new(-0.5, 0.0, 0.0)));
+    let cut_left = beyond(sketch_xz_at(Point3::new(0.0, 2.5, 0.0)));
     let by_boolean = realized(
         BooleanOp::Subtract,
         &realized(BooleanOp::Subtract, &body, &cut_front, tol()),
@@ -615,10 +615,15 @@ fn a_frustum_top_rim_mitres_at_leaning_walls() {
 /// `x ∈ [s z, 2 − s z]`, `y ∈ [s z − 2, −s z]`, `z ∈ [0, 1]`.
 fn frustum(s: f64) -> Body<f64> {
     // The trapezoid between heights `z0` and `z1` whose sides run
-    // through `(0, 0)–(s, 1)` and `(2, 0)–(2 − s, 1)`, in the plane
-    // through `origin` spanned by `u` and `z`, extruded 3 along `u × z`.
-    let trapezoid = |origin: Point3<f64>, u: Vec3<f64>, (z0, z1): (f64, f64)| {
-        let plane = sketch_from_axes(origin, u, Vec3::new(0.0, 0.0, 1.0), tol());
+    // through `(0, 0)–(s, 1)` and `(2, 0)–(2 − s, 1)`, in the xz plane
+    // through `origin` turned `quarters` about ẑ, extruded 3 along its
+    // normal.
+    let trapezoid = |origin: Point3<f64>, quarters: i64, (z0, z1): (f64, f64)| {
+        let plane = SketchPlane::from_frame(
+            turned(origin, UnitVec3::exact_z(), quarters)
+                .compose(turned(Point3::origin(), UnitVec3::exact_x(), 1))
+                .expect("a product of turns is finite"),
+        );
         prism_on(
             plane,
             vec![
@@ -633,16 +638,8 @@ fn frustum(s: f64) -> Body<f64> {
     };
     // The second reaches past the first's top and bottom, so the two
     // share no face plane.
-    let along_x = trapezoid(
-        Point3::new(0.0, 0.5, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        (0.0, 1.0),
-    );
-    let along_y = trapezoid(
-        Point3::new(2.5, 0.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-        (-0.5, 1.5),
-    );
+    let along_x = trapezoid(Point3::new(0.0, 0.5, 0.0), 0, (0.0, 1.0));
+    let along_y = trapezoid(Point3::new(2.5, 0.0, 0.0), -1, (-0.5, 1.5));
     realized(BooleanOp::Intersect, &along_x, &along_y, tol())
 }
 
@@ -1002,12 +999,7 @@ fn a_turn_foot_and_a_cut_off_foot_cross_where_the_screen_passes() {
     let (c, sn) = (30f64.to_radians().cos(), 30f64.to_radians().sin());
     for (h, crosses) in [(0.22, false), (0.215, true), (0.205, true)] {
         let body = prism_on(
-            sketch_from_axes(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
-                tol(),
-            ),
+            sketch_xz_at(Point3::new(0.0, 0.0, 0.0)),
             vec![
                 (Point2::new(0.0, 0.0), 0.0),
                 (Point2::new(c, -sn), 0.0),

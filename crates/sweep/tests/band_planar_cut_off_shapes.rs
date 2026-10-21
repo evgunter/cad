@@ -11,9 +11,10 @@
 use core::f64::consts::PI;
 
 use geom::Curve3;
-use geom_core::{Point2, Point3, Vec3};
+use geom_core::{Point2, Point3, RigidMotion};
+use profile::SketchPlane;
 use sweep::blend::{BlendError, Blended};
-use sweep::test_support::{block, prism, prism_on, sketch_from_axes};
+use sweep::test_support::{block, prism, prism_on, sketch_xz_at};
 use topo::EdgeKey;
 
 use crate::band_planar_cut_off::{D, Verb, carve, edge, the_box, tol};
@@ -124,12 +125,7 @@ fn end_faces_leaning_along_the_support_cut_both_verbs_at_the_centroid_length() {
         .into_iter()
         .flat_map(|v| [0.3, -0.5].map(|s| (v, s)))
     {
-        let plane = sketch_from_axes(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        );
+        let plane = sketch_xz_at(Point3::new(0.0, 0.0, 0.0));
         let body = prism_on(
             plane,
             vec![
@@ -153,12 +149,7 @@ fn end_faces_leaning_along_the_support_cut_both_verbs_at_the_centroid_length() {
 /// edge's section has its centroid at `z̄ = 1 − c`, so `ΔV = A·L(z̄)`.
 #[test]
 fn end_faces_tilted_out_of_the_vertical_cut_both_verbs_at_the_centroid_length() {
-    let plane = sketch_from_axes(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        tol(),
-    );
+    let plane = SketchPlane::from_frame(RigidMotion::axes_zx(Point3::new(0.0, 0.0, 0.0)));
     for (what, outline, (x0, x1), (l0, l1)) in [
         (
             "tilted in",

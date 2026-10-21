@@ -27,6 +27,7 @@ use sweep::blend::build::{Blended, chamfer_edges, fillet_edges};
 use sweep::blend::{BlendError, Convexity};
 use sweep::test_support::{
     assert_naming_totality, extruded, finished, prism, prism_on, realized, sketch_from_axes,
+    sketch_yz_at,
 };
 use topo::boolean::BooleanOp;
 use topo::{
@@ -674,12 +675,7 @@ fn a_tilted_bore_inside_the_chamfers_prism_goes_with_it() {
 fn a_hole_whose_mouth_lies_inside_a_concave_sliver_refuses_as_a_bound() {
     let (d, a) = BORE;
     let pin = prism_on(
-        sketch_from_axes(
-            Point3::new(-0.1, 0.25 + d, 0.5 + d),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        ),
+        sketch_yz_at(Point3::new(-0.1, 0.25 + d, 0.5 + d)),
         vec![(Point2::new(-a, 0.0), 1.0), (Point2::new(a, 0.0), 1.0)],
         0.45,
         tol(),

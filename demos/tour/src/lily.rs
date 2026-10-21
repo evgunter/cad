@@ -152,7 +152,9 @@
 use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 
-use pncad::geom_core::{Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, Vec2, Vec3};
+use pncad::geom_core::{
+    Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec2, Vec3,
+};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
@@ -163,7 +165,7 @@ use pncad::sweep::{
 use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand};
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
-use crate::scalar::{Scalar, axis_frame, sketch_frame};
+use crate::scalar::{Scalar, axis_frame, sketch_frame, turned_frame, xz_plane};
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_core::Tol;
@@ -481,12 +483,14 @@ fn corm<S: Scalar>(
         .line_to(Start, tol)
         .expect("corm bore wall")
         .into();
-    let plane = sketch_frame(
+    // Drawn down from the corm's top: the xy plane turned a quarter
+    // turn BACK about x̂, so sketch `v` runs down −ẑ.
+    let plane = SketchPlane::from_frame(turned_frame(
         p3(0.0, 0.0, top_z),
-        v3(1.0, 0.0, 0.0),
-        v3(0.0, 0.0, -1.0),
-        tol,
-    );
+        UnitVec3::exact_x(),
+        -1,
+        4,
+    ));
     revolve(
         &validated(plane, vec![lp], tol).expect("corm profile validates"),
         sketch_axis(),
@@ -685,7 +689,13 @@ fn bud<S: Scalar>(
             rad(phi - 0.5 * span).map(S::from_computed),
             tol,
         );
-        let plane = sketch_frame::<S>(attach, spine.u().get(), spine.w().get(), tol);
+        // The meridian plane is the spine frame's own (u, w): the frame
+        // turned a quarter turn about its u.
+        let plane = SketchPlane::from_frame(
+            spine
+                .compose(turned_frame(Point3::origin(), UnitVec3::exact_x(), 1, 4))
+                .expect("a turn of a finite frame is finite"),
+        );
         revolve(
             &validated(
                 plane,
@@ -2111,12 +2121,7 @@ fn weld_circle<S: Scalar>(
 /// y = 0), as a revolve of a half-disc whose diameter lies on the
 /// axis — the shape a tepal seam would be carved with.
 fn ball<S: Scalar>(c: Point3<f64>, r: f64, tol: Tol) -> Body<S> {
-    let plane = sketch_frame(
-        c.map(S::from_f64),
-        v3(1.0, 0.0, 0.0),
-        v3(0.0, 0.0, 1.0),
-        tol,
-    );
+    let plane = xz_plane(c.map(S::from_f64));
     // Algebra-authored (LIB-G1): centre-first, with the sphere's own
     // centre authored and the bulge derived at lowering.
     let lp = Open
