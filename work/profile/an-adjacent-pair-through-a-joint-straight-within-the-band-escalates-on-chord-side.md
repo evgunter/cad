@@ -1,12 +1,14 @@
 ---
 id: an-adjacent-pair-through-a-joint-straight-within-the-band-escalates-on-chord-side
 kind: issue
-title: An adjacent pair through a joint straight within the band escalates on chord_side, though its only possible contact is the shared vertex
-status: open
+title: An adjacent line pair escalates at its joint, not its pair
+status: closed
 opened: 2026-10-21
-priority: P2
+priority: P3
 cost: M
 refs: [validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc, an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root, 5542]
+closed: 2026-10-21
+branch: nurbs/adjacent-shared-vertex
 ---
 
 ## What
@@ -63,3 +65,54 @@ should land in both doors, or in a helper both call, as one reading, as
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Closed
+
+**An adjacent line pair escalates at its joint, not its pair.** Re-rated
+P3: it is real but narrow. No loop that escalated on main validates now;
+the escalation moves to the question it is, and a definite refusal later
+in the pass is read.
+
+- **The rule.** `profile::seg::line_line`, given the stored vertex the
+  pair shares (`validate::judge_pair`, by index), asks
+  `touches_only_near_the_shared_end` where a carrier side escalates: the
+  overlap along the first segment, its upper bound `extent + noise` read
+  on `collinear_overlap`. Read no more than Zero, every shared point is
+  within the band of the vertex, and the pair's contacts are a Touch
+  there, which the adjacency discount reads. The overlap's lower bound
+  does not enter, so the item's "Zero both ways" was more than it needs.
+- **Why the joint still escalates.** The pair escalates on a side only
+  where the short leg's far end stands in band of the long leg's
+  carrier, `sin θ·Ls`; were that Zero, the collinear arm would decide
+  the pair. The joint pass reads `chord_side` of the leaving leg's far
+  end, then `path_junction_turn`, `|sin θ|` levered by the shorter arm:
+  `sin θ·Ls` again. So every rescued pair escalates at its joint, which
+  `seg`'s `every_pair_the_shared_end_touch_rescues_escalates_at_its_joint`
+  pins over a sweep of `θ` and `Ls` across the band. A change to the
+  joint pass that lets one through reds there, and owes this rule's
+  soundness its review then.
+- **What it buys.** A crossing later in pass order was masked:
+  `(0,0) (1,0) (1,1) (1.2,0.5) (−0.1,h)`, `h` in band, escalated
+  `SegmentPair(0, 4)` on `chord_side` on main and never read the
+  crossing of segments 1 and 3; it now refuses `NonSimple` there
+  (`rejections::a_crossing_after_an_adjacent_pairs_in_band_side_refuses`).
+  The review's witness escalates at its joint, `SegmentPair(5, 0)` on
+  `chord_side`, as its `0.9ε` sibling did.
+- **The straddle is not asked, deliberately.** Where the pair reads
+  collinear and `collinear_overlap` straddles its charge (lower bound in
+  band, upper Zero), the rule holds and the joint reads a continuation
+  (`SameCarrier`), so asking it there would accept a pair main
+  escalated. That is correct by the rule's argument and deliberately not
+  accepted: it lives where the overlap's noise passes ε, about
+  `3·10⁵` m out at ε `10⁻⁹`: 8 of 24 716 rescues in the coupling sweep
+  when it was asked on any escalation.
+  The witness is
+  `seg::a_straight_continuation_straddling_its_overlaps_charge_still_escalates`
+  (a `5.4·10⁵` m leg into `(4195.4, 1159.4)`, a `960` m leg on); a
+  candidate if a real body ever needs it.
+- **One door, not both.** topo's check 9 has no adjacent pair to read:
+  it pairs a ring's edges with its outer loop's, and a vertex the two
+  loops share is its arm 1's contact (`ring_outer_vertex_gap`) before any
+  edge pair reaches `lines_meet`. topo has no same-loop pair reader
+  (global self-intersection is tier 3's named residue). Pinned by
+  `topo` `check_9_refuses_a_ring_sharing_a_vertex_through_a_straight_joint_at_that_vertex`.

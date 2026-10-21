@@ -537,22 +537,133 @@ fn a_loop_returning_to_a_vertex_along_a_straight_continuation_touches() {
     }
 }
 
-/// **An adjacent pair through a joint straight within the band still
-/// escalates.** [`straight_joint_at_start`] as the review wrote it
-/// (`1.8ε`): segment 0 and the closing leg share `Start`, their far ends
-/// stand in band of each other's carrier, and their projections touch
-/// at the shared vertex, so neither the gap nor a carrier side decides
-/// the pair, and it escalates `SegmentPair(0, 5)` on `chord_side`. Its
-/// only possible contact is that vertex
-/// (`profile/an-adjacent-pair-through-a-joint-straight-within-the-band-escalates-on-chord-side`).
+/// **An adjacent pair through a joint straight within the band touches
+/// only at the vertex it shares.** [`straight_joint_at_start`] as the
+/// review wrote it (`1.8ε`): segment 0 and the closing leg share
+/// `Start`, their far ends stand in band of each other's carrier, and
+/// their projections touch at the shared vertex, so neither the gap nor a
+/// carrier side decides the pair, and `line_line` escalates on
+/// `chord_side`. Their overlap along segment 0 is within the band, so
+/// every point they share is within the band of `Start`, which the
+/// adjacency discount reads, and the pair pass reads no contact. What
+/// escalates is the joint at `Start` (`SegmentPair(5, 0)`), straight
+/// within the band, as at `0.9ε`
+/// ([`a_run_end_in_band_of_a_carrier_past_its_segment_is_no_contact`]).
 #[test]
-fn an_adjacent_pair_through_a_joint_straight_within_the_band_escalates() {
+fn an_adjacent_pair_through_a_joint_straight_within_the_band_escalates_only_at_its_joint() {
     match validate_both(&straight_joint_at_start(1.8)) {
         Err(ProfileError::Escalated { site, source }) => {
-            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 5)));
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 5), sref(0, 0)));
             assert_eq!(source.predicate, Some("chord_side"));
         }
-        other => panic!("the straight joint at Start must escalate, got {other:?}"),
+        other => panic!("only the joint at Start may escalate, got {other:?}"),
+    }
+}
+
+/// A short closing leg arriving at `(0, 0)` from `(−0.1, h)`: the loop
+/// `(0,0) (1,0) (1,1) (−0.1,1) (−0.1,h)`. With `h` in band, the closing
+/// leg's far end stands in band of segment 0's carrier while `(1, 0)`
+/// stands `10·h` off the leg's, definitely, so the joint at `(0, 0)` is a
+/// corner and the pair's sides decide nothing.
+fn short_leg_into_a_corner(h: f64) -> profile::Profile<f64> {
+    profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, 1.0, 0.0),
+        (-0.1, 1.0, 0.0),
+        (-0.1, h, 0.0),
+    ])])
+}
+
+/// **An adjacent pair whose side reads in band escalates at its joint,
+/// not as a pair.** [`short_leg_into_a_corner`] at `in_band()`, and
+/// re-seamed to start at the leg's far end, so the short leg is the
+/// pair's first segment and the overlap is read along it. On main the
+/// pair escalated on `chord_side`. Its overlap is within the band, so the
+/// pair pass reads no contact, and the joint at `(0, 0)` escalates on
+/// `path_junction_turn`: the turn levered by the shorter leg is the same
+/// in-band displacement the leg's far end stands off segment 0's carrier.
+#[test]
+fn an_adjacent_pair_with_an_in_band_side_escalates_at_its_joint() {
+    let h = in_band();
+    let short_first = profile(vec![chain(&[
+        (-0.1, h, 0.0),
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, 1.0, 0.0),
+        (-0.1, 1.0, 0.0),
+    ])]);
+    for (name, p, joint) in [
+        ("the corner first", short_leg_into_a_corner(h), (4, 0)),
+        ("the short leg first", short_first, (0, 1)),
+    ] {
+        match validate_both(&p) {
+            Err(ProfileError::Escalated { site, source }) => {
+                assert_eq!(
+                    site,
+                    EscalationSite::SegmentPair(sref(0, joint.0), sref(0, joint.1)),
+                    "{name}"
+                );
+                assert_eq!(source.predicate, Some("path_junction_turn"), "{name}");
+            }
+            other => panic!("{name}: only the joint may escalate, got {other:?}"),
+        }
+    }
+}
+
+/// **A pair that shares no vertex still escalates on an in-band side.**
+/// The square `(0,0) (1,0) (1,−1) (0,−1)` and a triangle whose first edge
+/// starts half the band's zero past the square's `(1, 0)` and runs on to
+/// `(3, h)`, `h` in band: the two edges' projections touch within the
+/// band, and their sides read in band. The shared-end touch is the
+/// adjacent pair's, read at a vertex both segments store, so this pair,
+/// across two loops, escalates as before.
+#[test]
+fn a_pair_sharing_no_vertex_still_escalates_on_an_in_band_side() {
+    let t = tol().get();
+    let p = profile(vec![
+        chain(&[
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (1.0, -1.0, 0.0),
+            (0.0, -1.0, 0.0),
+        ]),
+        chain(&[
+            (1.0 + 0.5 * t.eps, 0.0, 0.0),
+            (3.0, in_band(), 0.0),
+            (2.0, 1.0, 0.0),
+        ]),
+    ]);
+    match err(&p) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(1, 0)));
+            assert_eq!(source.predicate, Some("chord_side"));
+        }
+        other => panic!("the pair across two loops must escalate, got {other:?}"),
+    }
+}
+
+/// **A crossing the pass reads after an adjacent pair's in-band side is
+/// the refusal.** `(0,0) (1,0) (1,1) (1.2,0.5) (−0.1,h)`, `h` in band:
+/// the closing leg and segment 0 meet only at `(0, 0)`, read before the
+/// crossing of segments 1 and 3 in pass order. On main the pair
+/// escalated on `chord_side` and the crossing went unread.
+#[test]
+fn a_crossing_after_an_adjacent_pairs_in_band_side_refuses() {
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, 1.0, 0.0),
+        (1.2, 0.5, 0.0),
+        (-0.1, in_band(), 0.0),
+    ])]);
+    match err(&p) {
+        ProfileError::NonSimple {
+            first,
+            second,
+            kind: ContactKind::Crossing,
+        } => assert_eq!((first, second), (sref(0, 1), sref(0, 3))),
+        other => panic!("segments 1 and 3 cross, got {other:?}"),
     }
 }
 
@@ -601,7 +712,7 @@ fn in_band() -> f64 {
 
 /// **A line that ends short of an in-band graze is no contact** (the
 /// line×circle row of
-/// `paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+/// `profile/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
 /// The major arc from `(3, 3)` to `(1, 3)` dips to an in-band height
 /// above `y = 0` at `x = 2`; the line along `y = 0` ends at `x = 1`,
 /// about `0.28` m from it. On main the pair pass escalated
