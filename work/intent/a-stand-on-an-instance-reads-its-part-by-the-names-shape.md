@@ -2,8 +2,9 @@
 id: a-stand-on-an-instance-reads-its-part-by-the-names-shape
 kind: issue
 title: A stand on an instance reads its part by the name's shape
-status: open
+status: closed
 opened: 2026-10-18
+closed: 2026-10-21
 priority: P3
 cost: M
 parent: transform-retires-into-a-placement
@@ -20,3 +21,7 @@ Before D every instance face counted as fixed. Between D's kernel change and thi
 **Done when** `fixed` reads the part's own recipe for an `InPart` name, through the resolver the evaluation crossed or a record the part value carries ("which of my product's faces read no variable"), and the name-shape rule goes.
 
 - 2026-10-18: superseded by the placement pivot (fork-log row 162, PR 5312). `stand` becomes an unmated placement whose values are the datum chain or six zeros, and `Anchors`, the in-plane/out-of-plane split and the moved-landing refusal retire with it. This closes with that unit, whichever PR carries it.
+
+## Closed (2026-10-21)
+
+Moot in D. `mate::stand` writes the identity bundle and reads nothing of the copy (it takes no document and evaluates nothing), so no face of an instance is read to stand it, and `Anchors::fixed`'s name-shape rule for `InPart` faces has no caller in `stand`. `pin_at`, `place_at` and `place_against` still anchor on faces; their pure constructors are D′'s (`a-placement-pins-by-written-values-without-a-mate`).
