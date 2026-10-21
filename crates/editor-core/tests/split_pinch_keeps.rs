@@ -1032,7 +1032,7 @@ fn a_ring_holding_an_island_cites_the_ring_and_the_island() {
 /// rim's section holds the pocket as a ring and the pin lies in it.
 #[test]
 fn an_island_in_a_ring_the_merge_made_cites_the_moat() {
-    assert_moat_split(square(1.2, 2.8), &[]);
+    assert_moat_split(square(1.5, 2.5), square(1.2, 2.8), &[], &[], None);
 }
 
 /// **Two sections bounded alike tie.** A square ring, its square
@@ -1082,12 +1082,12 @@ fn square(a: f64, b: f64) -> Vec<(f64, f64)> {
 
 /// The pocket-and-moat block of
 /// [`an_island_in_a_ring_the_merge_made_cites_the_moat`], split at
-/// `y = 1`: a 4 × 3 × 4 block, a pocket of outline `pocket` down to
-/// `y = 1` round the pin `[1.5, 2.5]²`, and a moat of outline `moat`
-/// round the pin cut on down to `y = 0.5`, each outline drawn in `z`
-/// (u) and `x` (v). The evaluation, the cut's node and the split's.
+/// `y = 1`: a 4 × 3 × 4 block, the pocket `[0.5, 3.5]²` down to `y = 1`
+/// round the pin of outline `pin`, and a moat of outline `moat` round the
+/// pin cut on down to `y = 0.5`, each outline drawn in `z` (u) and `x`
+/// (v). The evaluation, the cut's node and the split's.
 fn moat_split(
-    pocket: Vec<(f64, f64)>,
+    pin: Vec<(f64, f64)>,
     moat: Vec<(f64, f64)>,
 ) -> (Evaluation<f64>, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("split_section_moat", Tol::witness());
@@ -1113,7 +1113,7 @@ fn moat_split(
             [0.0, floor, 0.0],
             [0.0, 0.0, 1.0],
             [1.0, 0.0, 0.0],
-            vec![outer, square(1.5, 2.5)],
+            vec![outer, pin.clone()],
         );
         insert(
             doc,
@@ -1124,7 +1124,7 @@ fn moat_split(
             },
         )
     };
-    let (doc, pocket) = tool(doc, 1.0, pocket);
+    let (doc, pocket) = tool(doc, 1.0, square(0.5, 3.5));
     let (doc, moat) = tool(doc, 0.5, moat);
     let (doc, cut) = insert(
         doc,
@@ -1157,39 +1157,51 @@ fn moat_split(
     (fixture::run(&doc, &Default::default()), cut, sp)
 }
 
-/// The vertices of `body` at `p`, each with its name in `table`.
+/// The names in `table` of `body`'s vertices at `p`: every row, a tie
+/// among them, that holds one.
 fn named_vertices_at<'t>(
     table: &'t editor_core::NameTable,
     body: &topo::Body<f64>,
     p: [f64; 3],
 ) -> Vec<&'t StableName> {
+    let at = |e: &EntityRef| {
+        let EntityKey::Vertex(v) = e.key else {
+            return false;
+        };
+        let q = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        (q.x - p[0]).abs() < 1e-9 && (q.y - p[1]).abs() < 1e-9 && (q.z - p[2]).abs() < 1e-9
+    };
     table
         .iter()
-        .filter_map(|(n, entry)| match entry {
-            Entry::Unique(EntityRef {
-                key: EntityKey::Vertex(v),
-                ..
-            }) => {
-                let q = body.get_point(body.get_vertex(*v).unwrap().point).unwrap();
-                let at = (q.x - p[0]).abs() < 1e-9
-                    && (q.y - p[1]).abs() < 1e-9
-                    && (q.z - p[2]).abs() < 1e-9;
-                at.then_some(n)
-            }
-            _ => None,
+        .filter(|(_, entry)| {
+            let held = match entry {
+                Entry::Unique(e) => core::slice::from_ref(e),
+                Entry::Tied(es) => es.as_slice(),
+            };
+            held.iter().any(at)
         })
+        .map(|(n, _)| n)
         .collect()
 }
 
-/// The split of [`moat_split`]'s block, the pocket square `[0.5, 3.5]²`
-/// and the moat `moat`, whose corners touch the pocket's wall at
-/// `touches`: below, the merged face is bounded by the moat's outer faces
-/// and the pin by its own; above, the rim by the pocket's faces, the pin
-/// by its own. Each touch is the cut's corner, held once below as
+/// An operand face, by a point of it and its normal ([`operand_face_on`]).
+type Wall = ([f64; 3], [f64; 3]);
+
+/// The split of [`moat_split`]'s block round the pin `pin`, with the moat
+/// `moat`, whose corners touch the pocket's wall at `touches`: below, the
+/// merged face is bounded by the moat's outer faces and the faces
+/// `outside`, the pin by its own; above, the rim by `rim` (by default the
+/// pocket's faces), the pin by its own. Each touch is the cut's corner, held once below as
 /// `OnToolVertex` and joined away above, where the wall's foot runs
 /// through it.
-fn assert_moat_split(moat: Vec<(f64, f64)>, touches: &[[f64; 3]]) {
-    let (ev, cut, sp) = moat_split(square(0.5, 3.5), moat.clone());
+fn assert_moat_split(
+    pin: Vec<(f64, f64)>,
+    moat: Vec<(f64, f64)>,
+    touches: &[[f64; 3]],
+    outside: &[Wall],
+    rim: Option<&[Wall]>,
+) {
+    let (ev, cut, sp) = moat_split(pin.clone(), moat.clone());
     assert!(ev.value(sp).is_some(), "{:?}", ev.node_error(sp));
     let cut_body = ev.value(cut).unwrap().payload.output_body(0).unwrap();
     let cut_table = ev.table(ev.output_var(cut, 0).unwrap()).unwrap();
@@ -1226,30 +1238,23 @@ fn assert_moat_split(moat: Vec<(f64, f64)>, touches: &[[f64; 3]]) {
         );
     }
     let face = |p, n| operand_face_on(&ev, cut, p, n);
-    let square_walls = |a: f64, b: f64, y: f64| {
-        let m = 0.5 * (a + b);
-        sorted(vec![
-            face([a, y, m], [1.0, 0.0, 0.0]),
-            face([b, y, m], [1.0, 0.0, 0.0]),
-            face([m, y, a], [0.0, 0.0, 1.0]),
-            face([m, y, b], [0.0, 0.0, 1.0]),
-        ])
+    // A tool's faces round `outline` at height `y`, each through its
+    // edge's midpoint, an outline point `(u, v)` lying at `x = v`, `z = u`.
+    let walls = |outline: &[(f64, f64)], y: f64| {
+        sorted(
+            (0..outline.len())
+                .map(|i| {
+                    let (a, b) = (outline[i], outline[(i + 1) % outline.len()]);
+                    let (du, dv) = (b.0 - a.0, b.1 - a.1);
+                    let l = du.hypot(dv);
+                    face(
+                        [0.5 * (a.1 + b.1), y, 0.5 * (a.0 + b.0)],
+                        [du / l, 0.0, -dv / l],
+                    )
+                })
+                .collect(),
+        )
     };
-    // The moat's outer faces, each through its outline edge's midpoint,
-    // an outline point `(u, v)` lying at `x = v`, `z = u`.
-    let moat_walls = sorted(
-        (0..moat.len())
-            .map(|i| {
-                let (a, b) = (moat[i], moat[(i + 1) % moat.len()]);
-                let (du, dv) = (b.0 - a.0, b.1 - a.1);
-                let l = du.hypot(dv);
-                face(
-                    [0.5 * (a.1 + b.1), 0.75, 0.5 * (a.0 + b.0)],
-                    [du / l, 0.0, -dv / l],
-                )
-            })
-            .collect(),
-    );
     let pieces = |side| {
         let mut got: Vec<_> = plane_pieces(&ev, sp, side)
             .into_iter()
@@ -1258,17 +1263,20 @@ fn assert_moat_split(moat: Vec<(f64, f64)>, touches: &[[f64; 3]]) {
         got.sort();
         got
     };
-    let mut below = vec![(moat_walls, 1), (square_walls(1.5, 2.5, 0.75), 1)];
+    let mut merged = walls(&moat, 0.75);
+    merged.extend(outside.iter().map(|&(p, n)| face(p, n)));
+    let mut below = vec![(sorted(merged), 1), (walls(&pin, 0.75), 1)];
     below.sort();
     assert_eq!(
         pieces(SplitHalf::Below),
         below,
         "below: the merged face by the moat's outer faces, the pin by its own"
     );
-    let mut above = vec![
-        (square_walls(0.5, 3.5, 2.0), 1),
-        (square_walls(1.5, 2.5, 2.0), 1),
-    ];
+    let rim = match rim {
+        Some(rim) => sorted(rim.iter().map(|&(p, n)| face(p, n)).collect()),
+        None => walls(&square(0.5, 3.5), 2.0),
+    };
+    let mut above = vec![(rim, 1), (walls(&pin, 2.0), 1)];
     above.sort();
     assert_eq!(
         pieces(SplitHalf::Above),
@@ -1285,6 +1293,7 @@ fn assert_moat_split(moat: Vec<(f64, f64)>, touches: &[[f64; 3]]) {
 #[test]
 fn a_diamond_moat_holds_its_touches_on_the_pocket_wall_as_corners() {
     assert_moat_split(
+        square(1.5, 2.5),
         vec![(2.0, 0.5), (3.5, 2.0), (2.0, 3.5), (0.5, 2.0)],
         &[
             [0.5, 1.0, 2.0],
@@ -1292,6 +1301,8 @@ fn a_diamond_moat_holds_its_touches_on_the_pocket_wall_as_corners() {
             [3.5, 1.0, 2.0],
             [2.0, 1.0, 0.5],
         ],
+        &[],
+        None,
     );
 }
 
@@ -1300,8 +1311,11 @@ fn a_diamond_moat_holds_its_touches_on_the_pocket_wall_as_corners() {
 #[test]
 fn a_kite_moat_holds_its_one_touch_on_the_pocket_wall_as_a_corner() {
     assert_moat_split(
+        square(1.5, 2.5),
         vec![(2.0, 0.8), (3.2, 2.0), (2.0, 3.5), (0.8, 2.0)],
         &[[3.5, 1.0, 2.0]],
+        &[],
+        None,
     );
 }
 
@@ -1315,7 +1329,7 @@ fn a_kite_moat_holds_its_one_touch_on_the_pocket_wall_as_a_corner() {
 #[test]
 fn a_moat_reaching_the_block_walls_at_its_corners_quarters_both_sections() {
     let moat = vec![(2.0, 0.0), (4.0, 2.0), (2.0, 4.0), (0.0, 2.0)];
-    let (ev, cut, sp) = moat_split(square(0.5, 3.5), moat);
+    let (ev, cut, sp) = moat_split(square(1.5, 2.5), moat);
     assert!(ev.value(sp).is_some(), "{:?}", ev.node_error(sp));
     let face = |p, n| operand_face_on(&ev, cut, p, n);
     let h = std::f64::consts::FRAC_1_SQRT_2;
@@ -1365,4 +1379,41 @@ fn a_moat_reaching_the_block_walls_at_its_corners_quarters_both_sections() {
              the pin by its own"
         );
     }
+}
+
+/// The moat of the row's second document: a diamond reaching the block's
+/// wall at one corner and the pocket's wall at two, round a pin off the
+/// pocket's centre. The two touches on the pocket's wall are the cut's
+/// corners; the corner on the block's wall lies along the wall, an edge
+/// the plane crosses. The moat meets the block's outside at that corner,
+/// so in each half the two are one obstacle: below, the merged face cites
+/// the block's walls too; above, the rim cites the block's walls, the
+/// pocket's (its wall at `x = 0.5` in two, the moat's corner between) and
+/// the moat's two faces across the rim.
+#[test]
+fn a_diamond_moat_reaching_the_block_wall_holds_its_touches_on_the_pocket_wall_as_corners() {
+    let h = std::f64::consts::FRAC_1_SQRT_2;
+    let block = [
+        ([0.0, 0.75, 0.5], [1.0, 0.0, 0.0]),
+        ([4.0, 0.75, 0.5], [1.0, 0.0, 0.0]),
+        ([2.0, 0.75, 0.0], [0.0, 0.0, 1.0]),
+        ([2.0, 0.75, 4.0], [0.0, 0.0, 1.0]),
+    ];
+    let mut rim = block.to_vec();
+    rim.extend([
+        ([0.5, 2.0, 1.0], [1.0, 0.0, 0.0]),
+        ([0.5, 2.0, 3.0], [1.0, 0.0, 0.0]),
+        ([3.5, 2.0, 2.0], [1.0, 0.0, 0.0]),
+        ([2.5, 2.0, 0.5], [0.0, 0.0, 1.0]),
+        ([2.5, 2.0, 3.5], [0.0, 0.0, 1.0]),
+        ([0.75, 0.75, 1.25], [h, 0.0, h]),
+        ([0.75, 0.75, 2.75], [h, 0.0, -h]),
+    ]);
+    assert_moat_split(
+        vec![(1.5, 1.0), (2.5, 1.0), (2.5, 2.0), (1.5, 2.0)],
+        vec![(2.0, 0.0), (3.5, 1.5), (2.0, 3.0), (0.5, 1.5)],
+        &[[1.5, 1.0, 0.5], [1.5, 1.0, 3.5]],
+        &block,
+        Some(&rim),
+    );
 }
