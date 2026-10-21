@@ -187,10 +187,13 @@ struct FileBody {
 /// deserializer that reaches a document: `Doc` derives `Serialize`
 /// alone, so a document built from bytes is one [`load`] has judged.
 /// Field for field `Doc`'s, under the same names and `with` modules,
-/// so the two halves spell one format; [`Self::into_unchecked`] names
-/// every field of both, so neither gains one the other lacks.
+/// so the two halves spell one format. [`Self::into_unchecked`] names
+/// every field of both, so neither gains a FIELD the other lacks; the
+/// field attributes (`with`, `default` here, `skip_serializing_if` on
+/// `Doc`) are kept in step by hand. A refusal says the type the file
+/// spells (`expected struct Doc`), as it did when `Doc` read itself.
 #[derive(serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, expecting = "struct Doc")]
 struct SnapshotWire {
     id: DocumentId,
     mint: crate::Mint,
@@ -212,9 +215,9 @@ struct SnapshotWire {
 }
 
 impl SnapshotWire {
-    /// The parsed fields as a document no check has judged yet —
-    /// [`load`]'s alone, which validates it before anything else sees
-    /// it.
+    /// The parsed fields as a document no check has judged yet. Two
+    /// callers: [`load`], which validates it before anything else sees
+    /// it, and [`snapshot_unchecked`], the test fixture's.
     fn into_unchecked(self) -> ProfileDoc {
         let Self {
             id,
@@ -624,7 +627,8 @@ pub fn save(
     Ok(format!("id: {}\n{json}\n", snapshot.id()))
 }
 
-/// The borrowing twin of [`FileBody`] (save side).
+/// The body as save writes it, borrowing; [`FileBody`] is the body as
+/// load reads it.
 #[derive(serde::Serialize)]
 struct SerBody<'a> {
     snapshot: &'a ProfileDoc,

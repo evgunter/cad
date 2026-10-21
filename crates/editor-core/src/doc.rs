@@ -796,7 +796,8 @@ impl FreeVar {
 ///
 /// It serializes and does not deserialize: bytes become a document
 /// only through [`crate::persist::load`], which runs the shared
-/// validator over them first.
+/// validator over them first, and that read path is
+/// `Doc<ProfileProgram>`'s alone — no other payload has one.
 ///
 /// ```compile_fail,E0277
 /// let _: editor_core::ProfileDoc = serde_json::from_str("{}").unwrap();

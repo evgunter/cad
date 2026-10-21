@@ -1245,11 +1245,10 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     }
 }
 
-/// **A mis-shaped step-id list refuses typed at the load door**, and
-/// that door is the only way bytes become a document: `Doc` has no
-/// `Deserialize` (its `compile_fail` doctest). One list per loop and
-/// one id per authored step are the shape `check_id_shape` holds; each
-/// fault below breaks one of the two in a saved file.
+/// **A mis-shaped step-id list refuses typed at the load door.** One
+/// list per loop and one id per authored step are the shape
+/// `check_id_shape` holds; each fault below breaks one of the two in a
+/// saved file.
 #[test]
 fn a_misshapen_step_id_list_refuses_typed_at_the_load_door() {
     let square = LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap();
