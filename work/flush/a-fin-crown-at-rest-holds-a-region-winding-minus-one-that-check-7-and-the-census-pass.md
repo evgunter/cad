@@ -115,6 +115,24 @@ union carried it unchanged.
   at every pose with the first ray answering, now refuses at all five
   (the ray aimed at `4v1` counts its way into the material, the one at
   `1v1` out of it).
+- **What else moved.** Bodies holding a region that winds −1 that face
+  order used to hand to another check now refuse on two opposed rays:
+  a void outside every outer (`shell_winding`, was `NegativeVolume`; a
+  ball cavity in `shell_winding_curved` and an inside-out slab in
+  `tier3_tests`, were check 10's `ShellWinding`), a cavity poking out
+  through its wall (`contact5_gate_and_beam`, was the census's crossing
+  refusal), the split door's inside-out wedge shell
+  (`split_operand_gate`, still `InsideOutOperand` naming the wedge's
+  shell), and FLUX's seam-region witness A
+  (`a_seam_region_carrying_both_poles`, a wrong body that passed).
+  The dual operand gate (`validate::wound_negative`) reads the new
+  refusal, and the Boolean door names the certificate's declined pair
+  where the gate's only finding is the opposed rays
+  (`germ_tilted_rod`, `boolean::ops`).
 - **The cost.** Every aim is cast on a valid body, so check 7 is
-  quadratic in faces: 47 ms against 5.7 s at 1026 faces (filed,
-  `check-7-casts-a-ray-per-face-so-the-at-rest-gate-is-quadratic-in-faces`).
+  quadratic in faces: 47 ms against 5.7 s at 1026 faces, and the five
+  batteries 365 s against 459 s. At the symbolic tier, where every
+  arithmetic step is interned, `docm5_subject::the_registry_wrapper_…`
+  (nightly) runs out of memory on the corpus's first document (over
+  13 GB, main 2.9 GB). Filed as
+  `check-7-casts-a-ray-per-face-so-the-at-rest-gate-is-quadratic-in-faces`.
