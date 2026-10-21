@@ -487,3 +487,5 @@ fn the_eps_inventory_is_pinned() {
 mod r2_mesh7_probes;
 #[path = "r2_sense_e2e.rs"]
 mod r2_sense_e2e;
+#[path = "fin_crown_review_probe.rs"]
+mod fin_crown_review_probe;
