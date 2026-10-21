@@ -9,6 +9,7 @@ refs: [5481, two-spans-projections-on-one-line-are-read-four-ways]
 opened: 2026-10-20
 closed: 2026-10-21
 branch: nurbs/line-conic-anchor-witness
+pr: 5521
 ---
 
 
