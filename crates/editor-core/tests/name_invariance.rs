@@ -32,7 +32,7 @@
 //!
 //! An operand's arena storage permuted is not among them: `topo` has no
 //! helper that permutes a body
-//! (`work/wire/topo-has-no-arena-permuting-helper-for-a-storage-order-name-check.md`).
+//! (`work/namecheck/topo-has-no-arena-permuting-helper-for-a-storage-order-name-check.md`).
 //!
 //! Each test settles two lists. Its admissions are the cases a
 //! perturbation moves today, each with its exact count of differing
@@ -937,7 +937,7 @@ const BRIDGE_LISTED_FIRST: &str = "work/wire/a-pair-union-of-a-bridge-listed-fir
 /// The bridging prism folded last, after the plate and both wedges,
 /// refuses the union's fold step.
 const BRIDGE_FOLDED_LAST: &str =
-    "work/wire/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
+    "work/wirerest/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
 
 /// A bridge met with the union of the wedges and the other bridge
 /// refuses: vertices share a name that is no single seam.

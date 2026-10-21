@@ -456,7 +456,10 @@ mod tie_tests {
         assert!(
             matches!(
                 named,
-                Err(NamingError::Emission { what }) if what.contains("minted outright")
+                Err(NamingError::UnsupportedJoin {
+                    shape: crate::names::JoinShape::Outright,
+                    ..
+                })
             ),
             "the stop case refuses typed"
         );

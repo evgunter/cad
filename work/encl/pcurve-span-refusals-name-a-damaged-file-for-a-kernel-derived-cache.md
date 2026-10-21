@@ -2,9 +2,11 @@
 id: pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache
 kind: issue
 title: geom-brep: a PcurveCheck span refusal at rest ends in KERNEL_OR_FILE_DEFECT_ENDING, naming a damaged file for a cache the kernel derives
-status: dispatched
+status: closed
+pr: 5464
 opened: 2026-10-14
 branch: encl/sized-provenance
+closed: 2026-10-20
 ---
 
 
@@ -43,3 +45,15 @@ Note (PR 5401, 2026-10-19): `policy_lane::kernels_own` is gone. The kernel-bug p
 One chooser now names every defect ending's culprit: `recourse::culprit(at, provenance)` (`crates/geom-brep/src/recourse.rs`). A sized decision's `StoredContradiction` and `Unminted` sides read it as `Provenance::Stored`, for every sized decision alike (`SizedDecision::words`). Every decision with no size reads `Provenance::Derived` (`Unsized::recourse`), which names the kernel beside the file.
 
 `CertCheck::ImageSpan` is sized with `RefusedSide::StoredContradiction`, so past ε_in at the import door it still ends in `DAMAGED_FILE_ENDING`. That holds even though the chart image it reads is a value the kernel derives (the same mint `CertCheck::ChartImage` reads, as `Derived`). That is this row's finding at the import door as well as at rest. The repair has a seam now: let a sized decision state its provenance, instead of `words` fixing `Stored` for both sides.
+
+## Evidence, 2026-10-20 (`encl/sized-provenance`)
+
+A sized decision's defect side carries its own provenance: `RefusedSide::StoredContradiction(Provenance)` and `RefusedSide::Unminted(Provenance)`, read by `SizedDecision::words` through `recourse::culprit`. No side can be written without one. `CertCheck::ImageSpan` and `PcurveCheck`'s span and period routes are `Provenance::Derived`, so past ε_in at the import door they end in `KERNEL_OR_FILE_DEFECT_ENDING`. The edge's span checks, `StatedInterval`, `Transversality` and `TangentSecondOrder` are `Derived` too (the PR body gives each argument). At rest nothing moves: `Reading::culprit` takes no provenance, so the at-rest wording stays with the parked `at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything`. That no sized decision is left naming the file alone is filed as `no-sized-decision-names-the-file-alone-at-the-import-door`.
+
+## Closed
+
+2026-10-20, PR 5464. Ev ruled on that PR that the import door names the file wherever a bad file can reach the refusal. So the row's premise, that naming the file for a value the kernel derives over-names it, does not decide the wording. A sound file refused there is a kernel bug to fix.
+
+- **What the PR first did.** It gave each sized defect side a `Provenance` and named the kernel beside the file at the import door for the derived ones, this row's checks included.
+- **What it landed.** `Provenance` is removed. `CertCheck::ImageSpan` and the `PcurveCheck` span and period routes are plain `RefusedSide::StoredContradiction`. Past ε_in at the import door they end in `DAMAGED_FILE_ENDING`, as every defect ending there does (`ReadAt::culprit`).
+- **At rest nothing moved.** `KERNEL_OR_FILE_DEFECT_ENDING` stays, and `PcurveCertifyError::ending` still takes a `Reading`. The at-rest wording stays with the parked `at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything`.
