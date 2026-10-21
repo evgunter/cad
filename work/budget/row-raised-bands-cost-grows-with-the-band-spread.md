@@ -1,7 +1,7 @@
 ---
 id: row-raised-bands-cost-grows-with-the-band-spread
 kind: issue
-title: Rows raised for narrow-column bands cost a face in proportion to its band-aspect spread: up to 8x triangles on an uneven-station cylinder at e = 1e-4
+title: Rows raised for narrow-column bands cost a face in proportion to its band-aspect spread: up to 14x triangles on an uneven-station cylinder at e = 1e-4
 status: open
 opened: 2026-10-21
 priority: P3
@@ -12,7 +12,7 @@ cost: E
 ## What
 
 `nurbs_cert::NurbsCellGrid::band_schedule` raises a band's rows when its
-residual aspect over the face's lattice metric falls below `1/√15`
+residual aspect over the face's lattice metric falls below `1/√8`
 (`MAX_RESIDUAL_SQ`), which makes the uneven-station cylinder mesh at every
 review δ instead of refusing. The metric is the geometric mean of the
 extreme band aspects, so as a face's thin band gets thinner the metric
@@ -23,16 +23,26 @@ twenty δ (triangles, against no raise, on rows that meshed both ways):
 
 | body | e | mean | max |
 |---|---|---|---|
-| cylinder, 4 arcs | 0.03 | 1.18x | 1.32x |
-| cylinder, 4 arcs | 0.01 | 1.43x | 1.65x |
-| cylinder, 4 arcs | 0.003 | 2.12x | 2.62x |
-| cylinder, 4 arcs | 0.001 | 3.05x | 3.92x |
-| cylinder, 4 arcs | 1e-4 | 8.24x | 10.75x |
-| rounds, 2 and 4 arcs | any | ≤ 1.03x | 1.26x |
-| degree-3 lofts | any | 1.00x | 1.00x |
+| cylinder, 4 arcs | 0.03 | 1.32x | 1.32x |
+| cylinder, 4 arcs | 0.01 | 1.67x | 2.30x |
+| cylinder, 4 arcs | 0.003 | 2.62x | 3.30x |
+| cylinder, 4 arcs | 0.001 | 3.86x | 5.22x |
+| cylinder, 4 arcs | 1e-4 | 11.00x | 14.32x |
+| rounds, 2 and 4 arcs | any | ≤ 1.08x | 1.46x |
+| degree-3 lofts | any | ≤ 1.07x | 1.48x |
 
-At e = 1e-6 the cylinder still meshes, at 236k–3M triangles per δ. On the
-tour the cost is measured in #(B)'s body.
+The cylinder at e = 1e-4 totals 4.74M triangles over the twenty δ. A line
+at `√15`, which the measured window also allows (`√8` to at least `6` all
+mesh), would cost 3.52M; `√8` is the line the strip-sliver bound derives
+(`MAX_RESIDUAL_SQ`'s doc).
+
+At e = 1e-6 the cylinder still meshes (measured at `√15`: 236k–3M triangles
+per δ). On the tour the cost is 0 (#5570: the `--sizing-only` sweep is
+identical to its base).
+
+tess-meter's split-slack column absorbs the row raise as the price of the
+cap, and it has no raised-band indicator. It reads 0 on the tour today; a
+body that pays this cost would show it only there.
 
 ## Alternatives measured and rejected
 

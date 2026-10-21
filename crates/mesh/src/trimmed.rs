@@ -59,7 +59,11 @@
 //! the lattice metric (`crate::nurbs_cert::lattice_metric`, a power of
 //! two near the mean realized aspect: of the NURBS schedule's bands, or
 //! of the cylinder lane's one uniform lattice), where the lattice is
-//! near square. The map is affine, so constraint segments
+//! near square. One face-wide `k` cannot square bands whose aspects
+//! spread far apart, so the NURBS schedule also raises a band's rows
+//! when its columns stay too narrow over `k`
+//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`], **Rows for
+//! narrow-column bands**). The map is affine, so constraint segments
 //! stay straight; and exact, so every coincidence in UV is one in the
 //! CDT. Only the CDT sees it: `meta`, the creases, the polygon's
 //! orientation and every certificate read UV.
@@ -109,8 +113,8 @@
 //! circumcircle beside itself (measured on the #316 leaf, and on a
 //! lofted circle's wall, where the ladder walked the sliver inward a
 //! step per round: `work/tess/lofted-rational-walls-refuse-at-some-deltas`).
-//! The cure is the lattice metric (above), which makes the lattice
-//! near square where the CDT runs
+//! The cure is the lattice metric and the row raise (above), which
+//! make the lattice near square where the CDT runs
 //! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
 //! that still certifies above δ after the shared round budget refuses
 //! typed ([`TessellateError::CertificateExceeded`]) — the

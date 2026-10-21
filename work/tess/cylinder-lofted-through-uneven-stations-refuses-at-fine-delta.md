@@ -80,13 +80,14 @@ off-row trim point fans a sliver. A column alignment could not help: those
 bands already sat at the patch column count.
 
 **Fixed.** `band_schedule` raises a band's rows until its residual reaches
-`1/√15` (`MAX_RESIDUAL_SQ`, derived from the strip-sliver bound at
-`δ_s = δ/2`). At the twenty review δ, falsifier armed:
-- the cylinder meshes at every δ for e = 0.03 down to 1e-6 (main refuses 32
+`1/√8` (`MAX_RESIDUAL_SQ`, derived from the strip-sliver bound over every
+split of the sizing budget at `δ_s = δ/2`). At the twenty review δ, falsifier
+armed:
+- the cylinder meshes at every δ for e = 0.03 down to 1e-4 (main refuses 32
   rows for e ≤ 0.01);
 - worst ratio 0.4996, every mesh watertight.
 
 The cost is filed as
 `work/budget/row-raised-bands-cost-grows-with-the-band-spread`. Witness:
 `lofted_circle::an_uneven_station_cylinder_meshes_at_every_review_delta`;
-the no-raise mutant reds it.
+the no-raise mutant reds it (slow set).
