@@ -242,7 +242,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     };
     let hole_a = hole(
         &mut doc,
-        Formula::sub(len(0.0), param("half_spacing")).expect("a length"),
+        Formula::neg(param("half_spacing")).expect("a length"),
         "hole_a_r",
         tol,
     );

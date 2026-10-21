@@ -735,7 +735,7 @@ fn spout_loft(
             centre: lpt(0.0, 0.0),
             radius: len(radius),
             n: SPOUT_ARCS,
-            phase: ang(0.0),
+            phase: Formula::zero(Dimension::Angle),
         };
         let loops = vec![arcs(*outer), arcs(outer * SPOUT_BORE)];
         let profile = insert(
