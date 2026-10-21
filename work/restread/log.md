@@ -86,6 +86,6 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Rows filed:**
     - `the-census-pierce-refuses-a-grazing-edge-within-its-placement-span-of-the-boundary` (P2, compensated residuals);
     - `the-census-plane-residual-decisions-read-off-a-stored-origin-are-uncharged` (P3);
-    - `the-depths-gaps-least-point-is-placed-over-axis-dot-n-uncharged` (P3);
+    - `the-depth-gaps-least-point-is-placed-over-axis-dot-n-uncharged` (P3);
     - `scalar/band-k-is-spelled-escalate-over-zero-at-every-site` (P4);
     - `issues/a-torn-body-kill-row-asserts-a-30-s-wall-clock-and-reds-under-load` (P3). — (RESTREAD orchestrator)
