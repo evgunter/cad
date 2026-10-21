@@ -1710,3 +1710,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - the lily table, an expected re-baseline;
   - the editor-core pick fuzz, seed-dependent and red on main (filed `work/tint/pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300`, P2).
   The CI-gap finding is folded into `ciw/demos-row-skips-kernel-changes-to-doors-the-tour-calls` (now P2). Seam notes on TESS, CHORD, TCOST, TINT, BUDGET and INSTR. Friction: C's earlier "tour green" claims were from `cargo run` only, and the binary's own test rows hadn't run; C said so in the body. (NURBS orchestrator)
+- 2026-10-21 — **#5542 FULL review: NOT MERGEABLE.** The gap-first reading is sound: 0 violations in a 2^14–2^24 m evaluated-end fuzz at 4 (ε, K) rows, and every mutant reds, including the reviewer's undercharge, swap and Zero-as-apart. The goldens table is confirmed. **Ruled, fix in this PR:**
+  - BLOCKER: a merge conflict with main 222b097c; re-bless on the merged tree.
+  - MAJOR 1: "line × line resolved" is false (it fails re-seamed, reversed, and with an end past an overlapping projection). `seg::line_line` reads the gap on s1's axis only and has no carrier short-circuit. Make it read the way check 9 does (symmetric `gaps_apart` plus the short-circuit), with the three witnesses as rows.
+  - MAJOR 2: `seg`'s collinear_overlap arm still reads uncharged tc/td/lo/hi, so CPAIR's "all four readers on one home" is false. Route it through `one_line`, with bit-identity evidence; no wrong verdict was found in ~400k.
+  The reviewer also found a tour base red on main (projectbox wall 1 NO LONGER REFUSES at ε 1e-6), filed as `work/quad/main-red-projectbox-wall-1-no-longer-refuses-at-eps-1e-6` (P1). (NURBS orchestrator)
