@@ -150,7 +150,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
@@ -3234,8 +3234,14 @@ mod review_probes {
             // 0.138 -> 0.126, `muv` 0.043 -> 0.023 on leaf b), so its
             // per-cell grid drops 96 cells — 5_576 -> 5_374 and
             // 5_164 -> 4_962. The sampled |S − Π| stays under 8.5e-5
-            // against the face's 1e-3.
-            ("lily_leaf_b", 2e-3, 5_374),
+            // against the face's 1e-3. RE-BASELINED (#5531, the
+            // trimmed lane's CDT in the lattice metric): leaf b's blade
+            // face no longer snaps its bands to the patch column count
+            // (71 snapped bands -> 0: their aspects are malign in raw
+            // UV and benign over the face's metric), so each band keeps
+            // its own columns and the grid drops 1_152 -> 1_081 cells —
+            // 5_374 -> 5_254. Leaf c measures unchanged.
+            ("lily_leaf_b", 2e-3, 5_254),
             ("lily_leaf_c", 2e-3, 4_962),
         ];
         // Measured first, compared once: a row-at-a-time assert stops

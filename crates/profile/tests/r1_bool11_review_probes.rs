@@ -499,18 +499,19 @@ fn r1_widened_hunt_positive_control() {
     );
 }
 
-/// **P7 — the accepted band is per-LEG, so does it accumulate?** The
-/// tip carries out the DECLARED ray (bitwise inherited), while the
-/// emitted vertex is the authored target, which may sit up to ε off it.
-/// The next leg's check measures from the NEW vertex along the SAME
-/// ray, so an author who biases every target to one side moves the run
-/// off the line it declared, one ε at a time, with every individual
-/// check passing. Measure the drift.
+/// **P7 — the accepted band, does it accumulate along a run?** An
+/// author who biases every target `0.5·ε` further to one side. Each
+/// `continue_to` is read against the line bound at the run's first
+/// vertex (PATHS-DESIGN §4, as ruled on #5498), so the bias is charged
+/// to the run, not reset at each vertex: the run refuses once its
+/// targets leave the band's zero, and no accepted vertex stands more
+/// than `ε` off the line. (Before the ruling every leg passed and the
+/// run's end drifted `20·ε`; `bool11_probes`' row pins the refusal.)
 #[test]
 fn r1_in_band_misses_accumulate_along_a_declared_run() {
     let t = Tol::witness();
     let eps = t.eps();
-    let bias = 0.5 * eps; // an accepted miss, every leg, the same side
+    let bias = 0.5 * eps; // the same side, every leg
     let n = 40usize;
     let mut chain = Open
         .at(Point2::new(0.0, 0.0))
@@ -518,35 +519,29 @@ fn r1_in_band_misses_accumulate_along_a_declared_run() {
         .unwrap()
         .line(1.0, t)
         .unwrap();
+    let mut accepted = 0usize;
     for i in 0..n {
         let x = 1.0 + (i as f64 + 1.0);
         let y = (i as f64 + 1.0) * bias;
-        chain = chain
-            .continue_to(Point2::new(x, y), t)
-            .unwrap_or_else(|e| panic!("leg {i} refused: {e:?}"));
+        match chain.clone().continue_to(Point2::new(x, y), t) {
+            Ok(next) => {
+                assert!(y <= eps, "leg {i} accepted {y:e} off the run's line");
+                chain = next;
+                accepted += 1;
+            }
+            Err(e) => {
+                println!(
+                    "R1: the run refuses at leg {i} ({} eps off its line): {e}",
+                    y / eps
+                );
+                break;
+            }
+        }
     }
-    let closed = chain
-        .line_to(Point2::new(1.0 + n as f64, 50.0), t)
-        .unwrap()
-        .line_to(Point2::new(0.0, 50.0), t)
-        .unwrap()
-        .line_to(Start, t)
-        .unwrap();
-    let lowered = closed.loop_;
-    let last = lowered.vertices()[n + 1];
-    println!(
-        "R1: after {n} declared continuations each within eps={eps:e}, the run's end sits \
-         {:e} m off the declared ray ({} eps)",
-        last.y,
-        last.y / eps
+    assert!(
+        accepted < n,
+        "a run biased past its band was accepted whole"
     );
-    assert!(last.y > 10.0 * eps, "drift accumulated: {:e}", last.y);
-    // And the data gate still takes it: nothing downstream sees the bow.
-    let gate = Profile::new(SketchPlane::xy(), vec![lowered.into_loop()]).validate(t);
-    match &gate {
-        Ok(_) => println!("R1: the data gate ACCEPTS the bowed run"),
-        Err(e) => println!("R1: the data gate on the bowed run -> {e}"),
-    }
 }
 
 /// **P8 — D4(iv): does the new DEFINITE arm tell the same story as its

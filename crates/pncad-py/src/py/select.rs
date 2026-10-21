@@ -17,7 +17,7 @@
 //! # The exact/decided split survives the crossing
 //!
 //! `GeomPred`'s Rust docs split the atoms into EXACT (tag reads —
-//! total, no funnel, cannot refuse) and DECIDED (`datum_distance`, a
+//! total, no funnel, cannot refuse) and DECIDED (`plane_distance`, a
 //! funnel site whose in-band candidates REFUSE). The split crosses as
 //! TYPED structure, not as a boolean: a decided in-band margin raises
 //! `SelectRefusal` with `reason="in_band"`, a tied name whose
@@ -419,7 +419,7 @@ impl SurfaceKind {
     }
 }
 
-/// The comparison `GeomPred.datum_distance` makes: the SIGN trilean
+/// The comparison `GeomPred.plane_distance` makes: the SIGN trilean
 /// (within the ε-band / definitely greater / definitely less), never a
 /// bare float equality. A candidate whose margin lands INSIDE the band
 /// answers neither strict arm and REFUSES (`SelectRefusal`,
@@ -633,7 +633,7 @@ impl Selector {
 /// The atoms split EXACT/DECIDED, and the split is the whole design
 /// (module docs above): `curve_kind` / `surface_kind` /
 /// `adjacent_kinds` read the carrier's enum tag — total, no funnel,
-/// cannot refuse. `datum_distance` is a real length comparison — a
+/// cannot refuse. `plane_distance` is a real length comparison — a
 /// `k_stats` funnel site whose in-band candidates refuse typed.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
@@ -664,12 +664,15 @@ impl GeomPred {
         Self(s::GeomPred::AdjacentKinds(a.to_kernel(), b.to_kernel()))
     }
 
-    /// DECIDED: the entity's distance to a datum node, compared
-    /// against a stated length `Formula` — signed against a datum plane
-    /// (along its normal), unsigned to an axis or point. The datum is
-    /// a node reference like every other input, which is what keeps
-    /// the rule equivariant: move the datum with the part and the
-    /// selection commutes.
+    /// DECIDED: the entity's signed distance from the plane of one of
+    /// the selected body's own planar faces, along its outward normal,
+    /// compared against a stated length `Formula`. `face` is one of the
+    /// opaque texts `Evaluation.all_faces` / `select` answered with,
+    /// handed back unread; it names a face of the body selected from,
+    /// which is what keeps the rule equivariant: the face moves with
+    /// the body and the selection commutes. A face that is not planar
+    /// refuses at `select_where` (`not_a_plane`), and so does one the
+    /// body does not hold (`face_unresolved`).
     ///
     /// The value is not a node slot, so there is no slot dimension to
     /// check it against here: a value of any other dimension is the
@@ -682,12 +685,13 @@ impl GeomPred {
     /// that writes a name refuses here, `EvalError` with variant
     /// `unlowered_name`.
     #[staticmethod]
-    fn datum_distance(py: Python<'_>, datum: &NodeId, cmp: Cmp, value: &Formula) -> PyResult<Self> {
+    fn plane_distance(py: Python<'_>, face: &str, cmp: Cmp, value: &Formula) -> PyResult<Self> {
+        let face = super::doc::name_from_text(face)?;
         if let Some(fault) = value.0.unresolvable() {
             return Err(lower_fault_err(py, &fault));
         }
-        Ok(Self(s::GeomPred::DatumDistance {
-            datum: datum.0,
+        Ok(Self(s::GeomPred::PlaneDistance {
+            face,
             cmp: cmp.to_kernel(),
             value: value.0.clone(),
         }))
@@ -717,8 +721,7 @@ pub(crate) fn refusal_fields(py: Python<'_>, reason: &str) -> Vec<(&'static str,
         ("predicate", none()),
         ("matched", none()),
         ("candidates", none()),
-        ("datum", none()),
-        ("found", none()),
+        ("face", none()),
         ("dim", none()),
     ]
 }
@@ -823,27 +826,25 @@ pub(crate) fn select_refusal(
                 error.spoken(doc)
             )
         }
-        R::NotADatum { datum, found } => {
-            let datum_obj = match NodeId(*datum).into_pyobject(py) {
-                Ok(bound) => bound.unbind().into_any(),
+        R::NotAPlane { face } => {
+            let face = match crate::py::doc::name_text(py, face) {
+                Ok(t) => t,
                 Err(failed) => return failed,
             };
-            fill(&mut fields, "datum", datum_obj);
-            fill(&mut fields, "found", text(found));
-            format!(
-                "the node `datum_distance` references is not an evaluated \
-                 datum (found: {found})"
-            )
+            fill(&mut fields, "face", text(&face));
+            "the face a distance query measures from is not planar; point it at a \
+             planar face"
+                .to_string()
         }
-        // The standing's own words carry which state and where the
-        // repair is; `datum` is the node they are about.
-        R::DatumHasNoValue(standing) => {
-            let [datum, _] = super::standing_fields(py, *standing);
-            fill(&mut fields, "datum", datum);
-            format!(
-                "the node `datum_distance` references has no value: {}",
-                standing.spoken(doc)
-            )
+        R::FaceUnresolved { face } => {
+            let face = match crate::py::doc::name_text(py, face) {
+                Ok(t) => t,
+                Err(failed) => return failed,
+            };
+            fill(&mut fields, "face", text(&face));
+            "the face a distance query measures from names no readable face of the body \
+             selected from"
+                .to_string()
         }
         R::NotALength { dim } => {
             fill(&mut fields, "dim", text(dimension_tag(*dim)));

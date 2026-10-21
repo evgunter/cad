@@ -293,9 +293,10 @@ fn r2_rule_d_folds_nothing_past_its_caps_or_at_other_shapes() {
     }
 }
 
-/// **The half-π fold: exact forms only.** Theorems at `k·π/2`,
-/// numerically zero; NEVER at `π·x` with `x` a parameter at 1.0, at a
-/// literal one ulp off π's coefficient, at `π/3`, or at `π + atan X`.
+/// **The half-π fold: exact forms only.** Theorems at `k·π/2`, and at
+/// `π/3` by the rational fold (`cos(π/3) = ½`), numerically zero; NEVER
+/// at `π·x` with `x` a parameter at 1.0, at a literal one ulp off π's
+/// coefficient, at `π/5` (irrational), or at `π + atan X`.
 #[test]
 fn r2_half_pi_folds_only_the_exact_form() {
     fn one() -> Sym<f64> {
@@ -304,7 +305,7 @@ fn r2_half_pi_folds_only_the_exact_form() {
     fn pi() -> Sym<f64> {
         Sym::<f64>::pi()
     }
-    let theorems: [(&str, fn() -> Sym<f64>); 6] = [
+    let theorems: [(&str, fn() -> Sym<f64>); 7] = [
         ("cos π + 1", || pi().sin_cos().1 + one()),
         ("sin(3π/2) + 1", || {
             (pi() * Sym::from_f64(1.5)).sin_cos().0 + one()
@@ -320,6 +321,9 @@ fn r2_half_pi_folds_only_the_exact_form() {
             "cos(π + 0·x) + 1 (the zero normalization feeds the fold)",
             || (pi() + Sym::from_f64(0.0) * p("x", 0.3)).sin_cos().1 + one(),
         ),
+        ("cos(π/3) − ½ (the rational fold)", || {
+            (pi() / Sym::from_f64(3.0)).sin_cos().1 - Sym::from_f64(0.5)
+        }),
     ];
     for (name, mk) in theorems {
         assert_sound_theorem(name, how_f64(mk), 1.0e-15);
@@ -331,8 +335,9 @@ fn r2_half_pi_folds_only_the_exact_form() {
         ("cos(π·(1 + ulp)) + 1", || {
             (pi() * Sym::from_f64(1.0 + f64::EPSILON)).sin_cos().1 + one()
         }),
-        ("cos(π/3) − ½", || {
-            (pi() / Sym::from_f64(3.0)).sin_cos().1 - Sym::from_f64(0.5)
+        ("cos(π/5) + cos(4π/5)", || {
+            (pi() / Sym::from_f64(5.0)).sin_cos().1
+                + (pi() * Sym::from_f64(4.0) / Sym::from_f64(5.0)).sin_cos().1
         }),
         ("cos(π + atan x) + cos(atan x)", || {
             let x = p("x", 0.3);

@@ -19,7 +19,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanValue, CancelToken, DocumentId, EvalOptions, Evaluation, Frame, Node, NodeResult,
     ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
@@ -129,7 +128,6 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     fixture::place(doc, body)

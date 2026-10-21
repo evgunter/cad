@@ -29,7 +29,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
-use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
@@ -42,7 +41,7 @@ use editor_core::{
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, len, xy_frame};
+use crate::fixture::{Recorder, len};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
@@ -118,8 +117,6 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         },
     );
 
-    let plane = r.insert(xy_frame());
-
     let neg_w = Formula::neg(plen("half_w")).expect("a shallow negation");
     // The chain's own idiom for a tangent arc between two tangent legs:
     // `.tangent()` before the arc and before the leg out of it, the
@@ -136,7 +133,6 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         ProgramStep::TangentArcTo(ProgramTarget::StartArriving),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![outline],
         ids: Vec::new(),
     }));
@@ -144,10 +140,8 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let body = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(HALF_L), len(0.0)],
             radius: plen("bore_r"),
@@ -157,8 +151,9 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let bore = r.insert(Node::Extrude {
         profile: bore_profile.into(),
         distance: thickness,
-        side: ExtrudeSide::Along,
     });
+    // The bore joins the link's space where it is drawn.
+    let bore = r.against(body, bore, &editor_core::Frame::IDENTITY);
 
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(

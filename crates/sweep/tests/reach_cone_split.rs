@@ -30,7 +30,7 @@ use sweep::{Revolution, revolve};
 use topo::splitting::{
     SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitResult, split,
 };
-use topo::{Body, DATUM_UNIT_NORM, ValidationError, validate, validate_closed, validate_geometric};
+use topo::{Body, POSE_UNIT_NORM, ValidationError, validate, validate_closed, validate_geometric};
 
 /// The cone's half-angle: the radius changes by 1/2 per unit height.
 fn alpha() -> f64 {
@@ -82,7 +82,7 @@ const FRUSTUM_VOLUME: f64 = 7.0 * PI / 12.0;
 /// A cut normal minted the way a caller holding a direction mints one.
 fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
     let band = Band::linear(Tol::witness()).expect("the witness tolerance forms a band");
-    UnitVec3::new(v, DATUM_UNIT_NORM, band).expect("a cut normal has a length")
+    UnitVec3::new(v, POSE_UNIT_NORM, band).expect("a cut normal has a length")
 }
 
 /// The plane through `(0, qy, 0)` with normal `(sin φ, cos φ, 0)`.

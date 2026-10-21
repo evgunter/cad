@@ -6,7 +6,7 @@
 //! content, never by id.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, cap_ref, insert, len, xform};
+use crate::fixture::{self, cap_ref, insert, len};
 use crate::wire::doctored;
 use editor_core::{
     AssertionRelation, AssertionVerdict, CapEnd, Dimension, DocEdit, EditError, Formula,
@@ -19,7 +19,7 @@ use geom_core::Tol;
 /// extrudes, whose caps two measures can read.
 fn slabs(seed: &str, depth: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(seed, Tol::witness());
-    let (doc, _, a_profile) = fixture::on_frame_keeping(
+    let (doc, a_profile) = fixture::on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -31,10 +31,9 @@ fn slabs(seed: &str, depth: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: a_profile.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
-    let (doc, _, b_profile) = fixture::on_frame_keeping(
+    let (doc, b_profile) = fixture::on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -46,7 +45,6 @@ fn slabs(seed: &str, depth: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: b_profile.into(),
             distance: len(depth),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     (doc, a, b)
@@ -328,43 +326,6 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
     }
 }
 
-/// **(D, test 15) A measure's content key reads its sites by content.**
-/// Two measures of one name read at two identity placements of one body
-/// are one content and two names: their content keys agree and their
-/// naming keys do not.
-#[test]
-fn a_measure_key_reads_its_sites_by_content_not_by_id() {
-    let (doc, a, _) = slabs("s2d-key", 2.5);
-    let (doc, first) = insert(doc, xform(a, [0.0; 3], [0.0, 0.0, 1.0], 0.0));
-    let (doc, second) = insert(doc, xform(a, [0.0; 3], [0.0, 0.0, 1.0], 0.0));
-    let at = |site| caps(a).map(|r| editor_core::SitedRef::new(site, r.name));
-    let distance = |[a, b]: [editor_core::SitedRef; 2]| Node::Measure {
-        primitive: MeasurePrimitive::Distance {
-            a: a.into(),
-            b: b.into(),
-        },
-    };
-    let (doc, on_first) = insert(doc, distance(at(first)));
-    let (doc, on_second) = insert(doc, distance(at(second)));
-    let ev = crate::corpus::eval::<f64>(&doc);
-    let value = |node| ev.value(node).expect("the measure evaluates");
-    assert_eq!(
-        value(first).content_key,
-        value(second).content_key,
-        "the premise: two placements of equal content"
-    );
-    assert_eq!(
-        value(on_first).content_key,
-        value(on_second).content_key,
-        "a site enters the key by its content"
-    );
-    assert_ne!(
-        value(on_first).naming_key,
-        value(on_second).naming_key,
-        "and by its id in the naming key"
-    );
-}
-
 /// **(D, test 13) The definition is bound after its measures run, in
 /// any document order.** An assertion reads a free `w`; a measure is
 /// inserted after it; then `w` is redefined as `m + 0.25 mm`. The edit
@@ -509,10 +470,22 @@ fn a_split_refuses_an_assertion_over_a_stranded_measure() {
 #[test]
 fn an_unavailable_side_keys_by_its_position() {
     let (doc, a, b) = slabs("s2d-unavailable", 2.5);
+    // `b` in `a`'s space, so the clearance reads one space.
+    let (doc, b_at) = fixture::slid(doc, a, b, [0.0; 3]);
+    let b_cap = editor_core::StableName {
+        kind: editor_core::EntityKind::Face,
+        node: b_at,
+        path: vec![editor_core::RoleSeg::Placed {
+            of: editor_core::NameRef::new(cap_ref(b, CapEnd::End).name),
+        }],
+    };
     let (doc, clearance) = fixture::measure_node(
         &doc,
         MeasurePrimitive::MinClearance { a: 0, b: 1 },
-        vec![cap_ref(a, CapEnd::End), cap_ref(b, CapEnd::End)],
+        vec![
+            cap_ref(a, CapEnd::End),
+            editor_core::SitedRef::new(b_at, b_cap),
+        ],
     );
     let gap = Formula::var(fixture::output(&doc, clearance), Dimension::Length);
     let (doc, low) = insert(

@@ -56,8 +56,8 @@ fn the_spike_document_becomes_a_drawable_scene() {
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     assert_eq!(
         doc.len(),
-        4,
-        "the sketch frame, one profile node, one extrude and its placement"
+        3,
+        "one profile node, one extrude and its placement"
     );
     assert_eq!(
         doc.placements()

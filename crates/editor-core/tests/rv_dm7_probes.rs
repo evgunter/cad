@@ -19,10 +19,10 @@ use crate::blocks::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::{
-    ContactClass, DocEdit, DocumentId, EntityKind, Maintenance, MateSide, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, apply,
+    ContactClass, DocEdit, DocumentId, Maintenance, MateSide, Node, ProfileDoc, RecipeNodeId,
+    StableName, apply,
 };
-use fixture::{ang, fname, insert, len, scl, wall};
+use fixture::{fname, insert, len, wall};
 use geom_core::Tol;
 
 fn delete(
@@ -44,7 +44,7 @@ fn delete(
 #[test]
 fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     let doc = ProfileDoc::empty_derived("rv_self_naming", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let node = Node::Fillet {
         radius: len(0.1),
         selection: editor_core::Operand::select(body, vec![crate::fixture::end_rim(&doc, body, 0)]),
@@ -84,19 +84,10 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     );
 }
 
+/// The start cap of `part_body`'s world copy in its part, as
+/// `instance`'s copies carry it.
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: part_body,
-                path: vec![RoleSeg::Cap(CapEnd::Start)],
-            }
-            .into(),
-        }],
-    }
+    crate::fixture::resolver::in_part(instance, part_body, CapEnd::Start)
 }
 
 use editor_core::CapEnd;
@@ -111,8 +102,8 @@ use editor_core::CapEnd;
 fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("rv_operand_part", Tol::witness());
-    let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let doc_ref = store.insert(part, Tol::witness());
+    let (doc_ref, part_body) =
+        store.insert_part(block(part, (0.0, 1.0), (0.0, 1.0), 1.0), Tol::witness());
     // The delete moves the pair's root and the evaluation reads the
     // parts, so both go through the store.
     let opts = fixture::resolver::with_resolver(store);
@@ -121,18 +112,13 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     // `ia`'s bundle is empty: the mate places it.
     let (doc, ia) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let (doc, ib) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &opts);
-    // A placed copy of `ib`: the mate reads `ib`'s face AT the
-    // transform, so the operand is a node the name does not name.
+    // A copy of `ib`'s copy: the mate reads `ib`'s face AT the copy,
+    // so the operand is a node the name does not name.
+    let ib_copy =
+        editor_core::Operand::Var(doc.output(ib, 0).expect("an instance defines its copies"));
     let (doc, placed) = insert(
         doc,
-        Node::transform(
-            ib,
-            editor_core::Step::Rigid {
-                translation: [len(2.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
+        Node::place(vec![editor_core::BodyRead::plain(ib_copy)]),
     );
     let head_b = instance_face(ib, part_body);
     let (doc, mate) = crate::fixture::constrain_at(
@@ -181,8 +167,8 @@ fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
     use editor_core::{Attr, Rgba8};
 
     let doc = ProfileDoc::empty_derived("rv_app_persist", Tol::witness());
-    let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let painted = fname(victim, wall(&doc, victim, 0));
     let doc = apply(
         &doc,
@@ -224,8 +210,8 @@ fn rv_a_reported_appearance_strand_is_reattachable() {
     use editor_core::{Attr, Rgba8};
 
     let doc = ProfileDoc::empty_derived("rv_app_rebind", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let painted = fname(victim, wall(&doc, victim, 0));
     let doc = apply(
         &doc,

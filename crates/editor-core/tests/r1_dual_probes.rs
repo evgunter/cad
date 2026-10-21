@@ -66,18 +66,17 @@ test_utils::gated_to![
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use test_utils::fuzz;
 
 use corpus::{Recorder, documents, eval, failures};
 use editor_core::eval::{ContentBits, KeyHasher};
 use editor_core::{
-    AssertionVerdict, ContentKey, Datum, DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    SlotId, ValuePayload, product_recorded,
+    AssertionVerdict, ContentKey, DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, SlotId,
+    ValuePayload, product_recorded,
 };
-use editor_core::{BooleanValue, Evaluation, NodeResult, PoseValue, SplitSide};
-use fixture::{len, scl, xy_frame};
+use editor_core::{BooleanValue, Evaluation, NodeResult, SplitSide};
+use fixture::len;
 use geom_core::{Bounds, Decide, Dual64, Tol};
 use topo::Body;
 
@@ -114,12 +113,6 @@ impl D {
         self.sc(p.x);
         self.sc(p.y);
         self.sc(p.z);
-    }
-
-    fn v3<T: Decide + Bounds>(&mut self, v: geom_core::Vec3<T>) {
-        self.sc(v.x);
-        self.sc(v.y);
-        self.sc(v.z);
     }
 }
 
@@ -188,31 +181,6 @@ where
             Some(NodeResult::Ok(v)) => {
                 d.u64(3);
                 match &v.payload {
-                    ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
-                        d.u64(10);
-                        d.p3(*origin);
-                        d.v3(normal.get());
-                    }
-                    ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
-                        d.u64(11);
-                        d.p3(*origin);
-                        d.v3(dir.get());
-                    }
-                    ValuePayload::Datum(PoseValue::Point { position }) => {
-                        d.u64(12);
-                        d.p3(*position);
-                    }
-                    ValuePayload::Datum(PoseValue::Frame(f)) => {
-                        d.u64(23);
-                        d.p3(f.origin());
-                        d.v3(f.u().get());
-                        d.v3(f.v().get());
-                    }
-                    // Tag 24 is retired with the in-plane axis datum.
-                    ValuePayload::Datum(PoseValue::Direction { dir }) => {
-                        d.u64(26);
-                        d.v3(dir.get());
-                    }
                     ValuePayload::Profile(p) => {
                         d.u64(13);
                         for lp in p.validated.loops() {
@@ -488,15 +456,13 @@ fn r1_no_value_only_key_collision_search() {
 // ---------------------------------------------------------------- 4
 
 /// A document written for this review, not borrowed from the corpus:
-/// a circular boss on a square plate, cut by a tilted datum, so the
+/// a circular boss on a square plate, cut by a tilted plane, so the
 /// body carries planar faces, a CYLINDER carrier, an ELLIPSE section
 /// carrier and a boolean — the mix DL3 is about. The returned id is
-/// the parameter node the e2e bumps.
+/// the boss's extrude, whose height the e2e bumps.
 fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let mut r = Recorder::new();
-    let xy_frame_0 = r.insert(xy_frame());
     let plate = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]).unwrap(),
         ],
@@ -505,31 +471,30 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let slab = r.insert(Node::Extrude {
         profile: plate.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
-    let xy_frame_1 = r.insert(xy_frame());
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_1.into(),
         loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).unwrap()],
         ids: Vec::new(),
     }));
     let boss = r.insert(Node::Extrude {
         profile: boss_profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
+    let placed = r.against(slab, boss, &editor_core::Frame::IDENTITY);
     let fused = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![slab.into(), boss.into()]),
+        members: editor_core::Bodies::Spelled(vec![slab.into(), placed.into()]),
     });
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(0.0), len(0.75)],
-        normal: [scl(0.25_f64.sin()), scl(0.0), scl(0.25_f64.cos())],
-    }));
+    let tool = fixture::plane_on_frame(
+        &r.doc,
+        slab,
+        [0.0, 0.0, 0.75],
+        [0.25_f64.sin(), 0.0, 0.25_f64.cos()],
+    );
     let _split = r.insert(Node::Split {
         target: fused.into(),
-        tool: tool.into(),
+        tool,
     });
-    (r.doc, tool)
+    (r.doc, boss)
 }
 
 /// **The consumer e2e** (evidence-only for the friction it prints;
@@ -541,7 +506,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
 #[test]
 fn r1_e2e_consumer_drive_at_dual64() {
     let tol = Tol::witness();
-    let (study, tool) = r1_study_document();
+    let (study, boss) = r1_study_document();
     let named: Vec<(&str, ProfileDoc)> = vec![
         ("corpus:die_composed", {
             documents()
@@ -659,9 +624,6 @@ fn r1_e2e_consumer_drive_at_dual64() {
     // would have answered. What DL3 removes is still the evaluation
     // service's CALL, not the door.
     let ev_d = eval::<Dual64>(&study);
-    if let Some(editor_core::NodeResult::Ok(v)) = ev_d.result(tool) {
-        let _ = v; // the datum node itself carries no body
-    }
     let body_node = ev_d
         .order
         .iter()
@@ -697,9 +659,9 @@ fn r1_e2e_consumer_drive_at_dual64() {
     let bumped = editor_core::apply(
         &study,
         &DocEdit::SetParam {
-            node: tool,
-            slot: SlotId::Origin(editor_core::Axis3::Z),
-            value: len(0.6875).into(),
+            node: boss,
+            slot: SlotId::Distance,
+            value: len(1.0625).into(),
             fresh: Vec::new(),
         },
         tol,

@@ -136,13 +136,10 @@ use pncad::document::{
     MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
     NodeStanding, ParseError, PersistError, PinRefusal, PlacedBy, PlacementRuleFault, ProgramFault,
     ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault,
-    ShellClassifyError, SlideAxis, SlotId, SnapshotError, SplitError, StepHandleRefusal,
-    StepIdFault, Unlocalized, UpdateError, WorldReadFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
+    TargetAxis, Unlocalized, UpdateError, WorldReadFault,
 };
-use pncad::geom_core::{
-    BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthonormalizeError,
-    UnitVec3Error,
-};
+use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
 use pncad::profile::{
     CornerReason, CornerWindow, NoCornerReason, PathError, PathErrorKind, ProfileError,
@@ -311,8 +308,8 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::InBand { .. } => "in_band",
         R::TiedDisagrees { .. } => "tied_disagrees",
         R::Unreadable { .. } => "unreadable",
-        R::NotADatum { .. } => "not_a_datum",
-        R::DatumHasNoValue(_) => "datum_has_no_value",
+        R::NotAPlane { .. } => "not_a_plane",
+        R::FaceUnresolved { .. } => "face_unresolved",
         R::NotALength { .. } => "not_a_length",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
@@ -456,7 +453,7 @@ pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 ///
 /// A slot is a per-node-type NAME, never an index, so the word is the
 /// slot's own identity and not a position: `distance`, `count`,
-/// `origin_x`. The seven vector families spell their component into
+/// `origin_x`. The two vector families spell their component into
 /// the word rather than beside it, because `origin` alone names three
 /// slots and a caller branching on it could not tell which expression
 /// refused.
@@ -464,13 +461,14 @@ pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 /// An operand is a slot too (D10): its word is the field's own
 /// ([`operand_slot_tag`]), `profile`, `target`, `input`.
 ///
-/// `program`, `placement_step` and a constraint's `world_slide`,
-/// `world_spin`, `value_slide` and `value_spin` are the arms that stop
-/// one level, and they stop for the reason [`profile_error_tag`]'s
-/// family does: what is left below them — a profile program's loop
-/// index, step index and argument role; a later placement step's index
-/// and component; a constraint's id and a world move's place — holds
-/// an integer, and no `&'static str` carries one. A loft's `section` and a union's
+/// `program`, a constraint's `world_slide`, `world_spin`,
+/// `value_slide` and `value_spin`, and a loft station's
+/// `station_slide` and `station_spin` are the arms that stop one level,
+/// and they stop for the reason [`profile_error_tag`]'s family does:
+/// what is left below them — a profile program's loop index, step
+/// index and argument role; a constraint's id and a world move's
+/// place; a section's index and a station move's place — holds an
+/// integer, and no `&'static str` carries one. A loft's `section` and a union's
 /// `member` stop the same way, their position riding the payload's
 /// `index`. The address is in the refusal's prose; the word says which
 /// kind of slot it is.
@@ -481,35 +479,10 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
             Axis3::Y => "origin_y",
             Axis3::Z => "origin_z",
         },
-        SlotId::Normal(axis) => match axis {
-            Axis3::X => "normal_x",
-            Axis3::Y => "normal_y",
-            Axis3::Z => "normal_z",
-        },
         SlotId::Direction(axis) => match axis {
             Axis3::X => "direction_x",
             Axis3::Y => "direction_y",
             Axis3::Z => "direction_z",
-        },
-        SlotId::U(axis) => match axis {
-            Axis3::X => "u_x",
-            Axis3::Y => "u_y",
-            Axis3::Z => "u_z",
-        },
-        SlotId::V(axis) => match axis {
-            Axis3::X => "v_x",
-            Axis3::Y => "v_y",
-            Axis3::Z => "v_z",
-        },
-        SlotId::Translation(axis) => match axis {
-            Axis3::X => "translation_x",
-            Axis3::Y => "translation_y",
-            Axis3::Z => "translation_z",
-        },
-        SlotId::RotationAxis(axis) => match axis {
-            Axis3::X => "rotation_axis_x",
-            Axis3::Y => "rotation_axis_y",
-            Axis3::Z => "rotation_axis_z",
         },
         SlotId::Distance => "distance",
         SlotId::Radius => "radius",
@@ -517,13 +490,11 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::ShellThickness => "shell_thickness",
         SlotId::RevolveAngle => "revolve_angle",
         SlotId::AxisHeading => "axis_heading",
-        SlotId::Spin => "spin",
         SlotId::TubeMajorRadius => "tube_major_radius",
         SlotId::TubeMinorRadius => "tube_minor_radius",
         SlotId::TubeWindowStart => "tube_window_start",
         SlotId::TubeWindowEnd => "tube_window_end",
         SlotId::TubeWall => "tube_wall",
-        SlotId::RotationAngle => "rotation_angle",
         SlotId::Spacing => "spacing",
         SlotId::Step => "step",
         SlotId::Count => "count",
@@ -533,11 +504,12 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::Profile { .. } => "program",
         SlotId::Operand(operand) => operand_slot_tag(operand),
         SlotId::Index { .. } => "index",
-        SlotId::PlacementStep { .. } => "placement_step",
         SlotId::WorldSlide { .. } => "world_slide",
         SlotId::WorldSpin { .. } => "world_spin",
         SlotId::ValueSlide { .. } => "value_slide",
         SlotId::ValueSpin { .. } => "value_spin",
+        SlotId::StationSlide { .. } => "station_slide",
+        SlotId::StationSpin { .. } => "station_spin",
     }
 }
 
@@ -616,7 +588,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::LoftSectionsSpelled { .. } => "loft_sections_spelled",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
-        EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
+        EditError::LoftSectionCount { .. } => "loft_section_count",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
         // The read doors: a read that resolves to no output, and a node
         // named alone that defines two or nothing. A read of a kind its
@@ -877,30 +849,6 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
     }
 }
 
-/// The stable tag for a FRAME WITNESS mint's refusal
-/// (`geom_core::RigidMotion::gram_schmidt`), which is what the sketch
-/// plane door raises.
-///
-/// Two axes times the direction door's three definite facts, plus the
-/// escalation: the axis is what a caller branches on — `u` is the
-/// authored first direction and `v` the residual perpendicular to it,
-/// so `degenerate_v_axis` is the word for "these two span no plane" —
-/// and the fact is what says whether a different tolerance could
-/// help. The escalated arm carries the classifier payload on the
-/// exception's own fields rather than in the word, exactly as
-/// [`frame_error_tag`]'s degenerate arm does.
-pub fn orthonormalize_error_tag(err: &OrthonormalizeError) -> &'static str {
-    match (err.axis, err.error) {
-        (OrthoAxis::U, UnitVec3Error::Degenerate) => "degenerate_u_axis",
-        (OrthoAxis::V, UnitVec3Error::Degenerate) => "degenerate_v_axis",
-        (OrthoAxis::U, UnitVec3Error::NonFiniteLength) => "non_finite_u_axis",
-        (OrthoAxis::V, UnitVec3Error::NonFiniteLength) => "non_finite_v_axis",
-        (OrthoAxis::U, UnitVec3Error::UnderflowedLength) => "underflowed_u_axis",
-        (OrthoAxis::V, UnitVec3Error::UnderflowedLength) => "underflowed_v_axis",
-        (_, UnitVec3Error::Escalated(_)) => "escalated",
-    }
-}
-
 /// The stable tag for WHICH band threshold a
 /// `BandError::InvalidValue` is about.
 ///
@@ -1018,19 +966,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // are prose in the message), and the lane refusal.
         C::Shell => "shell",
         C::ShellLaneUnsupported => "shell_lane_unsupported",
-        // The derived sketch frame's refusals (DOCM-1): one
-        // carrier-kind refusal and one read-back refusal.
-        C::FaceFrameNotPlanar => "face_frame_not_planar",
-        C::FaceFrameReadback => "face_frame_readback",
-        // **No new word.** A carried frame refusal is the SAME fact
-        // as the one raised at the frame itself, and the arm exists to
-        // add the frame's id to the prose, not to split the fact in
-        // two. So each answers the word of the class the raise has,
-        // and a caller matching `degenerate_direction` keeps matching.
-        C::FrameDirectionDegenerate
-        | C::FrameDirectionNonFiniteLength
-        | C::FrameDirectionUnderflowedLength
-        | C::FrameDirectionEscalated => node_error_tag(class.raised()),
         // The projection node's two refusals (DOCM-2): a half with no
         // material, and an instance index outside the pattern's count.
         C::EmptyHalf => "empty_half",
@@ -1059,6 +994,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MatePosesOfAnotherDocument => "mate_poses_of_another_document",
         C::MateClassNotAdmitted => "mate_class_not_admitted",
         C::MateOverconstrained => "mate_overconstrained",
+        C::MateUnpinned => "mate_unpinned",
         C::MateTargetsDiffer => "mate_targets_differ",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
         C::MateUnleverable => "mate_unleverable",
@@ -1186,9 +1122,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnionFoldStep { .. } => None,
         NodeErrorKind::Shell(inner) => Some(shell_error_tag(inner)),
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
-        NodeErrorKind::FaceFrameNotPlanar { .. } => None,
-        NodeErrorKind::FaceFrameReadback { error } => Some(readback_error_tag(error)),
-        NodeErrorKind::FrameDirection { .. } => None,
         NodeErrorKind::WitnessBifurcation(_) => None,
         NodeErrorKind::Part { .. } => None,
         NodeErrorKind::Mate(_) => None,
@@ -1242,7 +1175,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetMembersOnNonList { .. } => None,
         EditError::LoftSectionsSpelled { .. } => None,
         EditError::SetProgramOnNonProfile { .. } => None,
-        EditError::SetExtrudeSideOnNonExtrude { .. } => None,
+        EditError::LoftSectionCount { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
         EditError::OperandUnresolved { .. } => None,
@@ -1953,13 +1886,17 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
 }
 
 /// The stable tag for which freedom a value sets (`Coord`): a slide
-/// along the chart's `x`, `y` or `z`, or the spin.
+/// along the chart's `x`, `y` or `z`, the spin about the mated
+/// direction, or a spin about the target's own `x`, `y` or `z`.
 pub fn coord_tag(coord: Coord) -> &'static str {
     match coord {
-        Coord::Slide(SlideAxis::X) => "slide_x",
-        Coord::Slide(SlideAxis::Y) => "slide_y",
-        Coord::Slide(SlideAxis::Z) => "slide_z",
+        Coord::Slide(TargetAxis::X) => "slide_x",
+        Coord::Slide(TargetAxis::Y) => "slide_y",
+        Coord::Slide(TargetAxis::Z) => "slide_z",
         Coord::Spin => "spin",
+        Coord::SpinAbout(TargetAxis::X) => "spin_about_x",
+        Coord::SpinAbout(TargetAxis::Y) => "spin_about_y",
+        Coord::SpinAbout(TargetAxis::Z) => "spin_about_z",
     }
 }
 
@@ -1968,6 +1905,8 @@ pub fn coord_tag(coord: Coord) -> &'static str {
 pub fn no_chart_why_tag(why: NoChartWhy) -> &'static str {
     match why {
         NoChartWhy::PointRotation => "point_rotation",
+        NoChartWhy::NoMatedDirection => "no_mated_direction",
+        NoChartWhy::BesideAMate => "beside_a_mate",
         NoChartWhy::TwoBodies => "two_bodies",
         NoChartWhy::SlideTurnsABall => "slide_turns_a_ball",
     }
@@ -2000,11 +1939,14 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
     }
 }
 
-/// The stable tag for how the "place part" gesture placed a copy:
-/// resting a planar face, or pinned over a frame read off its geometry.
+/// The stable tag for how a gesture placed a copy: by the identity
+/// bundle, resting a planar face, on its own axis, or pinned over a
+/// frame read off its geometry.
 pub fn placed_by_tag(by: PlacedBy) -> &'static str {
     match by {
+        PlacedBy::Identity => "identity",
         PlacedBy::PlanarFace => "planar_face",
+        PlacedBy::Axis => "axis",
         PlacedBy::Pin => "pin",
     }
 }
@@ -2693,10 +2635,9 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::InstanceOutputUncarried { .. } => "instance_output_uncarried",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::ConstructionReadsCopy { .. } => "construction_reads_copy",
-        InlineError::CopyPinnedToConstruction { .. } => "copy_pinned_to_construction",
         InlineError::PinReadsVariable { .. } => "pin_reads_variable",
         InlineError::ValueOnAMovedWorld { .. } => "value_on_a_moved_world",
-        InlineError::WorldPinOnAMovedWorld { .. } => "world_pin_on_a_moved_world",
+        InlineError::RepinRefused { .. } => "repin_refused",
         InlineError::InstanceUnsolved { .. } => "instance_unsolved",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
@@ -3231,6 +3172,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
+        ValidationError::SeamRegionOvercovered { .. } => "seam_region_overcovered",
+        ValidationError::SeamRegionCoverUnresolved { .. } => "seam_region_cover_unresolved",
         ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",

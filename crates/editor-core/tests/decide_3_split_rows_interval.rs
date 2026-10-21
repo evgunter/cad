@@ -106,11 +106,19 @@ fn decide_3_no_predicate_loses_a_decision() {
             // (`split_at_the_nominal`, no ladder); what the ladder does
             // is pinned where the ladder is
             // (`sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`).
+            //
+            // The link's placement reads a declared or toleranced
+            // variable, so it runs its map at the nominal (C-5 narrowed,
+            // the orchestrator's ruling) and the copy is re-certified
+            // after its transform:
+            // +36 symbolic on each `carrier_on_surface_*` slot and +18 on
+            // `carrier_matches_mapped_source`, on both sides alike, so
+            // each trade is the one it was.
             let pinned: Option<([u64; 2], [u64; 2])> = match (*name, *p) {
                 ("r2_link", "carrier_on_surface_1" | "carrier_on_surface_2") => {
-                    Some(([96, 12], [100, 8]))
+                    Some(([132, 12], [136, 8]))
                 }
-                ("r2_link", "carrier_matches_mapped_source") => Some(([152, 28], [156, 24])),
+                ("r2_link", "carrier_matches_mapped_source") => Some(([170, 28], [174, 24])),
                 _ => None,
             };
             if let Some(expected) = pinned {

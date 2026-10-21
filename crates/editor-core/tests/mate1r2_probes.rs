@@ -2,7 +2,7 @@
 //!
 //! These rows attack the PR #1400 claims by execution:
 //! - P1: a seat on a pattern copy at a NON-IDENTITY world frame `F`
-//!   (the target's world pin), against the plane the seat pins composed
+//!   (the target's world mate), against the plane the seat pins composed
 //!   by hand (Rodrigues written in this file, never read back from the
 //!   solver);
 //! - P1b: the same seat with the GATE as the independent oracle (a seat
@@ -16,12 +16,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame,
-    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, SlideAxis,
-    Space, StableName, Value, assemble,
+    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, Space,
+    StableName, TargetAxis, Value, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, constrain, in_copy, insert, len, on_frame, run, scl, solve, step};
@@ -49,7 +48,6 @@ fn block_part(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -109,8 +107,8 @@ fn seat(
         ),
     );
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(slide[0])),
-        (Coord::Slide(SlideAxis::Y), len(slide[1])),
+        (Coord::Slide(TargetAxis::X), len(slide[0])),
+        (Coord::Slide(TargetAxis::Y), len(slide[1])),
         (Coord::Spin, ang(0.0)),
     ]
     .into_iter()
@@ -120,7 +118,7 @@ fn seat(
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -133,7 +131,7 @@ fn seat(
 }
 
 /// **An instance pinned to the world at `pose`**: a bundle of one world
-/// pin, read off its geometry through `o`.
+/// mate, read off its geometry through `o`.
 fn instance_at(
     doc: ProfileDoc,
     part: editor_core::DocRef,
@@ -263,9 +261,12 @@ fn leg_frame() -> Frame {
 /// plane the seat pins is composed by hand in this file: copy 1's end
 /// cap is the leg's `z = 1` plane under `O₁ ∘ F`, with `O₁` this file's
 /// own Rodrigues — the copy's offset acts in document coordinates,
-/// outside the leg's world frame. The top's own `z` axis is that cap's
-/// normal and its start cap (through its own origin) lies in that
-/// plane. The solver's output is never read into the expectation.
+/// outside the leg's world frame. The axis is read off the placed leg,
+/// so it is authored in the leg's own coordinates (the document's line
+/// carried back through `F`), and the line it reads is the document's.
+/// The top's own `z` axis is that cap's normal and its start cap
+/// (through its own origin) lies in that plane. The solver's output is
+/// never read into the expectation.
 #[test]
 fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let mut store = PartStore::default();
@@ -274,13 +275,11 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-obl"), Tol::witness());
     let (doc, leg) = instance_at(doc, leg_ref, leg_frame(), &o);
-    let (doc, axis) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(1.0), len(0.0), len(0.0)],
-            direction: [scl(1.0), scl(1.0), scl(1.0)],
-        }),
-    );
+    let f = Rigid::from_frame(leg_frame());
+    let unturn = |v: [f64; 3]| mv(transpose(f.r), v);
+    let own_origin = unturn([1.0 - f.t[0], 0.0 - f.t[1], 0.0 - f.t[2]]);
+    let axis =
+        crate::mate1_member_vocab::axis_with(&doc, leg, own_origin, unturn([1.0, 1.0, 1.0]), &o);
     let theta = 2.0 * core::f64::consts::PI / 5.0;
     let (doc, pattern) = insert(
         doc,
@@ -288,7 +287,7 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
             input: leg.into(),
             count: Formula::count(3),
             kind: PatternKind::Circular {
-                axis: axis.into(),
+                axis,
                 step: ang(theta),
             },
         },
@@ -312,7 +311,6 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     );
     assert_eq!(poses.space(top), Some(Space::World));
 
-    let f = Rigid::from_frame(leg_frame());
     let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
     let cap = o1.compose(f).compose(Rigid::translation([0.0, 0.0, 1.0]));
     let normal = [cap.r[0][2], cap.r[1][2], cap.r[2][2]];

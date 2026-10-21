@@ -23,7 +23,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId, StepTurns};
 use test_utils::refusal::Admission;
@@ -71,7 +70,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
-    "Transform/NullScaffold",
     "UnfinishedOperand/ScaffoldingEmptyLoop",
     "UnfinishedOperand/ScaffoldingStrutVertex",
     "Loft/Pcurve",
@@ -97,7 +95,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/WayInZeroBand",
     "Naming/JoinedPieceOffRoot",
     "Naming/BandVerdictsDisagree",
-    "FaceFrameReadback/Dangling",
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",
@@ -275,11 +272,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
     // work/wirehold/placement-rule-refusals-state-no-recourse.md
-    "FaceFrameNotPlanar",
-    "FaceFrameReadback/Dangling",
-    "FaceFrameReadback/NoCanonicalFrame",
-    "FaceFrameReadback/NoCarrier",
-    "FrameDirection/Degenerate",
     "InstanceOutOfRange",
     "PlacementsUncertified",
     "PlacementRule/CountSpelling",
@@ -852,7 +844,7 @@ test_utils::f6_variants! {
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
         DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
         Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
-        FaceFrameNotPlanar, FaceFrameReadback, FrameDirection, WitnessBifurcation, Part, Mate,
+        WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
         MeasureNotParallel, MeasureUnsupported, PayloadExpr, MeasureClearanceRefused,
         AssertionDimension,
@@ -1281,11 +1273,9 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         NodeErrorKind::PoseRead { .. }
         | NodeErrorKind::Mate(_)
         | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
-        NodeErrorKind::Part { .. }
-        | NodeErrorKind::Transform(_)
-        | NodeErrorKind::Motion(_)
-        | NodeErrorKind::FaceFrameReadback { .. }
-        | NodeErrorKind::FrameDirection { .. } => Forward::Unwelded(UNWELDED_PLACEMENT),
+        NodeErrorKind::Part { .. } | NodeErrorKind::Transform(_) | NodeErrorKind::Motion(_) => {
+            Forward::Unwelded(UNWELDED_PLACEMENT)
+        }
         NodeErrorKind::CurvedSolidFrontier { .. }
         | NodeErrorKind::MissingInput { .. }
         | NodeErrorKind::UnresolvedRead { .. }
@@ -1316,7 +1306,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::UnionFoldStep { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
-        | NodeErrorKind::FaceFrameNotPlanar { .. }
         | NodeErrorKind::CrossingUnverified { .. }
         | NodeErrorKind::MeasureNotParallel { .. }
         | NodeErrorKind::MeasureUnsupported(_)
@@ -1934,8 +1923,8 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "PoseDirectionEscalated",
             NodeErrorKind::PoseDirectionEscalated {
-                predicate: topo::DATUM_UNIT_NORM,
-                source: named(topo::DATUM_UNIT_NORM),
+                predicate: topo::POSE_UNIT_NORM,
+                source: named(topo::POSE_UNIT_NORM),
             },
         ),
         row(
@@ -2032,12 +2021,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "ShellLaneUnsupported",
             NodeErrorKind::ShellLaneUnsupported { scalar: "interval" },
-        ),
-        row(
-            "FaceFrameNotPlanar",
-            NodeErrorKind::FaceFrameNotPlanar {
-                carrier: geom::SurfaceKind::Cylinder,
-            },
         ),
         row(
             "MeasureNotParallel",
@@ -4942,12 +4925,11 @@ fn doc_ref() -> editor_core::DocRef {
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
-        BifurcationKind, BranchMarginEvidence, DirectionRefusal, EntityKind, FaceName, Implicated,
-        InterrogateError, PartFault, WitnessAge, WitnessBifurcation,
+        BifurcationKind, BranchMarginEvidence, EntityKind, FaceName, Implicated, InterrogateError,
+        PartFault, WitnessAge, WitnessBifurcation,
     };
-    use geom_core::UnitVec3Error;
     use payloads::*;
-    use topo::{EntityId, FaceKey, ReadbackError};
+    use topo::{FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
     let mut rows = vec![
         row(
@@ -5077,42 +5059,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 NodeErrorKind::MeasureClearanceRefused(refusal),
             ));
         }
-    }
-    for (n, error) in [
-        (
-            "Dangling",
-            ReadbackError::Dangling {
-                what: EntityId::Face(FaceKey::default()),
-            },
-        ),
-        (
-            "NoCanonicalFrame",
-            ReadbackError::NoCanonicalFrame { carrier: "torus" },
-        ),
-        ("NoCarrier", ReadbackError::NoCarrier),
-    ] {
-        rows.push(row(
-            &format!("FaceFrameReadback/{n}"),
-            NodeErrorKind::FaceFrameReadback { error },
-        ));
-    }
-    for (n, error) in [
-        ("Degenerate", UnitVec3Error::Degenerate),
-        ("NonFiniteLength", UnitVec3Error::NonFiniteLength),
-        ("UnderflowedLength", UnitVec3Error::UnderflowedLength),
-        ("Escalated", UnitVec3Error::Escalated(diag())),
-    ] {
-        rows.push(row(
-            &format!("FrameDirection/{n}"),
-            NodeErrorKind::FrameDirection {
-                profile: RecipeNodeId::new(0, tagged(4)),
-                frame: RecipeNodeId::new(0, tagged(2)),
-                refusal: DirectionRefusal {
-                    role: "frame normal",
-                    error,
-                },
-            },
-        ));
     }
     let interrogate = [
         (
@@ -5274,7 +5220,6 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         );
         let (doc, _) = crate::fixture::place(doc, body);
@@ -5377,7 +5322,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, SlideAxis, VarKind,
+        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, TargetAxis, VarKind,
     };
     let n = |id| RecipeNodeId::new(0, tagged(id));
     let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
@@ -5437,7 +5382,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             "NotAFreedom",
             M::NotAFreedom {
                 value: r(9),
-                coord: Coord::Slide(SlideAxis::Z),
+                coord: Coord::Slide(TargetAxis::Z),
                 kind: VarKind::Plane,
             },
         ),

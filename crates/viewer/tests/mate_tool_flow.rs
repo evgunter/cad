@@ -15,7 +15,7 @@ use pncad::document::{ClassAdmission, MateSide, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::select::{ContactClass, RoleSeg, face_frame};
 use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState, admitted_classes};
-use viewer::session::{DatumSpec, DocSession, FaceSelection, PatternRuleSpec, SessionOp};
+use viewer::session::{DocSession, FaceSelection, PatternRuleSpec, SessionOp};
 
 #[test]
 fn the_admission_exposure_is_the_kernels_own_table() {
@@ -47,7 +47,7 @@ fn two_picks_one_choice_one_committed_edit() {
     assert!(matches!(tool.state(), MateToolState::One(_)));
     tool.pick(session.doc(), shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
-    // post_b's world pin off, so the mate places it: its bundle is the
+    // post_b's world mate off, so the mate places it: its bundle is the
     // empty one.
     asm::unpin(&mut session, bench.post_b);
 
@@ -156,7 +156,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
 /// (`Coord::admitted_by`).
 #[test]
 fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
-    use pncad::document::{Coord, FreedomRefusal, SlideAxis, VarKind};
+    use pncad::document::{Coord, FreedomRefusal, TargetAxis, VarKind};
     let tol = Tol::witness();
     let bench = asm::bench("matetable", tol);
     let session = asm::open_bench(&bench, tol);
@@ -194,7 +194,7 @@ fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
     assert_eq!(
         (coord, kind, refusal),
         (
-            Coord::Slide(SlideAxis::X),
+            Coord::Slide(TargetAxis::X),
             VarKind::Axis,
             FreedomRefusal::NotAFreedom
         )
@@ -355,7 +355,7 @@ fn shelf_on(
     let mut choice = asm::seat_choice();
     for (coord, by) in &mut choice.values {
         *by = match coord {
-            pncad::document::Coord::Spin => ang(0.0),
+            pncad::document::Coord::Spin | pncad::document::Coord::SpinAbout(_) => ang(0.0),
             pncad::document::Coord::Slide(_) => len(0.0),
         };
     }
@@ -406,7 +406,7 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
         own.path.first()
     );
 
-    // And it SOLVES: the shelf's world pin comes off, the mate places
+    // And it SOLVES: the shelf's world mate comes off, the mate places
     // the shelf on copy 1, and the two picked faces rest in the world
     // the evaluation draws. A tool that read the master's face would
     // land the shelf one step away from copy 1.
@@ -444,8 +444,8 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let bench = asm::bench("matepatternnon", tol);
     let mut session = asm::open_bench(&bench, tol);
     // A transform between the instance and the pattern: the pattern's
-    // input is a `Transform`, not an `InstantiatePart`, which is one
-    // of the heads `member_of` declines.
+    // input is the move's `Place`, not an `InstantiatePart`, which is
+    // one of the heads `member_of` declines.
     let moved = common::session_insert(
         &mut session,
         SessionOp::AddTransform {
@@ -581,15 +581,6 @@ const QUARTER_TURN: f64 = core::f64::consts::FRAC_PI_2;
 /// else. The ROTATION is the point: a linear rule moves only the
 /// origin, and a frame has two more channels.
 fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
-    let axis = common::session_insert(
-        session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: common::len3([0.0; 3]),
-                direction: common::scl3([0.0, 1.0, 0.0]),
-            },
-        },
-    );
     session.pump();
     let pattern = common::session_insert(
         session,
@@ -597,7 +588,8 @@ fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
             input: bench.post_b.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
-                axis,
+                through: common::len3([0.0; 3]),
+                direction: common::scl3([0.0, 1.0, 0.0]),
                 step: ang(QUARTER_TURN),
             },
         },
@@ -672,7 +664,7 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
 
     // And it SOLVES: the shelf's underside rests on the spun copy's cap
     // in the world the evaluation draws, which is the pattern's
-    // rotation being applied exactly once. The shelf's world pin comes
+    // rotation being applied exactly once. The shelf's world mate comes
     // off, so the mate places the shelf against the spun copy.
     asm::unpin(&mut session, bench.shelf_i);
     let mate = common::commit_mate(&mut session, spun.op());
@@ -770,13 +762,13 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
             tol,
         )
     });
-    // The instances stand on their own world pins; of the copies, only
+    // The instances stand on their own world mates; of the copies, only
     // those no other drawn copy coincides with are placed: `part` (inner
     // copy 1, which outer copy 0 repeats) and outer copy 1. Inner copy 0
     // is where post_i itself is drawn.
     let _ = loose;
     for body in [part, outer_copies[1]] {
-        doc = common::placed_read(&doc, body.into(), &bench.opts(), tol).0;
+        doc = common::placed_read(&doc, body.into(), tol).0;
     }
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
     let path = ws.create(&doc, tol).expect("the nested assembly stores");
@@ -849,7 +841,7 @@ fn a_nested_copy_pick_is_a_target_and_seats() {
         "the inner copy rides in the inner head: {of:?}"
     );
 
-    // The shelf's world pin off, so the mate places the shelf against
+    // The shelf's world mate off, so the mate places the shelf against
     // the nested copy.
     asm::unpin(&mut session, shelf);
     let mate = common::commit_mate(&mut session, proposal.op());
@@ -904,7 +896,7 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
         "the copy rides in the head: {own:?}"
     );
 
-    // The shelf's world pin off, so the mate places the shelf against
+    // The shelf's world mate off, so the mate places the shelf against
     // the Part's copy.
     asm::unpin(&mut session, shelf);
     let mate = common::commit_mate(&mut session, proposal.op());

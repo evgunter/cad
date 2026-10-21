@@ -33,15 +33,13 @@ pub(crate) use wire::{
     DECISION_WORDS, EVAL_DIRECTION_NORM, PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN,
 };
 
-pub(crate) use wire::{
-    TRANSFORM_AXIS_ROLE, need_scalar, need_vec3, transform_map, unit as unit_direction,
-};
+pub(crate) use wire::unit as unit_direction;
 
 pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
 pub(crate) use anchor::{derive_naming, validated_naming};
 pub use class::NodeErrorClass;
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
-pub use wire::{DirectionRefusal, FramePlacement};
+pub use wire::DirectionRefusal;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -121,12 +119,17 @@ pub struct Evaluation<T: Decide> {
     /// How many nodes were reused from the prior evaluation by
     /// content-key match.
     pub reused: usize,
-    /// **Every node whose value lives in a loose copy's space** (D10,
-    /// Spaces), with the loose copy's placement. A node absent here
-    /// lives in the world's space, or denotes no geometry.
-    /// [`crate::product::product`] gathers the world's alone, and the
-    /// at-rest census checks each space by itself.
+    /// **Every node whose value lives in a space other than the
+    /// world's** (D10, Spaces), with that space's root: a construction,
+    /// or a loose copy's placement. A node absent here lives in the
+    /// world's space, or denotes no geometry.
+    /// [`crate::product::product`] gathers the world's alone.
     pub loose: BTreeMap<RecipeNodeId, RecipeNodeId>,
+    /// **The roots of [`Self::loose`] that are loose copies**: a
+    /// placement whose bundle pins less than its body needs. The
+    /// at-rest census checks each such space by itself; a construction's
+    /// space holds the bodies combined into it, which no census reads.
+    pub loose_copies: std::collections::BTreeSet<RecipeNodeId>,
     /// How many REFERENCED documents this evaluation actually
     /// evaluated across the document seam (ASM-2A D-3's sharing
     /// evidence). N instances of one part contribute 1; a part the
@@ -345,15 +348,10 @@ impl<T: Decide> Evaluation<T> {
             })
     }
 
-    /// **Every loose copy**, by its placement, in id order: a loose
-    /// copy lives in its own space, so each is its own row of
-    /// [`Evaluation::loose`].
+    /// **Every loose copy**, by its placement, in id order
+    /// ([`Evaluation::loose_copies`]).
     pub fn loose_roots(&self) -> Vec<RecipeNodeId> {
-        self.loose
-            .iter()
-            .filter(|&(node, root)| node == root)
-            .map(|(_, &root)| root)
-            .collect()
+        self.loose_copies.iter().copied().collect()
     }
 
     /// The node's successful value, if it has one — [`Evaluation::usable`]
@@ -810,16 +808,17 @@ pub struct NodeValue<T: Decide> {
     /// parts as the referenced document's root outputs, each counted at
     /// its own `parts` — a sub-assembly's parts count through. Two root
     /// outputs that are a split's two halves are two parts. The placers
-    /// (`Transform`, `Pattern`) and `Part` carry the count through; every
+    /// (`Place`, `Pattern`) and `Part` carry the count through; every
     /// other op builds a body of its own and counts 1, an explicit union
     /// (the fuse) included. More than one makes the value a PRODUCT,
     /// which every op that fuses or reshapes a single body operand
     /// refuses ([`NodeErrorKind::ProductOperand`]); a reader of its
-    /// geometry (a datum's face frame) reads it as it is.
+    /// geometry (a pose read off a face) reads it as it is.
     pub parts: usize,
     /// **A placement's solved motion** (D10): where its copies sit
-    /// relative to the shapes they copy, `None` for the bit-exact
-    /// identity and for every value that is no placement's. A carried
+    /// relative to the shapes they copy, `None` for a copy the identity
+    /// bundle places by no map and for every value that is no
+    /// placement's. A carried
     /// pose reads it ([`crate::pose::PoseDef::Carried`]).
     pub motion: Option<geom_core::RigidMotion<T>>,
     /// **The space the value lives in** (D10, Spaces): a placement's
@@ -856,26 +855,6 @@ pub struct NodeValue<T: Decide> {
     /// **Not persisted**, like the verdicts and unlike their summary:
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
-    /// **What a FRAME node's placement is** ([`FramePlacement`], minted
-    /// by `wire::mint_frame_placement`): for an authored frame its nine
-    /// slots at the document's nominal, orthonormalized — the frame's
-    /// own `PoseValue::Frame` answers the same question at the LANE
-    /// scalar, and the two ride side by side because they have
-    /// different readers (`wire::profile_plane_f64` and
-    /// `wire::frame_plane_lane`).
-    ///
-    /// `None` means the node is NOT A FRAME, and only that. The three
-    /// answers a frame can give are the enum's three arms, so no reader
-    /// infers one of them from the absence of another, and a reference
-    /// to a non-frame gets the loud `WrongOperand` every by-value
-    /// reader of a frame raises.
-    ///
-    /// Rides the value, so memo reuse transfers the placement with the
-    /// geometry: it is a pure function of the node's nominal slots and
-    /// the tolerance, both of which the content key fixes, so a hit's
-    /// placement equals a recompute's bit for bit (the D9 argument the
-    /// verdicts above ride on).
-    pub placement: Option<FramePlacement>,
     /// RESERVED empty slot: the solved witness assignment, filled by
     /// the sketch solver `docs/DESIGN.md` `[open.sketch-solver]` adopts
     /// when constraint-driven sketches have a consumer.
@@ -914,7 +893,6 @@ impl<T: Decide> NodeValue<T> {
             parts: out.parts,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
-            placement: None,
             motion: None,
             space: None,
             witness: WitnessSlot::default(),
@@ -947,7 +925,6 @@ impl NodeValue<f64> {
             parts: 1,
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
-            placement: None,
             motion: None,
             space: None,
             witness: WitnessSlot::default(),
@@ -987,6 +964,7 @@ impl Evaluation<f64> {
         Self {
             epoch: crate::Epoch::mint(),
             loose: BTreeMap::new(),
+            loose_copies: std::collections::BTreeSet::new(),
             document,
             prior_refused: None,
             recomputed: order.len(),
@@ -1031,9 +1009,6 @@ pub struct WitnessSlot {}
 /// family; spec D3 fixes each node's semantics).
 #[derive(Debug, Clone)]
 pub enum ValuePayload<T: Decide> {
-    /// A datum evaluated to geometry values (D3: frames/axes as
-    /// values; directions normalized, degenerate refused).
-    Datum(PoseValue<T>),
     /// A validated profile (D3: replayed from the node's program
     /// through the driver, then the profile crate's validation door),
     /// its naming anchor, and the radius expression each
@@ -1041,8 +1016,8 @@ pub enum ValuePayload<T: Decide> {
     Profile(Arc<ProfileValue<T>>),
     /// A single body: every one-body op (extrude, revolve, the tubes,
     /// loft, sweep, blends, shell, union, placed union, instantiate,
-    /// `Part`) and a `Transform` of one body — a transform's value has
-    /// its input's shape, so a transform of instances is
+    /// `Part`) and a `Place` of one body — a placement over one shape
+    /// has that shape's shape, so a placement of instances is
     /// [`Self::Instances`].
     Body(Arc<Body<T>>),
     /// A boolean's result: a body with its contact records, or the
@@ -1061,14 +1036,14 @@ pub enum ValuePayload<T: Decide> {
     /// layout).
     ///
     /// **Who takes it, and who refuses.** The placers take it WHOLE
-    /// and are shape-preserving over it: `Transform` yields the same
+    /// and are shape-preserving over it: `Place` yields the same
     /// instances under one rigid map, `Pattern` yields their `N·M`
     /// placements, both as `Instances`, because a rigid map of N
     /// bodies is N rigid maps and needs no guess. `Part` takes one
     /// instance out of it by index, and the product gather takes
     /// every instance in order. Every other consumer of a body
-    /// operand — the set is `wire::read_body`'s callers (a datum's
-    /// face frame) and `wire::body_operand`'s (a blend's and a shell's
+    /// operand — the set is `wire::read_body`'s callers (a pose read
+    /// off a face) and `wire::body_operand`'s (a blend's and a shell's
     /// body, a split's target, a boolean's and a union's members, a
     /// placed union's prototype) —
     /// takes ONE body and refuses this value typed (`WrongOperand`):
@@ -1134,8 +1109,8 @@ pub enum ValuePayload<T: Decide> {
 // `every_family_word_has_exactly_one_const` reads. An arm with no
 // const, or a const with no arm, reds that row.
 macro_rules! family_word {
-    (datum) => {
-        "datum"
+    (pose) => {
+        "pose"
     };
     (profile) => {
         "profile"
@@ -1168,7 +1143,7 @@ macro_rules! family_word {
 /// written once. [`ValuePayload::kind_name`] says them over a value,
 /// and `eval::wire`'s operand door says them in the refusals it builds.
 pub(crate) mod family {
-    pub(crate) const DATUM: &str = family_word!(datum);
+    pub(crate) const POSE: &str = family_word!(pose);
     pub(crate) const PROFILE: &str = family_word!(profile);
     pub(crate) const BODY: &str = family_word!(body);
     pub(crate) const BOOLEAN: &str = family_word!(boolean);
@@ -1201,8 +1176,8 @@ pub(crate) mod family {
 ///
 /// # The three shapes, and how each is composed
 ///
-/// - **Narrower than a family** ([`phrase::DATUM_FRAME`], [`phrase::DATUM_AXIS`],
-///   [`phrase::DATUM_PLANE`]): a variant WITHIN a family. The family word is
+/// - **Narrower than a family** ([`phrase::FRAME_POSE`], [`phrase::AXIS_POSE`],
+///   [`phrase::PLANE_POSE`]): a variant WITHIN a family. The family word is
 ///   still in the phrase — and is exactly the word `found:` answers
 ///   beside it — so it is composed from `family_word!` rather than
 ///   respelled.
@@ -1223,26 +1198,16 @@ pub(crate) mod family {
 /// is a named const rather than a literal at its call site — that half
 /// of the rule they do follow.
 ///
-/// **What they do NOT do is compose: they RESPELL.** Four of them open
-/// with a phrase declared here and write it out again as a literal —
-/// `"datum frame x axis"`, `"datum frame y axis"`, `"datum plane
-/// normal"`, `"datum axis direction"`. That is not a boundary and not
-/// a choice: `concat!` takes literals and a `const` is not one, so
-/// composing them needs this module's macro layer extended from the
-/// WORDS to the PHRASES, which is a design step rather than a rename.
-/// It is a residue, and it has a row —
-/// `work/wire/direction-role-words-respell-the-operand-phrases.md`.
-/// `TRANSFORM_AXIS_ROLE` and `PATTERN_DIRECTION_ROLE` share no family
-/// word with anything here, so they are not that row.
+/// They name a vector's role (`"frame x axis"`, `"plane normal"`,
+/// `"axis direction"`), not a value family, so they share no word with
+/// this module.
 pub(crate) mod phrase {
-    /// A frame datum: [`crate::node::Datum::Frame`] or
-    /// [`crate::node::Datum::FaceFrame`], the two nodes that carry a
-    /// [`super::PoseValue::Frame`].
-    pub(crate) const DATUM_FRAME: &str = concat!(family_word!(datum), " frame");
-    /// A 3-D axis datum ([`crate::node::Datum::Axis`]).
-    pub(crate) const DATUM_AXIS: &str = concat!(family_word!(datum), " axis");
-    /// A plane datum ([`crate::node::Datum::Plane`]).
-    pub(crate) const DATUM_PLANE: &str = concat!(family_word!(datum), " plane");
+    /// A frame pose: a read that carries a [`super::PoseValue::Frame`].
+    pub(crate) const FRAME_POSE: &str = concat!("frame ", family_word!(pose));
+    /// An axis pose ([`super::PoseValue::Axis`]).
+    pub(crate) const AXIS_POSE: &str = concat!("axis ", family_word!(pose));
+    /// A plane pose ([`super::PoseValue::Plane`]).
+    pub(crate) const PLANE_POSE: &str = concat!("plane ", family_word!(pose));
     /// What a placer places: one body, or a list of placed ones.
     pub(crate) const BODY_OR_INSTANCES: &str =
         concat!(family_word!(body), " or ", family_word!(instances));
@@ -1267,7 +1232,6 @@ impl<T: Decide> ValuePayload<T> {
     /// word the value lands in.
     pub fn kind_name(&self) -> &'static str {
         match self {
-            Self::Datum(_) => family::DATUM,
             Self::Profile(_) => family::PROFILE,
             Self::Body(_) => family::BODY,
             Self::Boolean(_) => family::BOOLEAN,
@@ -1339,7 +1303,8 @@ pub struct KeyedCopy<T: Decide> {
     /// holds its part's bodies where the part put them, and is placed
     /// when a reader reads that one copy, so an instance that nothing
     /// reads copy by copy places its part once. `None` for bodies that
-    /// stand where they are read, and for the bit-exact identity.
+    /// stand where they are read, and for a copy the identity bundle
+    /// places.
     pub motion: Option<geom_core::RigidMotion<T>>,
 }
 
@@ -1694,7 +1659,7 @@ pub enum NodeErrorKind {
     /// (`docs/DESIGN.md`, "A solid is one piece of material"): which
     /// solids are one part is recipe structure, and an explicit union is
     /// what makes the parts one body. The placers carry a product
-    /// through instead, and a reader of geometry (a datum's face frame)
+    /// through instead, and a reader of geometry (a pose read off a face)
     /// consumes no material and reads it as it is.
     ProductOperand {
         /// The operand node.
@@ -1801,8 +1766,8 @@ pub enum NodeErrorKind {
     Band(geom_core::BandError),
     /// A slot the wiring expected was absent from the node's evaluated
     /// values, which only a kernel bug reaches (`Node::slots` and its
-    /// wire disagreeing). Raised by the datum, placement, pattern and
-    /// instance readers; every other reader panics on the same state
+    /// wire disagreeing). Raised by the slot readers of the patterns,
+    /// the loft's stations and the instance picks; every other reader panics on the same state
     /// (`wire`'s `declared`).
     MissingSlot {
         /// The absent slot.
@@ -1834,9 +1799,9 @@ pub enum NodeErrorKind {
         /// The escalation, unaltered.
         source: Indeterminate,
     },
-    /// **A pose's or datum's direction escalated** (D10's pose ground):
-    /// a datum's axis, normal or frame axis, or a pose construction's
-    /// direction, in the sentence [`Self::FrameDirection`] also carries,
+    /// **A pose's direction escalated** (D10's pose ground): a pose's
+    /// axis, normal or frame axis, or a pose construction's
+    /// direction, in its own sentence,
     /// which [`Self::Escalated`]'s does not speak for. Its class is
     /// [`NodeErrorClass::Escalated`].
     PoseDirectionEscalated {
@@ -2001,49 +1966,6 @@ pub enum NodeErrorKind {
         /// The scalar that has no door ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
-    /// A derived frame's face is not planar (DM1b): a sketch frame
-    /// needs a plane, and the carrier found is named so a headless
-    /// author gets the same answer the chrome pre-empts. A tag read,
-    /// not a predicate — the carrier's own kind, copied out.
-    FaceFrameNotPlanar {
-        /// The carrier kind the face actually has.
-        carrier: geom::SurfaceKind,
-    },
-    /// A derived frame's face resolved to a key its own body could not
-    /// read back — an evaluation-internal inconsistency between the
-    /// emitted table and the body, surfaced typed rather than guessed
-    /// around.
-    FaceFrameReadback {
-        /// The kernel-side refusal, unaltered.
-        error: topo::readback::ReadbackError,
-    },
-    /// A profile needed an AUTHORED frame's `f64` placement and the
-    /// frame's own direction slots refused, so the refusal is raised
-    /// on the reader (`wire::profile_plane_f64`) and names BOTH nodes.
-    ///
-    /// **Both ids.** `profile_plane_f64` is read from the profile
-    /// node's own evaluation, where the error lands on the profile and
-    /// its id is confirmation, and the frame's id says which frame
-    /// refused.
-    ///
-    /// **The carried refusal is the fact, not a second one.** A frame
-    /// slot that refuses reaches a human two ways — raised at the
-    /// frame by [`crate::Datum::Frame`]'s own evaluation, or carried
-    /// to the reader that needed the nominal
-    /// ([`crate::FramePlacement::Unreadable`]) — and both spell it
-    /// through [`DirectionRefusal::node_error`], so the sentence and
-    /// the tag are the same on both roads. What this arm adds is the
-    /// ids, which the role word alone cannot supply: "the datum frame
-    /// x axis has zero length" names no frame in a document with two.
-    FrameDirection {
-        /// The profile that needed the placement.
-        profile: RecipeNodeId,
-        /// The frame node whose direction slot refused.
-        frame: RecipeNodeId,
-        /// The frame's own refusal, unaltered — which vector, and
-        /// which of the direction door's four facts.
-        refusal: DirectionRefusal,
-    },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
     /// poisoning descendants only, GQ2/W5). NEVER constructed while no
@@ -2098,7 +2020,7 @@ pub enum NodeErrorKind {
     /// A `Node::Measure` reference resolved into a value that carries
     /// no bodies, or into an output body its value does not have — the
     /// naming emission and the value disagree, or the reference names
-    /// a datum. Carries the interrogation layer's own words.
+    /// a pose. Carries the interrogation layer's own words.
     MeasureRefUnreadable {
         /// The reference.
         slot: crate::OperandSlot,
@@ -2581,33 +2503,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 "the shell door has no lane at the {scalar} scalar: hollowing validates what it \
                  built with a certified claim, and this scalar does not certify — the \
                  base-scalar evaluation beside this one is where the shell is built"
-            ),
-            Self::FaceFrameNotPlanar { carrier } => write!(
-                f,
-                "the derived frame's face lies on {} {} carrier, not a plane — a sketch frame \
-                 needs a planar face",
-                crate::sentence::article(carrier.name()),
-                carrier.name()
-            ),
-            Self::FaceFrameReadback { error } => write!(
-                f,
-                "the derived frame's face resolved to a key its body could not read back: {error}"
-            ),
-            // Both ids FIRST, then the fact. Three of the four facts
-            // end in a remedy clause and the escalation's runs to
-            // hundreds of characters, so a locator appended after one
-            // of those is a locator nobody reaches.
-            Self::FrameDirection {
-                profile,
-                frame,
-                refusal,
-            } => write!(
-                f,
-                "{} is drawn on {}, and the frame refused \
-                 its own direction: {}",
-                by.node_as(*profile, "profile node"),
-                by.node_as(*frame, "datum frame node"),
-                refusal.node_error()
             ),
             Self::MeasureRefUnreadable {
                 slot,
@@ -3366,53 +3261,32 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         geom_core::Bounds::hi(self)
     }
 
-    fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
-        false
+    fn spins_by_frames() -> bool {
+        true
+    }
+
+    fn exactly_zero(self) -> bool {
+        use geom_core::Bounds;
+        self.lo() == 0.0 && self.hi() == 0.0
     }
 
     /// Across the negative `x` axis the principal branch's cut widens
     /// the enclosure to the whole circle, so there the angle is read on
     /// the branch about `π`: the solve reads an angle only through its
-    /// sine and cosine, which every branch encloses alike.
+    /// sine and cosine, which every branch encloses alike. An exact zero
+    /// `y` over a positive `x` is the angle zero exactly, which the
+    /// backend's `atan2` encloses as subnormal dust whose cosine is an
+    /// ulp wide.
     fn solve_atan2(y: Self, x: Self) -> Self {
         use geom_core::{Bounds, Real};
+        if y.lo() == 0.0 && y.hi() == 0.0 && x.lo() > 0.0 {
+            return Self::zero();
+        }
         if x.hi() < 0.0 && y.lo() <= 0.0 && 0.0 <= y.hi() {
             Self::pi() + (-y).atan2(-x)
         } else {
             y.atan2(x)
         }
-    }
-
-    fn carries_no_variation(_map: &geom_core::Affine3<Self>) -> bool {
-        true
-    }
-
-    fn identity_varying_as(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        None
-    }
-
-    /// Each entry's hull with the identity's: the enclosure of every map
-    /// the box spans, at rest or not.
-    fn with_rest(map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        use geom_core::SpanLocate;
-        use geom_core::linalg::Vec3;
-        let (one, zero) = (
-            <Self as geom_core::Real>::one(),
-            <Self as geom_core::Real>::zero(),
-        );
-        let hull = |v: Vec3<Self>, w: Vec3<Self>| {
-            Vec3::new(
-                v.x.enclosure_hull(w.x),
-                v.y.enclosure_hull(w.y),
-                v.z.enclosure_hull(w.z),
-            )
-        };
-        let mut out = *map;
-        out.linear.c0 = hull(map.linear.c0, Vec3::new(one, zero, zero));
-        out.linear.c1 = hull(map.linear.c1, Vec3::new(zero, one, zero));
-        out.linear.c2 = hull(map.linear.c2, Vec3::new(zero, zero, one));
-        out.translation = hull(map.translation, Vec3::new(zero, zero, zero));
-        Some(out)
     }
 }
 
@@ -3431,8 +3305,14 @@ where
         self.value.upper()
     }
 
-    fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
-        false
+    fn spins_by_frames() -> bool {
+        T::spins_by_frames()
+    }
+
+    /// As the value channel's: a coordinate exactly zero over the lane's
+    /// whole box is constant there, so its tangent is zero too.
+    fn exactly_zero(self) -> bool {
+        self.value.exactly_zero()
     }
 
     fn solve_atan2(y: Self, x: Self) -> Self {
@@ -3441,42 +3321,6 @@ where
             value: T::solve_atan2(y.value, x.value),
             deriv: angle.deriv,
         }
-    }
-
-    /// Every entry's tangent is exactly zero: a pose the seed's
-    /// parameter moves keeps its derivative.
-    fn carries_no_variation(map: &geom_core::Affine3<Self>) -> bool {
-        let q = map.linear;
-        let t = map.translation;
-        [q.c0, q.c1, q.c2, t].iter().all(|v| {
-            [v.x, v.y, v.z]
-                .iter()
-                .all(|e| e.deriv.quoted() == 0.0 && e.deriv.upper() == 0.0)
-        })
-    }
-
-    /// The value channel the identity's, every tangent `map`'s.
-    fn identity_varying_as(map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        use geom_core::linalg::Vec3;
-        let entry = |at: Self, one: bool| Self {
-            value: if one { T::one() } else { T::zero() },
-            deriv: at.deriv,
-        };
-        let column = |c: Vec3<Self>, i: usize| {
-            Vec3::new(entry(c.x, i == 0), entry(c.y, i == 1), entry(c.z, i == 2))
-        };
-        let q = map.linear;
-        let t = map.translation;
-        let mut out = *map;
-        out.linear.c0 = column(q.c0, 0);
-        out.linear.c1 = column(q.c1, 1);
-        out.linear.c2 = column(q.c2, 2);
-        out.translation = column(t, 3);
-        Some(out)
-    }
-
-    fn with_rest(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        None
     }
 }
 
@@ -3498,26 +3342,16 @@ where
         self.value.upper()
     }
 
-    fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
-        false
+    fn exactly_zero(self) -> bool {
+        self.value.exactly_zero()
+    }
+
+    fn spins_by_frames() -> bool {
+        T::spins_by_frames()
     }
 
     fn solve_atan2(y: Self, x: Self) -> Self {
         geom_core::Real::atan2(y, x)
-    }
-
-    /// A symbolic map records its expression, which the identity would
-    /// lose: it never settles.
-    fn carries_no_variation(_map: &geom_core::Affine3<Self>) -> bool {
-        false
-    }
-
-    fn identity_varying_as(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        None
-    }
-
-    fn with_rest(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        None
     }
 }
 
@@ -3555,11 +3389,34 @@ pub fn bound_pose<T: EvalScalar>(
     wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
 }
 
+/// **The space a node reading no space is the root of** (D10: a body's
+/// kind is its root): a construction, which reads no body, is a root of
+/// its own; a profile or a pose is in no space until a construction
+/// reads it.
+fn root_space<P, S: crate::Slot>(
+    id: RecipeNodeId,
+    node: &crate::node::Node<P, S>,
+) -> Option<crate::mate::Space> {
+    use crate::node::Node;
+    matches!(
+        node,
+        Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+    )
+    .then_some(crate::mate::Space::Loose { root: id })
+}
+
 /// **Every node whose value lives in a loose copy's space**, in
 /// schedule order: a value's own space where it built; for a node that
 /// did not, the space its recipe gives it (D10: kinds are decided from
-/// the recipe) — a placement with no mate is a loose copy of its own,
-/// one whose mates read the world is the world's, one whose mates read
+/// the recipe) — a placement with an empty bundle is a loose copy of
+/// its own, one with values and no mate (which the door admits only
+/// writing every freedom) or whose mates read the world is the world's,
+/// one whose mates read
 /// poses joins the space of what they read; any other node joins the
 /// first loose space among its inputs.
 fn spaces_of<T: Decide>(
@@ -3582,14 +3439,11 @@ fn spaces_of<T: Decide>(
                             .map_or(Space::World, |root| Space::Loose { root })
                     };
                 match crate::mate::solve::bundle_of(node) {
-                    // A world pin places its copy in the world.
-                    Some(bundle) if bundle.iter().any(|c| c.world_pin().is_some()) => {
-                        Some(Space::World)
-                    }
                     Some(bundle) => {
                         let mut mates = bundle.iter().filter_map(crate::mate::Constraint::mate);
                         Some(match mates.next() {
-                            None => Space::Loose { root: id },
+                            None if bundle.is_empty() => Space::Loose { root: id },
+                            None => Space::World,
                             Some(mate) => match &mate.to {
                                 Target::World(_) => Space::World,
                                 Target::Pose(var) => read_space(*var, &loose),
@@ -3600,7 +3454,8 @@ fn spaces_of<T: Decide>(
                         .upstream_of(id, node)
                         .iter()
                         .find_map(|at| loose.get(at).copied())
-                        .map(|root| Space::Loose { root }),
+                        .map(|root| Space::Loose { root })
+                        .or_else(|| root_space(id, node)),
                 }
             }
             None => None,
@@ -3932,6 +3787,19 @@ where
     // the rest as typed losses carrying their standing.
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
     let loose = spaces_of(doc, &order, &nodes);
+    let loose_copies = loose
+        .iter()
+        .filter(|&(node, root)| {
+            node == root
+                && matches!(
+                    doc.node(*node),
+                    Some(
+                        crate::node::Node::Place { .. } | crate::node::Node::InstantiatePart { .. }
+                    )
+                )
+        })
+        .map(|(&node, _)| node)
+        .collect();
 
     Evaluation {
         epoch: opts.epoch,
@@ -3943,6 +3811,7 @@ where
         recomputed,
         reused,
         loose,
+        loose_copies,
         part_evaluations: entry.evaluations,
         appearance: resolved_appearance,
         env,
@@ -4067,6 +3936,7 @@ where
         recomputed: 0,
         reused: 0,
         loose: BTreeMap::new(),
+        loose_copies: std::collections::BTreeSet::new(),
         part_evaluations: 0,
         appearance: resolved_appearance,
         env: doc.var_env::<T>(),
@@ -4146,14 +4016,9 @@ where
     // so the node's log is every decision made evaluating THIS node,
     // pre-key and op alike, in the order made, through the one
     // `k_stats` funnel. Before the key, only a Profile node decides,
-    // and only in its replay and f64 validation (`prepare_profile`) —
-    // its plane read decides nothing, because the frame it reads
-    // decided the placement on its own behalf and logged it there;
+    // and only in its replay and f64 validation (`prepare_profile`);
     // slot and program-expression evaluation reach the funnel through
-    // `check_unlogged`, which lands in no frame. A FRAME node decides
-    // after its op as well as in it: its nominal placement
-    // (`wire::mint_frame_placement`) is the last thing in its frame.
-    // The guard is `!Send`, so the
+    // `check_unlogged`, which lands in no frame. The guard is `!Send`, so the
     // frame closes on the worker that opened it (idiom-1 parallelism
     // runs whole nodes on one worker each); an op that evaluates
     // another document (an instantiated part) has that document's
@@ -4299,17 +4164,7 @@ where
                 Ok(r) => r,
                 Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
             };
-            // The frame the profile is drawn on, at f64 — READ off
-            // the frame node's own result, where its evaluation
-            // minted it from the same nominal slots
-            // (`wire::mint_frame_placement`). The frame is a DAG input
-            // of this node, so its value is in hand and a failed
-            // frame poisoned this node before the read.
-            let placement = match wire::profile_plane_f64(doc, results, id, program.frame) {
-                Ok(placement) => placement,
-                Err(kind) => return fail(bracket, kind),
-            };
-            let pre = match wire::prepare_profile(placement, &resolved, &program.ids, tol) {
+            let pre = match wire::prepare_profile(&resolved, &program.ids, tol) {
                 Ok(pre) => pre,
                 Err(kind) => return fail(bracket, kind),
             };
@@ -4428,13 +4283,9 @@ where
         // The profile's f64 precompute ran inside this frame, and the
         // reused value's log opens with the same decisions. A
         // `Verdict` is (predicate, sign), and the inputs the content
-        // key fixes — the resolved program, the placement the frame's
-        // own key fixes (`NodeValue::placement`), the tolerance —
-        // are exactly what the precompute decides from, so D9 makes
-        // the two sequences equal. It holds at EVERY scalar, and
-        // `tag::slot` is why: the frame's key fixes its slots at the
-        // nominal as well as at the lane, and the placement is a pure
-        // function of the nominal ones.
+        // key fixes — the resolved program and the tolerance — are
+        // exactly what the precompute decides from, so D9 makes the two
+        // sequences equal, at every scalar.
         // The reused value IS the record, so the fresh frame is
         // finished and dropped rather than spliced in, and the prefix
         // identity is asserted in every profile: one compare of a few
@@ -4456,29 +4307,10 @@ where
     // alike, definite or escalated — follow the pre-key ones in the
     // frame opened above, which closes once the op returns.
     let op = wire::run_op(id, &input, doc, results, &slot_values, op_env, tol);
-    // A FRAME node's placement, minted ONCE for the frame from the
-    // nominal slots already in hand and carried on its value — where
-    // every profile drawn on the frame reads it
-    // (`wire::profile_plane_f64`) instead of evaluating those nine
-    // expressions again. `None` for every node that is not a frame. It
-    // is a component of the VALUE, so it is minted only where there is
-    // a value to put it on: the op's own refusal at the lane scalar
-    // still answers first, and its decisions still precede these in
-    // the frame opened above, which closes below.
-    //
-    // It is minted for EVERY frame, including one no profile is drawn
-    // on, and that costs such a frame two direction decisions it did
-    // not make before. The alternative is a lookahead — mint only if
-    // some later node will ask — which makes a node's value depend on
-    // its consumers, and a node's value is the node's.
-    let placement = match &op {
-        Ok(_) => wire::mint_frame_placement(node, &nominal_values, tol),
-        Err(_) => Ok(None),
-    };
     let recorded = bracket.finish();
     let escalations = Arc::new(recorded.escalations);
-    match (op, placement) {
-        (Ok(out), Ok(placement)) => NodeStep {
+    match op {
+        Ok(out) => NodeStep {
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 outputs: out.outputs.into(),
@@ -4492,31 +4324,19 @@ where
                     // A measure and an assertion read geometry and
                     // answer a number, which lives in no space.
                     crate::node::Node::Measure { .. } | crate::node::Node::Assertion { .. } => None,
-                    _ => out
-                        .space
-                        .or(inputs_space)
-                        .or(Some(crate::mate::Space::World)),
+                    _ => out.space.or(inputs_space).or_else(|| root_space(id, node)),
                 },
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
-                placement,
                 content_key,
                 naming_key,
             }),
             reused: false,
         },
         // The failure carries what the op escalated on its way to it:
-        // the frame is the node's whether or not the op built. The
-        // mint's `Err` arm is the node's too, and it is deliberately
-        // narrow — a missing slot or a refused band, faults of the NODE
-        // that no environment could read around, the same shape the
-        // nominal SLOT evaluation above already fails on. A frame whose
-        // nominal AXES refuse is not one of them: that value lands, and
-        // the refusal is carried to the reader that wanted the nominal
-        // placement (`wire::FramePlacement::Unreadable`) rather than
-        // poisoning readers that only ever wanted the landed frame.
-        (Err(kind), _) | (Ok(_), Err(kind)) => NodeStep {
+        // the frame is the node's whether or not the op built.
+        Err(kind) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
                 kind,
@@ -4555,7 +4375,7 @@ where
 /// - a function of a closed enum — [`verb_content_tag`] over
 ///   `VerbKind::ALL`, [`verb_tag`] over `profile::Verb::ALL`,
 ///   [`arc_mode_tag`] over `ArcMode::ALL`, [`seg_content_tag`] over
-///   `SegTag::ALL`, [`extrude_side_tag`] over `ExtrudeSide::ALL`,
+///   `SegTag::ALL`,
 ///   `ContactClass::content_tag` over `ContactClass::ALL`, and
 ///   [`winding_tag`], [`side_tag`], [`target_tag`] over a local closed
 ///   list that an exhaustive match forces to name every variant (their
@@ -4627,10 +4447,16 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v14: a mate writes its class and its target's word, a
+            /// v17: a scalar writes the fraction of a turn its
+            /// definition is (`slot`'s `TURNS`), and a value whether
+            /// its number is written as the constant zero
+            /// (`value_form`). v16: a value writes whether it names a mate before the
+            /// mate's id, and a spin about the target's own axis is a
+            /// coordinate. (v15: an extrude no longer writes a side, and
+            /// a tube reads no frame. v14: a mate writes its class and its target's word, a
             /// world read its arms and roles; the solved pose and the
             /// parts a face frame resolves against are no longer keyed,
-            /// the fold being a function of the keyed reads. (v13: a
+            /// the fold being a function of the keyed reads. v13: a
             /// pose read writes the role it reads through, a node's
             /// read of an output through one included. v12: a
             /// blend, a shell, a face frame and a measure write
@@ -4645,7 +4471,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 14,
+            VERSION = 17,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4727,12 +4553,12 @@ mod tag {
             PART = 2,
             READ = 3,
         }
-        /// What a constraint states: a mate, a value, or the identity
-        /// world pin ([`crate::mate::ConstraintKind`]).
+        /// What a constraint states: a mate or a value
+        /// ([`crate::mate::ConstraintKind`]).
         constraint_kind {
             MATE = 1,
             VALUE = 2,
-            WORLD_PIN_IDENTITY = 3,
+            // 3 was the retired world pin's.
         }
         /// Which freedom a value sets ([`crate::mate::Coord`]).
         value_coord {
@@ -4740,6 +4566,9 @@ mod tag {
             SLIDE_Y = 2,
             SLIDE_Z = 3,
             SPIN = 4,
+            SPIN_X = 5,
+            SPIN_Y = 6,
+            SPIN_Z = 7,
         }
         /// What a mate's `to` reads: a pose variable of the target
         /// space, or the world read inside the mate.
@@ -4810,8 +4639,25 @@ mod tag {
         /// through — no reader of that nominal could have read it
         /// either, so a value keyed on "the nominal is unreadable"
         /// would be a value no reader can produce.
+        ///
+        /// **`TURNS`**, written after the nominal of every scalar (a
+        /// slot's, a pose definition's), then a [`presence`] word and,
+        /// when present, the reduced fraction of a turn the scalar's
+        /// definition is ([`crate::expr::VarEnv::turns`]). The rotations
+        /// read their sine and cosine off that fraction, so two
+        /// spellings of one angle's bits (`turn/4`, a typed `π/2 rad`)
+        /// evaluate apart and key apart.
         slot {
             NOMINAL = 1,
+            TURNS = 2,
+        }
+        /// Whether a value's number is written as the constant zero,
+        /// which is what decides the identity bundle
+        /// ([`crate::mate::solve::identity_bundle`]): a typed `0 mm`
+        /// keys apart from the constant `0`.
+        value_form {
+            ZERO = 1,
+            NUMBER = 2,
         }
         /// The words that structure a profile node's program payload,
         /// read where a loop or a stream may end. **Every LOOP list
@@ -4976,31 +4822,6 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
     verb_content_tag(kind).expect("a verb a Node builds declares a content tag")
 }
 
-/// **A placement's STEP STRUCTURE and its literal frames** — recipe
-/// payload outside the slots: the slot values are fed by position, so
-/// a chain's kinds and order must feed too, or `[rigid, literal]` and
-/// `[literal, rigid]` over the same numbers would share a key. Frames
-/// by bits, as an explicit rule's are.
-fn feed_placement_shape(h: &mut KeyHasher, placement: &crate::placement::Placement) {
-    h.write_u64(placement.steps.len() as u64);
-    for step in &placement.steps {
-        match step {
-            crate::placement::Step::Rigid { .. } => h.write_tag(0),
-            crate::placement::Step::Literal(frame) => {
-                h.write_tag(1);
-                for x in frame
-                    .columns
-                    .iter()
-                    .flatten()
-                    .chain(frame.translation.iter())
-                {
-                    h.write_f64_bits(*x);
-                }
-            }
-        }
-    }
-}
-
 /// The content key (spec D4): op kind, structural params, evaluated
 /// expression values AS BITS **and each of them again at the
 /// document's nominal f64** (the rule at [`tag::slot`]), upstream keys
@@ -5037,7 +4858,7 @@ fn content_key<'d, T>(
 where
     T: Decide + ContentBits,
 {
-    use crate::node::{Datum, Node, PatternKind};
+    use crate::node::{Node, PatternKind};
     let mut h = KeyHasher::new();
     // The format version first — the rule for bumping it is at
     // `tag::format::VERSION`. It is written before the node
@@ -5057,9 +4878,7 @@ where
     // a different vocabulary, not a gap. Do not move a node-kind tag out
     // of these lines without teaching that test where it went.
     let kind = match node {
-        Node::Datum(Datum::Plane { .. }) => 1,
-        Node::Datum(Datum::Axis { .. }) => 2,
-        Node::Datum(Datum::Point { .. }) => 3,
+        // 1, 2 and 3 are retired (`RETIRED_NODE_KIND_TAGS`).
         Node::Profile(_) => 4,
         // The numbers are not written here either, and they are the
         // ones that were: a migrated verb's tag is a function of the
@@ -5077,7 +4896,7 @@ where
         Node::Subtract { .. } => {
             document_verb_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Subtract))
         }
-        Node::Transform { .. } => 11,
+        // 11 is retired (`RETIRED_NODE_KIND_TAGS`).
         Node::Pattern { kind, .. } => match kind {
             PatternKind::Linear { .. } => 12,
             PatternKind::Circular { .. } => 13,
@@ -5089,7 +4908,8 @@ where
         // New node kinds take fresh words — keys are process-internal
         // (never persisted), so growth is free, but an EXISTING tag
         // must never be reused for a new meaning.
-        Node::Loft { .. } => 15,
+        // 15 is retired (`RETIRED_NODE_KIND_TAGS`).
+        Node::Loft { .. } => 41,
         Node::Sweep { .. } => 16,
         // The number is not written here: a migrated verb's tag is a
         // function of the KERNEL's name for it, so it comes out of
@@ -5111,12 +4931,7 @@ where
         // new meaning, and 24 is the chamfer's.
         Node::Measure { .. } => 25,
         Node::Assertion { .. } => 26,
-        // The sketch frame does NOT share the plane's tag 1 even though
-        // it is the same surface plus a
-        // spin: two data whose keys collide serve each other's
-        // geometry out of the memo, and a frame and a plane evaluate
-        // to different payloads.
-        Node::Datum(Datum::Frame { .. }) => 27,
+        // 27 is retired (`RETIRED_NODE_KIND_TAGS`).
         // Two tags, not one: a solid tube and a hollow tube of the same
         // radii are different artifacts, and sharing a tag would let
         // one's memo serve the other.
@@ -5131,12 +4946,7 @@ where
         // the argument is a family or spelled is payload, fed below.
         Node::Union { .. } => 31,
         Node::Intersect { .. } => 38,
-        // The derived sketch frame. It does NOT share the authored
-        // frame's 27 even though it evaluates to the same value kind:
-        // the two carry different payloads (a body edge, a face name
-        // and one spin slot against nine slots), and a shared tag
-        // would let a memo entry for one serve the other's geometry.
-        Node::Datum(Datum::FaceFrame { .. }) => 32,
+        // 32 is retired (`RETIRED_NODE_KIND_TAGS`).
         // The projection node. 33 is retired with the split-half
         // selection it tagged, and not reused.
         Node::Part { .. } => 34,
@@ -5352,7 +5162,7 @@ where
             // Its bundle: the fold is a function of what this feeds and
             // of the reads its upstream keys carry, so a constraint
             // edit, or a parameter a pose reads, moves the key.
-            feed_bundle(&mut h, constraints);
+            feed_bundle(&mut h, defs, constraints);
             h.write_u64(interface.crossings.len() as u64);
             for crossing in &interface.crossings {
                 let crate::node::InterfaceCrossing::Mate {
@@ -5372,7 +5182,7 @@ where
             constraints,
         } => {
             h.write_u64(shapes.len() as u64);
-            feed_bundle(&mut h, constraints);
+            feed_bundle(&mut h, defs, constraints);
         }
         Node::World => {}
         // The operands and the members are input edges.
@@ -5512,13 +5322,11 @@ where
         // tag for both kinds — the two share this payload exactly as
         // they share the slots it governs.
         Node::Tube {
-            frame: _,
             major_radius: _,
             window,
             minor_radius: _,
         }
         | Node::HollowTube {
-            frame: _,
             major_radius: _,
             window,
             minor_radius: _,
@@ -5529,54 +5337,42 @@ where
                 crate::node::TubeWindow::Arc { t0: _, t1: _ } => 1,
             });
         }
-        // The derived frame's FACE is hashed the way a blend's
-        // selection is: two frames on two faces of one body share a
-        // tag, an upstream key and (possibly) a spin, and differ in
-        // exactly this name. The body is carried by the upstream keys.
-        Node::Datum(Datum::FaceFrame { face, spin: _ }) => {
-            for name in selected(selections, *face) {
-                feed_stable_name(&mut h, name);
+        // A station's moves are slots, fed below; what each one moves
+        // along or about is not, so it is written here.
+        Node::Loft {
+            first: _,
+            then,
+            v_degree: _,
+        } => {
+            h.write_u64(then.len() as u64);
+            for section in then {
+                h.write_u64(section.station.len() as u64);
+                for m in &section.station {
+                    let (tag, axis) = match m {
+                        crate::node::StationMove::Slide { along, by: _ } => (0, along),
+                        crate::node::StationMove::Spin { about, by: _ } => (1, about),
+                    };
+                    h.write_tag(tag);
+                    h.write_tag(match axis {
+                        crate::Axis3::X => 0,
+                        crate::Axis3::Y => 1,
+                        crate::Axis3::Z => 2,
+                    });
+                }
             }
         }
-        // An extrude's SIDE is recipe payload outside its slots: two
-        // extrudes of one profile by one depth share a tag, an upstream
-        // key and every slot value, and differ in exactly which side of
-        // the sketch plane they build toward — so it feeds as a tag, or
-        // a memo hit after `SetExtrudeSide` would serve the other
-        // side's body.
-        Node::Extrude {
-            profile: _,
-            distance: _,
-            side,
-        } => h.write_tag(extrude_side_tag(*side)),
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.
-        Node::Datum(
-            Datum::Plane {
-                origin: _,
-                normal: _,
-            }
-            | Datum::Axis {
-                origin: _,
-                direction: _,
-            }
-            | Datum::Point { position: _ }
-            | Datum::Frame {
-                origin: _,
-                u: _,
-                v: _,
-            },
-        )
+        Node::Extrude {
+            profile: _,
+            distance: _,
+        }
         | Node::Revolve {
             profile: _,
             axis_through: _,
             axis_heading: _,
             angle: _,
-        }
-        | Node::Loft {
-            profiles: _,
-            v_degree: _,
         }
         | Node::Sweep {
             profile: _,
@@ -5590,13 +5386,6 @@ where
             of: _,
             select: PartSelect::Instance(_),
         } => {}
-        // The chain's shape (`feed_placement_shape` says why).
-        Node::Transform {
-            input: _,
-            placement,
-        } => {
-            feed_placement_shape(&mut h, placement);
-        }
     }
     let indexed: Vec<(usize, usize)> = node
         .body_reads()
@@ -5653,15 +5442,17 @@ where
         debug_assert_eq!(slot, nominal_slot, "the two slot lists are one order");
         h.write_u64(i as u64);
         match (val, nominal) {
-            (slots::SlotVal::Scalar(v), slots::SlotVal::Scalar(n)) => {
+            (slots::SlotVal::Scalar(v, turns), slots::SlotVal::Scalar(n, nominal_turns)) => {
+                debug_assert_eq!(turns, nominal_turns, "one definition, one form");
                 v.feed(&mut h);
                 h.write_tag(tag::slot::NOMINAL);
                 h.write_f64_bits(*n);
+                feed_turns(&mut h, *turns);
             }
             // A count feeds no nominal ([`tag::slot`]).
             (slots::SlotVal::Count(c), slots::SlotVal::Count(_)) => h.write_i64(*c),
-            (slots::SlotVal::Count(_), slots::SlotVal::Scalar(_))
-            | (slots::SlotVal::Scalar(_), slots::SlotVal::Count(_)) => unreachable!(
+            (slots::SlotVal::Count(_), slots::SlotVal::Scalar(..))
+            | (slots::SlotVal::Scalar(..), slots::SlotVal::Count(_)) => unreachable!(
                 "slot {slot:?} evaluated as a count at one environment and a scalar at the \
                  other, though `slots::eval_rows` decides the kind off `SlotId::is_structural` \
                  alone"
@@ -5708,10 +5499,11 @@ where
                 wire::pose::PoseWord::Tag(t) => h.write_tag(*t),
                 wire::pose::PoseWord::Count(n) => h.write_u64(*n),
                 wire::pose::PoseWord::Name(name) => feed_stable_name(&mut h, name),
-                wire::pose::PoseWord::Value(v, n) => {
+                wire::pose::PoseWord::Value(v, n, turns) => {
                     v.feed(&mut h);
                     h.write_tag(tag::slot::NOMINAL);
                     h.write_f64_bits(*n);
+                    feed_turns(&mut h, *turns);
                 }
             }
         }
@@ -5835,8 +5627,15 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
 /// retired with the node kinds that held them, and dead for good.
 #[cfg(test)]
 const RETIRED_NODE_KIND_TAGS: &[(u8, &str)] = &[
+    (1, "Datum plane"),
+    (2, "Datum axis"),
+    (3, "Datum point"),
+    (11, "Transform"),
     (14, "Declare"),
+    (15, "Loft over sections on datum frames"),
     (23, "Mate"),
+    (27, "Datum frame"),
+    (32, "Datum face frame"),
     (36, "Gauge"),
     (37, "PlaceInWorld"),
 ];
@@ -6149,7 +5948,24 @@ fn feed_doc_ref(h: &mut KeyHasher, doc_ref: &crate::ident::DocRef) {
 /// by its arms and roles. The poses it reads are reads, keyed by the
 /// node's pose words and its upstream keys, and a world read's scalars
 /// are slots, fed with every slot.
-fn feed_bundle(h: &mut KeyHasher, constraints: &[crate::mate::Constraint]) {
+/// A scalar's turn form, under [`tag::slot`]'s `TURNS`.
+fn feed_turns(h: &mut KeyHasher, turns: Option<crate::expr::Ratio>) {
+    h.write_tag(tag::slot::TURNS);
+    match turns {
+        Some(turns) => {
+            h.write_tag(tag::presence::PRESENT);
+            h.write_i64(turns.num());
+            h.write_u64(turns.den());
+        }
+        None => h.write_tag(tag::presence::ABSENT),
+    }
+}
+
+fn feed_bundle(
+    h: &mut KeyHasher,
+    defs: crate::param_source::Definitions<'_, '_>,
+    constraints: &[crate::mate::Constraint],
+) {
     h.write_u64(constraints.len() as u64);
     for c in constraints {
         h.write_u64(u64::from(c.id.0.ordinal()));
@@ -6157,20 +5973,30 @@ fn feed_bundle(h: &mut KeyHasher, constraints: &[crate::mate::Constraint]) {
         let mate = match &c.kind {
             crate::mate::ConstraintKind::Mate(mate) => mate,
             crate::mate::ConstraintKind::Value(value) => {
-                use crate::mate::{Coord, SlideAxis};
+                use crate::mate::{Coord, TargetAxis};
                 h.write_tag(tag::constraint_kind::VALUE);
-                h.write_u64(u64::from(value.mate.0.ordinal()));
-                h.write_u64(value.mate.0.digest());
+                match value.mate {
+                    Some(mate) => {
+                        h.write_tag(tag::presence::PRESENT);
+                        h.write_u64(u64::from(mate.0.ordinal()));
+                        h.write_u64(mate.0.digest());
+                    }
+                    None => h.write_tag(tag::presence::ABSENT),
+                }
                 h.write_tag(match value.coord {
-                    Coord::Slide(SlideAxis::X) => tag::value_coord::SLIDE_X,
-                    Coord::Slide(SlideAxis::Y) => tag::value_coord::SLIDE_Y,
-                    Coord::Slide(SlideAxis::Z) => tag::value_coord::SLIDE_Z,
+                    Coord::Slide(TargetAxis::X) => tag::value_coord::SLIDE_X,
+                    Coord::Slide(TargetAxis::Y) => tag::value_coord::SLIDE_Y,
+                    Coord::Slide(TargetAxis::Z) => tag::value_coord::SLIDE_Z,
                     Coord::Spin => tag::value_coord::SPIN,
+                    Coord::SpinAbout(TargetAxis::X) => tag::value_coord::SPIN_X,
+                    Coord::SpinAbout(TargetAxis::Y) => tag::value_coord::SPIN_Y,
+                    Coord::SpinAbout(TargetAxis::Z) => tag::value_coord::SPIN_Z,
                 });
-                continue;
-            }
-            crate::mate::ConstraintKind::WorldPin(crate::mate::WorldPin::Identity) => {
-                h.write_tag(tag::constraint_kind::WORLD_PIN_IDENTITY);
+                h.write_tag(if crate::mate::solve::written_as_zero(defs, value.by) {
+                    tag::value_form::ZERO
+                } else {
+                    tag::value_form::NUMBER
+                });
                 continue;
             }
         };
@@ -6312,19 +6138,6 @@ impl<'a> SegFeed<'a> {
 
     fn name(&mut self, name: &'a StableName) {
         self.0.push(Fed::Name(name));
-    }
-}
-
-/// The content-key tag of an extrude's side — the ONE place its key
-/// identity is chosen, checked injective over [`ExtrudeSide::ALL`] by
-/// `extrude_side_tags_are_injective`.
-///
-/// [`ExtrudeSide::ALL`]: crate::node::ExtrudeSide::ALL
-fn extrude_side_tag(side: crate::node::ExtrudeSide) -> u8 {
-    use crate::node::ExtrudeSide;
-    match side {
-        ExtrudeSide::Along => 1,
-        ExtrudeSide::Against => 2,
     }
 }
 
@@ -6682,9 +6495,9 @@ mod tag_vocabulary_tests {
     //! a swapped arm would otherwise stay green.
 
     use super::{
-        KeyHasher, RETIRED_NODE_KIND_TAGS, RETIRED_VERB_TAGS, arc_mode_tag, extrude_side_tag,
-        feed_lane_step, feed_step, seg_content_tag, side_tag, tag, target_tag, verb_content_tag,
-        verb_tag, winding_tag,
+        KeyHasher, RETIRED_NODE_KIND_TAGS, RETIRED_VERB_TAGS, arc_mode_tag, feed_lane_step,
+        feed_step, seg_content_tag, side_tag, tag, target_tag, verb_content_tag, verb_tag,
+        winding_tag,
     };
     use crate::names::SegTag;
 
@@ -7140,20 +6953,6 @@ mod tag_vocabulary_tests {
         }
     }
 
-    /// An extrude side's tag, injective and pinned over
-    /// [`crate::node::ExtrudeSide::ALL`].
-    #[test]
-    fn extrude_side_tags_are_injective() {
-        use crate::node::ExtrudeSide;
-        injective_and_pinned(
-            "extrude side",
-            &ExtrudeSide::ALL,
-            extrude_side_tag,
-            &[(ExtrudeSide::Along, 1), (ExtrudeSide::Against, 2)],
-            |a, b| a == b,
-        );
-    }
-
     /// A contact class's tag — `topo::ContactClass::content_tag`, the
     /// one spelling the mate, the crossing record and the declaration
     /// write — is injective and non-zero over `ContactClass::ALL`: a
@@ -7183,7 +6982,7 @@ mod bundle_key {
     //! served the other's placement.
 
     use super::{KeyHasher, feed_bundle};
-    use crate::mate::{Constraint, Coord, Mate, SlideAxis, Target, Value, WorldRead};
+    use crate::mate::{Constraint, Coord, Mate, Target, TargetAxis, Value, WorldRead};
     use crate::node::ConstraintId;
     use crate::pose::PoseRole;
 
@@ -7210,7 +7009,7 @@ mod bundle_key {
         Constraint::of_value(
             id(11),
             Value {
-                mate,
+                mate: Some(mate),
                 coord,
                 by: BY,
             },
@@ -7218,8 +7017,15 @@ mod bundle_key {
     }
 
     fn key(bundle: &[Constraint]) -> crate::eval::ContentKey {
+        key_over(&|_| None, bundle)
+    }
+
+    fn key_over(
+        defs: crate::param_source::Definitions<'_, '_>,
+        bundle: &[Constraint],
+    ) -> crate::eval::ContentKey {
         let mut h = KeyHasher::new();
-        feed_bundle(&mut h, bundle);
+        feed_bundle(&mut h, defs, bundle);
         h.finish()
     }
 
@@ -7244,15 +7050,30 @@ mod bundle_key {
         let keys = [
             key(&[mate(Target::Pose(TO))]),
             with(value(id(10), Coord::Spin)),
-            with(value(id(10), Coord::Slide(SlideAxis::X))),
-            with(value(id(10), Coord::Slide(SlideAxis::Y))),
-            with(value(id(12), Coord::Slide(SlideAxis::Y))),
+            with(value(id(10), Coord::Slide(TargetAxis::X))),
+            with(value(id(10), Coord::Slide(TargetAxis::Y))),
+            with(value(id(12), Coord::Slide(TargetAxis::Y))),
         ];
         for (i, a) in keys.iter().enumerate() {
             for b in &keys[i + 1..] {
                 assert_ne!(a, b, "each value keys distinctly");
             }
         }
+    }
+
+    /// A value's number written as the constant `0` keys apart from
+    /// one with the same bits that is not: only the first makes the
+    /// identity bundle.
+    #[test]
+    fn a_values_constant_zero_form_moves_the_key() {
+        let zero = crate::expr::Expr::zero(crate::expr::Dimension::Angle);
+        let defined = |var| (var == BY).then_some(&zero);
+        let bundle = [value(id(10), Coord::Spin)];
+        assert_ne!(
+            key_over(&defined, &bundle),
+            key(&bundle),
+            "the constant zero and a free number key apart"
+        );
     }
 }
 

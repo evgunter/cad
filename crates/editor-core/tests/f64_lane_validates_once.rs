@@ -1,9 +1,9 @@
-//! **At `f64` the op's value is the pre-pass's validated form, on the
-//! lane's plane — the same value a validation from scratch mints.** The
+//! **At `f64` the op's value is the pre-pass's validated form — the
+//! same value a validation from scratch mints.** The
 //! `f64` lane is the profile's first pass (`editor_core::ProfileLane`),
 //! so it runs no second one. For every Profile node of every corpus
 //! document, the node's `f64` value equals what the program replayed at
-//! `f64` and validated on the frame's landed value produces: the same
+//! `f64` and validated on the profile's own xy produces: the same
 //! loops and every stored scalar the same bits. The evaluator makes the
 //! validation decisions once (`kstats_bracket_rows` pins the log, and
 //! `m10_p_lift` holds the value against the second pass run at `f64`).
@@ -12,9 +12,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::documents;
-use editor_core::ExtrudeSide;
 
-use editor_core::{CancelToken, EvalOptions, Node, PoseValue, ValuePayload, evaluate};
+use editor_core::{CancelToken, EvalOptions, Node, ValuePayload, evaluate};
 use geom_core::Tol;
 use profile::test_support::{decided_facts, stored_scalars};
 use profile::{SketchPlane, ValidatedProfile};
@@ -42,24 +41,13 @@ fn the_f64_value_is_the_revalidated_form() {
             let ValuePayload::Profile(served) = &value.payload else {
                 panic!("{}: {id:?} carries a profile", d.name);
             };
-            // The plane the way the arm computes it, independently of
-            // the value under test: the frame's landed value.
-            let frame = d
-                .doc
-                .operation_of(program.frame)
-                .expect("the plane read is live");
-            let ValuePayload::Datum(PoseValue::Frame(f)) =
-                &ev.value(frame).expect("the frame evaluates").payload
-            else {
-                panic!("{}: {:?} is a frame", d.name, program.frame);
-            };
             let loops = program
                 .resolve(&env)
                 .expect("the corpus program resolves at f64")
                 .iter()
                 .map(|steps| profile::replay(steps, tol).expect("replays at f64"))
                 .collect();
-            let revalidated = profile::ConstructedProfile::new(SketchPlane::from_frame(*f), loops)
+            let revalidated = profile::ConstructedProfile::new(SketchPlane::xy(), loops)
                 .validate(tol)
                 .unwrap_or_else(|e| panic!("{}: {id:?} validates: {e:?}", d.name));
             assert_eq!(
@@ -170,7 +158,7 @@ fn a_margin_definite_at_f64_and_indeterminate_at_interval_escalates_at_interval(
 /// live in release).
 #[test]
 fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
-    use crate::fixture::{self, Recorder, len, len2, scl};
+    use crate::fixture::{Recorder, len, len2, scl};
     use editor_core::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
     use geom_core::Interval;
     let mut r = Recorder::new();
@@ -182,16 +170,13 @@ fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let tol = Tol::witness();
     let at = |doc| {

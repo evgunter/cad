@@ -275,6 +275,13 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "pm_census_ee_line_gap" => "whether two straight edges of one solid lie on one line",
         "pm_census_span_order" => "the order of two points along a straight edge",
         "pm_census_ee_overlap" => "whether two edges on one line overlap along a length",
+        "pm_census_span_precision" => {
+            "whether two edges on one line are short enough to read their ends uncharged at this \
+             tolerance"
+        }
+        crate::census::SPAN_ORDER_CHARGED
+        | crate::census::EE_OVERLAP_CHARGED
+        | crate::census::SPAN_ROUNDING => BooleanDecision::LineSpanPrecision.subject(),
         // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
@@ -285,7 +292,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => refusal_routes::CYLINDER_AXES_PARALLEL,
-        crate::query::DATUM_UNIT_NORM
+        crate::query::POSE_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
         | boxes::BOX_CYLINDER_AXIS
         | boxes::BOX_SPHERE_AXIS
@@ -3759,12 +3766,14 @@ pub enum BooleanError {
         /// Which construction is missing.
         gap: SlitLineGap,
     },
-    /// The face carrying an operand's slit or zero-area ring is glued
-    /// away by the other solid, so the slit's two coincident edges would
-    /// be one edge between its two walls, and the join's run along the
-    /// slit, which encloses no area, walls off the sliver between them
-    /// from neither side without separating a pending pair, or runs on
-    /// a curved face's ring lane. A construction gap, with no lever.
+    /// The face carrying an operand's slit or zero-area ring is glued to
+    /// a face of the other solid, and the join's run along the slit
+    /// encloses no area. Either the run walls off the sliver between the
+    /// slit's two edges from neither side without separating a pending
+    /// pair, or runs on a curved face's ring lane; or the op drops that
+    /// sliver and keeps one of the two flush faces, which carries the
+    /// slit on, through a cut in the dropped one that ends at the slit's
+    /// tip. A construction gap, with no lever.
     SlitFaceGlued {
         /// The operand holding the slit.
         operand: Operand,
@@ -5078,10 +5087,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::SlitFaceGlued { operand, face } => write!(
                 f,
-                "the other solid glues away face {face:?} of the {} solid, which carries a slit \
-                 or zero-area ring, so the slit's two coincident edges would become one edge \
-                 between its two walls, and the join cannot wall off the sliver between them \
-                 there. {}",
+                "a face of the other solid lies flush on face {face:?} of the {} solid, which \
+                 carries a slit or zero-area ring: its two coincident edges would become one \
+                 edge between its two walls, or stay in the one of the two flush faces the op \
+                 keeps, and the join does not build that there. {}",
                 operand_word(*operand),
                 geom_core::NOT_YET_ENDING
             ),

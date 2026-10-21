@@ -94,23 +94,16 @@ fn loft_doc_of(
         )
         .expect("the parameter declares")
         .doc;
-    let (doc, lower_frame) = fixture::insert(doc, fixture::xy_frame());
     let (doc, lower) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: lower_frame.into(),
             loops: vec![lower],
             ids: Vec::new(),
         }),
     );
-    let (doc, upper_frame) = fixture::insert(
-        doc,
-        fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
     let (doc, upper) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: upper_frame.into(),
             loops: vec![upper],
             ids: Vec::new(),
         }),
@@ -118,7 +111,14 @@ fn loft_doc_of(
     fixture::insert(
         doc,
         Node::Loft {
-            profiles: vec![lower.into(), upper.into()],
+            first: lower.into(),
+            then: vec![editor_core::LoftSection {
+                profile: upper.into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: fixture::len(1.0),
+                }],
+            }],
             v_degree: Formula::count(1),
         },
     )
@@ -279,42 +279,4 @@ fn a_box_over_a_section_width_lofts_the_family_it_spans() {
             );
         }
     }
-}
-
-/// **A loft on a face frame evaluates at `Dual64` and at `Sym<f64>`**
-/// (the `Interval` row is `docm1_face_frame_interval`'s): the section
-/// on the derived frame is its profile's
-/// value there, placed on the frame's landed value.
-#[test]
-fn a_loft_on_a_face_frame_evaluates_at_dual_and_sym() {
-    use geom_core::{Dual64, Sym, SymBudget};
-    let (doc, loft) = crate::docm1_face_frame::lofted_on_face_frame();
-    let opts = EvalOptions::default();
-    let dual = editor_core::evaluate::<Dual64>(
-        &doc,
-        None,
-        &editor_core::CancelToken::new(),
-        &opts,
-        Tol::witness(),
-    );
-    assert!(
-        dual.node_error(loft).is_none(),
-        "Dual: {:?}",
-        dual.node_error(loft)
-    );
-    let budget = SymBudget {
-        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
-        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-    };
-    let (sym_ok, _) = geom_core::sym::with_session(budget, || {
-        let ev = editor_core::evaluate::<Sym<f64>>(
-            &doc,
-            None,
-            &editor_core::CancelToken::new(),
-            &opts,
-            Tol::witness(),
-        );
-        ev.node_error(loft).map(|e| e.kind.to_string())
-    });
-    assert_eq!(sym_ok, None, "Sym");
 }

@@ -2,12 +2,11 @@
 id: guided-lift-refuses-a-nominal-degeneracy-it-never-reads
 kind: issue
 title: Under ProfileLift::Guided the profile is placed by frame_plane_lane and never reads the nominal, yet a nominal direction degeneracy still refuses it; a DERIVED frame in the same position builds
-status: parked
+status: open
 opened: 2026-09-12
 refs: [2435]
 priority: P0
 cost: H
-blocked_on: [transform-retires-into-a-placement]
 ---
 
 

@@ -9,7 +9,7 @@
 //! [`crate::marks`], which takes a built index as an argument, reads
 //! it through the public doors below only, and answers *what should
 //! be lit* for a different set of consumers (`gpu`, `blend`,
-//! `datums`, `app`, and [`crate::pane::viewport`] alongside the cursor paths,
+//! `app`, and [`crate::pane::viewport`] alongside the cursor paths,
 //! which are [`crate::pane::viewport`]'s alone).
 //!
 //! # What is under the cursor
@@ -957,8 +957,9 @@ pub struct PickIndex {
 }
 
 impl PickIndex {
-    /// Build the index for `generation` from the document's world
-    /// placements, one drawn part per copy (A10).
+    /// Build the index for `generation` from the document's drawn
+    /// placements — the world's and each loose copy's — one drawn part
+    /// per copy (A10).
     ///
     /// Every refusal is returned — a placement that failed or
     /// would not tessellate is a picture the viewport cannot draw
@@ -1010,7 +1011,7 @@ impl PickIndex {
         index
     }
 
-    /// The walk both doors share: every placement's copy through `parts`,
+    /// The walk both doors share: every world copy through `parts`,
     /// then the id windows over them.
     fn assemble(
         doc: &Doc<ProfileProgram>,
@@ -1019,7 +1020,19 @@ impl PickIndex {
         mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
-        for node in doc.placements() {
+        // The drawn copies: the placements the world's space holds, as
+        // the product gathers them, and those of each loose copy's space,
+        // which the display draws where its frame puts it. A placement
+        // joining a construction's space is read through the copy that
+        // places the construction.
+        let drawn = doc
+            .placements()
+            .into_iter()
+            .filter(|&node| match eval.space(node) {
+                pncad::document::Space::World => true,
+                pncad::document::Space::Loose { root } => eval.loose_copies.contains(&root),
+            });
+        for node in drawn {
             match build_parts(node) {
                 Ok(built) => parts.extend(built),
                 Err(error) => return Err(PickIndexError::Node { node, error }),

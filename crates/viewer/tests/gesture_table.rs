@@ -88,7 +88,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 use pncad::document::Formula;
 use viewer::session::BooleanSpec;
 
@@ -106,7 +105,7 @@ use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
     BoundsTarget, CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered,
-    PartSelectSpec, PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
+    PartSelectSpec, PatternRuleSpec, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -121,13 +120,12 @@ const OP_COUNT: usize = 54;
 /// actually open on, which the expression-driven fixture is not.
 fn fixture(tol: Tol) -> (DocSession, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("view1b-gesture-table", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.005),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -252,20 +250,27 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::NewDocument {
             name: "view1b-fresh".to_owned(),
         },
-        SessionOp::AddDatum {
-            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
-        },
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(node),
+        SessionOp::SketchOnFace {
+            face: FaceSelection {
+                name: face(node),
+                node,
+                body: 0,
+            },
             loops: vec![],
+            distance: len(0.01),
+            spin: common::ang(0.0),
         },
+        SessionOp::AddProfile { loops: vec![] },
         SessionOp::AddExtrude {
             profile: node,
             distance: len(0.01),
         },
         SessionOp::AddRevolve {
             profile: node,
-            axis_through: common::len2([0.0, 0.0]),
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: common::ang(1.0),
         },
@@ -274,7 +279,8 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddSplit {
             target: node.into(),
-            tool: node,
+            origin: len3([0.0; 3]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
         SessionOp::AddTransform {
             input: node.into(),
@@ -322,7 +328,6 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::EditProfile {
             node,
             base: pncad::document::ProfileProgram {
-                frame: node.into(),
                 loops: vec![],
                 ids: Vec::new(),
             },
@@ -334,11 +339,9 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             label: Some(pncad::document::Label::new("renamed").expect("a label")),
         },
         SessionOp::CreateLabelled {
-            creation: viewer::session::Creation::of(SessionOp::AddDatum {
-                datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
-            })
-            .expect("adding a datum creates a node"),
-            label: pncad::document::Label::new("Datum frame 1").expect("a label"),
+            creation: viewer::session::Creation::of(SessionOp::AddProfile { loops: vec![] })
+                .expect("adding a profile creates a node"),
+            label: pncad::document::Label::new("Profile 1").expect("a label"),
         },
         SessionOp::RenameVar {
             var,
@@ -419,7 +422,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::CancelFreeMove => (26, true),
         SessionOp::AddMate { .. } => (27, false),
         SessionOp::NewDocument { .. } => (28, false),
-        SessionOp::AddDatum { .. } => (29, false),
+        SessionOp::SketchOnFace { .. } => (29, false),
         SessionOp::AddProfile { .. } => (30, false),
         SessionOp::AddExtrude { .. } => (31, false),
         SessionOp::AddRevolve { .. } => (32, false),
@@ -683,7 +686,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     let bench = common::asm::bench("view7-two-gestures", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let post = bench.post_a;
-    // Its world pin off, post_a is a loose space of its own, which the
+    // Its world mate off, post_a is a loose space of its own, which the
     // probe moves; pinned at the identity, it is drawn where it stood.
     common::asm::unpin(&mut session, post);
 
@@ -929,7 +932,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
-        | SessionOp::AddDatum { .. }
+        | SessionOp::SketchOnFace { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
@@ -1398,7 +1401,7 @@ fn the_free_move_door_is_live_exactly_while_the_probe_is() {
     let bench = common::asm::bench("view-cancel-door-free-move", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let post = bench.post_a;
-    // Its world pin off, post_a is a loose space the probe moves.
+    // Its world mate off, post_a is a loose space the probe moves.
     common::asm::unpin(&mut session, post);
 
     let door = |session: &DocSession| {
@@ -1541,7 +1544,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
-        | SessionOp::AddDatum { .. }
+        | SessionOp::SketchOnFace { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
@@ -1619,7 +1622,7 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
     let instance = bench.post_a;
     for op in every_op(instance, &dir.join("saved.pncad")) {
         let mut session = common::asm::open_bench(&bench, tol);
-        // Its world pin off, post_a is a loose space the probe moves.
+        // Its world mate off, post_a is a loose space the probe moves.
         common::asm::unpin(&mut session, instance);
         assert!(
             session
@@ -1684,13 +1687,12 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
 /// through.
 fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, VarName) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("view-gesture-identity", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let (doc, first) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.005),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1699,7 +1701,6 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, VarName) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.003),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

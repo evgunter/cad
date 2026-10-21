@@ -793,11 +793,19 @@ fn no_unjoined_line<T: Decide + Bounds>(
 /// An in-band reading of whether two straight edges lie on one line
 /// ([`BooleanDecision::LineEdges`]), of the subtracted solid's or of the
 /// result's: a reading of the input, which moving its geometry reaches.
+/// Read past the rounding of edges too long for the tolerance
+/// ([`crate::census::is_span_precision`]), it is that precision limit
+/// instead ([`BooleanDecision::LineSpanPrecision`]), which no move apart
+/// reaches.
 pub(super) fn collinear_escalated(
     (_, diag): ([crate::entity::EdgeKey; 2], Indeterminate),
 ) -> BooleanError {
     BooleanError::Escalated {
-        decision: BooleanDecision::LineEdges,
+        decision: if crate::census::is_span_precision(diag.predicate) {
+            BooleanDecision::LineSpanPrecision
+        } else {
+            BooleanDecision::LineEdges
+        },
         diag,
     }
 }
@@ -5598,6 +5606,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::MixedDihedral { .. }
         | V::JoinUndecidedAtRest { .. }
         | V::VolumeSignUnresolved { .. }
+        | V::SeamRegionCoverUnresolved { .. }
         | V::RingContactEscalated { .. }
         | V::RingNestingUndecided { .. }
         | V::RingPairContactEscalated { .. }
@@ -5644,6 +5653,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::NoDihedralArm { .. }
         | V::LoopRoleInverted { .. }
         | V::CurvedSenseInverted { .. }
+        | V::SeamRegionOvercovered { .. }
         | V::NegativeVolume { .. }
         | V::SliverInsideOut { .. }
         | V::RingMeetsOuter { .. }

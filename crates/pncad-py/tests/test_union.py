@@ -24,6 +24,7 @@ from pncad import (
     DocEdit,
     EditError,
     Formula,
+    Frame,
     Node,
     PatternKind,
     evaluate,
@@ -52,8 +53,10 @@ AB_COMMON = 2.625
 A_MINUS_B = BOX_VOLUME - AB_COMMON
 
 
-def slab(doc, box):
-    """The axis-aligned box, in metres, as an extruded rectangle."""
+def slab(doc, box, on=None):
+    """The axis-aligned box, in metres, as an extruded rectangle: in its
+    own coordinates where it stands alone (its `z0` zero), placed
+    against `on` where it is combined with it."""
     (x0, x1), (y0, y1), (z0, z1) = box
     profile = doc.insert(
         Node.polygon(
@@ -63,10 +66,13 @@ def slab(doc, box):
                 (Formula.length_in(x1, m), Formula.length_in(y1, m)),
                 (Formula.length_in(x0, m), Formula.length_in(y1, m)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.length_in(z0, m)),
         )
     )
-    return doc.insert(Node.extrude(profile, Formula.length_in(z1 - z0, m)))
+    body = doc.insert(Node.extrude(profile, Formula.length_in(z1 - z0, m)))
+    if on is None:
+        assert z0 == 0.0, "a box standing alone sits on its own xy"
+        return body
+    return doc.place_against(on, body, Frame.translation((0 * m, 0 * m, z0 * m)))
 
 
 def measured(doc, node):
@@ -92,7 +98,8 @@ def assert_empty(case, doc, node):
 
 class TestTheUnion(unittest.TestCase):
     def members(self, doc):
-        return [slab(doc, box) for box in (A, B, C)]
+        a = slab(doc, A)
+        return [a, slab(doc, B, on=a), slab(doc, C, on=a)]
 
     def test_the_fold_is_the_chain_over_the_same_members(self):
         """One node against the chain it replaces: `union([a, b, c])`
@@ -213,7 +220,8 @@ class TestIntersectAndSubtract(unittest.TestCase):
     def test_the_intersect_keeps_the_common_material(self):
         """`intersect([a, b])` is the overlap; `[a, a]` is `a`."""
         doc = Doc()
-        a, b = slab(doc, A), slab(doc, B)
+        a = slab(doc, A)
+        b = slab(doc, B, on=a)
         common = doc.insert(Node.intersect([a, b]))
         twice = doc.insert(Node.intersect([a, a]))
         self.assertEqual(doc.node_kind(common), "intersect")
@@ -224,7 +232,8 @@ class TestIntersectAndSubtract(unittest.TestCase):
         """`subtract(a, b)` is `a` less the overlap — the operand order
         is the meaning — and `subtract(a, a)` is the typed empty body."""
         doc = Doc()
-        a, b = slab(doc, A), slab(doc, B)
+        a = slab(doc, A)
+        b = slab(doc, B, on=a)
         cut = doc.insert(Node.subtract(a, b))
         spelled = doc.insert(Node.subtract(from_=a, tool=b))
         itself = doc.insert(Node.subtract(a, a))
@@ -240,7 +249,8 @@ class TestSetMembers(unittest.TestCase):
 
     def build(self):
         doc = Doc()
-        a, b, c = (slab(doc, box) for box in (A, B, C))
+        a = slab(doc, A)
+        b, c = slab(doc, B, on=a), slab(doc, C, on=a)
         return doc, a, b, c, doc.insert(Node.union([a, b, c]))
 
     def test_the_membership_is_the_list_as_stated(self):
