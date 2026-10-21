@@ -264,9 +264,9 @@ impl fmt::Display for MassPropsError {
                 f,
                 "the kernel cannot yet measure the volume of a curved face with a hole, \
                  other than a cone wall, a cylinder wall, a sphere face bounded by \
-                 circles, or a torus wall bounded by circles about its axis and its own \
-                 meridians or cut by a plane. Recourse: move the cut so it crosses the \
-                 face's edge instead of closing inside the face"
+                 circles, or a torus wall bounded by its rims and meridians or cut by a \
+                 plane. Recourse: move the cut so it crosses the face's edge rather than \
+                 closing inside it"
             ),
             Self::Corrupt { what } => write!(
                 f,
