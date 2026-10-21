@@ -1288,20 +1288,23 @@ Flagged, NOT fixed here (dispositions):
 
 - **F25** (added by NURBS' census-onto-one-line unit, PR 5513)
   `topo/src/census.rs` `span_charge`, under `pm_census_span_precision`:
-  the headroom `((K − 1)·ε − noise) / (SHORT_CHAIN_ULPS·u)`, the room the
-  projections' charge (`geom_core::one_line`) leaves below `(K − 1)·ε`,
-  read back in metres of the two spans' summed length from the first
-  one's start. A length, so `Margin::of` would fit it dimensionally.
+  `((K − 1)·ε − noise) / rounding_charge(1)`, the room the projections'
+  charge (`geom_core::one_line`) leaves below `(K − 1)·ε`, read back in
+  metres of the two spans' summed length through the charge's own rate
+  (the room itself never passes `Kε`, so the band could not read it
+  Positive). A length, so `Margin::of` would fit it dimensionally.
   What keeps it off the logged doors is WHAT it decides: how precisely
   the census reads two collinear spans' ends, not anything about the
   body.
   - Definitely positive, the ends read uncharged (`pm_census_span_order`,
     `pm_census_ee_overlap`), sound inside the room.
-  - Anything else, in band included, reads them charged: each comparison
-    decided at its value less and plus the charge
-    (`pm_census_span_order_charged`, `pm_census_ee_overlap_charged`,
-    their straddle `pm_census_span_rounding`), sound at every headroom,
-    so the threshold may fall either way in its band.
+  - Anything else, in band included, reads them charged: ends that are
+    one point of the body (one point key) read equal without a
+    coordinate, and every other comparison is decided at its value less
+    and plus the charge (`pm_census_span_order_charged`,
+    `pm_census_ee_overlap_charged`, their straddle
+    `pm_census_span_rounding`), sound at every room, so the threshold
+    may fall either way in its band.
   - Logged, an in-band threshold would record an escalation beside a
     reading that went on to decide.
 

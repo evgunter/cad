@@ -8,11 +8,13 @@
 //! plus that rounding. Where the two bounds agree it decides; where they
 //! straddle the band it escalates, and that escalation is the precision
 //! limit at the edges' length, never a near-coincidence: its recourse is
-//! a coarser tolerance or shorter edges, never a move apart.
+//! shorter edges, never a move apart.
 //!
 //! The rows:
 //! - two 3 km bars stacked with a half-length overlap, turned about z,
 //!   whose union builds at every ε;
+//! - a cube on a 6 km bar, whose union's collinear edges share vertices
+//!   past the threshold, and builds at every ε;
 //! - two 3 km bars meeting end to end, the second's start a few `10⁻¹¹` m
 //!   back along the line: in band past the rounding at `ε = 10⁻¹²`, so
 //!   the union refuses on the precision and validation of the two bars
@@ -34,8 +36,8 @@ fn t() -> Tol {
 }
 
 /// The precision limit's recourse, as every door it reaches says it.
-const RECOURSE: &str = "set a coarser tolerance, or make the straight edges along that line \
-                        shorter";
+const RECOURSE: &str = "make the straight edges along that line shorter, splitting them where \
+                        they run long";
 
 /// The turn the bars stand at: about z, off every axis.
 fn turned() -> Pose {
@@ -69,6 +71,36 @@ fn two_long_bars_overlapping_by_half_their_length_build_their_union() {
     let body = &built.body().expect("a body").body;
     let volume = topo::mass_properties(body, tol).unwrap().volume;
     assert!((volume - 6000.0).abs() < 1e-6, "volume {volume}");
+    validate_geometric(body, tol).unwrap_or_else(|e| panic!("the union is invalid: {e:?}"));
+}
+
+/// **A cube on a 6 km bar builds its union.** The bar
+/// `[0, 6000] × [0, 1] × [0, 1]` and the cube `[2000, 2001] × [0, 1] × [1, 2]`
+/// on its top, turned 0.65 rad about z: the cube splits the bar's top
+/// edges, so the union holds collinear edges that share vertices, their
+/// summed length past the census threshold at `ε = 10⁻¹²`. The shared
+/// ends read as one point by their point keys, not by their rounded
+/// coordinates, so the union is one solid of volume `6001`.
+#[test]
+fn a_cube_on_a_six_kilometre_bar_builds_its_union() {
+    let tol = t();
+    let pose = turned();
+    let bar = posed_box(
+        "the bar",
+        [(0.0, 6000.0), (0.0, 1.0), (0.0, 1.0)],
+        &pose,
+        tol,
+    );
+    let cube = posed_box(
+        "the cube",
+        [(2000.0, 2001.0), (0.0, 1.0), (1.0, 2.0)],
+        &pose,
+        tol,
+    );
+    let built = union(&bar, &cube, tol).unwrap_or_else(|e| panic!("the union refused: {e}"));
+    let body = &built.body().expect("a body").body;
+    let volume = topo::mass_properties(body, tol).unwrap().volume;
+    assert!((volume - 6001.0).abs() < 1e-6, "volume {volume}");
     validate_geometric(body, tol).unwrap_or_else(|e| panic!("the union is invalid: {e:?}"));
 }
 

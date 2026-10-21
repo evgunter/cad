@@ -334,7 +334,7 @@ pub enum BooleanDecision {
     /// value less and plus that rounding. In band, the reading is the
     /// representation's precision at the edges' length, not a
     /// near-coincidence of the geometry: no move apart reaches it, and
-    /// the lever is a coarser tolerance or shorter edges.
+    /// the lever is shorter edges (`census::SPAN_PRECISION_RECOURSE`).
     LineSpanPrecision,
     /// Whether the material the result's edges along one line bound
     /// overlaps there, asked at the result gate of every op of each pair
@@ -2440,9 +2440,9 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::LineSpanPrecision => (
                 "whether two long straight edges on one line overlap, read past their ends' rounding",
                 Ending::Lever(
-                    "Recourse: set a coarser tolerance, or make the straight edges along that \
-                     line shorter: at their length this tolerance is finer than their ends' \
-                     rounding",
+                    "Recourse: make the straight edges along that line shorter, splitting them \
+                     where they run long: at their length, their ends' rounding passes this \
+                     tolerance's room",
                 ),
             ),
             BooleanDecision::LineWedges => (
