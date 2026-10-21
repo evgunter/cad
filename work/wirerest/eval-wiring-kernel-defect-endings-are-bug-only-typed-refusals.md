@@ -47,3 +47,7 @@ is the one the parent row retires.
 - **Class 2**: `unreachable!` or `debug_assert` per `[failure.taxonomy]` rows 4–5, answering row 0 first; the tests that pin the text move to `#[should_panic]`.
 
 Re-check each `likely` or `unsure` argument before acting on it; one that fails moves the site to class 1.
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).

@@ -1,6 +1,6 @@
 //! M9-D1 review probes (R2), emitter end-to-end: the narrowed
-//! UNRESOLVED refusal must stay unreachable — and the table total —
-//! on the shapes the elimination-era emitter never saw: the negative
+//! unresolved-meridian-vertex panic must stay unreachable — and the
+//! table total — on the shapes the elimination-era emitter never saw: the negative
 //! (non-reversed) wedge of an all-on-axis loop, a full revolve whose
 //! axis run spans two segments (a DELETED interior vertex), and a
 //! partial revolve mixing an on-axis outer run with a hole loop.

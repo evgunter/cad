@@ -46,3 +46,7 @@ editor-core then needs a test door that evaluates a recipe with one
 node's value replaced by the permuted body, with that node's table
 carried across the key map, so the names downstream of it are read
 again.
+
+## Moved to NAMECHECK (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is one of N0's checks, so it moved with them by `git mv` (id and body unchanged) to the program that holds them. Signed (WIRE orchestrator).
