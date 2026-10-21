@@ -2399,6 +2399,170 @@ mod pair_contact_tests {
         }
     }
 
+    /// **A pair apart only along the second segment's axis is no contact,
+    /// whichever is named first.** At ε `10⁻⁹`, `K` 10: `s2` runs from the
+    /// origin to `(−0.3731…, 0.03117…)`, and `s1` from just past `s2`'s
+    /// end on to `(−0.4665…, −0.0340…)`. On `s1`'s axis the projections
+    /// touch within the band and no carrier side separates the pair; on
+    /// `s2`'s axis the gap is apart. Read with `s1` first the pair needs
+    /// the second axis, so both orders are pinned.
+    #[test]
+    fn a_pair_apart_only_along_the_second_axis_is_no_contact_both_ways() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let s2 = line::<f64>(
+            (0.0, 0.0),
+            (-0.3731081377223676, 0.031178661125134788),
+            band,
+        );
+        let s1 = line::<f64>(
+            (-0.3731081484093557, 0.03117866152700223),
+            (-0.46657191024747935, -0.03400099107344501),
+            band,
+        );
+        for (name, a, b) in [("s1 first", &s1, &s2), ("s2 first", &s2, &s1)] {
+            match pair_contacts(a, b, band) {
+                Ok(PairOutcome::Contacts(c)) if c.is_empty() => {}
+                Ok(PairOutcome::Contacts(c)) => panic!("{name}: {} contacts", c.len()),
+                Ok(PairOutcome::Overlap) => panic!("{name}: an overlap"),
+                Err(e) => panic!("{name}: escalated on {:?}", e.predicate),
+            }
+        }
+    }
+
+    /// The grid point nearest `s1`'s line whose projection along the
+    /// Pythagorean direction `(a, b, c)` exceeds the origin's by exactly
+    /// `n` (grid units times `c`): an integer solution of `a·x + b·y = n`,
+    /// chosen of the family `(x + b·j, y − a·j)` to stand within `c/2`
+    /// grid steps of the line.
+    fn along_exactly(n: i128, (a, b, c): (i128, i128, i128)) -> [i128; 2] {
+        // a·s + b·t = 1 (extended Euclid; a and b are coprime).
+        let (mut r0, mut r1, mut s0, mut s1, mut t0, mut t1) = (a, b, 1i128, 0i128, 0i128, 1i128);
+        while r1 != 0 {
+            let q = r0.div_euclid(r1);
+            (r0, r1) = (r1, r0 - q * r1);
+            (s0, s1) = (s1, s0 - q * s1);
+            (t0, t1) = (t1, t0 - q * t1);
+        }
+        let (s, t) = (s0 * r0.signum(), t0 * r0.signum());
+        let (x, y) = (n * s, n * t);
+        // The cross x·b − y·a moves by c² per j; take it nearest zero.
+        let cross = x * b - y * a;
+        let j = -(cross as f64 / (c * c) as f64).round() as i128;
+        [x + b * j, y - a * j]
+    }
+
+    /// **The collinear arm's verdict holds of the real overlap, on exact
+    /// points.** `s1` runs `k` times a Pythagorean direction `(a, b)` (its
+    /// length `k·c` metres exactly, `k` from `10²` to `10⁴`) from a point
+    /// up to `2·10⁵` m out, every point on the `2⁻³⁴` m grid. `s2` starts
+    /// at a grid point whose projection along `s1` stands an exact
+    /// `r ∈ [−30ε, 30ε]` past one of `s1`'s ends ([`along_exactly`], within
+    /// the band's zero of `s1`'s line), and runs on away from `s1`, so the
+    /// overlap is `r`, exact in `i128`. At ε `10⁻⁹`, `K` 10,
+    /// [`collinear_overlap`] keeps its contract: an overlap only where
+    /// `r ≥ Kε`, disjoint only where `r ≤ −Kε`, a touch only where
+    /// `|r| ≤ ε`. A counterexample sweep: the charge acts only at those
+    /// edges, which is where these draws stand.
+    #[test]
+    fn the_collinear_arm_keeps_its_contract_on_the_real_overlap() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let (eps, k_eps) = (band.zero(), band.escalate());
+        let grid = 2f64.powi(-34);
+        let unit = 1i128 << 34;
+        let mut rng = test_utils::fuzz::start("seg-collinear-exact");
+        let dirs: [(i128, i128, i128); 5] = [
+            (3, 4, 5),
+            (5, 12, 13),
+            (8, 15, 17),
+            (7, 24, 25),
+            (20, 21, 29),
+        ];
+        let on_grid = |x: f64| (x / grid).round() as i128;
+        let sign = |rng: &mut test_utils::fuzz::Rng| if rng.range(0.0, 1.0) < 0.5 { -1 } else { 1 };
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let (mut a, mut b, c) = dirs[(rng.range(0.0, 5.0) as usize).min(4)];
+            if rng.range(0.0, 1.0) < 0.5 {
+                core::mem::swap(&mut a, &mut b);
+            }
+            a *= sign(&mut rng);
+            b *= sign(&mut rng);
+            let k = 10f64.powf(rng.range(2.0, 4.0)).round() as i128;
+            let p0 = [on_grid(rng.range(-2e5, 2e5)), on_grid(rng.range(-2e5, 2e5))];
+            let p1 = [p0[0] + k * a * unit, p0[1] + k * b * unit];
+            // s2 starts `n` past an end of s1 (outward positive) and runs
+            // away from s1: the overlap is −n in grid units over c.
+            let (from, away) = if rng.range(0.0, 1.0) < 0.5 {
+                (p0, -1)
+            } else {
+                (p1, 1)
+            };
+            let reach = 30.0 * eps / grid * c as f64;
+            let n = rng.range(-reach, reach) as i128;
+            let off = along_exactly(n * away, (a, b, c));
+            let q0 = [from[0] + off[0], from[1] + off[1]];
+            let k2 = 10f64.powf(rng.range(2.0, 4.0)).round() as i128 * away;
+            let q1 = [q0[0] + k2 * a * unit, q0[1] + k2 * b * unit];
+            let f = |q: [i128; 2]| (q[0] as f64 * grid, q[1] as f64 * grid);
+            let (s1, s2) = (
+                line::<f64>(f(p0), f(p1), band),
+                line::<f64>(f(q0), f(q1), band),
+            );
+            let along = |q: [i128; 2]| (q[0] - p0[0]) * a + (q[1] - p0[1]) * b;
+            let (t0, t1, end) = (along(q0), along(q1), along(p1));
+            let r = (t0.max(t1).min(end) - t0.min(t1).max(0)) as f64 * grid / c as f64;
+            let read = match collinear_overlap(&s1, &s2, band) {
+                Ok(PairOutcome::Overlap) => "overlap",
+                Ok(PairOutcome::Contacts(c)) if c.is_empty() => "disjoint",
+                Ok(PairOutcome::Contacts(_)) => "touch",
+                Err(_) => continue,
+            };
+            let kept = match read {
+                "overlap" => r >= k_eps,
+                "disjoint" => r <= -k_eps,
+                _ => r.abs() <= eps,
+            };
+            assert!(
+                kept,
+                "read {read} at a real overlap of {r:e} m (ε {eps:e}): s1 {:?}→{:?}, \
+                 s2 {:?}→{:?} — {}",
+                f(p0),
+                f(p1),
+                f(q0),
+                f(q1),
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+
+    /// **A collinear pair a hair inside the band's edge escalates.** A
+    /// case of [`the_collinear_arm_keeps_its_contract_on_the_real_overlap`]'s
+    /// draw, every point on the `2⁻³⁴` m grid, `s1` running `5795` times
+    /// `(20, −21)` (the 20-21-29 family) about `2·10⁵` m out: `s2` continues `s1` from
+    /// just past its end, and their real overlap is `−9.9796·10⁻⁹` m, a
+    /// hair inside `−Kε`. So [`collinear_overlap`] may read it neither
+    /// disjoint (`r ≤ −Kε`) nor a touch (`|r| ≤ ε`) nor an overlap: it
+    /// escalates, on the straddle of its charged bounds. With the charge
+    /// dropped it reads disjoint.
+    #[test]
+    fn a_collinear_pair_a_hair_inside_the_band_edge_escalates() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let s1 = line::<f64>(
+            (21578.073839960678, 177081.7702821999),
+            (137478.07383996068, 55386.7702821999),
+            band,
+        );
+        let s2 = line::<f64>(
+            (137478.07383996708, 55386.770282192214),
+            (211658.07383996708, -22502.229717807786),
+            band,
+        );
+        match collinear_overlap(&s1, &s2, band) {
+            Err(e) => assert_eq!(e.predicate, Some("collinear_overlap")),
+            Ok(PairOutcome::Overlap) => panic!("read an overlap"),
+            Ok(PairOutcome::Contacts(c)) => panic!("read {} contacts", c.len()),
+        }
+    }
+
     /// **A far, long pair reads apart only past its charge.** `a` runs
     /// `2·10⁶` m from `(123 456.7, −654 321.9)`, and `b` continues on its
     /// line, starting `step` past its end. The projections' rounding is

@@ -487,10 +487,12 @@ fn straight_within_eps(x: f64, y: f64) -> profile::Profile<f64> {
 
 /// **A short segment continuing a long one straight within ε is
 /// simple.** [`straight_within_eps`] at `(1.1, 0.5ε)`, `(1.2, 0.5ε)` and
-/// `(1.3, 0.9ε)`. Both of segment 1's ends lie within the band's zero of
-/// segment 0's carrier, so the pair is read collinear, a touch at their
-/// shared vertex, though segment 0's far end stands `len₀/len₁` times as
-/// far off segment 1's carrier, in band. At `f64` and `Interval` alike.
+/// `(1.3, 0.9ε)`, and the first re-seamed to start at `(1, 0)`, so the
+/// short segment is read first. Both of the short segment's ends lie
+/// within the band's zero of the long one's carrier, so the pair is read
+/// collinear along the long one, a touch at their shared vertex, though
+/// the long one's far end stands `len₀/len₁` times as far off the short
+/// one's carrier, in band. At `f64` and `Interval` alike.
 #[test]
 fn a_short_segment_continuing_a_long_one_straight_within_eps_is_simple() {
     let e = tol().get().eps;
@@ -498,6 +500,14 @@ fn a_short_segment_continuing_a_long_one_straight_within_eps_is_simple() {
         validate_both(&straight_within_eps(x, y))
             .unwrap_or_else(|err| panic!("({x}, {y}): {err:?}"));
     }
+    let short_first = profile(vec![chain(&[
+        (1.0, 0.0, 0.0),
+        (1.1, 0.5 * e, 0.0),
+        (1.1, 1.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (0.0, 0.0, 0.0),
+    ])]);
+    validate_both(&short_first).unwrap_or_else(|err| panic!("the short segment first: {err:?}"));
 }
 
 /// **A loop that comes back to a vertex along a straight continuation
