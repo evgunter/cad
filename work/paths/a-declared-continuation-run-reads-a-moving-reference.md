@@ -2,10 +2,12 @@
 id: a-declared-continuation-run-reads-a-moving-reference
 kind: issue
 title: A declared continuation run is checked against a ray the last accepted miss has moved, so it drifts; the 'data gate' that was said to catch it was a side effect of the line-pair defect
-status: open
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: M
+closed: 2026-10-21
+branch: nurbs/continuation-run
 ---
 
 
@@ -64,3 +66,13 @@ re-pinned, and CPAIR's held PR 3 lands after it.
   - Add an alternating-sides row that passes.
   - Add a row showing a turn starts a new run.
 - **Docs to change:** `path.rs` `emit_straight_leg_at` and `on_ray_extent`, and the two `ContinuationTargetOffRay` messages ("off the run's line").
+
+## Closed
+
+Both halves of "Done when" hold. PR 5536 implemented the ruled datum:
+`Incoming::lands_on_ray` reads every target against the run's line,
+and `bool11`'s row is re-pinned
+(`a_runs_misses_are_read_against_its_own_line_and_never_sum`). CPAIR's
+PR 3 (`nurbs/seg-one-line`, `seg::line_line` reading the one-line gap
+first) lands after it. No run-level certifier is needed, because a
+run's misses no longer add up.

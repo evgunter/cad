@@ -608,6 +608,8 @@ fn cast_aims<T: Decide>(
             .get_face(face)
             .ok_or(PointInSolidError::CorruptFace { face })?
             .shell;
+        // The ray is scratch: no output keeps its aim, and only the
+        // crossings it reads decide.
         let (b1, b2) = normal.orthonormal_basis();
         let (turn_sin, turn_cos) = aim_turn();
         let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);

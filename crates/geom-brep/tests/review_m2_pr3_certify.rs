@@ -792,7 +792,7 @@ fn survives_newell_far_offset_and_collinear_escalation() {
         corner(1.0, 2.0),
         corner(0.0, 2.0),
     ];
-    let Surface::Plane { normal, .. } = newell_plane(&pts, band()).unwrap() else {
+    let Surface::Plane { normal, .. } = newell_plane(&pts, pts[1] - pts[0], band()).unwrap() else {
         panic!("plane");
     };
     assert!(normal.cross(true_n).norm() < 1e-14);
@@ -804,7 +804,7 @@ fn survives_newell_far_offset_and_collinear_escalation() {
         Point3::new(3.0, 0.0, 0.0),
     ];
     assert!(matches!(
-        newell_plane(&line, band()).unwrap_err(),
+        newell_plane(&line, line[1] - line[0], band()).unwrap_err(),
         NewellError::Escalated { .. }
     ));
 }
@@ -832,7 +832,8 @@ fn fixed_n3_near_collinear_normal_documented_under_determination() {
         ]
     };
     let normal = |pts: &[Point3<f64>]| {
-        let Surface::Plane { normal, .. } = newell_plane(pts, band()).unwrap() else {
+        let Surface::Plane { normal, .. } = newell_plane(pts, pts[1] - pts[0], band()).unwrap()
+        else {
             panic!("plane");
         };
         normal

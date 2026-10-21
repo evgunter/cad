@@ -113,7 +113,7 @@ fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let outer = body.get_face(face).unwrap().outer;
     let pts = loop_probe_points(body, outer);
     let Surface::Plane { normal, .. } =
-        newell_plane(&pts, Band::linear(Tol::witness()).unwrap()).unwrap()
+        newell_plane(&pts, pts[1] - pts[0], Band::linear(Tol::witness()).unwrap()).unwrap()
     else {
         panic!("newell returns a plane");
     };
@@ -282,7 +282,7 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
         let ring = t.body.get_face(cap).unwrap().rings[0];
         let pts = loop_probe_points(&t.body, ring);
         let Surface::Plane { normal, .. } =
-            newell_plane(&pts, Band::linear(Tol::witness()).unwrap()).unwrap()
+            newell_plane(&pts, pts[1] - pts[0], Band::linear(Tol::witness()).unwrap()).unwrap()
         else {
             panic!("plane");
         };
