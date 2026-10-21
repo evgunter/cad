@@ -2,7 +2,7 @@
 id: emit-topo-raises-a-correct-kernel-may-reach-have-no-variant
 kind: issue
 title: Twenty-four Emission raises in emit_topo, emit_union and join_names that a correct kernel may reach have no row-1 or row-2 variant to take
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: M
