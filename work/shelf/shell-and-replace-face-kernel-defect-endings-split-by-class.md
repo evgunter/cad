@@ -1,7 +1,7 @@
 ---
 id: shell-and-replace-face-kernel-defect-endings-split-by-class
 kind: issue
-title: topo: eight shell and replace-face refusals end in KERNEL_DEFECT_ENDING; six are bug-only and the two pcurve arms may be a fit's limit
+title: topo: ten shell, replace-face and transform refusals end in KERNEL_DEFECT_ENDING; eight are bug-only and the two pcurve arms may be a fit's limit
 status: open
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
@@ -64,3 +64,9 @@ reaches.
 - **Class 3**: the last-resort recourse (`KERNEL_LIMIT_RECOURSE` / `KERNEL_LIMIT_LAST_RESORT`).
 
 Re-check each `likely` or `unsure` argument before acting on it; one that fails moves the site to class 1.
+
+## Second-pass sites
+
+(Census second pass, as of main 69ab780194: `## Census, second pass` in the parent row.)
+
+- `crates/topo/src/transform.rs` `TransformError::render`, `NullScaffold` (~203) and `Corrupt` (~227), through `recourse::defect_ending(at)` at a build. Door: `topo::transform`. **Class 2, likely**, each: tier 1 and tier 2 hold at every public door, so no body at rest carries a scaffold or a dangling key. Class 2's repair above applies.

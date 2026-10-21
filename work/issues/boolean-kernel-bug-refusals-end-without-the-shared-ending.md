@@ -52,3 +52,7 @@ report (`validate`'s `LaminaWedge`, `MeterError::NormalFloor`,
 
 End each in the shared constant; the Boolean arms that render keys or
 `Debug` payloads keep them (a kernel finding's report needs them).
+
+## Evidence: the repair is the shape D2 retires (ENCL, 2026-10-21)
+
+`work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` (`## Census, second pass`, main 69ab780194) classifies `JoinDesync`, `TornComponent`, `SeamOrientation` and `ZipCorrespondence` as class 2, likely. HONE's child row `split-and-join-kernel-defect-endings-are-bug-only-typed-refusals` carries them. A bug-only state panics, so appending the constant moves them from one wrong shape to another. `pcurves.rs` `LoopWraps` is classified there too: class 1, unsure. The parent row carries it.

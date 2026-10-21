@@ -1,7 +1,7 @@
 ---
 id: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
 kind: issue
-title: workspace: 56 sites append KERNEL_DEFECT_ENDING to a typed refusal, and about 40 more end the same way through a helper or in their own words; each is either reachable by input (and the ending's claim is false) or reachable only by a kernel bug (and D2 says it must panic)
+title: workspace: 56 sites append KERNEL_DEFECT_ENDING to a typed refusal, and 51 more end the same way through a helper or in their own words; each is either reachable by input (and the ending's claim is false) or reachable only by a kernel bug (and D2 says it must panic)
 status: open
 opened: 2026-10-19
 priority: P3
@@ -13,7 +13,7 @@ cost: M
 
 ## What
 
-`geom_core::predicate::KERNEL_DEFECT_ENDING` ("There is no way through: this is a kernel defect; report it") is the ending of "a refusal that only a kernel defect reaches". `rg -c KERNEL_DEFECT_ENDING crates` counts 113 mentions on main 74c567c570. The census below (main 5df6e6c854) finds 56 of them appending the ending to a typed refusal, plus a second-pass scope it lists unclassified: about 25 sites reaching the constant through a helper, and 18 typed arms that call themselves a kernel bug in their own words. The mention counts, by file, when the row was filed:
+`geom_core::predicate::KERNEL_DEFECT_ENDING` ("There is no way through: this is a kernel defect; report it") is the ending of "a refusal that only a kernel defect reaches". `rg -c KERNEL_DEFECT_ENDING crates` counts 113 mentions on main 74c567c570. The census below (main 5df6e6c854) finds 56 of them appending the ending to a typed refusal. The second pass (main 69ab780194) finds 51 more typed refusals that end by naming the kernel alone without appending it: 29 reach the constant through a helper (`recourse::defect_ending(Reading::Build)`, `Unsized::Defect`, `Culprit::Kernel`), and 22 say so in their own words. The mention counts, by file, when the row was filed:
 
 | Count | File |
 |---|---|
@@ -173,8 +173,129 @@ HELD); class 3 — 2; class 4 — 0. No site was left unclassified:
 
 ### Second pass: the channels the constant's name cannot match
 
-Not classified here; they are this row's remaining scope.
+The scope the first pass named. `## Census, second pass` below classifies it, and what it adds.
 
 - **The helper channel**, which reaches the constant through `geom_brep::recourse::defect_ending(Reading::Build)`, `Unsized::Defect.recourse(_, Reading::Build)` or `Culprit::Kernel`: `geom-brep/src/ssi.rs` `SsiError::ending` (~1298, ~1341, ~1368, ~1376, ~1469, ~1472), `TraceDecision::ending` (~2265, ~2273), the step cap (~2021); `ssi/exhaust.rs` (~456); `props/mod.rs` (~643); `pcurve_cache.rs` (~2419); `certify.rs` `ending` (~1350, ~1351, ~1354); `topo/src/merge_faces.rs` (~1108, ~1114); `topo/src/props.rs` (~3644); `topo/src/validate.rs` `PLANAR_CORNER` (~2682); `topo/src/chart_region.rs` (~435); `topo/src/boolean/refusal_routes.rs` (~1548, ~1570, ~1600, ~1601, ~1701). About 25 sites. At a build each ends exactly as an appended constant does. Added by PR 5464 (2026-10-20): `geom-brep/src/edge_nurbs.rs` `PlaneNurbsRefusal::ending`, `PcurveFit` (the plane × NURBS lane's chart-image interpolation through the schedule's foot points), which at a build now ends in `KERNEL_DEFECT_ENDING` through `recourse::defect_ending(at)`. Its doc gives two causes: a non-finite foot, which is bug-only (class 2), and a collocation system the interpolation cannot solve, which is the interpolation's limit (class 3, the last resort). The same PR's second fix pass made three more types' `Display` read a build through `recourse::defect_ending`, and each arm below now ends in `KERNEL_DEFECT_ENDING` there, not `KERNEL_OR_FILE_DEFECT_ENDING`. First, `topo/src/boolean/edge_join.rs` `JoinRefusal`, `Kernel` and `ChartClass(Image)`: the shell, merge-faces, offset and split doors, each joining a body it built; class 2, likely. Second, `topo/src/transform.rs` `TransformError`, `NullScaffold` and `Corrupt`: the transform door; class 2, likely, since tier 1 and tier 2 hold at every public door.
 - **The prose channel**: typed `Display` arms that call themselves a kernel bug in their own words, without the constant: `profile/src/path.rs` `UnderdeterminedLeg`, `OverdeterminedJunction`; `geom-brep/src/intersect.rs` `WrongLane`; `topo/src/splitting/mod.rs` `ConsecutiveOnSectors`; `splitting/finish.rs` `DegenerateSide`, the both-sides component arm, `Corrupt`; `boolean/mod.rs` `JoinDesync`, `TornComponent`, `SeamOrientation`, `ZipCorrespondence`; `chord_join.rs` `CutInvariant`, `Corrupt`; `transform.rs` `Corrupt`; `sweep/src/blend/mod.rs` `SurgeryInvariant`; `sweep/src/loft.rs` `SeamStructure`, `SectionStructure`; `editor-core/src/resolve/hit.rs` `UnnamedEntity`. The same pattern's other hits are panic messages (`debug_assert!`/`unreachable!` postconditions in `surgery.rs`, `revert.rs`, `euler.rs`, `extrude.rs`, `revolve/`, `loft.rs`, `blend/surgery.rs`, `combine.rs`, `instance.rs`), which are already what `[failure]` asks for.
 - **What neither pass can see**: a refusal whose text names no defect at all yet is reachable only by a bug, and a sentence assembled at run time from parts.
+
+## Census, second pass
+
+(ENCL implementer, 2026-10-21.) **As of main 69ab780194, and not
+guarded**, as the first pass is. One line per typed refusal that ends by
+naming the kernel alone without appending the constant: through a
+helper that picks `KERNEL_DEFECT_ENDING` at a build
+(`recourse::defect_ending(Reading::Build)`, `Unsized::Defect`, or
+`Culprit::Kernel` through `Reading::culprit`), or in its own words
+("(kernel bug)", "this is a kernel bug", "report the body"). A helper
+site counts only where it renders at a build; one read at rest ends in
+`KERNEL_OR_FILE_DEFECT_ENDING` and is out of scope (`validate.rs`
+`PLANAR_CORNER` and `geom-brep/src/props/mod.rs` `PropsCheck::Exact`,
+whose `Display` reads `Reading::AtRest`). Format and classes as the
+first pass, plus **5**: valid but not yet built (`[failure.taxonomy]`
+row 2, `NOT_YET_ENDING`). Grouped by owning program; each heading names
+the row that carries its non-held sites.
+
+**Counts.** 51 sites (29 helper, 22 prose): class 1 — 8; class 2 — 41
+(3 of them HELD); class 3 — 1; class 5 — 1. Confidence: 2 `sure`,
+38 `likely`, 11 `unsure`.
+
+### SSIMARCH — `crates/geom-brep/src/ssi.rs`, `ssi/exhaust.rs` (row `ssi-kernel-defect-endings-split-by-class`)
+
+These render only through the public `SsiError::render` / `ending`
+(a caller of `cylinder_sphere_ssi`, `plane_nurbs_ssi`,
+`trace_plane_nurbs_uncertified` or `idealized_trace_r3`); no shipped
+caller renders them (`topo/src/offset_derive.rs` prints the payload,
+`edge_nurbs.rs` re-types the arms it keeps).
+
+- `ssi.rs` `SsiError::ending`, `MarchTolMismatch` (~1298) — **2**, likely: `seam_tol` is private and its one caller passes the `MarchTol` that `MarchTol::from_band` minted from the run band.
+- `SsiError::ending`, `StepUnusable { SpeedUnusable }` (~1341) — **2**, likely: the chart mint refuses a degenerate chart before any march.
+- `SsiError::ending`, `Fit(TooFewPoints)` (~1368) — **2**, likely: refinement hands the fit its samples or refuses, and a non-finite sample refuses as `NonFinitePoint` first.
+- `SsiError::ending`, `Fit(InvalidTolerance | KnotAlgebra | RaggedRows | BudgetExhausted)` (~1376) — **2**, likely: the interpolation the march calls runs none of them.
+- `SsiError::ending`, `TubeProbeSilent { refused: 0 }` and `TubeDegenerate(PcurveTangentUnusable)` (~1469) — **2**, unsure: a fitted cubic's tangent that vanishes may be the fit's limit (3), not a bug.
+- `SsiError::ending`, `ChartRow` (~1472) — **2**, likely: a NURBS wall that validated re-wraps every boundary row.
+- `step_budget_recourse`, `StepBound::Cap(StepCap::Diagonal)` (~2045; reached by `StepBudget` and `RefinementExhausted`) — **2**, unsure: the diagonal ends an open branch in one step, but a closed branch held at that cap is not argued.
+- `TraceDecision::ending`, a poisoned margin on `StepProgress | ClosureTangent | BranchOpenEnd` (~2288) — **2**, unsure: operands are refused only when not finite, so finite operands at extreme magnitude may overflow a margin. If they can, this is 1 and takes the range lever.
+- `TraceDecision::ending`, `BoundarySection` (~2296) — **2**, unsure: the same overflow question.
+- `ssi/exhaust.rs` `FloorRefusal::ending`, `DomainUnreadable` (~456) — **1**, likely: `SsiDomain::check` tests each field for finiteness, but `Box3::around(center, half_extent)` can overflow. A transversal `cylinder_sphere_ssi` with `center.x = 1e308` and `half_extent = 1e308` passes `check`, and `SweepFloor::r3` then reads an infinite reach. The variant's doc ("every SSI door checks the caller's domain first") misses the sum. The lever is `DomainUnusable`'s.
+
+### SELECT — edge certification's ending table (row `edge-certification-exact-residuals-end-as-a-kernel-defect-at-the-attach-doors`)
+
+- `certify.rs` `CertCheck` ending, `Ending::Residual(Unsized::Defect)` for `EndpointStart | EndpointEnd | WitnessSurfaceResidual | WitnessMidpoint | TangentParallel | TangentGap | MappedSource | ChartResidual` (~1347; one site, eight checks) — every certification read at a build, including the Euler attach doors, whose `EulerOpError` `Display` reads `Reading::Build` (`topo/src/euler.rs` ~1808) — **1**, sure: `topo/tests/geometric_cube.rs` `wrong_cache_is_rejected_at_attachment` hands `Body::mev` a carrier 100ε off its endpoint and gets `ResidualExceeded { EndpointStart }`, which ends "this is a kernel defect". The same rows are class 2 at the kernel's own builds. The repair splits by door.
+- `certify.rs`, `ChartImage` → `Unsized::Defect` (~1348) — same doors — **1**, likely: a caller's `EdgeCurveSpec` carries its own description, so its chart image is the caller's at the attach doors; class 2 at a kernel build.
+- `certify.rs`, `PlaneNurbsReportedTransversality` → `Unsized::Defect` (~1351) — the plane × NURBS lane at a build — **2**, likely: a fold over samples that each decided transverse.
+- `edge_nurbs.rs` `PlaneNurbsRefusal::ending`, `PcurveFit` (~376) — the plane × NURBS lane at a build — **3**, likely, with a class-2 arm. The variant gives two causes: a collocation the interpolation cannot solve (its limit, 3) and a non-finite foot (2). The repair splits the variant.
+
+### PCTAIL — `crates/geom-brep/src/pcurve_cache.rs` (row `pcurve-winding-incidence-and-sector-refusals-end-as-a-kernel-defect`)
+
+- `PcurveCheck::routing`, `ChartWinding | ChartIncidence | Sector` → `Unsized::Defect` (~2439), rendered at a build by `PcurveCertifyError`'s `Display` (~2310). It covers `PlacementTurnsExceeded` and the escalations of all three checks. Doors: every pcurve mint at a build, including `EulerOpError::PcurveMint` over a caller's carrier at `mev`/`mef`. **1**, unsure: these checks read a carrier the caller may have supplied, and nothing excludes an in-band incidence or sector read for a carrier that edge certification passed.
+
+### TOPO — `crates/topo/src/merge_faces.rs` (row `merge-faces-undescribed-ending-is-a-typed-kernel-defect`)
+
+- `MergeDecision::ending`, `DeclaredPlanes(Parallel | Norm)` and `DeclaredOffset` (~1108) — `merge_coplanar_faces` — **2**, likely: the declared rung bridges in-band parallelism, so only an unreadable norm escalates — **HELD** (declared pairs).
+- `MergeDecision::ending`, `PairReach` (~1114) — `merge_coplanar_faces` — **2**, unsure: the merge reads a caller's body under a build reading. An extent that does not read over stored geometry is the file's at rest, so the reading may be mislabelled rather than the state bug-only.
+
+### FLUX — `crates/topo/src/props.rs` (row `shell-classification-volume-refusals-end-as-a-kernel-defect`)
+
+- `ShellClassifyError::recourse`, `Escalated | ZeroVolume | Straddles` → `Unsized::Defect` (~3718), rendered at a build by `Display` through `ending()` (~3727). Doors: the public `classify_shells`, `classify_shells_structural` and `classify_shells_of` over a caller's body, plus the shell op, the piece sort and `stands`. **1**, likely: those doors take any tier-1 body. That includes a flat shell built through the Euler doors, or a sliver void a subtract leaves, whose certified volume enclosure holds zero. The geometry is the user's, so the lever is to move it.
+
+### CHART — `crates/topo/src/chart_region.rs` (no row: HELD)
+
+- `ChartRegionError` `Display`, `Escalated` on a poisoned margin (~435) — the face–face contact record's overlap read — **2**, unsure (overflow on finite trims) — **HELD** (contact records).
+- `ChartRegionError` `Display`, `Corrupt` (~460, prose: "a kernel invariant … report this") — same — **2**, likely: tier 1 holds at every door — **HELD** (contact records).
+
+### HONE — the Boolean, split and join (row `split-and-join-kernel-defect-endings-are-bug-only-typed-refusals`)
+
+- `boolean/refusal_routes.rs` `BooleanDecision` ending, `Neighbours(PlaneRung::Norm)` (~1548) — the Boolean doors and `merge_coplanar_faces` — **2**, likely: a poisoned norm of a stored unit normal.
+- `refusal_routes.rs`, `PierceOnFace | SplitPointOnCircle` (~1570) — the Boolean doors — **2**, unsure: the pierce point is computed in f64, so an in-band residual at a scale near ε may be that computation's limit (3).
+- `refusal_routes.rs`, `ArcSpan` (~1600) — the Boolean doors — **2**, likely: the edge's certification decided the same margin at the same band.
+- `refusal_routes.rs`, `VolumeBackstop` (~1601) — the Boolean, and the public `AtRestPolicy::gate_volume_backstop` over a caller's result — **1**, likely: the escalated sibling of the first pass's `ResultVolumeImplausible` (CLEAVE, class 1 at the public door). Only the Boolean's own call is the class-2 postcondition.
+- `refusal_routes.rs`, `SelfCheck(_)` (~1701) — the Boolean doors — **2**, likely: a broken invariant, as the check's definite refusal says.
+- `boolean/edge_join.rs` `JoinRefusal::render`, `Kernel` (~780) and `ChartClass(Image)` (~765) — the shell, merge-faces, offset and split doors — **2**, likely, each: every caller joins a body it built.
+- `boolean/mod.rs` `BooleanError` `Display`, `JoinDesync` (~4814, "kernel bug or corrupt reduction"), `TornComponent` (~4867), `SeamOrientation` (~4923), `ZipCorrespondence` (~4926) — the Boolean doors — **2**, likely, each: the lockstep, components, seams and zip are the op's own.
+- `splitting/mod.rs` `SplitReduceError` `Display`, `ConsecutiveOnSectors` (~756) — the split doors — **2**, likely: the coplanar gate rules it out.
+- `splitting/finish.rs` `SplitFinishError` `Display`, `DegenerateSide` (~891), `TornComponent` (~896), `Corrupt` (~903) — the split doors — **2**, likely, each: the finish reads the pieces it cut, over a tier-1 body.
+- `chord_join.rs` `SplitJoinError` `Display`, `CutInvariant` (~659) and `Corrupt` (~662) — the split and Boolean doors — **2**, likely, each: as above.
+
+### SHELF — `crates/topo/src/transform.rs` (row `shell-and-replace-face-kernel-defect-endings-split-by-class`)
+
+- `TransformError::render`, `NullScaffold` (~203) and `Corrupt` (~227) — `topo::transform` — **2**, likely, each: tier 1 and tier 2 hold at every public door, so no body at rest carries a scaffold or a dangling key.
+
+### CARVEREST — `crates/sweep/src/loft.rs` (row `cap-plane-refusals-end-as-typed-kernel-defects`)
+
+- `LoftError` `Display`, `SeamStructure` (~295) — the loft verbs — **2**, likely: a wall that validated re-wraps.
+- `LoftError` `Display`, `SectionStructure` (~300) — the loft verbs — **2**, likely: `validate_loft` refuses counts and mismatched sections first (`SkinError::SectionShapeMismatch`), and a loopless section never leaves profile validation (`stacking_fold`'s doc).
+
+### BAND — `crates/sweep/src/blend/mod.rs` (row `blend-surgery-invariant-ends-in-a-tag`)
+
+- `BlendError` `Display`, `SurgeryInvariant` (~2089) — the fillet and chamfer verbs — **2**, likely: the surgery contradicts its own earlier steps.
+
+### PATHS — `crates/profile/src/path.rs` (row `constructed-tangent-joint-refusals-are-typed-kernel-defects`)
+
+- `PathError` `Display`, `UnderdeterminedLeg` (~2170) — `Profile` path elaboration — **2**, likely: the elaborator's backstop for bindings the typed surface guarantees. About ten raisers in `path/family.rs` and `path/arc_fillet.rs`, which also uses it as a generic backstop for a dispatch that `path.rs` owns.
+- `PathError` `Display`, `OverdeterminedJunction` (~2175) — same — **2**, likely: as above.
+
+### GERMTAIL — `crates/geom-brep/src/intersect.rs` (row `section-wrong-lane-ends-in-a-tag`)
+
+- `SectionError` `Display`, `WrongLane` (~712, "(a kernel bug)") — the public `geom_brep::plane_sphere_section(plane, sphere, band)` and its sibling section arms (`sphere_sphere_section`, `cylinder_cylinder_section`, …) — **1**, sure: any caller that hands an arm a pair of other kinds reaches it (`plane_sphere_section` ~1199). SSI's own `WrongLane` names the lever (`WRONG_LANE_RECOURSE`).
+
+### DOCTAIL — the document model (row `part-and-refactor-kernel-defect-endings-split-by-class`)
+
+- `editor-core/src/resolve/hit.rs` `UnnamedEntity` `Say` (~65) — pick resolution, and pncad-py's `unnamed` — **2**, likely: name emission is total, and REFS's emission refusals refuse first.
+- `editor-core/src/eval/parts.rs` `PartFault` `Display`, `RootFailureUnrecorded` (~410) — evaluation of an instantiate node — **2**, unsure: the product and the evaluation should be one evaluation's, but the first pass found the caller's `PartResolver` reaching `ReferenceCycle`, and a resolver whose product disagrees with its evaluation is not excluded.
+
+### TESS — `crates/mesh/src/types.rs` (row `tessellation-ring-and-step-refusals-name-the-kernel`)
+
+- `TessellateError` `Display`, `RingOnCurvedFace` (~548; raised in `curved.rs` and `trimmed.rs`) — `mesh::tessellate` over any body at rest — **5**, likely: the variant says no construction produces a curved face with a ring. But `topo::props`' `MassPropsError::RingOnCurvedFace` treats the same state as reachable and not yet measured ("move the cut so it crosses the face's edge"), and the Euler doors and a file reach it.
+- `TessellateError` `Display`, `StepNotPositive` (~574) — `mesh::tessellate` — **2**, likely: `ceil_count`'s every caller derives its step (`sqrt` of a non-negative ratio, or `cap_angular`).
+
+### ENCL — this row's own ground (carried by this row)
+
+- `geom-brep/src/recourse.rs` `Unsized::recourse`, `Fit | Bound` on an unreadable arm (~163) — every `Unsized::Fit`/`Bound` decision read at a build — **2**, unsure: an unreadable margin at a build ends in the defect ending on an approximating decision too. Whether finite input at extreme magnitude can poison such a margin is the same overflow question as SSIMARCH's.
+- `topo/src/pcurves.rs` `PcurveMintError` `Display`, `LoopWraps` (~704, "report the body that reached it") — every pcurve mint — **1**, unsure: the variant's doc records that its "no constructor" claim was measured false once, and a seamless loop around a cylinder face built through the public Euler doors is not ruled out.
+
+### What the second pass swept, and could not see
+
+- **Helper channel**: `defect_ending(`, `Culprit::Kernel`, `Unsized::Defect`, `.culprit()` over `crates/` (non-test), then each match's reading traced to where it renders. A `Reading::Build` passed through a variable is followed only one call deep. An `Unsized::Fit`/`Bound` decision that never reads an unreadable arm is counted once, as the family above.
+- **Prose channel**: `kernel (bug|defect)` case-insensitive over non-test, non-comment lines, without `assert`/`panic!`/`unreachable!`/`expect(`; the same phrase wrapped across a line break; `(bug)`, `a bug in`, `is a bug`, `internal error`, `cannot happen`; `report (it|this|the)`; `invariant` and `contradicted its own` in `write!`/`format!`. Hedged notes ("may indicate a kernel bug worth reporting") ride a lever or the last resort and are out of scope. So are panic messages (`surgery.rs`, `revert.rs`, `euler.rs`, `instance.rs`, `combine.rs`, `blend/surgery.rs`, `revolve/`, `extrude.rs`, `loft.rs` postconditions, `mesh/src/walk.rs`, `nurbs_cert.rs`) and in-file tests.
+- **Not matched, and not classified here**: refusals that name no culprit at all. These include the "(corrupt body)" family (`splitting/section.rs` and `finish.rs` `Corrupt`, `chord_join.rs` `Corrupt`; `corrupt(…)` constructors in `props.rs`, `coherence.rs`, `props/quad_lane.rs`, `boolean/ops.rs` cut-in, `torus_region.rs`, `sphere_region.rs`, `solid_contain.rs`; `step-export` `Corrupt`) and bare invariant arms (`BooleanError::ClassificationInvariant`, `SplitJoinError::SectionInvariant`). They are `[failure.taxonomy]` row-4 candidates whose text claims nothing false, and `work/hone/kernel-bug-refusals-end-without-the-shared-ending.md` and CLEAVE's `classification-invariant-family-types-bug-only-states-against-d9-row-4` already list most of them. Also not matched: a sentence assembled at run time from parts.

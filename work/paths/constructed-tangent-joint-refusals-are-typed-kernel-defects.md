@@ -1,7 +1,7 @@
 ---
 id: constructed-tangent-joint-refusals-are-typed-kernel-defects
 kind: issue
-title: profile: TangentJointOutOfRange and TangentJointOnFullTurn end in KERNEL_DEFECT_ENDING; only a test-support fixture reaches them
+title: profile: four path refusals name the kernel alone; only a test-support fixture or an elaborator backstop reaches them
 status: open
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
@@ -33,3 +33,9 @@ Python tag rows in `pncad-py/src/tags.rs` (`tangent_joint_out_of_range`,
 - **Class 2**: `unreachable!` or `debug_assert` per `[failure.taxonomy]` rows 4–5, answering row 0 first; the tests that pin the text move to `#[should_panic]`.
 
 Re-check each `likely` or `unsure` argument before acting on it; one that fails moves the site to class 1.
+
+## Second-pass sites
+
+(Census second pass, as of main 69ab780194: `## Census, second pass` in the parent row.)
+
+- `crates/profile/src/path.rs` `PathError` `Display`, `UnderdeterminedLeg` (~2170) and `OverdeterminedJunction` (~2175), "(a kernel bug)". Door: `Profile` path elaboration. **Class 2, likely**, each: the elaborator's backstop for bindings the typed surface guarantees. About ten raisers sit in `path/family.rs` and `path/arc_fillet.rs`. `arc_fillet.rs` also uses `UnderdeterminedLeg` as a generic backstop for a dispatch that `path.rs` owns, which row 0 may answer by retyping.

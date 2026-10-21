@@ -1,7 +1,7 @@
 ---
 id: split-and-join-kernel-defect-endings-are-bug-only-typed-refusals
 kind: issue
-title: topo: nine split, join and piece-sort refusals end in KERNEL_DEFECT_ENDING for states only a kernel bug reaches
+title: topo: twenty-six Boolean, split, join and piece-sort refusals name the kernel alone; one, the volume backstop's escalation, is reachable through a public door
 status: open
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
@@ -50,3 +50,24 @@ constant, is the shape this row retires; see the note there.
 - **Class 2**: `unreachable!` or `debug_assert` per `[failure.taxonomy]` rows 4–5, answering row 0 first; the tests that pin the text move to `#[should_panic]`.
 
 Re-check each `likely` or `unsure` argument before acting on it; one that fails moves the site to class 1.
+
+## Second-pass sites
+
+(Census second pass, as of main 69ab780194: `## Census, second pass` in the parent row.)
+
+Doors: the Boolean doors, and the split doors through the finish and the join.
+
+- `crates/topo/src/boolean/refusal_routes.rs` `BooleanDecision` ending, `Neighbours(PlaneRung::Norm)` (~1548). **Class 2, likely**: a poisoned norm of a stored unit normal.
+- `refusal_routes.rs`, `PierceOnFace | SplitPointOnCircle` (~1570). **Class 2, unsure**: the pierce point is computed in f64, so an in-band residual at a scale near ε may be that computation's limit (class 3).
+- `refusal_routes.rs`, `ArcSpan` (~1600). **Class 2, likely**: the edge's certification decided the same margin at the same band.
+- `refusal_routes.rs`, `VolumeBackstop` (~1601). **Class 1, likely**: it is the escalated sibling of `BooleanError::ResultVolumeImplausible`, which the public `AtRestPolicy::gate_volume_backstop` reaches with a caller's result (the first pass's CLEAVE line). Only the Boolean's own call is a postcondition.
+- `refusal_routes.rs`, `SelfCheck(_)` (~1701). **Class 2, likely**: a broken invariant, as the check's definite refusal says.
+- `crates/topo/src/boolean/edge_join.rs` `JoinRefusal::render`, `Kernel` (~780) and `ChartClass(Image)` (~765). **Class 2, likely**, each: every caller joins a body it built.
+- `crates/topo/src/boolean/mod.rs` `BooleanError` `Display`, `JoinDesync` (~4814, "kernel bug or corrupt reduction"), `TornComponent` (~4867), `SeamOrientation` (~4923), `ZipCorrespondence` (~4926). **Class 2, likely**, each: the lockstep, the components, the seams and the zip are the op's own.
+- `crates/topo/src/splitting/mod.rs` `SplitReduceError` `Display`, `ConsecutiveOnSectors` (~756). **Class 2, likely**: the coplanar gate rules it out.
+- `crates/topo/src/splitting/finish.rs` `SplitFinishError` `Display`, `DegenerateSide` (~891), `TornComponent` (~896) and `Corrupt` (~903). **Class 2, likely**, each: the finish reads pieces it cut from a tier-1 body.
+- `crates/topo/src/chord_join.rs` `SplitJoinError` `Display`, `CutInvariant` (~659) and `Corrupt` (~662). **Class 2, likely**, each: as above.
+
+The prose arms are also listed by `kernel-bug-refusals-end-without-the-shared-ending` on this slate and by `work/issues/boolean-kernel-bug-refusals-end-without-the-shared-ending.md`. Those rows' repair, appending the constant, is the shape this row retires.
+
+**Class 1** (`VolumeBackstop`): the volume decision's lever at the public door, shared with CLEAVE's repair of `ResultVolumeImplausible` (`classification-invariant-family-types-bug-only-states-against-d9-row-4`). The Boolean's own call panics.
