@@ -20,7 +20,8 @@ use common::meeting::{MEET, Pose, at, posed_box, posed_boxes, poses};
 use common::split_plane;
 use geom_core::{Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, ContactRecords, LineWedgeFault, Operand,
+    AtRestBody, Body, BooleanError, BooleanResult, Cell, CensusContact, ContactRecords,
+    LineWedgeFault, Operand, ValidationError,
     RevertError, SplitPart, VoidContainment, VoidEvidence, VoidInsertError, insert_void, split,
     subtract, validate_geometric, validate_pseudomanifold,
 };
@@ -439,4 +440,124 @@ fn a_minted_edges_in_band_gap_is_the_operands_own() {
         (margin.abs() - g).abs() < 1e-3 * g,
         "the margin {margin:e} is the bricks' gap {g:e}"
     );
+}
+
+/// Tier 3 passes `body`, and tier 3′ refuses it over `records` once,
+/// with `CoincidentWedgesOverlap` naming two edges on the line through
+/// `a` and `b` at `pose`.
+fn wedges_refuse(
+    what: &str,
+    body: &Body<f64>,
+    records: &ContactRecords,
+    pose: &Pose,
+    [a, b]: [[f64; 3]; 2],
+) {
+    assert_eq!(validate_geometric(body, t()), Ok(()), "{what}: tier 3");
+    let errors = validate_pseudomanifold(body, records, t())
+        .expect_err(&format!("{what}: tier 3′ refuses the line's wedges"));
+    let [
+        ValidationError::CoincidentWedgesOverlap {
+            edges: [ea, eb],
+            witness,
+        },
+    ] = &errors[..]
+    else {
+        panic!("{what}: only the line's wedges refuse, got {errors:?}");
+    };
+    assert_ne!(ea, eb, "{what}: two edges");
+    let (p, q) = (pose.at(a), pose.at(b));
+    let axis = (q - p).normalize();
+    for &edge in [ea, eb] {
+        let he = body.get_edge(edge).unwrap().he_plus;
+        for v in [
+            body.get_half_edge(he).unwrap().start,
+            body.half_edge_end(he).unwrap(),
+        ] {
+            let x = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            let off = (x - p).cross(axis).norm();
+            assert!(
+                off < 1e-9,
+                "{what}: {edge:?} ends at {:?}, off the line by {off:e} (read at {witness})",
+                at(x)
+            );
+        }
+    }
+}
+
+/// **The slit body reverted without re-pairing refuses at tier 3′.**
+/// The void door's revert and graft with its refusal taken off put the
+/// slit body in a box as a cavity, each face's side reversed: the keel's
+/// two edges each bound `2π` less its own 73.3° wedge, so the two
+/// 286.7° wedges overlap. Tier 3 reads each wedge alone and passes it;
+/// tier 3′ reads the two on their line and refuses the pair.
+#[test]
+fn the_slit_body_reverted_unpaired_refuses_its_wedges_at_tier_3_prime() {
+    for pose in poses() {
+        let what = pose.label;
+        let mut body =
+            posed_box(what, [(-1.0, 5.0), (-2.0, 4.0), (-1.0, 3.0)], &pose, t()).into_body();
+        let (solid, _) = body.solids().next().unwrap();
+        topo::test_support::graft_reverted_unrefused(&mut body, solid, &slit_body(&pose));
+        wedges_refuse(what, &body, &ContactRecords::default(), &pose, [MEET, OPEN]);
+    }
+}
+
+/// **The pinch of unequal bricks grafted as a cavity refuses at tier
+/// 3′, with its records.** `insert_voids` refuses two edges on one line
+/// only where they share both point keys, and the touch of bricks of
+/// heights 1.5 and 1.25 is a partial overlap, so the door grafts it as
+/// two 270° edges whose wedges overlap by 180°. Recorded (the overlap
+/// and the lower brick's top vertex on the taller brick's edge), the
+/// touch still refuses, for its wedges.
+#[test]
+fn the_unequal_pinch_grafted_as_a_cavity_refuses_its_wedges_at_tier_3_prime() {
+    for pose in poses() {
+        let what = pose.label;
+        let q1 = posed_box(what, [(0.0, 1.0), (0.0, 1.0), (0.5, 1.5)], &pose, t());
+        let q3 = posed_box(what, [(-1.0, 0.0), (-1.0, 0.0), (0.5, 1.25)], &pose, t());
+        let BooleanResult::Body(pinch) = topo::union(&q1, &q3, t()).unwrap() else {
+            panic!("{what}: the pinch is empty");
+        };
+        let cavity = pinch.body.into_body();
+        let mut dst =
+            posed_box(what, [(-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0)], &pose, t()).into_body();
+        let (solid, _) = dst.solids().next().unwrap();
+        let evidence = VoidEvidence {
+            shells: cavity
+                .shells()
+                .map(|(s, _)| (s, VoidContainment::Probed(topo::SolidContainment::In)))
+                .collect(),
+        };
+        let solids = vec![solid; cavity.solids().count()];
+        topo::insert_voids(&mut dst, &solids, cavity, &evidence)
+            .unwrap_or_else(|e| panic!("{what}: the graft: {e:?}"));
+        let errors = validate_pseudomanifold(&dst, &ContactRecords::default(), t())
+            .expect_err(&format!("{what}: the touch is unrecorded"));
+        let records = topo::test_support::records(
+            &dst,
+            errors.iter().map(|e| match e {
+                ValidationError::UnrecordedContact {
+                    contact: CensusContact::VertexOnEdge { vertex, edge },
+                    ..
+                } => (Cell::Vertex(*vertex), Cell::Edge(*edge)),
+                ValidationError::UnrecordedContact {
+                    contact: CensusContact::EdgeEdgeOverlap { a, b },
+                    ..
+                } => (Cell::Edge(*a), Cell::Edge(*b)),
+                _ => panic!("{what}: only the touch's contacts stand unrecorded, got {e:?}"),
+            }),
+        );
+        assert_eq!(
+            records.len(),
+            2,
+            "{what}: the overlap and its upper bound"
+        );
+        wedges_refuse(
+            what,
+            &dst,
+            &records,
+            &pose,
+            [[0.0, 0.0, 0.5], [0.0, 0.0, 1.5]],
+        );
+    }
 }

@@ -3511,7 +3511,7 @@ fn pair_edge_edge<T: Decide>(
             ee_crossing_lane(body, geo, declared, ea, eb, margin, band, region, errors);
         }
         Some(Some(Meeting::Overlap(span, margin))) => {
-            ee_collinear_lane(ea, eb, span, margin, geo, declared, band, errors);
+            ee_collinear_lane(body, ea, eb, span, margin, geo, declared, band, errors);
         }
         Some(None) | None => {}
     }
@@ -4313,9 +4313,11 @@ fn projected_overlap<T: Decide>(
 /// enough: the other bound's record backs only that bound, never the
 /// segment. An overlap with no record, or with a bound
 /// [`ee_bound_backed`] does not back, is an `UnrecordedContact`; a
-/// bound is never inferred.
+/// bound is never inferred. A certified overlap is then read for sides
+/// ([`coincident_wedges`]).
 #[allow(clippy::too_many_arguments)] // the overlap and its reading, plus the lane's state
 fn ee_collinear_lane<T: Decide>(
+    body: &Body<T>,
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
     (lo, hi): (T, T),
@@ -4343,7 +4345,49 @@ fn ee_collinear_lane<T: Decide>(
             witness: witness(ea.p0 + ea.dir * geom::mid_param(lo, hi)),
             margin: Some(margin),
         });
+    } else {
+        errors.extend(coincident_wedges(body, ea, eb, (lo, hi), band));
     }
+}
+
+/// **Tier 3′'s side reading of a certified collinear overlap**: the two
+/// edges' material wedges, read by [`line_wedges`] at the middle of
+/// their shared span `[lo, hi]` on `ea`'s axis. The material sectors on
+/// one line are disjoint (D1), so an overlap refuses whatever backs the
+/// pair, and a reading not taken refuses named: in band
+/// ([`TouchUnread::InBand`]); a face with no sheet at the line, which
+/// only a curved face lacks ([`TouchUnread::Unreadable`]); or an edge
+/// whose two sheets lie on each other there, a cusp or a knife slit,
+/// whose side a first-order reading does not take
+/// ([`TouchUnread::Degenerate`]). `None` where the wedges are disjoint.
+fn coincident_wedges<T: Decide>(
+    body: &Body<T>,
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    (lo, hi): (T, T),
+    band: Band,
+) -> Option<ValidationError> {
+    let ends = [ea.p0 + ea.dir * lo, ea.p0 + ea.dir * hi];
+    let edges = if ea.key < eb.key {
+        [ea.key, eb.key]
+    } else {
+        [eb.key, ea.key]
+    };
+    let at = witness(ea.p0 + ea.dir * geom::mid_param(lo, hi));
+    let why = match line_wedges(body, &[CollinearOverlap { edges, ends }], band) {
+        Ok(None) => return None,
+        Ok(Some(_)) => {
+            return Some(ValidationError::CoincidentWedgesOverlap { edges, witness: at });
+        }
+        Err((_, WedgeRefusal::Undecided(_))) => TouchUnread::InBand,
+        Err((_, WedgeRefusal::NoSheet(_))) => TouchUnread::Unreadable,
+        Err((_, WedgeRefusal::WedgeEnd(_))) => TouchUnread::Degenerate,
+    };
+    Some(ValidationError::CoincidentWedgesOverlapUndecided {
+        edges,
+        witness: at,
+        why,
+    })
 }
 
 /// D3 backing for one bound of a collinear overlap: both edges hold a
@@ -5428,7 +5472,8 @@ impl Undecided {
 enum Said {
     /// A planar touch, read through [`TouchSite::verdict`].
     Touch(TouchSite),
-    /// An edge through a face's interior: a crossing.
+    /// An edge through a face's interior, or two edges' material
+    /// overlapping on one line: a crossing.
     Pierce,
     /// A curved touch: a conformal patch (the conformal arm finds
     /// same-carrier CURVED pairs only), or a tangent line.
@@ -5488,6 +5533,15 @@ impl Named {
                 EntityId::Face(*face),
                 Said::Touch(TouchSite::EdgeInFace(*edge, *face)),
             ),
+            // Two edges' material on one line: where it overlaps, a
+            // crossing at the line, the solids' own where both edges
+            // are one solid's.
+            ValidationError::CoincidentWedgesOverlap { edges: [a, b], .. } => {
+                Self::Two(EntityId::Edge(*a), EntityId::Edge(*b), Said::Pierce)
+            }
+            ValidationError::CoincidentWedgesOverlapUndecided { edges: [a, b], .. } => {
+                Self::Two(EntityId::Edge(*a), EntityId::Edge(*b), Said::Unexamined)
+            }
             // Two faces of one solid: that solid's own defect, which
             // leaves no other solid's boundary unread.
             ValidationError::CuspEdgesMissing { a, b, .. } => {
@@ -5669,10 +5723,12 @@ enum TouchVerdict {
     Unread(TouchUnread),
 }
 
-/// **Why the touch analysis read no side** at a touch: the one home of
-/// its refusal reasons, which a cross-solid touch renders as
-/// [`Undecided`] and an edge lying in a face of its own solid as
-/// [`ValidationError::FaceThroughEdgeWedgeUndecided`].
+/// **Why tier 3′ read no side** at a touch: the one home of its
+/// refusal reasons, which a cross-solid touch renders as [`Undecided`],
+/// an edge lying in a face of its own solid as
+/// [`ValidationError::FaceThroughEdgeWedgeUndecided`], and two
+/// coincident edges on one line as
+/// [`ValidationError::CoincidentWedgesOverlapUndecided`].
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names this
@@ -5736,9 +5792,12 @@ impl TouchUnread {
         }
     }
 
-    /// The reason and its recourse, where an edge lies in a face of its
-    /// own solid ([`ValidationError::FaceThroughEdgeWedgeUndecided`]).
-    pub(crate) fn in_own_face(self) -> &'static str {
+    /// The reason and its recourse, where tier 3′ reads no side inside
+    /// the body's own cells: an edge lying in a face of its own solid
+    /// ([`ValidationError::FaceThroughEdgeWedgeUndecided`]), or two
+    /// coincident edges on one line
+    /// ([`ValidationError::CoincidentWedgesOverlapUndecided`]).
+    pub(crate) fn sentence(self) -> &'static str {
         match self {
             Self::InBand => concat!(
                 geom_core::undecided!("which side of each other their material lies on"),

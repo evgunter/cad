@@ -2125,6 +2125,10 @@ fn attribute(
         // solid's cells, which no minted face pair names.
         | ValidationError::FaceThroughEdgeWedge { .. }
         | ValidationError::FaceThroughEdgeWedgeUndecided { .. }
+        // Two edges' material on one line, read for sides: the cells'
+        // own, which no record makes valid.
+        | ValidationError::CoincidentWedgesOverlap { .. }
+        | ValidationError::CoincidentWedgesOverlapUndecided { .. }
         // A kernel defect in one face's boundary reading, about no pair.
         | ValidationError::ArcEndOffCorner { .. }
         | ValidationError::InstanceInterference { .. }

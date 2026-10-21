@@ -357,6 +357,30 @@ pub mod test_support {
         body.surfaces.get_mut(key).map(|s| *s = surface).is_some()
     }
 
+    /// [`crate::insert_void`]'s revert and graft without the revert's
+    /// refusal: `cavity`'s every face side reversed and no sheet
+    /// re-paired, so coincident edges on one line land in `dst` each
+    /// bounding the complement of its own wedge.
+    ///
+    /// # Panics
+    ///
+    /// Where `solid` does not resolve in `dst`, or `cavity` holds other
+    /// than one solid.
+    #[allow(clippy::panic)]
+    pub fn graft_reverted_unrefused<T: geom_core::Decide>(
+        dst: &mut Body<T>,
+        solid: crate::SolidKey,
+        cavity: &Body<T>,
+    ) {
+        if let Err(e) = crate::boolean::combine::graft_solids_disjoint(
+            dst,
+            &[solid],
+            &cavity.reverted(),
+        ) {
+            panic!("the graft refused: {e:?}");
+        }
+    }
+
     /// A test's hand-built contact records: each pair of `body`'s cells
     /// as a record citing row 0 of the producing op's coincidences.
     ///
