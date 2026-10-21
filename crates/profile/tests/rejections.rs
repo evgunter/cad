@@ -327,6 +327,235 @@ fn arc_kissing_a_line_is_a_tangential_contact() {
     );
 }
 
+/// The in-band height the line×line rows place an end at: half way
+/// across the band, `ε·(1 + K)/2`.
+fn line_band() -> f64 {
+    let t = tol().get();
+    t.eps * ((1.0 + t.k) / 2.0)
+}
+
+/// The step fixture of the line×line rows:
+/// `(0,0) (2,0) (2,2) (4,2) (4,b) (6,−1) (6,3) (0,3)`, with `(4, b)` in
+/// band of segment 0's carrier `y = 0` and two metres past its end.
+fn step_chain() -> Vec<(f64, f64, f64)> {
+    let b = line_band();
+    vec![
+        (0.0, 0.0, 0.0),
+        (2.0, 0.0, 0.0),
+        (2.0, 2.0, 0.0),
+        (4.0, 2.0, 0.0),
+        (4.0, b, 0.0),
+        (6.0, -1.0, 0.0),
+        (6.0, 3.0, 0.0),
+        (0.0, 3.0, 0.0),
+    ]
+}
+
+/// **A segment's end in band of another's carrier but past its end
+/// along it is no contact, whichever way the loop is authored** (the
+/// line×line row of
+/// `paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+/// The step fixture validates as authored; re-seamed to start at
+/// `(4, 2)`, where the in-band pair is read with the vertical segment
+/// first and its own axis puts the gap at `b`, in band; and reversed. In
+/// each, `(0,0)` and `(2,0)` lie definitely on one side of the vertical
+/// segment's carrier, so the pair is apart however `(4, b)`'s side of
+/// `y = 0` reads. At `f64` and `Interval` alike.
+#[test]
+fn an_end_in_band_of_a_carrier_but_past_its_segment_is_no_contact() {
+    let as_authored = step_chain();
+    let mut reseamed = as_authored.clone();
+    reseamed.rotate_left(3);
+    let mut reversed = as_authored.clone();
+    reversed.reverse();
+    for (name, vs) in [
+        ("as authored", as_authored),
+        ("re-seamed", reseamed),
+        ("reversed", reversed),
+    ] {
+        validate_both(&profile(vec![chain(&vs)]))
+            .unwrap_or_else(|e| panic!("{name}: the end two metres past segment 0: {e:?}"));
+    }
+}
+
+/// **An end in band of a carrier past its segment, its segment's
+/// projection overlapping, is no contact.** The chain
+/// `(0,0) (1,0) (1,−1) (3,−1) (2,b) (0.5,1) (−1,1)`: `(2, b)` is in band
+/// of segment 0's carrier, a metre past its end, and segment 4 runs back
+/// over segment 0 at least `0.55` m above it, so their projections
+/// overlap on both axes and no gap separates them. Segment 0's ends lie
+/// definitely on one side of segment 4's carrier, which does. At `f64`
+/// and `Interval` alike.
+#[test]
+fn an_end_in_band_of_a_carrier_over_an_overlapping_projection_is_no_contact() {
+    let b = line_band();
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, -1.0, 0.0),
+        (3.0, -1.0, 0.0),
+        (2.0, b, 0.0),
+        (0.5, 1.0, 0.0),
+        (-1.0, 1.0, 0.0),
+    ])]);
+    validate_both(&p).expect("segment 0 lies wholly below segment 4's carrier");
+}
+
+/// **Two segments in band of one line but a metre apart along it are no
+/// contact.** The chain `(0,0) (1,0) (1,−1) (4,−1) (4,b) (2,b) (2,2) (0,2)`:
+/// segment 0 runs along `y = 0` to `x = 1`, and segment 4 along `y = b`
+/// from `x = 4` back to `x = 2`. Every end of each stands in band of the
+/// other's carrier, so no carrier side is definite and nothing but the
+/// spans' gap along the line, a metre, separates them. At `f64` and
+/// `Interval` alike.
+#[test]
+fn two_segments_in_band_of_one_line_a_metre_apart_along_it_are_no_contact() {
+    let b = line_band();
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, -1.0, 0.0),
+        (4.0, -1.0, 0.0),
+        (4.0, b, 0.0),
+        (2.0, b, 0.0),
+        (2.0, 2.0, 0.0),
+        (0.0, 2.0, 0.0),
+    ])]);
+    validate_both(&p).expect("the two segments lie a metre apart along their line");
+}
+
+/// The NOTE witness of PR 5536's review: a run along `y = 0.9ε` from
+/// `(−2, 0.9ε)`, its last head at `(−0.5, last)`, closed onto `Start`
+/// tangent, so the closing leg and segment 0 meet at `Start` through a
+/// joint straight within the band.
+fn straight_joint_at_start(last: f64) -> profile::Profile<f64> {
+    let t = tol();
+    let e = t.get().eps;
+    let closed = Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .line_to(Point2::new(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Point2::new(-2.0, 0.9 * e), t)
+        .unwrap()
+        .angle(0.0, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .continue_to(Point2::new(-0.5, last * e), t)
+        .unwrap()
+        .continue_to(Start.arrives_tangent(), t)
+        .unwrap();
+    profile(vec![common::pinned(closed)])
+}
+
+/// **A run's end in band of a carrier a metre past its segment is no
+/// contact**: [`straight_joint_at_start`] with the last head on the
+/// run's line (`0.9ε`). `(1, 0)`, segment 1's start, stands in band of
+/// the closing leg's carrier and a metre past its span, and the closing
+/// leg lies within the band of segment 0's carrier, so every pair of the
+/// simplicity pass reads no contact, `SegmentPair(1, 5)` and
+/// `SegmentPair(0, 5)` among them. What escalates is the joint at
+/// `Start`, read after the whole pass (`SegmentPair(5, 0)`, the joint's
+/// arriving and leaving segments): a joint straight within the band.
+#[test]
+fn a_run_end_in_band_of_a_carrier_past_its_segment_is_no_contact() {
+    match validate_both(&straight_joint_at_start(0.9)) {
+        Err(ProfileError::Escalated { site, source }) => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 5), sref(0, 0)));
+            assert_eq!(source.predicate, Some("chord_side"));
+        }
+        other => panic!("only the joint at Start may escalate, got {other:?}"),
+    }
+}
+
+/// A short segment continuing a long one straight within ε: the loop
+/// `(0,0) (1,0) (x, y) (x,1) (0,1)`, segment 1 from `(1, 0)` to `(x, y)`
+/// with `y` within the band's zero of `y = 0`.
+fn straight_within_eps(x: f64, y: f64) -> profile::Profile<f64> {
+    profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (x, y, 0.0),
+        (x, 1.0, 0.0),
+        (0.0, 1.0, 0.0),
+    ])])
+}
+
+/// **A short segment continuing a long one straight within ε is
+/// simple.** [`straight_within_eps`] at `(1.1, 0.5ε)`, `(1.2, 0.5ε)` and
+/// `(1.3, 0.9ε)`, and the first re-seamed to start at `(1, 0)`, so the
+/// short segment is read first. Both of the short segment's ends lie
+/// within the band's zero of the long one's carrier, so the pair is read
+/// collinear along the long one, a touch at their shared vertex, though
+/// the long one's far end stands `len₀/len₁` times as far off the short
+/// one's carrier, in band. At `f64` and `Interval` alike.
+#[test]
+fn a_short_segment_continuing_a_long_one_straight_within_eps_is_simple() {
+    let e = tol().get().eps;
+    for (x, y) in [(1.1, 0.5 * e), (1.2, 0.5 * e), (1.3, 0.9 * e)] {
+        validate_both(&straight_within_eps(x, y))
+            .unwrap_or_else(|err| panic!("({x}, {y}): {err:?}"));
+    }
+    let short_first = profile(vec![chain(&[
+        (1.0, 0.0, 0.0),
+        (1.1, 0.5 * e, 0.0),
+        (1.1, 1.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (0.0, 0.0, 0.0),
+    ])]);
+    validate_both(&short_first).unwrap_or_else(|err| panic!("the short segment first: {err:?}"));
+}
+
+/// **A loop that comes back to a vertex along a straight continuation
+/// touches itself there.** `(0,0) (1,0) (1,−1) (1.2,−1) (1.2, 0.5ε) (1,0)`:
+/// segment 4 returns to `(1, 0)` within the band's zero of segment 0's
+/// carrier, and the closing leg retraces segment 0 back to `(0, 0)`.
+/// Read collinear with segment 0, segment 4 touches it at `(1, 0)`,
+/// which is not their shared vertex, so the loop is not simple:
+/// `NonSimple` with a `Touch`, not an escalation.
+#[test]
+fn a_loop_returning_to_a_vertex_along_a_straight_continuation_touches() {
+    let e = tol().get().eps;
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, -1.0, 0.0),
+        (1.2, -1.0, 0.0),
+        (1.2, 0.5 * e, 0.0),
+        (1.0, 0.0, 0.0),
+    ])]);
+    match err(&p) {
+        ProfileError::NonSimple {
+            kind: ContactKind::Touch,
+            ..
+        } => {}
+        other => panic!("the return to (1, 0) must read a touch, got {other:?}"),
+    }
+}
+
+/// **An adjacent pair through a joint straight within the band still
+/// escalates.** [`straight_joint_at_start`] as the review wrote it
+/// (`1.8ε`): segment 0 and the closing leg share `Start`, their far ends
+/// stand in band of each other's carrier, and their projections touch
+/// at the shared vertex, so neither the gap nor a carrier side decides
+/// the pair, and it escalates `SegmentPair(0, 5)` on `chord_side`. Its
+/// only possible contact is that vertex
+/// (`paths/an-adjacent-pair-through-a-joint-straight-within-the-band-escalates-on-chord-side`).
+#[test]
+fn an_adjacent_pair_through_a_joint_straight_within_the_band_escalates() {
+    match validate_both(&straight_joint_at_start(1.8)) {
+        Err(ProfileError::Escalated { site, source }) => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 5)));
+            assert_eq!(source.predicate, Some("chord_side"));
+        }
+        other => panic!("the straight joint at Start must escalate, got {other:?}"),
+    }
+}
+
 /// One circle, its lowest point an in-band height above the bottom
 /// line, carrying either of two arcs between `(3, 3)` and `(1, 3)`:
 /// the major arc dips through that point and escalates on the carrier
