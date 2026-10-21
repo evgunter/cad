@@ -29,11 +29,7 @@ fn walls<'m>(body: &topo::Body<f64>, mesh: &'m mesh::Mesh) -> Vec<&'m mesh::Face
 /// gate (`UnsupportedNurbsFace`, "a sharp crease inside it"), and with
 /// the gate open alone, at the certificate (`CertificateExceeded`,
 /// bound `inf`), because uniform grid columns straddle the crease.
-///
-/// Not every δ meshes: between about 8.6e-4 and 1.6e-3 a wall refuses
-/// typed, at sliver triangles in a dense row strip away from the
-/// crease, the class `work/tess/lofted-rational-walls-refuse-at-some-deltas`
-/// records (a crease-free four-arc loft refuses near 4.3e-4).
+/// The refusal rows below take it through twenty δ.
 #[test]
 fn a_loft_of_two_circles_tessellates() {
     let body = lofted_cylinder(1.0, Tol::witness());
