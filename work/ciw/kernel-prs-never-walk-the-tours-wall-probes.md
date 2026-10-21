@@ -3,6 +3,7 @@ id: kernel-prs-never-walk-the-tours-wall-probes
 kind: issue
 title: A kernel PR that retires a tour wall goes red first on main: no per-PR row walks the tour
 status: open
+priority: P2
 opened: 2026-10-21
 ---
 
@@ -19,18 +20,29 @@ panicked from d1e5e7f3 until #5519 retired the probe.
 No per-PR row could have caught it:
 
 - `.github/workflows/ci.yml`'s `demos` job runs only when the diff touches
-  `demos/` (`scripts/ci-filter.py`, the aux prefixes). #5499 touched
+  `demos/` (`scripts/ci-filter.py`, the aux prefixes; that script is
+  tcost's, the workflows are ciw's). #5499 touched
   `crates/mesh/` only.
 - Even when it runs, its `ci` profile (`demos/tour/.config/nextest.toml`)
   leaves out `eps_regression::tour_runs_green_at_default_eps` and
   `..._at_eps_1e_6`, the two rows that walk the tour and with it every
   scene's wall probes.
 
+- The tour BINARY runs per-PR only in `.github/workflows/render.yml`
+  (`cd demos/tour && cargo run --release -- ../out`), which a PR reaches
+  only when its head commit's subject carries `[render]` (ci.yml's `render
+  tag` step). None of #5499's five commit subjects did, so no render ran.
+
 So the wall probes, whose purpose (`demos/tour/src/walls.rs` module docs)
 is to go red the moment a kernel change moves a frontier, are read only by
 the nightly, after the change that moved the frontier has merged.
 
 ## What would close it
+
+**Cost, measured.** `eps_regression::tour_runs_green_at_default_eps` takes
+115 s at release (local, on top of the `demos` job's own release build). A
+walls-only row should be a fraction of that, since most of the walk is
+scene builds and exports.
 
 The kernel PR that retires a wall is the one that should go red, because
 retiring the probe belongs in that PR. Two shapes, for the lane to weigh
