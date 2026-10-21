@@ -405,8 +405,9 @@ pub enum PropsError {
     /// a ring's signed area has the sign of the face's whole, where a
     /// hole's boundary is traversed opposite to the region it is cut
     /// from. Its area would be ADDED to the face's. Stored data that is
-    /// wrong, whichever lane reads it: the closed forms' and the
-    /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
+    /// wrong, whichever lane reads it: the closed forms', the cylinder
+    /// quadrature's and the spiric lane's one decision
+    /// (`curved::require_holes_wound_against`).
     RingWoundWithFace,
     /// **A loop does not close on its periodic chart**
     /// (`props_chart_junction_open`): at one junction the edge after

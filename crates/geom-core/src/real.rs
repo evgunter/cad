@@ -378,6 +378,13 @@ pub trait Real:
     /// be what its type claims — a rigid motion's angle and
     /// translation (`linalg::RigidMotion`'s mints and decided door).
     ///
+    /// It is also how a generic body asks which binade a value is in
+    /// without a comparison surface: `x · 2ᵏ` is unbounded exactly when
+    /// `|x| ≥ 2¹⁰²⁴⁻ᵏ`, so `normalizing_scale` (`linalg/vec.rs`) reads
+    /// its cuts as overflows of the witness and of its reciprocal. That
+    /// use is sound only where every answer selects the same real
+    /// function — a choice of spelling, never of value.
+    ///
     /// Required, with no default: `is_finite_length` is the waving
     /// answer at an enclosure, so a scalar that inherited it would
     /// pass an unbounded enclosure silently. Each scalar states its
@@ -840,6 +847,25 @@ pub trait Real:
     }
 }
 
+/// `2^e`, exactly, built from its bits: subnormal for `e < -1022`, `0`
+/// below `-1074`, `∞` above `1023`. The one spelling of an exact power
+/// of two — `2f64.powi(e)` rounds past the exponent range (its own
+/// docs' `powi(2.0, -1074) = 0`) — and the argument every
+/// [`Real::scale_pow2`] call takes.
+#[must_use]
+#[allow(clippy::cast_sign_loss)]
+pub const fn pow2(e: i32) -> f64 {
+    if e > 1023 {
+        f64::INFINITY
+    } else if e >= -1022 {
+        f64::from_bits(((e + 1023) as u64) << 52)
+    } else if e >= -1074 {
+        f64::from_bits(1u64 << (e + 1074))
+    } else {
+        0.0
+    }
+}
+
 /// **Is `x` a finite number at this scalar?** — asked through the
 /// value channel every [`Real`] has, with no bracket read and no
 /// threshold invented.
@@ -856,12 +882,10 @@ pub trait Real:
 ///
 /// **It is a statement about a SCALAR, and it sits at the bottom
 /// because every crate that has directions has to be able to ask it.**
-/// The arithmetic whose failure mode it names is
-/// [`Vec3::normalize`](crate::Vec3::normalize)'s, which is the
-/// neighbour to read it beside: components beyond ~1e154 overflow the
-/// norm to ∞, the ∞ length reads maximally DEFINITE to
-/// [`Decide`](crate::Decide), and the division collapses the direction
-/// to the zero vector. A home in
+/// The arithmetic whose failure mode it names is a norm's: components
+/// beyond ~1e154 overflow [`Vec3::norm`](crate::Vec3::norm) to ∞, and
+/// the ∞ length reads maximally DEFINITE to
+/// [`Decide`](crate::Decide). A home in
 /// a geometry crate above this one puts the single spelling out of
 /// reach of the crates below it — `profile` depends on this crate
 /// alone — and a rule with two spellings is two rules.
@@ -937,8 +961,8 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 /// - **the length underflowed** — components below ~1e-162 at `f64`
 ///   square to zero, so `norm_squared` and the norm are exactly zero
 ///   for a vector that has a perfectly good direction. Dividing by
-///   that norm blows the direction up to `±∞`
-///   ([`Vec3::normalize`](crate::Vec3::normalize)'s underflow note);
+///   that norm blows the direction up to `±∞`, which is why
+///   [`Vec3::normalize`](crate::Vec3::normalize) prescales first;
 /// - **the vector is the zero vector**, which really does name no
 ///   direction.
 ///
@@ -2142,9 +2166,8 @@ mod tests {
             crate::Vec3::new(f64::from_bits(1), 0.0, 0.0),
         ] {
             assert!(ask(v), "{v:?} has a direction and an underflowed norm");
-            // …and the normalization it would otherwise be handed is
-            // exactly the blown-up one the refusal exists to prevent.
-            assert!(!v.normalize().norm().is_finite());
+            // …and the bare division by that norm is the blown-up one.
+            assert!(!(v / v.norm()).norm().is_finite());
         }
         // Not underflowed: the zero vector really has no direction,
         // and every length that is merely SMALL is still a length —

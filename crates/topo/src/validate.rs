@@ -1528,8 +1528,9 @@ pub enum ValidationError {
     ///   consumes only conic/NURBS trims.
     /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
     ///   other than a cone wall, a cylinder wall, a rim-and-ruling
-    ///   torus wall or a sphere face bounded by circles, which a boolean
-    ///   pierce leaves in the face it pierces.
+    ///   torus wall, a torus wall whose loops carry a spiric, or a sphere
+    ///   face bounded by circles, which a boolean pierce leaves in the
+    ///   face it pierces.
     /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
     ///   unresolvable structure and a mid-surgery body carrying M3
     ///   null-edge scaffolding.
