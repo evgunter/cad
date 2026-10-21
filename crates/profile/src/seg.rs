@@ -2242,22 +2242,38 @@ mod pair_contact_tests {
             .unwrap_or_else(|e| panic!("line {a:?} → {b:?}: {}", e.predicate()))
     }
 
+    /// The real gap between two stored segments on `a`'s axis and on
+    /// `b`'s, enclosed in `Interval`: each the distance between the two
+    /// projected intervals on that segment's real unit chord, negative
+    /// where they overlap.
+    fn real_gaps(a: [(f64, f64); 2], b: [(f64, f64); 2]) -> [Interval; 2] {
+        let p = pt::<Interval>;
+        let gap = |[o0, o1]: [(f64, f64); 2], [q0, q1]: [(f64, f64); 2]| {
+            let (o0, o1) = (p(o0), p(o1));
+            let chord = o1 - o0;
+            let unit = chord * (Interval::one() / chord.norm());
+            let along = |q: Point2<Interval>| (q - o0).dot(unit);
+            let (t0, t1, end) = (along(p(q0)), along(p(q1)), along(o1));
+            (t0.min(t1) - end).max(Interval::zero() - t0.max(t1))
+        };
+        [gap(a, b), gap(b, a)]
+    }
+
     /// **The gap read apart is a real gap, on stored points far from the
     /// origin.** Two segments whose coordinates are arbitrary `f64`s up to
     /// `10⁶` m out, up to `3·10⁶` m long, `b` starting a small step
     /// (`10⁻¹³` … `10⁻⁷` m, either sign) along `a`'s line past its end and
-    /// in band across it. Wherever
-    /// [`gaps_apart`] reads them apart at the fine band, the `Interval`
-    /// enclosure of the real gap, `b`'s stored points against `a`'s on
-    /// `a`'s real unit chord, is positive: the segments are apart in ℝ.
-    /// Red where the gap's charge is dropped: on a long `a` the
-    /// projections' own rounding, about `u` of its length, passes the
-    /// band, and a step that rounding hides then reads as a gap.
+    /// in band across it. Wherever [`gaps_apart`] reads them apart at the
+    /// fine band, the `Interval` enclosure of the real gap on one of the
+    /// two axes is at least `ε`, what a positive reading promises (past
+    /// `Kε` less the charge): the segments are apart in ℝ by the band's
+    /// zero. A counterexample sweep: its seed varies, and
+    /// [`a_far_pair_reads_apart_only_past_its_charge`] is its static
+    /// witness that the reading fires here at all.
     #[test]
     fn a_gap_read_apart_is_a_real_gap_on_points_far_from_the_origin() {
         let band = Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("band: {e}"));
         let mut rng = test_utils::fuzz::start("seg-gap-far");
-        let mut fired = 0usize;
         for _ in 0..test_utils::fuzz::scaled(20_000) {
             let far = 10f64.powf(rng.range(0.0, 6.0));
             let a0 = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
@@ -2280,24 +2296,128 @@ mod pair_contact_tests {
             if !gaps_apart(&s1, &s2, band) {
                 continue;
             }
-            fired += 1;
-            let p = pt::<Interval>;
-            let (ia0, ia1) = (p(a0), p(a1));
-            let chord = ia1 - ia0;
-            let unit = chord * (Interval::one() / chord.norm());
-            let along = |q: Point2<Interval>| (q - ia0).dot(unit);
-            let (t0, t1) = (along(p(b0)), along(p(b1)));
-            let gap = t0.min(t1) - along(ia1);
+            let gaps = real_gaps([a0, a1], [b0, b1]);
             assert!(
-                gap.lo() > 0.0,
-                "read apart, but the real gap encloses {gap:?}: a {a0:?}→{a1:?}, \
+                gaps.iter().any(|g| g.lo() >= band.zero()),
+                "read apart, but the real gaps enclose {gaps:?}: a {a0:?}→{a1:?}, \
                  b {b0:?}→{b1:?} — {}",
                 test_utils::fuzz::replay()
             );
         }
+    }
+
+    /// **The collinear arm reads the home's projections, bit for bit,
+    /// and the old arm's verdict.** [`collinear_overlap`] reads two
+    /// collinear spans through [`geom_core::one_line`]; before, `line_line`
+    /// read its own `tc`, `td`, `lo = max(min(tc, td), 0)` and
+    /// `hi = min(max(tc, td), L)`, uncharged, kept here as the oracle.
+    /// `s2`'s ends are drawn on `s1`'s line near either of its ends
+    /// (`10⁻¹³` … `10⁻⁷` m either way), up to `10⁶` m out, `s1` up to
+    /// `10⁶` m long. On every draw the home's `lo` is the old one's, bit
+    /// for bit, and so is its `hi` except where it is bounded by `s1`'s
+    /// own end, which the home projects (`(s1.b − s1.a)·û`) where the old
+    /// arm read the stored length: there they differ by at most four
+    /// ulps of `L`. And the verdict is the old arm's wherever the old
+    /// margin stands further than the charge (and that ulp gap) from a
+    /// band edge.
+    #[test]
+    fn the_collinear_arm_reads_the_old_arms_projections_and_verdict() {
+        let band = Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("band: {e}"));
+        let mut rng = test_utils::fuzz::start("seg-collinear-home");
+        let sign = |s: Result<Sign, Indeterminate>| s.map_err(|_| ());
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let far = 10f64.powf(rng.range(0.0, 6.0));
+            let a0 = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
+            let th = rng.range(0.0, core::f64::consts::TAU);
+            let (dx, dy) = (th.cos(), th.sin());
+            let len = 10f64.powf(rng.range(-2.0, 6.0));
+            let a1 = (a0.0 + dx * len, a0.1 + dy * len);
+            let (end0, end1) = if rng.range(0.0, 1.0) < 0.5 {
+                (0.0, -len)
+            } else {
+                (len, 2.0 * len)
+            };
+            let mut near = |end: f64| {
+                let step = rng.range(-1.0, 1.0) * 10f64.powf(rng.range(-13.0, -7.0));
+                let t = end + step;
+                (a0.0 + dx * t, a0.1 + dy * t)
+            };
+            let (b0, b1) = (near(end0), near(end1));
+            let (s1, s2) = (line::<f64>(a0, a1, band), line::<f64>(b0, b1, band));
+            let tc = (s2.a - s1.a).dot(s1.unit);
+            let td = (s2.b - s1.a).dot(s1.unit);
+            let (lo, hi) = (tc.min(td).max(0.0), tc.max(td).min(s1.len));
+            let along = on_one_line_2d(s1.unit, (s1.a, s1.b), (s2.a, s2.b), 0.0);
+            let replay = test_utils::fuzz::replay;
+            assert_eq!(along.lo.to_bits(), lo.to_bits(), "lo — {}", replay());
+            let slack = if along.hi.to_bits() == hi.to_bits() {
+                0.0
+            } else {
+                let end = (s1.b - s1.a).dot(s1.unit);
+                assert!(
+                    hi == s1.len
+                        && along.hi == end
+                        && (end - s1.len).abs() <= 4.0 * s1.len * f64::EPSILON,
+                    "hi {} against {hi}, s1's end projected {end}, L {} — {}",
+                    along.hi,
+                    s1.len,
+                    replay()
+                );
+                (end - s1.len).abs()
+            };
+            let margin = hi - lo;
+            let reach = along.noise + slack;
+            let edges = [band.zero(), band.escalate()];
+            if edges.iter().any(|&e| (margin.abs() - e).abs() <= reach) {
+                continue;
+            }
+            let old = sign(decide("collinear_overlap", Margin::of(margin), band));
+            let new = match collinear_overlap(&s1, &s2, band) {
+                Ok(PairOutcome::Overlap) => Ok(Sign::Positive),
+                Ok(PairOutcome::Contacts(c)) if c.is_empty() => Ok(Sign::Negative),
+                Ok(PairOutcome::Contacts(_)) => Ok(Sign::Zero),
+                Err(_) => Err(()),
+            };
+            assert_eq!(
+                new,
+                old,
+                "margin {margin}, noise {} — {}",
+                along.noise,
+                replay()
+            );
+        }
+    }
+
+    /// **A far, long pair reads apart only past its charge.** `a` runs
+    /// `2·10⁶` m from `(123 456.7, −654 321.9)`, and `b` continues on its
+    /// line, starting `step` past its end. The projections' rounding is
+    /// about `2⁻⁵²` of their `4·10⁶` m, near `10⁻⁹` m, a hundred times the
+    /// fine band. At a step of `10⁻⁷` m, past that charge, [`gaps_apart`]
+    /// reads the pair apart, and the real gap is at least `ε`. At a step
+    /// of `3·10⁻¹⁰` m, inside the rounding, it does not: with the charge
+    /// dropped, the step would read as a gap.
+    #[test]
+    fn a_far_pair_reads_apart_only_past_its_charge() {
+        let band = Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("band: {e}"));
+        let a0 = (123_456.7, -654_321.9);
+        let (dx, dy) = (0.6, 0.8);
+        let len = 2e6;
+        let a1 = (a0.0 + dx * len, a0.1 + dy * len);
+        let pair = |step: f64| {
+            let b0 = (a1.0 + dx * step, a1.1 + dy * step);
+            let b1 = (b0.0 + dx * len, b0.1 + dy * len);
+            ([a0, a1], [b0, b1])
+        };
+        let read = |([a0, a1], [b0, b1]): ([(f64, f64); 2], [(f64, f64); 2])| {
+            gaps_apart(&line::<f64>(a0, a1, band), &line(b0, b1, band), band)
+        };
+        let (a, b) = pair(1e-7);
+        assert!(read((a, b)), "a step of 1e-7 m past the charge reads apart");
+        let gaps = real_gaps(a, b);
+        assert!(gaps.iter().any(|g| g.lo() >= band.zero()), "{gaps:?}");
         assert!(
-            fired > 100,
-            "only {fired} draws read apart: the sweep does not reach the gap"
+            !read(pair(3e-10)),
+            "a step of 3e-10 m, inside the projections' rounding, must not read apart"
         );
     }
 

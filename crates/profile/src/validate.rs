@@ -128,7 +128,8 @@
 //! | `path_junction_turn` | sin φ · arm | the shorter of the two legs' arms, each a line's length or an arc's min(radius, chord) |
 //! | `carrier_circles_chord` | the radical foot's mean depth inside both circles, or zero outside them | direct |
 //! | `arc_apex_identity` | apex distance | direct |
-//! | `collinear_overlap` | overlap length | direct |
+//! | `segment_gap` | gap between two segments' projections on either one's axis, less their rounding (`geom_core::one_line`) | direct |
+//! | `collinear_overlap` | overlap length along the host's axis, less and plus its rounding (`geom_core::one_line`) | direct |
 //! | `contact_at_shared_vertex` | contact-to-vertex distance | direct |
 //! | `ray_side` | ⟂ distance to ray line | direct |
 //! | `ray_advance` | ray parameter | direct |

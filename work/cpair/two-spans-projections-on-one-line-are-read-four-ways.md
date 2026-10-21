@@ -63,9 +63,12 @@ before any end-against-carrier question:
   projections through the home, its uncharged comparisons gated on
   their precision, and refuses past it on the precision with its own
   recourse (shorter edges).
-- **`profile::seg`** (PR 3, `nurbs/seg-one-line`): `line_line` reads
-  `gaps_apart` (`on_one_line_2d`, predicate `segment_gap`) before any
-  `chord_side`, with `produced = 0` on the loop's stored vertices.
+- **`profile::seg`** (PR 5542, `nurbs/seg-one-line`): `line_line` reads
+  `gaps_apart` (`on_one_line_2d`, predicate `segment_gap`) on either
+  axis before any `chord_side`, as check 9 does, with `produced = 0` on
+  the loop's stored vertices. Its collinear arm (`collinear_overlap`)
+  reads the same home's `OnOneLine`, decided past its charge both ways,
+  where it read its own uncharged `tc`/`td`/`lo`/`hi`.
 
 PR 5504 took the home's charge at the spans' own scale
 (`|a1−a0| + |b0−a0| + |b1−a0|`), which every caller reads.

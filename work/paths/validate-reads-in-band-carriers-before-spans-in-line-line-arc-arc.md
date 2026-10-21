@@ -55,17 +55,33 @@ secant arms, where a shallow crossing had the same hole. That fix does
 not touch the siblings above: each still escalates on an in-band
 carrier reading before any candidate is formed.
 
-## line × line: resolved (2026-10-20)
+## line × line: resolved (2026-10-21)
 
-`seg::line_line` reads the two spans' gap on `s1`'s axis first, through
-`geom_core::one_line::on_one_line_2d` (`gaps_apart`, predicate
-`segment_gap`), and answers no contact where it is apart past the band,
-before any `chord_side` is read. The points are the loop's stored
-vertices (`build_loop_seg`), so `produced` is zero. The table's
-`line_line` fixture validates at `f64` and `Interval`
-(`rejections::an_end_in_band_of_a_carrier_but_past_its_segment_is_no_contact`;
-`Escalated SegmentPair(0, 3)` on main). PR 3 of
-`work/cpair/two-spans-projections-on-one-line-are-read-four-ways`.
+`seg::line_line` reads two straight segments as check 9 reads two
+straight edges (`topo::validate`'s `lines_meet`), so the two doors give
+one answer:
+- first the gap between the two spans' projections on either one's
+  axis, through `geom_core::one_line::on_one_line_2d` (`gaps_apart`,
+  predicate `segment_gap`), no contact where it is apart past the band;
+- then the four `chord_side` readings, no contact where both of one
+  segment's ends lie definitely on one side of the other's carrier,
+  however the other two read;
+- only then does an in-band side escalate.
+
+The points are the loop's stored vertices (`build_loop_seg`), so
+`produced` is zero. The collinear arm reads the same home
+(`collinear_overlap`). The table's fixture validates at `f64` and
+`Interval` as authored, re-seamed and reversed
+(`rejections::an_end_in_band_of_a_carrier_but_past_its_segment_is_no_contact`),
+and so does an end in band of a carrier over an overlapping projection
+(`…_over_an_overlapping_projection_is_no_contact`). This is PR 3 of
+`work/cpair/two-spans-projections-on-one-line-are-read-four-ways`
+(PR 5542).
+
+**Not covered here.** An adjacent pair through a joint straight within
+the band shares a vertex, so its projections touch and its sides read
+zero there. It still escalates, and is filed as
+`an-adjacent-pair-through-a-joint-straight-within-the-band-escalates-on-chord-side`.
 
 `line_arc` (foot off the line's span) and `arc_arc` stay open: each
 needs a radial margin, not a projection on one line.
