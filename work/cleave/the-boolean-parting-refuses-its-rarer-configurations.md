@@ -25,7 +25,10 @@ rather than keep the rider form, where:
   a piece of face off the hole, which needs a containment reading to
   tell the piece from the hole;
 - `EndOnBoundary`: an end touches the face's boundary inside an edge of
-  it, or at another vertex on its point (a record says so);
+  it (a vertex-on-edge record says so). An end a vertex-vertex record
+  puts on a vertex of the face's loops is joined to it
+  (`slit::part`'s joints, built with
+  `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted`);
 - `Recorded`: a contact record names the face the parting divides;
 - `Tangent`: a wall is tangent to the face along the line, so each of
   the two edges bounds a cusp (D1's doubled cusp), and the reading of a
@@ -35,7 +38,9 @@ rather than keep the rider form, where:
   (`crates/sweep/tests/wedge_end_doors.rs`,
   `a_plane_tangent_to_a_hole_answers_every_op`;
   `crates/sweep/tests/review_4831_probes.rs`, `p5`), where main built
-  the ruling as one edge the cut face passes through;
+  the ruling as one edge the cut face passes through, and by `p12` there,
+  whose ruling runs on past the pocket's wall and is divided at its
+  crossings before the tangency refuses;
 - `DividedEndTouched`: an end the parting divides touches an edge's
   interior (a vertex-edge record), and the census reads that touch at
   neither copy: built, 3′ refuses `CensusUndecidable`. Reached by
@@ -57,10 +62,11 @@ and an edge running past the face `Partly`
 ## Fix
 
 Build each: `Pocket` by nesting the cut-off loop as `nest_slit` nests a
-slit (PR 5350); `EndOnBoundary` by dividing the boundary edge at the end
-and fusing the two vertices; `Recorded` by placing the record's cell on
-the piece holding it; `DividedEndTouched` by giving each copy the
-touch's record; `Tangent` once the cusp-line reading is built (the
+slit (PR 5350); `EndOnBoundary` by dividing the boundary edge at the end,
+onto its point, and joining the end to the new vertex, as `slit::divide`
+and `slit::part` do for a crossing; `Recorded` by placing the record's
+cell on the piece holding it; `DividedEndTouched` by giving each copy
+the touch's record; `Tangent` once the cusp-line reading is built (the
 wedge reader's, with the torus's bend for a curved wall).
 
 **PR 5479 cleanup notes (its re-review, 2026-10-21).** None of these are blocking.
