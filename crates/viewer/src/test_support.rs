@@ -367,9 +367,15 @@ fn unread(copy: pncad::document::Operand, node: RecipeNodeId) -> editor_core::Pl
     editor_core::Placed {
         mate: Some(mate),
         values: vec![
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin, ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::Spin, Formula::zero(Dimension::Angle)),
         ],
         by: editor_core::PlacedBy::PlanarFace,
     }

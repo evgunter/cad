@@ -372,12 +372,12 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         },
         tol,
     );
-    let pin_at = |doc: &mut ProfileDoc, x: f64, tol| {
+    let pin_at = |doc: &mut ProfileDoc, x: Formula, tol| {
         let profile = insert(
             doc,
             Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::Circle {
-                    centre: [len(x), len(0.0)],
+                    centre: [x, Formula::zero(Dimension::Length)],
                     radius: len(PIN_RADIUS),
                 }],
                 ids: Vec::new(),
@@ -393,8 +393,8 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             tol,
         )
     };
-    let base_pin = pin_at(&mut doc, 0.0, tol);
-    let tip_pin = pin_at(&mut doc, LINK_LENGTH, tol);
+    let base_pin = pin_at(&mut doc, Formula::zero(Dimension::Length), tol);
+    let tip_pin = pin_at(&mut doc, len(LINK_LENGTH), tol);
 
     // **The joints.** Link 1 stands in the world at the base joint,
     // turned by `joint_1`; link `k` is placed against link `k-1`'s
@@ -458,7 +458,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
 
     // The target: the mating pin at the chain's nominal tip, fixed in
     // the world where it is drawn.
-    let target = pin_at(&mut doc, links as f64 * LINK_LENGTH, tol);
+    let target = pin_at(&mut doc, len(links as f64 * LINK_LENGTH), tol);
     let placed = crate::world::place_in_world(&doc, target, tol);
     doc = placed.doc;
     let target = placed.placement;
