@@ -6982,3 +6982,7 @@ Signed (WIRE orchestrator).
   - Note: most such Unruled variants already break the prefix rule. That is a class, now filed rather than spread.
 - 2026-10-21 (WIRE orchestrator) PR 5523 (repoint the moved rows' citations) is green and merged at fa65d8fb52. Main's three name_invariance failures are fixed.
 - 2026-10-21 (WIRE orchestrator) Dispatched `wire-orderalong` (wire/order-along-drops-its-count). It drops OrderAlong's `of`, and the witness is part of acceptance: three same-sense crossings on a torus or a bumped revolve. If no such witness can be built, the witness is filed.
+- 2026-10-21 (WIRE orchestrator) `wire-orderalong` stopped at a fork before writing any code.
+  - canonical's Reverse rule reads `of` through the refactor remap (ASM-4 ground). No three-entry carrier is buildable today (NURBS×plane booleans refuse), so the defect is unreachable.
+  - The row now records options A/B/C, is re-priced P3+design, and moved to WIREREST. The path grep found no code citations.
+  - Not sent to Ev now: the case is unreachable, and a design fork goes to the designer pair first, once a witness exists.
