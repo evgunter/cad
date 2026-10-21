@@ -270,8 +270,15 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// crossing line with the read it came in through, and in D a later
 /// operand is a placed copy, so the names those documents' booleans
 /// spell moved under both changes and each value is neither tree's.
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x518b99d8559ab074),
+    ("die", 0x584fa1084a4ab81e),
     ("corner_table", 0x29800dc909826450),
     ("heat_sink", 0x99d838be7a738b42),
     ("crossing_slots", 0xc888df0d2e771787),

@@ -106,7 +106,14 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// its read, in name order (N3); no id moved. Measured merging main at
 /// `be82e5ad6b` into D, where the pips are placed copies, the value is
 /// neither tree's.
-const DIE_TABLE_DIGEST: u64 = 0x43dbede8c308a4fa;
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
+const DIE_TABLE_DIGEST: u64 = 0xc3d310092d777823;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
@@ -136,7 +143,10 @@ const DIE_TABLE_DIGEST: u64 = 0x43dbede8c308a4fa;
 /// crossing's lines named in the subtract's own table (N3): the names'
 /// wording moved, no id. Measured with `DIE_TABLE_DIGEST` on the
 /// merged tree.
-const DIE_NAMES_DIGEST: u64 = 0x1a9b_42d3_6c00_a950;
+///
+/// Re-pinned with `DIE_TABLE_DIGEST` when the pips came to stand by a
+/// frame mate each: every placement and the names under it are new.
+const DIE_NAMES_DIGEST: u64 = 0x9f56_5ad6_9ed5_ca07;
 
 #[test]
 fn die_name_tables_are_golden() {

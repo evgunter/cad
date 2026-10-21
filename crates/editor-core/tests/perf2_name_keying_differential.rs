@@ -303,8 +303,15 @@ fn sans_epsilon(t: &str) -> String {
 /// spell moved under both changes and each value is neither tree's.
 /// The persisted text moved in `die_composed` and the tour die alone:
 /// their fillets store the pip rim's names.
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0xc7d74e70b6c92dc5, 0x8af513933244b575),
+    ("die", 0x7e0ab7de02cc8d8a, 0x66c8793e616aa620),
     ("corner_table", 0x45e0ac4118bb214d, 0x8716f69f07ef2d45),
     ("heat_sink", 0x1d6578a7bacddcf9, 0x222137d882b50b9d),
     ("crossing_slots", 0xb02360b6c3d81a21, 0x494514f9adbb072f),

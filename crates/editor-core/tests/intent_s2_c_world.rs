@@ -63,9 +63,12 @@ const FILES: [&str; 5] = [
 /// master ball came to stand on the cube's corner frame by an axis mate
 /// (where `place_against` had turned it by `atan2`), with its rule's
 /// frames built from the fraction of a turn each is; its saved file
-/// follows it.
+/// follows it. `die` moved when its pips came to stand on frames stated
+/// from the cube's corner by exact turns: its world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its digest,
+/// which reads the carriers and the arena's order too, is new.
 const PRE_C: [(&str, &str); 34] = [
-    ("die", "9b90c91fc8ab87a8/532"),
+    ("die", "18a00a4411472694/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
     ("heat_sink", "986dd0b900fe3d32/268"),
     ("crossing_slots", "23d227ff22f6c626/100"),

@@ -307,7 +307,14 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// table (N3) moved it with [`NAME_WORDS`], in every document holding a
 /// subtract. Measured with [`NAME_WORDS`] merging main at `be82e5ad6b`
 /// into D.
-const SAID_DIGEST: u64 = 0xf612_daee_4703_2017;
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
+const SAID_DIGEST: u64 = 0xc081_1a04_565d_481d;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -687,7 +694,7 @@ fn refusals(
             "SelectRefusal::InBand",
             SelectRefusal::InBand {
                 name: Box::new(a.clone()),
-                predicate: "sel_datum_distance",
+                predicate: "sel_plane_distance",
                 source: band(),
             }
             .spoken(doc, tables),

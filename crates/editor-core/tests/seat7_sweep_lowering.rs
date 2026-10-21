@@ -421,10 +421,17 @@ fn both_sweeps_evaluate_in_one_document() {
 /// and crossing line with the read it came in through, and in D a later
 /// operand is a placed copy, so the names it spells moved under both
 /// changes and the value is neither tree's. No other row moved.
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x3868_c216_76a4_616c),
+        ("die", 0x6d2a_4b69_714e_5884),
         ("corner_table", 0xd125_80bc_7a18_9468),
         ("cut_cylinder", 0x4a6a_99bb_d540_29d3),
         ("boss_union", 0xd486_5e6b_6a43_0069),
