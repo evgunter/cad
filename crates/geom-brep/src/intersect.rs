@@ -1215,12 +1215,9 @@ pub fn plane_sphere_section<T: Decide>(
     let foot = c - n * s;
     // The circle's `u_ref` is a PLACEMENT convention (D2): every
     // downstream margin is a frame DIFFERENCE, so any in-plane unit
-    // vector serves — but it must be genuinely in-plane. The plane
-    // operand's own `u_ref` is deliberately NOT consulted: the
-    // splitting/boolean lanes hand transient classification planes
-    // whose `u_ref` is a placeholder (sometimes the normal itself,
-    // which would degenerate the frame and collapse every section
-    // angle to zero). Derived instead from the sphere's chart frame:
+    // vector serves — but it must be genuinely in-plane. Derived from
+    // the sphere's chart frame, an input, so it moves with the inputs
+    // and not with the computing axes:
     // `n̂ × û` unless that sine is small, then `n̂ × â` — with
     // `û ⊥ â` the two sines satisfy sin²(û,n̂) + sin²(â,n̂) ≥ 1, so
     // the second candidate is definitely nonzero whenever the first

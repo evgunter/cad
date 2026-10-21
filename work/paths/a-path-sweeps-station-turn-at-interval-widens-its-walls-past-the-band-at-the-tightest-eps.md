@@ -2,11 +2,16 @@
 id: a-path-sweeps-station-turn-at-interval-widens-its-walls-past-the-band-at-the-tightest-eps
 kind: issue
 title: A path sweep's station turn, evaluated at Interval, widens its walls' pcurve residual past the band at eps 1e-12 (a wide-start-frame sweep refuses where main's f64-turned one certified)
-status: open
+status: closed
 opened: 2026-10-19
 priority: P2
 cost: M
+closed: 2026-10-21
 ---
+## Closed
+
+No longer reproduces once the sweep's caps take their `u_ref` from the start frame's own `x` axis (`swept::cap_plane`, `a-minted-reference-direction-follows-the-computing-axes`) instead of `orthonormal_basis` over the Interval normal: the row's `Interval` sweep encloses its family at all three ε rows, so its pinned refusal at 1e-12 is gone. Whether the station turn's enclosure is still near the band elsewhere is not measured.
+
 
 
 Found merging main into #5068 (`the-sketch-plane-is-its-frame`).

@@ -550,6 +550,12 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// by no map, so the copy placed against `a` at the identity by a plane
 /// mate runs its map, which comes out as the exact identity and which
 /// the at-rest snap had placed by no map.
+///
+/// RE-BLESSED when a minted plane's `u_ref` became a direction its
+/// construction holds: the two prisms' caps are charted along their
+/// sketch's `x` axis and their walls along their swept segments, where
+/// `orthonormal_basis` picked both off the axes. No plane moved as a
+/// point set.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -588,7 +594,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xdd05_bcb4_7430_15fb,
+        got, 0xbaaf_4dca_5080_816f,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

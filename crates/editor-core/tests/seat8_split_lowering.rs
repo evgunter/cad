@@ -474,6 +474,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// reads a face with the stated normal) where it was a frame read off
 /// the cube's edges moved by turns read off by `atan2`, so its pose's
 /// nodes and the names the split mints moved.
+///
+/// RE-BLESSED when a minted plane's `u_ref` became a direction its
+/// construction holds: the cube's caps are charted along its sketch's
+/// `x` axis and its walls along their swept segments, where
+/// `orthonormal_basis` picked both off the axes. No plane moved as a
+/// point set.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -494,7 +500,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x9ddd_e390_4cc2_ff78,
+        got, 0x2408_3521_d2dd_0000,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
