@@ -512,7 +512,7 @@ impl ProductErrorKind {
     /// [`ProductErrorKind::EmptyProduct`] is the only class where there
     /// is nothing to gather rather than something wrong: a document
     /// whose world holds no placement — a fresh one, one holding only
-    /// sketches, datums and unplaced bodies.
+    /// sketches, poses and unplaced bodies.
     /// Every other class is a refusal, with a cause the error carries.
     ///
     /// **What a consumer does with either answer stays the consumer's,
@@ -668,8 +668,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // an assertion's verdict denote no material, so a document
         // whose only addition is an assertion has the same product it
         // had without one.
-        ValuePayload::Datum(_)
-        | ValuePayload::Profile(_)
+        ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,

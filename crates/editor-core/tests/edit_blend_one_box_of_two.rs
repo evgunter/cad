@@ -8,7 +8,6 @@
 
 use core::f64::consts::PI;
 
-use editor_core::ExtrudeSide;
 use editor_core::{
     EntityKey, Entry, EvalOptions, NameRef, NameTable, Node, NodeResult, ProfileDoc, RecipeNodeId,
     RoleSeg, StableName,
@@ -35,7 +34,6 @@ fn unit_box(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -45,6 +43,7 @@ fn two_boxes(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(label, tol());
     let (doc, a) = unit_box(doc, 0.0);
     let (doc, b) = unit_box(doc, 2.0);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0; 3]);
     fixture::insert(
         doc,
         Node::Union {

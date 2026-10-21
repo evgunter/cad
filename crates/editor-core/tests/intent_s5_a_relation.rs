@@ -21,7 +21,7 @@ const DEPTH: f64 = 0.010;
 /// the document and the measure's output.
 fn slab(seed: &str) -> (ProfileDoc, editor_core::VarId) {
     let doc = ProfileDoc::empty_derived(seed, Tol::witness());
-    let (doc, _, profile) = fixture::on_frame_keeping(
+    let (doc, profile) = fixture::on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -33,7 +33,6 @@ fn slab(seed: &str) -> (ProfileDoc, editor_core::VarId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(DEPTH),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let (doc, measured) = fixture::measure(

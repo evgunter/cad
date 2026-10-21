@@ -5615,6 +5615,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::MixedDihedral { .. }
         | V::JoinUndecidedAtRest { .. }
         | V::VolumeSignUnresolved { .. }
+        | V::SeamRegionCoverUnresolved { .. }
         | V::RingContactEscalated { .. }
         | V::RingNestingUndecided { .. }
         | V::RingPairContactEscalated { .. }
@@ -5661,6 +5662,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::NoDihedralArm { .. }
         | V::LoopRoleInverted { .. }
         | V::CurvedSenseInverted { .. }
+        | V::SeamRegionOvercovered { .. }
         | V::NegativeVolume { .. }
         | V::SliverInsideOut { .. }
         | V::RingMeetsOuter { .. }

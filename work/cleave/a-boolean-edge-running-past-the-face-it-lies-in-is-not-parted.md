@@ -2,10 +2,11 @@
 id: a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted
 kind: issue
 title: An edge of a Boolean result lying in a face along part of its length refuses EdgeInFace Partly instead of parting there
-status: open
+status: dispatched
 opened: 2026-10-19
 priority: P1
 cost: H
+branch: cleave/boolean-parts-an-edge-running-past-its-face
 ---
 
 

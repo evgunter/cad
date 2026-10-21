@@ -381,7 +381,8 @@ pub enum ErrorClass {
     /// ...).
     Path,
     /// A selection query refused (an in-band decided margin, a tied
-    /// name whose candidates disagree, a non-datum reference, ...).
+    /// name whose candidates disagree, a distance from a face that is
+    /// not a plane, ...).
     /// The Python class keeps the Rust type's own name: the refusal
     /// IS `SelectRefusal`, crossing.
     Select,

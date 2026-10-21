@@ -2,9 +2,8 @@
 id: a-literal-placement-frame-crosses-scalars-by-closure-and-is-decided-again-at-the-lane
 kind: issue
 title: A literal placement frame crosses to the lane scalar through Affine3::map and is decided rigid again there; the frame witness has an exact embed door now
-status: parked
+status: open
 opened: 2026-10-14
-blocked_on: [transform-retires-into-a-placement]
 priority: P3
 cost: M
 ---
@@ -59,3 +58,11 @@ up. What remains is whether `Frame::affine`'s lift by
 `affine_f64().map(T::from_f64)` and the rigid readers' re-decision at
 `T` is the right reading of a literal placement, which by the ruling's
 rule is a frame minted at `T` from its stored constants.
+
+## Opened (2026-10-21)
+
+`transform-retires-into-a-placement` closed and nothing else gates
+this row. The lift stands after it: `Frame::affine` in
+`editor-core/src/placement.rs` still reads `affine_f64().map(T::from_f64)`,
+and `eval/wire.rs` still decides a listed frame rigid at `T` with
+`RigidMotion::check_rigid(&f.affine::<T>(), band)`.

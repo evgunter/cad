@@ -3,7 +3,7 @@
 //! authoring so the corpus and the PR 2/5/6 acceptance rows can never
 //! drift apart.
 //!
-//! Vocabulary: Profile, Extrude, Transform, Boolean (Subtract),
+//! Vocabulary: Profile, Extrude, Place, Boolean (Subtract),
 //! `DeclareVar`, `InsertNode`.
 //!
 //! Exact oracles (dyadic throughout — cube `[0,2]³`, 21 pips of
@@ -15,7 +15,7 @@
 //!   **26.625**
 //!
 //! D2 bump: the +z pip master's `Distance` (the LAST face authored,
-//! so its cone is exactly {master extrude, its Transform, the final
+//! so its cone is exactly {master extrude, its placement, the final
 //! Subtract} — the minimal-cone probe).
 
 use super::PlacePart;
@@ -30,6 +30,7 @@ pub fn document() -> CorpusDoc {
     let mut r = crate::fixture::Recorder {
         doc: d.doc,
         edits: d.edits,
+        last: None,
     };
     r.place_part(d.final_node);
     CorpusDoc {

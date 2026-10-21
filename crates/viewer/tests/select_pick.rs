@@ -20,7 +20,6 @@
 
 use crate::common;
 use crate::common::plate_index;
-use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -61,13 +60,12 @@ fn eval_of(session: &DocSession) -> &Evaluation<f64> {
 /// copies' placements are `doc.placements()`, in instance order.
 fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-pattern", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -954,13 +952,12 @@ fn a_product_scene_carries_no_ids_and_is_therefore_unpickable() {
 fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-two-roots", tol);
     let box_of = |doc: &Doc<ProfileProgram>| {
-        let (doc, profile) = common::framed_square(doc, 0.02, tol);
+        let (doc, profile) = common::square_profile(doc, 0.02, tol);
         let (doc, extrude) = common::inserted(
             &doc,
             Node::Extrude {
                 profile: profile.into(),
                 distance: common::len(0.01),
-                side: ExtrudeSide::Along,
             },
             tol,
         );

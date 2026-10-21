@@ -62,11 +62,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, p3, v3, validated};
-use pncad::document::ExtrudeSide;
 use pncad::geom_core::{RigidMotion, Tol, Vec3};
 use pncad::prelude::SurfaceKind;
 use pncad::prelude::{SurfaceKindSet, query};
 use pncad::profile::{ConstructedLoop, Open, SketchPlane, Start, ValidatedProfile, circle_split};
+use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{AtRestBody, Body, BooleanBody};
 

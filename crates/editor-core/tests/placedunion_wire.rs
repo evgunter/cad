@@ -13,7 +13,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{Formula, Frame, Node, PatternKind, load, save};
 use fixture::{len, scl};
@@ -33,7 +32,6 @@ fn both_rules_round_trip() {
     let solid = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let stepped = r.insert(
         Node::placed_union(

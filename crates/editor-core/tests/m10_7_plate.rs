@@ -16,7 +16,6 @@
 #![allow(dead_code)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
@@ -25,7 +24,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, len, xy_frame};
+use fixture::{Recorder, len};
 
 /// The nominal hole spacing, in metres (3.1 mm) — the tour's own.
 pub(crate) const SPACING: f64 = 3.1e-3;
@@ -80,9 +79,7 @@ pub(crate) fn plate(
         );
     }
 
-    let plane = r.insert(xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -94,15 +91,13 @@ pub(crate) fn plate(
         ],
         ids: Vec::new(),
     }));
-    let _plate = r.insert(Node::Extrude {
+    let plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
         distance: len(1.0e-3),
-        side: ExtrudeSide::Along,
     });
 
     let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let profile = r.insert(Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [centre, len(0.0)],
                 radius: param(radius),
@@ -112,7 +107,6 @@ pub(crate) fn plate(
         r.insert(Node::Extrude {
             profile: profile.into(),
             distance: len(1.0e-3),
-            side: ExtrudeSide::Along,
         })
     };
     let hole_a = hole(
@@ -121,6 +115,9 @@ pub(crate) fn plate(
         "hole_a_r",
     );
     let hole_b = hole(&mut r, param("half_spacing"), "hole_b_r");
+    // Each hole joins the plate's space where it is drawn.
+    let hole_a = r.against(plate, hole_a, &editor_core::Frame::IDENTITY);
+    let hole_b = r.against(plate, hole_b, &editor_core::Frame::IDENTITY);
 
     // The wall of each hole, through the selection door the tour uses.
     let refs = {

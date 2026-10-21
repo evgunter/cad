@@ -20,7 +20,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
-use editor_core::ExtrudeSide;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
@@ -30,7 +29,7 @@ use editor_core::{
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, len, len2, scl, xy_frame};
+use crate::fixture::{Recorder, len, len2, scl};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
 
@@ -102,8 +101,6 @@ fn pad_built(
         },
     );
 
-    let plane = r.insert(xy_frame());
-
     // The rounded rectangle: four straight legs joined by four
     // PARAMETRIC fillet arcs, all sharing one radius parameter.
     let pt = |x: f64, y: f64| ProgramTarget::Point(len2([x, y]));
@@ -145,7 +142,6 @@ fn pad_built(
         .concat(),
     );
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![pad_loop],
         ids: Vec::new(),
     }));
@@ -153,11 +149,9 @@ fn pad_built(
     let body = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
 
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("bore_r"),
@@ -167,9 +161,10 @@ fn pad_built(
     let bore = r.insert(Node::Extrude {
         profile: bore_profile.into(),
         distance: thickness,
-        side: ExtrudeSide::Along,
     });
 
+    // The bore joins the body's space where it is drawn.
+    let bore = r.against(body, bore, &editor_core::Frame::IDENTITY);
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
             &r.doc,

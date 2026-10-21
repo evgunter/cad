@@ -22,7 +22,6 @@
 //! not a single solid.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
 use editor_core::{
     AssertionRelation, Dimension, DocEdit, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node,
@@ -30,7 +29,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use crate::fixture::{len, xy_frame};
+use crate::fixture::len;
 
 use super::{CorpusDoc, Recorder};
 
@@ -56,11 +55,7 @@ pub fn document() -> CorpusDoc {
         }),
     });
 
-    // Plate and holes are sketched on the SAME plane, so they name
-    // one frame node between them.
-    let plane = r.insert(xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
@@ -70,12 +65,10 @@ pub fn document() -> CorpusDoc {
     let plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
         distance: len(0.1),
-        side: ExtrudeSide::Along,
     });
 
     let hole = |cx: f64| {
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
@@ -87,14 +80,16 @@ pub fn document() -> CorpusDoc {
     let hole_a = r.insert(Node::Extrude {
         profile: pa.into(),
         distance: len(0.1),
-        side: ExtrudeSide::Along,
     });
     let pb = r.insert(hole(HOLE_X));
     let hole_b = r.insert(Node::Extrude {
         profile: pb.into(),
         distance: len(0.1),
-        side: ExtrudeSide::Along,
     });
+    // Each hole is a construction of its own: the second, placed
+    // against the first where it was drawn, joins its space, so the
+    // distance between them is a distance in one space.
+    let hole_b = r.against(hole_a, hole_b, &editor_core::Frame::IDENTITY);
 
     // The wall names come from the SELECTION door, the way a user gets
     // them — evaluate what is built so far, then ask each hole for its
@@ -102,9 +97,8 @@ pub fn document() -> CorpusDoc {
     // sharing one cylinder carrier, and the closed form reads the
     // carrier, so the first in canonical order answers for the hole.
     //
-    // Read AT the extrude that owns it: nothing places this geometry,
-    // so the reading site is the minting node — spelled explicitly
-    // rather than assumed.
+    // Read AT the node that holds it: the first hole's own extrude, and
+    // the second's copy — spelled explicitly rather than assumed.
     let ev = editor_core::evaluate::<f64>(
         &r.doc,
         None,

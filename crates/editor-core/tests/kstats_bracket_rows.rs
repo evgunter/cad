@@ -20,7 +20,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -31,7 +30,7 @@ use editor_core::{
     RecipeNodeId, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{insert, len, on_frame, run, square, step, xy_frame};
+use fixture::{insert, len, on_frame, run, square, step};
 use geom_core::Band;
 use geom_core::Tol;
 use geom_core::k_stats::{Bracket, Verdict};
@@ -52,7 +51,6 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     fixture::place(doc, body).0
@@ -90,37 +88,25 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 
 /// The decisions the part's profile pre-pass makes on the one-solid
 /// part: the program's four junctions and the f64 validation of the
-/// assembled profile. The plane's two axes are NOT among them — the
-/// frame node decides its own placement, at both scalars, and the
-/// precompute READS it (`NodeValue::placement`).
-const PRE_PASS: usize = 76;
-/// The one-solid part's log sizes by node at `f64`: frame, profile,
-/// extrude. At `f64` the Profile node's op takes the pre-pass's
+/// assembled profile, drawn on its own xy.
+const PRE_PASS: usize = 88;
+/// The one-solid part's log sizes by node at `f64`: profile, extrude,
+/// placement. At `f64` the Profile node's op takes the pre-pass's
 /// validated form (`editor_core::ProfileLane`) and logs what the second
 /// pass it skips decides, so its log is a lane scalar's.
-///
-/// The FRAME's four are its axes decided twice, at the two scalars its
-/// two readers need: the lane read its value carries, and the `f64`
-/// placement every profile drawn on it reads. Twice per FRAME, not
-/// once per profile — a second profile on this frame would add none,
-/// and a frame with NO profile on it still decides all four, because
-/// the placement is a component of the frame's own value and not a
-/// service to whoever happens to consume it. The lone-frame half of
-/// that is guarded by [`a_lone_frame_decides_its_placement_with_no_one_to_read_it`],
-/// because this document has a profile and so cannot separate it from
-/// a mint that looked ahead for one.
-const FRAME_LOG: usize = 4;
 const EXTRUDE_LOG: usize = 655;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
-const LANE_OP: usize = 71;
+const LANE_OP: usize = 83;
 const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
-/// A placement pinned where its body stands by the named interim's world
-/// pin ([`fixture::pin`] at the identity): it reads nothing, so its fold
-/// decides nothing. (An instance pinned off the identity carries its own
-/// pin fold on top of its op's log: three decisions — the two datum
-/// normals, and the at-rest predicate decided once by the fold's snap.)
-const WORLD_PIN_LOG: usize = 0;
+/// A placement standing where its body stands ([`fixture::place`]): the
+/// identity bundle, which the fold places by no map, deciding nothing.
+const PLACEMENT_LOG: usize = 0;
+/// Each instance's own op: its pin's fold off the identity (two pose
+/// normals and the map's seven rigidity margins, run as every
+/// placement but the identity bundle runs its map), then placement and
+/// validation of the placed body.
+const INSTANCE_LOG: usize = 465;
 
 /// Two instances, both pinned to the world, so both ops do the same
 /// work. `o` reaches the part they copy.
@@ -159,7 +145,7 @@ fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
 fn the_instantiate_log_is_schedule_independent() {
     let (doc, ids, seq_opts) = two_instances("kstats-sched");
     let seq = logs(&run(&doc, &seq_opts), &ids);
-    assert_eq!(seq, [466, 466]);
+    assert_eq!(seq, [INSTANCE_LOG, INSTANCE_LOG]);
     let par_opts = EvalOptions {
         parallel: true,
         ..seq_opts.clone()
@@ -188,7 +174,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
     assert_eq!(
-        seq[0], 922,
+        seq[0], 921,
         "the outer op's own log over a two-solid part, and its pin's"
     );
     let par = logs(
@@ -220,7 +206,7 @@ fn a_node_memo_hit_carries_the_priors_log() {
     );
     assert_eq!(again.recomputed, 0, "every node was a memo hit");
     assert_eq!(logs(&again, &ids), logs(&first, &ids));
-    assert_eq!(logs(&again, &ids), [466, 466]);
+    assert_eq!(logs(&again, &ids), [INSTANCE_LOG, INSTANCE_LOG]);
 }
 
 /// **A cancelled prefix leaves no frame behind**: the run after a
@@ -281,35 +267,11 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
     assert_eq!(
         counts,
         BTreeMap::from([
-            (order[0], FRAME_LOG),
-            (order[1], PROFILE_LOG),
-            (order[2], EXTRUDE_LOG),
-            // The world placement's pin reads nothing and decides
-            // nothing.
-            (order[3], WORLD_PIN_LOG),
+            (order[0], PROFILE_LOG),
+            (order[1], EXTRUDE_LOG),
+            (order[2], PLACEMENT_LOG),
         ]),
         "one log per node, the Profile node's carrying its precompute: {counts:?}"
-    );
-}
-
-/// **A frame with no profile on it still decides its placement.**
-///
-/// The count `FRAME_LOG` carries is `2 + 2` — the lane read its value
-/// lands and the `f64` placement it carries — and it is four whether
-/// or not anything ever reads the second. That is a claim about a
-/// design choice and not about arithmetic: a mint that looked ahead
-/// for a consumer would give this document 2 and the one-profile part
-/// 4, agreeing with `FRAME_LOG` there and disagreeing here. So the
-/// separating document is a frame ALONE.
-#[test]
-fn a_lone_frame_decides_its_placement_with_no_one_to_read_it() {
-    let doc = ProfileDoc::empty(DocumentId::derive("kstats-lone-frame"), Tol::witness());
-    let (doc, lone) = insert(doc, xy_frame());
-    let ev = run(&doc, &EvalOptions::default());
-    assert_eq!(
-        per_node(&ev),
-        BTreeMap::from([(lone, FRAME_LOG)]),
-        "the frame is the whole document and it decides its axes at both scalars"
     );
 }
 
@@ -322,7 +284,7 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     let outer = Bracket::open();
     let ev = run(&doc, &opts);
     let outside = outer.finish();
-    assert_eq!(logs(&ev, &ids), [466, 466]);
+    assert_eq!(logs(&ev, &ids), [INSTANCE_LOG, INSTANCE_LOG]);
     assert!(
         outside.verdicts.is_empty() && outside.escalations.is_empty(),
         "{outside:?}"
@@ -368,7 +330,7 @@ fn the_profile_nodes_log_at_f64_opens_with_the_pre_pass() {
         *histogram.entry(v.predicate).or_default() += 1;
     }
     assert!(
-        !histogram.contains_key("datum_unit_norm"),
+        !histogram.contains_key("pose_unit_norm"),
         "the plane's axes are the FRAME's decision, not the profile's: {histogram:?}"
     );
     // Seven from the replay's junctions (each read at its arriving
@@ -559,12 +521,14 @@ fn a_pre_op_failure_has_empty_escalations() {
 /// f64 and would refuse an in-band one), then the parameter's VALUE is
 /// moved to an in-band distance inside the outer edge — a door that
 /// validates nothing, by design, because the evaluation's pre-pass is
-/// where a parameter's profile is decided. That pre-pass escalates on
-/// `chord_side` between the outer edge and the island's, and the node
-/// refuses before its op runs; the
-/// escalation is on the node's error — the frame is the node's whether
-/// the refusal came from the op or from the pass before the key — and
-/// in no outer frame.
+/// where a parameter's profile is decided. That pre-pass reads an
+/// island edge's gap to the outer right edge in band (`segment_gap`, a
+/// screen the pair then reads past on a definite carrier side), then
+/// escalates on `chord_side` between the outer edge and the island's,
+/// and the node refuses before its op runs. Both in-band readings are on
+/// the node's error, in the order made — the frame is the node's
+/// whether the refusal came from the op or from the pass before the key
+/// — and in no outer frame.
 #[test]
 fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let tol = Tol::witness();
@@ -579,7 +543,6 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
     );
-    let (doc, plane) = insert(doc, xy_frame());
     let at_edge = || Formula::named(edge.clone(), Dimension::Length);
     let island = LoopProgram::polygon_expr([
         [len(0.0), len(-0.25)],
@@ -588,7 +551,6 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
         [len(0.0), len(0.25)],
     ]);
     let program = ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon(square(0.0, 0.0, 0.5)).expect("finite corners"),
             island,
@@ -601,7 +563,6 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = step(
@@ -621,7 +582,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let named: Vec<&str> = err.escalations.iter().map(|e| e.predicate()).collect();
     assert_eq!(
         named,
-        ["chord_side"],
+        ["segment_gap", "chord_side"],
         "the pre-pass's escalation rides the refusal: {}",
         err.kind
     );
@@ -656,13 +617,11 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 1.0)),
         },
     );
-    let (doc, plane) = insert(doc, xy_frame());
     let over = || {
         Formula::div(len(1.0), Formula::named(divisor.clone(), Dimension::Scalar))
             .expect("a length over a scalar")
     };
     let program = ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [over(), len(0.0)],

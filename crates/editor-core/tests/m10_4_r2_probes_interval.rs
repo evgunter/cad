@@ -35,7 +35,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -252,21 +251,15 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: param("d", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let cube_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
                 .expect("finite corners"),
@@ -276,7 +269,6 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     let cube = r.insert(Node::Extrude {
         profile: cube_profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let refs = vec![
         SitedRef::new(block, fname(block, wall(&r.doc, block, 3))),
@@ -320,11 +312,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
         name: name("r"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, r_dist)),
     });
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -334,10 +322,8 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
     let bore = r.insert(Node::Extrude {
         profile: bore_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
@@ -347,8 +333,9 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
     let pin = r.insert(Node::Extrude {
         profile: pin_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
+    // The pin joins the bore's space where it stands.
+    let pin = r.against(bore, pin, &editor_core::Frame::IDENTITY);
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
     let m = r
@@ -375,11 +362,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
         name: name("u"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, h_dist)),
     });
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -389,10 +372,8 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
     let a = r.insert(Node::Extrude {
         profile: pa.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let pb = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)])
                 .expect("finite corners"),
@@ -402,11 +383,18 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
     let b = r.insert(Node::Extrude {
         profile: pb.into(),
         distance: param("h", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
+    // `b` joins `a`'s space where it stands.
+    let b_at = r.against(a, b, &editor_core::Frame::IDENTITY);
     let refs = vec![
         SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-        SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(
+            b_at,
+            crate::m10_5_clearance_interval::in_placement(
+                b_at,
+                fname(b, RoleSeg::Cap(CapEnd::End)),
+            ),
+        ),
     ];
     let angle = r
         .measure(&[MeasurePrimitive::Angle { a: 0, b: 1 }], &refs)
@@ -447,31 +435,27 @@ fn loft() -> (ProfileDoc, VarId) {
         ]);
         (chain, z)
     };
-    // A frame per section height: the two sections are drawn on
-    // DIFFERENT planes, so they are different nodes.
-    let frame_at = |r: &mut Recorder, z: f64| {
-        r.insert(fixture::frame(
-            [0.0, 0.0, z],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ))
-    };
-    let (c0, z0) = section(0.0);
-    let f0 = frame_at(&mut r, z0);
+    // Each section drawn on its own plane; the second's station slides
+    // it up the first's z.
+    let (c0, _) = section(0.0);
     let p0 = r.insert(Node::Profile(ProfileProgram {
-        frame: f0.into(),
         loops: vec![c0],
         ids: Vec::new(),
     }));
     let (c1, z1) = section(1.0);
-    let f1 = frame_at(&mut r, z1);
     let p1 = r.insert(Node::Profile(ProfileProgram {
-        frame: f1.into(),
         loops: vec![c1],
         ids: Vec::new(),
     }));
     let loft = r.insert(Node::Loft {
-        profiles: vec![p0.into(), p1.into()],
+        first: p0.into(),
+        then: vec![editor_core::LoftSection {
+            profile: p1.into(),
+            station: vec![editor_core::StationMove::Slide {
+                along: editor_core::Axis3::Z,
+                by: len(z1),
+            }],
+        }],
         v_degree: Formula::count(1),
     });
     let ev = eval(&r.doc);
