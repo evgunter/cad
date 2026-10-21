@@ -2,7 +2,8 @@
 id: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 kind: issue
 title: A profile lowers to vertex + bulge, which cannot express a full turn, so every circle is split in two and the lowered pieces diverge from the authored path; lower to one canonical carrier + interval form instead
-status: spec
+status: parked
+blocked_on: [circle-lowers-to-one-segment]
 opened: 2026-09-25
 priority: P1
 cost: H
