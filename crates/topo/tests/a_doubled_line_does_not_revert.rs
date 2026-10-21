@@ -484,6 +484,66 @@ fn wedges_refuse(
     }
 }
 
+/// **Two wedges on one line a hair apart refuse undecided, named.** The
+/// brick over quadrant 1 and a prism beside it along the z-axis whose
+/// wall leans `δ = 4 ε` off the brick's `x = 0` face, each its own solid
+/// with the touch recorded: whether the prism's sheet lies inside the
+/// brick's wedge is in band, so tier 3′ refuses the pair
+/// `CoincidentWedgesOverlapUndecided { why: InBand }`.
+#[test]
+fn two_wedges_a_hair_apart_on_one_line_refuse_undecided() {
+    use topo::test_support::{FaceGeometry, describe_as_intersections, finished, prism_ops};
+    let tol = t();
+    let d = 4.0 * tol.eps();
+    let mut body = posed_box(
+        "the brick",
+        [(0.0, 1.0), (0.0, 1.0), (0.5, 1.5)],
+        &Pose::rest(),
+        tol,
+    )
+    .into_body();
+    let mut b = Body::<f64>::new();
+    prism_ops(
+        &mut b,
+        &[(0.0, 0.0), (-d, 1.0), (-1.0, 1.0), (-1.0, 0.0)],
+        (0.5, 1.5),
+        Point3::new,
+        FaceGeometry::Certified,
+        tol,
+    );
+    describe_as_intersections(&mut b, tol);
+    let prism = finished("the leaning prism", b, tol);
+    topo::graft_disjoint(&mut body, &prism).unwrap();
+    let unrecorded = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
+        .expect_err("the touch is unrecorded");
+    let records = topo::test_support::records(
+        &body,
+        unrecorded.iter().filter_map(|e| match e {
+            ValidationError::UnrecordedContact {
+                contact: CensusContact::VertexVertex { a, b },
+                ..
+            } => Some((Cell::Vertex(*a), Cell::Vertex(*b))),
+            ValidationError::UnrecordedContact {
+                contact: CensusContact::EdgeEdgeOverlap { a, b },
+                ..
+            } => Some((Cell::Edge(*a), Cell::Edge(*b))),
+            _ => None,
+        }),
+    );
+    let errors = validate_pseudomanifold(&body, &records, tol)
+        .expect_err("tier 3′ refuses the wedges a hair apart");
+    assert!(
+        errors.iter().any(|e| matches!(
+            e,
+            ValidationError::CoincidentWedgesOverlapUndecided {
+                why: topo::TouchUnread::InBand,
+                ..
+            }
+        )),
+        "the pair's wedges refuse undecided in band: {unrecorded:?} then {errors:?}"
+    );
+}
+
 /// **The slit body reverted without re-pairing refuses at tier 3′.**
 /// The void door's revert and graft with its refusal taken off put the
 /// slit body in a box as a cavity, each face's side reversed: the keel's
@@ -494,10 +554,9 @@ fn wedges_refuse(
 fn the_slit_body_reverted_unpaired_refuses_its_wedges_at_tier_3_prime() {
     for pose in poses() {
         let what = pose.label;
-        let mut body =
-            posed_box(what, [(-1.0, 5.0), (-2.0, 4.0), (-1.0, 3.0)], &pose, t()).into_body();
-        let (solid, _) = body.solids().next().unwrap();
-        topo::test_support::graft_reverted_unrefused(&mut body, solid, &slit_body(&pose));
+        let host = posed_box(what, [(-1.0, 5.0), (-2.0, 4.0), (-1.0, 3.0)], &pose, t()).into_body();
+        let (solid, _) = host.solids().next().unwrap();
+        let body = topo::test_support::grafted_reverted_unrefused(&host, solid, &slit_body(&pose));
         wedges_refuse(what, &body, &ContactRecords::default(), &pose, [MEET, OPEN]);
     }
 }
