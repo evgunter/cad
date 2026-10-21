@@ -4027,6 +4027,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::LaminaWedge": "ValidationFinding.variant",
     "ValidationError::LoopRoleInverted": "ValidationFinding.variant",
     "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
+    "ValidationError::SeamRegionOvercovered": "ValidationFinding.variant",
+    "ValidationError::SeamRegionCoverUnresolved": "ValidationFinding.variant",
     "ValidationError::NegativeVolume": "ValidationFinding.variant",
     "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",

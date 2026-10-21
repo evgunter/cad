@@ -1310,6 +1310,8 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             r#loop: loop_,
         },
         ValidationError::CurvedSenseInverted { face },
+        ValidationError::SeamRegionOvercovered { face, times: 2 },
+        ValidationError::SeamRegionCoverUnresolved { face },
         ValidationError::NegativeVolume { solid },
         ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {

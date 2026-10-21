@@ -6331,7 +6331,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unrecorded_contact",
             "unrepresentable_curve_datum",
             "unrepresentable_surface_datum",
-            "validation_error_tag",
             "vertex_orbit_overrun",
             "volume_sign_unresolved",
             "volume_uncomputable",
