@@ -354,7 +354,7 @@ fn step_chain() -> Vec<(f64, f64, f64)> {
 /// **A segment's end in band of another's carrier but past its end
 /// along it is no contact, whichever way the loop is authored** (the
 /// line×line row of
-/// `paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+/// `profile/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
 /// The step fixture validates as authored; re-seamed to start at
 /// `(4, 2)`, where the in-band pair is read with the vertical segment
 /// first and its own axis puts the gap at `b`, in band; and reversed. In
@@ -544,7 +544,7 @@ fn a_loop_returning_to_a_vertex_along_a_straight_continuation_touches() {
 /// at the shared vertex, so neither the gap nor a carrier side decides
 /// the pair, and it escalates `SegmentPair(0, 5)` on `chord_side`. Its
 /// only possible contact is that vertex
-/// (`paths/an-adjacent-pair-through-a-joint-straight-within-the-band-escalates-on-chord-side`).
+/// (`profile/an-adjacent-pair-through-a-joint-straight-within-the-band-escalates-on-chord-side`).
 #[test]
 fn an_adjacent_pair_through_a_joint_straight_within_the_band_escalates() {
     match validate_both(&straight_joint_at_start(1.8)) {

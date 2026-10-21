@@ -35,7 +35,7 @@ margin, row name and reading order:
 - `crates/profile/src/seg.rs`: `line_line`'s collinear arm
   (`collinear_overlap`). It is reached only after `chord_side` reads
   all four ends as zero, and escalates before that
-  (`work/paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc.md`).
+  (`work/profile/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc.md`).
 
 Two of the four still read the carrier before the span. That is the
 drift a single logic would have prevented.
