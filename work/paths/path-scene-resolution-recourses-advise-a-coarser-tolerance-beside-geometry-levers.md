@@ -97,7 +97,9 @@ finds every other loosening in the last-resort shape with the
 kernel-bug clause, except two:
 - `geom-brep/src/ssi.rs` `STEP_BUDGET_CURVATURE_RECOURSE`: "name a
   domain around just the feature traced, or loosen the tolerance,
-  [last resort]". It loosens beside a geometry lever.
+  [last resort]". It loosens beside a geometry lever. Filed as
+  `ssimarch/step-budget-curvature-recourse-advises-loosening-beside-a-domain-lever`.
 - `editor-core/src/names/emit.rs` `AMBIGUITY_FACTOR_LEVER`: "raise the
   tolerance's ambiguity factor K". It coarsens ε_input = K·ε by
-  another dial.
+  another dial. Filed as a question,
+  `refs/does-raising-the-ambiguity-factor-k-count-as-loosening-under-d4`.
