@@ -671,11 +671,13 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   per wedge pair that crosses, a wedge crossing two of the other's
 ///   holding each on its flanker inside the wedge it crosses
 ///   ([`onto_inside`]), so the two lie apart along the line on their
-///   own sides. What the line's germs cannot build yet refuses
-///   [`BooleanError::SlitLineCrossed`], by its [`SlitLineGap`]: a flank
-///   flush with one of the other's where the op keeps one copy
-///   (`Flush`), or a result that keeps only the slit's face there, on
-///   both sides, and so closes it across the line (`Closes`).
+///   own sides. Where the result keeps only the slit's face there, on
+///   both sides, the zip glues the face's halves of the two edges into
+///   one edge and the output stage closes the face across it
+///   (`slit::close_struts`). What the line's germs cannot build yet
+///   refuses [`BooleanError::SlitLineCrossed`], by its [`SlitLineGap`]:
+///   a flank flush with one of the other's where the op keeps one copy
+///   (`Flush`).
 ///
 /// `held` is each solid's face through the point that the other's
 /// vertex touches ([`HeldFace`]), read with every edge-edge meeting of
@@ -954,9 +956,6 @@ pub(super) fn recl_edges<T: Decide>(
             let (a_ws, a_faces) = split(wedges(&a_ms, &b_ms, true)?, a_sectors, a_body)?;
             let (b_ws, b_faces) = split(wedges(&b_ms, &a_ms, false)?, b_sectors, b_body)?;
             let mut germs = Vec::new();
-            // Each flank's membership in the other solid's material, all
-            // of its wedges together: A's wedges' then B's, by wedge.
-            let mut whole = [vec![[false; 2]; a_ws.len()], vec![[false; 2]; b_ws.len()]];
             // Whether a flank read on the line lies in a flank's plane of
             // the other's ([`FlankRead::along`]).
             let mut along = false;
@@ -967,13 +966,8 @@ pub(super) fn recl_edges<T: Decide>(
                         if bw.edge { &b_faces } else { &[] },
                     ];
                     let (germ, flanks) = meet(aw, bw, faces, Some(line))?;
-                    let [a_in, b_in] = flanks.inside;
                     along |= flanks.along;
                     germs.extend(germ.map(|g| (g, [i, j], flanks.inside)));
-                    for k in 0..2 {
-                        whole[0][i][k] |= a_in[k];
-                        whole[1][j][k] |= b_in[k];
-                    }
                 }
             }
             let vertex = |body: &Body<T>, secs: &[BoolSector<T>]| {
@@ -993,36 +987,6 @@ pub(super) fn recl_edges<T: Decide>(
                 // cut no corner to end in.
                 if along {
                     return Err(slit.refusal(SlitLineGap::Flush));
-                }
-                // The sheets the result keeps on the line: each flank on
-                // its operand's kept side of the other's whole material.
-                // Where they are the slit's face alone, on both sides, the
-                // result closes the face across the slit, which the join
-                // does not build.
-                let mut kept_slit_face = 0;
-                let mut kept_other = false;
-                for (slot, (ws, secs, own)) in [
-                    (&a_ws, a_sectors, Operand::A),
-                    (&b_ws, b_sectors, Operand::B),
-                ]
-                .into_iter()
-                .enumerate()
-                {
-                    for (w, inside) in ws.iter().zip(&whole[slot]) {
-                        for (k, &flanker) in w.flankers.iter().enumerate() {
-                            if !kept_by(op, own, inside[k]) {
-                                continue;
-                            }
-                            if own == slit.operand && secs[flanker].face == slit.face {
-                                kept_slit_face += 1;
-                            } else {
-                                kept_other = true;
-                            }
-                        }
-                    }
-                }
-                if kept_slit_face == 2 && !kept_other {
-                    return Err(slit.refusal(SlitLineGap::Closes));
                 }
                 Some(slit)
             } else {

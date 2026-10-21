@@ -8,6 +8,8 @@
 //!   lies in a face whose material crosses its wedge.
 //! - **Merging** ([`merge_slivers`]) makes one edge of two, where a face
 //!   of no area runs between them and nothing else lies on their line.
+//! - **Closing** ([`close_struts`]) makes no edge of two, where the
+//!   result keeps one face on both sides of them.
 //!
 //! # Parting
 //!
@@ -61,6 +63,23 @@
 //! `kef` kills one edge with the sliver, and the other is described on
 //! the two faces. A sliver whose line holds another edge is left for the
 //! result gate, whose line reading refuses its overlapping wedges.
+//!
+//! # Closing
+//!
+//! Merging's mirror: where the result keeps a slit's face F on both
+//! sides of the slit's line and drops both walls, F continues across the
+//! line, a half-turn of material about it, and no edge lies there. The
+//! zip glues F's half of each of the slit's two edges to the other
+//! operand's section run along the line (`zip::glue`), so the two halves
+//! become one edge with F on both sides: a strut of F, whose free end
+//! bounds nothing. [`close_struts`] runs in the output stage, before the
+//! coplanar merge, whose entry gate refuses a strut: `kev` deletes each
+//! such edge with its free end, along a chain one end at a time, and an
+//! edge with both ends free (a zero-area ring closed whole) leaves a
+//! lone vertex, which `mekr` then `kev` delete with its ring, as the
+//! merge deletes the dangling seam edges it makes
+//! (`Body::merge_coplanar_faces_declared`). F's region is unchanged by
+//! each step.
 
 use std::collections::BTreeSet;
 
@@ -447,6 +466,96 @@ pub(super) fn merge_slivers<T: Decide + crate::props::AtRestPolicy>(
         super::ops::describe_edges(body, [kept], &[], band, tol)
             .map_err(super::ops::of_describe)?;
         slivers.push(Sliver { face, killed, kept });
+    }
+}
+
+/// One strut the output stage closed its face across
+/// ([`close_struts`]).
+#[derive(Clone, Debug)]
+pub(super) struct Closed {
+    /// The face on both sides of the strut.
+    pub(super) face: FaceKey,
+    /// The strut's edge.
+    pub(super) edge: EdgeKey,
+    /// The vertices deleted with it: its free end, then, where both its
+    /// ends were free, the other.
+    pub(super) vertices: Vec<VertexKey>,
+}
+
+impl Closed {
+    /// The lineage rows of the closing, `(dead, holder)`: the edge and
+    /// its deleted vertices lie in the face.
+    pub(super) fn substitutions(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
+        core::iter::once(Cell::Edge(self.edge))
+            .chain(self.vertices.iter().map(|&v| Cell::Vertex(v)))
+            .map(|dead| (dead, Cell::Face(self.face)))
+    }
+}
+
+/// **Closes each face across the struts it holds** (module docs,
+/// *Closing*): for each edge whose two halves lie in one face and one of
+/// whose ends is free (a valence-one vertex), in edge-arena order and
+/// again after each, `kev` deletes the edge with its free end; where the
+/// other end was free too, the ring left a lone vertex, which `mekr` to
+/// the face's outline and `kev` delete.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where a strut with both ends free is its
+/// face's outline: a face of no area, which the join never keeps; the
+/// Euler operators' refusals.
+pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    tol: Tol,
+) -> Result<Vec<Closed>, BooleanError> {
+    let free = |body: &Body<T>, he: HalfEdgeKey| {
+        body.vertex_orbit(he).is_some_and(|orbit| orbit.len() == 1)
+    };
+    let mut closed = Vec::new();
+    loop {
+        // The half running toward the free end, whose mate starts there.
+        let next = body.edges().find_map(|(edge, e)| {
+            let face = body.face_of_half_edge(e.he_plus)?;
+            if body.face_of_half_edge(e.he_minus)? != face {
+                return None;
+            }
+            [(e.he_plus, e.he_minus), (e.he_minus, e.he_plus)]
+                .into_iter()
+                .find(|&(_, from)| free(body, from))
+                .map(|(toward, from)| (edge, face, toward, from))
+        });
+        let Some((edge, face, toward, from)) = next else {
+            return Ok(closed);
+        };
+        let toward_data = proven(&body.half_edges, toward, EntityId::HalfEdge);
+        let (near, ring) = (toward_data.start, toward_data.parent_loop);
+        let far = proven(&body.half_edges, from, EntityId::HalfEdge).start;
+        let lone = free(body, toward);
+        let outline = proven(&body.faces, face, EntityId::Face).outer;
+        if lone && ring == outline {
+            return Err(BooleanError::JoinDesync {
+                what: "a face's outline is a strut with both ends free",
+            });
+        }
+        body.kev(toward)?;
+        let mut vertices = vec![far];
+        if lone {
+            let crate::entity::LoopBoundary::Cycle { first: target } =
+                proven(&body.loops, outline, EntityId::Loop).boundary
+            else {
+                return Err(BooleanError::JoinDesync {
+                    what: "a face holding a strut has a lone vertex for its outline",
+                });
+            };
+            let bridge = body.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
+            body.kev(bridge.he_plus)?;
+            vertices.push(near);
+        }
+        closed.push(Closed {
+            face,
+            edge,
+            vertices,
+        });
     }
 }
 

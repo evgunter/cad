@@ -2461,10 +2461,6 @@ pub enum RefusedRow {
 /// and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SlitLineGap {
-    /// The result keeps only the slit's face on the line, on both
-    /// sides: it closes that face across the line, which the join does
-    /// not build.
-    Closes,
     /// A flank of a wedge on the line lies in a flank's plane of the
     /// other's, flush with a face of the other solid there, and the op
     /// keeps one of the two flush faces: the cut the germs make in the
@@ -2479,10 +2475,6 @@ impl SlitLineGap {
     /// The gap in the refusal's words.
     pub(super) const fn words(self) -> &'static str {
         match self {
-            Self::Closes => {
-                "the result keeps only that face on the line, on both sides, so it closes the \
-                 face across the line"
-            }
             Self::Flush => {
                 "a face of the other solid lies flush with a face on the line, and the op keeps \
                  one of the two"
