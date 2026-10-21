@@ -6989,3 +6989,7 @@ Signed (WIRE orchestrator).
 - 2026-10-21 (WIRE orchestrator) Dispatched `wire-bridges` (wire/bridged-wedges-pair-booleans): the two bridged-wedge pair-boolean refusals as one unit. Their witnesses come off name_invariance's VACUOUS lists. FULL review.
 - 2026-10-21 (WIRE orchestrator) The orchestrator read PR 5518's fix pass. The levers compose lever_recourse, the variants are Unsupported*, the locators are in subject position, and every shape is rendered in display_tests. Outright traces to agent text 7b6d56df65, so it stays row 2. Merged at 9fbf113ba1; row closed.
 - 2026-10-21 (WIRE orchestrator) Dispatched `wire-emithelpers` (wire/emit-helpers-row-four): emit.rs's 12 shared-helper raises go to row 4, and callers on D10 ground are left alone.
+- 2026-10-21 (WIRE orchestrator) `wire-emithelpers` opened PR 5530 (head b1083ca470). 11 of 12 helper raises went to row 4.
+  - `to_u32`'s bound is SlotMap's u32 slot cap. `output_body` stays fallible: pattern counts are uncapped and on D10 ground. `loop_coordinates` stays fallible and was filed.
+  - Four rows filed, two of them in other programs (seamrank, doctail: track_caller inside closures).
+  - Review dispatched (`wire-emithelpers-rev`).
