@@ -3291,91 +3291,181 @@ mod clear_of_circle_tests {
         )
     }
 
+    /// [`segment_clear_of_circle`] on one built case, and whether its
+    /// premises hold in ℝ: the circle of radius `r` about `c`, and a
+    /// segment of length `len` along the direction `th`, on the line `h`
+    /// from the centre, starting `step` past the centre's foot. `None`
+    /// where the case does not build; otherwise whether the certificate
+    /// fired and, if it did, whether the `Interval` reading of its
+    /// premises on the stored points (the real foot off the span, both
+    /// ends outside the circle) holds.
+    fn segment_case(
+        c: (f64, f64),
+        r: f64,
+        th: f64,
+        (h, step, len): (f64, f64, f64),
+        band: Band,
+    ) -> Option<(bool, bool)> {
+        let (ux, uy) = (th.cos(), th.sin());
+        let a = (c.0 - uy * h + ux * step, c.1 + ux * h + uy * step);
+        let b = (a.0 + ux * len, a.1 + uy * len);
+        let carrier = Arc2 {
+            centre: pt(c),
+            radius: r,
+            sweep: core::f64::consts::PI,
+        };
+        let circle = build_seg(
+            pt::<f64>((c.0 + r, c.1)),
+            pt((c.0 - r, c.1)),
+            Segment::Arc(carrier),
+            Consistency::Decide,
+            band,
+        )
+        .ok()?;
+        let SegKind::Arc(g) = &circle.kind else {
+            return None;
+        };
+        let s = build_seg(pt(a), pt(b), Segment::Line, Consistency::Decide, band).ok()?;
+        let foot = s.a + s.unit * (g.arc.centre - s.a).dot(s.unit);
+        if !segment_clear_of_circle(&s, g, foot, band) {
+            return Some((false, true));
+        }
+        let p = pt::<Interval>;
+        let (ia, ib, ic) = (p(a), p(b), p(c));
+        let along = (ic - ia).dot(ib - ia);
+        let off = along.hi() < 0.0 || (along - (ib - ia).dot(ib - ia)).lo() > 0.0;
+        let outside = |q: Point2<Interval>| ((q - ic).norm() - Interval::from_f64(r)).lo() > 0.0;
+        Some((true, off && outside(ia) && outside(ib)))
+    }
+
     /// **A segment read clear of a circle is clear of it in ℝ**, on
-    /// stored points far from the origin ([`segment_clear_of_circle`]).
-    /// A circle and a segment of length `10⁻²` … `10⁶` m on a line
-    /// `10⁻¹²` … `10⁻⁵` m either side of the circle's tangent, starting a
-    /// small step (either sign) past the centre's foot, at the scales of
-    /// [`draw_scales`]. Wherever the certificate fires, the
-    /// `Interval` reading of its premises on the stored points (the real
-    /// foot off the span, both ends outside the circle) must hold. More
-    /// than 100 draws must fire.
+    /// stored points far from the origin ([`segment_clear_of_circle`]):
+    /// a counterexample sweep ([`segment_case`]). A circle and a segment
+    /// of length `10⁻²` … `10⁶` m on a line `10⁻¹²` … `10⁻⁵` m either side
+    /// of the circle's tangent, starting a small step (either sign) past
+    /// the centre's foot, at the scales of [`draw_scales`]. Wherever the
+    /// certificate fires, its premises hold in ℝ.
+    /// [`a_segment_reads_clear_only_past_its_charge`] is its static
+    /// witness that the certificate fires here at all.
     #[test]
     fn a_segment_read_clear_of_a_circle_is_clear_of_it() {
         let band = fine_band();
         let mut rng = test_utils::fuzz::start("seg-segment-clear-of-circle");
-        let mut fired = 0usize;
         for _ in 0..test_utils::fuzz::scaled(20_000) {
             let (far, r, step) = draw_scales(&mut rng);
             let c = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
             let th = rng.range(0.0, core::f64::consts::TAU);
-            let (ux, uy) = (th.cos(), th.sin());
             let h = r + signed(&mut rng) * decades(&mut rng, -12.0, -5.0);
             let len = decades(&mut rng, -2.0, 6.0);
-            let a = (c.0 - uy * h + ux * step, c.1 + ux * h + uy * step);
-            let b = (a.0 + ux * len, a.1 + uy * len);
-            let Ok(circle) = build_seg(
-                pt::<f64>((c.0 + r, c.1)),
-                pt((c.0 - r, c.1)),
-                Segment::Arc(Arc2 {
-                    centre: pt(c),
-                    radius: r,
-                    sweep: core::f64::consts::PI,
-                }),
-                Consistency::Decide,
-                band,
-            ) else {
-                continue;
-            };
-            let SegKind::Arc(g) = &circle.kind else {
-                continue;
-            };
-            let Ok(s) = build_seg(pt(a), pt(b), Segment::Line, Consistency::Decide, band) else {
-                continue;
-            };
-            let foot = s.a + s.unit * (g.arc.centre - s.a).dot(s.unit);
-            if !segment_clear_of_circle(&s, g, foot, band) {
-                continue;
+            if let Some((true, holds)) = segment_case(c, r, th, (h, step, len), band) {
+                assert!(
+                    holds,
+                    "read clear, but its premises fail in ℝ: c {c:?} r {r} th {th} h {h} \
+                     step {step} len {len} — {}",
+                    test_utils::fuzz::replay()
+                );
             }
-            fired += 1;
-            let p = pt::<Interval>;
-            let (ia, ib, ic) = (p(a), p(b), p(c));
-            let along = (ic - ia).dot(ib - ia);
-            let off = along.hi() < 0.0 || (along - (ib - ia).dot(ib - ia)).lo() > 0.0;
-            let outside =
-                |q: Point2<Interval>| ((q - ic).norm() - Interval::from_f64(r)).lo() > 0.0;
-            assert!(
-                off && outside(ia) && outside(ib),
-                "read clear, but in ℝ the foot is off the span: {off}, the ends outside: \
-                 {}, {}: c {c:?} r {r}, a {a:?} → b {b:?} — {}",
-                outside(ia),
-                outside(ib),
-                test_utils::fuzz::replay()
-            );
         }
-        assert!(
-            fired > 100,
-            "only {fired} draws fired: the sweep does not reach the miss"
+    }
+
+    /// **A segment reads clear of a circle only past its foot's charge.**
+    /// A circle of radius `10³` m about `(1500.3, −1700.7)`, near the arc
+    /// read-back's reach at the fine band (about `2.8` km, past which no
+    /// arc builds), and a 10 m segment on a line `10⁻⁶` m outside it, so
+    /// both ends clear their own charge. The foot's charge there is
+    /// about `1.1·10⁻¹¹` m, beside the band's `Kε = 10⁻¹¹`. At a step of
+    /// `10⁻⁸` m past the foot the certificate fires, and its premises
+    /// hold in ℝ. At `1.5·10⁻¹¹` m it does not: the step is past `Kε`, so
+    /// with the foot's charge dropped it would read as a miss.
+    #[test]
+    fn a_segment_reads_clear_only_past_its_charge() {
+        let band = fine_band();
+        let (c, r, th) = ((1500.3, -1700.7), 1e3, 0.65);
+        let read = |step: f64| segment_case(c, r, th, (r + 1e-6, step, 10.0), band);
+        assert_eq!(
+            read(1e-8),
+            Some((true, true)),
+            "a step of 1e-8 m past the foot"
+        );
+        assert_eq!(
+            read(1.5e-11),
+            Some((false, true)),
+            "a step of 1.5e-11 m, inside the foot's charge, must not read clear"
         );
     }
 
+    /// [`arc_clear_of_circle`] on one built case, and whether its
+    /// premises hold in ℝ: an arc of the circle `(c1, r1)` from the polar
+    /// angle `start` through `sweep` (under half a turn), against the
+    /// circle `(c2, r2)`. `None` where the case does not build; otherwise
+    /// whether the certificate fired and, if it did, whether the
+    /// `Interval` reading of its premises on the stored points holds: the
+    /// real extreme's direction off the arc's span (cross-product signs),
+    /// and both ends outside, or both inside, the second circle.
+    fn arc_case(
+        (c1, r1): ((f64, f64), f64),
+        (c2, r2): ((f64, f64), f64),
+        (start, sweep): (f64, f64),
+        band: Band,
+    ) -> Option<(bool, bool)> {
+        let on = |c: (f64, f64), r: f64, t: f64| (c.0 + r * t.cos(), c.1 + r * t.sin());
+        let build = |c: (f64, f64), r: f64, t: f64, sweep: f64| {
+            let carrier = Arc2 {
+                centre: pt(c),
+                radius: r,
+                sweep,
+            };
+            build_seg(
+                pt::<f64>(on(c, r, t)),
+                pt(on(c, r, t + sweep)),
+                Segment::Arc(carrier),
+                Consistency::Decide,
+                band,
+            )
+            .ok()
+        };
+        let (s1, s2) = (build(c1, r1, start, sweep)?, build(c2, r2, 0.0, 1.0)?);
+        let (SegKind::Arc(g1), SegKind::Arc(g2)) = (&s1.kind, &s2.kind) else {
+            return None;
+        };
+        let toward = carrier_pair(g1, g2).direction();
+        if !arc_clear_of_circle(&s1, g1, toward, g2, band) {
+            return Some((false, true));
+        }
+        let p = pt::<Interval>;
+        let (ia, ib, ic1, ic2) = (p((s1.a.x, s1.a.y)), p((s1.b.x, s1.b.y)), p(c1), p(c2));
+        let (va, vb) = (ia - ic1, ib - ic1);
+        let rim = |q: Point2<Interval>| (q - ic2).norm() - Interval::from_f64(r2);
+        // Off the span of an arc under half a turn: on the far side of
+        // either end's radius, in the arc's sense.
+        let off = |v: Vec2<Interval>| {
+            let (from_a, to_b) = (va.perp_dot(v), v.perp_dot(vb));
+            if sweep > 0.0 {
+                from_a.hi() < 0.0 || to_b.hi() < 0.0
+            } else {
+                from_a.lo() > 0.0 || to_b.lo() > 0.0
+            }
+        };
+        let near = ic2 - ic1;
+        let outside = off(near) && rim(ia).lo() > 0.0 && rim(ib).lo() > 0.0;
+        let inside = off(-near) && rim(ia).hi() < 0.0 && rim(ib).hi() < 0.0;
+        Some((true, outside || inside))
+    }
+
     /// **An arc read clear of another circle is clear of it in ℝ**, on
-    /// stored points far from the origin ([`arc_clear_of_circle`]). Two
-    /// circles, the second of radius `10⁻²` … `10⁶` m, externally or
-    /// internally tangent but for `10⁻¹²` … `10⁻⁵` m either way, and an
-    /// arc of the first, under half a turn, starting a small step (either
-    /// sign, along it) past its point nearest or farthest from the second
-    /// centre, at the scales of [`draw_scales`]. Wherever the certificate fires,
-    /// the `Interval` reading of its premises on the stored points (the
-    /// real extreme's direction off the arc's span, both ends outside or
-    /// both inside the second circle) must hold. More than 100 draws
-    /// must fire.
+    /// stored points far from the origin ([`arc_clear_of_circle`]): a
+    /// counterexample sweep ([`arc_case`]). Two circles, the second of
+    /// radius `10⁻²` … `10⁶` m, externally or internally tangent but for
+    /// `10⁻¹²` … `10⁻⁵` m either way, and an arc of the first, under half a
+    /// turn, starting a small step (either sign, along it) past its point
+    /// nearest or farthest from the second centre, at the scales of
+    /// [`draw_scales`]. Wherever the certificate fires, its premises hold
+    /// in ℝ. [`an_arc_reads_clear_only_past_its_charge`] is its static
+    /// witness that the certificate fires here at all.
     #[test]
     fn an_arc_read_clear_of_a_circle_is_clear_of_it() {
         let band = fine_band();
         let mut rng = test_utils::fuzz::start("seg-arc-clear-of-circle");
-        let mut fired = 0usize;
-        let on = |c: (f64, f64), r: f64, t: f64| (c.0 + r * t.cos(), c.1 + r * t.sin());
         for _ in 0..test_utils::fuzz::scaled(20_000) {
             let (far, r1, step) = draw_scales(&mut rng);
             let c1 = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
@@ -3396,59 +3486,45 @@ mod clear_of_circle_tests {
             } else {
                 th + core::f64::consts::PI
             };
-            let sweep = rng.range(0.1, 3.0) * if rng.range(0.0, 1.0) < 0.5 { 1.0 } else { -1.0 };
+            let sweep = rng.range(0.1, 3.0) * signed(&mut rng);
             let start = extreme + sweep.signum() * step / r1;
-            let build = |c: (f64, f64), r: f64, t: f64, sweep: f64| {
-                build_seg(
-                    pt::<f64>(on(c, r, t)),
-                    pt(on(c, r, t + sweep)),
-                    Segment::Arc(Arc2 {
-                        centre: pt(c),
-                        radius: r,
-                        sweep,
-                    }),
-                    Consistency::Decide,
-                    band,
-                )
-            };
-            let (Ok(s1), Ok(s2)) = (build(c1, r1, start, sweep), build(c2, r2, 0.0, 1.0)) else {
-                continue;
-            };
-            let (SegKind::Arc(g1), SegKind::Arc(g2)) = (&s1.kind, &s2.kind) else {
-                continue;
-            };
-            let toward = carrier_pair(g1, g2).direction();
-            if !arc_clear_of_circle(&s1, g1, toward, g2, band) {
-                continue;
+            if let Some((true, holds)) = arc_case((c1, r1), (c2, r2), (start, sweep), band) {
+                assert!(
+                    holds,
+                    "read clear, but in ℝ neither half holds: c1 {c1:?} r1 {r1}, c2 {c2:?} \
+                     r2 {r2}, start {start} sweep {sweep} — {}",
+                    test_utils::fuzz::replay()
+                );
             }
-            fired += 1;
-            let p = pt::<Interval>;
-            let (ia, ib, ic1, ic2) = (p((s1.a.x, s1.a.y)), p((s1.b.x, s1.b.y)), p(c1), p(c2));
-            let (va, vb) = (ia - ic1, ib - ic1);
-            let rim = |q: Point2<Interval>| (q - ic2).norm() - Interval::from_f64(r2);
-            // Off the span of an arc under half a turn: on the far side
-            // of either end's radius, in the arc's sense.
-            let off = |v: Vec2<Interval>| {
-                let (from_a, to_b) = (va.perp_dot(v), v.perp_dot(vb));
-                if sweep > 0.0 {
-                    from_a.hi() < 0.0 || to_b.hi() < 0.0
-                } else {
-                    from_a.lo() > 0.0 || to_b.lo() > 0.0
-                }
-            };
-            let near = ic2 - ic1;
-            let outside = off(near) && rim(ia).lo() > 0.0 && rim(ib).lo() > 0.0;
-            let inside = off(-near) && rim(ia).hi() < 0.0 && rim(ib).hi() < 0.0;
-            assert!(
-                outside || inside,
-                "read clear, but in ℝ neither half holds: c1 {c1:?} r1 {r1}, c2 {c2:?} r2 {r2}, \
-                 start {start} sweep {sweep} — {}",
-                test_utils::fuzz::replay()
-            );
         }
-        assert!(
-            fired > 100,
-            "only {fired} draws fired: the sweep does not reach the extremes"
+    }
+
+    /// **An arc reads clear of another circle only past its extreme's
+    /// charge.** A circle of radius `10³` m about `(1500.3, −1700.7)`, near
+    /// the arc read-back's reach at the fine band, a circle of radius 5 m
+    /// externally `10⁻⁶` m clear of it along the direction `0.65`, and an
+    /// arc of the first turning one radian away from its point facing the
+    /// second, starting `step` along the circle past it. The extreme's
+    /// charge there is about `1.7·10⁻¹¹` m. At a step of `10⁻⁸` m the
+    /// certificate fires, and its premises hold in ℝ. At `2·10⁻¹¹` m it
+    /// does not: the step is past `Kε = 10⁻¹¹`, so with the extreme's
+    /// charge dropped it would read as an exclusion.
+    #[test]
+    fn an_arc_reads_clear_only_past_its_charge() {
+        let band = fine_band();
+        let (c1, r1, r2, th) = ((1500.3, -1700.7), 1e3, 5.0, 0.65);
+        let d = r1 + r2 + 1e-6;
+        let c2 = (c1.0 + d * th.cos(), c1.1 + d * th.sin());
+        let read = |step: f64| arc_case((c1, r1), (c2, r2), (th + step / r1, 1.0), band);
+        assert_eq!(
+            read(1e-8),
+            Some((true, true)),
+            "a step of 1e-8 m past the extreme"
+        );
+        assert_eq!(
+            read(2e-11),
+            Some((false, true)),
+            "a step of 2e-11 m, inside the extreme's charge, must not read clear"
         );
     }
 }
