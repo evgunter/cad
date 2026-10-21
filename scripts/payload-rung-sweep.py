@@ -864,6 +864,11 @@ class Resolver:
         return []
 
 
+class UnresolvedCuration(Exception):
+    """A curated name, declared in the dependency set, whose `pub use` chain
+    this reader cannot follow."""
+
+
 def resolve_curated(
     root: Path,
     lists: tuple[str, ...],
@@ -872,11 +877,11 @@ def resolve_curated(
 ) -> dict[str, dict[str, list[Decl]]]:
     """`{name: {list stem: [declaration]}}`: each curated name, resolved.
 
-    Through the path its `pub use` spells (`Resolver`). Where that chain
-    cannot be followed, the fallback is the crate-aware one: the declarations
-    of that name in the crate the statement named, else every declaration of
-    that spelling (the prelude lifts a few names through a layer that does not
-    declare them).
+    Through the path its `pub use` spells (`Resolver`). A name declared
+    nowhere in the dependency set resolves to nothing. A name declared
+    somewhere whose chain this reader cannot follow is an error
+    (`UnresolvedCuration`), never a guess by its spelling: two types sharing a
+    word would then be read as one.
     """
     resolver = Resolver(root, crates, index)
     facade = tomllib.loads((root / FACADE_CRATE_DIR / "Cargo.toml").read_text())
@@ -887,9 +892,12 @@ def resolve_curated(
             found: list[Decl] = []
             for path, absolute in sorted(paths):
                 hits = resolver.resolve(facade, (stem,), path, absolute)
-                if not hits:
-                    hits = [d for d in index.get(name, []) if d.crate == path[0]]
-                    hits = hits or index.get(name, [])
+                if not hits and index.get(name):
+                    raise UnresolvedCuration(
+                        f"`{'::'.join(path)}`, curated in `{stem}`, does not resolve through its "
+                        f"`pub use` chain, though `{name}` is declared at "
+                        + ", ".join(sorted(d.path for d in index[name]))
+                    )
                 found += [d for d in hits if d not in found]
             out.setdefault(name, {})[stem] = found
     return out
@@ -1367,6 +1375,28 @@ def selftest() -> int:
             "and the rung under it",
             sorted((r.hit.name, r.carrier.name) for r in three["narrowed"]),
             [("Deep", "Carrier"), ("Rung", "Carrier"), ("Rung", "DocCarrier"), ("Twin", "Holder")],
+        )
+
+    # A curated path that names a declared type through a module that does
+    # not export it is an error, not a lookup by spelling.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        broken = dict(_FIXTURE)
+        broken["crates/pncad/src/profile.rs"] = "pub use abeta::nowhere::BetaCarrier;\n"
+        for rel, text in broken.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        crates = dependency_set(root)
+        try:
+            resolve_curated(root, ALL_LISTS, crates, declarations(root, crates))
+            refused = None
+        except UnresolvedCuration as error:
+            refused = str(error)
+        want(
+            "a declared name whose chain does not resolve is an error",
+            refused is not None and "abeta::nowhere::BetaCarrier" in refused,
+            True,
         )
 
     for line in failures:
