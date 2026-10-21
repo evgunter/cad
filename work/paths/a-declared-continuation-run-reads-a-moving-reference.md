@@ -51,9 +51,9 @@ re-pinned, and CPAIR's held PR 3 lands after it.
 ## For the implementer, once ruled (from the designers' notes)
 
 - **Blast radius.**
-  - The shape is Ev's, on the `[ev]` PR: the directed point holds its tangent as a ray, in a family of internal representations behind one API (position, tangent, `lands_on_ray(target)`). No verb reads the anchor or learns which representation it holds; in particular, no verb reads the previous leg's carrier. So it is not a `carrier: Line | Arc` field that verbs consult.
-  - The constructors are `leg_end_tip`'s callers. A straight continuation hands its end point the ray it was checked against; a binder anchors the ray at the point.
-  - The readers are `continuation_ray` (both `continue_to` kernels, which become `lands_on_ray`), `tangent_kernel`/`cusp_kernel` (inherit the ray; `.cusp()` negates it) and `director` (rebind).
+  - The shape is Ev's, on the `[ev]` PR: the directed point is one API (position, tangent, `lands_on_ray(target)`) over a family of internal representations. One of them may look much like the previous leg's carrier (for a run, its line); that is fine as long as nothing outside the API reads it. No verb learns which representation a point holds, so this is not a `carrier: Line | Arc` field that verbs consult.
+  - The constructors are `leg_end_tip`'s callers. A straight continuation gives its end point the representation it was checked against; a binder starts a fresh one.
+  - The readers are `continuation_ray` (both `continue_to` kernels, which become `lands_on_ray`), `tangent_kernel`/`cusp_kernel` (inherit the representation; `.cusp()` negates its direction) and `director` (rebind).
   - The §2c seal's reader inventory, in the module header, gains `lands_on_ray`.
   - `resolve_fillet`'s `Pending::Ray.origin` and `junction_check` stay on the vertex.
 - **Siblings with the same anchoring shape. Check each one; file any that has it.**
