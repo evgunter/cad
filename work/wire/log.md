@@ -6963,3 +6963,8 @@ Signed (WIRE orchestrator).
 - 2026-10-20 (WIRE orchestrator) PR 5501's fix pass was read by the orchestrator. Five band- and pair-dependent sites went back to typed, the variant rows were merged into one (24 raises), and the test was split. CI green, merged at 43d115ee1a. The parent Emission row is closed. The 4 D10-held emit.rs raises are noted on the emit.rs helpers row.
 - 2026-10-21 (WIRE orchestrator) `wire-docserde` opened PR 5514 (head 073b2812b6). Doc derives Serialize only, and a private SnapshotWire is the load door's parse type. Its witnesses are a compile_fail doctest and the two id-shape faults refusing typed at the load door. No direct-serde users were left outside persist. The sweep filed no rows. A STYLE+correctness review (`wire-docserde-rev`) is dispatched; it checks byte-identical load over the corpus and that test-support is confined.
 - 2026-10-21 (WIRE orchestrator) PR 5514's review says MERGEABLE; load is byte-identical over the tree's saved files and 66 mutations. A small fix pass is sent: keep the 'expected struct Doc' text, reword the runtime witness, fix the comments. Dispatched `wire-namevariants` (wire/naming-limit-variants) to give the 24 correct-kernel-reachable raises row-1 or row-2 variants.
+- 2026-10-21 (WIRE orchestrator) `wire-splitvertex` opened PR 5515 (head 3a5495b9f3).
+  - Root cause: the naming read a subtract's SplitEdge birth record as this split's crossing. The table is now checked first.
+  - The diamond and kite witnesses evaluate. The row's second document did not reproduce.
+  - Filed a cleave SliverSector row and added evidence to a refs row.
+  - A FULL review (`wire-splitvertex-rev`) is dispatched.
