@@ -4,7 +4,7 @@ kind: issue
 title: app.rs gained pub(crate) toned from a VNEWS unit, and its two callers are in two programs
 status: open
 opened: 2026-09-20
-priority: P1
+priority: P4
 cost: E
 ---
 
@@ -65,3 +65,7 @@ belongs in the theme contract at all.
 
 A VSEAM lane restructuring `app.rs` should know the function has a
 caller outside this file and outside this program.
+
+## 2026-10-21 — re-banded
+
+P1 → P4. A notice, not a defect, by its own first line.

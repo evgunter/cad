@@ -99,7 +99,7 @@ pair's shared vertices:
 - nothing decides `sign(1 − b²)`, because nothing needs it.
 
 The implementation row is PATHS':
-`work/paths/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root.md`.
+`work/profile/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root.md`.
 
 The certified-sign read does not ship for these six. Whether it has a
 case of its own waits on the bracket's 28 having the same structural
@@ -111,7 +111,7 @@ Yes to all three ("this all makes sense, and i definitely agree with not
 merging 3282"):
 1. **The six are answered in the profile's pair pass, not the tier.** The
    implementation row is PATHS':
-   `work/paths/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root.md`.
+   `work/profile/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root.md`.
 2. **The certified-sign read does not ship.** #3282 closes unmerged, and
    its code stays on the branch `decide/8-apothem-sign`.
 3. **The bracket's 28 get a structural look before any read is proposed

@@ -142,7 +142,7 @@ slates and on `work/issues/`:
 - `work/carvetail/carve-refusals-short-of-the-shape-guard.md`: 13
 - `work/shell/shell-refusals-short-of-the-shape-guard.md`: 3
 - `work/wire/wire-refusals-short-of-the-shape-guard.md`: 3
-- `work/paths/paths-refusals-short-of-the-shape-guard.md`: 1, plus a
+- `work/profilerest/paths-refusals-short-of-the-shape-guard.md`: 1, plus a
   question on `SHARED_CLAUSE_ONLY`
 - `work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md`: 2
 - `work/topo/topo-escalations-offer-a-declaration-the-door-cannot-take.md`: 1

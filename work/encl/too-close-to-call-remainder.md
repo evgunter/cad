@@ -111,7 +111,7 @@ both. The ending is `Indeterminate::ending_by` (PR 5003).
   fillet and stored-form arms' `lever_recourse(.., None)`, which drops
   the unreadable-margin note on poison; `structure.rs`'s
   `StructureRefusal` bare `{source}` (owned by
-  `work/paths/paths-refusals-short-of-the-shape-guard.md`); the seam
+  `work/profilerest/paths-refusals-short-of-the-shape-guard.md`); the seam
   arrival and continuation arms' "widen the input tolerance (K·ε)"
   against their rows' kinds.
 

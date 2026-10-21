@@ -1416,7 +1416,7 @@ pub(crate) struct WallReach<T: geom_core::Real> {
 /// two sides of the band, and the conic lane's rim and tilted ellipse
 /// read no reach.
 pub(crate) fn agreed_section<T: Decide>(
-    plane: &geom::Surface<T>,
+    plane: &impl geom_brep::SectionPlane<T>,
     wall: &geom::Surface<T>,
     reach: WallReach<T>,
     band: Band,
@@ -1511,6 +1511,20 @@ fn section_case<T: Decide>(
             ));
         }
     };
+    plane_wall_case(face, band, plane_s, wall, reach)
+}
+
+/// [`section_case`] past its pair normalization: the section of `wall`
+/// by `plane`, of which the table reads a point and the normal and
+/// never a chart ([`geom_brep::SectionPlane`]).
+fn plane_wall_case<T: Decide>(
+    face: FaceKey,
+    band: Band,
+    plane_s: &impl geom_brep::SectionPlane<T>,
+    wall: &geom::Surface<T>,
+    reach: SectionReach<T>,
+) -> Result<SectionCase<T>, SplitJoinError> {
+    let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     let table = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
         other => SplitJoinError::Section {
@@ -1590,7 +1604,7 @@ fn section_case<T: Decide>(
                  divided face",
             ));
         };
-        let &geom::Surface::Plane { normal, .. } = plane_s else {
+        let Some((_, normal)) = plane_s.site() else {
             return Err(invariant("the pair normalization put no plane first"));
         };
         let section = geom_brep::plane_torus_section(plane_s, wall, reach, band).map_err(table)?;
@@ -2363,15 +2377,11 @@ pub(crate) fn wall_section<T: Decide>(
             });
         }
     }
-    // A transient classification value: only origin/normal are read by
-    // the table (u_ref is a placement convention the classification
-    // never consumes; a STORED aux plane gets an honest one).
-    let plane_s = geom::Surface::Plane {
+    let plane_s = geom_brep::PlaneSite {
         origin,
         normal: normal.get(),
-        u_ref: normal.get(),
     };
-    let case = section_case(
+    let case = plane_wall_case(
         face,
         band,
         &plane_s,
@@ -2505,8 +2515,8 @@ fn bool_planar_chord_spec<T: Decide>(
             wall: wall.kind(),
         });
     }
-    let (p_o, p_n) = match body.get_surface(plane_key) {
-        Some(&geom::Surface::Plane { origin, normal, .. }) => (origin, normal),
+    let plane_s = match body.get_surface(plane_key) {
+        Some(plane_s @ geom::Surface::Plane { .. }) => plane_s.clone(),
         // The two failures are different things and are typed apart: a
         // key that does not resolve is corruption, a key that resolves
         // to the wrong kind is this lane's invariant. A single `_` arm
@@ -2518,11 +2528,6 @@ fn bool_planar_chord_spec<T: Decide>(
                 what: "the section context's auxiliary plane key does not name a plane surface",
             });
         }
-    };
-    let plane_s = geom::Surface::Plane {
-        origin: p_o,
-        normal: p_n,
-        u_ref: p_n,
     };
     let conic = match section_case(
         face,

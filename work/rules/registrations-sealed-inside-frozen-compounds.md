@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P3
 cost: M
-refs: [retire-the-stored-bulge, 3527]
+refs: [3527]
 ---
 
 

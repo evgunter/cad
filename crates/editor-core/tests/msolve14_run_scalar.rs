@@ -937,10 +937,18 @@ fn run_at<T: editor_core::EvalScalar>(
 /// after it moved too. Every other bundle of the corpus is mated and
 /// places by its map as before. Measured on D's head before the change
 /// (`434139ef1c`), where this row was green.
+///
+/// And again when a minted plane's `u_ref` became a direction its
+/// construction holds (all three rows): an extruded cap is charted
+/// along its sketch's `x` axis and a wall along its swept segment,
+/// where `orthonormal_basis` picked both off the axes. The digest feeds
+/// the evaluated bodies, whose planes' `u_ref` moved; no mate reads a
+/// plane's `u_ref` (`mate/pin.rs` reads a plane by its origin and
+/// normal), so no pose moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x50ba_de3b_c4f0_f611),
-    (1e-6, 0xf42e_66dd_c86c_07c1),
-    (1e-12, 0x15ba_8118_16f3_9d28),
+    (1e-9, 0xb6c1_14a1_d028_2de1),
+    (1e-6, 0x9302_06b1_4562_6ef9),
+    (1e-12, 0x8942_ed37_d6d7_0e79),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and

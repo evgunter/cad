@@ -13627,6 +13627,46 @@ mod tests {
         }
     }
 
+    /// **A ring sharing a vertex with its outer loop, through a joint
+    /// straight within the band, refuses at that vertex.** The ring's
+    /// first edge leaves the outer loop's corner `(−5, −5)` and runs
+    /// within the band of its bottom edge, so the two edges' far ends
+    /// stand in band of each other's line, the pair profile's simplicity
+    /// pass reads through a joint (`profile::seg::line_line`). Check 9
+    /// never reads that
+    /// pair as two edges: two loops sharing a point is arm 1's contact,
+    /// read before any edge pair, so `lines_meet` has no adjacent pair to
+    /// read.
+    #[test]
+    fn check_9_refuses_a_ring_sharing_a_vertex_through_a_straight_joint_at_that_vertex() {
+        let tol = Tol::witness();
+        let t = tol.get();
+        let h = t.eps * (1.0 + t.k) / 2.0;
+        let outer = [
+            Point3::new(-5.0, -5.0, 0.0),
+            Point3::new(5.0, -5.0, 0.0),
+            Point3::new(5.0, 5.0, 0.0),
+            Point3::new(-5.0, 5.0, 0.0),
+        ];
+        let ring = [
+            Point3::new(-5.0, -5.0, 0.0),
+            Point3::new(-1.0, -5.0 + h, 0.0),
+            Point3::new(-1.0, -4.0, 0.0),
+        ];
+        let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+        plane_every_face(&mut body, tol);
+        match &check_9_words(&body, tol)[..] {
+            [
+                ValidationError::RingMeetsOuter {
+                    face: f,
+                    contact: RingContact::Vertex { .. },
+                    ..
+                },
+            ] => assert_eq!(*f, face),
+            got => panic!("one RingMeetsOuter at a vertex: {got:?}"),
+        }
+    }
+
     /// Two squares meeting at a corner, walked as a figure eight, on
     /// the unit cylinder's wall, `u` the azimuth and `v` the height: a
     /// lamina whose wall face's one loop passes `(u, v) = (1, 0)` twice,
