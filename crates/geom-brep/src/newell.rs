@@ -23,17 +23,18 @@
 //!
 //! The plane's origin is the centroid `c` (on the plane whenever the
 //! vertices are — the mean of points within ε of a plane is within ε of
-//! it); `u_ref` comes from [`Vec3::orthonormal_basis`], which crosses
-//! the normal with the world axis its own components choose.
+//! it); `u_ref` is the caller's reference direction with its component
+//! along the normal removed, normalized.
 //!
-//! **What this module assumes about that frame: nothing.** It is the
-//! caller that mints the frame of every extruded wall and cap, and it
-//! reads back none of `u_ref`'s properties — the certification below
-//! measures vertex distances to `(origin, normal)`, the orientation
-//! contract is the loop order's right-hand normal, and `u_ref` rides
-//! along as the chart's reference direction for whoever charts the
-//! plane later. A different constructor renames every frame this
-//! module mints and changes no claim it makes.
+//! **This module picks no reference.** The caller holds an in-plane
+//! direction from its own construction (a swept segment's direction, a
+//! sketch's x axis lifted by its placement) and passes it, so the
+//! plane's `u_ref` is a function of the inputs and moves with them under
+//! a rigid motion of the computing frame (D10 `[placement.frame]`). The
+//! certification below measures vertex distances to `(origin, normal)`
+//! and reads none of `u_ref`'s properties; a reference along the normal
+//! has no in-plane component and poisons `u_ref`, which is the honest
+//! answer for a caller that holds no in-plane direction.
 //!
 //! The far-from-origin accuracy is pinned by the 1e8-offset rectangle
 //! test at ε = 1e-9.
@@ -134,7 +135,9 @@ impl std::error::Error for NewellError {}
 
 /// Computes the certified [`Surface::Plane`] of an ordered planar loop
 /// by translate-to-origin Newell (module docs: method, orientation
-/// contract, certification). `band` is the run's linear band.
+/// contract, certification), charted with `u_ref`'s in-plane component
+/// (module docs: the caller's reference). `band` is the run's linear
+/// band.
 ///
 /// Evaluation order (fixed, D9): centroid as the left-to-right sum of
 /// the points' coordinates divided by n; the cross-sum left-to-right
@@ -147,6 +150,7 @@ impl std::error::Error for NewellError {}
 /// first failing vertex, in order).
 pub fn newell_plane<T: Decide>(
     points: &[Point3<T>],
+    u_ref: Vec3<T>,
     band: Band,
 ) -> Result<Surface<T>, NewellError> {
     if points.len() < 3 {
@@ -166,7 +170,8 @@ pub fn newell_plane<T: Decide>(
         normal_sum = normal_sum + (*p - centroid).cross(next - centroid);
     }
     let normal = normal_sum.normalize();
-    let (u_ref, _) = normal.orthonormal_basis();
+    let along = normal.dot(u_ref);
+    let u_ref = (u_ref - normal * along).normalize();
     let plane = Surface::Plane {
         origin: centroid,
         normal,
@@ -207,7 +212,7 @@ mod tests {
             Point3::new(1.0, 1.0, 0.0),
             Point3::new(0.0, 1.0, 0.0),
         ];
-        let plane = newell_plane(&pts, band()).unwrap();
+        let plane = newell_plane(&pts, pts[1] - pts[0], band()).unwrap();
         let Surface::Plane {
             origin,
             normal,
@@ -218,12 +223,20 @@ mod tests {
         };
         assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));
         assert_eq!((origin.x, origin.y), (0.5, 0.5));
-        // u_ref is unit and perpendicular to the normal.
-        assert!((u_ref.norm() - 1.0).abs() < 1e-15);
-        assert!(u_ref.dot(normal).abs() < 1e-15);
+        // u_ref is the given reference, which lies in the plane.
+        assert_eq!((u_ref.x, u_ref.y, u_ref.z), (1.0, 0.0, 0.0));
+        // A reference leaning out of the plane keeps its in-plane part.
+        let Surface::Plane { u_ref: leaning, .. } =
+            newell_plane(&pts, Vec3::new(0.0, 2.0, 5.0), band()).unwrap()
+        else {
+            panic!("newell returns a plane");
+        };
+        assert_eq!((leaning.x, leaning.y, leaning.z), (0.0, 1.0, 0.0));
         // Reversed order flips the normal.
         let rev: Vec<_> = pts.iter().rev().copied().collect();
-        let Surface::Plane { normal: n2, .. } = newell_plane(&rev, band()).unwrap() else {
+        let Surface::Plane { normal: n2, .. } =
+            newell_plane(&rev, rev[1] - rev[0], band()).unwrap()
+        else {
             panic!("plane");
         };
         assert_eq!((n2.x, n2.y, n2.z), (0.0, 0.0, -1.0));
@@ -256,7 +269,7 @@ mod tests {
             corner(1.0, 2.0),
             corner(0.0, 2.0),
         ];
-        let plane = newell_plane(&pts, band()).unwrap();
+        let plane = newell_plane(&pts, pts[1] - pts[0], band()).unwrap();
         let Surface::Plane { normal, .. } = plane else {
             panic!("plane");
         };
@@ -293,7 +306,7 @@ mod tests {
             Point3::new(1.0, 1.0, lift),
             Point3::new(0.0, 1.0, 0.0),
         ];
-        let err = newell_plane(&pts, band()).unwrap_err();
+        let err = newell_plane(&pts, pts[1] - pts[0], band()).unwrap_err();
         assert!(matches!(err, NewellError::NotPlanar { .. }), "{err:?}");
         // An in-band lift escalates instead. The fitted plane absorbs
         // 3/4 of a single-vertex lift (the Newell normal tilts toward
@@ -306,7 +319,7 @@ mod tests {
             Point3::new(1.0, 1.0, lift),
             Point3::new(0.0, 1.0, 0.0),
         ];
-        let err = newell_plane(&pts, band()).unwrap_err();
+        let err = newell_plane(&pts, pts[1] - pts[0], band()).unwrap_err();
         assert!(matches!(err, NewellError::Escalated { .. }), "{err:?}");
     }
 
@@ -318,12 +331,13 @@ mod tests {
             Point3::new(1.0, 0.0, 0.0),
             Point3::new(2.0, 0.0, 0.0),
         ];
-        let err = newell_plane(&pts, band()).unwrap_err();
+        let err = newell_plane(&pts, pts[1] - pts[0], band()).unwrap_err();
         assert!(matches!(err, NewellError::Escalated { .. }), "{err:?}");
         // Arity floor.
         assert_eq!(
             newell_plane(
                 &[Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+                Vec3::new(1.0, 0.0, 0.0),
                 band()
             )
             .unwrap_err(),

@@ -2464,11 +2464,11 @@ fn window_of(
         let d = (extent - origin).dot(dir);
         (d.lo(), d.hi())
     };
-    // The STORED chart, for every carrier kind. A plane's stored
-    // `u_ref` comes from the axis-order orthonormal basis, which
-    // refines at the equator, so there is nothing here to re-chart
-    // around; `refines` below is still the door that refuses a chart
-    // subdivision cannot narrow, whatever made it wide.
+    // The STORED chart, for every carrier kind: a plane's `u_ref` is
+    // the in-plane direction its construction handed `newell_plane` (a
+    // swept segment, the sketch's `x` axis), read as stored. `refines`
+    // below is the door that refuses a chart subdivision cannot narrow,
+    // whatever made it wide.
     let charted = match surface {
         Surface::Nurbs(_) => return unsupported("a free-form face"),
         Surface::Approx(_) => return unsupported("an approximated face"),

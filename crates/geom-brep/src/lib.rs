@@ -144,12 +144,12 @@ pub use implicit::{
 };
 pub use intersect::{
     ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, OutsideConic, PairRoute,
-    ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection,
-    Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
-    cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
-    cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
-    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section, tilted_section_major,
+    ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSite, PlaneSphereSection,
+    PlaneTorusSection, Rung, SectionError, SectionPlane, SectionRadius, SphereSphereSection,
+    cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
+    cylinder_cylinder_section, cylinder_sphere_section, parallel_axes_at, plane_cone_section,
+    plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section, plane_torus_section,
+    route, route_pose, sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
