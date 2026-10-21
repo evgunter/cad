@@ -30,6 +30,40 @@ pub struct Vec3<T: Real> {
     pub z: T,
 }
 
+/// `2⁵²⁴`: a witness at or above `2⁵⁰⁰` overflows when scaled by it.
+const TWO_POW_524: f64 = 5.491_838_128_104_488e157;
+/// `2⁻⁵⁷⁵`: a witness at or below `2⁻⁵⁰⁰` flushes to zero when scaled by it.
+const TWO_POW_M575: f64 = 8.086_349_223_904_39e-174;
+/// The prescale for a witness at or above `2⁵⁰⁰`, into `[2⁻¹⁰⁰, 2⁴²⁴)`.
+const TWO_POW_M600: f64 = 2.409_919_865_102_884e-181;
+/// The prescale for a witness at or below `2⁻⁵⁰⁰`, into `[2⁻⁴⁷⁴, 2¹⁰⁰]`.
+const TWO_POW_600: f64 = 4.149_515_568_880_993e180;
+
+/// The exact power of two [`Vec3::normalize`] and [`Vec2::normalize`]
+/// scale by before taking the norm, given the vector's largest
+/// `|component|` ([`Vec3::norm_witness`]); `None` where the witness lies
+/// in `(2⁻⁵⁰⁰, 2⁵⁰⁰)`, in which every square that carries weight is a
+/// normal, finite number and the norm needs no help.
+///
+/// Both questions are [`Real::is_bounded`] reads of a scaled witness —
+/// facts about the representation, as at the length doors, not sign
+/// decisions: the first overflows exactly when the witness is at or
+/// above `2⁵⁰⁰` (or is not finite), the second's reciprocal is
+/// unbounded exactly when the witness flushes to zero, at or below `2⁻⁵⁰⁰`
+/// (the zero vector included, which then poisons through `0/0` as
+/// before). Every arm computes the same real function, so the choice
+/// is of a spelling and never of a value: an enclosure near a
+/// threshold is enclosed by whichever arm it takes.
+fn normalizing_scale<T: Real>(witness: T) -> Option<f64> {
+    if !witness.scale_pow2(TWO_POW_524).is_bounded() {
+        Some(TWO_POW_M600)
+    } else if !(T::one() / witness.scale_pow2(TWO_POW_M575)).is_bounded() {
+        Some(TWO_POW_600)
+    } else {
+        None
+    }
+}
+
 impl<T: Real> Vec2<T> {
     /// Builds a vector from its components. A `const fn` (the doctest
     /// at [`super::Point3::new`] reads a constant of each of the four
@@ -157,35 +191,29 @@ impl<T: Real> Vec2<T> {
         self.x.abs().max(self.y.abs())
     }
 
-    /// The unit vector in this direction, exactly `self / self.norm()`
-    /// (one division per component).
+    /// The unit vector in this direction: `self / self.norm()`, after an
+    /// exact power-of-two prescale where the squares would leave the
+    /// format ([`normalizing_scale`]). Wherever the largest component
+    /// lies in `(2⁻⁵⁰⁰, 2⁵⁰⁰)` no prescale is applied and the body is
+    /// exactly `self / self.norm()`, one division per component.
+    /// Outside that range the prescale moves only exponents, so the
+    /// result is this vector's direction, unit to rounding, at every
+    /// finite magnitude — `(1e200, 0)` normalizes to `(1, 0)`, not to
+    /// the zero vector, and `(1e-170, 0)` to `(1, 0)`, not to `±∞`.
     ///
-    /// **Total.** The zero vector yields all-NaN components (0/0), and a
-    /// poisoned input propagates poison — per the crate's totality policy
-    /// (`real.rs`): poison flows through values, and the predicate layer /
-    /// residual certification is where it is caught. Components beyond
-    /// ~1e154 overflow `norm_squared` to ∞ and collapse the result toward
-    /// zero; symmetrically, components below ~1e-162 underflow
-    /// `norm_squared` to 0 and blow the result up to ±∞ (not NaN). Both
-    /// ends are far outside the session box (D4 ¶4), same posture as
-    /// `powi`'s extreme-exponent note.
-    ///
-    /// **The overflow end is a silent wrong answer to a door that
-    /// decides the length's SIGN first**: an ∞ length is maximally
-    /// definite to [`Decide`](crate::Decide), so the door reports
-    /// success and hands back the zero vector. The question that has
-    /// to come first is [`is_finite_length`](crate::is_finite_length),
-    /// which is the predicate a caller normalizing a decided length
-    /// owes its length.
-    ///
-    /// **The underflow end is a false CAUSE to that same door**: the
-    /// norm is exactly zero, so the door decides `Zero` and refuses —
-    /// correctly, but naming a zero length for a vector that has a
-    /// direction and needs the overflow end's recourse. The question
-    /// that separates the two is
-    /// [`is_underflowed_length`](crate::is_underflowed_length).
+    /// **Total.** The zero vector yields all-NaN components (0/0), a
+    /// poisoned input propagates poison, and an infinite component
+    /// meets an infinite norm and yields NaN — per the crate's totality
+    /// policy (`real.rs`): poison flows through values, and the
+    /// predicate layer / residual certification is where it is caught.
     pub fn normalize(self) -> Self {
-        self / self.norm()
+        match normalizing_scale(self.norm_witness()) {
+            None => self / self.norm(),
+            Some(k) => {
+                let scaled = self.map(|c| c.scale_pow2(k));
+                scaled / scaled.norm()
+            }
+        }
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -365,33 +393,29 @@ impl<T: Real> Vec3<T> {
         self.x.abs().max(self.y.abs()).max(self.z.abs())
     }
 
-    /// The unit vector in this direction, exactly `self / self.norm()`
-    /// (one division per component).
+    /// The unit vector in this direction: `self / self.norm()`, after an
+    /// exact power-of-two prescale where the squares would leave the
+    /// format ([`normalizing_scale`]). Wherever the largest component
+    /// lies in `(2⁻⁵⁰⁰, 2⁵⁰⁰)` no prescale is applied and the body is
+    /// exactly `self / self.norm()`, one division per component.
+    /// Outside that range the prescale moves only exponents, so the
+    /// result is this vector's direction, unit to rounding, at every
+    /// finite magnitude — an axis `(1e160, 1, 1)` normalizes to
+    /// `(1, 1e-160, 1e-160)`, not to the zero vector, and
+    /// `(1e-170, 0, 0)` to `(1, 0, 0)`, not to `(±∞, NaN, NaN)`.
     ///
-    /// **Total.** The zero vector yields all-NaN components (0/0), and a
-    /// poisoned input propagates poison — per the crate's totality policy
-    /// (`real.rs`). Components beyond ~1e154 overflow `norm_squared` to ∞
-    /// and collapse the result toward zero; symmetrically, components
-    /// below ~1e-162 underflow `norm_squared` to 0 and blow the result up
-    /// to ±∞ (not NaN). Both ends are far outside the session box
-    /// (D4 ¶4), same posture as `powi`'s extreme-exponent note.
-    ///
-    /// **The overflow end is a silent wrong answer to a door that
-    /// decides the length's SIGN first**: an ∞ length is maximally
-    /// definite to [`Decide`](crate::Decide), so the door reports
-    /// success and hands back the zero vector. The question that has
-    /// to come first is [`is_finite_length`](crate::is_finite_length),
-    /// which is the predicate a caller normalizing a decided length
-    /// owes its length.
-    ///
-    /// **The underflow end is a false CAUSE to that same door**: the
-    /// norm is exactly zero, so the door decides `Zero` and refuses —
-    /// correctly, but naming a zero length for a vector that has a
-    /// direction and needs the overflow end's recourse. The question
-    /// that separates the two is
-    /// [`is_underflowed_length`](crate::is_underflowed_length).
+    /// **Total.** The zero vector yields all-NaN components (0/0), a
+    /// poisoned input propagates poison, and an infinite component
+    /// meets an infinite norm and yields NaN — per the crate's totality
+    /// policy (`real.rs`).
     pub fn normalize(self) -> Self {
-        self / self.norm()
+        match normalizing_scale(self.norm_witness()) {
+            None => self / self.norm(),
+            Some(k) => {
+                let scaled = self.map(|c| c.scale_pow2(k));
+                scaled / scaled.norm()
+            }
+        }
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -561,19 +585,19 @@ impl<T: Real> Vec3<T> {
     ///
     /// **The scale `s` is `min(‖n‖, max|n_i|)`** — the norm and its own
     /// witness ([`Vec3::norm_witness`]), which bracket each other
-    /// within `√3` wherever both are computed. The witness keeps the
-    /// floor finite where the NORM overflows (components past ~1e154),
-    /// and the norm keeps the floor at zero where the norm UNDERFLOWS
-    /// (all components below ~1e-162), so an underflowed direction
-    /// still blows up loudly instead of being handed a plausible wrong
-    /// answer — [`Vec3::normalize`]'s own band, unchanged.
+    /// within `√3` wherever both are computed. Both are taken of `n`
+    /// after [`Vec3::normalize`]'s exact power-of-two prescale, which
+    /// moves no bit of `b1` and keeps every square in the format at
+    /// every finite magnitude; `b2` is crossed with the unscaled `n`,
+    /// so it carries `‖n‖` as before.
     ///
     /// **Boundedness — unbounded only where the box contains the ZERO
-    /// VECTOR** (DL6), or where the norm underflows. A denominator's
-    /// lower bound is zero only when `s`'s is, and `s`'s is zero
-    /// exactly when every component of `n` encloses zero — a box
-    /// holding the vector that names no direction — or when the squared
-    /// norm flushed to zero. Everywhere else both candidates are bounded, so the
+    /// VECTOR** (DL6), or where one enclosure's witness runs from below
+    /// `2⁻¹⁰⁰` to past `2⁵⁰⁰`, more than one prescale can bring into the
+    /// format. A denominator's lower bound is zero only when `s`'s is,
+    /// and `s`'s is zero exactly when every component of `n` encloses
+    /// zero — a box holding the vector that names no direction — or
+    /// when the squared norm flushed to zero. Everywhere else both candidates are bounded, so the
     /// answer is bounded whether the comparison decides or hulls, and a
     /// box that straddles the seam with `n.x` and `n.y` both enclosing
     /// zero — where `|v_z|` reaches zero while the box still holds only
@@ -639,12 +663,16 @@ impl<T: Real> Vec3<T> {
     /// length.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let zero = T::zero();
-        let scale = self.norm().min(self.norm_witness());
-        let vy = Self::new(self.z, zero, -self.x);
-        let vz = Self::new(-self.y, self.x, zero);
+        let n = match normalizing_scale(self.norm_witness()) {
+            None => self,
+            Some(k) => self.map(|c| c.scale_pow2(k)),
+        };
+        let scale = n.norm().min(n.norm_witness());
+        let vy = Self::new(n.z, zero, -n.x);
+        let vz = Self::new(-n.y, n.x, zero);
         let cy = vy / vy.norm().max(scale * T::from_f64(0.25));
         let cz = vz / vz.norm().max(scale * T::from_f64(0.5));
-        let d = self.z.abs() - self.x.abs().max(self.y.abs()) * T::from_f64(0.5);
+        let d = n.z.abs() - n.x.abs().max(n.y.abs()) * T::from_f64(0.5);
         let b1 = Self::select(d, cz, cy);
         (b1, self.cross(b1))
     }
@@ -782,6 +810,21 @@ mod tests {
         (coord(), coord(), coord()).prop_map(|(x, y, z)| Vec3::new(x, y, z))
     }
 
+    /// A component anywhere in `±[2⁻⁴⁹⁹, 2⁵⁰⁰)`, or zero.
+    fn wide_coord() -> impl Strategy<Value = f64> {
+        prop_oneof![
+            1 => Just(0.0),
+            8 => (1.0..2.0f64, -499..500i32, any::<bool>())
+                .prop_map(|(m, e, neg)| if neg { -m * pow2(e) } else { m * pow2(e) }),
+        ]
+    }
+
+    fn wide_vec3() -> impl Strategy<Value = Vec3<f64>> {
+        (wide_coord(), wide_coord(), wide_coord())
+            .prop_map(|(x, y, z)| Vec3::new(x, y, z))
+            .prop_filter("not the zero vector", |v| v.norm_witness() != 0.0)
+    }
+
     #[test]
     fn basis_vectors_are_orthonormal_exactly() {
         // Products of exact 0s and 1s and their two-term sums are exact.
@@ -857,6 +900,135 @@ mod tests {
         assert!(n.x.is_nan() && n.y.is_nan() && n.z.is_nan());
         let n2 = Vec2::<f64>::zero().normalize();
         assert!(n2.x.is_nan() && n2.y.is_nan());
+    }
+
+    #[test]
+    fn normalizing_scale_constants_are_the_powers_they_name() {
+        for (k, e) in [
+            (TWO_POW_524, 524),
+            (TWO_POW_M575, -575),
+            (TWO_POW_M600, -600),
+            (TWO_POW_600, 600),
+        ] {
+            assert_eq!(k.to_bits(), pow2(e).to_bits(), "2^{e}");
+        }
+    }
+
+    /// `2^e` built from its bits, exact across the subnormal range too
+    /// (`powi` with a negative exponent overflows before it inverts).
+    fn pow2(e: i32) -> f64 {
+        if e >= -1022 {
+            f64::from_bits(u64::try_from(e + 1023).unwrap() << 52)
+        } else {
+            f64::from_bits(1u64 << (e + 1074))
+        }
+    }
+
+    /// One vector carried through every binade the format holds it in:
+    /// a power of two moves no bit of its direction, so `normalize`
+    /// answers the in-range unit vector BITWISE at every scale — past
+    /// the overflow end, where the norm alone is `∞` and the answer was
+    /// the zero vector, and below the underflow end, where it was `±∞`
+    /// or a length off by up to a factor of two in the subnormal band.
+    #[test]
+    fn normalize_is_one_direction_at_every_binade() {
+        let (base3, base2) = (Vec3::new(1.5, -1.25, 0.75), Vec2::new(1.5, -1.25));
+        let (want3, want2) = (base3 / base3.norm(), base2 / base2.norm());
+        for e in -1072..=1023 {
+            let k = pow2(e);
+            let got3 = (base3 * k).normalize();
+            assert_eq!(
+                [got3.x, got3.y, got3.z].map(f64::to_bits),
+                [want3.x, want3.y, want3.z].map(f64::to_bits),
+                "Vec3 at 2^{e}: {got3:?}"
+            );
+            let got2 = (base2 * k).normalize();
+            assert_eq!(
+                [got2.x, got2.y].map(f64::to_bits),
+                [want2.x, want2.y].map(f64::to_bits),
+                "Vec2 at 2^{e}: {got2:?}"
+            );
+        }
+    }
+
+    /// The axes the overflow and underflow ends were found on, each
+    /// against the direction it names.
+    #[test]
+    fn normalize_names_the_direction_of_an_axis_out_of_the_squares_range() {
+        for (v, want) in [
+            (Vec3::new(1e160, 1.0, 1.0), Vec3::new(1.0, 1e-160, 1e-160)),
+            (
+                Vec3::new(1e200, 1e200, 0.0),
+                Vec3::new(0.5f64.sqrt(), 0.5f64.sqrt(), 0.0),
+            ),
+            (
+                Vec3::new(-f64::MAX, 0.0, f64::MAX),
+                Vec3::new(-(0.5f64.sqrt()), 0.0, 0.5f64.sqrt()),
+            ),
+            (Vec3::new(1e-170, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+            (Vec3::new(0.0, -pow2(-1074), 0.0), Vec3::new(0.0, -1.0, 0.0)),
+            (Vec3::new(3e-160, 0.0, -4e-160), Vec3::new(0.6, 0.0, -0.8)),
+        ] {
+            let n = v.normalize();
+            assert!(
+                (n - want).norm() <= 2e-16,
+                "{v:?} normalized to {n:?}, want {want:?}"
+            );
+        }
+    }
+
+    /// `orthonormal_basis` takes the same prescale: past either end of
+    /// the squares' range `b1` is the in-range frame's, bit for bit, and
+    /// `b2 = n × b1` still carries `‖n‖` (checked where `b2` is normal).
+    #[test]
+    fn orthonormal_basis_is_one_frame_at_every_binade() {
+        let base = Vec3::new(0.75, -0.5, 1.0);
+        let (want1, want2) = base.orthonormal_basis();
+        for e in [-1072, -700, -540, -520, 520, 600, 1022] {
+            let k = pow2(e);
+            let (b1, b2) = (base * k).orthonormal_basis();
+            assert_eq!(
+                [b1.x, b1.y, b1.z].map(f64::to_bits),
+                [want1.x, want1.y, want1.z].map(f64::to_bits),
+                "b1 at 2^{e}: {b1:?}"
+            );
+            if e > -900 {
+                assert!((b2 / k - want2).norm() <= 1e-15, "b2 at 2^{e}: {b2:?}");
+            }
+        }
+    }
+
+    /// What names no direction still poisons: the zero vector of either
+    /// sign (above), an infinite component, a NaN one.
+    #[test]
+    fn normalize_poisons_a_non_finite_component() {
+        let n = Vec3::new(f64::INFINITY, 1.0, 1.0).normalize();
+        assert!(n.x.is_nan(), "{n:?}");
+        let n = Vec3::new(f64::NAN, 1.0, 1.0).normalize();
+        assert!(n.x.is_nan() && n.y.is_nan() && n.z.is_nan(), "{n:?}");
+        let n = Vec3::new(-0.0f64, -0.0, -0.0).normalize();
+        assert!(n.x.is_nan() && n.y.is_nan() && n.z.is_nan(), "{n:?}");
+        let n = Vec2::new(f64::NEG_INFINITY, 1.0).normalize();
+        assert!(n.x.is_nan(), "{n:?}");
+    }
+
+    /// The prescale at the interval scalar: a point enclosure past
+    /// either end normalizes to a bounded enclosure of the direction a
+    /// few ulps wide, as an in-range one does.
+    #[test]
+    fn normalize_encloses_the_direction_past_either_end_at_the_interval_scalar() {
+        use crate::{Bounds, Interval};
+        let base = Vec3::new(1.5, -1.25, 0.75);
+        let want = base / base.norm();
+        for e in [-1072, -600, -520, -500, 0, 499, 520, 1023] {
+            let v = (base * pow2(e)).map(Interval::from_f64);
+            let n = v.normalize();
+            for (c, w) in [(n.x, want.x), (n.y, want.y), (n.z, want.z)] {
+                assert!(c.is_bounded(), "2^{e}: {c:?}");
+                assert!(c.lo() <= w && w <= c.hi(), "2^{e}: {c:?} misses {w:e}");
+                assert!(c.hi() - c.lo() <= 1e-15, "2^{e}: {c:?} is wide");
+            }
+        }
     }
 
     #[test]
@@ -943,6 +1115,20 @@ mod tests {
         #[test]
         fn normalize_produces_unit_norm(a in vec3()) {
             prop_assert!((a.normalize().norm() - 1.0).abs() <= 1e-14);
+        }
+
+        /// Wherever the largest component lies in `(2⁻⁵⁰⁰, 2⁵⁰⁰)`,
+        /// `normalize` is the unscaled `v / ‖v‖` bit for bit — components
+        /// drawn across that whole span of binades, zeros included.
+        #[test]
+        fn normalize_is_the_plain_division_in_range(v in wide_vec3()) {
+            let want = v / v.norm();
+            let got = v.normalize();
+            prop_assert_eq!(
+                [got.x, got.y, got.z].map(f64::to_bits),
+                [want.x, want.y, want.z].map(f64::to_bits),
+                "{:?}", v
+            );
         }
 
         /// Scaling and adding are componentwise and exact per IEEE op:

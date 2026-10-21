@@ -90,12 +90,11 @@ use crate::spline::SpanLocate;
 /// **"Every other input" includes the ones a length comparison alone
 /// cannot see.** A vector whose components overflow the norm
 /// (`|v| ≳ 1e154` at `f64`) has an INFINITE length, which the scalar's
-/// own [`Decide`] machinery calls maximally definite — a `Positive`
-/// answer, followed by a division that collapses the direction to
-/// zero. The constructor therefore asks whether the length is a finite
-/// number BEFORE asking which side of zero it lies on
-/// ([`UnitVec3Error::NonFiniteLength`]); without that order the type's
-/// guarantee would be false exactly where it is least visible.
+/// own [`Decide`] machinery calls maximally definite. The constructor
+/// asks whether the length is a finite number BEFORE asking which side
+/// of zero it lies on ([`UnitVec3Error::NonFiniteLength`]), so an
+/// overflowed or poisoned length never reaches the funnel as a definite
+/// margin.
 ///
 /// The same comparison cannot see the other end either. A vector
 /// whose components underflow the norm (`|v| ≲ 1e-162` at `f64`) has
@@ -143,16 +142,15 @@ pub enum UnitVec3Error {
     /// overflow the norm (`|v| ≳ 1e154` at `f64`), or one of them is
     /// the scalar's poison. Refused BEFORE the length is decided,
     /// because an infinite margin is maximally definite to
-    /// [`Decide`] and would be normalized into a zero direction; a
-    /// poisoned one has no direction either.
+    /// [`Decide`] whatever the vector is; a poisoned one has no
+    /// direction either.
     NonFiniteLength,
     /// The vector's length UNDERFLOWED to zero: its components are
     /// nonzero but small enough (`|v| ≲ 1e-162` at `f64`) that the
     /// squared norm is exactly zero, so the length reads as zero for
     /// a vector that has a perfectly good direction. A separate fact
     /// from [`UnitVec3Error::Degenerate`] and a separate recourse:
-    /// no tolerance makes this length nonzero, and normalizing it
-    /// would blow the direction up to `±∞`.
+    /// no tolerance makes this length nonzero.
     UnderflowedLength,
     /// The length decision landed in the ambiguity band — at the
     /// interval scalar, an enclosure that straddles "has a direction"
@@ -693,10 +691,8 @@ mod tests {
             assert_eq!(bits3(u), bits3(v.normalize()), "the same divide, for {v:?}");
         }
         // The overflow class: a length that is not a finite NUMBER
-        // refuses BEFORE the sign of the length is asked for. An
-        // infinite margin is maximally definite to `sign_within`, so
-        // deciding first would answer Positive and normalize the
-        // direction into the zero vector.
+        // refuses BEFORE the sign of the length is asked for: an
+        // infinite margin is maximally definite to `sign_within`.
         for v in [
             Vec3::new(1e200, 0.0, 0.0),
             Vec3::new(0.0, 1e200, 1e200),
@@ -712,18 +708,6 @@ mod tests {
                 "{v:?} must refuse, not normalize"
             );
         }
-        // What the refusal prevents, executed rather than asserted:
-        // the normalization these components go through collapses the
-        // direction to the ZERO vector, which is DEFINITELY non-unit.
-        let collapsed = Vec3::new(1e200, 0.0, 0.0).normalize();
-        assert_eq!((collapsed.x, collapsed.y, collapsed.z), (0.0, 0.0, 0.0));
-        let tripwire = Band::new(1e-9, 2e-9).expect("a well-ordered band");
-        assert_eq!(
-            (collapsed.dot(collapsed) - 1.0)
-                .sign_within(tripwire)
-                .map(|d| d.sign),
-            Ok(Sign::Negative)
-        );
     }
 
     /// The refusal text names what happened to the LENGTH and the

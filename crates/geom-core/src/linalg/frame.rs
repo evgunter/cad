@@ -73,10 +73,8 @@
 //!    `RigidMotion::from_aim` — so all of them are classified by
 //!    the same three questions in the same order, and the first is
 //!    [`is_finite_length`](crate::is_finite_length): a direction past
-//!    [`Vec3::normalize`]'s ~1e154 overflow band has an infinite
-//!    norm, which is maximally DEFINITE to the classifier and
-//!    normalizes to the zero vector, so deciding the sign first
-//!    returns a frame built from nothing. That refusal is
+//!    [`Vec3::norm`]'s ~1e154 overflow band has an infinite norm,
+//!    which is maximally DEFINITE to the classifier. That refusal is
 //!    [`FrameError::NonFiniteLength`], and it names the
 //!    [`FrameVector`] whose length is not a number.
 //!
@@ -163,10 +161,8 @@ pub enum FrameInput {
     RollReference,
     /// [`path_start_frame`]'s reference ladder ran out: neither world
     /// +Z nor world +X was definitely off the tangent line. The
-    /// overflow class that used to arrive here — a tangent past
-    /// [`Vec3::normalize`]'s ~1e154 band, which normalizes to the zero
-    /// vector after passing a decision taken on an infinite norm — is
-    /// now refused at the tangent's own name as
+    /// overflow class — a tangent past [`Vec3::norm`]'s ~1e154 band —
+    /// is refused at the tangent's own name as
     /// [`FrameError::NonFiniteLength`].
     ///
     /// **No input is known to reach this variant, and that is weaker
@@ -1015,7 +1011,7 @@ mod tests {
             })
         ));
         // A tangent whose components exceed the normalization range
-        // (`Vec3::normalize`'s ~1e154 overflow note) has no finite
+        // (the ~1e154 band where `Vec3::norm` overflows) has no finite
         // length, and that is what it is told. It used to reach the
         // ladder — the length decision passed on an infinite norm, the
         // tangent normalized to ZERO, both rungs decided coincident —
@@ -1209,9 +1205,8 @@ mod tests {
 
     /// **The overflow end, at each of the four normalizing sites.** A
     /// direction whose components pass ~1e154 overflows its norm to
-    /// ∞, an infinite margin is maximally DEFINITE to the classifier,
-    /// and the division that follows collapses the direction to zero.
-    /// Each site is exercised at the value that reaches IT, and each
+    /// ∞, and an infinite margin is maximally DEFINITE to the
+    /// classifier. Each site is exercised at the value that reaches IT, and each
     /// must refuse naming the input whose length is not a number.
     ///
     /// What each row did before the finiteness question went first

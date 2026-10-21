@@ -6051,7 +6051,7 @@ mod tests {
     }
 
     /// **The overflow end of both 2-D director doors.** Components
-    /// past `Vec2::normalize`'s ~1e154 band make the norm ∞, which is
+    /// past `Vec2::norm`'s ~1e154 band make the norm ∞, which is
     /// maximally DEFINITE to the classifier, and the division that
     /// follows collapses the ray to zero. Measured at the merge base,
     /// both doors reported SUCCESS:
