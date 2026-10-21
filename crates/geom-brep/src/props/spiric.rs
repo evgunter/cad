@@ -1798,8 +1798,9 @@ mod tests {
     /// the ring's. The same ring wound with the loop refuses
     /// [`PropsError::RingWoundWithFace`] rather than add itself to the
     /// face's area, as does the loop's own copy beside it, and the loop's
-    /// copy run backwards leaves a face of no area
-    /// ([`PropsError::DegenerateFace`]); each at both scalars. A ring
+    /// copy run backwards leaves a whole of no area, on which the read
+    /// takes no side (it escalates `props_chart_area_side`); each at both
+    /// scalars. A ring
     /// whose lift stays open by a part of a period, as a ring crossing
     /// the chart's seam would where its images do not continue across
     /// it, refuses [`PropsError::ChartLoopOpen`]; one whose lift restarts
@@ -1877,12 +1878,18 @@ mod tests {
                 ends: loops.iter().map(|l| l.2.clone()).collect(),
             }),
         };
-        let both = |f: &SpiricFaceQ| {
-            [
-                spiric_face_rounds::<f64>(f, tol.eps(), band, RoundWindow::SCHEDULE),
-                spiric_face_rounds::<Interval>(f, tol.eps(), band, RoundWindow::SCHEDULE),
-            ]
+        // At each scalar, to a reporting target of ε `1e-6` at least: the
+        // ring's winding is read at the round returned, whatever the
+        // target, and a tighter one only costs rounds.
+        let eps = tol.eps().max(1e-6);
+        let within = |scalar: usize, f: &SpiricFaceQ, window: RoundWindow| {
+            if scalar == 0 {
+                spiric_face_rounds::<f64>(f, eps, band, window)
+            } else {
+                spiric_face_rounds::<Interval>(f, eps, band, window)
+            }
         };
+        let at = |scalar: usize, f: &SpiricFaceQ| within(scalar, f, RoundWindow::SCHEDULE);
         let area = |got: &Result<RoundOutcome, PropsError>| match got {
             Ok(RoundOutcome::Converged(b)) => b.area,
             other => panic!("a face that measures: {other:?}"),
@@ -1892,42 +1899,50 @@ mod tests {
         let hole = closed(0.05, false);
         for scalar in 0..2 {
             let alone = |l: &(SpiricEdgeQ, MeridianQ, Vec<ChartEndsQ>)| {
-                area(&both(&wall_face(core::slice::from_ref(l)))[scalar])
+                area(&at(scalar, &wall_face(core::slice::from_ref(l))))
             };
             let (whole, ring) = (alone(&outer), alone(&inner));
             assert!(
                 ring.hi() < whole.lo(),
                 "the ring is the smaller loop: {ring:?} {whole:?}"
             );
-            let cut = area(&both(&wall_face(&[outer.clone(), hole.clone()]))[scalar]);
+            let cut = area(&at(scalar, &wall_face(&[outer.clone(), hole.clone()])));
             let want = (whole - ring).abs_enclosure();
             assert!(
                 cut.lo() <= want.hi() && want.lo() <= cut.hi(),
                 "scalar {scalar}: the loop less its ring, {cut:?} against {want:?}"
             );
-            for (what, loops, refused) in [
+            // Each read at the first round, the round returned: a face of
+            // no area never converges, and would spend the whole budget
+            // before its rings are read.
+            let first = |loops: &[(SpiricEdgeQ, MeridianQ, Vec<ChartEndsQ>)]| {
+                within(scalar, &wall_face(loops), RoundWindow::at(0))
+            };
+            for (what, loops) in [
                 (
                     "the ring wound with the loop",
                     vec![outer.clone(), inner.clone()],
-                    PropsError::RingWoundWithFace,
                 ),
                 (
                     "the loop's own copy beside it",
                     vec![outer.clone(), outer.clone()],
-                    PropsError::RingWoundWithFace,
-                ),
-                (
-                    "the loop's copy run backwards",
-                    vec![outer.clone(), closed(0.3, false)],
-                    PropsError::DegenerateFace,
                 ),
             ] {
-                let got = &both(&wall_face(&loops))[scalar];
+                let got = first(&loops);
                 assert!(
-                    matches!(got, Err(e) if *e == refused),
+                    matches!(got, Err(PropsError::RingWoundWithFace)),
                     "scalar {scalar}, {what}: {got:?}"
                 );
             }
+            // The loop's copy run backwards leaves a whole of no area,
+            // which the winding read does not take a side on: its
+            // enclosure holds zero, and the read escalates.
+            let got = first(&[outer.clone(), closed(0.3, false)]);
+            assert!(
+                matches!(&got, Err(PropsError::Escalated { cause, .. })
+                    if cause.predicate == Some("props_chart_area_side")),
+                "scalar {scalar}, the loop's copy run backwards: {got:?}"
+            );
         }
         let (oval, meridian, loop_ends) = inner;
         let (ends, back) = (loop_ends[0], loop_ends[1]);
