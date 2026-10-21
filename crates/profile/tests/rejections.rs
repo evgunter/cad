@@ -420,8 +420,7 @@ fn half_discs_outside(gap: f64, facing: bool) -> profile::Profile<f64> {
 /// pair validates, at `f64` and `Interval`.
 #[test]
 fn arcs_away_from_an_in_band_external_tangency_are_no_contact() {
-    validate_both(&half_discs_outside(in_band(), false))
-        .expect("the arcs stand two metres apart");
+    validate_both(&half_discs_outside(in_band(), false)).expect("the arcs stand two metres apart");
 }
 
 /// **Arcs that face an in-band external tangency still escalate.** The
@@ -471,7 +470,9 @@ fn half_discs_inside(gap: f64, outer_holds: bool) -> profile::Profile<f64> {
 fn arcs_away_from_an_in_band_internal_tangency_are_no_contact() {
     for outer_holds in [true, false] {
         validate_both(&half_discs_inside(in_band(), outer_holds)).unwrap_or_else(|e| {
-            panic!("the small arc keeps a metre off the tangency (outer_holds {outer_holds}): {e:?}")
+            panic!(
+                "the small arc keeps a metre off the tangency (outer_holds {outer_holds}): {e:?}"
+            )
         });
     }
 }

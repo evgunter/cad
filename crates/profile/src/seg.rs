@@ -1514,7 +1514,8 @@ fn line_line<T: Decide>(
 ///
 /// An in-band clearance is a carrier question the segments need not
 /// ask: where [`arc_clear_of_carrier`] certifies the arc away from the
-/// whole line, there is no contact; otherwise it escalates.
+/// whole line, or [`segment_clear_of_circle`] the segment away from the
+/// whole circle, there is no contact; otherwise it escalates.
 fn line_arc<T: Decide>(
     line: &Seg<T>,
     arc: &Seg<T>,
@@ -1611,43 +1612,73 @@ fn arc_clear_of_carrier<T: Decide>(
 /// read from the segment's span rather than the carriers' clearance: the
 /// line's side of [`arc_clear_of_carrier`]. Along a line the distance to
 /// a circle's centre has one local minimum, at `foot`, the line's point
-/// nearest the centre. A segment whose span definitely misses `foot`
-/// (`line_span`) is therefore nearest the centre at an end, and with
-/// both ends definitely outside the circle (`circle_side`) no point of
+/// nearest the centre. A segment whose span definitely misses `foot` is
+/// therefore nearest the centre at an end, and with both ends
+/// definitely outside the circle ([`end_clear_of_circle`]) no point of
 /// it reaches the circle.
 ///
-/// `foot` is computed, the ends are the segment's own. In the reals and
-/// at `Interval` the readings hold of the real points. At `f64` `foot`
-/// stands within its rounding of the real foot, and `line_span`'s
-/// margin, 1-Lipschitz in the point, moves by no more than that, which
-/// the `Kε` a definite miss clears absorbs, as at
-/// [`arc_clear_of_carrier`].
+/// **The miss, charged** (**`circle_foot_past_segment`**). `foot` is
+/// computed, the ends are the segment's own, so the miss is read as
+/// `line_span`'s margin `min(t, L − t)` with the foot's making added to
+/// it: it must read definitely negative with
+/// [`rounding_charge`](geom_core::rounding_charge) of the foot's
+/// production (`|c − a|` along the unit, `a`'s and the foot's coordinate
+/// magnitudes where the addition rounds) and of the span margin's own
+/// arithmetic (`L`). At `Interval` the readings hold of the real points
+/// and the charge only widens them.
 fn segment_clear_of_circle<T: Decide>(
     line: &Seg<T>,
     g: &ArcGeom<T>,
     foot: Point2<T>,
     band: Band,
 ) -> bool {
-    let outside = |q| matches!(circle_side(g, q, band), Ok(Sign::Positive));
-    matches!(line_span(line, foot, band), Ok(Sign::Negative)) && outside(line.a) && outside(line.b)
+    let t = (foot - line.a).dot(line.unit);
+    let made = (g.arc.centre - line.a).norm() + reach(line.a) + reach(foot) + line.len;
+    let miss = t.min(line.len - t) + geom_core::rounding_charge(made);
+    decide("circle_foot_past_segment", Margin::of(miss), band) == Ok(Sign::Negative)
+        && [line.a, line.b]
+            .into_iter()
+            .all(|q| end_clear_of_circle(g, q, Sign::Positive, band))
+}
+
+/// Whether a segment's end lies definitely on `side` of a circle
+/// (**`circle_end_clear`**, positive = outside): `circle_side`'s margin
+/// `|q − c| − r`, charged. The end is stored, but the margin is not:
+/// the difference `q − c`, its norm and the subtraction of `r` round at
+/// the coordinates' and the radius's magnitude, which far from the
+/// origin passes the band's room, so it must read definite with
+/// [`rounding_charge`](geom_core::rounding_charge) of `|q|`, `|c|` and
+/// `r` taken against it.
+fn end_clear_of_circle<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, side: Sign, band: Band) -> bool {
+    let charge = geom_core::rounding_charge(reach(q) + reach(g.arc.centre) + g.arc.radius);
+    let rim = g.arc.rim(q) - g.arc.radius;
+    let margin = match side {
+        Sign::Positive => rim - charge,
+        Sign::Negative => rim + charge,
+        Sign::Zero => return false,
+    };
+    decide("circle_end_clear", Margin::of(margin), band) == Ok(side)
 }
 
 /// Whether an arc certainly keeps off another circle, read from the
 /// arc's span rather than the carriers' clearances; `toward` is the unit
 /// from the arc's centre to the other's. Along a circle the distance to
-/// another centre has one local minimum, at `near` (the point facing
-/// it), and one maximum, at `far`, opposite. An arc whose span
-/// definitely excludes `near` (`arc_span`) is nearest the other centre
-/// at an end, so with both ends definitely outside the other circle
-/// (`circle_side`) no point of it reaches that circle; one excluding
-/// `far` is farthest at an end, so with both ends definitely inside, no
-/// point of it does either.
+/// another centre has one local minimum, at the point facing it, and one
+/// maximum, opposite. An arc whose span definitely excludes the nearest
+/// is nearest the other centre at an end, so with both ends definitely
+/// outside the other circle ([`end_clear_of_circle`]) no point of it
+/// reaches that circle; one excluding the farthest is farthest at an end, so with
+/// both ends definitely inside, no point of it does either.
 ///
-/// `near` and `far` are computed, under the argument of
-/// [`segment_clear_of_circle`]: each lies on the arc's own carrier
-/// within its rounding, and `arc_span`'s margin is 1-Lipschitz in the
-/// point. `toward` divides by the centres' distance, so it is read only
-/// where the identity margin was definite ([`arc_arc`]).
+/// **The exclusion, charged** (**`circle_extreme_past_arc`**). The two
+/// extremes `c ± r·û` are computed, so each is read as `arc_span`'s
+/// margin `|a − apex| − |q − apex|` with its making added: it must read
+/// definitely negative with [`rounding_charge`](geom_core::rounding_charge)
+/// of the point's production (the centre's coordinate magnitude, `r`
+/// through `û`, itself a quotient by the centres' distance) and of the
+/// span margin's arithmetic (the span chord and `|q − apex|`, each at
+/// most `2r`). `toward` divides by the centres' distance, so it is read
+/// only where the identity margin was definite ([`arc_arc`]).
 fn arc_clear_of_circle<T: Decide>(
     arc: &Seg<T>,
     g: &ArcGeom<T>,
@@ -1655,15 +1686,23 @@ fn arc_clear_of_circle<T: Decide>(
     other: &ArcGeom<T>,
     band: Band,
 ) -> bool {
+    let ArcSpan::Chord { apex, span_chord } = g.span else {
+        // A full turn holds both extremes.
+        return false;
+    };
     let ends = |side: Sign| {
         [arc.a, arc.b]
             .into_iter()
-            .all(|q| circle_side(other, q, band) == Ok(side))
+            .all(|q| end_clear_of_circle(other, q, side, band))
     };
-    let misses = |q| arc_span(g, q, band) == Ok(Sign::Negative);
-    let reach = toward * g.arc.radius;
-    (misses(g.arc.centre + reach) && ends(Sign::Positive))
-        || (misses(g.arc.centre - reach) && ends(Sign::Negative))
+    let excludes = |q: Point2<T>| {
+        let made = reach(g.arc.centre) + reach(q) + g.arc.radius * T::from_f64(5.0);
+        let miss = span_chord - q.distance(apex) + geom_core::rounding_charge(made);
+        decide("circle_extreme_past_arc", Margin::of(miss), band) == Ok(Sign::Negative)
+    };
+    let arm = toward * g.arc.radius;
+    (excludes(g.arc.centre + arm) && ends(Sign::Positive))
+        || (excludes(g.arc.centre - arm) && ends(Sign::Negative))
 }
 
 /// Arc/arc contacts. Predicates, in gate order, all margins in meters:
@@ -1715,6 +1754,13 @@ fn arc_clear_of_circle<T: Decide>(
 ///
 /// The margins and the crossings read one [`Circles2`], so the factors
 /// the crossings take are the margins decided, bit for bit.
+///
+/// An in-band external, internal or chord reading is a carrier question
+/// the arcs need not ask: where [`arc_clear_of_circle`] certifies either
+/// arc away from the other's whole circle, there is no contact; otherwise
+/// it escalates. It is not asked where the identity margin is in band:
+/// arcs on nearly one circle stand within about ε of each other's circle
+/// everywhere, so no radial margin separates them.
 ///
 /// A tangency's candidate is the midpoint of the circles' nearest
 /// points, which lie on the line of centres |g| apart, so it stands
@@ -3194,5 +3240,215 @@ mod circles_accuracy_tests {
             }
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+}
+
+/// The radial certificates' fuzz ([`segment_clear_of_circle`],
+/// [`arc_clear_of_circle`]).
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod clear_of_circle_tests {
+    use super::*;
+    use geom_core::{Bounds, Interval};
+
+    fn pt<T: Real>((x, y): (f64, f64)) -> Point2<T> {
+        Point2::new(T::from_f64(x), T::from_f64(y))
+    }
+
+    /// The fuzz rows' band: ε `10⁻¹²`, where a computed point's rounding
+    /// at `10⁶` m out passes the band's room.
+    fn fine_band() -> Band {
+        Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("band: {e}"))
+    }
+
+    /// A draw's scale: `10^lo … 10^hi`, log-uniform.
+    fn decades(rng: &mut test_utils::fuzz::Rng, lo: f64, hi: f64) -> f64 {
+        10f64.powf(rng.range(lo, hi))
+    }
+
+    /// A sign, either way with even odds.
+    fn signed(rng: &mut test_utils::fuzz::Rng) -> f64 {
+        if rng.range(0.0, 1.0) < 0.5 { -1.0 } else { 1.0 }
+    }
+
+    /// A draw's distance from the origin, radius and step past the
+    /// point the certificate reads. Half the draws sweep the whole range
+    /// (`10⁰` … `10⁶` m out, radius `10⁻²` … `10⁶` m, step `10⁻¹³` …
+    /// `10⁻⁷` m); the other half stand where a computed point's rounding
+    /// passes the band (about `10⁶` m out, radius about `10⁶` m, step
+    /// `10⁻¹¹` … `10⁻⁹` m), which is where the point's charge decides.
+    fn draw_scales(rng: &mut test_utils::fuzz::Rng) -> (f64, f64, f64) {
+        let hard = rng.range(0.0, 1.0) < 0.5;
+        let (far, r, step) = if hard {
+            ((5.5, 6.0), (5.5, 6.0), (-11.0, -9.0))
+        } else {
+            ((0.0, 6.0), (-2.0, 6.0), (-13.0, -7.0))
+        };
+        (
+            decades(rng, far.0, far.1),
+            decades(rng, r.0, r.1),
+            signed(rng) * decades(rng, step.0, step.1),
+        )
+    }
+
+    /// **A segment read clear of a circle is clear of it in ℝ**, on
+    /// stored points far from the origin ([`segment_clear_of_circle`]).
+    /// A circle and a segment of length `10⁻²` … `10⁶` m on a line
+    /// `10⁻¹²` … `10⁻⁵` m either side of the circle's tangent, starting a
+    /// small step (either sign) past the centre's foot, at the scales of
+    /// [`draw_scales`]. Wherever the certificate fires, the
+    /// `Interval` reading of its premises on the stored points (the real
+    /// foot off the span, both ends outside the circle) must hold. More
+    /// than 100 draws must fire.
+    #[test]
+    fn a_segment_read_clear_of_a_circle_is_clear_of_it() {
+        let band = fine_band();
+        let mut rng = test_utils::fuzz::start("seg-segment-clear-of-circle");
+        let mut fired = 0usize;
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let (far, r, step) = draw_scales(&mut rng);
+            let c = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
+            let th = rng.range(0.0, core::f64::consts::TAU);
+            let (ux, uy) = (th.cos(), th.sin());
+            let h = r + signed(&mut rng) * decades(&mut rng, -12.0, -5.0);
+            let len = decades(&mut rng, -2.0, 6.0);
+            let a = (c.0 - uy * h + ux * step, c.1 + ux * h + uy * step);
+            let b = (a.0 + ux * len, a.1 + uy * len);
+            let Ok(circle) = build_seg(
+                pt::<f64>((c.0 + r, c.1)),
+                pt((c.0 - r, c.1)),
+                Segment::Arc(Arc2 {
+                    centre: pt(c),
+                    radius: r,
+                    sweep: core::f64::consts::PI,
+                }),
+                Consistency::Decide,
+                band,
+            ) else {
+                continue;
+            };
+            let SegKind::Arc(g) = &circle.kind else {
+                continue;
+            };
+            let Ok(s) = build_seg(pt(a), pt(b), Segment::Line, Consistency::Decide, band) else {
+                continue;
+            };
+            let foot = s.a + s.unit * (g.arc.centre - s.a).dot(s.unit);
+            if !segment_clear_of_circle(&s, g, foot, band) {
+                continue;
+            }
+            fired += 1;
+            let p = pt::<Interval>;
+            let (ia, ib, ic) = (p(a), p(b), p(c));
+            let along = (ic - ia).dot(ib - ia);
+            let off = along.hi() < 0.0 || (along - (ib - ia).dot(ib - ia)).lo() > 0.0;
+            let outside =
+                |q: Point2<Interval>| ((q - ic).norm() - Interval::from_f64(r)).lo() > 0.0;
+            assert!(
+                off && outside(ia) && outside(ib),
+                "read clear, but in ℝ the foot is off the span: {off}, the ends outside: \
+                 {}, {}: c {c:?} r {r}, a {a:?} → b {b:?} — {}",
+                outside(ia),
+                outside(ib),
+                test_utils::fuzz::replay()
+            );
+        }
+        assert!(
+            fired > 100,
+            "only {fired} draws fired: the sweep does not reach the miss"
+        );
+    }
+
+    /// **An arc read clear of another circle is clear of it in ℝ**, on
+    /// stored points far from the origin ([`arc_clear_of_circle`]). Two
+    /// circles, the second of radius `10⁻²` … `10⁶` m, externally or
+    /// internally tangent but for `10⁻¹²` … `10⁻⁵` m either way, and an
+    /// arc of the first, under half a turn, starting a small step (either
+    /// sign, along it) past its point nearest or farthest from the second
+    /// centre, at the scales of [`draw_scales`]. Wherever the certificate fires,
+    /// the `Interval` reading of its premises on the stored points (the
+    /// real extreme's direction off the arc's span, both ends outside or
+    /// both inside the second circle) must hold. More than 100 draws
+    /// must fire.
+    #[test]
+    fn an_arc_read_clear_of_a_circle_is_clear_of_it() {
+        let band = fine_band();
+        let mut rng = test_utils::fuzz::start("seg-arc-clear-of-circle");
+        let mut fired = 0usize;
+        let on = |c: (f64, f64), r: f64, t: f64| (c.0 + r * t.cos(), c.1 + r * t.sin());
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let (far, r1, step) = draw_scales(&mut rng);
+            let c1 = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
+            let r2 = decades(&mut rng, -2.0, 6.0);
+            let th = rng.range(0.0, core::f64::consts::TAU);
+            let gap = signed(&mut rng) * decades(&mut rng, -12.0, -5.0);
+            let d = if rng.range(0.0, 1.0) < 0.5 {
+                r1 + r2 + gap
+            } else {
+                (r1 - r2).abs() + gap
+            };
+            if d <= 0.0 {
+                continue;
+            }
+            let c2 = (c1.0 + d * th.cos(), c1.1 + d * th.sin());
+            let extreme = if rng.range(0.0, 1.0) < 0.5 {
+                th
+            } else {
+                th + core::f64::consts::PI
+            };
+            let sweep = rng.range(0.1, 3.0) * if rng.range(0.0, 1.0) < 0.5 { 1.0 } else { -1.0 };
+            let start = extreme + sweep.signum() * step / r1;
+            let build = |c: (f64, f64), r: f64, t: f64, sweep: f64| {
+                build_seg(
+                    pt::<f64>(on(c, r, t)),
+                    pt(on(c, r, t + sweep)),
+                    Segment::Arc(Arc2 {
+                        centre: pt(c),
+                        radius: r,
+                        sweep,
+                    }),
+                    Consistency::Decide,
+                    band,
+                )
+            };
+            let (Ok(s1), Ok(s2)) = (build(c1, r1, start, sweep), build(c2, r2, 0.0, 1.0)) else {
+                continue;
+            };
+            let (SegKind::Arc(g1), SegKind::Arc(g2)) = (&s1.kind, &s2.kind) else {
+                continue;
+            };
+            let toward = carrier_pair(g1, g2).direction();
+            if !arc_clear_of_circle(&s1, g1, toward, g2, band) {
+                continue;
+            }
+            fired += 1;
+            let p = pt::<Interval>;
+            let (ia, ib, ic1, ic2) = (p((s1.a.x, s1.a.y)), p((s1.b.x, s1.b.y)), p(c1), p(c2));
+            let (va, vb) = (ia - ic1, ib - ic1);
+            let rim = |q: Point2<Interval>| (q - ic2).norm() - Interval::from_f64(r2);
+            // Off the span of an arc under half a turn: on the far side
+            // of either end's radius, in the arc's sense.
+            let off = |v: Vec2<Interval>| {
+                let (from_a, to_b) = (va.perp_dot(v), v.perp_dot(vb));
+                if sweep > 0.0 {
+                    from_a.hi() < 0.0 || to_b.hi() < 0.0
+                } else {
+                    from_a.lo() > 0.0 || to_b.lo() > 0.0
+                }
+            };
+            let near = ic2 - ic1;
+            let outside = off(near) && rim(ia).lo() > 0.0 && rim(ib).lo() > 0.0;
+            let inside = off(-near) && rim(ia).hi() < 0.0 && rim(ib).hi() < 0.0;
+            assert!(
+                outside || inside,
+                "read clear, but in ℝ neither half holds: c1 {c1:?} r1 {r1}, c2 {c2:?} r2 {r2}, \
+                 start {start} sweep {sweep} — {}",
+                test_utils::fuzz::replay()
+            );
+        }
+        assert!(
+            fired > 100,
+            "only {fired} draws fired: the sweep does not reach the extremes"
+        );
     }
 }
