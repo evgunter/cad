@@ -611,6 +611,38 @@ fn an_adjacent_pair_with_an_in_band_side_escalates_at_its_joint() {
     }
 }
 
+/// **A pair that shares no vertex still escalates on an in-band side.**
+/// The square `(0,0) (1,0) (1,−1) (0,−1)` and a triangle whose first edge
+/// starts half the band's zero past the square's `(1, 0)` and runs on to
+/// `(3, h)`, `h` in band: the two edges' projections touch within the
+/// band, and their sides read in band. The shared-end touch is the
+/// adjacent pair's, read at a vertex both segments store, so this pair,
+/// across two loops, escalates as before.
+#[test]
+fn a_pair_sharing_no_vertex_still_escalates_on_an_in_band_side() {
+    let t = tol().get();
+    let p = profile(vec![
+        chain(&[
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (1.0, -1.0, 0.0),
+            (0.0, -1.0, 0.0),
+        ]),
+        chain(&[
+            (1.0 + 0.5 * t.eps, 0.0, 0.0),
+            (3.0, in_band(), 0.0),
+            (2.0, 1.0, 0.0),
+        ]),
+    ]);
+    match err(&p) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(1, 0)));
+            assert_eq!(source.predicate, Some("chord_side"));
+        }
+        other => panic!("the pair across two loops must escalate, got {other:?}"),
+    }
+}
+
 /// **A crossing the pass reads after an adjacent pair's in-band side is
 /// the refusal.** `(0,0) (1,0) (1,1) (1.2,0.5) (−0.1,h)`, `h` in band:
 /// the closing leg and segment 0 meet only at `(0, 0)`, read before the

@@ -2882,10 +2882,12 @@ mod pair_contact_tests {
             ),
             Err(e) => panic!("the joint decides, got an escalation on {:?}", e.predicate),
         }
-        for shared in [None, Some(pt(v))] {
-            match pair_contacts(&leaving, &arriving, shared, band) {
-                Err(e) => assert_eq!(e.predicate, Some("collinear_overlap"), "{shared:?}"),
-                Ok(_) => panic!("{shared:?}: the straddle must escalate"),
+        for (host, other) in [(&leaving, &arriving), (&arriving, &leaving)] {
+            for shared in [None, Some(pt(v))] {
+                match pair_contacts(host, other, shared, band) {
+                    Err(e) => assert_eq!(e.predicate, Some("collinear_overlap"), "{shared:?}"),
+                    Ok(_) => panic!("{shared:?}: the straddle must escalate"),
+                }
             }
         }
     }
