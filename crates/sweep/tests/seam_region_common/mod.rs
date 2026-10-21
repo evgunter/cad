@@ -123,6 +123,14 @@ pub(crate) fn assert_refused(
             "{label}: flipping {set:?} does not name {face:?} CurvedSenseInverted: {errs:?}"
         );
     }
+    // The door reads the same seam regions, so it refuses the same flips
+    // without tier 3.
+    let door = topo::mass_properties(&flipped, tol);
+    assert!(
+        door.is_err(),
+        "{label}: flipping {set:?}: tier 3 refuses, the door measures {:?}",
+        door.map(|m| m.volume)
+    );
 }
 
 /// The sphere `key` lies on: centre, radius and unit polar axis.

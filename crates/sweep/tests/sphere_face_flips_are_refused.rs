@@ -57,7 +57,22 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
     let count = sets.len();
     for set in sets {
         let flipped = flipped(body, &set);
-        match topo::validate_geometric(&flipped, tol) {
+        // The door reads the same seam regions without tier 3: it refuses
+        // every flip tier 3 does, or measures it inside out, which is
+        // check 7's reading of the door's own sign; and it measures every
+        // flip tier 3 passes.
+        let door = topo::mass_properties(&flipped, tol).map(|m| m.volume);
+        let tier3 = topo::validate_geometric(&flipped, tol);
+        match (&tier3, &door) {
+            (Ok(()), Err(e)) => failures.push(format!(
+                "{label}: flipping {set:?} passes tier 3 and the door refuses it: {e:?}"
+            )),
+            (Err(errs), Ok(v)) if *v > 0.0 => failures.push(format!(
+                "{label}: flipping {set:?}: tier 3 refuses ({errs:?}), the door measures {v}"
+            )),
+            _ => {}
+        }
+        match tier3 {
             Ok(()) => failures.push(format!(
                 "{label}: flipping {set:?} passes tier 3 (measures {:?}, unflipped {:?})",
                 topo::mass_properties(&flipped, tol).map(|m| m.volume),

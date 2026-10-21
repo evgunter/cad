@@ -540,7 +540,7 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
     last_word: impl Fn(Option<MassPropsError>) -> V,
 ) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
     let hook = round_hook(quad);
-    let refs = References::of(body, faces.iter().copied());
+    let refs = References::of(body, faces.iter().copied(), band);
     // Round 0 over every face, then the rounds after it over the faces
     // still open — both idiom 1 into slots in the caller's order, both
     // composed sequentially in it ([`mass_properties_impl`]'s note).
@@ -729,7 +729,7 @@ impl<T: Decide> PastTarget<'_, T> {
         }
         let hook = round_hook(walk.quad);
         let (body, band, tol) = (walk.body, walk.band, walk.tol);
-        let refs = References::of(body, next.iter().map(|&(_, face, _)| face));
+        let refs = References::of(body, next.iter().map(|&(_, face, _)| face), band);
         match decide_faces(&next, |&(_, face, round)| {
             face_flux(body, face, band, &hook, tol, RoundWindow::at(round), &refs)
         }) {
@@ -1191,7 +1191,7 @@ pub(crate) fn certify_role<T: Decide>(
 /// none to give, and what this read certifies is only that the sums' sign
 /// is not within the rounding the model puts on them.
 fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, MassPropsError> {
-    let refs = References::of(body, runs.iter().map(|r| r.face));
+    let refs = References::points(body, runs.iter().map(|r| r.face));
     let one_norm = |x: T, y: T, z: T| x.abs() + y.abs() + z.abs();
     let mut bound = T::zero();
     for run in runs {
@@ -1369,7 +1369,7 @@ fn rederive_faces<T: Decide>(
     runs: &[FaceRun<T>],
     tight: bool,
 ) -> Result<Rederived, MassPropsError> {
-    let refs = References::of(body, runs.iter().map(|r| r.face));
+    let refs = References::points(body, runs.iter().map(|r| r.face));
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
     let mut recentred = true;
     let mut quadrature = false;
@@ -1491,7 +1491,7 @@ fn rederive_polygons<T: Decide>(
     polygons: &[PlanePolygon],
     runs: &[FaceRun<T>],
 ) -> Result<Rederived, MassPropsError> {
-    let refs = References::of(body, runs.iter().map(|r| r.face));
+    let refs = References::points(body, runs.iter().map(|r| r.face));
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
     for ((rings, normal), run) in polygons.iter().zip(runs) {
         let centre = corner_of(body, lane, &refs, run.face)?;
@@ -1877,6 +1877,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         let refs = References::of(
             body,
             runs.iter().filter(|r| r.open_at.is_some()).map(|r| r.face),
+            band,
         );
         let resume = |face, round: usize| {
             face_flux(
@@ -2818,7 +2819,7 @@ pub fn quadrature_rounds(
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = reporting_hook(Some(QuadLane::certified()));
-    let refs = References::of(body, faces.iter().copied());
+    let refs = References::of(body, faces.iter().copied(), band);
     let mut rounds = Vec::new();
     for &face in &faces {
         let (mut met, mut quadrature) = (None, false);
@@ -2850,7 +2851,7 @@ fn mass_properties_runs<T: Decide>(
     quad: &QuadHook<'_, T>,
     tol: Tol,
 ) -> Result<(MassProperties<T>, Vec<FaceRun<T>>), MassPropsError> {
-    let refs = References::of(body, faces.iter().copied());
+    let refs = References::of(body, faces.iter().copied(), band);
     let runs = decide_faces(faces, |&face_key| {
         face_flux(
             body,
@@ -3083,32 +3084,264 @@ fn shell_reference<T: Decide>(body: &Body<T>, shell: ShellKey) -> Point3<T> {
 /// **Each shell's reference** ([`shell_reference`]) over the faces one
 /// door call reads, found once per call: finding it reads the shell's
 /// faces up to its first quadrature face, so a walk that asked for it per
-/// face would read a shell of no quadrature face once per face.
-struct References<T: Decide>(std::collections::BTreeMap<ShellKey, Point3<T>>);
+/// face would read a shell of no quadrature face once per face. With
+/// them, what each sphere seam region the faces reach says of its
+/// members ([`seam_refusals`]), read once per region.
+struct References<T: Decide> {
+    shells: std::collections::BTreeMap<ShellKey, Point3<T>>,
+    seams: std::collections::BTreeMap<FaceKey, PropsError>,
+}
 
 impl<T: Decide> References<T> {
-    /// The references of the shells `faces` lie on.
-    fn of(body: &Body<T>, faces: impl IntoIterator<Item = FaceKey>) -> Self {
-        let mut map = std::collections::BTreeMap::new();
+    /// The references of the shells `faces` lie on, and the seam
+    /// regions they reach, read in `band`.
+    fn of(body: &Body<T>, faces: impl IntoIterator<Item = FaceKey>, band: Band) -> Self {
+        let mut shells = std::collections::BTreeMap::new();
+        let mut seams = std::collections::BTreeMap::new();
+        let mut read = Vec::new();
         for key in faces {
             let shell = resolve_face(body, key).0.shell;
-            map.entry(shell)
+            shells
+                .entry(shell)
+                .or_insert_with(|| shell_reference(body, shell));
+            if !read.contains(&key) {
+                seam_refusals(body, key, band, &mut read, &mut seams);
+            }
+        }
+        Self { shells, seams }
+    }
+
+    /// The references alone, for a reading after a walk over the same
+    /// faces, which has read their seam regions already.
+    fn points(body: &Body<T>, faces: impl IntoIterator<Item = FaceKey>) -> Self {
+        let mut shells = std::collections::BTreeMap::new();
+        for key in faces {
+            let shell = resolve_face(body, key).0.shell;
+            shells
+                .entry(shell)
                 .or_insert_with(|| shell_reference(body, shell));
         }
-        Self(map)
+        Self {
+            shells,
+            seams: std::collections::BTreeMap::new(),
+        }
     }
 
     /// The point `face` is read about: its shell's reference. A face
     /// whose shell the door did not hold is a door that read a face it
-    /// did not hand [`References::of`], refused as corrupt.
+    /// did not hand [`References::of`], refused as corrupt; a face its
+    /// seam region refuses is refused here, before any lane reads it.
     fn at(&self, body: &Body<T>, face: FaceKey) -> Result<Point3<T>, MassPropsError> {
-        self.0
+        if let Some(source) = self.seams.get(&face) {
+            return Err(MassPropsError::Face {
+                face,
+                source: source.clone(),
+            });
+        }
+        self.shells
             .get(&resolve_face(body, face).0.shell)
             .copied()
             .ok_or(MassPropsError::Corrupt {
                 what: "a walk read a face of a shell it holds no reference for",
             })
     }
+}
+
+/// **What `face`'s seam region says of its members at the door**, as
+/// tier 3's check 6 reads it: refusals added to `seams` by member, and
+/// every member read added to `read`, so a region is read once.
+///
+/// A region is read from a sphere face whose own boundary encodes no
+/// side (`MaterialSign::Unencoded`), as check 6 does, and a region that
+/// is pinched or whose loops do not flatten is left unread, as there.
+/// Its reads:
+///
+/// * the **pole read** (`sphere_region_material_sign`): a member whose
+///   own side is unencoded and whose bit contradicts the region's side
+///   refuses [`PropsError::SenseContradicted`], the refusal an encoded
+///   face's own contradicted bit earns in the flux arm;
+/// * the **cover census** (`sphere_region_cover`), for every member,
+///   encoded or not: an over-cover refuses
+///   [`PropsError::SeamRegionOvercovered`], an undecided census
+///   [`PropsError::SeamRegionCoverUnresolved`], and members whose bits
+///   disagree [`PropsError::SeamRegionSensesDisagree`], the lamina
+///   tier 3's check 4 names (`ValidationError::LaminaWedge`) and the door
+///   does not run.
+///
+/// A member's pole contradiction is its own finding and is named over
+/// the region's. A ringed member's flip needs nothing here: its own
+/// boundary encodes its side, and the flux arm refuses it
+/// ([`PropsError::SenseInverted`]).
+fn seam_refusals<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+    read: &mut Vec<FaceKey>,
+    seams: &mut std::collections::BTreeMap<FaceKey, PropsError>,
+) {
+    use geom_brep::props::{MaterialSign, SeamCover};
+    let (rec, surface) = resolve_face(body, face);
+    if !matches!(surface, Surface::Sphere { .. }) {
+        return;
+    }
+    let own = |loops: &[&[LoopEdge<T>]]| {
+        geom_brep::props::boundary_material_sign_loops(surface, loops, band)
+    };
+    let Ok(loops) = face_loops(body, rec) else {
+        return;
+    };
+    let loops: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
+    if own(&loops) != Ok(MaterialSign::Unencoded) {
+        return;
+    }
+    let Some(region) = seam_region(body, face) else {
+        return;
+    };
+    read.extend(region.members.iter().copied());
+    if region.pinched {
+        return;
+    }
+    let boundary: Vec<&[_]> = region.boundary.iter().map(Vec::as_slice).collect();
+    let loops: Vec<&[_]> = region.loops.iter().map(Vec::as_slice).collect();
+    let side = geom_brep::props::sphere_region_material_sign(surface, &boundary, &loops, band);
+    let claims: Vec<(bool, &[&[_]])> = region
+        .claims
+        .iter()
+        .map(|(sense, run)| (*sense, &loops[run.clone()]))
+        .collect();
+    let cover = match geom_brep::props::sphere_region_cover(surface, &boundary, &claims, band) {
+        Ok(SeamCover::Over { times }) => Some(PropsError::SeamRegionOvercovered { times }),
+        Ok(SeamCover::Unresolved) => Some(PropsError::SeamRegionCoverUnresolved),
+        Ok(SeamCover::MixedSense) => Some(PropsError::SeamRegionSensesDisagree),
+        Ok(SeamCover::Once) | Err(_) => None,
+    };
+    for (&member, (sense, run)) in region.members.iter().zip(&region.claims) {
+        let contradicted = matches!(side, Ok(MaterialSign::Encoded(s)) if (s == Sign::Positive) != *sense)
+            && own(&loops[run.clone()]) == Ok(MaterialSign::Unencoded);
+        let refusal = if contradicted {
+            Some(PropsError::SenseContradicted)
+        } else {
+            cover.clone()
+        };
+        if let Some(refusal) = refusal {
+            seams.insert(member, refusal);
+        }
+    }
+}
+
+/// **A face's seam region**: the faces on its surface entity it reaches
+/// across shared edges, every loop of each, and the region's boundary,
+/// the members' half-edges whose mates lie outside it, chained into
+/// cycles ([`seam_region`]).
+pub(crate) struct SeamRegion<T: Real> {
+    pub(crate) members: Vec<FaceKey>,
+    pub(crate) loops: Vec<Vec<geom_brep::props::LoopEdge<T>>>,
+    /// Each member's sense bit and the run of `loops` that is its own,
+    /// in `members` order.
+    pub(crate) claims: Vec<(bool, core::ops::Range<usize>)>,
+    pub(crate) boundary: Vec<Vec<geom_brep::props::LoopEdge<T>>>,
+    /// Some boundary cycle passes through one vertex twice: the region
+    /// touches itself there, and its boundary is no set of simple loops
+    /// the side readers take. No body reaches this today: the face that
+    /// meets the region at the vertex alone would lie on a second sphere
+    /// entity coincident with the first, which `mef` refuses
+    /// (`RechartUnvouched`) and STEP import merges into one entity
+    /// (`work/flux/a-pinched-seam-region-has-no-witness.md`).
+    pub(crate) pinched: bool,
+}
+
+/// [`SeamRegion`] of `start`, on a body tier 1 has passed: every key
+/// resolves, a vertex's half-edges form a finite rotation, and the
+/// boundary half-edges each have one successor, so the chains close.
+/// A miss there is a kernel defect and panics. `None` where the
+/// flattening refuses (a scaffold edge at rest), which leaves the region
+/// unread as a face's refused derivation does.
+pub(crate) fn seam_region<T: Decide>(body: &Body<T>, start: FaceKey) -> Option<SeamRegion<T>> {
+    let resolved = "a seam region read on a body tier 1 passed: every key it walks resolves";
+    let face = |f: FaceKey| {
+        body.faces
+            .get(f)
+            .unwrap_or_else(|| unreachable!("{resolved}"))
+    };
+    let half_edge = |h: HalfEdgeKey| {
+        body.half_edges
+            .get(h)
+            .unwrap_or_else(|| unreachable!("{resolved}"))
+    };
+    let across = |h: HalfEdgeKey| {
+        body.mate(h)
+            .and_then(|m| body.face_of_half_edge(m))
+            .unwrap_or_else(|| unreachable!("{resolved}"))
+    };
+    let carrier = face(start).surface;
+    let mut members = vec![start];
+    let mut loops = Vec::new();
+    let mut claims = Vec::new();
+    let mut half_edges = Vec::new();
+    let mut i = 0;
+    while let Some(&f) = members.get(i) {
+        let rec = face(f);
+        let first = loops.len();
+        for lk in core::iter::once(rec.outer).chain(rec.rings.iter().copied()) {
+            let (edges, hes) = loop_edges(body, lk).ok()?;
+            for &h in &hes {
+                let other = across(h);
+                if face(other).surface == carrier && !members.contains(&other) {
+                    members.push(other);
+                }
+            }
+            loops.push(edges);
+            half_edges.extend(hes);
+        }
+        claims.push((rec.sense, first..loops.len()));
+        i += 1;
+    }
+    let inside = |h: HalfEdgeKey| members.contains(&across(h));
+    let mut open: Vec<HalfEdgeKey> = half_edges.iter().copied().filter(|&h| !inside(h)).collect();
+    let mut boundary = Vec::new();
+    let mut pinched = false;
+    while let Some(&first) = open.first() {
+        // One boundary cycle: from a boundary half-edge to the next one
+        // out of its end vertex, turning through the region's interior
+        // edges there.
+        let mut cycle = Vec::new();
+        let mut h = first;
+        loop {
+            cycle.push(h);
+            open.retain(|&x| x != h);
+            let mut n = half_edge(h).next;
+            let mut turns = 0;
+            while inside(n) {
+                n = half_edge(body.mate(n).unwrap_or_else(|| unreachable!("{resolved}"))).next;
+                turns += 1;
+                if turns > half_edges.len() {
+                    unreachable!(
+                        "a vertex's rotation on a closed body returns to a boundary half-edge"
+                    );
+                }
+            }
+            if n == first {
+                break;
+            }
+            if !open.contains(&n) {
+                unreachable!("a seam region's boundary half-edges each have one successor");
+            }
+            h = n;
+        }
+        let starts: Vec<_> = cycle.iter().map(|&h| half_edge(h).start).collect();
+        pinched |= starts
+            .iter()
+            .enumerate()
+            .any(|(i, v)| starts[..i].contains(v));
+        boundary.push(run_edges(body, &cycle).ok()?);
+    }
+    Some(SeamRegion {
+        members,
+        loops,
+        claims,
+        boundary,
+        pinched,
+    })
 }
 
 /// **Whether a face's flux is read by the certified quadrature** rather
@@ -4099,7 +4332,7 @@ fn measured_at_target<T: Decide>(
 ) -> Result<MassProperties<T>, MassPropsError> {
     let hook = reporting_hook(quad);
     // Serial, for [`decide_faces_serially`]'s reason.
-    let refs = References::of(body, faces.iter().copied());
+    let refs = References::of(body, faces.iter().copied(), band);
     let runs = decide_faces_serially(faces, |&face_key| {
         face_flux(
             body,
@@ -6097,7 +6330,7 @@ mod exact_enclosure_rows {
                         };
                         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
                         let hook = reporting_hook(Some(lane));
-                        let refs = References::of(&body, faces.iter().copied());
+                        let refs = References::of(&body, faces.iter().copied(), band);
                         let runs = decide_faces_serially(&faces, |&f| {
                             face_flux(&body, f, band, &hook, tol, RoundWindow::SCHEDULE, &refs)
                         })
@@ -6163,7 +6396,7 @@ mod shell_reference_rows {
         let band = Band::linear(tol).unwrap();
         let faces = crate::query::all_faces(body);
         let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
-        let refs = References::of(body, faces.iter().copied());
+        let refs = References::of(body, faces.iter().copied(), band);
         let runs = decide_faces_serially(&faces, |&f| {
             let about = about.map_or_else(|| refs.at(body, f), Ok)?;
             face_flux_about(body, f, band, &hook, tol, RoundWindow::SCHEDULE, about)
@@ -6357,7 +6590,7 @@ mod shell_reference_rows {
         let faces = crate::query::all_faces(&body);
         let lane = QuadLane::<f64>::certified();
         let hook = reporting_hook(Some(lane));
-        let refs = References::of(&body, faces.iter().copied());
+        let refs = References::of(&body, faces.iter().copied(), band);
         let runs = decide_faces_serially(&faces, |&f| {
             face_flux(&body, f, band, &hook, tol, RoundWindow::SCHEDULE, &refs)
         })
