@@ -71,7 +71,7 @@ document's ratification (#124), and PR 1520's thread has no word from
 Ev on it. So D4 governs, and the §4 sentence changed with the
 messages.
 
-Five recourses now name their geometry levers only:
+Six recourses now name their geometry levers only:
 - `ARC_SCENE_RESOLUTION_RECOURSE`: nearer the origin, or a smaller
   radius.
 - `ARC_READ_BACK_UNDECIDED_RECOURSE`: nearer the origin, and report it
@@ -82,7 +82,7 @@ Five recourses now name their geometry levers only:
 - The three `ContinuationTargetOffRay` sites (`path.rs`: the
   `Display`, the `path_continuation_target_offset` escalation and the
   `path_leg_length` escalation).
-- A fifth the item did not list, in the same match: the seam-arrival
+- A sixth the item did not list, in the same match: the seam-arrival
   escalation (`path_seam_arrival_turn`/`_side`) said "widen the input
   tolerance (K·ε); LOWERING the tolerance is the wrong direction". It
   passes only at Zero, so D4 gives it no ε arm either way.
