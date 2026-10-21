@@ -74,12 +74,12 @@ pub(super) fn chord_u_ref<T: Real>(
         Some(LoopBoundary::Cycle { first }) => first,
         other => unreachable!("section loop {l:?} has one corner and is no cycle: {other:?}"),
     };
-    let principal = whole_conic_principal(body, first).unwrap_or_else(|| {
-        panic!(
+    let Some(principal) = whole_conic_principal(body, first) else {
+        unreachable!(
             "section loop {l:?} has one corner and no whole section conic: the join refuses a \
              loop of lone-site placeholders before it is charted"
         )
-    });
+    };
     in_plane(principal)
 }
 
