@@ -93,7 +93,7 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 /// assembled profile. The plane's two axes are NOT among them — the
 /// frame node decides its own placement, at both scalars, and the
 /// precompute READS it (`NodeValue::placement`).
-const PRE_PASS: usize = 76;
+const PRE_PASS: usize = 82;
 /// The one-solid part's log sizes by node at `f64`: frame, profile,
 /// extrude. At `f64` the Profile node's op takes the pre-pass's
 /// validated form (`editor_core::ProfileLane`) and logs what the second
@@ -113,7 +113,7 @@ const FRAME_LOG: usize = 4;
 const EXTRUDE_LOG: usize = 655;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
-const LANE_OP: usize = 71;
+const LANE_OP: usize = 77;
 const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
 /// A placement pinned where its body stands by the named interim's world
 /// pin ([`fixture::pin`] at the identity): it reads nothing, so its fold

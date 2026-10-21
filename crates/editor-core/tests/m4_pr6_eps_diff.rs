@@ -149,9 +149,11 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     // segment_straightness margin, twice decided per validation pass,
     // in each of the two), and the arc→straight branch change
     // reports its reshaped decision structure as loud DIVERGENCE
-    // rows (arc-only predicates leaving, chord and span probes
-    // recounting: the arc's pair reads, which miss a far crossing of
-    // the side carriers and so read the segment ends, are gone) —
+    // rows (arc-only predicates leaving, chord, span and one-line gap
+    // (`segment_gap`) probes recounting: the arc's pair reads, which
+    // miss a far crossing of the side carriers and so read the segment
+    // ends, are gone, and the straight pairs that replace them each
+    // read their gap first) —
     // never absorbed, never guessed about (vdiff module docs).
     assert_eq!(
         flips.nodes.len(),
@@ -210,6 +212,11 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
                 predicate: "line_span".into(),
                 old_count: 24,
                 new_count: 16,
+            },
+            editor_core::SummaryDivergence {
+                predicate: "segment_gap".into(),
+                old_count: 6,
+                new_count: 12,
             },
         ],
     };
