@@ -39,3 +39,4 @@ Left by all three lanes of `names-emission-raises-panic-or-take-their-true-endin
 - `name_in_part`.
 
 They are listed here so the parent row can close. Convert them when the D10 hold lifts, under the same ladder.
+- `output_body` (added 2026-10-21 by PR 5530's lane): it counts output bodies, which a pattern count sets with no arena cap, so there is no row-4 bound. All its callers are on D10 ground. It stays fallible.
