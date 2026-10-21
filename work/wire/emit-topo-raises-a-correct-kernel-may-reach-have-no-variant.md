@@ -1,15 +1,20 @@
 ---
 id: emit-topo-raises-a-correct-kernel-may-reach-have-no-variant
 kind: issue
-title: Twelve emit_topo Emission raises a correct kernel may reach have no row-1 or row-2 variant to take
+title: Twenty-four Emission raises in emit_topo, emit_union and join_names that a correct kernel may reach have no row-1 or row-2 variant to take
 status: open
 opened: 2026-10-20
+priority: P2
+cost: M
 ---
 
 
 
 Filed by `wire-emis-topo` (the `emit_topo.rs` third of
-`names-emission-raises-panic-or-take-their-true-ending`).
+`names-emission-raises-panic-or-take-their-true-ending`). The twelve
+`emit_union.rs` and `join_names.rs` sites below came from
+`wire-emis-union` (the union third, PR 5501). One `emit.rs` change
+serves all of them.
 
 ## What
 
@@ -74,6 +79,57 @@ Row 1 (two band verdicts over different levers can disagree):
 - `name_boolean_vertices`: "a vertex of a joined edge lies on none of
   its set". `edges_holding` places the vertex over each member's length;
   the cover that named the set read the members over the joined edge's.
+
+## The union's twelve (`emit_union.rs`, `join_names.rs`)
+
+Row 2 (a shape no rule names):
+
+- `join_names::name_joins`, `Member::Outright`: a door's join takes an
+  edge it minted outright (an end arc, a mitre, a slit, a remnant).
+  `names/README.md` states the refusal as the rule ("a join that takes
+  one is refused"), and nothing in `sweep::BlendNaming::edge_joins` or
+  `topo`'s shell record rules out such a join.
+  `emit_blend::tests::a_join_over_an_edge_the_blend_minted_outright_refuses`
+  plants the record.
+- `Flush::meeting`: "one member edge meets several faces of other
+  members and no seam at a union vertex". The code's argument that no
+  manifold union reaches this covers planar faces only.
+- `cite_member_edges`, `CITED_GROUP_NO_MEMBER_EDGE` (two sites). This is
+  the sibling of `CITED_GROUP_NOT_ONE_SEAM`, which a legal document
+  reaches
+  (`a-bridge-met-with-the-wedges-and-the-other-bridge-names-vertices-on-no-single-seam-alike`).
+- `Parents::cited`: "a name a union publishes cites faces of several
+  parents". A tied member face is keyed to the parent of each of its
+  candidates, and those parents can differ.
+- `collapse_one`, `RUN_LEAST_LINE_MOVED`: the collapse's map from fold
+  space to member space does not keep name order, so a ranked run's
+  least line, or the order of a seam-only run, can move with the member
+  order (`canonical::RankRule::along_run`).
+- `collapse_one`, `JUNCTION_LINES_COLLIDE`: two fold-space seam lines
+  between the same two member faces, met at different steps, collapse
+  to one line (as `collapse_table`'s doc says happens for seam edges).
+- `name_by_parents`: "a union's seam edge does not lie between two
+  faces". The same wrap edge as `chord_kind`'s above: `Incidence` dedups
+  its one face.
+- `name_by_parents`: "a union's seam edge lies inside one parent".
+  `Parents::of` argues only one direction: what the pair leaves
+  unmerged, the fold leaves unmerged too. The pair can merge A's face
+  with B's while the fold skips the same curved group (`SkippedMerge`
+  reads the group's shape, and the fold's group holds more faces).
+
+Row 1 (two band verdicts can disagree):
+
+- `Flush::line_sense`: "two member edges flush on one line disagree on
+  its sense at a union vertex". The two senses come from two independent
+  pairwise judgements of edges that are flush only within
+  `ON_MEMBER_EDGE`.
+- `Flush::sense_against`: "two of a member's pieces of one line are
+  classified at one union vertex". A piece shorter than the band puts
+  both of its neighbours' classes at one point.
+- `Flush::meeting`: "a union's joined edge at a vertex lies on none of
+  the member edges it is named for". `edge_cover`'s verdict and an end
+  point's are two band decisions, and a span set made only of tied
+  edges leaves `lines_at` empty.
 
 ## Next
 
