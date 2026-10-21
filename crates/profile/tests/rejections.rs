@@ -575,16 +575,17 @@ fn short_leg_into_a_corner(h: f64) -> profile::Profile<f64> {
     ])])
 }
 
-/// **An adjacent pair whose sides read in band validates where their
-/// overlap is within the band.** [`short_leg_into_a_corner`] at
-/// `in_band()`, and re-seamed to start at the leg's far end, so the
-/// short leg is the pair's first segment and the overlap is read along
-/// it. On main the pair escalated on `chord_side`; the joint is a
-/// definite corner, so nothing else does.
+/// **An adjacent pair whose side reads in band escalates at its joint,
+/// not as a pair.** [`short_leg_into_a_corner`] at `in_band()`, and
+/// re-seamed to start at the leg's far end, so the short leg is the
+/// pair's first segment and the overlap is read along it. On main the
+/// pair escalated on `chord_side`. Its overlap is within the band, so the
+/// pair pass reads no contact, and the joint at `(0, 0)` escalates on
+/// `path_junction_turn`: the turn levered by the shorter leg is the same
+/// in-band displacement the leg's far end stands off segment 0's carrier.
 #[test]
-fn an_adjacent_pair_with_an_in_band_side_into_a_corner_validates() {
+fn an_adjacent_pair_with_an_in_band_side_escalates_at_its_joint() {
     let h = in_band();
-    validate_both(&short_leg_into_a_corner(h)).unwrap_or_else(|err| panic!("{err:?}"));
     let short_first = profile(vec![chain(&[
         (-0.1, h, 0.0),
         (0.0, 0.0, 0.0),
@@ -592,7 +593,46 @@ fn an_adjacent_pair_with_an_in_band_side_into_a_corner_validates() {
         (1.0, 1.0, 0.0),
         (-0.1, 1.0, 0.0),
     ])]);
-    validate_both(&short_first).unwrap_or_else(|err| panic!("the short leg first: {err:?}"));
+    for (name, p, joint) in [
+        ("the corner first", short_leg_into_a_corner(h), (4, 0)),
+        ("the short leg first", short_first, (0, 1)),
+    ] {
+        match validate_both(&p) {
+            Err(ProfileError::Escalated { site, source }) => {
+                assert_eq!(
+                    site,
+                    EscalationSite::SegmentPair(sref(0, joint.0), sref(0, joint.1)),
+                    "{name}"
+                );
+                assert_eq!(source.predicate, Some("path_junction_turn"), "{name}");
+            }
+            other => panic!("{name}: only the joint may escalate, got {other:?}"),
+        }
+    }
+}
+
+/// **A crossing the pass reads after an adjacent pair's in-band side is
+/// the refusal.** `(0,0) (1,0) (1,1) (1.2,0.5) (−0.1,h)`, `h` in band:
+/// the closing leg and segment 0 meet only at `(0, 0)`, read before the
+/// crossing of segments 1 and 3 in pass order. On main the pair
+/// escalated on `chord_side` and the crossing went unread.
+#[test]
+fn a_crossing_after_an_adjacent_pairs_in_band_side_refuses() {
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, 1.0, 0.0),
+        (1.2, 0.5, 0.0),
+        (-0.1, in_band(), 0.0),
+    ])]);
+    match err(&p) {
+        ProfileError::NonSimple {
+            first,
+            second,
+            kind: ContactKind::Crossing,
+        } => assert_eq!((first, second), (sref(0, 1), sref(0, 3))),
+        other => panic!("segments 1 and 3 cross, got {other:?}"),
+    }
 }
 
 /// One circle, its lowest point an in-band height above the bottom
