@@ -46,6 +46,23 @@
 //! `crate::chords`), and its first genuine consumer is the
 //! edge×NURBS-face boolean layer (the cut-loft unit).
 //!
+//! # The lattice metric
+//!
+//! The NURBS lane's CDT does not run in raw UV. Delaunay is not
+//! stretch-invariant, and a ruled wall's lattice is a strip whose
+//! columns are many times narrower than its rows (a lofted circle's
+//! wall: `s_u/s_v ≈ 0.03`); there, any point off the lattice — a trim
+//! chord point between two rows, a band interface's foreign column, a
+//! refinement centroid — has an empty circle many columns wide and a
+//! sliver across them. So points enter the CDT at `(u/k, v)`, with `k`
+//! the schedule's lattice metric (`crate::nurbs_cert::lattice_metric`,
+//! a power of two near the bands' mean realized aspect), where the
+//! lattice is near square. The map is affine, so constraint segments
+//! stay straight; and exact, so every coincidence in UV is one in the
+//! CDT. Only the CDT sees it: `meta`, the creases, the polygon's
+//! orientation and every certificate read UV. The cylinder lane keeps
+//! raw UV (`work/tess/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
+//!
 //! # C⁰ creases
 //!
 //! A NURBS face may carry interior knots of multiplicity equal to the
@@ -85,16 +102,18 @@
 //! refinement**: after the emit pass, any NURBS triangle whose
 //! certificate exceeds δ — one that would otherwise refuse — queues
 //! its UV centroid as a new candidate and the attempt rebuilds. This
-//! is deliberately a LAST-RESORT backstop, not the sliver cure: the
-//! uniform schedule was accidentally phase-aligned with the chord
-//! pass's boundary points (both sized from the same whole-patch
-//! steps), per-band sizing gives that up, and an anisotropic lattice
-//! strip admits a Delaunay-legal sliver beside ANY off-lattice point
-//! — including a refinement centroid or an anchor column's top, each
-//! measured on the #316 leaf to re-admit the empty circumcircle
-//! beside itself. The load-bearing cure is the schedule's
+//! is deliberately a LAST-RESORT backstop, not the sliver cure: in a
+//! lattice that is anisotropic in the CDT's own coordinates, a
+//! centroid is one more off-lattice point and re-admits the empty
+//! circumcircle beside itself (measured on the #316 leaf, and on a
+//! lofted circle's wall, where the ladder walked the sliver inward a
+//! step per round: `work/tess/lofted-rational-walls-refuse-at-some-deltas`).
+//! The load-bearing cure is the lattice metric (above), which makes
+//! the lattice near square where the CDT runs; the schedule's
 //! malign-band alignment
-//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
+//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]) is the
+//! backstop for the anisotropy the one face-wide metric leaves, band
+//! by band; an attempt
 //! that still certifies above δ after the shared round budget refuses
 //! typed ([`TessellateError::CertificateExceeded`]) — the
 //! certificate, as everywhere, is the guarantee. An attempt's interior
@@ -126,7 +145,7 @@ use topo::{Body, FaceKey};
 use crate::cert;
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells};
-use crate::planar::{Pinches, Walk, classify_faces, edge_key, shoelace2};
+use crate::planar::{Crossings, Pinches, Walk, classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
@@ -359,11 +378,17 @@ pub(crate) fn tessellate_trimmed(
     // THE FACE'S ONE EXIT. Every path out of the retry loop lands
     // here, so the measurement hand-off below is on all of them —
     // including the two typed REFUSALS, which is the case the
-    // falsification accumulator above exists for. `None` after the
-    // loop is the retries-exhausted path.
+    // falsification accumulator above exists for. It is never `None`
+    // after the loop: an attempt asks for a rebuild only below
+    // `MAX_GRID_RETRIES`, so the last attempt accepts or refuses.
     let mut outcome: Option<Result<Patch, TessellateError>> = None;
+    // THE LATTICE METRIC (`nurbs_cert::lattice_metric`): the CDT runs
+    // on `(u/k, v)`, where the NURBS lattice is near square; the
+    // cylinder lane keeps raw UV.
+    let metric = nurbs_stats.map_or(1.0, |s| s.metric);
     let trimmed = TrimmedFace {
         fk,
+        metric,
         surface,
         lane: &lane,
         polygon: &polygon,
@@ -449,13 +474,13 @@ pub(crate) fn tessellate_trimmed(
             dev_samples: measure.dev_samples,
         });
     }
-    // The retries-exhausted path leaves no verdict of its own.
-    outcome.unwrap_or(Err(TessellateError::Triangulation { face: fk }))
+    outcome.unwrap_or_else(|| {
+        unreachable!(
+            "the last attempt accepts or refuses: `TrimmedFace::attempt` asks for a \
+             rebuild only below MAX_GRID_RETRIES"
+        )
+    })
 }
-
-/// Each realised boundary edge's crossing count (the planar #116
-/// pattern), keyed by [`edge_key`].
-type Crossings = HashMap<(usize, usize), u32>;
 
 /// Handle-index → (mesh id or grid candidate index, uv).
 #[derive(Clone, Copy)]
@@ -503,6 +528,9 @@ enum Next {
 /// What every attempt on one face reads and none changes.
 struct TrimmedFace<'a> {
     fk: FaceKey,
+    /// The lattice metric `k`: points enter the CDT at `(u/k, v)`,
+    /// scaling the axis that shrinks ([`Self::cdt_point`]).
+    metric: f64,
     surface: &'a Surface<f64>,
     lane: &'a Lane,
     polygon: &'a [(f64, f64, u32)],
@@ -514,14 +542,18 @@ struct TrimmedFace<'a> {
 /// One attempt's triangulation, between inserting its points and
 /// emitting its triangles.
 struct Cdt {
+    /// The triangulation, in the lattice metric
+    /// ([`TrimmedFace::cdt_point`]).
     cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
-    // The first entry's slot at each handle; [`Pinches`] overrides
-    // a boundary slot per triangle at a pinch handle.
+    /// The first entry's slot at each handle; [`Pinches`] overrides
+    /// a boundary slot per triangle at a pinch handle.
     meta: Vec<(f64, f64, Slot)>,
+    /// The trim polygon's handles, in walk order.
     handles: Vec<FixedVertexHandle>,
-    // Every vertex exactly on a crease, with the crease and its
-    // position along it: the crease lines' constraint chain.
+    /// Every vertex exactly on a crease, with the crease and its
+    /// position along it: the crease lines' constraint chain.
     on_crease: Vec<(f64, f64, FixedVertexHandle)>,
+    /// The walk's pinch handles ([`Pinches`]).
     pinches: Pinches,
 }
 
@@ -534,6 +566,21 @@ struct Emitted {
 }
 
 impl TrimmedFace<'_> {
+    /// `(u, v)` in the lattice metric, `(u/k, v)` up to a uniform scale
+    /// (which Delaunay ignores): the axis that SHRINKS is scaled, `u`
+    /// by `1/k` when `k > 1`, `v` by `k` when `k < 1`, so the
+    /// coordinates stay within the chart's own magnitude. `k` is a power
+    /// of two, so the product is exact and every coincidence in UV is
+    /// one in the CDT. Only the CDT sees these: `meta`, the creases,
+    /// the polygon's orientation and every certificate read UV.
+    fn cdt_point(&self, u: f64, v: f64) -> SpadePoint<f64> {
+        if self.metric > 1.0 {
+            SpadePoint::new(u / self.metric, v)
+        } else {
+            SpadePoint::new(u, v * self.metric)
+        }
+    }
+
     /// One attempt of the retry loop (module docs): the points, the
     /// boundary constraints, the crease chain, the emit pass, then
     /// refinement or the verdict.
@@ -564,10 +611,11 @@ impl TrimmedFace<'_> {
         // interior to its kept triangle, hence inside the trim polygon;
         // splitting an offending triangle shrinks the empty region its
         // circumcircle spanned. Fires only for a triangle that would
-        // otherwise REFUSE (bound > δ) — a RARE backstop: the schedule's
-        // malign-band alignment (`band_schedule`) is the load-bearing
-        // sliver cure, because an unaligned insertion cannot converge
-        // against a wide anisotropic strip (measured — anchors and
+        // otherwise REFUSE (bound > δ) — a RARE backstop: the lattice
+        // metric (module docs) is the load-bearing sliver cure, with
+        // the schedule's malign-band alignment (`band_schedule`) behind
+        // it, because an insertion cannot converge against a strip
+        // still anisotropic where the CDT runs (measured — anchors and
         // centroids each re-admit the empty circle beside themselves).
         // Appending keeps every existing candidate index (the `dropped`
         // set stays valid); a refinement point landing exactly on a
@@ -639,7 +687,7 @@ impl TrimmedFace<'_> {
         let mut on_crease = Vec::new();
         let mut walk = Walk::new();
         for &(u, v, id) in self.polygon {
-            let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
+            let Ok(h) = cdt.insert(self.cdt_point(u, v)) else {
                 return Err(TessellateError::Triangulation { face: fk });
             };
             walk.enter(&mut meta, h, (u, v, Slot::Boundary(id)), id);
@@ -653,7 +701,7 @@ impl TrimmedFace<'_> {
             if dropped.contains(&k) {
                 continue;
             }
-            let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
+            let Ok(h) = cdt.insert(self.cdt_point(u, v)) else {
                 return Err(TessellateError::Triangulation { face: fk });
             };
             if h.index() == meta.len() {
@@ -1092,20 +1140,23 @@ fn per_cell_candidates(
         cap_bands: 0,
         snap_bands: 0,
         realized_aspect: f64::NAN,
+        metric: 1.0,
     };
     let du = u.1 - u.0;
-    for b in grid.band_schedule(*patch, u, v, delta_s)? {
+    let schedule = grid.band_schedule(*patch, u, v, delta_s)?;
+    stats.metric = schedule.metric;
+    for b in schedule.bands {
         stats.grid_cells += b.nuc * b.nvc;
         stats.bands += 1;
         stats.cap_bands += usize::from(b.cap);
         stats.snap_bands += usize::from(b.snapped);
         // The emitted lattice's post-`ceil` parameter aspect `s_u/s_v`
-        // — the quantity SAFE_ASPECT judges — max over bands. The NaN
+        // in raw UV, max over bands (SAFE_ASPECT judges it over the
+        // schedule's lattice metric, `nurbs_cert::malign`). The NaN
         // seed means "no bands yet" and the first band overwrites it;
         // every band's aspect is a finite positive ratio (nonempty
         // extents over counts floored at one).
-        #[allow(clippy::cast_precision_loss)]
-        let aspect = (du / b.nuc as f64) / ((b.vb - b.va) / b.nvc as f64);
+        let aspect = b.aspect(du);
         stats.realized_aspect = if stats.realized_aspect.is_nan() {
             aspect
         } else {
@@ -1160,6 +1211,9 @@ struct ScheduleStats {
     snap_bands: usize,
     /// Max over bands of the post-`ceil` spacing ratio `s_u/s_v`.
     realized_aspect: f64,
+    /// The schedule's lattice metric
+    /// ([`crate::nurbs_cert::lattice_metric`]).
+    metric: f64,
 }
 
 /// Row-major candidate order: by `v`, then `u` (total order — the
