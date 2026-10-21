@@ -67,6 +67,12 @@ pub struct OnOneLine<T> {
     pub hi: T,
     /// The rounding the ends carry ([`crate::rounding_charge`]).
     pub noise: T,
+    /// The second interval as read, its ends in the order given (`lo`
+    /// and `hi` are its overlap with the first): for
+    /// [`on_one_line`](fn@on_one_line), `b`'s ends' projections
+    /// `((b0 − a0)·û, (b1 − a0)·û)`, which a caller deciding which end
+    /// bounds the overlap reads on their own.
+    pub b: (T, T),
 }
 
 impl<T: Real> OnOneLine<T> {
@@ -78,6 +84,7 @@ impl<T: Real> OnOneLine<T> {
             lo: a.0.min(a.1).max(b.0.min(b.1)),
             hi: a.0.max(a.1).min(b.0.max(b.1)),
             noise,
+            b,
         }
     }
 

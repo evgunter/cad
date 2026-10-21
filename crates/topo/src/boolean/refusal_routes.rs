@@ -327,6 +327,15 @@ pub enum BooleanDecision {
     /// (`BooleanDecision::LineWedges`), or refuse the reversal
     /// ([`crate::RevertError`]).
     LineEdges,
+    /// Whether two straight edges on one line overlap, read past the
+    /// rounding their projections carry (`census::collinear_overlaps`
+    /// on edges kilometres long at a fine tolerance): the order of their
+    /// ends along the line, and the overlap's length, each decided at its
+    /// value less and plus that rounding. In band, the reading is the
+    /// representation's precision at the edges' length, not a
+    /// near-coincidence of the geometry: no move apart reaches it, and
+    /// the lever is shorter edges (`census::SPAN_PRECISION_RECOURSE`).
+    LineSpanPrecision,
     /// Whether the material the result's edges along one line bound
     /// overlaps there, asked at the result gate of every op of each pair
     /// of the result's edges on one line (`census::line_wedges`): each
@@ -883,6 +892,10 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
 /// [`BooleanDecision::LineEdges`]' lever.
 const LINE_EDGES_LEVER: &str = "move the geometry so the straight edges along that line clearly \
                                 stand apart";
+
+/// [`BooleanDecision::LineSpanPrecision`]' lever: the precision limit's
+/// recourse, never a move apart.
+const LINE_SPAN_PRECISION_LEVER: &str = crate::census::SPAN_PRECISION_RECOURSE;
 
 /// [`BooleanDecision::LineWedges`]' lever.
 const LINE_WEDGES_LEVER: &str = "move the geometry so the faces meeting along that line clearly \
@@ -1491,6 +1504,9 @@ impl BooleanDecision {
                  their curvature"
             }
             Self::LineEdges => "whether two straight edges lie on one line along a length",
+            Self::LineSpanPrecision => {
+                "whether two long straight edges on one line overlap, read past their ends' rounding"
+            }
             Self::LineWedges => {
                 "whether the material that the result's edges along one line bound overlaps there"
             }
@@ -1693,6 +1709,7 @@ impl BooleanDecision {
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
             Self::LineEdges => Ending::Lever(LINE_EDGES_LEVER),
+            Self::LineSpanPrecision => Ending::Lever(LINE_SPAN_PRECISION_LEVER),
             Self::LineWedges => Ending::Lever(LINE_WEDGES_LEVER),
             Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
             Self::ShellRole { .. } => Ending::Sized(crate::props::AIMED_PAIR),
@@ -2042,6 +2059,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
                 BooleanDecisionKind::LineEdges => vec![BooleanDecision::LineEdges],
+                BooleanDecisionKind::LineSpanPrecision => vec![BooleanDecision::LineSpanPrecision],
                 BooleanDecisionKind::LineWedges => vec![BooleanDecision::LineWedges],
                 BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
                 BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
@@ -2417,6 +2435,14 @@ pub(in crate::boolean) mod tests {
                 Ending::Lever(
                     "Recourse: move the geometry so the straight edges along that line clearly \
                      stand apart",
+                ),
+            ),
+            BooleanDecision::LineSpanPrecision => (
+                "whether two long straight edges on one line overlap, read past their ends' rounding",
+                Ending::Lever(
+                    "Recourse: make the straight edges along that line shorter, splitting them \
+                     where they run long: at their length, their ends' rounding passes this \
+                     tolerance's room",
                 ),
             ),
             BooleanDecision::LineWedges => (
