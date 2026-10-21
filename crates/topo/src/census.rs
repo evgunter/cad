@@ -1624,12 +1624,10 @@ struct Wedge<T: Real> {
 /// where one holds an end or a middle of the other.
 ///
 /// The Boolean's result gate runs it over every line where coincident
-/// edges lie; it is the reading tier 3′'s side check owes there too
-/// (restread's `tier-3-prime-reads-no-side-between-coincident-edges-on-one-line`):
-/// coincident edges' material must lie on opposite sides. A face that
-/// crosses the line with no edge of its own there is not read: it holds
-/// no sheet at the line, and finding it is that check's point-in-face
-/// question.
+/// edges lie, and tier 3′ over every overlap pass 5 certifies
+/// ([`coincident_wedges`]). A face that crosses the line with no edge
+/// of its own there is not read: it holds no sheet at the line, and
+/// finding it is pass 4's question ([`edge_in_own_face`]).
 ///
 /// # Errors
 ///
