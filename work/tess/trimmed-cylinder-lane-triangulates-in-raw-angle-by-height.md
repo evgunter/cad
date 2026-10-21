@@ -2,10 +2,13 @@
 id: trimmed-cylinder-lane-triangulates-in-raw-angle-by-height
 kind: issue
 title: The trimmed cylinder lane sizes cells hu (radians) by r·hu (metres) and triangulates in raw (θ, v), so at r much larger than 1 m an off-row trim point may fan across many columns
-status: open
+status: closed
 opened: 2026-10-20
 priority: P3
 cost: E
+closed: 2026-10-21
+pr: 5560
+branch: tess/raw-chart-lanes
 ---
 
 

@@ -2,10 +2,13 @@
 id: curved-lane-triangulates-in-raw-chart-coordinates
 kind: issue
 title: The curved lane's CDT runs in raw chart coordinates, so a cone or torus whose two axes scale differently may fan an off-row boundary point across many columns
-status: open
+status: closed
 opened: 2026-10-21
 priority: P3
 cost: E
+closed: 2026-10-21
+pr: 5560
+branch: tess/raw-chart-lanes
 ---
 
 
