@@ -354,7 +354,7 @@ fn step_chain() -> Vec<(f64, f64, f64)> {
 /// **A segment's end in band of another's carrier but past its end
 /// along it is no contact, whichever way the loop is authored** (the
 /// line×line row of
-/// `paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+/// `profile/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
 /// The step fixture validates as authored; re-seamed to start at
 /// `(4, 2)`, where the in-band pair is read with the vertical segment
 /// first and its own axis puts the gap at `b`, in band; and reversed. In
@@ -712,7 +712,7 @@ fn in_band() -> f64 {
 
 /// **A line that ends short of an in-band graze is no contact** (the
 /// line×circle row of
-/// `paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+/// `profile/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
 /// The major arc from `(3, 3)` to `(1, 3)` dips to an in-band height
 /// above `y = 0` at `x = 2`; the line along `y = 0` ends at `x = 1`,
 /// about `0.28` m from it. On main the pair pass escalated
