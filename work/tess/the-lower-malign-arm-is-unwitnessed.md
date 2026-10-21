@@ -1,13 +1,32 @@
 ---
 id: the-lower-malign-arm-is-unwitnessed
 kind: issue
-title: nurbs_cert::malign's lower arm (residual below 1/SAFE_ASPECT) is unmeasured, unwitnessed by any body, and snaps columns against an off-row hazard
+title: the malign-band column snap is unwitnessed over the lattice metric (0 of 2573 tour bands since #5531), its lower arm unmeasured and aimed at the wrong hazard; witness it or retire it
 status: open
 opened: 2026-10-21
 priority: P3
 cost: E
 ---
 
+
+## Widened (2026-10-21): the whole snap
+
+Since #5531 the trimmed lane judges malignity over the face's lattice
+metric, and across the tour the snap now fires on **0 bands**. On `main`
+before #5531 it fired on 2573. So the **upper** arm may be dormant too, and
+the question is the snap as a whole, not only its lower arm.
+
+**Witness or retire.** Find any body where either arm fires over the
+metric, and check whether the snap is what keeps it under δ. Mutate the
+snap off and compare at the review's twenty δ with the falsifier armed.
+- If no body needs it, the snap is dead code to retire. The typed
+  `CertificateExceeded` stays as the backstop, and a row shows that a face
+  which would have needed the snap refuses typed instead of meshing wrong.
+- If a body needs it, that body is the witness row, per arm.
+
+The meter's `snap_bands` column (tess-meter CSV, tess-lint, the baseline)
+stays either way. On retirement it reads 0, and its removal goes to the
+budget lane's re-cut.
 
 ## Finding
 
