@@ -21,9 +21,9 @@ use common::split_plane;
 use geom_core::{Point3, Tol, Vec3};
 use topo::{
     AtRestBody, Body, BooleanError, BooleanResult, Cell, CensusContact, ContactRecords,
-    LineWedgeFault, Operand, ValidationError,
-    RevertError, SplitPart, VoidContainment, VoidEvidence, VoidInsertError, insert_void, split,
-    subtract, validate_geometric, validate_pseudomanifold,
+    LineWedgeFault, Operand, RevertError, SplitPart, ValidationError, VoidContainment,
+    VoidEvidence, VoidInsertError, insert_void, split, subtract, validate_geometric,
+    validate_pseudomanifold,
 };
 
 fn t() -> Tol {
@@ -606,11 +606,7 @@ fn the_unequal_pinch_grafted_as_a_cavity_refuses_its_wedges_at_tier_3_prime() {
                 _ => panic!("{what}: only the touch's contacts stand unrecorded, got {e:?}"),
             }),
         );
-        assert_eq!(
-            records.len(),
-            2,
-            "{what}: the overlap and its upper bound"
-        );
+        assert_eq!(records.len(), 2, "{what}: the overlap and its upper bound");
         wedges_refuse(
             what,
             &dst,

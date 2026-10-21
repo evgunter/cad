@@ -186,3 +186,18 @@ The ending-in-the-cube's-face lens's four `y`s, the lens inside
 another along one end, and the three and four crossings' `cutter ∖
 pinch` still refuse `LineWedges`. No sliver alone on its line forms
 there, so this row's re-pairing is still owed.
+
+## 2026-10-21: tier 3′ reads the wedges on a line (RESTREAD, `restread/coincident-wedges`)
+
+The census reads two coincident line edges' wedges wherever pass 5
+certifies their overlap, and refuses an overlap
+`CoincidentWedgesOverlap`. The void door's graft above
+(`insert_voids(box, [s, s], cavity)`, the unequal pinch) now refuses
+at tier 3′ for its wedges with its two records, not only for want of
+them, and the slit cavity grafted with no re-pairing refuses the same
+way (`crates/topo/tests/a_doubled_line_does_not_revert.rs`). The doors
+still build those bodies: the void door, the shell verb's inner twin
+(`shell.rs`, through `insert_hollow_voids`) and `Body::revert` read
+only shared segments, so a partial overlap reverts unrefused, and each
+gates its result at tier 3 alone, which reads one edge at a time. This row's
+re-pairing is still what makes them right.

@@ -374,11 +374,9 @@ pub mod test_support {
         cavity: &Body<T>,
     ) -> Body<T> {
         let mut out = host.clone();
-        if let Err(e) = crate::boolean::combine::graft_solids_disjoint(
-            &mut out,
-            &[solid],
-            &cavity.reverted(),
-        ) {
+        if let Err(e) =
+            crate::boolean::combine::graft_solids_disjoint(&mut out, &[solid], &cavity.reverted())
+        {
             panic!("the graft refused: {e:?}");
         }
         out
