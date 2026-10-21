@@ -1108,7 +1108,7 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
                 let w = o - og;
                 let (a, b, c) = (d.dot(d), d.dot(dg), dg.dot(dg));
                 let (f, e) = (d.dot(w), dg.dot(w));
-                let p = o + d * ((b * e - c * f) / (a * c - b * b));
+                let p = o + d * ((b * e - c * f) / (a * c - b.powi(2)));
                 (p, Crossed::Edge(g, param(body, g, p)?))
             }
             Cell::Vertex(w) => (
