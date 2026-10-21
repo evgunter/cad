@@ -105,3 +105,72 @@ could then be spelled with `circle` once the tess crease row closes),
 and the quartered 17/21-station v-degree-3 bodies hand back a bracket
 at 1e-6 — or each remaining refusal is shown to be the correct answer
 for that wall, with its mechanism named.
+
+## Re-measured on main 258dc6c7c2 (QUAD, 2026-10-21)
+
+**Verdict: the position column is gone (#5442, FLUX's
+`shell_reference`). The knot-structure and degree findings stand.**
+
+The recipe as written no longer builds. `sweep_body` on this spine
+refuses `Skin(PathTangentReversal { station: 8 })`: the half-turn spine
+of `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`,
+the tour's wall 9. I measured its twin, the way `demos/tour/src/klein.rs`
+builds the loop today (`lofted_loop`). That twin has the same spine
+(degree-3 interpolant through the 49 arc points), the same annulus
+0.275/0.225, and stations in planes normal to the spine, rolled by
+`path_start_frame`. It is lofted at v-degree 2 or 3, and judged by
+`topo::validate_geometric` at the default ε.
+
+Probe: `crates/sweep/tests/quad_frame_remeasure.rs` `row3_swept_loop`.
+Its env vars `ROW3_SPLITS` / `ROW3_STATIONS` / `ROW3_DEGS` / `ROW3_OFFS`
+pick the grid. Every refusal is `QuadratureBudget { rounds: 1 }` on a
+wall, and the cell gives its `width_len`.
+
+| section | stations | v-deg 2 | v-deg 3 |
+|---|---|---|---|
+| `circle` | 9 | 8.97e-6 | 1.74e-5 |
+| `circle` | 13 | 8.56e-6 | 1.54e-5 |
+| `circle` | 17 | 7.90e-6 | 1.51e-5 |
+| `circle` | 21 | 7.57e-6 | 1.44e-5 |
+| `circle` | 33 | 6.62e-6 | 1.38e-5 |
+| `circle` | 65 | 5.86e-6 | 1.26e-5 |
+| `circle_split` 4 | 9 | decides | **refuses**, 6.41e-6 |
+| `circle_split` 4 | 13–65 | decides | decides |
+| `circle_split` 8 | 9 | decides | **refuses**, 2.14e-6 |
+| `circle_split` 8 | 13–65 | decides | decides |
+
+**Position.** Each of the 36 cells reads the same to four digits at all four
+placements: the origin; (−1.2, 0, −1.8), which puts the arcs across
+the origin; (100, 0, 0) m; and (1000, −700, 400) m.
+
+On main before #5442 (`ec32861499`), the same probe at v-degree 3 still
+showed this row's dependence:
+
+| section | stations | origin | (−1.2, 0, −1.8) | (100, 0, 0) |
+|---|---|---|---|---|
+| `circle` | 9 | 1.44e-5 | 1.05e-5 | 4.09e-5 |
+| `circle` | 17 | 1.27e-5 | 8.12e-6 | 4.44e-5 |
+| `circle` | 33 | 1.21e-5 | decides | 4.92e-5 |
+| `circle_split` 4 | 9 | 6.64e-6 | 5.09e-6 | 2.67e-5 |
+
+**A cost of the fix.** The new widths are the old ones' worst case
+near the body, not their best. At the origin, `circle` v-degree 3 went
+from 1.44e-5 to 1.74e-5 (9 stations) and from 1.21e-5 to 1.38e-5 (33
+stations). The one cell that decided only across the origin (33
+stations) now refuses everywhere. The reference is the start of the
+shell's first quadrature face, not a point central to the body, so
+each wall's lever is up to the loop's size.
+`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`
+already tracks the choice of reference point.
+
+**ε.** At 1e-12 the widths are the same as at 1e-9: `circle` 9/17/21
+stations at v-degree 2 and 3, and `circle_split` 4 at 9/17/21 stations,
+including the 9-station v-degree-3 refusal. At 1e-6 every one of those
+cells decides. This row's "does not move with ε" stands. I did not
+re-take the 1e-6 `SignCertificate::measure` no-bracket refusal or the
+helix table.
+
+So the loft's tier-3 sign still decides by the section's knot structure
+(two semicircles refuse at every station count) and by the skin's
+degree (v-degree 3 doubles the `circle` width and turns on the 9-station
+quartered refusal). It no longer decides by the body's position.

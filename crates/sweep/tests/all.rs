@@ -254,6 +254,8 @@ mod point_in_loop_arc_cap;
 mod point_touch_records;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
+#[path = "quad_frame_remeasure.rs"]
+mod quad_frame_remeasure;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -308,6 +310,8 @@ mod spheres_crossing_off_every_edge;
 mod spiric_faces_fuzz;
 #[path = "sym11_far_placement_rows.rs"]
 mod sym11_far_placement_rows;
+#[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
+mod the_door_reads_seam_regions_as_tier_3_does;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
 #[path = "tilted_sphere_pair_k_rows.rs"]
