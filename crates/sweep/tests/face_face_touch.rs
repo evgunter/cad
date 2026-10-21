@@ -5,10 +5,12 @@
 
 use geom::SurfaceKind;
 use geom_core::{Band, Point2, Tol};
+use geom_core::{RigidMotion, Turns, UnitVec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop};
 use sweep::ExtrudeSide;
-use sweep::test_support::{brick, finished, sketch_at, sketch_xz_at};
+use sweep::test_support::{brick, finished, sketch_at};
 use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanResult;
 use topo::{AtRestBody, Body};
@@ -529,7 +531,11 @@ fn a_record_on_an_arc_trimmed_face_confirms_along_the_line_through_it() {
             0.0,
             1.0,
         );
-        let plane = sketch_xz_at(geom_core::Point3::new(0.0, y1, 0.0));
+        let plane = SketchPlane::from_frame(RigidMotion::turned(
+            geom_core::Point3::new(0.0, y1, 0.0),
+            UnitVec3::exact_x(),
+            Turns::quarters(1),
+        ));
         let rod =
             sweep::test_support::extruded(plane, vec![circle(0.0, 1.5, 0.5, 0.0)], y1 - y0, tol());
         let mut body: Body<f64> = (*slab).clone();

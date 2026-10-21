@@ -19,6 +19,7 @@ use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, UnitVec3, Vec3};
+use geom_core::{RigidMotion, Turns};
 use profile::SketchPlane;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
@@ -26,7 +27,7 @@ use sweep::blend::{
 };
 use sweep::test_support::{
     assert_naming_totality, block, finished, pocket_die, prism, prism_on, realized,
-    sketch_from_axes, sketch_xz_at, sketch_yz_at, turned,
+    sketch_from_axes,
 };
 use topo::boolean::BooleanOp;
 use topo::{AtRestBody, Body, EdgeKey, mass_properties, validate_geometric};
@@ -298,8 +299,14 @@ fn a_mitred_chamfer_matches_the_boolean_less_its_two_prisms() {
         ];
         prism_on(plane, verts, 3.0, tol())
     };
-    let cut_front = beyond(sketch_yz_at(Point3::new(-0.5, 0.0, 0.0)));
-    let cut_left = beyond(sketch_xz_at(Point3::new(0.0, 2.5, 0.0)));
+    let cut_front = beyond(SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(
+        -0.5, 0.0, 0.0,
+    ))));
+    let cut_left = beyond(SketchPlane::from_frame(RigidMotion::turned(
+        Point3::new(0.0, 2.5, 0.0),
+        UnitVec3::exact_x(),
+        Turns::quarters(1),
+    )));
     let by_boolean = realized(
         BooleanOp::Subtract,
         &realized(BooleanOp::Subtract, &body, &cut_front, tol()),
@@ -615,13 +622,17 @@ fn a_frustum_top_rim_mitres_at_leaning_walls() {
 /// `x ∈ [s z, 2 − s z]`, `y ∈ [s z − 2, −s z]`, `z ∈ [0, 1]`.
 fn frustum(s: f64) -> Body<f64> {
     // The trapezoid between heights `z0` and `z1` whose sides run
-    // through `(0, 0)–(s, 1)` and `(2, 0)–(2 − s, 1)`, in the xz plane
-    // through `origin` turned `quarters` about ẑ, extruded 3 along its
-    // normal.
+    // through `(0, 0)–(s, 1)` and `(2, 0)–(2 − s, 1)`, in the plane
+    // through `origin` of x̂ and ẑ (a quarter turn about x̂) turned
+    // `quarters` about ẑ, extruded 3 along its normal.
     let trapezoid = |origin: Point3<f64>, quarters: i64, (z0, z1): (f64, f64)| {
         let plane = SketchPlane::from_frame(
-            turned(origin, UnitVec3::exact_z(), quarters)
-                .compose(turned(Point3::origin(), UnitVec3::exact_x(), 1))
+            RigidMotion::turned(origin, UnitVec3::exact_z(), Turns::quarters(quarters))
+                .compose(RigidMotion::turned(
+                    Point3::origin(),
+                    UnitVec3::exact_x(),
+                    Turns::quarters(1),
+                ))
                 .expect("a product of turns is finite"),
         );
         prism_on(
@@ -999,7 +1010,11 @@ fn a_turn_foot_and_a_cut_off_foot_cross_where_the_screen_passes() {
     let (c, sn) = (30f64.to_radians().cos(), 30f64.to_radians().sin());
     for (h, crosses) in [(0.22, false), (0.215, true), (0.205, true)] {
         let body = prism_on(
-            sketch_xz_at(Point3::new(0.0, 0.0, 0.0)),
+            SketchPlane::from_frame(RigidMotion::turned(
+                Point3::new(0.0, 0.0, 0.0),
+                UnitVec3::exact_x(),
+                Turns::quarters(1),
+            )),
             vec![
                 (Point2::new(0.0, 0.0), 0.0),
                 (Point2::new(c, -sn), 0.0),

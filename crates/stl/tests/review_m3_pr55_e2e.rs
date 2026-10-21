@@ -11,12 +11,12 @@
 
 use crate::common::finished;
 use geom_core::Tol;
-use geom_core::{Point2, Point3, RigidMotion, UnitVec3};
+use geom_core::{Point2, Point3, RigidMotion, Turns, UnitVec3};
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::ExtrudeSide;
-use sweep::test_support::turned;
+
 use sweep::{Extrusion, extrude};
 use topo::{AtRestBody, BooleanResult, mass_properties, subtract, validate, validate_closed};
 
@@ -73,7 +73,7 @@ fn die_from_raw_extrudes_watertight_stl() {
         ),
         (
             // (ŷ, x̂), normal −ẑ
-            turned(Point3::new(0.0, 0.0, 0.125), z, 1)
+            RigidMotion::turned(Point3::new(0.0, 0.0, 0.125), z, Turns::quarters(1))
                 .compose(RigidMotion::half_turn_x())
                 .unwrap(),
             vec![
@@ -91,7 +91,7 @@ fn die_from_raw_extrudes_watertight_stl() {
         ),
         (
             // (ẑ, ŷ), normal −x̂
-            turned(Point3::new(0.125, 0.0, 0.0), y, -1),
+            RigidMotion::turned(Point3::new(0.125, 0.0, 0.0), y, Turns::quarters(-1)),
             vec![
                 (g[0], g[0]),
                 (g[2], g[2]),
@@ -106,7 +106,7 @@ fn die_from_raw_extrudes_watertight_stl() {
         ),
         (
             // (x̂, ẑ), normal −ŷ
-            turned(Point3::new(0.0, 0.125, 0.0), x, 1),
+            RigidMotion::turned(Point3::new(0.0, 0.125, 0.0), x, Turns::quarters(1)),
             vec![(g[0], g[0]), (g[2], g[2]), (g[0], g[2]), (g[2], g[0])],
         ),
     ];

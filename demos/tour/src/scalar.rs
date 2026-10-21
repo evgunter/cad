@@ -18,7 +18,7 @@ use pncad::geom_core::Decide;
 #[cfg(feature = "probe")]
 use pncad::geom_core::Probe;
 
-/// The K funnel name the tour's computed frame axes and cut directions
+/// The K funnel name the tour's decided frame axes and cut directions
 /// are decided under.
 ///
 /// A frame whose axes a scene COMPUTED — a plane rolled about a stem,
@@ -26,44 +26,11 @@ use pncad::geom_core::Probe;
 /// computed direction has to be decided, and the mint asks for a funnel
 /// name, which a demo, as an outside consumer, has to invent. One name
 /// for the whole tour, because which scene asked is not what a K reader
-/// is after. An axis-aligned frame is not decided: it is a written turn
-/// ([`turned_frame`]).
+/// is after. An axis-aligned sketch plane is not decided: it is a
+/// written turn (`RigidMotion::turned`). The tube scenes' [`axis_frame`]
+/// still decides an exact (axis, reference) pair under this name
+/// (`work/frame/exact-axis-and-reference-frames-still-decide.md`).
 pub const TOUR_FRAME_AXIS: &str = "tour_frame_axis";
-
-/// **The world xy frame at `origin`, turned `num/den` of a turn about
-/// the exact `axis`.**
-///
-/// A fraction of a turn has an exact sine and cosine, so a whole
-/// number of quarter turns about `x̂`, `ŷ` or `ẑ` is an axis-aligned
-/// frame with no decision, no band and no funnel name.
-///
-/// # Panics
-///
-/// If `den` is zero, or if `origin` is not finite — every scene here
-/// writes a turn and an origin that are.
-pub fn turned_frame<S: Scalar>(
-    origin: pncad::geom_core::Point3<S>,
-    axis: pncad::geom_core::UnitVec3<S>,
-    num: i64,
-    den: u64,
-) -> pncad::geom_core::RigidMotion<S> {
-    let turns = pncad::geom_core::Turns::new(num, den).expect("a turn has a nonzero denominator");
-    pncad::geom_core::RigidMotion::rotation_by(axis, pncad::geom_core::Angle::from_turns(turns))
-        .and_then(|r| r.translated(origin - pncad::geom_core::Point3::origin()))
-        .expect("a written turn and the scene's origin are finite")
-}
-
-/// **The sketch plane through `origin` spanned by x̂ and ẑ** — the
-/// world xy plane turned a quarter turn about x̂, so sketch `v` runs up
-/// ẑ: the meridian plane a revolve about the vertical draws in.
-pub fn xz_plane<S: Scalar>(origin: pncad::geom_core::Point3<S>) -> pncad::profile::SketchPlane<S> {
-    pncad::profile::SketchPlane::from_frame(turned_frame(
-        origin,
-        pncad::geom_core::UnitVec3::exact_x(),
-        1,
-        4,
-    ))
-}
 
 /// **A sketch plane from two computed directions**, orthonormalized at
 /// the run's band — a plane rolled about a stem, a blade's section

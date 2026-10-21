@@ -26,7 +26,7 @@ of a world frame by an angle they authored, so they pay a decision
   pairs of the same shape.
 - `crates/sweep/tests/witness_ladder.rs` and `review_m2_pr5.rs`:
   `(x̂, (0, s, s))` and `((s, 0, s), ŷ)` with `s = 1/√2`, an eighth
-  of a turn — a written fraction, so `Angle::from_turns(1/8)`.
+  of a turn — a written fraction, so `RigidMotion::turned(o, x̂, Turns::new(1, 8))`.
 
 These are not the axis-aligned class the unit moved (their entries
 are not `0` and `±1`), so they stayed on `sketch_frame` /

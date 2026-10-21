@@ -29,7 +29,7 @@ callers mostly pass an exact axis and an exact reference:
 
 `from_axis_and_reference` with axis `ŷ` and reference `x̂` is the
 frame `(x̂, −ẑ, ŷ)`, a quarter turn back about `x̂`
-(`RigidMotion::rotation_by(UnitVec3::exact_x(), Angle::from_turns(-1/4))`),
+(`RigidMotion::turned(origin, UnitVec3::exact_x(), Turns::quarters(-1))`),
 bit for bit by the Rodrigues entries at a quarter turn.
 
 ## Why it was not moved with the pairs

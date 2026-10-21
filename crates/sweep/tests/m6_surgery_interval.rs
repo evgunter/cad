@@ -15,13 +15,15 @@
 mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
+    use geom_core::{RigidMotion, Turns, UnitVec3};
+    use profile::SketchPlane;
 
     use geom::Curve3;
     use geom::Surface;
     use geom_core::{Bounds, Interval};
     use profile::{Profile, test_support::bulge_loop};
     use sweep::blend::build::fillet_edges;
-    use sweep::test_support::{cube, finished, sketch_xz_at};
+    use sweep::test_support::{cube, finished};
     use sweep::{Revolution, RevolveAxis, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
     use topo::{Body, mass_properties};
@@ -46,9 +48,16 @@ mod certified {
         // the straight diameter back.
         let lp =
             bulge_loop::<Interval>(vec![(p2(0.0, -PIP_R), iv(1.0)), (p2(0.0, PIP_R), iv(0.0))]);
-        let profile = Profile::new(sketch_xz_at(p3(0.0, 0.0, 0.0)), vec![lp])
-            .validate(Tol::witness())
-            .unwrap();
+        let profile = Profile::new(
+            SketchPlane::from_frame(RigidMotion::turned(
+                p3(0.0, 0.0, 0.0),
+                UnitVec3::exact_x(),
+                Turns::quarters(1),
+            )),
+            vec![lp],
+        )
+        .validate(Tol::witness())
+        .unwrap();
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
             dir: v2(0.0, 1.0),

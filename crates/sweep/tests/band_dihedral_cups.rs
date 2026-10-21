@@ -20,9 +20,10 @@
 use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, UnitVec3, Vec3};
+use geom_core::{RigidMotion, Turns};
 use profile::SketchPlane;
 use sweep::blend::BlendError;
-use sweep::test_support::{brick, prism_on, sketch_yz_at, turned};
+use sweep::test_support::{brick, prism_on};
 use topo::{Body, EdgeKey};
 
 use crate::band_concave_bar::{blend, boolean};
@@ -42,7 +43,7 @@ const R: f64 = 0.1;
 fn wedge_along(phi: f64, (x0, x1): (f64, f64)) -> Body<f64> {
     let p = |y: f64, z: f64| (Point2::new(y, z), 0.0);
     prism_on(
-        sketch_yz_at(Point3::new(x0, 0.0, 0.0)),
+        SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(x0, 0.0, 0.0))),
         vec![
             p(0.0, 1.0),
             p(1.0 - phi.cos(), 1.0 - phi.sin()),
@@ -272,7 +273,11 @@ fn seamed_post(from: Point3<f64>, len: f64, a: f64) -> Body<f64> {
         Point2::new(a * t.cos(), a * t.sin())
     };
     prism_on(
-        SketchPlane::from_frame(turned(from, UnitVec3::exact_x(), 2)),
+        SketchPlane::from_frame(RigidMotion::turned(
+            from,
+            UnitVec3::exact_x(),
+            Turns::quarters(2),
+        )),
         vec![
             (at(240.0), 15f64.to_radians().tan()),
             (at(300.0), 75f64.to_radians().tan()),
@@ -288,7 +293,7 @@ fn equilateral(len: f64) -> Body<f64> {
     let s3 = 3f64.sqrt();
     let p = |y: f64, z: f64| (Point2::new(y, z), 0.0);
     prism_on(
-        sketch_yz_at(Point3::new(0.0, 0.0, 0.0)),
+        SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(0.0, 0.0, 0.0))),
         vec![p(0.0, 0.0), p(-3.0, 0.0), p(-1.5, -1.5 * s3)],
         len,
         tol(),
@@ -302,7 +307,7 @@ fn equilateral(len: f64) -> Body<f64> {
 fn groove() -> Body<f64> {
     let p = |y: f64, z: f64| (Point2::new(y, z), 0.0);
     let void = prism_on(
-        sketch_yz_at(Point3::new(0.0, 0.0, 0.0)),
+        SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(0.0, 0.0, 0.0))),
         vec![
             p(0.0, 0.0),
             p(-(3f64.sqrt()), 3.0),

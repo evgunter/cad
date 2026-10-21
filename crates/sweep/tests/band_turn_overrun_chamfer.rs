@@ -24,9 +24,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_core::RigidMotion;
 use geom_core::{Bounds, Interval, Point3};
+use profile::SketchPlane;
 use sweep::blend::build::{Blended, chamfer_edges};
-use sweep::test_support::{assert_naming_totality, at_rest, realized, sketch_yz_at};
+use sweep::test_support::{assert_naming_totality, at_rest, realized};
 use topo::boolean::BooleanOp;
 use topo::{Body, ContactRecords, EdgeKey, mass_properties, validate_geometric};
 use topo::{VertexKey, validate_pseudomanifold};
@@ -681,7 +683,7 @@ fn a_slot_through_the_overrun_is_never_consumed() {
     let r2 = core::f64::consts::FRAC_1_SQRT_2;
     let (y, z, h) = (-0.1 * D, 1.0 - 1.1 * D * r2, 0.003);
     let pin = sweep::test_support::prism_on(
-        sketch_yz_at(Point3::new(-1.5, y, z)),
+        SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(-1.5, y, z))),
         sweep::test_support::corners(&[(-h, -h), (h, -h), (h, h), (-h, h)]),
         4.0,
         tol(),

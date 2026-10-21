@@ -12,8 +12,10 @@
 
 use crate::common::bores::halves_at_rest;
 use core::f64::consts::PI;
+use geom_core::RigidMotion;
 use geom_core::{Point2, Point3, Tol, Vec3};
-use sweep::test_support::{finished, prism_at, prism_on, sketch_from_axes, sketch_yz_at};
+use profile::SketchPlane;
+use sweep::test_support::{finished, prism_at, prism_on, sketch_from_axes};
 use topo::{Body, BooleanResult, ContactRecords, LoopBoundary, mass_properties, subtract, union};
 
 fn tol() -> Tol {
@@ -40,7 +42,7 @@ fn cylinder(tilt: f64, half: f64) -> Body<f64> {
 
 /// The V-trench whose keel runs from `(1.5, 2, 0)` to `(2.5, 2, 0)`.
 fn trench() -> Body<f64> {
-    let end = sketch_yz_at(Point3::new(1.5, 0.0, 0.0));
+    let end = SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(1.5, 0.0, 0.0)));
     let v = vec![
         (Point2::new(2.0, 0.0), 0.0),
         (Point2::new(2.6, 2.0), 0.0),

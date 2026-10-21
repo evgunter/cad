@@ -34,6 +34,18 @@ impl Turns {
         Some(Self { num, den })
     }
 
+    /// **`n` quarter turns**, reduced — [`Self::new`]`(n, 4)`, whose
+    /// denominator is a literal four and so cannot refuse.
+    #[must_use]
+    pub fn quarters(n: i64) -> Self {
+        // `g` divides four, so it is 1, 2 or 4 and its signed cast exact.
+        let g = gcd(n.unsigned_abs(), 4);
+        Self {
+            num: n / g.cast_signed(),
+            den: 4 / g,
+        }
+    }
+
     /// The numerator, carrying the sign.
     #[must_use]
     pub fn num(self) -> i64 {
@@ -293,6 +305,15 @@ mod tests {
         Angle::from_turns(turns(num, den))
     }
 
+    /// `Turns::quarters(n)` is `Turns::new(n, 4)`, reduced the same way,
+    /// out to the ends of `i64`.
+    #[test]
+    fn quarters_are_the_fraction_over_four() {
+        for n in (-9..=9).chain([i64::MIN, i64::MIN + 1, i64::MAX - 1, i64::MAX]) {
+            assert_eq!(Some(Turns::quarters(n)), Turns::new(n, 4), "{n} quarters");
+        }
+    }
+
     /// **A quarter turn's value is `τ/4`**: at `f64` the rounded `π/2`
     /// bit for bit, at `Interval` an enclosure of the true `π/2` that a
     /// point could not be, its sine and cosine the exact points.
@@ -315,6 +336,10 @@ mod tests {
             core::f64::consts::FRAC_PI_2 <= r.hi(),
             "Interval value {r:?}"
         );
+        assert!(
+            r.hi() - r.lo() <= f64::EPSILON,
+            "Interval value {r:?} is τ's one-ulp enclosure quartered, no wider"
+        );
         let (s, c) = i.sin_cos();
         assert_eq!(
             (s.lo(), s.hi(), c.lo(), c.hi()),
@@ -325,19 +350,21 @@ mod tests {
 
     /// **An integer past `2^53` enters as an enclosure, not a rounding**:
     /// `2^60 + 1` has no `f64`, so `Interval` holds the two `f64`s about
-    /// it (and an outward ulp), where `f64` rounds to the nearer.
+    /// it, each end at most one outward ulp further, where `f64` rounds
+    /// to the nearer.
     #[test]
     fn a_numerator_past_the_mantissa_is_enclosed() {
         let n = (1_i128 << 60) + 1;
         let lo = 2f64.powi(60);
+        let hi = lo.next_up();
         let at_interval = integer::<Interval>(n);
         assert!(
-            at_interval.lo() <= lo && lo + 256.0 <= at_interval.hi(),
+            at_interval.lo() <= lo && hi <= at_interval.hi(),
             "Interval {at_interval:?} encloses 2^60 + 1"
         );
         assert!(
-            at_interval.hi() - at_interval.lo() <= 512.0,
-            "Interval {at_interval:?} is within an ulp of it"
+            lo.next_down() <= at_interval.lo() && at_interval.hi() <= hi.next_up(),
+            "Interval {at_interval:?} is within one ulp of the f64s about 2^60 + 1"
         );
         assert_eq!(integer::<f64>(n), lo, "f64 rounds to nearest");
         assert_eq!(

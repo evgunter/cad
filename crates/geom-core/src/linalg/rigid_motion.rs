@@ -67,11 +67,14 @@
 //!   [`RigidMotion::rotation_about_axis_by`] — the same by an
 //!   [`Angle`], whose sine and cosine are its written fraction of a
 //!   turn's where it has one ([`Angle::from_turns`]);
+//! - [`RigidMotion::turned`] — the world frame at an origin turned a
+//!   written fraction of a turn ([`Turns`]) about a [`UnitVec3`];
 //! - the exact half-turns [`RigidMotion::half_turn_x`],
 //!   [`RigidMotion::half_turn_y`], [`RigidMotion::half_turn_z`] and
 //!   the exact world frames [`RigidMotion::axes_xy`],
-//!   [`RigidMotion::axes_yz`], [`RigidMotion::axes_zx`] (whose
-//!   `origin` is the caller's, so they decide nothing at all);
+//!   [`RigidMotion::axes_yz`], [`RigidMotion::axes_zx`] (these, and
+//!   [`RigidMotion::turned`], store the caller's `origin` and decide
+//!   nothing at all);
 //! - [`RigidMotion::translated`] — a motion followed by a translation,
 //!   its axes kept;
 //! - [`RigidMotion::compose`] — products of witnesses are not decided
@@ -79,14 +82,16 @@
 //! - [`RigidMotion::inverse`] — the transpose.
 //!
 //! **An axis-aligned frame is a written turn.** An exact axis
-//! ([`UnitVec3::exact_x`] and its siblings, or a frame's own axes)
-//! turned by a whole number of quarter turns has columns of `0` and
-//! `±1` exactly at every scalar, and a product of such turns is not
-//! decided again, so every frame whose axes are signed basis vectors
-//! is reached with no decision: `(x̂, ẑ)` is a quarter turn about `x̂`.
-//! The named half-turns and world frames are shortcuts for the
-//! commonest of them. [`RigidMotion::gram_schmidt`] is for a pair the
-//! caller computed.
+//! ([`UnitVec3::exact_x`] and its siblings) turned by a whole number
+//! of quarter turns has columns of `0` and `±1` exactly at every
+//! scalar, and a product of such turns is not decided again, so every
+//! frame whose axes are signed basis vectors is reached with no
+//! decision: `(x̂, ẑ)` is a quarter turn about `x̂`. The named
+//! half-turns and world frames are shortcuts for the commonest of
+//! them. A motion composed with such a turn (`frame.compose(turn)`)
+//! is the same turn in the frame's own coordinates, exact in those
+//! coordinates and as rounded as the frame is in the world's.
+//! [`RigidMotion::gram_schmidt`] is for a pair the caller computed.
 //!
 //! The rotation mints take their axis as a witness and do not
 //! normalize it a second time ([`Mat3::rotation_about`]'s Rodrigues
@@ -94,7 +99,7 @@
 //!
 //! # The decided mints
 //!
-//! - [`RigidMotion::gram_schmidt`] — the authored pair,
+//! - [`RigidMotion::gram_schmidt`] — a computed pair,
 //!   orthonormalized: `u` is normalized and KEPT, `v` yields its
 //!   component along `u`. Two decisions, under the caller's own
 //!   funnel name.
@@ -114,9 +119,14 @@
 //!
 //! Which product `w` is depends on the mint: the Gram–Schmidt mint and
 //! the exact world frames build `w = u × v` (at `f64` the rounded
-//! cross product, at `Interval` an enclosure of it), while the aim
-//! mints store the AIM they were given and derive `v = w × u` from it,
-//! so there `u × v` equals `w` only up to the last bit.
+//! cross product, at `Interval` an enclosure of it); the aim mints
+//! store the AIM they were given and derive `v = w × u` from it; the
+//! rotation mints (and the turns) take all three columns from the
+//! Rodrigues entries, and [`RigidMotion::compose`] and
+//! [`RigidMotion::inverse`] from the product or the transpose. Outside
+//! the Gram–Schmidt mint and the world frames, then, `u × v` equals `w`
+//! only up to the last bit, except where the entries are exact (a turn
+//! by quarter turns about an exact axis).
 //! [`RigidMotion::to_affine`] uses the stored `w`, whichever it is.
 //!
 //! # Crossing scalars
@@ -174,7 +184,7 @@
 //! one home, [`frame`](super::frame)'s module docs; nothing is
 //! restated here.
 
-use crate::linalg::{Affine3, Angle, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
+use crate::linalg::{Affine3, Angle, Mat3, Point3, Turns, UnitVec3, UnitVec3Error, Vec3};
 use crate::predicate::{Band, Decide, Indeterminate, Sign};
 use crate::real::Real;
 use crate::spline::SpanLocate;
@@ -552,6 +562,21 @@ impl<T: Real> RigidMotion<T> {
         Self::exact(Point3::origin(), -UnitVec3::exact_x(), -UnitVec3::exact_y())
     }
 
+    /// **The world xy frame at `origin`, turned `turns` of a turn about
+    /// `axis`** — [`Self::rotation_by`]'s linear part over
+    /// [`Angle::from_turns`], with `origin` stored as the world frames
+    /// store theirs. A written fraction's value is finite, so nothing is
+    /// refused. About an exact axis by a whole number of quarter turns
+    /// the columns are `0` and `±1` exactly, at every scalar: every
+    /// axis-aligned frame is one of these or a product of two.
+    #[must_use]
+    pub fn turned(origin: Point3<T>, axis: UnitVec3<T>, turns: Turns) -> Self {
+        Self::from_linear(
+            Mat3::rotation_about_unit_by(axis, Angle::from_turns(turns)),
+            origin,
+        )
+    }
+
     /// The motion whose linear part is `m`'s columns, taken as
     /// witnesses because the CALLER's construction made them
     /// orthonormal and right-handed; private, so only the mints in
@@ -812,8 +837,10 @@ impl<T: Decide> RigidMotion<T> {
         Ok(Self::from_linear(*l, origin))
     }
 
-    /// **The authored pair, orthonormalized** — Gram–Schmidt, with `u`
-    /// normalized and KEPT while `v` yields its component along `u`.
+    /// **A computed pair, orthonormalized** — Gram–Schmidt, with `u`
+    /// normalized and KEPT while `v` yields its component along `u`. A
+    /// pair of signed basis vectors needs no decision: it is a written
+    /// turn ([`Self::turned`]).
     ///
     /// Two decisions, both through [`UnitVec3::new`] under the one
     /// funnel name the CALLER owns the pair under: the first axis's
@@ -829,7 +856,7 @@ impl<T: Decide> RigidMotion<T> {
     /// Evaluation order (fixed, D9): `u = normalize(u_raw)`, then
     /// `v_perp = v_raw − u·(v_raw·u)`, then `v = normalize(v_perp)`,
     /// then `w = u × v`. On a pair that is already exactly orthonormal
-    /// — two signed basis vectors, say — every step is exact and the
+    /// every step is exact and the
     /// frame's axes are the caller's vectors bit for bit, with one
     /// exception: a `−0.0` component of `v_raw` comes back `+0.0`,
     /// because the residual subtracts `−0.0` from it and IEEE 754
@@ -1254,18 +1281,30 @@ mod tests {
         }
     }
 
-    fn quarter_turns<T: Real>(axis: UnitVec3<T>, n: i64) -> RigidMotion<T> {
-        let turns = crate::Turns::new(n, 4).expect("a nonzero denominator");
-        RigidMotion::rotation_by(axis, Angle::from_turns(turns)).unwrap()
-    }
-
     /// **A quarter turn about `x̂` IS the frame Gram–Schmidt decides
     /// from `(x̂, ẑ)`** — bit for bit at `f64`, signed zeros included,
     /// and as the same exact points at `Interval` — so a caller that
-    /// means that plane writes the turn and pays no decision.
+    /// means that plane writes the turn and pays no decision. The turn
+    /// is [`RigidMotion::rotation_by`]'s linear part with the origin
+    /// stored verbatim.
     #[test]
     fn a_quarter_turn_about_x_is_the_decided_x_z_frame() {
-        let turned = quarter_turns(UnitVec3::exact_x(), 1);
+        let o = Point3::new(-0.0, 2.5, -7.0);
+        let placed = RigidMotion::turned(o, UnitVec3::exact_x(), Turns::quarters(1));
+        let by =
+            RigidMotion::rotation_by(UnitVec3::exact_x(), Angle::from_turns(Turns::quarters(1)))
+                .unwrap();
+        assert_eq!(
+            bits12(&placed.to_affine())[..9],
+            bits12(&by.to_affine())[..9],
+            "the linear part is rotation_by's"
+        );
+        assert_eq!(
+            [placed.origin().x, placed.origin().y, placed.origin().z].map(f64::to_bits),
+            [o.x, o.y, o.z].map(f64::to_bits),
+            "the origin is stored verbatim"
+        );
+        let turned = RigidMotion::turned(Point3::origin(), UnitVec3::exact_x(), Turns::quarters(1));
         let decided = RigidMotion::gram_schmidt(
             Point3::origin(),
             Vec3::unit_x(),
@@ -1279,7 +1318,11 @@ mod tests {
             bits12(&decided.to_affine()),
             "f64"
         );
-        let turned = quarter_turns(UnitVec3::<Interval>::exact_x(), 1);
+        let turned = RigidMotion::<Interval>::turned(
+            Point3::origin(),
+            UnitVec3::exact_x(),
+            Turns::quarters(1),
+        );
         let decided = RigidMotion::gram_schmidt(
             Point3::origin(),
             Vec3::unit_x().map(Interval::from_f64),
@@ -1308,10 +1351,12 @@ mod tests {
         for a in 0..4 {
             for b in 0..4 {
                 for c in 0..4 {
-                    let f = quarter_turns(UnitVec3::exact_z(), a)
+                    let turn =
+                        |axis, n| RigidMotion::turned(Point3::origin(), axis, Turns::quarters(n));
+                    let f = turn(UnitVec3::exact_z(), a)
                         .compose(
-                            quarter_turns(UnitVec3::exact_y(), b)
-                                .compose(quarter_turns(UnitVec3::exact_x(), c))
+                            turn(UnitVec3::exact_y(), b)
+                                .compose(turn(UnitVec3::exact_x(), c))
                                 .unwrap(),
                         )
                         .unwrap();

@@ -124,10 +124,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_core::{
-    Affine3, Angle, Band, Bounds, Decide, Point2, Point3, Real, RigidMotion, Turns, UnitVec3, Vec2,
-    Vec3,
-};
+use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Real, RigidMotion, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LoopBoundary};
@@ -702,7 +699,7 @@ pub fn extruded<T: Decide + topo::AtRestPolicy>(
     .body
 }
 
-/// The K funnel name a FIXTURE's authored frame axes are decided
+/// The K funnel name a FIXTURE's computed frame axes are decided
 /// under. One name for both axes of [`sketch_from_axes`]: which axis a
 /// refusal is about is the refusal's own field, and a fixture that
 /// refuses has a bug rather than a story.
@@ -712,11 +709,11 @@ const FIXTURE_FRAME_AXIS: &str = "fixture_frame_axis";
 /// run's band — the fixtures' one spelling of the frame mint, for a
 /// plane that is tilted, rotated or deliberately noisy.
 ///
-/// An axis-aligned fixture does not come here: it is a written turn
-/// and needs no decision — the world frames
-/// ([`SketchPlane::xy_at`], `RigidMotion::axes_yz`, `axes_zx`), the
-/// half-turns, [`sketch_xz_at`], or [`turned`] and `compose` for the
-/// rest.
+/// An axis-aligned fixture does not come here: it needs no decision.
+/// It is a world frame (`SketchPlane::from_frame(RigidMotion::axes_xy(o))`
+/// and its `yz`, `zx` siblings, or [`SketchPlane::xy_at`]), or a
+/// written turn about an exact axis (`RigidMotion::turned`), composed
+/// where one turn is not enough.
 ///
 /// # Panics
 ///
@@ -773,31 +770,6 @@ pub fn tube_frame<T: Decide>(
 /// every axis-aligned fixture here extrudes from.
 pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {
     SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(T::zero(), T::zero(), z0)))
-}
-
-/// **The world xy frame at `o`, turned `quarters` quarter turns about
-/// the exact `axis`**: a quarter turn's sine and cosine are exact, so
-/// this is an axis-aligned frame with no decision.
-///
-/// # Panics
-///
-/// If `o` is not finite.
-pub fn turned<T: Real>(o: Point3<T>, axis: UnitVec3<T>, quarters: i64) -> RigidMotion<T> {
-    let turns = Turns::new(quarters, 4).expect("four is a nonzero denominator");
-    RigidMotion::rotation_by(axis, Angle::from_turns(turns))
-        .and_then(|r| r.translated(o - Point3::origin()))
-        .expect("the fixture's origin is finite")
-}
-
-/// **The sketch plane through `o` spanned by x̂ and ẑ** (normal −ŷ):
-/// the xy plane turned a quarter turn about x̂.
-pub fn sketch_xz_at<T: Real>(o: Point3<T>) -> SketchPlane<T> {
-    SketchPlane::from_frame(turned(o, UnitVec3::exact_x(), 1))
-}
-
-/// **The world yz sketch plane through `o`** (normal +x̂).
-pub fn sketch_yz_at<T: Real>(o: Point3<T>) -> SketchPlane<T> {
-    SketchPlane::from_frame(RigidMotion::axes_yz(o))
 }
 
 /// **A prism on an arbitrary sketch plane**: one closed loop of

@@ -243,11 +243,11 @@
 
 use core::f64::consts::PI;
 
-use pncad::authoring::{p2, p3, v2, validated};
+use pncad::authoring::{p2, v2, validated};
 use pncad::geom::NurbsCurve3;
 use pncad::geom_brep::PropsError;
 use pncad::geom_core::linalg::frame::path_start_frame;
-use pncad::geom_core::{Band, KnotVector, Point3, RigidMotion, Tol, UnitVec3};
+use pncad::geom_core::{Band, KnotVector, Point3, RigidMotion, Tol, Turns, UnitVec3};
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, circle_split, query};
 use pncad::prelude::{Convexity, SurfaceKind};
 use pncad::profile::SketchPlane;
@@ -259,7 +259,7 @@ use pncad::topo::{
 };
 
 use crate::booleans::finished;
-use crate::scalar::{Scalar, xz_plane};
+use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
 // ---------------------------------------------------------------
@@ -478,11 +478,22 @@ fn sharp_band<S: Scalar>(m: &Meridian, tol: Tol) -> ConstructedLoop<S> {
         .into()
 }
 
+/// **The bottle's meridian plane**: the world xy plane turned a
+/// quarter turn about x̂, so sketch `u` runs out along x̂ and `v` up
+/// the bottle's axis ẑ.
+fn meridian_plane<S: Scalar>() -> SketchPlane<S> {
+    SketchPlane::from_frame(RigidMotion::turned(
+        Point3::origin(),
+        UnitVec3::exact_x(),
+        Turns::quarters(1),
+    ))
+}
+
 /// Revolves a meridian band about the bottle's axis. `Full` is the
 /// bulb; the partial form exists only so wall 2 can ask the same
 /// question of an OPEN rim (findings entry 2).
 fn bulb<S: Scalar>(loop_: ConstructedLoop<S>, revolution: Revolution<S>, tol: Tol) -> Body<S> {
-    let plane = xz_plane(p3::<S>(0.0, 0.0, 0.0));
+    let plane = meridian_plane::<S>();
     revolve(
         &validated(plane, vec![loop_], tol).expect("the meridian band validates"),
         RevolveAxis {
@@ -1294,7 +1305,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // forms for planar faces only, so a multi-shell CURVED solid
     // refuses typed — OFFSET-DESIGN O6's known standing demo gate,
     // recorded here and never worked around.
-    let ring_plane = xz_plane(p3::<S>(0.0, 0.0, 0.0));
+    let ring_plane = meridian_plane::<S>();
     let ring = validated(ring_plane, annulus::<S>(&m, RLOOP, false, tol), tol)
         .expect("the annulus validates");
     let hollow = revolve::<S>(
@@ -1328,7 +1339,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // f64: `step_export` is a rendering/interchange-side door and
     // takes the run's own numbers (the wall-7 posture).
     let ring_f64 = validated(
-        xz_plane(p3::<f64>(0.0, 0.0, 0.0)),
+        meridian_plane::<f64>(),
         annulus::<f64>(&m, RLOOP, false, tol),
         tol,
     )

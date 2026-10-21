@@ -12,9 +12,10 @@ use core::f64::consts::PI;
 
 use geom::Curve3;
 use geom_core::{Point2, Point3, RigidMotion};
+use geom_core::{Turns, UnitVec3};
 use profile::SketchPlane;
 use sweep::blend::{BlendError, Blended};
-use sweep::test_support::{block, prism, prism_on, sketch_xz_at};
+use sweep::test_support::{block, prism, prism_on};
 use topo::EdgeKey;
 
 use crate::band_planar_cut_off::{D, Verb, carve, edge, the_box, tol};
@@ -125,7 +126,11 @@ fn end_faces_leaning_along_the_support_cut_both_verbs_at_the_centroid_length() {
         .into_iter()
         .flat_map(|v| [0.3, -0.5].map(|s| (v, s)))
     {
-        let plane = sketch_xz_at(Point3::new(0.0, 0.0, 0.0));
+        let plane = SketchPlane::from_frame(RigidMotion::turned(
+            Point3::new(0.0, 0.0, 0.0),
+            UnitVec3::exact_x(),
+            Turns::quarters(1),
+        ));
         let body = prism_on(
             plane,
             vec![

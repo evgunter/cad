@@ -10,7 +10,9 @@
 
 use super::common::differential::outcome;
 use geom_core::{Point2, Point3, Tol};
-use sweep::test_support::{corners, extruded, prism_on, sketch_at, sketch_xz_at};
+use geom_core::{RigidMotion, Turns, UnitVec3};
+use profile::SketchPlane;
+use sweep::test_support::{corners, extruded, prism_on, sketch_at};
 use topo::{Body, BooleanError, BooleanOp};
 
 fn tol() -> Tol {
@@ -262,7 +264,11 @@ fn channel(len: f64) -> (Body<f64>, f64) {
     ];
     // u = +x, v = +z: the sketch normal is u × v = −y, so the profile
     // sits at y = len and extrudes back to y = 0.
-    let plane = sketch_xz_at(Point3::new(0.0, len, 0.0));
+    let plane = SketchPlane::from_frame(RigidMotion::turned(
+        Point3::new(0.0, len, 0.0),
+        UnitVec3::exact_x(),
+        Turns::quarters(1),
+    ));
     let body = prism_on(plane, corners(&pts), len, tol());
     (body, 3.0 * len)
 }
