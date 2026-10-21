@@ -91,13 +91,53 @@ fn a_lofted_lens_blade_certifies_its_sign_past_the_budget_exit() {
     if tol.eps() <= geom_core::tolerance::DEFAULT_EPS {
         match topo::mass_properties(&body, tol) {
             Err(MassPropsError::Face {
-                source: geom_brep::PropsError::QuadratureBudget { rounds: 1, .. },
+                source: source @ geom_brep::PropsError::QuadratureBudget { rounds: 1, .. },
                 ..
-            }) => {}
+            }) => assert_eq!(
+                certificate.target_refusal(),
+                Some(&source),
+                "the certificate carries the reporting door's refusal verbatim, through every \
+                 round its sign walk ran past the budget exit"
+            ),
             other => panic!(
                 "the reporting door refuses the blade at the budget exit at ε = {:e}: {other:?}",
                 tol.eps()
             ),
         }
     }
+}
+
+/// **A walk that cannot settle runs no round past the budget exit.**
+/// The volume backstop reads each body to its reporting target, so a
+/// face its lane has refused is of no further use to it. Both of the
+/// blade's quadrature walls refuse at the budget exit, so the backstop
+/// pays each exactly round 0's two readings (`props_quad_converged`
+/// and `props_quad_last_round`) — the two the reporting door pays for
+/// its first refusing wall before it stops. Counted, not timed: the
+/// rounds a resumed refused face would add are each another reading.
+#[test]
+fn the_volume_backstop_runs_no_round_past_the_budget_exit() {
+    let tol = Tol::witness();
+    if tol.eps() > geom_core::tolerance::DEFAULT_EPS {
+        println!(
+            "SKIPPED at ε {:e}: the blade's walls are not refused at the budget exit here",
+            tol.eps()
+        );
+        return;
+    }
+    let body = blade(tol);
+    let brick = crate::common::square_prism();
+    let reporting = crate::common::quad_verdicts(|| {
+        topo::mass_properties(&body, tol).expect_err("the reporting door refuses the blade");
+    });
+    let backstop = crate::common::quad_verdicts(|| {
+        topo::test_support::volume_backstop(topo::BooleanOp::Union, &body, &brick, &body, tol)
+            .expect_err("the backstop refuses a body it cannot measure");
+    });
+    assert_eq!(
+        backstop,
+        2 * reporting,
+        "the backstop read the blade's two refused walls past round 0 ({backstop} quadrature \
+         readings against the reporting door's {reporting} for one wall)"
+    );
 }

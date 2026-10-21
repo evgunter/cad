@@ -286,8 +286,11 @@
 //!
 //! **Gating and then measuring costs more than measuring**, and that
 //! is worth knowing before a caller reaches for the continuation as a
-//! saving. The piece evaluations compose exactly — the gate's rounds
-//! plus the continuation's are the measurement's — but each entry into
+//! saving. On a face that meets the target, the piece evaluations
+//! compose exactly — the gate's rounds plus the continuation's are the
+//! measurement's; a face refused at the budget exit costs the
+//! measurement one round and the gate as many as its sign needs. And
+//! each entry into
 //! a face's lane re-derives that face's per-round-independent SETUP
 //! (the derivative grids, the block hulls, the last round's cut lists
 //! and the bound taken from them), so the pair runs 1.3–1.8× one

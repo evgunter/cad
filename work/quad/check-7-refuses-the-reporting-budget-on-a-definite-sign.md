@@ -123,6 +123,9 @@ Each answers the reporting question inside the sign walk.
 
 ## A second consequence: tighter ε reads worse
 
+Tracked as `measure-holds-a-budget-refused-faces-bracket-at-the-round-its-sign-settled`
+(measured unchanged by PR 5568).
+
 The exit also freezes `measure()`'s fallback BRACKET at round 0. The
 lily's degree-2 swept leaves pass the gate at every ε, but at
 ε = 1e-12 the bracket `measure()` hands back is about 1.5% wide —
