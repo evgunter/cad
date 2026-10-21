@@ -493,7 +493,7 @@ one it lies on. Where several of one input's edges lie flush on its line, a
 union cites the `Merged` set of them. A pair boolean cites the least of them
 in name order; it reads each seat's edges apart, so this choice never sets one
 seat against the other
-(`work/wire/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
+(`work/wirerest/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
 A vertex at a member vertex is that vertex. At several members' vertices (a
 body glued to its copy) it is `Merged` of them, flat and in name order. A
 vertex where a single face crosses or touches a member edge, or a line of
