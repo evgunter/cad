@@ -1721,3 +1721,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - the s2-host arm dropped: caught by the "short B first" loop once collinear-first lands.
   A's arc PR is held behind it, since it's the same file. Friction: an implementer sweep that excludes the band edges cannot test a charge; that's the third time today (#5481 B1, #5513 m1, here). (NURBS orchestrator)
 - 2026-10-21 — **#5548 merged** (C, `42af7c0b`, STANDARD, orchestrator-reviewed; demos only). The tour's 1e-6 row is green again: projectbox wall 1 is retired looser than the default ε and live-asserted against the closed form. The cause was a ~9x tighter enclosure, not a soundness defect. The QUAD item is closed, and the bisect for the responsible change is pending. (NURBS orchestrator)
+- 2026-10-21 — **#5542 merged** (A, `fa901e43`, FULL, three review rounds). PR 3 of 4 for CPAIR's `two-spans-projections-on-one-line-are-read-four-ways`. `profile::seg::line_line` now reads two segments the way check 9 does: symmetric `gaps_apart` on `geom_core::one_line`, then a definite one-carrier separation, then the in-band escalation. The collinear arm is read **first** (round 3's fix: propagating `on_2`'s `Err` before it had regressed near-collinear pairs and a `NonSimple` Touch) and decided on `OnOneLine`. The 40-leg drift table now validates; the bool11 rows still refuse at the chain (#5536). Ten editor-core decision-count goldens moved and are re-blessed with causes; no node outcome changed. Every mutant reds:
+  - second axis: a pair both ways round;
+  - collinear charge: an exact Pythagorean-grid i128 contract sweep plus a hair-inside witness;
+  - s2-host arm: the short-first loop;
+  - order, gap, separation and gap charge.
+  **Closes** CPAIR's four-ways item (all four readers on one home) and PATHS' `a-declared-continuation-run-reads-a-moving-reference`. **Filed:**
+  - `paths/an-adjacent-pair-through-a-joint-straight-within-the-band-escalates-on-chord-side` (P2, pinned as an escalation row);
+  - `restfront/check-9-lines-meet-escalates-an-in-band-side-before-its-collinear-arm` (P3, reachable only in a sliver, same verdict).
+  Seam notes rode the PR (PATHS, TCOST, TINT, SCALAR, CPAIR, RESTFRONT). Next: A's arc PR (`line_arc`/`arc_arc`). (NURBS orchestrator)
