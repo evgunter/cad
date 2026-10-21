@@ -952,6 +952,16 @@ BOUND_AS = {
     # `rim_share_tag`, so the two ways a rim fails to be unique are two
     # `inner_kind` words and not one sentence a caller has to parse.
     "RimShare": "EvaluationError.inner_kind",
+    # The shapes the missing-rule and precision-limit naming refusals
+    # carry, crossing as `RimShare` does: `naming_error_tag` delegates
+    # to one tag function per shape enum.
+    "DisagreeShape": "EvaluationError.inner_kind",
+    "JoinShape": "EvaluationError.inner_kind",
+    "SeamVertexShape": "EvaluationError.inner_kind",
+    "CrossingSensesShape": "EvaluationError.inner_kind",
+    "SeamSidesShape": "EvaluationError.inner_kind",
+    "UnionNameShape": "EvaluationError.inner_kind",
+    "WayShape": "EvaluationError.inner_kind",
     "BlendError": "EvaluationError.inner_kind",
     "BooleanError": "EvaluationError.inner_kind",
     "ExtrudeError": "EvaluationError.inner_kind",

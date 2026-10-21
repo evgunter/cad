@@ -1,9 +1,10 @@
 ---
 id: section-wrong-lane-ends-in-a-tag
 kind: issue
-title: geom-brep: SectionError::WrongLane ends in '(a kernel bug)', not the shared kernel-defect ending
+title: geom-brep: SectionError::WrongLane calls itself a kernel bug, but any caller of a public section arm reaches it with the wrong pair
 status: open
 opened: 2026-09-28
+parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
 priority: P4
 cost: E
 ---
@@ -26,4 +27,10 @@ one home now, `geom_core::KERNEL_DEFECT_ENDING`.
 
 ## Repair shape
 
+**Superseded in direction (ENCL, 2026-10-21): read the evidence below before acting on this section.**
+
 Replace the tag with ". {KERNEL_DEFECT_ENDING}".
+
+## Evidence: input reaches it, so the repair above is wrong (ENCL, 2026-10-21)
+
+This arm is a site of the parent census's second pass (`work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md`, `## Census, second pass`, main 69ab780194). **Class 1, sure**: `geom_brep::plane_sphere_section(plane, sphere, band)` (`intersect.rs` ~1188) is public, and handing it any non-plane first operand or non-sphere second one reaches `WrongLane` (~1199, ~1210). Its sibling arms behave the same (`sphere_sphere_section`, `cylinder_cylinder_section`, …). The tag and `KERNEL_DEFECT_ENDING` both make a false claim. The repair is the lever, as SSI's own `WrongLane` gives it (`ssi.rs` `WRONG_LANE_RECOURSE`): pass the pair the arm names, or route the pair through `geom_brep::route`.

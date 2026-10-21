@@ -135,10 +135,7 @@ fn circle_plane<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Locus<T>> {
-    // Not `n − a·(a·n)`: as the circle turns parallel to the plane that
-    // difference cancels, and its component along `n` (`sin²`, which
-    // places the touch point off the circle's centre plane) rounds away.
-    let d = a.cross(n).cross(a);
+    let d = plane_across(a, n);
     let sin = d.norm();
     let s = n.dot(c - o);
     if !separates(sin / r, r, band, errors)? {
@@ -157,6 +154,31 @@ fn circle_plane<T: Decide>(
             Sign::Zero => Touch::Apart,
         },
     ))
+}
+
+/// The plane's normal `n` across the circle's plane, `(a × n) × a`, to
+/// a few ulps of its own length.
+///
+/// Not `n − a·(a·n)`: as the circle turns parallel to the plane that
+/// difference cancels, and its component along `n` (`sin²`, which
+/// places the touch point off the circle's centre plane) rounds away.
+/// Nor `a × n` as it stands: near parallel its terms cancel to `sin`,
+/// each off by `u`, so the direction is `u/sin` off and the touch point
+/// `r·u/sin` along the circle. `a × n = a × (n ∓ a)`, and `n − a` (or
+/// `n + a`, the circle facing away) is formed to `u` of its own size,
+/// each coordinate a difference of two nearly equal terms or one that
+/// keeps half the larger, so its cross with `a` cancels nothing. Away
+/// from parallel both forms are as good, so the choice at `a·n = 0` is
+/// free.
+fn plane_across<T: Real>(a: Vec3<T>, n: Vec3<T>) -> Vec3<T> {
+    let across = |m: Vec3<T>| a.cross(m).cross(a);
+    let (facing, away) = (across(n - a), across(n + a));
+    let key = a.dot(n);
+    Vec3::new(
+        key.select_le_zero(away.x, facing.x),
+        key.select_le_zero(away.y, facing.y),
+        key.select_le_zero(away.z, facing.z),
+    )
 }
 
 /// Two spheres: outside each other at `|c₂ − c₁| = r₁ + r₂`
@@ -347,4 +369,64 @@ pub(super) fn face_face<T: Decide>(
         },
         errors,
     ))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// How far the touch point read stands off the exact one: the unit
+    /// circle about the origin, its axis `3e-11` rad off the plane's
+    /// normal (both off every coordinate axis) and stored times
+    /// `facing`, against the plane its nearest point lies on, at
+    /// ε = 1e-12 (K = 10). The exact touch direction is that of these
+    /// stored vectors, rounded.
+    fn touch_off(facing: f64) -> f64 {
+        let n = Vec3::new(0.347_008_881_792_054_3, -0.937_861_842_681_227_9, 0.0);
+        let a = Vec3::new(
+            0.347_008_881_788_918_5,
+            -0.937_861_842_682_388_1,
+            -2.981_308_812_513_786_4e-11,
+        ) * facing;
+        let exact = Vec3::new(
+            0.104_527_924_895_754_38,
+            0.038_675_332_179_441_47,
+            0.993_769_657_213_278_7,
+        );
+        let sin = 2.999_999_839_876_325_4e-11;
+        let c = Point3::origin();
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let mut errors = Vec::new();
+        let at = match circle_plane((c, a, 1.0), (c - n * sin, n), band, &mut errors) {
+            Some(Locus::Touch(Touch::At(p))) => p,
+            _ => panic!("no touch point read: {errors:?}"),
+        };
+        ((c - at) - exact).norm()
+    }
+
+    /// **A circle `3e-11` rad off parallel to a plane is touched where it
+    /// touches** ([`touch_off`]), to a few ulps. Formed from `a × n` as
+    /// it stands it was off by 1.8e-6, and the touch point that far
+    /// along the circle.
+    #[test]
+    fn a_circle_nearly_parallel_to_a_plane_is_touched_where_it_touches() {
+        let off = touch_off(1.0);
+        assert!(
+            off <= 1e-15,
+            "the touch point stands {off:e} off the circle's"
+        );
+    }
+
+    /// **A circle facing away from the plane is touched where it
+    /// touches**: the same circle with its axis stored reversed
+    /// (`a·n < 0`, the `n + a` arm), read to the same few ulps.
+    #[test]
+    fn a_circle_facing_away_from_a_plane_is_touched_where_it_touches() {
+        let off = touch_off(-1.0);
+        assert!(
+            off <= 1e-15,
+            "the touch point stands {off:e} off the circle's"
+        );
+    }
 }

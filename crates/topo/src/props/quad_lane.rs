@@ -194,21 +194,7 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
     if let Surface::Plane { normal, .. } = surface {
         return Ok((planar_face_about(&loops, normal, centre)?, true));
     }
-    let moved_loops = loops
-        .iter()
-        .map(|edges| {
-            edges
-                .iter()
-                .map(|e| {
-                    translated_curve(&e.carrier, centre).map(|carrier| LoopEdge {
-                        carrier,
-                        ..e.clone()
-                    })
-                })
-                .collect::<Option<Vec<_>>>()
-        })
-        .collect::<Option<Vec<_>>>();
-    match translated_surface(&surface, centre).zip(moved_loops) {
+    match moved_by(&surface, &loops, centre) {
         Some((surface, moved_loops)) => Ok((
             super::closed_form_of(&surface, &moved_loops, sense, band)?,
             true,
@@ -218,6 +204,37 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
             about_centre(about_origin.flux, about_origin.area, Point3::origin())
         }
     }
+}
+
+/// A face's loops, each its edges in traversal order.
+pub(super) type Loops<U> = Vec<Vec<LoopEdge<U>>>;
+
+/// **A face's geometry carried by `−by`**: its surface and every loop
+/// edge's carrier moved, so a closed form read on it is the face's flux
+/// about `by`. The one home of reading a closed-form face about a point,
+/// at the walk's scalar (`closed_form_about`) and at the interval scalar
+/// ([`closed_form`]) alike. `None` for a kind with no analytic datum to
+/// move ([`translated_surface`], [`translated_curve`]).
+pub(super) fn moved_by<U: Decide>(
+    surface: &Surface<U>,
+    loops: &[Vec<LoopEdge<U>>],
+    by: Point3<U>,
+) -> Option<(Surface<U>, Loops<U>)> {
+    let loops = loops
+        .iter()
+        .map(|edges| {
+            edges
+                .iter()
+                .map(|e| {
+                    translated_curve(&e.carrier, by).map(|carrier| LoopEdge {
+                        carrier,
+                        ..e.clone()
+                    })
+                })
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some((translated_surface(surface, by)?, loops))
 }
 
 /// A face's vector area `A⃗ = ∫ n dA`, from its loops, each summed about
@@ -1580,8 +1597,8 @@ mod tests {
         use crate::body::Body;
         use crate::entity::{FaceKey, LoopBoundary};
         use crate::props::{
-            FaceRun, QuadLane, corner_of, decide_faces_serially, face_flux, face_loops, flat_loops,
-            rederive, reporting_hook, resolve_face, shell_polygons, vertex_rings,
+            FaceRun, QuadLane, References, corner_of, decide_faces_serially, face_flux, face_loops,
+            flat_loops, rederive, reporting_hook, resolve_face, shell_polygons, vertex_rings,
         };
 
         /// `m · 2^e`, exactly.
@@ -1823,8 +1840,9 @@ mod tests {
         fn runs(body: &Body<f64>, band: Band, tol: Tol) -> Vec<FaceRun<f64>> {
             let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
             let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
+            let refs = References::of(body, faces.iter().copied());
             decide_faces_serially(&faces, |&f| {
-                face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE)
+                face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE, &refs)
             })
             .unwrap()
         }
@@ -1868,8 +1886,9 @@ mod tests {
             );
             let (mut flux, mut area) = (Interval::zero(), Interval::zero());
             let mut polygon = Interval::zero();
+            let refs = References::of(&body, runs.iter().map(|r| r.face));
             for run in &runs {
-                let centre = corner_of(&body, lane, run.face).unwrap();
+                let centre = corner_of(&body, lane, &refs, run.face).unwrap();
                 let (face, surface) = resolve_face(&body, run.face);
                 let loops = face_loops(&body, face).unwrap();
                 let (c, _) =

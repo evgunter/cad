@@ -216,20 +216,26 @@ impl ProfilePieces {
     ///
     /// # Errors
     ///
-    /// [`NamingError::Emission`] for a shape no tube door builds (more
-    /// than two loops), or a piece index past the `u32` a role stores.
+    /// [`NamingError::Emission`] for a piece index past the `u32` a role
+    /// stores.
+    ///
+    /// # Panics
+    ///
+    /// For more than two loops, a shape no tube door builds.
     pub(crate) fn section(counts: &[usize]) -> Result<Self, NamingError> {
         let circle = |l: usize| match l {
-            0 => Ok(SectionCircle::Outer),
-            1 => Ok(SectionCircle::Bore),
-            _ => Err(NamingError::Emission {
-                what: "a tube door built a section of more than two circles",
-            }),
+            0 => SectionCircle::Outer,
+            1 => SectionCircle::Bore,
+            _ => unreachable!(
+                "a tube's section has {} loops, though the tube doors build an outer circle and \
+                 at most one bore",
+                counts.len()
+            ),
         };
         let mut edges = Vec::with_capacity(counts.len());
         let mut vertices = Vec::with_capacity(counts.len());
         for (l, &n) in counts.iter().enumerate() {
-            let circle = circle(l)?;
+            let circle = circle(l);
             let roles = (0..n)
                 .map(|k| {
                     to_u32(k, "a tube section's piece index exceeds u32").map(PieceRole::Piece)

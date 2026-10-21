@@ -2,7 +2,8 @@
 id: a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order
 kind: issue
 title: A quadrature face's pad scales with its shell's size and stored face order
-status: open
+status: closed
+closed: 2026-10-20
 priority: P2
 cost: M
 refs: [spiric-face-volume-budget-depends-on-world-position]
@@ -88,3 +89,53 @@ Whichever option lands should give it one.
 An option is measured against the table above and lands with its rows,
 and the order row is restated to assert the two pads within 2×. Or this
 item is closed with the measurement that says neither helps.
+
+## Closed (2026-10-20, branch `flux/pad-scale-face-order`)
+
+Measured both options and five candidates as local spikes, pads at
+ε 1e-9 (1e-12, 1e-6 in the PR body):
+
+| body | vertex (5442) | (1) shell box centre | (2) own vertex, no carry | qfirst (landed) |
+|---|---|---|---|---|
+| home `P ∪ T` / `T ∪ P` | 2.58e-5 / 4.10e-6 | 1.29e-5 / 1.29e-5 | 4.10e-6 | 4.10e-6 / 4.10e-6 |
+| 900 m bar `P ∪ T` / `T ∪ P` | 5.88e-5 / 4.10e-6 | 2.93e-5 / 2.93e-5 | 4.27e-6 | 4.27e-6 / 4.10e-6 |
+| `x = 1.1` `P ∖ T` | 4.04e-5 | 2.07e-5 | 1.02e-6 | 1.02e-6 |
+| s = 100 turned `P ∪ T` / `T ∪ P` | 2.58e-5 / 2.48e-5 | 1.37e-5 / 1.37e-5 | 2.77e-5 | 2.23e-5 / 2.48e-5 |
+| `m8_3` arc prism | 2.13e-6 | 1.51e-6 | 1.90e-6 | 2.00e-6 |
+| `m5_s11` lofted concave | 2.02e-6 | 1.58e-6 | 1.90e-6 | 1.35e-6 |
+
+- **(2) is not a fix.** A face read about its own vertex converges at
+  an early round with a wide `A⃗`. The carry `(c − c_f)·A⃗_f` multiplies
+  that width by the full lever, so it puts the width back unless `A⃗`
+  is refined to target/lever, which costs as much as reading about `c`.
+  A pad is not linear in the lever (each face refines to its target:
+  one face read 7.46e-5 at a 12 m lever and 1.90e-5 at 100 m), so the
+  carry cannot be measured by finite differences.
+- **(1), and every mean point, loses.** That is the shell's box centre,
+  the box centre of its quadrature faces, and of its curved quadrature
+  faces. A point off the body's coordinate grid rounds every moved
+  coordinate, and over a long face that rounding is width: the curved
+  faces' box centre sat by the torus and still read 5.9e-8 on the 900 m
+  bar at 1e-12, against 3.8e-9 about a vertex. The mean point also cost
+  `fillet_h5_r2_probes` its tolerance.
+- **qfirst landed.** `c` is the start vertex of the shell's first face
+  that takes the quadrature (`takes_quadrature`, the walk's own
+  dispatch). It is exact and needs no decision. Only a quadrature face
+  carries a pad at the walk's scalar, so it reaches the per-face lower
+  bound on every probe above except the turned pose. "Nearest vertex to
+  the quadrature box centre" read about the same, but needs recorded
+  comparisons in kernel code.
+- **qfirst is still order-dependent, and the dependence is unbounded.**
+  Which quadrature face is first is the stored order's choice. On the
+  bodies above it moves the pad 1.04× (the 900 m bar) and 1.10–1.55×
+  (turned), pinned per ε by
+  `one_solid_in_two_face_orders_carries_nearly_one_pad`. On one shell
+  whose quadrature faces lie a kilometre apart (two tori on one bar), it
+  moves the pad 2.58× at 1e-9, 2.71× at 1e-12 and 90.2× at 1e-6 across
+  rotations of the stored face list, the same as the vertex rule. That is
+  filed as P2
+  `work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`.
+- **Cost that stays:** a quadrature body centred on the origin is read
+  about a vertex on its rim, where the origin was its centre. `m8_3`
+  reads 2.00e-6 against 0.98e-6 on main, and its ceiling states the
+  measure.

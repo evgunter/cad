@@ -201,3 +201,64 @@ fn the_m7_8_cubes_carriers_certify_at_rest_before_and_after_a_move() {
     let after: Vec<_> = moved.points().map(|(k, _)| k).collect();
     assert_eq!(before, after, "point keys are stable across the map");
 }
+
+/// **Moving a body mid-edit refuses by the edit's lever**: a lone
+/// `mev_null` on a fresh face leaves a null-scaffold edge, which only
+/// finishing that edit removes, so the map ends in that recourse and
+/// not in a kernel defect.
+#[test]
+fn moving_a_body_mid_edit_asks_to_finish_the_edit() {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        topo::FaceSurface::New {
+            surface: geom::Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    body.mev_null(
+        topo::MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        topo::NewVertexSide::Above,
+    )
+    .unwrap();
+    let err = transform_rigid(
+        &body,
+        &geom_core::RigidMotion::translation(Vec3::new(1.0, 0.0, 0.0)).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, topo::TransformError::NullScaffold { .. }),
+        "{err:?}"
+    );
+    assert_eq!(
+        err.to_string(),
+        "the body still carries what an edit left behind, which the map cannot move. \
+         Recourse: finish that edit first",
+        "a build"
+    );
+    let topo::TransformError::NullScaffold { edge } = &err else {
+        unreachable!()
+    };
+    let stored = format!(
+        "edge {edge:?} carries a transient null-scaffold curve, which a body at rest never does. "
+    );
+    assert_eq!(
+        err.render(geom_brep::recourse::Reading::AtRest),
+        format!("{stored}{}", geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        "at rest"
+    );
+    assert_eq!(
+        err.render(geom_core::FileCoincidence::new(1e-6)),
+        format!("{stored}{}", geom_core::DAMAGED_FILE_ENDING),
+        "the import door"
+    );
+}

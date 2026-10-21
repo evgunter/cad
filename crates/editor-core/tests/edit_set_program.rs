@@ -1236,6 +1236,54 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     }
 }
 
+/// **A mis-shaped step-id list refuses typed at the load door.** One
+/// list per loop and one id per authored step are the shape
+/// `check_id_shape` holds; each fault below breaks one of the two in a
+/// saved file.
+#[test]
+fn a_misshapen_step_id_list_refuses_typed_at_the_load_door() {
+    let square = LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap();
+    let (doc, profile, _) = extruded("load-step-id-shape", vec![square]);
+    let text = save(&doc, &[], tol()).expect("saves");
+    assert!(load(&text, tol()).is_ok(), "the untouched file loads");
+    let (header, body) = text.split_once('\n').expect("an id line, then the body");
+    let body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let authored = ids_of(&doc, profile)[0].len();
+    let ids_with = |edit: &dyn Fn(&mut Vec<serde_json::Value>)| {
+        let mut v = body.clone();
+        let ids = v["snapshot"]["nodes"][profile.0.to_string()]["Profile"]["ids"]
+            .as_array_mut()
+            .expect("the profile spells its step ids");
+        edit(ids);
+        format!("{header}\n{v}\n")
+    };
+    let fault = |text: String| match load(&text, tol()) {
+        Err(PersistError::Snapshot(editor_core::SnapshotError::StepIds { node, fault })) => {
+            assert_eq!(node.id(), profile, "the refusal names the profile");
+            fault
+        }
+        other => panic!("a step-id refusal, got {other:?}"),
+    };
+    let short = ids_with(&|ids| {
+        ids[0].as_array_mut().expect("loop 0's ids").pop();
+    });
+    assert_eq!(
+        fault(short),
+        StepIdFault::Shape {
+            loop_: 0,
+            authored,
+            given: authored - 1,
+        },
+        "a loop one id short"
+    );
+    let extra = ids_with(&|ids| ids.push(serde_json::Value::Array(Vec::new())));
+    assert_eq!(
+        fault(extra),
+        StepIdFault::LoopCount { loops: 1, given: 2 },
+        "an id list with no loop"
+    );
+}
+
 // ---------------------------------------------------------------- //
 // What cannot move a piece's locator: value edits (N1)
 // ---------------------------------------------------------------- //
