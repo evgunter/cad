@@ -202,3 +202,42 @@ fn an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision() {
         assert!(!said.contains("apart"), "{said}");
     }
 }
+
+/// **At validation, bars that meet exactly read their touch as one point.**
+/// The bars of [`end_to_end`]`(0)`, turned as above, as the two solids of
+/// one body at `ε = 10⁻¹²`: the second bar's start vertices are distinct
+/// vertices at the first bar's end vertices' bit-identical stored
+/// coordinates. The census reads each touch through its coincidence
+/// reading of the two stored vertices, not through their projections,
+/// so no precision escalation is raised, as the same bars' union builds.
+/// (The body still refuses on its unrecorded contacts, which is what an
+/// undeclared touch of two solids is.)
+#[test]
+fn bars_meeting_exactly_raise_no_precision_escalation_at_validation() {
+    let tol = t();
+    if stood_down(tol) {
+        return;
+    }
+    let pose = turned();
+    let mut body = Body::<f64>::new();
+    for [(x0, x1), (y0, y1), z] in end_to_end(0.0) {
+        prism_ops(
+            &mut body,
+            &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+            z,
+            |x, y, z| pose.at([x, y, z]),
+            FaceGeometry::Certified,
+            tol,
+        );
+    }
+    describe_as_intersections(&mut body, tol);
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
+        .expect_err("the undeclared touch refuses");
+    let precision: Vec<String> = errors
+        .iter()
+        .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
+        .map(ToString::to_string)
+        .filter(|said| said.contains(RECOURSE))
+        .collect();
+    assert!(precision.is_empty(), "{precision:?}");
+}

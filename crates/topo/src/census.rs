@@ -366,6 +366,9 @@ struct Span<T: Real> {
     /// The metres `ends` were computed at ([`geom_core::one_line`]'s
     /// `produced`): zero for stored vertices.
     produced: T,
+    /// Whether `ends` are stored vertices, read as given (an edge's, or a
+    /// segment's given points), not points computed on a line.
+    stored: bool,
 }
 
 impl<T: Real> Span<T> {
@@ -394,6 +397,7 @@ impl<T: Real> Spans<T> for EdgeGeo<T> {
             ends: [self.p0, self.p1],
             points: self.points,
             produced: T::zero(),
+            stored: true,
         }
     }
 }
@@ -401,6 +405,15 @@ impl<T: Real> Spans<T> for EdgeGeo<T> {
 /// The stretch `at` of an edge's own line, `s` measured from its start
 /// along its direction: a span read on the edge's stored start and
 /// direction, so its direction is never formed from its own ends.
+///
+/// A stretch is only ever [`collinear_overlap`]'s `a`, read by its stored
+/// start and its interval, so its ends' `produced` is unread today. It
+/// stays because it is what those computed ends carry: were a stretch
+/// ever `b`, its projections would be charged for it, and the
+/// span-scale claim at [`SPAN_PRECISION_RECOURSE`] (the charge grows
+/// with the spans' lengths, not with where they lie) would need
+/// revisiting, since `produced` grows with the distance from the
+/// origin.
 struct Stretch<'a, T: Real> {
     edge: &'a EdgeGeo<T>,
     at: (T, T),
@@ -417,6 +430,7 @@ impl<T: Real> Spans<T> for Stretch<'_, T> {
             ends: [e.p0 + e.dir * self.at.0, e.p0 + e.dir * self.at.1],
             points: [None; 2],
             produced: from + from + self.at.0.abs() + self.at.1.abs(),
+            stored: false,
         }
     }
 }
@@ -3055,7 +3069,11 @@ fn span_clear<T: Decide>(
             if on_edge_interior_reading(p, &s, band, errors)?.is_some() {
                 return Some(false);
             }
-            let side = segment((p, at[(i + 1) % at.len()]));
+            let j = (i + 1) % at.len();
+            let mut side = segment((p, at[j]));
+            // The side's ends are the ring's stored vertices: their point
+            // keys go with them, as an edge's do.
+            side.points = [ring[i], ring[j]].map(|v| geo.vpoint.get(&v).copied());
             if interiors_meet(&s, &side, band, errors)? {
                 return Some(false);
             }
@@ -4301,10 +4319,13 @@ pub(crate) fn is_span_precision(predicate: Option<&str>) -> bool {
 /// fall either way in its band: each comparison decides both `m − n`
 /// and `m + n` ([`charged_cmp`]), and answers only where they agree.
 /// Past the room `n > ε`, so no rounded margin reads Zero on both
-/// bounds: ends that are one point read Zero by their shared point key
-/// instead ([`span_cmp`]), and two ends that coincide exactly with no
-/// key between them straddle ([`SPAN_ROUNDING`]), which is honest, since
-/// the bits cannot tell them from ends in band of each other.
+/// bounds: ends that are one point are read as one without their
+/// projections ([`one_point`]), by their shared point key or, for two
+/// stored vertices, by the census's own coincidence reading of the pair.
+/// Two ends that coincide where one is computed on a line (a
+/// [`Stretch`]'s) escalate on a precision row ([`is_span_precision`]):
+/// that is honest, since the computed end's bits cannot tell it from one
+/// in band of the other.
 ///
 /// **Unlogged** (`k_stats::check_unlogged`, ledger row F25 of
 /// `docs/predicate-dimension-audit.md`): the threshold picks how
@@ -4357,23 +4378,43 @@ fn charged_cmp<T: Decide>(
 /// One end of a span on the reading's axis: where it projects, and the
 /// point key it was read from (`None` for a span no body holds).
 #[derive(Clone, Copy)]
-struct End<T> {
+struct End<T: Real> {
     at: T,
     key: Option<PointKey>,
+    /// The stored vertex the end is, read as given; `None` for a point
+    /// computed on a line (a stretch's end).
+    stored: Option<Point3<T>>,
 }
 
-/// Whether two ends are one point of the body: the same point key, read
-/// without a coordinate. Topology is the truth there, so their order is
-/// `Equal` by construction.
-fn one_point<T>(x: End<T>, y: End<T>) -> bool {
-    x.key.is_some() && x.key == y.key
+/// Whether two ends are one point: `Some(true)` the same point key,
+/// read without a coordinate (topology is the truth there), or two
+/// stored vertices the census's own coincidence reading
+/// (`pm_census_vv_gap`, the vertex pass's question of the same pair)
+/// reads as one, whatever their keys: bit-identical stored coordinates
+/// read zero there exactly. `Some(false)` otherwise; `None` where that
+/// reading escalated (pushed), a near-coincidence of the geometry the
+/// vertex pass refuses the same way.
+fn one_point<T: Decide>(
+    x: End<T>,
+    y: End<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    if x.key.is_some() && x.key == y.key {
+        return Some(true);
+    }
+    let (Some(p), Some(q)) = (x.stored, y.stored) else {
+        return Some(false);
+    };
+    Some(gap_zero_reading("pm_census_vv_gap", Margin::norm3(p - q), band, errors)?.is_some())
 }
 
 /// `x` against `y` along the axis: [`tri_cmp`] where `charge` is
 /// `None`, and past it, `Equal` where the two ends are [`one_point`] and
 /// [`charged_cmp`] on [`SPAN_ORDER_CHARGED`] otherwise. (Uncharged, one
-/// point's two projections are one computation on the same inputs, so
-/// their difference is exactly zero and reads Zero already.)
+/// point's two readings differ only by rounding: `a`'s far end is the
+/// chord's norm, `b`'s end on it a projection, a few ulps of the span
+/// apart. That is inside the charge, so within the room it reads Zero.)
 fn span_cmp<T: Decide>(
     x: End<T>,
     y: End<T>,
@@ -4384,7 +4425,7 @@ fn span_cmp<T: Decide>(
     let Some(n) = charge else {
         return tri_cmp(x.at, y.at, band, errors);
     };
-    if one_point(x, y) {
+    if one_point(x, y, band, errors)? {
         return Some(core::cmp::Ordering::Equal);
     }
     Some(
@@ -4424,11 +4465,21 @@ fn collinear_overlap<T: Decide>(
     );
     let charge = span_charge(along.noise, band);
     let (t0, t1) = along.b;
-    let end = |at, key| End { at, key };
+    let end = |at, key, stored: bool, p| End {
+        at,
+        key,
+        stored: stored.then_some(p),
+    };
     let mut held = Vec::new();
     let span = projected_overlap(
-        (end(ea.at.0, ea.points[0]), end(ea.at.1, ea.points[1])),
-        (end(t0, eb.points[0]), end(t1, eb.points[1])),
+        (
+            end(ea.at.0, ea.points[0], ea.stored, ea.ends[0]),
+            end(ea.at.1, ea.points[1], ea.stored, ea.ends[1]),
+        ),
+        (
+            end(t0, eb.points[0], eb.stored, eb.ends[0]),
+            end(t1, eb.points[1], eb.stored, eb.ends[1]),
+        ),
         charge,
         band,
         &mut held,
@@ -4499,8 +4550,13 @@ fn projected_overlap<T: Decide>(
         _ => a1,
     };
     let sign = match charge {
-        Some(_) if one_point(lo, hi) => Sign::Zero,
-        Some(n) => charged_cmp(EE_OVERLAP_CHARGED, hi.at - lo.at, n, band, errors)?,
+        Some(n) => {
+            if one_point(lo, hi, band, errors)? {
+                Sign::Zero
+            } else {
+                charged_cmp(EE_OVERLAP_CHARGED, hi.at - lo.at, n, band, errors)?
+            }
+        }
         None => match decide("pm_census_ee_overlap", Margin::of(hi.at - lo.at), band) {
             Ok(sign) => sign,
             Err(cause) => {
@@ -17440,60 +17496,64 @@ mod edge_pairs_as_segments {
         (ea, eb)
     }
 
-    /// **Ends that are one vertex read as one point past the charge.**
-    /// Two 3 km collinear edges end to end, the second starting at the
-    /// first one's end vertex, at `ε = 10⁻¹²`: their summed `1.2·10⁴` m
-    /// reads charged, and no rounded margin there reads Zero on both of
-    /// its bounds, but the shared point key reads the touch as a point
-    /// without a coordinate, so the pair has no overlap and no
-    /// escalation. The same coordinates with no key between them
-    /// straddle: the bits cannot tell a touch from ends in band of each
-    /// other, which is the honest verdict
-    /// (`exactly_touching_ends_with_no_key_escalate_past_the_threshold`).
+    /// **Ends that are one point read as one point past the charge.**
+    /// Two 3 km collinear edges end to end, the second starting where
+    /// the first ends, at `ε = 10⁻¹²`: their summed `1.2·10⁴` m reads
+    /// charged, and no rounded margin there reads Zero on both of its
+    /// bounds. The touch is read without the projections: by the shared
+    /// point key, and with distinct keys or none at the same stored
+    /// coordinates, by the census's coincidence reading of the two stored
+    /// vertices. Each pair has no overlap and no escalation.
     #[test]
-    fn ends_that_are_one_vertex_read_as_one_point_past_the_charge() {
-        let (ea, eb) = keyed(
+    fn ends_that_are_one_point_read_as_one_point_past_the_charge() {
+        let (a, b) = (
             ([0.0, 0.0, 0.0], [3e3, 0.0, 0.0]),
             ([3e3, 0.0, 0.0], [6e3, 0.0, 0.0]),
-            [0, 1, 1, 2],
         );
-        let mut errors = Vec::new();
-        let read = collinear_overlap(&ea, &eb, band(AT_1E12), &mut errors);
-        assert!(
-            matches!(read, Some(None)) && errors.is_empty(),
-            "a shared vertex: {read:?} {errors:?}"
-        );
-        let (ea, eb) = (
-            seg([0.0, 0.0, 0.0], [3e3, 0.0, 0.0]),
-            seg([3e3, 0.0, 0.0], [6e3, 0.0, 0.0]),
-        );
-        let mut errors = Vec::new();
-        assert!(collinear_overlap(&ea, &eb, band(AT_1E12), &mut errors).is_none());
-        assert!(
-            matches!(errors.as_slice(), [ValidationError::CensusEscalated { cause }]
-                if cause.predicate == Some(SPAN_ROUNDING)),
-            "{errors:?}"
-        );
-    }
-
-    /// **Exactly touching ends with no key between them escalate past the
-    /// threshold, and only there.** Two collinear edges `L` long end to
-    /// end on the x axis, exact in `f64`, with no point keys, at
-    /// `ε = 10⁻¹²`: their summed length is `4L`, and the charge reaches
-    /// `(K − 1)·ε` at `L ≈ 1.27·10³` m (`4L ≈ 5.07·10³` m). Below it they
-    /// read uncharged, the touch a point; past it the touch straddles
-    /// ([`SPAN_ROUNDING`]).
-    #[test]
-    fn exactly_touching_ends_with_no_key_escalate_past_the_threshold() {
-        for (len, escalates) in [(1.2e3, false), (1.3e3, true)] {
-            let (ea, eb) = (
-                seg([0.0; 3], [len, 0.0, 0.0]),
-                seg([len, 0.0, 0.0], [2.0 * len, 0.0, 0.0]),
-            );
+        let shared = keyed(a, b, [0, 1, 1, 2]);
+        let distinct = keyed(a, b, [0, 1, 2, 3]);
+        let none = (seg(a.0, a.1), seg(b.0, b.1));
+        for (what, (ea, eb)) in [
+            ("shared key", shared),
+            ("distinct keys", distinct),
+            ("no keys", none),
+        ] {
             let mut errors = Vec::new();
             let read = collinear_overlap(&ea, &eb, band(AT_1E12), &mut errors);
+            assert!(
+                matches!(read, Some(None)) && errors.is_empty(),
+                "{what}: {read:?} {errors:?}"
+            );
+        }
+    }
+
+    /// **A touch at a computed end straddles past the threshold, and only
+    /// there.** A [`Stretch`] of an edge `L` long on the x axis, its whole
+    /// length, its far end computed on the line (`p0 + dir·L`), against
+    /// an edge starting at the first edge's stored end, at `ε = 10⁻¹²`.
+    /// The summed length is `4L`, and the charge reaches `(K − 1)·ε` at
+    /// `L ≈ 1.27·10³` m. Below it they read uncharged, the touch a point;
+    /// past it the computed end's bits cannot tell it from one in band of
+    /// the stored end, so it escalates on a precision row
+    /// ([`is_span_precision`]), the honest verdict.
+    #[test]
+    fn a_touch_at_a_computed_end_straddles_past_the_threshold() {
+        for (len, escalates) in [(1.2e3, false), (1.3e3, true)] {
+            let e = seg([0.0; 3], [len, 0.0, 0.0]);
+            let s = Stretch {
+                edge: &e,
+                at: (0.0, len),
+            };
+            let eb = seg([len, 0.0, 0.0], [2.0 * len, 0.0, 0.0]);
+            let mut errors = Vec::new();
+            let read = collinear_overlap(&s, &eb, band(AT_1E12), &mut errors);
             if escalates {
-                assert!(read.is_none() && !errors.is_empty(), "L = {len}: {read:?}");
+                assert!(
+                    read.is_none()
+                        && matches!(errors.as_slice(), [ValidationError::CensusEscalated { cause }]
+                            if is_span_precision(cause.predicate)),
+                    "L = {len}: {read:?} {errors:?}"
+                );
             } else {
                 assert!(
                     matches!(read, Some(None)) && errors.is_empty(),
