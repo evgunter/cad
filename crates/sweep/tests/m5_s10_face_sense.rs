@@ -87,6 +87,34 @@ fn first_face(body: &Body<f64>) -> FaceKey {
 // Row: the props sign flip (the rimless sphere band).
 // =====================================================================
 
+/// What each face's own arm measures of `body`, summed: the volume
+/// (`Σ flux / 3`) and the surface area, read face by face
+/// (`topo::props::face_flux_terms`). A body with one sphere band flipped
+/// is refused whole at the door, as a seam region whose members' bits
+/// disagree; these rows pin how the band's own arm reads its bit.
+fn per_face(body: &topo::Body<f64>) -> (f64, f64) {
+    let terms = topo::props::face_flux_terms(body, Tol::witness()).unwrap();
+    let flux: f64 = terms.iter().map(|t| t.1).sum();
+    let area: f64 = terms.iter().map(|t| t.2).sum();
+    (flux / 3.0, area)
+}
+
+/// The door refuses a ball with one band flipped: the two bands' seam
+/// region's bits disagree, a lamina tier 3 names at check 4.
+fn refused_at_the_door(body: &topo::Body<f64>) {
+    let door = topo::mass_properties(body, Tol::witness());
+    assert!(
+        matches!(
+            door,
+            Err(topo::MassPropsError::Face {
+                source: geom_brep::props::PropsError::SeamRegionSensesDisagree,
+                ..
+            })
+        ),
+        "the door refuses one flipped band as a lamina: {door:?}"
+    );
+}
+
 /// **Acceptance row (props).** The unit ball's two half-bands are the
 /// one face population in the kernel whose flux sign the BOUNDARY does
 /// not encode: a rimless band has no rim to recover `s_f` from, and
@@ -113,18 +141,18 @@ fn props_flux_flips_with_the_rimless_band_sense() {
     );
 
     let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
-    let lied = topo::mass_properties(&flipped, Tol::witness()).unwrap();
+    refused_at_the_door(&flipped);
+    let (volume, area) = per_face(&flipped);
     assert!(
-        lied.volume.abs() < 1e-9,
+        volume.abs() < 1e-9,
         "flipping one band's sense must negate its flux (the two halves \
-         then cancel); got {} — props is still ignoring Face::sense",
-        lied.volume
+         then cancel); got {volume} — props is still ignoring Face::sense"
     );
     // The surface area is a norm and must NOT move: it is
     // sense-invariant, and a consumer that flipped it too would be
     // double-counting.
     assert!(
-        (lied.surface_area - honest.surface_area).abs() < 1e-9,
+        (area - honest.surface_area).abs() < 1e-9,
         "surface area is orientation-free and must not follow the bit"
     );
 }
@@ -156,14 +184,14 @@ fn offcentre_flipped_ball_still_cancels() {
     );
 
     let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
-    let lied = topo::mass_properties(&flipped, Tol::witness()).unwrap();
+    refused_at_the_door(&flipped);
+    let (volume, _) = per_face(&flipped);
     assert!(
-        lied.volume.abs() < 1e-9,
+        volume.abs() < 1e-9,
         "off-centre flipped ball must STILL meter zero (anchored halves \
-         cancel; the A⃗ terms are winding-derived and close). Got {} — a \
-         nonzero here means the sense is ALSO reaching a winding-derived \
-         term: the double-count this unit's discipline forbids",
-        lied.volume
+         cancel; the A⃗ terms are winding-derived and close). Got {volume} — \
+         a nonzero here means the sense is ALSO reaching a winding-derived \
+         term: the double-count this unit's discipline forbids"
     );
 }
 
@@ -215,12 +243,12 @@ fn assembly_flip_is_wrong_but_nonzero() {
         .map(|(k, _)| k)
         .expect("the assembly keeps the ball's sphere bands");
     let flipped = body.flipped_face_sense_for_tests(band_face).unwrap();
-    let lied = topo::mass_properties(&flipped, Tol::witness()).unwrap();
+    refused_at_the_door(&flipped);
+    let (volume, _) = per_face(&flipped);
     assert!(
-        (lied.volume - 6.0).abs() < 1e-9,
+        (volume - 6.0).abs() < 1e-9,
         "wrong-but-nonzero: the bands cancel and the cuboid stands, so \
-         the flip must meter exactly 6; got {}",
-        lied.volume
+         the flip must meter exactly 6; got {volume}"
     );
 }
 

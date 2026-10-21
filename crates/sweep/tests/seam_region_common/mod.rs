@@ -123,6 +123,14 @@ pub(crate) fn assert_refused(
             "{label}: flipping {set:?} does not name {face:?} CurvedSenseInverted: {errs:?}"
         );
     }
+    // The door reads the same seam regions, so it refuses the same flips
+    // without tier 3.
+    let door = topo::mass_properties(&flipped, tol);
+    assert!(
+        door.is_err(),
+        "{label}: flipping {set:?}: tier 3 refuses, the door measures {:?}",
+        door.map(|m| m.volume)
+    );
 }
 
 /// The sphere `key` lies on: centre, radius and unit polar axis.
@@ -202,7 +210,8 @@ pub(crate) fn split_inside(body: &mut Body<f64>, dir: Vec3<f64>, tol: Tol) -> bo
 }
 
 /// Splits the face of `body` that a meridian in direction `dir` passes
-/// OUTSIDE (the split that adds a cover), returning whether one did.
+/// OUTSIDE (the split that adds a cover), returning whether one did: the
+/// volume moves, or the door refuses the split as an over-cover.
 pub(crate) fn split_outside(body: &mut Body<f64>, dir: Vec3<f64>, tol: Tol) -> bool {
     let before = volume(body, tol).unwrap();
     for f in sphere_faces(body) {
@@ -211,7 +220,15 @@ pub(crate) fn split_outside(body: &mut Body<f64>, dir: Vec3<f64>, tol: Tol) -> b
             split_at_meridian(&mut b, f, dir, tol)
         }))
         .is_ok();
-        if ok && volume(&b, tol).is_some_and(|w| (w - before).abs() > 1e-6 * before.abs()) {
+        let moved = match topo::mass_properties(&b, tol) {
+            Ok(m) => (m.volume - before).abs() > 1e-6 * before.abs(),
+            Err(topo::MassPropsError::Face {
+                source: geom_brep::props::PropsError::SeamRegionOvercovered { .. },
+                ..
+            }) => true,
+            Err(_) => false,
+        };
+        if ok && moved {
             *body = b;
             return true;
         }
