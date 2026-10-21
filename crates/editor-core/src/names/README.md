@@ -112,9 +112,10 @@ a subtract's two seats, a shell's or blend's one input), boolean (`Seam`,
 chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
 (`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
-was minted with, never by its position (below). Names contain no floats and no arena keys; a pass-through op (Transform,
+was minted with, never by its position (below). Names contain no floats and no arena keys; a pass-through op (a
 split-intact entity, a read of a split's half, a `Part`'s projection of one instance) adds no
-segment, so `node` stays the original minter. Names are document-local;
+segment, so `node` stays the original minter; a placement's copy is qualified
+`Placed { of }`, once per copy. Names are document-local;
 assembly wrapping is `ASSEMBLY.md`'s.
 
 **N1, the scope.** A name is scoped by the variable that holds its body:
@@ -493,7 +494,7 @@ one it lies on. Where several of one input's edges lie flush on its line, a
 union cites the `Merged` set of them. A pair boolean cites the least of them
 in name order; it reads each seat's edges apart, so this choice never sets one
 seat against the other
-(`work/wire/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
+(`work/wirerest/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
 A vertex at a member vertex is that vertex. At several members' vertices (a
 body glued to its copy) it is `Merged` of them, flat and in name order. A
 vertex where a single face crosses or touches a member edge, or a line of
@@ -681,7 +682,7 @@ Option<Tombstone> }`, tried in that order:
 
 A read the name itself carries (`From { read }`) is a fact of the name, not a
 site. A read the document holds that is no body output (a scalar, a selection,
-a datum's) is no question at all: the door refuses it typed (`ResolveRefusal`),
+a pose) is no question at all: the door refuses it typed (`ResolveRefusal`),
 never answers it.
 
 `Diagnosis` is one of:

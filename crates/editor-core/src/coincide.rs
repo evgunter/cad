@@ -175,7 +175,7 @@ pub enum NamedCell {
         /// Its name there.
         name: StableName,
     },
-    /// The plane the deciding node cuts with: its tool read, a datum
+    /// The plane the deciding node cuts with: its tool read, a pose
     /// rather than a cell of any body.
     Tool {
         /// The tool read.
@@ -304,10 +304,10 @@ pub enum Origin {
     /// piece qualifiers dropped, since every piece of an entity lies on
     /// its one carrier.
     Minted(StableName),
-    /// A datum node's plane, read through the role the split's tool
-    /// reads it through (`None` for its own plane): a split's tool, and
-    /// every section face the split mints on it.
-    Datum(RecipeNodeId, Option<crate::pose::PoseRole>),
+    /// The pose a split's tool reads, through the role it reads it
+    /// through (`None` for the pose itself): a split's tool, and every
+    /// section face the split mints on it.
+    Tool(crate::VarId, Option<crate::pose::PoseRole>),
     /// A profile's piece: the step of that profile that drew it, and
     /// its role there.
     Piece(RecipeNodeId, ProfileEdgeRef),
@@ -367,8 +367,6 @@ impl fmt::Display for Unwalked {
 /// One placement a cell's read passes on the way to its minting node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Placed {
-    /// A `Transform`'s one map.
-    Transform(RecipeNodeId),
     /// A pattern's (or a placed union's) instance `i`.
     Instance(RecipeNodeId, u32),
     /// A placement's copy (a [`crate::Node::Place`]'s).
@@ -622,10 +620,10 @@ fn constructions<P>(
         .iter()
         .map(|cell| match cell {
             NamedCell::Entity { input, name } => construction(doc, *input, name),
-            NamedCell::Tool { input, role } => doc
-                .operation_of(*input)
-                .ok_or(Unwalked::Unread(*input))
-                .and_then(|at| datum(doc, at, *role, Vec::new())),
+            NamedCell::Tool { input, role } => Ok(Construction {
+                origin: Origin::Tool(*input, *role),
+                placed: Vec::new(),
+            }),
             NamedCell::Piece { profile, piece } => Ok(Construction {
                 origin: Origin::Piece(*profile, *piece),
                 placed: Vec::new(),
@@ -647,12 +645,11 @@ fn one_construction(constructions: &[Result<Construction, Unwalked>]) -> bool {
 /// **The construction of the entity `name` names in `read`'s value**:
 /// the walk down from the read to the node that minted it.
 ///
-/// At each node the walk either passes through whole (a `Transform`,
-/// which places, or a `Part` or a split that leaves the entity intact,
-/// neither of which adds a name segment, N1) or reads the name's
-/// outermost segment there. A minted role ends the walk, except a
-/// split's section face, which lies on the split's tool and continues
-/// there ([`Origin::Datum`]). A carried segment names the entity in the
+/// At each node the walk either passes through whole (a `Part` or a
+/// split that leaves the entity intact, neither of which adds a name
+/// segment, N1) or reads the name's outermost segment there. A minted
+/// role ends the walk, except a split's section face, which lies on
+/// the split's tool ([`Origin::Tool`]). A carried segment names the entity in the
 /// read that segment says — a `From`'s own read, an `Instance`'s
 /// pattern input, a one-body operation's target — where the walk
 /// continues.
@@ -673,10 +670,6 @@ pub fn construction<P>(
     loop {
         while at != name.node {
             read = match node(at)? {
-                Node::Transform { input, .. } => {
-                    placed.push(Placed::Transform(at));
-                    *input
-                }
                 Node::Part { of, .. } => *of,
                 Node::Split { target, .. } => target.read,
                 _ => return Err(Unwalked::Through(at)),
@@ -687,9 +680,10 @@ pub fn construction<P>(
         let of = match origin(seg) {
             SegOrigin::Minted => {
                 return match (seg, node(at)?) {
-                    (RoleSeg::SectionFace, Node::Split { tool, .. }) => {
-                        datum(doc, operation(doc, at, tool.read)?, tool.role, placed)
-                    }
+                    (RoleSeg::SectionFace, Node::Split { tool, .. }) => Ok(Construction {
+                        origin: Origin::Tool(tool.read, tool.role),
+                        placed,
+                    }),
                     (RoleSeg::SectionFace, _) => Err(Unwalked::Misplaced(at)),
                     _ => {
                         let mut minted = name;
@@ -767,30 +761,6 @@ fn carried_read<P>(
     }
 }
 
-/// **The construction of the datum `at` defines**: the walk through
-/// the transforms that place it, to the node that defines the plane.
-fn datum<P>(
-    doc: &crate::doc::Doc<P>,
-    mut at: RecipeNodeId,
-    role: Option<crate::pose::PoseRole>,
-    mut placed: Vec<Placed>,
-) -> Result<Construction, Unwalked> {
-    loop {
-        match doc.node(at).ok_or(Unwalked::Absent(at))? {
-            Node::Transform { input, .. } => {
-                placed.push(Placed::Transform(at));
-                at = operation(doc, at, *input)?;
-            }
-            _ => {
-                return Ok(Construction {
-                    origin: Origin::Datum(at, role),
-                    placed,
-                });
-            }
-        }
-    }
-}
-
 /// The deciding node's inputs a row's cells are keyed in: the read
 /// and table each [`topo::Operand`] names, and the node's tool, if it
 /// cuts with one.
@@ -808,10 +778,16 @@ pub(crate) struct RowInputs<'a> {
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] for a cell no input of the node holds by
-/// one name: the kernel recorded a cell of a body it did not read, or
-/// ([`ROW_CELL_NOT_IN_TABLE`]) one the input's table does not name,
-/// which is a kernel bug.
+/// [`NamingError::Emission`] for a tool cell of a node that reads no
+/// tool (`work/intent/a-pose-defined-split-tool-names-no-tool-cell.md`),
+/// or ([`ROW_CELL_NOT_IN_TABLE`]) a cell the input's table does not
+/// name.
+///
+/// # Panics
+///
+/// For a cell of a body the node did not read: a result cell, which
+/// only the at-rest census records and whose rows never come here, or
+/// operand B's of a node that reads one body. The kernel records only the operands it was handed.
 pub(crate) fn name_rows(
     rows: &[topo::Coincidence],
     inputs: &RowInputs<'_>,
@@ -827,13 +803,21 @@ pub(crate) fn name_rows(
                     role: read.role,
                 })
                 .ok_or_else(unnamed),
-            topo::RowCell::Result { .. } => Err(unnamed()),
+            topo::RowCell::Result { cell } => unreachable!(
+                "a node's coincidence row names result cell {cell:?}, though the at-rest census is \
+                 the only producer of a result cell (no import mints one) and its rows reach the \
+                 at-rest checks, never `name_rows`"
+            ),
             topo::RowCell::Input { input, cell } => {
                 let (node, table) = match input {
-                    topo::Operand::A => Some(inputs.a),
-                    topo::Operand::B => inputs.b,
-                }
-                .ok_or_else(unnamed)?;
+                    topo::Operand::A => inputs.a,
+                    topo::Operand::B => inputs.b.unwrap_or_else(|| {
+                        unreachable!(
+                            "a coincidence row names operand B's {cell:?} for a node that reads \
+                             one body, though the kernel records only the operands it is handed"
+                        )
+                    }),
+                };
                 let key = match cell {
                     topo::Cell::Vertex(v) => EntityKey::Vertex(v),
                     topo::Cell::Edge(e) => EntityKey::Edge(e),
@@ -880,27 +864,32 @@ pub(crate) fn name_rows(
 /// its two cells the pieces the arriving and leaving segments are. The
 /// rows come in canonical order: loops outer first, joints ascending.
 ///
-/// # Errors
+/// # Panics
 ///
-/// [`NamingError::Emission`] for a canonical segment `pieces` does not
-/// name: the pieces and the validated profile were built from one
-/// program by one pass, so this is a kernel bug.
+/// For a canonical segment `pieces` does not name: the pieces and the
+/// validated profile were built from one program by one pass, so this
+/// is a kernel bug.
 pub(crate) fn name_junctions<T: geom_core::Real>(
     profile: RecipeNodeId,
     validated: &profile::ValidatedProfile<T>,
     pieces: &crate::eval::ProfilePieces,
-) -> Result<Vec<NamedCoincidence>, NamingError> {
-    const UNNAMED: &str = "a profile junction row names a segment the profile's pieces do not";
+) -> Vec<NamedCoincidence> {
     let mut rows = Vec::new();
     for (loop_index, lp) in validated.loops().iter().enumerate() {
         let n = lp.segments().len();
-        let piece = |segment: usize| -> Result<NamedCell, NamingError> {
-            pieces
+        let piece = |segment: usize| -> NamedCell {
+            let Some(&piece) = pieces
                 .edges
                 .get(loop_index)
                 .and_then(|edges| edges.get(segment))
-                .map(|&piece| NamedCell::Piece { profile, piece })
-                .ok_or(NamingError::Emission { what: UNNAMED })
+            else {
+                unreachable!(
+                    "profile {profile:?}'s junction names segment {segment} of loop {loop_index}, \
+                     which its pieces do not hold, though the pieces and the validated profile \
+                     are built from one program by one pass"
+                )
+            };
+            NamedCell::Piece { profile, piece }
         };
         for decided in lp.decided_joints() {
             let joint = decided.joint;
@@ -911,7 +900,7 @@ pub(crate) fn name_junctions<T: geom_core::Real>(
                 },
             };
             rows.push(NamedCoincidence {
-                cells: vec![piece((joint + n - 1) % n)?, piece(joint)?],
+                cells: vec![piece((joint + n - 1) % n), piece(joint)],
                 relation,
                 site: topo::DecisionSite::ProfileJunction,
                 margin: decided.margin,
@@ -920,5 +909,5 @@ pub(crate) fn name_junctions<T: geom_core::Real>(
             });
         }
     }
-    Ok(rows)
+    rows
 }

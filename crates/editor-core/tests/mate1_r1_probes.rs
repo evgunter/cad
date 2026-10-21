@@ -12,11 +12,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef,
-    MateSide, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
+    MateSide, NameRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -47,7 +46,6 @@ fn block_part(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -235,7 +233,7 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
 }
 
 // ---------------------------------------------------------------
-// PROBE 2 — an OBLIQUE circular datum axis, off the origin, with a
+// PROBE 2 — an OBLIQUE circular axis read, off the origin, with a
 // leg pinned at a non-identity frame. The expected offset is recomputed in the
 // test by Rodrigues, independently of the evaluator.
 // ---------------------------------------------------------------
@@ -261,6 +259,21 @@ fn rodrigues(o: [f64; 3], k: [f64; 3], theta: f64, p: [f64; 3]) -> [f64; 3] {
     ]
 }
 
+/// A point in `f`'s own coordinates: `f⁻¹` applied to `p`.
+fn unapply(f: Frame, p: [f64; 3]) -> [f64; 3] {
+    let d = [
+        p[0] - f.translation[0],
+        p[1] - f.translation[1],
+        p[2] - f.translation[2],
+    ];
+    unturn(f, d)
+}
+
+/// A direction in `f`'s own coordinates: `f`'s turn undone on `v`.
+fn unturn(f: Frame, v: [f64; 3]) -> [f64; 3] {
+    f.columns.map(|c| c[0] * v[0] + c[1] * v[1] + c[2] * v[2])
+}
+
 /// Apply a `Frame` to a point.
 fn apply(f: Frame, p: [f64; 3]) -> [f64; 3] {
     [
@@ -276,7 +289,9 @@ fn apply(f: Frame, p: [f64; 3]) -> [f64; 3] {
 /// `O_i ∘ F ∘ (0,0,1)`, where `O_i` is recomputed here by Rodrigues
 /// about an OBLIQUE axis that misses the origin. This is the
 /// composition-order attack: `O_i ∘ F` and `F ∘ O_i` differ badly for
-/// this pair, as the row asserts.
+/// this pair, as the row asserts. The axis is read off the placed leg,
+/// so it is authored in the leg's own coordinates — the document's line
+/// carried back through `F` — and the line it reads is the document's.
 ///
 /// *Breaks if* the copy's turn is composed inside `F` rather than
 /// outside it, or about the wrong line.
@@ -296,16 +311,12 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
     let axis_origin = [0.3, -1.2, 0.7];
     let axis_dir = [1.0, 2.0, 3.0];
     let theta = 0.7;
-    let (doc, axis) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [
-                len(axis_origin[0]),
-                len(axis_origin[1]),
-                len(axis_origin[2]),
-            ],
-            direction: [scl(axis_dir[0]), scl(axis_dir[1]), scl(axis_dir[2])],
-        }),
+    let axis = crate::mate1_member_vocab::axis_with(
+        &doc,
+        leg,
+        unapply(f, axis_origin),
+        unturn(f, axis_dir),
+        &o,
     );
     let (doc, pattern) = insert(
         doc,
@@ -313,7 +324,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
             input: leg.into(),
             count: Formula::count(3),
             kind: PatternKind::Circular {
-                axis: editor_core::pose::RoleRead::plain(axis),
+                axis,
                 step: ang(theta),
             },
         },
@@ -516,11 +527,11 @@ fn r1_pattern_free_solves_are_bit_identical() {
             [
                 (editor_core::Coord::Spin, ang(0.0)),
                 (
-                    editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                    editor_core::Coord::Slide(editor_core::TargetAxis::X),
                     len(0.25),
                 ),
                 (
-                    editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+                    editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                     len(0.0),
                 ),
             ]
@@ -571,7 +582,7 @@ fn add_value(doc: ProfileDoc, mate: MateRef, coord: editor_core::Coord, by: Form
         DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(editor_core::Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -583,13 +594,13 @@ fn add_value(doc: ProfileDoc, mate: MateRef, coord: editor_core::Coord, by: Form
 
 // ---------------------------------------------------------------
 // PROBE 6 — the two fence cases the PR body names but the committed
-// suite does not build: a NESTED pattern and a pattern of a TRANSFORM.
+// suite does not build: a NESTED pattern and a pattern of a PLACED COPY.
 // ---------------------------------------------------------------
 
 /// The two shapes the member vocabulary is asked about by name, built
 /// rather than taken on trust: a pattern of a PATTERN under a name
 /// that carries ONE `Instance(i)` qualifier, which reads no face, and a
-/// pattern of a TRANSFORM, which places.
+/// pattern of a PLACED COPY, which places.
 ///
 /// **The first half is a NAME row, not a nesting row.** A nested copy
 /// wears one `Instance(i)` qualifier per pattern level, and a
@@ -599,9 +610,9 @@ fn add_value(doc: ProfileDoc, mate: MateRef, coord: editor_core::Coord, by: Form
 /// refuses where it evaluates, its `to` pose unevaluated.
 ///
 /// *Breaks if* a one-level name over a nest resolves to some face, or
-/// a pattern of a transform does not place the top.
+/// a pattern of a placed copy does not place the top.
 #[test]
-fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() {
+fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_a_placed_copy_places() {
     // (a) a pattern OF A PATTERN of an instance.
     let mut store = PartStore::default();
     let leg_part = cube(&mut store, "r1-nested-leg");
@@ -651,24 +662,14 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         "a one-level name over a nested pattern reads no face: {fault:?}"
     );
 
-    // (b) a pattern of a TRANSFORM of an instance.
+    // (b) a pattern of a PLACEMENT of an instance.
     let mut store2 = PartStore::default();
     let leg2 = cube(&mut store2, "r1-xform-leg");
     let top2 = cube(&mut store2, "r1-xform-top");
     let o2 = with_resolver(store2);
     let doc2 = ProfileDoc::empty(DocumentId::derive("r1-xform"), Tol::witness());
     let (doc2, li) = insert_pinned(doc2, Node::instantiate_part(leg2.doc_ref), &o2);
-    let (doc2, xf) = insert(
-        doc2,
-        Node::transform(
-            li,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.5)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc2, xf) = crate::mate1_member_vocab::slid_with(doc2, li, li, [0.0, 0.0, 0.5], &o2);
     let (doc2, pat) = insert(
         doc2,
         Node::Pattern {
@@ -681,14 +682,23 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         },
     );
     let (doc2, ti) = insert(doc2, mated_instance(top2.doc_ref));
-    let (doc2, m2) = seat(doc2, ti, &top2, |n| in_copy(pat, 1, n), &leg2, li);
+    // The copy's names are its placement's: the leg's own, under the
+    // `Placed` layer of `xf`.
+    let copy = |n: StableName| StableName {
+        kind: n.kind,
+        node: xf,
+        path: vec![RoleSeg::Placed {
+            of: NameRef::new(n),
+        }],
+    };
+    let (doc2, m2) = seat(doc2, ti, &top2, |n| in_copy(pat, 1, copy(n)), &leg2, li);
     let poses2 = solve(&doc2, &o2, Tol::witness());
-    // A pattern OF A TRANSFORM resolves: the face is read through the
-    // pattern's `Instance(i)` and on through the transform, and the
-    // copy's pose composes `M(i) ∘ T`.
+    // A pattern OF A PLACED COPY resolves: the face is read through the
+    // pattern's `Instance(i)` and on through the copy's placement, and
+    // the copy's pose composes `M(i) ∘ T`.
     assert!(
         poses2.fault(m2.placement).is_none(),
-        "a pattern of a transform resolves: {:?}",
+        "a pattern of a placed copy resolves: {:?}",
         poses2.fault(m2.placement)
     );
     assert_eq!(

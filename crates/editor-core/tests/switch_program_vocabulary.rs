@@ -124,11 +124,6 @@ use editor_core::{
 };
 use profile::{ArcMode, TargetKind, Verb};
 
-/// The plane the corpus programs name. These programs are resolved and
-/// serialized on their own, never inserted into a document, so nothing
-/// here reads the node it points at.
-const SCAFFOLD_PLANE: editor_core::RecipeNodeId = editor_core::RecipeNodeId::new(0, 0);
-
 fn point(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
 }
@@ -322,7 +317,6 @@ fn corpus_lowered() -> (ProfileProgram, VarEnv<f64>) {
         // The corpus is resolved and serialized directly, never
         // inserted, so the frame it names is scaffolding: no row here
         // reads what the plane denotes.
-        frame: SCAFFOLD_PLANE.into(),
         loops: vec![
             LoopProgram::Chain(chain_steps()),
             LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
@@ -567,7 +561,6 @@ fn every_table_verb_is_a_document_program() {
 fn every_target_form_is_a_document_program() {
     for kind in TargetKind::ALL {
         let (program, env) = lowered(&ProfileProgram {
-            frame: SCAFFOLD_PLANE.into(),
             loops: vec![LoopProgram::Chain(vec![ProgramStep::LineTo(
                 target_witness(*kind),
             )])],
@@ -672,7 +665,6 @@ fn every_target_form_is_a_document_program() {
 fn every_arc_mode_is_a_document_program() {
     for mode in ArcMode::ALL {
         let (program, env) = lowered(&ProfileProgram {
-            frame: SCAFFOLD_PLANE.into(),
             loops: vec![LoopProgram::Chain(vec![ProgramStep::ArcTo(mode_witness(
                 *mode,
             ))])],
@@ -766,12 +758,6 @@ fn wire_difference_report(before: &ProfileProgram, after: &ProfileProgram) -> St
 
 fn wire_differences(before: &ProfileProgram, after: &ProfileProgram) -> Vec<String> {
     let mut out = Vec::new();
-    if before.frame != after.frame {
-        out.push(format!(
-            "the plane went over as {:?} and came back as {:?}",
-            before.frame, after.frame
-        ));
-    }
     if before.loops.len() != after.loops.len() {
         out.push(format!(
             "the program went over with {} loops and came back with {}",
@@ -1101,7 +1087,6 @@ fn positions_whose_slot_count_disagrees(program: &ProfileProgram) -> Vec<String>
             // `Debug` is several lines and there are as many of them
             // here as the position has arguments.
             let alone = ProfileProgram {
-                frame: program.frame,
                 loops: vec![one],
                 ids: Vec::new(),
             };
@@ -1444,14 +1429,16 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
 /// tables — `Literal`, `dim`, `unit`, `value` and the dimension and
 /// unit words — left this list then: the program's wire carries no
 /// expression.
+///
+/// `frame` left it with INTENT stage 3 D: a profile is 2-D and is drawn
+/// on no frame (`ProfileProgram.plane` retired), so the program's wire
+/// has no `frame` key; the checked-in corpus was regenerated with it.
 const PERSISTED_SPELLING: &[&str] = &[
     // `ProfileProgram` and `LoopProgram`.
     "Chain",
     "Circle",
     "CircleSplit",
     "centre",
-    // The frame it is drawn on: its operand's one name (unit B).
-    "frame",
     // The minted step ids, one list per loop (`names/README.md`, N1).
     "ids",
     "loops",

@@ -793,14 +793,19 @@ impl FreeVar {
 /// a new field of this struct, so a field added and not placed
 /// compiles and walks nowhere. What is compiler-forced begins one
 /// step later, at the variant.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+///
+/// It serializes and does not deserialize: bytes become a document
+/// only through [`crate::persist::load`], which runs the shared
+/// validator over them first, and that read path is
+/// `Doc<ProfileProgram>`'s alone — no other payload has one.
+///
+/// ```compile_fail,E0277
+/// let _: editor_core::ProfileDoc = serde_json::from_str("{}").unwrap();
+/// ```
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 // The `with`-routed nodes field hides `P` from serde's bound
-// inference; state the bounds explicitly.
-#[serde(bound(
-    serialize = "P: serde::Serialize",
-    deserialize = "P: serde::Deserialize<'de>"
-))]
+// inference; state the bound explicitly.
+#[serde(bound(serialize = "P: serde::Serialize"))]
 pub struct Doc<P> {
     /// The document's stable identity (ASM-1 D-1): authored data
     /// supplied at construction, never minted from ambient randomness
@@ -829,7 +834,6 @@ pub struct Doc<P> {
     /// content key. Unique within the document; every key names a
     /// live variable. Absent from the wire while empty.
     #[serde(
-        default,
         skip_serializing_if = "BTreeMap::is_empty",
         with = "crate::persist::strict::var_names"
     )]
@@ -865,7 +869,6 @@ pub struct Doc<P> {
     /// node. Absent from the wire while empty, so an unlabelled
     /// document costs no bytes and moves no pin.
     #[serde(
-        default,
         skip_serializing_if = "BTreeMap::is_empty",
         with = "crate::persist::strict::labels"
     )]
@@ -2097,10 +2100,6 @@ impl<P> Doc<P> {
                     // A placer has the shape of what it reads: `Bodies`
                     // over a `Bodies`, `Body` otherwise.
                     crate::PortKind::Placed => match node {
-                        Node::Transform { input, .. } => match self.vars.get(input)?.kind() {
-                            crate::VarKind::Bodies => crate::VarKind::Bodies,
-                            _ => crate::VarKind::Body,
-                        },
                         // One shape's shape: a member read is a body.
                         Node::Place { shapes, .. } => match shapes.as_slice() {
                             [one] if !one.is_member() => match self.vars.get(&one.read)?.kind() {
@@ -2537,6 +2536,7 @@ impl<P> Doc<P> {
             bindings,
             refused: BTreeMap::new(),
             written: std::collections::BTreeSet::new(),
+            turns: BTreeMap::new(),
         };
         self.bind_definitions(&mut env);
         env
@@ -2575,6 +2575,7 @@ impl<P> Doc<P> {
         };
         env.bindings.remove(&id);
         env.refused.remove(&id);
+        env.turns.remove(&id);
         if self.var_names.contains_key(&id) {
             env.written.remove(&id);
         } else {
@@ -2591,6 +2592,11 @@ impl<P> Doc<P> {
         match bound {
             Ok(bound) => {
                 env.bindings.insert(id, bound);
+                // The form rides beside the value: a rotation by this
+                // variable reads its sine and cosine from it.
+                if let Some(turns) = expr.constant_turns(|v| env.turns.get(&v).copied()) {
+                    env.turns.insert(id, turns);
+                }
             }
             Err(refusal) => {
                 env.refused.insert(id, refusal);

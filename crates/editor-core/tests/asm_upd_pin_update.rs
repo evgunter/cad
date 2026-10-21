@@ -21,7 +21,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -111,7 +110,6 @@ fn part_version(id: DocumentId, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     fixture::place(doc, body).0
@@ -161,16 +159,7 @@ fn repinned(
         .apply(&DocEdit::UpdateReference { node, new_pin }, Tol::witness())
         .expect("the update applies")
         .doc;
-    let doc = fixture::bundle(&doc, node).into_iter().fold(doc, |doc, c| {
-        fixture::step(
-            doc,
-            DocEdit::RemoveConstraint {
-                placement: node,
-                constraint: c.id,
-            },
-        )
-        .0
-    });
+    let doc = fixture::emptied(doc, node);
     fixture::pin(doc, node, &Frame::translation([dx, 0.0, 0.0]), o)
 }
 
@@ -677,16 +666,7 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
     // The second site moves over the STAGED prior: the old version is
     // now named nowhere, and nothing serves it. The new one the staged
     // run evaluated, and carried.
-    let done = staged
-        .apply(
-            &DocEdit::UpdateReference {
-                node: ids[0],
-                new_pin: r2.pin,
-            },
-            Tol::witness(),
-        )
-        .expect("the update applies")
-        .doc;
+    let done = repinned(staged, ids[0], r2.pin, 0.0, &opts);
     let warm_done = run_warm(&done, &warm_staged, &opts);
     assert_eq!(
         warm_done.part_evaluations, 0,
@@ -774,9 +754,12 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 
     // An unrelated edit keeps moving the pin exactly as it did — the
     // update arm smuggles no path into the canonical bytes.
-    let unrelated = DocEdit::RemoveConstraint {
+    let unrelated = DocEdit::RemoveConstraints {
         placement: ids[0],
-        constraint: fixture::bundle(&before, ids[0])[0].id,
+        constraints: fixture::bundle(&before, ids[0])
+            .iter()
+            .map(|c| c.id)
+            .collect(),
     };
     let update = DocEdit::UpdateReference {
         node: ids[0],

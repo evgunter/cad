@@ -1764,3 +1764,61 @@ coincidence is now a margined verdict (no declarations), checked by the
     - encl: `offset-fit-unproven-refusals-end-in-the-last-resort`
   - **Gate.** It waited on main's 1e-12 needle red, which NURBS fixed in PR 5477; I merged main in, then the gate went green.
   (ENCL orchestrator)
+- 2026-10-20 — **Seam (NURBS):** PR 5499 merged (`16b6b72f`, NURBS build C, TESS ground, FULL). **Lofted `Circle` sections now mesh.** The mesher's only door, `geom_brep::patch_bound::patch_cells_across_creases`, admits degree-≥2 creases on the rational arm; the integral arm, degree-1 creases and every other `patch_cells` caller (offset_fit, offset_meters) stay C¹-gated. A crease becomes a CDT constraint in `mesh::trimmed`. `geom_brep::sub_arc_joint(k, m)` is the one spelling of a sub-arc joint (shared by `sweep::skin::segment_curve`, `IsoArc` breaks and chord schedules; bits identical). An `IsoArc` rim with m ≥ 2 sub-arcs rounds its chord count to a multiple of m, so the joint is a chord point. A boundary crossing a crease off a chord point refuses `UnsupportedCurve`; creases in both directions refuse `UnsupportedNurbsFace`. No golden moved; the falsifier stays ≤ 0.4999 over 11 lofts × 20 δ. Closes `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`. Still open: `work/tess/lofted-rational-walls-refuse-at-some-deltas` (P0, design), refusals away from the crease. (NURBS orchestrator)
+- 2026-10-21 — **Merged PR 5464** (was `[ev]`). It implements Ev's ruling on the import door.
+  - **The ruling** (Ev, PR 5464, 10-20): "if it's reachable by a bad file then we don't need to posit that it's a bug"; "those should all blame the file". Ev signed off on the clause wording on 10-21: "looks good!".
+  - **Clause.** `[tolerance.recourse]` (iv) adds one sentence to PR 5134's text: every defect ending a bad file reaches at the import door past ε_in names the file, whether the reading compares a stored or a derived value, and a sound file such an ending reaches is a kernel bug to fix.
+  - **Code.**
+    - `Provenance` is retired, and the chooser is `ReadAt::culprit()`.
+    - Every import-door defect ending and unreadable note names the file (`DAMAGED_FILE_ENDING`, `UNREADABLE_FILE_MARGIN_NOTE`), through new `render(at)` doors on `JoinRefusal`, `TransformError`, `PcurveMintError` and `PcurveCertifyError`. Each type's `Display` is `render(Build)`.
+    - At rest is unchanged.
+  - **Rows.**
+    - Closed: `no-sized-decision-names-the-file-alone-at-the-import-door`, `pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache`, `param-span-provenance-is-per-decision-not-per-import-route` (moot).
+    - Filed: `import-door-last-resort-endings-say-may-indicate-a-kernel-bug`, with options; it goes through the designer protocol before Ev.
+    - The three EXCH sound-file rows are noted: their defect now also makes the message false.
+    - The one known departure is step-import's `TierInvalid` gate, on the parked import-validation row.
+  - **Census.** New build-side `KERNEL_DEFECT_ENDING` sites (`PcurveFit`, Join `Kernel`/`ChartClass(Image)`, Transform `NullScaffold`/`Corrupt`) are added to the census row.
+  (ENCL orchestrator)
+- 2026-10-21 — **Merged PR 5526**: the second-pass census on `a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids`. The row stays open.
+  - **Scope.** 51 more sites end naming the kernel alone, 29 through a helper and 22 in prose (as of main 69ab780194; not guarded).
+  - **Classes.**
+    - class 1 (input reaches it): 11
+    - class 2 (bug-only): 37, of which 3 are HELD
+    - class 3 (approximation limit): 2
+    - class 5 (not yet built): 1
+  - **Rows.** 5 rows filed: ssimarch, select, pctail, flux, tess. 9 rows extended. GERMTAIL's and BAND's September tag rows are re-parented, with their old "append the constant" repair marked superseded.
+  - **Review MAJORs, fixed before merge** (each a "bug-only" site that input reaches):
+    - SELECT's exact rows at kernel builds: four open rows measured user geometry there.
+    - HONE `JoinDesync`: reached through `graft_disjoint`.
+    - SHELF `TransformError::NullScaffold`: reached through `mev_null` → `transform_rigid`.
+    - DOCTAIL `UnnamedEntity`: reached through `entity_name` with a bad body index.
+  - **Owed by ENCL.** PR 5464 made `NullScaffold` and `JoinRefusal::Kernel` say "kernel defect" at a build. Both are now known not to be bug-only, so ENCL fixes their endings next.
+  (ENCL orchestrator)
+- 2026-10-21 — **Merged PR 5528**. It fixes what PR 5464 got wrong at a build: two arms that input reaches had started saying "kernel defect".
+  - **`TransformError::NullScaffold`.** At a build it ends "finish that edit first" (`Unfinished::SCAFFOLDING_RECOURSE`), because the public `mev_null` → `transform_rigid` path reaches it. At rest and at the import door it keeps the door's defect ending, since only a bug or a contradiction reaches it there.
+  - **`JoinRefusal::Kernel`.** At a build it ends in the last resort, and its doc names the whole mix it wraps.
+  - **Review MAJOR, fixed.** The first head put the lever at every door.
+  - **Filed.**
+    - HONE: split `Kernel` by cause (it hides the seam lever).
+    - WIREREST: editor-core `place` is the bug-only reader.
+    - RESTFRONT: `MassPropsError::NullScaffoldEdge` now reads differently from the transform; its repair shape now has a pointer.
+  (ENCL orchestrator)
+- 2026-10-21 — **Merged PR 5533**. It fixes the two main reds PR 5418 left, closing `main-red-sweeps-restatement-census-owes-a-reader-ledger-line` (P1), its duplicate `main-red-reader-census-lacks-sweep-lib-after-restate-review`, and `main-red-restate-stored-edge-is-off-the-tier1-mutation-roster`.
+  - **Reader ledger.** `crates/sweep/src/lib.rs` is now a `Shared` ledger line, because its restatement census reads through the shared lexer.
+  - **Tier-1 allowlist.** `restate_stored_edge` is allowlisted beside `set_edge_curve`: it writes through `set_edge_curve_certifying`, which ends in the tier-1 sweep.
+  - **Process lesson.** Other programs filed these on ENCL's slate on 10-20, and ENCL found them only on 10-21. At every check-in, grep `work/encl/` for rows ENCL did not file.
+  (ENCL orchestrator)
+- 2026-10-21 — **Track handed back (`ready`).** ENCL has no open P0 or P1 row. Those that remain are parked: `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart` (P0), `patch-bound-offset-fit-recentring-origins` (P1). Per `memories/orchestration-model.md`, the sitting ends here.
+  - **Next, in band order:**
+    - `a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters` (P3, `design: true`; designers first).
+    - The census parent `a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids` (P3). Its ENCL-owned sites are on `offset-fit-unproven-refusals-end-in-the-last-resort` (P3); the rest are on other programs' child rows.
+    - `EndingKind::Sized` hard-coding `COINCIDENCE_RECOURSE` (weigh first).
+    - P4 rows: `narrow-span-refusals-do-not-say-which-span`, `past-payload-word-and-negative-arm-collapsed-render-are-unguarded`.
+  - **Rows with no band; the next orchestrator assigns one:**
+    - `import-door-last-resort-endings-say-may-indicate-a-kernel-bug` (designers before Ev)
+    - `a-definite-reading-within-eps-in-ends-two-ways-at-the-import-door`
+    - `hand-minted-invalid-gates-in-topo`
+    - `refined-sign-and-limb-two-subdivide-halve-by-two-loops`
+    - `the-polynomial-arm-of-the-offset-composite-bounds-looser-than-the-rational-arm`
+  - **This sitting** merged PRs 5134, 5349, 5365, 5393, 5401, 5413, 5418, 5428, 5437, 5447, 5451, 5454, 5464 (Ev's import-door ruling: a defect ending a bad file reaches names the file), 5467, 5473, 5476, 5526, 5528 and 5533.
+  (ENCL orchestrator)

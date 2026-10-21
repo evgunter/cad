@@ -914,9 +914,9 @@ pub use boolean::{
     PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
     PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
     SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
-    SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy,
-    SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
+    SweepStrategy, SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact,
+    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
     boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
     face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
@@ -1018,7 +1018,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 pub use face_boxes::{FaceBox, FaceBoxes};
 pub use pieces::PieceSortError;
 pub use query::{
-    CurveKind, CurveKindSet, DATUM_UNIT_NORM, RimBreak, RimError, SurfaceKind, SurfaceKindSet,
+    CurveKind, CurveKindSet, POSE_UNIT_NORM, RimBreak, RimError, SurfaceKind, SurfaceKindSet,
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{

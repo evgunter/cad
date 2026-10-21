@@ -26,7 +26,7 @@
 use crate::corpus;
 
 use editor_core::{CancelToken, EvalOptions, Node, NodeResult, ParamValue, ValuePayload, evaluate};
-use geom_core::{Real, Tol};
+use geom_core::Tol;
 use profile::ValidatedProfile;
 
 /// A validated profile's stored scalars as bits and its decided facts
@@ -239,9 +239,6 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
 /// threshold sits.
 #[test]
 fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
-    // All three of these are used ONLY by this row, so they are
-    // imported here rather than at module scope.
-    use crate::fixture;
     use geom_core::Interval;
     /// The nominal f64 loops, replayed for the record's sake.
     fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ConstructedLoop<f64>> {
@@ -296,25 +293,13 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
                 .expect("no fillet resolves in the plate, so replay has nothing to lose"),
         );
     }
-    // The plane the profile's `plane` id NAMES — a `Profile` is built
-    // from a `SketchPlane`, and the node id is not one. Read from the
-    // document, so this is the plane the evaluator would build too.
-    let plane = fixture::plane_of(
-        &doc.doc,
-        doc.doc
-            .operation_of(program.frame)
-            .expect("the plane read is live"),
-    );
+    // The profile's own xy: a profile reads no plane, so this is the
+    // plane the evaluator builds too.
+    let plane = profile::SketchPlane::<f64>::xy();
     let (_, canonical) = profile::ConstructedProfile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())
         .expect("the nominal validates and records");
-    // The sketch plane minted at the lane scalar from the fixture's
-    // constants: VQ8 keeps the plane out of the parameter layer.
-    let lane_plane = profile::SketchPlane::from_frame(geom_core::test_support::rigid(
-        &plane.placement().map(Interval::from_f64),
-        Tol::witness(),
-    ));
-    let err = profile::ConstructedProfile::new(lane_plane, loops)
+    let err = profile::ConstructedProfile::new(profile::SketchPlane::<Interval>::xy(), loops)
         .validate_guided(Tol::witness(), &canonical)
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");
     // The FAMILY, not the fact that some string came back. This wall is

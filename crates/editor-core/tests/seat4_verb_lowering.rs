@@ -45,13 +45,12 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
 };
 use fixture::digest::digest;
-use fixture::{len, prism_edges, tol, xy_frame};
+use fixture::{len, prism_edges, tol};
 
 /// The cube side and the two blend sizes, all dyadic.
 const L: f64 = 1.0;
@@ -70,16 +69,13 @@ fn both_blends() -> BothBlends {
     // round-trip a test of the wire spelling of every node.
     let snapshot = r.doc.clone();
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
-    let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(L),
-        side: ExtrudeSide::Along,
     });
     let edges: Vec<StableName> = prism_edges(&r.doc, cube, 4);
     let filleted = r.insert(Node::fillet(cube, len(R), edges.clone()));
@@ -261,12 +257,18 @@ fn both_blends_evaluate_in_one_document() {
 /// id drawn after it moved. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
+/// a placement): each document was re-spelled without `Datum` or
+/// `Transform` (a construction is built in its own coordinates and
+/// placed into the world by a `Place`), so its nodes, their ids and the
+/// names they mint moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x81f1_4b59_6af2_3004u64),
-        ("die_chamfer", 0xfa2a_e5e9_86d3_5f3a),
+        ("die_fillet", 0x6799_aef6_110d_a34bu64),
+        ("die_chamfer", 0x7912_002b_4c0b_0437),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -443,18 +445,37 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// parent where they cited one floor. The digest feeds the name table.
 /// No body moved.
 ///
+/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
+/// a placement): each document was re-spelled without `Datum` or
+/// `Transform` (a construction is built in its own coordinates and
+/// placed into the world by a `Place`), so its nodes, their ids and the
+/// names they mint moved.
+///
+/// RE-BLESSED, `heat_sink` only, for the identity bundle (FORK-REST): a
+/// copy standing where its body stands is placed by no mate and the
+/// constant `0` on every freedom, written as one `AddValues`, which
+/// mints a different number of ids from the plane mate and three values it replaces.
+/// So every node minted after a stand moved its id, and this digest
+/// feeds ids. Every standing copy in the corpus is bit-identical to its
+/// source (measured with a lane probe over `body_digest`).
+///
 /// RE-BLESSED, `crossing_slots` only, for a seam's sides and a
 /// crossing's lines named in the subtract's own table, in name order
 /// (N3). The digest feeds the name table. No body moved
 /// (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held).
+/// Re-measured merging main at `be82e5ad6b` into D, `crossing_slots`:
+/// main's N3 names each seam side and crossing line with the read it
+/// came in through, and in D a later operand is a placed copy, so the
+/// names it spells moved under both changes and the value is neither
+/// tree's. No other row moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x59be_e8ee_4d43_95b9u64),
-        ("heat_sink", 0xd551_a6fc_787e_61ba),
-        ("kiss_carry", 0x8ee4_89b1_9c55_7144),
+        ("crossing_slots", 0xc686_087f_4f50_550eu64),
+        ("heat_sink", 0xf1a2_5a30_b135_72a2),
+        ("kiss_carry", 0xfb95_fe3f_5408_dbd8),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -519,33 +540,38 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED for INTENT stage 3 D (Transform retires into a
+/// placement): the fixture's profiles carry no frame and its second
+/// operand is placed against the first's root by a `Place`, so its
+/// nodes, their ids and the names they mint moved.
+///
+/// RE-BLESSED for FORK-REST: only the identity bundle as written places
+/// by no map, so the copy placed against `a` at the identity by a plane
+/// mate runs its map, which comes out as the exact identity and which
+/// the at-rest snap had placed by no map.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
     let square =
         |x0: f64| LoopProgram::polygon([(x0, 0.0), (x0 + L, 0.0), (x0 + L, L), (x0, L)]).unwrap();
-    let xy_frame_1 = r.insert(xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_1.into(),
         loops: vec![square(0.0)],
         ids: Vec::new(),
     }));
     let a = r.insert(Node::Extrude {
         profile: pa.into(),
         distance: len(L),
-        side: ExtrudeSide::Along,
     });
-    let xy_frame_2 = r.insert(xy_frame());
     let pb = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_2.into(),
         loops: vec![square(3.0)],
         ids: Vec::new(),
     }));
     let b = r.insert(Node::Extrude {
         profile: pb.into(),
         distance: len(L),
-        side: ExtrudeSide::Along,
     });
+    let b = r.against(a, b, &editor_core::Frame::IDENTITY);
     let boolean = r.insert(Node::Intersect {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
     });
@@ -562,7 +588,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xa08d_ae41_19ad_b45b,
+        got, 0xdd05_bcb4_7430_15fb,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

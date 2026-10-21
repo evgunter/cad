@@ -33,12 +33,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
-use fixture::{ang, insert, len, on_frame, scl};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
 use geom_core::{Bounds, Interval, Real};
@@ -60,7 +59,6 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         Node::Extrude {
             profile: cube_p.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     // A second, ROTATED cutter well inside the cube: rotation angle 0.5 rad
@@ -68,7 +66,7 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     // evaluation path at T = Interval.
     let (doc, cut_p) = on_frame(
         doc,
-        [0.0, 0.0, 0.5],
+        [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -83,20 +81,16 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         Node::Extrude {
             profile: cut_p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
-    let (doc, placed) = insert(
-        doc,
-        Node::transform(
-            cut,
-            editor_core::Step::Rigid {
-                translation: [len(1.0), len(1.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.5),
-            },
-        ),
-    );
+    let at = editor_core::Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        0.5,
+        [1.0, 1.0, 0.5],
+        fixture::band(),
+    )
+    .expect("a literal axis");
+    let (doc, placed) = fixture::against(doc, cube, cut, &at);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -204,7 +198,6 @@ fn a_degenerate_document_refuses_typed_end_to_end() {
         Node::Extrude {
             profile: prof.into(),
             distance: len(0.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = evaluate::<Interval>(

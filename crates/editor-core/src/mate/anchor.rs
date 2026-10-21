@@ -1,51 +1,32 @@
-//! **Which geometry a pin can anchor on without reading a variable**
-//! (stage 3 C, the orchestrator's anchor rule): [`pin_at`] and
-//! [`place_at`] read a copy's pose off its own geometry against numbers
-//! taken from one evaluation, so an anchor whose definition reaches a
-//! document variable is pinned where that variable's nominal put it,
-//! and a variable that moves it moves the copy back. An anchor whose
-//! definition reaches none stands where the copy's variable-free
-//! geometry stands at every value: the copy follows its variables as it
-//! did before it was pinned, and under a parameter box the map is the
-//! identity, which the snap places by no map.
+//! **Which geometry a pin can anchor on without reading a variable**:
+//! [`pin_at`], [`place_at`] and [`frame_at`] read a copy's pose off its
+//! own geometry against numbers taken from one evaluation, so an anchor
+//! whose definition reaches a document variable is pinned where that
+//! variable's nominal put it, and a variable that moves it moves the
+//! copy back. An anchor whose definition reaches none stands where the
+//! copy's variable-free geometry stands at every value: the copy
+//! follows its variables. A root extrude's or loft's start cap lies on
+//! its first profile's plane and reads nothing.
 //!
-//! [`Anchor::Fixed`] is relative to the variables an analysis moves:
-//! a free variable with a tolerance ([`crate::analysis::is_axis`]). A
-//! typed number with none is a free variable too (Q1), but a constant
-//! of every analysis (`analyzed_box`), so geometry that reads only
-//! such numbers stands still under every box. The revalue instrument
-//! moves untoleranced variables as well, so a `Fixed` anchor can still
-//! move under it. The gap is the interim's alone: until D a
-//! construction sits on a datum written in such numbers, and after D a
-//! root extrude's start cap reads nothing at all.
+//! A typed number with no tolerance is a document variable too (Q1,
+//! VR6): the revalue instrument moves it, so an anchor reading one is
+//! not fixed. Only the constant `0` reads nothing.
 //!
 //! Decided from the recipe, never by measuring: what a name's geometry
 //! reads is the node that minted it, read as narrowly as its role
-//! allows (an extrude's start cap reads its profile's frame alone),
-//! and every operation between that node and the copied body has to
-//! carry the entity's carrier and points through unmoved.
+//! allows (an extrude's start cap reads nothing), and every operation
+//! between that node and the copied body has to carry the entity's
+//! carrier and points through unmoved.
 //!
 //! [`pin_at`]: super::pin::pin_at
 //! [`place_at`]: super::pin::place_at
+//! [`frame_at`]: super::pin::frame_at
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{CapEnd, RoleSeg, StableName};
-use crate::{Node, ProfileDoc, ProfilePayload, RecipeNodeId, VarId};
-
-/// **What a pin's anchor reads.**
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Anchor {
-    /// Geometry whose definition reaches no document variable: the
-    /// copy is pinned where it stands at every value.
-    Fixed,
-    /// Every anchor the copy offers reads a variable: the pin holds the
-    /// nominal's numbers, and a variable that moves the anchor moves
-    /// the copy back toward them
-    /// (`work/intent/a-placed-copy-rests-at-the-identity-only-at-the-nominal.md`).
-    Varying,
-}
+use crate::{Node, ProfileDoc, RecipeNodeId, VarId};
 
 /// **The recipe's answer to which names read no variable**, over one
 /// document and the node whose body is copied, memoized per variable
@@ -84,7 +65,39 @@ impl<'a> Anchors<'a> {
     /// every operation between it and the copied body one that carries
     /// a surviving entity's carrier and points through unmoved.
     pub(crate) fn fixed(&self, name: &StableName) -> bool {
-        self.carried_unmoved(name.node) && !self.minted_reads(name)
+        // A piece of an entity lies on the entity's carrier.
+        let whole = &name.path[..crate::names::role::fragment_tail_start(&name.path)];
+        match whole {
+            // An operation that carries the entity unmoved names it by
+            // the name it had: a member's, a split target's, or each of
+            // the coplanar faces it merged.
+            [RoleSeg::From { of, .. }] | [RoleSeg::SplitFragment { parent: of }] => self.fixed(of),
+            [RoleSeg::Merged(merged)] => merged.iter().any(|n| self.fixed(n)),
+            // An instance's entity stands where its part's product put
+            // it. The part's recipe is not this document's to read, so
+            // the name's shape answers: a construction's start cap,
+            // copied by the part's placements and carried unmoved,
+            // reads nothing in the part either.
+            [RoleSeg::InPart { of }] => self.carried_unmoved(name.node) && part_start_cap(of),
+            // A copy's entity stands where its placement moved it, and a
+            // pattern's where its rule did.
+            [
+                RoleSeg::Placed { .. } | RoleSeg::Instance { .. } | RoleSeg::InPart { .. },
+                ..,
+            ] => false,
+            _ => self.carried_unmoved(name.node) && !self.minted_reads(name),
+        }
+    }
+
+    /// **The nodes the copied body is built through that every later
+    /// operation carries unmoved** ([`Self::carried_unmoved`]), in id
+    /// order: where a construction's own pose (a revolve's axis, a
+    /// ring's carrier axis) is still the copied body's.
+    pub(crate) fn unmoved(&self) -> impl Iterator<Item = RecipeNodeId> + '_ {
+        self.built_through
+            .iter()
+            .copied()
+            .filter(|&at| self.carried_unmoved(at))
     }
 
     /// Every operation the copied body is built through after `minted`
@@ -99,7 +112,7 @@ impl<'a> Anchors<'a> {
         }
         self.built_through
             .iter()
-            .filter(|&&at| at != minted && self.upstream_of(at).contains(&minted))
+            .filter(|&&at| at != minted && self.carries(at, minted))
             .all(|&at| {
                 matches!(
                     self.doc.node(at),
@@ -114,6 +127,20 @@ impl<'a> Anchors<'a> {
                     )
                 )
             })
+    }
+
+    /// Whether `at` is built through `minted`'s geometry: a placement
+    /// through its shapes (a mate's target is read, never carried), any
+    /// other node through everything upstream of it.
+    fn carries(&self, at: RecipeNodeId, minted: RecipeNodeId) -> bool {
+        match self.doc.node(at) {
+            Some(Node::Place { shapes, .. }) => shapes.iter().any(|shape| {
+                self.doc
+                    .operation_of(shape.read)
+                    .is_some_and(|of| of == minted || self.upstream_of(of).contains(&minted))
+            }),
+            _ => self.upstream_of(at).contains(&minted),
+        }
     }
 
     /// The nodes `at` is built through, `at` excluded.
@@ -131,14 +158,21 @@ impl<'a> Anchors<'a> {
     }
 
     /// Whether the node that minted `name` reads a variable that moves
-    /// it. An extrude's names read its profile's frame; all but its
-    /// start cap read the profile's own numbers; those its path names
-    /// the end of read its distance. Any other node's names read
-    /// everything the node reads.
+    /// it. An extrude's and a loft's start cap read nothing; an
+    /// extrude's other names read the profile's own numbers, and those
+    /// its path names the end of read its distance. Any other node's
+    /// names read everything the node reads.
     fn minted_reads(&self, name: &StableName) -> bool {
         let Some(node) = self.doc.node(name.node) else {
             return true;
         };
+        // A loft's start cap lies on its first section's plane, its own
+        // `xy`, whatever its sections and stations read.
+        if matches!(node, Node::Loft { .. })
+            && matches!(name.path.as_slice(), [RoleSeg::Cap(CapEnd::Start)])
+        {
+            return false;
+        }
         let Node::Extrude {
             profile, distance, ..
         } = node
@@ -148,10 +182,9 @@ impl<'a> Anchors<'a> {
         let Some(sketch) = self.doc.operation_of(*profile) else {
             return true;
         };
-        let Some(Node::Profile(program)) = self.doc.node(sketch) else {
+        if !matches!(self.doc.node(sketch), Some(Node::Profile(_))) {
             return self.node_reads(name.node);
-        };
-        let frame = program.frame_read().is_some_and(|f| self.var_reads(f));
+        }
         let segs = name.path.as_slice();
         let start_cap = matches!(segs, [RoleSeg::Cap(CapEnd::Start)]);
         let shape = !start_cap
@@ -168,10 +201,10 @@ impl<'a> Anchors<'a> {
             )
         });
         let depth = names_end && self.var_reads(*distance);
-        frame || shape || depth
+        shape || depth
     }
 
-    /// Whether `node` reads a toleranced variable, through its slots or
+    /// Whether `node` reads a document variable, through its slots or
     /// its operands, transitively.
     fn node_reads(&self, node: RecipeNodeId) -> bool {
         if let Some(&known) = self.nodes.borrow().get(&node) {
@@ -188,16 +221,14 @@ impl<'a> Anchors<'a> {
     }
 
     /// Whether `var` is, or reaches through its definition, a free
-    /// variable with a tolerance.
+    /// variable.
     fn var_reads(&self, var: VarId) -> bool {
         if let Some(&known) = self.vars.borrow().get(&var) {
             return known;
         }
         self.vars.borrow_mut().insert(var, false);
-        let reads = if self.doc.var(var).is_none() {
+        let reads = if self.doc.var(var).is_none() || self.doc.free(var).is_some() {
             true
-        } else if let Some(free) = self.doc.free(var) {
-            crate::analysis::is_axis(free)
         } else if let Some(node) = self.doc.operation_of(var) {
             self.node_reads(node)
         } else {
@@ -208,5 +239,20 @@ impl<'a> Anchors<'a> {
         };
         self.vars.borrow_mut().insert(var, reads);
         reads
+    }
+}
+
+/// **Whether a name of a part's product is a construction's start cap**
+/// under the part's copies and the operations that carry an entity
+/// unmoved: the one face of a part an instance can stand on without
+/// reading the part's recipe (a part placement that slides its copy by
+/// a variable is not seen, `work/intent/a-stand-on-an-instance-reads-its-part-by-the-names-shape.md`).
+fn part_start_cap(name: &StableName) -> bool {
+    match name.path.as_slice() {
+        [RoleSeg::Placed { of } | RoleSeg::InPart { of }]
+        | [RoleSeg::From { of, .. }]
+        | [RoleSeg::SplitFragment { parent: of }] => part_start_cap(of),
+        [RoleSeg::Cap(CapEnd::Start)] => true,
+        _ => false,
     }
 }

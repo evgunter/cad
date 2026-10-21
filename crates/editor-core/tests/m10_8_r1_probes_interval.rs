@@ -22,7 +22,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
-use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::time::Instant;
 
@@ -36,7 +35,7 @@ use editor_core::{
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, len, scl, xy_frame};
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_7_plate::plate;
 use crate::m10_7_r2_probes_interval::bracket as r2_bracket;
 use crate::m10_8_arc_family_interval::replay;
@@ -274,10 +273,8 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             sigma: 1.0e-5 * scale,
         },
     );
-    let plane = r.insert(xy_frame());
     let thickness = Formula::div(plen("outer_r"), scl(5.0)).expect("Length / Scalar");
     let disc_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("outer_r"),
@@ -287,10 +284,8 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let disc = r.insert(Node::Extrude {
         profile: disc_profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [plen("offset"), len(0.0)],
             radius: plen("bore_r"),
@@ -300,8 +295,9 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let bore = r.insert(Node::Extrude {
         profile: bore_profile.into(),
         distance: thickness,
-        side: ExtrudeSide::Along,
     });
+    // The bore joins the disc's space where it is drawn.
+    let bore = r.against(disc, bore, &editor_core::Frame::IDENTITY);
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
             &r.doc,

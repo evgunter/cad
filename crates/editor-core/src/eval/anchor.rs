@@ -216,20 +216,26 @@ impl ProfilePieces {
     ///
     /// # Errors
     ///
-    /// [`NamingError::Emission`] for a shape no tube door builds (more
-    /// than two loops), or a piece index past the `u32` a role stores.
+    /// [`NamingError::Emission`] for a piece index past the `u32` a role
+    /// stores.
+    ///
+    /// # Panics
+    ///
+    /// For more than two loops, a shape no tube door builds.
     pub(crate) fn section(counts: &[usize]) -> Result<Self, NamingError> {
         let circle = |l: usize| match l {
-            0 => Ok(SectionCircle::Outer),
-            1 => Ok(SectionCircle::Bore),
-            _ => Err(NamingError::Emission {
-                what: "a tube door built a section of more than two circles",
-            }),
+            0 => SectionCircle::Outer,
+            1 => SectionCircle::Bore,
+            _ => unreachable!(
+                "a tube's section has {} loops, though the tube doors build an outer circle and \
+                 at most one bore",
+                counts.len()
+            ),
         };
         let mut edges = Vec::with_capacity(counts.len());
         let mut vertices = Vec::with_capacity(counts.len());
         for (l, &n) in counts.iter().enumerate() {
-            let circle = circle(l)?;
+            let circle = circle(l);
             let roles = (0..n)
                 .map(|k| {
                     to_u32(k, "a tube section's piece index exceeds u32").map(PieceRole::Piece)
@@ -386,12 +392,7 @@ pub struct ProfileValue<T: geom_core::Real> {
 #[derive(Debug, Clone)]
 pub(crate) struct ProfilePre {
     /// The replayed profile's canonical form at f64, minted by the
-    /// pre-pass's one validation. Its plane is the 2-D record's
-    /// assembly frame: an authored frame's `f64` document read, the
-    /// conventional `SketchPlane::xy()` for a derived frame (DM1c) —
-    /// validation is 2-D and the naming anchor is loop-derived, so no
-    /// decision reads it. A consumer places with the lane's frame
-    /// (`wire::frame_plane_lane`), never with this plane.
+    /// pre-pass's one validation, on the profile's own `xy` plane.
     pub validated_f64: ValidatedProfile<f64>,
     /// The canonical ↔ program naming anchor.
     pub naming: ProfileNaming,

@@ -9,7 +9,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::{PersistError, load};
@@ -26,11 +25,9 @@ fn the_selection_reaches_the_wire_canonical() {
         editor_core::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
             .expect("finite");
     let doc = ProfileDoc::empty_derived("m6_5_selection_wire", Tol::witness());
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(editor_core::ProfileProgram {
-            frame: plane.into(),
             loops: vec![square],
             ids: Vec::new(),
         }),
@@ -40,7 +37,6 @@ fn the_selection_reaches_the_wire_canonical() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let steps: Vec<editor_core::MintId> = (0..4)

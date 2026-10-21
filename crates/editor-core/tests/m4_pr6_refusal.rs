@@ -7,7 +7,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::expr::DimensionError;
 use editor_core::persist::SnapshotError;
@@ -16,7 +15,7 @@ use editor_core::{
     NodeResult, PersistError, ProfileDoc, RecipeNodeId, VarName, WitnessDatum, apply, evaluate,
     load, save,
 };
-use fixture::{insert, len, on_frame, xy_frame};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 /// A small valid document (profile + extrude + witness) and its save.
@@ -34,7 +33,6 @@ fn small() -> (ProfileDoc, String) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
@@ -311,7 +309,6 @@ fn with_logged_quantity(wire: serde_json::Value) -> String {
         Node::Extrude {
             profile: p.into(),
             distance: Formula::add(len(1.0), len(1.0)).expect("Length + Length"),
-            side: ExtrudeSide::Along,
         },
     );
     let legal = DocEdit::SetExpression {
@@ -374,7 +371,6 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
         Node::Extrude {
             profile: p.into(),
             distance: Formula::add(len(1.0), len(1.0)).expect("Length + Length"),
-            side: ExtrudeSide::Along,
         },
     );
     // A log the save door accepts: same dimension, so the replay is
@@ -593,7 +589,7 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    assert_eq!(ev.nodes.len(), 3);
+    assert_eq!(ev.nodes.len(), 2, "the profile and the extrude");
     for result in ev.nodes.values() {
         assert!(
             matches!(
@@ -669,14 +665,9 @@ fn program_structure_doors_refuse_typed_at_load() {
     // the shared slot walk — and a lattice-violating step order, both
     // refused by the shared validator on the parsed document. Craft a
     // valid file, then mutate the JSON body.
-    let (doc, plane) = insert(
-        ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
-        xy_frame(),
-    );
     let (doc, circle) = insert(
-        doc,
+        ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
         Node::Profile(editor_core::ProfileProgram {
-            frame: plane.into(),
             loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
         }),
@@ -770,15 +761,8 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
     // a document at all — and the save-door twin (the shared
     // validator's replay probe) stays for parsed files.
     use editor_core::{EditError, LoopProgram, ProgramRefusal, ProgramStep};
-    // The frame goes in first: the row is about the PROGRAM's refusal,
-    // and a profile naming a plane the document does not have would be
-    // turned away for that instead.
-    let (doc, plane) = insert(
-        ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
-        xy_frame(),
-    );
+    let doc = ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness());
     let unclosed = editor_core::ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![ProgramStep::Tangent])],
         ids: Vec::new(),
     };

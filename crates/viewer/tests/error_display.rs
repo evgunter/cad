@@ -220,15 +220,18 @@ fn scene_error_forwards_its_tessellation_arm() {
 /// freedom, in the kernel's own words for each — never a variant name.
 #[test]
 fn mate_tool_error_names_the_freedom_a_kind_fixes() {
-    use pncad::document::{Coord, FreedomRefusal, SlideAxis, VarKind};
+    use pncad::document::{Coord, FreedomRefusal, TargetAxis, VarKind};
     let outer = MateToolError::NotAFreedom {
-        coord: Coord::Slide(SlideAxis::X),
+        coord: Coord::Slide(TargetAxis::X),
         kind: VarKind::Axis,
         refusal: FreedomRefusal::NotAFreedom,
     }
     .to_string();
     assert!(outer.contains(&VarKind::Axis.to_string()), "{outer}");
-    assert!(outer.contains(Coord::Slide(SlideAxis::X).name()), "{outer}");
+    assert!(
+        outer.contains(Coord::Slide(TargetAxis::X).name()),
+        "{outer}"
+    );
     prose(&outer, "NotAFreedom");
 }
 

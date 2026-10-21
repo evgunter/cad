@@ -27,7 +27,7 @@ use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
 use crate::{
-    Datum, Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
+    Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
     ProfileProgram, RecipeNodeId,
 };
 
@@ -151,7 +151,7 @@ pub fn stored_reading(
     }
     let doc = core::cell::RefCell::new(doc);
     node.try_map_slots(
-        |p, f, r| ProfileProgram::lower(p, f, r),
+        |p, f| ProfileProgram::lower(p, f),
         &mut |f| crate::edit::lower_slot_into(&mut doc.borrow_mut(), f),
         &mut |slot, operand| Ok(given(&doc, slot, operand, &read)),
     )
@@ -230,55 +230,307 @@ pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> Loop
         .expect("a loop the document can answer lowers")
 }
 
-/// The stored placement `placement` lowers to in `doc` ([`stored`]).
+// --- placing a construction ------------------------------------------
+
+/// **`doc` with `placed`'s mate and values added to `placement`**.
 ///
 /// # Panics
 ///
-/// If `placement` does not lower in `doc`.
-pub fn stored_placement(
-    doc: &mut ProfileDoc,
-    placement: &crate::Placement<Formula>,
-) -> crate::Placement {
-    placement
-        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
-        .expect("a placement the document can answer lowers")
+/// If a door refuses one.
+fn constrained(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    placed: crate::Placed,
+    tol: geom_core::Tol,
+) -> ProfileDoc {
+    let mut doc = doc;
+    placed
+        .write(placement, |edit| {
+            let applied = crate::apply(&doc, &edit, tol)?;
+            doc = applied.doc;
+            Ok::<_, crate::EditError>(applied.record.minted_constraints)
+        })
+        .expect("a placement's constraint applies");
+    doc
 }
 
-// --- the frame a sketch is drawn on ---------------------------------
+/// **A placement of `body`**, inserted with no constraint yet.
+fn place_of(
+    doc: ProfileDoc,
+    body: crate::Operand,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, RecipeNodeId) {
+    let applied = crate::apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::place(vec![crate::BodyRead::plain(body)])),
+            fresh: Vec::new(),
+        },
+        tol,
+    )
+    .expect("a placement inserts");
+    let placement = applied.record.minted.expect("an insert mints a node");
+    (applied.doc, placement)
+}
 
-/// The frame datum a profile is drawn on, as a node to insert: an
-/// origin, and the two directions sketch +x and +y point.
+/// **The body a node defines, as a placement reads it**: a revolve's
+/// `body` port, any other node itself.
+#[must_use]
+pub fn body_of(doc: &ProfileDoc, node: RecipeNodeId) -> crate::Operand {
+    match doc.node(node) {
+        Some(Node::Revolve { .. }) => crate::Operand::output(node, 0),
+        _ => crate::Operand::Node(node),
+    }
+}
+
+/// **A copy of `body` standing in the world at `at`** (D10: a body has
+/// no location, so where it stands is its placement's): where it
+/// stands at the identity ([`crate::stand`]), elsewhere by the "place
+/// part" gesture ([`crate::place_at`]). Returns the document and the
+/// placement; its copy is the placement's output.
 ///
 /// # Panics
 ///
-/// If a component is not finite.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::AuthoredNode {
-    Node::Datum(Datum::Frame {
-        origin: origin.map(len),
-        u: u.map(scl),
-        v: v.map(scl),
+/// If the copy offers no geometry to place it by, or a door refuses.
+pub fn in_world(
+    doc: ProfileDoc,
+    body: impl Into<crate::Operand>,
+    at: &crate::Frame,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, RecipeNodeId) {
+    let body = body.into();
+    let opts = crate::EvalOptions::default();
+    let placed = if *at == crate::Frame::IDENTITY {
+        crate::stand()
+    } else {
+        crate::place_at(&doc, &body, at, &opts, tol).expect("the copy places over its geometry")
+    };
+    let (doc, placement) = place_of(doc, body, tol);
+    (constrained(doc, placement, placed, tol), placement)
+}
+
+/// **A copy of `body` placed against `target`'s geometry at `at`** —
+/// `at` the copy's own frame in `target`'s own coordinates
+/// ([`crate::place_against`]): how a construction combined with another
+/// body joins that body's space. Returns the document and the
+/// placement; its copy is the placement's output.
+///
+/// # Panics
+///
+/// If either offers no geometry to place by, or a door refuses.
+pub fn against(
+    doc: ProfileDoc,
+    target: impl Into<crate::Operand>,
+    body: impl Into<crate::Operand>,
+    at: &crate::Frame,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (target, body) = (target.into(), body.into());
+    let placed = crate::place_against(
+        &doc,
+        &target,
+        &body,
+        at,
+        &crate::EvalOptions::default(),
+        tol,
+    )
+    .expect("the copy places against its target's geometry");
+    let (doc, placement) = place_of(doc, body, tol);
+    (constrained(doc, placement, placed, tol), placement)
+}
+
+/// **The frame at `origin` with axes `u` and `v`** (`v` made orthogonal
+/// to `u`, both normalised), the normal `u × v` — a construction's own
+/// frame where a test places it.
+///
+/// # Panics
+///
+/// If `u` and `v` span no plane.
+#[must_use]
+pub fn frame_at(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::Frame {
+    use geom_core::linalg::Vec3 as V;
+    let u = V::new(u[0], u[1], u[2]);
+    let v = V::new(v[0], v[1], v[2]);
+    let x = u * (1.0 / u.norm());
+    let y = v - x * v.dot(x);
+    assert!(y.norm() > 0.0, "the frame's axes span a plane");
+    let y = y * (1.0 / y.norm());
+    let z = x.cross(y);
+    crate::Frame {
+        columns: [[x.x, x.y, x.z], [y.x, y.y, y.z], [z.x, z.y, z.z]],
+        translation: origin,
+    }
+}
+
+/// **The plane through `origin` with normal `normal`, read off a face of
+/// `body` that has that normal** (both in `body`'s own coordinates): the
+/// plane of the body's planar face whose outward normal is `normal`'s
+/// direction, or its opposite flipped, slid along it onto `origin` — a
+/// split's tool or a plane target parallel to a face of the body,
+/// written with no turn, so it stands exactly where it is meant. A
+/// placed copy is read where its placement put it, `origin` and
+/// `normal` carried there with it.
+///
+/// # Panics
+///
+/// If `body` has no planar face with that normal, either way, or no
+/// value; a plane no face of the body is parallel to is
+/// [`plane_on_frame`]'s.
+#[must_use]
+pub fn plane_on(
+    doc: &ProfileDoc,
+    body: impl Into<crate::Operand>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+    tol: geom_core::Tol,
+) -> crate::pose::RoleRead<crate::Operand> {
+    use crate::pose::{PoseDef, PoseRole, RoleRead};
+    use geom_core::linalg::{Point3, Vec3 as V};
+    let body = body.into();
+    let ev: crate::Evaluation<f64> = crate::evaluate(
+        doc,
+        None,
+        &crate::CancelToken::new(),
+        &crate::EvalOptions::default(),
+        tol,
+    );
+    let (node, solid, table, motion) =
+        crate::mate::pin::read_of(doc, &ev, &body).expect("the body has a value");
+    let motion = motion.map(|m| m.to_affine());
+    let n = V::new(normal[0], normal[1], normal[2]);
+    let n = n * (1.0 / n.norm());
+    let o = Point3::new(origin[0], origin[1], origin[2]);
+    let (n, o) = match motion {
+        None => (n, o),
+        Some(m) => (m.linear * n, m.transform_point(o)),
+    };
+    let (face, sense, at) = solid
+        .faces()
+        .find_map(|(face, _)| {
+            let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+            (kind == geom::SurfaceKind::Plane).then_some(())?;
+            let pose = topo::readback::face_pose(&solid, face).ok()?;
+            let out = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
+            let sense = if out.to_array() == n.to_array() {
+                1.0
+            } else if (-out).to_array() == n.to_array() {
+                -1.0
+            } else {
+                return None;
+            };
+            Some((face, sense, pose.origin))
+        })
+        .unwrap_or_else(|| panic!("{node} has a planar face with normal {normal:?}"));
+    let name = table
+        .name_of(&crate::names::EntityRef {
+            body: 0,
+            key: crate::names::EntityKey::Face(face),
+        })
+        .expect("a face of the body is named")
+        .clone();
+    let read = |def| RoleRead::plain(crate::Operand::Pose(Box::new(def)));
+    let plane = read(PoseDef::Plane {
+        face: crate::Operand::select(body, vec![name]),
+    });
+    let plane = if sense > 0.0 {
+        plane
+    } else {
+        read(PoseDef::Flip { pose: plane })
+    };
+    let by = (o - at).dot(n);
+    if by == 0.0 {
+        return plane;
+    }
+    let along = RoleRead::through(plane.read.clone(), PoseRole::Normal);
+    read(PoseDef::Slide {
+        pose: plane,
+        along,
+        by: crate::Formula::literal(by, Dimension::Length).expect("a finite slide"),
     })
 }
 
-/// The world xy frame as a node — origin at the world origin, sketch
-/// +x along world +x, sketch +y along world +y.
-pub fn xy_frame() -> crate::AuthoredNode {
-    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+/// **The plane through `origin` with normal `normal`, read off a frame
+/// on `body`'s own geometry** ([`crate::frame_at`] through its `xy`):
+/// a plane no face of the body is parallel to. The frame's turns are
+/// read once off the geometry by `atan2` and written as numbers, so a
+/// plane meant on the body's axes stands there to the rounding of those
+/// turns; [`plane_on`] reads one a face is parallel to exactly.
+///
+/// # Panics
+///
+/// If `normal` is zero or `body` offers no frame to read.
+#[must_use]
+pub fn plane_on_frame(
+    doc: &ProfileDoc,
+    body: impl Into<crate::Operand>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+    tol: geom_core::Tol,
+) -> crate::pose::RoleRead<crate::Operand> {
+    use geom_core::linalg::Vec3 as V;
+    let n = V::new(normal[0], normal[1], normal[2]);
+    // Any axis off the normal starts the plane's own `x`.
+    let seed = if n.x.abs() <= n.y.abs().max(n.z.abs()) {
+        V::new(1.0, 0.0, 0.0)
+    } else {
+        V::new(0.0, 1.0, 0.0)
+    };
+    let u = seed - n * (seed.dot(n) / n.dot(n));
+    let v = n.cross(u);
+    let at = frame_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
+    let frame = crate::frame_at(doc, &body.into(), &at, &crate::EvalOptions::default(), tol)
+        .expect("the body offers a frame to read the plane off");
+    crate::pose::RoleRead::through(frame, crate::pose::PoseRole::Xy)
+}
+
+/// **The axis through `origin` along `dir`, read off two faces of
+/// `body`** (both in `body`'s own coordinates): the meet of the planes
+/// through `origin` across `dir` along the two coordinate axes it is
+/// not ([`plane_on`]), so a coordinate axis of the body is written
+/// with no turn. A pattern's axis or an axis target where a test
+/// writes one in the body's own coordinates.
+///
+/// # Panics
+///
+/// If `dir` is not a coordinate axis, either way, or `body` lacks a
+/// planar face across either of the other two.
+#[must_use]
+pub fn axis_on(
+    doc: &ProfileDoc,
+    body: impl Into<crate::Operand>,
+    origin: [f64; 3],
+    dir: [f64; 3],
+    tol: geom_core::Tol,
+) -> crate::pose::RoleRead<crate::Operand> {
+    use crate::pose::{PoseDef, RoleRead};
+    let body = body.into();
+    // The two coordinate axes across `dir`, in the order whose cross
+    // product is `dir`.
+    let (a, b) = match dir {
+        [0.0, 0.0, z] if z != 0.0 => ([1.0, 0.0, 0.0], [0.0, z.signum(), 0.0]),
+        [x, 0.0, 0.0] if x != 0.0 => ([0.0, 1.0, 0.0], [0.0, 0.0, x.signum()]),
+        [0.0, y, 0.0] if y != 0.0 => ([0.0, 0.0, 1.0], [y.signum(), 0.0, 0.0]),
+        _ => panic!("{dir:?} is a coordinate axis"),
+    };
+    let a = plane_on(doc, body.clone(), origin, a, tol);
+    let b = plane_on(doc, body, origin, b, tol);
+    RoleRead::plain(crate::Operand::Pose(Box::new(PoseDef::Meet { a, b })))
 }
 
 // --- recipes ---------------------------------------------------------
 
 /// **A cylinder split through a rim arc twice**: `circle(0, 0, 0.5)`
 /// extruded 1.0, split by the plane through `(0, 0.2, 0)` with normal
-/// `(0, 1, -1)`. The plane crosses the start rim arc twice and leaves
-/// the wall and the start cap one piece per side, under `tol`. Returns the document
-/// and the ids of the extrude, the plane datum and the split. No
+/// `(0, 1, -1)`, read off the cylinder's own geometry
+/// ([`crate::frame_at`]). The plane crosses the start rim arc twice and
+/// leaves the wall and the start cap one piece per side, under `tol`.
+/// Returns the document and the ids of the extrude and the split. No
 /// oracle: the rows that read it state what it must evaluate to.
 ///
 /// # Panics
 ///
 /// If a door refuses an insert.
-pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) {
+pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 2]) {
     let ins = |doc: ProfileDoc, node: crate::AuthoredNode| {
         let a = crate::apply(
             &doc,
@@ -292,11 +544,9 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
         (a.doc, a.record.minted.expect("an insert mints a node"))
     };
     let doc = ProfileDoc::empty_derived("clipped_cylinder", tol);
-    let (doc, plane) = ins(doc, xy_frame());
     let (doc, profile) = ins(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
         }),
@@ -306,24 +556,17 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: crate::ExtrudeSide::Along,
         },
     );
-    let (doc, tool) = ins(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.2), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(-1.0)],
-        }),
-    );
+    let tool = plane_on_frame(&doc, ext, [0.0, 0.2, 0.0], [0.0, 1.0, -1.0], tol);
     let (doc, split) = ins(
         doc,
         Node::Split {
             target: ext.into(),
-            tool: tool.into(),
+            tool,
         },
     );
-    (doc, [ext, tool, split])
+    (doc, [ext, split])
 }
 
 // --- the pick door --------------------------------------------------
@@ -429,8 +672,6 @@ pub fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
 /// variant of `names::VerbatimEdge`, without the operands it carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VerbatimKind {
-    /// `VerbatimEdge::Whole`: every body of the input, moved.
-    Whole,
     /// `VerbatimEdge::Selected`: one body of the input, projected.
     Selected,
     /// `VerbatimEdge::Intact`: the entities a split leaves intact.
@@ -450,7 +691,6 @@ pub enum VerbatimKind {
 pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     use crate::names::VerbatimEdge;
     Some(match crate::names::verbatim_edge(node)? {
-        VerbatimEdge::Whole { .. } => VerbatimKind::Whole,
         VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
         VerbatimEdge::Intact => VerbatimKind::Intact,
     })
@@ -590,6 +830,19 @@ pub fn beside_past_the_bundle_rule(
         _ => unreachable!("the placement was found above"),
     }
     (out, id)
+}
+
+/// **A save's snapshot, read past the load door's validator**: the
+/// state a doctored save leaves, which [`crate::persist::load`]
+/// refuses; for rows that hold the save door's half of the shared
+/// validator. The edit log is parsed and dropped.
+///
+/// # Panics
+///
+/// If `text` is not a save's spelling the reader accepts.
+pub fn past_the_load_door(text: &str) -> ProfileDoc {
+    crate::persist::snapshot_unchecked(text)
+        .unwrap_or_else(|e| panic!("the text reads as a save: {e}"))
 }
 
 // --- a union's fold rows, as their steps named them ---------------

@@ -14,7 +14,6 @@
 //! ```
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{
@@ -30,7 +29,7 @@ use editor_core::{
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, len, scl, xy_frame};
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{OverBand, ceiling, certifies_whole, over_band_set, render_over_band};
 
@@ -309,7 +308,6 @@ pub(crate) fn d_tab_at(
     } else {
         scl(bulge_nominal)
     };
-    let plane = r.insert(xy_frame());
     let outline = LoopProgram::Chain(vec![
         ProgramStep::At([len(-4.0e-3), len(-2.0e-3)]),
         ProgramStep::LineTo(ProgramTarget::Point([len(4.0e-3), len(-2.0e-3)])),
@@ -321,7 +319,6 @@ pub(crate) fn d_tab_at(
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![outline],
         ids: Vec::new(),
     }));
@@ -329,10 +326,8 @@ pub(crate) fn d_tab_at(
     let tab = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
     let hole_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [
                 Formula::named(VarName::from_static("hole_x"), Dimension::Length),
@@ -345,8 +340,9 @@ pub(crate) fn d_tab_at(
     let hole = r.insert(Node::Extrude {
         profile: hole_profile.into(),
         distance: thickness,
-        side: ExtrudeSide::Along,
     });
+    // The hole joins the tab's space where it is drawn.
+    let hole = r.against(tab, hole, &editor_core::Frame::IDENTITY);
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
             &r.doc,

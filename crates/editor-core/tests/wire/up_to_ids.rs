@@ -340,8 +340,7 @@ pub fn without_nodes(doc: &Value, ids: &[String]) -> Value {
 }
 
 /// The tube subgraph of `doc`: every `Tube` and `HollowTube` node and
-/// the datum each reads its anchor from — a spine node id, or a frame
-/// output read through its defining operation.
+/// the operation each anchor it reads is defined by.
 pub fn tube_subgraph(doc: &Value) -> Vec<String> {
     let snapshot = &doc["snapshot"];
     let defined_by = |id: &str| -> String {

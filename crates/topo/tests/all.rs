@@ -165,6 +165,8 @@ mod join1_r2_topo_probes;
 mod join_star_fixture;
 #[path = "join_whole_orbit_rows.rs"]
 mod join_whole_orbit_rows;
+#[path = "long_edges_on_one_line.rs"]
+mod long_edges_on_one_line;
 #[path = "loop_reparenting_pcurve_rows.rs"]
 mod loop_reparenting_pcurve_rows;
 #[path = "m3_pr1_surgery.rs"]
@@ -406,6 +408,8 @@ mod replace_face_band_probes;
 mod a_corner_flat_at_its_short_bounds;
 #[path = "a_meridian_witness_contradicts_only_off_its_locus.rs"]
 mod a_meridian_witness_contradicts_only_off_its_locus;
+#[path = "a_ring_crossed_along_its_line_places_its_germs_apart.rs"]
+mod a_ring_crossed_along_its_line_places_its_germs_apart;
 #[path = "a_seamless_pipe_cut_by_an_oblique_plane_measures.rs"]
 mod a_seamless_pipe_cut_by_an_oblique_plane_measures;
 #[path = "a_vertex_read_again_classes_every_edge.rs"]

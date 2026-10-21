@@ -19,9 +19,9 @@ use crate::names::{RoleSeg, VerbatimEdge};
 use crate::node::{Node, PartSelect, RecipeNodeId};
 
 /// **The member a mate reference resolves to** (A11's member
-/// vocabulary): a live `InstantiatePart`, reached from the
-/// reference's operand through the nodes that place a body without
-/// renaming it — any number of `Transform`s and `Part` instance
+/// vocabulary): a live `InstantiatePart`, `Place` or construction,
+/// reached from the reference's operand through the nodes that carry a
+/// body to it without renaming it — any number of `Part` instance
 /// selections, any number of `Pattern` levels, each of which the name
 /// qualifies `Instance(i)`, and any number of `Union`s, each of which
 /// the name qualifies `From`, keyed by the member's read.
@@ -32,7 +32,7 @@ use crate::node::{Node, PartSelect, RecipeNodeId};
 /// offsets, so they are different members, and a bundle holding a
 /// mate on each refuses (`MateFault::TargetsDiffer`) instead of
 /// folding them as one pair. Two references through ONE placement spelled two
-/// ways — read at a transform, and at a union above it naming that
+/// ways — read at a placement, and at a union above it naming that
 /// member; read at a `Part` selecting a copy, and at the pattern naming
 /// that copy — are one member, and their mates fold.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,7 +43,7 @@ pub struct Member {
     /// from.
     pub instance: RecipeNodeId,
     /// **The placing nodes the walk passed**, OUTERMOST first: each
-    /// pattern with the copy the name says, and each transform. Empty
+    /// pattern with the copy the name says. Empty
     /// for a reference read at its instance, or through nothing but
     /// `Part` selections and unions, which move nothing.
     pub chain: Vec<Placing>,
@@ -59,8 +59,6 @@ pub enum Placing {
         /// The copy index.
         index: u32,
     },
-    /// A transform.
-    Transform(RecipeNodeId),
 }
 
 impl Placing {
@@ -69,7 +67,6 @@ impl Placing {
     pub fn node(self) -> RecipeNodeId {
         match self {
             Self::Copy { pattern, .. } => pattern,
-            Self::Transform(node) => node,
         }
     }
 }
@@ -82,9 +79,8 @@ impl Member {
     pub fn copy(&self) -> Vec<(RecipeNodeId, u32)> {
         self.chain
             .iter()
-            .filter_map(|p| match *p {
-                Placing::Copy { pattern, index } => Some((pattern, index)),
-                Placing::Transform(_) => None,
+            .map(|p| match *p {
+                Placing::Copy { pattern, index } => (pattern, index),
             })
             .collect()
     }
@@ -120,12 +116,9 @@ enum Placer {
         /// The copy index the NAME says.
         i: u32,
     },
-    /// A transform: the one production node that moves a body and
-    /// mints no name.
-    Transform(RecipeNodeId),
 }
 
-/// The member's view of a placer: which copy or which transform, with
+/// The member's view of a placer: which copy, with
 /// the walk's own bookkeeping (the `Part` a check reads) left behind.
 impl From<Placer> for Placing {
     fn from(p: Placer) -> Self {
@@ -134,7 +127,6 @@ impl From<Placer> for Placing {
                 pattern: node,
                 index: i,
             },
-            Placer::Transform(node) => Self::Transform(node),
         }
     }
 }
@@ -193,24 +185,15 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
     loop {
         if at != name.node {
             // Not the head yet: only a name-carrying edge
-            // ([`crate::names::verbatim_edge`]) that places or projects
-            // this body may stand between an operand and the material
-            // it speaks about. A whole edge moves the body and
-            // contributes no `RolePath` segment; a `Part` selecting an
-            // instance moves nothing at all and carries every name
+            // ([`crate::names::verbatim_edge`]) that projects this body
+            // may stand between an operand and the material it speaks
+            // about: a `Part` selecting an instance moves nothing at
+            // all and carries every name
             // VERBATIM. Anything else — a boolean, a split's intact
             // pass-through — is a different body, not this one placed. (A union is the
             // head of every name it carries, so the walk meets it
             // below, at the head.)
             match doc.node(at).and_then(crate::names::verbatim_edge) {
-                // A whole edge is shape-preserving over the value —
-                // body `k` in, body `k` out — so a `Part` above it
-                // still selects body `k` of whatever stands below,
-                // and is carried down to the pattern it checks against.
-                Some(VerbatimEdge::Whole { input }) => {
-                    chain.push(Placer::Transform(at));
-                    at = doc.operation_of(input).ok_or(at)?;
-                }
                 Some(VerbatimEdge::Selected {
                     of,
                     select: PartSelect::Instance(_),
@@ -265,10 +248,9 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                 name = of;
                 at = doc.operation_of(*read).ok_or(at)?;
             }
-            // A construction of the document's one kind (the named
-            // interim of INTENT stage 3 B): the world's kind, at the
-            // identity, so a mate reads it as a body of the space its
-            // copy joins.
+            // A construction, the root of its own space (D10): at its
+            // own identity, so a mate reads it as a body of the space
+            // its copy joins.
             Some(node)
                 if !matches!(
                     node,
@@ -299,9 +281,9 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
 ///
 /// The rule is a WALK, from the operation defining the selection's
 /// body down its reads to the selected name's head, which must be a
-/// live `InstantiatePart`.
-/// Between them it admits exactly the nodes that place a body without
-/// renaming it: any number of `Transform`s, any number of `Part`
+/// live `InstantiatePart`, `Place` or construction.
+/// Between them it admits exactly the nodes that carry a body without
+/// renaming it: any number of `Part`
 /// nodes selecting an `Instance`, any number of `Pattern` levels,
 /// each of which must carry its `Instance(i)` qualifier in the name,
 /// and any number of `Union`s, each of which must carry a `From`

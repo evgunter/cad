@@ -9,11 +9,18 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 
 use crate::errors::{BoundaryEdit, ErrorClass};
-use crate::py::expr::literal;
 use crate::py::typed_err;
 use crate::tags::{edit_error_tag, edit_inner_variant_tag, persist_error_tag, workspace_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
+
+/// A point given as three lengths, as `Doc.corner_frame` takes each of
+/// its corners.
+type Lengths3 = (
+    super::quantity::Length,
+    super::quantity::Length,
+    super::quantity::Length,
+);
 
 /// The refusing ARM's word, as an `EditError` carries it: the inner
 /// refusal's own discriminant beside the carrier's, `None` where the
@@ -49,7 +56,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 27] {
+) -> [(&'static str, Py<PyAny>); 28] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -88,6 +95,10 @@ fn edit_fields(
         (
             "count",
             num(payload.count.map(|n| infallible(n.into_pyobject(py)))),
+        ),
+        (
+            "given",
+            num(payload.given.map(|n| infallible(n.into_pyobject(py)))),
         ),
         (
             "first",
@@ -700,7 +711,7 @@ fn label_from_text(py: Python<'_>, text: &str) -> PyResult<d::Label> {
 /// Read a stable name back from [`name_text`]'s output.
 ///
 /// Text that is not a name at all is a boundary `ValueError` — the
-/// same class of refusal as a string where a `SketchPlane` belongs,
+/// same class of refusal as a string where a `Frame` belongs,
 /// with no kernel refusal to forward. A WELL-FORMED name that denotes
 /// nothing in this document refuses at the kernel's own door
 /// (`select_resolve`), which is where that belongs.
@@ -726,9 +737,10 @@ pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName>
 /// carry is a different question and belongs to the kernel, which
 /// answers it as `unknown_slot` naming the slot the node lacks.
 ///
-/// `program`, `placement_step` and a constraint's `world_slide`,
-/// `world_spin`, `value_slide` and `value_spin` are words of the
-/// alphabet with no slot to read back: the rest of each address holds
+/// `program`, a loft station's `station_slide` and `station_spin`, and
+/// a constraint's `world_slide`, `world_spin`, `value_slide` and
+/// `value_spin` are words of the alphabet with no slot to read back:
+/// the rest of each address holds
 /// an integer the word does not carry, so each refuses in its own
 /// sentence rather than as a misspelling.
 fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
@@ -741,11 +753,12 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
          that address — a loop index, a step index and which argument — is not carried \
          by the word: a profile's numbers are re-authored, not edited at a slot"
                 .to_owned()
-        } else if word == "placement_step" {
-            "`placement_step` addresses one expression of a later step of a transform's \
-         placement, and the rest of that address — the step index and which component — \
-         is an integer the word does not carry, so no slot word here writes at it"
-                .to_owned()
+        } else if word == "station_slide" || word == "station_spin" {
+            format!(
+                "`{word}` addresses one move of a loft section's station, and the rest of that \
+             address — the section and the move's place in its station — is not carried by \
+             the word: a parameter the number reads moves it, or the loft is re-authored"
+            )
         } else if word == "section" || word == "member" {
             format!(
                 "`{word}` addresses one entry of a list a node reads, and its position is not \
@@ -1410,9 +1423,6 @@ impl Doc {
                             d::ConstraintKind::Value(value) => {
                                 Py::new(py, super::mate::MateValue(value))?.into_any()
                             }
-                            d::ConstraintKind::WorldPin(_) => {
-                                Py::new(py, super::mate::WorldPin)?.into_any()
-                            }
                         };
                         Ok((at, held))
                     })
@@ -1560,8 +1570,7 @@ impl Doc {
     /// the formula, or `DocEdit.declare_var` names it.
     ///
     /// Exactly `insert(Node.measure(p))` per primitive, recorded as one
-    /// action and answered with the outputs, as `sketch_frame` is
-    /// `insert(Node.sketch_frame(...))`.
+    /// action and answered with the outputs.
     #[pyo3(signature = (primitives, *, resolver=None))]
     fn measure(
         &mut self,
@@ -1589,33 +1598,59 @@ impl Doc {
         })
     }
 
-    /// **Insert a sketch frame and return its id** — the one line a
-    /// profile needs before it can name a plane.
+    /// **"Sketch on this face"**: `outline` (one loop or a list, as
+    /// `Node.profile` takes it) drawn on its own plane and extruded
+    /// `distance` up its own `z`, the extrude's copy placed against
+    /// `face` of `body` — its start cap resting on the face's plane,
+    /// looking out along the face's outward normal, its origin over the
+    /// face body's own and turned `spin` about the normal — and the
+    /// face's body and the copy fused. `face` is one of the opaque
+    /// texts `Evaluation.all_faces` / `select` answered with.
     ///
-    /// Exactly `insert(Node.sketch_frame(...))`, and it takes that
-    /// constructor's two spellings unchanged (`plane=` a rigid frame,
-    /// `elevation=` the xy sugar, never both). It exists because a
-    /// profile's plane became a node: a plane used to be an argument
-    /// and is now an EDIT, and without this every sketch would have to
-    /// be broken into two statements even where the profile itself is
-    /// one expression.
-    ///
-    /// Each call mints a FRESH frame. Two sketches meant to live on
-    /// one plane should bind the id once and pass it twice — that
-    /// sharing is a fact about the document, and now there is
-    /// something in the document for it to be a fact about.
-    ///
-    /// `label=` labels the frame in the same call, as `insert`'s does.
-    #[pyo3(signature = (plane=None, elevation=None, *, label=None))]
-    fn sketch_frame(
+    /// One action: the four nodes, the mate and its values all land or
+    /// none does, and the first door that refuses raises its
+    /// `EditError`. Answers the four ids as a `SketchedOnFace`;
+    /// `label=` labels the union, the body the gesture leaves.
+    #[pyo3(signature = (body, face, outline, distance, spin=None, *, label=None))]
+    #[allow(clippy::too_many_arguments)] // the gesture's own arguments, each a seat
+    fn sketch_on_face(
         &mut self,
         py: Python<'_>,
-        plane: Option<SketchPlane>,
-        elevation: Option<super::expr::SlotArg>,
+        body: OperandArg,
+        face: &str,
+        outline: &Bound<'_, PyAny>,
+        distance: super::expr::SlotArg,
+        spin: Option<super::expr::SlotArg>,
         label: Option<&str>,
-    ) -> PyResult<NodeId> {
-        let node = Node::sketch_frame(py, plane, elevation)?;
-        self.insert(py, &node, label, None)
+    ) -> PyResult<SketchedOnFace> {
+        let label = label.map(|text| label_from_text(py, text)).transpose()?;
+        let face = name_from_text(face)?;
+        let profile = d::ProfileProgram {
+            loops: loops_from_outline(py, outline)?,
+            ids: Vec::new(),
+        };
+        let distance = slot_expr(py, d::SlotId::Distance, &distance)?;
+        let spin = match spin {
+            Some(spin) => super::pose::scalar_at(py, d::Dimension::Angle, &spin, "spin")?,
+            None => d::Formula::zero(d::Dimension::Angle),
+        };
+        let tol = Tol::witness();
+        let mut action = d::Recording::start(&self.inner, tol);
+        let edit_failed = |err: d::EditError| edit_err(py, &err);
+        let sketched = action
+            .sketch_on_face(body.read(), face, profile, distance, spin)
+            .map_err(edit_failed)?;
+        if let Some(label) = label {
+            action
+                .apply(d::DocEdit::SetLabel {
+                    node: sketched.union,
+                    label: Some(label),
+                })
+                .map_err(edit_failed)?;
+        }
+        let done = action.finish().map_err(edit_failed)?;
+        self.take_up(done.doc, done.maintenance);
+        Ok(SketchedOnFace(sketched))
     }
 
     /// **Place one copy of `shapes`**, placed by `constraints`, and
@@ -1633,9 +1668,9 @@ impl Doc {
     /// `pose` puts it, by constraints its author can then move by their
     /// numbers. `pose` is refused beside `constraints`. `place_at`
     /// answers how the copy was placed; this door answers the placement
-    /// alone. Neither: the copy stands where its body stands, pinned by
-    /// a world pin (`WorldPin`, stage 3 C's named interim), which reads
-    /// nothing and so follows the body's variables.
+    /// alone. Neither: the copy stands where its body's own coordinates
+    /// put it, by the kernel's `stand` — the identity bundle, no mate
+    /// and the constant zero on every freedom.
     ///
     /// The one door that puts a body in the product: nothing places as
     /// a side effect, so a boolean of two placed bodies leaves both
@@ -1656,32 +1691,12 @@ impl Doc {
         label: Option<&str>,
     ) -> PyResult<NodeId> {
         let Some(mates) = constraints else {
-            // Neither: the copy stands where its body stands, pinned by
-            // the named interim's world pin.
+            // Neither: the copy stands where its body's own coordinates
+            // put it, by the identity bundle.
             if pose.is_none() {
-                let label = label.map(|text| label_from_text(py, text)).transpose()?;
-                let tol = Tol::witness();
-                // Unread: work/intent/the-python-edit-doors-take-a-resolver-they-never-read.md
-                let _ = resolver;
-                let mut action = d::Recording::start(&self.inner, tol);
-                let edit_failed = |err: d::EditError| edit_err(py, &err);
-                let placement = action
-                    .insert(d::Node::place(shapes.reads()))
-                    .map_err(edit_failed)?;
-                if let Some(label) = label {
-                    action
-                        .apply(d::DocEdit::SetLabel {
-                            node: placement,
-                            label: Some(label),
-                        })
-                        .map_err(edit_failed)?;
-                }
-                action
-                    .apply(d::DocEdit::PinWhereItStands { placement })
-                    .map_err(edit_failed)?;
-                let done = action.finish().map_err(edit_failed)?;
-                self.take_up(done.doc, done.maintenance);
-                return Ok(NodeId(placement));
+                return self
+                    .placed(py, shapes, Gesture::Stand, resolver, label)
+                    .map(|placed| placed.placement);
             }
             return self
                 .place_at(py, shapes, pose, resolver, label)
@@ -1730,31 +1745,87 @@ impl Doc {
         resolver: Option<&super::store::Workspace>,
         label: Option<&str>,
     ) -> PyResult<super::mate::Placed> {
-        let label = label.map(|text| label_from_text(py, text)).transpose()?;
         let pose = pose.map_or(d::Frame::IDENTITY, |p| p.0);
-        let tol = Tol::witness();
-        let seam = seam(resolver);
+        self.placed(py, shapes, Gesture::At(&pose), resolver, label)
+    }
+
+    /// **One copy of `body` placed against `target`'s geometry at
+    /// `pose`** — `pose` the copy's own frame in `target`'s own
+    /// coordinates — and return the placement's id: how a construction
+    /// combined with another body joins that body's space, and how a
+    /// body is moved rigidly relative to another.
+    ///
+    /// The copy is inserted, then placed through the kernel's
+    /// `place_against`: a plane mate on a face of the copy no variable
+    /// reaches to the plane of `target`'s that the face lies on at
+    /// `pose` (an axis mate on a full revolve's or ring's own axis),
+    /// and the values that put it at `pose`. The insert, the mate and
+    /// the values are one action: all land or none does. Both are
+    /// evaluated to read their geometry, through `resolver` where one
+    /// is a part's; a copy the kernel cannot place raises `EditError`
+    /// under the pin refusal's word, as `place_at`'s does.
+    #[pyo3(signature = (target, body, pose, *, resolver=None, label=None))]
+    fn place_against(
+        &mut self,
+        py: Python<'_>,
+        target: OperandArg,
+        body: BodyArg,
+        pose: &super::place::Frame,
+        resolver: Option<&super::store::Workspace>,
+        label: Option<&str>,
+    ) -> PyResult<NodeId> {
+        let target = target.read();
+        self.placed(
+            py,
+            ShapesArg::One(body),
+            Gesture::Against(&target, &pose.0),
+            resolver,
+            label,
+        )
+        .map(|placed| placed.placement)
+    }
+
+    /// **`body`'s own frame at a corner it has**, as a pose to read: the
+    /// frame through its straight edge from `corner` to `up` (its `z`,
+    /// that way) and its vertex at `toward` (its `x` the way to it),
+    /// each picked where the evaluation puts it exactly, in `body`'s own
+    /// coordinates. Where a box's edges run along its own axes this is
+    /// its own frame read with no number, so a frame moved from it by
+    /// exact turns (`PoseDef.spin` by `Formula.turn_over(4)`) stands
+    /// exactly where it is meant. A body with no such edge and vertex
+    /// raises `EditError` under the pin refusal's word.
+    #[pyo3(signature = (body, corner, up, toward, *, resolver=None))]
+    fn corner_frame(
+        &self,
+        py: Python<'_>,
+        body: OperandArg,
+        corner: Lengths3,
+        up: Lengths3,
+        toward: Lengths3,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<super::pose::PoseDef> {
+        let at = |v: Lengths3| [v.0.0.meters(), v.1.0.meters(), v.2.0.meters()];
         let opts = d::EvalOptions {
-            resolver: seam.clone(),
+            resolver: seam(resolver),
             ..d::EvalOptions::default()
         };
-        let mut action = d::Recording::start(&self.inner, tol);
-        let edit_failed = |err: d::EditError| edit_err(py, &err);
-        let placement = action
-            .insert(d::Node::place(shapes.reads()))
-            .map_err(edit_failed)?;
-        if let Some(label) = label {
-            action
-                .apply(d::DocEdit::SetLabel {
-                    node: placement,
-                    label: Some(label),
-                })
-                .map_err(edit_failed)?;
-        }
-        let placed = gesture(py, &mut action, placement, &pose, &opts, tol)?;
-        let done = action.finish().map_err(edit_failed)?;
-        self.take_up(done.doc, done.maintenance);
-        Ok(placed)
+        d::corner_frame(
+            &self.inner,
+            &body.read(),
+            at(corner),
+            at(up),
+            at(toward),
+            &opts,
+            Tol::witness(),
+        )
+        .map(|inner| super::pose::PoseDef { inner })
+        .map_err(|refusal| {
+            boundary_edit_err(
+                py,
+                BoundaryEdit::Pin(&refusal),
+                format!("the body has no such corner: {refusal}"),
+            )
+        })
     }
 
     /// **The "place part" gesture on a placement already in the
@@ -1779,7 +1850,7 @@ impl Doc {
             ..d::EvalOptions::default()
         };
         let mut action = d::Recording::start(&self.inner, tol);
-        let placed = gesture(py, &mut action, placement.0, &pose, &opts, tol)?;
+        let placed = gesture(py, &mut action, placement.0, Gesture::At(&pose), &opts, tol)?;
         let done = action.finish().map_err(|err| edit_err(py, &err))?;
         self.take_up(done.doc, done.maintenance);
         Ok(placed)
@@ -1788,9 +1859,11 @@ impl Doc {
     /// **Remove the constraint `mate` addresses, a mate with every value
     /// that names it**, as one action (ruling C-2): for a mate, each
     /// value's `DocEdit.remove_constraint` in bundle order, then the
-    /// mate's; for a value or a world pin, its own; all applied or none
-    /// (`DocEdit::removing`). Answers the values' addresses that went
-    /// with a mate. `DocEdit.remove_constraint` stays the raw edit, which
+    /// mate's; for a value naming a mate, its own; for a value of a
+    /// bundle with no mate, the whole bundle, whose values state the
+    /// copy's motion together; all applied or none
+    /// (`DocEdit::removing`). Answers the addresses that went with the
+    /// one addressed. `DocEdit.remove_constraint` stays the raw edit, which
     /// refuses a mate a value names (`mate_named_by_value`).
     ///
     /// Refuses typed on `EditError`: `unknown_node`,
@@ -1810,18 +1883,24 @@ impl Doc {
                 constraint: at.id,
             });
         }
-        let values: Vec<super::mate::MateRef> = edits[..edits.len() - 1]
+        let values: Vec<super::mate::MateRef> = edits
             .iter()
-            .filter_map(|edit| match edit {
+            .flat_map(|edit| match edit {
                 d::DocEdit::RemoveConstraint {
                     placement,
                     constraint,
-                } => Some(super::mate::MateRef(d::MateRef::new(
-                    *placement,
-                    *constraint,
-                ))),
-                _ => None,
+                } => vec![d::MateRef::new(*placement, *constraint)],
+                d::DocEdit::RemoveConstraints {
+                    placement,
+                    constraints,
+                } => constraints
+                    .iter()
+                    .map(|c| d::MateRef::new(*placement, *c))
+                    .collect(),
+                _ => Vec::new(),
             })
+            .filter(|removed| *removed != at)
+            .map(super::mate::MateRef)
             .collect();
         let tol = Tol::witness();
         let mut action = d::Recording::start(&self.inner, tol);
@@ -1851,7 +1930,7 @@ impl Doc {
         coord: &super::mate::Coord,
         by: super::expr::SlotArg,
     ) -> PyResult<super::mate::MateRef> {
-        let value = super::mate::MateValue::of(py, mate.0.id, coord.0, &by)?;
+        let value = super::mate::MateValue::of(py, Some(mate.0.id), coord.0, &by)?;
         let edit = d::DocEdit::AddValue {
             placement: mate.0.placement,
             value: Box::new(value.0),
@@ -1865,6 +1944,40 @@ impl Doc {
             .first()
             .unwrap_or_else(|| unreachable!("an accepted value mints its id"));
         Ok(super::mate::MateRef(d::MateRef::new(mate.0.placement, id)))
+    }
+
+    /// **Write `values` onto `placement` as one edit**, and return
+    /// their addresses: the edit `DocEdit.add_values`. A bundle with no
+    /// mate states the copy's whole motion in its values — a slide
+    /// along each of the world's `x`, `y` and `z` (`Coord.slide`) and a
+    /// chain of three spins about its axes, no two in a row about one
+    /// (`Coord.spin_about`), taken in the order written — so it is
+    /// written whole: each `MateValue` names no mate (`None`).
+    ///
+    /// Refuses typed on `EditError` (`mate_refused`): a bundle with no
+    /// mate that leaves a freedom unwritten (`mate_unpinned`), a freedom
+    /// written twice (`mate_overconstrained`), a value naming no mate
+    /// beside a mate or a spin about a mated direction with none
+    /// (`mate_no_chart`).
+    fn add_values(
+        &mut self,
+        py: Python<'_>,
+        placement: &NodeId,
+        values: Vec<super::mate::MateValue>,
+    ) -> PyResult<Vec<super::mate::MateRef>> {
+        let edit = d::DocEdit::AddValues {
+            placement: placement.0,
+            values: values.into_iter().map(|value| value.0).collect(),
+            fresh: Vec::new(),
+        };
+        let applied =
+            d::apply(&self.inner, &edit, Tol::witness()).map_err(|err| edit_err(py, &err))?;
+        let record = self.accept(applied);
+        Ok(record
+            .minted_constraints
+            .iter()
+            .map(|&id| super::mate::MateRef(d::MateRef::new(placement.0, id)))
+            .collect())
     }
 
     /// The label a person gave `node`, or `None` when it has none.
@@ -2189,45 +2302,92 @@ impl Doc {
     }
 }
 
-/// Which side of its sketch plane a `Node.extrude` goes toward.
-///
-/// The binding of the kernel's `ExtrudeSide`. The mirror exists
-/// because `#[pyclass]` cannot be attached to a type from another
-/// crate, so a python-side copy is forced; the obligation it owes the
-/// kernel is that every kernel side has a member here, which
-/// [`_binds_every_kernel_side`] is what enforces.
-#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum ExtrudeSide {
-    /// Along the sketch plane's normal `u × v`.
-    Along,
-    /// Against it.
-    Against,
-}
+/// **One move of a loft section's station**: a slide along, or a
+/// spin about, one of the first section's own axes (`"x"`, `"y"` or
+/// `"z"`) through its origin, by one length or one angle — the
+/// kernel's `StationMove`, crossing whole.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct StationMove(pub(crate) d::StationMove<d::Formula>);
 
-impl ExtrudeSide {
-    fn to_document(self) -> d::ExtrudeSide {
-        match self {
-            Self::Along => d::ExtrudeSide::Along,
-            Self::Against => d::ExtrudeSide::Against,
-        }
+/// The first section's axis a station move names.
+fn station_axis(axis: &str) -> PyResult<d::Axis3> {
+    match axis {
+        "x" => Ok(d::Axis3::X),
+        "y" => Ok(d::Axis3::Y),
+        "z" => Ok(d::Axis3::Z),
+        other => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "a station moves along or about \"x\", \"y\" or \"z\", not {other:?}"
+        ))),
     }
 }
 
-/// Every kernel side has a member on the python mirror.
-///
-/// The direction is the load-bearing one. `to_document` matches on
-/// `Self` — a closed local enum — so it says nothing about the kernel
-/// growing; a side added there would leave the python surface
-/// silently short of it. This match is over the KERNEL enum, so that
-/// addition breaks this build and the binding must be written.
-///
-/// It is never called: a type-checked match is the whole product, and
-/// the leading underscore is what says so.
-const fn _binds_every_kernel_side(kernel: d::ExtrudeSide) -> ExtrudeSide {
-    match kernel {
-        d::ExtrudeSide::Along => ExtrudeSide::Along,
-        d::ExtrudeSide::Against => ExtrudeSide::Against,
+/// The word [`station_axis`] reads `axis` from.
+fn station_axis_word(axis: d::Axis3) -> &'static str {
+    match axis {
+        d::Axis3::X => "x",
+        d::Axis3::Y => "y",
+        d::Axis3::Z => "z",
+    }
+}
+
+#[pymethods]
+impl StationMove {
+    /// Slid along the first section's `axis` by the length `by`.
+    #[staticmethod]
+    fn slide(py: Python<'_>, axis: &str, by: super::expr::SlotArg) -> PyResult<Self> {
+        Ok(Self(d::StationMove::Slide {
+            along: station_axis(axis)?,
+            by: super::pose::scalar_at(py, d::Dimension::Length, &by, "station slide")?,
+        }))
+    }
+
+    /// Spun about the first section's `axis` by the angle `by`,
+    /// right-handed.
+    #[staticmethod]
+    fn spin(py: Python<'_>, axis: &str, by: super::expr::SlotArg) -> PyResult<Self> {
+        Ok(Self(d::StationMove::Spin {
+            about: station_axis(axis)?,
+            by: super::pose::scalar_at(py, d::Dimension::Angle, &by, "station spin")?,
+        }))
+    }
+
+    /// `"slide"` or `"spin"`.
+    #[getter]
+    fn kind(&self) -> &'static str {
+        match self.0 {
+            d::StationMove::Slide { .. } => "slide",
+            d::StationMove::Spin { .. } => "spin",
+        }
+    }
+
+    /// The first section's axis moved along or about.
+    #[getter]
+    fn axis(&self) -> &'static str {
+        match self.0 {
+            d::StationMove::Slide { along: axis, .. }
+            | d::StationMove::Spin { about: axis, .. } => station_axis_word(axis),
+        }
+    }
+
+    /// How far, as the formula it was written as.
+    #[getter]
+    fn by(&self) -> super::expr::Formula {
+        match &self.0 {
+            d::StationMove::Slide { by, .. } | d::StationMove::Spin { by, .. } => {
+                super::expr::Formula(by.clone())
+            }
+        }
+    }
+
+    /// Bit-exact equality: the same move, its number equal.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    fn __repr__(&self) -> String {
+        let super::expr::Formula(by) = self.by();
+        format!("StationMove.{}({:?}, {by})", self.kind(), self.axis())
     }
 }
 
@@ -2265,206 +2425,6 @@ impl PartSelect {
             d::SlotId::Instance,
             &index,
         )?)))
-    }
-}
-
-/// The K funnel name the sketch-plane door's two axis lengths are
-/// decided under — the binding's own seat, because the pair reaches it
-/// from a user's Python call and not from a datum or from the
-/// evaluation layer. One name for both axes: WHICH axis was refused is
-/// the refusal's own field (`OrthoAxis`), not the funnel's.
-const SKETCH_PLANE_FRAME_NORM: &str = "sketch_plane_frame_norm";
-
-/// The rigid placement of a sketch plane in 3-space — the kernel's
-/// `profile::SketchPlane`, crossing as a VALUE.
-///
-/// Sketch (x, y) maps to world `origin + x·u + y·v`, and the plane's
-/// NORMAL is `u × v` — which is the direction `Node.extrude` runs, so
-/// the plane is what chooses an extrusion's axis.
-///
-/// The three named planes are the cyclic frames x→y→z→x: `xy` (normal
-/// +z), `yz` (u = ŷ, v = ẑ, normal +x), `zx` (u = ẑ, v = x̂, normal
-/// +y) — the same convention the demo tour's letterform captions
-/// speak ("a yz sketch extruded +x").
-///
-/// RIGIDITY IS THE DOOR'S, exactly as in Rust: `from_frame`
-/// orthonormalizes the pair you give it — `u` normalized and kept, `v`
-/// yielding its component along `u` — so the u/v/normal you read back
-/// off a plane built here are perpendicular whatever you passed in. It
-/// is the DOOR that decides, not the class: every plane Python can
-/// make comes through `from_frame` or one of the three named frames,
-/// and each of those mints a frame witness first. What a caller must
-/// still get right is that the two directions SPAN A PLANE: a pair
-/// that does not refuses, with `FrameError.variant` naming the axis.
-/// The binding adds no predicate of its own: one semantics, two host
-/// languages.
-#[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone, Copy)]
-pub(crate) struct SketchPlane(pub(crate) pncad::profile::SketchPlane<f64>);
-
-#[pymethods]
-impl SketchPlane {
-    /// The world xy-plane: u = x̂, v = ŷ, normal = +ẑ.
-    #[staticmethod]
-    fn xy() -> Self {
-        Self(pncad::profile::SketchPlane::xy())
-    }
-
-    /// The world yz-plane: u = ŷ, v = ẑ, normal = +x̂.
-    #[staticmethod]
-    fn yz() -> Self {
-        Self(pncad::profile::SketchPlane::yz())
-    }
-
-    /// The world zx-plane: u = ẑ, v = x̂, normal = +ŷ.
-    #[staticmethod]
-    fn zx() -> Self {
-        Self(pncad::profile::SketchPlane::zx())
-    }
-
-    /// The plane through `origin` spanned by `u` and `v`.
-    ///
-    /// `origin` is dimensioned (`Length`s); `u` and `v` are
-    /// dimensionless direction triples, neither of which need be unit
-    /// and neither of which need be perpendicular: the door
-    /// ORTHONORMALIZES them, `u` normalized and kept and `v` yielding
-    /// its component along `u`, and the plane's normal is what the
-    /// resulting pair crosses to. So a skewed pair builds, and the
-    /// plane you get back is not the pair you wrote.
-    ///
-    /// The two length decisions are made at the witness tolerance —
-    /// the kernel's fixed value doors' band, the same one every other
-    /// value constructor here uses — and not at whatever the session
-    /// was configured with.
-    ///
-    /// Raises `FrameError` when the pair spans no plane — parallel,
-    /// antiparallel, zero, overflowed or underflowed — with `variant`
-    /// naming which axis the length question was asked of. That
-    /// refusal is new: this constructor used to be total.
-    #[staticmethod]
-    fn from_frame(
-        py: Python<'_>,
-        origin: (
-            super::quantity::Length,
-            super::quantity::Length,
-            super::quantity::Length,
-        ),
-        u: (f64, f64, f64),
-        v: (f64, f64, f64),
-    ) -> PyResult<Self> {
-        // The BAND is the run's tolerance configuration, not the
-        // frame: it crosses as the band refusal it is, never wearing
-        // the axes' words.
-        let band = pncad::geom_core::Band::linear(pncad::geom_core::Tol::witness())
-            .map_err(|error| super::checks::checks_err(py, &d::ChecksError::Band { error }))?;
-        pncad::geom_core::RigidMotion::gram_schmidt(
-            pncad::authoring::p3::<f64>(
-                origin.0.0.meters(),
-                origin.1.0.meters(),
-                origin.2.0.meters(),
-            ),
-            pncad::authoring::v3(u.0, u.1, u.2),
-            pncad::authoring::v3(v.0, v.1, v.2),
-            SKETCH_PLANE_FRAME_NORM,
-            band,
-        )
-        .map(|frame| Self(pncad::profile::SketchPlane::from_frame(frame)))
-        .map_err(|e| super::place::orthonormalize_err(py, &e))
-    }
-
-    /// The plane's origin — sketch (0, 0) in world space.
-    ///
-    /// The four accessors READ the plane's frame back, they never
-    /// recompute it, and `normal` is the frame's third axis, the mint's
-    /// u × v. They do NOT round-trip
-    /// `from_frame(o, u, v)`'s arguments: that door orthonormalizes,
-    /// so what comes back is the frame it minted — `origin` verbatim,
-    /// `u` normalized, `v` the perpendicular residual. An exactly
-    /// orthonormal pair is the case where the two coincide. Same four
-    /// doors as Rust's `SketchPlane` (one vocabulary).
-    #[getter]
-    fn origin(
-        &self,
-    ) -> (
-        super::quantity::Length,
-        super::quantity::Length,
-        super::quantity::Length,
-    ) {
-        let o = self.0.origin();
-        let len = |v: f64| super::quantity::Length(pncad::quantity::Length::from_meters(v));
-        (len(o.x), len(o.y), len(o.z))
-    }
-
-    /// The world direction sketch +x runs — a dimensionless triple.
-    #[getter]
-    fn u(&self) -> (f64, f64, f64) {
-        let u = self.0.u().get();
-        (u.x, u.y, u.z)
-    }
-
-    /// The world direction sketch +y runs — a dimensionless triple.
-    #[getter]
-    fn v(&self) -> (f64, f64, f64) {
-        let v = self.0.v().get();
-        (v.x, v.y, v.z)
-    }
-
-    /// The plane's normal, u × v — the direction `Node.extrude` runs.
-    #[getter]
-    fn normal(&self) -> (f64, f64, f64) {
-        let n = self.0.normal().get();
-        (n.x, n.y, n.z)
-    }
-
-    /// BIT-exact frame equality — Rust's `SketchPlane::bit_eq`,
-    /// crossing unchanged (the `Doc.bit_eq` precedent, spec D7):
-    /// `0.0` and `-0.0` are different planes here.
-    ///
-    /// Bit equality is the only equality this value can honestly
-    /// offer: a sketch plane carries no ε, and "the same plane up to
-    /// tolerance" is a geometric question the kernel answers about
-    /// BODIES at tier 3. Two planes equal here place every sketch
-    /// point identically.
-    fn __eq__(&self, other: &Self) -> bool {
-        self.0.bit_eq(&other.0)
-    }
-
-    fn __repr__(&self) -> String {
-        let o = self.0.origin();
-        let (u, v) = (self.0.u().get(), self.0.v().get());
-        format!(
-            "SketchPlane(origin=({}, {}, {}), u=({}, {}, {}), v=({}, {}, {}))",
-            o.x, o.y, o.z, u.x, u.y, u.z, v.x, v.y, v.z
-        )
-    }
-}
-
-/// The plane a sketch node sits on, from the mutually exclusive
-/// `plane=` / `elevation=` pair.
-///
-/// ONE lowering for both spellings: `elevation` is the xy sugar it has
-/// always been — the xy-plane translated up z — so there is a single
-/// place where a sketch plane is constructed, and no way for the two
-/// spellings to drift. Passing both is a boundary `TypeError`: the
-/// author asked for two different planes and the kernel is fail-loud,
-/// so nothing is silently preferred.
-///
-/// `elevated` says only WHETHER an elevation was written, because the
-/// height itself is an expression the caller authored and the frame
-/// this returns is a rigid value of floats. The plane it answers for
-/// an elevation is therefore the xy-plane at zero, and the caller
-/// writes the authored height into the origin's z slot.
-fn sketch_plane(
-    plane: Option<SketchPlane>,
-    elevated: bool,
-) -> PyResult<pncad::profile::SketchPlane<f64>> {
-    match (plane, elevated) {
-        (Some(_), true) => Err(pyo3::exceptions::PyTypeError::new_err(
-            "plane= and elevation= name the sketch plane two different ways; \
-             pass exactly one (elevation is the xy-plane sugar)",
-        )),
-        (Some(p), false) => Ok(p.0),
-        (None, _) => Ok(pncad::profile::SketchPlane::xy()),
     }
 }
 
@@ -2538,15 +2498,29 @@ impl Node {
     }
 }
 
-/// **The "place part" gesture's constraints added to `placement`** on
-/// `action`: the kernel's `place_at` over the placement's copy (a
-/// `Place`'s first shape, an instance's own output), the mate, then
-/// each value naming it.
+/// **How a gesture places a copy**: at a pose in the world, where its
+/// own coordinates stand it, or against another body at a pose in that
+/// body's own coordinates.
+#[derive(Clone, Copy)]
+enum Gesture<'a> {
+    /// `place_at`: in the world at the pose.
+    At(&'a d::Frame),
+    /// `stand`: in the world where the copy's own coordinates put it.
+    Stand,
+    /// `place_against`: against the target at the pose.
+    Against(&'a d::Operand, &'a d::Frame),
+}
+
+/// **A gesture's constraints added to `placement`** on `action`: the
+/// kernel's door for `how` over the placement's copy (a `Place`'s first
+/// shape, an instance's own output), written as `Placed::write` writes
+/// it: the mate, then each value naming it, or the values of a bundle
+/// with no mate as one edit.
 fn gesture(
     py: Python<'_>,
     action: &mut d::Recording<'_, d::ProfileProgram>,
     placement: d::RecipeNodeId,
-    pose: &d::Frame,
+    how: Gesture<'_>,
     opts: &d::EvalOptions,
     tol: Tol,
 ) -> PyResult<super::mate::Placed> {
@@ -2566,41 +2540,76 @@ fn gesture(
         }
     };
     let copy = d::Operand::Var(copy.unwrap_or_else(|| unreachable!("a placement defines a copy")));
-    let placed = d::place_at(action.doc(), &copy, pose, opts, tol).map_err(|refusal| {
+    let doc = action.doc();
+    let placed = match how {
+        Gesture::At(pose) => d::place_at(doc, &copy, pose, opts, tol),
+        Gesture::Stand => Ok(d::stand()),
+        Gesture::Against(target, pose) => d::place_against(doc, target, &copy, pose, opts, tol),
+    }
+    .map_err(|refusal| {
         boundary_edit_err(
             py,
             BoundaryEdit::Pin(&refusal),
             format!("the copy cannot be placed over its geometry: {refusal}"),
         )
     })?;
-    let mate = action
-        .apply_recorded(d::DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(placed.mate),
-            fresh: Vec::new(),
-        })
+    let by = placed.by;
+    let mated = placed.mate.is_some();
+    let minted = placed.write(placement, |edit| {
+        action
+            .apply_recorded(edit)
+            .map(|record| record.minted_constraints)
+    });
+    let mut refs = minted
         .map_err(edit_failed)?
-        .minted_constraints[0];
-    let mut values = Vec::with_capacity(placed.values.len());
-    for (coord, by) in placed.values {
-        let record = action
-            .apply_recorded(d::DocEdit::AddValue {
-                placement,
-                value: Box::new(d::Value { mate, coord, by }),
-                fresh: Vec::new(),
-            })
-            .map_err(edit_failed)?;
-        values.push(super::mate::MateRef(d::MateRef::new(
-            placement,
-            record.minted_constraints[0],
-        )));
-    }
+        .into_iter()
+        .map(|id| super::mate::MateRef(d::MateRef::new(placement, id)));
+    let mate = if mated { refs.next() } else { None };
+    let values = refs.collect();
     Ok(super::mate::Placed {
         placement: NodeId(placement),
-        mate: super::mate::MateRef(d::MateRef::new(placement, mate)),
+        mate,
         values,
-        by: placed.by,
+        by,
     })
+}
+
+impl Doc {
+    /// Insert one copy of `shapes` and place it by `how`, labelled
+    /// `label`, as one action.
+    fn placed(
+        &mut self,
+        py: Python<'_>,
+        shapes: ShapesArg,
+        how: Gesture<'_>,
+        resolver: Option<&super::store::Workspace>,
+        label: Option<&str>,
+    ) -> PyResult<super::mate::Placed> {
+        let label = label.map(|text| label_from_text(py, text)).transpose()?;
+        let tol = Tol::witness();
+        let seam = seam(resolver);
+        let opts = d::EvalOptions {
+            resolver: seam.clone(),
+            ..d::EvalOptions::default()
+        };
+        let mut action = d::Recording::start(&self.inner, tol);
+        let edit_failed = |err: d::EditError| edit_err(py, &err);
+        let placement = action
+            .insert(d::Node::place(shapes.reads()))
+            .map_err(edit_failed)?;
+        if let Some(label) = label {
+            action
+                .apply(d::DocEdit::SetLabel {
+                    node: placement,
+                    label: Some(label),
+                })
+                .map_err(edit_failed)?;
+        }
+        let placed = gesture(py, &mut action, placement, how, &opts, tol)?;
+        let done = action.finish().map_err(edit_failed)?;
+        self.take_up(done.doc, done.maintenance);
+        Ok(placed)
+    }
 }
 
 /// `mates` as a bundle, each id a placeholder the insert door mints.
@@ -2614,28 +2623,19 @@ fn bundle(mates: Vec<d::Mate<d::Formula>>) -> Vec<d::Constraint<d::Formula>> {
 
 #[pymethods]
 impl Node {
-    /// A closed polygonal sketch on a sketch plane.
-    ///
-    /// The plane is named either way, never both: `plane=` is a
-    /// `SketchPlane` (any rigid frame, including the named `yz`/`zx`),
-    /// `elevation=` is the xy sugar — the world xy-plane, that far up
-    /// z. The default is the xy-plane itself.
+    /// A closed polygonal sketch, drawn on its own xy.
     ///
     /// Coordinates arrive as length `Formula`s — the profile program's
     /// own slot type — so a vertex can be a written `25 mm`, a
     /// canonical literal or a parameter reference, and a bare number
-    /// is a boundary refusal rather than an ambiguous unit. They are
-    /// the sketch's own (x, y), which `plane` maps into the world.
-    ///
-    /// `elevation` places the sketch's plane, so two solids sketched at
-    /// different heights stack or interpenetrate as authored.
+    /// is a boundary refusal rather than an ambiguous unit. A profile
+    /// is 2-D: it has no location, and where a body built from it
+    /// stands is that body's placement's.
     #[staticmethod]
     fn polygon(
         py: Python<'_>,
         points: Vec<(super::expr::SlotArg, super::expr::SlotArg)>,
-        plane: OperandArg,
     ) -> PyResult<Self> {
-        let plane = plane.read();
         // The polygon as a loop PROGRAM (the post-switch v4 payload:
         // the program IS the profile's definition). The expansion
         // itself is `LoopProgram::polygon_expr`'s, not this door's:
@@ -2664,18 +2664,13 @@ impl Node {
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                frame: plane,
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
                 ids: Vec::new(),
             }),
         })
     }
 
-    /// The profile a PATHS loop authors, on a sketch plane.
-    ///
-    /// `plane=` / `elevation=` mean exactly what they mean on
-    /// [`Node::polygon`], through the same one lowering, and are
-    /// mutually exclusive for the same reason.
+    /// The profile a PATHS loop authors, drawn on its own xy.
     ///
     /// The node is built from the loop's RECORDED program — the same
     /// verbs, with the same authored arguments, that the chain wrote
@@ -2692,42 +2687,37 @@ impl Node {
     /// typed refusal at `evaluate`. The binding's only job is that the
     /// loops arrive in the order they were written.
     #[staticmethod]
-    fn profile(py: Python<'_>, outline: &Bound<'_, PyAny>, plane: OperandArg) -> PyResult<Self> {
-        let plane = plane.read();
+    fn profile(py: Python<'_>, outline: &Bound<'_, PyAny>) -> PyResult<Self> {
         let loops = loops_from_outline(py, outline)?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                frame: plane,
                 loops,
                 ids: Vec::new(),
             }),
         })
     }
 
-    /// Extrude an upstream profile to one side of its sketch plane.
+    /// Extrude an upstream profile up its own +z.
     ///
     /// `distance` is the node's `distance` slot, a depth: a size,
-    /// refused at `evaluate` unless definitely positive. Which way it
-    /// goes is `side` alone — along the plane's normal unless told
-    /// otherwise — and `DocEdit.set_extrude_side` moves it afterwards.
+    /// refused at `evaluate` unless definitely positive. The body lies
+    /// in its own coordinates, between its profile's xy and `distance`
+    /// up; a body that stands below a plane is placed so.
     /// `DocEdit.set_param(node, "distance", expr)` is what moves the
     /// depth, and what makes it a named, editable number: a literal is
     /// a new document per value, a parameter reference is one
     /// `set_var_value` per value.
     #[staticmethod]
-    #[pyo3(signature = (profile, distance, side = ExtrudeSide::Along))]
     fn extrude(
         py: Python<'_>,
         profile: OperandArg,
         distance: super::expr::SlotArg,
-        side: ExtrudeSide,
     ) -> PyResult<Self> {
         let distance = slot_expr(py, d::SlotId::Distance, &distance)?;
         Ok(Self {
             inner: d::Node::Extrude {
                 profile: profile.read(),
                 distance,
-                side: side.to_document(),
             },
         })
     }
@@ -2770,10 +2760,10 @@ impl Node {
     /// **A solid tube** — a ring torus, or an elbow of one, from its
     /// INTENT parameters.
     ///
-    /// `frame` is a `Node.datum_frame` (or a variable holding one): its
-    /// origin is the tube's centre, its normal (`u × v`) the spine
-    /// axis, and its `u` the reference direction the window's angles
-    /// are measured from.
+    /// The tube lies in its own coordinates: its spine is the circle
+    /// about its own z through its own origin, and its own x is the
+    /// reference direction the window's angles are measured from. Where
+    /// it stands is its placement's.
     ///
     /// # This is not `Node.revolve` of a circle
     ///
@@ -2789,24 +2779,17 @@ impl Node {
     /// convention `R > r > 0` — each is the kernel's own typed refusal
     /// at `evaluate`, tagged `tube`.
     ///
-    /// NEITHER FRAME DIRECTION HAS TO BE UNIT. The frame's own door
-    /// orthonormalizes `u` and `v` and refuses a degenerate or
-    /// parallel pair at the frame, one node upstream; what the tube
-    /// reads is always unit and perpendicular.
-    ///
     /// There is no wall argument: a tube with a wall is
     /// `Node.hollow_tube`, a different node kind.
     #[staticmethod]
     fn tube(
         py: Python<'_>,
-        frame: OperandArg,
         major_radius: super::expr::SlotArg,
         window: &TubeWindow,
         minor_radius: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Tube {
-                frame: frame.read(),
                 major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, &major_radius)?,
                 window: window.inner.clone(),
                 minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, &minor_radius)?,
@@ -2832,8 +2815,7 @@ impl Node {
     ///
     /// # Nothing is pre-checked, and the wall least of all
     ///
-    /// Everything `Node.tube` refuses, this refuses identically — the
-    /// frame orthonormalizes at the datum here too — plus
+    /// Everything `Node.tube` refuses, this refuses identically, plus
     /// three verdicts only this door can raise: the thickness is not
     /// positive at tolerance, `minor_radius - wall` is not a bore,
     /// and — the one neither of the others can see — the gap between
@@ -2844,7 +2826,6 @@ impl Node {
     #[staticmethod]
     fn hollow_tube(
         py: Python<'_>,
-        frame: OperandArg,
         major_radius: super::expr::SlotArg,
         window: &TubeWindow,
         minor_radius: super::expr::SlotArg,
@@ -2852,7 +2833,6 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::HollowTube {
-                frame: frame.read(),
                 major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, &major_radius)?,
                 window: window.inner.clone(),
                 minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, &minor_radius)?,
@@ -2863,274 +2843,47 @@ impl Node {
 
     /// A skinned solid through two or more section profiles.
     ///
-    /// `profiles` are upstream profile nodes IN SKIN ORDER — order is
-    /// data, and reversing it reverses the produced surface's
-    /// v-direction. `v_degree` is the v-direction interpolation
-    /// degree, a COUNT (structural material, D3), so it crosses as
-    /// `Formula.count` and not as a continuous literal.
-    ///
-    /// There is no placement argument, and that is the document
-    /// design rather than a missing one: each section rides its OWN
-    /// profile's sketch plane, so a stack is authored by giving the
-    /// sections different planes (`elevation=`, or `plane=` for
-    /// anything else).
+    /// `first` is the first section's profile, and `then` each later
+    /// section IN SKIN ORDER as `(profile, station)`: its profile and
+    /// the `StationMove`s that carry the first section's plane to its
+    /// own, slides along and spins about the first section's own axes,
+    /// applied in the order written. Order is data, and reversing it
+    /// reverses the produced surface's v-direction. The loft lies in
+    /// its first section's coordinates. `v_degree` is the v-direction
+    /// interpolation degree, a COUNT (structural material, D3), so it
+    /// crosses as `Formula.count` and not as a continuous literal.
     ///
     /// The degree is the node's `VDegree` slot —
     /// `DocEdit.bind_v_degree_param` is what makes it a named,
-    /// editable number, and `DocEdit.set_members` is what rewrites
-    /// the section list without re-authoring the node.
+    /// editable number, and `DocEdit.set_members` is what re-points the
+    /// sections' profiles without re-authoring the node (one per
+    /// section, else `loft_section_count`); a station's moves are its
+    /// `station_slide` and `station_spin` slots.
     ///
-    /// Nothing is pre-checked here. An empty or one-element list, a
-    /// degree outside `1 ≤ d ≤ len − 1`, a section that is not a
-    /// profile, sections whose loops do not correspond — every one of
-    /// those is the kernel's own typed refusal, arriving from `insert`
-    /// or from `evaluate` exactly where the Rust surface raises it.
+    /// Nothing is pre-checked here. Too few sections, a degree outside
+    /// `1 ≤ d ≤ len − 1`, a section that is not a profile, sections
+    /// whose loops do not correspond — every one of those is the
+    /// kernel's own typed refusal, arriving from `insert` or from
+    /// `evaluate` exactly where the Rust surface raises it.
     #[staticmethod]
     fn loft(
         py: Python<'_>,
-        profiles: Vec<OperandArg>,
+        first: OperandArg,
+        then: Vec<(OperandArg, Vec<StationMove>)>,
         v_degree: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Loft {
-                profiles: profiles.into_iter().map(OperandArg::read).collect(),
+                first: first.read(),
+                then: then
+                    .into_iter()
+                    .map(|(profile, station)| d::LoftSection {
+                        profile: profile.read(),
+                        station: station.into_iter().map(|m| m.0).collect(),
+                    })
+                    .collect(),
                 v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
             },
-        })
-    }
-
-    /// **The sketch frame a profile is drawn on**, as a node.
-    ///
-    /// `plane=` is a [`SketchPlane`] (any rigid frame, including the
-    /// named `yz`/`zx`); `elevation=` is the xy sugar — the world
-    /// xy-plane, that far up z. Exactly one, never both, and the
-    /// default is the xy-plane itself: the same two spellings
-    /// `Node.polygon` used to take, through the same one lowering.
-    ///
-    /// They moved HERE because a profile's plane became a document
-    /// node. A `Node` constructor cannot insert anything, so it cannot
-    /// mint the frame a profile would name; the caller inserts this
-    /// first and passes its id. That is not extra ceremony — it is the
-    /// frame becoming a thing in the document, editable and visible,
-    /// instead of twelve floats frozen inside a sketch.
-    #[staticmethod]
-    #[pyo3(signature = (plane=None, elevation=None))]
-    fn sketch_frame(
-        py: Python<'_>,
-        plane: Option<SketchPlane>,
-        elevation: Option<super::expr::SlotArg>,
-    ) -> PyResult<Self> {
-        // `elevation` is the one AUTHORED number this door takes, and
-        // it is the frame's own origin z: the xy-plane that far up.
-        // The rest of the frame is a rigid VALUE, twelve floats with
-        // no notation to keep, so it lowers to canonical literals.
-        let elevation = elevation
-            .map(|e| slot_expr(py, d::SlotId::Origin(d::Axis3::Z), &e))
-            .transpose()?;
-        let plane = sketch_plane(plane, elevation.is_some())?;
-        let (o, u, v) = (plane.origin(), plane.u().get(), plane.v().get());
-        let len = |x: f64| literal(py, x, d::Dimension::Length);
-        let scl3 = |v: pncad::prelude::Vec3<f64>| -> PyResult<[d::Formula; 3]> {
-            Ok([
-                literal(py, v.x, d::Dimension::Scalar)?,
-                literal(py, v.y, d::Dimension::Scalar)?,
-                literal(py, v.z, d::Dimension::Scalar)?,
-            ])
-        };
-        let z = match elevation {
-            Some(e) => e,
-            None => len(o.z)?,
-        };
-        Ok(Self {
-            inner: d::Node::Datum(d::Datum::Frame {
-                origin: [len(o.x)?, len(o.y)?, z],
-                u: scl3(u)?,
-                v: scl3(v)?,
-            }),
-        })
-    }
-
-    /// A datum axis: a point and a direction.
-    ///
-    /// The origin's three slots are `Length`s; the direction's are
-    /// dimensionless, matching `SlotId::Direction`'s `Scalar`.
-    #[staticmethod]
-    fn datum_axis(
-        py: Python<'_>,
-        origin: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
-        direction: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
-    ) -> PyResult<Self> {
-        let origin = direction_expr(py, d::VectorSlot::Origin, &origin)?;
-        let direction = direction_expr(py, d::VectorSlot::Direction, &direction)?;
-        Ok(Self {
-            inner: d::Node::Datum(d::Datum::Axis { origin, direction }),
-        })
-    }
-
-    /// **A sketch frame DERIVED from a face** — "sketch on this
-    /// face", as a node.
-    ///
-    /// `at` is the body-denoting node the face is read out of, and it
-    /// is a DAG input: the frame moves when the face moves, so raising the
-    /// body carries every sketch built on this frame up with it.
-    /// `face` is one of the opaque texts `Evaluation.all_faces` /
-    /// `select` answered with, handed back unread — the face is
-    /// NAMED, never transcribed as nine numbers.
-    ///
-    /// `spin` turns sketch +x about the face's OUTWARD normal, from
-    /// the carrier's own u-reference, right-handed. It has no default:
-    /// which way a sketch faces on a face is an authoring decision,
-    /// and a door that quietly chose zero would put a convention where
-    /// the document should carry one. Pass `Formula.literal(0 * rad)` to take
-    /// u-reference unturned.
-    ///
-    /// The outward normal is the face's orientation sense times the
-    /// carrier's chart axis — `Pose.sense` and `Pose.axis`, the same
-    /// two facts `Evaluation.face_frame` hands out — so a sketch on
-    /// the underside of a plate faces out of the plate.
-    ///
-    /// An edge or vertex name refuses at the insert
-    /// (`EditError` `selection_name_kind`). The rest refuse typed at
-    /// `evaluate`, never here: `select_resolve` for a name that stopped
-    /// denoting (the repair is `DocEdit.rebind`),
-    /// `face_frame_not_planar` for a curved carrier — a
-    /// sketch frame wants a plane, and `Evaluation.face_carrier_kind`
-    /// is the door that answers which carrier it found — and
-    /// `face_frame_readback` for a body whose stored geometry cannot
-    /// be re-read.
-    #[staticmethod]
-    fn datum_face_frame(
-        py: Python<'_>,
-        at: OperandArg,
-        face: &str,
-        spin: super::expr::SlotArg,
-    ) -> PyResult<Self> {
-        let spin = slot_expr(py, d::SlotId::Spin, &spin)?;
-        Ok(Self {
-            inner: d::Node::Datum(d::Datum::face_frame(at.read(), name_from_text(face)?, spin)),
-        })
-    }
-
-    /// **An oriented plane** — a sketch frame, from its origin and its
-    /// two in-plane directions.
-    ///
-    /// The origin is dimensioned (`Length`); `u` and `v` are
-    /// dimensionless triples, matching `SlotId::U`'s and
-    /// `SlotId::V`'s `Scalar`. They are authored freely and
-    /// ORTHONORMALIZED at evaluation with `u` KEPT: sketch +x is the
-    /// direction written here, and `v` yields its component along `u`,
-    /// so editing `v` alone cannot silently turn every profile drawn
-    /// on the frame.
-    ///
-    /// A [`Node::datum_plane`] pins five of a placement's six rigid
-    /// degrees of freedom. The sixth — the spin about the normal — is
-    /// what a sketch's x and y axes ARE, so a plane cannot serve as a
-    /// profile's plane and this is the node `Node.profile` names.
-    ///
-    /// [`Node::sketch_frame`] mints the same arm from a
-    /// [`SketchPlane`] value, which is where the named `xy`/`yz`/`zx`
-    /// planes and the `elevation=` sugar live. This door is the arm's
-    /// own spelling: three triples written straight into the node's
-    /// nine expression slots, with no rigid-frame value in between.
-    ///
-    /// Refuses at `evaluate`, never here. A `u` of zero length, or a
-    /// `v` parallel to it, is `degenerate_direction` naming which axis
-    /// went — `datum frame x axis`, `datum frame y axis`. A pair that
-    /// is merely not perpendicular is LEGAL: orthogonalizing it is
-    /// what the arm does.
-    #[staticmethod]
-    fn datum_frame(
-        py: Python<'_>,
-        origin: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
-        u: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
-        v: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
-    ) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::Node::Datum(d::Datum::Frame {
-                origin: direction_expr(py, d::VectorSlot::Origin, &origin)?,
-                u: direction_expr(py, d::VectorSlot::U, &u)?,
-                v: direction_expr(py, d::VectorSlot::V, &v)?,
-            }),
-        })
-    }
-
-    /// A datum plane: a point and a normal.
-    ///
-    /// The origin is dimensioned (`Length`); the normal is a
-    /// dimensionless triple, matching `SlotId::Normal`'s `Scalar`, and
-    /// is UNNORMALIZED — the evaluator normalizes it, or refuses a
-    /// degenerate one loudly. This is the tool a `Node.split` cuts
-    /// with.
-    #[staticmethod]
-    fn datum_plane(
-        py: Python<'_>,
-        origin: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
-        normal: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
-    ) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::Node::Datum(d::Datum::Plane {
-                origin: direction_expr(py, d::VectorSlot::Origin, &origin)?,
-                normal: direction_expr(py, d::VectorSlot::Normal, &normal)?,
-            }),
-        })
-    }
-
-    /// A datum point: a position, and nothing else.
-    ///
-    /// The position is dimensioned (`Length`), matching
-    /// `SlotId::Origin`. There is no direction, because a point has
-    /// none — `Datum.direction` reads back `None` for this kind, where
-    /// a plane's or an axis's answers a triple.
-    ///
-    /// It denotes no body and cuts nothing; what a point is FOR is
-    /// being referred to. `GeomPred.datum_distance` reads an entity's
-    /// UNSIGNED distance to it, so a point is how a selection says
-    /// "near here" without naming a face.
-    ///
-    /// Nothing refuses at evaluation: three slots are read and the
-    /// position is the value. A non-finite coordinate refuses HERE, as
-    /// every literal does.
-    #[staticmethod]
-    fn datum_point(
-        py: Python<'_>,
-        position: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
-    ) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::Node::Datum(d::Datum::Point {
-                position: direction_expr(py, d::VectorSlot::Origin, &position)?,
-            }),
         })
     }
 
@@ -3299,63 +3052,6 @@ impl Node {
                 tool: tool.read(),
             },
         }
-    }
-
-    /// A rigid placement of an upstream body.
-    ///
-    /// The convention is the kernel's, unchanged: rotate about
-    /// `rotation_axis` THROUGH THE WORLD ORIGIN by `rotation_angle`,
-    /// THEN translate. A pure translation is therefore written with
-    /// any non-degenerate axis and a zero angle — the axis is
-    /// normalized by the evaluator, and a zero-length one refuses
-    /// (`degenerate_direction`) rather than being read as "no
-    /// rotation".
-    ///
-    /// `translation`'s slots are `Length`s; the axis's are
-    /// dimensionless, matching `SlotId::RotationAxis`'s `Scalar`; the
-    /// angle's is an `Angle`.
-    ///
-    /// `Node.transform_by(input, Placement.rigid(...))`, spelled with
-    /// its three components; the checks are that door's.
-    #[staticmethod]
-    fn transform(
-        py: Python<'_>,
-        input: OperandArg,
-        translation: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
-        rotation_axis: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
-        rotation_angle: super::expr::SlotArg,
-    ) -> PyResult<Self> {
-        Self::transform_by(
-            py,
-            input,
-            &super::place::Placement::rigid(py, translation, rotation_axis, rotation_angle)?,
-        )
-    }
-
-    /// A placement of an upstream body by a `Placement` chain — rigid
-    /// steps a parameter can drive, literal frames, or both.
-    /// `Node.transform` is this with one rigid step.
-    ///
-    /// Every rigid step's components are checked against the slot
-    /// they land in, so a refusal names that step's own slot: an angle
-    /// handed to a later step's translation says which step.
-    #[staticmethod]
-    fn transform_by(
-        py: Python<'_>,
-        input: OperandArg,
-        placement: &super::place::Placement,
-    ) -> PyResult<Self> {
-        let inner = d::Node::transform(input.read(), placement.0.clone());
-        Self::check_slots(py, &inner)?;
-        Ok(Self { inner })
     }
 
     /// **One copy of `shapes`, placed by `constraints`**: the operation
@@ -3843,6 +3539,50 @@ impl Measured {
 
     fn __repr__(&self) -> String {
         format!("Measured({} measures)", self.measures.len())
+    }
+}
+
+/// **What `Doc.sketch_on_face` inserted**: the profile, its extrude,
+/// the extrude's copy placed on the face, and the union of the face's
+/// body with the copy.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct SketchedOnFace(d::SketchedOnFace);
+
+#[pymethods]
+impl SketchedOnFace {
+    /// The profile, drawn on its own plane.
+    #[getter]
+    fn profile(&self) -> NodeId {
+        NodeId(self.0.profile)
+    }
+
+    /// The profile extruded up its own `z`.
+    #[getter]
+    fn extrude(&self) -> NodeId {
+        NodeId(self.0.extrude)
+    }
+
+    /// The extrude's copy, placed on the face.
+    #[getter]
+    fn placement(&self) -> NodeId {
+        NodeId(self.0.placement)
+    }
+
+    /// The face's body and the copy, fused.
+    #[getter]
+    fn union(&self) -> NodeId {
+        NodeId(self.0.union)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "SketchedOnFace(profile={}, extrude={}, placement={}, union={})",
+            self.0.profile.full(),
+            self.0.extrude.full(),
+            self.0.placement.full(),
+            self.0.union.full()
+        )
     }
 }
 
@@ -4739,19 +4479,6 @@ impl DocEdit {
         }
     }
 
-    /// Set which side of its sketch plane the extrude `node` goes
-    /// toward — the structural half of an extrude that no value of its
-    /// depth can flip. Refuses typed on a node that is not an extrude.
-    #[staticmethod]
-    fn set_extrude_side(node: &NodeId, side: ExtrudeSide) -> Self {
-        Self {
-            inner: d::DocEdit::SetExtrudeSide {
-                node: node.0,
-                side: side.to_document(),
-            },
-        }
-    }
-
     /// Bind `node`'s STRUCTURAL instance slot to the document
     /// parameter `name` — the edit that makes a `Node.part`'s index
     /// into a pattern a named, editable number.
@@ -4848,17 +4575,20 @@ impl DocEdit {
         }
     }
 
-    /// **Pin `placement`'s copy where its body stands** (stage 3 C's
-    /// named interim): a world pin with no read and no number, placing
-    /// the copy at the identity of the world's coordinates. It stands
-    /// alone: refuses typed on `EditError`, `constraint_on_non_placement`
-    /// and `mate_refused` (`mate_overconstrained`) on a bundle holding
-    /// anything else.
+    /// **Add `values` to `placement`'s bundle as one write**: a bundle
+    /// with no mate, whose values state the copy's whole motion, is
+    /// admitted only whole (`Doc.add_values` answers their addresses).
+    ///
+    /// Refuses typed on `EditError`: `constraint_on_non_placement`, and
+    /// `mate_refused` with the door's fault — `mate_unpinned`,
+    /// `mate_overconstrained`, `mate_no_chart`, and each value's own.
     #[staticmethod]
-    fn pin_where_it_stands(placement: &NodeId) -> Self {
+    fn add_values(placement: &NodeId, values: Vec<super::mate::MateValue>) -> Self {
         Self {
-            inner: d::DocEdit::PinWhereItStands {
+            inner: d::DocEdit::AddValues {
                 placement: placement.0,
+                values: values.into_iter().map(|value| value.0).collect(),
+                fresh: Vec::new(),
             },
         }
     }
@@ -5171,10 +4901,9 @@ impl TubeWindow {
 }
 
 /// Every kernel window spelling has a constructor on the python
-/// mirror, enforced in the load-bearing direction (the `ExtrudeSide`
-/// mirror's argument, verbatim): the match is over the KERNEL enum, so
-/// a variant added there breaks this build rather than leaving the
-/// python surface silently short of it. Never called.
+/// mirror, enforced in the load-bearing direction: the match is over
+/// the KERNEL enum, so a variant added there breaks this build rather
+/// than leaving the python surface silently short of it. Never called.
 const fn _binds_every_kernel_window(kernel: &d::TubeWindow<d::Formula>) -> &'static str {
     match kernel {
         d::TubeWindow::Full => "full",
@@ -5191,6 +4920,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<VarName>()?;
     m.add_class::<Var>()?;
     m.add_class::<Measured>()?;
+    m.add_class::<SketchedOnFace>()?;
     m.add_class::<FreeVar>()?;
     m.add_class::<VarDecl>()?;
     // The expansion bound `definition_too_large`'s `count` is measured
@@ -5198,10 +4928,9 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("DEFINITION_NODE_BOUND", d::DEFINITION_NODE_BOUND)?;
     m.add_class::<FreeValue>()?;
     m.add_class::<Node>()?;
-    m.add_class::<SketchPlane>()?;
-    m.add_class::<ExtrudeSide>()?;
     m.add_class::<PartSelect>()?;
     m.add_class::<TubeWindow>()?;
+    m.add_class::<StationMove>()?;
     m.add_class::<Loaded>()?;
     m.add_function(wrap_pyfunction!(load, m)?)?;
     Ok(())

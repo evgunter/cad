@@ -93,10 +93,27 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// as payload, which moves every extrude's id and every id after it;
 /// and declaring the die's variables mints their ids on the chain,
 /// which moves every id minted after a declare (ids only: no name's
-/// wording moved). Re-pinned for wording: the die's subtracts name a
-/// seam's sides and a crossing's edge and face as their own tables carry
-/// them in, each with its read, in name order (N3); no id moved.
-const DIE_TABLE_DIGEST: u64 = 0xaad5203d809fb4c4;
+/// wording moved).
+///
+/// **Re-pinned for INTENT stage 3 D** (Transform retires into a
+/// placement), for the ids: the die's profiles read no `Datum::Frame`
+/// node (a profile is 2-D), its extrudes carry no side, and its copy
+/// stands by `mate::stand`'s plane mate where C's world pin held it, so
+/// the document lost its frame nodes (64 → 57) and every id moved.
+///
+/// Re-pinned for wording: the die's subtracts name a seam's sides and a
+/// crossing's edge and face as their own tables carry them in, each with
+/// its read, in name order (N3); no id moved. Measured merging main at
+/// `be82e5ad6b` into D, where the pips are placed copies, the value is
+/// neither tree's.
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
+const DIE_TABLE_DIGEST: u64 = 0xc3d310092d777823;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
@@ -117,10 +134,19 @@ const DIE_TABLE_DIGEST: u64 = 0xaad5203d809fb4c4;
 /// seat's read, and their node ids re-minted with the node kind. The same
 /// fence held.
 ///
+/// **Re-pinned for INTENT stage 3 D** with `DIE_TABLE_DIGEST`: every id
+/// moved with the frame nodes, and a pip operand is placed against the
+/// die's root before it is joined, so the names it carries are wrapped
+/// `Placed { of }`.
+///
 /// **Re-pinned with `DIE_TABLE_DIGEST`** for a seam's sides and a
 /// crossing's lines named in the subtract's own table (N3): the names'
-/// wording moved, no id.
-const DIE_NAMES_DIGEST: u64 = 0xff9c_5d65_b162_3220;
+/// wording moved, no id. Measured with `DIE_TABLE_DIGEST` on the
+/// merged tree.
+///
+/// Re-pinned with `DIE_TABLE_DIGEST` when the pips came to stand by a
+/// frame mate each: every placement and the names under it are new.
+const DIE_NAMES_DIGEST: u64 = 0x9f56_5ad6_9ed5_ca07;
 
 #[test]
 fn die_name_tables_are_golden() {

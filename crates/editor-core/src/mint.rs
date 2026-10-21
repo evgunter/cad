@@ -700,7 +700,6 @@ mod tests {
         Node::Extrude {
             profile: VarId::new(0, profile),
             distance: VarId::new(0, distance.to_bits()),
-            side: crate::ExtrudeSide::Along,
         }
     }
 
@@ -768,9 +767,9 @@ mod tests {
     /// The display unit a slot is written in enters neither the
     /// anonymous variable's preimage (its kind and what it holds, a
     /// value by its bits and a definition with its literals canonical:
-    /// [`Held`]) nor the node's (its variables' ids). So one point
-    /// written in millimetres and in metres mints one id, and so does
-    /// one written `w + 125 mm` and `w + 0.125 m` (D6).
+    /// [`Held`]) nor the node's (its variables' ids). So one tube's
+    /// radii written in millimetres and in metres mint one id, and so do
+    /// radii written `w + 125 mm` and `w + 0.125 m` (D6).
     #[test]
     fn the_display_unit_is_not_part_of_what_an_insert_hashes() {
         let base = || {
@@ -790,10 +789,15 @@ mod tests {
         };
         let point = |position: [crate::Formula; 3]| -> RecipeNodeId {
             let doc = base();
+            let [major_radius, minor_radius, _] = position;
             let applied = crate::edit::apply(
                 &doc,
                 &crate::DocEdit::InsertNode {
-                    node: Box::new(Node::Datum(crate::node::Datum::Point { position })),
+                    node: Box::new(Node::Tube {
+                        major_radius,
+                        window: crate::node::TubeWindow::Full,
+                        minor_radius,
+                    }),
                     fresh: Vec::new(),
                 },
                 geom_core::Tol::witness(),
@@ -806,7 +810,7 @@ mod tests {
         assert_eq!(
             point(mm),
             point(m),
-            "one point in two units mints one id (D6)"
+            "one tube in two units mints one id (D6)"
         );
         let w =
             || crate::Formula::named(crate::VarName::from_static("w"), crate::Dimension::Length);
@@ -868,7 +872,7 @@ mod tests {
     }
 
     /// **The mint's bytes are frozen**: one fixture edit — a unit
-    /// square on plane 0, inserted into the empty document — mints this
+    /// square on its own plane, inserted into the empty document — mints this
     /// node id and these first and last of its five step ids, and leaves
     /// this chain. A change to the preimage's shape, its serde form,
     /// the tags or the id's form re-mints every id every saved log
@@ -879,7 +883,6 @@ mod tests {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
         let steps = square.authored_steps();
         let node = Node::Profile(ProfileProgram {
-            frame: crate::Operand::Node(RecipeNodeId::new(0, 0)),
             loops: vec![square],
             ids: Vec::new(),
         });
@@ -904,10 +907,10 @@ mod tests {
         );
     }
 
-    const PIN_NODE: &str = "1:3891bf6f915959d8";
-    const PIN_FIRST: &str = "2:b44f6e15ece0cab7";
-    const PIN_LAST: &str = "6:8c2dcbfc1bd2df19";
-    const PIN_CHAIN: &str = "8c2dcbfc1bd2df19e446f386e23b0310cb4485596bbc3701844ffcd33b3d94c8";
+    const PIN_NODE: &str = "1:5477de21201adbb2";
+    const PIN_FIRST: &str = "2:3e43cddf2fab65c3";
+    const PIN_LAST: &str = "6:3bf5529b4bc59ddb";
+    const PIN_CHAIN: &str = "3bf5529b4bc59ddb606975d29e455c523039e6fb80bd22d4f640ee472e351c5f";
 
     const LEN: VarKind = VarKind::Length;
 

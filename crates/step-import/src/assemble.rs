@@ -948,9 +948,10 @@ pub(crate) fn build_one_solid(
     // refusal part-way closes the scope by dropping it.
     let mut door = body.begin_surgery();
     let faces = assemble_solid(&mut door, solid, tol, file)?;
-    topo::mint_pcurves(&mut door, tol).map_err(|source| StepImportError::Pcurves { source })?;
+    topo::mint_pcurves(&mut door, tol)
+        .map_err(|source| StepImportError::Pcurves { source, file })?;
     door.sweep_and_close();
-    let joins = join(&mut body, solid.id, &faces, tol)?;
+    let joins = join(&mut body, solid.id, &faces, tol, file)?;
     Ok((body, joins))
 }
 
@@ -970,10 +971,12 @@ fn join(
     solid: u64,
     faces: &BTreeMap<FaceKey, u64>,
     tol: Tol,
+    file: FileCoincidence,
 ) -> Result<Vec<StructureNormalization>, StepImportError> {
     let refused = |refusal: &topo::BooleanError| StepImportError::Join {
         solid,
         refusal: topo::JoinRefusal::of(refusal),
+        file,
     };
     // A tolerance that makes no band (an ε within K of `f64::MAX`) cannot
     // read whether a vertex is joinable, so the join refuses here rather

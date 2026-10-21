@@ -124,7 +124,7 @@ pub(super) fn big_dot(a: &[BigInt; 3], b: &[BigInt; 3]) -> BigInt {
 }
 
 /// `n / d`, `d > 0`, to a few ulps.
-fn ratio(n: &BigInt, d: &BigInt) -> f64 {
+pub(super) fn ratio(n: &BigInt, d: &BigInt) -> f64 {
     let head = |x: &BigInt| {
         let shift = x.bits().saturating_sub(62);
         (i64::try_from(x >> shift).unwrap() as f64, shift as i32)

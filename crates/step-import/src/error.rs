@@ -252,6 +252,8 @@ pub enum StepImportError {
     Pcurves {
         /// The minting pass's error, displayed.
         source: topo::PcurveMintError,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
     },
     /// The join every finisher ends with (`docs/DESIGN.md`, maximal
     /// edges; Ev's PR 4251 ruling) refused on the adopted solid: where
@@ -264,6 +266,8 @@ pub enum StepImportError {
         solid: u64,
         /// Why the join refused.
         refusal: topo::JoinRefusal,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
     },
     /// An assembly instance's placement map is not admitted as a rigid
     /// motion at the kernel's decided door
@@ -287,6 +291,8 @@ pub enum StepImportError {
         transform: u64,
         /// The transform op's error, displayed.
         source: topo::TransformError,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
     },
     /// A placed assembly instance refused to graft into the result
     /// body at the kernel's own [`topo::graft_disjoint`] door — the
@@ -445,12 +451,11 @@ impl fmt::Display for StepImportError {
                  interpretation budget, so the refusal is typed rather than guessed \
                  (D7's ambiguity contract)"
             ),
-            Self::Pcurves { source } => {
-                write!(
-                    f,
-                    "step import: pcurve re-mint on the adopted body: {source}"
-                )
-            }
+            Self::Pcurves { source, file } => write!(
+                f,
+                "step import: pcurve re-mint on the adopted body: {}",
+                source.render(*file)
+            ),
             Self::TierInvalid { solid, errors } => {
                 // Both forms of each verdict: the Debug shape names
                 // the failing CHECK and its entity keys structurally
@@ -475,40 +480,29 @@ impl fmt::Display for StepImportError {
                     verdicts.join("; ")
                 )
             }
-            Self::Join { solid, refusal } => {
-                write!(
-                    f,
-                    "step import: joining the edges of the solid at #{solid}: "
-                )?;
-                // The import door reads the adopted body at rest.
-                match refusal {
-                    topo::JoinRefusal::Undecided(undecided) => match undecided.diag() {
-                        Some(diag) => write!(
-                            f,
-                            "{} is undecided ({}). {}",
-                            topo::JOIN_SUBJECT,
-                            diag.payload(),
-                            diag.ending_noted(
-                                topo::JOIN_LEVER,
-                                geom_brep::recourse::unreadable_margin_note(
-                                    geom_brep::recourse::Reading::AtRest
-                                )
-                            )
-                        ),
-                        None => write!(f, "{refusal}"),
-                    },
-                    _ => write!(f, "{refusal}"),
-                }
-            }
+            Self::Join {
+                solid,
+                refusal,
+                file,
+            } => write!(
+                f,
+                "step import: joining the edges of the solid at #{solid}: {}",
+                refusal.render(*file)
+            ),
             Self::PlacementMap { transform, source } => write!(
                 f,
                 "step import: the assembly placement stated at #{transform} is not admitted \
                  as a rigid motion: {source}"
             ),
-            Self::Placement { transform, source } => write!(
+            Self::Placement {
+                transform,
+                source,
+                file,
+            } => write!(
                 f,
                 "step import: the assembly placement stated at #{transform} refused \
-                 at the kernel’s transform door: {source}"
+                 at the kernel’s transform door: {}",
+                source.render(*file)
             ),
             Self::Instance { solid, source } => write!(
                 f,
@@ -530,7 +524,10 @@ mod join_text {
     //! place of a lever about an operation's inputs.
     #![allow(clippy::unwrap_used)]
 
-    use geom_core::{Band, Indeterminate, MarginDiag, UNREADABLE_STORED_MARGIN_NOTE};
+    use geom_core::{
+        Band, DAMAGED_FILE_ENDING, FileCoincidence, Indeterminate, MarginDiag,
+        UNREADABLE_FILE_MARGIN_NOTE,
+    };
 
     use super::StepImportError;
 
@@ -547,6 +544,7 @@ mod join_text {
                 vertex: topo::VertexKey::default(),
                 reading: topo::JoinReading::Regularity(diag),
             }),
+            file: FileCoincidence::new(1e-6),
         };
         (diag, error.to_string())
     }
@@ -571,10 +569,94 @@ mod join_text {
             text,
             format!(
                 "{lead}{subject} is undecided ({}). Recourse: {lever}; \
-                 {UNREADABLE_STORED_MARGIN_NOTE}",
+                 {UNREADABLE_FILE_MARGIN_NOTE}",
                 poisoned.payload()
             ),
-            "an unreadable margin"
+            "an unreadable margin names the file at the import door"
+        );
+    }
+
+    /// **A join refusal a bad file reaches names the file at the import
+    /// door** (D2 (iv)): the kernel-defect arm ends in the damaged
+    /// file's ending, not the at-rest kernel-or-file one. Red if the
+    /// door reads the join at rest.
+    #[test]
+    fn a_refused_join_at_import_names_the_file() {
+        let error = StepImportError::Join {
+            solid: 7,
+            refusal: topo::JoinRefusal::Kernel {
+                kind: topo::BooleanErrorKind::JoinDesync,
+            },
+            file: FileCoincidence::new(1e-6),
+        };
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "step import: joining the edges of the solid at #7: the join of two edges \
+                 meeting at a vertex on one curve refused (JoinDesync). {DAMAGED_FILE_ENDING}"
+            )
+        );
+    }
+}
+
+#[cfg(test)]
+mod nested_at_the_door {
+    //! **A nested refusal the import door renders reads that door**: the
+    //! placement's re-certification and the pcurve re-mint's escalation,
+    //! each past the file's ε_in, end in the damaged file's ending. Red if
+    //! the door renders the nested refusal's `Display` (a build) or reads
+    //! it at rest.
+    #![allow(clippy::unwrap_used)]
+
+    use geom_core::{Band, DAMAGED_FILE_ENDING, FileCoincidence, Indeterminate, MarginDiag};
+
+    use super::StepImportError;
+
+    #[test]
+    fn a_placements_refused_recertification_names_the_file() {
+        let error = StepImportError::Placement {
+            transform: 9,
+            source: topo::TransformError::Certify {
+                edge: topo::EdgeKey::default(),
+                source: geom_brep::CertifyError::ResidualExceeded {
+                    check: geom_brep::CertCheck::EndpointStart,
+                    sample: 0,
+                    margin: MarginDiag::value(2e-6),
+                },
+            },
+            file: FileCoincidence::new(1e-6),
+        };
+        let text = error.to_string();
+        assert!(
+            text.starts_with("step import: the assembly placement stated at #9 refused")
+                && text.ends_with(DAMAGED_FILE_ENDING),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_pcurve_remints_escalation_names_the_file() {
+        let error = StepImportError::Pcurves {
+            source: topo::PcurveMintError::Certify {
+                half_edge: topo::HalfEdgeKey::default(),
+                error: geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartWinding,
+                    sample: 0,
+                    cause: Indeterminate {
+                        margin: MarginDiag::value(5e-9),
+                        band: Band::new(1e-9, 1e-8).unwrap(),
+                        predicate: None,
+                        terminal_sliver: false,
+                    },
+                },
+            },
+            file: FileCoincidence::new(1e-6),
+        };
+        let text = error.to_string();
+        assert!(
+            text.starts_with("step import: pcurve re-mint on the adopted body:")
+                && text.ends_with(DAMAGED_FILE_ENDING),
+            "{text}"
         );
     }
 }

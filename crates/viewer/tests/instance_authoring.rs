@@ -51,17 +51,12 @@ fn instance_of(session: &DocSession, node: RecipeNodeId) -> (pncad::document::Do
     }
 }
 
-/// Whether the instance's bundle is the "place part" gesture's — one
-/// mate to the world and the three values naming it — and solves to
-/// the identity: the insert door's own placement (A11 (2)).
+/// Whether the instance's bundle is the identity bundle the place
+/// gesture writes (no mate, the constant `0` on every freedom), which
+/// `SolvedPoses::at_identity` reads off the recipe: the insert door's
+/// own placement (A11 (2)).
 fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
-    let doc = session.doc();
-    let bundle = crate::fixture::bundle(doc, node);
-    let placed_by_gesture = matches!(bundle.as_slice(), [mate, values @ ..]
-        if mate.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))
-            && values.len() == 3
-            && values.iter().all(|v| v.value().is_some_and(|v| v.mate == mate.id)));
-    placed_by_gesture && common::solve(session, doc, Tol::witness()).at_identity(node)
+    common::solve(session, session.doc(), Tol::witness()).at_identity(node)
 }
 
 // --- the acceptance ------------------------------------------------
@@ -571,7 +566,7 @@ fn post_file(bench: &asm::Bench) -> PathBuf {
 fn move_the_posts_pin(bench: &asm::Bench, tol: Tol) {
     let text = std::fs::read_to_string(post_file(bench)).expect("the post reads");
     let loaded = pncad::document::load(&text, tol).expect("the post loads");
-    let (edited, _) = common::framed_square(&loaded.doc, 0.005, tol);
+    let (edited, _) = common::square_profile(&loaded.doc, 0.005, tol);
     let mut ws = Workspace::open(&bench.dir).expect("the directory scans");
     ws.resave(&edited, tol).expect("the post rewrites");
 }
@@ -1072,7 +1067,7 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
         .clone();
     let text = std::fs::read_to_string(&shelf_file).expect("the shelf reads");
     let loaded = pncad::document::load(&text, tol).expect("the shelf loads");
-    let (edited, _) = common::framed_square(&loaded.doc, 0.005, tol);
+    let (edited, _) = common::square_profile(&loaded.doc, 0.005, tol);
     Workspace::open(&bench.dir)
         .expect("the directory scans")
         .resave(&edited, tol)

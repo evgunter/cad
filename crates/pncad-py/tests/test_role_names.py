@@ -83,8 +83,8 @@ HI, HO, HB, HT = 1.25, 1.75, 0.25, 0.75
 T, ROLL = 0.125, 0.125
 
 
-def axis_of(doc, frame):
-    """The sketch frame's own +y through its origin."""
+def axis_of():
+    """The profile's own +y through its origin."""
     return (
         (Formula.length_in(0, m), Formula.length_in(0, m)),
         Formula.turn_over(4),
@@ -94,11 +94,10 @@ def axis_of(doc, frame):
 def ring(doc):
     """A square-section ring: `band` 0 is the bottom annulus, 1 the
     outer cylinder, 2 the top annulus, 3 the inner one."""
-    frame = doc.sketch_frame()
     chain, legs = polygon([(RI, 0), (RO, 0), (RO, H), (RI, H)])
-    profile = doc.insert(Node.profile(chain, plane=frame))
+    profile = doc.insert(Node.profile(chain))
     return Scene(doc, profile, [legs]), doc.insert(
-        Node.revolve(profile, *axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
+        Node.revolve(profile, *axis_of(), Formula.angle_in(2 * math.pi, rad))
     )
 
 
@@ -106,11 +105,10 @@ def frustum(doc):
     """A truncated cone standing on the axis: `band` 0 is the base
     disc, 1 the cone wall, 2 the top disc, and segment 3 is the
     meridian ON the axis, which sweeps nothing."""
-    frame = doc.sketch_frame()
     chain, legs = polygon([(0, 0), (R_BASE, 0), (R_TOP, H_F), (0, H_F)])
-    profile = doc.insert(Node.profile(chain, plane=frame))
+    profile = doc.insert(Node.profile(chain))
     return Scene(doc, profile, [legs]), doc.insert(
-        Node.revolve(profile, *axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
+        Node.revolve(profile, *axis_of(), Formula.angle_in(2 * math.pi, rad))
     )
 
 
@@ -118,14 +116,13 @@ def holed_ring(doc):
     """The ring's square section with a square hole cut in it: loop 0
     is the outer boundary, loop 1 the hole, and the revolve of a
     lamina-with-hole is one body of two square-torus shells."""
-    frame = doc.sketch_frame()
     outer, outer_legs = polygon([(RI, 0), (RO, 0), (RO, H), (RI, H)])
     hole, hole_legs = polygon([(HI, HB), (HO, HB), (HO, HT), (HI, HT)])
-    profile = doc.insert(Node.profile([outer, hole], plane=frame))
+    profile = doc.insert(Node.profile([outer, hole]))
     return Scene(doc, profile, [outer_legs, hole_legs]), doc.insert(
         Node.revolve(
             profile,
-            *axis_of(doc, frame),
+            *axis_of(),
             Formula.angle_in(2 * math.pi, rad),
         )
     )

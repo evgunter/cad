@@ -57,9 +57,11 @@ import pncad
 from pncad import (
     Doc,
     Formula,
+    Frame,
     Node,
     Open,
     Start,
+    StationMove,
     ValidationError,
     ValidationFinding,
     assemble,
@@ -75,8 +77,14 @@ from test_assembly_eval import opened
 RUNGS = ("validate", "validate_closed", "validate_geometric", "validate_pseudomanifold")
 
 
-def slab(doc, x, y, z):
-    """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1], in metres."""
+def lift(z):
+    """The translation `z` up."""
+    return Frame.translation((0 * m, 0 * m, z))
+
+
+def slab(doc, x, y, height):
+    """The box [x0,x1] x [y0,y1] x [0,height] in its own coordinates,
+    in metres; where it stands is its placement's."""
     profile = doc.insert(
         Node.polygon(
             [
@@ -85,32 +93,41 @@ def slab(doc, x, y, z):
                 (Formula.literal(x[1]), Formula.literal(y[1])),
                 (Formula.literal(x[0]), Formula.literal(y[1])),
             ],
-            plane=doc.sketch_frame(elevation=Formula.literal(z[0])),
         )
-    )
-    return doc.insert(Node.extrude(profile, Formula.literal(z[1] - z[0])))
-
-
-def cylinder(doc, centre, radius, z0, height):
-    """A right circular cylinder — the curved carrier the census has an
-    opinion about that a box does not."""
-    profile = doc.insert(
-        Node.profile(circle(centre, radius), doc.sketch_frame(elevation=Formula.literal(z0)))
     )
     return doc.insert(Node.extrude(profile, Formula.literal(height)))
 
 
+def cylinder(doc, centre, radius, height):
+    """A right circular cylinder in its own coordinates — the curved
+    carrier the census has an opinion about that a box does not."""
+    profile = doc.insert(Node.profile(circle(centre, radius)))
+    return doc.insert(Node.extrude(profile, Formula.literal(height)))
+
+
+# The upper slab of `two_slabs_resting` stands this far up.
+RISE = 1 * m
+
+
 def two_slabs_resting():
-    """A unit slab with a smaller one resting on its top face.
+    """A unit slab and a smaller one, which rests on its top face once
+    it stands `RISE` up.
 
     The upper slab's four bottom corners land strictly inside the
     lower's top face, so the coincidence is real and its class is a
     REST, which a union glues.
     """
     doc = Doc()
-    lower = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-    upper = slab(doc, (0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
+    lower = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), 1 * m)
+    upper = slab(doc, (0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), 0.5 * m)
     return doc, lower, upper
+
+
+def place_resting(doc, lower, upper):
+    """Both slabs of `two_slabs_resting` placed in the world, the upper
+    resting on the lower."""
+    doc.place(lower)
+    doc.place(upper, pose=lift(RISE))
 
 
 class TestTheFourthRungIsTheStrictest(unittest.TestCase):
@@ -120,7 +137,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
 
     def test_a_plain_body_passes_every_rung(self):
         doc = Doc()
-        box = slab(doc, (0 * m, 1 * m), (0 * m, 2 * m), (0 * m, 3 * m))
+        box = slab(doc, (0 * m, 1 * m), (0 * m, 2 * m), 3 * m)
         body = evaluate(doc).value(box).body()
         for rung in RUNGS:
             with self.subTest(rung=rung):
@@ -137,8 +154,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         across the pair, which is exactly the deferral 3′ closes.
         """
         doc, lower, upper = two_slabs_resting()
-        doc.place(lower)
-        doc.place(upper)
+        place_resting(doc, lower, upper)
         gathered = product(doc, evaluate(doc))
 
         gathered.validate()
@@ -154,8 +170,8 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         finds nothing, so the refusal is about the touching and not
         about `product` bodies as such."""
         doc = Doc()
-        a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        b = slab(doc, (3 * m, 4 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), 1 * m)
+        b = slab(doc, (3 * m, 4 * m), (0 * m, 1 * m), 1 * m)
         doc.place(a)
         doc.place(b)
         product(doc, evaluate(doc)).validate_pseudomanifold()
@@ -165,8 +181,9 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         surface and leaves no seam — so the strictest rung passes
         a boolean result on the ordinary path."""
         doc = Doc()
-        base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), (0 * m, 1 * m))
-        post = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 2 * m))
+        base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), 1 * m)
+        post = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), 1.5 * m)
+        post = doc.place_against(base, post, lift(0.5 * m))
         fused = doc.insert(Node.union([base, post]))
         evaluate(doc).value(fused).body().validate_pseudomanifold()
 
@@ -179,6 +196,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         it demonstrates the capture.
         """
         doc, lower, upper = two_slabs_resting()
+        upper = doc.place_against(lower, upper, lift(RISE))
         glued = doc.insert(Node.union([lower, upper]))
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()
@@ -262,8 +280,7 @@ class TestTheRefusalsShape(unittest.TestCase):
 
     def refusal(self):
         doc, lower, upper = two_slabs_resting()
-        doc.place(lower)
-        doc.place(upper)
+        place_resting(doc, lower, upper)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -427,10 +444,10 @@ class TestTheRefusalsShape(unittest.TestCase):
         in prose.
         """
         doc = Doc()
-        seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 1 * m))
-        post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 1 * m, 0.5 * m)
+        seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), 1 * m)
+        post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 0.5 * m)
         doc.place(seat)
-        doc.place(post)
+        doc.place(post, pose=lift(1 * m))
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -499,10 +516,10 @@ class TestTheRefusalsShape(unittest.TestCase):
         payload_it_carries`, and its ring counterpart).
         """
         doc = Doc()
-        seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 1 * m))
-        post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 1 * m, 0.5 * m)
+        seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), 1 * m)
+        post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 0.5 * m)
         doc.place(seat)
-        doc.place(post)
+        doc.place(post, pose=lift(1 * m))
         with self.assertRaises(ValidationError) as caught:
             product(doc, evaluate(doc)).validate_pseudomanifold()
         reached = {f.variant for f in caught.exception.findings}
@@ -513,29 +530,24 @@ class TestTheRefusalsShape(unittest.TestCase):
 
 
 def stacked_loft(doc, sections, length, radius):
-    """A loft up +y through `sections` closed loops, the loop at
-    station `t` given by `radius(t)`.
+    """A loft up its first section's own +z through `sections` closed
+    loops, `length` long, the loop at station `t` given by `radius(t)`.
 
     The one shape in reach of these bindings whose walls are
     QUADRATURE faces rather than closed forms, which is what makes it
     the fixture for a door about what a quadrature costs.
     """
-    profiles = []
-    for i in range(sections):
+    first = doc.insert(Node.profile(radius(0.0)))
+    then = []
+    for i in range(1, sections):
         t = i / (sections - 1)
-        plane = doc.insert(
-            Node.datum_frame(
-                (
-                    Formula.length_in(0.0, m),
-                    Formula.length_in(length * t, m),
-                    Formula.length_in(0.0, m),
-                ),
-                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+        then.append(
+            (
+                doc.insert(Node.profile(radius(t))),
+                [StationMove.slide("z", Formula.length_in(length * t, m))],
             )
         )
-        profiles.append(doc.insert(Node.profile(radius(t), plane=plane)))
-    node = doc.insert(Node.loft(profiles, Formula.count(1)))
+    node = doc.insert(Node.loft(first, then, Formula.count(1)))
     run = evaluate(doc)
     assert run.succeeded(node), "the loft fixture evaluates"
     return run.value(node).body()
@@ -645,8 +657,7 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         could separate.
         """
         doc, lower, upper = two_slabs_resting()
-        doc.place(lower)
-        doc.place(upper)
+        place_resting(doc, lower, upper)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError):
             gathered.validate_pseudomanifold()

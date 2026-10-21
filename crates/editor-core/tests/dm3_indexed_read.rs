@@ -15,7 +15,7 @@ use editor_core::{
     Bodies, BodyRead, DocEdit, EditError, Evaluation, Formula, Node, NodeError, NodeErrorKind,
     NodeResult, OperandSlot, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName, VarName,
 };
-use fixture::{insert, insert_refused, len, run, scl, step, table};
+use fixture::{insert, insert_refused, len, run, step, table};
 use geom_core::Tol;
 
 /// A unit cube and a linear pattern of three of it along x at spacing
@@ -130,20 +130,14 @@ fn a_union_of_a_family_and_of_its_members_spelled_name_and_build_alike() {
 
 #[test]
 fn an_indexed_read_at_a_body_seat_reads_that_member() {
-    let (doc, _, xs) = family("dm3-member-at-seat");
+    let (doc, cube, xs) = family("dm3-member-at-seat");
     let read = fixture::out(&doc, xs);
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let tool = fixture::plane_on(&doc, cube, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: member(xs, 1),
-            tool: plane.into(),
+            tool,
         },
     );
     let (doc, lower) = insert(
@@ -469,7 +463,7 @@ fn set_members_writes_indexed_members() {
 /// the cut mints seam vertices whose parentage reads both seats.
 ///
 /// Red if the pair emitter sides a carried edge by its read: every edge
-/// lands on one side and the seam vertex refuses `SeamVertexParentage`.
+/// lands on one side and the seam vertex refuses `UnsupportedSeamVertex`.
 #[test]
 fn a_subtract_of_two_overlapping_members_of_one_family_builds_as_two_parts_do() {
     use crate::eval6_placers_over_instances::part;
