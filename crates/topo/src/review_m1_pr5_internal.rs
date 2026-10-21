@@ -354,6 +354,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints \
          verbatim",
     ),
+    (
+        "restate_stored_edge",
+        "writes through `set_edge_curve`'s certifying path (the same body, asserting) with \
+         the edge's own stored carrier and interval and only the DESCRIPTION the caller's; \
+         the curve swap and pcurve rows are that path's, so is the tier-1 sweep after them",
+    ),
     // ---- Test-support fixture builders. Why they are in this
     // population at all is stated once, on
     // [`crate::source_walk::mutation_doors`]. What tier 1 makes of

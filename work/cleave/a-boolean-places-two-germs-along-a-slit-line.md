@@ -2,11 +2,12 @@
 id: a-boolean-places-two-germs-along-a-slit-line
 kind: issue
 title: A Boolean whose other solid has an edge along an operand's slit or ring line refuses SlitLineCrossed: recl does not place two germs apart along the slit's line
-status: dispatched
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: M
 branch: cleave/recl-places-germs-along-a-slit-line
+closed: 2026-10-21
 ---
 
 

@@ -669,3 +669,79 @@ fn a_keel_glued_to_a_face_from_outside_stays_one_edge() {
         }
     }
 }
+
+/// **A box flush under a ringed top, the top kept once, refuses typed**:
+/// the plate less a pyramid lying under its top (`below(lying(0))`)
+/// holds the pyramid's ray as a zero-area ring of the top, and the box
+/// `[1, 2] × [0.5, 1.5] × [lo, 1]` lies flush under that top round it.
+/// `x ∩ y` keeps one of the two flush tops and the ring with it, which
+/// the join does not build: it refuses `SlitFaceGlued` before the fate
+/// stage, not a `ClassificationInvariant` there
+/// (`work/cleave/a-glued-slit-intersection-refuses-a-classification-invariant-since-5505.md`).
+/// `x − y`, the pyramid's part in the box, and `y ∪ x` drop the sliver
+/// the join cuts in the box's top and merge the ring's two edges: each
+/// builds, tier 3 and 3′, the difference within the pyramid (all of it
+/// where the box holds it) and the union the plate less the rest. At
+/// rest and turned.
+#[test]
+fn a_box_flush_under_a_ringed_top_kept_once_refuses_typed() {
+    use common::meeting::{PLATE, apex_pyramid, lying, posed_box};
+    let tol = t();
+    let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
+    let poses = poses();
+    for pose in [&poses[0], &poses[2]] {
+        let plate = posed_box("the plate", PLATE, pose, tol);
+        let void = apex_pyramid(&below(lying(0.0)), pose, tol);
+        let Ok(BooleanResult::Body(y)) = subtract(&plate, &void, tol) else {
+            panic!("{}: the plate less the pyramid", pose.label);
+        };
+        let y = y.body;
+        let pyramid = topo::mass_properties(&void, tol).unwrap().volume;
+        for (lo, holds) in [(0.0, true), (0.3, true), (0.6, false)] {
+            let what = format!("{}, the box from {lo}", pose.label);
+            let x = posed_box("the box", [(1.0, 2.0), (0.5, 1.5), (lo, 1.0)], pose, tol);
+            match intersect(&x, &y, tol) {
+                Err(e) => assert_eq!(
+                    e.kind(),
+                    topo::BooleanErrorKind::SlitFaceGlued,
+                    "{what}: x ∩ y: {e:?}"
+                ),
+                Ok(_) => panic!("{what}: x ∩ y builds, where it refuses typed"),
+            }
+            let built = |op: &str, r| match r {
+                Ok(BooleanResult::Body(r)) => {
+                    let r: topo::BooleanBody<f64> = r;
+                    assert_eq!(
+                        validate_geometric(&r.body, tol),
+                        Ok(()),
+                        "{what}: {op}: tier 3"
+                    );
+                    assert_eq!(
+                        validate_pseudomanifold(&r.body, &r.contacts, tol),
+                        Ok(()),
+                        "{what}: {op}: tier 3′"
+                    );
+                    topo::mass_properties(&r.body, tol).unwrap().volume
+                }
+                other => panic!("{what}: {op}: {:?}", other.map(|_| ())),
+            };
+            let part = built("x − y", subtract(&x, &y, tol));
+            assert!(
+                part > 0.0 && part <= pyramid * (1.0 + 1e-9),
+                "{what}: x − y: volume {part}, the pyramid's {pyramid}"
+            );
+            if holds {
+                assert!(
+                    (part - pyramid).abs() < 1e-9,
+                    "{what}: x − y: volume {part}, the whole pyramid's {pyramid}"
+                );
+            }
+            let whole = built("y ∪ x", topo::union(&y, &x, tol));
+            let want = 6.0 - pyramid + part;
+            assert!(
+                (whole - want).abs() < 1e-9,
+                "{what}: y ∪ x: volume {whole}, the plate less the pyramid's rest {want}"
+            );
+        }
+    }
+}

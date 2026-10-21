@@ -2586,6 +2586,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "decision_words", "BooleanDecision::LineWedges", 1),
+    (
+        "mod.rs",
+        "decision_words",
+        "BooleanDecision::LineSpanPrecision",
+        1,
+    ),
     ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnEdge", 1),
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
@@ -2650,6 +2656,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "ops.rs",
         "collinear_escalated",
         "BooleanDecision::LineEdges",
+        1,
+    ),
+    (
+        "ops.rs",
+        "collinear_escalated",
+        "BooleanDecision::LineSpanPrecision",
         1,
     ),
     (

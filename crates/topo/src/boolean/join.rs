@@ -4900,6 +4900,15 @@ fn cut_pair<T: Decide>(
 /// wall b | face). So the sliver, the face's piece across that gap,
 /// lies outside the other solid, and the flush region on the opposite
 /// side.
+///
+/// **Only where the op keeps the sliver.** The output stage then pairs
+/// the slit's two walls across it into one edge
+/// ([`super::slit::merge_slivers`]). Where the op drops it, `side`'s
+/// face flush with the slit's keeps the flush region instead, and the
+/// slit with it: the op keeps one of the two flush faces, and the cut
+/// through the dropped one ends at the slit's tip, which the fate cut
+/// does not read (`fate::cut`). That refuses
+/// [`BooleanError::SlitFaceGlued`] here, before the fate stage.
 fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     side: Operand,
@@ -4927,42 +4936,55 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     // a limit either loop's witnesses met still refuses as its own.
     let undecided = |x: &Reading| matches!(x, Reading::Undecided(t) if !t.kept.met_a_limit());
     if undecided(&o) && undecided(&r) {
-        if sliver_along_a_slit(red, side, face, ring)? {
-            r = Reading::Side(SideCode::Out);
-        } else if sliver_along_a_slit(red, side, face, outer)? {
-            o = Reading::Side(SideCode::Out);
+        let found = match sliver_along_a_slit(red, side, face, ring)? {
+            Some(slit) => Some((slit, &mut r)),
+            None => sliver_along_a_slit(red, side, face, outer)?.map(|slit| (slit, &mut o)),
+        };
+        if let Some(((operand, slit_face), reading)) = found {
+            if super::finish::kept_side(red.op, side) != SideCode::Out {
+                return Err(BooleanError::SlitFaceGlued {
+                    operand,
+                    face: slit_face,
+                });
+            }
+            *reading = Reading::Side(SideCode::Out);
         }
     }
     loop_roles(face, (outer, o), (ring, r))
 }
 
-/// Whether every region face flanking section loop `l` of null face
+/// The other operand's slit or ring, as its operand and carrying face,
+/// where every region face flanking section loop `l` of null face
 /// `face`, on `side`, is a sliver ([`super::slit::sliver_halves`]) along
-/// a slit or ring of the other operand's: both its ends are tips of that
-/// operand's slits in one face ([`slit_tip_on`]), so its one segment is
-/// the slit's line.
+/// it: both its ends are tips of that operand's slits in that one face
+/// ([`slit_tip_on`]), so its one segment is the slit's line.
 fn sliver_along_a_slit<T: Decide>(
     red: &BooleanReduction<T>,
     side: Operand,
     face: FaceKey,
     l: LoopKey,
-) -> Result<bool, BooleanError> {
+) -> Result<Option<(Operand, FaceKey)>, BooleanError> {
     let body = match side {
         Operand::A => &red.a,
         Operand::B => &red.b,
     };
-    let regions = region_faces(body, face, l)?;
-    Ok(!regions.is_empty()
-        && regions.iter().all(|&f| {
-            let Some(halves) = super::slit::sliver_halves(body, f) else {
-                return false;
-            };
-            let tips = halves.map(|h| {
-                body.get_half_edge(h)
-                    .and_then(|d| slit_tip_on(red, side, [d.start]))
-            });
-            matches!(tips, [Some(a), Some(b)] if a == b && a.0 == side.other())
-        }))
+    let mut slit = None;
+    for f in region_faces(body, face, l)? {
+        let Some(halves) = super::slit::sliver_halves(body, f) else {
+            return Ok(None);
+        };
+        let tips = halves.map(|h| {
+            body.get_half_edge(h)
+                .and_then(|d| slit_tip_on(red, side, [d.start]))
+        });
+        match tips {
+            [Some(a), Some(b)] if a == b && a.0 == side.other() && slit.is_none_or(|s| s == a) => {
+                slit = Some(a);
+            }
+            _ => return Ok(None),
+        }
+    }
+    Ok(slit)
 }
 
 /// The (IN, OUT) loop order from each loop's ladder reading. Either
