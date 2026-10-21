@@ -76,6 +76,8 @@ mod a_flipped_shallow_dimple;
 mod a_keel_ring_in_an_elliptic_section;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
+#[path = "a_lofted_lens_blade_certifies_its_sign.rs"]
+mod a_lofted_lens_blade_certifies_its_sign;
 #[path = "a_minted_vertex_on_a_curved_face.rs"]
 mod a_minted_vertex_on_a_curved_face;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]

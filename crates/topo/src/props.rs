@@ -494,7 +494,10 @@ fn round_hook<T: Decide>(
 /// round it happens. A face that refuses on BUDGET is different — it
 /// has an enclosure, and the sum keeps it — so the refusal rides on
 /// the certificate, and whether it is REPORTED is the caller's
-/// decision, taken by `last_word` below.
+/// decision, taken by `last_word` below. Nor does a budget refusal end
+/// the face's rounds: it says the schedule cannot meet the reporting
+/// target, a question this walk does not ask, so a face carrying one
+/// refines with the rest while rounds remain.
 ///
 /// **The verdict is decided once, inside the loop.** `settle` is the
 /// only reading of the enclosure, and the round it accepts is the
@@ -608,7 +611,7 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
             )
         })?;
         for ((slot, _), run) in open.iter().zip(decided) {
-            runs[*slot] = run;
+            runs[*slot].advance(run);
         }
     }
 }
@@ -1872,11 +1875,13 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
             refused,
         } = self;
         let hook = round_hook(quad);
-        // The faces the continuation resumes: an open one. A face it
-        // never reads need not resolve.
+        // The faces the continuation resumes ([`FaceRun::resumes_after`]).
+        // A face it never reads need not resolve.
         let refs = References::of(
             body,
-            runs.iter().filter(|r| r.open_at.is_some()).map(|r| r.face),
+            runs.iter()
+                .filter(|r| r.resumes_after().is_some())
+                .map(|r| r.face),
         );
         let resume = |face, round: usize| {
             face_flux(
@@ -1897,8 +1902,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         // `refused` names, so no slot after that one is ever reached
         // and resuming one would be pure waste. Nothing before it is
         // skipped by this bound, because a face with an outstanding
-        // refusal is never OPEN — `face_flux` gives a run a round to
-        // resume at only when its window ended WITHOUT one.
+        // refusal is never resumed ([`FaceRun::resumes_after`]).
         let reached = refused.map_or(runs.len(), |(face, _)| {
             runs.iter().take_while(|run| run.face != face).count()
         });
@@ -1912,10 +1916,12 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         // below is taken on the caller's thread instead, for
         // [`decide_faces_serially`]'s reason.
         let decided: Vec<ResumedFace<T>> = if geom_core::sym::decisions_are_thread_portable()
-            && runs[..reached].iter().any(|run| run.open_at.is_some())
+            && runs[..reached]
+                .iter()
+                .any(|run| run.resumes_after().is_some())
         {
             geom_core::k_stats::map_detached(&runs[..reached], |run| {
-                run.open_at.map(|round| resume(run.face, round))
+                run.resumes_after().map(|round| resume(run.face, round))
             })
         } else {
             Vec::new()
@@ -1952,7 +1958,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
                 }
                 Some((None, _nothing_recorded)) => {}
                 None => {
-                    if let Some(round) = run.open_at {
+                    if let Some(round) = run.resumes_after() {
                         *run = resume(run.face, round).map_err(hard)?;
                     }
                 }
@@ -2688,6 +2694,43 @@ mod continuation_refusal_order_tests {
         );
     }
 
+    /// **A face open AND refused is not resumed for the number.** The
+    /// budget exit leaves a face's rounds open for the sign walk while
+    /// it carries the reporting door's refusal; the continuation to the
+    /// target already has that answer, so it reports it and runs no
+    /// round. The face here is skeletal, so a resumption would refuse
+    /// outright (`the_later_slots_resumption_refuses_outright`)
+    /// and the reported refusal would not be the budget one.
+    #[test]
+    fn an_open_face_carrying_a_refusal_reports_it_without_resuming() {
+        let mut body = Body::<f64>::new();
+        let skeletal = body
+            .mvfs(Point3::new(0.0, 0.0, 0.0), true)
+            .expect("the skeletal body builds")
+            .face;
+        let band = Band::linear(Tol::witness()).expect("the witness band builds");
+        let err = SignCertificate {
+            body: &body,
+            band,
+            tol: Tol::witness(),
+            quad: Some(QuadLane::certified()),
+            runs: vec![run_of(skeletal, Some(0), Some(outstanding()))],
+            refused: Some((skeletal, outstanding())),
+        }
+        .refine_to_target()
+        .expect_err("the face carries the reporting door's refusal");
+        assert!(
+            matches!(
+                err,
+                MassPropsError::Face {
+                    face,
+                    source: PropsError::QuadratureBudget { .. }
+                } if face == skeletal
+            ),
+            "the continuation resumed a face whose target-level answer it already held: {err}"
+        );
+    }
+
     #[test]
     fn the_earlier_outstanding_refusal_is_the_one_reported_at_four_threads() {
         assert_eq!(
@@ -2945,7 +2988,10 @@ struct FaceRun<T> {
     /// The round its quadrature reached, when rounds remain. `None`
     /// for a closed-form face, for one that met the reporting target,
     /// and for one whose schedule has nothing further to offer — in
-    /// every case there is no round to resume at.
+    /// every case there is no round to resume at. A face can be open
+    /// and carry a [`Self::refusal`]: its schedule cannot meet the
+    /// reporting target, and its later rounds still narrow the
+    /// enclosure a sign walk sums.
     open_at: Option<usize>,
     /// The round a single-round window met the reporting target at —
     /// where [`PastTarget::refine`] resumes. `None`
@@ -2956,6 +3002,30 @@ struct FaceRun<T> {
     /// can carry one and still contribute a sound enclosure: that is
     /// the whole difference between the two levels.
     refusal: Option<PropsError>,
+}
+
+impl<T> FaceRun<T> {
+    /// This face's next round, `run`, in place — keeping the refusal
+    /// this run already carries. The lane answers the reporting
+    /// question once, at round 0 ([`RoundWindow::first`]), so a later
+    /// round comes back without it; the refusal a target-level reading
+    /// earns is still the one round 0 raised, the reporting walk's
+    /// verbatim.
+    fn advance(&mut self, run: Self) {
+        let carried = self.refusal.take();
+        *self = run;
+        if carried.is_some() {
+            self.refusal = carried;
+        }
+    }
+
+    /// The round a continuation to the reporting target resumes this
+    /// face after: an open face whose schedule may still meet the
+    /// target. A face already carrying a refusal has its target-level
+    /// answer, so no round of it is run for the number.
+    fn resumes_after(&self) -> Option<usize> {
+        self.open_at.filter(|_| self.refusal.is_none())
+    }
 }
 
 /// A face and its surface, for a face the walk read out of the arena
@@ -3243,12 +3313,9 @@ fn face_flux_about<T: Decide>(
                             bounds,
                             round,
                             refusal: lane_refusal,
+                            rounds_remain,
                         } => {
-                            // A window that ended early leaves a round
-                            // to resume at; one that ended in a
-                            // refusal leaves none, and the refusal is
-                            // what a caller wanting a number earns.
-                            open_at = lane_refusal.is_none().then_some(round);
+                            open_at = rounds_remain.then_some(round);
                             refusal = lane_refusal;
                             bounds
                         }

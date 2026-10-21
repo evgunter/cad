@@ -208,6 +208,8 @@ pub struct RoundWindow {
     /// round asks for the whole schedule, so the lane ends in its
     /// convergence or in its typed budget refusal exactly as it always
     /// did; a lower one stops with the enclosure that round reached.
+    /// The budget exit ([`budget_exit`]) ends any window at round 0,
+    /// with the refusal in hand and the rounds after it still open.
     pub last: usize,
 }
 
@@ -250,12 +252,17 @@ pub enum RoundOutcome {
         bounds: FaceCutBounds,
         /// The round `bounds` was taken at.
         round: usize,
-        /// The refusal a caller wanting a NUMBER from this face earns,
-        /// when the schedule has nothing further to offer it: the
-        /// budget refusal an uninterrupted run would have returned.
-        /// `None` means the window simply ended early and rounds
-        /// `round + 1 ..` remain.
+        /// The refusal a caller wanting a NUMBER from this face earns:
+        /// the budget refusal an uninterrupted run returns. `None`
+        /// while the schedule may still meet the target.
         refusal: Option<PropsError>,
+        /// Whether rounds `round + 1 ..` remain to run. A refusal and
+        /// remaining rounds coexist after the budget exit
+        /// ([`budget_exit`]): it proves that no round meets the
+        /// REPORTING target, which is the number-wanting caller's
+        /// question; a caller deciding a sign still refines, because
+        /// each later round's enclosure is narrower.
+        rounds_remain: bool,
     },
 }
 
@@ -271,10 +278,12 @@ impl RoundOutcome {
                 bounds,
                 round,
                 refusal,
+                rounds_remain,
             } => Self::Open {
                 bounds: f(bounds),
                 round,
                 refusal,
+                rounds_remain,
             },
         }
     }
@@ -845,12 +854,14 @@ pub(super) fn round_exit(
                 target_len,
                 rounds: max_rounds + 1,
             }),
+            rounds_remain: false,
         });
     }
     (round == window.last).then_some(RoundOutcome::Open {
         bounds,
         round,
         refusal: None,
+        rounds_remain: true,
     })
 }
 
@@ -3321,6 +3332,49 @@ fn last_round_refuses<T: Decide>(last_round_len: f64, target_len: f64, band: Ban
     )
 }
 
+/// **The budget exit, one home for the three patch lanes**: after
+/// round 0, and only then, [`last_round_refuses`] on the lane's own
+/// lower bound for its last round's width, `last_round_width_lo`.
+///
+/// A refusal ends the WINDOW at round 0, not the schedule. Its payload
+/// is the bound — the last round's width to within the midpoint sum's
+/// width, never above it — and it paid for one round; the reporting
+/// caller ([`RoundOutcome::into_target`]) reads it as the lane's
+/// answer, which is where the exit saves the rounds that could not
+/// meet the target. The rounds stay open, because the bound speaks to
+/// the reporting target only: a caller deciding a sign resumes at
+/// round 1 ([`RoundWindow::first`]) and refines for as long as its
+/// sign is undecided, the refusal riding beside each round's enclosure.
+///
+/// # Errors
+///
+/// [`displacement_len`]'s, on round 0's area lever.
+fn budget_exit<T: Decide>(
+    round: usize,
+    schedule: Schedule,
+    last_round_width_lo: f64,
+    bounds: FaceCutBounds,
+    target_len: f64,
+    band: Band,
+) -> Result<Option<RoundOutcome>, PropsError> {
+    if round != 0 {
+        return Ok(None);
+    }
+    let last_round_len = displacement_len(last_round_width_lo, bounds.area)?;
+    Ok(
+        last_round_refuses::<T>(last_round_len, target_len, band).then(|| RoundOutcome::Open {
+            bounds,
+            round,
+            refusal: Some(PropsError::QuadratureBudget {
+                width_len: last_round_len,
+                target_len,
+                rounds: 1,
+            }),
+            rounds_remain: round < schedule.last(),
+        }),
+    )
+}
+
 /// **Certified RATIONAL patch contributions** (M8-3) — the same two
 /// numbers [`nurbs_patch_face`] certifies, for a patch whose weights
 /// are not all 1.
@@ -3814,27 +3868,19 @@ fn rational_patch_face<T: Decide>(
         }
         // This round did not certify. The last-round bound is loop-
         // invariant, so it is asked ONCE, after round 0
-        // ([`last_round_refuses`]): after, not before, so that every
-        // refusal round 0 raises (a refused enclosure, a degenerate lever, an
-        // in-band escalation) is raised first, in the order it always
-        // was, and so the ledger meters the bound's margin once per
-        // face. A refusal here is the schedule's own ending, reached
-        // without running it; its payload is the bound — the last
-        // round's width to within the midpoint sum's width, never
-        // above it — and it paid for one round.
-        if round == 0 {
-            let last_round_len = displacement_len(last_round_width_lo, area)?;
-            if last_round_refuses::<T>(last_round_len, target_len, band) {
-                return Ok(RoundOutcome::Open {
-                    bounds: FaceCutBounds { flux, area },
-                    round,
-                    refusal: Some(PropsError::QuadratureBudget {
-                        width_len: last_round_len,
-                        target_len,
-                        rounds: 1,
-                    }),
-                });
-            }
+        // ([`budget_exit`]): after, not before, so that every refusal
+        // round 0 raises (a refused enclosure, a degenerate lever, an
+        // in-band escalation) is raised first, and so the ledger
+        // meters the bound's margin once per face.
+        if let Some(out) = budget_exit::<T>(
+            round,
+            schedule,
+            last_round_width_lo,
+            FaceCutBounds { flux, area },
+            target_len,
+            band,
+        )? {
+            return Ok(out);
         }
         debug_assert!(
             round < schedule.last() || pieces == last_pieces,
@@ -4155,6 +4201,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
                 target_len,
                 rounds: 0,
             }),
+            rounds_remain: false,
         });
     }
 
@@ -4230,21 +4277,15 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
             return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
-        // The budget exit, as in the rational lane: asked once, after
-        // round 0 ([`last_round_refuses`]).
-        if round == 0 {
-            let last_round_len = displacement_len(last_round_width_lo, area)?;
-            if last_round_refuses::<T>(last_round_len, target_len, band) {
-                return Ok(RoundOutcome::Open {
-                    bounds: FaceCutBounds { flux, area },
-                    round,
-                    refusal: Some(PropsError::QuadratureBudget {
-                        width_len: last_round_len,
-                        target_len,
-                        rounds: 1,
-                    }),
-                });
-            }
+        if let Some(out) = budget_exit::<T>(
+            round,
+            schedule,
+            last_round_width_lo,
+            FaceCutBounds { flux, area },
+            target_len,
+            band,
+        )? {
+            return Ok(out);
         }
         debug_assert!(
             round < schedule.last() || pieces == last_pieces,
@@ -5474,22 +5515,17 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             }
             return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
-        if round == 0 {
-            // The pads no refinement removes — the endpoint brackets'
-            // and the envelope's — are a floor on every round's width.
-            let floor = 2.0 * (vertex_pad * sup_f + boundary_defect * p_bound);
-            let last_round_len = displacement_len(floor, area)?;
-            if last_round_refuses::<T>(last_round_len, target_len, band) {
-                return Ok(RoundOutcome::Open {
-                    bounds: FaceCutBounds { flux, area },
-                    round,
-                    refusal: Some(PropsError::QuadratureBudget {
-                        width_len: last_round_len,
-                        target_len,
-                        rounds: 1,
-                    }),
-                });
-            }
+        // The pads no refinement removes — the endpoint brackets' and
+        // the envelope's — are a floor on every round's width.
+        if let Some(out) = budget_exit::<T>(
+            round,
+            schedule,
+            2.0 * (vertex_pad * sup_f + boundary_defect * p_bound),
+            FaceCutBounds { flux, area },
+            target_len,
+            band,
+        )? {
+            return Ok(out);
         }
         if let Some(out) = round_exit(
             round,

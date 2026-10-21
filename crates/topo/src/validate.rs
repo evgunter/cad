@@ -278,12 +278,11 @@
 //! sum needs every term; the measurement door reads faces in arena
 //! order and stops at the first one whose lane refuses. So on a body
 //! whose sign settles early the check pays a fraction of the
-//! measurement, and on a body with a refusing face it can pay MORE —
-//! measured at about twice the measurement's quadrature verdicts on a
-//! rational-walled body whose schedule runs out. The honest bound is
-//! the schedule's own: at worst every face's whole schedule, which is
-//! what the measurement pays for its own first face and no more than
-//! it pays for all of them.
+//! measurement, and on a body with a refusing face it can pay MORE:
+//! a face whose lane proves after round 0 that no round meets the
+//! reporting target costs the measurement one round, and the check
+//! every round its sign needs. The honest bound is the schedule's own:
+//! at worst every face's whole schedule.
 //!
 //! **Gating and then measuring costs more than measuring**, and that
 //! is worth knowing before a caller reaches for the continuation as a
