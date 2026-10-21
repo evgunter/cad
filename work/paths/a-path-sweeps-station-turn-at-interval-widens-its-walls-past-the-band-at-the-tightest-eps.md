@@ -2,16 +2,11 @@
 id: a-path-sweeps-station-turn-at-interval-widens-its-walls-past-the-band-at-the-tightest-eps
 kind: issue
 title: A path sweep's station turn, evaluated at Interval, widens its walls' pcurve residual past the band at eps 1e-12 (a wide-start-frame sweep refuses where main's f64-turned one certified)
-status: closed
+status: open
 opened: 2026-10-19
 priority: P2
 cost: M
-closed: 2026-10-21
 ---
-## Closed
-
-No longer reproduces once the sweep's caps take their `u_ref` from the start frame's own `x` axis (`swept::cap_plane`, `a-minted-reference-direction-follows-the-computing-axes`) instead of `orthonormal_basis` over the Interval normal: the row's `Interval` sweep encloses its family at all three ε rows, so its pinned refusal at 1e-12 is gone. Whether the station turn's enclosure is still near the band elsewhere is not measured.
-
 
 
 Found merging main into #5068 (`the-sketch-plane-is-its-frame`).
@@ -38,3 +33,14 @@ the section points they carry) and narrow it, for example evaluating the
 turn's matrix from the decided tangents' value channel once the decision is
 made at `T`, which keeps the decision at the lane and the entries points. The
 row pins the refusal at `ε ≤ 1e-12` by name until then.
+
+## 2026-10-21: the margin moved, the amplification did not
+
+With the sweep's caps charted along the start frame's own `x` axis
+(`swept::cap_plane`, PR #5547) the row encloses at all three gated ε, so
+its 1e-12 pin is gone. The refusal is still there one notch tighter: at
+`CAD_TOLERANCE_EPS=5e-13` the same row refuses at the same check,
+`pcurve_map_residual` indeterminate over `[0, 5.22e-13]` against the
+`5e-13` band (sample 8), a residual about 1.04× the band where the 1e-12
+one was about 1.08×. The station turn's amplification is still owed; no
+gated row pins it now, so the reproduction is the 5e-13 run above.
