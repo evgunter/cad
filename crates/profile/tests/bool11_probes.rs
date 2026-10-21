@@ -550,11 +550,12 @@ fn a_run_whose_misses_alternate_sides_passes() {
 }
 
 /// **A turn starts a new run.** Two runs along x joined by a step up
-/// (`turn(π/2)`, `line(1)`, `turn(−π/2)`): the second run's line is bound
-/// at its own first vertex, so a miss the first run accepted (`0.9·ε`)
-/// is not charged to the second. Its targets `0.9·ε` above its own
-/// first vertex pass, where the same offsets read against the first run
-/// would sum past the zero edge.
+/// (`turn(π/2)`, `line(1)`, `turn(−π/2)`): a turn binds the direction, so
+/// the second run's line is bound at its own first vertex. A target
+/// `0.9·ε` above that line passes, read against it. (Read against the
+/// first run's line, the same target would stand about a metre off it
+/// and refuse `ContinuationTargetOffRay`: the first run's line is not
+/// what the second reads.)
 #[test]
 fn a_turn_starts_a_new_run() {
     let t = Tol::witness();
@@ -576,15 +577,17 @@ fn a_turn_starts_a_new_run() {
         .expect("the second run reads its own line, not the first run's");
 }
 
-/// **`.tangent()` and `.cusp()` keep the run.** The verbs that inherit
-/// the direction bitwise hand the run on (PATHS-DESIGN §2c): a straight
-/// leg off the inherited direction continues it, so its next
-/// `continue_to` is still read against the run's first line. After one
-/// accepted `0.6·ε` miss, `.tangent().line(1)` and `.cusp().line(1)` land
-/// on the run, and a target `1.2·ε` off the run's line (only `0.6·ε` off
-/// the leg's own end) escalates as the plain continuation's does.
+/// **`.tangent()`, `.cusp()` and `line(len)` keep the run.** The verbs
+/// that inherit the direction bitwise hand the run on (PATHS-DESIGN §2c),
+/// and so does the straight continuation `line(len)` off a directed
+/// point: a straight leg off the inherited direction continues it, so
+/// its next `continue_to` is still read against the run's first line.
+/// After one accepted `0.6·ε` miss, `line(1)`, `.tangent().line(1)` and
+/// `.cusp().line(1)` land on the run, and a target `1.2·ε` off the run's
+/// line (only `0.6·ε` off the leg's own end) escalates as the plain
+/// continuation's does.
 #[test]
-fn tangent_and_cusp_keep_the_run() {
+fn straight_legs_off_a_run_keep_it() {
     let t = Tol::witness();
     let eps = t.eps();
     let miss = 0.6 * eps;
@@ -600,6 +603,14 @@ fn tangent_and_cusp_keep_the_run() {
             .continue_to(Point2::new(3.0, 2.0 * miss), t)
             .map(|_| ()),
         "continue_to",
+    );
+    in_band(
+        tip()
+            .line(1.0, t)
+            .unwrap()
+            .continue_to(Point2::new(4.0, 2.0 * miss), t)
+            .map(|_| ()),
+        "line",
     );
     in_band(
         tip()

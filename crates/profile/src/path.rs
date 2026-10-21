@@ -2319,7 +2319,7 @@ impl<T: Real> Dir<T> {
     }
 }
 
-use directed::{Incoming, Run};
+use directed::{Bound, Incoming, Run};
 
 /// **The directed point's intrinsic data, behind its one API** (PATHS-DESIGN
 /// §2c): its tangent, and `lands_on_ray`, the on-ray reading of a point
@@ -2339,7 +2339,9 @@ mod directed {
     use geom_core::{Decide, Margin, Sign};
 
     /// The line a straight run rides: its first vertex and the
-    /// direction bound there. Opaque: only [`Incoming`] reads it.
+    /// direction bound there. Opaque: what reads it reads its two
+    /// displacements ([`Run::across`], [`Run::along`]), never its
+    /// fields, so no reader can tell which vertex anchors it.
     #[derive(Clone, Copy, Debug)]
     pub(super) struct Run<T: Real> {
         anchor: Point2<T>,
@@ -2347,6 +2349,21 @@ mod directed {
     }
 
     impl<T: Real> Run<T> {
+        /// `p`'s lateral displacement from this line, in metres: the
+        /// one spelling of the anchored-ray reading that the declared
+        /// continuation (`lands_on_ray`) and the fillet run-out
+        /// ([`super::PendingRunOut::rides`]) each decide under a key of
+        /// their own.
+        pub(super) fn across(&self, p: Point2<T>) -> T {
+            self.dir.unit.perp_dot(p - self.anchor)
+        }
+
+        /// How far along this line's direction `p` stands from `from`,
+        /// in metres.
+        pub(super) fn along(&self, from: Point2<T>, p: Point2<T>) -> T {
+            self.dir.unit.dot(p - from)
+        }
+
         /// The line bound at `anchor` along `dir`: a straight leg whose
         /// direction was bound where it starts begins a run there.
         pub(super) fn bound(anchor: Point2<T>, dir: Dir<T>) -> Self {
@@ -2361,6 +2378,40 @@ mod directed {
                 anchor: self.anchor,
                 dir: self.dir.reversed(),
             }
+        }
+    }
+
+    /// **A bound direction**, the tip's angle slot: the direction, and
+    /// the run it rides where it was inherited bitwise (`.tangent()`,
+    /// `.cusp()`), so a straight leg off it continues that run
+    /// (PATHS-DESIGN §2c). The run is private: it is held only beside
+    /// its direction, read by [`Bound::run_at`] alone, and `None`
+    /// wherever the direction was bound afresh.
+    #[derive(Clone, Copy, Debug)]
+    pub(super) struct Bound<T: Real> {
+        pub(super) dir: Dir<T>,
+        run: Option<Run<T>>,
+    }
+
+    impl<T: Real> Bound<T> {
+        /// A direction bound where it is authored.
+        pub(super) fn fresh(dir: Dir<T>) -> Self {
+            Self { dir, run: None }
+        }
+
+        /// A direction inherited bitwise, riding `run`.
+        pub(super) fn inherited(dir: Dir<T>, run: Run<T>) -> Self {
+            Self {
+                dir,
+                run: Some(run),
+            }
+        }
+
+        /// The run a straight leg from `at` along this direction rides:
+        /// the inherited one, or one begun at `at`, where the direction
+        /// was bound.
+        pub(super) fn run_at(&self, at: Point2<T>) -> Run<T> {
+            self.run.unwrap_or(Run::bound(at, self.dir))
         }
     }
 
@@ -2482,8 +2533,8 @@ mod directed {
             tol: Tol,
         ) -> Result<T, PathError<T>> {
             let run = self.run_from(at);
-            let across = run.dir.unit.perp_dot(target - run.anchor);
-            let along = run.dir.unit.dot(target - at);
+            let across = run.across(target);
+            let along = run.along(at, target);
             let band = linear_band(tol)?;
             match decide("path_continuation_target_offset", Margin::of(across), band) {
                 Ok(Sign::Zero) => {}
@@ -2519,13 +2570,7 @@ struct PendingJunction<T: Real> {
 #[derive(Clone, Debug)]
 struct Tip<T: Real> {
     pos: Option<PosData<T>>,
-    ang: Option<Dir<T>>,
-    /// The run a direction inherited bitwise rides (`.tangent()`,
-    /// `.cusp()`): a straight leg off it continues that run
-    /// (PATHS-DESIGN §2c). Opaque, as [`Incoming`]'s own is: handed on
-    /// to the leg's end and read by nothing else. `None` wherever the
-    /// direction was bound afresh.
-    ang_run: Option<Run<T>>,
+    ang: Option<Bound<T>>,
     /// Whether the bound angle was inherited by `.tangent()` (the
     /// constructed-tangency continuations; drives the §4 item 4 checks).
     ang_by_tangent: bool,
@@ -2567,10 +2612,10 @@ enum ArrivalCarrier<T: Real> {
 struct PendingRunOut<T: Real> {
     /// The step the fillet's pieces are credited to.
     step: usize,
-    /// The arrival ray's anchor.
-    anchor: Point2<T>,
-    /// The arrival ray's direction.
-    dir: Dir<T>,
+    /// The arrival ray: the line through the arrival anchor along the
+    /// arrival direction, read through the one anchored-ray reading
+    /// ([`Run`]).
+    ray: Run<T>,
     /// The witness of the resolution that emitted the fillet arc.
     tol: Tol,
 }
@@ -2579,8 +2624,9 @@ impl<T: Decide> PendingRunOut<T> {
     /// Whether the segment of `kind` from `from` to `to` lies on this
     /// run's arrival ray, continuing it from the chain head `from`: a
     /// straight segment whose end is on the ray's line (the lateral
-    /// miss `lands_on_ray` classifies, from the same anchor) and whose
-    /// advance from the head is definitely positive. An arc never
+    /// miss from the fillet's arrival anchor, the same reading
+    /// `lands_on_ray` takes from its run's anchor, [`Run::across`]) and
+    /// whose advance from the head is definitely positive. An arc never
     /// rides a ray.
     ///
     /// Every margin is decided under `path_run_out_carrier` and an
@@ -2595,10 +2641,10 @@ impl<T: Decide> PendingRunOut<T> {
             Ok(sign) => Ok(sign),
             Err(source) => Err(PathError::Escalated { source }),
         };
-        if on(Margin::of(self.dir.unit.perp_dot(to - self.anchor)))? != Sign::Zero {
+        if on(Margin::of(self.ray.across(to)))? != Sign::Zero {
             return Ok(false);
         }
-        Ok(on(Margin::of(self.dir.unit.dot(to - from)))? == Sign::Positive)
+        Ok(on(Margin::of(self.ray.along(from, to)))? == Sign::Positive)
     }
 }
 
@@ -3690,9 +3736,10 @@ fn emit_straight_leg<T: Decide>(
 /// path, authored once), and it is what makes the closer close: `Start`
 /// as the target reaches the entry vertex exactly, not to within a
 /// band. The RAY is still what the tip carries out, because the ray is
-/// the carrier the declaration names; the accepted lateral miss is the
-/// whole of the difference between the two, and it is bounded by the
-/// check that let the target through.
+/// the carrier the declaration names. The difference between the leg
+/// and the line is the two vertices' accepted misses, one at each end and
+/// possibly on opposite sides of it, so at most `2ε` across the leg, each
+/// bounded by the check that let its target through.
 ///
 /// **That bound is PER RUN, because the line does not move.** The
 /// vertex sits up to one accepted miss off the declared line, so the end
@@ -4299,8 +4346,7 @@ impl<T: Decide> Core<T> {
                 self.construct_last();
                 self.run_out = Some(PendingRunOut {
                     step: meta.bound_at,
-                    anchor: arr_pos,
-                    dir: arr_ang,
+                    ray: Run::bound(arr_pos, arr_ang),
                     tol,
                 });
             }
@@ -4445,8 +4491,7 @@ impl<T: Decide> Core<T> {
             if let ArrivalCarrier::Ray { anchor, dir } = carrier {
                 self.run_out = Some(PendingRunOut {
                     step: bound_at,
-                    anchor,
-                    dir,
+                    ray: Run::bound(anchor, dir),
                     tol,
                 });
             }
@@ -4525,7 +4570,6 @@ fn directed_tip<T: Real>(at: Point2<T>, incoming: Incoming<T>) -> Tip<T> {
             incoming: Some(incoming),
         }),
         ang: None,
-        ang_run: None,
         ang_by_tangent: false,
     }
 }
@@ -4554,7 +4598,6 @@ impl Open {
                     incoming: None,
                 }),
                 ang: None,
-                ang_run: None,
                 ang_by_tangent: false,
             },
         )
@@ -4570,8 +4613,7 @@ impl Open {
             core,
             Tip {
                 pos: None,
-                ang: Some(dir),
-                ang_run: None,
+                ang: Some(Bound::fresh(dir)),
                 ang_by_tangent: false,
             },
         )
@@ -4895,7 +4937,7 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
         p: Point2<T>,
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>> {
-        match (self.tip.ang, self.core.pending.is_some()) {
+        match (self.tip.ang.map(|b| b.dir), self.core.pending.is_some()) {
             (Some(theta), true) => {
                 self.core
                     .resolve_fillet(p, theta, ArrivalKind::Continues, tol)?;
@@ -4916,7 +4958,6 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
                     incoming: None,
                 }),
                 ang: self.tip.ang,
-                ang_run: self.tip.ang_run,
                 ang_by_tangent: self.tip.ang_by_tangent,
             },
         ))
@@ -4941,32 +4982,31 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
                 self.core.start_ang = Some(dir);
             }
         }
-        self.tip.ang = Some(dir);
-        self.tip.ang_run = None;
+        self.tip.ang = Some(Bound::fresh(dir));
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
     }
 }
 
 impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
-    /// The run the tip's own direction rides, as `how` hands it on (the
-    /// direction-inheriting verbs: it is the run a straight leg off the
-    /// inherited direction continues).
-    fn inherited_run(&self, how: impl FnOnce(Run<T>) -> Run<T>) -> Option<Run<T>> {
+    /// The direction the tip inherits bitwise, with the run it rides
+    /// (the direction-inheriting verbs: a straight leg off it continues
+    /// that run), reversed together for `.cusp()`.
+    fn inherited(&self, reversed: bool) -> Option<Bound<T>> {
         let pos = self.tip.pos.as_ref()?;
-        Some(how(pos.incoming?.run_from(pos.at)))
+        let inc = pos.incoming?;
+        let run = inc.run_from(pos.at);
+        Some(if reversed {
+            Bound::inherited(inc.ang.reversed(), run.reversed())
+        } else {
+            Bound::inherited(inc.ang, run)
+        })
     }
 
     /// The kernel behind the table's tangent-inheritance row (recording
     /// is the row's, not the kernel's).
     fn tangent_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
-        self.tip.ang = self
-            .tip
-            .pos
-            .as_ref()
-            .and_then(|p| p.incoming.as_ref())
-            .map(|inc| inc.ang);
-        self.tip.ang_run = self.inherited_run(core::convert::identity);
+        self.tip.ang = self.inherited(false);
         self.tip.ang_by_tangent = true;
         self.core.construct_last();
         in_state(self.core, self.tip)
@@ -4980,13 +5020,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// cusp), so a reverse-tangent joint needs no second kind of
     /// construction.
     fn cusp_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
-        self.tip.ang = self
-            .tip
-            .pos
-            .as_ref()
-            .and_then(|p| p.incoming.as_ref())
-            .map(|inc| inc.ang.reversed());
-        self.tip.ang_run = self.inherited_run(Run::reversed);
+        self.tip.ang = self.inherited(true);
         self.tip.ang_by_tangent = true;
         self.core.construct_last();
         in_state(self.core, self.tip)
@@ -5006,8 +5040,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         )?;
         let theta = turned(inc.ang.unit, delta);
         self.core.pend_junction(&inc, theta, tol)?;
-        self.tip.ang = Some(theta);
-        self.tip.ang_run = None;
+        self.tip.ang = Some(Bound::fresh(theta));
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
     }
@@ -5171,11 +5204,14 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // The bounded consequence, stated so it is not rediscovered: a
         // seam within two band units of the boundary can be pushed from
         // a definite verdict into ESCALATION by this difference. It
-        // cannot flip accept ↔ refuse, because crossing from one
-        // definite verdict to the other takes the band's whole width,
-        // `(K − 1)·ε`, more than `2ε` at every K past 3. Escalation is the honest outcome for a junction that
-        // close to the edge, so the direction of the error is the safe
-        // one.
+        // cannot flip accept ↔ refuse while K > 3, because crossing from
+        // one definite verdict to the other takes the band's whole
+        // width, `(K − 1)·ε`, which passes `2ε` only there. The ambiguity
+        // multiplier admits any K > 1 (`CAD_AMBIGUITY_K`), and at K ≤ 3 a
+        // seam within the band's width of its boundary can flip: that is
+        // the argument's limit. Escalation is the honest outcome for a
+        // junction that close to the edge, so where the argument holds
+        // the direction of the error is the safe one.
         //
         // `line_to(Start)` classifies from the REALIZED direction
         // instead, having computed it from the two points; that is the
@@ -5223,7 +5259,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let ang = self.tip.ang.ok_or(PathError::UnderdeterminedLeg {
             site: "directed tip without an angle",
         })?;
-        Ok((pos.at, ang))
+        Ok((pos.at, ang.dir))
     }
 
     /// The kernel behind the table's straight-leg row (recording is the
@@ -5242,7 +5278,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         }
         // The leg rides the run its direction inherited (`.tangent()`,
         // `.cusp()`), or begins one here, where its direction was bound.
-        let run = self.tip.ang_run.unwrap_or(Run::bound(at, ang));
+        let run = self.tip.ang.map_or(Run::bound(at, ang), |b| b.run_at(at));
         let tip = emit_straight_leg(&mut self.core, at, ang, len, run)?;
         Ok(in_state(self.core, tip))
     }
@@ -5281,7 +5317,6 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_run: None,
                 ang_by_tangent: false,
             },
         ))
@@ -5602,9 +5637,13 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
         anchor: Point2<T>,
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        let dir = self.tip.ang.ok_or(PathError::UnderdeterminedLeg {
-            site: "far-end anchor on a tip without a bound direction",
-        })?;
+        let dir = self
+            .tip
+            .ang
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "far-end anchor on a tip without a bound direction",
+            })?
+            .dir;
         if self.core.pending.is_none() {
             return Err(PathError::FarEndAnchorWithoutFillet);
         }
@@ -6549,8 +6588,7 @@ mod tests {
             // The arrival ray: along +x through (0.5, 0).
             core.run_out = Some(PendingRunOut {
                 step: 0,
-                anchor: Point2::new(0.5, 0.0),
-                dir: Dir::from_unit(Vec2::new(1.0, 0.0)),
+                ray: Run::bound(Point2::new(0.5, 0.0), Dir::from_unit(Vec2::new(1.0, 0.0))),
                 tol,
             });
             core.record(Step::LineTo(Target::Point(to)));
