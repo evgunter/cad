@@ -94,3 +94,43 @@ gone and the row asserts the enclosure for every pose. The scale-1 rod's
 backstop floor above is not re-measured here, so this item stays open
 for it: the ε share and the round-6 rule remainder are not position
 terms.
+
+## Re-measured on main 258dc6c7c2 (QUAD, 2026-10-21)
+
+**Verdict: shrunk.** The scale-10³ plants now decide. What is left is
+a scale dependence, not a position one. The backstop refuses the
+correct answer from between scale 3×10³ and 4×10³ at ε = 1e-9, and
+#5442's `shell_reference` did not move that threshold.
+
+Probe: `crates/sweep/tests/quad_frame_remeasure.rs`
+`row2_backstop_right_answer_by_scale`. It runs
+`topo::test_support::volume_backstop(Subtract, A, B, ·)` on
+`reach_volume_backstop.rs`'s scaled oblique rod pair, planting `A`
+itself (the correct answer) and `A` fattened by 1e-12 relative:
+
+| ε | scale s (m) | right answer | fattened 1e-12 |
+|---|---|---|---|
+| 1e-9 | 1, 10², 10³, 2·10³, 3·10³ | Validated | accepted |
+| 1e-9 | 4·10³, 6·10³, 10⁴ | `VolumeUndecided` | `VolumeUndecided` |
+| 1e-8 | 1, 10³, 4·10³, 10⁴, 3·10⁴ | Validated | accepted |
+| 1e-12 | 1 | Validated | accepted |
+| 1e-12 | 10³ | `VolumeUndecided` | `VolumeUndecided` |
+
+The same probe on main before #5442 (`ec32861499`) gives the same
+verdicts at 1e-9 (10³ to 3·10³ validate, 4·10³ and 10⁴ refuse) and at
+1e-12 scale 1 (validates). So the change from this row's 2026-10-01
+numbers came from an earlier change on main, and I cannot tell which.
+Those numbers were: 10³ refuses at 1e-9, 10⁴ refuses at 1e-8, and the
+scale-1 rod is undecidable at 1e-12. The row's own analysis still
+fits: a rule remainder ∝ s³ against a lever ∝ s². The
+`last_round_open` comment in `reach_volume_backstop.rs` already states
+the 3e12·ε–4e12·ε flip.
+
+At ε = 1e-12, scale 4·10³ does not build: the fixture's extrude
+refuses `Pcurve(Certify … MapResidual)`. A 4 km body at 1e-12 is past
+the model's range, so I filed nothing for it.
+
+The kilometre pipe at 1e-12:
+`a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval`,
+run on main at `CAD_TOLERANCE_EPS=1e-12`, passes: every frame and pose, the (1e3, −7e2, 4e2) one included, encloses at `Interval`. **Gone**
+(#5442), as the 2026-10-20 section says.
