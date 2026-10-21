@@ -412,14 +412,14 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         seam_joint(
             core,
             seam,
-            &Incoming {
-                ang: end_ang,
-                arm: radius.min(chord),
-                carrier: Some(SegArc {
+            &Incoming::fresh(
+                end_ang,
+                radius.min(chord),
+                Some(SegArc {
                     center: centre,
                     radius,
                 }),
-            },
+            ),
             start_ang,
             tol,
         )?;
@@ -438,11 +438,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         seam_joint(
             core,
             seam,
-            &Incoming {
-                ang: end_ang,
-                arm: trims.arc.radius,
-                carrier: Some(trims.arc),
-            },
+            &Incoming::fresh(end_ang, trims.arc.radius, Some(trims.arc)),
             start_ang,
             tol,
         )?;
@@ -1364,6 +1360,7 @@ impl Open {
             Tip {
                 pos: None,
                 ang: None,
+                ang_run: None,
                 ang_by_tangent: false,
             },
         ))
@@ -1460,6 +1457,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Tip {
                 pos: None,
                 ang: None,
+                ang_run: None,
                 ang_by_tangent: false,
             },
         ))
@@ -1557,6 +1555,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
+                ang_run: None,
                 ang_by_tangent: false,
             },
         ))
@@ -1627,6 +1626,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
+                ang_run: None,
                 ang_by_tangent: false,
             },
         ))
@@ -1676,6 +1676,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
+                ang_run: None,
                 ang_by_tangent: false,
             },
         ))

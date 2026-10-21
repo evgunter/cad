@@ -2316,14 +2316,178 @@ impl<T: Real> Dir<T> {
     }
 }
 
-/// A directed point's intrinsic incoming data: the arriving leg's end
-/// tangent, the leg's lever arm (extent capped by its carrier radius —
-/// the junction check's meters lever), and its carrier kind.
-#[derive(Clone, Copy, Debug)]
-struct Incoming<T: Real> {
-    ang: Dir<T>,
-    arm: T,
-    carrier: Option<ArcData<T>>,
+use directed::{Incoming, Run};
+
+/// **The directed point's intrinsic data, behind its one API** (PATHS-DESIGN
+/// §2c): its tangent, and `lands_on_ray`, the on-ray reading of a point
+/// target. The point's position is its tip's ([`PosData::at`]).
+///
+/// The representations are a family no verb can see. One is the bare
+/// (position, tangent); the other is the line of the straight run the
+/// point ends ([`Run`]), handed on by every straight continuation, so
+/// `lands_on_ray` on a run of continuations reads the line bound where
+/// the run's direction was bound, never re-anchored at an accepted
+/// vertex. The run is a private field and [`Run`] has no accessor: no
+/// verb can branch on, refuse on, or depend on which representation a
+/// point holds, and the module's privacy is what says so.
+mod directed {
+    use super::{ArcData, Dir, PathError, Point2, Real, Tol, linear_band};
+    use geom_core::k_stats::decide;
+    use geom_core::{Decide, Margin, Sign};
+
+    /// The line a straight run rides: its first vertex and the
+    /// direction bound there. Opaque: only [`Incoming`] reads it.
+    #[derive(Clone, Copy, Debug)]
+    pub(super) struct Run<T: Real> {
+        anchor: Point2<T>,
+        dir: Dir<T>,
+    }
+
+    impl<T: Real> Run<T> {
+        /// The same line run the other way: the reverse-tangent
+        /// continuation's (`.cusp()`), which negates the direction and
+        /// keeps the line.
+        pub(super) fn reversed(self) -> Self {
+            Self {
+                anchor: self.anchor,
+                dir: self.dir.reversed(),
+            }
+        }
+    }
+
+    /// A directed point's intrinsic incoming data: the arriving leg's
+    /// end tangent, the leg's lever arm (extent capped by its carrier
+    /// radius — the junction check's meters lever), its carrier kind,
+    /// and the run its straight continuations ride (private: read only
+    /// by [`Incoming::lands_on_ray`] and handed on by
+    /// [`Incoming::run_from`]).
+    #[derive(Clone, Copy, Debug)]
+    pub(super) struct Incoming<T: Real> {
+        pub(super) ang: Dir<T>,
+        pub(super) arm: T,
+        pub(super) carrier: Option<ArcData<T>>,
+        run: Option<Run<T>>,
+    }
+
+    impl<T: Real> Incoming<T> {
+        /// A point whose direction was bound where it ends: the bare
+        /// representation, its run starting at its own position.
+        pub(super) fn fresh(ang: Dir<T>, arm: T, carrier: Option<ArcData<T>>) -> Self {
+            Self {
+                ang,
+                arm,
+                carrier,
+                run: None,
+            }
+        }
+
+        /// The end of a straight continuation along `run`: the
+        /// representation it was itself checked against.
+        pub(super) fn continuing(run: Run<T>, ang: Dir<T>, arm: T) -> Self {
+            Self {
+                ang,
+                arm,
+                carrier: None,
+                run: Some(run),
+            }
+        }
+
+        /// The run a straight continuation from this point at `at`
+        /// rides: the run it ends, or one starting here along its
+        /// tangent.
+        pub(super) fn run_from(&self, at: Point2<T>) -> Run<T> {
+            self.run.unwrap_or(Run {
+                anchor: at,
+                dir: self.ang,
+            })
+        }
+    }
+
+    impl<T: Decide> Incoming<T> {
+        /// **The declared point-target continuation's one decision**: is
+        /// the authored `target` ON this point's ray? Returns how far
+        /// ALONG it from `at` (the point's position) the target sits,
+        /// the leg length the declaration implies, or refuses.
+        ///
+        /// The ray is the run's ([`Incoming::run_from`]): on a run of
+        /// continuations, the line bound at the run's first vertex. So
+        /// every vertex of a declared straight run lies within the band
+        /// of that one line, and n accepted misses are n misses of it,
+        /// never a sum (PATHS-DESIGN §4).
+        ///
+        /// Two facts are gated, and they are separate facts, so they get
+        /// separate refusals. The LATERAL miss decides whether the
+        /// target is on the run's LINE, and it is classified on the same
+        /// linear band every other decision in this kernel uses, with
+        /// the same reading: below ε_precision the target and the line
+        /// are the same place at the precision anything here
+        /// represents, so the declaration is consistent; above ε_input
+        /// (= K·ε) they are definitely different places, and the
+        /// authored data contradicts itself; between them nothing is
+        /// decidable, so the band escalates rather than guesses. The
+        /// refusal edge IS ε_input, which is the band the input-quality
+        /// role names — this is a question about authored input, not
+        /// about what the kernel can build — and it is reached through
+        /// the funnel rather than by comparing against K·ε directly,
+        /// because a bare comparison would swallow the escalation band
+        /// and decide where the numbers cannot.
+        ///
+        /// The margin is metered with NO lever: `across` is already the
+        /// target's own displacement from the line in meters — the
+        /// distance the authored point would have to move — so
+        /// [`Margin::of`](geom_core::Margin::of) is the honest door.
+        /// (§4 item 1 levers its turn margin because ITS datum is an
+        /// angle; an angle is a pure number until an arm says what it
+        /// displaces. Levering here would mean dividing this length by
+        /// the leg to get an angle and multiplying it back, which can
+        /// only lose bits and would make the threshold depend on how far
+        /// away the author put the point.)
+        ///
+        /// The ALONG component is the leg's half-line-ness, measured
+        /// from the departing position, and it is the same fact
+        /// `line(len)` gates on its authored length: a target behind the
+        /// departure, or on top of it, is a leg of non-positive length
+        /// ([`PathError::NonpositiveLeg`]), not a target that misses.
+        ///
+        /// **Sibling measurement, cross-declared** (R1 S1): this,
+        /// [`super::tangent_arc_geom`] and [`super::PendingRunOut::rides`]'s
+        /// ray arm compute the same kind of displacement — `across =
+        /// û⊥·(target − anchor)` (and `along = û·d` here and in the
+        /// tangent arc; `rides` measures its advance from the chain head
+        /// instead), then a banded decision — under three different
+        /// predicate keys. They are kept separate deliberately rather
+        /// than shared, because the keys are the point: this site
+        /// classifies `across` as a declared target's MISS
+        /// (`path_continuation_target_offset`, an authored-data
+        /// disagreement), the tangent-arc site classifies the same
+        /// number as a degenerate-arc condition, and the run-out site as
+        /// which step an emitted segment is named for
+        /// (`path_run_out_carrier`). The funnel key is what tells a
+        /// margin telemetry reader which question was being answered, so
+        /// collapsing them would lose the distinction that makes the
+        /// funnel worth having.
+        pub(super) fn lands_on_ray(
+            &self,
+            at: Point2<T>,
+            target: Point2<T>,
+            tol: Tol,
+        ) -> Result<T, PathError<T>> {
+            let run = self.run_from(at);
+            let across = run.dir.unit.perp_dot(target - run.anchor);
+            let along = run.dir.unit.dot(target - at);
+            let band = linear_band(tol)?;
+            match decide("path_continuation_target_offset", Margin::of(across), band) {
+                Ok(Sign::Zero) => {}
+                Ok(_) => return Err(PathError::ContinuationTargetOffRay { across, along }),
+                Err(source) => return Err(PathError::Escalated { source }),
+            }
+            match decide("path_leg_length", Margin::of(along), band) {
+                Ok(Sign::Positive) => Ok(along),
+                Ok(_) => Err(PathError::NonpositiveLeg { length: along }),
+                Err(source) => Err(PathError::Escalated { source }),
+            }
+        }
+    }
 }
 
 /// A junction bound but not yet read: the arriving leg's data, the
@@ -2347,6 +2511,12 @@ struct PendingJunction<T: Real> {
 struct Tip<T: Real> {
     pos: Option<PosData<T>>,
     ang: Option<Dir<T>>,
+    /// The run a direction inherited bitwise rides (`.tangent()`,
+    /// `.cusp()`): a straight leg off it continues that run
+    /// (PATHS-DESIGN §2c). Opaque, as [`Incoming`]'s own is: handed on
+    /// to the leg's end and read by nothing else. `None` wherever the
+    /// direction was bound afresh.
+    ang_run: Option<Run<T>>,
     /// Whether the bound angle was inherited by `.tangent()` (the
     /// constructed-tangency continuations; drives the §4 item 4 checks).
     ang_by_tangent: bool,
@@ -3497,8 +3667,9 @@ fn emit_straight_leg<T: Decide>(
     at: Point2<T>,
     ang: Dir<T>,
     len: T,
+    run: Option<Run<T>>,
 ) -> Result<Tip<T>, PathError<T>> {
-    emit_straight_leg_at(core, at + ang.unit * len, ang)
+    emit_straight_leg_at(core, at + ang.unit * len, ang, run)
 }
 
 /// The same emission where the END is the datum rather than the extent
@@ -3535,11 +3706,16 @@ fn emit_straight_leg_at<T: Decide>(
     core: &mut Core<T>,
     end: Point2<T>,
     ang: Dir<T>,
+    run: Option<Run<T>>,
 ) -> Result<Tip<T>, PathError<T>> {
     let head = core.head()?;
     core.push_line(end)?;
     let arm = (end - head).norm_squared().sqrt();
-    Ok(leg_end_tip(end, ang, arm, None))
+    let incoming = match run {
+        Some(run) => Incoming::continuing(run, ang, arm),
+        None => Incoming::fresh(ang, arm, None),
+    };
+    Ok(directed_tip(end, incoming))
 }
 
 /// Maps the shared fillet closed form's refusals into the algebra's
@@ -4336,14 +4512,21 @@ fn in_state<T: Real, P, A>(core: Core<T>, tip: Tip<T>) -> PartialPath<T, P, A> {
     }
 }
 
-/// A directed-point tip minted by a leg end.
+/// A directed-point tip minted by a leg end whose direction was bound
+/// where it ends: the bare representation, starting afresh.
 fn leg_end_tip<T: Real>(at: Point2<T>, ang: Dir<T>, arm: T, carrier: Option<ArcData<T>>) -> Tip<T> {
+    directed_tip(at, Incoming::fresh(ang, arm, carrier))
+}
+
+/// A directed-point tip at `at` holding `incoming`.
+fn directed_tip<T: Real>(at: Point2<T>, incoming: Incoming<T>) -> Tip<T> {
     Tip {
         pos: Some(PosData {
             at,
-            incoming: Some(Incoming { ang, arm, carrier }),
+            incoming: Some(incoming),
         }),
         ang: None,
+        ang_run: None,
         ang_by_tangent: false,
     }
 }
@@ -4372,6 +4555,7 @@ impl Open {
                     incoming: None,
                 }),
                 ang: None,
+                ang_run: None,
                 ang_by_tangent: false,
             },
         )
@@ -4388,6 +4572,7 @@ impl Open {
             Tip {
                 pos: None,
                 ang: Some(dir),
+                ang_run: None,
                 ang_by_tangent: false,
             },
         )
@@ -4732,6 +4917,7 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
                     incoming: None,
                 }),
                 ang: self.tip.ang,
+                ang_run: self.tip.ang_run,
                 ang_by_tangent: self.tip.ang_by_tangent,
             },
         ))
@@ -4757,12 +4943,21 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
             }
         }
         self.tip.ang = Some(dir);
+        self.tip.ang_run = None;
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
     }
 }
 
 impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
+    /// The run the tip's own direction rides, as `how` hands it on (the
+    /// direction-inheriting verbs: it is the run a straight leg off the
+    /// inherited direction continues).
+    fn inherited_run(&self, how: impl FnOnce(Run<T>) -> Run<T>) -> Option<Run<T>> {
+        let pos = self.tip.pos.as_ref()?;
+        Some(how(pos.incoming?.run_from(pos.at)))
+    }
+
     /// The kernel behind the table's tangent-inheritance row (recording
     /// is the row's, not the kernel's).
     fn tangent_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
@@ -4772,6 +4967,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             .as_ref()
             .and_then(|p| p.incoming.as_ref())
             .map(|inc| inc.ang);
+        self.tip.ang_run = self.inherited_run(core::convert::identity);
         self.tip.ang_by_tangent = true;
         self.core.construct_last();
         in_state(self.core, self.tip)
@@ -4791,6 +4987,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             .as_ref()
             .and_then(|p| p.incoming.as_ref())
             .map(|inc| inc.ang.reversed());
+        self.tip.ang_run = self.inherited_run(Run::reversed);
         self.tip.ang_by_tangent = true;
         self.core.construct_last();
         in_state(self.core, self.tip)
@@ -4811,6 +5008,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let theta = turned(inc.ang.unit, delta);
         self.core.pend_junction(&inc, theta, tol)?;
         self.tip.ang = Some(theta);
+        self.tip.ang_run = None;
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
     }
@@ -4858,95 +5056,20 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // the joint at this vertex is tangent by construction, exactly
         // as `.tangent()`'s is, and validation verifies it.
         self.core.construct_last();
-        let tip = emit_straight_leg(&mut self.core, at, inc.ang, len)?;
+        let tip = emit_straight_leg(&mut self.core, at, inc.ang, len, Some(inc.run_from(at)))?;
         Ok(in_state(self.core, tip))
     }
 
-    /// The departing RAY of a straight continuation: the point it
-    /// leaves from and the tangent it leaves along, both binding bits.
-    fn continuation_ray(&self, site: &'static str) -> Result<(Point2<T>, Dir<T>), PathError<T>> {
+    /// The departing directed point of a straight continuation: its
+    /// position and its intrinsic data, both binding bits.
+    fn departing(&self, site: &'static str) -> Result<(Point2<T>, Incoming<T>), PathError<T>> {
         let pos = self
             .tip
             .pos
             .as_ref()
             .ok_or(PathError::UnderdeterminedLeg { site })?;
         let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg { site })?;
-        Ok((pos.at, inc.ang))
-    }
-
-    /// **The declared point-target continuation's one decision**: is the
-    /// authored target ON the departing ray? Returns how far ALONG it
-    /// the target sits — the leg length the declaration implies — or
-    /// refuses.
-    ///
-    /// Two facts are gated, and they are separate facts, so they get
-    /// separate refusals. The LATERAL miss decides whether the target is
-    /// on the ray's LINE, and it is classified on the same linear band
-    /// every other decision in this kernel uses, with the same reading:
-    /// below ε_precision the target and the ray are the same place at
-    /// the precision anything here represents, so the declaration is
-    /// consistent; above ε_input (= K·ε) they are definitely different
-    /// places, and the authored data contradicts itself; between them
-    /// nothing is decidable, so the band escalates rather than guesses.
-    /// The refusal edge IS ε_input, which is the band the input-quality
-    /// role names — this is a question about authored input, not about
-    /// what the kernel can build — and it is reached through the funnel
-    /// rather than by comparing against K·ε directly, because a bare
-    /// comparison would swallow the escalation band and decide where the
-    /// numbers cannot.
-    ///
-    /// The margin is metered with NO lever: `across` is already the
-    /// target's own displacement from the ray in meters — the distance
-    /// the authored point would have to move — so [`Margin::of`] is the
-    /// honest door. (§4 item 1 levers its turn margin because ITS datum
-    /// is an angle; an angle is a pure number until an arm says what it
-    /// displaces. Levering here would mean dividing this length by the
-    /// leg to get an angle and multiplying it back, which can only lose
-    /// bits and would make the threshold depend on how far away the
-    /// author put the point.)
-    ///
-    /// The ALONG component is the ray's half-line-ness, and it is the
-    /// same fact `line(len)` gates on its authored length: a target
-    /// behind the departure, or on top of it, is a leg of non-positive
-    /// length ([`PathError::NonpositiveLeg`]), not a target that misses.
-    /// **Sibling measurement, cross-declared** (R1 S1): this,
-    /// [`tangent_arc_geom`] and
-    /// [`PendingRunOut::rides`]'s ray arm compute the SAME displacement
-    /// — `d = target − at`, `across = û⊥·d` (and `along = û·d` here
-    /// and in the tangent arc; `rides` measures its advance from the
-    /// chain head instead, `û·(to − head)`), then a banded decision —
-    /// under three different predicate keys.
-    ///
-    /// They are kept separate deliberately rather than shared, because
-    /// the keys are the point: this site classifies `across` as a
-    /// declared target's MISS (`path_continuation_target_offset`, an
-    /// authored-data disagreement), the tangent-arc site classifies the
-    /// same number as a degenerate-arc condition, and the run-out site
-    /// as which step an emitted segment is named for
-    /// (`path_run_out_carrier`). The funnel key is what tells a margin
-    /// telemetry reader which question was being answered, so
-    /// collapsing them would lose the distinction that makes the funnel
-    /// worth having.
-    fn on_ray_extent(
-        at: Point2<T>,
-        ang: Dir<T>,
-        target: Point2<T>,
-        tol: Tol,
-    ) -> Result<T, PathError<T>> {
-        let d = target - at;
-        let along = ang.unit.dot(d);
-        let across = ang.unit.perp_dot(d);
-        let band = linear_band(tol)?;
-        match decide("path_continuation_target_offset", Margin::of(across), band) {
-            Ok(Sign::Zero) => {}
-            Ok(_) => return Err(PathError::ContinuationTargetOffRay { across, along }),
-            Err(source) => return Err(PathError::Escalated { source }),
-        }
-        match decide("path_leg_length", Margin::of(along), band) {
-            Ok(Sign::Positive) => Ok(along),
-            Ok(_) => Err(PathError::NonpositiveLeg { length: along }),
-            Err(source) => Err(PathError::Escalated { source }),
-        }
+        Ok((pos.at, inc))
     }
 
     /// The kernel behind the table's point-target continuation row
@@ -4966,15 +5089,15 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         target: Point2<T>,
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        let (at, ang) = self.continuation_ray("continue_to on a tip without incoming data")?;
-        Self::on_ray_extent(at, ang, target, tol)?;
+        let (at, inc) = self.departing("continue_to on a tip without incoming data")?;
+        inc.lands_on_ray(at, target, tol)?;
         // The continuation verbs CONSTRUCT the zero-turn joint they
         // mint (Ev, in-chat, 2026-09-02; D1: every zero-turn joint is a
         // tangent joint). The departure is the incoming ray itself, so
         // the joint at this vertex is tangent by construction, exactly
         // as `.tangent()`'s is, and validation verifies it.
         self.core.construct_last();
-        let tip = emit_straight_leg_at(&mut self.core, target, ang)?;
+        let tip = emit_straight_leg_at(&mut self.core, target, inc.ang, Some(inc.run_from(at)))?;
         Ok(in_state(self.core, tip))
     }
 
@@ -5002,8 +5125,8 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;
-        let (at, ang) =
-            self.continuation_ray("continue_to(Start) on a tip without incoming data")?;
+        let (at, inc) = self.departing("continue_to(Start) on a tip without incoming data")?;
+        let ang = inc.ang;
         // NO open-fillet guard here, and that is a decision rather than
         // an omission — the three straight-continuation kernels
         // (`straight_continuation_kernel`, `continue_to_point_kernel`
@@ -5029,7 +5152,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // is written about authoring an arc with the fillet that trims
         // it. Borrowing it for a straight continuation named the wrong
         // fact even in the branch that could never run.
-        Self::on_ray_extent(at, ang, start_pos, tol)?;
+        inc.lands_on_ray(at, start_pos, tol)?;
         let start_ang = *self.core.start_ang.get_or_insert(ang);
         // NO vertex is minted here. `Start` is the entry vertex, which
         // the loop already carries; a closing leg is the segment BACK
@@ -5041,17 +5164,17 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let head = self.core.head()?;
         let arm = (start_pos - head).norm_squared().sqrt();
         // The seam is classified with the DECLARED ray (`ang`), while
-        // the segment actually emitted runs head → start_pos. Those two
-        // directions differ by the accepted lateral miss over the arm,
-        // at most `across/arm` — one band unit by construction, because
-        // `on_ray_extent` above refused anything larger.
+        // the segment actually emitted runs head → start_pos. Both ends
+        // lie within the band's zero of the run's line (`lands_on_ray`
+        // above refused anything larger, and the head was accepted the
+        // same way), so the two directions differ by at most `2ε/arm`.
         //
         // The bounded consequence, stated so it is not rediscovered: a
-        // seam within one band unit of the boundary can be pushed from a
-        // definite verdict into ESCALATION by this difference. It cannot
-        // flip accept ↔ refuse, because crossing from one definite
-        // verdict to the other would take more than the band's whole
-        // width. Escalation is the honest outcome for a junction that
+        // seam within two band units of the boundary can be pushed from
+        // a definite verdict into ESCALATION by this difference. It
+        // cannot flip accept ↔ refuse, because crossing from one
+        // definite verdict to the other takes the band's whole width,
+        // `(K − 1)·ε`, more than `2ε` at every K past 3. Escalation is the honest outcome for a junction that
         // close to the edge, so the direction of the error is the safe
         // one.
         //
@@ -5072,11 +5195,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming {
-                ang,
-                arm,
-                carrier: None,
-            },
+            &Incoming::fresh(ang, arm, None),
             start_ang,
             tol,
         )?;
@@ -5122,7 +5241,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Ok(_) => return Err(PathError::NonpositiveLeg { length: len }),
             Err(source) => return Err(PathError::Escalated { source }),
         }
-        let tip = emit_straight_leg(&mut self.core, at, ang, len)?;
+        let tip = emit_straight_leg(&mut self.core, at, ang, len, self.tip.ang_run)?;
         Ok(in_state(self.core, tip))
     }
 
@@ -5160,6 +5279,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Tip {
                 pos: None,
                 ang: None,
+                ang_run: None,
                 ang_by_tangent: false,
             },
         ))
@@ -5209,11 +5329,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming {
-                ang: g.end_ang,
-                arm,
-                carrier: g.carrier,
-            },
+            &Incoming::fresh(g.end_ang, arm, g.carrier),
             start_ang,
             tol,
         )?;
@@ -5285,11 +5401,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming {
-                ang: gamma,
-                arm,
-                carrier: None,
-            },
+            &Incoming::fresh(gamma, arm, None),
             start_ang,
             tol,
         )?;
@@ -5471,11 +5583,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming {
-                ang: end_t,
-                arm,
-                carrier,
-            },
+            &Incoming::fresh(end_t, arm, carrier),
             start_ang,
             tol,
         )?;
