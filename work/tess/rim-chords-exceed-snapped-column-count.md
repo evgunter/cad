@@ -2,11 +2,14 @@
 id: rim-chords-exceed-snapped-column-count
 kind: issue
 title: Rim chords can exceed the snapped column count on a malign band (residual off-lattice risk under TESS-SPLIT)
-status: open
+status: closed
 opened: 2026-08-23
 github: 950
 priority: P0
 cost: H
+closed: 2026-10-21
+pr: 5551
+branch: tess/snap-witness-or-retire
 ---
 
 ## From GitHub issue 950

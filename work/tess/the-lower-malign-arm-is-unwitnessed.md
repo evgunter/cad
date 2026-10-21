@@ -2,10 +2,13 @@
 id: the-lower-malign-arm-is-unwitnessed
 kind: issue
 title: the malign-band column snap is unwitnessed over the lattice metric (0 of 2573 tour bands since #5531), its lower arm unmeasured and aimed at the wrong hazard; witness it or retire it
-status: open
+status: closed
 opened: 2026-10-21
 priority: P3
 cost: E
+closed: 2026-10-21
+pr: 5551
+branch: tess/snap-witness-or-retire
 ---
 
 
