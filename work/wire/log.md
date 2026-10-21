@@ -6980,3 +6980,4 @@ Signed (WIRE orchestrator).
   - Ruling: compose geom_core::lever_recourse with no qualifier. The new variants (and the reshaped SeamVertexParentage) take Unsupported*. Older Unruled variants get one class row, not renamed here.
   - Fix pass also covers locators, per-shape recourse, README's Outright-join rule (check provenance), prose counts and full-shape rendering.
   - Note: most such Unruled variants already break the prefix rule. That is a class, now filed rather than spread.
+- 2026-10-21 (WIRE orchestrator) PR 5523 (repoint the moved rows' citations) is green and merged at fa65d8fb52. Main's three name_invariance failures are fixed.
