@@ -1720,29 +1720,13 @@ fn cite_member_edges<T: geom_core::Decide>(
             _ => None,
         };
         let cited = match (member_vertex, crossing) {
-            (
-                Some((
-                    MemberVertices {
-                        name, tied: true, ..
-                    },
-                    e,
-                )),
-                _,
-            ) => {
-                tie.push(name, e);
+            (Some((m, e)), _) if m.tied => {
+                tie.push(m.name, e);
                 continue;
             }
-            (
-                Some((
-                    MemberVertices {
-                        name, corners: at, ..
-                    },
-                    _,
-                )),
-                _,
-            ) => {
-                corners.entry(name.clone()).or_default().extend(at);
-                name
+            (Some((m, _)), _) => {
+                corners.entry(m.name.clone()).or_default().extend(m.corners);
+                m.name
             }
             (None, Some(crossing)) => crossing,
             (None, None) => {
