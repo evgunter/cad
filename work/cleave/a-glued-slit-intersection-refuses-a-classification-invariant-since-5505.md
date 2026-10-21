@@ -2,10 +2,11 @@
 id: a-glued-slit-intersection-refuses-a-classification-invariant-since-5505
 kind: issue
 title: Since PR 5505, an intersection of a box flush with a slit plate's top refuses ClassificationInvariant where it refused SlitFaceGlued typed
-status: open
+status: dispatched
 opened: 2026-10-21
 priority: P1
 cost: M
+branch: cleave/glued-slit-intersection-regression
 ---
 
 
