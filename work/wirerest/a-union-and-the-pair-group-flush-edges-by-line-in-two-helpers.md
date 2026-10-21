@@ -32,3 +32,7 @@ One grouping helper in `emit_topo.rs` that returns the groups, which
 `least_per_line` (or the pair's set rule, if
 `a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges`
 lands first) and `sets_per_line` both read; the doc corrected.
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).

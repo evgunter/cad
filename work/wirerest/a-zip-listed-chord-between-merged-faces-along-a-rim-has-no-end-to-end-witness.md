@@ -30,3 +30,7 @@ Wanted: a document that reaches it through `chord_kind`, or the reason
 none can (which would make the arm row 4).
 
 Signed (WIRE lane `wire-seamorder`).
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).

@@ -3472,8 +3472,7 @@ fn judged_at(
 ///
 /// # Errors
 ///
-/// [`names::member_cells`]'s refusals, and
-/// [`crate::coincide::NamedCoincidence::meet`]'s.
+/// [`crate::coincide::NamedCoincidence::meet`]'s refusals.
 ///
 /// # Panics
 ///
@@ -3500,7 +3499,7 @@ fn in_member_space(
                  both keyed by that read"
             ),
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Vec<_>>();
     let entity =
         |(input, name): (crate::VarId, names::StableName)| NamedCell::Entity { input, name };
     let single = |cells: &[(crate::VarId, names::StableName)]| match cells {

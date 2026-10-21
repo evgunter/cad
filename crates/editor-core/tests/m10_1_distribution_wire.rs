@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::UnitSym;
+use editor_core::test_support::past_the_load_door;
 use editor_core::{
     Dimension, Distribution, DistributionFault, DistributionField, DocEdit, DocumentId, EditError,
     FreeVar, PersistError, ProfileDoc, VarName, apply, load, save,
@@ -138,24 +139,16 @@ fn a_hand_written_negative_sigma_refuses_at_load() {
 
 /// The SAVE half — what makes "a document that would refuse to load
 /// cannot be saved" true rather than aspirational. The corrupt
-/// snapshot is deserialized DIRECTLY, past both the edit door and the
-/// load door's validator, and then handed to `save`, which refuses it
-/// with the same typed fault the load door raised above.
+/// snapshot is read past both the edit door and the load door's
+/// validator (`past_the_load_door`), and then handed to `save`, which
+/// refuses it with the same typed fault the load door raised above.
 #[test]
 fn the_same_document_refuses_at_save() {
     let doc = doc_with(&[("s", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
     let text = save(&doc, &[], Tol::witness()).expect("the healthy document saves");
     let corrupt = text.replace("\"sigma\": 0.01", "\"sigma\": -1.0");
     assert_ne!(corrupt, text, "the corruption must actually land");
-    let body: serde_json::Value = serde_json::from_str(
-        corrupt
-            .split_once('\n')
-            .map(|(_id_line, body)| body)
-            .expect("the JSON body follows the header line"),
-    )
-    .expect("the corrupt body is still JSON");
-    let broken: ProfileDoc =
-        serde_json::from_value(body["snapshot"].clone()).expect("and still a document");
+    let broken = past_the_load_door(&corrupt);
     match save(&broken, &[], Tol::witness()) {
         Err(PersistError::Distribution { var, fault }) => {
             assert_eq!(var.name().map(VarName::as_str), Some("s"));
@@ -315,7 +308,7 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
         "the distribution walk runs before the structural check, as it does at load"
     );
     // The same doubly-corrupt parameter through the SAVE validator,
-    // built by deserializing a corrupted body past both other doors —
+    // read from a corrupted body past both other doors —
     // the technique the save-door row above uses, for the same reason.
     let healthy = doc_with(&[("s", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
     let text = save(&healthy, &[], Tol::witness()).expect("the healthy document saves");
@@ -323,15 +316,7 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
         .replace("\"sigma\": 0.01", "\"sigma\": -1.0")
         .replace("\"dim\": \"Length\"", "\"dim\": \"Count\"");
     assert_ne!(corrupt, text, "the corruption must actually land");
-    let body: serde_json::Value = serde_json::from_str(
-        corrupt
-            .split_once('\n')
-            .map(|(_id_line, body)| body)
-            .expect("the JSON body follows the header line"),
-    )
-    .expect("the corrupt body is still JSON");
-    let doubly: ProfileDoc =
-        serde_json::from_value(body["snapshot"].clone()).expect("and still a document");
+    let doubly = past_the_load_door(&corrupt);
     match save(&doubly, &[], Tol::witness()) {
         Err(PersistError::Distribution { var: n, fault }) => {
             assert_eq!(n.name(), Some(&name), "the same parameter");
