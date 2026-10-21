@@ -459,10 +459,13 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
         inner.iter().copied().collect(),
         "every event lands on the inner face; the chords record nothing on the outer one"
     );
+    // Its result keeps a torus face holding a ring the spiric ovals
+    // bound, which the spiric wall lane reads; `germ_plane_torus_spiric`'s
+    // B1 holds the union to its oracle.
     assert_eq!(
         torus_door(topo::BooleanOp::Union, &d, &b),
-        Ok(TorusDoor::Stopped),
-        "the union passes the join and stops past it"
+        Ok(TorusDoor::Built),
+        "the union passes the join and builds"
     );
 }
 
