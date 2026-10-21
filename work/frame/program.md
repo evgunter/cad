@@ -2,7 +2,7 @@
 id: frame
 kind: program
 title: FRAME — who answers "give me a frame", and by what rule
-status: active
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: frame/
