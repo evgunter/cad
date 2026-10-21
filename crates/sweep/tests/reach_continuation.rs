@@ -15,6 +15,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
+use geom_core::{RigidMotion, Turns, UnitVec3};
+use profile::SketchPlane;
 use profile::{Open, ProfileLoop, RawLoop, Start};
 use sweep::test_support::{extruded, finished, sketch_at};
 use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanOp, BooleanResult};
@@ -614,12 +616,11 @@ fn rabbeted() -> AtRestBody<f64> {
         Point2::new(W - 1.0, 1.0),
         Point2::new(0.0, 1.0),
     ]);
-    let xz = sweep::test_support::sketch_from_axes(
+    let xz = SketchPlane::from_frame(RigidMotion::turned(
         geom_core::Point3::new(0.0, H, 0.0),
-        geom_core::Vec3::new(1.0, 0.0, 0.0),
-        geom_core::Vec3::new(0.0, 0.0, 1.0),
-        tol(),
-    );
+        UnitVec3::exact_x(),
+        Turns::quarters(1),
+    ));
     finished(
         "the rabbeted plate",
         extruded(xz, vec![section], H, tol()),

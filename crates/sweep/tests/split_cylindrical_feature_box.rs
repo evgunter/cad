@@ -25,8 +25,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
+use geom_core::{RigidMotion, Turns};
 use profile::{SketchPlane, circle_split};
-use sweep::test_support::{brick, extruded, finished, sketch_at, sketch_from_axes};
+use sweep::test_support::{brick, extruded, finished, sketch_at};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, POSE_UNIT_NORM, subtract, union};
 
@@ -207,12 +208,11 @@ fn assert_sections_are_the_closed_form(what: &str, halves: &[Body<f64>; 2], axis
 fn a_box_with_a_bore_along_y_splits_on_the_cutaway_plane() {
     // u = x, v = z: the sketch normal is x × z = −y, so a sketch at
     // y = 0.5 extruded 0.75 runs the bore through y ∈ [−0.25, 0.5].
-    let plane = sketch_from_axes(
+    let plane = SketchPlane::from_frame(RigidMotion::turned(
         Point3::new(0.0, 0.5, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        tol(),
-    );
+        UnitVec3::exact_x(),
+        Turns::quarters(1),
+    ));
     let bore = round(plane, Point2::new(1.5, 0.875), 0.75);
     let body = sub("gland bore", &project_box(Some((1, 0))), &bore);
     let halves = halves("bored box", &body);

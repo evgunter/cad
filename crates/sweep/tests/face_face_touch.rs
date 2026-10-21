@@ -5,6 +5,8 @@
 
 use geom::SurfaceKind;
 use geom_core::{Band, Point2, Tol};
+use geom_core::{RigidMotion, Turns, UnitVec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop};
 use sweep::ExtrudeSide;
@@ -529,12 +531,11 @@ fn a_record_on_an_arc_trimmed_face_confirms_along_the_line_through_it() {
             0.0,
             1.0,
         );
-        let plane = sweep::test_support::sketch_from_axes(
+        let plane = SketchPlane::from_frame(RigidMotion::turned(
             geom_core::Point3::new(0.0, y1, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        );
+            UnitVec3::exact_x(),
+            Turns::quarters(1),
+        ));
         let rod =
             sweep::test_support::extruded(plane, vec![circle(0.0, 1.5, 0.5, 0.0)], y1 - y0, tol());
         let mut body: Body<f64> = (*slab).clone();
