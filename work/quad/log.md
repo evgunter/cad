@@ -156,3 +156,15 @@ Measured on main `258dc6c7c2`, with `ec32861499` (just before FLUX's #5442) as t
 - **swept circle: the position half is gone** (#5442). The knot-structure and degree findings stand: every `circle`-section cell refuses at the default ε, at widths 6e-6 to 2e-5. Stays P1: it still blocks ordinary round tubes. The row's own recipe now hits tour wall 9 (`PathTangentReversal`), so the lofted twin was measured instead.
 - **area pads: stands, first measurement.** The bracket width varies 1.13× under rotation, and the flux width 2.8×. Stays P3.
 - **Class finding, sent to FLUX's log:** #5442 reads a shell about its first quadrature face's start, which costs bodies at the origin. That is evidence for FLUX's `a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first`.
+
+## 2026-10-21 — check 7's sign walk merged (PR 5568)
+
+- **Single FULL review** found no MAJOR. Four MINORs went to the fix pass, two of them regressions this PR introduced:
+  - `volume_backstop` went from 3.1 s to 53.4 s on a budget-refused face; fixed by `target_walk`, which runs 4 quadrature verdicts instead of 18;
+  - the tight re-derive of a fully-walked face read it at round 0; fixed by `taken_at`, without a witness.
+- **Lane coverage:** each lane and the carried refusal now have a row that goes red under its own revert.
+- **Focused re-review of the fix pass:** mergeable. Its notes are filed:
+  - `a-refused-faces-later-hard-error-is-swallowed-whatever-its-kind` (P3, E);
+  - `face-run-is-a-state-machine-kept-by-convention` (P3, M; a class finding: state held by filtering, not by type, sequenced with PR 5574's stop-rule unit).
+- The precedence call (a budget refusal wins over a later round's hard error on the same face) is the lane's, adjudicated as sound: every reachable kind is "cannot refine".
+- Render moves in `lofts`, `projectbox`, `teapot`, `twisted_duct` and `twisted_tube` are main's drift. The reviewer showed it by elimination: main has merged mesher PRs since the Oct 20 cells.
