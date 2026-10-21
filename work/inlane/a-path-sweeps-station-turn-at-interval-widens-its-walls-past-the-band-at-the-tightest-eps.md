@@ -47,4 +47,4 @@ gated row pins it now, so the reproduction is the 5e-13 run above.
 
 ## Re-homed at PATHS's close (2026-10-21)
 
-Moved from `work/paths/` to INLANE (`work/inlane/`) when PATHS closed (`docs/PATHS-EXIT-WALK.md`), not to PATHS's successor PROFILE. The site is `crates/sweep/src/skin.rs`'s `sweep_places`, which is INLANE's territory. The question is what a station turn evaluated at the lane scalar costs the walls' certification, and that is INLANE's charter: every carrier's values in the lane scalar. The item's id, content and history are unchanged.
+Moved from `work/paths/` to INLANE (`work/inlane/`) when PATHS closed (`docs/doc-ledger/paths-leaves-the-tracker.md`), not to PATHS's successor PROFILE. The site is `crates/sweep/src/skin.rs`'s `sweep_places`, which is INLANE's territory. The question is what a station turn evaluated at the lane scalar costs the walls' certification, and that is INLANE's charter: every carrier's values in the lane scalar. The item's id, content and history are unchanged.
