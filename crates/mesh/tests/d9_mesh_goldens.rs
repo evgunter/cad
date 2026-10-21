@@ -293,10 +293,10 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         "apex_crossing_bowtie",
         [0x9cdd_b7a3_543d_b550, 0x9cdd_b7a3_543d_b550],
     ),
-    ("loft_prism", [0x2d6a_6bd0_bdce_2300, 0x6109_b327_f166_6647]),
+    ("loft_prism", [0x84ea_8af9_132d_1d06, 0xbd35_489f_9efc_97ed]),
     (
         "swept_elbow",
-        [0xcaff_c38a_5f6f_9c7d, 0x35ac_a665_5d83_f108],
+        [0xf07d_e654_3244_c4e5, 0x2f93_ed62_bd09_29f7],
     ),
 ];
 

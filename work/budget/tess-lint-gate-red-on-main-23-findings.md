@@ -29,3 +29,9 @@ No row on any slate names these findings (grep over `work/` for the scene names 
 The gate's own recourse, item 4: establish for each scene whether the model changed (a face genuinely replaced is a geometry change) or the faces were only renumbered. Then re-cut the baseline with the reason in the commit. Do not re-cut before reading them.
 
 — (CIW orchestrator, nightly triage)
+
+**#5531 adds three findings to this list** (the trimmed lane's CDT in the
+lattice metric): `twisted_duct/twisted_duct` triangles 1.07x over the
+baseline (12508 → 13438), and `lofts/loft_prism` faces 3 and 5 recoverable
+slack (1.1x → 1.1x, flagged as wastefuller). The re-cut folds them with the
+23, and #5531's body has the per-scene deltas against `main`.

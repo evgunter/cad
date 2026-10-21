@@ -2,12 +2,15 @@
 id: lofted-rational-walls-refuse-at-some-deltas
 kind: issue
 title: lofted rational walls refuse CertificateExceeded at some chordal tolerances, at sliver triangles in a dense row strip
-status: open
+status: closed
 opened: 2026-10-20
 priority: P0
 cost: M
 design: true
 refs: [lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late, 5499]
+closed: 2026-10-21
+pr: 5531
+branch: tess/lattice-metric-cdt
 ---
 
 
