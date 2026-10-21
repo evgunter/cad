@@ -30,7 +30,7 @@ Both are pinned in `crates/sweep/tests/a_seam_region_carrying_both_poles.rs`,
 which goes red when this row's owner lands. Found by the review of PR
 4746.
 
-- **A, every ε** (`two_faces_whose_region_carries_both_poles_flip_silently`).
+- **A, every ε** (`two_faces_whose_region_carries_both_poles_flipped_refuse_on_two_opposed_rays`).
   A y-poled unit ball unioned with the brick `[-3, 0] × [-2, 2]²` keeps
   one 180° lune. `mef` splits it along the meridian through `(1, 0, 0)`.
   Flipping both halves passes tier 3 and measures `48 − 2π = 41.7168`
@@ -68,3 +68,14 @@ accepts it and `mass_properties` measures the dimpled brick
 (`crates/sweep/tests/seam_siblings_flipped_together.rs`,
 `a_lone_lune_through_both_poles_flips_into_another_valid_body`). That
 row exists so no one "fixes" it into a refusal.
+
+## Witness A refuses at check 7 (FLUSH, `flush/fin-crown-winding`)
+
+Check 7 now reads every aimed ray that decides. On witness A's flip
+(both halves), a ray aimed at one flipped half counts its way into the
+material and one aimed at the brick counts its way out, so tier 3
+refuses it, `OrientationOpposed`, at ε 1e-9, 1e-6 and 1e-12. The test
+now pins that refusal and the overlap's wrong volume beside it. Check 6
+still leaves the region unread. Witness B, the 1e-12 dimple's flip,
+still passes tier 3: no aimed ray's count enters the overlap there. So
+this row stays open on B and on the region read itself.
