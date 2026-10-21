@@ -58,3 +58,55 @@ Divide the edge and the face's boundary edges at each crossing the
 edge–edge records name (the zip's `fuse_by_joint` shape), then part the
 piece lying in the face (`slit::part`, both ends on the face's loop).
 Return `p12`'s `A ∖ B` to its body, `30 − π`.
+
+## Where it stands
+
+`topo::boolean::slit::divide` (`crates/topo/src/boolean/slit.rs:1004`)
+divides an edge read as lying in a face along part of its length at
+each crossing of the face's loops a record names: an edge of the loops
+by an edge-edge record (both edges split onto one point, read once off
+the two lines), or a vertex of them by a vertex-on-edge record (the
+edge alone split, onto the vertex's point). Each crossing's record
+becomes a vertex-vertex record of its two vertices; a vertex-on-edge
+record of a divided edge goes to the piece holding the vertex, ordered
+along the line by the split's own order reading
+(`split_conic_root_order`, `CrossingDecision::Order`). The piece lying
+in the face then has both ends on it (`riders`, `slit.rs:542`, reads an
+end tied by a vertex-vertex record to a vertex of the face's loops as
+on the face), and `part` (`slit.rs:803`) parts it, joining each such
+end to the loop's vertex with a zero-length joint
+(`zip::fuse_by_joint`): `mekr` across two loops, `mef` across one, which
+divides the face (`slit.rs:935`). A joined end is one vertex, not one
+per wedge: the walls the edge runs on between join the two wedges
+beyond the face, so the material there is one cone. The fusions ride
+on `BooleanNaming::vertex_merges` (`ops.rs`, `name_parted`).
+
+Built, each sound against its closed form at tier 3 and its material
+probes:
+
+- `three_solids_on_one_line.rs`: the line body less the bridge moved
+  1e-2 along x, every order (`every_op`, closed-form volume), and
+  `the_line_less_the_moved_bridge_passes_three_prime_with_its_records`
+  (tier 3′ with the members' records carried, two coincident edges in
+  the face, one vertex at the crossing);
+- `a_vertex_read_again_classes_every_edge.rs`: the half-turn partners
+  (`PARTNERS_SLIT_GAPS`, no `EdgeInFace` at any ε) and the pyramids on
+  the void's face, in the arch and round its island, every pose, every
+  germ row read (an edge wholly in the face, ending on its corner by a
+  vertex-vertex record: the joined end alone);
+- `a_vertex_read_by_two_sector_passes.rs`: the same scenes (`REFUSING`
+  no longer names them);
+- `crates/sweep/tests/review_4831_probes.rs`,
+  `p12_a_plane_through_the_middle_of_a_diamond_holes_edge`: `p12` with
+  a diamond hole, its edge crossing the wall's top and bottom edges,
+  `A ∖ B` = 28 at tier 3′, the wall divided in two.
+
+Still refused:
+
+- `p12` itself refuses `Tangent` now, not `Partly`: the hole's wall is
+  tangent to the pocket's wall along the ruling, the doubled cusp
+  `the-boolean-parting-refuses-its-rarer-configurations` holds.
+- The line body less the 0° prism against the bisector refuses
+  `Partly`: the divided edge overlaps the line body's own coincident
+  edges, whose edge-edge records `divide` does not place
+  (`an-edge-running-past-a-face-along-coincident-edges-is-not-divided`).

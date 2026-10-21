@@ -250,7 +250,9 @@ pub struct BooleanNaming {
     /// Seam edges surviving the zips, in zip/cycle order, result keys.
     pub seam_edges: Vec<EdgeKey>,
     /// Vertex fusions `(dead, kept)` in mint order, result keys: the
-    /// zips'.
+    /// zips', then the partings' joined ends
+    /// (`boolean::slit`, an end joined to the vertex of the face's loop
+    /// on its point).
     pub vertex_merges: Fusions,
     /// Face absorption groups `(kept, absorbed…)`, result keys:
     /// `merge_coplanar_faces`'.
@@ -965,7 +967,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     for shell in shells {
         body.movefac(shell)?;
     }
-    let vertex_merges = desc.vertex_merges();
+    let mut vertex_merges = desc.vertex_merges();
     let mut cone_splits = cones.splits().clone();
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
@@ -1031,6 +1033,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &mut graft_faces,
         &mut face_fragments_a,
         &mut cone_splits,
+        &mut vertex_merges,
         &mut discards,
     )?;
     let naming = BooleanNaming {
@@ -1071,7 +1074,9 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// **The naming rows of the partings [`super::slit::part_riders`]
 /// made.** An end the material parted is held as one copy per wedge, as
-/// the zip's per-cone splits are (`cone_splits`). A face it divided along
+/// the zip's per-cone splits are (`cone_splits`); an end joined to the
+/// vertex of the face's loop on its point is fused into it, as the zip
+/// fuses a seam pair (`vertex_merges`). A face it divided along
 /// an edge lying in it descends from the face it was divided off, on that
 /// face's side (`graft_faces` for B's, `face_fragments_a` for A's), and
 /// lost the line between its pieces: a discard row whose stretch is the
@@ -1085,11 +1090,15 @@ fn name_parted(
     graft_faces: &mut Vec<(FaceKey, FaceKey)>,
     face_fragments_a: &mut crate::lineage::FaceDivisions,
     cone_splits: &mut crate::lineage::ConeCopies,
+    vertex_merges: &mut Fusions,
     discards: &mut Vec<super::DiscardRow>,
 ) -> Result<(), BooleanError> {
     for p in parted {
         for &row in &p.copies {
             cone_splits.push(row)?;
+        }
+        for &row in &p.fused {
+            vertex_merges.push(row)?;
         }
         let Some(piece) = p.divided else { continue };
         let (operand, face) = match graft_faces.iter().find(|&&(_, r)| r == p.face) {
@@ -7321,11 +7330,13 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let mut cone_splits =
                 crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies);
             let mut discards = Vec::new();
+            let mut vertex_merges = Fusions::new(crate::lineage::LineageRows::Fusions);
             name_parted(
                 &parted,
                 &mut graft_faces,
                 &mut face_fragments_a,
                 &mut cone_splits,
+                &mut vertex_merges,
                 &mut discards,
             )?;
             let naming = BooleanNaming {
@@ -7348,6 +7359,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 seam_edges: parted.iter().flat_map(|p| [p.kept, p.minted]).collect(),
                 face_fragments_a,
                 cone_splits,
+                vertex_merges,
                 discards,
                 ..BooleanNaming::default()
             };
