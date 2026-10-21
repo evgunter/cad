@@ -59,3 +59,31 @@ log the offenders' positions per refinement round. Candidates:
 
 That the frustum meshes points at the second candidate. Witness row: this
 body at the twenty δ meshes, watertight and under δ.
+
+## Resolution (2026-10-21): rows for narrow-column bands
+
+**Traced.** At e = 0.003 and δ = 1.5e-3 the cylinder has 48 bands in three
+groups:
+
+| v range | band aspect | residual over the metric (4) |
+|---|---|---|
+| 0–0.0045 | 56.4 | 14.1 |
+| 0.0045–0.253 | 1.02 | 0.26 |
+| 0.253–1.0 | 0.34 | **0.085** |
+
+All 1472 offenders (ratio up to 4.4) sit at v 0.30–0.67, inside the thick
+bands. Their columns are far narrower than their rows over the metric, so an
+off-row trim point fans a sliver. A column alignment could not help: those
+bands already sat at the patch column count.
+
+**Fixed.** `band_schedule` raises a band's rows until its residual reaches
+`1/√15` (`MAX_RESIDUAL_SQ`, derived from the strip-sliver bound at
+`δ_s = δ/2`). At the twenty review δ, falsifier armed:
+- the cylinder meshes at every δ for e = 0.03 down to 1e-6 (main refuses 32
+  rows for e ≤ 0.01);
+- worst ratio 0.4996, every mesh watertight.
+
+The cost is filed as
+`work/budget/row-raised-bands-cost-grows-with-the-band-spread`. Witness:
+`lofted_circle::an_uneven_station_cylinder_meshes_at_every_review_delta`;
+the no-raise mutant reds it.

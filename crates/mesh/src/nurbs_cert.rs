@@ -647,6 +647,21 @@ impl BandCounts {
     }
 }
 
+/// The square of the residual aspect past which a band's off-row
+/// points sliver over the lattice metric ([`NurbsCellGrid::band_schedule`]
+/// raises such a band's rows to it).
+///
+/// **Derived, not measured.** A point between two rows of a strip of
+/// residual aspect `1/a` admits a Delaunay-legal sliver of certificate
+/// `(a² + 1)/8 · δ_s` (the strip-sliver bound). The schedule sizes
+/// against `δ_s = δ/2` ([`crate::sizing::sizing_target`]), so the
+/// sliver certifies under δ exactly when `a² ≤ 15`. Measured on
+/// uneven-station lofts at the review's twenty δ, falsifier armed: at
+/// this line every face meshes, worst ratio 0.4996; at `a = 8` 15 of the
+/// cylinder's rows still refuse
+/// (`work/tess/cylinder-lofted-through-uneven-stations-refuses-at-fine-delta`).
+pub(crate) const MAX_RESIDUAL_SQ: f64 = 15.0;
+
 /// The shipped band schedule ([`NurbsCellGrid::band_schedule`]): the
 /// bands, and the lattice metric the trimmed lane triangulates in.
 #[derive(Clone, Debug)]
@@ -979,6 +994,16 @@ impl NurbsCellGrid {
     /// measurement); on uneven-station lofts it saves triangles
     /// (`work/budget/uneven-station-lofts-cost-triangles-without-the-column-snap`).
     ///
+    /// **Rows for narrow-column bands.** One face-wide metric cannot
+    /// square bands whose aspects spread far apart (an uneven-station
+    /// loft's thin first knot span beside thick ones: 166:1). A band
+    /// left below `1/√MAX_RESIDUAL_SQ` over the metric has columns far
+    /// narrower than its rows, and a point between two of its rows (a
+    /// trim chord point) fans a sliver across them. Its rows are raised
+    /// until its residual reaches the line; its columns, and every other
+    /// band, are untouched. The opposite arm, columns too wide, gets no
+    /// remedy: no measured face slivers there.
+    ///
     /// A band whose residual aspect over the metric is far from 1 still
     /// slivers, and the face then refuses typed
     /// ([`TessellateError::CertificateExceeded`]): loud, never a wrong
@@ -1017,6 +1042,26 @@ impl NurbsCellGrid {
             });
         }
         let metric = lattice_metric(bands.iter().map(|b| b.aspect(du)));
+        // Rows for a band whose columns are too narrow for its rows over
+        // the metric (doc: **Rows for narrow-column bands**). The metric
+        // stays the one taken from the bands' own counts.
+        #[cfg(test)]
+        let raise_rows = tests::ROWS_RAISED.with(std::cell::Cell::get);
+        #[cfg(not(test))]
+        let raise_rows = true;
+        for b in bands.iter_mut().filter(|_| raise_rows) {
+            let residual = b.aspect(du) / metric;
+            if residual.is_finite() && residual > 0.0 && residual * residual * MAX_RESIDUAL_SQ < 1.0
+            {
+                // `ceil(nvc / (residual·√15))`, through the crate's one
+                // count door: a spread too wide to row refuses typed
+                // (`ResolutionOverflow`) rather than allocating.
+                #[allow(clippy::cast_precision_loss)]
+                let want =
+                    crate::sizing::ceil_count(b.nvc as f64, residual * MAX_RESIDUAL_SQ.sqrt())?;
+                b.nvc = b.nvc.max(want);
+            }
+        }
         Ok(BandSchedule { bands, metric })
     }
 
@@ -1126,6 +1171,18 @@ impl NurbsCellGrid {
 pub(crate) mod tests {
     use super::*;
     use geom_core::interval::certification::Certification;
+
+    thread_local! {
+        /// Test-only: whether [`super::NurbsCellGrid::band_schedule`] raises a
+        /// narrow-column band's rows. It exists for one row,
+        /// `trimmed::tests::a_face_left_slivered_refuses_typed_through_tessellate`:
+        /// once rows are raised no natural body refuses
+        /// [`TessellateError::CertificateExceeded`] any more, and that row
+        /// turns the raise off to reach the refusal through the real call
+        /// path. `cfg(test)` only, so no shipped build and no other crate
+        /// can read it.
+        pub(crate) static ROWS_RAISED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+    }
 
     /// The whole-patch bound of a single face, with no memo — the door
     /// the rows below take. The shipped lane never has this shape (it
@@ -2292,12 +2349,14 @@ pub(crate) mod tests {
         );
     }
 
-    /// **Every band keeps its own counts** ([`NurbsCellGrid::band_schedule`]).
-    /// Three bands whose realized aspects (9.09, ≈ 1.04, ≈ 0.113) put the
-    /// metric at 1, bands 0 and 2 far from it on either side; each takes
-    /// its own split steps, none the patch's 45 columns.
+    /// **Every band keeps its own columns, and a narrow-column band takes
+    /// rows** ([`NurbsCellGrid::band_schedule`]). Three bands whose
+    /// realized aspects (9.09, ≈ 1.04, ≈ 0.113) put the metric at 1,
+    /// bands 0 and 2 far from it on either side. Each takes its own split
+    /// steps, none the patch's 45 columns. Band 2, below `1/√15` over the
+    /// metric, has its rows raised to the line ([`MAX_RESIDUAL_SQ`]).
     #[test]
-    fn every_band_keeps_its_own_counts() {
+    fn every_band_keeps_its_columns_and_a_narrow_column_band_takes_rows() {
         let cells = [
             CellBound {
                 u: (0.0, 1.0),
@@ -2345,13 +2404,20 @@ pub(crate) mod tests {
             .band_schedule((0.0, 1.0), (0.0, 1.0), delta_s)
             .expect("schedules");
         assert_eq!(schedule.metric, 1.0, "{schedule:?}");
-        let bands = schedule.bands;
+        let (bands, metric) = (schedule.bands, schedule.metric);
         assert_eq!(bands.len(), 3);
         // Band 0: h_u ≈ 0.0950 → nuc 11; h_v ≈ 0.0190 over 0.02 → nvc 2
         // (realized 9.09). Band 2: h_u ≈ 0.0190 → nuc 53; h_v ≈ 0.173
         // over 0.5 → nvc 3 (realized ≈ 0.113).
         assert_eq!((bands[0].nuc, bands[0].nvc), (11, 2), "{bands:?}");
-        assert_eq!((bands[2].nuc, bands[2].nvc), (53, 3), "{bands:?}");
+        // Band 2 then takes rows: ceil(3 / (0.113·√15)) = 7, its residual
+        // now at or above the line.
+        assert_eq!((bands[2].nuc, bands[2].nvc), (53, 7), "{bands:?}");
+        let residual = bands[2].aspect(1.0) / metric;
+        assert!(
+            residual * residual * MAX_RESIDUAL_SQ >= 1.0,
+            "band 2 reaches the residual line: {residual}"
+        );
         assert_ne!(bands[1].nuc, 45, "band 1 keeps its own columns: {bands:?}");
         // The A cap clamped none (the interior optima above sit inside
         // the aspect window).
