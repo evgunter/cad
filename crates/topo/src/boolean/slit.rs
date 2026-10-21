@@ -540,13 +540,14 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
         body.kev(toward)?;
         let mut vertices = vec![far];
         if lone {
-            let crate::entity::LoopBoundary::Cycle { first: target } =
-                proven(&body.loops, outline, EntityId::Loop).boundary
-            else {
-                return Err(BooleanError::JoinDesync {
-                    what: "a face holding a strut has a lone vertex for its outline",
-                });
-            };
+            // The ring is a lone vertex now, so every cycle left is
+            // another loop of the face, the outline first.
+            let target = *body
+                .face_cycles(face)
+                .first()
+                .ok_or(BooleanError::JoinDesync {
+                    what: "a face holding a strut has no cycle besides it",
+                })?;
             let bridge = body.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
             body.kev(bridge.he_plus)?;
             vertices.push(near);

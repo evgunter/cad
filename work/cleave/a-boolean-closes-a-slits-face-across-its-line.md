@@ -86,7 +86,8 @@ what it then reaches.
   `InputNotClosed`, `ScaffoldingStrutVertex`): `kev` deletes each edge
   with both halves in one face toward its free end, and a ring closed
   whole leaves a lone vertex that `mekr` to the outline then `kev`
-  delete, as the merge prunes its own dangling seam edges. The edge
+  delete (the bridge targets the face's first cycle left), as the merge
+  prunes its own dangling seam edges. The edge
   and its vertices substitute onto F in the op's lineage and naming
   (`output_substitutions`), and the strut leaves the seam edges.
 
@@ -116,7 +117,6 @@ No definite sub-case stays typed for this gap. Two guards stay, each
 a state the join never builds: a strut with both ends free that is its
 face's outline (a face of no area) refuses `JoinDesync`, and a seam
 pair whose two edges are both struts of their section faces refuses
-`ZipCorrespondence`. A ring closed whole on a curved face would take
-the same `mekr`, whose chord is scaffolding killed at once; no witness
-reaches one, since the slit form parts only line edges and
-`EdgeInFaceGap::Curved` refuses an arc.
+`ZipCorrespondence`. A ring closed whole on a curved face (a line
+edge parted along a ruling) would take the same `mekr`, whose chord is
+scaffolding killed at once; no witness reaches one.
