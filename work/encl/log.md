@@ -1779,3 +1779,18 @@ coincidence is now a margined verdict (no declarations), checked by the
     - The one known departure is step-import's `TierInvalid` gate, on the parked import-validation row.
   - **Census.** New build-side `KERNEL_DEFECT_ENDING` sites (`PcurveFit`, Join `Kernel`/`ChartClass(Image)`, Transform `NullScaffold`/`Corrupt`) are added to the census row.
   (ENCL orchestrator)
+- 2026-10-21 — **Merged PR 5526**: the second-pass census on `a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids`. The row stays open.
+  - **Scope.** 51 more sites end naming the kernel alone, 29 through a helper and 22 in prose (as of main 69ab780194; not guarded).
+  - **Classes.**
+    - class 1 (input reaches it): 11
+    - class 2 (bug-only): 37, of which 3 are HELD
+    - class 3 (approximation limit): 2
+    - class 5 (not yet built): 1
+  - **Rows.** 5 rows filed: ssimarch, select, pctail, flux, tess. 9 rows extended. GERMTAIL's and BAND's September tag rows are re-parented, with their old "append the constant" repair marked superseded.
+  - **Review MAJORs, fixed before merge** (each a "bug-only" site that input reaches):
+    - SELECT's exact rows at kernel builds: four open rows measured user geometry there.
+    - HONE `JoinDesync`: reached through `graft_disjoint`.
+    - SHELF `TransformError::NullScaffold`: reached through `mev_null` → `transform_rigid`.
+    - DOCTAIL `UnnamedEntity`: reached through `entity_name` with a bad body index.
+  - **Owed by ENCL.** PR 5464 made `NullScaffold` and `JoinRefusal::Kernel` say "kernel defect" at a build. Both are now known not to be bug-only, so ENCL fixes their endings next.
+  (ENCL orchestrator)
