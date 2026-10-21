@@ -75,21 +75,25 @@ CHAIN's own emission-layer bookkeeping, not anything a verb can
 consult.)
 
 **The directed point is one API over a family of internal
-representations.** The API is (position, tangent, `lands_on_ray(target)`,
-the on-ray reading of a point target), and it is the only way a verb can
-consult a directed point. No verb can see which representation a point
-holds. One representation is the bare (position, tangent); another can be
-the carrier the point lies on, which will look much like the previous
-leg's carrier. Holding it that way does not reopen reading that carrier:
-nothing outside the API reads it, so no verb can branch on, refuse on, or
-depend on what leg produced the point. A straight continuation
-(`continue_to`, `line(len)`, and the verbs that inherit the direction
-bitwise) gives its end point the representation it was itself checked
-against, so `lands_on_ray` on a run of continuations reads the line bound
-where the run's direction was bound, never re-anchored at an accepted
-vertex: it cannot drift. Wherever the direction is bound
-(`.angle`/`.turn`/`toward`, `line_to`'s chord, an arc's end tangent), the
-point starts afresh.
+representations.** The API is (position, tangent,
+`lands_on_ray(target)`, the on-ray reading of a point target), and it is
+the only way a verb can consult a directed point. It has no other
+readings (Ev, on PR 5498): no coincidence reading, because positions
+compare as stored bits; no same-angle reading, because a point has no
+lever (the junction check's arm is the chain's bookkeeping); and no
+parallel reading, which nothing asks. No verb can see which
+representation a point holds. One representation is the bare (position,
+tangent); another can be the carrier the point lies on, which will look
+much like the previous leg's carrier. Holding it that way does not
+reopen reading that carrier: nothing outside the API reads it, so no
+verb can branch on, refuse on, or depend on what leg produced the point.
+A straight continuation (`continue_to`, `line(len)`, and the verbs that
+inherit the direction bitwise) gives its end point the representation it
+was itself checked against, so `lands_on_ray` on a run of continuations
+reads the line bound where the run's direction was bound, never
+re-anchored at an accepted vertex: it cannot drift. Wherever the
+direction is bound (`.angle`/`.turn`/`toward`, `line_to`'s chord, an
+arc's end tangent), the point starts afresh.
 
 ### Binders and directors
 

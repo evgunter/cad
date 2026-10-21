@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-20
 priority: P1
 cost: M
-needs_ev: true
 ---
 
 
@@ -35,17 +34,17 @@ Measured on the row's fixture: its 41 vertices are collinear with each
 other but turned 0.5ε rad at the first joint, so the declaration "one
 line" is false by about two ε_input across the run.
 
-## The question for Ev
+## Ruled (Ev, PR 5498, 2026-10-21)
 
-What `continue_to` declares, and so what its on-ray check reads. Both
-designers recommend checking against the run's carrier line, bound
-where the direction was bound and never re-anchored. That would make
-the band's guarantee hold per run, with no run-level certifier. See the
-`[ev]` PR.
+`continue_to` checks against the run's line, never re-anchored at an
+accepted vertex, so the band's guarantee holds per run and nothing
+certifies a run. Ev's shape: the directed point is one API (position,
+tangent, `lands_on_ray`) over a family of internal representations,
+and no verb reads anything outside it (`docs/PATHS-DESIGN.md` §2c).
 
 ## Done when
 
-Ev has ruled, the ruled datum is implemented with `bool11`'s row
+The ruled datum is implemented with `bool11`'s row
 re-pinned, and CPAIR's held PR 3 lands after it.
 
 ## For the implementer, once ruled (from the designers' notes)
