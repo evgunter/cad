@@ -128,7 +128,8 @@
 //! | `path_junction_turn` | sin φ · arm | the shorter of the two legs' arms, each a line's length or an arc's min(radius, chord) |
 //! | `carrier_circles_chord` | the radical foot's mean depth inside both circles, or zero outside them | direct |
 //! | `arc_apex_identity` | apex distance | direct |
-//! | `collinear_overlap` | overlap length | direct |
+//! | `segment_gap` | gap between two segments' projections on either one's axis, less their rounding (`geom_core::one_line`) | direct |
+//! | `collinear_overlap` | overlap length along the host's axis, less and plus its rounding (`geom_core::one_line`) | direct |
 //! | `contact_at_shared_vertex` | contact-to-vertex distance | direct |
 //! | `ray_side` | ⟂ distance to ray line | direct |
 //! | `ray_advance` | ray parameter | direct |
@@ -1094,6 +1095,11 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "ray_side",
         kind: EndingKind::Sized,
     },
+    // how far apart two straight segments' projections lie along the first one's line
+    DecisionEnding {
+        name: "segment_gap",
+        kind: EndingKind::Sized,
+    },
     // a segment's bow: its quarter-angle tangent, levered by its length
     DecisionEnding {
         name: "segment_straightness",
@@ -1245,6 +1251,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "path_seam_arrival_turn" => "whether the seam arrival turns",
         "ray_advance" => "whether a crossing lies ahead on a containment ray",
         "ray_side" => "which side of a containment ray a point lies on",
+        "segment_gap" => "whether two straight segments lie apart along one of them",
         "segment_straightness" => "whether a segment is straight or an arc",
         "vertex_separation" => "whether a segment has any length",
         _ => return None,
