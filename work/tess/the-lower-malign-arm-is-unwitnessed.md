@@ -70,3 +70,33 @@ arm are open:
    CSV. That leaves the witness plan's seed row with nothing to read. Adding
    a `metric` column to `FaceMeasure`, the tess-meter CSV and tess-lint's
    reader is part of this item: three crates and a baseline column.
+
+## Resolution (2026-10-21): retired
+
+Probed with two local mutants of `band_schedule`: one that logs every band
+either arm marks malign over the metric, and one with the snap off.
+
+- **Tour:** 108 band schedules (the budget sweep), 0 fire either arm. The
+  worst residual is 0.41–1.88, against the [0.2, 5] window.
+- **Mesh suites:** 754 schedules. Only the synthetic fixture built to fire it
+  fires (residual 9.09). With the snap off, the full mesh suite, including
+  the slow set and the armed z1 falsifier, fails only that fixture's row.
+  `demos/tour`'s suite, the default-ε walk included, passes. (The 1e-6 walk
+  fails identically with the snap on: projectbox wall 1, filed separately.)
+- **Adversarial faces:** degree-2 lofts through stations at z = 0, e, 2e,
+  0.5, 1 (e from 0.1 down to 0.001), as four-arc rounds, two-arc creased
+  rounds and four-arc cylinders: 15 bodies, the review's twenty δ, falsifier
+  armed, `check_mesh` on every mesh. **Both arms fire**, up to 16 upper and
+  32 lower bands per schedule, residuals 0.032–30.3. Outcomes are identical
+  with the snap on and off on every body and δ, and the worst ratio with it
+  off is 0.4996. On 14 rows the snap changed counts, and there it saved up
+  to 14% of the triangles
+  (`work/budget/uneven-station-lofts-cost-triangles-without-the-column-snap`).
+  The cylinders refuse typed at 20 fine-δ rows either way, a separate
+  liveness class with the snap firing on 0 of their bands
+  (`work/tess/cylinder-lofted-through-uneven-stations-refuses-at-fine-delta`).
+
+So the snap kept no face sound, and it is retired with `SAFE_ASPECT`,
+`malign` and `NurbsFaceBound::step_v_at`. The typed `CertificateExceeded` is
+the backstop. The meter's `snap_bands` column reads 0
+(`work/budget/snap-bands-column-reads-zero-since-the-snap-retired`).

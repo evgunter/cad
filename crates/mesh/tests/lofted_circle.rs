@@ -209,3 +209,54 @@ fn crease_free_round_lofts_mesh_at_every_review_delta() {
         );
     }
 }
+
+/// **The retired column snap's witness**
+/// (`work/tess/the-lower-malign-arm-is-unwitnessed`). A degree-2 round loft
+/// through stations at z = 0, 0.01, 0.02, 0.5, 1 has a first knot span about
+/// 0.015 tall beside spans about 0.25 tall. Its bands' realized aspects span
+/// past 25:1, so over the face's lattice metric both arms of the retired
+/// snap fired: the thin band above the line, the thick ones below its
+/// inverse. With the snap, and now without it, every δ meshes. A face that
+/// would still sliver must refuse typed and never mesh wrong, so the row
+/// accepts exactly two outcomes: a watertight outward mesh, or
+/// `CertificateExceeded`.
+#[test]
+fn an_uneven_station_loft_meshes_or_refuses_typed_without_the_column_snap() {
+    let tau = core::f64::consts::TAU;
+    let bulge = (tau / 16.0).tan();
+    let section = |r: f64| {
+        vec![profile::test_support::bulge_loop(
+            (0..4)
+                .map(|k| {
+                    let a = tau * f64::from(k) / 4.0;
+                    (geom_core::Point2::new(r * a.cos(), r * a.sin()), bulge)
+                })
+                .collect(),
+        )]
+    };
+    let body = sweep::loft_body::<f64>(
+        &[1.0, 0.98, 0.96, 0.8, 0.5].map(section),
+        &sweep::test_support::stacked_at(&[0.0, 0.01, 0.02, 0.5, 1.0]),
+        2,
+        Tol::witness(),
+    )
+    .expect("the uneven-station round lofts")
+    .body;
+    let mut meshed = 0;
+    for delta in review_deltas() {
+        match mesh::tessellate(&body, delta, Tol::witness()) {
+            Ok(mesh) => {
+                check_mesh(&mesh).unwrap_or_else(|e| panic!("δ = {delta:e}: {e:?}"));
+                assert!(signed_volume(&mesh) > 0.0, "δ = {delta:e}: outward");
+                meshed += 1;
+            }
+            Err(mesh::TessellateError::CertificateExceeded { .. }) => {}
+            Err(e) => panic!("δ = {delta:e}: an untyped or other refusal: {e:?}"),
+        }
+    }
+    // Measured: all twenty mesh, with the snap and without it.
+    assert_eq!(
+        meshed, 20,
+        "the uneven-station round meshes at every review δ"
+    );
+}

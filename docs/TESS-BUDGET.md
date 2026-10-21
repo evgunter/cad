@@ -7,10 +7,10 @@ the shipped point selection is now the cell minimizer on the same
 certified ellipse under the ratified A = 16 first-fundamental-form
 aspect cap (`mesh::nurbs_cert::ASPECT_CAP` and
 `NurbsFaceBound::split_steps` are the statement of record), with
-the realized-lattice sliver machinery in force over it — the
+the trimmed lane triangulating over the face's lattice metric — the
 post-fix split ratio reads ~1.0 at constraint-inactive cells and
-the CSV's `cap_bands`/`snap_bands` columns say which constraint
-bound the rest.** #320 asked whether the NURBS-wall grid
+the CSV's `cap_bands` column says where the cap bound the rest
+(`snap_bands` reads 0 since the column snap retired).** #320 asked whether the NURBS-wall grid
 sizing is "honestly tight … or systematically over-conservative", and
 asked for measurement first. This document is that measurement, the
 instrument that produced it, and what the numbers said a fix would
@@ -176,7 +176,7 @@ re-derived (spec D-4) so BOTH regression kinds stay visible:
 * `opt_cells`, `span_opt_cells` — as before (cheapest split under the
   whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
   gate's per-face recoverable-slack ratio, now carrying the split
-  factor PLUS the banding and malign-snap forfeits, summed.
+  factor PLUS the banding forfeit, summed.
 
 What guards `band_schedule` itself: (i) the per-triangle certificate —
 `NurbsCellGrid::cert` reads the raw per-cell bounds independent of the
@@ -728,15 +728,19 @@ Delaunay is not stretch-invariant, so the trimmed lane does not run it
 in raw UV: it runs it in the face's lattice metric (`(u/k, v)`, `k` a
 power of two near the bands' mean realized aspect,
 `mesh::nurbs_cert::lattice_metric`), where a ruled wall's strip is near
-square. That is what keeps slivers out on ruled walls. Lattice
-ALIGNMENT is the backstop for the anisotropy one face-wide metric
-leaves: the per-v-band schedule (`NurbsCellGrid::band_schedule`) snaps
-`nuc` to the whole-patch count for a band whose residual aspect over
-the metric demands it, in either direction, and the split selection
-projects to an exact patch count run to a fixpoint. Read both aspect
-bounds at their constants, `mesh::nurbs_cert::SAFE_ASPECT` and
-`ASPECT_CAP`, never from a second copy: they are different quantities
-and both bind.
+square. That is what keeps slivers out on ruled walls.
+
+Before the metric, lattice ALIGNMENT kept them out: a band whose
+realized aspect passed a measured line (`SAFE_ASPECT` = 5) snapped,
+with its neighbours, to the whole-patch column count the chord pass
+shares. Over the metric the snap went dormant (0 of the tour's bands,
+against 2573 in raw UV), and on faces built to fire it the outcomes
+were the same with it and without it, so it is retired
+(`work/tess/the-lower-malign-arm-is-unwitnessed`;
+`NurbsCellGrid::band_schedule` carries the numbers). A band whose
+residual over the metric is large still slivers; such a face refuses
+typed (`CertificateExceeded`). The one aspect bound left is
+`mesh::nurbs_cert::ASPECT_CAP`, on 3-D cell shape.
 
 Two live caveats. The cheapest split is a strip at a parameter aspect
 nothing would choose, so `opt_cells` is an UPPER BOUND on a practical

@@ -36,3 +36,30 @@ Either teach the rim chord count to snap UP to the least multiple of `patch_nuc`
 ## Re-homed at S-MESH's exit (2026-09-16)
 
 Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Superseded (2026-10-21)
+
+**The hole is gone.** It lived in the column family the malign-band snap
+made: snapped bands at `patch_nuc`, rims at the same count. The snap is
+retired (`work/tess/the-lower-malign-arm-is-unwitnessed`), so no band is
+aligned to `patch_nuc` and there is no family for a rim to miss.
+
+**The remaining risk.** An off-lattice rim point beside a band whose
+residual aspect over the face's lattice metric is far from 1 still admits
+the `(aspect² + 1)/8 · δ_s` sliver. Since #5531 the CDT runs over that
+metric, so the residual, not the raw-UV aspect, is what matters.
+
+**The evidence against it.**
+- Over the metric, the tour's worst band residual is 0.41–1.88.
+- On the adversary faces (degree-2 uneven-station lofts; residuals pushed
+  to 0.03–30; rims beside the thin first band), at twenty δ with the
+  falsifier armed, every face meshes under δ or refuses typed, the same
+  with the snap and without it. The worst ratio without it is 0.4996.
+- **No adversary rim had a curve bound over the face count.** Of 4000 rim
+  chord decisions on those faces (`chords::nurbs_tighten`, the curve's own
+  count against the face-driven one), none exceeded it. This item's exact
+  configuration was not reached, as this item measured on the tour and the
+  wild corpus.
+
+**The backstop.** The typed `CertificateExceeded` this item already named
+as the outcome: a face that slivers refuses loud, never a wrong mesh.

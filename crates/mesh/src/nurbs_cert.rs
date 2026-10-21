@@ -367,33 +367,6 @@ impl NurbsFaceBound {
             cap,
         }
     }
-
-    /// The largest `h_v` this bound's ellipse admits at a FIXED `h_u`
-    /// — the alignment projection [`NurbsCellGrid::band_schedule`]
-    /// uses to put a band on the patch column schedule: solve
-    /// `mvv·h_v² + 2·muv·h_u·h_v + muu·h_u² = δ_s` for the positive
-    /// root. Exact arms on the decided zero predicates, as
-    /// [`Self::split_steps`].
-    ///
-    /// The caller guarantees `muu·h_u² ≤ δ_s` (the projection is only
-    /// ever taken at `h_u ≤` the whole-patch selection's own `h_u`,
-    /// whose saturated budget already carries the `muu` term); the
-    /// remainder is clamped at zero so floating-point at that boundary
-    /// answers a zero step — which [`crate::sizing::ceil_count`]
-    /// refuses typed — rather than a NaN certificate.
-    pub(crate) fn step_v_at(&self, hu: f64, delta_s: f64) -> f64 {
-        let rem = (-self.muu).mul_add(hu.powi(2), delta_s).max(0.0);
-        if self.mvv == 0.0 {
-            if self.muv == 0.0 {
-                f64::INFINITY
-            } else {
-                rem / (2.0 * self.muv * hu)
-            }
-        } else {
-            let b = self.muv * hu;
-            (b.mul_add(b, self.mvv * rem).sqrt() - b) / self.mvv
-        }
-    }
 }
 
 /// One chosen point of the split selection
@@ -423,12 +396,10 @@ pub(crate) struct SplitSteps {
 /// optimum degenerates to (leaf_a f2: 70×328 → 1×4905, parameter
 /// aspect ~5·10³). Mesh quality is a consumer contract; nothing
 /// downstream was polled on strips. The dial is re-tunable by ordinary
-/// measurement + baseline re-cut, and it is NOT the only bound on
-/// anisotropy: the realized-lattice sliver line
-/// ([`SAFE_ASPECT`], a DIFFERENT quantity — post-`ceil` parameter
-/// spacing, not 3-D shape) stays in force over this selection and on
-/// ruled walls generally binds first, through the snap alignment
-/// [`NurbsCellGrid::band_schedule`] argues.
+/// measurement + baseline re-cut. It bounds 3-D cell shape only: the
+/// PARAMETER anisotropy that slivers a Delaunay triangulation is the
+/// trimmed lane's to cure, and it does so with the face's
+/// [`lattice_metric`] ([`NurbsCellGrid::band_schedule`]).
 ///
 /// **What is guarded, and what is deliberately not** (the
 /// measured-claim rule): the cap is a bound on the SELECTION — the
@@ -436,16 +407,13 @@ pub(crate) struct SplitSteps {
 /// mechanical guard, the fuzz row
 /// `split_steps_stay_on_the_ellipse_and_inside_the_cap` (red on any
 /// point outside the window, replayable seed). The EMITTED lattice's
-/// FFF aspect carries no guard and no register on purpose: the snap
-/// projection may legitimately move a band off the chosen point in
-/// either direction when the sliver bound binds first (the
-/// `snapped`/`snap_bands` indicator says where), so an emitted-side
-/// `≤ A` assertion would be asserting a claim the design does not
-/// make. Emitted-side measurements (the TESS-SPLIT PR's per-band
-/// numbers) are evidence about a head, not an invariant; the
+/// FFF aspect carries no guard and no register on purpose: `ceil`
+/// moves each band off the chosen point by up to a step, so an
+/// emitted-side `≤ A` assertion would be asserting a claim the design
+/// does not make. Emitted-side measurements (the TESS-SPLIT PR's
+/// per-band numbers) are evidence about a head, not an invariant; the
 /// re-measured register for the emitted lattice is the budget CSV's
-/// `realized_aspect` column (parameter aspect, the sliver line's own
-/// quantity).
+/// `realized_aspect` column (raw-UV parameter aspect).
 pub(crate) const ASPECT_CAP: f64 = 16.0;
 
 fn max3(a: f64, b: f64, c: f64) -> f64 {
@@ -655,70 +623,6 @@ pub(crate) fn face_bound(
     Ok(grid.patch())
 }
 
-/// The realized-anisotropy line beyond which a band snaps to the
-/// patch column count ([`NurbsCellGrid::band_schedule`] derives the
-/// sliver certificate `(aspect² + 1)/8 · δ_s` and what happens at the
-/// line).
-///
-/// **5.0 is a MEASURED constant, not a derived one** (dual review of
-/// PR #594, MAJ-3): the sliver formula's own "certifies under δ" line
-/// is `aspect ≤ √15 ≈ 3.87` — in the gap `(3.87, 5]` a worst-case
-/// off-lattice sliver can certify up to ~1.6·δ, and what holds the
-/// lane there is measured margin (worst tour face certificate
-/// 0.60·δ) plus the typed [`TessellateError::CertificateExceeded`]
-/// refusal as the backstop — a bad mesh is unrepresentable either
-/// way; the constant only trades snap cost against refusal risk.
-/// Measured at 5.0: the tour's certificates hold with the refinement
-/// arm cold, and the #316 leaf's 12:1 band and the split-shadow
-/// interfaces (the classes the snap exists for) sit above the line —
-/// dropping to the derived 3.87 was measured to cost a large share of
-/// the span gain for margin the tour does not need. Malignity is
-/// judged on REALIZED spacings (`s_u/s_v`, post-`ceil`, up to ~2x the
-/// ideal-step aspect near one-step bands), so the line is applied to
-/// the lattice that actually exists; moving the test from the ideal
-/// step to the realized one cost +3.0% of the tour's cells (leaf_a
-/// 3.35x → 3.10x, still over the acceptance line) for correctly
-/// snapping the near-one-step bands the ideal-step test missed.
-///
-/// **What is judged now, and what of it was measured.** [`malign`]
-/// judges a band's RESIDUAL aspect, its realized `s_u/s_v` over the
-/// face's [`lattice_metric`], against this line above and its inverse
-/// below. The measurement above was taken one-sided and in raw UV: the
-/// UPPER arm (columns too wide, a strip whose off-column points
-/// sliver), where every figure in this doc lives. The LOWER arm
-/// (columns too narrow, whose hazard is off-ROW points) takes
-/// `1/SAFE_ASPECT` by symmetry of the sliver formula and is
-/// unmeasured: no corpus body exercises it (a one-sided mutant is
-/// green outside the unit rows), and its remedy, the column snap, is
-/// aimed at the other arm's hazard
-/// (`work/tess/the-lower-malign-arm-is-unwitnessed`).
-///
-/// **What goes red, named — and scoped, because none of it is as wide as
-/// it first reads** (issue #667's Q6). Three things, and they bracket the
-/// constant only when taken together:
-///
-/// * UPWARD, mechanically: `band_schedule_snaps_on_realized_aspect` below
-///   is malign at realized aspect 9.09, so raising this constant to 9.09
-///   or above stops the fixture snapping and fails the row. It is
-///   **one-sided** — lowering the constant leaves every assertion in that
-///   row passing;
-/// * DOWNWARD, and only as cost: lowering it snaps more bands, which grows
-///   the mesh, which is what the same job's `tessellation-budget sweep` +
-///   `tessellation-budget lint (gate)` catch — every tour scene re-measured
-///   per face against `docs/tess-budget-data/tess-budget-baseline.csv`, a
-///   grown budget failing the row. A scheduled register, not an assert;
-/// * SOUNDNESS, on a fixed corpus: `ci.yml`'s `k-lint (gate)` also runs
-///   `mesh budget meter + certificate falsifier (feature = budget)`, i.e.
-///   `probe_review::z1_per_triangle_certificate_falsification`, which
-///   resamples every emitted triangle against its own certificate — but
-///   over **four NURBS fixtures at two δ**, not the tour. It falsifies
-///   under-certification where it looks; it is not tour-wide coverage.
-///
-/// And what has NO guard, stated so the three above are not over-read: the
-/// *worst tour face certificate 0.60·δ* above. One-shot, and nothing
-/// computes with it — the refusal named beside it is what holds the gap.
-pub(crate) const SAFE_ASPECT: f64 = 5.0;
-
 /// One v-band of the shipped schedule ([`NurbsCellGrid::band_schedule`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BandCounts {
@@ -734,12 +638,6 @@ pub(crate) struct BandCounts {
     /// ([`NurbsFaceBound::split_steps`]) — the budget meter's
     /// constraint-activity indicator, A-cap kind.
     pub cap: bool,
-    /// The malign-band snap PROJECTED this band onto the patch
-    /// column schedule and its counts CHANGED (either direction:
-    /// columns added, or columns traded for rows) — the indicator's
-    /// sliver/snap kind. `false` for a near-malign band whose own
-    /// counts already sat on the patch schedule.
-    pub snapped: bool,
 }
 
 impl BandCounts {
@@ -749,15 +647,6 @@ impl BandCounts {
     pub(crate) fn aspect(&self, du: f64) -> f64 {
         (du / self.nuc as f64) / ((self.vb - self.va) / self.nvc as f64)
     }
-}
-
-/// Whether a band of realized aspect `aspect` slivers in a CDT run at
-/// lattice metric `metric`: its residual `aspect/metric` beyond
-/// [`SAFE_ASPECT`] or below `1/SAFE_ASPECT`. Two-sided, because a strip
-/// slivers whichever way it is long ([`NurbsCellGrid::band_schedule`]).
-pub(crate) fn malign(aspect: f64, metric: f64) -> bool {
-    let residual = (aspect / metric).ln().abs();
-    residual.is_finite() && residual > SAFE_ASPECT.ln()
 }
 
 /// The shipped band schedule ([`NurbsCellGrid::band_schedule`]): the
@@ -774,11 +663,7 @@ pub(crate) struct BandSchedule {
 /// **The lattice metric** a face's trimmed CDT runs in: the power of
 /// two nearest (in `log₂`) the geometric mean of the extreme band
 /// aspects, `√(min a_b · max a_b)`, `a_b = s_u/s_v` realized by each
-/// band's OWN schedule, before the malign-band snap. It is taken once
-/// and not re-derived after the snap: the snap moves only the bands
-/// whose residual over this metric is malign, and judging them against
-/// a metric they themselves then move would not be a fixpoint of one
-/// question. #5531's review found the difference inert on the corpus.
+/// band's own schedule.
 ///
 /// Delaunay is not stretch-invariant. In raw UV, a band whose columns
 /// are far narrower than its rows (a ruled wall's strip: `a_b ≈ 0.03`
@@ -1074,66 +959,40 @@ impl NurbsCellGrid {
     }
 
     /// **The shipped band schedule** (TESS-SPAN): the trim box cut at
-    /// interior band boundaries, each band's `(nuc, nvc)` counts —
-    /// one derivation consumed by BOTH the trimmed lane's candidate
-    /// generation and the budget meter's prediction, so the two
-    /// cannot drift.
+    /// interior band boundaries, each band's `(nuc, nvc)` counts, and
+    /// the face's [`lattice_metric`] — one derivation consumed by BOTH
+    /// the trimmed lane's candidate generation and the budget meter's
+    /// prediction, so the two cannot drift.
     ///
-    /// Per band: `nvc` from the band bound's own `h_v`; `nuc` from
-    /// the band bound's own `h_u` — EXCEPT that a MALIGN band
-    /// (realized aspect `s_u/s_v` over the face's lattice metric
-    /// beyond [`SAFE_ASPECT`] or below its inverse) and its
-    /// immediate neighbours are PROJECTED onto the patch column
-    /// schedule: `nuc := patch_nuc` EXACTLY (equality with the chord
-    /// pass's count is what alignment means — a mere max reintroduces
-    /// the misaligned-interface sliver, executed on the #320 s_duct;
-    /// the snap site carries the derivation), and `nvc` re-derived
-    /// from the band's own ellipse at that column spacing
-    /// ([`NurbsFaceBound::step_v_at`]). The projection can therefore
-    /// move a band's counts in EITHER direction — more columns than
-    /// its own optimum wanted, or fewer columns paid for with rows —
-    /// and every emitted cell remains a point of the band's own
-    /// certified region either way. The steps come from the split
-    /// selection [`NurbsFaceBound::split_steps`] (TESS-SPLIT: the
-    /// aspect-capped cell minimizer; `patch_nuc` derives from the
-    /// whole-patch bound through the SAME selection, one derivation
-    /// with the chord pass).
-    /// The two aspect bounds are DIFFERENT quantities and both bind:
-    /// the selection caps the chosen cell's 3-D shape at
-    /// [`ASPECT_CAP`]; this snap judges the emitted lattice's
-    /// post-`ceil` parameter spacing, over the face's lattice metric,
-    /// against [`SAFE_ASPECT`]. On ruled walls the capped optimum is
-    /// far more anisotropic than the sliver line tolerates, and it is
-    /// the metric that keeps off-lattice slivers out; the snap is the
-    /// backstop for bands the one metric leaves anisotropic.
+    /// Per band: `nuc` and `nvc` from the band bound's own steps, the
+    /// split selection [`NurbsFaceBound::split_steps`] (TESS-SPLIT: the
+    /// aspect-capped cell minimizer). Every emitted cell is a point of
+    /// its band's own certified region.
     ///
-    /// **Why**: the trimmed lane's CDT runs in the schedule's lattice
-    /// metric ([`lattice_metric`], returned beside the bands), where a
-    /// band's lattice is near square and an off-lattice point's empty
-    /// circle reaches a column or two. A band whose RESIDUAL aspect —
-    /// its realized `s_u/s_v` over the metric — is far from 1 in either
-    /// direction is still a strip there, and any point of it that is
-    /// not ON a column admits an empty circumcircle reaching up to a
-    /// full column spacing past it: a Delaunay-legal sliver whose
-    /// certificate is ~`(aspect² + 1)/8 · δ_s` at residual `aspect`,
-    /// malign beyond ~4. Band interfaces deliver exactly such points
-    /// (the neighbour band's columns sit on the shared cut line), and
-    /// no local insertion cures it (anchors and centroids each
-    /// re-admit the circle beside themselves — measured on the #316
-    /// leaf). The metric is one per face, so it cannot square every
-    /// band of a face whose bands differ; snapping a band malign
-    /// against it AND its neighbours to the patch count makes those
-    /// interfaces coincide column-for-column — the phase alignment the
-    /// uniform schedule had everywhere, restored exactly where it is
-    /// load-bearing — and the patch count is also the chord pass's
-    /// schedule, so a full-width iso rim on a malign band lands its
-    /// chord points ON the columns as before (`chords::nurbs_tighten`,
-    /// the D-2 whole-patch arm). Benign interfaces keep their own
-    /// counts: below the derived `√15 ≈ 3.87` line a foreign point's
-    /// sliver certifies under δ outright; in the measured
-    /// `(3.87, SAFE_ASPECT]` gap the tour's margin holds it
-    /// (SAFE_ASPECT docs) and the certificate refusal plus the
-    /// refinement ladder backstop the rest.
+    /// **No column snap.** A strip lattice admits a Delaunay-legal
+    /// sliver of certificate ~`(aspect² + 1)/8 · δ_s` beside any point
+    /// off its columns (a neighbour band's columns on the shared cut
+    /// line, a rim chord point, a refinement centroid), and no local
+    /// insertion cures it. Until #5531 the lane triangulated in raw UV
+    /// and cured it by ALIGNMENT: a band whose realized aspect passed a
+    /// measured line (`SAFE_ASPECT` = 5) snapped, with its neighbours,
+    /// to the whole-patch column count, which the chord pass shares.
+    /// Since #5531 the CDT runs in the metric returned here, where each
+    /// band's lattice is near square, and the snap went dormant: 0 of
+    /// the tour's bands against 2573 before. Retired with its evidence
+    /// (`work/tess/the-lower-malign-arm-is-unwitnessed`):
+    /// - over the metric, the tour's worst band residual is 0.41–1.88;
+    /// - on uneven-station lofts built to fire it (residuals 0.03–30),
+    ///   at twenty δ with the falsifier armed, every outcome is the
+    ///   same with and without it, worst ratio 0.4996 without;
+    /// - its one effect there was cost, up to 14% fewer triangles
+    ///   (`work/budget/uneven-station-lofts-cost-triangles-without-the-column-snap`).
+    ///
+    /// A band whose residual over the metric is large still slivers.
+    /// No corpus face has one, and on a face that does the triangle's
+    /// certificate exceeds δ and the face refuses typed
+    /// ([`TessellateError::CertificateExceeded`]): loud, never a wrong
+    /// mesh.
     ///
     /// # Errors
     ///
@@ -1141,7 +1000,6 @@ impl NurbsCellGrid {
     /// [`crate::sizing::ceil_count`], as the uniform schedule.
     pub(crate) fn band_schedule(
         &self,
-        patch: NurbsFaceBound,
         u: (f64, f64),
         v: (f64, f64),
         delta_s: f64,
@@ -1150,10 +1008,7 @@ impl NurbsCellGrid {
         let mut edges = vec![v.0];
         edges.extend(self.v_cuts.iter().copied().filter(|c| *c > v.0 && *c < v.1));
         edges.push(v.1);
-        let (phu, _) = patch.grid_steps(delta_s);
-        let patch_nuc = crate::sizing::ceil_count(du, phu)?;
         let mut bands = Vec::with_capacity(edges.len().saturating_sub(1));
-        let mut row_bounds = Vec::with_capacity(edges.len().saturating_sub(1));
         for w in edges.windows(2) {
             let (va, vb) = (w[0], w[1]);
             // The band is found by the slab midpoint — strictly inside
@@ -1168,98 +1023,12 @@ impl NurbsCellGrid {
                 nuc,
                 nvc,
                 cap: steps.cap,
-                snapped: false,
             });
-            row_bounds.push(bound);
         }
-        // Malignity is judged on the REALIZED spacings `s_u/s_v`, not
-        // the pre-`ceil` ideal steps: the lattice a sliver lives in
-        // has rows every `s_v = (vb−va)/nvc ≤ h_v`, so testing against
-        // `h_v` under-estimates the aspect by up to ~2x whenever a
-        // band's extent barely exceeds one step (R2's review fixture,
-        // pinned in the tests below).
-        //
-        // EVERY band is judged, `nuc = 1` included (TESS-SPLIT): a
-        // band that does not subdivide `u` still meets its neighbours'
-        // columns on the shared cut lines, and beside a full-width
-        // `s_u = du` lattice those foreign points admit the same
-        // `(aspect²+1)/8·δ_s` sliver — executed on the #320 leaf under
-        // the aspect-capped selection, whose `nuc = 1` bands beside
-        // snapped `nuc = 3` bands certified a 41·δ sliver and refused
-        // the face. The retired selection never realized an
-        // anisotropic `nuc = 1` band, which is the only reason a
-        // `nuc >= 2` exemption survived here.
-        //
-        // Judged against the lattice metric, in both orientations: the
-        // doc's **Why** above.
         let metric = lattice_metric(bands.iter().map(|b| b.aspect(du)));
-        let is_malign = |b: &BandCounts| malign(b.aspect(du), metric);
-        // The snap: every near-malign band takes the patch column
-        // count EXACTLY — `patch_nuc` is the chord pass's schedule
-        // (one derivation), so equality is what puts every band of the
-        // group AND the boundary chord points on one column family.
-        // Under the retired selection every band's own count was `<=
-        // patch_nuc` by componentwise bound dominance and a
-        // max-with-patch was the same thing; the aspect-capped
-        // selection loses that monotonicity (each band optimizes
-        // inside its OWN first-fundamental-form window, so a band can
-        // honestly want MORE columns than the patch point — executed
-        // on the #320 s_duct: a band's own `nuc = 4` snapped-by-max
-        // beside rim chords at `patch_nuc = 3` certified a 25·δ rim
-        // sliver and refused the face). A band whose columns are
-        // WIDENED to the patch spacing pays rows for it: its `h_v` is
-        // re-projected onto its own ellipse at `h_u = du/patch_nuc`
-        // ([`NurbsFaceBound::step_v_at`]), so every emitted cell is
-        // still a point of that band's certified region.
-        //
-        // Membership runs to a FIXPOINT: projection changes realized
-        // spacings, so malignity is re-judged and the ±1-neighbour
-        // dilation re-applied until the group is closed — at exit,
-        // every neighbour of a malign band is in the group, so every
-        // high-aspect interface is column-aligned and every interface
-        // with a band outside the group is benign on both sides
-        // (foreign points beside a benign lattice certify under δ —
-        // the SAFE_ASPECT argument). TERMINATION: membership only
-        // ever grows and projection is idempotent (a member is never
-        // re-projected), so the loop exits within `bands.len()`
-        // passes — each pass either admits a new member or breaks.
-        let n = bands.len();
-        let mut member = vec![false; n];
-        loop {
-            let malign: Vec<bool> = bands.iter().map(is_malign).collect();
-            let mut grew = false;
-            for i in 0..n {
-                if member[i] {
-                    continue;
-                }
-                if malign[i]
-                    || (i > 0 && malign[i - 1])
-                    || malign.get(i + 1).copied().unwrap_or(false)
-                {
-                    member[i] = true;
-                    grew = true;
-                    #[allow(clippy::cast_precision_loss)]
-                    let s_u = du / patch_nuc as f64;
-                    let hv = row_bounds[i].step_v_at(s_u, delta_s);
-                    let nvc = crate::sizing::ceil_count(bands[i].vb - bands[i].va, hv)?;
-                    let b = &mut bands[i];
-                    b.snapped = b.nuc != patch_nuc || b.nvc != nvc;
-                    b.nuc = patch_nuc;
-                    b.nvc = nvc;
-                }
-            }
-            if !grew {
-                break;
-            }
-        }
         Ok(BandSchedule { bands, metric })
     }
 
-    /// The index of the half-open cell `[cut_i, cut_{i+1})` containing
-    /// `x`, clamped to the covered range (a trim polygon evaluated
-    /// through pcurve arithmetic can stray an ulp outside the chart
-    /// rectangle; the edge cell's bound is the honest answer there —
-    /// the surface is not defined beyond it).
     fn cell_lo(cuts: &[f64], x: f64) -> usize {
         cuts.partition_point(|c| *c <= x)
             .saturating_sub(1)
@@ -1979,11 +1748,9 @@ pub(crate) mod tests {
         );
         let st = b.split_steps(1e-3);
         assert!(
-            st.hv.is_finite() && b.step_v_at(st.hu, 1e-3).is_finite(),
-            "a rational ruling's v steps must stay real: hv {:.17e}, projected \
-             {:.17e}",
-            st.hv,
-            b.step_v_at(st.hu, 1e-3)
+            st.hv.is_finite(),
+            "a rational ruling's v step must stay real: hv {:.17e}",
+            st.hv
         );
 
         let cylinder = nurbs_face_bound(&quarter_cylinder(), FaceKey::default()).unwrap();
@@ -2529,27 +2296,14 @@ pub(crate) mod tests {
         );
     }
 
-    /// **`band_schedule` judges malignity on REALIZED spacings** (R2
-    /// MAJ-2's executed fixture, adopted), **over the lattice metric,
-    /// in both directions**. A band whose extent barely exceeds one
-    /// ideal step has `s_v = extent/nvc` down to ~half of `h_v`, so
-    /// testing `s_u` against `SAFE_ASPECT·h_v` under-detects by up to
-    /// ~2x: band 0 measures 4.79 against the ideal step (benign — the
-    /// pre-fix test left `nuc = 11`) but 9.09 realized (malign). Band 2
-    /// is the other orientation, columns far narrower than rows
-    /// (realized ≈ 0.113, residual ≈ 8.8), malign in its own right,
-    /// which the one-sided test `s_u > SAFE_ASPECT·s_v` read benign.
-    /// The three bands' realized aspects put the metric at 1
-    /// (`√(9.09 · 0.113)` rounds to 2⁰), so the residuals are the raw
-    /// aspects. Band 0 and its neighbour band 1 (≈ 1.04, benign itself)
-    /// must be projected onto the patch column schedule (columns here;
-    /// band 0 also trades its rows down through the ellipse
-    /// re-projection), and the fixpoint takes band 2 too. Band 2's
-    /// snap does not isolate the two-sided arm (band 1's projected
-    /// lattice is malign as well, so band 2 is its neighbour);
-    /// [`malign_is_two_sided_and_relative_to_the_metric`] pins that.
+    /// **Every band keeps its own counts** (the column snap is retired,
+    /// [`NurbsCellGrid::band_schedule`]). The fixture is the retired
+    /// snap's own: three bands whose realized aspects (9.09, ≈ 1.04,
+    /// ≈ 0.113) put the metric at 1 and made bands 0 and 2 malign on
+    /// either side of the old line, so the snap projected all three
+    /// onto the patch's 45 columns. Now each takes its own split steps.
     #[test]
-    fn band_schedule_snaps_on_realized_aspect() {
+    fn every_band_keeps_its_own_counts() {
         let cells = [
             CellBound {
                 u: (0.0, 1.0),
@@ -2591,79 +2345,35 @@ pub(crate) mod tests {
         // window everywhere here (t* = 5.0, 1.0, ~0.11 and the patch's
         // ~1.18 vs [1/16, 16]),
         // and the chosen steps coincide with the retired grouping's —
-        // the fixture pins the SNAP, not the selection.
-        let patch = NurbsFaceBound {
-            muu: 2.0,
-            muv: 0.0,
-            mvv: 2.77,
-            mu1: 1.0,
-            mv1: 1.0,
-        };
+        // the fixture pins the schedule, not the selection.
         let delta_s = 2e-3;
         let schedule = grid
-            .band_schedule(patch, (0.0, 1.0), (0.0, 1.0), delta_s)
+            .band_schedule((0.0, 1.0), (0.0, 1.0), delta_s)
             .expect("schedules");
         assert_eq!(schedule.metric, 1.0, "{schedule:?}");
         let bands = schedule.bands;
         assert_eq!(bands.len(), 3);
-        // Band 0's own schedule: h_u ≈ 0.0950 → nuc 11; h_v ≈ 0.0190
-        // with extent 0.02 → nvc 2, s_v = 0.01, s_u = 1/11 ≈ 0.0909:
-        // realized aspect 9.09 > SAFE_ASPECT while 5·h_v = 0.095 >
-        // s_u would have read it benign. Patch h_u ≈ 0.02236 → 45.
-        assert_eq!(
-            bands[0].nuc, 45,
-            "the malign band snaps to the patch column count: {bands:?}"
-        );
-        assert_eq!(
-            bands[1].nuc, 45,
-            "the malign band's neighbour snaps too: {bands:?}"
-        );
-        // A snapped band's rows are RE-PROJECTED onto its own ellipse
-        // at the patch column spacing (band 0's h_v relaxes from
-        // ~0.0190 to ~0.0265 at s_u = 1/45, so its nvc falls to 1) —
-        // and the post-snap lattice is benign, which is the fixpoint's
-        // exit condition.
-        assert_eq!(
-            bands[0].nvc, 1,
-            "rows re-projected at the snapped columns: {bands:?}"
-        );
-        assert!(bands[1].nvc >= 1);
-        // Band 2's own schedule: h_u ≈ 0.0190 → nuc 53; h_v ≈ 0.173
-        // with extent 0.5 → nvc 3: realized 0.0189/0.167 ≈ 0.113, below
-        // 1/SAFE_ASPECT, where `s_u > SAFE_ASPECT·s_v` never looked.
-        assert_eq!(bands[2].nuc, 45, "the fixpoint takes band 2: {bands:?}");
-        // The constraint-activity flags: the snap projected every band
-        // onto the patch schedule (sliver/snap kind), and the A cap
-        // clamped none (the interior optima above sit inside the
-        // aspect window).
-        assert!(
-            bands.iter().all(|b| b.snapped),
-            "the snap must report itself: {bands:?}"
-        );
+        // Band 0: h_u ≈ 0.0950 → nuc 11; h_v ≈ 0.0190 over 0.02 → nvc 2
+        // (realized 9.09). Band 2: h_u ≈ 0.0190 → nuc 53; h_v ≈ 0.173
+        // over 0.5 → nvc 3 (realized ≈ 0.113). The retired snap set
+        // all three to the patch's 45 columns.
+        assert_eq!((bands[0].nuc, bands[0].nvc), (11, 2), "{bands:?}");
+        assert_eq!((bands[2].nuc, bands[2].nvc), (53, 3), "{bands:?}");
+        assert_ne!(bands[1].nuc, 45, "band 1 keeps its own columns: {bands:?}");
+        // The A cap clamped none (the interior optima above sit inside
+        // the aspect window).
         assert!(
             bands.iter().all(|b| !b.cap),
             "no cap activity in this fixture: {bands:?}"
         );
     }
 
-    /// **Malignity is two-sided and relative to the lattice metric.**
-    /// A band slivers whichever way its lattice is long in the CDT's
-    /// coordinates, so the residual `aspect/metric` is judged against
-    /// [`SAFE_ASPECT`] above and its inverse below. The one-sided test
-    /// it replaced (`s_u > SAFE_ASPECT·s_v`, raw UV) read every row
-    /// below as benign, a lofted wall's `≈ 0.03` included.
+    /// **The lattice metric** is the power of two nearest the geometric
+    /// mean of the extreme band aspects: a lofted wall's strip (`≈ 0.03`)
+    /// takes 2⁻⁵, where it is near square, and a face with no finite
+    /// positive aspect takes 1.
     #[test]
-    fn malign_is_two_sided_and_relative_to_the_metric() {
-        // Raw UV (metric 1): both orientations.
-        assert!(malign(9.09, 1.0));
-        assert!(malign(0.113, 1.0), "columns far narrower than rows");
-        assert!(!malign(1.04, 1.0));
-        assert!(!malign(4.9, 1.0) && !malign(1.0 / 4.9, 1.0));
-        // A lofted wall's strip, against its own metric 2⁻⁵: benign;
-        // against raw UV: malign, which the one-sided test missed.
-        assert!(!malign(0.03, 1.0 / 32.0));
-        assert!(malign(0.03, 1.0));
-        // The metric is the rounded geometric mean of the extremes.
+    fn the_lattice_metric_is_the_rounded_mean_of_the_extremes() {
         assert_eq!(lattice_metric([0.03, 0.033].into_iter()), 1.0 / 32.0);
         assert_eq!(lattice_metric([9.09, 1.04, 0.113].into_iter()), 1.0);
         assert_eq!(lattice_metric([f64::NAN, 0.0].into_iter()), 1.0);
