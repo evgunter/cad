@@ -2,10 +2,11 @@
 id: a-translated-arc-prism-panics-the-area-gauge-through-mass-properties
 kind: issue
 title: mass_properties panics (A2 area gauge, perimeter arm) on a small arc prism translated far from the origin
-status: open
+status: closed
 opened: 2026-09-24
 priority: P2
 cost: M
+closed: 2026-10-21
 ---
 
 
@@ -70,3 +71,15 @@ The gauge's calibration was never tested by this body. At the door,
 the degradation survives as
 `quad-rational-patch-cross-grows-with-translation`, where a caller
 hands the lane a net far from the origin.
+
+## Closed
+
+Re-measured on main `258dc6c7c2` (section above): the arc prism at
+s = 1e-4 reads the same volume, area and pads to every printed digit from
+0 to 4 km, and the gauge no longer trips. FLUX's #5442 (`shell_reference`)
+removed it: `topo`'s quad lane now hands each face's net to the lane shifted
+to a vertex of its shell. On the commit before it, `ec32861499`, the area
+pad grows from 4 cm out and the gauge panics from 4 m, so the enclosure
+really did degrade and the gauge was right. What remains is the lane's own
+frame dependence at its public door, which
+`quad-rational-patch-cross-grows-with-translation` carries.
