@@ -4242,6 +4242,22 @@ impl fmt::Display for ValidationError {
                 crate::contact::CONTRADICTION_RECOURSE,
                 crate::contact::steer_clause(*steer),
             ),
+            // Two long edges' ends read past their rounding: the
+            // precision limit, whose recourse is no move apart.
+            Self::CensusEscalated { cause }
+                if crate::census::is_span_precision(cause.predicate) =>
+            {
+                write!(
+                    f,
+                    concat!(
+                        geom_core::undecided!(
+                            "whether two long straight edges on one line overlap"
+                        ),
+                        ". Recourse: {}"
+                    ),
+                    crate::census::SPAN_PRECISION_RECOURSE
+                )
+            }
             Self::CensusEscalated { cause } => write!(
                 f,
                 concat!(

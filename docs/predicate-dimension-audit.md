@@ -1286,6 +1286,29 @@ Flagged, NOT fixed here (dispositions):
   populations are the probe lane's count of the read-back's refusals.
   Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F25** (added by NURBS' census-onto-one-line unit, PR 5513)
+  `topo/src/census.rs` `span_charge`, under `pm_census_span_precision`:
+  the headroom `((K − 1)·ε − noise) / (SHORT_CHAIN_ULPS·u)`, the room the
+  projections' charge (`geom_core::one_line`) leaves below `(K − 1)·ε`,
+  read back in metres of the two spans' summed length from the first
+  one's start. A length, so `Margin::of` would fit it dimensionally.
+  What keeps it off the logged doors is WHAT it decides: how precisely
+  the census reads two collinear spans' ends, not anything about the
+  body.
+  - Definitely positive, the ends read uncharged (`pm_census_span_order`,
+    `pm_census_ee_overlap`), sound inside the room.
+  - Anything else, in band included, reads them charged: each comparison
+    decided at its value less and plus the charge
+    (`pm_census_span_order_charged`, `pm_census_ee_overlap_charged`,
+    their straddle `pm_census_span_rounding`), sound at every headroom,
+    so the threshold may fall either way in its band.
+  - Logged, an in-band threshold would record an escalation beside a
+    reading that went on to decide.
+
+  **Carried as `k_stats::check_unlogged(.., "F25")`**, the door F18, F20,
+  F21, F23 and F24 use. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

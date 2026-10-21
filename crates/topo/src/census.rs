@@ -305,7 +305,7 @@ use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
 use geom_brep::curve_pair::{Hit, MeetFault, Span as CarrierSpan, meet};
-use geom_core::k_stats::{Magnitude, decide_positive};
+use geom_core::k_stats::{Magnitude, decide_reported, straddle};
 use geom_core::one_line::on_one_line;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3,
@@ -3876,30 +3876,123 @@ fn ee_crossing_lane<T: Decide>(
     }
 }
 
-/// **Whether the census reads two spans' projections at this band**
-/// (`pm_census_ee_overlap_precision`). Margin: `(K − 1)·ε / (SHORT_CHAIN_ULPS·u)`
-/// less the spans' summed lengths from the first one's start, the
-/// projections' charge read back in metres ([`geom_core::one_line`]): how
-/// far that sum sits below the one at which the charge reaches
-/// `(K − 1)·ε`.
+/// The census's own rows for two spans' ends read past their charge
+/// ([`span_charge`]): each comparison's lower and upper bound, and the
+/// straddle between them. An escalation under any of them is the
+/// representation's rounding at the spans' length, not a
+/// near-coincidence of the geometry, and its doors say so
+/// ([`is_span_precision`]).
+pub(crate) const SPAN_ORDER_CHARGED: &str = "pm_census_span_order_charged";
+/// [`SPAN_ORDER_CHARGED`]'s row for the overlap's length.
+pub(crate) const EE_OVERLAP_CHARGED: &str = "pm_census_ee_overlap_charged";
+/// The straddle row of [`SPAN_ORDER_CHARGED`] and [`EE_OVERLAP_CHARGED`].
+pub(crate) const SPAN_ROUNDING: &str = "pm_census_span_rounding";
+
+/// The recourse of a census span read past its charge
+/// ([`is_span_precision`]), at every door it reaches: the precision
+/// limit, never a move apart.
+pub(crate) const SPAN_PRECISION_RECOURSE: &str = "set a coarser tolerance, or make the straight \
+     edges along that line shorter: at their length this tolerance is finer than their ends' \
+     rounding";
+
+/// **Whether an escalation is a census span read past its charge**
+/// ([`SPAN_ORDER_CHARGED`], [`EE_OVERLAP_CHARGED`], [`SPAN_ROUNDING`]):
+/// a precision limit, whose recourse is a coarser tolerance or shorter
+/// edges, never a move apart.
+pub(crate) fn is_span_precision(predicate: Option<&str>) -> bool {
+    matches!(
+        predicate,
+        Some(SPAN_ORDER_CHARGED | EE_OVERLAP_CHARGED | SPAN_ROUNDING)
+    )
+}
+
+/// **The charge the census's span comparisons carry**: `None` where they
+/// read uncharged, `Some(noise)` where the projections' charge is large
+/// enough to matter. The threshold (`pm_census_span_precision`) is the
+/// headroom `((K − 1)·ε − noise) / (SHORT_CHAIN_ULPS·u)`, the room the
+/// charge leaves in metres of the spans' summed length from the first
+/// one's start ([`geom_core::one_line`]); a definitely positive headroom
+/// reads uncharged, and anything else, in band included, charged.
 ///
-/// **Why that much room is enough.** [`collinear_overlap`] decides its
-/// projections uncharged ([`tri_cmp`], `pm_census_ee_overlap`), because
-/// within that room no uncharged verdict can be wrong: each margin it
-/// reads is within the charge `n` of its real value, so a definite
-/// verdict (`|m| > Kε`) has its real sign past `Kε − n ≥ ε`, and a Zero
-/// (`|m| ≤ ε`) is never a real definite (`ε + n ≤ Kε`). The charge is at
-/// the spans' own scale, so only spans kilometres long at a fine `ε`
-/// leave the room (about `5·10³` m of summed length at `ε = 10⁻¹²`),
-/// wherever they lie; a 135 153-pair sweep at `ε = 10⁻¹²`, out to `10⁴` m
-/// from the origin, found no misread inside it. Past it the reading is
-/// the representation's rounding, not the geometry: an escalation, a
-/// coarser tolerance its recourse, never a guess.
-fn overlap_resolves<T: Decide>(noise: T, band: Band) -> Result<(), Indeterminate> {
+/// **Why the uncharged reading is sound inside the room.** Each margin
+/// [`projected_overlap`] reads is within the charge `n` of its real
+/// value. With `n ≤ (K − 1)·ε`, a definite verdict (`|m| > Kε`) has its
+/// real sign past `Kε − n ≥ ε`, and a Zero (`|m| ≤ ε`) is never a real
+/// definite (`ε + n ≤ Kε`). The charge is at the spans' own scale, so
+/// only spans kilometres long at a fine `ε` leave the room (about
+/// `5·10³` m of summed length at `ε = 10⁻¹²`), wherever they lie; a
+/// 135 153-pair sweep at `ε = 10⁻¹²`, out to `10⁴` m from the origin,
+/// found no misread inside it.
+///
+/// **Why the charged reading is sound everywhere**, so the threshold may
+/// fall either way in its band: each comparison decides both `m − n`
+/// and `m + n` ([`charged_cmp`]), and answers only where they agree.
+///
+/// **Unlogged** (`k_stats::check_unlogged`, ledger row F25 of
+/// `docs/predicate-dimension-audit.md`): the threshold picks how
+/// precisely the census reads, and states nothing about the body. Logged,
+/// an in-band threshold would record an escalation beside a reading that
+/// went on to decide.
+fn span_charge<T: Decide>(noise: T, band: Band) -> Option<T> {
     let room = band.escalate() - band.zero();
     let per_metre = T::from_f64(geom_core::SHORT_CHAIN_ULPS * f64::EPSILON * 0.5);
     let headroom = (T::from_computed(room) - noise) / per_metre;
-    decide_positive("pm_census_ee_overlap_precision", Margin::of(headroom), band)
+    match geom_core::k_stats::check_unlogged("pm_census_span_precision", headroom, band, "F25") {
+        Ok(Sign::Positive) => None,
+        _ => Some(noise),
+    }
+}
+
+/// `a` against `b` read past the charge `n` (`name`'s bounds, decided
+/// through the funnel): the verdict where `a − b − n` and `a − b + n`
+/// agree, and the straddle between them ([`SPAN_ROUNDING`]) where they
+/// do not. `None` escalated (pushed).
+fn charged_cmp<T: Decide>(
+    name: &'static str,
+    m: T,
+    n: T,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Sign> {
+    let read = |margin: T| decide_reported(name, Margin::of(margin), band);
+    let escalated = |cause, errors: &mut Vec<ValidationError>| {
+        errors.push(ValidationError::CensusEscalated { cause });
+        None
+    };
+    let lower = match read(m - n) {
+        Ok(d) => d,
+        Err(cause) => return escalated(cause, errors),
+    };
+    let upper = match read(m + n) {
+        Ok(d) => d,
+        Err(cause) => return escalated(cause, errors),
+    };
+    if lower.sign == upper.sign {
+        Some(lower.sign)
+    } else {
+        escalated(straddle(SPAN_ROUNDING, lower, upper, band), errors)
+    }
+}
+
+/// [`tri_cmp`] where `charge` is `None`, and [`charged_cmp`] on
+/// [`SPAN_ORDER_CHARGED`] past it.
+fn span_cmp<T: Decide>(
+    a: T,
+    b: T,
+    charge: Option<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<core::cmp::Ordering> {
+    let Some(n) = charge else {
+        return tri_cmp(a, b, band, errors);
+    };
+    Some(
+        match charged_cmp(SPAN_ORDER_CHARGED, a - b, n, band, errors)? {
+            Sign::Positive => core::cmp::Ordering::Greater,
+            Sign::Negative => core::cmp::Ordering::Less,
+            Sign::Zero => core::cmp::Ordering::Equal,
+        },
+    )
 }
 
 /// The positive-length overlap `[lo, hi]` of two parallel edges on
@@ -3921,13 +4014,10 @@ fn collinear_overlap<T: Decide>(
     // The projections are the one reading's ([`geom_core::one_line`]),
     // of the stored vertices as given, so nothing here computed them.
     let along = on_one_line(ea.dir, (ea.p0, ea.p1), (eb.p0, eb.p1), T::zero());
-    if let Err(cause) = overlap_resolves(along.noise, band) {
-        errors.push(ValidationError::CensusEscalated { cause });
-        return None;
-    }
+    let charge = span_charge(along.noise, band);
     let ((_, len), (t0, t1)) = (along.a, along.b);
     let mut held = Vec::new();
-    let span = projected_overlap(len, (t0, t1), band, &mut held);
+    let span = projected_overlap(len, (t0, t1), charge, band, &mut held);
     if matches!(span, Some(None)) {
         return Some(None);
     }
@@ -3968,33 +4058,40 @@ fn overlap_gap<T: Real>(ea: &Span<T>, eb: &Span<T>, (t0, t1): (T, T)) -> Margin<
 
 /// `[t0, t1]` on `ea`'s axis clipped to its span: `Some(Some((lo, hi)))`
 /// a positive length (`pm_census_ee_overlap`), `Some(None)` a point or
-/// empty, `None` escalated (pushed).
+/// empty, `None` escalated (pushed). Every comparison is of two of the
+/// projections (or one against `a`'s start, `0`), so each is within the
+/// projections' charge of its real value, and reads past `charge` where
+/// [`span_charge`] gives one ([`span_cmp`], [`EE_OVERLAP_CHARGED`]).
 fn projected_overlap<T: Decide>(
     len: T,
     (t0, t1): (T, T),
+    charge: Option<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<(T, T)>> {
-    let (blo, bhi) = match tri_cmp(t0, t1, band, errors)? {
+    let (blo, bhi) = match span_cmp(t0, t1, charge, band, errors)? {
         core::cmp::Ordering::Greater => (t1, t0),
         _ => (t0, t1),
     };
-    let lo = match tri_cmp(blo, T::zero(), band, errors)? {
+    let lo = match span_cmp(blo, T::zero(), charge, band, errors)? {
         core::cmp::Ordering::Greater => blo,
         _ => T::zero(),
     };
-    let hi = match tri_cmp(bhi, len, band, errors)? {
+    let hi = match span_cmp(bhi, len, charge, band, errors)? {
         core::cmp::Ordering::Less => bhi,
         _ => len,
     };
-    match decide("pm_census_ee_overlap", Margin::of(hi - lo), band) {
-        Ok(Sign::Positive) => Some(Some((lo, hi))),
-        Ok(_) => Some(None),
-        Err(cause) => {
-            errors.push(ValidationError::CensusEscalated { cause });
-            None
-        }
-    }
+    let sign = match charge {
+        Some(n) => charged_cmp(EE_OVERLAP_CHARGED, hi - lo, n, band, errors)?,
+        None => match decide("pm_census_ee_overlap", Margin::of(hi - lo), band) {
+            Ok(sign) => sign,
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                return None;
+            }
+        },
+    };
+    Some((sign == Sign::Positive).then_some((lo, hi)))
 }
 
 /// **A collinear overlap of two line edges**: a pair whose interiors
@@ -16868,57 +16965,81 @@ mod edge_pairs_as_segments {
         segment((pt(a), pt(b)))
     }
 
-    /// **Spans too long for this band escalate on their precision, never
-    /// decide.** Two collinear edges three kilometres long, overlapping by
-    /// half, at `ε = 10⁻¹²`: their lengths from the first one's start sum
-    /// to `9·10³` m, past the `(K − 1)·ε / (SHORT_CHAIN_ULPS·u) ≈ 5·10³` m
-    /// at which the projections' charge reaches the room
-    /// [`overlap_resolves`] keeps, so the uncharged end comparisons could
-    /// read rounding as geometry. [`collinear_overlap`] escalates
-    /// `pm_census_ee_overlap_precision` rather than read them. At
-    /// `ε = 10⁻⁹` the same spans are inside the room and read as an
-    /// overlap. (Where they lie does not matter: the charge is at the
-    /// spans' own scale.)
+    /// **Spans too long for this band read their ends charged, and
+    /// decide where the charge allows.** Two collinear edges three
+    /// kilometres long, overlapping by half, at `ε = 10⁻¹²`: their
+    /// lengths from the first one's start sum to `9·10³` m, past the
+    /// `(K − 1)·ε / (SHORT_CHAIN_ULPS·u) ≈ 5·10³` m at which the
+    /// projections' charge reaches the room [`span_charge`] keeps, so the
+    /// census reads each end comparison past the charge. The overlap is
+    /// `1.5·10³` m, far past it, so they read an overlap, with no
+    /// escalation, as they do uncharged at `ε = 10⁻⁹`. Moved to meet end
+    /// to end with the second starting `2·10⁻¹¹` m back, inside the
+    /// charge (about `2·10⁻¹¹` m at their summed `1.2·10⁴` m), the
+    /// overlap's bounds do not decide, and the escalation is the
+    /// precision's ([`is_span_precision`]).
     #[test]
-    fn spans_too_long_for_the_band_escalate_on_their_precision() {
+    fn spans_too_long_for_the_band_read_their_ends_charged() {
         let ea = seg([0.0, 0.0, 0.0], [3e3, 0.0, 0.0]);
         let eb = seg([1.5e3, 0.0, 0.0], [4.5e3, 0.0, 0.0]);
+        for at in [AT_1E12, AT_1E9] {
+            assert!(
+                span_charge(
+                    on_one_line(ea.dir, (ea.p0, ea.p1), (eb.p0, eb.p1), 0.0).noise,
+                    band(at)
+                )
+                .is_some()
+                    == (at == AT_1E12),
+                "charged only at 1e-12"
+            );
+            let mut errors = Vec::new();
+            let read = collinear_overlap(&ea, &eb, band(at), &mut errors);
+            assert!(
+                matches!(read, Some(Some(_))) && errors.is_empty(),
+                "kilometre spans overlapping by half at {at:?}: {read:?} {errors:?}"
+            );
+        }
+        let eb = seg([3e3 - 2e-11, 0.0, 0.0], [6e3, 0.0, 0.0]);
         let mut errors = Vec::new();
         let read = collinear_overlap(&ea, &eb, band(AT_1E12), &mut errors);
-        assert!(read.is_none(), "kilometre spans at 1e-12: {read:?}");
+        assert!(read.is_none(), "an overlap inside the charge: {read:?}");
         assert!(
             matches!(
                 errors.as_slice(),
                 [ValidationError::CensusEscalated { cause }]
-                    if cause.predicate == Some("pm_census_ee_overlap_precision")
+                    if is_span_precision(cause.predicate)
             ),
             "{errors:?}"
         );
-        let mut errors = Vec::new();
-        let read = collinear_overlap(&ea, &eb, band(AT_1E9), &mut errors);
-        assert!(
-            matches!(read, Some(Some(_))) && errors.is_empty(),
-            "inside the room at 1e-9: {read:?} {errors:?}"
-        );
     }
 
-    /// **Where the census reads, no uncharged comparison misreads.**
-    /// Collinear pairs of stored, non-exact `f64` points up to `10⁴` m
-    /// out at `ε = 10⁻¹²`, `b` overlapping `a`'s end by `0` … `60·ε` and
-    /// lying within `ε` of `a`'s line in ℝ (`Interval`). Wherever
-    /// [`collinear_overlap`] reads, a real overlap past `Kε` is never read
-    /// as none, and one within `(ε, Kε]` is never decided as none
-    /// without an escalation: the argument at [`overlap_resolves`],
-    /// measured. (135 153 such pairs in the PR that added this row, 0
-    /// misreads.)
+    /// **Where the census reads, no comparison misreads, charged or
+    /// not.** Collinear pairs of stored, non-exact `f64` points up to
+    /// `10⁴` m out and spans up to `2·10⁴` m long at `ε = 10⁻¹²`, so on
+    /// both sides of [`span_charge`]'s threshold, `b` overlapping `a`'s end
+    /// by `0` … `60·ε` and lying within `ε` of `a`'s line in ℝ
+    /// (`Interval`). Wherever [`collinear_overlap`] reads, a real overlap
+    /// past `Kε` is never read as none, and one within `(ε, Kε]` is never
+    /// decided as none without an escalation: the argument at
+    /// [`span_charge`], measured. (135 153 such pairs of the uncharged
+    /// reading on the PR that added this row, 0 misreads.)
     #[test]
-    fn where_the_census_reads_no_uncharged_comparison_misreads() {
+    fn where_the_census_reads_no_comparison_misreads() {
         use geom_core::Interval;
         let mut rng = test_utils::fuzz::start("census-overlap-misreads");
         let (z, k) = AT_1E12;
-        let mut read_pairs = 0usize;
+        let (mut read_pairs, mut charged) = (0usize, 0usize);
         for _ in 0..test_utils::fuzz::scaled(20_000) {
-            let far = 10f64.powf(rng.range(0.0, 4.0));
+            // Half the draws are spans a few kilometres long near the
+            // origin: long enough to read charged, and near enough that
+            // their coordinates round inside ε, so the line oracle below
+            // admits them.
+            let long = rng.range(0.0, 1.0) < 0.5;
+            let far = 10f64.powf(if long {
+                rng.range(0.0, 2.0)
+            } else {
+                rng.range(0.0, 4.0)
+            });
             let a0 = pt([
                 far * rng.range(-1.0, 1.0),
                 far * rng.range(-1.0, 1.0),
@@ -16930,9 +17051,15 @@ mod edge_pairs_as_segments {
                 rng.range(-1.0, 1.0),
             )
             .normalize();
-            let len = far * rng.range(0.1, 2.0);
+            let len = if long {
+                rng.range(1.5e3, 3.5e3)
+            } else {
+                far * rng.range(0.1, 2.0)
+            };
             let a1 = a0 + d * len;
-            let b0 = a1 - d * (rng.range(0.0, 60.0) * z);
+            // The overlap scales with the span past 2 km, so a charged
+            // pair's draws fall both inside its charge and past it.
+            let b0 = a1 - d * (rng.range(0.0, 60.0) * z * (len / 2e3).max(1.0));
             let b1 = b0 + d * (len * rng.range(0.1, 1.0));
             let iv = |p: Point3<f64>| {
                 Point3::new(
@@ -16945,21 +17072,22 @@ mod edge_pairs_as_segments {
             let chord = ia1 - ia0;
             let unit = chord * (Interval::one() / chord.norm());
             let w = iv(b0) - ia0;
-            if (w - unit * w.dot(unit)).norm().hi() > z {
+            // The distance from `a`'s line as `|w × chord| / |chord|`: no
+            // rounded unit in it, so its enclosure stays inside ε at
+            // kilometre spans.
+            if (w.cross(chord).norm() / chord.norm()).hi() > z {
                 continue;
             }
             let over = chord.norm() - w.dot(unit);
+            let (sa, sb) = (segment((a0, a1)), segment((b0, b1)));
             let mut errors = Vec::new();
-            let read = collinear_overlap(
-                &segment((a0, a1)),
-                &segment((b0, b1)),
-                band(AT_1E12),
-                &mut errors,
-            );
+            let read = collinear_overlap(&sa, &sb, band(AT_1E12), &mut errors);
             if read.is_none() {
                 continue;
             }
             read_pairs += 1;
+            let noise = on_one_line(sa.dir, (a0, a1), (b0, b1), 0.0).noise;
+            charged += usize::from(span_charge(noise, band(AT_1E12)).is_some());
             let none = matches!(read, Some(None));
             assert!(
                 !(none && over.lo() > k),
@@ -16973,6 +17101,10 @@ mod edge_pairs_as_segments {
             );
         }
         assert!(read_pairs > 1000, "only {read_pairs} pairs read");
+        assert!(
+            charged > 100 && read_pairs - charged > 100,
+            "{charged} of {read_pairs} pairs read charged: both readings must be drawn"
+        );
     }
 
     /// Whether the two edges' interiors meet, as the confirm pass reads
