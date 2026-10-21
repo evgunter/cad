@@ -113,6 +113,14 @@ at every ε (was 20, 18, 20); those cells build and the germ probe
 reads them right, the other counts unchanged (`EdgeInFace` 8, 3, 7;
 overlaps 40, 26, 35).
 
+A sweep of the whole topo suite, the slow set included, through the
+door meter (`scripts/door-tier3-meter.py`'s feature), main against
+head at each ε, moves only `SlitLineCrossed` unions to bodies: 60, 56
+and 60 calls at default, 1e-6 and 1e-12, in the three files above and
+`a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op`
+(the same `REFUSING` scene). No other call's outcome or face count
+moves.
+
 No definite sub-case stays typed for this gap. Two guards stay, each
 a state the join never builds: a strut with both ends free that is its
 face's outline (a face of no area) refuses `JoinDesync`, and a seam
