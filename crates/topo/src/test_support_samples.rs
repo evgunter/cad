@@ -1846,6 +1846,23 @@ mod tests {
     /// over every tier-3 finding and every measurement refusal, so over
     /// every `PropsError` (`MassPropsError::Face`'s own words), whose
     /// words tier 3 does not render.
+
+    #[test]
+    fn review_5576_every_family_renders_no_run_of_spaces() {
+        let mut bad: Vec<String> = Vec::new();
+        for e in super::band_errors() { let t = e.to_string(); if t.contains("  ") { bad.push(format!("band_errors: {t:?}")); } }
+        for e in super::chart_region_errors() { let t = e.to_string(); if t.contains("  ") { bad.push(format!("chart_region_errors: {t:?}")); } }
+        for e in super::contact_refusals() { let t = e.to_string(); if t.contains("  ") { bad.push(format!("contact_refusals: {t:?}")); } }
+        for e in super::point_in_solid_errors() { let t = e.to_string(); if t.contains("  ") { bad.push(format!("point_in_solid_errors: {t:?}")); } }
+        for e in super::contain_errors() { let t = e.to_string(); if t.contains("  ") { bad.push(format!("contain_errors: {t:?}")); } }
+        for e in super::plane_nurbs_refusals() { let t = e.to_string(); if t.contains("  ") { bad.push(format!("plane_nurbs_refusals: {t:?}")); } }
+        for e in super::certify_errors() { let t = e.to_string(); if t.contains("  ") { bad.push(format!("certify_errors: {t:?}")); } }
+        for e in super::pcurve_certify_errors() { let t = e.to_string(); if t.contains("  ") { bad.push(format!("pcurve_certify_errors: {t:?}")); } }
+        for e in super::pcurve_mint_errors() { let t = e.to_string(); if t.contains("  ") { bad.push(format!("pcurve_mint_errors: {t:?}")); } }
+        for e in super::offset_fit_errors() { let t = e.to_string(); if t.contains("  ") { bad.push(format!("offset_fit_errors: {t:?}")); } }
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
+    }
+
     #[test]
     fn no_sample_renders_a_run_of_spaces() {
         let rendered = super::validation_error_samples()

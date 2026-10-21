@@ -10444,3 +10444,172 @@ mod found_on_a_divided_face {
         );
     }
 }
+
+#[cfg(test)]
+mod review_5576 {
+    use super::*;
+    use geom::Surface;
+    use geom_core::Point3;
+
+    pub(super) fn far_slab_pub(x0: f64, w: f64, t: f64, far: f64, tol: Tol) -> Body<f64> { far_slab(x0, w, t, far, tol) }
+    fn far_slab(x0: f64, w: f64, t: f64, far: f64, tol: Tol) -> Body<f64> {
+        let mut body = crate::test_support::brick::<f64>((x0, x0 + w), (0.0, w), (0.0, t), tol);
+        let surfaces: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
+        for key in surfaces {
+            let surface = body.surfaces.get_mut(key).unwrap();
+            let Surface::Plane { origin, normal, u_ref } = *surface else { panic!() };
+            let along = (u_ref + normal.cross(u_ref) * 0.37) * far;
+            *surface = Surface::Plane { origin: origin + along, normal, u_ref };
+        }
+        body
+    }
+
+    /// A truly violated bound whose f64 margin rounds to holding: does
+    /// the backstop refuse ("a violation certified at the exact band
+    /// refuses whatever its size")?
+    #[test]
+    fn review_5576_violation_hidden_by_rounding() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut silent = 0;
+        let mut rows = 0;
+        for far in [0.0, 1e2, 1e3, 1e4, 1e5] {
+            for t in [1e-3, 1e-2, 1e-1] {
+                for k in [1e-9, 1e-7, 1e-5, 1e-3] {
+                    let w = 1.0;
+                    let a = far_slab(0.0, w, t, 0.0, tol);
+                    let r = far_slab(0.0, w, t * (1.0 + k), far, tol);
+                    let (Ok(pa), Ok(pr)) = (crate::mass_properties(&a, tol), crate::mass_properties(&r, tol)) else { continue };
+                    rows += 1;
+                    let exact_margin = w * w * t - w * w * t * (1.0 + k);
+                    let f64_margin = pa.volume - pr.volume;
+                    let got = volume_backstop(BooleanOp::Intersect, &a, &a, &r, band, tol, QuadLane::certified());
+                    if got.is_ok() {
+                        silent += 1;
+                    }
+                    eprintln!("far {far:e} t {t:e} k {k:e}: exact margin {exact_margin:e} f64 margin {f64_margin:e} pad {} -> {:?}", pr.volume_pad, got.as_ref().map(|_| "PASS").map_err(|e| format!("{e:?}").chars().take(60).collect::<String>()));
+                }
+            }
+        }
+        eprintln!("silent passes of a violated vol(A∩B) ≤ vol(A): {silent} of {rows}");
+        let _ = Point3::new(0.0, 0.0, 0.0);
+    }
+}
+
+#[cfg(test)]
+mod review_5576_plusv {
+    use super::*;
+    /// An inside-out result whose f64 sum reads positive: does the
+    /// `vol(A ∩ B) ≥ 0` arm refuse?
+    #[test]
+    fn review_5576_plus_v_hidden_by_rounding() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let a = crate::test_support::brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol);
+        for (far, t) in [(5e3, 1e-7), (1e4, 1e-7), (1e5, 1e-6), (1e5, 1e-5)] {
+            let up = super::review_5576::far_slab_pub(0.0, 1e-3, t, far, tol);
+            let inv = up.revert().unwrap();
+            let p = crate::mass_properties(&inv, tol);
+            let v7 = crate::validate_geometric(&inv, tol);
+            let got = volume_backstop(BooleanOp::Intersect, &a, &a, &inv, band, tol, QuadLane::certified());
+            eprintln!("far {far:e} t {t:e}: inverted f64 volume {:?}, check7 {:?}, backstop {:?}", p.map(|p| p.volume), v7.map_err(|e| e.len()), got.map_err(|e| format!("{e:?}").chars().take(70).collect::<String>()));
+        }
+    }
+}
+
+#[cfg(test)]
+mod review_5576_gate {
+    use super::*;
+    /// A valid operand whose f64 sum reads at or below the band: does the
+    /// operand gate switch the bound arms off, so a grossly wrong
+    /// result passes?
+    #[test]
+    fn review_5576_operand_gate_reads_f64() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let big = crate::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        for (far, t) in [0.0, 1e2, 1e5].into_iter().flat_map(|f| [1e-8, 3e-8, 1e-7, 3e-7].map(|t| (f, t))) {
+            let a = super::review_5576::far_slab_pub(0.0, 1.0, t, far, tol);
+            let p = crate::mass_properties(&a, tol);
+            let v7 = crate::validate_geometric(&a, tol);
+            let got = volume_backstop(BooleanOp::Intersect, &a, &a, &big, band, tol, QuadLane::certified());
+            eprintln!("far {far:e} t {t:e}: operand exact {t:e}, f64 {:?}, check7 {:?}; ∩ result = 1 m³ cube: {:?}", p.map(|p| p.volume), v7, got.map_err(|e| format!("{e:?}").chars().take(60).collect::<String>()));
+        }
+    }
+}
+
+#[cfg(test)]
+mod review_5576_sweep {
+    use super::*;
+    use geom_core::Point3;
+    /// Closed-form slabs near zero volume, far, upright and inverted,
+    /// through check 7, the shell role (certified and lane-free) and
+    /// point containment: count wrong-sign decisions.
+    #[test]
+    fn review_5576_sliver_sweep() {
+        use crate::ShellRole::{Outer, Void};
+        use crate::boolean::SolidContainment::{In, Out};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (mut built, mut wrong, mut f64_wrong) = (0, 0, 0);
+        for far in [0.0, 1e2, 1e3, 5e3, 1e4, 3e4, 1e5] {
+            for w in [1e-3, 1e-1] {
+                for t in [1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4] {
+                    if t < 20.0 * tol.eps() { continue; }
+                    let up = super::review_5576::far_slab_pub(0.0, w, t, far, tol);
+                    if crate::validate(&up).is_err() { continue; }
+                    let inv = up.revert().unwrap();
+                    let inside = Point3::new(w / 2.0, w / 2.0, t / 2.0);
+                    for (body, upright) in [(&up, true), (&inv, false)] {
+                        built += 1;
+                        let f = crate::mass_properties(body, tol).map(|p| p.volume);
+                        if let Ok(v) = f { if (v > 0.0) != upright { f64_wrong += 1; } }
+                        let v7 = crate::validate_geometric(body, tol);
+                        let shell = body.shells.iter().next().unwrap().0;
+                        let cert = crate::props::shell_volume_role(body, shell, band, tol, Some(crate::props::QuadLane::certified()));
+                        let free = crate::props::shell_volume_role(body, shell, band, tol, None);
+                        let pin = crate::boolean::point_in_solid(body, inside, band, tol);
+                        let mut bad = vec![];
+                        if upright && matches!(v7, Err(ref e) if e.iter().any(|e| matches!(e, crate::ValidationError::NegativeVolume { .. }))) { bad.push("check7"); }
+                        if !upright && v7.is_ok() { bad.push("check7"); }
+                        for (n, r) in [("cert", &cert), ("free", &free)] {
+                            if let Ok(r) = r { if (*r == Outer) != upright && (*r == Void) == upright { bad.push(n); } }
+                        }
+                        if let Ok(c) = pin { if (c == In) != upright && (c == Out) == upright { bad.push("contain"); } }
+                        if !bad.is_empty() {
+                            wrong += 1;
+                            eprintln!("WRONG far {far:e} w {w:e} t {t:e} upright {upright}: {bad:?} f64 {f:?} v7 {v7:?} cert {cert:?} free {free:?} pin {pin:?}");
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("eps {:e}: bodies {built}, f64 sign wrong {f64_wrong}, wrong decisions {wrong}", tol.eps());
+    }
+}
+
+#[cfg(test)]
+mod review_5576_cleave {
+    use super::*;
+    /// CLEAVE P1's planted witness: R ≡ A, R's carriers far.
+    #[test]
+    fn review_5576_cleave_planted() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (mut rows, mut refused) = (0, 0);
+        for far in [1e2, 1e3, 1e4, 1e5] {
+            for t in [1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4] {
+                if t < 20.0 * tol.eps() { continue; }
+                let a = super::review_5576::far_slab_pub(0.0, 1e-3, t, 0.0, tol);
+                let r = super::review_5576::far_slab_pub(0.0, 1e-3, t, far, tol);
+                for op in [BooleanOp::Intersect, BooleanOp::Union] {
+                    rows += 1;
+                    if let Err(e) = volume_backstop(op, &a, &a, &r, band, tol, QuadLane::certified()) {
+                        if matches!(e, BooleanError::ResultVolumeImplausible { .. }) { refused += 1; }
+                    }
+                }
+            }
+        }
+        eprintln!("eps {:e}: planted R ≡ A refused ResultVolumeImplausible {refused} of {rows}", tol.eps());
+    }
+}

@@ -70,6 +70,8 @@ mod a_face_off_the_tangent_ruling;
 mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flat_frustum_revolves.rs"]
 mod a_flat_frustum_revolves;
+#[path = "review_5576_far_built.rs"]
+mod review_5576_far_built;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
 #[path = "a_keel_ring_in_an_elliptic_section.rs"]
