@@ -394,3 +394,32 @@ fn review_5556_bounded_overcover() {
         }
     }
 }
+
+/// Corruption: one entity of a two-ball union removed at a time; does
+/// the door refuse typed, or panic? (Diff against the merge base.)
+#[test]
+#[ignore = "reviewer diagnostic: diff against the merge base"]
+fn review_5556_corrupt_bodies() {
+    use topo::EntityId;
+    let tol = Tol::witness();
+    let unit = finished("a", ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol), tol);
+    let off = finished("o", ball_poled(0.8, v(0.9, 0.3, 0.2), v(0.0, 0.6, 0.8), tol), tol);
+    let b = g(topo::boolean::union(&unit, &off, tol)).unwrap();
+    let mut ids: Vec<EntityId> = Vec::new();
+    ids.extend(b.faces().map(|(k, _)| EntityId::Face(k)));
+    for (_, f) in b.faces() {
+        ids.push(EntityId::Loop(f.outer));
+    }
+    ids.extend(b.edges().map(|(k, _)| EntityId::Edge(k)));
+    ids.extend(b.half_edges().map(|(k, _)| EntityId::HalfEdge(k)));
+    let prev = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|info| {
+        println!("PANICAT {}", info.location().map(|l| l.to_string()).unwrap_or_default());
+    }));
+    for id in ids {
+        let c = b.with_entity_removed_for_tests(id).unwrap();
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| door(&c)));
+        println!("CORRUPT {id:?} -> {}", match r { Ok(s) => s, Err(_) => "PANIC".into() });
+    }
+    std::panic::set_hook(prev);
+}
