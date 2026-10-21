@@ -2,10 +2,12 @@
 id: tier-3-prime-reads-no-side-between-coincident-edges-on-one-line
 kind: issue
 title: Tier 3′ licenses coincident edges on one line by their shared ends and never reads their wedges
-status: open
+status: closed
 opened: 2026-10-19
 priority: P2
 cost: E
+closed: 2026-10-21
+branch: restread/coincident-wedges
 ---
 
 
@@ -62,3 +64,41 @@ pinch-corner check and the cross-solid touch analysis these are four
 spellings of one question. Running `line_wedges` in the census (the fix
 above) is the place to choose one: either `rest::judge` over two
 `Link::on_edge` links, or `line_wedges` extended to a face's two sheets.
+
+## Closed
+
+2026-10-21, branch `restread/coincident-wedges`. Pass 5's collinear
+lane reads two line edges' material wedges wherever it certifies their
+overlap (`census.rs` `ee_collinear_lane`, `coincident_wedges`), through
+CLEAVE's `census::line_wedges` at the middle of the shared span: no
+new reader. A decided overlap refuses `CoincidentWedgesOverlap`,
+whatever backs the pair. A reading not taken refuses
+`CoincidentWedgesOverlapUndecided`, naming why with `TouchUnread`: in
+band (`InBand`), a face with no sheet at the line (`Unreadable`), or a
+cusp or knife-slit edge (`Degenerate`). Arm 2 reads the first as a
+crossing at the line and the second as unexamined.
+
+The census now asks the line question through `line_wedges` for two
+edges, and through `rest::judge` for an edge in a face
+(`edge_in_own_face`), which `line_wedges` does not reach. Folding the
+two into one is filed as
+`coincident-edge-and-edge-in-face-wedges-are-read-by-two-readers`.
+
+- Pinned refusals
+  (`crates/topo/tests/a_doubled_line_does_not_revert.rs`), at every
+  pose:
+  - the slit body grafted into a box as a cavity, reversed with no
+    re-pairing (`test_support::grafted_reverted_unrefused`);
+  - `insert_voids(box, [s, s], pinch)` of the unequal bricks, with its
+    two records;
+  - two wedges `4 ε` apart on one line, refused undecided in band.
+- No shipped body newly refuses. Topo and sweep, slow set included,
+  hold only main's known reds at the default ε and at 1e-12. The slit
+  form (`a_doubled_line_does_not_revert`,
+  `a_keel_wrapped_at_both_ends_splits_as_a_ring`) and the Boolean
+  gate's rows (`gate_reads_coincident_wedges`) pass.
+- Not read: two coincident curved edges (pass 5′), filed as
+  `tier-3-prime-reads-no-side-between-coincident-curved-edges`. A
+  material crescent's two coincident cusp edges refuse `Degenerate`
+  until a second-order reading lands, noted on CONTACTHOLD's builder
+  row (`a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`).
