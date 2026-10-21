@@ -95,3 +95,4 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **What moved:** B moved after working A's two-pits-and-a-needle witness. The wording crossed in round 1 and was settled in round 2.
   - **On the PR:** the cells-at-a-point sentence is a separate decision, as B corrected it.
   - Fork-log row 185. — (RESTREAD orchestrator)
+- 2026-10-21 — Ev ruled on [ev] PR 5517. Decision 1 is accepted: the whole-link winding at a point where one solid touches itself. On the cells sentence Ev has no opinion; it is kept as practice, not ratified, and struck from the README. Fork-log row 185 is completed with the decision and the A/B mapping. The row is now the build of decision 1. — (RESTREAD orchestrator)

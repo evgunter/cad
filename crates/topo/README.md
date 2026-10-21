@@ -613,10 +613,6 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    directions takes two consecutive values). A region two solids'
    materials share is interference (C6); one solid's own material
    shared across a point touch is legal (C4).
-   The cells at such a point are one per boundary circle of the
-   material: a circle inside one face is that face, a circle creased
-   only along an edge through the point is that edge, and any other
-   circle is a vertex.
    Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
    sector classification), and none for a body's curve-touch records,
    refuse typed at the consumer.

@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-19
 priority: P1
 cost: M
-needs_ev: true
 ---
 
 
@@ -105,3 +104,20 @@ Both were built through step-import's `assemble::build_one_solid` from generated
 ## The design question, weighed
 
 Two designers weighed it and converged after two rounds. The `[ev]` PR states the clause in `crates/topo/README.md` tier 3: the whole-link winding at a point where one solid touches itself.
+
+## Ev's ruling (2026-10-21, PR 5517)
+
+**Decision 1, accepted:** "decision 1 makes sense". At an isolated point where one solid touches itself, the solid's whole link there bounds one material, so its winding takes two consecutive values. It is now in `crates/topo/README.md` D1 tier 3, and is what this row builds.
+
+**Decision 2, no opinion:** "we can keep doing it but i don't want it to seem like it's a solid decision". The cells sentence stays out of the README. It describes only what the kernel builds today, so nothing should cite it as ratified. As the designers corrected it:
+- the cells at such a point are one per boundary circle of the material;
+- a circle inside one face is that face;
+- a circle creased only along an edge through the point is that edge;
+- any other circle is a vertex.
+
+**What to build (designers' sketch, for the lane):**
+- a winding reader beside `Link::reads`;
+- one unit per (solid, point) wherever ties or shared keys name two or more cells of one solid;
+- a finding for the failure, mapped in `Named::of` as a pierce of the solid;
+- the crossing body and the pit as witnesses;
+- the two-pits-and-a-needle body as a control that must pass.
