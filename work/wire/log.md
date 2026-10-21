@@ -6987,3 +6987,4 @@ Signed (WIRE orchestrator).
   - The row now records options A/B/C, is re-priced P3+design, and moved to WIREREST. The path grep found no code citations.
   - Not sent to Ev now: the case is unreachable, and a design fork goes to the designer pair first, once a witness exists.
 - 2026-10-21 (WIRE orchestrator) Dispatched `wire-bridges` (wire/bridged-wedges-pair-booleans): the two bridged-wedge pair-boolean refusals as one unit. Their witnesses come off name_invariance's VACUOUS lists. FULL review.
+- 2026-10-21 (WIRE orchestrator) The orchestrator read PR 5518's fix pass. The levers compose lever_recourse, the variants are Unsupported*, the locators are in subject position, and every shape is rendered in display_tests. Outright traces to agent text 7b6d56df65, so it stays row 2. Merged at 9fbf113ba1; row closed.
