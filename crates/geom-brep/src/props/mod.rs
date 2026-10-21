@@ -705,14 +705,17 @@ impl core::fmt::Display for PropsError {
             ),
             Self::SeamRegionOvercovered { times } => write!(
                 f,
-                "the faces of one sphere overlap: together they cover their region {times}                  times over. {KERNEL_OR_FILE_DEFECT_ENDING}"
+                "the faces of one sphere overlap: together they cover their region {times} \
+                 times. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::SeamRegionCoverUnresolved => f.write_str(
-                "whether the faces of one sphere overlap cannot be decided at this tolerance.                  Recourse: measure at a finer tolerance",
+                "whether the faces of one sphere overlap cannot be decided at this tolerance. \
+                 Recourse: measure at a finer tolerance",
             ),
             Self::SeamRegionSensesDisagree => write!(
                 f,
-                "two faces of one sphere meet with their material on the same side of the edge                  between them, so the body is a sheet there. {KERNEL_OR_FILE_DEFECT_ENDING}"
+                "two faces of one sphere meet with their material on the same side of the edge \
+                 between them, so the body is a sheet there. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::SenseContradicted => write!(
                 f,

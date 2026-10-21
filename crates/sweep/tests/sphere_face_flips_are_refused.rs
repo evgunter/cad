@@ -60,7 +60,10 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
         // The door reads the same seam regions without tier 3: it refuses
         // every flip tier 3 does, or measures it inside out, which is
         // check 7's reading of the door's own sign; and it measures every
-        // flip tier 3 passes.
+        // flip tier 3 passes. Every body here is one shell: a whole sphere
+        // shell flipped inside a body of several measures a positive wrong
+        // total at the door, which this does not read
+        // (`work/flux/a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door.md`).
         let door = topo::mass_properties(&flipped, tol).map(|m| m.volume);
         let tier3 = topo::validate_geometric(&flipped, tol);
         match (&tier3, &door) {
