@@ -2347,6 +2347,12 @@ mod directed {
     }
 
     impl<T: Real> Run<T> {
+        /// The line bound at `anchor` along `dir`: a straight leg whose
+        /// direction was bound where it starts begins a run there.
+        pub(super) fn bound(anchor: Point2<T>, dir: Dir<T>) -> Self {
+            Self { anchor, dir }
+        }
+
         /// The same line run the other way: the reverse-tangent
         /// continuation's (`.cusp()`), which negates the direction and
         /// keeps the line.
@@ -3670,7 +3676,7 @@ fn emit_straight_leg<T: Decide>(
     at: Point2<T>,
     ang: Dir<T>,
     len: T,
-    run: Option<Run<T>>,
+    run: Run<T>,
 ) -> Result<Tip<T>, PathError<T>> {
     emit_straight_leg_at(core, at + ang.unit * len, ang, run)
 }
@@ -3695,24 +3701,20 @@ fn emit_straight_leg<T: Decide>(
 /// reads that line again, bound at the run's first vertex, never one
 /// re-anchored at this vertex. So every vertex of a declared straight
 /// run lies within the band of one line, and n accepted misses are n
-/// misses of it, never a sum (PATHS-DESIGN §4). `run` is `None` for a
-/// leg whose direction was bound where it starts, and the end point
-/// then starts afresh. `bool11_probes`'
+/// misses of it, never a sum (PATHS-DESIGN §4). A leg whose direction
+/// was bound where it starts hands on the run it begins there
+/// ([`Run::bound`]). `bool11_probes`'
 /// `a_runs_misses_are_read_against_its_own_line_and_never_sum` pins it.
 fn emit_straight_leg_at<T: Decide>(
     core: &mut Core<T>,
     end: Point2<T>,
     ang: Dir<T>,
-    run: Option<Run<T>>,
+    run: Run<T>,
 ) -> Result<Tip<T>, PathError<T>> {
     let head = core.head()?;
     core.push_line(end)?;
     let arm = (end - head).norm_squared().sqrt();
-    let incoming = match run {
-        Some(run) => Incoming::continuing(run, ang, arm),
-        None => Incoming::fresh(ang, arm, None),
-    };
-    Ok(directed_tip(end, incoming))
+    Ok(directed_tip(end, Incoming::continuing(run, ang, arm)))
 }
 
 /// Maps the shared fillet closed form's refusals into the algebra's
@@ -5053,7 +5055,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // the joint at this vertex is tangent by construction, exactly
         // as `.tangent()`'s is, and validation verifies it.
         self.core.construct_last();
-        let tip = emit_straight_leg(&mut self.core, at, inc.ang, len, Some(inc.run_from(at)))?;
+        let tip = emit_straight_leg(&mut self.core, at, inc.ang, len, inc.run_from(at))?;
         Ok(in_state(self.core, tip))
     }
 
@@ -5094,7 +5096,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // the joint at this vertex is tangent by construction, exactly
         // as `.tangent()`'s is, and validation verifies it.
         self.core.construct_last();
-        let tip = emit_straight_leg_at(&mut self.core, target, inc.ang, Some(inc.run_from(at)))?;
+        let tip = emit_straight_leg_at(&mut self.core, target, inc.ang, inc.run_from(at))?;
         Ok(in_state(self.core, tip))
     }
 
@@ -5238,7 +5240,10 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Ok(_) => return Err(PathError::NonpositiveLeg { length: len }),
             Err(source) => return Err(PathError::Escalated { source }),
         }
-        let tip = emit_straight_leg(&mut self.core, at, ang, len, self.tip.ang_run)?;
+        // The leg rides the run its direction inherited (`.tangent()`,
+        // `.cusp()`), or begins one here, where its direction was bound.
+        let run = self.tip.ang_run.unwrap_or(Run::bound(at, ang));
+        let tip = emit_straight_leg(&mut self.core, at, ang, len, run)?;
         Ok(in_state(self.core, tip))
     }
 
