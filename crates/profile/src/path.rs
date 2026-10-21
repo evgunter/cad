@@ -2579,7 +2579,7 @@ impl<T: Decide> PendingRunOut<T> {
     /// Whether the segment of `kind` from `from` to `to` lies on this
     /// run's arrival ray, continuing it from the chain head `from`: a
     /// straight segment whose end is on the ray's line (the lateral
-    /// miss `on_ray_extent` classifies, from the same anchor) and whose
+    /// miss `lands_on_ray` classifies, from the same anchor) and whose
     /// advance from the head is definitely positive. An arc never
     /// rides a ray.
     ///
@@ -3315,8 +3315,8 @@ fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
 ///
 /// **Sibling measurement, cross-declared** (R1 S1): the
 /// `d`/`along`/`across`/decide opening here is the same displacement
-/// [`PartialPath::on_ray_extent`] and [`PendingRunOut::rides`]'s ray
-/// arm compute, each under its own predicate key. See `on_ray_extent`
+/// [`Incoming::lands_on_ray`] and [`PendingRunOut::rides`]'s ray
+/// arm compute, each under its own predicate key. See `lands_on_ray`
 /// for why the three are kept apart rather than shared.
 fn tangent_arc_geom<T: Decide>(
     at: Point2<T>,
@@ -3536,7 +3536,7 @@ fn seam_joint<T: Decide>(
 
 /// **The declared seam ARRIVAL's check** — the inverted twin of
 /// [`junction_check`]'s tangent arm, and the mirror of
-/// [`PartialPath::on_ray_extent`]: there the ray is declared and the
+/// [`Incoming::lands_on_ray`]: there the ray is declared and the
 /// TARGET checked against it, here the arrival is declared and the
 /// arriving DIRECTION checked against the entry's outgoing one.
 ///
