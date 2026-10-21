@@ -35,3 +35,21 @@ the walk refusing `SenseContradicted` for a member whose bit
 contradicts its region, or a documented statement that the measurement
 door trusts the bit where only a region encodes the side.
 
+
+## Closed (D2)
+
+The measurement door now reads the seam regions tier 3's check 6
+reads, through the same reader (`crates/topo/src/props.rs`,
+`read_seam_regions`). It does so once per door call, in
+`References::of`, and refuses a member in `References::at` before any
+lane reads the face (`seam_refusals`):
+- a pole-read contradiction refuses `SenseContradicted`;
+- an over-cover or an in-band census refuses every member;
+- members whose bits disagree refuse `SeamRegionSensesDisagree`, the
+  lamina check 4 names and the door does not run.
+
+A member whose own boundary encodes a side is left to its own read in
+the flux arm. The witness, `PAIRS[0]` flipped together (once 0.33
+against 7.19), now refuses at the door, as every `assert_refused` row
+does. `sphere_face_flips_are_refused` checks the door against tier 3
+on every flip.
