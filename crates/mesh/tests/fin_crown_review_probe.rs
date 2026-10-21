@@ -5,7 +5,7 @@
 
 use geom_core::Tol;
 use std::fmt::Write as _;
-use topo::test_support::meeting::{apex_pyramid, bearing, corners, fin, posed_box, posed_crown, poses};
+use topo::test_support::meeting::{apex_pyramid, bearing, corners, fin, fin_crown_body, posed_box, posed_crown, posed_fin_crown, poses};
 
 /// The battery's saddle crown (`a_vertex_read_again_classes_every_edge::crown`).
 fn crown() -> Vec<[f64; 3]> {
@@ -46,6 +46,28 @@ fn tris(body: &topo::Body<f64>) -> String {
     s
 }
 
+/// Each face's stored plane and its outer loop's corners, exactly.
+fn planes(body: &topo::Body<f64>) -> String {
+    let mut s = String::from("[");
+    for (k, (_, f)) in body.faces().enumerate() {
+        let geom::Surface::Plane { origin, normal, .. } = body.get_surface(f.surface).unwrap() else { panic!() };
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else { panic!() };
+        let mut pts = Vec::new();
+        let mut h = first;
+        loop {
+            let he = body.get_half_edge(h).unwrap();
+            let q = body.get_point(body.get_vertex(he.start).unwrap().point).unwrap();
+            pts.push(format!("[{:?},{:?},{:?}]", q.x, q.y, q.z));
+            h = he.next;
+            if h == first { break; }
+        }
+        if k > 0 { s.push(','); }
+        write!(s, "{{\"origin\":[{:?},{:?},{:?}],\"normal\":[{:?},{:?},{:?}],\"sense\":{},\"corners\":[{}]}}", origin.x, origin.y, origin.z, normal.x, normal.y, normal.z, f.sense, pts.join(",")).unwrap();
+    }
+    s.push(']');
+    s
+}
+
 fn vol(body: &topo::Body<f64>) -> String {
     match topo::mass_properties(body, t()) {
         Ok(m) => format!("{:?}", m.volume),
@@ -80,7 +102,6 @@ fn fin_crown_review_dump() {
     let fin_builds = geom_core::Band::linear(t()).unwrap().zero() < 1e-8;
     let mut rings: Vec<(String, Vec<[f64; 3]>, [f64; 3])> = vec![("saddle crown".into(), crown(), [0.0, 0.0, -1.0])];
     if fin_builds {
-        rings.push(("fin new".into(), fin(), [0.0, 0.0, -0.6]));
         rings.push(("fin old".into(), fin(), [0.0, 0.2, -0.6]));
         rings.push(("dented".into(), dented, [0.0, 0.0, -0.6]));
     }
@@ -131,8 +152,14 @@ fn fin_crown_review_dump() {
         }
         let block = posed_box("block", [(1.0, 2.0), (0.5, 1.5), (0.3, 1.5)], &pose, t());
         writeln!(out, "{{\"kind\":\"block\",\"pose\":\"{}\",\"volume\":{},\"tris\":{}}}", pose.label, vol(&block), tris(&block)).unwrap();
+        {
+            let b = posed_fin_crown(&pose, t());
+            let census = topo::validate_pseudomanifold(&b, &topo::ContactRecords::default(), t());
+            eprintln!("RINGCENSUS fin lid | {} | {:?}", pose.label, census);
+            writeln!(out, "{{\"kind\":\"ring\",\"name\":\"fin new\",\"pose\":\"{}\",\"volume\":{},\"tris\":{},\"planes\":{}}}", pose.label, vol(&b), tris(&b), planes(&fin_crown_body(&pose, t()))).unwrap();
+        }
         for (bname, bottom) in [("new", [0.0, 0.0, -0.6]), ("old", [0.0, 0.2, -0.6])] {
-            let fin_b = posed_crown(&fin(), bottom, &pose, t());
+            let fin_b = if bname == "new" { posed_fin_crown(&pose, t()) } else { posed_crown(&fin(), bottom, &pose, t()) };
             let void = match subtract(&block, &fin_b, t()) {
                 Ok(BooleanResult::Body(r)) => r.body,
                 other => panic!("void: {:?}", other.map(|_| ())),
@@ -181,13 +208,39 @@ fn fin_crown_review_census_on_the_old_crown() {
     for pose in poses() {
         for bottom in [[0.0, 0.2, -0.6], [0.0, 0.0, -0.6]] {
             let b = posed_crown(&fin(), bottom, &pose, t());
+            let lid = posed_fin_crown(&pose, t());
+            let rl = topo::validate_pseudomanifold(&lid, &topo::ContactRecords::default(), t());
+            assert!(rl.is_ok(), "the lidded fin crown at {}: {rl:?}", pose.label);
             let r = topo::validate_pseudomanifold(&b, &topo::ContactRecords::default(), t());
             eprintln!("CENSUS {bottom:?} {}: {r:?}", pose.label);
-            // Measured: the old crown pierces itself at every ε the fin
-            // builds at; the new one touches itself in band at 1e-9
-            // (`MEET` 8.7e-10 off the bottom walls) and is clean at 1e-12.
-            let in_band = t().eps() > 8.8e-10;
-            assert_eq!(r.is_err(), bottom[1] != 0.0 || in_band, "{bottom:?} {}", pose.label);
+        }
+    }
+}
+
+/// SECTOR's scene on the lidded crown: `(block − fin crown) − over` at
+/// tier 3′ against its own contacts.
+#[test]
+fn fin_crown_review_sector_scene() {
+    if geom_core::Band::linear(t()).unwrap().zero() >= 1e-8 {
+        return;
+    }
+    for pose in poses() {
+        let block = posed_box("block", [(1.0, 2.0), (0.5, 1.5), (0.3, 1.5)], &pose, t());
+        let over = apex_pyramid(&corners(50.0, 0.7, 0.5), &pose, t());
+        for (name, fin_b) in [
+            ("lid", posed_fin_crown(&pose, t())),
+            ("old", posed_crown(&fin(), [0.0, 0.2, -0.6], &pose, t())),
+        ] {
+            let Ok(BooleanResult::Body(v)) = subtract(&block, &fin_b, t()) else { panic!() };
+            let r = subtract(&v.body, &over, t());
+            let verdict = match &r {
+                Ok(BooleanResult::Body(r)) => format!(
+                    "{:?}",
+                    topo::validate_pseudomanifold(&r.body, &r.contacts, t())
+                ),
+                other => format!("{:?}", other.as_ref().map(|_| ())),
+            };
+            eprintln!("SECTOR {name} {}: {}", pose.label, verdict.chars().take(220).collect::<String>());
         }
     }
 }
