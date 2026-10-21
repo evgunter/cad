@@ -4,7 +4,7 @@ kind: issue
 title: the quadrature's interval floor grows with the body, so at scale 10^3 the volume backstop cannot tell a correct zero-margin result from a wrong one
 status: open
 opened: 2026-10-01
-priority: P1
+priority: P2
 cost: M
 ---
 

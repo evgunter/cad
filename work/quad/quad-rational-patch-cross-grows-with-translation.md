@@ -4,7 +4,7 @@ kind: issue
 title: quad: the rational patch lane (rational_patch_face, Ladder::cross_num over Collapse::Over) assembles A = w·P in the absolute frame from decorrelated hulls, so a rational face's area and flux enclosures grow with its translation (area width 0.124 at 0, 7.49 at 100 m, 66.5 at 1 km)
 status: open
 opened: 2026-10-02
-priority: P1
+priority: P2
 cost: M
 refs: [a-translated-arc-prism-panics-the-area-gauge-through-mass-properties, 3863]
 ---

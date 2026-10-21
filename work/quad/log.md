@@ -36,7 +36,7 @@ the per-branch territory check plus the announced-seam convention.
 - 2026-10-20 — **Seam (NURBS):** PR 5499 merged (`16b6b72f`): lofted `Circle` sections now mesh. The next door they reach is yours. `mass_properties(lofted_cylinder(1.0), Tol::witness())` refuses: "contribution stayed 1.833e-6 m wide … above the 1.024e-6 m" (rational walls at ε 1e-12 run out of chase budget, even split 16 ways). Measured by NURBS build C; recorded on the closed TESS lofted-circle item, pointing at `work/quad/a-ninety-degree-rational-span-encloses-looser-than-two-forty-five-degree-spans`. (NURBS orchestrator)
 - 2026-10-21 — **Seam (NURBS):** PR 5548 merged (`42af7c0b`, NURBS build C), which touches only `demos/tour/src/projectbox.rs`. projectbox wall 1 (the round-wire `circle_split` spring's `mass_properties`) no longer refused at ε 1e-6: the enclosure is about 9x tighter than when the wall was pinned on 2026-10-06. The decided volume is correct: it contains `coil_volume(π·WIRE_H²)`, and its gap is the documented slab shortfall. The wall is retired and live-asserted looser than the default ε, and still pins `QuadratureBudget` at the default and finer. `a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin` is unaffected in substance. Closed `main-red-projectbox-wall-1-no-longer-refuses-at-eps-1e-6`. (NURBS orchestrator)
 
-## 2026-10-21 — picked up; the intent hold checked; frame dependence re-banded P1; QUADTAIL cut
+## 2026-10-21 — picked up; the intent hold checked; frame dependence banded; QUADTAIL cut
 
 A QUAD orchestrator holds the track (`status: active`).
 
@@ -60,20 +60,40 @@ against it, and none stands on that ground:
 13 (`docs/INTENT-STAGE3-SPEC.md`): every corpus operation, computed in a
 second frame that is rotated and translated, must give the same verdicts
 outside the sliver band, and moving the world mate must move no measured
-bit. Quad's frame-dependence rows are exactly that defect, measured on
-ordinary bodies. Their mechanisms are a decorrelated absolute-frame
-assembly and per-coordinate boxes, not f64 accidents.
-`nurbs_patch_face` refuses `QuadratureBudget` from a 1 m translation.
-Ev, in chat: "these do sound P1 to me". Re-banded P1:
-- `quad-rational-patch-cross-grows-with-translation` (from P2);
-- `a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin` (from P2);
-- `quad-area-pads-read-the-cross-norm-off-per-coordinate-boxes` (from P3; rotation);
-- `a-translated-arc-prism-panics-the-area-gauge-through-mass-properties` (unbanded);
-- `quadrature-interval-floor-grows-with-the-body-past-the-band` (unbanded).
+bit. Quad's frame-dependence rows are exactly that defect. Their
+mechanisms are a decorrelated absolute-frame assembly and
+per-coordinate boxes, not f64 accidents.
 
-Most were measured before FLUX's `shell_reference` (2026-10-20), so
-each is re-measured on current main before it is specified. A seam
-note is on INTENT's log.
+**Ev's criterion** (in chat): a frame-dependence row is P1 "if they were
+encountered naturally (ie they actually blocked something)". Read
+against each row's provenance:
+- P1: `a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`,
+  which blocked the Klein tube and the projectbox spring (the scene ships
+  the square wire).
+- P2: `quad-rational-patch-cross-grows-with-translation`, a review's
+  translated fixture.
+- P2: `a-translated-arc-prism-panics-the-area-gauge-through-mass-properties`,
+  a dual reviewer's constructed 4 m translation.
+- P2: `quadrature-interval-floor-grows-with-the-body-past-the-band`,
+  plants at 4 km and a pipe 1 km out at 1e-12.
+- P3: `quad-area-pads-read-the-cross-norm-off-per-coordinate-boxes`, from
+  ENCL's code sweep; its D4 ¶2 citation is a rule, not a block.
+
+The four probe-found rows stay in QUAD as one lane with the P1 row (see
+`program.md`'s budget note). Most were measured before FLUX's
+`shell_reference` (2026-10-20), so each is re-measured on current main
+before it is specified. A seam note is on INTENT's log.
+
+**FLUXTAIL, on the same criterion.**
+- `a-planar-face-sums-its-area-about-a-far-carrier-origin` P3 → P1: it
+  was the cause of a real wrong volume reading on a valid boolean result
+  (`volume-door-reads-a-tiny-valid-boolean-result-wrong`), because a
+  result face keeps its operand's carrier origin metres away.
+- Left as they are: `a-cylinder-rims-level-…` (P3, a review's tilted
+  frame), `a-spiric-elbow-a-hundred-kilometres-out-…` (P3, a verifier's
+  1e5 m translation) and `props-reads-vector-norm-bounds-off-per-coordinate-hulls`
+  (P4, inferred, not reproduced). The last one's `quad.rs` sites are
+  carried by QUAD's area-pads row (a note is on that row).
 
 **Banding the other unbanded rows** (my calls):
 - P1: `an-undecided-ring-at-the-first-converged-round-refuses-instead-of-refining`
@@ -92,8 +112,8 @@ each row is touched.
 **The cut.** At 72.5 points against 30, QUAD splits on its priority
 seam:
 - QUAD keeps P0 and P1, plus `quadrature-budget-prints-its-two-lengths-alike`
-  as the budget unit's rider (`rides_with`), at 42 points. It takes
-  `budget: 45`, with the reason in `program.md`.
+  as the budget unit's rider (`rides_with`) and the frame lane, at 42
+  points. It takes `budget: 45`, with the reason in `program.md`.
 - QUADTAIL (new, `ready`, `budget: 32`) takes the 13 P2–P4 rows by
   `git mv`.
 

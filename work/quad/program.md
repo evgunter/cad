@@ -26,8 +26,10 @@ executed numbers and two of them name the flip conditions. The dial
 question and should be asked early, because two shipped refusals and
 one first-class classification move with it.
 
-`budget: 45` (2026-10-21): Ev re-banded the frame-dependence rows P1
-in chat that day ("these do sound P1 to me"). With them, the P0 and P1
-slate weighs about 42 points. It is one sitting's dependent work,
-because those rows, `C3`'s engine split and `D30` all change the same
-four engines. The P2–P4 rows went to QUADTAIL on the priority seam.
+`budget: 45` (2026-10-21). The P0 and P1 slate, plus the frame-dependence
+lane, weighs about 42 points. The lane is one P1 row Ev's criterion
+raised (a frame dependence that actually blocked something, in chat
+2026-10-21) and four P2/P3 rows that are the same defect found by probes.
+It stays whole, because all of it, `C3`'s engine split and `D30` change
+the same four engines, and INTENT stage 3 E's two-frame test reads all
+of it. The rest of P2–P4 went to QUADTAIL on the priority seam.

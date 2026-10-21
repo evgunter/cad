@@ -4,7 +4,7 @@ kind: issue
 title: the props quadrature's area pads and sup_g read ‖cross‖ off a per-coordinate box, so a rigid map moves a certified area bracket
 status: open
 opened: 2026-10-08
-priority: P1
+priority: P3
 cost: M
 ---
 

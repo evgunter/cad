@@ -27,13 +27,18 @@ this plan, never this file. Branch prefix `quad/`; away-channel tag
   specifying.
 - **The dial** (`[ev]`, ask early):
   `quad2-rational-max-rounds-dial-decision`.
-- **Frame dependence** (P1, Ev 2026-10-21): a certified width or a
-  verdict that moves when the body is translated or rotated.
-  `quad-rational-patch-cross-grows-with-translation`,
-  `quadrature-interval-floor-grows-with-the-body-past-the-band`,
-  `a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`,
+- **Frame dependence**: a certified width or a verdict that moves when
+  the body is translated or rotated. Ev's criterion (in chat,
+  2026-10-21) is that such a row is P1 when it was encountered
+  naturally, that is, when it actually blocked something.
+  `a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`
+  is P1: it blocked the Klein tube and the projectbox spring. The rest
+  were found by probes and sweeps:
+  `quad-rational-patch-cross-grows-with-translation` (P2),
+  `quadrature-interval-floor-grows-with-the-body-past-the-band` (P2),
   `a-translated-arc-prism-panics-the-area-gauge-through-mass-properties`
-  and `quad-area-pads-read-the-cross-norm-off-per-coordinate-boxes`.
+  (P2) and `quad-area-pads-read-the-cross-norm-off-per-coordinate-boxes`
+  (P3). Any of them rises to P1 once something real meets it.
   INTENT stage 3 E's test 13 (`docs/INTENT-STAGE3-SPEC.md`) computes
   every corpus operation in a second, rotated and translated frame and
   expects the same verdicts, so these rows sit on that P0's path.
