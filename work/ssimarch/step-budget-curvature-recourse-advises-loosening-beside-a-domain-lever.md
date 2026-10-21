@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-21
 priority: P3
 cost: E
-refs: [path-scene-resolution-recourses-advise-a-coarser-tolerance-beside-geometry-levers]
 ---
 
 ## What

@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-19
 priority: P2
 cost: M
-refs: [an-internal-tangency-reads-its-spans-at-the-radical-foot-off-both-arcs, a-cusp-on-nested-near-concentric-carriers-validates-along-a-long-eps-stretch]
 ---
 
 
@@ -36,4 +35,4 @@ The settle needs to tell a joint whose touch is the joint's own (the arcs leave 
 
 ## Re-homed at PATHS's close (2026-10-21)
 
-Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/PATHS-EXIT-WALK.md`). The item's id, content and history are unchanged.
+Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.

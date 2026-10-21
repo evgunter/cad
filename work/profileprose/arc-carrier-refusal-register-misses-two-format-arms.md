@@ -83,6 +83,6 @@ you except where this note says Ev answered it.
 
 ## Re-homed at PATHS's close (2026-10-21)
 
-Moved from `work/paths/` to PROFILEPROSE (`work/profileprose/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/PATHS-EXIT-WALK.md`). The item's id, content and history are unchanged.
+Moved from `work/paths/` to PROFILEPROSE (`work/profileprose/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
 
 **Its design half waits on a ratification, not on an item.** Whether `docs/PATHS-DESIGN.md`'s typed-refusal register is checked at all, or says in prose that it is not a claim, is a change to a ratified page and goes to Ev on an `[ev]` PR. The cheap half (the two arms and the sentence telling them from `ZeroDirection`) does not wait on it.
