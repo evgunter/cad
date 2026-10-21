@@ -1529,7 +1529,10 @@ fn line_arc<T: Decide>(
     let mut contacts = Vec::new();
     let carriers = match decide("carrier_line_circle", Margin::of(clearance), band) {
         Ok(sign) => sign,
-        Err(_) if arc_clear_of_carrier(line, arc, g, foot, band) => {
+        Err(_)
+            if arc_clear_of_carrier(line, arc, g, foot, band)
+                || segment_clear_of_circle(line, g, foot, band) =>
+        {
             return Ok(PairOutcome::Contacts(contacts));
         }
         Err(source) => return Err(source),
@@ -1602,6 +1605,65 @@ fn arc_clear_of_carrier<T: Decide>(
             }
             Ok(Sign::Zero) | Err(_) => false,
         }
+}
+
+/// Whether a line segment certainly keeps off an arc's whole carrier,
+/// read from the segment's span rather than the carriers' clearance: the
+/// line's side of [`arc_clear_of_carrier`]. Along a line the distance to
+/// a circle's centre has one local minimum, at `foot`, the line's point
+/// nearest the centre. A segment whose span definitely misses `foot`
+/// (`line_span`) is therefore nearest the centre at an end, and with
+/// both ends definitely outside the circle (`circle_side`) no point of
+/// it reaches the circle.
+///
+/// `foot` is computed, the ends are the segment's own. In the reals and
+/// at `Interval` the readings hold of the real points. At `f64` `foot`
+/// stands within its rounding of the real foot, and `line_span`'s
+/// margin, 1-Lipschitz in the point, moves by no more than that, which
+/// the `Kε` a definite miss clears absorbs, as at
+/// [`arc_clear_of_carrier`].
+fn segment_clear_of_circle<T: Decide>(
+    line: &Seg<T>,
+    g: &ArcGeom<T>,
+    foot: Point2<T>,
+    band: Band,
+) -> bool {
+    let outside = |q| matches!(circle_side(g, q, band), Ok(Sign::Positive));
+    matches!(line_span(line, foot, band), Ok(Sign::Negative)) && outside(line.a) && outside(line.b)
+}
+
+/// Whether an arc certainly keeps off another circle, read from the
+/// arc's span rather than the carriers' clearances; `toward` is the unit
+/// from the arc's centre to the other's. Along a circle the distance to
+/// another centre has one local minimum, at `near` (the point facing
+/// it), and one maximum, at `far`, opposite. An arc whose span
+/// definitely excludes `near` (`arc_span`) is nearest the other centre
+/// at an end, so with both ends definitely outside the other circle
+/// (`circle_side`) no point of it reaches that circle; one excluding
+/// `far` is farthest at an end, so with both ends definitely inside, no
+/// point of it does either.
+///
+/// `near` and `far` are computed, under the argument of
+/// [`segment_clear_of_circle`]: each lies on the arc's own carrier
+/// within its rounding, and `arc_span`'s margin is 1-Lipschitz in the
+/// point. `toward` divides by the centres' distance, so it is read only
+/// where the identity margin was definite ([`arc_arc`]).
+fn arc_clear_of_circle<T: Decide>(
+    arc: &Seg<T>,
+    g: &ArcGeom<T>,
+    toward: Vec2<T>,
+    other: &ArcGeom<T>,
+    band: Band,
+) -> bool {
+    let ends = |side: Sign| {
+        [arc.a, arc.b]
+            .into_iter()
+            .all(|q| circle_side(other, q, band) == Ok(side))
+    };
+    let misses = |q| arc_span(g, q, band) == Ok(Sign::Negative);
+    let reach = toward * g.arc.radius;
+    (misses(g.arc.centre + reach) && ends(Sign::Positive))
+        || (misses(g.arc.centre - reach) && ends(Sign::Negative))
 }
 
 /// Arc/arc contacts. Predicates, in gate order, all margins in meters:
@@ -1714,11 +1776,24 @@ fn arc_arc<T: Decide>(
                 let (p1, p2) = (g1.arc.centre + u * s1, g2.arc.centre + u * s2);
                 p1 + (p2 - p1) * T::from_f64(0.5)
             };
-            match decide(
+            // Either arc certainly off the other's circle is no contact,
+            // however the carriers' clearances read; the identity margin
+            // was definite, so `d` is bounded away from zero.
+            let clear = || {
+                let u = circles.direction();
+                arc_clear_of_circle(s1, g1, u, g2, band)
+                    || arc_clear_of_circle(s2, g2, -u, g1, band)
+            };
+            let no_contact = || Ok(PairOutcome::Contacts(Vec::new()));
+            let external = match decide(
                 "carrier_circles_external",
                 Margin::of(pair.external()),
                 band,
-            )? {
+            ) {
+                Err(_) if clear() => return no_contact(),
+                reading => reading?,
+            };
+            match external {
                 Sign::Positive => {}
                 Sign::Zero => {
                     // Externally tangent; d = r₁ + r₂ ≥ the definite
@@ -1735,11 +1810,15 @@ fn arc_arc<T: Decide>(
                     )?;
                 }
                 Sign::Negative => {
-                    match decide(
+                    let internal = match decide(
                         "carrier_circles_internal",
                         Margin::of(pair.internal()),
                         band,
-                    )? {
+                    ) {
+                        Err(_) if clear() => return no_contact(),
+                        reading => reading?,
+                    };
+                    match internal {
                         Sign::Negative => {}
                         Sign::Zero => {
                             // Internally tangent: d = |Δr| and the
@@ -1786,6 +1865,7 @@ fn arc_arc<T: Decide>(
                                         (Ok(t), Ok(x)) if interior(&t) == interior(&x) => {
                                             t.into_iter().chain(x).collect()
                                         }
+                                        _ if clear() => return no_contact(),
                                         _ => return Err(undecided),
                                     }
                                 }

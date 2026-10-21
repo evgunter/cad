@@ -363,6 +363,119 @@ fn an_in_band_line_circle_clearance_escalates_only_where_the_arc_holds_the_graze
         .expect("the arc off the graze is clear of the line");
 }
 
+/// The in-band height the rows below place a carrier clearance at:
+/// half way across the band, `ε·(1 + K)/2`.
+fn in_band() -> f64 {
+    let t = tol().get();
+    t.eps * ((1.0 + t.k) / 2.0)
+}
+
+/// **A line that ends short of an in-band graze is no contact** (the
+/// line×circle row of
+/// `paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+/// The major arc from `(3, 3)` to `(1, 3)` dips to an in-band height
+/// above `y = 0` at `x = 2`; the line along `y = 0` ends at `x = 1`,
+/// about `0.28` m from it. On main the pair pass escalated
+/// `SegmentPair(0, 6)` on `carrier_line_circle`: the arc holds the
+/// graze, so the arc's side cannot clear it. The line's side does: the
+/// centre's foot `(2, 0)` is past the line's end, and both its ends are
+/// outside the circle. The loop validates, at `f64` and `Interval`.
+#[test]
+fn a_line_ending_short_of_an_in_band_graze_is_no_contact() {
+    let b = in_band();
+    let p = profile(vec![chain(&[
+        (-1.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, -1.0, 0.0),
+        (5.0, -1.0, 0.0),
+        (5.0, 5.0, 0.0),
+        (3.0, 5.0, 0.0),
+        (3.0, 3.0, -(3.0 - b)),
+        (1.0, 3.0, 0.0),
+        (-1.0, 3.0, 0.0),
+    ])]);
+    validate_both(&p).expect("the line ends a metre short of the graze");
+}
+
+/// Two half-disc holes in a square, whose circles, of radius 1 about
+/// `(0, 0)` and `(2 + gap, 0)`, are externally tangent within the band
+/// at `(1, 0)`: `facing` puts each arc on the side toward the other
+/// (through the near-tangency), otherwise each is on its far side.
+fn half_discs_outside(gap: f64, facing: bool) -> profile::Profile<f64> {
+    let x = 2.0 + gap;
+    let bulge = if facing { -1.0 } else { 1.0 };
+    profile(vec![
+        rect(-5.0, -5.0, 10.0, 10.0),
+        chain(&[(0.0, 1.0, bulge), (0.0, -1.0, 0.0)]),
+        chain(&[(x, -1.0, 0.0), (x, 1.0, -bulge)]),
+    ])
+}
+
+/// **Arcs on the far sides of an in-band external tangency are no
+/// contact** (the arc×arc row of the item above). The circles' external
+/// clearance is in band, and on main the pass escalated
+/// `SegmentPair((0, 0), (1, 1))` on `carrier_circles_external`, though
+/// the arcs stand two metres apart. Each arc excludes its point facing
+/// the other centre, and its ends lie outside the other circle, so the
+/// pair validates, at `f64` and `Interval`.
+#[test]
+fn arcs_away_from_an_in_band_external_tangency_are_no_contact() {
+    validate_both(&half_discs_outside(in_band(), false))
+        .expect("the arcs stand two metres apart");
+}
+
+/// **Arcs that face an in-band external tangency still escalate.** The
+/// control for the row above: each arc holds the near-tangency at
+/// `(1, 0)`, so neither is clear of the other's circle, and the
+/// clearance's in-band reading is the pair's verdict.
+#[test]
+fn arcs_facing_an_in_band_external_tangency_escalate() {
+    match err(&half_discs_outside(in_band(), true)) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(1, 0), sref(2, 1)));
+            assert_eq!(source.predicate, Some("carrier_circles_external"));
+        }
+        other => panic!("the facing arcs must escalate, got {other:?}"),
+    }
+}
+
+/// A circle of radius 1 about `(1 + gap, 0)` inside one of radius 2
+/// about the origin, internally tangent within the band at `(2, 0)`.
+/// The small one's half-disc, its arc through `(gap, 0)` away from the
+/// tangency, as a hole: in the big circle's segment right of `x = −1`
+/// (`outer_holds`, its arc through the tangency), or in a square beside
+/// the big circle's cap left of `x = −1` (its arc through `(−2, 0)`).
+fn half_discs_inside(gap: f64, outer_holds: bool) -> profile::Profile<f64> {
+    let x = 1.0 + gap;
+    let hole = chain(&[(x, 1.0, 1.0), (x, -1.0, 0.0)]);
+    let h = 3f64.sqrt();
+    if outer_holds {
+        // Sagitta 3 on half-chord √3.
+        profile(vec![chain(&[(-1.0, -h, h), (-1.0, h, 0.0)]), hole])
+    } else {
+        // Sagitta 1 on half-chord √3.
+        let cap = chain(&[(-1.0, h, 1.0 / h), (-1.0, -h, 0.0)]);
+        profile(vec![rect(-5.0, -5.0, 10.0, 10.0), cap, hole])
+    }
+}
+
+/// **Arcs away from an in-band internal tangency are no contact** (the
+/// item's arc×arc row, its internal sibling). The internal clearance is
+/// in band, and on main the pass escalated on
+/// `carrier_circles_internal`. Where the big arc holds the tangency,
+/// the small arc clears it from inside: it excludes its point farthest
+/// from the big centre, and its ends lie inside the big circle. Where
+/// neither holds it, the big arc clears it from outside. Both validate,
+/// at `f64` and `Interval`.
+#[test]
+fn arcs_away_from_an_in_band_internal_tangency_are_no_contact() {
+    for outer_holds in [true, false] {
+        validate_both(&half_discs_inside(in_band(), outer_holds)).unwrap_or_else(|e| {
+            panic!("the small arc keeps a metre off the tangency (outer_holds {outer_holds}): {e:?}")
+        });
+    }
+}
+
 /// Two holes in a square, one touching the other at a vertex that both
 /// of its segments leave nearly tangent to the other's edge. Hole 1
 /// runs down the unit circle centred (0, 1) to `E = (−s, s²/2)`, which
