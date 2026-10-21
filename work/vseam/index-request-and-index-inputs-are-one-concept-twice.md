@@ -5,7 +5,7 @@ title: IndexRequest and IndexInputs carry the same five fields, owned and borrow
 refs: [1953]
 status: open
 opened: 2026-09-06
-priority: P1
+priority: P4
 cost: E
 ---
 
@@ -62,3 +62,7 @@ meets the seam before the duplication. The expensive answer is worth
 costing only if a third spelling appears; two is the number at which a
 relationship is worth writing down and not yet the number at which a
 mechanism pays for itself.
+
+## 2026-10-21 — re-banded
+
+P1 → P4. The row argues the two types are not redundant, and its cheap answer is a stated relationship at each type: non-architectural, P4.
