@@ -1,7 +1,7 @@
 ---
 id: shell-and-replace-face-kernel-defect-endings-split-by-class
 kind: issue
-title: topo: ten shell, replace-face and transform refusals end in KERNEL_DEFECT_ENDING; eight are bug-only and the two pcurve arms may be a fit's limit
+title: topo: ten shell, replace-face and transform refusals end in KERNEL_DEFECT_ENDING; seven are bug-only, a caller's scaffold reaches the transform's, and the two pcurve arms may be a fit's limit
 status: open
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
@@ -69,4 +69,5 @@ Re-check each `likely` or `unsure` argument before acting on it; one that fails 
 
 (Census second pass, as of main 69ab780194: `## Census, second pass` in the parent row.)
 
-- `crates/topo/src/transform.rs` `TransformError::render`, `NullScaffold` (~203) and `Corrupt` (~227), through `recourse::defect_ending(at)` at a build. Door: `topo::transform`. **Class 2, likely**, each: tier 1 and tier 2 hold at every public door, so no body at rest carries a scaffold or a dangling key. Class 2's repair above applies.
+- `crates/topo/src/transform.rs` `TransformError::render`, `NullScaffold` (~202), through `recourse::defect_ending(at)` at a build. Door: `topo::transform_rigid`. **Class 1, likely**: the public `mvfs` → `set_face_surface(plane)` → `Body::mev_null(MevSite::Lone)` leaves a null-scaffold edge on a body a caller then moves. The tree treats scaffolding as the caller's unfinished edit elsewhere (`Unfinished::SCAFFOLDING_REFUSAL`, blend's breach arm, mesh `NullScaffoldEdge`). Repair: that lever, "finish the edit first". PR 5464 made its build-side `Display` end in `KERNEL_DEFECT_ENDING`.
+- `transform.rs` `TransformError::render`, `Corrupt` (~227). **Class 2, likely**: a dangling key is a tier-1 break, and tier 1 holds at every public door (`[failure]`'s closure property). Class 2's repair above applies.

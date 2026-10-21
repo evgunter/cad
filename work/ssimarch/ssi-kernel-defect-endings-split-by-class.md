@@ -25,10 +25,12 @@ payload, and `edge_nurbs.rs` re-types the arms it keeps.
 - `SsiError::ending`, `Fit(TooFewPoints)` (~1368). **Class 2, likely**: refinement hands the fit its samples or refuses.
 - `SsiError::ending`, `Fit(InvalidTolerance | KnotAlgebra | RaggedRows | BudgetExhausted)` (~1376). **Class 2, likely**: the interpolation runs none of these.
 - `SsiError::ending`, `TubeProbeSilent { refused: 0 }` and `TubeDegenerate(PcurveTangentUnusable)` (~1469). **Class 2, unsure**: a fitted cubic's tangent that vanishes may be the fit's limit (class 3).
-- `SsiError::ending`, `ChartRow` (~1472). **Class 2, likely**: a wall that validated re-wraps every boundary row.
+- `SsiError::ending`, `ChartRow` (~1472). **Class 2, likely**: a wall that validated re-wraps every boundary row. The spline layer refuses a weight that is not strictly positive when the net is built (geom-core `spline/knots.rs`).
 - `step_budget_recourse`, `StepBound::Cap(StepCap::Diagonal)` (~2045). **Class 2, unsure**: the diagonal ends an open branch in one step, but no argument covers a closed branch held at that cap.
 - `TraceDecision::ending`, a poisoned margin on `StepProgress | ClosureTangent | BranchOpenEnd` (~2288), and `BoundarySection` (~2296). **Class 2, unsure**: the operands are refused only when not finite, so finite operands at extreme magnitude may overflow a margin. If they can, these sites are class 1 and take the range lever.
 - `crates/geom-brep/src/ssi/exhaust.rs` `FloorRefusal::ending`, `DomainUnreadable` (~456). **Class 1, likely**: `SsiDomain::check` tests each field for finiteness, but `Box3::around(center, half_extent)` can overflow. A transversal `cylinder_sphere_ssi` with `center.x = 1e308` and `half_extent = 1e308` passes `check`, and `SweepFloor::r3` then reads an infinite reach. The variant's doc ("every SSI door checks the caller's domain first") misses the sum.
+
+**A second laundering channel**, repaired with these arms: `crates/geom-brep/src/edge_nurbs.rs` `of_tube` (~1609) and `refusal` (~2077) re-type `TubeProbeSilent { refused: 0 }` and a catch-all `_` into `Unsupported`. That moves a bug-only state into the not-yet-built row (`NOT_YET_ENDING`). When an arm here becomes a panic or a lever, those two re-typings must stop absorbing it.
 
 ## Repair shape
 

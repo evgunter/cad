@@ -26,6 +26,8 @@ no report. The ending has one home now, `geom_core::KERNEL_DEFECT_ENDING`.
 
 ## Repair shape
 
+**Superseded in direction (ENCL, 2026-10-21): read the evidence below before acting on this section.**
+
 End the sentence in the shared constant.
 
 ## Evidence: the repair above is the shape D2 retires (ENCL, 2026-10-21)

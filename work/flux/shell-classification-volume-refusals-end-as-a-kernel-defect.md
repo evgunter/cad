@@ -14,7 +14,7 @@ A child of the census in `work/encl/a-typed-kernel-defect-ending-may-launder-a-b
 
 ## Sites
 
-- `crates/topo/src/props.rs` `ShellClassifyError::recourse`, `Escalated | ZeroVolume | Straddles` → `Unsized::Defect` (~3718). `Display` renders it at a build through `ending()` (~3727). Doors: the public `classify_shells`, `classify_shells_structural` and `classify_shells_of` over a caller's body, plus the shell op, the piece sort and `stands`. **Class 1, likely**: those doors take any tier-1 body. That includes a flat shell built through the Euler doors, or a sliver void a subtract leaves, whose certified volume enclosure holds zero. The arm's doc calls this "the kernel's, which no tolerance reads otherwise". But a shell of near-zero volume is geometry the user made.
+- `crates/topo/src/props.rs` `ShellClassifyError::recourse`, `Escalated | ZeroVolume | Straddles` → `Unsized::Defect` (~3718). `Display` renders it at a build through `ending()` (~3727). Doors: the public `classify_shells`, `classify_shells_structural` and `classify_shells_of` over a caller's body, plus the shell op, the piece sort and `stands`. **Class 1, likely**: those doors take any tier-1 body. That includes a flat shell built through the Euler doors, or a sliver void a subtract leaves, whose certified volume enclosure holds zero. The arm's doc calls this "the kernel's, which no tolerance reads otherwise". But a shell of near-zero volume is geometry the user made, and the arm's "(D10)" premise (`props.rs` ~3678, "read off its certified enclosure alone (D10)") is stale.
 
 ## Repair shape
 

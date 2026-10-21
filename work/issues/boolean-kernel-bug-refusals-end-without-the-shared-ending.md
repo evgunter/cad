@@ -4,6 +4,7 @@ kind: issue
 title: topo: the Boolean's, mass properties' and pcurves' kernel-bug refusals end in a tag or a hand-spelled report, not the shared kernel-defect ending
 status: open
 opened: 2026-09-28
+parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
 ---
 
 
@@ -50,9 +51,11 @@ report (`validate`'s `LaminaWedge`, `MeterError::NormalFloor`,
 
 ## Repair shape
 
+**Superseded in direction (ENCL, 2026-10-21): read the evidence below before acting on this section.**
+
 End each in the shared constant; the Boolean arms that render keys or
 `Debug` payloads keep them (a kernel finding's report needs them).
 
 ## Evidence: the repair is the shape D2 retires (ENCL, 2026-10-21)
 
-`work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` (`## Census, second pass`, main 69ab780194) classifies `JoinDesync`, `TornComponent`, `SeamOrientation` and `ZipCorrespondence` as class 2, likely. HONE's child row `split-and-join-kernel-defect-endings-are-bug-only-typed-refusals` carries them. A bug-only state panics, so appending the constant moves them from one wrong shape to another. `pcurves.rs` `LoopWraps` is classified there too: class 1, unsure. The parent row carries it.
+`work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` (`## Census, second pass`, main 69ab780194) classifies `JoinDesync` as class 1, sure: the public `graft_disjoint` reaches it with a caller's source. It classifies `TornComponent`, `SeamOrientation` and `ZipCorrespondence` as class 2, likely. HONE's child row `split-and-join-kernel-defect-endings-are-bug-only-typed-refusals` carries them. A bug-only state panics, so appending the constant moves them from one wrong shape to another. `pcurves.rs` `LoopWraps` is classified there too: class 1, unsure. The parent row carries it.

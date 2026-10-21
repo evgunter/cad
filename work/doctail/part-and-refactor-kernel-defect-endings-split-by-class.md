@@ -1,7 +1,7 @@
 ---
 id: part-and-refactor-kernel-defect-endings-split-by-class
 kind: issue
-title: editor-core: eight part, refactor, edit and pick refusals name the kernel alone; a caller's PartResolver reaches ReferenceCycle, the rest are bug-only
+title: editor-core: eight part, refactor, edit and pick refusals name the kernel alone; a caller's PartResolver reaches ReferenceCycle and a caller's EntityRef reaches UnnamedEntity, the rest are bug-only
 status: open
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
@@ -65,5 +65,5 @@ Re-check each `likely` or `unsure` argument before acting on it; one that fails 
 
 (Census second pass, as of main 69ab780194: `## Census, second pass` in the parent row.)
 
-- `crates/editor-core/src/resolve/hit.rs` `UnnamedEntity` `Say` (~65, "this is a kernel bug"). Doors: pick resolution, and pncad-py's `unnamed`. **Class 2, likely**: name emission is total, and REFS's emission refusals refuse first.
+- `crates/editor-core/src/resolve/hit.rs` `UnnamedEntity` `Say` (~65, "this is a kernel bug"). Doors: the public `editor_core::entity_name` / `face_name` (~306, ~320), pick resolution, and pncad-py's `unnamed`. **Class 1, likely**: those doors take a caller's `EntityRef { body: u32, key }`, and `body: 999` passes unchecked to the name table's miss. This is the shape of REFS' `NoSuchBody`. Class 1's repair above applies: check the reference at the door, and name the body index that has no output.
 - `crates/editor-core/src/eval/parts.rs` `PartFault` `Display`, `RootFailureUnrecorded` (~410, "this is a kernel bug"). Door: evaluation of an instantiate node. **Class 2, unsure**: the product and the evaluation should come from one evaluation, but `ReferenceCycle` above shows a caller's `PartResolver` reaching this ground, and nothing excludes a resolver whose product disagrees with its evaluation. If one does, this site is class 1.

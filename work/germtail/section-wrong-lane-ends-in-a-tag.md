@@ -27,6 +27,8 @@ one home now, `geom_core::KERNEL_DEFECT_ENDING`.
 
 ## Repair shape
 
+**Superseded in direction (ENCL, 2026-10-21): read the evidence below before acting on this section.**
+
 Replace the tag with ". {KERNEL_DEFECT_ENDING}".
 
 ## Evidence: input reaches it, so the repair above is wrong (ENCL, 2026-10-21)
