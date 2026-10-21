@@ -1430,11 +1430,10 @@ pub enum ValidationError {
     ///   carrying both poles; a boundary that touches itself at a
     ///   vertex. A region of one face unread so is no defect: its
     ///   flipped bit describes the complement, another valid body. Where
-    ///   the region's faces overlap instead (a cover of the sphere twice
-    ///   over, or two faces or more all flipped, each claiming its own
-    ///   complement), the cover census refuses the region
-    ///   ([`Self::SeamRegionOvercovered`]), for every region but the
-    ///   pinched one;
+    ///   a region's faces overlap instead, the cover census refuses it
+    ///   ([`Self::SeamRegionOvercovered`]): it reads every seam region of
+    ///   two faces or more, whatever its members' own boundaries encode,
+    ///   except a pinched one and one whose loops do not parse;
     /// * a one-loop sphere face with a chart pole off its loop on EACH
     ///   side — a rim-only cap or a tilted cap holding a pole. Under
     ///   either sense it holds a pole, which breaks the rule that a
@@ -1453,33 +1452,31 @@ pub enum ValidationError {
         face: FaceKey,
     },
     /// Tier 3, check 6 — **a sphere seam region's faces overlap**: under
-    /// their sense bits its members claim the region `times` times over
-    /// (`geom_brep::props::sphere_region_cover`, the cover census). Their
-    /// Gauss–Bonnet claims less the area their boundary claims is a
-    /// whole number of spheres, zero for a region covered once. Two
-    /// bodies read it: three faces whose loops all carry both poles
-    /// covering the sphere twice, with no boundary; and a region of two
-    /// or more one-loop faces whose bits all flip, each claiming its own
-    /// complement, which holds the others. Which face is wrong is not
-    /// read (the double cover flips no bit), so the subject is the
-    /// region, named by the member it was first read from. A region of
-    /// one face reads once under either bit: its flip describes the
-    /// complement, another valid body.
+    /// their sense bits its members claim the region `times` times
+    /// (`times ≥ 2`; `geom_brep::props::sphere_region_cover`, the cover
+    /// census). It reads every seam region of two faces or more, whatever
+    /// its members' own boundaries encode, and the family it refuses is
+    /// `geom_brep::props::SeamCover::Over`'s: a cover of the sphere twice
+    /// over, however its faces are cut; a region whose members all carry
+    /// the wrong bit, `times = Σ χ_f − χ_R + 1`, among them a both-poles
+    /// pair and a ball of three lunes or more turned inside out. Which
+    /// face is wrong is not read (the double cover flips no bit), so the
+    /// subject is the region, named by the member it was first read
+    /// from. A region of one face reads once under either bit: its flip
+    /// describes the complement, another valid body.
     SeamRegionOvercovered {
         /// The member the region was first read from.
         face: FaceKey,
-        /// How many times over its members claim it (`≥ 2`).
+        /// How many times its members claim it (`≥ 2`).
         times: usize,
     },
     /// Tier 3, check 6 — **a sphere seam region's cover census is
-    /// unresolved**: it lies within the band of a half-sphere threshold,
-    /// or below its floor of no cover
-    /// (`geom_brep::props::SeamCover::Unresolved`). A whole census
-    /// stands `2πR` from both thresholds, past each arc's own span read,
-    /// so no region whose loops read reaches this; it is the census's
-    /// loud end. Nothing else reads whether the region's faces overlap,
-    /// so it refuses rather than pass a cover it cannot certify
-    /// (escalate, never guess).
+    /// unresolved**: it lies within the band of a half-sphere threshold
+    /// (`geom_brep::props::SeamCover::Unresolved`). No region whose loops
+    /// read reaches it, by the slack `geom_brep::props::sphere_region_cover`
+    /// states; it is the census's loud end. Nothing else reads whether the
+    /// region's faces overlap, so it refuses rather than pass a cover it
+    /// cannot certify (escalate, never guess).
     SeamRegionCoverUnresolved {
         /// The member the region was first read from.
         face: FaceKey,
@@ -4085,7 +4082,7 @@ impl fmt::Display for ValidationError {
             Self::SeamRegionOvercovered { times, .. } => write!(
                 f,
                 "the faces of one sphere overlap: together they cover their region {times} \
-                 times over. {DEFECT}"
+                 times. {DEFECT}"
             ),
             Self::SeamRegionCoverUnresolved { .. } => write!(
                 f,
@@ -5737,6 +5734,94 @@ fn seam_region<T: Decide>(body: &Body<T>, start: FaceKey) -> Option<SeamRegion<T
         boundary,
         pinched,
     })
+}
+
+/// **A sphere seam region as check 6 reads it**: its members, the loops
+/// both its reads take (`None` for a pinched region, or one whose loops
+/// do not parse, either of which is left unread), and the side the pole
+/// read gives it, read at most once.
+struct ReadRegion<T: Real> {
+    members: Vec<FaceKey>,
+    loops: Option<geom_brep::props::SeamLoops<T>>,
+    side: Option<Option<geom_brep::props::MaterialSign>>,
+}
+
+/// **Every seam region of a sphere in `body`, with its cover census
+/// read** (`geom_brep::props::sphere_region_cover`), each once, whatever
+/// its members' own boundaries encode: the census reads no pole, so a
+/// region whose every member reads its own side is read as one whose
+/// members encode none. Its findings go to `errors`
+/// ([`census_finding`]).
+///
+/// A region of one face is not read: its boundary is the face's own
+/// loops, so its census is zero by construction. A region whose loops do
+/// not flatten ([`seam_region`]'s `None`) or do not parse is exempt, as
+/// check 6's every derivation is; so is a pinched one.
+fn seam_regions<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Vec<ReadRegion<T>> {
+    let mut regions: Vec<ReadRegion<T>> = Vec::new();
+    for (face_key, face) in body.faces.iter() {
+        let Some(surface @ Surface::Sphere { .. }) = body.surfaces.get(face.surface) else {
+            continue;
+        };
+        if regions.iter().any(|r| r.members.contains(&face_key)) {
+            continue;
+        }
+        let Some(region) = seam_region(body, face_key) else {
+            regions.push(ReadRegion {
+                members: vec![face_key],
+                loops: None,
+                side: None,
+            });
+            continue;
+        };
+        let loops = (!region.pinched)
+            .then(|| {
+                let boundary: Vec<&[_]> = region.boundary.iter().map(Vec::as_slice).collect();
+                let held: Vec<&[_]> = region.loops.iter().map(Vec::as_slice).collect();
+                geom_brep::props::seam_loops(surface, &boundary, &held, band).ok()
+            })
+            .flatten();
+        if let Some(loops) = loops.as_ref()
+            && region.members.len() > 1
+        {
+            let cover = geom_brep::props::sphere_region_cover(loops, &region.claims, band);
+            errors.extend(census_finding(face_key, cover));
+        }
+        regions.push(ReadRegion {
+            members: region.members,
+            loops,
+            side: None,
+        });
+    }
+    regions
+}
+
+/// **Check 6's finding from a seam region's cover census**, named by the
+/// member `face` the region was read from: an over-cover
+/// ([`ValidationError::SeamRegionOvercovered`]), or a census read in the
+/// band ([`ValidationError::SeamRegionCoverUnresolved`]), which nothing
+/// else reads. Covered once, nothing; members whose bits disagree,
+/// nothing, as that is check 4's lamina; a refused derivation, nothing,
+/// as check 6's every refused derivation is exempt (the posture at the
+/// check). The census parses no loop of its own (its loops are the pole
+/// read's, [`ReadRegion::loops`]), so its one refusal is an untiled
+/// count, an internal error no seam region of a body reaches.
+fn census_finding(
+    face: FaceKey,
+    cover: Result<geom_brep::props::SeamCover, geom_brep::props::PropsError>,
+) -> Option<ValidationError> {
+    use geom_brep::props::SeamCover;
+    match cover {
+        Ok(SeamCover::Over { times }) => {
+            Some(ValidationError::SeamRegionOvercovered { face, times })
+        }
+        Ok(SeamCover::Unresolved) => Some(ValidationError::SeamRegionCoverUnresolved { face }),
+        Ok(SeamCover::Once | SeamCover::MixedSense) | Err(_) => None,
+    }
 }
 
 /// **Where `body` holds material wound negative, read as tier 3 reads
@@ -7661,8 +7746,9 @@ pub(crate) fn tier3_local_checks_marked<
     // `CurvedSenseInverted`. So is a face with a pole off its loop on
     // each side, which holds a pole under either sense.
     // ------------------------------------------------------------------
-    // The seam regions read so far, with the side each encodes.
-    let mut regions: Vec<(Vec<FaceKey>, Option<geom_brep::props::MaterialSign>)> = Vec::new();
+    // Every seam region of a sphere, read once: the cover census here,
+    // the pole read below for a member whose own boundary encodes no side.
+    let mut regions = seam_regions(body, band, &mut errors);
     for (face_key, face) in body.faces.iter() {
         let Some(surface) = body.surfaces.get(face.surface) else {
             continue; // unreachable on tier-1 input
@@ -7699,66 +7785,15 @@ pub(crate) fn tier3_local_checks_marked<
             // and one read serves every member. A region read that
             // refuses is exempt, as a face's is below.
             Ok(geom_brep::props::MaterialSign::Unencoded) => {
-                let region = match regions
-                    .iter()
-                    .find(|(members, _)| members.contains(&face_key))
-                {
-                    Some((_, side)) => *side,
-                    None => {
-                        let Some(region) = seam_region(body, face_key) else {
-                            continue; // derivation exempt (posture above)
-                        };
-                        let boundary: Vec<&[_]> =
-                            region.boundary.iter().map(Vec::as_slice).collect();
-                        let loops: Vec<&[_]> = region.loops.iter().map(Vec::as_slice).collect();
-                        let side = (!region.pinched)
-                            .then(|| {
-                                geom_brep::props::sphere_region_material_sign(
-                                    surface, &boundary, &loops, band,
-                                )
-                                .ok()
-                            })
-                            .flatten();
-                        // The cover census, once per region: the members'
-                        // claims under their bits cover it once, or their
-                        // faces overlap, whether or not the boundary
-                        // encodes a side. A refused derivation is exempt
-                        // (posture above); a threshold read in the band
-                        // refuses, as nothing else reads the overlap.
-                        if !region.pinched {
-                            let claims: Vec<(bool, &[&[_]])> = region
-                                .claims
-                                .iter()
-                                .map(|(sense, run)| (*sense, &loops[run.clone()]))
-                                .collect();
-                            match geom_brep::props::sphere_region_cover(
-                                surface, &boundary, &claims, band,
-                            ) {
-                                Ok(geom_brep::props::SeamCover::Over { times }) => {
-                                    errors.push(ValidationError::SeamRegionOvercovered {
-                                        face: face_key,
-                                        times,
-                                    });
-                                }
-                                Ok(geom_brep::props::SeamCover::Unresolved) => {
-                                    errors.push(ValidationError::SeamRegionCoverUnresolved {
-                                        face: face_key,
-                                    });
-                                }
-                                // Covered once; or members whose bits
-                                // disagree, a lamina check 4 refuses.
-                                Ok(
-                                    geom_brep::props::SeamCover::Once
-                                    | geom_brep::props::SeamCover::MixedSense,
-                                )
-                                | Err(_) => {}
-                            }
-                        }
-                        let members = region.members;
-                        regions.push((members, side));
-                        side
-                    }
+                let Some(region) = regions.iter_mut().find(|r| r.members.contains(&face_key))
+                else {
+                    continue; // derivation exempt (posture above)
                 };
+                let region = *region.side.get_or_insert_with(|| {
+                    region.loops.as_ref().and_then(|loops| {
+                        geom_brep::props::sphere_region_material_sign(loops, band).ok()
+                    })
+                });
                 if let Some(geom_brep::props::MaterialSign::Encoded(side)) = region
                     && (side == Sign::Positive) != face.sense
                 {
@@ -12641,6 +12676,35 @@ mod tests {
             "the SSI march now tells the arm in the shape: move it into the rendered list \
              above and close the ssimarch row's question half: {ssi}"
         );
+    }
+
+    /// **Check 6's findings from a seam region's cover census**, arm by
+    /// arm: an over-cover and a census in the band refuse, by name; a
+    /// region covered once, members whose bits disagree (check 4's
+    /// lamina) and a refused derivation add nothing. No body reaches the
+    /// band or a refused census (`geom_brep::props::sphere_region_cover`'s
+    /// slack and count), so their arms are pinned here.
+    #[test]
+    fn the_cover_census_findings_are_check_6s() {
+        use geom_brep::props::{PropsError, SeamCover};
+        let face = FaceKey::default();
+        assert_eq!(
+            census_finding(face, Ok(SeamCover::Over { times: 3 })),
+            Some(ValidationError::SeamRegionOvercovered { face, times: 3 })
+        );
+        assert_eq!(
+            census_finding(face, Ok(SeamCover::Unresolved)),
+            Some(ValidationError::SeamRegionCoverUnresolved { face })
+        );
+        for quiet in [
+            Ok(SeamCover::Once),
+            Ok(SeamCover::MixedSense),
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_region_cover_untiled",
+            }),
+        ] {
+            assert_eq!(census_finding(face, quiet), None);
+        }
     }
 
     #[test]
