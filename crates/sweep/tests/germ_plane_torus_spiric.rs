@@ -164,44 +164,28 @@ fn the_box_oracle_reads_the_closed_forms() {
     }
 }
 
-/// Where an op stops past the join, short of a body.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Stop {
-    /// The result's volume does not read a torus face holding a ring
-    /// (`RingOnCurvedFace`).
-    Volume,
-}
-
-/// The stop an op's refusal names, or `None` for any other refusal.
-fn stop(e: &BooleanError) -> Option<Stop> {
-    match e {
-        BooleanError::ResultInvalid { errors } if !errors.is_empty() => errors
-            .iter()
-            .all(|e| {
-                matches!(
-                    e,
-                    topo::ValidationError::VolumeUncomputable {
-                        source: topo::MassPropsError::RingOnCurvedFace { .. },
-                        ..
-                    }
-                )
-            })
-            .then_some(Stop::Volume),
-        _ => None,
-    }
-}
-
-/// Whether an op's refusal is a [`Stop`] past the join.
+/// Whether an op's refusal is a stop past the join, short of a body:
+/// the result's volume does not read a torus face holding a ring
+/// (`RingOnCurvedFace`), as on a ringed torus wall no lane reads.
 pub(crate) fn stops_past_the_join(e: &BooleanError) -> bool {
-    stop(e).is_some()
+    matches!(e, BooleanError::ResultInvalid { errors } if !errors.is_empty()
+    && errors.iter().all(|e| {
+        matches!(
+            e,
+            topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::RingOnCurvedFace { .. },
+                ..
+            }
+        )
+    }))
 }
 
 /// **Each of the six ops of `t` against `p` answers as `want` says**,
 /// one letter per op in [`SIX`]'s order: `B` a body, held to the truth
 /// (its volume and tier 3, and `point_in_solid` wherever it answers:
-/// [`volume_and_points`], at one sampled point at least), and `v` the
-/// volume's stop ([`Stop`]); where `tie`, any op may instead escalate the matcher's
-/// ranking (`bool_join_nearest`, [`tie_in_band`]). `meet` is first held
+/// [`volume_and_points`], at one sampled point at least); where `tie`,
+/// any op may instead escalate the matcher's ranking
+/// (`bool_join_nearest`, [`tie_in_band`]). `meet` is first held
 /// to the Monte Carlo. Each op's body, and the sampled points
 /// `point_in_solid` read over them all.
 fn answers(
@@ -237,10 +221,6 @@ fn answers(
                 );
                 read += n;
                 bodies.push(Some(b));
-            }
-            ('v', Err(e)) => {
-                assert_eq!(stop(&e), Some(Stop::Volume), "{what}: {e:?}");
-                bodies.push(None);
             }
             (w, r) => panic!(
                 "{what}: want {w}, got {:?}",

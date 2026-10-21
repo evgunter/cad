@@ -225,8 +225,11 @@ pub enum MassPropsError {
     /// a cylinder wall (its closed form and its quadrature both read
     /// every loop: `geom_brep::props::curved_face_loops`,
     /// `geom_brep::props::quad::cylinder_cut_face`), nor a torus wall
-    /// bounded by rims and rulings, nor a sphere face bounded by
-    /// circles. A boolean pierce leaves a ring in the wall it pierces.
+    /// bounded by rims and rulings, nor a torus wall any of whose loops
+    /// carries a spiric (the spiric lane reads every loop,
+    /// `geom_brep::props::spiric::spiric_face_rounds`), nor a sphere face
+    /// bounded by circles. A boolean pierce leaves a ring in the wall it
+    /// pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -262,8 +265,8 @@ impl fmt::Display for MassPropsError {
                 "the kernel cannot yet measure the volume of a curved face with a hole, \
                  other than a cone wall, a cylinder wall, a sphere face bounded by \
                  circles, or a torus wall bounded by circles about its axis and its own \
-                 meridians. Recourse: move the cut so it crosses the face's edge instead of \
-                 closing inside the face"
+                 meridians or cut by a plane. Recourse: move the cut so it crosses the \
+                 face's edge instead of closing inside the face"
             ),
             Self::Corrupt { what } => write!(
                 f,
@@ -3566,7 +3569,10 @@ fn face_flux_about<T: Decide>(
             // over every loop), and the torus's closed form over rims
             // and rulings, the sphere's over circles (Gauss–Bonnet over
             // every loop), and the spiric lane every loop of a
-            // spiric-bounded plane or torus wall. No other kind reads one.
+            // spiric-bounded plane or torus wall: on a wall, every loop's
+            // spirics, rims and meridians, each ring wound against the
+            // face, and any other edge refuses typed in that lane. No
+            // other kind reads one.
             let spiric = loops
                 .iter()
                 .flat_map(|(edges, _)| edges)

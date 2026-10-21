@@ -929,11 +929,13 @@ fn spiric_wall(
         rims: Vec::new(),
         meridians: Vec::new(),
         ends: Vec::with_capacity(loops.len()),
+        parts: Vec::with_capacity(loops.len()),
     };
     let mut closed_va = [Interval::zero(); 3];
     let mut spirics = Vec::new();
     let mut perimeter = 0.0;
     for halves in loops {
+        let held = (spirics.len(), chart.rims.len(), chart.meridians.len());
         let mut ends = Vec::with_capacity(halves.len());
         for h in halves {
             let e = &h.edge;
@@ -1045,6 +1047,11 @@ fn spiric_wall(
             closed_va = [0, 1, 2].map(|k| closed_va[k] + va[k]);
         }
         chart.ends.push(ends);
+        chart.parts.push(spiric::WallLoopParts {
+            spirics: spirics.len() - held.0,
+            rims: chart.rims.len() - held.1,
+            meridians: chart.meridians.len() - held.2,
+        });
     }
     Ok(spiric::SpiricFaceQ {
         closed_va,

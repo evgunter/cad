@@ -1127,9 +1127,9 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 /// - the near-perpendicular bar's tilted faces cut general spiric
 ///   quartics, refused at the join's germ frame, or it stops at the
 ///   crossing layer's pierce door where the run's band puts its root
-///   there; the belly bar and the chord across the hole pass the join,
-///   to a body or a stop past it (`germ_plane_torus_spiric` holds them
-///   to the truth);
+///   there; the belly bar and the chord across the hole pass the join
+///   and build their bodies (`germ_plane_torus_spiric` holds them to
+///   the truth);
 /// - the slab's face-interior oval is a certified interior loop
 ///   (R-loop), and so is the bite a cylinder grazing the outer equator
 ///   takes out of the tube (its axis square to the torus's, its trace
@@ -1183,7 +1183,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
                 ("A ∩ B", torus_door(Intersect, &d, &b)),
             ] {
                 assert!(
-                    matches!(door, Ok(TorusDoor::Built | TorusDoor::Stopped)),
+                    matches!(door, Ok(TorusDoor::Built)),
                     "{name}, {op}: {door:?}"
                 );
             }
