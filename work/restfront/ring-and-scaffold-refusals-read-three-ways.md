@@ -86,3 +86,17 @@ and torus walls' (`geom_brep::props::curved_face_loops`);
 (FLUX's `sphere-face-with-a-hole-has-no-closed-form`), a lane not yet
 built and not a defect. The one reading these arms want is therefore
 the not-yet one.
+
+## Note from ENCL (2026-10-21, PR 5528)
+
+The "pick the defect reading" for `NullScaffold*` does not hold either.
+The public `mvfs` → `set_face_surface(plane)` →
+`Body::mev_null(MevSite::Lone)` leaves a null-scaffold edge on a body a
+caller holds, so the caller reaches these arms mid-edit. PR 5528 made
+`TransformError::NullScaffold` end in
+`topo::Unfinished::SCAFFOLDING_RECOURSE` ("finish that edit first") at
+every door. `MassPropsError::NullScaffoldEdge` (`props.rs`, still
+`KERNEL_OR_FILE_DEFECT_ENDING`; `tests/review_m3_pr1.rs` reaches it
+the same way) and `mesh::TessellateError::NullScaffoldEdge` ("finish
+the surgery first", a near-copy) remain. The one home for them is that
+constant.
