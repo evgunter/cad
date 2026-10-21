@@ -455,16 +455,74 @@ fn straight_joint_at_start(last: f64) -> profile::Profile<f64> {
 /// **A run's end in band of a carrier a metre past its segment is no
 /// contact**: [`straight_joint_at_start`] with the last head on the
 /// run's line (`0.9ε`). `(1, 0)`, segment 1's start, stands in band of
-/// the closing leg's carrier and a metre past its span, and that pair
-/// (`SegmentPair(1, 5)`) is no contact. What the loop still escalates on
-/// is the adjacent pair at `Start`, the next row's.
+/// the closing leg's carrier and a metre past its span, and the closing
+/// leg lies within the band of segment 0's carrier, so every pair of the
+/// simplicity pass reads no contact, `SegmentPair(1, 5)` and
+/// `SegmentPair(0, 5)` among them. What escalates is the joint at
+/// `Start`, read after the whole pass (`SegmentPair(5, 0)`, the joint's
+/// arriving and leaving segments): a joint straight within the band.
 #[test]
 fn a_run_end_in_band_of_a_carrier_past_its_segment_is_no_contact() {
     match validate_both(&straight_joint_at_start(0.9)) {
-        Err(ProfileError::Escalated { site, .. }) => {
-            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 5)));
+        Err(ProfileError::Escalated { site, source }) => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 5), sref(0, 0)));
+            assert_eq!(source.predicate, Some("chord_side"));
         }
-        other => panic!("only the adjacent pair at Start may escalate, got {other:?}"),
+        other => panic!("only the joint at Start may escalate, got {other:?}"),
+    }
+}
+
+/// A short segment continuing a long one straight within ε: the loop
+/// `(0,0) (1,0) (x, y) (x,1) (0,1)`, segment 1 from `(1, 0)` to `(x, y)`
+/// with `y` within the band's zero of `y = 0`.
+fn straight_within_eps(x: f64, y: f64) -> profile::Profile<f64> {
+    profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (x, y, 0.0),
+        (x, 1.0, 0.0),
+        (0.0, 1.0, 0.0),
+    ])])
+}
+
+/// **A short segment continuing a long one straight within ε is
+/// simple.** [`straight_within_eps`] at `(1.1, 0.5ε)`, `(1.2, 0.5ε)` and
+/// `(1.3, 0.9ε)`. Both of segment 1's ends lie within the band's zero of
+/// segment 0's carrier, so the pair is read collinear, a touch at their
+/// shared vertex, though segment 0's far end stands `len₀/len₁` times as
+/// far off segment 1's carrier, in band. At `f64` and `Interval` alike.
+#[test]
+fn a_short_segment_continuing_a_long_one_straight_within_eps_is_simple() {
+    let e = tol().get().eps;
+    for (x, y) in [(1.1, 0.5 * e), (1.2, 0.5 * e), (1.3, 0.9 * e)] {
+        validate_both(&straight_within_eps(x, y))
+            .unwrap_or_else(|err| panic!("({x}, {y}): {err:?}"));
+    }
+}
+
+/// **A loop that comes back to a vertex along a straight continuation
+/// touches itself there.** `(0,0) (1,0) (1,−1) (1.2,−1) (1.2, 0.5ε) (1,0)`:
+/// segment 4 returns to `(1, 0)` within the band's zero of segment 0's
+/// carrier. Read collinear with segment 0, the pair touches
+/// at `(1, 0)`, which is not their shared vertex, so the loop is not
+/// simple: `NonSimple` with a `Touch`, not an escalation.
+#[test]
+fn a_loop_returning_to_a_vertex_along_a_straight_continuation_touches() {
+    let e = tol().get().eps;
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, -1.0, 0.0),
+        (1.2, -1.0, 0.0),
+        (1.2, 0.5 * e, 0.0),
+        (1.0, 0.0, 0.0),
+    ])]);
+    match err(&p) {
+        ProfileError::NonSimple {
+            kind: ContactKind::Touch,
+            ..
+        } => {}
+        other => panic!("the return to (1, 0) must read a touch, got {other:?}"),
     }
 }
 

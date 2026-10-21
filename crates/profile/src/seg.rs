@@ -1497,11 +1497,14 @@ fn collinear_overlap<T: Decide>(
 ///   test, trileanized), each end against the other's carrier. Both of
 ///   one segment's ends definitely on one side of the other's carrier
 ///   separates them, so the pair has no contact, however the other two
-///   sides read. Only then does an in-band side escalate.
-/// - Strictly opposite sides both ways ⇒ one proper crossing; any Zero ⇒
-///   endpoint-on-carrier configurations resolved by `line_span`; both of
-///   one segment's ends on the other's carrier ⇒ collinear, resolved by
-///   [`collinear_overlap`] along that carrier's axis.
+///   sides read.
+/// - Both of one segment's ends on the other's carrier ⇒ collinear,
+///   resolved by [`collinear_overlap`] along that carrier's axis, however
+///   the other pair of sides reads: the whole segment is within the band
+///   of that carrier.
+/// - Only then does an in-band side escalate. Strictly opposite sides
+///   both ways ⇒ one proper crossing; any Zero ⇒ endpoint-on-carrier
+///   configurations resolved by `line_span`.
 fn line_line<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
@@ -1522,14 +1525,19 @@ fn line_line<T: Decide>(
     if separated(&on_1) || separated(&on_2) {
         return Ok(PairOutcome::Contacts(Vec::new()));
     }
-    let [o_c, o_d] = [on_1[0]?, on_1[1]?];
-    let [o_a, o_b] = [on_2[0]?, on_2[1]?];
-    if o_c == Sign::Zero && o_d == Sign::Zero {
+    // Both of one segment's ends within the band of the other's carrier
+    // put all of it there, so the overlap along that carrier decides the
+    // pair, whatever the other pair of sides reads.
+    let collinear =
+        |pair: &[Result<Sign, Indeterminate>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
+    if collinear(&on_1) {
         return collinear_overlap(s1, s2, band);
     }
-    if o_a == Sign::Zero && o_b == Sign::Zero {
+    if collinear(&on_2) {
         return collinear_overlap(s2, s1, band);
     }
+    let [o_c, o_d] = [on_1[0]?, on_1[1]?];
+    let [o_a, o_b] = [on_2[0]?, on_2[1]?];
     let opposite = |x: Sign, y: Sign| {
         matches!(
             (x, y),
