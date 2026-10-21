@@ -2789,7 +2789,11 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
         }
     }
 
-    let outcome = seg::pair_contacts(&loop_segs[li][si], &loop_segs[lj][sj], band)
+    let shared_end = match shared[..] {
+        [v] => Some(v),
+        _ => None,
+    };
+    let outcome = seg::pair_contacts(&loop_segs[li][si], &loop_segs[lj][sj], shared_end, band)
         .map_err(|source| ProfileError::Escalated { site, source })?;
     let contacts = match outcome {
         PairOutcome::Overlap => {

@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-09
 priority: P3
 refs: [a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section, a-fitted-face-trimmed-by-a-section-has-no-volume-rule]
+cost: M
 ---
 
 Found by SHELL's fitted-corners unit. `crates/sweep/tests/encl_curved_loft_shell.rs:719`'s
