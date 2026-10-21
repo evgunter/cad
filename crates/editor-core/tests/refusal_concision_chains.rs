@@ -83,7 +83,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Blend/SurgeryInvariant",
     "Blend/Certify",
     "Naming/SplitLineage",
-    "Naming/SeamVertexParentage",
+    "Naming/UnsupportedSeamVertex",
     "Naming/SeamVertexPartners",
     "Naming/SharedRim",
     "Naming/ChordOffRim",
@@ -91,9 +91,11 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/ClosedCarrierUnread",
     "Naming/CarrierUnplaced",
     "Naming/PartnerUnread",
-    "Naming/CrossingSenses",
-    "Naming/SeamSides",
-    "Naming/JoinUnread",
+    "Naming/UnsupportedCrossingSenses",
+    "Naming/UnsupportedSeamSides",
+    "Naming/UnsupportedJoin",
+    "Naming/WayInZeroBand",
+    "Naming/JoinedPieceOffRoot",
     "Naming/BandVerdictsDisagree",
     "FaceFrameReadback/Dangling",
     "Shell/Partition",
@@ -4605,36 +4607,36 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             }),
         ),
         (
-            "SeamVertexParentage",
-            NamingError::SeamVertexParentage {
+            "UnsupportedSeamVertex",
+            NamingError::UnsupportedSeamVertex {
                 vertex: topo::VertexKey::default(),
-                shape: editor_core::ParentageShape::OneOperandSeam,
+                shape: editor_core::SeamVertexShape::OneOperandSeam,
             },
         ),
         (
-            "CrossingSenses",
-            NamingError::CrossingSenses {
+            "UnsupportedCrossingSenses",
+            NamingError::UnsupportedCrossingSenses {
                 vertex: topo::VertexKey::default(),
-                shape: editor_core::SensesShape::NameReadsTwoSenses,
+                shape: editor_core::CrossingSensesShape::NameReadsTwoSenses,
             },
         ),
         (
-            "SeamSides",
-            NamingError::SeamSides {
+            "UnsupportedSeamSides",
+            NamingError::UnsupportedSeamSides {
                 edge: topo::EdgeKey::default(),
-                shape: editor_core::SidesShape::NameSpellsTwoSeams,
+                shape: editor_core::SeamSidesShape::NameSpellsTwoSeams,
             },
         ),
         (
-            "JoinUnread",
-            NamingError::JoinUnread {
+            "UnsupportedJoin",
+            NamingError::UnsupportedJoin {
                 edge: topo::EdgeKey::default(),
                 shape: editor_core::JoinShape::ChordBesideMergedFace,
             },
         ),
         (
-            "UnionNameUnspelled",
-            NamingError::UnionNameUnspelled {
+            "UnsupportedUnionName",
+            NamingError::UnsupportedUnionName {
                 name: Box::new(stable(EntityKind::Vertex, 3)),
                 shape: editor_core::UnionNameShape::SeamGroupNoMemberEdge,
             },
@@ -4642,13 +4644,20 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "WayInZeroBand",
             NamingError::WayInZeroBand {
-                reader: editor_core::WayReader::Carrier,
+                edge: topo::EdgeKey::default(),
+                shape: editor_core::WayShape::Carrier,
+            },
+        ),
+        (
+            "JoinedPieceOffRoot",
+            NamingError::JoinedPieceOffRoot {
+                edge: topo::EdgeKey::default(),
             },
         ),
         (
             "BandVerdictsDisagree",
             NamingError::BandVerdictsDisagree {
-                at: editor_core::EntityKey::Vertex(topo::VertexKey::default()),
+                vertex: topo::VertexKey::default(),
                 shape: editor_core::DisagreeShape::PiecesAtOneVertex,
             },
         ),

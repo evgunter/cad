@@ -118,8 +118,8 @@ use crate::names::borders::Obstacles;
 use crate::names::defer::{TieRows, mint_candidates};
 use crate::names::discriminate::{ON_MEMBER_EDGE, ON_SEAM_LINE, band};
 use crate::names::emit::{
-    DisagreeShape, Incidence, NamingError, ParentageShape, SidesShape, UnionNameShape, check_total,
-    edge_ends, ent, face_half_edges, vertex_point,
+    DisagreeShape, Incidence, NamingError, SeamSidesShape, SeamVertexShape, UnionNameShape,
+    check_total, edge_ends, ent, face_half_edges, vertex_point,
 };
 use crate::names::emit_topo::{
     Cover, CrossedEdge, EdgeCarrier, EdgePieces, FaceDescent, Lone, Segment, UNORIENTED,
@@ -901,7 +901,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ///
     /// [`NamingError::BandVerdictsDisagree`] where a finished edge at `v`
     /// lies on none of the member edges it is named for;
-    /// [`NamingError::SeamVertexParentage`] where one member edge and no
+    /// [`NamingError::UnsupportedSeamVertex`] where one member edge and no
     /// seam meet several faces; [`NamingError::Emission`] where they meet
     /// none; or as [`Flush::sense_against`].
     fn meeting(
@@ -921,7 +921,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 // span set of tied edges leaves `lines_at` empty.
                 if on.is_empty() {
                     return Err(NamingError::BandVerdictsDisagree {
-                        at: EntityKey::Vertex(v),
+                        vertex: v,
                         shape: DisagreeShape::JoinedEdgeOffMembers,
                     });
                 }
@@ -990,12 +990,14 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 // their edges through it, and with planar faces the region
                 // kept about the line either keeps a piece of such an edge
                 // at the point, holds one of the faces there, or pinches
-                // into two vertices, each one line meeting one face. No
-                // manifold union reaches this shape.
+                // into two vertices, each one line meeting one face, so no
+                // manifold union of planar faces reaches this shape. Curved
+                // faces are outside that argument, so no rule names this
+                // vertex.
                 (Some(_), Some(_)) => {
-                    return Err(NamingError::SeamVertexParentage {
+                    return Err(NamingError::UnsupportedSeamVertex {
                         vertex: v,
-                        shape: ParentageShape::LineAcrossSeveralFaces,
+                        shape: SeamVertexShape::LineAcrossSeveralFaces,
                     });
                 }
                 (None, _) => {
@@ -1168,7 +1170,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             // within `ON_MEMBER_EDGE`: nothing makes them agree.
             if own != sense {
                 return Err(NamingError::BandVerdictsDisagree {
-                    at: EntityKey::Vertex(v),
+                    vertex: v,
                     shape: DisagreeShape::FlushSensesDisagree,
                 });
             }
@@ -1310,7 +1312,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             // classes at one point.
             (Some(_), Some(_)) => {
                 return Err(NamingError::BandVerdictsDisagree {
-                    at: EntityKey::Vertex(v),
+                    vertex: v,
                     shape: DisagreeShape::PiecesAtOneVertex,
                 });
             }
@@ -1977,7 +1979,7 @@ const CITED_GROUP_NOT_ONE_SEAM: &str = "several vertices of a union share one na
 /// edge cited whole: a sibling of [`CITED_GROUP_NOT_ONE_SEAM`] that no
 /// one has shown only a defect reaches.
 fn no_member_edge(base: &StableName) -> NamingError {
-    NamingError::UnionNameUnspelled {
+    NamingError::UnsupportedUnionName {
         name: Box::new(base.clone()),
         shape: UnionNameShape::SeamGroupNoMemberEdge,
     }
@@ -2487,7 +2489,7 @@ impl Parents {
             return Ok(None);
         };
         if cited.next().is_some() {
-            return Err(NamingError::UnionNameUnspelled {
+            return Err(NamingError::UnsupportedUnionName {
                 name: Box::new(n.clone()),
                 shape: UnionNameShape::SeveralParents,
             });
@@ -2623,18 +2625,18 @@ fn name_by_parents<T: geom_core::Decide>(
         // `Incidence` dedups a wrap edge's one face: a wrap edge pierced
         // at a point and joined back after the boolean is one way in.
         let Some([f0, f1]) = flush.inc.edge_faces.get(&k).map(Vec::as_slice) else {
-            return Err(NamingError::SeamSides {
+            return Err(NamingError::UnsupportedSeamSides {
                 edge: k,
-                shape: SidesShape::NotTwoFaces,
+                shape: SeamSidesShape::NotTwoFaces,
             });
         };
         // A pair that merges A's face with B's links them, but the fold
         // may skip the same curved group (`SkippedMerge` reads the
         // group's shape, and the fold's group holds more faces).
         if parents.of_face.get(f0) == parents.of_face.get(f1) {
-            return Err(NamingError::SeamSides {
+            return Err(NamingError::UnsupportedSeamSides {
                 edge: k,
-                shape: SidesShape::InsideOneParent,
+                shape: SeamSidesShape::InsideOneParent,
             });
         }
         let (p0, p1) = (parents.face(*f0), parents.face(*f1));
@@ -3034,11 +3036,12 @@ fn collapse_one<'s>(
             Ok(n.clone())
         }
     };
+    let fold = name;
     let name = canonical::collapsed(name, oriented, &mut image).map_err(|stop| match stop {
         Stop::Image(stopped) => stopped,
         Stop::Unrankable(Unrankable::RunLeastLineMoved) => {
-            Stopped::Refused(NamingError::UnionNameUnspelled {
-                name: Box::new(name.clone()),
+            Stopped::Refused(NamingError::UnsupportedUnionName {
+                name: Box::new(fold.clone()),
                 shape: UnionNameShape::RunLeastLineMoved,
             })
         }
@@ -3059,8 +3062,8 @@ fn collapse_one<'s>(
     // there a repeat is the same constituent reached twice, and two
     // merges that collapse to one set collide at insert instead.
     if is_junction(&name) && name.path.windows(2).any(|w| w[0] == w[1]) {
-        return Err(NamingError::UnionNameUnspelled {
-            name: Box::new(name),
+        return Err(NamingError::UnsupportedUnionName {
+            name: Box::new(fold.clone()),
             shape: UnionNameShape::JunctionLinesCollide,
         }
         .into());
@@ -3697,7 +3700,7 @@ mod tests {
         assert!(
             matches!(
                 &err,
-                NamingError::UnionNameUnspelled {
+                NamingError::UnsupportedUnionName {
                     name: at,
                     shape: UnionNameShape::JunctionLinesCollide,
                 } if at.node == union
@@ -4331,7 +4334,7 @@ mod tests {
         assert!(
             matches!(
                 err,
-                NamingError::UnionNameUnspelled {
+                NamingError::UnsupportedUnionName {
                     shape: UnionNameShape::SeamGroupNoMemberEdge,
                     ..
                 }

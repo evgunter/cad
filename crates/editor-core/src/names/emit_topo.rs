@@ -22,9 +22,9 @@ use super::discriminate::{
     CHORD_ON_RIM, Extent, ON_MEMBER_EDGE, ORDER_ALONG, band, extent_before, rank_by,
 };
 use super::emit::{
-    DisagreeShape, Incidence, JoinShape, NamingError, ParentageShape, Rim, RimShare, SensesShape,
-    SidesShape, WayReader, edge_ends, ent, face_half_edges, name1, rim_between, rims_between,
-    vertex_point,
+    CrossingSensesShape, DisagreeShape, Incidence, JoinShape, NamingError, Rim, RimShare,
+    SeamSidesShape, SeamVertexShape, WayShape, edge_ends, ent, face_half_edges, name1, rim_between,
+    rims_between, vertex_point,
 };
 use super::groups::{Emitted, GroupRecord, Parent};
 use super::merged::{self, NESTED_MERGED};
@@ -872,7 +872,7 @@ enum Joined {
 ///
 /// # Errors
 ///
-/// [`NamingError::JoinUnread`] where a cover has no input-cell reading: a
+/// [`NamingError::UnsupportedJoin`] where a cover has no input-cell reading: a
 /// section chord joined to a piece of an operand edge.
 #[allow(clippy::too_many_arguments)]
 fn split_joined_readings<T: Decide>(
@@ -936,7 +936,7 @@ fn split_joined_readings<T: Decide>(
                     continue;
                 }
                 _ => {
-                    return Err(NamingError::JoinUnread {
+                    return Err(NamingError::UnsupportedJoin {
                         edge: kept,
                         shape: JoinShape::ChordWithPiece,
                     });
@@ -1012,7 +1012,7 @@ fn split_join_seam<T: Decide>(
                  the cut: {BETWEEN_SECTIONS}"
             );
         }
-        return Err(NamingError::JoinUnread {
+        return Err(NamingError::UnsupportedJoin {
             edge: kept,
             shape: JoinShape::ChordBesideMergedFace,
         });
@@ -1150,10 +1150,7 @@ fn name_split_edges_vertices<T: Decide>(
                     for &r in roots {
                         let same = EdgeCarrier::of_edge(target_body, r)?
                             .runs_with(&joined, ON_MEMBER_EDGE, bnd)?
-                            .ok_or(NamingError::BandVerdictsDisagree {
-                                at: EntityKey::Edge(e),
-                                shape: DisagreeShape::SetPieceOffRoot,
-                            })?;
+                            .ok_or(NamingError::JoinedPieceOffRoot { edge: e })?;
                         pieces_of.entry(r).or_default().push((e, same));
                     }
                     let group = edge_groups.entry((slot, name.clone())).or_default();
@@ -2172,9 +2169,9 @@ fn name_boolean_edges<T: Decide>(
             )
         };
         if faces.len() != 2 {
-            return Err(NamingError::SeamSides {
+            return Err(NamingError::UnsupportedSeamSides {
                 edge: e,
-                shape: SidesShape::NotTwoFaces,
+                shape: SeamSidesShape::NotTwoFaces,
             });
         }
         let union = op == topo::BooleanOp::Union;
@@ -2287,9 +2284,9 @@ fn name_boolean_edges<T: Decide>(
             .entry((fa.name, fb.name))
             .or_insert((false, one, Vec::new()));
         if slot.1 != one {
-            return Err(NamingError::SeamSides {
+            return Err(NamingError::UnsupportedSeamSides {
                 edge: e,
-                shape: SidesShape::NameSpellsTwoSeams,
+                shape: SeamSidesShape::NameSpellsTwoSeams,
             });
         }
         slot.0 |= from_tie;
@@ -2341,9 +2338,9 @@ fn name_boolean_edges<T: Decide>(
             ChordKind::SameA(k) if both_merged => zip_rims.push((OpSide::A(k), e)),
             ChordKind::SameB(k) if both_merged => zip_rims.push((OpSide::B(k), e)),
             ChordKind::SameA(_) | ChordKind::SameB(_) => {
-                return Err(NamingError::SeamSides {
+                return Err(NamingError::UnsupportedSeamSides {
                     edge: e,
-                    shape: SidesShape::WithinOneOperand,
+                    shape: SeamSidesShape::WithinOneOperand,
                 });
             }
         }
@@ -2554,9 +2551,9 @@ fn joined_cover<T: Decide>(
         )
     };
     let [f0, f1] = faces.as_slice() else {
-        return Err(NamingError::SeamSides {
+        return Err(NamingError::UnsupportedSeamSides {
             edge: e,
-            shape: SidesShape::NotTwoFaces,
+            shape: SeamSidesShape::NotTwoFaces,
         });
     };
     let descents = |f: FaceKey| -> Result<Vec<OpSide<FaceKey>>, NamingError> {
@@ -2836,7 +2833,7 @@ fn name_boolean_vertices<T: Decide>(
                     let held = set_holding(v, set)?;
                     if held.is_empty() {
                         return Err(NamingError::BandVerdictsDisagree {
-                            at: EntityKey::Vertex(v),
+                            vertex: v,
                             shape: DisagreeShape::VertexOffJoinedSet,
                         });
                     }
@@ -2868,9 +2865,9 @@ fn name_boolean_vertices<T: Decide>(
                 // so it ends at operand vertices, and it has no A and B
                 // side to cross.
                 Some(RoleSeg::Seam { .. }) if side.is_some() => {
-                    return Err(NamingError::SeamVertexParentage {
+                    return Err(NamingError::UnsupportedSeamVertex {
                         vertex: v,
-                        shape: ParentageShape::OneOperandSeam,
+                        shape: SeamVertexShape::OneOperandSeam,
                     });
                 }
                 Some(RoleSeg::Seam { a: s0, b: s1 }) => {
@@ -3077,9 +3074,9 @@ fn name_boolean_vertices<T: Decide>(
                     // line meeting one face. Curved faces are outside
                     // that argument, so no rule names this vertex.
                     ([_], [], ..) | ([], [_], ..) => {
-                        return Err(NamingError::SeamVertexParentage {
+                        return Err(NamingError::UnsupportedSeamVertex {
                             vertex: v,
-                            shape: ParentageShape::LineAcrossSeveralFaces,
+                            shape: SeamVertexShape::LineAcrossSeveralFaces,
                         });
                     }
                     (al, bl, ..) => unreachable!(
@@ -3100,9 +3097,9 @@ fn name_boolean_vertices<T: Decide>(
             // and nothing proves these shapes unreachable, so what is
             // missing is a rule.
             _ => {
-                return Err(NamingError::SeamVertexParentage {
+                return Err(NamingError::UnsupportedSeamVertex {
                     vertex: v,
-                    shape: ParentageShape::NoEdgePair,
+                    shape: SeamVertexShape::NoEdgePair,
                 });
             }
         };
@@ -3389,7 +3386,7 @@ struct EdgeSense {
 ///
 /// [`NamingError::PartnerUnread`] where a key is one the boolean read no
 /// partner of ([`topo::UnreadPartner`]), whose edges hold no class to
-/// read a sense from; [`NamingError::CrossingSenses`] where one side of
+/// read a sense from; [`NamingError::UnsupportedCrossingSenses`] where one side of
 /// the vertex holds pieces of one edge on both sides of the other
 /// operand; [`NamingError::Emission`] where it holds no classified piece
 /// ([`UNCLASSIFIED_SIDE`]).
@@ -3475,7 +3472,7 @@ fn senses_at<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`NamingError::CrossingSenses`] at `vertex` where its pieces there
+/// [`NamingError::UnsupportedCrossingSenses`] at `vertex` where its pieces there
 /// read both ways; [`NamingError::Emission`] where no piece there was
 /// classified ([`UNCLASSIFIED_SIDE`]).
 fn side_in_body(vertex: VertexKey, classes: &BTreeSet<bool>) -> Result<bool, NamingError> {
@@ -3484,9 +3481,9 @@ fn side_in_body(vertex: VertexKey, classes: &BTreeSet<bool>) -> Result<bool, Nam
             what: UNCLASSIFIED_SIDE,
         }),
         1 => Ok(classes.contains(&true)),
-        _ => Err(NamingError::CrossingSenses {
+        _ => Err(NamingError::UnsupportedCrossingSenses {
             vertex,
-            shape: SensesShape::PiecesBothSides,
+            shape: CrossingSensesShape::PiecesBothSides,
         }),
     }
 }
@@ -3533,9 +3530,9 @@ mod side_tests {
         assert!(!side_in_body(v, &BTreeSet::from([false])).unwrap());
         assert!(matches!(
             side_in_body(v, &BTreeSet::from([true, false])),
-            Err(super::NamingError::CrossingSenses {
+            Err(super::NamingError::UnsupportedCrossingSenses {
                 vertex,
-                shape: super::SensesShape::PiecesBothSides,
+                shape: super::CrossingSensesShape::PiecesBothSides,
             }) if vertex == v
         ));
     }
@@ -3605,7 +3602,7 @@ mod fused_tests {
 ///
 /// # Errors
 ///
-/// [`NamingError::CrossingSenses`] at `vertex` where edges sharing its
+/// [`NamingError::UnsupportedCrossingSenses`] at `vertex` where edges sharing its
 /// name read different senses; [`NamingError::Emission`] where no piece
 /// of the edge is classified at the vertex, or where the edge crosses but
 /// has no orientation to read its sense along ([`oriented`]).
@@ -3621,9 +3618,9 @@ fn sense_of(
         "a crossing's edge has no piece the boolean classified at the crossing",
     ))?;
     if read.any(|s| s.sense != first.sense) {
-        return Err(NamingError::CrossingSenses {
+        return Err(NamingError::UnsupportedCrossingSenses {
             vertex,
-            shape: SensesShape::NameReadsTwoSenses,
+            shape: CrossingSensesShape::NameReadsTwoSenses,
         });
     }
     if first.unoriented && first.sense.crosses() {
@@ -3722,6 +3719,7 @@ pub(super) enum OnSegment {
 /// position against an edge is read: [`Segment::place`] says whether it
 /// lies on the segment.
 pub(super) struct Segment<T: Decide> {
+    edge: EdgeKey,
     q0: Point3<T>,
     q1: Point3<T>,
     d: Vec3<T>,
@@ -3735,6 +3733,7 @@ impl<T: Decide> Segment<T> {
         let (q0, q1) = (vertex_point(body, v0)?, vertex_point(body, v1)?);
         let d = q1 - q0;
         Ok(Segment {
+            edge: e,
             q0,
             q1,
             d,
@@ -3774,7 +3773,8 @@ impl<T: Decide> Segment<T> {
             Sign::Positive => Ok(Some(true)),
             Sign::Negative => Ok(Some(false)),
             Sign::Zero => Err(NamingError::WayInZeroBand {
-                reader: WayReader::Line,
+                edge: other.edge,
+                shape: WayShape::Line,
             }),
         }
     }
@@ -4481,7 +4481,8 @@ impl<T: Decide> Track<T> {
             Sign::Positive => Ok(Some(true)),
             Sign::Negative => Ok(Some(false)),
             Sign::Zero => Err(NamingError::WayInZeroBand {
-                reader: WayReader::Carrier,
+                edge: other.edge,
+                shape: WayShape::Carrier,
             }),
         }
     }
@@ -9051,7 +9052,8 @@ mod rim_holding_rows {
             matches!(
                 way,
                 Err(NamingError::WayInZeroBand {
-                    reader: crate::names::WayReader::Carrier
+                    shape: crate::names::WayShape::Carrier,
+                    ..
                 })
             ),
             "at K = 1.5 the arc's way decides zero and refuses typed, got {way:?}"
@@ -9089,7 +9091,8 @@ mod rim_holding_rows {
             matches!(
                 way,
                 Err(NamingError::WayInZeroBand {
-                    reader: crate::names::WayReader::Line
+                    shape: crate::names::WayShape::Line,
+                    ..
                 })
             ),
             "the segment across the line refuses typed, got {way:?}"

@@ -2462,7 +2462,7 @@ test_utils::f6_variants! {
         Emission,
         SplitLineage,
         Settle,
-        SeamVertexParentage,
+        UnsupportedSeamVertex,
         SeamVertexPartners,
         SharedRim,
         ChordOffRim,
@@ -2471,11 +2471,12 @@ test_utils::f6_variants! {
         ClosedCarrierUnread,
         CarrierUnplaced,
         PartnerUnread,
-        CrossingSenses,
-        SeamSides,
-        JoinUnread,
-        UnionNameUnspelled,
+        UnsupportedCrossingSenses,
+        UnsupportedSeamSides,
+        UnsupportedJoin,
+        UnsupportedUnionName,
         WayInZeroBand,
+        JoinedPieceOffRoot,
         BandVerdictsDisagree,
         Band,
         Escalated,
@@ -2651,35 +2652,35 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["split lineage of edge"],
         ),
         (
-            NamingError::SeamVertexParentage {
+            NamingError::UnsupportedSeamVertex {
                 vertex,
-                shape: editor_core::ParentageShape::NoEdgePair,
+                shape: editor_core::SeamVertexShape::NoEdgePair,
             },
             vec!["seam vertex", "half-decided"],
         ),
         (
-            NamingError::CrossingSenses {
+            NamingError::UnsupportedCrossingSenses {
                 vertex,
-                shape: editor_core::SensesShape::PiecesBothSides,
+                shape: editor_core::CrossingSensesShape::PiecesBothSides,
             },
             vec!["crossing vertex", "on both sides of the other operand"],
         ),
         (
-            NamingError::SeamSides {
+            NamingError::UnsupportedSeamSides {
                 edge,
-                shape: editor_core::SidesShape::NotTwoFaces,
+                shape: editor_core::SeamSidesShape::NotTwoFaces,
             },
-            vec!["beside other than two faces"],
+            vec!["does not lie between two faces"],
         ),
         (
-            NamingError::JoinUnread {
+            NamingError::UnsupportedJoin {
                 edge,
                 shape: editor_core::JoinShape::ChordWithPiece,
             },
             vec!["joined edge", "a piece of an operand edge"],
         ),
         (
-            NamingError::UnionNameUnspelled {
+            NamingError::UnsupportedUnionName {
                 name: Box::new(StableName {
                     kind: EntityKind::Vertex,
                     node: RecipeNodeId::new(0, tagged(41)),
@@ -2691,16 +2692,25 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::WayInZeroBand {
-                reader: editor_core::WayReader::Line,
+                edge,
+                shape: editor_core::WayShape::Line,
             },
-            vec!["two segments on one line", "ambiguity factor K"],
+            vec!["on another segment's line", "ambiguity factor K"],
+        ),
+        (
+            NamingError::JoinedPieceOffRoot { edge },
+            vec![
+                "joined piece",
+                "lies off an operand edge",
+                "move the geometry",
+            ],
         ),
         (
             NamingError::BandVerdictsDisagree {
-                at: editor_core::EntityKey::Edge(edge),
-                shape: editor_core::DisagreeShape::SetPieceOffRoot,
+                vertex,
+                shape: editor_core::DisagreeShape::PiecesAtOneVertex,
             },
-            vec!["joined piece lies off an operand edge", "move the geometry"],
+            vec!["two pieces of one member line", "longer than the band"],
         ),
         (
             NamingError::SharedRim {

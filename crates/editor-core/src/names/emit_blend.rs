@@ -456,7 +456,7 @@ mod tie_tests {
         assert!(
             matches!(
                 named,
-                Err(NamingError::JoinUnread {
+                Err(NamingError::UnsupportedJoin {
                     shape: crate::names::JoinShape::Outright,
                     ..
                 })
