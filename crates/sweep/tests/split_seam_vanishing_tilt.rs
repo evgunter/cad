@@ -55,7 +55,7 @@ fn cylinder(phi: f64) -> AtRestBody<f64> {
 ///   `v` twice, between the rim and the ellipse leaving it at a turn of
 ///   about `ψ`; read in the band it is undecided, and past it at
 ///   ε = 1e-12 the rounding reads it crossed, both ending as a defect
-///   (`work/wire/a-split-merging-a-two-piece-wall-reads-its-seam-vertex-as-a-pinch-corner.md`).
+///   (`work/wirerest/a-split-merging-a-two-piece-wall-reads-its-seam-vertex-as-a-pinch-corner.md`).
 fn carrier_resolution(e: &ValidationError) -> bool {
     use geom_brep::props::{PropsCheck, PropsError};
     use topo::MassPropsError;
