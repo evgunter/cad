@@ -5,7 +5,7 @@ title: A finished body is gated at tier 3 alone, so a body the census refuses fi
 status: open
 opened: 2026-10-21
 refs: [boolean-door-runs-the-census-over-its-result, a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass]
-priority: P1
+priority: P2
 cost: H
 ---
 
@@ -64,9 +64,8 @@ tier 3 passes.
 
 ## Proposed
 
-- **P1, a defect against the stated contract** rather than a design
-  question: the README states the bar, and the one constructor does not
-  meet it.
+- **A defect against the stated contract, kept at P2** because no verb
+  is known to reach it. It rises to P1 on the first verb-built witness.
 - **The cost is H.** Running the census in `AtRestBody::validate` will
   refuse fixtures and results that finish today, as REACHHOLD measured
   at the door (175 results), and it charges every finish a census.
