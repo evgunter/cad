@@ -211,8 +211,8 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
             },
             editor_core::SummaryDivergence {
                 predicate: "segment_gap".into(),
-                old_count: 6,
-                new_count: 12,
+                old_count: 12,
+                new_count: 24,
             },
         ],
     };

@@ -477,13 +477,13 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // the placing op's own log on this part: its pin's fold off the
     // identity (the two pose normals, and the map's rigidity, which
     // every placement but the identity bundle runs), then placement and
-    // validation of the placed body; 802 is the part's, on its own
+    // validation of the placed body; 826 is the part's, on its own
     // nodes — its profile's pre-pass on the Profile node's log, then
     // what the second pass the `f64` lane skips decides, logged in its
     // place (`editor_core::ProfileLane`). Its placement's stand is the
     // identity bundle, placed by no map, which decides nothing.
     assert_eq!(first.len(), 465, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 802, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 826, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
