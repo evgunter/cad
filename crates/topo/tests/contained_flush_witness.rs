@@ -40,7 +40,7 @@ fn trio() -> [AtRestBody<f64>; 3] {
 
 fn assert_valid_with_volume(label: &str, body: &Body<f64>, volume: f64) {
     let tol = Tol::witness();
-    let got = mass_properties(body, tol).unwrap().volume;
+    let got = mass_properties(&topo::test_support::finished("the measured body", (body).clone(), tol), tol).unwrap().volume;
     assert!(
         (got - volume).abs() < 1e-9,
         "{label}: volume {got}, expected {volume}"

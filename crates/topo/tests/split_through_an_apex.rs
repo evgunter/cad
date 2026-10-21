@@ -67,7 +67,7 @@ fn splits_sound(
             let SplitPart::Body(b) = part else {
                 panic!("{what}: empty");
             };
-            let v = topo::mass_properties(b, t()).unwrap().volume;
+            let v = topo::mass_properties(&topo::test_support::finished("the measured body", (b).clone(), t()), t()).unwrap().volume;
             // A vertex read in the plane within `ε` of it moves the cut
             // by as much.
             assert!(

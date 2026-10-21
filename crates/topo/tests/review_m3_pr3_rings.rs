@@ -58,8 +58,8 @@ fn two_hole_box_split_between_rehomes_both_ways() {
     assert_eq!(above.shells().count(), 1);
     // Volumes: total 6·2·2 − 2·(1·1·2) = 20, split 10/10.
     let (va, vb) = (
-        mass_properties(above, Tol::witness()).unwrap().volume,
-        mass_properties(below, Tol::witness()).unwrap().volume,
+        mass_properties(&topo::test_support::finished("the measured body", (above).clone(), Tol::witness()), Tol::witness()).unwrap().volume,
+        mass_properties(&topo::test_support::finished("the measured body", (below).clone(), Tol::witness()), Tol::witness()).unwrap().volume,
     );
     assert!((va - 10.0).abs() < 1e-12, "above {va}");
     assert!((vb - 10.0).abs() < 1e-12, "below {vb}");
@@ -85,8 +85,8 @@ fn split_through_hole_two_section_polygons() {
     assert_eq!(rings(below), 0);
     assert_eq!(rings(above), 2);
     let (va, vb) = (
-        mass_properties(above, Tol::witness()).unwrap().volume,
-        mass_properties(below, Tol::witness()).unwrap().volume,
+        mass_properties(&topo::test_support::finished("the measured body", (above).clone(), Tol::witness()), Tol::witness()).unwrap().volume,
+        mass_properties(&topo::test_support::finished("the measured body", (below).clone(), Tol::witness()), Tol::witness()).unwrap().volume,
     );
     // Total 20; below = 1·2·2 − (0.5·1·2 channel half) = 3.
     assert!((vb - 3.0).abs() < 1e-12, "below {vb}");

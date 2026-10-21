@@ -47,14 +47,14 @@ fn voided() -> Body<f64> {
 #[test]
 fn cube_is_one_outer_shell() {
     let body = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let classes = classify_shells(&body, Tol::witness()).unwrap();
+    let classes = classify_shells(&topo::test_support::finished("the measured body", body.clone(), Tol::witness()), Tol::witness()).unwrap();
     assert_eq!(classes.len(), 1);
     let c = &classes[0];
     assert_eq!(c.role, ShellRole::Outer);
     assert_eq!(c.volume_pad, 0.0);
     // The one shell IS the body: its flux is the whole-body flux,
     // bit-identical (same per-face contributions, same order).
-    let props = mass_properties(&body, Tol::witness()).unwrap();
+    let props = mass_properties(&topo::test_support::finished("the measured body", body.clone(), Tol::witness()), Tol::witness()).unwrap();
     assert_eq!(c.volume.to_bits(), props.volume.to_bits());
     assert_eq!(c.surface_area.to_bits(), props.surface_area.to_bits());
 }
@@ -62,7 +62,7 @@ fn cube_is_one_outer_shell() {
 #[test]
 fn voided_body_is_outer_plus_void() {
     let body = voided();
-    let classes = classify_shells(&body, Tol::witness()).unwrap();
+    let classes = classify_shells(&topo::test_support::finished("the measured body", body.clone(), Tol::witness()), Tol::witness()).unwrap();
     assert_eq!(classes.len(), 2);
     let outers: Vec<_> = classes
         .iter()
@@ -87,8 +87,8 @@ fn voided_body_is_outer_plus_void() {
 #[test]
 fn per_shell_volumes_sum_to_the_body_volume() {
     let body = voided();
-    let classes = classify_shells(&body, Tol::witness()).unwrap();
-    let props = mass_properties(&body, Tol::witness()).unwrap();
+    let classes = classify_shells(&topo::test_support::finished("the measured body", body.clone(), Tol::witness()), Tol::witness()).unwrap();
+    let props = mass_properties(&topo::test_support::finished("the measured body", body.clone(), Tol::witness()), Tol::witness()).unwrap();
     let sum: f64 = classes.iter().map(|c| c.volume).sum();
     // 27 − 1: the whole-body walk visits the same faces with the same
     // closed forms; only the grouping differs.
@@ -105,7 +105,7 @@ fn per_shell_volumes_sum_to_the_body_volume() {
 fn role_read_is_the_aimed_ray() {
     let body = voided();
     let bracket = geom_core::k_stats::Bracket::open();
-    let classes = classify_shells(&body, Tol::witness()).unwrap();
+    let classes = classify_shells(&topo::test_support::finished("the measured body", body.clone(), Tol::witness()), Tol::witness()).unwrap();
     let read: Vec<&str> = bracket
         .finish()
         .verdicts

@@ -8364,7 +8364,10 @@ mod tests {
             quad_prism(&turned, 0.7, Tol::witness()),
             quad_prism(&profile, 0.7, Tol::witness()),
         );
-        let volume = |body| crate::mass_properties(body, Tol::witness()).unwrap().volume;
+        let volume = |body: &crate::Body<f64>| {
+            let body = crate::test_support::finished("a prism", body.clone(), Tol::witness());
+            crate::mass_properties(&body, Tol::witness()).unwrap().volume
+        };
         assert!(
             volume(&low) < volume(&high),
             "the two corners' sums round apart: {} vs {}",

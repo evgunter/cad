@@ -105,7 +105,7 @@ fn the_quadrature_lane_refuses_a_mirror_wall_typed() {
     for sigma in [1.0, -1.0] {
         let (mut body, _) = mirror_oval::<f64>(sigma);
         topo::mint_pcurves(&mut body, tol).unwrap();
-        let shown = match topo::mass_properties(&body, tol) {
+        let shown = match topo::mass_properties(&topo::test_support::finished("the measured body", body.clone(), tol), tol) {
             Ok(m) => panic!(
                 "axis {sigma}: integrated a mirror wall: {:?}",
                 m.enclosure()

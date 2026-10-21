@@ -108,7 +108,7 @@ fn top_normal_z(body: &Body<f64>) -> f64 {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, Tol::witness()).unwrap().volume
+    mass_properties(&topo::test_support::finished("the measured body", (body).clone(), Tol::witness()), Tol::witness()).unwrap().volume
 }
 
 /// `body` finishes when `right_way`, and refuses on check 7 alone when

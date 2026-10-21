@@ -218,7 +218,7 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses() {
     }
     common::describe_as_intersections(&mut parts, tol);
     assert!(
-        mass_properties(&parts, tol).unwrap().volume > 0.0,
+        mass_properties(&topo::test_support::finished("the measured body", parts.clone(), tol), tol).unwrap().volume > 0.0,
         "the body's total is positive, so it hides the part's sign"
     );
     assert_eq!(parts.solids().count(), 2, "two solids, one per part");

@@ -54,7 +54,7 @@ struct Solid {
 
 /// Every solid of `body`, in arena order.
 fn solids(body: &Body<f64>) -> Vec<Solid> {
-    let classes = topo::classify_shells(body, tol()).expect("every shell classifies");
+    let classes = topo::classify_shells(&topo::test_support::finished("the measured body", (body).clone(), tol()), tol()).expect("every shell classifies");
     body.solids()
         .map(|(solid, _)| {
             let shells = body.shells_of_solid(solid).expect("the solid resolves");

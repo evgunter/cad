@@ -50,7 +50,7 @@ fn far_brick(tol: Tol) -> AtRestBody<f64> {
 fn volume_in_band(what: &str, body: &Body<f64>) {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    let m = topo::mass_properties(body, tol).expect("the body measures");
+    let m = topo::mass_properties(&topo::test_support::finished("the measured body", (body).clone(), tol), tol).expect("the body measures");
     let va = (m.volume / m.surface_area).abs();
     assert!(
         va > band.zero() && va < band.escalate(),

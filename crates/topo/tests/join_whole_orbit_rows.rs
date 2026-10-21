@@ -195,7 +195,7 @@ fn a_split_through_the_reflex_corner_whose_run_holds_the_whole_orbit() {
                 Ok(()),
                 "n = {n:?} {side}: tier 3"
             );
-            let v = mass_properties(b, tol).unwrap().volume;
+            let v = mass_properties(&topo::test_support::finished("the measured body", (b).clone(), tol), tol).unwrap().volume;
             assert!(
                 (v - want).abs() < 1e-12,
                 "n = {n:?} {side}: volume {v}, want {want}"

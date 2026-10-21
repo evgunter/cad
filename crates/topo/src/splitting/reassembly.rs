@@ -206,8 +206,8 @@ fn reassembly_oracle_generic_cube() {
         reference.arena_counts(),
         "census equality"
     );
-    let m1 = mass_properties(&body, tol).unwrap();
-    let m0 = mass_properties(&operand, tol).unwrap();
+    let m1 = mass_properties(&crate::test_support::finished("the measured body", body.clone(), tol), tol).unwrap();
+    let m0 = mass_properties(&crate::test_support::finished("the measured body", operand.clone(), tol), tol).unwrap();
     let close = |a: f64, b: f64| (a - b).abs() <= 1e-12 * b.abs().max(1.0);
     assert!(
         close(m1.volume, m0.volume),

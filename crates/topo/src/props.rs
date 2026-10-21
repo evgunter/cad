@@ -345,8 +345,8 @@ impl std::error::Error for MassPropsError {}
 ///
 /// ```compile_fail,E0277
 /// use geom_core::{Dual64, Tol};
-/// use topo::{Body, mass_properties};
-/// fn measure(b: &Body<Dual64>, tol: Tol) {
+/// use topo::{AtRestBody, mass_properties};
+/// fn measure(b: &AtRestBody<Dual64>, tol: Tol) {
 ///     let _ = mass_properties(b, tol);
 /// }
 /// ```
@@ -354,7 +354,25 @@ impl std::error::Error for MassPropsError {}
 /// The two rows differ in one identifier and every path either names
 /// resolves, so the second fails on the bound alone — `E0277`,
 /// `CertifiedEnclosure` not implemented for `Dual<f64>`.
+///
+/// **It measures a finished body** (`&AtRestBody`, Ev's decision on
+/// PR 4822): one tier 3 has passed, so the lanes read loops that bound
+/// one region, shells wound as their roles say and structure that
+/// resolves. A test whose subject is the walk on a body tier 3 refuses
+/// measures through `topo::test_support::measure_unvalidated`, and says
+/// why.
 pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
+    body: &crate::AtRestBody<T>,
+    tol: Tol,
+) -> Result<MassProperties<T>, MassPropsError> {
+    measure_body(body, tol)
+}
+
+/// [`mass_properties`]' walk over any body, finished or not: the door's
+/// own measurement, and the raw door
+/// (`topo::test_support::measure_unvalidated`) a test measures a body
+/// tier 3 refuses through.
+pub(crate) fn measure_body<T: Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
@@ -4190,7 +4208,21 @@ impl std::error::Error for ShellClassifyError {}
 /// this tolerance, or a bracket straddling zero. (A component count over
 /// a partial classification would be a guess; the caller gets the
 /// refusal instead.)
+///
+/// It classifies a finished body (`&AtRestBody`, Ev's decision on PR
+/// 4822), as [`mass_properties`] measures one;
+/// `topo::test_support::classify_unvalidated` is the raw door.
 pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
+    body: &crate::AtRestBody<T>,
+    tol: Tol,
+) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+    classify_body(body, tol)
+}
+
+/// [`classify_shells`] over any body, finished or not: the door's own
+/// classification, and the raw door
+/// (`topo::test_support::classify_unvalidated`).
+pub(crate) fn classify_body<T: Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
@@ -6151,7 +6183,7 @@ mod face_list_door_tests {
                 SignCertificate::assembled(&body, band, tol, Some(QuadLane::certified()), parts)
                     .refine_to_target()
                     .unwrap();
-            let whole = crate::mass_properties(&body, tol).unwrap();
+            let whole = crate::mass_properties(&crate::test_support::finished("the measured body", body.clone(), tol), tol).unwrap();
             assert_eq!(
                 (
                     assembled.volume.to_bits(),
@@ -6696,7 +6728,7 @@ mod shell_reference_rows {
             })
             .unwrap();
             let about_first = fold_runs(&runs).0;
-            let walked = crate::mass_properties(body, tol).unwrap();
+            let walked = crate::mass_properties(&crate::test_support::finished("the measured body", (body).clone(), tol), tol).unwrap();
             assert_eq!(
                 (walked.volume.to_bits(), walked.surface_area.to_bits()),
                 (

@@ -290,7 +290,7 @@ fn measured<T: Decide + AtRestPolicy + CertifiedBounds>(
     let body = pipe::<T>(pose, f, tol);
     assert_eq!(validate_closed(&body), Ok(()), "{at}: tier 2");
     assert_eq!(validate_geometric(&body, tol), Ok(()), "{at}: tier 3");
-    let mp = mass_properties(&body, tol)
+    let mp = mass_properties(&topo::test_support::finished("the measured body", body.clone(), tol), tol)
         .unwrap_or_else(|e| panic!("{at}: the pipe does not measure: {e}"));
     let eps = tol.eps();
     let (vpad, apad) = (

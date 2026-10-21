@@ -3046,7 +3046,7 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses_by_name() {
     let [ordinary, reverted] = solids_of(&body)[..] else {
         panic!("two cubes are two solids");
     };
-    let total = crate::mass_properties(&body, tol).expect("both cubes measure");
+    let total = crate::mass_properties(&crate::test_support::finished("the measured body", body.clone(), tol), tol).expect("both cubes measure");
     assert!(
         total.volume > 0.0,
         "the fixture's point is a POSITIVE total: {}",
@@ -3098,7 +3098,7 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
             .expect("two ordinary cubes certify")
             .refine_to_target()
             .expect("two ordinary cubes measure");
-    let measured = crate::mass_properties(&body, tol).expect("the cubes measure");
+    let measured = crate::mass_properties(&crate::test_support::finished("the measured body", body.clone(), tol), tol).expect("the cubes measure");
     assert_eq!(
         (
             certified.volume.to_bits(),
@@ -3208,7 +3208,7 @@ fn a_solid_holding_several_outer_shells_refuses() {
     // the island cube beside the others and both reads move with it,
     // which is what stops this row from passing while no longer being
     // about several outer boundaries.
-    let roles: std::collections::BTreeMap<_, _> = crate::classify_shells(&body, tol)
+    let roles: std::collections::BTreeMap<_, _> = crate::classify_shells(&crate::test_support::finished("the measured body", body.clone(), tol), tol)
         .expect("the cubes classify")
         .into_iter()
         .map(|c| (c.shell, c.role))
@@ -3234,7 +3234,7 @@ fn a_solid_holding_several_outer_shells_refuses() {
     );
 
     assert!(
-        crate::mass_properties(&body, tol)
+        crate::mass_properties(&crate::test_support::finished("the measured body", body.clone(), tol), tol)
             .expect("the cubes measure")
             .volume
             > 0.0,
@@ -3370,7 +3370,7 @@ fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
         body.shells_of_solid(cavity).expect("live")[0],
     );
     refile_shells(&mut body, cavity, keeper);
-    let roles: std::collections::BTreeMap<_, _> = crate::classify_shells(&body, tol)
+    let roles: std::collections::BTreeMap<_, _> = crate::classify_shells(&crate::test_support::finished("the measured body", body.clone(), tol), tol)
         .expect("the cubes classify")
         .into_iter()
         .map(|c| (c.shell, c.role))
@@ -3536,7 +3536,7 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     }
     let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
     let exact = 1e-3 * 1e-3 * 1e-7;
-    let read = crate::mass_properties(&upright, tol).expect("the slab measures");
+    let read = crate::mass_properties(&crate::test_support::finished("the measured body", upright.clone(), tol), tol).expect("the slab measures");
     assert!(
         read.volume < -exact,
         "the premise: the walk's sum reads the slab negative, past its exact \
@@ -3568,7 +3568,7 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     // orientation is check 7's.
     for body in [&upright, &inverted] {
         assert_eq!(
-            crate::classify_shells(body, tol).expect("the shell classifies")[0].role,
+            crate::classify_shells(&crate::test_support::finished("the measured body", (body).clone(), tol), tol).expect("the shell classifies")[0].role,
             Outer,
             "the classification reads a lone shell by arity"
         );
@@ -3621,7 +3621,7 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
     );
     let inverted = upright.revert().unwrap();
     for (body, want) in [(&upright, Outer), (&inverted, Outer)] {
-        let classified = crate::classify_shells(body, tol).expect("the shell classifies")[0].role;
+        let classified = crate::classify_shells(&crate::test_support::finished("the measured body", (body).clone(), tol), tol).expect("the shell classifies")[0].role;
         let gate = crate::census::gate_role(body, shell, band, tol);
         assert_eq!(
             (gate, classified),
@@ -3984,7 +3984,7 @@ fn far_thin_half_disc_reads(far: bool, tol: Tol) {
     // (`work/flux/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
     // not this row's subject; the sign is read off the certified walk.
     if !far {
-        let read = crate::mass_properties(&upright, tol).expect("the half-disc measures");
+        let read = crate::mass_properties(&crate::test_support::finished("the measured body", upright.clone(), tol), tol).expect("the half-disc measures");
         assert!(
             (read.volume - exact).abs() <= 1e-3 * exact,
             "the oracle: {read:?} vs {exact:e}"

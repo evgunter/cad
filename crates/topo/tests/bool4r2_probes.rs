@@ -316,7 +316,7 @@ fn the_per_solid_door_reads_the_container_s_own_sign_at_infinity() {
     let [comp, _] = solids(&body)[..] else {
         panic!()
     };
-    let whole_props = topo::mass_properties(&body, tol).unwrap();
+    let whole_props = topo::mass_properties(&topo::test_support::finished("the measured body", body.clone(), tol), tol).unwrap();
     println!("total volume {}", whole_props.volume);
     assert!(whole_props.volume > 0.0);
     let q = Point3::new(-7.0, 11.0, 23.0);

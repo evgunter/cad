@@ -66,7 +66,7 @@ fn only_solid(body: &Body<f64>) -> SolidKey {
 /// `body`'s shells of `role` under `solid`, read off their own signed
 /// volumes — the premise each row asserts before it asserts a verdict.
 fn shells_of(body: &Body<f64>, solid: SolidKey, role: ShellRole) -> Vec<ShellKey> {
-    topo::classify_shells(body, tol())
+    topo::classify_shells(&topo::test_support::finished("the measured body", (body).clone(), tol()), tol())
         .expect("every shell classifies")
         .into_iter()
         .filter(|c| c.solid == solid && c.role == role)
@@ -88,7 +88,7 @@ fn graft_onto(dst: &mut Body<f64>, target: SolidKey, src: &Body<f64>) {
 
 fn positive_total(body: &Body<f64>) {
     assert!(
-        topo::mass_properties(body, tol())
+        topo::mass_properties(&topo::test_support::finished("the measured body", (body).clone(), tol()), tol())
             .expect("the body measures")
             .volume
             > 0.0,

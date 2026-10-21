@@ -15967,7 +15967,7 @@ mod tests {
         // not touch — the two bodies meter the SAME volume, so check 7
         // could not refuse the flipped one even if it ran.
         let volume = |b: &Body<f64>| {
-            crate::props::mass_properties(b, Tol::witness())
+            crate::props::mass_properties(&crate::test_support::finished("the measured body", (b).clone(), Tol::witness()), Tol::witness())
                 .unwrap()
                 .volume
         };

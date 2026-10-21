@@ -42,7 +42,7 @@ fn unite(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> AtRestBody<f64> {
 fn volume(label: &str, part: &SplitPart<f64>) -> Option<f64> {
     part.body().map(|b| {
         assert_eq!(validate_closed(b), Ok(()), "{label}");
-        mass_properties(b, Tol::witness()).unwrap().volume
+        mass_properties(&topo::test_support::finished("the measured body", (b).clone(), Tol::witness()), Tol::witness()).unwrap().volume
     })
 }
 
