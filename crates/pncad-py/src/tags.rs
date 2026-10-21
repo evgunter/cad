@@ -150,8 +150,10 @@ use pncad::profile::{
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    EntityKind, HitTestError, InterrogateError, MeshPickError, NameLookupError, NamingError,
-    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate, RimShare,
+    DisagreeShape, EntityKind, HitTestError, InterrogateError, JoinShape, MeshPickError,
+    NameLookupError, NamingError, NodePickError, ParentageShape, ReadbackError, Resolution,
+    ResolveError, ResolveIndeterminate, RimShare, SensesShape, SidesShape, UnionNameShape,
+    WayReader,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -1758,6 +1760,79 @@ pub fn rim_share_tag(found: &RimShare) -> &'static str {
     }
 }
 
+/// The stable tag for the shape a seam vertex's edges met — the inner
+/// arm of [`NamingError::SeamVertexParentage`], crossing as
+/// [`rim_share_tag`] does: each shape is a different rule not yet built.
+pub fn parentage_shape_tag(shape: &ParentageShape) -> &'static str {
+    match shape {
+        ParentageShape::OneOperandSeam => "seam_vertex_parentage_one_operand_seam",
+        ParentageShape::LineAcrossSeveralFaces => "seam_vertex_parentage_line_across_faces",
+        ParentageShape::NoEdgePair => "seam_vertex_parentage_no_edge_pair",
+    }
+}
+
+/// The stable tag for what a crossing's classes read — the inner arm of
+/// [`NamingError::CrossingSenses`].
+pub fn senses_shape_tag(shape: &SensesShape) -> &'static str {
+    match shape {
+        SensesShape::PiecesBothSides => "crossing_senses_pieces_both_sides",
+        SensesShape::NameReadsTwoSenses => "crossing_senses_name_reads_two",
+    }
+}
+
+/// The stable tag for what the faces beside an edge are — the inner arm
+/// of [`NamingError::SeamSides`].
+pub fn sides_shape_tag(shape: &SidesShape) -> &'static str {
+    match shape {
+        SidesShape::NotTwoFaces => "seam_sides_not_two_faces",
+        SidesShape::NameSpellsTwoSeams => "seam_sides_name_spells_two_seams",
+        SidesShape::WithinOneOperand => "seam_sides_within_one_operand",
+        SidesShape::InsideOneParent => "seam_sides_inside_one_parent",
+    }
+}
+
+/// The stable tag for what a joined edge's cover holds — the inner arm
+/// of [`NamingError::JoinUnread`].
+pub fn join_shape_tag(shape: &JoinShape) -> &'static str {
+    match shape {
+        JoinShape::ChordWithPiece => "join_unread_chord_with_piece",
+        JoinShape::ChordBesideMergedFace => "join_unread_chord_beside_merged_face",
+        JoinShape::Outright => "join_unread_outright",
+    }
+}
+
+/// The stable tag for what a union's name met — the inner arm of
+/// [`NamingError::UnionNameUnspelled`].
+pub fn union_name_shape_tag(shape: &UnionNameShape) -> &'static str {
+    match shape {
+        UnionNameShape::SeamGroupNoMemberEdge => "union_name_seam_group_no_member_edge",
+        UnionNameShape::SeveralParents => "union_name_several_parents",
+        UnionNameShape::RunLeastLineMoved => "union_name_run_least_line_moved",
+        UnionNameShape::JunctionLinesCollide => "union_name_junction_lines_collide",
+    }
+}
+
+/// The stable tag for which way-along comparison decided zero — the
+/// inner arm of [`NamingError::WayInZeroBand`].
+pub fn way_reader_tag(reader: &WayReader) -> &'static str {
+    match reader {
+        WayReader::Carrier => "way_in_zero_band_carrier",
+        WayReader::Line => "way_in_zero_band_line",
+    }
+}
+
+/// The stable tag for which two band verdicts disagree — the inner arm
+/// of [`NamingError::BandVerdictsDisagree`].
+pub fn disagree_shape_tag(shape: &DisagreeShape) -> &'static str {
+    match shape {
+        DisagreeShape::SetPieceOffRoot => "band_verdicts_set_piece_off_root",
+        DisagreeShape::VertexOffJoinedSet => "band_verdicts_vertex_off_joined_set",
+        DisagreeShape::FlushSensesDisagree => "band_verdicts_flush_senses_disagree",
+        DisagreeShape::PiecesAtOneVertex => "band_verdicts_pieces_at_one_vertex",
+        DisagreeShape::JoinedEdgeOffMembers => "band_verdicts_joined_edge_off_members",
+    }
+}
+
 /// The stable tag for a name-EMISSION refusal — the inner arm of
 /// [`NodeErrorKind::Naming`].
 pub fn naming_error_tag(err: &NamingError) -> &'static str {
@@ -1774,7 +1849,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         // The MISSING-RULE arms, tagged apart from "emission": a caller
         // branching on this word is deciding whether to report a kernel
         // bug, and these are not one.
-        NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
+        NamingError::SeamVertexParentage { shape, .. } => parentage_shape_tag(shape),
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
         NamingError::ChordOffRim { .. } => "chord_off_rim",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
@@ -1783,6 +1858,14 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::CarrierUnplaced { .. } => "carrier_unplaced",
         NamingError::PartnerUnread { .. } => "partner_unread",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
+        NamingError::CrossingSenses { shape, .. } => senses_shape_tag(shape),
+        NamingError::SeamSides { shape, .. } => sides_shape_tag(shape),
+        NamingError::JoinUnread { shape, .. } => join_shape_tag(shape),
+        NamingError::UnionNameUnspelled { shape, .. } => union_name_shape_tag(shape),
+        // The PRECISION-LIMIT arms: a lever the model holds, neither a
+        // kernel bug nor a missing rule.
+        NamingError::WayInZeroBand { reader } => way_reader_tag(reader),
+        NamingError::BandVerdictsDisagree { shape, .. } => disagree_shape_tag(shape),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
     }

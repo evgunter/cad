@@ -91,6 +91,10 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/ClosedCarrierUnread",
     "Naming/CarrierUnplaced",
     "Naming/PartnerUnread",
+    "Naming/CrossingSenses",
+    "Naming/SeamSides",
+    "Naming/JoinUnread",
+    "Naming/BandVerdictsDisagree",
     "FaceFrameReadback/Dangling",
     "Shell/Partition",
     "Shell/Insert",
@@ -4604,6 +4608,48 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "SeamVertexParentage",
             NamingError::SeamVertexParentage {
                 vertex: topo::VertexKey::default(),
+                shape: editor_core::ParentageShape::OneOperandSeam,
+            },
+        ),
+        (
+            "CrossingSenses",
+            NamingError::CrossingSenses {
+                vertex: topo::VertexKey::default(),
+                shape: editor_core::SensesShape::NameReadsTwoSenses,
+            },
+        ),
+        (
+            "SeamSides",
+            NamingError::SeamSides {
+                edge: topo::EdgeKey::default(),
+                shape: editor_core::SidesShape::NameSpellsTwoSeams,
+            },
+        ),
+        (
+            "JoinUnread",
+            NamingError::JoinUnread {
+                edge: topo::EdgeKey::default(),
+                shape: editor_core::JoinShape::ChordBesideMergedFace,
+            },
+        ),
+        (
+            "UnionNameUnspelled",
+            NamingError::UnionNameUnspelled {
+                name: Box::new(stable(EntityKind::Vertex, 3)),
+                shape: editor_core::UnionNameShape::SeamGroupNoMemberEdge,
+            },
+        ),
+        (
+            "WayInZeroBand",
+            NamingError::WayInZeroBand {
+                reader: editor_core::WayReader::Carrier,
+            },
+        ),
+        (
+            "BandVerdictsDisagree",
+            NamingError::BandVerdictsDisagree {
+                at: editor_core::EntityKey::Vertex(topo::VertexKey::default()),
+                shape: editor_core::DisagreeShape::PiecesAtOneVertex,
             },
         ),
         (

@@ -4856,6 +4856,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "disagree_shape_tag",
+        values: &[
+            "band_verdicts_flush_senses_disagree",
+            "band_verdicts_joined_edge_off_members",
+            "band_verdicts_pieces_at_one_vertex",
+            "band_verdicts_set_piece_off_root",
+            "band_verdicts_vertex_off_joined_set",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "distribution_fault_tag",
         values: &[
             "nominal_outside_support",
@@ -5181,6 +5192,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
         ],
     },
     TagEntry {
+        function: "join_shape_tag",
+        values: &[
+            "join_unread_chord_beside_merged_face",
+            "join_unread_chord_with_piece",
+            "join_unread_outright",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "label_fault_tag",
         values: &[
             "label_blank",
@@ -5295,14 +5315,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "member_edge_tied",
             "missing_upstream",
             "partner_unread",
-            "seam_vertex_parentage",
             "seam_vertex_partners",
             "short_tie",
             "split_lineage_cycle",
             "unnamed",
             "unsettled_vertex",
         ],
-        delegates: &["band_error_tag", "rim_share_tag"],
+        delegates: &[
+            "band_error_tag",
+            "disagree_shape_tag",
+            "join_shape_tag",
+            "parentage_shape_tag",
+            "rim_share_tag",
+            "senses_shape_tag",
+            "sides_shape_tag",
+            "union_name_shape_tag",
+            "way_reader_tag",
+        ],
     },
     TagEntry {
         function: "no_chart_why_tag",
@@ -5506,6 +5535,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "axis_unrepresentable",
             "symbols_over_a_box",
             "unknown_param",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "parentage_shape_tag",
+        values: &[
+            "seam_vertex_parentage_line_across_faces",
+            "seam_vertex_parentage_no_edge_pair",
+            "seam_vertex_parentage_one_operand_seam",
         ],
         delegates: &[],
     },
@@ -5866,6 +5904,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "senses_shape_tag",
+        values: &[
+            "crossing_senses_name_reads_two",
+            "crossing_senses_pieces_both_sides",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "shell_classify_error_tag",
         values: &[
             "band",
@@ -5907,6 +5953,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wall_clearance",
         ],
         delegates: &["join_refusal_tag"],
+    },
+    TagEntry {
+        function: "sides_shape_tag",
+        values: &[
+            "seam_sides_inside_one_parent",
+            "seam_sides_name_spells_two_seams",
+            "seam_sides_not_two_faces",
+            "seam_sides_within_one_operand",
+        ],
+        delegates: &[],
     },
     TagEntry {
         function: "skin_error_tag",
@@ -6211,6 +6267,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "union_name_shape_tag",
+        values: &[
+            "union_name_junction_lines_collide",
+            "union_name_run_least_line_moved",
+            "union_name_seam_group_no_member_edge",
+            "union_name_several_parents",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "unlocalized_tag",
         values: &[
             "containment",
@@ -6344,6 +6410,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "validate_geometric",
             "validate_pseudomanifold",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "way_reader_tag",
+        values: &["way_in_zero_band_carrier", "way_in_zero_band_line"],
         delegates: &[],
     },
     TagEntry {
