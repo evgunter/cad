@@ -463,11 +463,12 @@ pub(crate) fn derive_naming(
 /// records one role per loop.
 #[track_caller]
 pub(crate) fn validated_naming(canonical: &profile::CanonicalStructure) -> ProfileNaming {
-    derive_naming(canonical).unwrap_or_else(|outers| {
-        unreachable!(
+    match derive_naming(canonical) {
+        Ok(naming) => naming,
+        Err(outers) => unreachable!(
             "a validation recorded {outers} outer loops over {} loops, though it refuses any \
              profile without exactly one before recording",
             canonical.loops.len()
-        )
-    })
+        ),
+    }
 }

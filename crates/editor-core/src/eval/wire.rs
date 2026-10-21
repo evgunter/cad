@@ -4413,12 +4413,13 @@ fn member_lineage(
     fold: &names::UnionFold,
     f: topo::FaceKey,
 ) -> &std::collections::BTreeSet<(usize, topo::FaceKey)> {
-    fold.member_faces(f).unwrap_or_else(|| {
+    let Some(lineage) = fold.member_faces(f) else {
         unreachable!(
             "union fold accumulation face {f:?} has no member-face lineage, though the fold \
              records one for every face of every accumulation it builds"
         )
-    })
+    };
+    lineage
 }
 
 /// **A fold step's face-pair rows restate its given pairs** (DM4, the
