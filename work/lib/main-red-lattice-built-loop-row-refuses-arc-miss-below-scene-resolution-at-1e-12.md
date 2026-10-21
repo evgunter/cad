@@ -8,6 +8,7 @@ priority: P1
 cost: E
 closed: 2026-10-21
 branch: nurbs/lattice-loop-1e12
+pr: 5541
 ---
 
 
