@@ -434,7 +434,7 @@ fn triangulate_chart(
     // edges (an intervening vertex splits it), and the slit's two
     // traversals return the same edges twice — both handled by keying on
     // the sub-edges spade reports rather than on the segment endpoints.
-    let mut crossings: HashMap<(usize, usize), u32> = HashMap::new();
+    let mut crossings: Crossings = HashMap::new();
     let mut pinches = Pinches::of(&walk, fk);
     let mut base = 0;
     for hs in &handles {
@@ -762,6 +762,10 @@ pub(crate) fn edge_key(
     (p.min(q), p.max(q))
 }
 
+/// Each realised boundary edge's crossing count, keyed by
+/// [`edge_key`]: the even-odd input to [`classify_faces`] (#116).
+pub(crate) type Crossings = HashMap<(usize, usize), u32>;
+
 /// Even-odd interior flag per CDT face, indexed by face index (0 is
 /// spade's outer face, which is outside every loop).
 ///
@@ -772,7 +776,7 @@ pub(crate) fn edge_key(
 /// counts, never on a coordinate comparison.
 pub(crate) fn classify_faces(
     cdt: &ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
-    crossings: &HashMap<(usize, usize), u32>,
+    crossings: &Crossings,
 ) -> Vec<bool> {
     let toggles = |e| crossings.get(&edge_key(e)).is_some_and(|n| n % 2 == 1);
     let mut inside = vec![false; cdt.num_all_faces()];

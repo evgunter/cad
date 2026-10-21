@@ -720,16 +720,23 @@ and `mesh::nurbs_cert::ASPECT_CAP` are the shipped statement of record.
 
 ### The sliver hazard the schedule is built around
 
-An anisotropic lattice strip admits a Delaunay-legal sliver of
-certificate ~`(aspect²+1)/8·δ_s` beside ANY off-lattice point — trim
-chords, band interfaces' foreign columns, anchor tops, refinement
-centroids — and no local insertion converges. What keeps slivers out on
-ruled walls is lattice ALIGNMENT, not spacing: the per-v-band schedule
-(`NurbsCellGrid::band_schedule`) snaps `nuc` to the whole-patch count
-where aspect demands it, and the split selection projects to an exact
-patch count run to a fixpoint. Read both aspect bounds at their
-constants, `mesh::nurbs_cert::SAFE_ASPECT` and `ASPECT_CAP`, never from
-a second copy: they are different quantities and both bind.
+A lattice strip that is anisotropic where the CDT runs admits a
+Delaunay-legal sliver of certificate ~`(aspect²+1)/8·δ_s` beside ANY
+off-lattice point — trim chords, band interfaces' foreign columns,
+anchor tops, refinement centroids — and no local insertion converges.
+Delaunay is not stretch-invariant, so the trimmed lane does not run it
+in raw UV: it runs it in the face's lattice metric (`(u/k, v)`, `k` a
+power of two near the bands' mean realized aspect,
+`mesh::nurbs_cert::lattice_metric`), where a ruled wall's strip is near
+square. That is what keeps slivers out on ruled walls. Lattice
+ALIGNMENT is the backstop for the anisotropy one face-wide metric
+leaves: the per-v-band schedule (`NurbsCellGrid::band_schedule`) snaps
+`nuc` to the whole-patch count for a band whose residual aspect over
+the metric demands it, in either direction, and the split selection
+projects to an exact patch count run to a fixpoint. Read both aspect
+bounds at their constants, `mesh::nurbs_cert::SAFE_ASPECT` and
+`ASPECT_CAP`, never from a second copy: they are different quantities
+and both bind.
 
 Two live caveats. The cheapest split is a strip at a parameter aspect
 nothing would choose, so `opt_cells` is an UPPER BOUND on a practical

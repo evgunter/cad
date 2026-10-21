@@ -998,7 +998,7 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_collinear_target",
         kind: EndingKind::Sized,
     },
-    // a declared continuation target's lateral miss from the departing ray
+    // a declared continuation target's lateral miss from its run's line
     DecisionEnding {
         name: "path_continuation_target_offset",
         kind: EndingKind::Sized,
@@ -1223,7 +1223,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "path_circle_radius" => "whether a circle's radius is zero",
         "path_collinear_target" => "whether a declared target lies on the tip's line",
         "path_continuation_target_offset" => {
-            "whether a declared straight continuation's target lies on the departing ray"
+            "whether a declared straight continuation's target lies on its run's line"
         }
         "path_corner_advance" => "whether the corner lies ahead of its anchor on a straight side",
         "path_corner_advance_arc" => "whether the corner lies ahead of its anchor on an arc side",

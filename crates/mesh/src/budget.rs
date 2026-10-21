@@ -150,7 +150,9 @@ pub struct FaceMeasure {
     /// indicator's sliver/snap kind.
     pub snap_bands: usize,
     /// Max over bands of the emitted lattice's post-`ceil` spacing
-    /// ratio `s_u/s_v` — the quantity `SAFE_ASPECT` judges.
+    /// ratio `s_u/s_v`, in raw UV. `SAFE_ASPECT` judges each band's
+    /// aspect over the face's lattice metric, which this record does
+    /// not carry, so the residual is not recomputable from it.
     pub realized_aspect: f64,
     /// `sup ‖S_uu‖` of the whole-patch bound.
     pub muu: f64,
