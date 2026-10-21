@@ -26,7 +26,7 @@ per-leg check green.
 the run-level certifier said to be profile validation, which escalates
 on `chord_side`. That escalation was a side effect of `seg::line_line`
 reading an in-band carrier question on segments that are definitely
-apart (`work/paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc.md`).
+apart (`work/profile/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc.md`).
 CPAIR's gap-first fix for it (`two-spans-projections-on-one-line-are-read-four-ways`,
 PR 3 of 4, held at `c389fd0f` on `nurbs/seg-one-line`) makes the pinned
 40-leg run (`bool11_probes::the_per_leg_band_composes_and_the_data_gate_catches_the_sum`,

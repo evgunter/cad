@@ -197,7 +197,7 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   placement off the origin at `1e-12`, cells where rule G
 ///   (`SymRules::canonical_root`) alone builds it over the sweep's
 ///   registrations. Never a contradiction, never a wrong answer
-///   (`work/paths/fixture-built-sym-rows-lose-registered-discharges.md`).
+///   (`work/profile/fixture-built-sym-rows-lose-registered-discharges.md`).
 /// - **The certified lane is not a superset or a subset of either.**
 ///   It refuses the washer at `(1e-9, 3.7e7)` where `Sym<f64>` builds
 ///   it (the enclosure straddles the band where the point does not),

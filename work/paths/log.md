@@ -775,3 +775,18 @@ Signed: (CARVE orchestrator)
 - 2026-10-21 — **Seam (NURBS):** PR 3 for CPAIR `two-spans-projections-on-one-line-are-read-four-ways` (NURBS build A, FULL, `nurbs/seg-one-line`). `profile::seg::line_line` now reads the gap between the two spans' projections on `s1`'s axis first (`gaps_apart`: `geom_core::one_line::on_one_line_2d`, new predicate `segment_gap`, `produced = 0` on the loop's stored vertices). Where that gap is apart past the band it answers no contact before any `chord_side` is read. The line×line row of `validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc` is resolved; its `line_arc` and `arc_arc` rows stay open. `a-declared-continuation-run-reads-a-moving-reference` closes with it (its "Done when": PR 5536, then this). New row: `rejections::an_end_in_band_of_a_carrier_but_past_its_segment_is_no_contact`.
 - 2026-10-21 — **Seam (NURBS):** PR 5542 (CPAIR's one-line PR 3) folded its FULL review. `seg::line_line` now reads two straight segments as check 9 reads two edges: the gap on either axis (`segment_gap`), then a definite one-carrier separation, before an in-band `chord_side` escalates. Its collinear arm reads `geom_core::one_line`, charged both ways. The adjacent pair through a joint straight within the band still escalates, and is filed as `an-adjacent-pair-through-a-joint-straight-within-the-band-escalates-on-chord-side` (P2), with a proposed rule check 9 would share.
 - 2026-10-21 — **Seam (NURBS):** PATHS' `path-scene-resolution-recourses-advise-a-coarser-tolerance-beside-geometry-levers` closes (NURBS build A, STANDARD, `nurbs/scene-resolution-recourse`). Six path recourses now name their geometry levers only, under D4 ¶1 (i) as Ev ruled it on `[ev]` PR 3352: `ARC_SCENE_RESOLUTION_RECOURSE`, `ARC_READ_BACK_UNDECIDED_RECOURSE` (its kernel-defect clause kept), the three `ContinuationTargetOffRay` sites, and the seam-arrival escalation. PATHS-DESIGN §4's "WIDEN the input tolerance" goes too, and a roster row guards every lever ending.
+
+## 2026-10-21 — PATHS closes; PROFILE opens
+
+Ev approved the closing plan in chat on 2026-10-21 ("your closing plan sounds good. the exit walk would be good though it can be very short"). The walk, `docs/PATHS-EXIT-WALK.md`, checks the plan's exit shape:
+
+- **Met:** the one carrier spelling, the declared closers, the witness and lift rule, and the over-full angle.
+- **Half met:** the comparator is met, but `carriers_are_identical` is not. Its row is open on ROUND.
+- **Not met:** "every unit on its own green hosted head". #5068 merged over three inherited `1e-12` reds.
+
+Every live row moves with its id kept, and each carries a dated "Re-homed at PATHS's close" section:
+
+- **46 rows go to PROFILE** (`work/profile/`), the successor opened here. It opens `ready` with no orchestrator, not `blocked`, because the check-9 arm-5 dedupe and the P2 validation rows are dispatchable. It opens at 98/30, and its first sitting owes the priority-seam split.
+- **One row goes to INLANE:** `a-path-sweeps-station-turn-at-interval-widens-its-walls-past-the-band-at-the-tightest-eps`. Its site is `crates/sweep/src/skin.rs` and its question is about the lane scalar.
+
+Citations of the moved rows in code comments, docs and other programs' rows are rewritten to the new paths; logs are left as written. `work/paths/` now holds only closed rows. The directory sweep and the ledger note follow Ev's ratification of the walk. (PATHS orchestrator)

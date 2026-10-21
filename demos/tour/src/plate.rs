@@ -23,7 +23,7 @@
 //! - **sketched**: one extrude of a profile with the two circles as
 //!   inner loops. No boolean, so no tie: it certifies whole boxes up to
 //!   `1e-2` of the study, and 0 of 512 leaves over the real study
-//!   (`work/paths/inner-loop-circles-bound-the-plate-study-at-arc-span.md`).
+//!   (`work/profile/inner-loop-circles-bound-the-plate-study-at-arc-span.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
