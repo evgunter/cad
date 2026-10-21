@@ -1051,8 +1051,8 @@ pub fn apex_pyramid_kept(
 /// The ring of a [`posed_crown`] with a thin fin: two faces folded at
 /// a short edge 1 mm long, risen 2° between corners 1e-4° apart, so a
 /// reference halfway along one fin face lies on the other's plane
-/// within the band and inside its sector. With a bottom at
-/// `(0, 0.2, −0.6)` it lies inside the block `[1, 2] × [0.5, 1.5] ×
+/// within the band and inside its sector. With its bottom
+/// [`FIN_BOTTOM`] it lies inside the block `[1, 2] × [0.5, 1.5] ×
 /// [0.3, 1.5]`.
 #[must_use]
 pub fn fin() -> Vec<[f64; 3]> {
@@ -1070,6 +1070,16 @@ pub fn fin() -> Vec<[f64; 3]> {
     ]
 }
 
+/// **The bottom of the [`fin`]'s crown**, under [`MEET`]. Seen from
+/// above, the fin's ring runs in to the short edge and back out, so the
+/// ring is a slit polygon, and a bottom fan bounds a solid only from a
+/// point every ring edge faces from inside: one in the thin wedge behind
+/// the slit's inner end, about the slit's own bearing. Straight under
+/// [`MEET`] is on that bearing. From a point off it the fan's face on
+/// one long fin edge leans across the slit and cuts through the faces
+/// beyond, so the boundary winds −1 where it does.
+pub const FIN_BOTTOM: [f64; 3] = [0.0, 0.0, -0.6];
+
 /// **A crown on [`MEET`]**: the solid between a fan of triangles from
 /// `MEET` to the closed `ring` and a fan from `bottom` to it (both
 /// relative to `MEET`), placed by `pose`. The ring runs counterclockwise
@@ -1080,8 +1090,40 @@ pub fn fin() -> Vec<[f64; 3]> {
 /// # Panics
 ///
 /// Where an Euler operator refuses, or the crown is not a finished body.
-#[allow(clippy::unwrap_used)]
+#[must_use]
+#[allow(clippy::panic)]
 pub fn posed_crown(ring: &[[f64; 3]], bottom: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    posed_crown_kept(ring, bottom, pose, tol)
+        .unwrap_or_else(|e| panic!("a crown is not a finished body: {e:?}"))
+}
+
+/// [`posed_crown`], with the at-rest gate's refusal kept rather than
+/// panicked on.
+///
+/// # Errors
+///
+/// The at-rest gate's findings.
+///
+/// # Panics
+///
+/// Where an Euler operator refuses.
+pub fn posed_crown_kept(
+    ring: &[[f64; 3]],
+    bottom: [f64; 3],
+    pose: &Pose,
+    tol: Tol,
+) -> Result<AtRestBody<f64>, Vec<crate::ValidationError>> {
+    <f64 as crate::AtRestPolicy>::gate_at_rest_kept(crown_body(ring, bottom, pose, tol), tol)
+}
+
+/// [`posed_crown`]'s body as built, before the at-rest gate.
+///
+/// # Panics
+///
+/// Where an Euler operator refuses.
+#[must_use]
+#[allow(clippy::unwrap_used)]
+pub fn crown_body(ring: &[[f64; 3]], bottom: [f64; 3], pose: &Pose, tol: Tol) -> Body<f64> {
     let n = ring.len();
     assert!(n >= 3, "a crown needs at least three ring corners");
     let off = |q: [f64; 3]| pose.at([0, 1, 2].map(|k| MEET[k] + q[k]));
@@ -1170,7 +1212,7 @@ pub fn posed_crown(ring: &[[f64; 3]], bottom: [f64; 3], pose: &Pose, tol: Tol) -
         body.set_face_surface(f, face(&rest)).unwrap();
     }
     describe_as_intersections(&mut body, tol);
-    finished("a crown", body, tol)
+    body
 }
 
 /// Boxes `[x, y, z]` placed by `pose`, as the solids of one body, built
