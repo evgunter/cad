@@ -401,6 +401,29 @@ fn an_end_in_band_of_a_carrier_over_an_overlapping_projection_is_no_contact() {
     validate_both(&p).expect("segment 0 lies wholly below segment 4's carrier");
 }
 
+/// **Two segments in band of one line but a metre apart along it are no
+/// contact.** The chain `(0,0) (1,0) (1,−1) (4,−1) (4,b) (2,b) (2,2) (0,2)`:
+/// segment 0 runs along `y = 0` to `x = 1`, and segment 4 along `y = b`
+/// from `x = 4` back to `x = 2`. Every end of each stands in band of the
+/// other's carrier, so no carrier side is definite and nothing but the
+/// spans' gap along the line, a metre, separates them. At `f64` and
+/// `Interval` alike.
+#[test]
+fn two_segments_in_band_of_one_line_a_metre_apart_along_it_are_no_contact() {
+    let b = line_band();
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, -1.0, 0.0),
+        (4.0, -1.0, 0.0),
+        (4.0, b, 0.0),
+        (2.0, b, 0.0),
+        (2.0, 2.0, 0.0),
+        (0.0, 2.0, 0.0),
+    ])]);
+    validate_both(&p).expect("the two segments lie a metre apart along their line");
+}
+
 /// The NOTE witness of PR 5536's review: a run along `y = 0.9ε` from
 /// `(−2, 0.9ε)`, its last head at `(−0.5, last)`, closed onto `Start`
 /// tangent, so the closing leg and segment 0 meet at `Start` through a
