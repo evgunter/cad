@@ -156,3 +156,29 @@ Measured on main `258dc6c7c2`, with `ec32861499` (just before FLUX's #5442) as t
 - **swept circle: the position half is gone** (#5442). The knot-structure and degree findings stand: every `circle`-section cell refuses at the default ε, at widths 6e-6 to 2e-5. Stays P1: it still blocks ordinary round tubes. The row's own recipe now hits tour wall 9 (`PathTangentReversal`), so the lofted twin was measured instead.
 - **area pads: stands, first measurement.** The bracket width varies 1.13× under rotation, and the flux width 2.8×. Stays P3.
 - **Class finding, sent to FLUX's log:** #5442 reads a shell about its first quadrature face's start, which costs bodies at the origin. That is evidence for FLUX's `a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first`.
+
+## 2026-10-21 — the dial weighed; `[ev]` PR 5574
+
+Designer pair on `quad2-rational-max-rounds-dial-decision`, on PR 5568's
+head, with the August numbers re-measured (unchanged: torus 1.146e-6,
+half cylinder 1.3035e-6, against 1.024e-6). The labels and blinding byte
+are on `analysis/design-fork/quad-rounds-dial`; fork-log row 187.
+- Round 1 split on whether a width wider than the target refuses.
+- Round 2 converged on a measurement that returns the bracket it reached,
+  at a per-call requested resolution, under one weighted work bound with a
+  stop on the narrowest round.
+- The change rewords `crates/geom-brep/README.md` C12(7) (agent-written,
+  `b54f9af64d`) and adds DESIGN.md `[tolerance.measure]`, so it is `[ev]`
+  PR 5574. If approved, the dial row closes into a unit that also
+  dissolves `quadrature-budget-conflates-its-lanes-and-budgets`,
+  `a-sign-walk-escalates-on-the-last-rounds-in-band-reporting-reading`
+  and QUADTAIL's stop-rule row, and finishes `C3`'s constant family.
+
+Filed off-question:
+- `the-area-pass-never-refines-beside-a-converged-volume` (P2);
+- `a-quadrature-loop-returns-its-last-round-not-its-narrowest` (P2);
+- QUADTAIL's `a-face-runs-rounds-it-never-intersects` (P4).
+
+`PastTarget::refine` reading `LAST_ROUND_EVERY_LANE_RUNS` while
+`sign_walk` reads `rounds_remain` (two readings of one schedule) goes to
+PR 5568's fix pass.
