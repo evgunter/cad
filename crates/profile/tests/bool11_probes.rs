@@ -289,6 +289,47 @@ fn the_off_ray_message_names_the_intent_and_the_miss() {
     assert!(msg.contains("not on its run's line"), "{msg}");
     assert!(msg.contains("across the line"), "{msg}");
     assert!(msg.contains("line_to"), "{msg}");
+    // A definite arm names no tolerance lever (D4 ¶1 (i)).
+    assert!(!msg.contains("tolerance"), "{msg}");
+}
+
+/// **The two in-band escalations name the geometry, never a tolerance.**
+/// A target `1.5ε` off the run's line escalates on
+/// `path_continuation_target_offset`, and a `line(3ε)` leg on
+/// `path_leg_length`. Each recourse is the authored data's (move the
+/// target onto the run's line, author a longer leg), and neither
+/// advises loosening ε (D4 ¶1 (i)): both have a geometry lever, so the
+/// last resort does not apply.
+#[test]
+fn the_in_band_continuation_escalations_name_no_tolerance() {
+    let t = Tol::witness();
+    let (eps, _) = band();
+    let started = || {
+        Open.at(Point2::new(0.0, 0.0))
+            .angle(0.0, t)
+            .unwrap()
+            .line(1.0, t)
+            .unwrap()
+    };
+    let off = started()
+        .continue_to(Point2::new(2.0, 1.5 * eps), t)
+        .expect_err("in band of the run's line");
+    let short = started()
+        .line(3.0 * eps, t)
+        .expect_err("a leg in band of zero");
+    for (want, recourse, err) in [
+        (
+            "path_continuation_target_offset",
+            "move the target onto the run's line",
+            off,
+        ),
+        ("path_leg_length", "author a longer leg", short),
+    ] {
+        let msg = err.to_string();
+        assert!(format!("{err:?}").contains(want), "{err:?}");
+        assert!(msg.contains(recourse), "{msg}");
+        assert!(!msg.contains("tolerance"), "{msg}");
+    }
 }
 
 /// **A target BEHIND the departure is a non-positive leg**, not a miss:

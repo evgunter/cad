@@ -76,14 +76,16 @@ fn r1_the_seam_arrival_escalation_inherits_the_junction_tail() {
     // The two halves of the inherited template are GONE.
     assert!(!msg.contains("at this junction"), "{msg}");
     assert!(!msg.contains("declare the coincidence"), "{msg}");
-    // And the composed recourse points the right way: the declaration
-    // is already made, and a LARGER tolerance is what admits the miss.
+    // And the composed recourse is the geometry's: the declaration is
+    // already made, and no tolerance lever is named either way (D4 ¶1
+    // (i): no refusal advises loosening ε, and a decision that passes
+    // only at Zero names no tightening).
     assert!(msg.contains("the declaration is the target"), "{msg}");
-    assert!(msg.contains("widen the input tolerance"), "{msg}");
     assert!(
-        msg.contains("LOWERING the tolerance is the wrong direction"),
+        msg.contains("move the geometry so the two directions agree"),
         "{msg}"
     );
+    assert!(!msg.contains("tolerance"), "{msg}");
 }
 
 // ------------------------------------------------------------------
