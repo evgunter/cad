@@ -1,0 +1,4 @@
+fork: work/frame/exact-frame-mints-cover-three-of-the-world-frames.md
+drawn: 2026-10-21, at dispatch
+byte: 233
+mapping: A = Fable, B = Opus
