@@ -28,6 +28,14 @@ A child of the census in `work/encl/a-typed-kernel-defect-ending-may-launder-a-b
   (~211). Door: evaluating a profile node (`NodeErrorKind::ProfilePieces`).
   **Class 2, likely**, each: one evaluation of one program builds the
   naming anchor, the replay record and the minted step ids.
+- `crates/editor-core/src/eval/wire.rs` `place` (~1038), rendering
+  `topo::TransformError::NullScaffold` through `NodeErrorKind::Transform`
+  (`eval/mod.rs` `Display`, ~2281, a build). Door: placing a copy's
+  bodies. **Class 2, likely**: it places finished feature bodies, so only
+  a kernel bug reaches the arm here. This caller is the bug-only reading
+  of an arm that PR 5528 made end in the scaffolding lever ("finish that
+  edit first") at a build, which is true for a caller's mid-edit body at
+  the public `transform_rigid` and blames the user here.
 
 `ProfileRecordMissing` (`eval/mod.rs` ~2289) is HELD (parameters: the
 guided lift over a parameter box). It is class 2, likely, and is not
