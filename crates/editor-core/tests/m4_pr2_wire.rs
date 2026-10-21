@@ -236,9 +236,8 @@ fn typed_refusal_doors() {
 ///
 /// Components of 1e200 are finite VALUES, so the expression layer
 /// passes them; their norm is what overflows to +∞, and an ∞ margin
-/// reads as maximally definite, which normalizes the vector to zero.
-/// The rule then steps by a zero direction and mints coincident
-/// copies out of a decided path.
+/// reads as maximally definite. The door asks whether the length is a
+/// number before it asks its sign, and refuses here.
 ///
 /// The refusal's own SENTENCE is pinned, not just its variant: a
 /// reader is told which vector refused, and the role word is a
@@ -567,25 +566,20 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
 }
 
 /// **The same document at the ENCLOSURE scalar**: the direction door
-/// does not refuse it, and nothing coincident is minted either.
+/// does not refuse it, and the pattern it places is the one the
+/// direction names.
 ///
 /// The finiteness question is asked through the value channel with no
 /// bracket read, so an enclosure of any width passes it deliberately —
 /// an interval whose norm overflowed still CONTAINS the true length,
 /// and refusing it here would refuse a sound enclosure for being wide.
-/// What the point scalar gains from the door, the interval scalar gets
-/// from its own width: the collapsed direction is not zero but a very
-/// wide enclosure, and the instances it would place fail
-/// re-certification instead (`carrier_endpoint_start` escalates on an
-/// enclosure that cannot be classified against the band).
-///
-/// So the pinned claim is the one that matters and no more than it:
-/// **no instances are minted at this scalar either.** Where the
-/// refusal comes from is named here in prose rather than asserted,
-/// because it belongs to certification and moves when certification
-/// moves; that the document is refused at all does not.
+/// `normalize` prescales past the squares' range, so `(1e200, 0, 0)`
+/// normalizes to `+x` and the three instances sit at `x = 0, 2, 4`,
+/// as they do for the direction `(2, 0, 0)`. The point scalar refuses
+/// this document at the door (`work/frame/
+/// direction-doors-refuse-finite-directions-normalize-now-answers`).
 #[test]
-fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
+fn a_non_finite_pattern_direction_places_its_instances_at_the_interval_scalar() {
     use editor_core::{CancelToken, EvalOptions, evaluate};
     use geom_core::Interval;
 
@@ -609,12 +603,22 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    match ev.nodes.get(&pat) {
-        Some(NodeResult::Failed(_)) => {}
-        Some(NodeResult::Ok(v)) => panic!(
-            "the enclosure lane admitted a 1e200 pattern direction and produced {}",
-            v.payload.kind_name()
-        ),
-        other => panic!("expected a refusal, got {other:?}"),
+    let Some(NodeResult::Ok(v)) = ev.nodes.get(&pat) else {
+        panic!("expected instances, got {:?}", ev.nodes.get(&pat));
+    };
+    let ValuePayload::Instances(instances) = &v.payload else {
+        panic!("expected instances, got {}", v.payload.kind_name());
+    };
+    assert_eq!(instances.len(), 3);
+    for (i, inst) in instances.iter().enumerate() {
+        let min_x = inst
+            .points()
+            .map(|(_, p)| geom_core::Bounds::lo(p.x))
+            .fold(f64::INFINITY, f64::min);
+        let want = 2.0 * i as f64;
+        assert!(
+            (min_x - want).abs() <= 1e-12,
+            "instance {i} starts at x = {min_x}, want {want}"
+        );
     }
 }

@@ -36,10 +36,9 @@ decide("chart_region_collinear_offset", Margin::of(max(off_a, off_b)))
 
 and its `Sign::Zero` arm then normalizes `r` (`let rhat = r.normalize()`).
 `|r|` is never asked to be a number. A chart polygon edge past
-`Vec2::normalize`'s ~1e154 band makes `|r| = ∞`, so a finite
-`perp_dot` divides to exactly 0, the max is 0, the offset decides
-definitely Zero — and `rhat` is the zero vector, which the span
-comparisons below then read. The rung above it
+`Vec2::norm`'s ~1e154 band makes `|r| = ∞`, so a finite
+`perp_dot` divides to exactly 0, the max is 0, and the offset decides
+definitely Zero. The rung above it
 (`chart_region_parallel`, `Margin::over_lever(denom, min(|r|,|s|))`)
 has the same denominator and reaches `Zero` the same way.
 
@@ -54,8 +53,8 @@ larger — the failure is a spurious Zero, not a spurious Positive.
 `crates/geom-brep/src/enters.rs:202-212`. `enters_material` decides
 the caller-named `arm`, then normalizes `dir`, whose own length is
 never decided or asked about at all. A `dir` past the overflow band
-normalizes to zero, the levered margin is 0, and the door answers
-`Tangent` — definite, and about nothing.
+used to normalize to zero, making the levered margin 0 and the door's
+`Tangent` definite and about nothing.
 
 `geom_core::is_finite_length`'s docs name this shape as "the declined
 half of the direction family" and cite ONE instance,
@@ -178,3 +177,12 @@ geom-brep site, it wants its own file rather than a sentence.
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for
 you except where this note says Ev answered it.
+
+**2026-10-21 (FRAME, `frame/normalize-overflow`).** `Vec3::normalize`
+and `Vec2::normalize` now prescale by an exact power of two past the
+squares' range, so a finite vector normalizes to its direction at
+every magnitude. Site 2 (`enters::sense_margin`'s `dir.normalize()`)
+no longer collapses: its margin is the right one for a finite `dir`
+of any size. Site 1's `rhat` is likewise the right direction; what
+remains there is the decided offset margin, whose infinite `|r|`
+still makes it a spurious definite Zero.
