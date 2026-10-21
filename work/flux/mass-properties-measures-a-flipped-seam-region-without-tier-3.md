@@ -2,11 +2,13 @@
 id: mass-properties-measures-a-flipped-seam-region-without-tier-3
 kind: issue
 title: mass_properties alone measures a flipped seam region's complement: the sphere flux arm reads each face's side alone
-status: open
+status: closed
 opened: 2026-10-11
 priority: P3
 cost: M
 refs: [a-pair-of-seam-siblings-flipped-together-is-silent]
+pr: 5556
+closed: 2026-10-21
 ---
 
 ## Measured
@@ -36,7 +38,7 @@ contradicts its region, or a documented statement that the measurement
 door trusts the bit where only a region encodes the side.
 
 
-## Closed (D2)
+## Closed (PR 5556)
 
 The measurement door now reads the seam regions tier 3's check 6
 reads, through the same reader (`crates/topo/src/props.rs`,
