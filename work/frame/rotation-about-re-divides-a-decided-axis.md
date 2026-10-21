@@ -2,10 +2,11 @@
 id: rotation-about-re-divides-a-decided-axis
 kind: issue
 title: Mat3::rotation_about normalizes its axis internally, so a caller holding the unit witness pays the divide twice — a witness-taking rotation constructor is the next member
-status: open
+status: closed
 opened: 2026-09-15
 priority: P1
 cost: E
+closed: 2026-10-21
 ---
 
 
@@ -48,3 +49,14 @@ the filing unit: `Mat3` is PROPS' ground and the bits argument (no
 change on a unit input) is what makes the second divide harmless
 today, so which door retires is this program's decision, not a
 one-line take.
+
+## Closed
+
+2026-10-21, FRAME orchestrator. The witness door exists: `Mat3::rotation_about_unit` and `rotation_about_unit_by` (`geom-core/src/linalg/mat.rs`) take a `UnitVec3` and do not normalize again, and the callers this row named (`editor-core`'s `placement.rs`, the transform map) take them. The bare `rotation_about` stays for callers holding no decided axis, which is a door with a reason, not a retirement owed. Its one remaining defect, the overflowed axis normalizing to zero, is `normalize-overflow-yields-zero-axis`'s and closes there. The bare call in `editor-core/src/mate/pin.rs` is INTENT's ground (D′ re-spells that helper).
+
+**2026-10-21 (FRAME, `frame/normalize-overflow`).** The bare door no
+longer collapses: `Vec3::normalize` prescales by an exact power of two
+past the squares' range, so an overflowed or underflowed axis
+normalizes to its direction and `rotation_about` builds the rotation
+about it, not `cos θ · I`. That is the remaining defect the note above
+hands to `normalize-overflow-yields-zero-axis`.

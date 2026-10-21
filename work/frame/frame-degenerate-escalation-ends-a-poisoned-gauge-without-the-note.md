@@ -4,6 +4,8 @@ kind: issue
 title: geom-core frame: FrameError::Degenerate's escalation ends a poisoned margin in the lever with no unreadable-margin note
 status: open
 opened: 2026-10-13
+priority: P3
+cost: E
 ---
 
 

@@ -59,7 +59,11 @@
 //! the lattice metric (`crate::nurbs_cert::lattice_metric`, a power of
 //! two near the mean realized aspect: of the NURBS schedule's bands, or
 //! of the cylinder lane's one uniform lattice), where the lattice is
-//! near square. The map is affine, so constraint segments
+//! near square. One face-wide `k` cannot square bands whose aspects
+//! spread far apart, so the NURBS schedule also raises a band's rows
+//! when its columns stay too narrow over `k`
+//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`], **Rows for
+//! narrow-column bands**). The map is affine, so constraint segments
 //! stay straight; and exact, so every coincidence in UV is one in the
 //! CDT. Only the CDT sees it: `meta`, the creases, the polygon's
 //! orientation and every certificate read UV.
@@ -109,8 +113,8 @@
 //! circumcircle beside itself (measured on the #316 leaf, and on a
 //! lofted circle's wall, where the ladder walked the sliver inward a
 //! step per round: `work/tess/lofted-rational-walls-refuse-at-some-deltas`).
-//! The cure is the lattice metric (above), which makes the lattice
-//! near square where the CDT runs
+//! The cure is the lattice metric and the row raise (above), which
+//! make the lattice near square where the CDT runs
 //! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
 //! that still certifies above δ after the shared round budget refuses
 //! typed ([`TessellateError::CertificateExceeded`]) — the
@@ -568,6 +572,15 @@ struct Emitted {
     refine: Vec<(f64, f64)>,
 }
 
+/// Whether an attempt's worst triangle certificate `worst` meets the
+/// chordal tolerance `delta`: the lane's one verdict. A NaN bound never
+/// certifies, and a bound above `delta` refuses the face typed
+/// ([`TessellateError::CertificateExceeded`]): the backstop that keeps a
+/// sliver loud.
+fn certifies(worst: f64, delta: f64) -> bool {
+    !(worst.is_nan() || worst > delta)
+}
+
 impl TrimmedFace<'_> {
     /// `(u, v)` in the lattice metric, `(u/k, v)` up to a uniform scale
     /// (which Delaunay ignores): the axis that SHRINKS is scaled, `u`
@@ -627,7 +640,7 @@ impl TrimmedFace<'_> {
             candidates.extend(refine);
             return Ok(Next::Rebuild);
         }
-        if measure.worst.is_nan() || measure.worst > self.tol.delta {
+        if !certifies(measure.worst, self.tol.delta) {
             return Err(TessellateError::CertificateExceeded {
                 face: fk,
                 bound: measure.worst,
@@ -1644,11 +1657,80 @@ impl Creases {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        ChordPass, Creases, FixedVertexHandle, SpadePoint, chain_creases, id_repeats_apart,
-        trim_polygon,
+        ChordPass, Creases, FixedVertexHandle, SpadePoint, TessellateError, certifies,
+        chain_creases, id_repeats_apart, trim_polygon,
     };
     use spade::{ConstrainedDelaunayTriangulation, Triangulation};
     use topo::FaceKey;
+
+    /// **The MAJOR-1 backstop's end-to-end guard**: a face left with a
+    /// sliver above δ refuses typed [`TessellateError::CertificateExceeded`]
+    /// through `crate::tessellate`, not only at [`certifies`]. No natural
+    /// body refuses once narrow-column bands take rows, so this row turns
+    /// the raise off (`nurbs_cert::tests::ROWS_RAISED`, test-only) and meshes the
+    /// uneven-station cylinder at the δ where it refused before the raise:
+    /// a lane that stopped consulting the verdict would mesh it silently.
+    ///
+    /// The face map runs on rayon, so the switch is set inside a one-thread
+    /// pool, on the worker that runs the face.
+    #[test]
+    fn a_face_left_slivered_refuses_typed_through_tessellate() {
+        use geom_core::Tol;
+        let tau = core::f64::consts::TAU;
+        let bulge = (tau / 16.0).tan();
+        let section = || {
+            vec![profile::test_support::bulge_loop(
+                (0..4)
+                    .map(|k| {
+                        let a = tau * f64::from(k) / 4.0;
+                        (geom_core::Point2::new(a.cos(), a.sin()), bulge)
+                    })
+                    .collect(),
+            )]
+        };
+        let body = sweep::loft_body::<f64>(
+            &[section(), section(), section(), section(), section()],
+            &sweep::test_support::stacked_at(&[0.0, 0.01, 0.02, 0.5, 1.0]),
+            2,
+            Tol::witness(),
+        )
+        .expect("the uneven-station cylinder lofts")
+        .body;
+        let delta = 2.586_047_619_477_458e-3;
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("a one-thread pool");
+        let (slivered, raised) = pool.install(|| {
+            crate::nurbs_cert::tests::ROWS_RAISED.with(|r| r.set(false));
+            let slivered = crate::tessellate(&body, delta, Tol::witness());
+            crate::nurbs_cert::tests::ROWS_RAISED.with(|r| r.set(true));
+            (slivered, crate::tessellate(&body, delta, Tol::witness()))
+        });
+        assert!(
+            matches!(
+                slivered,
+                Err(TessellateError::CertificateExceeded { bound, requested, .. })
+                    if bound > requested
+            ),
+            "rows not raised: the slivered face refuses typed, got {:?}",
+            slivered.map(|m| m.patches.len())
+        );
+        assert!(raised.is_ok(), "rows raised: the same face meshes");
+    }
+
+    /// **The verdict is the backstop** ([`certifies`]): a face whose worst
+    /// triangle certificate exceeds δ, or is NaN, refuses typed. No corpus
+    /// body reaches the refusal since narrow-column bands take rows, so the
+    /// verdict is pinned here directly, at its three edges.
+    #[test]
+    fn a_certificate_above_delta_or_nan_does_not_certify() {
+        assert!(certifies(0.5, 1.0));
+        assert!(certifies(1.0, 1.0), "exactly δ certifies");
+        assert!(!certifies(1.0 + f64::EPSILON, 1.0), "above δ refuses");
+        assert!(!certifies(f64::NAN, 1.0), "NaN refuses");
+        assert!(!certifies(f64::INFINITY, 1.0));
+    }
 
     /// Creases at `at` along `axis` on the unit square.
     fn creases(axis: usize, at: &[f64]) -> Creases {

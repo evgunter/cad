@@ -1502,9 +1502,11 @@ fn cylinder_holes<T: Decide>(
 /// area, silently ([`PropsError::RingWoundWithFace`]); a whole or a
 /// hole of no width is a degenerate face.
 ///
-/// The cylinder quadrature reads its rings through this same decision at
-/// the interval scalar (`quad::cylinder_cut_face_rounds`), where an
-/// enclosure that straddles the band escalates rather than takes a side.
+/// The cylinder quadrature and the spiric lane read their rings
+/// through this same decision at the interval scalar
+/// (`quad::cylinder_cut_face_rounds`,
+/// `spiric::require_rings_wound_against`), where an enclosure that
+/// straddles the band escalates rather than takes a side.
 ///
 /// Which rings are holes is the caller's to say, and the kinds differ
 /// on purpose: the cylinder passes over a ring that winds it
