@@ -6981,3 +6981,4 @@ Signed (WIRE orchestrator).
   - Fix pass also covers locators, per-shape recourse, README's Outright-join rule (check provenance), prose counts and full-shape rendering.
   - Note: most such Unruled variants already break the prefix rule. That is a class, now filed rather than spread.
 - 2026-10-21 (WIRE orchestrator) PR 5523 (repoint the moved rows' citations) is green and merged at fa65d8fb52. Main's three name_invariance failures are fixed.
+- 2026-10-21 (WIRE orchestrator) Dispatched `wire-orderalong` (wire/order-along-drops-its-count). It drops OrderAlong's `of`, and the witness is part of acceptance: three same-sense crossings on a torus or a bumped revolve. If no such witness can be built, the witness is filed.

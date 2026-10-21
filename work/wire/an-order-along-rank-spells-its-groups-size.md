@@ -2,7 +2,7 @@
 id: an-order-along-rank-spells-its-groups-size
 kind: issue
 title: Qualifier::OrderAlong { rank, of } spells the group's size in the name, so a third same-sense crossing renames the first two
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: M
