@@ -570,6 +570,22 @@ smoothness δ already buys. A display-mesh lane, when built, gets its
 own separately-honest criterion and is never promoted into the
 certified export promise.
 
+**A measurement's resolution is not a tolerance either.**
+`[tolerance.measure]`
+Mass properties take a per-call requested resolution: a length, the
+mean boundary displacement the certified enclosure's width corresponds
+to. It is of δ's kind: chosen per call, defaulting to a fixed length
+rather than one derived from ε, and participating in no kernel validity
+decision. The certified promise is the enclosure. A measurement refines
+until the request is met, refinement stops paying, or a per-face work
+bound (one bound, in one unit, for every lane) is reached. It then
+returns the narrowest enclosure it reached, with the request, the
+resolution reached and the reason it stopped. A width wider than the
+request is part of the value, never a refusal: only a face with no
+enclosure refuses. The validity decisions that read a volume (tier 3's
+sign, the boolean volume backstop, shell roles) decide a sign or a bound
+against the band, and never read the request.
+
 **The margin dimensional convention.** `[tolerance.margins]`
 ε is a length: the maximum
 deviation from specified geometry at a single point. Four clauses
@@ -2220,7 +2236,7 @@ Where the clauses of this document at commit `95c77e152a` now live.
 | D1 | [topology]; D1's frontier (c)–(f) moved to `docs/KERNEL-VERBS.md` |
 | D2 | [edges] |
 | D3 | [surfaces]; "One reading per question" is [one-way.readings]; "What a consumer does with the answer" is [verdicts.consumers] |
-| D4 | [tolerance]; ¶1 is [tolerance.epsilon] with [tolerance.recourse] (the two-tolerance principle and its (i)–(iv)), [tolerance.chordal] and [tolerance.margins]; ¶2 [tolerance.residuals]; ¶3 [tolerance.typed-failure]; ¶4 [tolerance.units]; ¶5 [tolerance.boundary] |
+| D4 | [tolerance]; ¶1 is [tolerance.epsilon] with [tolerance.recourse] (the two-tolerance principle and its (i)–(iv)), [tolerance.chordal], [tolerance.measure] and [tolerance.margins]; ¶2 [tolerance.residuals]; ¶3 [tolerance.typed-failure]; ¶4 [tolerance.units]; ¶5 [tolerance.boundary] |
 | D5 | [identity] |
 | D6 | [units] |
 | D7 | [import] |

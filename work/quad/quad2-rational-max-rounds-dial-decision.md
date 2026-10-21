@@ -7,7 +7,9 @@ opened: 2026-08-30
 github: 1315
 refs: [1314]
 priority: P1
-cost: D
+cost: H
+needs_ev: true
+design: true
 ---
 
 ## From GitHub issue 1315
@@ -87,3 +89,15 @@ full schedule refuses with the same payload (`rounds: 8`). Sound
 throughout. What a stricter ε buys on such a body is the budget
 exit's bracket, and that lives with this dial and with
 `SignCertificate::measure`'s stop-at-first-refusal, not with the demo.
+
+## Weighed (2026-10-21)
+
+Two designers weighed what should decide when the quadrature stops and
+refuses, on PR 5568's head, with the August numbers re-measured: the
+quarter torus is 1.146e-6 and the two-span half cylinder 1.3035e-6
+against 1.024e-6, both unchanged. They converged in round 2: the dial
+dissolves, and a measurement returns the certified bracket it reached
+instead of refusing for width (`[tolerance.measure]`). dm1 no longer
+reaches the quadrature: it refuses at the pcurve mint. The question is
+on an `[ev]` PR because it rewords `crates/geom-brep/README.md`'s
+clause (7) and adds a DESIGN.md clause.
