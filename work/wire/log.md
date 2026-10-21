@@ -6986,3 +6986,4 @@ Signed (WIRE orchestrator).
   - canonical's Reverse rule reads `of` through the refactor remap (ASM-4 ground). No three-entry carrier is buildable today (NURBS×plane booleans refuse), so the defect is unreachable.
   - The row now records options A/B/C, is re-priced P3+design, and moved to WIREREST. The path grep found no code citations.
   - Not sent to Ev now: the case is unreachable, and a design fork goes to the designer pair first, once a witness exists.
+- 2026-10-21 (WIRE orchestrator) Dispatched `wire-bridges` (wire/bridged-wedges-pair-booleans): the two bridged-wedge pair-boolean refusals as one unit. Their witnesses come off name_invariance's VACUOUS lists. FULL review.

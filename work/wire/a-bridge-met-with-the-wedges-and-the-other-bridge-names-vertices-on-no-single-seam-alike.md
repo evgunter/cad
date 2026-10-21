@@ -2,7 +2,7 @@
 id: a-bridge-met-with-the-wedges-and-the-other-bridge-names-vertices-on-no-single-seam-alike
 kind: issue
 title: A bridge intersected with the union of the wedges and the other bridge refuses with the kernel-defect sentence: vertices sharing one name lie on no single seam
-status: open
+status: dispatched
 priority: P2
 cost: M
 opened: 2026-10-20
