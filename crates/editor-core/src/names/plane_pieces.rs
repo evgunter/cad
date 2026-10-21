@@ -142,12 +142,13 @@ fn union(link: &mut [usize], a: usize, b: usize) {
 /// A plane piece's face, which the split door recorded in `body`.
 #[track_caller]
 fn piece_face<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> &topo::Face {
-    body.get_face(f).unwrap_or_else(|| {
+    let Some(face) = body.get_face(f) else {
         unreachable!(
             "plane piece {f:?} is not live in its half, though the split door records the \
              pieces of the half it hands over"
         )
-    })
+    };
+    face
 }
 
 /// A plane piece's loop `l`, walked: a loop of a live face of a body
@@ -159,12 +160,15 @@ fn loop_half_edges<T: geom_core::Real>(body: &Body<T>, l: LoopKey) -> Vec<HalfEd
     };
     match lp.boundary {
         LoopBoundary::Empty { .. } => Vec::new(),
-        LoopBoundary::Cycle { first } => body.loop_cycle(first).unwrap_or_else(|| {
-            unreachable!(
-                "a plane piece's loop {l:?} does not walk from {first:?}, though a tier-1-valid \
-                 loop's cycle closes"
-            )
-        }),
+        LoopBoundary::Cycle { first } => {
+            let Some(cycle) = body.loop_cycle(first) else {
+                unreachable!(
+                    "a plane piece's loop {l:?} does not walk from {first:?}, though a \
+                     tier-1-valid loop's cycle closes"
+                )
+            };
+            cycle
+        }
     }
 }
 

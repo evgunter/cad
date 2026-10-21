@@ -1904,12 +1904,11 @@ fn wire_datum<T: Decide>(
 /// not fit: past `u32::MAX` a loop's coordinate would name another
 /// loop's.
 fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
-    names::to_u32(
-        n,
-        "a profile holds more loops than a u32 loop index addresses",
-    )
-    .map(|n| 0..n)
-    .map_err(NodeErrorKind::Naming)
+    u32::try_from(n).map(|n| 0..n).map_err(|_| {
+        NodeErrorKind::Naming(names::NamingError::Emission {
+            what: "a profile holds more loops than a u32 loop index addresses",
+        })
+    })
 }
 
 /// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
@@ -2259,7 +2258,7 @@ fn wire_tube<T: Decide + topo::AtRestPolicy>(
     let built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
         .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
-        names::name_revolve(id, &built, &tube_pieces(&built)?).map_err(NodeErrorKind::Naming)?;
+        names::name_revolve(id, &built, &tube_pieces(&built)).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
         table,
@@ -2271,11 +2270,9 @@ fn wire_tube<T: Decide + topo::AtRestPolicy>(
 /// named by its place in that construction under the tube node
 /// (`names/README.md`, "N1, the profile pieces") — the shape the node
 /// kind fixes, which nothing can renumber.
-fn tube_pieces<T: Decide>(
-    built: &sweep::Revolved<T>,
-) -> Result<super::ProfilePieces, NodeErrorKind> {
+fn tube_pieces<T: Decide>(built: &sweep::Revolved<T>) -> super::ProfilePieces {
     let counts: Vec<usize> = built.rims.iter().map(Vec::len).collect();
-    super::ProfilePieces::section(&counts).map_err(NodeErrorKind::Naming)
+    super::ProfilePieces::section(&counts)
 }
 
 /// **A hollow tube** — `sweep::tube_along_arc_hollow`, the OTHER
@@ -2300,7 +2297,7 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
         sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
             .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
-        names::name_revolve(id, &built, &tube_pieces(&built)?).map_err(NodeErrorKind::Naming)?;
+        names::name_revolve(id, &built, &tube_pieces(&built)).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
         table,
@@ -4416,12 +4413,13 @@ fn member_lineage(
     fold: &names::UnionFold,
     f: topo::FaceKey,
 ) -> &std::collections::BTreeSet<(usize, topo::FaceKey)> {
-    fold.member_faces(f).unwrap_or_else(|| {
+    let Some(lineage) = fold.member_faces(f) else {
         unreachable!(
             "union fold accumulation face {f:?} has no member-face lineage, though the fold \
              records one for every face of every accumulation it builds"
         )
-    })
+    };
+    lineage
 }
 
 /// **A fold step's face-pair rows restate its given pairs** (DM4, the

@@ -470,7 +470,7 @@ impl<K: Ord + Clone> Obstacles<K> {
             .iter()
             .chain(merged)
             .map(|&f| face_half_edges(body, f))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
         let walls = self.walls(
             body,
             parent,
