@@ -1151,7 +1151,8 @@ fn per_cell_candidates(
         stats.cap_bands += usize::from(b.cap);
         stats.snap_bands += usize::from(b.snapped);
         // The emitted lattice's post-`ceil` parameter aspect `s_u/s_v`
-        // — the quantity SAFE_ASPECT judges — max over bands. The NaN
+        // in raw UV, max over bands (SAFE_ASPECT judges it over the
+        // schedule's lattice metric, `nurbs_cert::malign`). The NaN
         // seed means "no bands yet" and the first band overwrites it;
         // every band's aspect is a finite positive ratio (nonempty
         // extents over counts floored at one).

@@ -680,6 +680,19 @@ pub(crate) fn face_bound(
 /// 3.35x → 3.10x, still over the acceptance line) for correctly
 /// snapping the near-one-step bands the ideal-step test missed.
 ///
+/// **What is judged now, and what of it was measured.** [`malign`]
+/// judges a band's RESIDUAL aspect, its realized `s_u/s_v` over the
+/// face's [`lattice_metric`], against this line above and its inverse
+/// below. The measurement above was taken one-sided and in raw UV: the
+/// UPPER arm (columns too wide, a strip whose off-column points
+/// sliver), where every figure in this doc lives. The LOWER arm
+/// (columns too narrow, whose hazard is off-ROW points) takes
+/// `1/SAFE_ASPECT` by symmetry of the sliver formula and is
+/// unmeasured: no corpus body exercises it (a one-sided mutant is
+/// green outside the unit rows), and its remedy, the column snap, is
+/// aimed at the other arm's hazard
+/// (`work/tess/the-lower-malign-arm-is-unwitnessed`).
+///
 /// **What goes red, named — and scoped, because none of it is as wide as
 /// it first reads** (issue #667's Q6). Three things, and they bracket the
 /// constant only when taken together:
@@ -760,7 +773,12 @@ pub(crate) struct BandSchedule {
 
 /// **The lattice metric** a face's trimmed CDT runs in: the power of
 /// two nearest (in `log₂`) the geometric mean of the extreme band
-/// aspects, `√(min a_b · max a_b)`, `a_b = s_u/s_v` realized.
+/// aspects, `√(min a_b · max a_b)`, `a_b = s_u/s_v` realized by each
+/// band's OWN schedule, before the malign-band snap. It is taken once
+/// and not re-derived after the snap: the snap moves only the bands
+/// whose residual over this metric is malign, and judging them against
+/// a metric they themselves then move would not be a fixpoint of one
+/// question. #5531's review found the difference inert on the corpus.
 ///
 /// Delaunay is not stretch-invariant. In raw UV, a band whose columns
 /// are far narrower than its rows (a ruled wall's strip: `a_b ≈ 0.03`
@@ -1172,17 +1190,8 @@ impl NurbsCellGrid {
         // anisotropic `nuc = 1` band, which is the only reason a
         // `nuc >= 2` exemption survived here.
         //
-        // Judged against the LATTICE METRIC, in both orientations: the
-        // trimmed lane triangulates with `u` divided by `metric` (the
-        // power of two nearest the geometric mean of the bands' own
-        // realized aspects, [`lattice_metric`]), so what slivers is a
-        // band's RESIDUAL aspect `a_b / metric`, columns too wide or
-        // too narrow alike. The test was one-sided before (`s_u >
-        // SAFE_ASPECT · s_v` in raw UV), so a ruled wall's strip of
-        // rows far wider than its columns — a lofted wall's `a_b ≈
-        // 0.03` — was never judged at all, and its off-lattice seam
-        // points slivered unchecked
-        // (`work/tess/lofted-rational-walls-refuse-at-some-deltas`).
+        // Judged against the lattice metric, in both orientations: the
+        // doc's **Why** above.
         let metric = lattice_metric(bands.iter().map(|b| b.aspect(du)));
         let is_malign = |b: &BandCounts| malign(b.aspect(du), metric);
         // The snap: every near-malign band takes the patch column
