@@ -4,6 +4,8 @@ kind: issue
 title: A loft of fewer than two sections refuses at evaluation though its section count is authored data the doors hold
 status: open
 opened: 2026-10-20
+priority: P3
+cost: E
 ---
 
 
@@ -36,3 +38,7 @@ A ruling on whether the edit and load doors refuse a loft of fewer
 than two sections (an `InputFault` arm, with `SkinError::TooFewSections`
 then unreachable from a document), or the evaluation refusal stays and
 says why a door does not hold it.
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).

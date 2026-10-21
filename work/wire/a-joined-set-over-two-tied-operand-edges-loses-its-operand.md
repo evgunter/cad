@@ -4,6 +4,8 @@ kind: issue
 title: A pair boolean's joined edge over two operand edges one tie names takes a bare From name with no operand, and its vertex refuses
 status: open
 opened: 2026-10-20
+priority: P3
+cost: M
 ---
 
 
