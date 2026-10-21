@@ -82,16 +82,12 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
     let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
-            loops: vec![
-                shape(&ProfileShape::Circle {
-                    centre: [R, 0.0],
-                    radius: RO,
-                }),
-                shape(&ProfileShape::Circle {
-                    centre: [R, 0.0],
-                    radius: RI,
-                }),
-            ],
+            loops: [RO, RI]
+                .map(|radius| LoopProgram::Circle {
+                    centre: [len(R), Formula::zero(Dimension::Length)],
+                    radius: len(radius),
+                })
+                .into(),
         },
     );
     let revolve = session_insert(

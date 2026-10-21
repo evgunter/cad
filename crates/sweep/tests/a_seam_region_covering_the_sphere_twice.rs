@@ -7,19 +7,16 @@
 //! the same cover split until each face holds its own side is refused
 //! too; and so is a ball of three lunes or more turned inside out.
 //!
-//! `mass_properties` runs no tier 3, and still measures the body as
-//! twice the ball. That residual is pinned here until the door reads
-//! the census itself
-//! (`work/flux/mass-properties-measures-a-flipped-seam-region-without-tier-3.md`),
-//! and goes red for the right reason then.
+//! `mass_properties` runs no tier 3, and reads the same census at the
+//! door: it refuses the body by the same finding.
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use crate::seam_region_common::{
     flipped, sphere_faces, split_at_meridian, split_faces_at_equator, split_inside,
     split_meridians_at_equator, split_outside, v,
 };
+use geom_brep::props::PropsError;
 use geom_core::Tol;
-use std::f64::consts::PI;
 use sweep::test_support::{ball_poled, finished};
 use topo::{Body, ValidationError};
 
@@ -43,10 +40,16 @@ fn an_exterior_meridian_covers_the_sphere_twice_and_is_refused() {
         ),
         "the doubled ball is refused as covered twice: {errs:?}"
     );
-    let got = topo::mass_properties(&body, tol).unwrap().volume;
+    let door = topo::mass_properties(&body, tol);
     assert!(
-        (got - 8.0 * PI / 3.0).abs() <= 1e-9,
-        "the door alone measures {got}, pinned at twice the ball's 4π/3"
+        matches!(
+            door,
+            Err(topo::MassPropsError::Face {
+                source: PropsError::SeamRegionOvercovered { times: 2 },
+                ..
+            })
+        ),
+        "the door refuses the doubled ball as covered twice: {door:?}"
     );
 }
 
@@ -89,6 +92,17 @@ fn a_double_cover_whose_faces_each_read_their_own_side_is_refused() {
             [ValidationError::SeamRegionOvercovered { times: 2, .. }]
         ),
         "the split double cover is refused as covered twice: {errs:?}"
+    );
+    let door = topo::mass_properties(&body, tol);
+    assert!(
+        matches!(
+            door,
+            Err(topo::MassPropsError::Face {
+                source: PropsError::SeamRegionOvercovered { times: 2 },
+                ..
+            })
+        ),
+        "the door refuses it by the census too: {door:?}"
     );
 }
 

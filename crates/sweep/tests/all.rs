@@ -310,6 +310,8 @@ mod spheres_crossing_off_every_edge;
 mod spiric_faces_fuzz;
 #[path = "sym11_far_placement_rows.rs"]
 mod sym11_far_placement_rows;
+#[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
+mod the_door_reads_seam_regions_as_tier_3_does;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
 #[path = "tilted_sphere_pair_k_rows.rs"]

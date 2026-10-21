@@ -353,10 +353,7 @@ fn seated_at(x: f64, y: f64) -> [(Coord, Formula); 3] {
     [
         (Coord::Slide(TargetAxis::X), length(x)),
         (Coord::Slide(TargetAxis::Y), length(y)),
-        (
-            Coord::Spin,
-            Formula::literal(0.0, Dimension::Angle).expect("a zero angle"),
-        ),
+        (Coord::Spin, Formula::zero(Dimension::Angle)),
     ]
 }
 
@@ -507,7 +504,7 @@ fn prism_part(
         );
         scope.insert(name, Dimension::Length);
     }
-    let zero = pe("0 mm", &scope);
+    let zero = Formula::zero(Dimension::Length);
     // The section, counter-clockwise from the origin corner: the two
     // extents are the document's own named parameters, so the corners
     // are expressions and the loop is built from them directly.
