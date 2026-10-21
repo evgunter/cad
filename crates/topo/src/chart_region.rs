@@ -5854,11 +5854,17 @@ mod from_computed_rows {
             );
             Vec::new()
         });
+        // The counts follow the cap's chart: `prism_ops` charts each
+        // plane along its first edge, and the witness the `f64`
+        // decomposition picks in that chart is certified in 20 fewer
+        // contact probes (`bool_contact_edge`, `_vertex`, `_edge_length`
+        // each) and 29 fewer opaque `point_in_loop_*` steps than one
+        // picked in a chart off the world axes (1189 kept, 186 opaque).
         assert_eq!(
             found,
             Revalued {
-                kept: 1189,
-                opaque: 186,
+                kept: 1169,
+                opaque: 117,
                 laundered: 0,
             },
             "the decisions at the witness are opaque, and the rest re-value with the scale"

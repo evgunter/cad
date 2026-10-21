@@ -88,7 +88,8 @@ fn triangle_prism<T: Decide + topo::AtRestPolicy>()
         param_start: T::zero(),
         param_end: w.norm(),
     };
-    let plane = |corners: &[Point3<T>]| newell_plane(corners, band()).unwrap();
+    let plane =
+        |corners: &[Point3<T>]| newell_plane(corners, corners[1] - corners[0], band()).unwrap();
 
     let mut body = Body::<T>::new();
     let seed = body.mvfs(a, true).unwrap();
