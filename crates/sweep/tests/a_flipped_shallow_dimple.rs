@@ -77,13 +77,24 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
     let flipped = dimple.iter().fold(topo::Body::clone(&body), |b, &k| {
         b.flipped_face_sense_for_tests(k).expect("the face")
     });
+    // Each flipped half claims its complement, which holds the other, so
+    // the cover census refuses their region as claimed twice, named by
+    // its first member, before the face reads name each flipped half.
     assert_eq!(
         topo::validate_geometric(&flipped, tol),
-        Err(dimple
-            .iter()
-            .map(|&face| topo::ValidationError::CurvedSenseInverted { face })
-            .collect()),
-        "check 6 names both flipped faces, and nothing else does"
+        Err(
+            core::iter::once(topo::ValidationError::SeamRegionOvercovered {
+                face: dimple[0],
+                times: 2,
+            })
+            .chain(
+                dimple
+                    .iter()
+                    .map(|&face| topo::ValidationError::CurvedSenseInverted { face })
+            )
+            .collect()
+        ),
+        "check 6 names the overlap and both flipped faces, and nothing else does"
     );
     assert!(
         matches!(

@@ -6288,6 +6288,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffold_at_rest",
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
+            "seam_region_cover_unresolved",
+            "seam_region_overcovered",
             "shell_disconnected",
             "shell_role_undecided",
             "shell_winding",
