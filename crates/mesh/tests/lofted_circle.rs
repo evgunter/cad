@@ -266,44 +266,29 @@ fn an_uneven_station_loft_meshes_or_refuses_typed() {
     );
 }
 
-/// **The certificate refusal is the backstop, and it fires.** The same
-/// stations on a constant-radius cylinder spread their bands' aspects
-/// 166:1 (56 at the thin first span, 0.34 at the thick ones), and the
-/// one face-wide metric leaves the thick bands at residual 0.085: a
+/// **A band too narrow-columned for its rows takes rows**
+/// (`work/tess/cylinder-lofted-through-uneven-stations-refuses-at-fine-delta`).
+/// The same stations on a constant-radius cylinder spread their bands'
+/// aspects 166:1 (56 at the thin first span, 0.34 at the thick ones), and
+/// the one face-wide metric leaves the thick bands at residual 0.085: a
 /// trim point between two of their rows fans a sliver the certificate
-/// bounds above δ. At four review δ the face refuses typed
-/// `CertificateExceeded`; at the other sixteen it meshes watertight.
-/// A lane that accepted a triangle above δ would mesh those four
-/// silently, and this row is what reds it.
-///
-/// The body is the open liveness item
-/// `work/tess/cylinder-lofted-through-uneven-stations-refuses-at-fine-delta`.
-/// When that item's fix makes this cylinder mesh, the row moves to a body
-/// that still refuses, so the refusal keeps a witness.
+/// bounds above δ, and the face refused typed at four review δ. Raised to
+/// the residual line (`nurbs_cert::MAX_RESIDUAL_SQ`), the thick bands
+/// carry enough rows that every δ meshes, watertight, at π within the
+/// chordal sag. The refusal itself stays the backstop, pinned at the
+/// verdict (`trimmed`'s `a_certificate_above_delta_or_nan_does_not_certify`).
 #[test]
-fn an_uneven_station_cylinder_refuses_typed() {
+fn an_uneven_station_cylinder_meshes_at_every_review_delta() {
     let body = uneven_station_round([1.0; 5], 0.01);
-    let mut refused = Vec::new();
+    let pi = core::f64::consts::PI;
     for delta in review_deltas() {
-        match mesh::tessellate(&body, delta, Tol::witness()) {
-            Ok(mesh) => {
-                check_mesh(&mesh).unwrap_or_else(|e| panic!("δ = {delta:e}: {e:?}"));
-            }
-            Err(mesh::TessellateError::CertificateExceeded {
-                bound, requested, ..
-            }) => {
-                assert!(
-                    bound > requested,
-                    "δ = {delta:e}: a refusal names its overrun"
-                );
-                refused.push(delta);
-            }
-            Err(e) => panic!("δ = {delta:e}: an untyped or other refusal: {e:?}"),
-        }
+        let mesh = mesh::tessellate(&body, delta, Tol::witness())
+            .unwrap_or_else(|e| panic!("δ = {delta:e}: the uneven-station cylinder meshes: {e:?}"));
+        check_mesh(&mesh).unwrap_or_else(|e| panic!("δ = {delta:e}: {e:?}"));
+        let v = signed_volume(&mesh);
+        assert!(
+            ((v - pi) / pi).abs() < 3.0 * delta,
+            "δ = {delta:e}: mesh volume {v} vs π"
+        );
     }
-    assert_eq!(
-        refused.len(),
-        4,
-        "the uneven-station cylinder refuses typed at four review δ: {refused:?}"
-    );
 }
