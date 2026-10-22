@@ -235,3 +235,28 @@ PR 5568's fix pass.
   - Future briefs repeat the rule explicitly: a lane that cannot re-run reports the failure, and never pushes to re-trigger CI.
 - 2026-10-22 — Correction to the rational-quotient-statement entry: the floors drop 5–1430× (25–1430× but for the 1e-3/1e3 square, 5.4×; the 22–305× it gives undercounts the Möbius and hypar carriers). The fix pass on PR 5582 also re-cut the sweep thread-count goldens, made a cell's span a construction fact (`SpanCell`), and pinned the midpoint enclosure; the rows it filed are named in the PR.
 - 2026-10-22 — **PR 5582 merged** (the rational quotient statement). Dual review, concurrent arm (H). Both reviews NOT-MERGEABLE-AS-IS on the same two MAJORs, both bilateral, so the tally is 0. One fix pass, read on its head by the orchestrator. Pair judged fair despite R2's pattern `pkill` killing one of R1's test processes, which R1 re-ran in full. Class finding: reviewer briefs did not carry the never-kill-by-pattern rule; from now on QUAD's reviewer briefs state it, as implementer briefs do.
+
+## 2026-10-22 — the measurement door specified (`docs/QUAD-MEASURE-SPEC.md`)
+
+- **Inputs.** A read-only survey inventoried every round cap, budget symbol, walk, decider and public number door, along with the tests and tools that pin them. Its surprises shaped the rulings:
+  - connectedness runs the reporting walk before it reads a role;
+  - the backstop kills a decidable relation on any budget refusal, and refines only to round 6;
+  - only three of the five lanes exit early;
+  - many tour and Python rows assert widths for precision's own sake, so each will name its resolution;
+  - k-lint's roster lexes `quad.rs`'s mint sites.
+- **Units:**
+  - A (lanes): DUAL, H.
+  - B (topo door and deciders, keeping today's public signatures through marked interim `Resolution(1024·ε)` sites): DUAL, H.
+  - C (no default, every consumer): single FULL. It is broad but mechanical.
+- **Rulings R1–R11** are the orchestrator's, at implementation level:
+  - lanes know no target;
+  - "stops paying" is a per-lane floor;
+  - one weighted `FACE_WORK_WALL` at today's worst face;
+  - the narrowest round, not the last;
+  - rings per PR 5580's rule;
+  - `Settle` in `topo::props`;
+  - one multi-body walk;
+  - deciders route through the door;
+  - `ImportReport` keeps the certificate and the caller measures;
+  - what goes;
+  - one `FaceRun` state.
