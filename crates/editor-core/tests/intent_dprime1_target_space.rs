@@ -248,3 +248,60 @@ fn every_corpus_space_is_a_space_variable() {
         }
     }
 }
+
+/// **A re-point that leaves its node in two spaces refuses at the door**
+/// (D10 `[placement.spaces]`): a [`DocEdit::SetParam`] of a subtract's
+/// cut, and a [`DocEdit::SetMembers`] of a union's list, each onto a
+/// construction of another space, refuse `SpaceMismatch` naming both
+/// spaces, with no evaluation run, as an insert of the same node does.
+/// Only a placement's re-target may leave reads in two spaces.
+///
+/// *Breaks if* the operand-write door admits a re-point across spaces.
+#[test]
+fn a_re_point_across_two_spaces_refuses_at_the_door() {
+    let doc = ProfileDoc::empty(DocumentId::derive("dprime1-repoint"), Tol::witness());
+    let (doc, a) = block(doc, 0.0);
+    let (doc, b) = block(doc, 3.0);
+    let (doc, c) = block(doc, 6.0);
+    let (space_a, space_b) = (fixture::space(&doc, a), fixture::space(&doc, b));
+    let (doc, copy) = fixture::stood_in(doc, c, a);
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: Operand::from(a).into(),
+            tool: Operand::from(copy).into(),
+        },
+    );
+    let (doc, joined) = insert(doc, union(a, copy));
+    let refused = |edit: DocEdit<editor_core::ProfileProgram>, node: RecipeNodeId| match apply(
+        &doc,
+        &edit,
+        Tol::witness(),
+    ) {
+        Err(EditError::SpaceMismatch {
+            node: said,
+            a: one,
+            b: other,
+        }) => {
+            assert_eq!(said.id(), node);
+            assert_eq!((one.id(), other.id()), (space_a, space_b));
+        }
+        other => panic!("a re-point across two spaces refuses at the door, got {other:?}"),
+    };
+    refused(
+        DocEdit::SetParam {
+            node: cut,
+            slot: SlotId::Operand(OperandSlot::Cut),
+            value: SlotValue::Read(Operand::from(b)),
+            fresh: Vec::new(),
+        },
+        cut,
+    );
+    refused(
+        DocEdit::SetMembers {
+            node: joined,
+            members: Bodies::Spelled(vec![Operand::from(a).into(), Operand::from(b).into()]),
+        },
+        joined,
+    );
+}

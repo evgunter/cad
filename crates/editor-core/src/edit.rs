@@ -136,8 +136,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// here, of the REWRITTEN node, through the same functions: each
     /// entry's lowering at its seat's kind ([`EditError::UnresolvedInput`],
     /// [`EditError::SlotVarKind`], which a family read beside a member
-    /// meets) and acyclicity ([`EditError::WouldCycle`]). A loft's
-    /// sections are spelled, so a family there refuses
+    /// meets), acyclicity ([`EditError::WouldCycle`]), and one space
+    /// over every entry ([`EditError::SpaceMismatch`], D10
+    /// `[placement.spaces]`). A loft's sections are spelled, so a family
+    /// there refuses
     /// [`EditError::LoftSectionsSpelled`]; a node with no list input
     /// refuses [`EditError::SetMembersOnNonList`].
     SetMembers {
@@ -5412,7 +5414,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// As [`Self::apply`]'s.
     pub fn apply_recorded(&mut self, edit: DocEdit<P>) -> Result<EditRecord, EditError> {
         self.open()?;
-        let applied = apply(self.doc(), &edit, self.tol).map_err(|e| self.end(e))?;
+        let applied = apply_spaced(self.doc(), &edit, self.tol, None).map_err(|e| self.end(e))?;
         let record = applied.record.clone();
         self.take(edit, applied);
         Ok(record)
@@ -5507,6 +5509,30 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     pub fn finish(self) -> Result<Recorded<P>, EditError> {
         self.open()?;
         let doc = self.produced.unwrap_or_else(|| self.start.clone());
+        // D10 `[placement.spaces]`, held once for the whole action: a
+        // node one of its edits re-pointed may pass through two spaces
+        // between edits (a split or an inline re-points a node's reads
+        // one at a time) but not end there. A node a re-target or a
+        // delete left in two spaces is reported, as [`apply`] reports it.
+        let repointed: std::collections::BTreeSet<RecipeNodeId> =
+            self.edits.iter().filter_map(repointed).collect();
+        let before: std::collections::BTreeSet<RecipeNodeId> = self
+            .start
+            .space_faults()
+            .into_iter()
+            .map(|(id, _, _)| id)
+            .collect();
+        if let Some((node, a, b)) = doc
+            .space_faults()
+            .into_iter()
+            .find(|(id, _, _)| repointed.contains(id) && !before.contains(id))
+        {
+            return Err(EditError::SpaceMismatch {
+                node: doc.spoken(node),
+                a: Box::new(doc.spoken_space(a)),
+                b: Box::new(doc.spoken_space(b)),
+            });
+        }
         // A variable the action minted and removed again was never the
         // document's: its removal is no maintenance of the action's.
         let mut maintenance = self.maintenance.finish(&doc);
@@ -5990,11 +6016,8 @@ fn check_written_node<P: crate::ProfilePayload>(
     }
     check_node_slots(new, doc, id, node)?;
     // D10 `[placement.spaces]`: a node written whole reads one space,
-    // decided from the recipe. A re-point is the operand-write door's,
-    // which reports what it leaves in two spaces and never refuses it
-    // (`Maintenance::StrandedSpace`), as a re-target does: so an action
-    // re-pointing a node's reads one at a time (split, inline) passes
-    // through a state its next edit resolves.
+    // decided from the recipe. A re-point is held to the same rule at
+    // the door ([`door`]), where a re-target is told apart.
     if let Writes::Node = writes
         && let Some((a, b)) = new.space_fault_of(node)
     {
@@ -6075,7 +6098,9 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
 /// a re-point): `rewritten` is the node `id` with the reads its edit
 /// named in full, each already lowered at its seat's kind
 /// ([`lower_operand`]). It passes every check the insert door makes of
-/// a node ([`check_written_node`]) and acyclicity over reads, and the
+/// a node ([`check_written_node`]), acyclicity over reads, and, but
+/// for a placement's re-target, one space over its reads (held at the
+/// [`door`]), and the
 /// root list follows the moved reads. The write reports, and never
 /// refuses, the payload names it strands: a name whose minting node is
 /// no longer upstream of the node that carries it
@@ -6599,7 +6624,37 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
     edit: &DocEdit<P>,
     tol: Tol,
 ) -> Result<Applied<P>, EditError> {
-    let (doc, record, maintenance) = door(doc, tol, |new, reported| {
+    apply_spaced(doc, edit, tol, repointed(edit))
+}
+
+/// **The node `edit` re-points**, whose reads it rewrites in place:
+/// a [`DocEdit::SetParam`] at an operand but a placement's `target`,
+/// or a [`DocEdit::SetMembers`]. Such a node is held to D10
+/// `[placement.spaces]` as one written whole is. A re-target is not:
+/// it is the one write that may leave reads in two spaces, reported
+/// ([`Maintenance::StrandedSpace`]) and refused at evaluation.
+fn repointed<P: crate::ProfilePayload>(edit: &DocEdit<P>) -> Option<RecipeNodeId> {
+    match edit {
+        DocEdit::SetParam {
+            node,
+            slot: SlotId::Operand(slot),
+            ..
+        } if *slot != crate::OperandSlot::Space => Some(*node),
+        DocEdit::SetMembers { node, .. } => Some(*node),
+        _ => None,
+    }
+}
+
+/// [`apply_with`], refusing a space fault the edit leaves on `held`
+/// (the node it re-points), or none: a [`Recording`] holds its re-points
+/// to the rule once, when the action ends ([`Recording::finish`]).
+fn apply_spaced<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    edit: &DocEdit<P>,
+    tol: Tol,
+    held: Option<RecipeNodeId>,
+) -> Result<Applied<P>, EditError> {
+    let (doc, record, maintenance) = door(doc, tol, held, |new, reported| {
         write_edit(doc, new, reported, edit, tol)
     })?;
     Ok(Applied {
@@ -6617,8 +6672,9 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     node: &Node<P::Authored, Formula>,
     tol: Tol,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
-    let (doc, minted, maintenance) =
-        door(doc, tol, |new, _| insert_into(doc, new, node, &[], tol))?;
+    let (doc, minted, maintenance) = door(doc, tol, None, |new, _| {
+        insert_into(doc, new, node, &[], tol)
+    })?;
     let id = minted.0;
     let applied = Applied {
         doc,
@@ -6634,6 +6690,7 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
 fn door<P: Clone + crate::ProfilePayload, T>(
     doc: &Doc<P>,
     tol: Tol,
+    held: Option<RecipeNodeId>,
     write: impl FnOnce(&mut Doc<P>, &mut Vec<Maintenance>) -> Result<T, EditError>,
 ) -> Result<(Doc<P>, T, Vec<Maintenance>), EditError> {
     let mut new = doc.clone();
@@ -6653,15 +6710,23 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
-    // D10 `[placement.spaces]`, on EVERY arm: a node this edit left
-    // reading two spaces is reported, never refused (a node an edit
-    // writes whole is refused at its own door; a re-point is reported).
+    // D10 `[placement.spaces]`, on EVERY arm: the node an edit
+    // re-points (`held`) is refused reading two spaces, as one written
+    // whole is at its own door; any other node an edit left reading two
+    // spaces — downstream of a re-target, or of a delete — is reported.
     let before: std::collections::BTreeSet<RecipeNodeId> = doc
         .space_faults()
         .into_iter()
         .map(|(id, _, _)| id)
         .collect();
     for (node, a, b) in new.space_faults() {
+        if held == Some(node) {
+            return Err(EditError::SpaceMismatch {
+                node: spoken_before_else_after(doc, &new, node),
+                a: Box::new(new.spoken_space(a)),
+                b: Box::new(new.spoken_space(b)),
+            });
+        }
         if !before.contains(&node) {
             reported.push(Maintenance::StrandedSpace {
                 node: new.spoken(node),
