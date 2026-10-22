@@ -19,3 +19,4 @@ Protocol deviation: the byte was drawn after both reports were delivered (dispat
 - Round 3 (further designer, Opus): X (nothing at rest) with a carve-out for confirmed face pairs' boundary cells; found today's in-band near-flush escalation refuses. Posted to Ev as a 2-1 recommendation (PR 5555 comment 6320771190); diff e01b9978f7.
 - Ev 2026-10-22T01:23Z: 'flush by number is something that should be reported; the proper way to specify this would be a mate that additionally indicates that it is flush there' — Y taken (B's original, A's round 1). Follow-up: both designers asked how a mate states flush.
 - How a mate states flush: A (Opus) Flag pose kind + flag mate; B (Fable) value set to a plane pair (to_plane). Round 1 crossed: A to V (to_plane + to_parallel), B to F (flag). Further designer (Opus, fresh) weighs F vs V, brief forks/flush-how-third.md.
+- Further designer (Opus): F, the flag mate (likely). To Ev as 2-1 (B's final + third), PR 5555 diff 803e63fafa.
