@@ -378,8 +378,8 @@ pub(crate) use raw_door::{
 /// [`classify_shells`], [`classify_shells_structural`],
 /// [`classify_shells_of`]) is one of these over a finished body. The
 /// module is private, so its items leave the crate only through
-/// `topo::test_support`'s re-exports (the raw doors and the transitional
-/// alias), and carry this seam's bounds there unrestated; each is
+/// `topo::test_support`'s re-exports (the raw doors), and carry this
+/// seam's bounds there unrestated; each is
 /// `pub` for those re-exports, so without test-support it is reachable
 /// only inside the crate (the `allow(unreachable_pub)` on each).
 pub(crate) mod raw_door {

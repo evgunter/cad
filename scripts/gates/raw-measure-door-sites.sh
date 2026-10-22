@@ -24,7 +24,7 @@
 # turbofish, a fn pointer, a `(path)(…)` call and a `use … as` rename
 # each spell the name once. The names' own declarations (topo's `pub use
 # … as NAME;`) are not references. The counter is
-# `measure_door_census.py`, shared with the transitional alias's gate.
+# `measure_door_census.py`.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"

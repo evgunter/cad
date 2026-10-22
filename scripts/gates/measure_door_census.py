@@ -1,7 +1,6 @@
 """The measurement doors' test-only names, counted per crate.
 
-Shared by `unmigrated-measure-sites.sh` (the transitional alias) and
-`raw-measure-door-sites.sh` (the raw doors). Reads `gate_rust_code`'s
+Read by `raw-measure-door-sites.sh` (the raw doors). Reads `gate_rust_code`'s
 `path:line:code` records on stdin (comments and string literals already
 stripped) and counts every REFERENCE to one of the names: a call, a
 turbofish, a fn pointer, a `(path)(…)` call and a `use … as` rename
