@@ -27,8 +27,8 @@ use editor_core::CapEnd;
 use editor_core::{
     ContactClass, Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation,
     Frame, Maintenance, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
-    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, VarId,
-    TargetAxis, Value, apply, load, product, relative_freedom_components, save,
+    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName,
+    TargetAxis, Value, VarId, apply, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{
@@ -710,6 +710,10 @@ fn row5b_a_second_pin_refuses_whatever_its_spacing() {
 #[test]
 fn row6a_mated_instances_share_an_a9_component() {
     let (doc, ids, kit) = assembly("asm-r2a-row6a", 2);
+    // Each in a space of its own: two copies in the world are each
+    // pinned there, so coupled through it.
+    let (doc, _) = fixture::into_new_space(doc, ids[0]);
+    let (doc, _) = fixture::into_new_space(doc, ids[1]);
     let apart = relative_freedom_components(&doc);
     assert!(
         !apart
@@ -753,17 +757,15 @@ fn row6b_a_constraint_add_and_remove_place_nothing() {
         placed,
         "a constraint makes no placement (A10)"
     );
-    // A lone rest leaves the copy loose; removing it takes nothing the
-    // door has to record, so the door takes it and reports nothing.
+    // Every bundle pins its copy, so the rest goes with its values: the
+    // identity bundle written in their place takes nothing the door has
+    // to record, so the door takes it and reports nothing.
     let applied = doc
         .apply(
-            &DocEdit::RemoveConstraint {
-                placement: mate_ref.placement,
-                constraint: mate_ref.id,
-            },
+            &editor_core::stand().write(mate_ref.placement),
             Tol::witness(),
         )
-        .expect("removing a constraint is admitted");
+        .expect("replacing a bundle is admitted");
     assert!(
         fixture::without_anonymous(&applied.maintenance).is_empty(),
         "{:?}",
@@ -967,11 +969,7 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
 fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
     let (doc, ids, kit) = assembly("asm-r2a-mate-name-door", 2);
     let ev = run(&doc, &kit.opts());
-    let add = |mate: Mate<Formula>| DocEdit::AddConstraint {
-        placement: ids[1],
-        mate: Box::new(mate),
-        fresh: Vec::new(),
-    };
+    let add = |mate: Mate<Formula>| fixture::squared(&doc, mate, &[]).write(ids[1]);
     let on = head(kit.cap(ids[1], CapEnd::Start));
     assert!(
         editor_core::apply_with_names(
@@ -1037,14 +1035,8 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             ContactClass::Rest,
         ),
     );
-    let (unframed, _) = step(
-        doc.clone(),
-        DocEdit::RemoveConstraint {
-            placement: ids[1],
-            constraint: frame.id,
-        },
-    );
-    let (planed, rest) = add(unframed, ids[1], lifted_rest(&kit, ids[0], ids[1], 0.0));
+    // The rest written in the frame's place: every bundle pins its copy.
+    let (planed, rest) = add(doc.clone(), ids[1], lifted_rest(&kit, ids[0], ids[1], 0.0));
     for (what, doc, mate, coord, by, kind) in [
         (
             "a frame's spin",

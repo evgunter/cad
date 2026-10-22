@@ -631,24 +631,6 @@ fn mate_placed(
     (p, store, host, [ht, i, part_base, part_top], m)
 }
 
-/// `host` with `i`'s mate `m` and the values on it removed.
-fn without(host: ProfileDoc, m: editor_core::MateRef) -> ProfileDoc {
-    fixture::bundle(&host, m.placement)
-        .into_iter()
-        .rev()
-        .filter(|c| c.id == m.id || c.value().is_some_and(|v| v.mate == Some(m.id)))
-        .fold(host, |host, c| {
-            step(
-                host,
-                DocEdit::RemoveConstraint {
-                    placement: m.placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        })
-}
-
 /// **The mate-placed inline** (A4): an instance its constraint places
 /// on a host block, over a part whose one placement on its world is an
 /// instance pinned there at the identity, inlines. That placement takes
@@ -663,7 +645,7 @@ fn without(host: ProfileDoc, m: editor_core::MateRef) -> ProfileDoc {
 /// moved onto the root in silence.
 #[test]
 fn i4_a_mate_placed_instance_over_one_pinned_instance_inlines() {
-    let (p, store, host, [ht, i, part_base, part_top], m) = mate_placed("i4-mate-placed");
+    let (p, store, host, [ht, i, part_base, part_top], _) = mate_placed("i4-mate-placed");
     let o = with_resolver(store.clone());
     let out = inline(&host, i, &store);
     let spliced = out.node_map[&part_base];
@@ -679,7 +661,7 @@ fn i4_a_mate_placed_instance_over_one_pinned_instance_inlines() {
     // Through the top, which is not the part's placement on its world.
     let top_cap = in_world_of(&store.doc(part_id_of(&host, i)), p.top_cap(part_top));
     let (through_top, _) = seat_at(
-        without(host, m),
+        host,
         i,
         head(wrap(i, top_cap)),
         head(p.top_upper_cap(ht)),
@@ -701,7 +683,7 @@ fn i4_a_mate_placed_instance_over_one_pinned_instance_inlines() {
 /// recourse.
 #[test]
 fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
-    let (p, store, host, [ht, i, _, _], m) = mate_placed("i5-mate-placed");
+    let (p, store, host, [ht, i, _, _], _) = mate_placed("i5-mate-placed");
     let (shifted, [shifted_base, _]) = pair_part(&p, "i5-mate-placed-part", [1.0, 0.0, 0.0]);
     let mut shifted_store = store.clone();
     let shifted_ref = shifted_store.insert(shifted, Tol::witness());
@@ -732,7 +714,7 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
     let mut two_store = p.store.clone();
     let two_ref = two_store.insert(two, Tol::witness());
     let (other, _) = step(
-        without(host, m),
+        host,
         DocEdit::UpdateReference {
             node: i,
             new_pin: two_ref.pin,

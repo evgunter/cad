@@ -87,10 +87,12 @@ fn blank(id: &str) -> ProfileDoc {
 
 /// **Row 17: a rebind rewrites exactly the selections of its body, in
 /// place.** Two selections on one prism name the same edge (a fillet's
-/// and a measure's) and a third, on another prism, names an edge of
+/// and a measure's, whose other site is the prism's vertex: a measure
+/// reads one space) and a third, on another prism, names an edge of
 /// that one. Rebinding the shared edge on the first prism rewrites both
-/// of its selections and leaves the third alone, and every reader reads
-/// the variable it read before: the repair mints nothing.
+/// of its selections and leaves the vertex's and the third alone, and
+/// every reader reads the variable it read before: the repair mints
+/// nothing.
 #[test]
 fn a_rebind_rewrites_exactly_its_bodys_selections_in_place() {
     let (doc, p) = prism(blank("s2e-rebind"), 0.0);
@@ -104,7 +106,7 @@ fn a_rebind_rewrites_exactly_its_bodys_selections_in_place() {
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
             SitedRef::at_mint(p.edges[0].clone()),
-            SitedRef::at_mint(q.edges[0].clone()),
+            SitedRef::at_mint(p.vertex.clone()),
         ],
     );
     let (doc, other) = insert(
@@ -151,8 +153,8 @@ fn a_rebind_rewrites_exactly_its_bodys_selections_in_place() {
     assert_eq!(fixture::selected(&rebound, first), vec![p.edges[1].clone()]);
     assert_eq!(
         fixture::selected(&rebound, second),
-        vec![q.edges[0].clone()],
-        "the measure's selection of the other prism is not this body's"
+        vec![p.vertex.clone()],
+        "the measure's selection of another name is not rewritten"
     );
     let other_select = fixture::selection_read(&rebound, other);
     assert_eq!(
@@ -353,10 +355,11 @@ fn a_file_whose_measure_reads_an_unadmitted_kind_refuses_at_load() {
 }
 
 /// A placed unit prism the split rows cut out: its profile, extrude
-/// and world placement, and the extrude's walls and an edge.
+/// and world placement, the placement, and the extrude's walls and an
+/// edge.
 struct Cut {
     nodes: std::collections::BTreeSet<RecipeNodeId>,
-    extrude: RecipeNodeId,
+    placed: RecipeNodeId,
     faces: [StableName; 2],
     edge: StableName,
 }
@@ -384,7 +387,7 @@ fn placed_prism(doc: ProfileDoc) -> (ProfileDoc, Cut) {
     let edge = fixture::prism_edges(&doc, extrude, 4).remove(2);
     let cut = Cut {
         nodes: [profile, extrude, placed].into(),
-        extrude,
+        placed,
         faces,
         edge,
     };
@@ -402,13 +405,14 @@ fn a_split_keeps_a_named_crossing_selection_shared() {
         editor_core::DocumentId::derive("s2e-split-shared"),
         Tol::witness(),
     ));
-    let (doc, q) = prism(doc, 4.0);
+    // Each measure reads the cut prism alone: a measure reads one
+    // space, and every prism is in a space of its own.
     let (doc, m1) = fixture::measure_node(
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
             SitedRef::at_mint(p.faces[0].clone()),
-            SitedRef::at_mint(q.faces[0].clone()),
+            SitedRef::at_mint(p.faces[1].clone()),
         ],
     );
     let first = |doc: &ProfileDoc, m| doc.node(m).expect("a measure").operand_rows()[0].1;
@@ -425,7 +429,7 @@ fn a_split_keeps_a_named_crossing_selection_shared() {
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
             Operand::Name(s.clone()),
-            Operand::from(SitedRef::at_mint(q.faces[1].clone())),
+            Operand::from(SitedRef::at_mint(p.edge.clone())),
         ],
     );
     let out = editor_core::split(
@@ -456,7 +460,8 @@ fn a_split_keeps_a_named_crossing_selection_shared() {
 
 /// **Inline re-hosts a selection downstream of the instance.** A
 /// remainder fillet selects the cut's edge on a union of the instance
-/// and a local prism; inlining the instance re-anchors that selection's
+/// and a local prism placed against it (the cut's world copy before
+/// the split, the extrude being in a space of its own); inlining the instance re-anchors that selection's
 /// name to the spliced node, so split then inline round-trips.
 #[test]
 fn inline_rehosts_a_selection_downstream_of_the_instance() {
@@ -467,11 +472,11 @@ fn inline_rehosts_a_selection_downstream_of_the_instance() {
         Tol::witness(),
     ));
     let (doc, q) = prism(doc, 0.5);
-    let (doc, q) = fixture::slid(doc, p.extrude, q.node, [0.0; 3]);
+    let (doc, q) = fixture::slid(doc, p.placed, q.node, [0.0; 3]);
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![p.extrude.into(), q.into()]),
+            members: editor_core::Bodies::Spelled(vec![p.placed.into(), q.into()]),
         },
     );
     let (doc, fillet) = insert(doc, Node::fillet(union, len(0.05), vec![p.edge.clone()]));
@@ -534,7 +539,12 @@ fn a_re_point_reports_an_unread_named_selection_as_a_delete_does() {
     let (doc, p) = prism(blank("s2e-repoint-unread"), 0.0);
     let (doc, q) = prism(doc, 4.0);
     let (doc, r) = prism(doc, 8.0);
-    let (doc, u) = union_of(doc, p.node, q.node);
+    // The union reads the prisms' world copies: each prism is in a
+    // space of its own.
+    let (doc, pc) = fixture::place(doc, p.node);
+    let (doc, qc) = fixture::place(doc, q.node);
+    let (doc, rc) = fixture::place(doc, r.node);
+    let (doc, u) = union_of(doc, pc, qc);
     let (doc, fillet) = insert(doc, Node::fillet(u, len(0.05), vec![p.edges[0].clone()]));
     let doc = push(
         &doc,
@@ -554,7 +564,7 @@ fn a_re_point_reports_an_unread_named_selection_as_a_delete_does() {
         DocEdit::SetParam {
             node: u,
             slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Member(0)),
-            value: editor_core::SlotValue::Read(Operand::Node(r.node)),
+            value: editor_core::SlotValue::Read(Operand::Node(rc)),
             fresh: Vec::new(),
         },
     );
@@ -677,7 +687,7 @@ fn a_measure_reads_a_whole_body_only_under_its_own_name() {
             &doc,
             &[MeasurePrimitive::MinClearance {
                 a,
-                b: SitedRef::at_mint(q.faces[0].clone()),
+                b: SitedRef::at_mint(p.faces[0].clone()),
             }],
             Tol::witness(),
         )

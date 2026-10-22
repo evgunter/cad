@@ -208,7 +208,10 @@ fn place_at(
     pose: &editor_core::Frame,
 ) -> (ProfileDoc, RecipeNodeId) {
     let read = crate::fixture::body_read(&doc, body.into());
-    let (doc, placement) = insert(doc, crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]));
+    let (doc, placement) = insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+    );
     (
         crate::fixture::pin(doc, placement, pose, &editor_core::EvalOptions::default()),
         placement,
@@ -318,15 +321,15 @@ fn a_failing_measure_and_its_assertion_gate_no_placement() {
 }
 
 /// **(C, test 9) Nothing places as a side effect.** Two placed blocks,
-/// then a union of the two through the kernel edit: the product is the
+/// then a union of their two copies through the kernel edit: the product is the
 /// two blocks as it was, and the union is unplaced.
 #[test]
 fn inserting_a_boolean_over_two_placed_blocks_places_nothing() {
     let doc = ProfileDoc::empty_derived("intent-c-side-effect", Tol::witness());
     let (doc, a) = block(doc, 0.0);
     let (doc, b) = block(doc, 0.75);
-    let (doc, _) = place(doc, a);
-    let (doc, _) = place(doc, b);
+    let (doc, a) = place(doc, a);
+    let (doc, b) = place(doc, b);
     let before = body_digest(&product(&doc, &ev(&doc), Tol::witness()).expect("two blocks"));
     let placements = doc.placements();
     let (doc, fused) = insert(
@@ -413,9 +416,10 @@ fn two_identity_placements_of_one_body_are_two_copies() {
     }
 }
 
-/// The block, its placement, and a union of it with a second block
-/// placed against it and not in the world, in one document: what the
-/// split rows cut.
+/// The block, its placement, and a union of its copy with a second
+/// block placed against that copy, in one document: what the split rows
+/// cut. The block is in a space of its own (D′1), so the reader reads
+/// its world copy.
 fn split_scene(label: &str) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let (doc, profile) = on_frame(
@@ -434,11 +438,11 @@ fn split_scene(label: &str) -> (ProfileDoc, [RecipeNodeId; 4]) {
     );
     let (doc, p) = place(doc, b);
     let (doc, other) = block(doc, 3.0);
-    let (doc, other) = slid(doc, b, other, [0.0; 3]);
+    let (doc, other) = slid(doc, p, other, [0.0; 3]);
     let (doc, reader) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![b.into(), other.into()]),
+            members: editor_core::Bodies::Spelled(vec![p.into(), other.into()]),
         },
     );
     (doc, [profile, b, p, reader])

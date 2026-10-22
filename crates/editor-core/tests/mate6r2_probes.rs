@@ -27,9 +27,9 @@ use crate::fixture;
 use editor_core::Formula;
 
 use editor_core::{
-    AssemblyError, CapEnd, ChecksConfig, ContactClass, Coord, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, MateRef, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis,
-    Value, assemble, run_checks,
+    AssemblyError, CapEnd, ChecksConfig, ContactClass, Coord, DocRef, DocumentId, EntityKind,
+    Frame, MateRef, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble,
+    run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, mated_instance, on_frame, run};
@@ -130,12 +130,14 @@ struct Seat {
 /// and no spin, so it pins the copy.
 fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
     let (doc, m) = crate::fixture::mated(
-        doc, placement, seat.mate,
+        doc,
+        placement,
+        seat.mate,
         &[
-        (Coord::Slide(TargetAxis::X), len(seat.apart)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, fixture::ang(0.0)),
-    ],
+            (Coord::Slide(TargetAxis::X), len(seat.apart)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, fixture::ang(0.0)),
+        ],
     );
     (doc, m)
 }

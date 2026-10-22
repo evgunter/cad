@@ -33,6 +33,15 @@ fn block(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, profile, extrude)
 }
 
+/// [`block`]'s body copied into the world: blocks are each in their
+/// own space, so rows reading two of them together read their copies.
+/// Answers the profile and the placement.
+fn placed_block(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, profile, extrude) = block(doc, dx);
+    let (doc, placement) = fixture::place(doc, extrude);
+    (doc, profile, placement)
+}
+
 fn applied(
     doc: &ProfileDoc,
     edit: DocEdit<editor_core::ProfileProgram>,
@@ -181,15 +190,15 @@ fn a_delete_leaves_its_reader_unresolved_and_typed() {
 #[test]
 fn a_forward_member_saves_loads_and_cascades() {
     let doc = ProfileDoc::empty_derived("s2b-forward", Tol::witness());
-    let (doc, _, a) = block(doc, 0.0);
-    let (doc, _, b) = block(doc, 3.0);
+    let (doc, _, a) = placed_block(doc, 0.0);
+    let (doc, _, b) = placed_block(doc, 3.0);
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
-    let (doc, _, c) = block(doc, 6.0);
+    let (doc, _, c) = placed_block(doc, 6.0);
     let doc = applied(
         &doc,
         DocEdit::SetMembers {
@@ -502,8 +511,8 @@ fn a_split_port_read_is_its_half() {
 #[test]
 fn the_comparator_reads_reads_as_inputs_and_catches_a_re_pointed_one() {
     let doc = ProfileDoc::empty_derived("s2b-comparator", Tol::witness());
-    let (doc, _, a) = block(doc, 0.0);
-    let (doc, _, b) = block(doc, 3.0);
+    let (doc, _, a) = placed_block(doc, 0.0);
+    let (doc, _, b) = placed_block(doc, 3.0);
     let (doc, _) = insert(
         doc,
         Node::Union {
@@ -1137,8 +1146,8 @@ fn a_file_reading_an_unminted_variable_refuses_operand_unminted() {
 #[test]
 fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
     let doc = ProfileDoc::empty_derived("s2b-dead-site", Tol::witness());
-    let (doc, _, a) = block(doc, 0.0);
-    let (doc, _, b) = block(doc, 3.0);
+    let (doc, _, a) = placed_block(doc, 0.0);
+    let (doc, _, b) = placed_block(doc, 3.0);
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
     let face = |node| {
         editor_core::all_faces(&ev, node)

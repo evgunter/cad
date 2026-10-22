@@ -43,24 +43,6 @@ fn face_mate(
     seat_at(doc, placement, mover, target, [0.0, 0.0])
 }
 
-/// `mate` and the values on it taken out of its placement's bundle.
-fn remove(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
-    fixture::bundle(&doc, mate.placement)
-        .into_iter()
-        .rev()
-        .filter(|c| c.id == mate.id || c.value().is_some_and(|v| v.mate == Some(mate.id)))
-        .fold(doc, |doc, c| {
-            step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement: mate.placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        })
-}
-
 /// The selection a stored mate's target reads.
 fn target_var(doc: &ProfileDoc, mate: MateRef) -> editor_core::VarId {
     let stored = fixture::constraint(doc, mate);
@@ -338,20 +320,20 @@ fn a_mate_reading_a_pattern_copy_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 }
 
-/// **A mate whose target reads a loose copy refuses at split**: a copy
+/// **A mate whose target reads a copy in a space of its own refuses at split**: a copy
 /// in its own space has no place in the part's world for its face to
-/// keep, so the face would mean another place. The cut holds a loose
-/// top beside a pinned base, and `k` is placed against the loose top:
+/// keep, so the face would mean another place. The cut holds a top in a
+/// space of its own beside a pinned base, and `k` is placed against the loose top:
 /// the kept mate's read of the cut is severed.
 ///
-/// Inline's mirror — a host mate reading a loose copy of the part — is
+/// Inline's mirror — a host mate reading a copy in a space of its own of the part — is
 /// not a document inline is asked about: the part's product table
 /// carries no row for a body in a loose space, so the door admits the
 /// mate as written and its target does not evaluate, which is `k`'s own
 /// refusal. The row pins that, so the day the product carries such rows
 /// the inline half is owed.
 ///
-/// *Breaks if* a face of a loose copy crosses the seam, or a host mate
+/// *Breaks if* a face of a copy in a space of its own crosses the seam, or a host mate
 /// reading one evaluates.
 #[test]
 fn a_mate_reading_a_loose_copy_refuses_at_split() {
@@ -384,6 +366,7 @@ fn a_mate_reading_a_loose_copy_refuses_at_split() {
     let (part_doc, _sub_base) =
         fixture::insert_pinned(part_doc, crate::fixture::mated_instance(p.base), &o);
     let (part_doc, sub_loose) = insert(part_doc, fixture::mated_instance(p.top));
+    let (part_doc, _) = fixture::into_new_space(part_doc, sub_loose);
     let mut store = p.store.clone();
     let sub = store.insert(part_doc, Tol::witness());
     let with_sub = with_resolver(store);
@@ -495,9 +478,9 @@ fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
 #[test]
 fn a_head_naming_no_part_face_does_not_evaluate() {
     let label = "p2-face-no-part-face";
-    let (p, doc, [base, _top, k], m) = face_across(label);
+    let (p, doc, [base, _top, k], _) = face_across(label);
     let o = p.opts();
-    let doc = remove(doc, m);
+    // The bare-headed mate is written in `m`'s place, whole.
     let bare = StableName {
         kind: editor_core::EntityKind::Face,
         node: base,

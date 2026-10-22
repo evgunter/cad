@@ -595,7 +595,8 @@ fn row3_instance_qualified_names_round_trip_persistence() {
 
 // ---- Row 4: the world mate ----
 
-/// Row 4 — an inserted instance is loose; a world mate's pose moves the
+/// Row 4 — an inserted instance stands in the world by the identity
+/// bundle; a world mate's pose moves the
 /// copy without changing its volume; the pre-edit document is untouched
 /// (undo = keeping the prior value); a non-instance target refuses
 /// typed.
@@ -606,8 +607,10 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
     let opts = with_resolver(store);
     let (loose, ids) = assembly("asm2a-r4-asm", &[doc_ref]);
     assert!(
-        fixture::bundle(&loose, ids[0]).is_empty(),
-        "an inserted instance is loose"
+        fixture::bundle(&loose, ids[0])
+            .iter()
+            .all(|c| c.mate().is_none()),
+        "an inserted instance stands by the identity bundle"
     );
     let doc = fixture::pinned(loose, ids[0], &opts);
     let held = fixture::offset_of(&doc, ids[0]);
@@ -1649,7 +1652,10 @@ fn a_run_canceled_in_the_census_places_nothing() {
         "uncanceled, the run completes"
     );
     for &id in &ids {
-        assert!(whole.value(id).is_some(), "uncanceled, each instance places");
+        assert!(
+            whole.value(id).is_some(),
+            "uncanceled, each instance places"
+        );
     }
 
     let cancel = CancelToken::new();
