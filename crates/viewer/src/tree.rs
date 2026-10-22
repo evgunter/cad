@@ -659,6 +659,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
+        | Node::Mirror { .. }
         | Node::Subtract { .. }
         | Node::Union { .. }
         | Node::Intersect { .. }
@@ -1117,6 +1118,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Blend { .. }
         | NodeErrorKind::Boolean(_)
         | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Mirror(_)
         | NodeErrorKind::Motion(_)
         | NodeErrorKind::Skin(_)
         | NodeErrorKind::Loft(_)

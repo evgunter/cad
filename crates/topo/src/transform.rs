@@ -930,7 +930,12 @@ mod tests {
     #[test]
     fn the_surface_placeholder_is_what_refuses() {
         assert!(matches!(
-            map_surface(&aside(), &Surface::nurbs_placeholder(), Tol::witness()),
+            map_surface(
+                &aside(),
+                Hand::Proper,
+                &Surface::nurbs_placeholder(),
+                Tol::witness()
+            ),
             Err(TransformError::NurbsPlaceholder)
         ));
     }
@@ -938,7 +943,7 @@ mod tests {
     #[test]
     fn the_carrier_placeholder_is_what_refuses() {
         assert!(matches!(
-            map_carrier(&aside(), &Curve3::nurbs_placeholder()),
+            map_carrier(&aside(), Hand::Proper, &Curve3::nurbs_placeholder()),
             Err(TransformError::NurbsPlaceholder)
         ));
     }
@@ -947,7 +952,8 @@ mod tests {
     fn a_described_surface_maps_by_its_control_points() {
         let map = aside();
         let before = described_surface();
-        let after = map_surface(&map, &before, Tol::witness()).expect("a described net maps");
+        let after =
+            map_surface(&map, Hand::Proper, &before, Tol::witness()).expect("a described net maps");
         let (Surface::Nurbs(b), Surface::Nurbs(a)) = (&before, &after) else {
             panic!("the variant changed under the map");
         };
@@ -972,7 +978,7 @@ mod tests {
     fn a_described_carrier_maps_by_its_control_points() {
         let map = aside();
         let before = described_carrier();
-        let after = map_carrier(&map, &before).expect("a described net maps");
+        let after = map_carrier(&map, Hand::Proper, &before).expect("a described net maps");
         let (Curve3::Nurbs(b), Curve3::Nurbs(a)) = (&before, &after) else {
             panic!("the variant changed under the map");
         };
@@ -1035,7 +1041,7 @@ mod offset_fit_door_rows {
     fn no_door_refuses_the_mapped_surface_by_name() {
         let tol = Tol::witness();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        match map_approx(&turned(), &approx, tol, None) {
+        match map_approx(&turned(), super::Hand::Proper, &approx, tol, None) {
             Err(TransformError::ApproxLaneUnsupported { scalar }) => assert_eq!(scalar, "f64"),
             other => panic!("the absence must name the scalar the map ran at: {other:?}"),
         }
@@ -1058,8 +1064,14 @@ mod offset_fit_door_rows {
         let tol = Tol::witness();
         let map = turned();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        let mapped = map_approx(&map, &approx, tol, Some(OffsetFitLane::fit()))
-            .expect("a rigid map of a certified fit re-certifies at the run's ε");
+        let mapped = map_approx(
+            &map,
+            super::Hand::Proper,
+            &approx,
+            tol,
+            Some(OffsetFitLane::fit()),
+        )
+        .expect("a rigid map of a certified fit re-certifies at the run's ε");
         let spec = mapped.spec();
         let reference =
             geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, tol)

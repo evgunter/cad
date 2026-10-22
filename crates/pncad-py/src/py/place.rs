@@ -189,12 +189,12 @@ fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
 /// `Node.placed_union_at` places a prototype at. It is authored
 /// through the two constructors below rather than field by field,
 /// because a frame's linear part is a MATRIX and hand-writing one is
-/// how a mirror or a shear arrives by accident — and improper frames
-/// (determinant ≤ 0) are refused at the edit door, not admitted.
+/// how a mirror or a shear arrives by accident — and a frame that is
+/// not a rigid motion is refused at the edit door, not admitted. A
+/// mirror is a construction (`Document.mirror`), never a frame.
 ///
 /// The frame is not a rigidity claim: rigidity is a decided predicate
-/// the kernel's placement door owns, and what the edit door checks is
-/// that the coordinates are finite and the determinant positive.
+/// the kernel's placement door owns, and the edit door asks it.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct Frame(pub(crate) d::Frame);
@@ -319,31 +319,6 @@ impl Frame {
         .map_err(|err| frame_err(py, &err))
     }
 
-    /// Reflection across the plane through `point` with `normal`
-    /// — an IMPROPER frame, determinant −1.
-    ///
-    /// It is constructible and it is not placeable: the edit door
-    /// refuses a mirror placement (`improper_placement`), so this
-    /// constructor is how a caller
-    /// obtains the reflection as a VALUE — and how the refusal can be
-    /// exercised at all.
-    #[staticmethod]
-    fn mirror_across_plane(
-        py: Python<'_>,
-        point: (Length, Length, Length),
-        normal: (f64, f64, f64),
-    ) -> PyResult<Self> {
-        let tol = Tol::witness();
-        let [px, py_, pz] = meters(point);
-        pncad::geom_core::linalg::frame::mirror_across_plane::<f64>(
-            pncad::authoring::p3(px, py_, pz),
-            pncad::authoring::v3(normal.0, normal.1, normal.2),
-            tol,
-        )
-        .map(|a| Self(d::Frame::from_affine(a)))
-        .map_err(|err| frame_err(py, &err))
-    }
-
     /// The linear part's columns: `columns[j]` is the image of basis
     /// vector `j` — dimensionless, as the matrix entries are.
     ///
@@ -373,8 +348,8 @@ impl Frame {
         lengths(self.0.translation)
     }
 
-    /// The linear part's determinant — positive for a placement the
-    /// edit door admits, ≤ 0 for the mirrors the edit door refuses.
+    /// The linear part's determinant — `+1`, within rounding, for a
+    /// placement the edit door admits.
     #[getter]
     fn determinant(&self) -> f64 {
         self.0.determinant()

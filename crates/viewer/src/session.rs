@@ -4078,6 +4078,7 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
+        | Node::Mirror { .. }
         | Node::Subtract { .. }
         | Node::Union { .. }
         | Node::Intersect { .. }

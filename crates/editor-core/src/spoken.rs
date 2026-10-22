@@ -1402,6 +1402,7 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Split { .. } => "Split",
+        Node::Mirror { .. } => "Mirror",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",

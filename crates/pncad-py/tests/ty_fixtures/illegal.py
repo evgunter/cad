@@ -295,8 +295,8 @@ evaluate(doc, resolver=evaluate(doc))  # ty: error
 # semantics live in.
 Node.instantiate_part(doc.id)  # ty: error
 
-# A placement's pose is a FRAME, not a coordinate triple: an improper
-# or non-rigid map is refused where the frame is built, and there is
+# A placement's pose is a FRAME, not a coordinate triple: a non-rigid
+# map is refused where the frame is built, and there is
 # no translation-only shortcut that would hide it.
 doc.pin(solid, (0 * m, 0 * m, 1 * m))  # ty: error
 

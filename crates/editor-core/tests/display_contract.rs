@@ -1030,7 +1030,6 @@ test_utils::f6_variants! {
         EpsilonInvalid,
         ConstraintNotMinted,
         PlacementNonFinite,
-        PlacementImproper,
         PlacementNonRigid,
         MateRefused,
         PlacementRule,
@@ -1427,17 +1426,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "placement 0 of PlacedUnion 000000000005",
                 "non-finite coordinate",
-            ],
-        ),
-        (
-            SnapshotError::PlacementImproper {
-                node: held(5, "PlacedUnion"),
-                at: editor_core::FrameSite::Listed { index: 1 },
-                determinant: -1.0,
-            },
-            vec![
-                "placement 1 of PlacedUnion 000000000005",
-                "improper (mirroring)",
             ],
         ),
         (

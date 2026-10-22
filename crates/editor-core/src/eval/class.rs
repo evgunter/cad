@@ -65,6 +65,8 @@ pub enum NodeErrorClass {
     Boolean,
     /// [`NodeErrorKind::Transform`].
     Transform,
+    /// [`NodeErrorKind::Mirror`].
+    Mirror,
     /// [`NodeErrorKind::Motion`].
     Motion,
     /// [`NodeErrorKind::Skin`].
@@ -143,8 +145,6 @@ pub enum NodeErrorClass {
     /// [`PlacementRuleFault::NonFiniteFrame`].
     PlacementRuleNonFiniteFrame,
     /// [`NodeErrorKind::PlacementRule`] carrying
-    /// [`PlacementRuleFault::ImproperFrame`].
-    PlacementRuleImproperFrame,
     /// [`NodeErrorKind::PlacementRule`] carrying
     /// [`PlacementRuleFault::NonRigidFrame`].
     PlacementRuleNonRigidFrame,
@@ -254,6 +254,7 @@ impl NodeErrorKind {
             Self::Blend { verb, .. } => by_verb(*verb, C::Fillet, C::Chamfer),
             Self::Boolean(_) => C::Boolean,
             Self::Transform(_) => C::Transform,
+            Self::Mirror(_) => C::Mirror,
             Self::Motion(_) => C::Motion,
             Self::Skin(_) => C::Skin,
             Self::Loft(_) => C::Loft,
@@ -337,7 +338,6 @@ impl NodeErrorClass {
             PlacementRuleFault::CountSpelling { .. } => Self::PlacementRuleCountSpelling,
             PlacementRuleFault::NoPlacements => Self::PlacementRuleNoPlacements,
             PlacementRuleFault::NonFiniteFrame { .. } => Self::PlacementRuleNonFiniteFrame,
-            PlacementRuleFault::ImproperFrame { .. } => Self::PlacementRuleImproperFrame,
             PlacementRuleFault::NonRigidFrame { .. } => Self::PlacementRuleNonRigidFrame,
         }
     }
@@ -413,6 +413,7 @@ mod tests {
         Chamfer,
         Boolean,
         Transform,
+        Mirror,
         Motion,
         Skin,
         Loft,
@@ -450,7 +451,6 @@ mod tests {
         PlacementRuleCountSpelling,
         PlacementRuleNoPlacements,
         PlacementRuleNonFiniteFrame,
-        PlacementRuleImproperFrame,
         PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
@@ -597,6 +597,7 @@ mod tests {
             },
             C::Boolean => K::Boolean(topo::BooleanError::UnrepresentableResult),
             C::Transform => K::Transform(topo::TransformError::NurbsPlaceholder),
+            C::Mirror => K::Mirror(topo::TransformError::NurbsPlaceholder),
             C::Motion => K::Motion(geom_core::RigidMotionError::NonFinite(
                 geom_core::MotionPart::Angle,
             )),
@@ -733,12 +734,6 @@ mod tests {
             }
             C::PlacementRuleNonFiniteFrame => {
                 K::PlacementRule(crate::PlacementRuleFault::NonFiniteFrame { index: 2 })
-            }
-            C::PlacementRuleImproperFrame => {
-                K::PlacementRule(crate::PlacementRuleFault::ImproperFrame {
-                    index: 2,
-                    determinant: -1.0,
-                })
             }
             C::PlacementRuleNonRigidFrame => {
                 K::PlacementRule(crate::PlacementRuleFault::NonRigidFrame {

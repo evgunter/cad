@@ -674,6 +674,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         // payload's emptiness, which no other kind counts either.
         | Node::Shell { .. }
         | Node::Split { .. }
+        | Node::Mirror { .. }
         | Node::Place { .. }
         | Node::World
         | Node::Loft { .. }
@@ -699,6 +700,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Tube { .. } => "Tube",
         Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
+        Node::Mirror { .. } => "Mirror",
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",

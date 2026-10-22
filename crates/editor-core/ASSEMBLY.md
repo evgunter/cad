@@ -26,7 +26,7 @@ where they disagree with DESIGN, DESIGN is the design.
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
-| A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
+| A6 improper frames | `src/placement.rs` (`Frame`); `Node::Mirror` in `src/node.rs`, `wire_mirror` in `src/eval/wire.rs`, `mirror_body` in `crates/topo/src/mirror.rs` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9 partitions | `relative_freedom_components` in `src/mate/solve.rs` |
 | A11 (2) bundles, spaces | `solve_bundle`, `fold_bundle`, `overconstrained`, `pins`, `Space` in `src/mate/solve.rs`; the per-space gather (`LooseSpace`, `loose_spaces`) in `src/product.rs` and the gate's (`AssemblyError::Space`) in `src/assembly.rs`; the one cross-space predicate `Evaluation::across_spaces`; an instance's copies (`ValuePayload::Copies`, `CopyKey`) in `src/eval/wire.rs` and `src/eval/parts.rs` |
@@ -226,13 +226,12 @@ re-evaluation, which re-verifies crossings (A4).
 
 ## Mirror
 
-**A6 — Mirror and improper frames.** `Frame` stores a general linear
-part so an improper frame (det = −1) is representable, and it is refused
-wherever a document admits a frame, by one predicate
-(`Frame::admission_fault`): a literal step of a transform's chain
-refuses
-`EditError::ImproperPlacement` for det ≤ 0, naming which frame, and the
-load validator refuses the same. A mirror is not a placement: a
+**A6 — Mirror and improper frames.** Every pose is proper. `Frame`
+stores a general linear part, and a frame that is not a rigid motion, a
+mirror (det = −1) among them, is refused wherever a document admits a
+frame, by one predicate (`Frame::admission_fault`): a placement rule's
+listed frame refuses `EditError::NonRigidPlacement`, naming which frame,
+and the load validator refuses the same. A mirror is not a placement: a
 reflection is not a pose, so a mirrored body is the construction
 `Mirror { body, plane }`, which defines a new `Body` (MIRROR-DESIGN
 P1–P4), and no placement needs an improper frame. STEP import refuses a

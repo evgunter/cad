@@ -60,8 +60,8 @@
 //!   at the scalar, and an edge needing the NURBS lane at a scalar that
 //!   holds none refuse as [`crate::transform_rigid`] does.
 
-use geom_core::linalg::frame::{FrameError, mirror_across_plane};
-use geom_core::{Affine3, Decide, Point3, Real, Tol, Vec3};
+use geom_core::linalg::frame::{FrameError, mirror_across_plane, mirror_across_unit_plane};
+use geom_core::{Affine3, Decide, Point3, Real, Tol, UnitVec3, Vec3};
 
 use crate::body::Body;
 use crate::transform::{Hand, TransformError, map_isometry};
@@ -88,6 +88,15 @@ impl<T: Decide> Reflection<T> {
 }
 
 impl<T: Real> Reflection<T> {
+    /// The reflection across the plane through `point` with the decided
+    /// unit normal `normal`.
+    #[must_use]
+    pub fn across_unit(point: Point3<T>, normal: UnitVec3<T>) -> Self {
+        Self {
+            map: mirror_across_unit_plane(point, normal),
+        }
+    }
+
     /// The affine map.
     #[must_use]
     pub fn to_affine(&self) -> Affine3<T> {

@@ -82,6 +82,7 @@ test_utils::f6_variants! {
         Chamfer,
         Shell,
         Split,
+        Mirror,
         Intersect,
         Subtract,
         Union,

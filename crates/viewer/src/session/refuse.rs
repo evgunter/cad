@@ -113,6 +113,7 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
     match node {
         Node::Profile(_) => Some(NodeKindWanted::Profile),
         Node::Split { .. }
+        | Node::Mirror { .. }
         | Node::Pattern { .. }
         | Node::Extrude { .. }
         | Node::Revolve { .. }

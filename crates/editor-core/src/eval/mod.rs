@@ -1543,6 +1543,9 @@ pub enum NodeErrorKind {
     Boolean(BooleanError),
     /// The rigid-transform op refused.
     Transform(TransformError),
+    /// The mirror refused: the kernel's reflection door
+    /// (`topo::mirror_body`), its refusal verbatim.
+    Mirror(TransformError),
     /// A placement's rigid motion was not minted (a part of it is not
     /// a finite number) or not admitted (a literal frame, or a map the
     /// mate solve composed, that the decided door refuses).
@@ -1900,8 +1903,8 @@ pub enum NodeErrorKind {
         j: usize,
     },
     /// A placement-rule node's rule is unusable — the count spelled two
-    /// ways, an EMPTY explicit placement list, or a non-finite /
-    /// improper frame.
+    /// ways, an EMPTY explicit placement list, or a non-finite or
+    /// non-rigid frame.
     ///
     /// Unreachable through `apply` (the edit door refuses all four
     /// there, with the better diagnostics) and through `load` (the
@@ -2201,6 +2204,7 @@ impl crate::spoken::Say for NodeErrorKind {
             // own, and a coincidence refusal carries its own recourse.
             Self::Boolean(e) => write!(f, "the Boolean op refused: {e}"),
             Self::Transform(e) => write!(f, "the transform op refused: {e}"),
+            Self::Mirror(e) => write!(f, "the mirror refused: {e}"),
             Self::Motion(e) => write!(f, "the placement's motion refused: {e}"),
             Self::Skin(e) => write!(f, "the skin construction refused: {e}"),
             Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
@@ -4962,6 +4966,8 @@ where
         // its tag alone.
         Node::Place { .. } => 40,
         Node::World => 39,
+        // A fresh word: a mirror and its source are different bodies.
+        Node::Mirror { .. } => 42,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -5381,6 +5387,7 @@ where
             v_degree: _,
         }
         | Node::Split { target: _, tool: _ }
+        | Node::Mirror { body: _, plane: _ }
         // The index is a slot, fed with the resolved slots below.
         | Node::Part {
             of: _,

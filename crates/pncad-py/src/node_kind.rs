@@ -61,6 +61,7 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Chamfer { .. } => "chamfer",
         Node::Shell { .. } => "shell",
         Node::Split { .. } => "split",
+        Node::Mirror { .. } => "mirror",
         Node::Union { .. } => "union",
         Node::Intersect { .. } => "intersect",
         Node::Subtract { .. } => "subtract",

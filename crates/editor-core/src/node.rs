@@ -43,6 +43,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Chamfer { .. }
             | $crate::node::Node::Shell { .. }
             | $crate::node::Node::Split { .. }
+            | $crate::node::Node::Mirror { .. }
             | $crate::node::Node::Subtract { .. }
             | $crate::node::Node::Union { .. }
             | $crate::node::Node::Intersect { .. }
@@ -1224,6 +1225,7 @@ macro_rules! expr_table {
             | Node::Chamfer { .. }
             | Node::Shell { .. }
             | Node::Split { .. }
+            | Node::Mirror { .. }
             | Node::Subtract { .. }
             | Node::Union { .. }
             | Node::Intersect { .. }
@@ -1574,17 +1576,8 @@ pub enum PlacementRuleFault {
         /// Its index in the placement list.
         index: usize,
     },
-    /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
-    /// (A6). Admitting one is gated on the equivariance audit R4 owns,
-    /// exactly as for every other literal placement frame.
-    ImproperFrame {
-        /// Its index in the placement list.
-        index: usize,
-        /// The linear part's determinant.
-        determinant: f64,
-    },
-    /// A proper placement frame that is not definitely a rigid motion
-    /// at tolerance ([`crate::placement::FrameFault::NotRigid`]).
+    /// A placement frame that is not definitely a rigid motion at
+    /// tolerance — a mirror among them ([`crate::placement::FrameFault::NotRigid`]).
     NonRigidFrame {
         /// Its index in the placement list.
         index: usize,
@@ -1619,13 +1612,6 @@ impl core::fmt::Display for PlacementRuleFault {
                     crate::placement::FrameFault::NonFinite
                 )
             }
-            Self::ImproperFrame { index, determinant } => write!(
-                f,
-                "placement {index} {}",
-                crate::placement::FrameFault::Improper {
-                    determinant: *determinant
-                }
-            ),
             Self::NonRigidFrame { index, check } => write!(
                 f,
                 "placement {index} {}",
@@ -1943,6 +1929,20 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// The splitting tool: a `Plane` read, or a frame's coordinate
         /// plane read through its role.
         tool: crate::pose::RoleRead<S::Read>,
+    },
+    /// **The mirror image of a body** (D10 `[repetition]`,
+    /// `docs/MIRROR-DESIGN.md` P4): a construction defining a new `Body`
+    /// in its source's space, the source reflected across `plane`
+    /// (`topo::mirror_body`). A reflection is not a pose, so no
+    /// placement mirrors and every pose is proper. Its plane reads only
+    /// geometry of that space, as a split's tool does. Its cells keep
+    /// their names in the source, as a copy's do.
+    Mirror {
+        /// The body reflected.
+        body: crate::BodyRead<S>,
+        /// The mirror plane: a `Plane` read, or a frame's coordinate
+        /// plane read through its role.
+        plane: crate::pose::RoleRead<S::Read>,
     },
     /// **The union** (`crates/editor-core/REFERENCES.md` DM4): one
     /// argument of kind `Bodies` ([`Bodies`]), ONE body out, the fold of
@@ -2413,6 +2413,7 @@ macro_rules! node_rows {
                 select: PartSelect::Instance(index),
             } => $out.push((S::Instance, index)),
             Node::Split { target, tool: _ } => index_rows!(O::Target, target, $rows, $out),
+            Node::Mirror { body, plane: _ } => index_rows!(O::Body, body, $rows, $out),
             Node::Subtract { from, tool } => {
                 index_rows!(O::From, from, $rows, $out);
                 index_rows!(O::Cut, tool, $rows, $out);
@@ -2575,6 +2576,7 @@ impl<P> Node<P> {
                 vec![(O::Measured(verb, 0), *a), (O::Measured(verb, 1), *b)]
             }
             Node::Split { target, tool } => vec![(O::Target, target.read), (O::Tool, tool.read)],
+            Node::Mirror { body, plane } => vec![(O::Body, body.read), (O::Plane, plane.read)],
             Node::Subtract {
                 from,
                 tool,
@@ -2683,6 +2685,9 @@ impl<P> Node<P> {
             }
             Node::Split { target, tool } => {
                 vec![(O::Target, &mut target.read), (O::Tool, &mut tool.read)]
+            }
+            Node::Mirror { body, plane } => {
+                vec![(O::Body, &mut body.read), (O::Plane, &mut plane.read)]
             }
             Node::Subtract { from, tool } => {
                 vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)]
@@ -3025,6 +3030,7 @@ impl<P, S: Slot> Node<P, S> {
             | Self::Fillet { .. }
             | Self::Chamfer { .. }
             | Self::Shell { .. }
+            | Self::Mirror { .. }
             | Self::Subtract { .. }
             | Self::Union { .. }
             | Self::Intersect { .. }
@@ -3140,6 +3146,10 @@ impl<P, S: Slot> Node<P, S> {
                 target: target.try_map(O::Target, f, read)?,
                 tool: tool.try_map(|tool| read(O::Tool, tool))?,
             },
+            Node::Mirror { body, plane } => Node::Mirror {
+                body: body.try_map(O::Body, f, read)?,
+                plane: plane.try_map(|plane| read(O::Plane, plane))?,
+            },
             Node::Subtract { from, tool } => Node::Subtract {
                 from: from.try_map(O::From, f, read)?,
                 tool: tool.try_map(O::Cut, f, read)?,
@@ -3219,6 +3229,7 @@ impl<P, S: Slot> Node<P, S> {
         use crate::OperandSlot as O;
         match self {
             Node::Split { target, .. } => vec![(O::Target, target)],
+            Node::Mirror { body, .. } => vec![(O::Body, body)],
             Node::Subtract { from, tool, .. } => vec![(O::From, from), (O::Cut, tool)],
             Node::Union { members, .. } | Node::Intersect { members, .. } => members.rows(),
             Node::Place { shapes, .. } => shapes.rows(),
@@ -3253,6 +3264,7 @@ impl<P, S: Slot> Node<P, S> {
         use crate::OperandSlot as O;
         match (self, seat) {
             (Node::Split { target, .. }, O::Target) => Some(target),
+            (Node::Mirror { body, .. }, O::Body) => Some(body),
             (Node::Subtract { from, .. }, O::From) => Some(from),
             (Node::Subtract { tool, .. }, O::Cut) => Some(tool),
             (Node::Union { members, .. } | Node::Intersect { members, .. }, _) => members
@@ -3310,6 +3322,7 @@ impl<P, S: Slot> Node<P, S> {
         use crate::OperandSlot as O;
         match self {
             Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
+            Node::Mirror { plane, .. } => vec![(O::Plane, plane.role)],
             Node::Pattern {
                 kind: PatternKind::Circular { axis, .. },
                 ..
@@ -3331,6 +3344,7 @@ impl<P, S: Slot> Node<P, S> {
         use crate::OperandSlot as O;
         match (self, seat) {
             (Node::Split { tool, .. }, O::Tool) => Some(&mut tool.role),
+            (Node::Mirror { plane, .. }, O::Plane) => Some(&mut plane.role),
             (
                 Node::Pattern {
                     kind: PatternKind::Circular { axis, .. },
@@ -3501,9 +3515,6 @@ impl<P, S: Slot> Node<P, S> {
                 crate::placement::FrameFault::NonFinite => {
                     Some(PlacementRuleFault::NonFiniteFrame { index })
                 }
-                crate::placement::FrameFault::Improper { determinant } => {
-                    Some(PlacementRuleFault::ImproperFrame { index, determinant })
-                }
                 crate::placement::FrameFault::NotRigid { check } => {
                     Some(PlacementRuleFault::NonRigidFrame { index, check })
                 }
@@ -3550,6 +3561,7 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Chamfer { .. }
             | Node::Shell { .. }
             | Node::Split { .. }
+            | Node::Mirror { .. }
             | Node::Subtract { .. }
             | Node::Union { .. }
             | Node::Intersect { .. }
@@ -3775,6 +3787,7 @@ impl<P> Node<P, crate::Formula> {
             | Node::Loft { .. }
             | Node::Sweep { .. }
             | Node::Split { .. }
+            | Node::Mirror { .. }
             | Node::Subtract { .. }
             | Node::Union { .. }
             | Node::Intersect { .. }
@@ -3837,6 +3850,19 @@ impl<P> Node<P, crate::Formula> {
                 target,
                 crate::var::Select::canonical(crate::VarKind::Faces, open),
             ),
+        }
+    }
+
+    /// Builds a [`Node::Mirror`]: the body `body` reads, reflected across
+    /// the plane `plane` reads. A symmetric part is the union of a body
+    /// and its mirror across one of its own faces.
+    pub fn mirror(
+        body: impl Into<crate::Operand>,
+        plane: impl Into<crate::pose::RoleRead<crate::Operand>>,
+    ) -> Self {
+        Node::Mirror {
+            body: body.into().into(),
+            plane: plane.into(),
         }
     }
 }

@@ -454,6 +454,13 @@ where
             results,
             tol,
         ),
+        Node::Mirror { body, plane } => wire_mirror(
+            body.read,
+            at(O::Body, body.read)?,
+            &pose::eval_pose(doc, unprojected, O::Plane, *plane, env.lane.params, tol)?,
+            results,
+            tol,
+        ),
         Node::Subtract { from, tool } => {
             let each = project_each(&[(O::From, from.read), (O::Cut, tool.read)])?;
             let [ra, rb] = [&each[0], &each[1]].map(|p| p.as_ref().unwrap_or(unprojected));
@@ -2586,6 +2593,47 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             tool: Some(tool_read),
         },
     )
+}
+
+/// **A mirror** (D10 `[repetition]`): the body `source` defines,
+/// reflected across `plane` by the kernel's reflection door
+/// (`topo::mirror_body`), which keeps every arena key, so the image
+/// carries the source's names, contact records and declaration rows
+/// verbatim, as a copy carries them. Each record cites the body's
+/// record it is, through the read.
+fn wire_mirror<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    read: crate::VarId,
+    source: RecipeNodeId,
+    plane: &PoseValue<T>,
+    results: &Results<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let body = finished_operand(results, source, tol)?;
+    let PoseValue::Plane { origin, normal } = plane else {
+        unreachable!(
+            "the door admits {} alone at a mirror's plane, not {}",
+            super::phrase::PLANE_POSE,
+            plane.kind()
+        )
+    };
+    let reflection = topo::Reflection::across_unit(*origin, *normal);
+    let image = topo::mirror_body(&body, &reflection, tol).map_err(NodeErrorKind::Mirror)?;
+    let value = value_of(results, source)?;
+    let table = read_table(value)
+        .project(0)
+        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+    names::check_total(&table, &image, 0).map_err(NodeErrorKind::Naming)?;
+    let contacts = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
+        _ => Arc::clone(&value.contacts),
+    };
+    Ok(OpOut {
+        contacts: Arc::new(contacts.carried_from(0)),
+        carried: Arc::clone(&value.carried),
+        ..OpOut::plain(ValuePayload::Body(Arc::new(image)), Arc::new(table))
+            .carrying(value.parts)
+            .citing(vec![crate::coincide::CitedInput::Read(read)])
+    })
 }
 
 /// **The projection node** (DM3): ONE body out of a pattern's copies,
