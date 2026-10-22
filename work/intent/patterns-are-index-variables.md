@@ -7,8 +7,11 @@ opened: 2026-10-08
 priority: P0
 cost: H
 refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates, intent-stage3-is-built]
-blocked_on: [a-placement-pins-by-written-values-without-a-mate]
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot, an-operation-computes-in-a-frame-of-its-reads]
+design: true
 ---
+
+**Spec:** `docs/INTENT-STAGE3-SPEC.md` §8, restated against main at `4a4bb23608`; where this body and §8 differ, §8 governs. G waits on D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`): a pattern is a placement over an index into the target space it names, its copy a `Bodies` family there, combined by `⊔` (members kept as pieces, each its own arrival) or `∪` (fused). It waits on E's core (`an-operation-computes-in-a-frame-of-its-reads`) too: a member is `Framed` over its source's one body (the copies ruling), so §6 Q1, once shared with E, is answered. Its `Mirror` (§8 (c)) waits on nothing. Riders: `placed-union-places-and-fuses-in-one-node`, `explicit-placement-frames-hold-floats`, `a-map-over-a-patterns-bodies-asserts-once-per-member`. One design question stays open, measured first: whether a ring closes structurally (§8 Q1); PR 5555's mate rung does not reach it, since neighbouring members touch where no mate states it.
 
 FORK-PAT (fork log row 99). Ev, 2026-10-08, on interference between a
 pattern's outputs: "for pattern interference, i am wondering if we
@@ -36,9 +39,10 @@ PR. This row supersedes
   meet in one reader only when one is `within` the other (implied when
   its count reads it), else the reader refuses.
 - **Reads.** `xs[i, j]` reads a member (DM3's pick becomes this); an
-  index out of range leaves the reader unresolved and typed. `union` and
-  `subtract` read a family directly (DM4: a member may be a family; the
-  two-body floor moves to evaluation). A definer refusing at one index
+  index out of range leaves the reader unresolved and typed. `union`,
+  `intersect` and `assemble` read a family directly (DM4 and PR 5494;
+  a subtract's tool is one body, so cutting by a family is
+  `subtract(a, union(holes))`). A definer refusing at one index
   refuses the whole family, naming the index.
 - **`Count` arithmetic** gains exact `mod` (with the existing operators);
   `scalar(k)` (today's `CountToScalar`) puts an index into a length or
@@ -69,8 +73,9 @@ PR. This row supersedes
   placement's values being affine in the index, never declared.
 - **Façade and GUI.** `linear_pattern`, `circular_pattern`, `grid`,
   `bolt_circle` and `mirror` write the program, as mates and values,
-  never a pose: `circular_pattern` an `Axis` mate, a `Plane` mate and
-  `spin = scalar(k)·turn/N` (a free `Angle` step only when one is
+  never a pose: `circular_pattern` an `Axis` mate (a `Pivot` mate where
+  the copy also seats, after `flag-and-pivot-pose-kinds`; an axis and a
+  plane mate together overconstrain) and `Spin(Z) = scalar(k)·turn/N` (a free `Angle` step only when one is
   typed); `linear_pattern` a mate leaving one slide and
   `slide = scalar(k)·pitch`; `grid` a `Plane` mate and two slides over
   `i` and `j within i`; bolts into holes `bolt.axis ≡ holes[k].axis`. A display-only recogniser in the façade, matching a placement under an
@@ -94,9 +99,9 @@ façade's full-ring default is relied on to quiet the
 - `crates/editor-core/src`: `node.rs` (`PatternKind`, `Node::Pattern`,
   `Node::PlacedUnion`, `PartSelect::Instance`, the placement-rule slot
   table, `placement_rule_fault`, `CountMismatch`); `eval/wire.rs` and
-  `eval/stepped.rs` (`stepped_map`, `wire_pattern`, `wire_placed_union`,
-  `place_each`); `eval/mod.rs` key tags 12/13/19–22; `names/emit.rs`
-  and `names/role.rs` (`placer_axis`, `name_pattern`,
+  `eval/wire/stepped.rs` (`stepped_map`, `wire_pattern`,
+  `wire_placed_union`, `place_each`); `eval/mod.rs`'s key tags (re-grep
+  the numbers); `names/emit.rs` and `names/role.rs` (`name_pattern`,
   `name_placed_union`); `mate/member.rs`; `refactor.rs`;
   `persist/check.rs`; `assembly.rs`; `placement.rs` (`Frame`'s improper
   arm). About 60 editor-core test files.
@@ -117,29 +122,26 @@ façade's full-ring default is relied on to quiet the
 
 ## Migration
 
-A one-time regenerate. `Linear` → `k = index(N)` and a placement of
-the master whose mates leave one slide along the stored direction, read
-off geometry (the anchor #4326 requires), with
-`slide = scalar(k)·spacing`; `Circular` → an `Axis` mate on the stored
-axis with `spin = scalar(k)·step`, keeping the stored step (never infer
-a full ring; the `unproven-coincidence` lint proposes `turn/N`).
-`PlacedUnion(Explicit(frames))` → one placement per frame, a `Plane`
-mate against the face with the frame's in-plane offsets and spin as
-values, computed from the stored frame once at migration, gathered by
-`union`. `Part { Instance(i) }` → `xs[i]`. Names and ids move
-(`Instance` → `Member`; explicit-list members by node); geometry is
-bit-equal for copies; re-baseline
-and say what moved.
+A regeneration from each document's generator (DESIGN Band 4), never a
+conversion of stored frames. The generators write: `Linear` as
+`k = index(N)` and a placement of the master into its target, whose
+mates leave one slide, with `slide = scalar(k)·spacing`; `Circular` as
+an `Axis` mate on the axis with `Spin(Z) = scalar(k)·step`, keeping the
+written step (never inferring a full ring); `PlacedUnion` as that
+placement and a `union` of its family; `Pattern` as that placement and
+an `assemble` of its family where the copies are kept apart;
+`Explicit(frames)` as one placement per frame, each a `Plane` mate
+against the face plus its in-plane slides and spin written as turns
+and lengths, combined by `union` or `assemble`. `Part { Instance(i) }`
+is `p[i]`. Names and ids move (`Instance` → `Member`; explicit-list
+members by node); copies' geometry is bit-equal or moved by rounding;
+re-baseline and say what moved.
 
 ## Sequencing
 
-Stage 3 PR G (`docs/INTENT-STAGE3-SPEC.md` §8). It waits on stage 3 D,
-which follows B (a placement), C (values: `slide = scalar(k)·pitch`)
-and D itself (no construction reads a frame, and `Transform` is gone).
-It also waits on FORK-DM4 (`a-union-member-is-keyed-by-its-read`):
-`PlacedUnion` retires into a placement and a union reading a family,
-and how a union keys its members' names is what that fork decides. G
-closes `placed-union-places-and-fuses-in-one-node` and
-`explicit-placement-frames-hold-floats`, which ride with it.
-
-An `Explicit` frame or a `Linear` direction that sits off the face (a normal offset, a tilt) goes down the stage 3 spec's restate ladder (§5): a `Plane` mate at a `Standoff`, else `InFrame` of a constructed frame, else the migration names it and refuses to regenerate (Q8). The union this unit writes is against today's `Node::Union` and moves with FORK-DM4's units.
+Stage 3 PR G (`docs/INTENT-STAGE3-SPEC.md` §8, §0). It waits on D′3
+(one source per placement, a named target, `⊔`) and on E's core
+(`Framed`). It closes `placed-union-places-and-fuses-in-one-node` and
+`explicit-placement-frames-hold-floats`, which ride with it, and it
+ends D′3's interim in which each body of a `Pattern` or `PlacedUnion`
+operand of a `⊔` is its own arrival.

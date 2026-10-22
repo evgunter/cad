@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-11
 priority: P2
 refs: [a-name-is-scoped-by-the-variable-holding-its-body, the-at-rest-census-is-a-check]
+parent: assemble-is-an-operator-and-the-product-is-a-slot
 ---
 
 Filed by FORK-DM4 unit 2 (`a-name-is-scoped-by-the-variable-holding-its-body`),
