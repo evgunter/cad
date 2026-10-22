@@ -3,8 +3,10 @@
 //! The toolkit's job is to say *what the pointer did*; this module's
 //! job is to say *which operation that is*. Both halves are ordinary
 //! values — [`ViewportEvent`] in, [`CameraOp`] out — so the whole
-//! mapping is replayable in a headless test, and the egui layer above
-//! contains no navigation policy at all.
+//! mapping is replayable in a headless test. The egui layer above
+//! decides which toolkit values reach this vocabulary — for one, that
+//! a modified wheel stays a wheel (`pane::viewport::configure_input`)
+//! — and none of what an event means.
 //!
 //! # Screen conventions
 //!
@@ -28,10 +30,10 @@
 //!   subtend *at the target plane*, so the point under the cursor
 //!   stays under the cursor.
 //! - **Zoom**: a scroll notch is a fixed multiplicative step, so
-//!   zooming is scale-invariant and reversible. A ctrl/⌘ + scroll is a
-//!   scroll. A pinch is a ratio and is read as one: spreading the
-//!   fingers by a factor brings the eye that factor closer, so the
-//!   model's apparent size follows the fingers, with no rate between.
+//!   zooming is scale-invariant and reversible. A pinch is a ratio and
+//!   is read as one: spreading the fingers by a factor brings the eye
+//!   that factor closer, so the model's apparent size follows the
+//!   fingers, with no rate between.
 //!
 //! **The primary (left) button selects, and a plain drag of it moves
 //! no camera.** It is the button click-to-select takes — the first of
@@ -93,6 +95,9 @@ pub enum ViewportEvent {
         delta_px: [f64; 2],
     },
     /// A wheel notch; positive scrolls "up", which zooms in.
+    ///
+    /// A wheel turned with ctrl or ⌘ held is one too, read at the same
+    /// rate — not a [`ViewportEvent::Pinch`].
     Scroll {
         /// Notches (fractional on a trackpad).
         units: f64,

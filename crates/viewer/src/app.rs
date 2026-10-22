@@ -3513,7 +3513,7 @@ mod tests {
     /// The context startup installed onto, and the app it assembled.
     ///
     /// [`ViewerApp::assemble`] is the half of startup that needs no
-    /// graphics device, and both of the context-wide installs are in
+    /// graphics device, and every context-wide install is in
     /// it — the `egui::Context` it is handed reaches nothing else —
     /// so a bare context is the whole subject. **No frame is run**:
     /// each install exists to be in force before anything is drawn,
@@ -3558,6 +3558,28 @@ mod tests {
             matches!(app.theme.polarity, Polarity::Dark),
             "startup resolved {:?} and the visuals a first frame would paint report dark_mode = {dark_mode}",
             app.theme.polarity
+        );
+    }
+
+    /// **Startup turns the toolkit's wheel-zoom routing off**, so a
+    /// ctrl/⌘+wheel reaches the viewport as a scroll
+    /// (`pane::viewport::configure_input`). The first assertion is
+    /// what makes the second a statement about startup: an untouched
+    /// context routes a COMMAND wheel to zoom.
+    #[test]
+    fn startup_reads_every_wheel_as_a_scroll() {
+        let untouched =
+            egui::Context::default().options(|options| options.input_options.zoom_modifier);
+        assert_ne!(
+            untouched,
+            egui::Modifiers::NONE,
+            "the toolkit's default already reads every wheel as a scroll, so nothing below sees the install"
+        );
+        let (ctx, _app) = started();
+        assert_eq!(
+            ctx.options(|options| options.input_options.zoom_modifier),
+            egui::Modifiers::NONE,
+            "startup leaves a modified wheel routed to the toolkit's zoom"
         );
     }
 
