@@ -83,8 +83,9 @@ Today the census falls short in four ways:
   by no record. An in-band pair is a `CensusUndecidable` naming the two
   faces.
 - **Confinement.** Every face-pair rung reads `Declared::confirmed`:
-  each record that passes `pair_verified`, and each pair the planar arm
-  found, recorded or not. `vf_face_backed_confined` and
+  each record that passes `pair_verified` or the confirm pass's own
+  reading of it (a point touch, a tangent line), and each pair the
+  planar arm found, recorded or not. `vf_face_backed_confined` and
   `ee_face_backed` are gone. Each lane reads the rung before its own
   margin, so a confirmed pair's boundary cells are asked nothing and do
   not escalate. A record that does not confirm answers for nothing, and
