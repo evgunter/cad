@@ -723,11 +723,11 @@ impl Schedule {
         band: Band,
     ) -> Result<bool, PropsError> {
         let last = round >= self.last;
-        match reading {
-            Ok(Sign::Positive) => Ok(true),
-            Ok(Sign::Negative) => Ok(false),
-            Ok(Sign::Zero) if !last => Ok(false),
-            Ok(Sign::Zero) => {
+        match self.decided(round, reading)? {
+            Some(Sign::Positive) => Ok(true),
+            Some(Sign::Negative) | None => Ok(false),
+            Some(Sign::Zero) if !last => Ok(false),
+            Some(Sign::Zero) => {
                 match geom_core::k_stats::decide_positive(
                     "props_quad_converged",
                     Margin::of(target_len - width_len).lift::<T>(),
@@ -740,8 +740,30 @@ impl Schedule {
                     }),
                 }
             }
-            Err(PropsError::Escalated { .. }) if !last => Ok(false),
-            Err(other) => Err(other),
+        }
+    }
+
+    /// **A decision read off `round`'s enclosure, under the schedule.**
+    /// An in-band reading ([`PropsError::Escalated`]) at a round with a
+    /// successor is no answer — the next round's enclosure is narrower
+    /// and may decide it — so it reads `None` and the round refines; at
+    /// the last round it stands. Any other reading is the answer.
+    pub(super) fn decided<V>(
+        self,
+        round: usize,
+        reading: Result<V, PropsError>,
+    ) -> Result<Option<V>, PropsError> {
+        match reading {
+            Err(PropsError::Escalated { .. }) if round < self.last => Ok(None),
+            reading => reading.map(Some),
+        }
+    }
+
+    /// The rounds one call runs: this schedule, ended at `window`'s
+    /// last round if that comes first.
+    pub(super) fn within(self, window: RoundWindow) -> Self {
+        Self {
+            last: self.last.min(window.last),
         }
     }
 }
@@ -897,7 +919,9 @@ pub(super) fn round_exit(
 /// a loop that winds the cylinder by no whole number of turns, or loops
 /// that wind it together ([`PropsError::LoopsWindChart`]),
 /// a ring wound with its face at any round it returns
-/// ([`PropsError::RingWoundWithFace`]), or
+/// ([`PropsError::RingWoundWithFace`]) or still undecided at the last
+/// round the window runs (a converged face whose ring is undecided
+/// refines on), or
 /// the typed [`PropsError::QuadratureBudget`] refusal when the
 /// enclosure will not tighten to target within the round budget.
 pub fn cylinder_cut_face<T: Decide>(
@@ -987,10 +1011,20 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
-            require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band)?;
-            return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
-        }
-        if let Some(out) = round_exit(
+            // A ring the converged enclosure leaves undecided refines
+            // while the window has rounds: the face's flux needs no
+            // later round, but the ring's own enclosure narrows.
+            if schedule
+                .within(window)
+                .decided(
+                    round,
+                    require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band),
+                )?
+                .is_some()
+            {
+                return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
+            }
+        } else if let Some(out) = round_exit(
             round,
             schedule.last(),
             window,
@@ -5834,6 +5868,16 @@ mod tests {
     /// and the circle of radius `0.3` about `(1, 0.5)` as two half arcs,
     /// clockwise when `hole`, the second arc's azimuth `shift` off.
     fn ringed_rectangle(hole: bool, shift: f64) -> [Vec<TrimEdgeQ>; 2] {
+        rectangle_with_circle(hole, shift, (0.3, 0.5))
+    }
+
+    /// [`ringed_rectangle`] with a circle of radius `ring` about
+    /// `(1, level)`.
+    fn rectangle_with_circle(
+        hole: bool,
+        shift: f64,
+        (ring, level): (f64, f64),
+    ) -> [Vec<TrimEdgeQ>; 2] {
         let line = |u: HarmChan, v: HarmChan, span: f64, forward: bool| TrimEdgeQ {
             u,
             v,
@@ -5872,8 +5916,8 @@ mod tests {
         ];
         let pi = core::f64::consts::PI;
         let arc = |from: f64, du: f64, trig0: (Interval, Interval)| TrimEdgeQ {
-            u: chan(1.0 + du, 0.3, 0.0, 0.0),
-            v: chan(0.5, 0.0, 0.3, 0.0),
+            u: chan(1.0 + du, ring, 0.0, 0.0),
+            v: chan(level, 0.0, ring, 0.0),
             t0: pt(from),
             t1: pt(from + pi),
             forward: !hole,
@@ -5889,6 +5933,84 @@ mod tests {
             ring.reverse();
         }
         [outer, ring]
+    }
+
+    /// **A ring the first converged round leaves undecided refines on.**
+    /// A small hole far from the Green form's anchor level has a wide
+    /// enclosure at round 0, where the face's flux already converges:
+    /// its mean width straddles the band there (`props_ring_winding`),
+    /// and a window ending at round 0 escalates, while the whole
+    /// schedule refines until the ring is decided and measures
+    /// `2 − π·r²`.
+    #[test]
+    fn a_ring_undecided_at_the_first_converged_round_refines_on() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let ring_undecided = |got: Option<&PropsError>| {
+            matches!(
+                got,
+                Some(PropsError::Escalated { cause, .. })
+                    if cause.predicate == Some("props_ring_winding")
+            )
+        };
+        for (r, level) in [(1e-5, 0.2), (2e-6, 0.2), (3e-7, 0.95), (3e-8, 0.2)] {
+            let [outer, ring] = rectangle_with_circle(true, 0.0, (r, level));
+            let loops: [&[TrimEdgeQ]; 2] = [&outer, &ring];
+            let at0 = cylinder_cut_face_rounds::<f64>(
+                pt(1.0),
+                Interval::zero(),
+                &loops,
+                eps,
+                band,
+                RoundWindow::at(0),
+            );
+            assert!(
+                ring_undecided(at0.as_ref().err()),
+                "ring {r} at {level}: round 0 must leave the ring undecided: {at0:?}"
+            );
+            let whole = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, eps, band)
+                .unwrap_or_else(|e| panic!("ring {r} at {level}: the schedule refused: {e}"));
+            let exact = 2.0 - core::f64::consts::PI * r * r;
+            assert!(
+                whole.flux.lo() <= exact && exact <= whole.flux.hi(),
+                "ring {r} at {level}: flux {:?} must bracket {exact}",
+                whole.flux
+            );
+        }
+        // A ring in the band at every round refines through the window
+        // and escalates at its last round.
+        let [outer, ring] = rectangle_with_circle(true, 0.0, (1.2e-8, 0.5));
+        let got = cylinder_cut_face_rounds::<f64>(
+            pt(1.0),
+            Interval::zero(),
+            &[&outer, &ring],
+            eps,
+            band,
+            RoundWindow { first: 0, last: 2 },
+        );
+        assert!(
+            ring_undecided(got.as_ref().err()),
+            "a ring in the band at every round escalates at the window's end: {got:?}"
+        );
+    }
+
+    /// **A ring inside the band at every round escalates at the
+    /// schedule's end** (`props_ring_winding`), having refined through
+    /// every round.
+    #[test]
+    fn a_ring_in_the_band_at_every_round_escalates_at_the_schedules_end() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let [outer, ring] = rectangle_with_circle(true, 0.0, (1.2e-8, 0.5));
+        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band);
+        assert!(
+            matches!(
+                &got,
+                Err(PropsError::Escalated { cause, .. })
+                    if cause.predicate == Some("props_ring_winding")
+            ),
+            "a ring in the band at every round escalates at the schedule's end: {got:?}"
+        );
     }
 
     /// **A ring is a loop of its own.** The rectangle less the circle

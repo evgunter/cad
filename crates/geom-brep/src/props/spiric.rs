@@ -825,7 +825,8 @@ fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsE
 /// over them all, bounds a region of the lifted chart only then. Each
 /// ring must also be wound against the face at the round returned
 /// ([`require_rings_wound_against`]), or it would add itself to the
-/// face's area.
+/// face's area; a converged face whose ring is undecided refines on,
+/// and the escalation stands at the last round the window runs.
 ///
 /// # Errors
 ///
@@ -866,7 +867,12 @@ pub fn spiric_face_rounds<T: Decide>(
             (target_len, width_len),
             band,
         )?;
-        let out = if converged {
+        let rings = || {
+            face.wall.as_ref().map_or(Ok(()), |chart| {
+                require_rings_wound_against(face, chart, &loops, band)
+            })
+        };
+        if converged {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(bounds.area), face.perimeter),
@@ -876,22 +882,22 @@ pub fn spiric_face_rounds<T: Decide>(
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
-            Some(RoundOutcome::Converged(bounds))
-        } else {
-            round_exit(
-                round,
-                schedule.last(),
-                window,
-                bounds,
-                (width_len, target_len),
-            )
-        };
-        if let Some(out) = out {
+            // A ring the converged enclosure leaves undecided refines
+            // while the window has rounds: the face's flux needs no
+            // later round, but the ring's own enclosure narrows.
+            if schedule.within(window).decided(round, rings())?.is_some() {
+                return Ok(RoundOutcome::Converged(bounds));
+            }
+        } else if let Some(out) = round_exit(
+            round,
+            schedule.last(),
+            window,
+            bounds,
+            (width_len, target_len),
+        ) {
             // An open enclosure is read too (a sign walk settles on one),
             // and it encloses the face's flux only if its rings are holes.
-            if let Some(chart) = &face.wall {
-                require_rings_wound_against(face, chart, &loops, band)?;
-            }
+            rings()?;
             return Ok(out);
         }
         pieces *= 2;
@@ -1800,7 +1806,8 @@ mod tests {
     /// face's area, as does the loop's own copy beside it, and the loop's
     /// copy run backwards leaves a whole of no area, on which the read
     /// takes no side (it escalates `props_chart_area_side`); each at both
-    /// scalars. A ring
+    /// scalars. A ring in the band at every round escalates
+    /// `props_ring_winding` at the window's last round. A ring
     /// whose lift stays open by a part of a period, as a ring crossing
     /// the chart's seam would where its images do not continue across
     /// it, refuses [`PropsError::ChartLoopOpen`]; one whose lift restarts
@@ -1942,6 +1949,18 @@ mod tests {
                 matches!(&got, Err(PropsError::Escalated { cause, .. })
                     if cause.predicate == Some("props_chart_area_side")),
                 "scalar {scalar}, the loop's copy run backwards: {got:?}"
+            );
+            // A ring whose mean width is in the band at every round
+            // refines through the window and escalates at its end.
+            let got = within(
+                scalar,
+                &wall_face(&[outer.clone(), closed(1.5e-7, false)]),
+                RoundWindow { first: 0, last: 2 },
+            );
+            assert!(
+                matches!(&got, Err(PropsError::Escalated { cause, .. })
+                    if cause.predicate == Some("props_ring_winding")),
+                "scalar {scalar}, a ring in the band: {got:?}"
             );
         }
         let (oval, meridian, loop_ends) = inner;
