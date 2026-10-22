@@ -179,22 +179,19 @@ pub const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 /// cumulatively ([`crate::descent::Work`]): a round runs only if every
 /// round before it and it fit.
 ///
-/// It sits at the composite arm's rounds `0..=7` (`Σ (8·2ʳ)²` cells),
-/// the costliest face any lane admitted under the per-lane round caps
-/// this replaces, so no face spends more than that one did.
-pub const FACE_WORK_WALL: usize = W_RATIONAL_COMPOSITE * square_cells_through(7);
-
-/// `Σ (QUAD2_INIT_PIECES·2ʳ)²` over rounds `0..=last`: the composite
-/// arm's cells through `last` on a rectangle no knot cuts.
-const fn square_cells_through(last: usize) -> usize {
-    let mut sum = 0;
-    let mut round = 0;
-    while round <= last {
-        sum += (QUAD2_INIT_PIECES << round).pow(2);
-        round += 1;
-    }
-    sum
-}
+/// It sits at the costliest face the per-lane round caps it replaces
+/// admitted, MEASURED rather than derived: the cumulative work every
+/// face spent to its accepting round, under those caps, over the
+/// geom-brep, topo and sweep suites (slow set included), the tour and
+/// the python suite at ε = 1e-9, 1e-12 and 1e-6. The maximum is
+/// 14,243,680: `demos/tour`'s `lily_leaf_a`, the 17-station lofted long
+/// leaf, whose knot-cut composite wall certifies at round 7 at ε = 1e-9.
+/// A knot adds a cell to every round, so a knot-cut face spends more
+/// per round than a rectangle no knot cuts (that rectangle through
+/// round 7 is 13,980,800, and stopped this leaf at round 6). Rounded
+/// up to 14,250,000, so no face that converged under the caps stops
+/// short of its round.
+pub const FACE_WORK_WALL: usize = 14_250_000;
 
 /// **The floor's share**, `2⁻¹⁰`: a lane is at its floor once the part
 /// of a round's width a later round removes is at most this share of

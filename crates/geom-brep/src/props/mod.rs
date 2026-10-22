@@ -523,8 +523,10 @@ pub enum PropsError {
     /// target scales with the run's ε.
     QuadratureBudget {
         /// The width of the narrowest enclosure the lane reached, as a
-        /// length (m): a width that really missed, strictly above
-        /// `target_len`.
+        /// length (m). The narrowest round is chosen by flux width, so
+        /// this is not necessarily the last round's width, nor
+        /// necessarily over `target_len` in the area lever this length
+        /// is metered by.
         width_len: f64,
         /// The convergence target, as a length (m).
         target_len: f64,
