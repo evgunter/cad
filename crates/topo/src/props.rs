@@ -5315,6 +5315,16 @@ pub trait AtRestPolicy: Decide {
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>>;
 
+    /// The flush pairs between the groups `group` partitions a body at
+    /// rest into ([`crate::census::flush_at_rest`]), through this
+    /// scalar's region doors, at the scalars that run the at-rest gate;
+    /// nothing where the gate does not run.
+    fn flush_at_rest(
+        body: &Body<Self>,
+        group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        band: Band,
+    ) -> crate::FlushAtRest;
+
     /// The boolean engine's volume backstop over an op's two operands
     /// and its result (`crate::boolean::volume_backstop`, measuring
     /// through [`QuadLane::certified`], at certifying scalars; absent at
@@ -5403,6 +5413,14 @@ impl AtRestPolicy for f64 {
             .map(|()| AtRestOutcome::Validated)
     }
 
+    fn flush_at_rest(
+        body: &Body<Self>,
+        group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        band: Band,
+    ) -> crate::FlushAtRest {
+        crate::census::flush_at_rest(body, group, band, Self::region_lane())
+    }
+
     fn gate_volume_backstop(
         op: crate::BooleanOp,
         a: &Body<Self>,
@@ -5479,6 +5497,14 @@ impl AtRestPolicy for geom_core::Probe {
             .map(|()| AtRestOutcome::Validated)
     }
 
+    fn flush_at_rest(
+        body: &Body<Self>,
+        group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        band: Band,
+    ) -> crate::FlushAtRest {
+        crate::census::flush_at_rest(body, group, band, Self::region_lane())
+    }
+
     fn gate_volume_backstop(
         op: crate::BooleanOp,
         a: &Body<Self>,
@@ -5549,6 +5575,14 @@ impl AtRestPolicy for geom_core::interval::Interval {
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
+    }
+
+    fn flush_at_rest(
+        body: &Body<Self>,
+        group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        band: Band,
+    ) -> crate::FlushAtRest {
+        crate::census::flush_at_rest(body, group, band, Self::region_lane())
     }
 
     fn gate_volume_backstop(
@@ -5634,6 +5668,14 @@ where
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
+    }
+
+    fn flush_at_rest(
+        body: &Body<Self>,
+        group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        band: Band,
+    ) -> crate::FlushAtRest {
+        crate::census::flush_at_rest(body, group, band, Self::region_lane())
     }
 
     fn gate_volume_backstop(
@@ -5726,6 +5768,14 @@ where
         _tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         Ok(AtRestOutcome::NotRunAtThisScalar)
+    }
+
+    fn flush_at_rest(
+        _body: &Body<Self>,
+        _group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        _band: Band,
+    ) -> crate::FlushAtRest {
+        crate::FlushAtRest::default()
     }
 
     /// The backstop is a validation of the result, and the quadrature

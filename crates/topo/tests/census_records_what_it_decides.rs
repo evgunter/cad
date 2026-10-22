@@ -238,3 +238,217 @@ fn a_pierce_between_two_groups_stays_a_finding() {
         recorded.records
     );
 }
+
+/// The census over two blocks, each its own group, recorded
+/// (`record_at_rest`), and the flush pairs between them
+/// (`AtRestPolicy::flush_at_rest`).
+fn at_rest(body: &Body<f64>) -> (topo::RecordedAtRest, topo::FlushAtRest) {
+    let groups = by_solid(body);
+    let recorded = topo::record_at_rest(
+        body,
+        &ContactRecords::default(),
+        census(body),
+        &|s| groups.get(&s).copied(),
+        0,
+    );
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let flush =
+        <f64 as topo::AtRestPolicy>::flush_at_rest(body, &|s| groups.get(&s).copied(), band);
+    (recorded, flush)
+}
+
+/// The face each of a row's two cells is, `None` where one is not a face.
+fn faces_of(row: &topo::Coincidence) -> Option<[topo::FaceKey; 2]> {
+    let face = |cell: topo::RowCell| match cell {
+        topo::RowCell::Result {
+            cell: topo::Cell::Face(f),
+        } => Some(f),
+        _ => None,
+    };
+    Some([face(row.cells[0])?, face(row.cells[1])?])
+}
+
+/// The outward normal of a face of a block: the carrier's normal, turned
+/// by the face's sense.
+fn outward(body: &Body<f64>, face: topo::FaceKey) -> geom_core::Vec3<f64> {
+    let f = body.get_face(face).unwrap();
+    let geom::Surface::Plane { normal, .. } = body.get_surface(f.surface).unwrap() else {
+        panic!("a block's faces are planes");
+    };
+    let n = *normal;
+    if f.sense { n } else { -n }
+}
+
+/// **An area contact is one face pair, and a flush side is its own row**
+/// (`[assertions]`). A block seated on a bigger block, flush with it on
+/// one, two and three sides: the census records the seat as ONE
+/// face-pair row (the block's bottom and the base's top, one carrier,
+/// opposed) and one record citing it, and asks nothing of the edges and
+/// vertices bounding them; each flush side is one row of two faces on
+/// one carrier facing the same way, which no record cites. Red if the
+/// seat is recorded as its edge and vertex events, if a flush side is
+/// missing or counted twice, or if any finding stands.
+#[test]
+fn a_seat_flush_on_n_sides_is_one_face_pair_and_n_flush_rows() {
+    let base = ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
+    for (sides, top) in [
+        (1, ((0.0, 1.0), (0.5, 1.5), (1.0, 2.0))),
+        (2, ((0.0, 1.0), (0.0, 1.0), (1.0, 2.0))),
+        (3, ((0.0, 2.0), (0.0, 1.0), (1.0, 2.0))),
+    ] {
+        let body = two_blocks(base, top);
+        let (recorded, flush) = at_rest(&body);
+        assert!(
+            recorded.findings.is_empty() && flush.findings.is_empty(),
+            "{sides} flush sides: {:?} {:?}",
+            recorded.findings,
+            flush.findings
+        );
+        assert_eq!(recorded.rows.len(), 1, "{sides}: {:?}", recorded.rows);
+        let seat = recorded.rows[0];
+        assert_eq!(seat.relation, topo::Relation::SameOpposite, "{sides}");
+        let [a, b] = faces_of(&seat).expect("the seat's row names two faces");
+        assert!(
+            (outward(&body, a).z.abs() - 1.0).abs() < 1e-12
+                && outward(&body, a).z == -outward(&body, b).z,
+            "{sides}: the seat is the block's bottom on the base's top"
+        );
+        assert_eq!(recorded.records.rows().len(), 1, "{sides}: one record");
+        assert_eq!(
+            topo::validate_pseudomanifold(&body, &recorded.records, Tol::witness()),
+            Ok(()),
+            "{sides}: the record confirms"
+        );
+        assert_eq!(flush.rows.len(), sides, "{sides}: {:?}", flush.rows);
+        for row in &flush.rows {
+            assert_eq!(row.relation, topo::Relation::SameOriented, "{sides}");
+            let [a, b] = faces_of(row).expect("a flush row names two faces");
+            assert!(
+                (outward(&body, a) - outward(&body, b)).norm() < 1e-12
+                    && outward(&body, a).z.abs() < 1e-12,
+                "{sides}: a flush row is two side walls facing one way"
+            );
+        }
+    }
+}
+
+/// **An overhang is one face pair.** A block hanging over the base's
+/// edge: its bottom and the base's top meet over part of each, their
+/// boundary edges crossing where the base's top ends. One face-pair row,
+/// no flush row, nothing else. Red if a crossing at the overhang is
+/// recorded or found.
+#[test]
+fn an_overhang_is_one_face_pair() {
+    let body = two_blocks(
+        ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
+        ((1.0, 3.0), (0.5, 1.5), (1.0, 2.0)),
+    );
+    let (recorded, flush) = at_rest(&body);
+    assert!(recorded.findings.is_empty(), "{:?}", recorded.findings);
+    assert_eq!(recorded.rows.len(), 1, "{:?}", recorded.rows);
+    assert_eq!(recorded.rows[0].relation, topo::Relation::SameOpposite);
+    assert!(
+        flush.rows.is_empty() && flush.findings.is_empty(),
+        "{flush:?}"
+    );
+}
+
+/// **Two coplanar faces meeting only along a line are no face pair.** A
+/// block beside the base, its bottom on the base's top plane and the two
+/// meeting only along the base's edge: no area, so no face-pair row; the
+/// line they share is the census's edge row, and the vertices bounding
+/// it. Their fronts lie on one plane facing one way and meet at one
+/// point, no segment, so they are no flush pair. Red if a face pair or a
+/// flush row is recorded, or the line is not.
+#[test]
+fn coplanar_faces_meeting_only_along_a_line_are_no_face_pair() {
+    let body = two_blocks(
+        ((0.0, 2.0), (0.0, 1.0), (0.0, 1.0)),
+        ((2.0, 3.0), (0.0, 1.0), (1.0, 2.0)),
+    );
+    let (recorded, flush) = at_rest(&body);
+    assert!(recorded.findings.is_empty(), "{:?}", recorded.findings);
+    assert!(
+        recorded.rows.iter().all(|r| faces_of(r).is_none()),
+        "no row names two faces: {:?}",
+        recorded.rows
+    );
+    assert!(
+        recorded.rows.iter().any(|r| matches!(
+            r.cells,
+            [
+                topo::RowCell::Result {
+                    cell: topo::Cell::Edge(_)
+                },
+                topo::RowCell::Result {
+                    cell: topo::Cell::Edge(_)
+                }
+            ]
+        )),
+        "the shared line is an edge row: {:?}",
+        recorded.rows
+    );
+    assert!(
+        flush.rows.is_empty() && flush.findings.is_empty(),
+        "{flush:?}"
+    );
+}
+
+/// **A near-flush side: the seat is one face pair, and the side's own
+/// pair is the flush door's finding.** A block on the base, its x = 0
+/// side standing off the base's by a distance inside the band. The seat
+/// is confirmed, one face pair, and the census asks nothing of the cells
+/// bounding it: the bottom edge along x = off, in band of the base's top
+/// edge, no longer escalates. The x = 0 side's carrier reads in band, so
+/// it is no flush row, and the flush door's finding names that pair.
+///
+/// What stays: the census still reads the in-band side walls' own
+/// boundary cells against each other and escalates them, so the seat is
+/// not recorded (`work/intent/an-in-band-face-pair-at-rest-is-not-one-finding.md`).
+/// Red if the seat's pair is not found, if the near-flush pair is
+/// decided, or if its finding names another pair.
+#[test]
+fn a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let body = two_blocks(
+        ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
+        ((off, 1.0), (0.5, 1.5), (1.0, 2.0)),
+    );
+    let (recorded, flush) = at_rest(&body);
+    let seats: Vec<_> = recorded
+        .findings
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::ConformalPatch { finding },
+                ..
+            } => Some([finding.pair.a, finding.pair.b]),
+            _ => None,
+        })
+        .collect();
+    let [[a, b]] = seats[..] else {
+        panic!("one face pair: {:?}", recorded.findings);
+    };
+    assert!(
+        outward(&body, a).z.abs() == 1.0 && outward(&body, a).z == -outward(&body, b).z,
+        "the seat is the block's bottom on the base's top"
+    );
+    assert!(flush.rows.is_empty(), "{:?}", flush.rows);
+    let [
+        ValidationError::CensusUndecidable {
+            a: topo::EntityId::Face(a),
+            b: topo::EntityId::Face(b),
+            ..
+        },
+    ] = flush.findings.as_slice()
+    else {
+        panic!("one finding, the near-flush pair's: {:?}", flush.findings);
+    };
+    for face in [*a, *b] {
+        assert!(
+            (outward(&body, face).x + 1.0).abs() < 1e-12,
+            "the finding names the two x = 0 sides"
+        );
+    }
+}

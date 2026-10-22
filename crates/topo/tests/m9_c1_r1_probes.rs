@@ -121,12 +121,27 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
     cs.iter().filter(|c| f(c)).count()
 }
 
-/// Undeclared baseline: the overhang seat's own census. Three cap
-/// vertices rest on the shelf edge's interior (H, B, T).
+/// Undeclared baseline: the overhang seat's own census is one face
+/// pair, the cap on the underside. Read where no pair can be confirmed
+/// (the structural twin, which holds no region door), three cap vertices
+/// rest on the shelf edge's interior (H, B, T) and the shelf edge dives
+/// through the cap's interior.
 #[test]
 fn the_lemma_probe_undeclared_baseline() {
     let (body, _, _, _) = overhang_seat();
-    let found = undeclared(&errors(&body, &ContactRecords::default()));
+    let certified = undeclared(&errors(&body, &ContactRecords::default()));
+    assert!(
+        matches!(certified[..], [CensusContact::ConformalPatch { .. }]),
+        "one face pair: {certified:?}"
+    );
+    let found = undeclared(
+        &topo::validate_pseudomanifold_structural(
+            &body,
+            &ContactRecords::default(),
+            Tol::witness(),
+        )
+        .unwrap_err(),
+    );
     assert_eq!(
         count(&found, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
         3,
@@ -195,33 +210,24 @@ fn the_lemma_probe_declared() {
     );
 }
 
-/// The rung consults the DECLARED pair's incidence, nothing else: a
-/// pair naming the wrong shelf face (its TOP) backs none of the flush
-/// seat's events — the census is exactly as loud as with no
-/// declaration at all.
+/// A pair naming the wrong shelf face (its TOP) answers for none of the
+/// flush seat's events: the census is exactly as loud as with no
+/// declaration at all, one face pair the cap on the underside, and the
+/// wrong pair is the confirm pass's own finding.
 #[test]
 fn a_wrong_pair_backs_nothing() {
-    let (body, post_top, _, shelf_top) = flush_seat();
+    let (body, post_top, shelf_bottom, shelf_top) = flush_seat();
     let bare = undeclared(&errors(&body, &ContactRecords::default()));
     let wrong = undeclared(&errors(&body, &declared(&body, post_top, shelf_top)));
-    assert_eq!(
-        count(&wrong, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
-        2,
-        "{wrong:?}"
-    );
-    assert_eq!(
-        count(&wrong, |c| matches!(
-            c,
-            CensusContact::EdgeEdgeOverlap { .. }
-        )),
-        1,
-        "{wrong:?}"
-    );
-    assert_eq!(
-        bare.len(),
-        wrong.len(),
-        "a wrong pair changes nothing: {wrong:?}"
-    );
+    let [CensusContact::ConformalPatch { finding }] = wrong[..] else {
+        panic!("one face pair: {wrong:?}");
+    };
+    let mut pair = [finding.pair.a, finding.pair.b];
+    pair.sort();
+    let mut seat = [post_top, shelf_bottom];
+    seat.sort();
+    assert_eq!(pair, seat, "the pair is the cap on the underside");
+    assert_eq!(bare, wrong, "a wrong pair changes nothing");
 }
 
 /// The unit's flush seat with the graft order SWAPPED (post grafted

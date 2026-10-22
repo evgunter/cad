@@ -69,7 +69,7 @@ fn two_solids(body: &Body<f64>) -> (SolidKey, SolidKey) {
 /// profile, `z ∈ [0, 1]`; the part `x ∈ [1, 2]`, `y ∈ [1.2, 2]`,
 /// `z ∈ [0.2, 0.8]`, resting flat on the inner wall `x = 1`, wholly
 /// outside the bracket's material. `dx` shifts the part along `+x`;
-/// `declared` adds the four v-on-f records on the wall.
+/// `declared` adds the face–face record of the part's side on the wall.
 fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
     let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     // The side face over profile segment 3, (1, 1) → (1, 3): the wall.
@@ -78,21 +78,39 @@ fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
     let body = assembly(&l.body, &part);
     let mut records = ContactRecords::default();
     if declared {
-        for v in vertices_where(&body, |p| {
-            (p.x - (1.0 + dx)).abs() < 1e-12 && (1.1..2.1).contains(&p.y)
-        }) {
-            records.extend([topo::Cited::new(
-                topo::Contact::new(&body, topo::Cell::Vertex(v), topo::Cell::Face(wall)).unwrap(),
-                topo::Cites::decided(0),
-            )]);
-        }
-        assert_eq!(
-            records.vertex_face().count(),
-            4,
-            "the fixture's four resting corners"
-        );
+        records.extend([topo::Cited::new(
+            topo::Contact::new(
+                &body,
+                topo::Cell::Face(part_wall(&body, dx)),
+                topo::Cell::Face(wall),
+            )
+            .unwrap(),
+            topo::Cites::decided(0),
+        )]);
     }
     (body, records)
+}
+
+/// The part's side face lying on the wall: the face whose every vertex
+/// is at `x = 1 + dx`.
+fn part_wall(body: &Body<f64>, dx: f64) -> FaceKey {
+    let on = vertices_where(body, |p| {
+        (p.x - (1.0 + dx)).abs() < 1e-12 && (1.1..2.1).contains(&p.y)
+    });
+    body.faces()
+        .map(|(f, _)| f)
+        .find(|&f| {
+            let face = body.get_face(f).unwrap();
+            let l = body.get_loop(face.outer).unwrap();
+            let topo::LoopBoundary::Cycle { first } = l.boundary else {
+                return false;
+            };
+            body.loop_cycle(first)
+                .unwrap()
+                .into_iter()
+                .all(|he| on.contains(&body.get_half_edge(he).unwrap().start))
+        })
+        .expect("the part's face on the wall")
 }
 
 /// A cube of side `side` with its minimum corner at `(dx, dy, dz)`.
@@ -220,7 +238,7 @@ fn undecidable_what(e: &ValidationError) -> Option<&'static str> {
 
 /// Declared, the L-bracket certifies: the part is inside the bracket's
 /// box and outside its material, every vertex of each instance is
-/// outside-or-on the other, and the four declared rests are one-sided.
+/// outside-or-on the other, and the declared face pair confirms.
 #[test]
 fn the_declared_l_bracket_certifies() {
     let (body, records) = lbracket(true, 0.0);
@@ -230,41 +248,29 @@ fn the_declared_l_bracket_certifies() {
     );
 }
 
-/// Undeclared, the L-bracket refuses on its eight touch findings — the
-/// four resting corners and the four resting edges on the wall — and
-/// on NOTHING about placement: each touch is a rest by the local cone
-/// analysis, so the clear stands beside them.
+/// Undeclared, the L-bracket refuses on its one touch finding — the
+/// part's side lying on the wall, one face pair, whose resting corners
+/// and edges the census asks nothing of — and on NOTHING about
+/// placement: a confirmed pair is a rest, so the clear stands beside it.
 #[test]
 fn the_undeclared_l_bracket_carries_no_placement_finding() {
     let (body, _) = lbracket(false, 0.0);
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("undeclared touches refuse");
-    assert_eq!(errors.len(), 8, "{errors:?}");
-    let corners = errors
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::UnrecordedContact {
-                    contact: CensusContact::VertexOnFace { .. },
-                    ..
-                }
-            )
-        })
-        .count();
-    let edges = errors
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::UnrecordedContact {
-                    contact: CensusContact::EdgeFaceOverlap { .. },
-                    ..
-                }
-            )
-        })
-        .count();
-    assert_eq!((corners, edges), (4, 4), "{errors:?}");
+    let wall = part_wall(&body, 0.0);
+    let [
+        ValidationError::UnrecordedContact {
+            contact: CensusContact::ConformalPatch { finding },
+            ..
+        },
+    ] = errors.as_slice()
+    else {
+        panic!("one face pair: {errors:?}");
+    };
+    assert!(
+        [finding.pair.a, finding.pair.b].contains(&wall),
+        "the pair is the part's side on the wall: {finding:?}"
+    );
     assert!(placement_findings(&errors).is_empty(), "{errors:?}");
 }
 

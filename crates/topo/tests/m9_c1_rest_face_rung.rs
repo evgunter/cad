@@ -10,8 +10,8 @@
 //! pair (census module docs, D3/D4).
 //!
 //! The rows here pin both directions of that, plus the rung's
-//! STRENGTH: it is structural-incidence and region-unconfined, like
-//! the two rungs it is built from.
+//! STRENGTH: a pair answers only once both doors confirm it, so an
+//! event on a pair whose regions share no area is the census's own.
 //!
 //! **ε posture**: every row asserts a hard outcome because no margin
 //! in these fixtures rides a band at any ε the matrix runs. The
@@ -140,9 +140,8 @@ fn pair_declined(errors: &[ValidationError], face_a: FaceKey, face_b: FaceKey) {
                 topo::ChartRegionError::TouchingBoundary
             ),
         }],
-        "the declared pair's own confirmation is the whole residue: \
-         every event the seat induces is backed, and the pair itself \
-         is declined, not refuted"
+        "beside the seat's events, the declared pair's own confirmation \
+         is the residue: the pair is declined, not refuted"
     );
 }
 
@@ -207,18 +206,42 @@ fn the_inset_seat_certifies_too() {
     );
 }
 
-/// INVARIANT (the scan-to-bless ban, F1): the rung consults
+/// INVARIANT (the scan-to-bless ban, F1): the census reads
 /// DECLARATIONS, never the geometry's agreement with itself. The SAME
-/// configuration with nothing declared is the hard error — every event
-/// of it, the two vertex-on-edge findings and the overlap they bound.
+/// configuration with nothing declared is the hard error: the seat is
+/// one area contact, the cap on the underside, so it is one face-pair
+/// finding, and the census asks nothing of the corners and edges
+/// bounding it (`[assertions]`).
 #[test]
 fn the_same_flush_seat_undeclared_is_the_hard_error() {
-    let (body, _, _) = flush_seat();
+    let (body, post_top, shelf_bottom) = flush_seat();
     let found = undeclared(&errors(&body, &ContactRecords::default()));
+    let [CensusContact::ConformalPatch { finding }] = found[..] else {
+        panic!("one face pair: {found:?}");
+    };
+    let mut pair = [finding.pair.a, finding.pair.b];
+    pair.sort();
+    let mut seat = [post_top, shelf_bottom];
+    seat.sort();
+    assert_eq!(pair, seat, "the pair is the cap on the underside");
+}
+
+/// INVARIANT — the rung's STRENGTH, stated as a row rather than left
+/// to be read off the code: a declared pair answers only for its
+/// verified interface. Here the pair's two faces are coplanar and touch
+/// along one line, so their regions overlap in NO area, both doors do
+/// not confirm the pair, and it answers for nothing: the events on the
+/// shared line stand as they do undeclared, and the pair itself is
+/// declined by the confirm pass.
+#[test]
+fn the_rung_backs_no_event_outside_the_declared_pairs_overlap_region() {
+    let (body, post_top, shelf_bottom) = line_contact_seat();
+    let errors = errors(&body, &declared(&body, post_top, shelf_bottom));
+    let found = undeclared(&errors);
     assert_eq!(
         count(&found, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
-        2,
-        "both cap corners rest on the shelf edge's interior: {found:?}"
+        1,
+        "{errors:?}"
     );
     assert_eq!(
         count(&found, |c| matches!(
@@ -226,37 +249,42 @@ fn the_same_flush_seat_undeclared_is_the_hard_error() {
             CensusContact::EdgeEdgeOverlap { .. }
         )),
         1,
-        "the cap's end edge overlaps the shelf's: {found:?}"
+        "{errors:?}"
     );
+    assert_eq!(
+        count(&found, |c| matches!(c, CensusContact::VertexVertex { .. })),
+        1,
+        "{errors:?}"
+    );
+    // The unconfirmed record leaves the containment arm a meeting it
+    // cannot place, which it says rather than clearing the pair.
+    let rest: Vec<ValidationError> = errors
+        .iter()
+        .filter(|e| {
+            !matches!(
+                e,
+                ValidationError::UnrecordedContact { .. }
+                    | ValidationError::CensusUndecidable {
+                        a: topo::EntityId::Solid(_),
+                        b: topo::EntityId::Solid(_),
+                        ..
+                    }
+            )
+        })
+        .cloned()
+        .collect();
     assert!(
-        count(&found, |c| matches!(c, CensusContact::VertexOnFace { .. })) > 0,
-        "and the rest of the seat is undeclared too: {found:?}"
+        errors.iter().any(|e| matches!(
+            e,
+            ValidationError::CensusUndecidable {
+                a: topo::EntityId::Solid(_),
+                b: topo::EntityId::Solid(_),
+                ..
+            }
+        )),
+        "{errors:?}"
     );
-}
-
-/// INVARIANT — the rung's STRENGTH, stated as a row rather than left
-/// to be read off the code: backing is STRUCTURAL INCIDENCE and is not
-/// confined to the declared pair's overlap region. Here the pair's two
-/// faces are coplanar and touch along one line, so their regions
-/// overlap in NO area — and the vertex-on-edge event on their shared
-/// boundary is backed all the same, because the pair holds the vertex
-/// on one boundary and the edge on the other.
-///
-/// This is the same strength the two older face rungs have (neither
-/// asks where on the pair an event lies), and it is deliberate:
-/// whether the declared pair is itself sound is the confirm pass's
-/// question, in its own direction of the certification diff, and this
-/// pair is not certified here either.
-#[test]
-fn the_rung_backs_an_event_outside_the_declared_pairs_overlap_region() {
-    let (body, post_top, shelf_bottom) = line_contact_seat();
-    let errors = errors(&body, &declared(&body, post_top, shelf_bottom));
-    assert!(
-        undeclared(&errors).is_empty(),
-        "the pair holds the entities, so it backs the event — even \
-         where the pair's own regions share no area: {errors:?}"
-    );
-    pair_declined(&errors, post_top, shelf_bottom);
+    pair_declined(&rest, post_top, shelf_bottom);
 }
 
 /// The same configuration undeclared: one cap corner on the shelf

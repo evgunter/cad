@@ -860,28 +860,31 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
         // INVARIANT: a shared trim boundary is what a FLUSH seat is
         // made of, and it is not by itself an undecidable area. The
         // region walk cannot build intersection pieces across a
-        // collinear boundary overlap and refuses honestly; a point
-        // certified strictly interior to BOTH trims proves the
-        // intersection contains a disc of definitely-positive radius,
-        // which IS the positive claim. The rung only ever turns a
+        // collinear boundary overlap and refuses honestly, and a
+        // boundary in band of the other's (a NEAR-flush seat) escalates
+        // there; a point certified strictly interior to BOTH trims
+        // proves the intersection contains a disc of definitely-positive
+        // radius, which IS the positive claim. The rung only ever turns a
         // REFUSAL into a proof — it can neither contradict a decided
         // answer nor manufacture an `Empty`.
-        Err(ChartRegionError::TouchingBoundary) => match interior_witness(
-            body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, door_one, band,
-        ) {
-            WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
-            // The rung's schedule stopped short. That is a fact about
-            // the work, not about the geometry, so it does NOT leave
-            // the carried refusal standing under a name that says the
-            // overlap is undecidably thin.
-            WitnessOutcome::SegmentCapExceeded { segments } => {
-                Err(ChartRegionError::WitnessSegmentCapExceeded { segments })
+        Err(refusal @ (ChartRegionError::TouchingBoundary | ChartRegionError::Escalated(_))) => {
+            match interior_witness(
+                body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, door_one, band,
+            ) {
+                WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
+                // The rung's schedule stopped short. That is a fact about
+                // the work, not about the geometry, so it does NOT leave
+                // the carried refusal standing under a name that says the
+                // overlap is undecidably thin.
+                WitnessOutcome::SegmentCapExceeded { segments } => {
+                    Err(ChartRegionError::WitnessSegmentCapExceeded { segments })
+                }
+                WitnessOutcome::CellCapExceeded { segments, cells } => {
+                    Err(ChartRegionError::WitnessCellCapExceeded { segments, cells })
+                }
+                WitnessOutcome::Declined => Err(refusal),
             }
-            WitnessOutcome::CellCapExceeded { segments, cells } => {
-                Err(ChartRegionError::WitnessCellCapExceeded { segments, cells })
-            }
-            WitnessOutcome::Declined => Err(ChartRegionError::TouchingBoundary),
-        },
+        }
         other => other,
     }
 }

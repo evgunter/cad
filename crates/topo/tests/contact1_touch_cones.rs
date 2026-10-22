@@ -115,6 +115,25 @@ fn refused(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     validate_pseudomanifold(body, records, Tol::witness()).expect_err("the touches refuse")
 }
 
+/// A block lying flat on the bracket, read twice. The certified census
+/// records each area contact as one face pair and asks nothing of its
+/// boundary cells, and a confirmed pair is a rest, so the pair clears.
+/// The structural twin holds no region door, so it confirms no pair and
+/// reads every touch on the pair's boundary through the touch analysis,
+/// which is what these rows are about: those findings come back.
+fn flat_on_the_bracket(body: &Body<f64>) -> Vec<ValidationError> {
+    let certified = refused(body, &ContactRecords::default());
+    assert!(
+        touch_kinds(&certified)
+            .iter()
+            .all(|&k| k == "ConformalPatch"),
+        "{certified:?}"
+    );
+    assert!(placement_findings(&certified).is_empty(), "{certified:?}");
+    topo::validate_pseudomanifold_structural(body, &ContactRecords::default(), Tol::witness())
+        .expect_err("the touches refuse")
+}
+
 /// **A block standing against the wall** — `[1, 2.5] × [1.2, 3] × [0,
 /// 1]`, flat on the bracket's inner wall `x = 1`, flush with the leg's
 /// end `y = 3`, the floor and the ceiling. Its corners `(1, 3, z)`
@@ -128,7 +147,7 @@ fn refused(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
 #[test]
 fn a_block_standing_against_the_wall_clears_through_every_touch_kind() {
     let body = bracket_with(&block((1.0, 2.5), (1.2, 3.0), (0.0, 1.0)));
-    let errors = refused(&body, &ContactRecords::default());
+    let errors = flat_on_the_bracket(&body);
     assert_eq!(
         touch_kinds(&errors),
         [
@@ -192,7 +211,7 @@ fn a_block_sunk_into_the_leg_refuses_as_a_crossing() {
 #[test]
 fn a_block_seated_in_the_inner_corner_clears_on_the_complement() {
     let body = bracket_with(&block((1.0, 2.0), (1.0, 2.0), (0.2, 0.8)));
-    let errors = refused(&body, &ContactRecords::default());
+    let errors = flat_on_the_bracket(&body);
     let kinds = touch_kinds(&errors);
     assert!(kinds.contains(&"EdgeEdgeOverlap"), "{kinds:?}");
     assert!(kinds.contains(&"VertexOnEdge"), "{kinds:?}");
@@ -207,7 +226,7 @@ fn a_block_seated_in_the_inner_corner_clears_on_the_complement() {
 #[test]
 fn a_block_flush_with_the_arm_top_clears_on_its_shared_edge() {
     let body = bracket_with(&block((1.5, 2.5), (1.0, 2.0), (0.5, 1.0)));
-    let errors = refused(&body, &ContactRecords::default());
+    let errors = flat_on_the_bracket(&body);
     let kinds = touch_kinds(&errors);
     assert!(kinds.contains(&"EdgeEdgeOverlap"), "{kinds:?}");
     assert!(placement_findings(&errors).is_empty(), "{errors:?}");
@@ -223,7 +242,7 @@ fn a_block_flush_with_the_arm_top_clears_on_its_shared_edge() {
 #[test]
 fn a_block_on_the_floor_of_the_inner_corner_clears() {
     let body = bracket_with(&block((1.0, 2.0), (1.0, 2.0), (0.0, 0.5)));
-    let errors = refused(&body, &ContactRecords::default());
+    let errors = flat_on_the_bracket(&body);
     assert!(touch_kinds(&errors).contains(&"VertexVertex"), "{errors:?}");
     assert!(placement_findings(&errors).is_empty(), "{errors:?}");
 }

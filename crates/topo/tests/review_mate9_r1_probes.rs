@@ -54,6 +54,18 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     }
 }
 
+/// [`errors`] where no face pair can be confirmed: the structural twin
+/// holds no region door, so no pair is confirmed and every crossing on
+/// a seat's boundary is read through the crossing rung's screens, which
+/// the certified census does not reach once it confirms the seat's own
+/// pair and asks nothing of its boundary (`[assertions]`).
+fn structural(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
+    match topo::validate_pseudomanifold_structural(body, records, Tol::witness()) {
+        Ok(()) => Vec::new(),
+        Err(e) => e,
+    }
+}
+
 /// The `EdgeEdgeCross` refusals of a list, as their witness strings
 /// and side verdicts.
 fn crossing_witnesses(errors: &[ValidationError]) -> Vec<(String, Option<CrossingSideVerdict>)> {
@@ -75,14 +87,16 @@ fn crossing_witnesses(errors: &[ValidationError]) -> Vec<(String, Option<Crossin
 ///
 /// The MATE-9 straddle fixture (post `[0.30,0.60] x [0.20,0.42]`,
 /// z 0..0.5; shelf `[0,0.9] x [0,0.30]`, z 0.5..0.54; seat plane
-/// z = 0.5), plus a spike `[0.45,0.55] x [0.30,0.38]`, z 0.40..0.60.
-/// The spike interpenetrates the post (e.g. (0.5, 0.34, 0.45) is
-/// interior to both), and its two vertical corner edges at
-/// (0.45, 0.30) and (0.55, 0.30) DIVE through the seat plane, each
-/// crossing the shelf-bottom boundary edge (y = 0.30, z = 0.5)
-/// exactly at plane level — transverse crossings, interpenetration
-/// evidence by the ratified fork, and the lower half of each diving
-/// edge runs inside the post's material.
+/// z = 0.5), plus a triangular spike over `(0.45, 0.30)`,
+/// `(0.52, 0.37)`, `(0.38, 0.37)`, z 0.40..0.60. The spike
+/// interpenetrates the post (e.g. (0.45, 0.35, 0.45) is interior to
+/// both), and its vertical corner edge at (0.45, 0.30) DIVES through
+/// the seat plane, crossing the shelf-bottom boundary edge (y = 0.30,
+/// z = 0.5) exactly at plane level — a transverse crossing,
+/// interpenetration evidence by the ratified fork, and the lower half
+/// of the diving edge runs inside the post's material. The spike's
+/// faces are slanted, so none of them lies on the shelf's side as a
+/// face pair whose boundary the census would ask nothing of.
 ///
 /// Bare, the census reports them. Declared with ONLY the genuine seat
 /// pair (post_top, shelf_bottom) — a pair verified at rest whose
@@ -110,21 +124,26 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
         0.54,
         Tol::witness(),
     );
-    let spike = common::brick::<f64>((0.45, 0.55), (0.30, 0.38), (0.40, 0.60), Tol::witness());
+    let spike: common::Prism<f64> = common::prism_z(
+        &[(0.45, 0.30), (0.52, 0.37), (0.38, 0.37)],
+        0.40,
+        0.60,
+        Tol::witness(),
+    );
     let post_top = post.top_face;
     let mut body = post.body;
     let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
-    topo::graft_disjoint_all_keyed(&mut body, &spike).unwrap();
+    topo::graft_disjoint_all_keyed(&mut body, &spike.body).unwrap();
 
     // The witness is a coordinate triple, and a crossing witness may
     // carry a trailing side-verdict clause after it — so both probes
     // match INSIDE the triple rather than anchoring on its end. The
     // `)` in the z probe is what separates z = 0.5 from z = 0.54.
-    let dive_witness = |w: &String| w.contains("(0.45,") || w.contains("(0.55,");
+    let dive_witness = |w: &String| w.contains("(0.45,");
     let at_seat_level = |w: &String| w.contains(", 0.5)");
 
-    // Bare: the two diving crossings at seat level are reported
+    // Bare: the diving crossing at seat level is reported
     // (alongside the cap's two in-plane crossings and the z = 0.54
     // rim crossings, which are not at issue here).
     let bare = crossing_witnesses(&errors(&body, &ContactRecords::default()));
@@ -134,12 +153,12 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
         .collect();
     assert_eq!(
         bare_dives.len(),
-        2,
-        "bare, both diving crossings at z = 0.5 are hard findings: {bare:?}"
+        1,
+        "bare, the diving crossing at z = 0.5 is a hard finding: {bare:?}"
     );
 
-    // Declared with the genuine seat pair only: the diving crossings
-    // SURVIVE, plain — the edge screen refuses the pair (the diving
+    // Declared with the genuine seat pair only: the diving crossing
+    // SURVIVES, plain — the edge screen refuses the pair (the diving
     // edges' far endpoints are definitely off the seat carrier), so
     // no side question is posed and nothing is backed. Inverted from
     // the frozen-head measurement, where both vanished.
@@ -153,9 +172,9 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
         .collect();
     assert_eq!(
         surviving_dives.len(),
-        2,
+        1,
         "the seat declaration backs nothing about the spike's \
-         transverse diving crossings: {found:?}"
+         transverse diving crossing: {found:?}"
     );
     assert!(
         surviving_dives.iter().all(|(_, side)| side.is_none()),
@@ -213,7 +232,7 @@ fn r1_a_skew_pair_names_no_side_verdict_without_a_shared_carrier() {
     let wkeys = topo::graft_disjoint_all_keyed(&mut body, &wedge.body).unwrap();
     let wedge_45 = wkeys.face(wedge_45).unwrap();
 
-    let found = errors(&body, &declared(&body, &[(post_side_x030, wedge_45)]));
+    let found = structural(&body, &declared(&body, &[(post_side_x030, wedge_45)]));
     let witnesses = crossing_witnesses(&found);
     assert_eq!(
         witnesses.len(),

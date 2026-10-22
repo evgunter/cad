@@ -990,13 +990,30 @@ fn gate3(
         &|solid| instance.get(&solid).copied(),
         0,
     );
+    // The flush pairs between instances are rows of their own, which no
+    // record cites.
+    let flush = match geom_core::Band::linear(tol) {
+        Ok(band) => <f64 as topo::AtRestPolicy>::flush_at_rest(
+            body,
+            &|solid| instance.get(&solid).copied(),
+            band,
+        ),
+        Err(error) => topo::FlushAtRest {
+            findings: vec![topo::ValidationError::Band { error }],
+            ..topo::FlushAtRest::default()
+        },
+    };
+    let mut findings = recorded.findings;
+    findings.extend(flush.findings);
     match certificate {
-        Some(certified) if recorded.findings.is_empty() => {
-            Ok((recorded.records, recorded.rows, certified.measure()))
+        Some(certified) if findings.is_empty() => {
+            let mut rows = recorded.rows;
+            rows.extend(flush.rows);
+            Ok((recorded.records, rows, certified.measure()))
         }
         _ => Err(StepImportError::TierInvalid {
             solid: None,
-            errors: recorded.findings,
+            errors: findings,
         }),
     }
 }
