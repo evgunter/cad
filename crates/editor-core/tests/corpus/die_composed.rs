@@ -47,15 +47,14 @@
 //! its derived closed form at a stated relative tolerance.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
-    Axis3, CapEnd, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef, Node,
+    CapEnd, Coord, EntityKind, FrameMove, LoopProgram, MeridianEnd, NamePat, NameRef, Node,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SegPat,
-    SegTag, Selector, SlotId, StableName,
+    SegTag, Selector, StableName, TargetAxis,
 };
 
-use crate::fixture::{ang, frame, len, len2, prism_edges, revolve_about, scl, xy_frame};
+use crate::fixture::{ang, len, len2, prism_edges, revolve_about, scl, value_bump};
 
 use super::{CorpusDoc, Recorder};
 
@@ -84,7 +83,7 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// |---|---|---|
 /// | 8 | `From(cube, RimEdge(Top\|Bottom, seg))` | the cube's cap–wall rims, surviving the subtraction |
 /// | 4 | `From(cube, LateralEdge(vertex))` | the cube's four vertical struts |
-/// | 2 | `Seam { From(cube, Cap(End)), From(ball, Band(0) \| BandPi(0)) }` | the PIP RIM — the two arcs the zip minted where the cube's end cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
+/// | 2 | `Seam { From(cube, Cap(End)), From(pip, Placed(Band(0) \| BandPi(0))) }` | the PIP RIM — the two arcs the zip minted where the cube's end cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
 /// | *2 excluded* | `From(ball, Meridian(Seam\|Pi, 0))` | the cavity's meridian seams |
 ///
 /// **Why the meridians are excluded, and why this document exists.**
@@ -126,10 +125,24 @@ pub fn selection(
         node: cube,
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
+    // The ball's band face as the pip's placement copies it: the
+    // ball's own name, qualified by the placement.
+    let pip = match doc.node(pipped) {
+        Some(Node::Subtract { tool, .. }) => doc
+            .operation_of(tool.read)
+            .unwrap_or_else(|| panic!("{pipped}'s tool reads the pip's placement")),
+        other => panic!("{pipped} is the die's subtract, got {other:?}"),
+    };
     let ball_face = |seg: RoleSeg| StableName {
         kind: EntityKind::Face,
-        node: ball,
-        path: vec![seg],
+        node: pip,
+        path: vec![RoleSeg::Placed {
+            of: NameRef::new(StableName {
+                kind: EntityKind::Face,
+                node: ball,
+                path: vec![seg],
+            }),
+        }],
     };
     let lower = crate::fixture::piece(doc, ball, 0, 0);
     let mut out: Vec<StableName> = prism_edges(doc, cube, 4)
@@ -178,13 +191,14 @@ pub fn selection(
 ///    four struts). Saying "a box edge carried through" is exactly the
 ///    intent; enumerating twelve `RimEdge`/`LateralEdge` names was the
 ///    P10 relocation.
-/// 2. `Seam { a: From(Cap(End)), b: From(Band | BandPi) }` — the pip
-///    rim, the two arcs the zip minted where the cube's end cap crosses
-///    the ball's lower band, each side carried in through its read. A
-///    full revolve's band is two half-faces split at the seam meridians,
-///    so the rim is two arcs and the band role has two variants; the
-///    union says both. A seam's sides are in name order, and the cube's
-///    read names before the ball's, so the cap is the first side.
+/// 2. `Seam { a: From(Cap(End)), b: From(Placed(Band | BandPi)) }` —
+///    the pip rim, the two arcs the zip minted where the cube's end cap
+///    crosses the ball's lower band, which the pip's placement copies
+///    (`Placed`), each side carried in through its read. A full
+///    revolve's band is two half-faces split at the seam meridians, so
+///    the rim is two arcs and the band role has two variants; the union
+///    says both. A seam's sides are in name order, and the cube's read
+///    names before the pip's, so the cap is the first side.
 ///
 /// What is NOT selected falls out of the shapes: the cavity meridians
 /// are `From(Meridian(..))`, and neither alternative admits a carried
@@ -196,7 +210,13 @@ pub fn selection(
 /// (`crates/editor-core/src/names/select.rs` module docs).
 pub fn selector() -> Selector {
     let edge = || NamePat::of_kind(EntityKind::Edge);
-    let face = |tag: SegTag| NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag));
+    // A face of the pip: the ball's, as its placement copies it.
+    let face = |tag: SegTag| {
+        NamePat::of_kind(EntityKind::Face).seg(
+            SegPat::tag(SegTag::Placed)
+                .of([NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag))]),
+        )
+    };
     let cap_top =
         NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let from =
@@ -219,9 +239,9 @@ pub fn selector() -> Selector {
 /// checks the exclusion reads the same list the docs above describe.
 /// The cube's face cuts each, so the target publishes each as its one
 /// piece, named by its ends (N2): read off `ev`'s table at `pipped`.
-/// `ball` is the revolve whose names the pip's Transform carries
-/// through unchanged; the carry is keyed by the subtract's TOOL read
-/// (the pip's output), not by the ball's own.
+/// `ball` is the revolve whose names the pip's placement carries,
+/// each under the placement (`Placed`); the carry is keyed by the
+/// subtract's TOOL read (the pip's output), not by the ball's own.
 pub fn excluded_meridians(
     doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
@@ -232,18 +252,28 @@ pub fn excluded_meridians(
         Some(Node::Subtract { tool, .. }) => tool.read,
         other => panic!("{pipped} is the die's subtract, got {other:?}"),
     };
+    let pip = doc
+        .operation_of(tool)
+        .unwrap_or_else(|| panic!("{pipped}'s tool reads the pip's placement"));
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
         .map(|end| {
+            let meridian = StableName {
+                kind: EntityKind::Edge,
+                node: ball,
+                path: vec![RoleSeg::Meridian(
+                    end,
+                    crate::fixture::piece(doc, ball, 0, 0).into(),
+                )],
+            };
             let head = RoleSeg::From {
                 read: tool,
                 of: NameRef::new(StableName {
                     kind: EntityKind::Edge,
-                    node: ball,
-                    path: vec![RoleSeg::Meridian(
-                        end,
-                        crate::fixture::piece(doc, ball, 0, 0).into(),
-                    )],
+                    node: pip,
+                    path: vec![RoleSeg::Placed {
+                        of: NameRef::new(meridian),
+                    }],
                 }),
             };
             let pieces: Vec<StableName> = crate::fixture::table(ev, pipped)
@@ -268,27 +298,20 @@ pub fn document() -> CorpusDoc {
     // ---- the sharp cube, [0, L]³ (die_pips' chain, verbatim) ----
     let square =
         LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]).unwrap();
-    let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        frame: cube_plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p.into(),
         distance: len(DIE_L),
-        side: ExtrudeSide::Along,
     });
 
     // ---- the master ball, poled along the +Z face normal ----
     // die_pips' half-disc: the bulge-1 semicircle closed on-axis.
     let half_disc = half_disc_program();
-    let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    // The axis, written in the meridian frame it turns: that frame's
-    // v is world +Z, so the pole axis is its own +y through (0, 0).
-    // It is minted AFTER the frame because it names it.
+    // The pole axis is the meridian's own +y through (0, 0).
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        frame: ball_plane.into(),
         loops: vec![half_disc],
         ids: Vec::new(),
     }));
@@ -300,14 +323,17 @@ pub fn document() -> CorpusDoc {
     ));
 
     // ---- the pip, then the SURGERY on the pipped cube ----
-    let pip = r.insert(Node::transform(
-        editor_core::Operand::output(ball, 0),
-        editor_core::Step::Rigid {
-            translation: [len(h), len(h), len(PIP_C)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+    // Placed against the cube on its own pole axis, the meridian's +y
+    // along the cube's +Z.
+    let own = r.corner_frame(cube, [0.0; 3], [0.0, 0.0, DIE_L], [DIE_L, 0.0, 0.0]);
+    let pole = editor_core::moved_frame(
+        own,
+        &[
+            FrameMove::Slide(TargetAxis::X, len(h)),
+            FrameMove::Slide(TargetAxis::Y, len(h)),
+        ],
+    );
+    let pip = r.on_axis(ball, pole, len(PIP_C));
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: pip.into(),
@@ -333,6 +359,7 @@ pub fn document() -> CorpusDoc {
 
     r.place_part(composed);
 
+    let bump = value_bump(&r.doc, pip, Coord::Slide(TargetAxis::Z), 0.015625);
     CorpusDoc {
         name: "die_composed",
         about: "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the \
@@ -342,7 +369,8 @@ pub fn document() -> CorpusDoc {
         result: Some(composed),
         // π-valued closed forms are not dyadic — module docs.
         pin: None,
-        // D2's incremental probe: slide the pip (die_pips' bump). The
+        // D2's incremental probe: slide the pip along its pole axis
+        // (die_pips' bump). The
         // cube chain and the master ball are reused; the placement,
         // the cut and the whole surgery recompute. The bump mints no
         // edge and retires none, so the FROZEN selection still
@@ -350,12 +378,7 @@ pub fn document() -> CorpusDoc {
         // function of the target's names and those do not move. That
         // is the covariance claim, and `m6_composed_node.rs` executes
         // it.
-        bump: DocEdit::SetParam {
-            node: pip,
-            slot: SlotId::Translation(Axis3::Y),
-            value: len(0.53125).into(),
-            fresh: Vec::new(),
-        },
+        bump,
         bump_root: pip,
     }
 }

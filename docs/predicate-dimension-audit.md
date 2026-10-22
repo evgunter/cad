@@ -294,6 +294,14 @@ should know why. They live only in an `Indeterminate.predicate`:
     lower and upper bound of a reach or of the lines' gap that the
     census's crossing lane reads off the closed form's rounding
     (`crossing_reading`);
+  - `pm_census_ef_pierce_lever_straddle`,
+    `pm_census_ef_pierce_straddle`, `pm_census_ef_pierce_span_straddle`
+    and `pm_census_ef_pierce_height_straddle`, the lower and upper
+    bound of the lever the census's edge–face pierce is placed by, of
+    the pierce's distance from the face's boundary where its
+    placement's two ends read the face apart, of the placement's
+    half-span, and of its reach to a boundary point under it
+    (`pierce_span`, `pierce_inside`, `span_clear`);
   - `curve_carrier_straddle`, `geom`'s on-carrier reading of a point
     whose lower bound on the distance from a conic and the gap at its
     foot straddle (`curves::on_carrier`);
@@ -1227,6 +1235,90 @@ Flagged, NOT fixed here (dispositions):
   order `u²/√ε`), so rigidity and carry are rounding-level wherever the
   turn builds. Same arm question as F10; one site,
   `LEDGER_FLAGGED_SITES` 5 → 6.
+
+- **F23** (added by FLUSH's edge-meeting ray, PR 5422)
+  `topo/src/boolean/solid_contain.rs` `crosses_by_turn`, under the
+  ray's `winding` row (`bool_point_in_solid_winding`,
+  `side_at_infinity_winding`): `(|turn| − π)·reach`, the turn of a
+  planar face's loops about a ray's hit less `π`, levered by the
+  selection's reach. It is read only where the ray was decided
+  definitely clear of every edge of the face, so the turn is `±2π` or `0`
+  to rounding and the margin `±π·reach`, definite by construction: it
+  can never escalate, and as a logged verdict it would be a margin no
+  value of the variables moves, counted by the flip lane and the tie
+  census as if it could. **Carried as `k_stats::check_unlogged(..,
+  "F23")`**, the same door as F18, F20 and F21. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
+
+- **F24** (added by PATHS' stored-arc read-back unit)
+  `profile/src/seg.rs` `read_back_arc` and its `read_back`, reached from
+  the path door before a chain stores its arcs (`path::arc_reads_back`):
+  a constructed arc read back against what was authored, all margins
+  in metres:
+  - `path_arc_start_on_carrier`: ‖a − centre‖ − r;
+  - `path_arc_landing`: ‖landing(a) − b‖; for a `Facts::Decided` arc,
+    the landing against `b` moved along its ray onto the landing's
+    circle (the sweep's own error, without the distance from the centre
+    its inline decision admitted);
+  - `path_arc_through_point`: a `Via` arc's ‖q − centre‖ − r;
+  - `path_arc_branch`: r·Δθ signed by the stated turn sense, an angle
+    levered by its radius;
+  - and, behind a read that is off, `<read>_resolution`: the lesser of
+    the authored data's headroom `K·ε/(ulps·2⁻⁵²) − scale` and the
+    miss's clearance `miss − ulps·2⁻⁵²·scale` of the read's own
+    rounding at its stored magnitude (16 ulps for every read; the rim
+    reads' derivation is at `seg::READ_BACK_RIM_ULPS`).
+
+  A `Bulge` leg's authored bulge is first asked validation's own
+  `segment_straightness` question (the signed sagitta,
+  `seg::sagitta`, the one spelling both use), unlogged, and a line is
+  not read.
+
+  All are lengths, so `Margin::of` fits them dimensionally; what keeps
+  them off the logged doors is WHERE they run. Each fact is a theorem
+  of its construction over the reals, or holds to an inline decision
+  (D1), and this reads the arithmetic that delivered it on the witness
+  lane (`Witness::Inexact`) only: an exact scalar's stored arc encloses
+  the real one, so it has no miss to read, and a row there would
+  re-decide a registered identity on the enclosure's width. A logged
+  point-scalar row would be one a box build cannot have.
+
+  **Carried as `k_stats::check_unlogged(.., "F24")`**, the door F18, F20,
+  F21 and F23 use. Zero passes (Positive, for the branch). Off with
+  that gate Positive refuses `PathError::ArcMissesAuthoredPoint`; any
+  other definite miss, and any miss that is not finite, refuses
+  `PathError::ArcMissBelowSceneResolution`; in the band or poisoned
+  escalates, for every arc.
+
+  A sample under a `_resolution` name is a refused arc, so those
+  populations are the probe lane's count of the read-back's refusals.
+  Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
+
+- **F25** (added by NURBS' census-onto-one-line unit, PR 5513)
+  `topo/src/census.rs` `span_charge`, under `pm_census_span_precision`:
+  `((K − 1)·ε − noise) / rounding_charge(1)`, the room the projections'
+  charge (`geom_core::one_line`) leaves below `(K − 1)·ε`, read back in
+  metres of the two spans' summed length through the charge's own rate
+  (the room itself never passes `Kε`, so the band could not read it
+  Positive). A length, so `Margin::of` would fit it dimensionally.
+  What keeps it off the logged doors is WHAT it decides: how precisely
+  the census reads two collinear spans' ends, not anything about the
+  body.
+  - Definitely positive, the ends read uncharged (`pm_census_span_order`,
+    `pm_census_ee_overlap`), sound inside the room.
+  - Anything else, in band included, reads them charged: ends that are
+    one point of the body (one point key) read equal without a
+    coordinate, and every other comparison is decided at its value less
+    and plus the charge (`pm_census_span_order_charged`,
+    `pm_census_ee_overlap_charged`, their straddle
+    `pm_census_span_rounding`), sound at every room, so the threshold
+    may fall either way in its band.
+  - Logged, an in-band threshold would record an escalation beside a
+    reading that went on to decide.
+
+  **Carried as `k_stats::check_unlogged(.., "F25")`**, the door F18, F20,
+  F21, F23 and F24 use. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

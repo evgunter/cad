@@ -32,7 +32,7 @@ use std::time::Instant;
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{
-    FaceCutBounds, RoundOutcome, RoundWindow, nurbs_patch_face, nurbs_patch_face_rounds,
+    FaceCutBounds, OpenEnd, RoundOutcome, RoundWindow, nurbs_patch_face, nurbs_patch_face_rounds,
 };
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
@@ -508,4 +508,62 @@ fn integral_composite_lane_exits_the_same_way() {
     );
     assert_early(ridge.name, eps, got);
     let _ = INTEGRAL_SCHEDULE_ROUNDS;
+}
+
+/// One round of `face`'s schedule through the windowed door.
+fn window(face: &Face, eps: f64, window: RoundWindow) -> Result<RoundOutcome, PropsError> {
+    let (ua, ub) = face.ku.domain();
+    let (va, vb) = face.kv.domain();
+    nurbs_patch_face_rounds::<f64>(
+        &face.ku,
+        &face.kv,
+        &face.net,
+        &face.weights,
+        (ua, ub, va, vb),
+        face.perimeter,
+        face.boundary_defect,
+        eps,
+        linear_band(eps),
+        window,
+    )
+}
+
+/// **The exit ends the WINDOW at round 0, not the schedule.** Round 0
+/// reports the budget refusal with rounds still to run
+/// ([`OpenEnd::Unreachable`]), and round 1, resumed past the exit,
+/// runs and stops at its own window's end with no refusal of its own.
+fn assert_exit_keeps_the_schedule_open(face: &Face) {
+    let eps = 1e-9;
+    match window(face, eps, RoundWindow::at(0)) {
+        Ok(RoundOutcome::Open {
+            round: 0,
+            end: OpenEnd::Unreachable(refusal),
+            ..
+        }) => assert_early(face.name, eps, budget(face.name, &Err(refusal))),
+        other => panic!(
+            "{}: the budget exit must end round 0's window with rounds remaining: {other:?}",
+            face.name
+        ),
+    }
+    match window(face, eps, RoundWindow::at(1)) {
+        Ok(RoundOutcome::Open {
+            round: 1,
+            end: OpenEnd::Window,
+            ..
+        }) => {}
+        other => panic!(
+            "{}: round 1 must run past the exit and end with its window: {other:?}",
+            face.name
+        ),
+    }
+}
+
+#[test]
+fn the_rational_lanes_exit_keeps_the_schedule_open() {
+    assert_exit_keeps_the_schedule_open(&quarter_torus());
+}
+
+#[test]
+fn the_integral_lanes_exit_keeps_the_schedule_open() {
+    assert_exit_keeps_the_schedule_open(&quintic_ridge());
 }

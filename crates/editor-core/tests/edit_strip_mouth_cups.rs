@@ -13,8 +13,8 @@
 use crate::corpus;
 use crate::fixture;
 use editor_core::{
-    EntityKey, EntityKind, EvalOptions, ExtrudeSide, LoopProgram, NameRef, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, StableName,
+    EntityKey, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RoleSeg, StableName,
 };
 use fixture::{len, minted, on_frame, table, tol};
 use topo::Body;
@@ -32,21 +32,21 @@ fn extrude(profile: RecipeNodeId, distance: f64) -> editor_core::AuthoredNode {
     Node::Extrude {
         profile: profile.into(),
         distance: len(distance),
-        side: ExtrudeSide::Along,
     }
 }
 
-/// A round profile of radius [`A`] at `(x, y)` on the plane `z = z0`,
-/// extruded `length` up `z`.
-fn post(doc: ProfileDoc, z0: f64, (x, y): (f64, f64), length: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = fixture::insert(
-        doc,
-        fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+/// A round profile of radius [`A`] at `(x, y)` on its own xy, extruded
+/// `length` up its own `z`, its copy slid `z0` up `target`'s `z`.
+fn post(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    z0: f64,
+    (x, y): (f64, f64),
+    length: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(x), len(y)],
                 radius: len(A),
@@ -54,7 +54,8 @@ fn post(doc: ProfileDoc, z0: f64, (x, y): (f64, f64), length: f64) -> (ProfileDo
             ids: Vec::new(),
         }),
     );
-    fixture::insert(doc, extrude(p, length))
+    let (doc, body) = fixture::insert(doc, extrude(p, length));
+    fixture::slid(doc, target, body, [0.0, 0.0, z0])
 }
 
 /// The unit block.
@@ -73,7 +74,7 @@ fn block(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
 fn dimpled_block() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dimple", tol());
     let (doc, block) = block(doc);
-    let (doc, bore) = post(doc, 0.988, (0.5, 0.97), 0.2);
+    let (doc, bore) = post(doc, block, 0.988, (0.5, 0.97), 0.2);
     fixture::insert(
         doc,
         Node::Subtract {
@@ -89,12 +90,13 @@ fn bossed_die() -> (ProfileDoc, RecipeNodeId) {
     let (doc, block) = block(doc);
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, 0.5],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.25, 0.25), (0.75, 0.25), (0.75, 0.75), (0.25, 0.75)]],
     );
     let (doc, pocket) = fixture::insert(doc, extrude(p, 1.0));
+    let (doc, pocket) = fixture::slid(doc, block, pocket, [0.0, 0.0, 0.5]);
     let (doc, die) = fixture::insert(
         doc,
         Node::Subtract {
@@ -102,7 +104,7 @@ fn bossed_die() -> (ProfileDoc, RecipeNodeId) {
             tool: pocket.into(),
         },
     );
-    let (doc, boss) = post(doc, 0.4, (0.5, 0.28), 0.112);
+    let (doc, boss) = post(doc, block, 0.4, (0.5, 0.28), 0.112);
     fixture::insert(
         doc,
         Node::Union {

@@ -21,7 +21,7 @@ use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ArcSweep, bulge_from_center, test_support::bulge_loop};
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, split};
-use topo::{AtRestBody, Body, DATUM_UNIT_NORM, transform_rigid};
+use topo::{AtRestBody, Body, POSE_UNIT_NORM, transform_rigid};
 
 fn sq(x: f64) -> f64 {
     x * x
@@ -367,7 +367,7 @@ fn split_and_check(
 ) -> Result<(), SplitError> {
     let cut = SplitPlane {
         origin: map.transform_point(Point3::new(n.x * d, n.y * d, n.z * d)),
-        normal: UnitVec3::new(map.transform_vec(n), DATUM_UNIT_NORM, band()).unwrap(),
+        normal: UnitVec3::new(map.transform_vec(n), POSE_UNIT_NORM, band()).unwrap(),
     };
     let result = split(posed, &cut, Tol::witness())?;
     for (part, sign, side) in [

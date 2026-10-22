@@ -22,14 +22,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Axis3, CancelToken, Datum, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
-    GroupCutters, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
-    SlotId, StableName, evaluate,
+    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, GroupCutters,
+    Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
+    evaluate,
 };
-use fixture::{ang, insert, len, on_frame, scl, step};
+use fixture::{insert, len, step};
 use geom_core::Tol;
 
 fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
@@ -42,21 +41,14 @@ fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evalua
     )
 }
 
-/// A prism: the polygon `pts` on z = `z0`, extruded `dz`.
-fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![pts],
-    );
+/// A prism: the polygon `pts` on its own xy, extruded `dz`.
+fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = insert(doc, Node::Profile(crate::fixture::desc(vec![pts])));
     insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -65,27 +57,139 @@ fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    prism(doc, vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)], dz)
+}
+
+/// A copy of a body placed against `target`, which an edit slides.
+pub(crate) struct Placed {
+    /// The placement: the copy.
+    pub(crate) placement: RecipeNodeId,
+    pub(crate) target: RecipeNodeId,
+    pub(crate) body: RecipeNodeId,
+    /// Where the copy's own frame stands in `target`'s coordinates.
+    pub(crate) at: [f64; 3],
+}
+
+/// `body` placed against `target`, its base `z0` up `target`'s own z.
+pub(crate) fn placed(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    z0: f64,
+) -> (ProfileDoc, Placed) {
+    let (doc, placement) = crate::fixture::slid(doc, target, body, [0.0, 0.0, z0]);
+    (
+        doc,
+        Placed {
+            placement,
+            target,
+            body,
+            at: [0.0, 0.0, z0],
+        },
+    )
+}
+
+/// [`block`] placed against `target` at `z0`: the placement.
+fn block_on(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    xs: (f64, f64),
+    ys: (f64, f64),
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    prism(doc, vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)], z0, dz)
+    let (doc, b) = block(doc, xs, ys, dz);
+    crate::fixture::slid(doc, target, b, [0.0, 0.0, z0])
 }
 
-fn set(doc: ProfileDoc, node: RecipeNodeId, slot: SlotId, to: f64) -> ProfileDoc {
-    let expr = match slot {
-        SlotId::Normal(_) => scl(to),
-        _ => len(to),
-    };
-    step(
-        doc,
-        DocEdit::SetParam {
-            node,
-            slot,
-            value: expr.into(),
-            fresh: Vec::new(),
-        },
+/// **`p`'s copy slid `by` further**, by value edits alone: each of its
+/// placement's values, and the slide along its target face's normal,
+/// set to the numbers [`editor_core::place_against`] gives the copy
+/// there ([`moved_to`]).
+pub(crate) fn moved(doc: ProfileDoc, p: &Placed, by: [f64; 3]) -> ProfileDoc {
+    let at = [p.at[0] + by[0], p.at[1] + by[1], p.at[2] + by[2]];
+    moved_to(doc, p.target, p.body, p.placement, at)
+}
+
+/// **`placement`'s copy of `body` moved to `at` against `target`**
+/// (`at` in `target`'s own coordinates), by value edits alone: the
+/// numbers [`editor_core::place_against`] gives the copy at `at` written
+/// into the variables the placement already reads — its values, and the
+/// slide of its target face along that face's normal — so every node
+/// id and every read is kept. A translation off the target's face
+/// plane is what the slide carries, so the placement must have been
+/// written off it.
+///
+/// # Panics
+///
+/// If the placement is not the one `place_against` writes, or carries
+/// no slide.
+pub(crate) fn moved_to(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    placement: RecipeNodeId,
+    at: [f64; 3],
+) -> ProfileDoc {
+    use editor_core::pose::PoseDef;
+    use editor_core::{FreeValue, Operand, VarDef};
+    let again = editor_core::place_against(
+        &doc,
+        &target.into(),
+        &body.into(),
+        &editor_core::Frame::translation(at),
+        &EvalOptions::default(),
+        Tol::witness(),
     )
-    .0
+    .expect("the copy places against its target");
+    let Some(Operand::Pose(def)) = again.mate.as_ref().and_then(|mate| mate.to.pose()) else {
+        panic!("a pose target")
+    };
+    let PoseDef::Slide { by: slide, .. } = &**def else {
+        panic!("the target face slid along its normal: {def:?}")
+    };
+    let bundle = crate::fixture::bundle(&doc, placement);
+    let to = bundle
+        .iter()
+        .find_map(|c| c.mate())
+        .and_then(|m| m.to.pose().copied())
+        .expect("the placement's mate reads a pose");
+    let Some(VarDef::Pose(PoseDef::Slide { by: slide_var, .. })) =
+        doc.var(to).map(|v| v.def().clone())
+    else {
+        panic!("the placement's target is a slid face")
+    };
+    let mut edits = vec![(slide_var, slide.clone())];
+    for (coord, value) in &again.values {
+        let var = bundle
+            .iter()
+            .find_map(|c| c.value().filter(|v| v.coord == *coord).map(|v| v.by))
+            .unwrap_or_else(|| panic!("the placement holds a value on {coord:?}"));
+        edits.push((var, value.clone()));
+    }
+    // A free variable takes the number; a defined one, the formula.
+    edits.into_iter().fold(doc, |doc, (var, value)| {
+        let edit = match doc.var(var).map(|v| v.def()) {
+            Some(VarDef::Free(_)) => DocEdit::SetVarValue {
+                var: var.into(),
+                value: FreeValue::Continuous(if value.is_zero() {
+                    0.0
+                } else {
+                    value
+                        .literal_value()
+                        .unwrap_or_else(|| panic!("a literal number: {value:?}"))
+                }),
+            },
+            _ => DocEdit::DefineVar {
+                var: var.into(),
+                def: editor_core::VarDecl::defined(value),
+                fresh: Vec::new(),
+            },
+        };
+        step(doc, edit).0
+    })
 }
 
 /// The fragment names `node` minted in `ev1` that `ev2` no longer
@@ -149,11 +253,11 @@ fn vanished(
 /// The tie fixture: a 4×4×4 block minus a U-shaped cutter whose two
 /// prongs cross one wall — the cutter's caps leave two congruent prong
 /// faces each, an N2 tie — cut again by a bar across both prongs,
-/// behind a `Transform`. Answers (doc, the first cut, the bar's
-/// transform, the second cut).
-fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+/// placed against the block. Answers (doc, the first cut, the bar's
+/// placement, the second cut).
+fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, Placed, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("group-membership-tie", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
+    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
     let (doc, u) = prism(
         doc,
         vec![
@@ -166,9 +270,9 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
             (5.0, 1.5),
             (2.0, 1.5),
         ],
-        1.0,
         2.0,
     );
+    let (doc, u) = crate::fixture::slid(doc, a, u, [0.0, 0.0, 1.0]);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -176,23 +280,13 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
             tool: u.into(),
         },
     );
-    let (doc, bar) = block(doc, (2.9, 3.1), (0.5, 3.5), 0.5, 3.0);
-    let (doc, tr) = insert(
-        doc,
-        Node::transform(
-            bar,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc, bar) = block(doc, (2.9, 3.1), (0.5, 3.5), 3.0);
+    let (doc, tr) = placed(doc, a, bar, 0.5);
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
             from: sub.into(),
-            tool: tr.into(),
+            tool: tr.placement.into(),
         },
     );
     (doc, sub, tr, cut)
@@ -202,7 +296,7 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
 fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
     let (doc, _, tr, cut) = tied_prongs_cut();
     let ev1 = run(&doc, None);
-    let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Z), 3.2);
+    let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
     let ev2 = run(&doc2, Some(&ev1));
     // The tied parents' fragments: tied rows of the cut's own groups.
     let rows = vanished(
@@ -277,34 +371,28 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
             (1.0, 3.0),
             (0.0, 3.0),
         ],
-        0.0,
         1.0,
     );
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(2.5), len(0.0), len(0.0)],
-            normal: [scl(1.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let tool = crate::fixture::plane_on_frame(&doc, ext, [2.5, 0.0, 0.0], [1.0, 1.0, 0.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: ext.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let ev1 = run(&doc, None);
-    let mut doc2 = doc.clone();
-    for (slot, to) in [
-        (SlotId::Normal(Axis3::Z), 1.0),
-        (SlotId::Normal(Axis3::X), 0.0),
-        (SlotId::Normal(Axis3::Y), 0.0),
-        (SlotId::Origin(Axis3::X), 0.0),
-        (SlotId::Origin(Axis3::Z), 0.5),
-    ] {
-        doc2 = set(doc2, tool, slot, to);
-    }
+    // The plane turned level at z = 0.5: it divides no cap.
+    let level = crate::fixture::start_cap_at(ext, crate::fixture::len(0.5));
+    let (doc2, _) = step(
+        doc.clone(),
+        DocEdit::SetParam {
+            node: split,
+            slot: SlotId::Operand(editor_core::OperandSlot::Tool),
+            value: editor_core::SlotValue::Read(level.read),
+            fresh: Vec::new(),
+        },
+    );
     let ev2 = silent(run(&doc2, Some(&ev1)));
     let ev1 = silent(ev1);
     let rows = vanished((&doc, &ev2), (&doc, &ev1), split, |n, _| {
@@ -350,8 +438,8 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
 /// **A union's fragment group is read through its fold, and so are its
 /// cutters.**
 ///
-/// A 3×3×1 plate, a bar standing through its top in y (behind a
-/// `Transform`), and a block far away, united in every order: the bar
+/// A 3×3×1 plate, a bar standing through its top in y (a placed copy),
+/// and a block far away, united in every order: the bar
 /// divides the plate's top into two fragments at whichever fold step
 /// the plate and the bar meet, and every later step carries them
 /// through. Sliding the bar in y so it stops short of the far edge
@@ -377,21 +465,11 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
     ];
     for order in orders {
         let doc = ProfileDoc::empty_derived("group-membership-union", Tol::witness());
-        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-        let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
-        let (doc, tr) = insert(
-            doc,
-            Node::transform(
-                bar,
-                editor_core::Step::Rigid {
-                    translation: [len(0.0), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        );
-        let (doc, far) = block(doc, (10.0, 11.0), (0.0, 1.0), 0.0, 1.0);
-        let m = [plate, tr, far];
+        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+        let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
+        let (doc, tr) = placed(doc, plate, bar, 0.5);
+        let (doc, far) = block_on(doc, plate, (10.0, 11.0), (0.0, 1.0), 0.0, 1.0);
+        let m = [plate, tr.placement, far];
         let (doc, u) = insert(
             doc,
             Node::Union {
@@ -400,24 +478,48 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
         );
         // Member `member`'s wall `segment` (of the block `of`), as the
         // union's seams spell it.
-        let member_wall = |member, of, segment| StableName {
-            kind: editor_core::EntityKind::Face,
-            node: u,
-            path: vec![RoleSeg::From {
-                read: crate::fixture::out(&doc, member),
-                of: editor_core::NameRef::new(wall(&doc, of, segment)),
-            }],
+        let member_wall = |member: RecipeNodeId, of, segment| {
+            let own = wall(&doc, of, segment);
+            StableName {
+                kind: editor_core::EntityKind::Face,
+                node: u,
+                path: vec![RoleSeg::From {
+                    read: crate::fixture::out(&doc, member),
+                    of: editor_core::NameRef::new(if member == of {
+                        own
+                    } else {
+                        own.in_copy(member)
+                    }),
+                }],
+            }
         };
         let from = |n: &StableName, m: RecipeNodeId| {
             let m_read = crate::fixture::out(&doc, m);
             matches!(n.path.first(), Some(RoleSeg::From { read, .. }) if *read == m_read)
         };
         for (axis, by, ranked, gone, new) in [
-            (Axis3::Y, 2.5, false, vec![], vec![member_wall(tr, bar, 0)]),
-            (Axis3::X, 1.5, true, vec![member_wall(tr, bar, 1)], vec![]),
+            (
+                "y",
+                2.5,
+                false,
+                vec![],
+                vec![member_wall(tr.placement, bar, 0)],
+            ),
+            (
+                "x",
+                1.5,
+                true,
+                vec![member_wall(tr.placement, bar, 1)],
+                vec![],
+            ),
         ] {
             let ev1 = run(&doc, None);
-            let doc2 = set(doc.clone(), tr, SlotId::Translation(axis), by);
+            let slide = if axis == "x" {
+                [by, 0.0, 0.0]
+            } else {
+                [0.0, by, 0.0]
+            };
+            let doc2 = moved(doc.clone(), &tr, slide);
             // The slide records a containment flip at the union, the
             // answer above this rung; read the two real runs without
             // that evidence, as the split row does.
@@ -445,7 +547,10 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
                 let (gone, new) = if from(&n, plate) {
                     (gone.clone(), new.clone())
                 } else {
-                    assert!(from(&n, tr) && !ranked, "{order:?} {axis:?}: {n:?}");
+                    assert!(
+                        from(&n, tr.placement) && !ranked,
+                        "{order:?} {axis:?}: {n:?}"
+                    );
                     (vec![member_wall(plate, plate, 0)], vec![])
                 };
                 assert_eq!(
@@ -473,7 +578,7 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
 fn a_seam_group_tied_parents_share_is_not_counted() {
     let (doc, sub, tr, cut) = tied_prongs_cut();
     let ev1 = run(&doc, None);
-    let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Z), 3.2);
+    let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
     let ev2 = silent(run(&doc2, Some(&ev1)));
     let ev1 = silent(ev1);
     // A seam a side of which is one of the first cut's TIED rows, as the
@@ -520,28 +625,22 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
         ("near", ((-1.0, 1.3), (-1.5, 4.5), 0.3, 1.4)),
     ] {
         let doc = ProfileDoc::empty_derived("group-membership-swallow", Tol::witness());
-        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-        let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
-        let (doc, tr) = insert(
-            doc,
-            Node::transform(
-                bar,
-                editor_core::Step::Rigid {
-                    translation: [len(0.0), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        );
-        let (doc, cblock) = block(doc, c.0, c.1, c.2, c.3);
+        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+        let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
+        let (doc, tr) = placed(doc, plate, bar, 0.5);
+        let (doc, cblock) = block_on(doc, plate, c.0, c.1, c.2, c.3);
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(vec![plate.into(), tr.into(), cblock.into()]),
+                members: editor_core::Bodies::Spelled(vec![
+                    plate.into(),
+                    tr.placement.into(),
+                    cblock.into(),
+                ]),
             },
         );
         let ev1 = run(&doc, None);
-        let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Y), 2.5);
+        let doc2 = moved(doc.clone(), &tr, [0.0, 2.5, 0.0]);
         let ev2 = silent(run(&doc2, Some(&ev1)));
         let ev1 = silent(ev1);
         // The plate's own faces: its top's fragments. (Its rim's one
@@ -584,8 +683,8 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
 fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
     for order in [[0usize, 1, 2], [1, 0, 2], [0, 2, 1]] {
         let (doc, sub, tr, _) = tied_prongs_cut();
-        let (doc, far) = block(doc, (20.0, 21.0), (0.0, 1.0), 0.0, 1.0);
-        let m = [sub, tr, far];
+        let (doc, far) = block_on(doc, tr.target, (20.0, 21.0), (0.0, 1.0), 0.0, 1.0);
+        let m = [sub, tr.placement, far];
         let (doc, u) = insert(
             doc,
             Node::Union {
@@ -593,7 +692,7 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
             },
         );
         let ev1 = run(&doc, None);
-        let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Z), 3.2);
+        let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
         let ev2 = silent(run(&doc2, Some(&ev1)));
         let ev1 = silent(ev1);
         let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, e| {
@@ -632,35 +731,19 @@ fn wall(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
 }
 
 /// The plate-and-bar fixture as a PAIR union: a 3×3×1 plate, and a bar
-/// standing through its top across the whole plate in y, behind a
-/// `Transform`. The bar's two x walls divide the plate's top in two,
+/// standing through its top across the whole plate in y, placed against
+/// the plate. The bar's two x walls divide the plate's top in two,
 /// and each of the top's two x-running rim edges.
-/// Answers (doc, the plate, the bar, the bar's transform, the union).
-fn plate_and_bar() -> (
-    ProfileDoc,
-    RecipeNodeId,
-    RecipeNodeId,
-    RecipeNodeId,
-    RecipeNodeId,
-) {
+/// Answers (doc, the plate, the bar, the bar's placement, the union).
+fn plate_and_bar() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Placed, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("group-cutters", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
-    let (doc, tr) = insert(
-        doc,
-        Node::transform(
-            bar,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
+    let (doc, tr) = placed(doc, plate, bar, 0.5);
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), tr.into()]),
+            members: editor_core::Bodies::Spelled(vec![plate.into(), tr.placement.into()]),
         },
     );
     (doc, plate, bar, tr, u)
@@ -692,8 +775,7 @@ fn slid(
 ) -> (RecipeNodeId, RecipeNodeId, Vec<(StableName, Diagnosis)>) {
     let (doc, plate, bar, tr, u) = plate_and_bar();
     let ev1 = run(&doc, None);
-    let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::X), dx);
-    let doc2 = set(doc2, tr, SlotId::Translation(Axis3::Y), dy);
+    let doc2 = moved(doc.clone(), &tr, [dx, dy, 0.0]);
     let ev2 = silent(run(&doc2, Some(&ev1)));
     let ev1 = silent(ev1);
     let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, _| {
@@ -707,15 +789,15 @@ fn slid(
 }
 
 /// The bar's wall `segment` as the plate-and-bar union publishes it:
-/// carried in through the bar's transform's read.
+/// carried in through the read of the bar's placed copy.
 fn bar_wall(segment: u32) -> StableName {
     let (doc, _, bar, tr, u) = plate_and_bar();
     StableName {
         kind: editor_core::EntityKind::Face,
         node: u,
         path: vec![RoleSeg::From {
-            read: crate::fixture::out(&doc, tr),
-            of: editor_core::NameRef::new(wall(&doc, bar, segment)),
+            read: crate::fixture::out(&doc, tr.placement),
+            of: editor_core::NameRef::new(wall(&doc, bar, segment).in_copy(tr.placement)),
         }],
     }
 }
@@ -811,21 +893,11 @@ fn two_cutters_that_change_at_once_are_both_named() {
 fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
     for order in [[0usize, 1, 2], [1, 0, 2]] {
         let doc = ProfileDoc::empty_derived("group-cutters-refold", Tol::witness());
-        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-        let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
-        let (doc, tr) = insert(
-            doc,
-            Node::transform(
-                bar,
-                editor_core::Step::Rigid {
-                    translation: [len(0.0), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        );
-        let (doc, c) = block(doc, (0.5, 1.5), (-0.8, -0.5), 0.0, 2.0);
-        let m = [tr, c];
+        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+        let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
+        let (doc, tr) = placed(doc, plate, bar, 0.5);
+        let (doc, c) = block_on(doc, plate, (0.5, 1.5), (-0.8, -0.5), 0.0, 2.0);
+        let m = [tr.placement, c];
         let (doc, u) = insert(
             doc,
             Node::Union {
@@ -837,7 +909,7 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
             },
         );
         let ev1 = run(&doc, None);
-        let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::X), 1.5);
+        let doc2 = moved(doc.clone(), &tr, [1.5, 0.0, 0.0]);
         let ev2 = silent(run(&doc2, Some(&ev1)));
         let ev1 = silent(ev1);
         let plate_read = crate::fixture::out(&doc, plate);
@@ -855,8 +927,8 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
             kind: editor_core::EntityKind::Face,
             node: u,
             path: vec![RoleSeg::From {
-                read: crate::fixture::out(&doc, tr),
-                of: editor_core::NameRef::new(wall(&doc, bar, 1)),
+                read: crate::fixture::out(&doc, tr.placement),
+                of: editor_core::NameRef::new(wall(&doc, bar, 1).in_copy(tr.placement)),
             }],
         };
         for (n, d) in rows {
@@ -885,8 +957,8 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
 #[test]
 fn the_pieces_of_one_line_from_two_parents_are_one_group() {
     let doc = ProfileDoc::empty_derived("group-membership-line", Tol::witness());
-    let (doc, bar) = block(doc, (0.0, 20.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, notch) = block(doc, (9.0, 11.0), (-1.0, 0.5), 0.5, 1.0);
+    let (doc, bar) = block(doc, (0.0, 20.0), (0.0, 2.0), 1.0);
+    let (doc, notch) = block_on(doc, bar, (9.0, 11.0), (-1.0, 0.5), 0.5, 1.0);
     let (doc, notched) = insert(
         doc,
         Node::Subtract {
@@ -906,21 +978,15 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
             (3.0, reach),
         ]
     };
-    let (doc, u_profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.5],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![u(0.5)],
-    );
+    let (doc, u_profile) = insert(doc, Node::Profile(crate::fixture::desc(vec![u(0.5)])));
     let (doc, cutter) = insert(
         doc,
         Node::Extrude {
             profile: u_profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
+    let (doc, cutter) = crate::fixture::slid(doc, bar, cutter, [0.0, 0.0, 0.5]);
     let (doc, cut) = insert(
         doc,
         Node::Subtract {

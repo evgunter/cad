@@ -303,6 +303,7 @@ pub mod test_support {
     pub use crate::null::with_ring_root;
     pub use crate::props::{
         FaceTerm, fold_order_bound, mass_properties_with_face_terms, quadrature_rounds,
+        shell_references,
     };
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
@@ -314,6 +315,28 @@ pub mod test_support {
         split_plane, straddle_seat, wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// Every shell's stored face list rotated left by `k` (modulo its
+    /// length): the same solid stored in another face order, which the
+    /// tiers do not read. Each shell's face count, in arena order.
+    pub fn rotate_shell_faces<T: Real>(body: &mut Body<T>, k: usize) -> Vec<usize> {
+        body.shells
+            .iter_mut()
+            .map(|(_, shell)| {
+                let n = shell.faces.len();
+                if n > 0 {
+                    shell.faces.rotate_left(k % n);
+                }
+                n
+            })
+            .collect()
+    }
+
+    /// What each solid's aimed rays read before the volume, as text
+    /// (`side_reader`): the edge-meeting ray's probes read it.
+    pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::aimed_rays_report(body, band)
+    }
 
     /// The pad a face's reach box takes past the band, and each face's
     /// share of the census's gaps (`boolean::boxes::sweep_pad`): the
@@ -891,9 +914,9 @@ pub use boolean::{
     PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
     PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
     SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
-    SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy,
-    SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
+    SweepStrategy, SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact,
+    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
     boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
     face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
@@ -995,7 +1018,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 pub use face_boxes::{FaceBox, FaceBoxes};
 pub use pieces::PieceSortError;
 pub use query::{
-    CurveKind, CurveKindSet, DATUM_UNIT_NORM, RimBreak, RimError, SurfaceKind, SurfaceKindSet,
+    CurveKind, CurveKindSet, POSE_UNIT_NORM, RimBreak, RimError, SurfaceKind, SurfaceKindSet,
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{

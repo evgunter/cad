@@ -536,10 +536,10 @@ Six ways a name escapes the old pattern, all live today:
 3. **A named `const &str` rather than a literal at the site.** Six,
    not the three originally recorded: `sector_shape.rs`'s
    module-private `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
-   `SEL_DATUM_DISTANCE` (`sel_datum_distance` — since SEAT-2 a `pub`
+   `SEL_PLANE_DISTANCE` (`sel_plane_distance` — since SEAT-2 a `pub`
    const in `topo/src/query.rs`, re-exported by `editor-core`),
    and the direction-length pair —
-   `DATUM_UNIT_NORM` (`datum_unit_norm`, a `pub` const in
+   `POSE_UNIT_NORM` (`pose_unit_norm`, a `pub` const in
    `topo/src/query.rs`) and `EVAL_DIRECTION_NORM`
    (`eval_direction_norm`, `editor-core`'s `eval/wire.rs`), which are
    the same shape for the same reason and are described together
@@ -556,9 +556,9 @@ Six ways a name escapes the old pattern, all live today:
    the funnel site
    as a `&'static str` PARAMETER, because the layer that owns a value
    is the layer whose telemetry names its length decision. So
-   `decide(` at that site names a variable: `datum_unit_norm` (the
+   `decide(` at that site names a variable: `pose_unit_norm` (the
    name `topo` owns) is passed to `geom_core::UnitVec3::new` by
-   `editor-core`'s `datum_unit` — the datum arms of `wire_datum` —
+   `editor-core`'s `pose_unit` — the datum arms of `wire_datum` —
    for a datum's normal or axis direction, and `eval_direction_norm`
    by `editor-core`'s `unit()`, in the same file, for the directions
    the evaluation layer owns (a transform's rotation axis, a pattern's
@@ -1106,7 +1106,7 @@ the value). The names that reach the funnel through them today:
 
 | name | carrier | reaches the sweep's corpus? |
 |---|---|---|
-| `datum_unit_norm` | `topo`'s const, passed by `editor-core`'s `frame_axes` | yes — every authored and face frame |
+| `pose_unit_norm` | `topo`'s const, passed by `editor-core`'s `frame_axes` | yes — every authored and face frame |
 | `eval_direction_norm` | `editor-core`'s const, passed by `tube_args` | yes — every recipe tube's reference radial |
 | `frame_point_at_roll_offset`, `frame_path_start_reference_z`, `frame_path_start_reference_x` | `geom-core`'s ladders, same names | as before, at a slightly SMALLER count — see below |
 | `tour_frame_axis` | `demos/tour/src/scalar.rs`, a const the TOUR owns | **yes** — the demo-scenes leg of `scripts/k_probe_sweep.sh` runs the scenes that mint it |
@@ -1145,11 +1145,14 @@ suite owns, reaching no corpus by construction. The aim decision
 side — as before; the mate frame's axis is read off the ladder's
 witness rather than decided again.
 
-`tour_frame_axis` is a demo minting a roster name because the type's
-decision-free mints are the three cyclic world frames and the tour's
-planes are not all among them; that friction is filed at
-`work/props/exact-frame-mints-cover-three-of-the-world-frames.md`, with
-the two shapes a fix could take. The two names the sweep's corpus does
+`tour_frame_axis` is a demo minting a roster name for the frames it
+computes: the lily's bud, blade and loft sections, and its tube
+scenes' spine frames. The tour's axis-aligned sketch planes are written
+turns (`RigidMotion::turned`), which decide nothing, so the Klein
+bottle's and the lily's exact planes no longer sample it. The tube
+scenes' `axis_frame` still decides an exact (axis, reference) pair
+under it (`work/frame/exact-axis-and-reference-frames-still-decide.md`).
+The two names the sweep's corpus does
 NOT reach — `sketch_plane_frame_norm`, which is production code, and
 `fixture_frame_axis` — are filed at
 `work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`.
@@ -2068,14 +2071,14 @@ the committed snapshot, which still says 233 because it still contains
 the six old names.
 
 **And SEAT-DV adds one: 232 at a sweep cut immediately after it.**
-`datum_unit_norm` is the length decision `editor-core`'s `datum_unit`
+`pose_unit_norm` is the length decision `editor-core`'s `pose_unit`
 passes to `geom_core::UnitVec3::new`, which is where a datum's normal
 or axis direction is normalized. It does not REPLACE `eval_direction_norm`, which keeps
 the directions the evaluation layer owns (a transform's rotation axis,
 a linear pattern's direction) — so this is one name in, none out. The
 population it takes is small and it moves rather than grows: the datum
 arms of `editor-core`'s `wire_datum` used to emit `eval_direction_norm`
-and now emit `datum_unit_norm`. **One triple is emitted under BOTH
+and now emit `pose_unit_norm`. **One triple is emitted under BOTH
 names depending on the road**: `mate/solve.rs`'s derived-offset
 derivation re-reads a circular pattern's datum-axis node from the
 recipe and normalizes that same direction through `eval_direction_norm`
@@ -2084,8 +2087,8 @@ recipe and normalizes that same direction through `eval_direction_norm`
 **And the mate road is not the only place one triple carries two
 names.** A revolve's axis is decided twice by design: the
 evaluation layer lifts the authored sketch direction for the revolve's
-axis output and decides the lifted 3-D vector under `datum_unit_norm`
-(`wire/pose.rs`'s `datum_unit(u * dir.x + v * dir.y, …)`), while
+axis output and decides the lifted 3-D vector under `pose_unit_norm`
+(`wire/pose.rs`'s `pose_unit(u * dir.x + v * dir.y, …)`), while
 `sweep`'s revolve takes the
 UNLIFTED sketch pair and decides it again under
 `revolve_axis_direction` (`revolve/axis.rs`) — one authored heading,
@@ -2114,7 +2117,7 @@ consequence is nil (same names, same margins, same order, same
 outcomes); the roster consequence is that neither name is a literal at
 its `decide` site any more, recorded as escape route 4 in the
 inventory method above. The population under each name is unchanged —
-`datum_unit_norm` for the datum arms of `wire_datum`,
+`pose_unit_norm` for the datum arms of `wire_datum`,
 `eval_direction_norm` for the evaluation layer's own directions and
 for the mate solve's re-derivation of both rule kinds from the
 recipe.
@@ -3132,7 +3135,7 @@ before the revolve turns about it, through `UnitVec3::new`'s
 `Margin::norm3`. Its margin is the length of a placed unit direction,
 about one, against the linear band. It is a third name for the
 revolve axis's length, beside `revolve_axis_direction` (the sketch
-pair) and `datum_unit_norm` (the evaluation layer's lift), on the
+pair) and `pose_unit_norm` (the evaluation layer's lift), on the
 "one length, two funnel names, split by road" shape above: the
 placement is a general map, so the placed axis is a length of its
 own until the sketch plane is a frame.
@@ -3185,7 +3188,7 @@ for this addendum, so no population count is claimed.
   zero; the margin approaches zero only where the path doubles back,
   which is where it refuses.
 
-The evaluation layer's `datum_unit_norm` under `DATUM_AXIS_ROLE`
+The evaluation layer's `pose_unit_norm` under `AXIS_DIRECTION_ROLE`
 (`editor-core`'s axis port, `eval/wire/pose.rs`) is asked once per
 axis read instead of twice: the sketch direction is decided, and the
 placed one is the frame's turn of it.

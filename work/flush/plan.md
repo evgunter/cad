@@ -10,13 +10,12 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 
 ## The slate
 
-**25 points** of dispatchable work against a ceiling of 32 (2026-10-20, after the split). FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced and charged 2.5 each. `work/flush/program.md` states why the ceiling is not 30.
+**27.5 points** of dispatchable work against a ceiling of 32 (2026-10-20, after the split and PR 5422, whose curved half came back as a P2 H). FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced and charged 2.5 each. `work/flush/program.md` states why the ceiling is not 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P2 | `a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face` | H | the ray half of Ev's needle ruling (fork-log row 176): a ray in band of an edge meets it, half a crossing per face; also closes CLEAVE's point-in-solid set-aside row |
+| P2 | `a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim` | H | the curved half of the edge-meeting ray: a seam split shares one root comparison; an edge between two carriers needs one signed offset per edge and ray (PR 5422's residue) |
 | P2 | `a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read` | M | a needle cavity 10.5–15ε refuses `SectionLoopUndecided` at the join before any read (PR 5119's residue) |
-| P2 | `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal` | – | the reader's aims meet exact ties at symmetric nominals; retired by the edge-meeting ray |
 | P2 | `a-containment-fallback-substitutes-a-partly-held-dropped-face-whole` | M | a fallback cuts nothing, so a dropped face larger than its holder gets one overstating whole-face row (PR 5368's residue) |
 | P2 | `an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order` | M | one member order cites an extra wall for a three-way coincident face (PR 5368's residue) |
 

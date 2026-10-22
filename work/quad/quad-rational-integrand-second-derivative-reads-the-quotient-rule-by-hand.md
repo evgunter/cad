@@ -4,6 +4,8 @@ kind: issue
 title: The rational flux lane's f_dd of N/w³ is the interval quotient rule over hulls; the quotient statement reads it per piece
 status: open
 opened: 2026-10-13
+priority: P1
+cost: M
 ---
 
 

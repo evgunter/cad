@@ -73,29 +73,31 @@
 // failure out of prose.
 //
 // **That placement is the general rule and not a one-name
-// exception**, and `EntityKind`, `SplitHalf` and `RimShare` below are
-// the rest of it. `EntityKind` and `SplitHalf` are
-// `document::NodeErrorKind`'s payload as well — and `RefusedRef`'s and
-// `PartSelect`'s — and both are the naming-role vocabulary this module
-// owns, beside `RoleSeg`, `SegTag` and `Denotation`. `RimShare` is on
-// the list for the payload rule alone, one level further in: it is the
-// typed discriminant `NamingError::SharedRim` carries instead of
-// prose, so a consumer that cannot name it is back to reading the
-// refusal out of its sentence, which is what that payload exists to
-// stop. A payload whose vocabulary one of the curated
-// lists owns lives on THAT list, spelled once; a payload whose only
-// home is the refusal holding it rides its carrier, which is what
-// `crate::document`'s `VerbKind` does. The cost is one extra `use`
+// exception**, and `EntityKind`, `SplitHalf`, `RimShare` and the
+// naming shapes below are the rest of it. `EntityKind` and
+// `SplitHalf` are `document::NodeErrorKind`'s payload as well — and
+// `RefusedRef`'s and `PartSelect`'s — and both are the naming-role
+// vocabulary this module owns, beside `RoleSeg`, `SegTag` and
+// `Denotation`. `RimShare` is on the list for the payload rule alone,
+// one level further in: it is the typed discriminant
+// `NamingError::SharedRim` carries instead of prose, as each `*Shape`
+// is for its variant, so a consumer that cannot name it is back to
+// reading the refusal out of its sentence, which is what that payload
+// exists to stop. A payload whose vocabulary one of the curated lists
+// owns lives on THAT list, spelled once; a payload whose only home is
+// the refusal holding it rides its carrier, which is what
+// `crate::document`'s `NodeRefusal` does. The cost is one extra `use`
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{
-    At, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
-    CurveKindSet, DeclaredContact, Denotation, DuplicateName, EntityKind, EntityNamed,
-    FIT_DEFERRAL, GeomPred, InterrogateError, KindMismatch, LeafRole, MeridianEnd, NameOrigin,
-    NamePat, NameRef, NameTable, NamingError, OpGroup, PieceRole, PieceRun, ProfileEdgeRef,
-    ProfilePieces, ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg, RunLine,
-    SEL_DATUM_DISTANCE, SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
-    Sense, ShortTie, Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges,
+    At, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
+    CrossingSensesShape, CurveKind, CurveKindSet, DeclaredContact, Denotation, DisagreeShape,
+    DuplicateName, EntityKind, EntityNamed, FIT_DEFERRAL, GeomPred, InterrogateError, JoinShape,
+    KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
+    OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare,
+    RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE, SeamSidesShape, SeamVertexShape,
+    SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side,
+    SplitHalf, StepId, SurfaceKindSet, TagPat, UnionNameShape, WayShape, all_bodies, all_edges,
     all_faces, all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation,
     edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame, face_name, leaf_role,
     meridian_vertex, role_leaf, select, select_where, vertex_position,

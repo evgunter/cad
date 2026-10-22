@@ -275,6 +275,13 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "pm_census_ee_line_gap" => "whether two straight edges of one solid lie on one line",
         "pm_census_span_order" => "the order of two points along a straight edge",
         "pm_census_ee_overlap" => "whether two edges on one line overlap along a length",
+        "pm_census_span_precision" => {
+            "whether two edges on one line are short enough to read their ends uncharged at this \
+             tolerance"
+        }
+        crate::census::SPAN_ORDER_CHARGED
+        | crate::census::EE_OVERLAP_CHARGED
+        | crate::census::SPAN_ROUNDING => BooleanDecision::LineSpanPrecision.subject(),
         // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
@@ -285,7 +292,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => refusal_routes::CYLINDER_AXES_PARALLEL,
-        crate::query::DATUM_UNIT_NORM
+        crate::query::POSE_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
         | boxes::BOX_CYLINDER_AXIS
         | boxes::BOX_SPHERE_AXIS
@@ -2435,6 +2442,58 @@ pub enum RefusedRow {
     Found,
 }
 
+/// **Which construction a slit's line lacks**
+/// ([`BooleanError::SlitLineCrossed`]): the other solid has an edge
+/// along an operand's slit or ring, and the germs on the line are not
+/// placed where
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// Every case is a construction gap with no lever, so nothing a person
+/// does differs by case, and the refusal's sentence names it. A Rust
+/// caller can already name and match it, since `pncad` re-exports
+/// `topo` whole.
+///
+/// **The falsifier is a caller that acts on the case by itself**: a
+/// driver that tilts a part off the slit's face when it reads
+/// [`SlitLineGap::Flush`], say. Then carry it and delete this paragraph
+/// and the disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SlitLineGap {
+    /// The result keeps only the slit's face on the line, on both
+    /// sides: it closes that face across the line, which the join does
+    /// not build.
+    Closes,
+    /// A flank of a wedge on the line lies in a flank's plane of the
+    /// other's, flush with a face of the other solid there, and the op
+    /// keeps one of the two flush faces: the cut the germs make in the
+    /// dropped one has no corner to end in.
+    Flush,
+    /// One solid's material about the line, a wedge with a face of its
+    /// own folded in, crosses the other's twice at the slit's tip.
+    CrossedTwice,
+}
+
+impl SlitLineGap {
+    /// The gap in the refusal's words.
+    pub(super) const fn words(self) -> &'static str {
+        match self {
+            Self::Closes => {
+                "the result keeps only that face on the line, on both sides, so it closes the \
+                 face across the line"
+            }
+            Self::Flush => {
+                "a face of the other solid lies flush with a face on the line, and the op keeps \
+                 one of the two"
+            }
+            Self::CrossedTwice => {
+                "one solid's material about the line crosses the other's twice at the tip"
+            }
+        }
+    }
+}
+
 /// **Why a node of an equal cylinder pair is not built**
 /// ([`BooleanError::NodeUnbuilt`]).
 ///
@@ -3692,12 +3751,11 @@ pub enum BooleanError {
         gap: EdgeInFaceGap,
     },
     /// The other solid's edges cross the two coincident edges of an
-    /// operand's slit or zero-area ring where the solids meet along
-    /// it: two germs along one ray of the vertex pair at the slit's tip
-    /// (`recl::recl_edges`), which the insertion does not yet place
-    /// apart. [`BooleanError::CrossingsAlongAContactLine`] where the
-    /// line is the operand's own slit, which no piece of it makes: a
-    /// construction gap, with no lever.
+    /// operand's slit or zero-area ring where the solids meet along it
+    /// (`recl::recl_edges`), and the germs on the line are not placed
+    /// where [`SlitLineGap`] says. [`BooleanError::CrossingsAlongAContactLine`]
+    /// where the line is the operand's own slit, which no piece of it
+    /// makes: a construction gap, with no lever.
     SlitLineCrossed {
         /// The operand holding the slit.
         operand: Operand,
@@ -3705,12 +3763,17 @@ pub enum BooleanError {
         vertex: VertexKey,
         /// The face carrying the slit.
         face: FaceKey,
+        /// Which construction is missing.
+        gap: SlitLineGap,
     },
-    /// The face carrying an operand's slit or zero-area ring is glued
-    /// away by the other solid, so the slit's two coincident edges would
-    /// be one edge between its two walls, which the join does not yet
-    /// build: its ring run along the slit encloses no area. A
-    /// construction gap, with no lever.
+    /// The face carrying an operand's slit or zero-area ring is glued to
+    /// a face of the other solid, and the join's run along the slit
+    /// encloses no area. Either the run walls off the sliver between the
+    /// slit's two edges from neither side without separating a pending
+    /// pair, or runs on a curved face's ring lane; or the op drops that
+    /// sliver and keeps one of the two flush faces, which carries the
+    /// slit on, through a cut in the dropped one that ends at the slit's
+    /// tip. A construction gap, with no lever.
     SlitFaceGlued {
         /// The operand holding the slit.
         operand: Operand,
@@ -5011,20 +5074,23 @@ impl core::fmt::Display for BooleanError {
                 operand,
                 vertex,
                 face,
+                gap,
             } => write!(
                 f,
                 "the {} solid holds a slit or zero-area ring in face {face:?} ending at vertex \
                  {vertex:?}, where the solids meet along it, and the other solid's edges cross \
-                 its two coincident edges there, which the Boolean does not yet place apart \
-                 along the line. {}",
+                 its two coincident edges there where {}, which the Boolean does not yet build. \
+                 {}",
                 operand_word(*operand),
+                gap.words(),
                 geom_core::NOT_YET_ENDING
             ),
             Self::SlitFaceGlued { operand, face } => write!(
                 f,
-                "the other solid glues away face {face:?} of the {} solid, which carries a slit \
-                 or zero-area ring, so the slit's two coincident edges would become one edge \
-                 between its two walls, which the join does not yet build. {}",
+                "a face of the other solid lies flush on face {face:?} of the {} solid, which \
+                 carries a slit or zero-area ring: its two coincident edges would become one \
+                 edge between its two walls, or stay in the one of the two flush faces the op \
+                 keeps, and the join does not build that there. {}",
                 operand_word(*operand),
                 geom_core::NOT_YET_ENDING
             ),

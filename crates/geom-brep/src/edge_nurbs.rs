@@ -77,7 +77,6 @@ use crate::pcurve_cache::Pcurve;
 use core::num::NonZeroUsize;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::{KnotVector, SpanLocate, SplineError};
 use geom_core::{
     Band, Bounds, Decide, Decided, Indeterminate, MarginDiag, Point2, Point3, Readable, Real, Sign,
@@ -354,8 +353,10 @@ impl core::fmt::Display for CarrierDomainRefusal {
 impl PlaneNurbsRefusal {
     /// The ending this refusal's decision gives it, read at `at`
     /// ([`recourse`]), or `None` for a refusal that is no decision's
-    /// refused arm. `Display` renders the payload alone, as
-    /// [`crate::CertifyError`]'s does, and the door appends this.
+    /// refused arm, but for the pcurve fit's, which ends in the door's
+    /// defect ending ([`ReadAt::culprit`]). `Display` renders the payload
+    /// alone, as [`crate::CertifyError`]'s does, and the door appends
+    /// this.
     ///
     /// The per-sample transversality and the uniqueness tube are the
     /// `Transversality` decision, whose band-decided arms end alike (D4
@@ -370,6 +371,9 @@ impl PlaneNurbsRefusal {
             Self::Escalated { limb, cause } => {
                 return Some(crate::ssi::SsiDecision::Limb(*limb).ending(cause, at));
             }
+            // No decision's refused arm: the producer refused, so it ends
+            // in the defect ending naming the door's culprit.
+            Self::PcurveFit => return Some(crate::recourse::defect_ending(at).to_owned()),
             _ => {}
         }
         self.decision().map(|(check, arm)| recourse(check, arm, at))
@@ -444,7 +448,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 },
                 f,
             ),
-            Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
+            Self::PcurveFit => f.write_str(PCURVE_FIT_REFUSAL),
             Self::CarrierDomain(refusal) => write!(f, "{refusal}"),
             Self::Limb { limb, margin } => match limb {
                 SsiLimb::HullSup => write!(
@@ -782,6 +786,23 @@ pub fn arc_rim_candidates<T: Real>(chart: &NurbsSurface<T>, t0: T, span: T) -> V
         .collect()
 }
 
+/// **The `k`-th of `m` uniform breakpoints on `[0, 1]`**, `k/m` as one
+/// correctly rounded `f64` division: where a circle's sub-arcs join.
+///
+/// One spelling for every reader of a joint, because the mesher's
+/// crease line is only exact if they agree to the bit:
+/// `sweep::skin::segment_curve` places its joint knots here, the arc
+/// rim's sub-arc locator ([`Pcurve::IsoArc`]'s `breaks`) is built
+/// here, and the mesher's chord schedule spaces every edge's points
+/// here. A chord schedule of `q·m` points then lands on each joint
+/// exactly, since `(q·k)/(q·m)` and `k/m` are the same real, rounded
+/// once.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn sub_arc_joint(k: usize, m: usize) -> f64 {
+    k as f64 / m as f64
+}
+
 /// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans ≥ 1`
 /// spans: an [`Pcurve::IsoArc`]'s sub-arc locator (pure `f64`
 /// structure, which keeps the variant `T`-generic). `None` only where
@@ -789,9 +810,8 @@ pub fn arc_rim_candidates<T: Real>(chart: &NurbsSurface<T>, t0: T, span: T) -> V
 /// give it.
 fn uniform_breaks(spans: usize) -> Option<KnotVector> {
     let mut knots = vec![0.0, 0.0];
-    #[allow(clippy::cast_precision_loss)]
     for k in 1..spans {
-        knots.push(k as f64 / spans as f64);
+        knots.push(sub_arc_joint(k, spans));
     }
     knots.extend([1.0, 1.0]);
     KnotVector::clamped(knots, 1).ok()

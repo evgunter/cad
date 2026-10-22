@@ -25,10 +25,11 @@ use pncad::document::{LoopProgram, ProgramArcData, ProgramStep, ProgramTarget};
 use pncad::geom_core::Point2;
 use pncad::geom_core::Tol;
 use pncad::profile::{
-    ArcData, ArcMode, ReplayErrorKind, SketchPlane, Step, Target, TargetKind, TipState, Verb,
+    ArcData, ArcMode, PathErrorKind, ReplayErrorKind, SketchPlane, Step, Target, TargetKind,
+    TipState, Verb,
 };
 use viewer::props::Notation;
-use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
 use viewer::sketch::{self, LoopEnd, PreviewError, admits_at, preview};
 
 /// The flattening tolerance the rows read at — a tenth of a
@@ -87,11 +88,9 @@ fn a_line_chain_previews_and_authors_the_same_square() {
     );
 
     let mut session = session(tol);
-    let plane = common::xy_frame_in(&mut session);
     let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&square(side))],
         },
     );
@@ -230,9 +229,7 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     );
 
     let mut session = session(tol);
-    let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane: ProfilePlane::Existing(plane),
         loops: vec![shape(&template)],
     });
     assert!(
@@ -242,9 +239,8 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     );
     assert_eq!(
         common::authored_ids(session.committed_doc()),
-        &[plane][..],
-        "and nothing landed — the frame the profile would have named is \
-         all the document holds",
+        &[][..],
+        "and nothing landed — the document holds nothing",
     );
 }
 
@@ -294,9 +290,7 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     assert!(drawn.invalid.is_none(), "{:?}", drawn.invalid);
 
     let mut session = session(tol);
-    let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane: ProfilePlane::Existing(plane),
         loops: vec![shape(&template)],
     });
     assert!(
@@ -306,9 +300,8 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     );
     assert_eq!(
         common::authored_ids(session.committed_doc()),
-        &[plane][..],
-        "and nothing landed — the frame the profile would have named is \
-         all the document holds",
+        &[][..],
+        "and nothing landed — the document holds nothing",
     );
 }
 
@@ -376,9 +369,7 @@ fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
     );
 
     let mut session = session(tol);
-    let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane: ProfilePlane::Existing(plane),
         loops: overlapping.iter().map(shape).collect(),
     });
     assert!(out.refusal.is_some(), "the door refuses what it drew");
@@ -583,11 +574,9 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     );
 
     let mut session = session(tol);
-    let plane = common::xy_frame_in(&mut session);
     session_insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Path { steps })],
         },
     );
@@ -743,8 +732,13 @@ fn an_arc_whose_radius_is_not_a_number_refuses_at_the_preview() {
 /// So `radius` does not carry the whole frame. It carries the
 /// apothem — `apothem = ±radius·cos(θ/2)` — but not the midpoint the
 /// apothem is measured from, and this row is the population that
-/// distinction produces. Deleting `flatten`'s `centre`/`start` check
-/// leaves the row above green and reds this one.
+/// distinction produces.
+///
+/// **The path door refuses it first.** At `f64` the door reads every
+/// arc it builds back against what was authored before it stores it,
+/// and this arc's reads, taken about a centre that is not a point, are
+/// not numbers, so the read-back escalates and the chain never reaches
+/// the flattener. The row pins that refusal.
 #[test]
 fn an_arc_whose_centre_overflows_refuses_at_the_preview() {
     let tol = Tol::witness();
@@ -769,11 +763,12 @@ fn an_arc_whose_centre_overflows_refuses_at_the_preview() {
     assert!(
         matches!(
             refusal,
-            PreviewError::Unflattenable {
+            PreviewError::Geometry {
                 loop_: 0,
-                vertex: 0
+                kind: PathErrorKind::Escalated,
+                ..
             }
-        ),
+        ) && refusal.to_string().contains("nearer the origin"),
         "{refusal}",
     );
 }
@@ -884,6 +879,12 @@ fn a_vertex_past_the_exponent_range_refuses_at_the_preview() {
 /// A guard on the frame is therefore not a guard on the points, which
 /// is what makes this the population rather than a fourth instance:
 /// the question is asked where a coordinate is MINTED.
+///
+/// **The path door refuses it first.** At `f64` the door reads the arc
+/// back against what was authored before it stores it, at a magnitude
+/// of about `1e308` m that no read survives, so the chain refuses
+/// there, loudly, and never reaches the flattener. The row pins that
+/// refusal.
 #[test]
 fn an_arcs_far_side_past_the_range_refuses_though_its_frame_is_finite() {
     let tol = Tol::witness();
@@ -908,11 +909,12 @@ fn an_arcs_far_side_past_the_range_refuses_though_its_frame_is_finite() {
     assert!(
         matches!(
             refusal,
-            PreviewError::Unflattenable {
+            PreviewError::Geometry {
                 loop_: 0,
-                vertex: 0
+                kind: PathErrorKind::ArcMissBelowSceneResolution | PathErrorKind::Escalated,
+                ..
             }
-        ),
+        ) && refusal.to_string().contains("nearer the origin"),
         "{refusal}",
     );
 }
@@ -1011,22 +1013,19 @@ fn a_vertexs_second_coordinate_is_asked_the_question_too() {
     );
 }
 
-/// **A millimetre arc at `1.6e308` draws from its stored carrier, and
-/// validation beside the picture refuses it.**
+/// **A millimetre arc at `1.6e308` refuses at the door, as a scene
+/// that cannot resolve it.**
 ///
 /// Two vertices a millimetre apart at `1.6e308`, bulge `0.5`: the
 /// lowering stores a carrier whose centre is finite (its chord
-/// midpoint is `a + (b − a)/2`, which does not overflow), so the
-/// flattener evaluates the arc from it and the loop draws. The
+/// midpoint is `a + (b − a)/2`, which does not overflow). The
 /// coordinates there round at ~1e292 m against a `6.25e-4` m radius,
-/// the loop is the replay's own construction, so validation does not
-/// re-read the arc against its vertices (D1), and what it refuses is
-/// the next segment: the line back to `1.0e307` has a chord whose
-/// length overflows, a poisoned `segment_straightness` margin, carried
-/// beside the drawing as every validation verdict is. `COARSE_CHORD` keeps the
-/// arc at one subdivision, the regime the row was written for.
+/// so at `f64` the door's read of the arc's landing on its end vertex
+/// misses by more than the band at a magnitude whose rounding is far
+/// past it, and the chain refuses `ArcMissBelowSceneResolution`, with
+/// its recourse, rather than drawing an arc nothing can place.
 #[test]
-fn a_far_millimetre_arc_draws_and_its_validation_refuses() {
+fn a_far_millimetre_arc_refuses_at_the_door() {
     let tol = Tol::witness();
     let template = ProfileShape::Path {
         steps: vec![
@@ -1039,22 +1038,22 @@ fn a_far_millimetre_arc_draws_and_its_validation_refuses() {
             Step::LineTo(Target::Start),
         ],
     };
-    // The stored carrier is the lowering's, whose chord midpoint is
-    // `a + (b − a)/2` and does not overflow: its centre IS a point,
-    // so the flattener draws the arc from it. What refuses is the
-    // validation beside the picture, on the overflowing line.
-    let drawn = preview(
+    let refusal = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
         tol,
         COARSE_CHORD,
     )
-    .expect("the stored carrier is finite, so the arc draws");
-    match &drawn.invalid {
-        Some(pncad::profile::ProfileError::Escalated { source, .. }) => {
-            assert_eq!(source.predicate, Some("segment_straightness"));
-            assert!(source.margin.is_invalid(), "{source:?}");
-        }
-        other => panic!("expected the overflowing line's poisoned margin, got {other:?}"),
-    }
+    .expect_err("an arc the scene cannot resolve refuses at the door");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Geometry {
+                loop_: 0,
+                kind: PathErrorKind::ArcMissBelowSceneResolution,
+                ..
+            }
+        ) && refusal.to_string().contains("nearer the origin"),
+        "{refusal}",
+    );
 }

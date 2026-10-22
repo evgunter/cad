@@ -30,7 +30,7 @@ fn edit(doc: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> Result<ProfileDoc, Edi
 
 fn body() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("intent-literals-b-door", Tol::witness());
-    block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
+    block(doc, (0.0, 1.0), (0.0, 1.0), 1.0)
 }
 
 fn insert(node: AuthoredNode) -> DocEdit<ProfileProgram> {
@@ -292,8 +292,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     let mut store = PartStore::default();
     let (part, b) = store.insert_part(body(), Tol::witness());
     let edge_doc = store.doc(part.id);
-    // The block's own sketch frame and profile, for the slots that read
-    // those kinds.
+    // The block's own profile, for the slots that read that kind.
     let held = |is: fn(&Node<ProfileProgram>) -> bool| {
         edge_doc
             .ids()
@@ -301,7 +300,6 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             .find(|&id| edge_doc.node(id).is_some_and(is))
             .expect("the block holds it")
     };
-    let frame = held(|n| matches!(n, Node::Datum(editor_core::Datum::Frame { .. })));
     let profile = held(|n| matches!(n, Node::Profile(_)));
     // The listed-rule counts no slot addresses (p1/p2), and the slot
     // types no corpus document holds: a shell, a sweep, a windowed
@@ -327,7 +325,6 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             v_degree: Formula::count(3),
         },
         Node::Tube {
-            frame: frame.into(),
             major_radius: len(0.5),
             minor_radius: len(0.1),
             window: TubeWindow::Arc {
@@ -353,8 +350,8 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
                 editor_core::Constraint {
                     id: editor_core::ConstraintId(editor_core::MintId::new(0, 1)),
                     kind: editor_core::ConstraintKind::Value(editor_core::Value {
-                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 0)),
-                        coord: editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                        mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 0))),
+                        coord: editor_core::Coord::Slide(editor_core::TargetAxis::X),
                         by: len(0.2),
                     }),
                 },
@@ -386,7 +383,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             loop {
                 let (mutated, seen) = unheld_at(form, at, |f| {
                     node.try_map_slots(
-                        |p, g, r| p.try_map_slots(&mut |e| g(e), &mut |at, read| r(at, read)),
+                        |p, g| p.try_map_slots(&mut |e| g(e)),
                         &mut |e| f(e),
                         &mut |_, read| Ok(read.clone()),
                     )
@@ -501,7 +498,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     // that no corpus document holds owes an edge above.
     assert_eq!(
         kinds.len(),
-        23,
+        21,
         "a node kind the sweep does not reach: {kinds:?}"
     );
 }
@@ -519,10 +516,6 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
     fn lower<E>(
         authored: &Unlisted<Formula>,
         f: &mut dyn FnMut(&Formula) -> Result<editor_core::VarId, E>,
-        _read: &mut dyn FnMut(
-            editor_core::OperandSlot,
-            &editor_core::Operand,
-        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(Unlisted {
             hidden: f(&authored.hidden)?,

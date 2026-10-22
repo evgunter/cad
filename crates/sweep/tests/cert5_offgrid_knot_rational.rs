@@ -314,14 +314,12 @@ fn row(
     );
     // PAD CEILING, pinned separately so a loosening enclosure cannot
     // absorb the accuracy row: the schedule is fixed, so the pad is
-    // what the schedule achieves. It is twice the `2·1024ε` it was
-    // while every face was read about the world origin: each face is
-    // read about a vertex of its shell (`topo::props`'
-    // `shell_reference`), and a face's pad scales, against the
-    // origin's, by about the shell's diameter over the face's own
-    // distance from the origin, unbounded and order-dependent
-    // (`work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`).
-    // blade-8 measured 2.127e-6 at 1e-9, 2.08 times the target: the
+    // what the schedule achieves. Each face is read about a vertex of
+    // the shell's first quadrature face (`topo::props`'
+    // `shell_reference`), so on these walls, centred on the world
+    // origin, a quadrature face's lever is their diameter where the
+    // origin's was their radius (`m8_3_rational_volume`'s ceiling).
+    // blade-8 measured 2.00e-6 at 1e-9, 1.95 times the target: the
     // ceiling is the measure with headroom, not a bound the rule
     // guarantees.
     let ceiling = 4.0 * QUAD_TARGET_LEN_FACTOR * eps;
@@ -330,7 +328,20 @@ fn row(
         "PAD CEILING {name}: volume pad {} vs {ceiling}",
         got.volume_pad
     );
+    // The measure the ceiling's comment cites, held where it was taken.
+    if name == "blade-8 (deg 1)" && eps == DEFAULT_EPS {
+        assert!(
+            (got.volume_pad / BLADE_8_PAD_AT_DEFAULT_EPS - 1.0).abs() < 0.01,
+            "MEASURED {name}: volume pad {} moved from the {BLADE_8_PAD_AT_DEFAULT_EPS} the \
+             ceiling's comment cites",
+            got.volume_pad
+        );
+    }
 }
+
+/// blade-8's volume pad at the default ε, the measure the ceiling's
+/// comment cites.
+const BLADE_8_PAD_AT_DEFAULT_EPS: f64 = 2.001_6e-6;
 
 /// **The regression row** (issue 453): SIX stations, a quadratic skin,
 /// and a rational wall whose interior v knots are off the composite's

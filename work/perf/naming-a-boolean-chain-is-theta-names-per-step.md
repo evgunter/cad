@@ -34,10 +34,10 @@ holds.
   whole `BTreeMap` search per named entity, ~9 % of the emitter.
   Folding the tie flag into the reverse map's value removes it. What
   stopped PERF-2: that forward lookup is also the site of the
-  "an operand name table's forward and reverse directions disagree"
-  refusal, whose presence is a documented decision in that file
-  ("the arm stays because the invariant is the emitter's to assert,
-  not to assume"). Trading it for 9 % is a decision, not a speed-up.
+  check that the table's forward and reverse directions agree, which
+  `upstream_name` asserts with a panic (its doc: no caller can reach a
+  state where `name_of` answers and `lookup` does not). Trading that
+  check for 9 % is a decision, not a speed-up.
 
 - **`merged::constituents_through_wrappers`
   (`crates/editor-core/src/names/merged.rs:34`) is the last O(depth)

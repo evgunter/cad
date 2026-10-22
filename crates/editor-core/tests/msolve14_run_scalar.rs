@@ -10,7 +10,7 @@
 //! - **A3, the `f64` fence**: a mate corpus — every kind of mate the
 //!   fold has a branch for, a LOOSE bundle and an OVERCONSTRAINED one,
 //!   a parametric seat under a pattern, a parametric standoff, a
-//!   parametric world pin, a chain of bundles — solved and evaluated
+//!   parametric world mate, a chain of bundles — solved and evaluated
 //!   at `f64`, digested, and pinned; and the same corpus at `Dual64`
 //!   reading the `f64` bits on its value channel.
 //! - **A2**: a parameter a bundle reads — a value's slide, a standoff,
@@ -32,7 +32,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -41,8 +40,8 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
     EvalOptions, Evaluation, Formula, FreeVar, Mate, MateRef, NameRef, Node, NodeResult, Operand,
-    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SlideAxis, StableName,
-    Target, Value, VarName, WorldRead, all_vertices, evaluate, vertex_position,
+    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, Target,
+    TargetAxis, Value, VarName, WorldRead, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
@@ -94,7 +93,6 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -260,7 +258,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -295,8 +293,8 @@ fn seat(
         ),
     );
     let doc = [
-        (Coord::Slide(SlideAxis::X), x),
-        (Coord::Slide(SlideAxis::Y), y),
+        (Coord::Slide(TargetAxis::X), x),
+        (Coord::Slide(TargetAxis::Y), y),
         (Coord::Spin, spin),
     ]
     .into_iter()
@@ -574,7 +572,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let doc = with_value(
         doc,
         coaxial,
-        Coord::Slide(SlideAxis::Z),
+        Coord::Slide(TargetAxis::Z),
         len(SLAB_HEIGHT + 0.25),
     );
     let doc = with_value(doc, coaxial, Coord::Spin, ang(0.3));
@@ -658,7 +656,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let l = lifted("msolve14-c-lift");
     out.push(("standoff", l.doc, l.opts));
 
-    // A parametric world pin — the world's frame slid and turned, two
+    // A parametric world mate — the world's frame slid and turned, two
     // of its moves reading parameters — and a seat on the pinned slab,
     // and a seat on that: a chain of bundles back to the world.
     let p = parts("msolve14-c-pin");
@@ -869,7 +867,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// constraint of the placement it places, so the corpus's documents
 /// changed shape — the lone rest is a loose copy rather than a refusal,
 /// the contradictory pair is an overconstrained bundle, the gauge chain
-/// is a three-step world pin, the closing loop is a chain of bundles,
+/// is a three-step world mate, the closing loop is a chain of bundles,
 /// and both shafts' bundles are overconstrained — and the digest feeds
 /// each node's space and fault where it fed a mate's role and a
 /// group's root.
@@ -878,7 +876,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// read off geometry, so every seat of the corpus is a rest and its
 /// values, the coaxial document is one edge mate and its slide and
 /// spin values, the pin documents read the parts' edges, the
-/// world pin is a frame read off the slab equated with a world read,
+/// world mate is a frame read off the slab equated with a world read,
 /// the patterned bolt and the standoff carry their parameters in a
 /// value and a pose construction rather than a placer, and the clocked
 /// shaft is gone with the rider; every instance is pinned over its
@@ -918,10 +916,39 @@ fn run_at<T: editor_core::EvalScalar>(
 /// chain's two seats moved, at the rounding level (by at most 1.55e-15 m,
 /// and 1.99e-15 over every settle with a slide), and every rotation,
 /// fault and space was unchanged.
+///
+/// And for INTENT stage 3 D (Transform retires into a placement, all
+/// three rows): C's world pin retired, so every copy the fixtures place
+/// where it stands is stood by `mate::stand`'s plane mate on a face no
+/// variable reaches, with constant zeros, and solves that mate where
+/// the pin read nothing; a profile carries no frame and an extrude no
+/// side, so the ids the digest feeds moved too. Measured separately:
+/// the box lanes' tight-map fixes (`mate::solve::tightened`,
+/// `Chart::turned`, Sym's at-rest snap) move no bit of this digest at
+/// any of the three ε, read on the tree that introduced them with each
+/// fix switched off and on, and after their switches were removed.
+///
+/// And for the identity bundle (FORK-REST, all three rows): every copy
+/// the fixtures place where it stands is stood by `mate::stand`'s
+/// identity bundle, no mate and the constant `0` on every freedom,
+/// which the fold places by no map and which solves no mate; it is
+/// written as one `AddValues`, which mints a different number of ids
+/// from the plane mate and three values it replaces, so the ids minted
+/// after it moved too. Every other bundle of the corpus is mated and
+/// places by its map as before. Measured on D's head before the change
+/// (`434139ef1c`), where this row was green.
+///
+/// And again when a minted plane's `u_ref` became a direction its
+/// construction holds (all three rows): an extruded cap is charted
+/// along its sketch's `x` axis and a wall along its swept segment,
+/// where `orthonormal_basis` picked both off the axes. The digest feeds
+/// the evaluated bodies, whose planes' `u_ref` moved; no mate reads a
+/// plane's `u_ref` (`mate/pin.rs` reads a plane by its origin and
+/// normal), so no pose moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x5a2f_5c16_6195_4bfe),
-    (1e-6, 0xd704_eca9_f5eb_46f0),
-    (1e-12, 0x3e01_809a_0ff3_11eb),
+    (1e-9, 0xb6c1_14a1_d028_2de1),
+    (1e-6, 0x9302_06b1_4562_6ef9),
+    (1e-12, 0x8942_ed37_d6d7_0e79),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
@@ -1299,8 +1326,7 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
 }
 
 /// **Over a wide box the bolt meets the placement door's refusal** —
-/// the residual every boxed placer meets today (a `Transform` node with
-/// a boxed translation refuses the same way): the bolt's own refusal is
+/// the residual every boxed placer meets today: the bolt's own refusal is
 /// the rigid motion's, not its bundle's, and the pattern, which reads
 /// the bolt, is poisoned through it.
 ///
@@ -1451,7 +1477,7 @@ fn slid_bolt(label: &str) -> Slid {
 /// **A seed on a value moves the mated part in that lane**: seeded on
 /// the slide, the bolt moves by `(1, 0, 0)`; seeded on the spin, each
 /// vertex by its `f64` builds' central difference — a value's own
-/// parameters, a set of names a run binds beside a world pin's and a
+/// parameters, a set of names a run binds beside a world mate's and a
 /// pose construction's.
 ///
 /// *Breaks if* a value's number is read anywhere but the lane's own
@@ -1544,6 +1570,31 @@ fn a2_a_box_on_a_value_encloses_the_mated_part() {
         (lo, hi),
         "the slid box, evaluated",
     );
+}
+
+/// **A box on a spin value places the copy it turns**: evaluated at
+/// `Interval` over a box a twentieth of a radian wide on the spin, the
+/// placement's map is a fold of a mate and values, admitted as the
+/// rigid motion it is at every point of the box, so neither the
+/// placement nor the bolt it places refuses at the rigidity door
+/// (`NodeErrorKind::Motion`), which a widened rotation's enclosure
+/// cannot pass by its seven margins alone. Over a box this wide the
+/// bolt still refuses, at the placed edge's endpoint certification
+/// (`work/shelf/transform-rigid-recertifies-images-enclosed-apart.md`).
+///
+/// *Breaks if* a placement's boxed rotation is decided by its widened
+/// matrix's orthogonality residuals rather than admitted as a rotation.
+#[test]
+fn a2_a_wide_box_on_a_spin_is_no_rigidity_refusal() {
+    let s = slid_bolt("msolve14-a2-spin-wide");
+    let ev = run_at::<Interval>(&s.doc, &boxed(&s.doc, &s.opts, spin(), -0.025, 0.025), None);
+    for (what, node) in [("the placement", s.mate.placement), ("the bolt", s.bolt)] {
+        let kind = ev.node_error(node).map(|e| &e.kind);
+        assert!(
+            !matches!(kind, Some(editor_core::NodeErrorKind::Motion(_))),
+            "{what} refuses at the rigidity door over a boxed spin: {kind:?}"
+        );
+    }
 }
 
 // ---- C2: a clocking with no radius to turn ----

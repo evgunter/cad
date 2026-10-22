@@ -6,7 +6,7 @@
 //!
 //! # 1. Nothing observable moved (the SEAT-4/5 method)
 //!
-//! `Node::Extrude` and `Node::Revolve` build a `verbs::Verb`, run it
+//! `Node::Extrude` and `Node::Revolve` build a `verbs::Sweep`, run it
 //! through the profile door and read their birth record out of the
 //! closed record channel. The wire format is pinned by a byte-identical
 //! round trip over a document carrying both sweeps, and each
@@ -34,19 +34,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use editor_core::ExtrudeSide;
 
 use crate::corpus;
 use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeVar,
+    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeVar,
     LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, SlotId, StepArg, VarName, evaluate, persist,
 };
 use fixture::digest::digest;
-use fixture::{ang, frame, insert, len, revolve_about, scl, square, step, tol, xy_frame};
+use fixture::{ang, insert, len, revolve_about, scl, square, step, tol};
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use topo::{Body, FaceKey};
 
@@ -78,18 +77,13 @@ fn doc_with_r(name: &'static str) -> ProfileDoc {
     .0
 }
 
-/// A frame at `z` and a circle of radius `radius` drawn on it —
-/// returns the doc, the frame node and the profile node.
-fn circle_on_frame(
-    doc: ProfileDoc,
-    z: f64,
-    radius: Formula,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+/// A cylinder about `z` of radius `radius`, `z ∈ [0, 2H]` in its own
+/// coordinates — the document spelling of the germ fixture's `cyl`,
+/// which a placement slides down `H`.
+fn cylinder(doc: ProfileDoc, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius,
@@ -97,41 +91,18 @@ fn circle_on_frame(
             ids: Vec::new(),
         }),
     );
-    (doc, plane, profile)
-}
-
-/// A cylinder about `z` of radius `radius`, `z ∈ [−H, H]` — the
-/// document spelling of the germ fixture's `cyl`.
-fn cylinder(doc: ProfileDoc, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, _, profile) = circle_on_frame(doc, -H, radius);
     insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(2.0 * H),
-            side: ExtrudeSide::Along,
         },
     )
 }
 
-/// A rigid rotation of `input` about the origin.
-fn spin(
-    doc: ProfileDoc,
-    input: RecipeNodeId,
-    axis: [f64; 3],
-    angle: f64,
-) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::transform(
-            input,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: axis.map(scl),
-                angle: ang(angle),
-            },
-        ),
-    )
+/// A rotation about `axis` through the origin by `angle`.
+fn turn(axis: [f64; 3], angle: f64) -> Frame {
+    Frame::rotate_then_translate(axis, angle, [0.0; 3], fixture::band()).expect("a literal axis")
 }
 
 // ------------------------------------------------------------------
@@ -154,22 +125,17 @@ fn both_sweeps() -> BothSweeps {
     let mut r = corpus::Recorder::new();
     let snapshot = r.doc.clone();
     let square_loop = LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap();
-    let frame = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![square_loop],
         ids: Vec::new(),
     }));
     let extruded = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     // The revolve's own profile: a square clear of the axis, drawn on
     // its own frame, spun about an axis written in that same frame.
-    let rev_frame = r.insert(xy_frame());
     let rev_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: rev_frame.into(),
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
         ids: Vec::new(),
     }));
@@ -409,19 +375,75 @@ fn both_sweeps_evaluate_in_one_document() {
 /// point moved (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held).
 ///
+/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
+/// a placement): each document was re-spelled without `Datum` or
+/// `Transform` (a construction is built in its own coordinates and
+/// placed into the world by a `Place`), so its nodes, their ids and the
+/// names they mint moved.
+///
+/// RE-BLESSED merging main into D: `cut_cylinder` and `boss_union`, the
+/// two rows main's PCERT B1/B2a and PR 5334 re-blessed above, take both
+/// trees' moves, so their values are neither tree's; `corner_table`
+/// with its union's arena order under main's union fold, its points at
+/// their exact values; `kitchen_sink` with its lone block's copies hung
+/// below the world's xy as its retired `SetExtrudeSide` edit had them.
+/// `die` held.
+///
+/// RE-BLESSED, `cut_cylinder` and `kitchen_sink`, for the identity
+/// bundle (FORK-REST): a copy standing where its body stands is placed
+/// by no mate and the constant `0` on every freedom, written as one
+/// `AddValues`, which mints a different number of ids from the plane mate and three
+/// values it replaces. So every node minted after a stand moved its id,
+/// and this digest feeds ids. Where C-5's narrowing ran a standing
+/// copy's map, it is placed by no map again. Every standing copy in the
+/// corpus is bit-identical to its source (measured with a lane probe
+/// over `body_digest`).
+///
+/// RE-BLESSED, `kitchen_sink` only, for exact turns (INTENT stage 3 D):
+/// a turn written as a fraction of a turn takes its sine and cosine from
+/// the fraction, so its revolve's heading `turn/4` puts the axis on the
+/// profile's `y` exactly; its revolve stands upright by a bundle with no
+/// mate spun `turn/4` (`fixture::upright_at`) where `place_at` wrote an
+/// `Axis` mate onto a world read spun by turns read off by `atan2`; and
+/// its split's plane and its circular pattern's axis are read off its
+/// faces (`fixture::plane_on`, `axis_on`) where they were frames moved by
+/// rounded turns. On the merged tree with the exact heading alone it
+/// read `0xcd7f_f823_b396_33fc`. The other rows held across main's merge
+/// at `557e581a64` and this lane.
+///
 /// RE-BLESSED, `die` only, for a seam's sides and a crossing's lines
 /// named in the subtract's own table, in name order (N3): the die's pip
 /// subtracts' names moved, and the digest hashes the name table. No
 /// point moved (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held).
+/// Re-measured merging main at `be82e5ad6b` into D, `die`,
+/// `cut_cylinder` and `kitchen_sink`: main's N3 names each seam side
+/// and crossing line with the read it came in through, and in D a later
+/// operand is a placed copy, so the names it spells moved under both
+/// changes and the value is neither tree's. No other row moved.
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
+///
+/// RE-BLESSED, every row, for a minted reference that comes from the
+/// inputs (PR #5547): the digest feeds each plane's `u_ref`, which a
+/// cap now takes from the sketch's `x` axis and an extruded wall from
+/// its segment, where `orthonormal_basis` picked it off the axes. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xee36_9963_09a7_5ff5),
-        ("corner_table", 0x4d24_cb55_a481_538d),
-        ("cut_cylinder", 0x615f_38e4_0bb7_2148),
-        ("boss_union", 0xc33a_d792_0586_087c),
-        ("kitchen_sink", 0x1032_8a96_fb12_9d02),
+        ("die", 0x173c_8d8f_8a5a_b25c),
+        ("corner_table", 0xdc30_620e_06fd_8d9e),
+        ("cut_cylinder", 0xabec_a5a8_aa58_3491),
+        ("boss_union", 0x00d8_2bf5_fee5_3525),
+        ("kitchen_sink", 0x53da_49ea_7e4c_e120),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -449,18 +471,15 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
 // 2. The profile's radius, at the walls and in the key
 // ------------------------------------------------------------------
 
-/// A profile of `loops` on a frame at `z`, extruded — returns the doc,
-/// the profile node and the swept body node.
+/// A profile of `loops`, extruded — returns the doc, the profile node
+/// and the swept body node.
 fn extruded(
     doc: ProfileDoc,
-    z: f64,
     loops: Vec<LoopProgram<Formula>>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -470,7 +489,6 @@ fn extruded(
         Node::Extrude {
             profile: profile.into(),
             distance: len(2.0 * H),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, body)
@@ -510,7 +528,6 @@ fn cylinder_walls(body: &Body<f64>) -> Vec<(FaceKey, f64)> {
 #[test]
 fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
     let doc = doc_with_r("seat7-revolve-on-axis");
-    let (doc, plane) = insert(doc, xy_frame());
     // Negative y is the door's half-plane about the +x axis, and the
     // first leg runs ALONG that axis from the origin.
     let mut steps = vec![
@@ -531,7 +548,6 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -615,8 +631,8 @@ fn memo_eval(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> 
 #[test]
 fn the_memo_never_serves_a_sweep_a_stale_spelling() {
     let doc = doc_with_r("seat7-memo");
-    let (doc, profile_a, a) = extruded(doc, -H, vec![circle_loop(param("r"))]);
-    let (doc, _, b) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
+    let (doc, profile_a, a) = extruded(doc, vec![circle_loop(param("r"))]);
+    let (doc, _, b) = extruded(doc, vec![circle_loop(param("r"))]);
     let ev1 = memo_eval(&doc, None);
     assert!(failures(&ev1).is_empty(), "{:?}", failures(&ev1));
 
@@ -758,8 +774,8 @@ fn key_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::ContentKey {
 #[test]
 fn a_chain_arcs_radius_spelling_moves_the_profiles_key() {
     let doc = doc_with_r("seat7-chain-arc");
-    let (doc, profile_a, a) = extruded(doc, -H, vec![one_arc_chain(param("r"))]);
-    let (doc, _, peg) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
+    let (doc, profile_a, a) = extruded(doc, vec![one_arc_chain(param("r"))]);
+    let (doc, _, peg) = extruded(doc, vec![circle_loop(param("r"))]);
     let ev1 = memo_eval(&doc, None);
     assert!(failures(&ev1).is_empty(), "{:?}", failures(&ev1));
     let walls = cylinder_walls(body_of(&ev1, a));
@@ -845,7 +861,7 @@ fn assert_two_arcs_at_their_own_radii(
         },
     );
     let (doc, profile_node, chain) =
-        extruded(doc, -H, vec![two_arc_chain(param("r"), param("q"), side)]);
+        extruded(doc, vec![two_arc_chain(param("r"), param("q"), side)]);
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(
@@ -903,7 +919,7 @@ fn raw_cylinder(r: f64, h: f64) -> Body<f64> {
         &sketch,
         sweep::Extrusion::Distance {
             depth: 2.0 * h,
-            side: ExtrudeSide::Along,
+            side: sweep::ExtrudeSide::Along,
         },
         tol(),
     )
@@ -955,11 +971,20 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
     let doc = doc_with_r("seat7-germ");
     let (doc, a) = cylinder(doc, param("r"));
     let (doc, b) = cylinder(doc, param("r"));
-    // B's axis becomes +y; then each is spun about its own axis to take
-    // the seams off the nodes.
-    let (doc, b) = spin(doc, b, [1.0, 0.0, 0.0], PI / 2.0);
-    let (doc, a) = spin(doc, a, [0.0, 0.0, 1.0], PHI);
-    let (doc, b) = spin(doc, b, [0.0, 1.0, 0.0], PHI);
+    // Each copy placed in A's coordinates, centred on the origin: B's
+    // axis becomes +y; then each is spun about its own axis to take the
+    // seams off the nodes.
+    let down = Frame::translation([0.0, 0.0, -H]);
+    let (doc, a_copy) = fixture::against(doc, a, a, &turn([0.0, 0.0, 1.0], PHI).compose(&down));
+    let (doc, b) = fixture::against(
+        doc,
+        a,
+        b,
+        &turn([0.0, 1.0, 0.0], PHI)
+            .compose(&turn([1.0, 0.0, 0.0], PI / 2.0))
+            .compose(&down),
+    );
+    let a = a_copy;
     let (doc, union) = insert(
         doc,
         Node::Union {

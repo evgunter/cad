@@ -127,10 +127,6 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // value-digest retired-tag census, code view
     },
     Entry {
-        path: "crates/editor-core/src/verbs/mod.rs",
-        disposition: Shared, // the two-Verb naming convention, code view
-    },
-    Entry {
         path: "crates/editor-core/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -318,6 +314,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/sweep/src/blend/admit.rs",
         disposition: Shared, // token construction sites, code view
+    },
+    Entry {
+        path: "crates/sweep/src/lib.rs",
+        disposition: Shared, // caller's re-description door call census, code view
     },
     Entry {
         path: "crates/sweep/tests/all.rs",

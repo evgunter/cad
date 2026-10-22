@@ -29,7 +29,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use pncad::prelude::{
     BlendError, Body, CurveKind, CurveKindSet, EdgeKey, SurfaceKind, SurfaceKindSet, fillet_edges,
     mass_properties, query, validate_geometric,
@@ -38,6 +37,7 @@ use pncad::profile::{
     ArcSide, ArcSweep, Center, Open, Profile, ProfileLoop, Radius, SegmentKind, SketchPlane, Start,
     ValidatedProfile,
 };
+use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extruded, Extrusion, extrude};
 use pncad::topo::readback::euler_counts;
 
@@ -354,7 +354,7 @@ fn cylinder_plane_lines<S: Scalar>(body: &Body<S>) -> Vec<EdgeKey> {
 /// end's two corners are plane×plane.
 ///
 /// **Why the extrude's provenance localises here, not a distance.**
-/// The Python mirror (`TestRocker`) localises with `datum_distance` to
+/// The Python mirror (`TestRocker`) localises with `pose_distance` to
 /// an axis at the keyhole's centre, because the document selector has
 /// no pattern for "the struts of this loop". At this seat the extrude
 /// answers that question itself: the struts of the loop the author

@@ -278,17 +278,19 @@
 //! sum needs every term; the measurement door reads faces in arena
 //! order and stops at the first one whose lane refuses. So on a body
 //! whose sign settles early the check pays a fraction of the
-//! measurement, and on a body with a refusing face it can pay MORE —
-//! measured at about twice the measurement's quadrature verdicts on a
-//! rational-walled body whose schedule runs out. The honest bound is
-//! the schedule's own: at worst every face's whole schedule, which is
-//! what the measurement pays for its own first face and no more than
-//! it pays for all of them.
+//! measurement, and on a body with a refusing face it can pay MORE:
+//! a face whose lane proves after round 0 that no round meets the
+//! reporting target costs the measurement one round, and the check
+//! every round its sign needs. The honest bound is the schedule's own:
+//! at worst every face's whole schedule.
 //!
 //! **Gating and then measuring costs more than measuring**, and that
 //! is worth knowing before a caller reaches for the continuation as a
-//! saving. The piece evaluations compose exactly — the gate's rounds
-//! plus the continuation's are the measurement's — but each entry into
+//! saving. On a face that meets the target, the piece evaluations
+//! compose exactly — the gate's rounds plus the continuation's are the
+//! measurement's; a face refused at the budget exit costs the
+//! measurement one round and the gate as many as its sign needs. And
+//! each entry into
 //! a face's lane re-derives that face's per-round-independent SETUP
 //! (the derivative grids, the block hulls, the last round's cut lists
 //! and the bound taken from them), so the pair runs 1.3–1.8× one
@@ -391,6 +393,7 @@ use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge,
     classify_material_pairing,
 };
+use geom_core::one_line::on_one_line;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, NOT_YET_ENDING, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
@@ -1423,16 +1426,16 @@ pub enum ValidationError {
     ///   boundary encodes a side by its Gauss–Bonnet area when it has
     ///   two loops or more, and by a pole on an edge interior to it
     ///   (`geom_brep::props::sphere_region_material_sign`). Unread: a
-    ///   region with no boundary, whose members close the sphere (once,
-    ///   a shell whose orientation checks 7 and 10 read; more than once,
-    ///   overlapping faces nothing reads,
-    ///   `work/flux/a-seam-region-covering-the-sphere-twice-is-unread.md`); a one-loop boundary with no pole on an interior edge,
-    ///   among them one carrying both poles; a boundary that touches
-    ///   itself at a vertex. A region of one face unread so is no
-    ///   defect: its flipped bit describes the complement, another
-    ///   valid body. A region of two faces or more, all flipped, has
-    ///   its faces overlap and passes
-    ///   (`work/flux/a-seam-region-whose-boundary-carries-both-poles-is-unread.md`);
+    ///   region with no boundary, whose members close the sphere (a
+    ///   shell whose orientation checks 7 and 10 read); a one-loop
+    ///   boundary with no pole on an interior edge, among them one
+    ///   carrying both poles; a boundary that touches itself at a
+    ///   vertex. A region of one face unread so is no defect: its
+    ///   flipped bit describes the complement, another valid body. Where
+    ///   a region's faces overlap instead, the cover census refuses it
+    ///   ([`Self::SeamRegionOvercovered`]): it reads every seam region of
+    ///   two faces or more, whatever its members' own boundaries encode,
+    ///   except a pinched one and one whose loops do not parse;
     /// * a one-loop sphere face with a chart pole off its loop on EACH
     ///   side — a rim-only cap or a tilted cap holding a pole. Under
     ///   either sense it holds a pole, which breaks the rule that a
@@ -1448,6 +1451,36 @@ pub enum ValidationError {
     CurvedSenseInverted {
         /// The inside-out face: its `sense` bit contradicts the
         /// material side its boundary traversal encodes.
+        face: FaceKey,
+    },
+    /// Tier 3, check 6 — **a sphere seam region's faces overlap**: under
+    /// their sense bits its members claim the region `times` times
+    /// (`times ≥ 2`; `geom_brep::props::sphere_region_cover`, the cover
+    /// census). It reads every seam region of two faces or more, whatever
+    /// its members' own boundaries encode, and the family it refuses is
+    /// `geom_brep::props::SeamCover::Over`'s: a cover of the sphere twice
+    /// over, however its faces are cut; a region whose members all carry
+    /// the wrong bit, `times = Σ χ_f − χ_R + 1`, among them a both-poles
+    /// pair and a ball of three lunes or more turned inside out. Which
+    /// face is wrong is not read (the double cover flips no bit), so the
+    /// subject is the region, named by the member it was first read
+    /// from. A region of one face reads once under either bit: its flip
+    /// describes the complement, another valid body.
+    SeamRegionOvercovered {
+        /// The member the region was first read from.
+        face: FaceKey,
+        /// How many times its members claim it (`≥ 2`).
+        times: usize,
+    },
+    /// Tier 3, check 6 — **a sphere seam region's cover census is
+    /// unresolved**: it lies within the band of a half-sphere threshold
+    /// (`geom_brep::props::SeamCover::Unresolved`). No region whose loops
+    /// read reaches it, by the slack `geom_brep::props::sphere_region_cover`
+    /// states; it is the census's loud end. Nothing else reads whether the
+    /// region's faces overlap, so it refuses rather than pass a cover it
+    /// cannot certify (escalate, never guess).
+    SeamRegionCoverUnresolved {
+        /// The member the region was first read from.
         face: FaceKey,
     },
     /// Tier 3, check 7: `solid` is **definitely inside out** — its faces
@@ -1498,8 +1531,9 @@ pub enum ValidationError {
     ///   consumes only conic/NURBS trims.
     /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
     ///   other than a cone wall, a cylinder wall, a rim-and-ruling
-    ///   torus wall or a sphere face bounded by circles, which a boolean
-    ///   pierce leaves in the face it pierces.
+    ///   torus wall, a torus wall whose loops carry a spiric, or a sphere
+    ///   face bounded by circles, which a boolean pierce leaves in the
+    ///   face it pierces.
     /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
     ///   unresolvable structure and a mid-surgery body carrying M3
     ///   null-edge scaffolding.
@@ -3037,8 +3071,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         None => Cow::Borrowed(match e {
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
-            | CertifyError::WrapOnNonPeriodic
-            | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
+            | CertifyError::WrapOnNonPeriodic => DEFECT,
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
@@ -3073,14 +3106,15 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::TubeNotOneArc { .. }
                 | P::Escalated { .. }
                 | P::ReportedTransversalityPoisoned(_)
-                | P::ChartSpeed(_),
+                | P::ChartSpeed(_)
+                | P::PcurveFit,
             )
             | CertifyError::AnalyticRung3(
                 A::Limb { .. }
                 | A::Escalated { .. }
                 | A::TubeStraddles { .. }
                 | A::TubeNotOneArc { .. },
-            ) => unreachable!("a decision's refused arm always has its decision's ending"),
+            ) => unreachable!("a refusal whose ending its own type gives always has one"),
         }),
     };
     (why, recourse)
@@ -3336,6 +3370,21 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             ),
             P::SenseInverted => reading(
                 "a sphere face with holes is inside-out against its own boundary",
+                DEFECT.into(),
+                true,
+            ),
+            P::SeamRegionOvercovered { .. } => reading(
+                "the faces of one sphere overlap, covering their region more than once",
+                DEFECT.into(),
+                true,
+            ),
+            P::SeamRegionCoverUnresolved => reading(
+                geom_core::undecided!("whether the faces of one sphere overlap"),
+                TOLERANCE.into(),
+                false,
+            ),
+            P::SeamRegionSensesDisagree => reading(
+                "two faces of one sphere meet with their material on one side of their seam",
                 DEFECT.into(),
                 true,
             ),
@@ -4048,6 +4097,16 @@ impl fmt::Display for ValidationError {
                 "a curved face is inside-out: its stored orientation disagrees with its \
                  boundary. {DEFECT}"
             ),
+            Self::SeamRegionOvercovered { times, .. } => write!(
+                f,
+                "the faces of one sphere overlap: together they cover their region {times} \
+                 times. {DEFECT}"
+            ),
+            Self::SeamRegionCoverUnresolved { .. } => write!(
+                f,
+                "whether the faces of one sphere overlap cannot be decided at this tolerance. \
+                 Recourse: validate at a finer tolerance"
+            ),
             Self::NegativeVolume { .. } => write!(
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
@@ -4241,6 +4300,22 @@ impl fmt::Display for ValidationError {
                 crate::contact::CONTRADICTION_RECOURSE,
                 crate::contact::steer_clause(*steer),
             ),
+            // Two long edges' ends read past their rounding: the
+            // precision limit, whose recourse is no move apart.
+            Self::CensusEscalated { cause }
+                if crate::census::is_span_precision(cause.predicate) =>
+            {
+                write!(
+                    f,
+                    concat!(
+                        geom_core::undecided!(
+                            "whether two long straight edges on one line overlap"
+                        ),
+                        ". Recourse: {}"
+                    ),
+                    crate::census::SPAN_PRECISION_RECOURSE
+                )
+            }
             Self::CensusEscalated { cause } => write!(
                 f,
                 concat!(
@@ -5580,112 +5655,28 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     }
 }
 
-/// **A face's seam region**: the faces on its surface entity it reaches
-/// across shared edges, every loop of each, and the region's boundary,
-/// the members' half-edges whose mates lie outside it, chained into
-/// cycles ([`seam_region`]).
-struct SeamRegion<T: Real> {
-    members: Vec<FaceKey>,
-    loops: Vec<Vec<geom_brep::props::LoopEdge<T>>>,
-    boundary: Vec<Vec<geom_brep::props::LoopEdge<T>>>,
-    /// Some boundary cycle passes through one vertex twice: the region
-    /// touches itself there, and its boundary is no set of simple loops
-    /// the side readers take. No body reaches this today: the face that
-    /// meets the region at the vertex alone would lie on a second sphere
-    /// entity coincident with the first, which `mef` refuses
-    /// (`RechartUnvouched`) and STEP import merges into one entity
-    /// (`work/flux/a-pinched-seam-region-has-no-witness.md`).
-    pinched: bool,
-}
-
-/// [`SeamRegion`] of `start`, on a body tier 1 has passed: every key
-/// resolves, a vertex's half-edges form a finite rotation, and the
-/// boundary half-edges each have one successor, so the chains close.
-/// A miss there is a kernel defect and panics. `None` where the
-/// flattening refuses (a scaffold edge at rest), which leaves the region
-/// unread as a face's refused derivation does.
-fn seam_region<T: Decide>(body: &Body<T>, start: FaceKey) -> Option<SeamRegion<T>> {
-    let resolved = "a seam region read on a body tier 1 passed: every key it walks resolves";
-    let face = |f: FaceKey| {
-        body.faces
-            .get(f)
-            .unwrap_or_else(|| unreachable!("{resolved}"))
-    };
-    let half_edge = |h: HalfEdgeKey| {
-        body.half_edges
-            .get(h)
-            .unwrap_or_else(|| unreachable!("{resolved}"))
-    };
-    let across = |h: HalfEdgeKey| {
-        body.mate(h)
-            .and_then(|m| body.face_of_half_edge(m))
-            .unwrap_or_else(|| unreachable!("{resolved}"))
-    };
-    let carrier = face(start).surface;
-    let mut members = vec![start];
-    let mut loops = Vec::new();
-    let mut half_edges = Vec::new();
-    let mut i = 0;
-    while let Some(&f) = members.get(i) {
-        let rec = face(f);
-        for lk in core::iter::once(rec.outer).chain(rec.rings.iter().copied()) {
-            let (edges, hes) = crate::props::loop_edges(body, lk).ok()?;
-            for &h in &hes {
-                let other = across(h);
-                if face(other).surface == carrier && !members.contains(&other) {
-                    members.push(other);
-                }
-            }
-            loops.push(edges);
-            half_edges.extend(hes);
+/// **Check 6's finding from a seam region's cover census**, named by the
+/// member `face` the region was read from: an over-cover
+/// ([`ValidationError::SeamRegionOvercovered`]), or a census read in the
+/// band ([`ValidationError::SeamRegionCoverUnresolved`]), which nothing
+/// else reads. Covered once, nothing; members whose bits disagree,
+/// nothing, as that is check 4's lamina; a refused derivation, nothing,
+/// as check 6's every refused derivation is exempt (the posture at the
+/// check). The census parses no loop of its own (its loops are the pole
+/// read's, `crate::props::ReadRegion`'s), so its one refusal is an
+/// untiled count, an internal error no seam region of a body reaches.
+fn census_finding(
+    face: FaceKey,
+    cover: Result<geom_brep::props::SeamCover, geom_brep::props::PropsError>,
+) -> Option<ValidationError> {
+    use geom_brep::props::SeamCover;
+    match cover {
+        Ok(SeamCover::Over { times }) => {
+            Some(ValidationError::SeamRegionOvercovered { face, times })
         }
-        i += 1;
+        Ok(SeamCover::Unresolved) => Some(ValidationError::SeamRegionCoverUnresolved { face }),
+        Ok(SeamCover::Once | SeamCover::MixedSense) | Err(_) => None,
     }
-    let inside = |h: HalfEdgeKey| members.contains(&across(h));
-    let mut open: Vec<HalfEdgeKey> = half_edges.iter().copied().filter(|&h| !inside(h)).collect();
-    let mut boundary = Vec::new();
-    let mut pinched = false;
-    while let Some(&first) = open.first() {
-        // One boundary cycle: from a boundary half-edge to the next one
-        // out of its end vertex, turning through the region's interior
-        // edges there.
-        let mut cycle = Vec::new();
-        let mut h = first;
-        loop {
-            cycle.push(h);
-            open.retain(|&x| x != h);
-            let mut n = half_edge(h).next;
-            let mut turns = 0;
-            while inside(n) {
-                n = half_edge(body.mate(n).unwrap_or_else(|| unreachable!("{resolved}"))).next;
-                turns += 1;
-                if turns > half_edges.len() {
-                    unreachable!(
-                        "a vertex's rotation on a closed body returns to a boundary half-edge"
-                    );
-                }
-            }
-            if n == first {
-                break;
-            }
-            if !open.contains(&n) {
-                unreachable!("a seam region's boundary half-edges each have one successor");
-            }
-            h = n;
-        }
-        let starts: Vec<_> = cycle.iter().map(|&h| half_edge(h).start).collect();
-        pinched |= starts
-            .iter()
-            .enumerate()
-            .any(|(i, v)| starts[..i].contains(v));
-        boundary.push(crate::props::run_edges(body, &cycle).ok()?);
-    }
-    Some(SeamRegion {
-        members,
-        loops,
-        boundary,
-        pinched,
-    })
 }
 
 /// **Where `body` holds material wound negative, read as tier 3 reads
@@ -7610,8 +7601,14 @@ pub(crate) fn tier3_local_checks_marked<
     // `CurvedSenseInverted`. So is a face with a pole off its loop on
     // each side, which holds a pole under either sense.
     // ------------------------------------------------------------------
-    // The seam regions read so far, with the side each encodes.
-    let mut regions: Vec<(Vec<FaceKey>, Option<geom_brep::props::MaterialSign>)> = Vec::new();
+    // Every seam region of a sphere, read once: the cover census here,
+    // the pole read below for a member whose own boundary encodes no side.
+    let mut regions = crate::props::read_seam_regions(body, body.faces.keys(), band);
+    for region in &regions {
+        if let (Some(&face), Some(cover)) = (region.members.first(), region.cover.clone()) {
+            errors.extend(census_finding(face, cover));
+        }
+    }
     for (face_key, face) in body.faces.iter() {
         let Some(surface) = body.surfaces.get(face.surface) else {
             continue; // unreachable on tier-1 input
@@ -7648,32 +7645,11 @@ pub(crate) fn tier3_local_checks_marked<
             // and one read serves every member. A region read that
             // refuses is exempt, as a face's is below.
             Ok(geom_brep::props::MaterialSign::Unencoded) => {
-                let region = match regions
-                    .iter()
-                    .find(|(members, _)| members.contains(&face_key))
-                {
-                    Some((_, side)) => *side,
-                    None => {
-                        let Some(region) = seam_region(body, face_key) else {
-                            continue; // derivation exempt (posture above)
-                        };
-                        let side = (!region.pinched)
-                            .then(|| {
-                                let boundary: Vec<&[_]> =
-                                    region.boundary.iter().map(Vec::as_slice).collect();
-                                let loops: Vec<&[_]> =
-                                    region.loops.iter().map(Vec::as_slice).collect();
-                                geom_brep::props::sphere_region_material_sign(
-                                    surface, &boundary, &loops, band,
-                                )
-                                .ok()
-                            })
-                            .flatten();
-                        let members = region.members;
-                        regions.push((members, side));
-                        side
-                    }
+                let Some(region) = regions.iter_mut().find(|r| r.members.contains(&face_key))
+                else {
+                    continue; // derivation exempt (posture above)
                 };
+                let region = region.side(band);
                 if let Some(geom_brep::props::MaterialSign::Encoded(side)) = region
                     && (side == Sign::Positive) != face.sense
                 {
@@ -8980,12 +8956,40 @@ fn segments_meet<T: Decide>(
     }
 }
 
-/// Two straight edges `[a0, a1]` and `[b0, b1]` in one plane, by the
-/// four orientation margins of each one's ends against the other's
-/// line — signed lengths, `(p − o) × ê · n̂`. Both ends strictly on one
-/// side of the other's line separates them; otherwise they meet,
-/// unless all of one's ends lie ON the other's line, where the pair is
-/// collinear and the question is whether the two spans overlap.
+/// Whether two segments' projections lie apart past the band on
+/// either one's axis (the **`ring_outer_meet_gap`** row, [`lines_meet`]):
+/// on `a`'s unit `ea` first, then on `b`'s `eb` where `a`'s did not
+/// decide. Either axis apart holds every pair of points apart, so the
+/// reading is the pair's, whichever segment is named first.
+fn gaps_apart<T: Decide>(
+    (ea, a): (
+        geom_core::Vec3<T>,
+        (geom_core::Point3<T>, geom_core::Point3<T>),
+    ),
+    (eb, b): (
+        geom_core::Vec3<T>,
+        (geom_core::Point3<T>, geom_core::Point3<T>),
+    ),
+    band: Band,
+) -> bool {
+    let apart = |unit, first, second| {
+        let along = on_one_line(unit, first, second, T::zero());
+        decide("ring_outer_meet_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+    };
+    apart(ea, a, b) || apart(eb, b, a)
+}
+
+/// Two straight edges `[a0, a1]` and `[b0, b1]` in one plane. First the
+/// gap between their projections on either one's axis ([`gaps_apart`],
+/// [`geom_core::one_line`]): projections apart past the band hold every
+/// pair of points apart by as much, whatever the ends' sides would read.
+/// The four points are the body's stored vertex positions
+/// ([`edge_endpoints`]). Then the four
+/// orientation margins of each one's ends against the other's line —
+/// signed lengths, `(p − o) × ê · n̂`. Both ends strictly on one side of
+/// the other's line separates them; otherwise they meet, unless all of
+/// one's ends lie ON the other's line, where the pair is collinear and
+/// the question is whether the two spans overlap.
 fn lines_meet<T: Decide>(
     a0: geom_core::Point3<T>,
     a1: geom_core::Point3<T>,
@@ -8996,6 +9000,9 @@ fn lines_meet<T: Decide>(
 ) -> EdgePair {
     let ea = (a1 - a0).normalize();
     let eb = (b1 - b0).normalize();
+    if gaps_apart((ea, (a0, a1)), (eb, (b0, b1)), band) {
+        return EdgePair::Apart;
+    }
     let side = |p: geom_core::Point3<T>, o: geom_core::Point3<T>, e: geom_core::Vec3<T>| {
         decide(
             "ring_outer_meet_side",
@@ -9020,18 +9027,26 @@ fn lines_meet<T: Decide>(
     let collinear =
         |pair: &[Result<Sign, Indeterminate>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
     // Collinear: do the spans overlap, measured along one edge's own
-    // axis? A point of overlap is a meeting too.
+    // axis? A point of overlap is a meeting too. The overlap is the one
+    // reading's ([`geom_core::one_line`]), decided past its charge both
+    // ways: a meeting where even its lower bound reaches the band's
+    // zero, apart where even its upper bound is definitely negative, and
+    // the bounds' straddle otherwise.
     let overlap = |o0: geom_core::Point3<T>,
                    o1: geom_core::Point3<T>,
                    e: geom_core::Vec3<T>,
                    p0: geom_core::Point3<T>,
                    p1: geom_core::Point3<T>| {
-        let len = (o1 - o0).norm();
-        let (t0, t1) = ((p0 - o0).dot(e), (p1 - o0).dot(e));
-        let margin = t0.max(t1).min(len) - t0.min(t1).max(T::zero());
-        match decide("ring_outer_meet_overlap", Margin::of(margin), band) {
-            Ok(Sign::Positive | Sign::Zero) => EdgePair::Meet,
-            Ok(Sign::Negative) => EdgePair::Apart,
+        const ROW: &str = "ring_outer_meet_overlap";
+        let along = on_one_line(e, (o0, o1), (p0, p1), T::zero());
+        let lower = match decide_reported(ROW, Margin::of(along.extent() - along.noise), band) {
+            Ok(d) if matches!(d.sign, Sign::Positive | Sign::Zero) => return EdgePair::Meet,
+            Ok(d) => d,
+            Err(source) => return EdgePair::Unsure(source),
+        };
+        match decide_reported(ROW, Margin::of(along.extent() + along.noise), band) {
+            Ok(d) if d.sign == Sign::Negative => EdgePair::Apart,
+            Ok(upper) => EdgePair::Unsure(geom_core::k_stats::straddle(ROW, lower, upper, band)),
             Err(source) => EdgePair::Unsure(source),
         }
     };
@@ -10782,6 +10797,9 @@ fn shell_component<T: Real>(
 }
 
 #[cfg(test)]
+mod gap_rows;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Point3;
@@ -12516,6 +12534,35 @@ mod tests {
         );
     }
 
+    /// **Check 6's findings from a seam region's cover census**, arm by
+    /// arm: an over-cover and a census in the band refuse, by name; a
+    /// region covered once, members whose bits disagree (check 4's
+    /// lamina) and a refused derivation add nothing. No body reaches the
+    /// band or a refused census (`geom_brep::props::sphere_region_cover`'s
+    /// slack and count), so their arms are pinned here.
+    #[test]
+    fn the_cover_census_findings_are_check_6s() {
+        use geom_brep::props::{PropsError, SeamCover};
+        let face = FaceKey::default();
+        assert_eq!(
+            census_finding(face, Ok(SeamCover::Over { times: 3 })),
+            Some(ValidationError::SeamRegionOvercovered { face, times: 3 })
+        );
+        assert_eq!(
+            census_finding(face, Ok(SeamCover::Unresolved)),
+            Some(ValidationError::SeamRegionCoverUnresolved { face })
+        );
+        for quiet in [
+            Ok(SeamCover::Once),
+            Ok(SeamCover::MixedSense),
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_region_cover_untiled",
+            }),
+        ] {
+            assert_eq!(census_finding(face, quiet), None);
+        }
+    }
+
     #[test]
     fn errors_display_without_panicking() {
         // At least one sample per `ValidationError` variant, from the
@@ -13417,6 +13464,46 @@ mod tests {
                 },
             ] => assert_eq!((*f, *ring, *other), (face, r[1], r[0])),
             got => panic!("one RingMeetsRing at a vertex: {got:?}"),
+        }
+    }
+
+    /// **A ring sharing a vertex with its outer loop, through a joint
+    /// straight within the band, refuses at that vertex.** The ring's
+    /// first edge leaves the outer loop's corner `(−5, −5)` and runs
+    /// within the band of its bottom edge, so the two edges' far ends
+    /// stand in band of each other's line, the pair profile's simplicity
+    /// pass reads through a joint (`profile::seg::line_line`). Check 9
+    /// never reads that
+    /// pair as two edges: two loops sharing a point is arm 1's contact,
+    /// read before any edge pair, so `lines_meet` has no adjacent pair to
+    /// read.
+    #[test]
+    fn check_9_refuses_a_ring_sharing_a_vertex_through_a_straight_joint_at_that_vertex() {
+        let tol = Tol::witness();
+        let t = tol.get();
+        let h = t.eps * (1.0 + t.k) / 2.0;
+        let outer = [
+            Point3::new(-5.0, -5.0, 0.0),
+            Point3::new(5.0, -5.0, 0.0),
+            Point3::new(5.0, 5.0, 0.0),
+            Point3::new(-5.0, 5.0, 0.0),
+        ];
+        let ring = [
+            Point3::new(-5.0, -5.0, 0.0),
+            Point3::new(-1.0, -5.0 + h, 0.0),
+            Point3::new(-1.0, -4.0, 0.0),
+        ];
+        let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+        plane_every_face(&mut body, tol);
+        match &check_9_words(&body, tol)[..] {
+            [
+                ValidationError::RingMeetsOuter {
+                    face: f,
+                    contact: RingContact::Vertex { .. },
+                    ..
+                },
+            ] => assert_eq!(*f, face),
+            got => panic!("one RingMeetsOuter at a vertex: {got:?}"),
         }
     }
 
@@ -15503,6 +15590,81 @@ mod tests {
             ),
             "each arc holds a different meeting point"
         );
+    }
+
+    /// **Two segments on one line, far apart along it and in the band
+    /// across it, are apart** (the four readers' witness,
+    /// `work/cpair/two-spans-projections-on-one-line-are-read-four-ways`).
+    /// `(0,0,0)–(1,0,0)` and `(3, 5·10⁻¹², 0)–(4, 5·10⁻¹², 0)` at
+    /// `ε = 10⁻¹²`: `b`'s ends lie in the escalation band of `a`'s line, but
+    /// its projection on `a`'s axis lies two metres past `a`'s end. On main
+    /// arm 5 read the four sides first and kept the pair `Unsure` on the
+    /// in-band ones; read from the gap first, it is apart, in either order.
+    #[test]
+    fn two_segments_on_one_line_far_apart_along_it_are_apart() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let a = MeetSegment::Line {
+            a: Point3::new(0.0, 0.0, 0.0),
+            b: Point3::new(1.0, 0.0, 0.0),
+        };
+        let b = MeetSegment::Line {
+            a: Point3::new(3.0, 5e-12, 0.0),
+            b: Point3::new(4.0, 5e-12, 0.0),
+        };
+        for (order, got) in [
+            ("a first", segments_meet(a, b, n, band)),
+            ("b first", segments_meet(b, a, n, band)),
+        ] {
+            assert!(matches!(got, EdgePair::Apart), "[{order}] apart");
+        }
+    }
+
+    /// **A segment whose end touches the middle of another, square to it,
+    /// is never read apart by the gap**, at every length and scale. In Q
+    /// `a` ends at `a1`, and `b` runs from `a1 + (s, −t)` to `a1 − (s, −t)`,
+    /// square to `a1 − a0 = k·(t, s)`; every coordinate is an integer
+    /// times a power of two, so the stored points are the real ones. So
+    /// `b`'s projection on `a`'s axis starts exactly where `a`'s ends:
+    /// the gap is zero, and only the rounding of the projections, about
+    /// `u` of `a`'s length, can read it open. Red where the gap's charge
+    /// is dropped: a long `a` then reads apart past the band.
+    #[test]
+    fn an_end_touching_the_middle_of_a_square_segment_is_never_read_apart_by_the_gap() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let mut rng = test_utils::fuzz::start("check-9-gap-touch");
+        let int =
+            |rng: &mut test_utils::fuzz::Rng, bits: f64| rng.range(1.0, 2f64.powf(bits)).floor();
+        for _ in 0..test_utils::fuzz::scaled(4000) {
+            let scale = 2f64.powi(-(rng.range(0.0, 30.0) as i32));
+            let (x, y) = (int(&mut rng, 40.0), int(&mut rng, 40.0));
+            let (t, s, k) = (
+                int(&mut rng, 10.0),
+                int(&mut rng, 10.0),
+                int(&mut rng, 10.0),
+            );
+            let at = |px: f64, py: f64| Point3::new(px * scale, py * scale, 0.0);
+            let a = MeetSegment::Line {
+                a: at(x - k * t, y - k * s),
+                b: at(x, y),
+            };
+            let b = MeetSegment::Line {
+                a: at(x + s, y - t),
+                b: at(x - s, y + t),
+            };
+            for (order, got) in [
+                ("a first", segments_meet(a, b, n, band)),
+                ("b first", segments_meet(b, a, n, band)),
+            ] {
+                assert!(
+                    !matches!(got, EdgePair::Apart),
+                    "[{order}] a touching pair read apart: a1 ({x}, {y}), (t, s) ({t}, {s}), \
+                     k {k}, scale {scale:e} — {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
     }
 
     /// **Two arcs that cross are read meeting, at radii orders of

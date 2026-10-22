@@ -12,7 +12,6 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::resolve::{Diagnosis, RecipeEditRef, ResolveError};
@@ -35,11 +34,11 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// The plants build their own documents through the public authoring
 /// door instead of mutating one: a cube, an extrude, and a fillet
 /// whose selection is the plant.
-/// This suite's documents all start the same way: the sketch frame,
-/// the profile drawn on it, then the extrude whose body every rim name
-/// below is minted by — the document's third node.
+/// This suite's documents all start the same way: the profile, then
+/// the extrude whose body every rim name below is minted by — the
+/// document's second node.
 fn body(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.ids()[2]
+    doc.ids()[1]
 }
 
 fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
@@ -47,11 +46,9 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
     let square =
         LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("finite");
     let doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![square],
             ids: Vec::new(),
         }),
@@ -61,7 +58,6 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let applied = apply(
@@ -110,12 +106,11 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: bp.into(),
             distance: len(4.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (d, up) = on_frame(
         d,
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -134,9 +129,9 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: up.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
+    let (d, ub) = crate::fixture::slid(d, ua, ub, [0.0, 0.0, 1.0]);
     let (d, us) = insert(
         &d,
         Node::Subtract {
@@ -213,9 +208,8 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: doc.ids()[1].into(),
+                profile: doc.ids()[0].into(),
                 distance: len(2.0),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },

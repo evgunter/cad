@@ -617,10 +617,8 @@ macro_rules! transition_table {
             /// coordinate ([`ReplayError`]'s rendering states which is
             /// which).
             ///
-            /// The SKETCH program's verb, not the kernel's: that one is
-            /// `verbs::Verb` (an operation on a body). No signature takes
-            /// both; outside the owning crate, prose spells the crate and
-            /// code imports at most one of the two per file.
+            /// The SKETCH program's verb, not the kernel's: those are
+            /// `verbs::VerbKind`'s (an operation on a body).
             pub enum Verb { $($name),* }
             /// Every verb the table declares, in declaration order —
             /// the row set, enumerated from the same declaration, so

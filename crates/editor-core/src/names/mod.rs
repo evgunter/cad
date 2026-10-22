@@ -42,6 +42,7 @@ pub(crate) mod merged;
 mod nest;
 #[cfg(test)]
 mod nest_reference;
+mod plane_pieces;
 pub(crate) mod role;
 mod seam_pair;
 mod select;
@@ -54,7 +55,10 @@ pub(crate) use defer::CarriedRows;
 pub(crate) use discriminate::{
     CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE, ON_SEAM_LINE, ORDER_ALONG,
 };
-pub use emit::{NamingError, RimShare};
+pub use emit::{
+    CrossingSensesShape, DisagreeShape, JoinShape, NamingError, RimShare, SeamSidesShape,
+    SeamVertexShape, UnionNameShape, WayShape,
+};
 pub(crate) use emit::{check_total, empty, name_pattern, name_placed_union, output_body, to_u32};
 pub(crate) use emit::{name_in_part, name_in_part_copy, name_placed, name_placed_copies};
 pub(crate) use emit_chamfer::name_chamfer;
@@ -67,7 +71,7 @@ pub(crate) use emit_union::{
     member_view, name_lone_member, name_union,
 };
 pub use geompred::{
-    Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,
+    Cmp, CurveKind, CurveKindSet, GeomPred, SEL_PLANE_DISTANCE, SelectRefusal, SurfaceKindSet,
 };
 pub(crate) use groups::Emitted;
 pub use groups::FragmentGroups;

@@ -1082,19 +1082,20 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
 }
 
 /// The fin scenes whose union check 7 reads inside out
-/// (`ResultInvalid { NegativeVolume }`), cell by cell: `x ∪ y` at three
-/// poses of five. The region it reads is the fin crown's own
+/// (`ResultInvalid { NegativeVolume }`), cell by cell: `x ∪ y` at every
+/// pose. The region it reads is the fin crown's own
 /// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`);
 /// the aimed ray that finds it is the first in face order that decides,
-/// so `y ∪ x` and the two flipped poses' `x ∪ y` take another ray, read
-/// `Out`, and build.
-const KNOWN_INSIDE_OUT: [(&str, [&str; 3]); 2] = [
+/// so `y ∪ x` takes another ray, reads `Out`, and builds.
+const KNOWN_INSIDE_OUT: [(&str, [&str; 5]); 2] = [
     (
         "a fin, probe 2",
         [
             "at rest, x ∪ y: ResultInvalid",
             "turned about z, x ∪ y: ResultInvalid",
             "turned, x ∪ y: ResultInvalid",
+            "flipped, x ∪ y: ResultInvalid",
+            "flipped and turned, x ∪ y: ResultInvalid",
         ],
     ),
     (
@@ -1103,6 +1104,8 @@ const KNOWN_INSIDE_OUT: [(&str, [&str; 3]); 2] = [
             "at rest, x ∪ y: ResultInvalid",
             "turned about z, x ∪ y: ResultInvalid",
             "turned, x ∪ y: ResultInvalid",
+            "flipped, x ∪ y: ResultInvalid",
+            "flipped and turned, x ∪ y: ResultInvalid",
         ],
     ),
 ];
@@ -1131,8 +1134,8 @@ const KNOWN_WRONG: [(&str, &[(&str, usize)]); 3] = [
             ("at rest", 5),
             ("turned about z", 5),
             ("turned", 5),
-            ("flipped", 6),
-            ("flipped and turned", 6),
+            ("flipped", 5),
+            ("flipped and turned", 5),
         ],
     ),
     (
@@ -1141,8 +1144,8 @@ const KNOWN_WRONG: [(&str, &[(&str, usize)]); 3] = [
             ("at rest", 5),
             ("turned about z", 5),
             ("turned", 5),
-            ("flipped", 6),
-            ("flipped and turned", 6),
+            ("flipped", 5),
+            ("flipped and turned", 5),
         ],
     ),
 ];
@@ -1590,9 +1593,10 @@ const PARTNERS_OVERLAPPING: &[(f64, usize)] = &[(1e-9, 40), (1e-6, 26), (1e-12, 
 /// refuse a construction gap of the slit form, at each ε a CI row runs,
 /// as `(ε, SlitLineCrossed, EdgeInFace)`. A void under the top whose ray
 /// lies on it is a zero-area ring of the top, and a partner with an edge
-/// along the ray crosses its two coincident edges there
-/// (`work/cleave/a-boolean-places-two-germs-along-a-slit-line.md`); a
+/// along the ray crosses its two coincident edges there; their union
+/// keeps only the top there and closes it across the line
+/// (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`). A
 /// half-turn partner's edge inside the along face runs on past it
 /// (`work/cleave/a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted.md`).
 /// They move with ε as [`PARTNERS_OVERLAPPING`] does.
-const PARTNERS_SLIT_GAPS: &[(f64, usize, usize)] = &[(1e-9, 60, 8), (1e-6, 54, 3), (1e-12, 60, 7)];
+const PARTNERS_SLIT_GAPS: &[(f64, usize, usize)] = &[(1e-9, 20, 8), (1e-6, 18, 3), (1e-12, 20, 7)];

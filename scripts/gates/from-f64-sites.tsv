@@ -69,6 +69,11 @@ crates/geom-core/src/dual.rs	1	constant	f64::from(n)	powi's exponent
 crates/geom-core/src/dual.rs	1	constant	x	the Real impl's own door: Dual::from_f64 embeds at its value scalar
 crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval::from_computed is the point embed by design
 crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
+crates/geom-core/src/linalg/angle.rs	2	constant	at as f64	the numerator of an octant's fraction of a turn, an exact integer below 2^51
+crates/geom-core/src/linalg/angle.rs	2	constant	(4 * den) as f64	the denominator of an octant's fraction of a turn, an exact integer at most 2^53
+crates/geom-core/src/linalg/angle.rs	1	constant	n as f64	a written fraction's numerator or denominator, an exact integer of magnitude at most 2^53
+crates/geom-core/src/linalg/angle.rs	1	constant	hi as f64	the high half of a written fraction's integer past 2^53, an exact integer below 2^32
+crates/geom-core/src/linalg/angle.rs	1	constant	lo as f64	the low half of a written fraction's integer past 2^53, an exact integer below 2^32
 crates/geom-core/src/real.rs	1	constant	k	scale_pow2's default: the power of two a subdivision's 2^-r scale names, a constant of the cut
 crates/geom-core/src/spline/projective.rs	1	constant	den	form_coef: degree elevation's binomial i/(p + 1), its denominator p + 1, an integer of the operation
 crates/geom-core/src/spline/projective.rs	1	constant	num	form_coef: degree elevation's binomial i/(p + 1), its numerator i, an integer of the operation
@@ -99,6 +104,7 @@ crates/pncad/src/authoring.rs	6	constant	x	an authoring helper's argument: the c
 crates/profile/src/path.rs	1	constant	k as f64	a vertex index of a circle's split
 crates/profile/src/path.rs	1	constant	n as f64	a circle's split count
 crates/profile/src/seg.rs	1	constant	band.escalate() / (ulps * f64::EPSILON)	a resolution threshold from the band and an ulp count
+crates/profile/src/seg.rs	1	constant	ulps * f64::EPSILON	an ulp count's relative rounding, scaling a read's magnitude to the resolution its refusal reports
 crates/profile/src/sugar.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/profile/src/validate.rs	1	constant	angle	a containment ray's fixed angle (RAY_BASE + k·RAY_STEP)
 crates/profile/src/validate.rs	4	launders(the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants)	<fn>	ValidatedProfile::lift_onto: its one production caller, sweep's loft at an enclosure scalar, re-enters the f64 canonical form of its lane sections' value channel as constants (a function of the variables at Sym<Interval>)
@@ -107,10 +113,10 @@ crates/sweep/src/blend/reach.rs	1	constant	band.zero()	the band's zero width, a 
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	3	constant	band.escalate()	the band's escalation width, a tolerance
 crates/sweep/src/loft.rs	1	constant	next.len() as f64	a count
-crates/sweep/src/skin.rs	1	constant	(k + 1) as f64 / steps	a sub-arc end k/m as a fraction of the sweep, structure
+crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k + 1, m)	a sub-arc end k/m as a fraction of the sweep, structure
 crates/sweep/src/skin.rs	1	constant	counted as f64	a row count
 crates/sweep/src/skin.rs	1	constant	k as f64	a sub-arc index
-crates/sweep/src/skin.rs	1	constant	k as f64 / steps	a sub-arc breakpoint k/m, structure
+crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k, m)	a sub-arc breakpoint k/m, structure
 crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T
@@ -131,6 +137,8 @@ crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction o
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/boolean/torus_region.rs	1	constant	share	a fixed split fraction
+crates/topo/src/census.rs	1	constant	band.escalate() - band.zero()	the band's room (K - 1)·ε, a tolerance
+crates/topo/src/census.rs	2	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/census/depth_gap.rs	1	constant	2.0 * sweep_pad(band)	both faces' sweep pads, a tolerance
 crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule

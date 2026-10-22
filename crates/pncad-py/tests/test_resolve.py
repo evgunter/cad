@@ -66,6 +66,8 @@ from pncad import (
     mm,
 )
 
+from placing import plane_on, slid
+
 #: The chordal budget the pick indices in this file are built at. The
 #: solids are planar-faced, so the tessellation is exact at any budget
 #: and nothing below depends on this number.
@@ -99,7 +101,6 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
                 (Formula.length_in(x + side, m), Formula.length_in(y + side, m)),
                 (Formula.length_in(x + 0.0, m), Formula.length_in(y + side, m)),
             ],
-            plane=doc.sketch_frame(),
         )
     )
 
@@ -200,36 +201,29 @@ class TestInOneRead(unittest.TestCase):
     def setUp(self):
         self.doc = Doc()
         self.cube = unit_cube(self.doc)
-        self.moved = self.doc.insert(
-            Node.transform(self.cube, (
-                Formula.length_in(3, m),
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ), Formula.angle_in(0, deg))
-        )
+        self.moved = self.doc.place(self.cube, pose=slid(3, 0, 0))
         self.other = unit_cube(self.doc, at=(9.0, 9.0))
         self.ev = evaluate(self.doc)
 
     def test_resolve_answers_the_read_it_was_asked_in(self):
-        """A transform passes its input's names THROUGH, so the same
-        name is in two outputs' tables. Asked in the transform's output,
-        the verdict names the transform; asked in the cube's, the cube.
-        `Doc.output` names the same read the node does."""
+        """A placement names its copy's entities under itself, so the
+        cube's names are in the cube's table and the copy's in the
+        copy's. Asked in the copy's output, the verdict names the
+        placement; asked in the cube's, the cube. `Doc.output` names the
+        same read the node does."""
         names = self.ev.all_faces(self.moved)
         self.assertEqual(len(names), 6)
         for name in names:
             with self.subTest(name=name):
                 self.assertEqual(self.ev.denotation(self.moved, name).candidates, 1)
                 self.assertEqual(str(self.ev.resolve(self.moved, name).node), str(self.moved))
-                self.assertEqual(str(self.ev.resolve(self.cube, name).node), str(self.cube))
                 self.assertEqual(
                     str(self.ev.resolve(self.doc.output(self.moved), name).node),
                     str(self.moved),
                 )
+        for name in self.ev.all_faces(self.cube):
+            with self.subTest(name=name):
+                self.assertEqual(str(self.ev.resolve(self.cube, name).node), str(self.cube))
 
     def test_resolve_fails_where_denotation_refuses(self):
         """Ask about an output whose table does not carry the name:
@@ -256,7 +250,7 @@ class TestInOneRead(unittest.TestCase):
             .line_to((2 * m, 1 * m))
             .line_to(Start)
         )
-        profile = doc.insert(Node.profile(chain, plane=doc.sketch_frame()))
+        profile = doc.insert(Node.profile(chain))
         revolve = doc.insert(Node.revolve(
             profile,
             (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -264,10 +258,7 @@ class TestInOneRead(unittest.TestCase):
             Formula.angle_in(360, deg),
         ))
         cube = unit_cube(doc, at=(9.0, 9.0))
-        tool = doc.insert(Node.datum_plane(
-            (Formula.length_in(9.5, m), Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
-        ))
+        tool = plane_on(doc, cube, (9.5, 0.0, 0.0), (1.0, 0.0, 0.0))
         split = doc.insert(Node.split(cube, tool))
         ev = evaluate(doc)
         name = ev.all_faces(revolve)[0]
@@ -278,14 +269,15 @@ class TestInOneRead(unittest.TestCase):
             ev.resolve(split, half)
 
     def test_a_reference_whose_read_is_gone_and_a_read_with_no_table(self):
-        """The transform deleted: its read went with it. Asked in that
-        read, a name answers `failed` / `read_gone` — never a `vanished`
-        that blames the cube, which did not change. Asked at the node
-        handle, which kept no read and did not mint the name, the door
-        raises `SelectRefusal` `node_not_held`. A scalar variable holds
-        no table, so asking in it raises `read_not_an_output`, never a
-        verdict."""
+        """The placement deleted: its read went with it. Asked in that
+        read, a name its copy minted answers `failed` / `read_gone` —
+        never a `vanished` that blames the cube, which did not change.
+        Asked at the node handle the document no longer holds, for a
+        name it did not mint, the door raises `SelectRefusal`
+        `node_not_held`. A scalar variable holds no table, so asking in
+        it raises `read_not_an_output`, never a verdict."""
         name = self.ev.all_faces(self.moved)[0]
+        cube_name = self.ev.all_faces(self.cube)[0]
         read = self.doc.output(self.moved)
         self.doc.apply(DocEdit.delete_node(self.moved))
         self.doc.apply(DocEdit.declare_var(VarName("depth"), FreeVar.length(4.5 * mm)))
@@ -293,18 +285,18 @@ class TestInOneRead(unittest.TestCase):
         verdict = ev.resolve(read, name)
         self.assertEqual((verdict.status, verdict.variant), ("failed", "read_gone"))
         with self.assertRaises(SelectRefusal) as caught:
-            ev.resolve(self.moved, name)
+            ev.resolve(self.moved, cube_name)
         self.assertEqual(caught.exception.reason, "node_not_held")
         with self.assertRaises(SelectRefusal) as caught:
-            ev.resolve(self.doc.var(VarName("depth")), name)
+            ev.resolve(self.doc.var(VarName("depth")), cube_name)
         self.assertEqual(caught.exception.reason, "read_not_an_output")
-        self.assertEqual(ev.resolve(self.cube, name).status, "resolved")
+        self.assertEqual(ev.resolve(self.cube, cube_name).status, "resolved")
 
 
 def plate(doc, corners):
     """A 0.1 m-thick plate over `corners`, on the sketch plane."""
     profile = doc.insert(
-        Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame())
+        Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners])
     )
     return profile, doc.insert(Node.extrude(profile, Formula.length_in(0.1, m)))
 
@@ -417,23 +409,12 @@ def blank(radius):
                         (Formula.length_in(1.4, m), Formula.length_in(0.7, m)),
                         (Formula.length_in(0.6, m), Formula.length_in(0.7, m)),
                     ],
-                    plane=doc.sketch_frame(),
                 )
             ),
             Formula.length_in(0.4, m),
         )
     )
-    lifted = doc.insert(
-        Node.transform(peg, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-            Formula.length_in(0.3, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        ), Formula.angle_in(0, deg))
-    )
+    lifted = doc.place_against(cube, peg, slid(0, 0, 0.3))
     fused = doc.insert(Node.union([blended, lifted]))
     doc.apply(DocEdit.set_param(blended, "radius", Formula.length_in(radius, m)))
     return doc, blended, fused

@@ -438,12 +438,12 @@ bodies, measured in §0.1:
 
   Past the join, a result's torus face bounded by ovals is no chart
   rectangle; `point_in_solid` reads it by the torus region (RESTREAD),
-  and two doors behind it stop some ops: the volume's
-  `RingOnCurvedFace` on a torus face holding a ring
-  (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`);
-  and the spiric face lane's `QuadratureBudget`
-  (`VolumeUnmeasured`), measured at ε `1e-12` on `P ∖ T` of the corner
-  bar of half-width `0.05` on the fat torus and its spellings
+  and the spiric face lane measures it, a torus face holding a ring
+  included (every loop read, each ring wound against the face). One
+  door behind it stops some ops: the spiric face lane's
+  `QuadratureBudget` (`VolumeUnmeasured`), measured at ε `1e-12` on
+  `P ∖ T` of the corner bar of half-width `0.05` on the fat torus and
+  its spellings
   (`work/fluxtail/a-thin-corner-bars-spiric-cap-exhausts-the-quadrature-budget-at-1e-12.md`).
 
 ### 1.4 The corner bar's lens

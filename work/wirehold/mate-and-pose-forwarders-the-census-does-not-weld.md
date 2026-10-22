@@ -2,11 +2,10 @@
 id: mate-and-pose-forwarders-the-census-does-not-weld
 kind: issue
 title: The mate and pose refusals NodeErrorKind forwards are not welded to their arms in the feature-tree census
-status: parked
+status: open
 opened: 2026-10-19
 priority: P4
 cost: E
-blocked_on: [transform-retires-into-a-placement]
 ---
 
 

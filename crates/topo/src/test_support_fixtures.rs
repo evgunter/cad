@@ -147,9 +147,10 @@ pub fn line<T: Real>(p0: Point3<T>, p1: Point3<T>) -> EdgeCurveSpec<T> {
     EdgeCurveSpec::line_between(p0, p1)
 }
 
-/// A Newell-certified plane from an outward-CCW-ordered corner list.
+/// A Newell-certified plane from an outward-CCW-ordered corner list,
+/// charted along its first edge.
 pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>], tol: Tol) -> Surface<T> {
-    newell_plane(corners, Band::linear(tol).unwrap()).unwrap()
+    newell_plane(corners, corners[1] - corners[0], Band::linear(tol).unwrap()).unwrap()
 }
 
 /// The K funnel name a fixture's split-plane normal is decided under.

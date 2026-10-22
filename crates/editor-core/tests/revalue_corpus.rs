@@ -70,8 +70,8 @@ enum Move {
     /// variables of equal value stay equal, so a coincidence the
     /// document holds by value (a kiss, a flush seat) holds at `p1` too.
     /// The fallback for a document whose branches [`Move::Apart`]
-    /// moves, and the pinned move of three gating rows (`cut_cylinder`,
-    /// `plate_param`, `boss_union`), each saying why. On a document of
+    /// moves, and the pinned move of two gating rows (`plate_param`,
+    /// `boss_union`), each saying why. On a document of
     /// lengths it is a dilation — of every length, the profile's
     /// included — so a
     /// laundered quantity that depends only on ratios of the variables
@@ -511,19 +511,18 @@ fn revalue_plate_param_apart_to_its_parting() {
     );
 }
 
-/// `boss_union` under the apart move, to where it parts. Its two
-/// `bool_pair_gap` margins read as laundered are an order swap the
-/// instrument pairs by index (the owed item), and the builds part after
-/// it.
+/// `boss_union` under the apart move, to where it parts. Nothing is
+/// read as laundered before the parting: the boss's copy is placed by a
+/// mate, not the identity bundle, so it runs its map at `p0` as at `p1`
+/// (FORK-REST), and the two builds visit the separating axes in one
+/// order where `p0`'s exactly axis-aligned faces used to merge them
+/// (the owed item's `bool_pair_gap` swap).
 #[test]
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
         1619,
-        &[(
-            "bool_pair_gap",
-            "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
-        )],
+        &[],
         "pcurve_chart_radial_moving",
         "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
     );
@@ -531,8 +530,10 @@ fn revalue_boss_union_apart_to_its_parting() {
 
 // The corpus documents this row runs: those a debug build replays twice
 // at `Sym<f64>` in seconds. The others (`die`, `cup`, `tube_ring`, …) run
-// through `revalue_census`; `kiss_carry` changes branch under both moves
-// and is not compared.
+// through `revalue_census`; `kiss_carry` and `face_sketch` change branch
+// under both moves and are not compared (`face_sketch`'s union of a box and
+// the boss resting on its top decides `volume_backstop_violation` exactly
+// zero at the nominal: `work/inlane/a-rest-contacts-volume-backstop-decides-its-equality-by-rounding.md`).
 // Each row's move is pinned, and its floor is half the margins it moved
 // and re-valued when it was pinned, so a change that makes a row opaque or
 // static, or sends it to the weaker move, goes red.
@@ -566,12 +567,11 @@ rows! {
     // (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
     // which NOTHING here pins).
     revalue_boss_union: "boss_union", InStep, 3236, [];
-    // In step: moved apart, its split parts at `split_join_frame_axis`
-    // (an axis the cleave's join frame decides against a datum's), so
-    // only the in-step move compares the whole document.
-    revalue_cut_cylinder: "cut_cylinder", InStep, 1051, [];
+    // Apart: the cutter's placement reads a variable, so both builds run
+    // its map and decide its transform and unit norms alike (were `p0`
+    // to snap it at rest, the builds would part at `pose_unit_norm`).
+    revalue_cut_cylinder: "cut_cylinder", Apart, 1302, [];
     revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
-    revalue_face_sketch: "face_sketch", Apart, 582, [];
     revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
     revalue_loft_prism: "loft_prism", Apart, 259, [];
     revalue_measured_web: "measured_web", Apart, 716, [];
@@ -943,4 +943,37 @@ fn the_instrument_and_the_door_replay_in_one_session() {
         (door, door_counts),
         "one session, one reading"
     );
+}
+
+/// **The side reader's exact ties at a document's nominal**
+/// (`work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md`):
+/// every decision taken under the reader's family whose margin is
+/// exactly 0 in a build at the nominal, for `die_chamfer` and
+/// `cut_cylinder`. Evidence, not a gate: run with
+/// `cargo nextest run -p editor-core --run-ignored only -E 'test(reader_ties_at_the_nominal)' --no-capture`.
+#[test]
+#[ignore = "evidence: the side reader's exact ties at a nominal"]
+fn reader_ties_at_the_nominal() {
+    for cd in corpus::documents() {
+        if !["die_chamfer", "cut_cylinder"].contains(&cd.name) {
+            continue;
+        }
+        let (decisions, _) = replayed(&BTreeMap::new(), |opts| build(&cd.doc, opts));
+        let family: Vec<(usize, &Decision)> = decisions
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.family == Some(topo::SIDE_READER_FAMILY))
+            .collect();
+        let ties: Vec<(usize, &'static str)> = family
+            .iter()
+            .filter(|(_, d)| d.value == Some(0.0))
+            .map(|&(k, d)| (k + 1, d.predicate))
+            .collect();
+        println!(
+            "TIES {}: {} decisions, {} the reader's, exact ties {ties:?}",
+            cd.name,
+            decisions.len(),
+            family.len()
+        );
+    }
 }

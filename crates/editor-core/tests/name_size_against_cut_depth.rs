@@ -18,11 +18,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{insert, len, on_frame, scl};
-use editor_core::{
-    Datum, Entry, Evaluation, ExtrudeSide, Node, Operand, ProfileDoc, RecipeNodeId, Speaker,
-    SplitHalf,
-};
+use crate::fixture::{insert, len, on_frame, plane_on, slid};
+use editor_core::{Entry, Evaluation, Node, Operand, ProfileDoc, RecipeNodeId, Speaker, SplitHalf};
 use geom_core::Tol;
 
 /// The bar's length along x, meters.
@@ -58,7 +55,6 @@ fn bar(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -70,6 +66,7 @@ type Trim = (RecipeNodeId, u32);
 /// the document and each trim's node in order.
 fn boolean_chain() -> (ProfileDoc, Vec<Trim>) {
     let (mut doc, mut body) = bar("trim-chain-boolean");
+    let root = body;
     let mut trims = Vec::with_capacity(DEEPEST);
     for i in 0..DEEPEST {
         let (x, keep_below) = cut(i);
@@ -80,7 +77,7 @@ fn boolean_chain() -> (ProfileDoc, Vec<Trim>) {
         };
         let (d, profile) = on_frame(
             doc,
-            [0.0, 0.0, -1.0],
+            [0.0; 3],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![vec![(x0, -1.0), (x1, -1.0), (x1, 3.0), (x0, 3.0)]],
@@ -90,9 +87,9 @@ fn boolean_chain() -> (ProfileDoc, Vec<Trim>) {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(3.0),
-                side: ExtrudeSide::Along,
             },
         );
+        let (d, block) = slid(d, root, block, [0.0, 0.0, -1.0]);
         let (d, trimmed) = insert(
             d,
             Node::Subtract {
@@ -115,18 +112,12 @@ fn split_chain() -> (ProfileDoc, Vec<Trim>) {
     let mut trims = Vec::with_capacity(DEEPEST);
     for i in 0..DEEPEST {
         let (x, keep_below) = cut(i);
-        let (d, tool) = insert(
-            doc,
-            Node::Datum(Datum::Plane {
-                origin: [len(x), len(0.0), len(0.0)],
-                normal: [scl(1.0), scl(0.0), scl(0.0)],
-            }),
-        );
+        let tool = plane_on(&doc, bar, [x, 0.0, 0.0], [1.0, 0.0, 0.0]);
         let (d, split) = insert(
-            d,
+            doc,
             Node::Split {
                 target: body.into(),
-                tool: tool.into(),
+                tool,
             },
         );
         let half = if keep_below {

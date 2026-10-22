@@ -436,7 +436,10 @@ pub(crate) enum BoxFrame<T: Real> {
 }
 
 impl<T: Real> BoxFrame<T> {
-    /// The frame whose first axis is `aim`.
+    /// The frame whose first axis is `aim`. Its other two rows are
+    /// `orthonormal_basis`'s: a box read in it is scratch that no output
+    /// keeps, and every reading of it is the face's support along the
+    /// aim, which those rows do not move.
     pub(crate) fn aimed(aim: UnitVec3<T>) -> Self {
         let (b1, b2) = aim.orthonormal_basis();
         Self::Aimed([aim.get(), b1, b2])

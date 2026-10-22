@@ -2,11 +2,13 @@
 id: a-seam-region-whose-boundary-carries-both-poles-is-unread
 kind: issue
 title: A seam region of two or more sphere faces whose boundary carries both poles encodes no side, so flipping all its faces passes tier 3
-status: open
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
 refs: [a-pair-of-seam-siblings-flipped-together-is-silent]
+pr: 5516
+closed: 2026-10-21
 ---
 
 ## What is unread
@@ -68,3 +70,14 @@ accepts it and `mass_properties` measures the dimpled brick
 (`crates/sweep/tests/seam_siblings_flipped_together.rs`,
 `a_lone_lune_through_both_poles_flips_into_another_valid_body`). That
 row exists so no one "fixes" it into a refusal.
+
+## Closed (PR 5516)
+
+Tier 3's check 6 reads each seam region's cover census
+(`crates/geom-brep/src/props/curved.rs`, `sphere_region_cover`). Under
+their bits, the members' Gauss–Bonnet claims less the area their
+boundary claims is a whole number of spheres, zero for a region covered
+once. A region its faces claim more than once refuses
+`SeamRegionOvercovered`. The witness rows now pin that refusal, plus the
+door's wrong volume, which
+`mass-properties-measures-a-flipped-seam-region-without-tier-3` owns.

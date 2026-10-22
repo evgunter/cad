@@ -699,19 +699,21 @@ pub fn extruded<T: Decide + topo::AtRestPolicy>(
     .body
 }
 
-/// The K funnel name a FIXTURE's authored frame axes are decided
+/// The K funnel name a FIXTURE's computed frame axes are decided
 /// under. One name for both axes of [`sketch_from_axes`]: which axis a
 /// refusal is about is the refusal's own field, and a fixture that
 /// refuses has a bug rather than a story.
 const FIXTURE_FRAME_AXIS: &str = "fixture_frame_axis";
 
-/// **A sketch plane from an authored pair**, orthonormalized at the
+/// **A sketch plane from a computed pair**, orthonormalized at the
 /// run's band — the fixtures' one spelling of the frame mint, for a
 /// plane that is tilted, rotated or deliberately noisy.
 ///
-/// An axis-aligned fixture does not come here: the exact world frames
-/// (`RigidMotion::axes_xy` and its two siblings) need no decision, and
-/// [`sketch_at`] is the xy one at a station.
+/// An axis-aligned fixture does not come here: it needs no decision.
+/// It is a world frame (`SketchPlane::from_frame(RigidMotion::axes_xy(o))`
+/// and its `yz`, `zx` siblings, or [`SketchPlane::xy_at`]), or a
+/// written turn about an exact axis (`RigidMotion::turned`), composed
+/// where one turn is not enough.
 ///
 /// # Panics
 ///
@@ -1093,6 +1095,28 @@ pub fn loft_prism_at(zs: &[f64], tol: Tol) -> Body<f64> {
 /// solid, and were each rebuilding it.
 pub fn loft_prism(tol: Tol) -> Body<f64> {
     loft_prism_at(&PRISM_Z, tol)
+}
+
+/// **A lofted cylinder**: the unit circle as two semicircles (bulge 1)
+/// at `z = 0` and `z = h`, skinned straight at degree 1 — π·h m³.
+///
+/// Each semicircle is two rational quarter arcs joined at a knot of
+/// multiplicity two ([`segment_curve`]), so each of the two lateral
+/// walls carries a C⁰ crease in `u`, at `x = 0`: the class the mesher's
+/// crease lines exist for, and the first corpus body with a crease.
+pub fn lofted_cylinder(h: f64, tol: Tol) -> Body<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(1.0, 0.0), 1.0),
+        (Point2::new(-1.0, 0.0), 1.0),
+    ]);
+    crate::loft_body::<f64>(
+        &[vec![lp.clone()], vec![lp]],
+        &stacked_at(&[0.0, h]),
+        1,
+        tol,
+    )
+    .expect("the circle lofts")
+    .body
 }
 
 // ------------------------------------------------------------------

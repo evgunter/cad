@@ -23,7 +23,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId, StepTurns};
 use test_utils::refusal::Admission;
@@ -71,7 +70,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
-    "Transform/NullScaffold",
     "UnfinishedOperand/ScaffoldingEmptyLoop",
     "UnfinishedOperand/ScaffoldingStrutVertex",
     "Loft/Pcurve",
@@ -83,7 +81,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Blend/SurgeryInvariant",
     "Blend/Certify",
     "Naming/SplitLineage",
-    "Naming/SeamVertexParentage",
+    "Naming/UnsupportedSeamVertex",
     "Naming/SeamVertexPartners",
     "Naming/SharedRim",
     "Naming/ChordOffRim",
@@ -91,7 +89,12 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/ClosedCarrierUnread",
     "Naming/CarrierUnplaced",
     "Naming/PartnerUnread",
-    "FaceFrameReadback/Dangling",
+    "Naming/UnsupportedCrossingSenses",
+    "Naming/UnsupportedSeamSides",
+    "Naming/UnsupportedJoin",
+    "Naming/WayInZeroBand",
+    "Naming/JoinedPieceOffRoot",
+    "Naming/BandVerdictsDisagree",
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",
@@ -101,8 +104,8 @@ const KERNEL_KEYED: &[&str] = &[
 /// renders today and filed with its owner: a row over its ceiling, or
 /// under it with the ceiling standing, is red.
 const OVER_BUDGET: &[(&str, usize)] = &[
-    // work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
-    ("Profile/ArcBelowSceneResolution", 117),
+    // work/profileprose/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    ("Profile/ArcBelowSceneResolution", 85),
     // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/ResultEscalated", 90),
 ];
@@ -144,7 +147,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Revolve/VoidInsertion",
         "inserting the cavity of hole loop 1 refused",
     ),
-    // work/paths/paths-refusals-short-of-the-shape-guard.md
+    // work/profilerest/paths-refusals-short-of-the-shape-guard.md
     (
         "ProfileReplay/Path/CircleSplitCount",
         "circle_split needs between 2 and 4294967295 arcs",
@@ -269,11 +272,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
     // work/wirehold/placement-rule-refusals-state-no-recourse.md
-    "FaceFrameNotPlanar",
-    "FaceFrameReadback/Dangling",
-    "FaceFrameReadback/NoCanonicalFrame",
-    "FaceFrameReadback/NoCarrier",
-    "FrameDirection/Degenerate",
     "InstanceOutOfRange",
     "PlacementsUncertified",
     "PlacementRule/CountSpelling",
@@ -286,7 +284,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ToleranceConflict",
     "UnschedulableCycle",
     "WrongOperand",
-    // work/paths/paths-refusals-short-of-the-shape-guard.md
+    // work/profilerest/paths-refusals-short-of-the-shape-guard.md
     "Profile/DegenerateSegment",
     "Profile/EmptyLoop",
     "Profile/EmptyProfile",
@@ -328,7 +326,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureClearanceRefused/ToleranceHasNoBand",
     "MeasureClearanceRefused/Unsupported",
     "MeasureClearanceRefused/WitnessUnverified",
-    // work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/profileprose/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Split/Finish/Merge",
@@ -785,8 +783,8 @@ fn every_node_refusal_renders_within_the_budget() {
 
 use editor_core::clearance::ClearanceRefusal;
 use editor_core::{
-    BifurcationKind, Diagnosis, EvalError, ParamBoxError, PiecesFault, PlacementRuleFault,
-    ResolveError, SeedError,
+    BifurcationKind, Diagnosis, EvalError, ParamBoxError, PlacementRuleFault, ResolveError,
+    SeedError,
 };
 
 test_utils::f6_variants! {
@@ -828,11 +826,6 @@ test_utils::f6_variants! {
 }
 
 test_utils::f6_variants! {
-    /// `PiecesFault`'s arms, for the `ProfilePieces/` rows.
-    const PIECES_FAULT: PiecesFault = [NoRecord, NoIds, Length, NoStepId];
-}
-
-test_utils::f6_variants! {
     /// `ResolveError`'s arms, for the `SelectResolve/` rows.
     const RESOLVE_ERROR: ResolveError = [Vanished, Ambiguous, ReadGone, NodeGone];
 }
@@ -842,17 +835,16 @@ test_utils::f6_variants! {
     /// census rows are checked against, so an arm with no row reds and
     /// an arm added to the enum stops this compiling until it is here.
     const NODE_ERROR_KIND: NodeErrorKind = [
-        Expr, Profile, ProfileReplay, ProfileLaneReplay, ProfileAnchor, ProfilePieces,
-        ProfileRecordMissing, Extrude, Revolve, Tube, Split, Blend, Boolean, Transform, Motion,
-        Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
+        Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
+        Boolean, Transform, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
         UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
-        VerbArity, Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
+        Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
         DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
         Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
-        FaceFrameNotPlanar, FaceFrameReadback, FrameDirection, WitnessBifurcation, Part, Mate,
+        WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
         MeasureNotParallel, MeasureUnsupported, PayloadExpr, MeasureClearanceRefused,
         AssertionDimension,
@@ -972,7 +964,8 @@ mod kernel {
             NonpositiveCircleRadius, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
             CircleSplitCount, PolygonTooFewVertices, ZeroDirection, NonFiniteDirection,
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
-            ArcCenterNotEquidistant, DegenerateArcCenter, FarEndAnchorWithoutFillet,
+            ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
+            ArcMissBelowSceneResolution, FarEndAnchorWithoutFillet,
             Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
         ];
     }
@@ -1105,7 +1098,6 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("ParamBoxError", PARAM_BOX_ERROR.identifiers()),
         ("SeedError", SEED_ERROR.identifiers()),
         ("PlacementRuleFault", PLACEMENT_RULE_FAULT.identifiers()),
-        ("PiecesFault", PIECES_FAULT.identifiers()),
         ("ResolveError", RESOLVE_ERROR.identifiers()),
         ("Diagnosis", DIAGNOSIS.identifiers()),
         ("BifurcationKind", BIFURCATION_KIND.identifiers()),
@@ -1206,7 +1198,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             }
             welded(levels)
         }
-        NodeErrorKind::ProfilePieces { fault } => one("PiecesFault", fault),
         NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
         NodeErrorKind::MeasureClearanceRefused(e) => one("ClearanceRefusal", e),
         // Labelled by the standing each carries, the names the filed
@@ -1282,14 +1273,10 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         NodeErrorKind::PoseRead { .. }
         | NodeErrorKind::Mate(_)
         | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
-        NodeErrorKind::Part { .. }
-        | NodeErrorKind::Transform(_)
-        | NodeErrorKind::Motion(_)
-        | NodeErrorKind::FaceFrameReadback { .. }
-        | NodeErrorKind::FrameDirection { .. } => Forward::Unwelded(UNWELDED_PLACEMENT),
-        NodeErrorKind::ProfileAnchor
-        | NodeErrorKind::ProfileRecordMissing { .. }
-        | NodeErrorKind::CurvedSolidFrontier { .. }
+        NodeErrorKind::Part { .. } | NodeErrorKind::Transform(_) | NodeErrorKind::Motion(_) => {
+            Forward::Unwelded(UNWELDED_PLACEMENT)
+        }
+        NodeErrorKind::CurvedSolidFrontier { .. }
         | NodeErrorKind::MissingInput { .. }
         | NodeErrorKind::UnresolvedRead { .. }
         | NodeErrorKind::ToleranceConflict { .. }
@@ -1305,7 +1292,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::NonFiniteDirection { .. }
         | NodeErrorKind::UnderflowedDirection { .. }
         | NodeErrorKind::MissingSlot { .. }
-        | NodeErrorKind::VerbArity { .. }
         | NodeErrorKind::Escalated { .. }
         | NodeErrorKind::MeasureEscalated { .. }
         | NodeErrorKind::PlacementAxisEscalated { .. }
@@ -1320,7 +1306,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::UnionFoldStep { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
-        | NodeErrorKind::FaceFrameNotPlanar { .. }
         | NodeErrorKind::CrossingUnverified { .. }
         | NodeErrorKind::MeasureNotParallel { .. }
         | NodeErrorKind::MeasureUnsupported(_)
@@ -1741,11 +1726,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 structure: None,
             },
         ),
-        row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
-        row(
-            "ProfileRecordMissing",
-            NodeErrorKind::ProfileRecordMissing { loop_: 1 },
-        ),
         row(
             "CurvedSolidFrontier",
             NodeErrorKind::CurvedSolidFrontier {
@@ -1920,13 +1900,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "VerbArity",
-            NodeErrorKind::VerbArity {
-                verb: verbs::VerbKind::Fillet,
-                given: verbs::Arity::Two,
-            },
-        ),
-        row(
             "Escalated",
             NodeErrorKind::Escalated {
                 predicate: "revolve_full_vs_partial",
@@ -1950,8 +1923,8 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "PoseDirectionEscalated",
             NodeErrorKind::PoseDirectionEscalated {
-                predicate: topo::DATUM_UNIT_NORM,
-                source: named(topo::DATUM_UNIT_NORM),
+                predicate: topo::POSE_UNIT_NORM,
+                source: named(topo::POSE_UNIT_NORM),
             },
         ),
         row(
@@ -2048,12 +2021,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "ShellLaneUnsupported",
             NodeErrorKind::ShellLaneUnsupported { scalar: "interval" },
-        ),
-        row(
-            "FaceFrameNotPlanar",
-            NodeErrorKind::FaceFrameNotPlanar {
-                carrier: geom::SurfaceKind::Cylinder,
-            },
         ),
         row(
             "MeasureNotParallel",
@@ -4164,6 +4131,40 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "DegenerateArcCenter",
             P::DegenerateArcCenter { radius: 1e-12 },
         ),
+        (
+            "ArcMissesAuthoredPoint",
+            P::ArcMissesAuthoredPoint {
+                piece: profile::Piece {
+                    step: 1,
+                    role: profile::PieceRole::Leg,
+                },
+                verb: profile::Verb::TangentArcTo,
+                predicate: "path_arc_landing",
+                point: Point2::new(-2.7, 2.7e-4),
+                miss: 3.4e-8,
+                scale: 1.36e4,
+                resolution: 4.8e-11,
+                turn: 6.2,
+                authored: None,
+            },
+        ),
+        (
+            "ArcMissBelowSceneResolution",
+            P::ArcMissBelowSceneResolution {
+                piece: profile::Piece {
+                    step: 1,
+                    role: profile::PieceRole::Leg,
+                },
+                verb: profile::Verb::ArcTo,
+                predicate: "path_arc_through_point",
+                point: Point2::new(0.0, 2.74e8),
+                miss: 3.0e-8,
+                scale: 2.74e8,
+                resolution: 4.9e-7,
+                turn: 6.2,
+                authored: None,
+            },
+        ),
         ("FarEndAnchorWithoutFillet", P::FarEndAnchorWithoutFillet),
         (
             "Escalated",
@@ -4379,7 +4380,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 /// analysis seeds, placement rules, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, PiecesFault,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError,
         PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
         TieWitness, VarName,
     };
@@ -4447,26 +4448,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             ),
         ]
     };
-    let pieces = [
-        ("NoRecord", PiecesFault::NoRecord { loop_: 0 }),
-        ("NoIds", PiecesFault::NoIds { loop_: 0 }),
-        (
-            "Length",
-            PiecesFault::Length {
-                loop_: 0,
-                recorded: 4,
-                anchored: 5,
-            },
-        ),
-        (
-            "NoStepId",
-            PiecesFault::NoStepId {
-                loop_: 0,
-                step: 6,
-                ids: 5,
-            },
-        ),
-    ];
     let param_box = [
         (
             "UnknownParam",
@@ -4609,9 +4590,58 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             }),
         ),
         (
-            "SeamVertexParentage",
-            NamingError::SeamVertexParentage {
+            "UnsupportedSeamVertex",
+            NamingError::UnsupportedSeamVertex {
                 vertex: topo::VertexKey::default(),
+                shape: editor_core::SeamVertexShape::OneOperandSeam,
+            },
+        ),
+        (
+            "UnsupportedCrossingSenses",
+            NamingError::UnsupportedCrossingSenses {
+                vertex: topo::VertexKey::default(),
+                shape: editor_core::CrossingSensesShape::NameReadsTwoSenses,
+            },
+        ),
+        (
+            "UnsupportedSeamSides",
+            NamingError::UnsupportedSeamSides {
+                edge: topo::EdgeKey::default(),
+                shape: editor_core::SeamSidesShape::NameSpellsTwoSeams,
+            },
+        ),
+        (
+            "UnsupportedJoin",
+            NamingError::UnsupportedJoin {
+                edge: topo::EdgeKey::default(),
+                shape: editor_core::JoinShape::ChordBesideMergedFace,
+            },
+        ),
+        (
+            "UnsupportedUnionName",
+            NamingError::UnsupportedUnionName {
+                name: Box::new(stable(EntityKind::Vertex, 3)),
+                shape: editor_core::UnionNameShape::SeamGroupNoMemberEdge,
+            },
+        ),
+        (
+            "WayInZeroBand",
+            NamingError::WayInZeroBand {
+                edge: topo::EdgeKey::default(),
+                shape: editor_core::WayShape::Carrier,
+            },
+        ),
+        (
+            "JoinedPieceOffRoot",
+            NamingError::JoinedPieceOffRoot {
+                edge: topo::EdgeKey::default(),
+            },
+        ),
+        (
+            "BandVerdictsDisagree",
+            NamingError::BandVerdictsDisagree {
+                vertex: topo::VertexKey::default(),
+                shape: editor_core::DisagreeShape::PiecesAtOneVertex,
             },
         ),
         (
@@ -4843,12 +4873,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             rows.push(row(&format!("{wrap}/{n}"), build(e)));
         }
     }
-    for (n, fault) in pieces {
-        rows.push(row(
-            &format!("ProfilePieces/{n}"),
-            NodeErrorKind::ProfilePieces { fault },
-        ));
-    }
     for (n, source) in param_box {
         rows.push(row(
             &format!("ParamBox/{n}"),
@@ -4901,12 +4925,11 @@ fn doc_ref() -> editor_core::DocRef {
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
-        BifurcationKind, BranchMarginEvidence, DirectionRefusal, EntityKind, FaceName, Implicated,
-        InterrogateError, PartFault, WitnessAge, WitnessBifurcation,
+        BifurcationKind, BranchMarginEvidence, EntityKind, FaceName, Implicated, InterrogateError,
+        PartFault, WitnessAge, WitnessBifurcation,
     };
-    use geom_core::UnitVec3Error;
     use payloads::*;
-    use topo::{EntityId, FaceKey, ReadbackError};
+    use topo::{FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
     let mut rows = vec![
         row(
@@ -5036,42 +5059,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 NodeErrorKind::MeasureClearanceRefused(refusal),
             ));
         }
-    }
-    for (n, error) in [
-        (
-            "Dangling",
-            ReadbackError::Dangling {
-                what: EntityId::Face(FaceKey::default()),
-            },
-        ),
-        (
-            "NoCanonicalFrame",
-            ReadbackError::NoCanonicalFrame { carrier: "torus" },
-        ),
-        ("NoCarrier", ReadbackError::NoCarrier),
-    ] {
-        rows.push(row(
-            &format!("FaceFrameReadback/{n}"),
-            NodeErrorKind::FaceFrameReadback { error },
-        ));
-    }
-    for (n, error) in [
-        ("Degenerate", UnitVec3Error::Degenerate),
-        ("NonFiniteLength", UnitVec3Error::NonFiniteLength),
-        ("UnderflowedLength", UnitVec3Error::UnderflowedLength),
-        ("Escalated", UnitVec3Error::Escalated(diag())),
-    ] {
-        rows.push(row(
-            &format!("FrameDirection/{n}"),
-            NodeErrorKind::FrameDirection {
-                profile: RecipeNodeId::new(0, tagged(4)),
-                frame: RecipeNodeId::new(0, tagged(2)),
-                refusal: DirectionRefusal {
-                    role: "frame normal",
-                    error,
-                },
-            },
-        ));
     }
     let interrogate = [
         (
@@ -5233,7 +5220,6 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         );
         let (doc, _) = crate::fixture::place(doc, body);
@@ -5336,7 +5322,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, SlideAxis, VarKind,
+        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, TargetAxis, VarKind,
     };
     let n = |id| RecipeNodeId::new(0, tagged(id));
     let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
@@ -5396,7 +5382,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             "NotAFreedom",
             M::NotAFreedom {
                 value: r(9),
-                coord: Coord::Slide(SlideAxis::Z),
+                coord: Coord::Slide(TargetAxis::Z),
                 kind: VarKind::Plane,
             },
         ),
@@ -5929,8 +5915,9 @@ fn every_check_finding_renders_within_the_budget() {
 /// real doors.
 ///
 /// A shell's role off its volume is the sign of the volume's enclosure
-/// alone (D10). At ε 1e-9 a brick less a needle `1 × 10.5ε × 10.5ε` holds
-/// the needle as a cavity no aimed ray reads; read through the structural
+/// alone (D10). At ε 1e-9 a brick less a needle `1 × 10.5ε × 10.5ε`,
+/// turned off the axes, holds the needle as a cavity no aimed ray reads
+/// (each meets a wedge); read through the structural
 /// door, which holds no interval lane, its volume lies within its sums'
 /// rounding, so its role is unresolved in that scalar: a capability limit
 /// of the measurement, with no tolerance offered and no defect claimed.
@@ -5965,16 +5952,38 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             tol,
         ));
         let w = 10.5 * tol.eps();
-        let needle = at_rest(topo::test_support::brick::<f64>(
-            (0.0, 1.0),
-            (0.0, w),
-            (0.0, w),
+        // Turned off the axes: every aimed ray at the cavity meets a wedge
+        // (a face it passes within the band of two edges of), where along
+        // the axes a ray aimed at the cavity's end reads it.
+        let (x, y, z) = {
+            let n = (37.0_f64 * 37.0 + 21.0 * 21.0 + 13.0 * 13.0).sqrt();
+            (37.0 / n, -21.0 / n, 13.0 / n)
+        };
+        let (s, c) = 0.7_f64.sin_cos();
+        let k = 1.0 - c;
+        let r = [
+            [c + x * x * k, x * y * k - z * s, x * z * k + y * s],
+            [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
+            [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
+        ];
+        let needle = at_rest(topo::test_support::mapped_cube::<f64>(
+            move |a, b, cc| {
+                let p = [a, b * w, cc * w];
+                let at = |i: usize| r[i][0] * p[0] + r[i][1] * p[1] + r[i][2] * p[2];
+                geom_core::Point3::new(at(0), at(1), at(2))
+            },
             tol,
         ));
         let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
         let body: &topo::Body<f64> = &cut.body().expect("a body").body;
-        let source = topo::classify_shells_structural(body, tol)
-            .expect_err("the lane-free door reads no role for the needle cavity");
+        // The door names the first ray set aside at a corner or a wedge
+        // beside the volume's refusal; the refusal is the volume's.
+        let source = match topo::classify_shells_structural(body, tol)
+            .expect_err("the lane-free door reads no role for the needle cavity")
+        {
+            topo::ShellClassifyError::Corner { volume, .. } => *volume,
+            other => other,
+        };
         assert!(
             matches!(
                 source,

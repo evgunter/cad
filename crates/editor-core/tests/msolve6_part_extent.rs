@@ -14,7 +14,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use std::sync::Arc;
@@ -24,7 +23,7 @@ use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
     MateFault, MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal,
-    RecipeNodeId, ResolveFault, SlideAxis, Target, Value, WorldRead, content_pin, product,
+    RecipeNodeId, ResolveFault, Target, TargetAxis, Value, WorldRead, content_pin, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, on_frame, revolve_about, run, solve};
@@ -59,7 +58,6 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
     );
     placed_part(doc, body)
@@ -163,7 +161,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -194,8 +192,8 @@ fn seat(
         ),
     );
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ]
     .into_iter()
@@ -466,8 +464,8 @@ fn seated(
     );
     let mut seat = vec![rest];
     for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ] {
         let id = push(
@@ -475,7 +473,7 @@ fn seated(
             DocEdit::AddValue {
                 placement: b,
                 value: Box::new(Value {
-                    mate: rest.id,
+                    mate: Some(rest.id),
                     coord,
                     by,
                 }),
@@ -542,7 +540,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
 
 /// **No edit asks the store**: the edit door takes none and decides
 /// only what the recipe says, so on a mated document a seat added to a
-/// third instance, a world pin removed and re-added at another pose, an
+/// third instance, a world mate removed and re-added at another pose, an
 /// appearance, a union, a fourth instance and every removal — the
 /// seat's, the first instance's — each applies.
 ///
@@ -587,7 +585,7 @@ fn a6_no_edit_asks_the_store() {
             },
             tol,
         )
-        .expect("removing a world pin asks nothing")
+        .expect("removing a world mate asks nothing")
         .doc;
     let moved = editor_core::pin_at(
         &doc,
@@ -606,7 +604,7 @@ fn a6_no_edit_asks_the_store() {
             },
             tol,
         )
-        .expect("a world pin asks nothing")
+        .expect("a world mate asks nothing")
         .doc;
     let doc = doc
         .apply(
@@ -858,7 +856,6 @@ fn block(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     placed_part(doc, body)
@@ -1034,43 +1031,50 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
     }
 }
 
-/// **A whole-assembly split pins its instance where it stands**: the
+/// **A whole-assembly split stands its instance where it stands**: the
 /// cut's instances move into the new part, and the instance left
-/// behind is pinned by the named interim's world pin, which reads
-/// nothing, so the split asks no geometry of the part it mints and
-/// pins alike whether or not the caller holds a resolver.
+/// behind stands where the part's world stands by the identity bundle,
+/// which reads nothing of the part — so a split handed no resolver
+/// stands it the same way.
 ///
-/// *Breaks if* a split leaves an unpinned instance, or pins it by a
-/// mate read off geometry it must evaluate.
+/// *Breaks if* a split leaves an unplaced instance, or reads the part
+/// to stand it.
 #[test]
-fn a6_a_split_pins_its_instance_where_it_stands_with_or_without_a_resolver() {
+fn a6_a_split_stands_its_instance_by_the_identity_bundle_with_or_without_a_resolver() {
     let (doc, ids, opts, body) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
     let [a, b] = [ids[0], ids[1]];
     let (doc, _) = seat(doc, (a, body), (b, body));
     // Both instances, the second's bundle holding the seat.
     let cut = fixture::with_placements(&doc, &[a, b].into_iter().collect());
-    for (label, resolver) in [("held", opts.resolver.as_ref()), ("none", None)] {
-        let out = editor_core::split(
+    let split = |resolver| {
+        editor_core::split(
             &doc,
             &cut,
-            DocumentId::derive(&format!("msolve6-p6-new-part-{label}")),
+            DocumentId::derive("msolve6-p6-new-part"),
             Tol::witness(),
             resolver,
         )
-        .unwrap_or_else(|e| panic!("a whole-assembly cut splits ({label}): {e}"));
-        let remainder = &out.remainder;
-        let pinned: Vec<_> = remainder
-            .placements()
-            .into_iter()
-            .map(|at| fixture::bundle(remainder, at))
-            .collect();
-        assert_eq!(pinned.len(), 1, "one instance is left behind ({label})");
-        assert!(
-            matches!(pinned[0].as_slice(), [c] if c.world_pin().is_some()),
-            "the instance is pinned where it stands by the world pin alone ({label}): {:?}",
-            pinned[0]
-        );
-    }
+    };
+    let out = split(opts.resolver.as_ref())
+        .unwrap_or_else(|e| panic!("a whole-assembly cut splits: {e}"));
+    let remainder = &out.remainder;
+    let placements = remainder.placements();
+    assert_eq!(placements.len(), 1, "one instance is left behind");
+    let bundle = fixture::bundle(remainder, placements[0]);
+    assert!(
+        bundle.len() == 6
+            && bundle
+                .iter()
+                .all(|c| c.value().is_some_and(|v| v.mate.is_none())),
+        "the instance stands where it stands by the identity bundle: {bundle:?}"
+    );
+    let unresolved = split(None).unwrap_or_else(|e| panic!("a cut splits with no resolver: {e}"));
+    let placements = unresolved.remainder.placements();
+    assert_eq!(
+        fixture::bundle(&unresolved.remainder, placements[0]),
+        bundle,
+        "with no resolver the instance stands by the same identity bundle"
+    );
 }
 
 /// **Two mated parts evaluate once each**: a chain over two distinct

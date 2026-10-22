@@ -119,7 +119,7 @@ pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
     IncidenceRefusal, PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb,
     analytic_rung3, arc_rim_candidates, first_within, is_analytic, nurbs_pair_limbs, pick_arc_rim,
-    plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
+    plane_nurbs_incidence, plane_nurbs_limbs, probe_pick, sub_arc_joint,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
@@ -144,12 +144,12 @@ pub use implicit::{
 };
 pub use intersect::{
     ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, OutsideConic, PairRoute,
-    ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection,
-    Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
-    cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
-    cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
-    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section, tilted_section_major,
+    ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSite, PlaneSphereSection,
+    PlaneTorusSection, Rung, SectionError, SectionPlane, SectionRadius, SphereSphereSection,
+    cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
+    cylinder_cylinder_section, cylinder_sphere_section, parallel_axes_at, plane_cone_section,
+    plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section, plane_torus_section,
+    route, route_pose, sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{

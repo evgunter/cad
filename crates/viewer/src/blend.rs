@@ -112,9 +112,9 @@ impl BlendTarget {
     ///
     /// A door of its own rather than a destructure inside
     /// [`Self::of_selection`], because a face pick reaches this scope
-    /// from more than that one place: the add-datum form's
-    /// frame-on-face row holds a [`FaceSelection`] and names the same
-    /// scope in the same sentence.
+    /// from more than that one place: the add-profile form's
+    /// on-the-picked-face row holds a [`FaceSelection`] and names the
+    /// same scope in the same sentence.
     pub fn of_face(face: &FaceSelection) -> Self {
         Self {
             node: face.node,
@@ -543,6 +543,15 @@ impl BlendTool {
         if let Some(held) = &mut self.target {
             held.node = held.node.respoken(doc);
         }
+    }
+
+    /// **The held edges' names re-seated** after an operation that
+    /// moved them ([`crate::session::Renamed`]).
+    pub fn rename(&mut self, renamed: &crate::session::Renamed) {
+        self.edges = core::mem::take(&mut self.edges)
+            .into_iter()
+            .map(|name| renamed.name(&name).unwrap_or(name))
+            .collect();
     }
 
     /// Drop every pick — the panel's `Clear picks` button, and what

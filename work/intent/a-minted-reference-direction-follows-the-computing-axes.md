@@ -2,12 +2,17 @@
 id: a-minted-reference-direction-follows-the-computing-axes
 kind: issue
 title: A minted carrier's reference direction branches on the computing axes (orthonormal_basis), so a sketch's zero spin depends on the computing frame
-status: open
+status: closed
 opened: 2026-10-08
 rides_with: an-operation-computes-in-a-frame-of-its-reads
 priority: P0
 cost: M
+closed: 2026-10-21
 ---
+## Closed
+
+PR #5547 (2026-10-21). No carrier mint picks a reference: `newell_plane` takes its caller's, the sweep caps take the profile's `x` axis lifted by the sweep's frame, an extruded wall its swept segment, a split's one-corner section its conic's principal direction, the sphere re-cut seam the pair's section circle read from operand A, and `chord_join`'s transient planes carry real frames. `scripts/gates/minted-reference-from-inputs.sh` keeps `orthonormal_basis` to its scratch and input-coordinate homes, and `sweep/tests/a_body_built_turned_is_the_body_turned.rs` holds a body built on a turned sketch plane to the body turned, bit for bit and in its STEP text. Residue filed: `a-section-certificates-witness-point-is-picked-off-the-axes`, `the-frame-seam-census-rows-guard-a-constructor-no-minted-frame-reads`.
+
 
 
 `Vec3::orthonormal_basis` (`crates/geom-core/src/linalg/vec.rs:640`,

@@ -242,18 +242,12 @@ fn cone_apex_poison_and_near_apex_honesty() {
         let near = c.normal(0.3, v);
         assert!(close(near, far, 1e-12), "v = {v}: {near:?} vs {far:?}");
     }
-    // OBSERVATION (report material): below v ≈ 1e-162 the cross
-    // product's norm² underflows to 0 and normalize divides nonzero
-    // components by an exact 0 — the "unit normal" is (±∞, ±∞, ±∞),
-    // which is NOT NaN-poison (∞ is not f64 poison per the repo's
-    // stance). Any downstream dot/certification does go NaN, so it
-    // still fails loudly one step later. Pin the observed behavior.
-    let deep = c.normal(0.3, 1e-300);
-    assert!(deep.x.is_infinite() && deep.z.is_infinite());
-    // And the band just above (subnormal squares) is degraded but
-    // finite: |n| deviates from 1 by ~1e-5 at v = 1e-160.
-    let degraded = c.normal(0.3, 1e-160);
-    assert!(degraded.x.is_finite() && (degraded.norm() - 1.0).abs() < 1e-4);
+    // Below v ≈ 1e-162 the cross product's squares leave the format;
+    // `normalize` prescales, so the normal is still the nappe's.
+    for v in [1e-160, 1e-300] {
+        let deep = c.normal(0.3, v);
+        assert!(close(deep, far, 1e-12), "v = {v}: {deep:?} vs {far:?}");
+    }
     // Mirror nappe: negated normal.
     let neg = c.normal(0.3, -1.0);
     assert!(close(neg, far * -1.0, 1e-15));

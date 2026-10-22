@@ -4,28 +4,18 @@
 //! cites.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
-use crate::fixture::{self, ang, flush_pairs, fname, insert, len, member_face, scl, step, table};
+use crate::fixture::{self, flush_pairs, fname, insert, member_face, step, table};
 use editor_core::{
     BooleanValue, DocEdit, EntityKind, Entry, Evaluation, Node, ProfileDoc, RecipeNodeId, RoleSeg,
     StableName, ValuePayload, VarId,
 };
 use geom_core::Tol;
 
-/// A rigid placement of `input`, translated along +x.
+/// A copy of `input` placed against its own geometry, slid along +x.
 fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::transform(
-            input,
-            editor_core::Step::Rigid {
-                translation: [len(dx), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    )
+    fixture::slid(doc, input, input, [dx, 0.0, 0.0])
 }
 
 /// **Two flush placements of ONE prototype fuse into one body.**
@@ -35,7 +25,7 @@ fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeN
 #[test]
 fn a_union_of_two_flush_placements_of_one_prototype_fuses() {
     let doc = ProfileDoc::empty_derived("docm7_placements", Tol::witness());
-    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     let (doc, union) = insert(
@@ -67,7 +57,7 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses() {
 #[test]
 fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
     let doc = ProfileDoc::empty_derived("docm7_merged", Tol::witness());
-    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     let (doc, union) = fixture::union_over(doc, &[m1, m2]);
@@ -91,10 +81,11 @@ fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
     // face is exactly this name, and it resolves.
     for (a, b) in flush_pairs(&doc, (m1, proto), (m2, proto)) {
         // The row is the union's, so the constituents are the two
-        // sited names in the union's own member space.
+        // sited names in the union's own member space, each the
+        // prototype's face under its member's copy.
         let mut set = vec![
-            member_face(union, a.at, a.name),
-            member_face(union, b.at, b.name),
+            member_face(union, a.at, a.name.in_copy(m1)),
+            member_face(union, b.at, b.name.in_copy(m2)),
         ];
         set.sort();
         let name = StableName {
@@ -128,7 +119,7 @@ fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
     both.sort();
     assert_eq!(joined, vec![both; 4], "four joined rims: {joined:?}");
     // The x-extreme walls are untouched: one `From` wrapper over
-    // the prototype's own name.
+    // the prototype's own name under its member's copy.
     for (member, seg) in [(m1, 3u32), (m2, 1u32)] {
         let name = member_face(
             union,
@@ -136,7 +127,8 @@ fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
             fname(
                 proto,
                 RoleSeg::Lateral(crate::fixture::piece(&doc, union, 0, seg as usize).into()),
-            ),
+            )
+            .in_copy(member),
         );
         assert!(
             matches!(t.lookup(&name), Some(Entry::Unique(_))),
@@ -155,11 +147,11 @@ fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
 #[test]
 fn a_member_flush_under_a_merged_wall_fuses() {
     let doc = ProfileDoc::empty_derived("rv_r2_merged_refusal", Tol::witness());
-    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     // Flush under the merged y=0 wall (x 0..1.5 once m1 and m2 fuse).
-    let (doc, m3) = block(doc, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
+    let (doc, m3) = block_on(doc, proto, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
     let (doc, union) = fixture::union_over(doc, &[m1, m2, m3]);
     let ev = run(&doc);
     assert!(
@@ -205,48 +197,50 @@ fn shared_corner(ev: &Evaluation<f64>, union: RecipeNodeId) -> Vec<StableName> {
     out
 }
 
-/// **Re-drawing another member never takes a held flush stretch**
-/// (`names/README.md`, the flush rule: an entity several members hold
-/// is named for the first minted of them). Two blocks placed in an L,
-/// `a` = [0, 2] × [0, 1] and `b` = [1, 2] × [0, 2], share the vertical
-/// edge at x = 2, y = 0 and its two end vertices (designer B's fixture
-/// on the name-order fork), and the union names all three through `a`,
-/// the senior block. The union is then re-pointed, through the doors,
-/// from `b` to a re-drawing of it (identical geometry, a later id):
-/// the three names it held there are still the union's names for
-/// them, still through `a`. A salt node inserted
-/// first moves every digest, so the answer is not the digests' luck,
-/// and each member list is also given the other way round, so the
-/// answer is not the list's order either: "first" is first minted.
+/// **A flush stretch several members hold is named for all of them**
+/// (`names/README.md`, the flush rule; N0: no name reads mint order).
+/// Two blocks placed in an L, `a` = [0, 2] × [0, 1] and `b` =
+/// [1, 2] × [0, 2], share the vertical edge at x = 2, y = 0 and its two
+/// end vertices, and the union names each of the three `Merged` of both
+/// blocks' entities. A salt node inserted first moves every digest, `b`
+/// is authored before or after `a`, and the member list is given both
+/// ways round, so the answer is neither the digests' luck, nor which
+/// block was minted first, nor the list's order. The union is then
+/// re-pointed from `b` to a re-drawing of it (identical geometry, a
+/// later id): the corner is named for `a` and the re-drawing, whose
+/// read is a new key (DM4: re-pointing a member is a recipe edit), and
+/// every entity `a` carries whole keeps its name.
 #[test]
-fn redrawing_another_member_never_takes_a_held_flush_stretch() {
+fn a_held_flush_stretch_is_named_for_every_member_that_holds_it() {
     let tol = Tol::witness();
     for salt in 0..6u32 {
-        // Each list both ways round, so a rule keyed by list position
-        // rather than by mint order names the corner through `b` (or the
-        // re-drawing) in one of the two.
-        for reversed in [false, true] {
+        for (b_first, reversed) in [(false, false), (false, true), (true, false), (true, true)] {
             let listed = |x: RecipeNodeId, y: RecipeNodeId| {
                 if reversed { vec![y, x] } else { vec![x, y] }
             };
-            let case = format!(
-                "salt {salt}, {}",
-                if reversed {
-                    "listed later first"
-                } else {
-                    "listed in mint order"
-                }
-            );
+            let case = format!("salt {salt}, b authored first {b_first}, list reversed {reversed}");
             let doc = ProfileDoc::empty_derived("redraw-flush", tol);
             let (doc, _) = insert(
                 doc,
-                Node::Datum(editor_core::Datum::Point {
-                    position: [len(f64::from(salt)), len(0.0), len(0.0)],
-                }),
+                Node::Profile(fixture::desc(vec![fixture::square(
+                    f64::from(salt),
+                    0.0,
+                    0.5,
+                )])),
             );
-            let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-            let (doc, b) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-            let (doc, redrawn) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+            // Whichever block is authored first is the root the other
+            // two copies are placed against.
+            let (doc, a, b, redrawn) = if b_first {
+                let (doc, b) = block(doc, (1.0, 2.0), (0.0, 2.0), 1.0);
+                let (doc, a) = block_on(doc, b, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+                let (doc, redrawn) = block_on(doc, b, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+                (doc, a, b, redrawn)
+            } else {
+                let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
+                let (doc, b) = block_on(doc, a, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+                let (doc, redrawn) = block_on(doc, a, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+                (doc, a, b, redrawn)
+            };
             let (doc, union) = fixture::union_over(doc, &listed(a, b));
             let ev = run(&doc);
             assert!(
@@ -260,13 +254,41 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
                 3,
                 "{case}: the corner edge and its two ends: {held:?}"
             );
-            let a_read = fixture::out(&doc, a);
-            let senior = |name: &StableName| matches!(name.path.first(), Some(RoleSeg::From { read, .. }) if *read == a_read);
+            let both = |held: &[StableName], reads: [VarId; 2]| {
+                held.iter().all(|name| {
+                    let [RoleSeg::Merged(set)] = name.path.as_slice() else {
+                        return false;
+                    };
+                    let cited: Vec<VarId> = set
+                        .iter()
+                        .filter_map(|c| match c.path.first() {
+                            Some(RoleSeg::From { read, .. }) => Some(*read),
+                            _ => None,
+                        })
+                        .collect();
+                    cited.len() == set.len() && reads.iter().all(|r| cited.contains(r))
+                })
+            };
+            let (a_read, b_read) = (fixture::out(&doc, a), fixture::out(&doc, b));
             assert!(
-                held.iter().all(senior),
-                "{case}: the corner is named through the senior block: {held:?}"
+                both(&held, [a_read, b_read]),
+                "{case}: the corner is named for both blocks: {held:?}"
             );
 
+            let a_own = |ev: &Evaluation<f64>| -> Vec<StableName> {
+                table(ev, union)
+                    .iter()
+                    .filter(|(name, _)| {
+                        matches!(name.path.as_slice(), [RoleSeg::From { read, .. }] if *read == a_read)
+                    })
+                    .map(|(name, _)| name.clone())
+                    .collect()
+            };
+            let a_before = a_own(&ev);
+            assert!(
+                !a_before.is_empty(),
+                "{case}: `a` carries entities of its own whole"
+            );
             let (doc, _) = step(
                 doc,
                 DocEdit::SetMembers {
@@ -283,9 +305,15 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
                 failure(&ev, union)
             );
             assert_eq!(
-                shared_corner(&ev, union),
-                held,
-                "{case}: the re-drawn member took none of the held corner"
+                a_own(&ev),
+                a_before,
+                "{case}: re-pointing `b` leaves every entity `a` carries whole as it was"
+            );
+            let redrawn_read = fixture::out(&doc, redrawn);
+            let now = shared_corner(&ev, union);
+            assert!(
+                now.len() == 3 && both(&now, [a_read, redrawn_read]),
+                "{case}: the re-drawn corner is named for `a` and the re-drawing: {now:?}"
             );
         }
     }
@@ -323,9 +351,9 @@ fn kiss_record(ev: &Evaluation<f64>, id: RecipeNodeId) -> editor_core::NamedCoin
 #[test]
 fn a_kiss_record_cites_its_vertex_fusion_row_at_the_pair_and_the_union() {
     let doc = ProfileDoc::empty_derived("docm7_kiss_cites", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
-    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+    let (doc, far) = block_on(doc, a, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, pair) = fixture::union_over(doc, &[a, b]);
     let (doc, union) = fixture::union_over(doc, &[far, a, b]);
     let ev = run(&doc);
@@ -371,9 +399,9 @@ fn a_kiss_record_cites_its_vertex_fusion_row_at_the_pair_and_the_union() {
 #[test]
 fn a_contact_against_a_merged_cap_glues_in_every_order() {
     let doc = ProfileDoc::empty_derived("r1_merged_refusal", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, d) = block(doc, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, d) = block_on(doc, a, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
     for order in [[a, c, d], [d, c, a], [c, d, a]] {
         let (doc, union) = fixture::union_over(doc.clone(), &order);
         let ev = run(&doc);
@@ -394,9 +422,9 @@ fn a_contact_against_a_merged_cap_glues_in_every_order() {
 #[test]
 fn a_stack_of_resting_slabs_builds() {
     let doc = ProfileDoc::empty_derived("declared-pairs-converge", Tol::witness());
-    let (doc, low) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, mid) = block(doc, (0.5, 2.5), (0.5, 2.5), 1.0, 1.0);
-    let (doc, top) = block(doc, (1.0, 2.0), (1.0, 2.0), 2.0, 1.0);
+    let (doc, low) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, mid) = block_on(doc, low, (0.5, 2.5), (0.5, 2.5), 1.0, 1.0);
+    let (doc, top) = block_on(doc, low, (1.0, 2.0), (1.0, 2.0), 2.0, 1.0);
     let (doc, union) = insert(
         doc,
         Node::Union {

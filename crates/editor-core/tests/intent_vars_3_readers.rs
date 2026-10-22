@@ -25,9 +25,9 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box, seed_env};
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalError, EvalOptions,
-    Evaluation, ExtrudeSide, Formula, FreeVar, InlineError, Maintenance, Node, NodeErrorKind,
-    NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError,
-    VarDecl, VarId, VarName, apply, evaluate, inline, load, save, split,
+    Evaluation, Formula, FreeVar, InlineError, Maintenance, Node, NodeErrorKind, NodeResult,
+    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl, VarId,
+    VarName, apply, evaluate, inline, load, save, split,
 };
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRules, Tol};
@@ -84,7 +84,6 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let edges = prism_edges(&doc, cube, 4);
@@ -479,22 +478,13 @@ fn the_door_lowers_names_before_it_mints() {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let frame = next.ids()[0];
     log.push(DocEdit::InsertNode {
-        node: Box::new(editor_core::test_support::as_written(
-            &next,
-            next.node(frame).unwrap(),
-        )),
-        fresh: Vec::new(),
-    });
-    log.push(DocEdit::InsertNode {
-        node: Box::new(Node::Profile(desc(frame, vec![square(0.0, 0.0, 0.5)]))),
+        node: Box::new(Node::Profile(desc(vec![square(0.0, 0.0, 0.5)]))),
         fresh: Vec::new(),
     });
     let extrude = Node::Extrude {
         profile: profile.into(),
         distance: named("w"),
-        side: ExtrudeSide::Along,
     };
     let recorded = step(
         &next,
@@ -687,9 +677,9 @@ fn analysis_keeps_its_ids_across_a_rename() {
 
 // -------------------------------------------------------------- row 12
 
-/// A frame, a square and an extrude of depth `depth`, at `cx`, the
-/// extrude placed in the world: the four ids.
-fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 4]) {
+/// A square and an extrude of depth `depth`, at `cx`, the extrude
+/// placed in the world: the three ids.
+fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -697,17 +687,15 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    let frame = doc.ids()[doc.ids().len() - 2];
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: depth,
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, placed) = crate::fixture::place(doc, extrude);
-    (doc, [frame, profile, extrude, placed])
+    (doc, [profile, extrude, placed])
 }
 
 /// The one extrude a part carried.
@@ -848,7 +836,7 @@ fn declare_as(doc: &ProfileDoc, name: &'static str, def: VarDecl) -> ProfileDoc 
 /// `doc` split at `cut` into a part, the part published to a store.
 fn split_into_store(
     doc: &ProfileDoc,
-    cut: [RecipeNodeId; 4],
+    cut: [RecipeNodeId; 3],
     seed: &str,
 ) -> (
     editor_core::SplitOutcome,
@@ -1085,7 +1073,7 @@ fn a_named_definition_reading_the_depth_comes_back() {
     let (doc, _) = block(doc, 10.0, len(1.0));
     let (doc, cut) = block(doc, 0.0, len(0.5));
     let depth = doc
-        .slot(cut[2], SlotId::Distance)
+        .slot(cut[1], SlotId::Distance)
         .expect("the extrude reads its depth");
     assert_eq!(doc.var_name(depth), None, "the depth is anonymous");
     let k = DocEdit::DeclareVar {
@@ -1344,7 +1332,7 @@ fn inline_carries_an_anonymous_variable_whole() {
         Tol::witness(),
     );
     let part = declare(&part, "d", 1.0);
-    let (part, [_, _, toleranced, _]) = block(part, 0.0, len(0.75));
+    let (part, [_, toleranced, _]) = block(part, 0.0, len(0.75));
     let Some(Node::Extrude { distance, .. }) = part.node(toleranced) else {
         unreachable!("block's third node is its extrude")
     };
@@ -1357,7 +1345,7 @@ fn inline_carries_an_anonymous_variable_whole() {
         },
     )
     .doc;
-    let (part, [_, _, offset, _]) = block(
+    let (part, [_, offset, _]) = block(
         part,
         4.0,
         Formula::add(named("d"), len(0.25)).expect("lengths add"),
@@ -1504,7 +1492,7 @@ fn a_reader_of_a_deleted_variable_does_not_cross_a_cut() {
             let SplitError::UnresolvedVarCrossesCut { var, node } = &e else {
                 unreachable!()
             };
-            assert_eq!((var.id(), node.id()), (h, cut[2]));
+            assert_eq!((var.id(), node.id()), (h, cut[1]));
             let said = e.to_string();
             assert!(
                 said.contains("repoint") && !said.contains("defect"),
@@ -1524,11 +1512,9 @@ fn a_reader_of_a_deleted_variable_does_not_cross_a_cut() {
         DocumentId::derive("intent-vars-3-dead-host"),
         Tol::witness(),
     );
-    let (host, instance) = crate::fixture::insert_pinned(
-        host,
-        Node::instantiate_part(doc_ref_dead),
-        &crate::fixture::resolver::with_resolver(store.clone()),
-    );
+    // The instance stands nowhere: its part does not evaluate, and the
+    // inline refuses before it reads a placement.
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref_dead));
     match inline(
         &host,
         instance,
@@ -1591,7 +1577,6 @@ fn recording_insert_lowers_as_apply_does() {
     let node = Node::Extrude {
         profile: profile.into(),
         distance: named("w"),
-        side: ExtrudeSide::Along,
     };
     let by_apply = step(
         &doc,
@@ -1620,7 +1605,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
         Tol::witness(),
     );
     let doc = declare(&doc, "w", 1.0);
-    let (doc, [_, _, extrude, _]) = block(doc, 0.0, len(1.0));
+    let (doc, [_, extrude, _]) = block(doc, 0.0, len(1.0));
     let w = id(&doc, "w");
     let gone = step(&doc, DocEdit::DeleteVar { var: w.into() }).doc;
     for var in [w, VarId::new(0, 12_345)] {

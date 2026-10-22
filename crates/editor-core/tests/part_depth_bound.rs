@@ -23,17 +23,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
 use editor_core::{
     CapEnd, ContactClass, ContentPin, Coord, DocEdit, DocRef, DocumentId, EvalOptions, Node,
     NodeErrorKind, NodeResult, PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, SlideAxis, Value, product,
+    ResolveFault, TargetAxis, Value, product,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{insert, len, on_frame, run, square, step};
+use fixture::{insert, len, run, square};
 use geom_core::Tol;
 use std::sync::Arc;
 use test_utils::own_thread::on_the_smallest_stack;
@@ -53,36 +52,30 @@ fn leaf() -> ProfileDoc {
 /// caps the leaf's product names, as that placement's copy.
 fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = on_frame(
+    let (doc, profile) = insert(
         doc,
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 1.0)],
+        Node::Profile(fixture::desc(vec![square(0.0, 0.0, 1.0)])),
     );
     let (doc, block) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
-    let (doc, boss_profile) = on_frame(
+    let (doc, boss_profile) = insert(
         doc,
-        [0.0, 0.0, 0.5],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.2, 0.2, 0.25)],
+        Node::Profile(fixture::desc(vec![square(0.2, 0.2, 0.25)])),
     );
     let (doc, boss) = insert(
         doc,
         Node::Extrude {
             profile: boss_profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
+    // The boss stands halfway up the block.
+    let (doc, boss) = fixture::slid(doc, block, boss, [0.0, 0.0, 0.5]);
     let (doc, union) = insert(
         doc,
         Node::Union {
@@ -96,15 +89,22 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// product names it: the union carries it from its member read of the
 /// block, under its one placement's copy (A10).
 fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core::FaceName {
-    let [copy] = leaf.placements()[..] else {
+    // The world copy: the placement whose shape is the union (the
+    // boss's copy against the block is the other).
+    let worlds: Vec<(RecipeNodeId, RecipeNodeId)> = leaf
+        .placements()
+        .into_iter()
+        .filter_map(|copy| match leaf.node(copy) {
+            Some(Node::Place { shapes, .. }) => leaf
+                .operation_of(shapes[0].read)
+                .filter(|&read| matches!(leaf.node(read), Some(Node::Union { .. })))
+                .map(|union| (copy, union)),
+            _ => None,
+        })
+        .collect();
+    let [(copy, union)] = worlds[..] else {
         panic!("a leaf places its union once");
     };
-    let Some(Node::Place { shapes, .. }) = leaf.node(copy) else {
-        panic!("the leaf's placement is a `Place`");
-    };
-    let union = leaf
-        .operation_of(shapes[0].read)
-        .expect("the placement reads the union");
     let read = leaf.output(block, 0).expect("the block defines its output");
     let cap = editor_core::StableName {
         kind: editor_core::EntityKind::Face,
@@ -129,17 +129,10 @@ fn instantiating(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
     insert(doc, Node::instantiate_part(below))
 }
 
-/// `instance` pinned where its body stands: the named interim's world
-/// pin (stage 3 C), which reads nothing, so the copy is the part's at
-/// the identity whether or not its part evaluates.
+/// `instance` standing in the world where its body stands
+/// ([`editor_core::stand`]), which reads nothing of its part.
 fn world_pinned(doc: ProfileDoc, instance: RecipeNodeId) -> ProfileDoc {
-    step(
-        doc,
-        DocEdit::PinWhereItStands {
-            placement: instance,
-        },
-    )
-    .0
+    fixture::written(doc, instance, editor_core::stand())
 }
 
 /// [`instantiating`], its instance [`world_pinned`].
@@ -152,13 +145,17 @@ fn instantiating_pinned(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId
 /// pinning an instance of the one below to its world, and the
 /// references it answers — the leaf's first, the topmost document's
 /// last.
+///
+/// Each level stands its instance where its body does by the identity
+/// bundle ([`editor_core::stand`]), which reads nothing of its part, so
+/// building the chain evaluates no part.
 fn chain(levels: usize) -> (PartStore, Vec<DocRef>) {
     let mut store = PartStore::new();
     let mut refs = vec![store.insert(leaf(), Tol::witness())];
     for level in 1..=levels {
         let below = *refs.last().expect("the leaf is stored");
-        let (doc, _) = instantiating_pinned(&format!("part-depth-level-{level}"), below);
-        refs.push(store.insert(doc, Tol::witness()));
+        let (doc, instance) = instantiating(&format!("part-depth-level-{level}"), below);
+        refs.push(store.insert(world_pinned(doc, instance), Tol::witness()));
     }
     (store, refs)
 }
@@ -238,8 +235,9 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
         let (store, refs) = chain(BOUND);
         // One level flatter: the top skips the topmost stored level.
         let flattened_ref = refs[refs.len() - 2];
+        let opts = resolving(store);
         let (top, instance) = instantiating_pinned("part-depth-flattened-top", flattened_ref);
-        let ev = run(&top, &resolving(store));
+        let ev = run(&top, &opts);
         assert!(
             matches!(ev.result(instance), Some(NodeResult::Ok(_))),
             "a chain at the bound evaluates"
@@ -490,8 +488,8 @@ fn mated(
     );
     let (doc, mate) = fixture::constrain_at(doc, ids[1], mate);
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, fixture::ang(0.0)),
     ]
     .into_iter()
@@ -501,7 +499,7 @@ fn mated(
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),

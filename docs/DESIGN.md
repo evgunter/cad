@@ -37,9 +37,8 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   world a node and spaces as kinds, with gauges, offsets and the
   mates' spanning tree retired (stage 3 B); booleans gluing on a Zero verdict
   and the boolean declare surface retired (stage 4 E and F).
-- **Not built:** the rest of placement (stage 3 — `Transform` and
-  `Datum` still exist in the tree, and a constraint is still a mate's
-  payload); the rest of the coincidence door and its lint (stage 4);
+- **Not built:** the rest of placement (stage 3 — a constraint is
+  still a mate's payload); the rest of the coincidence door and its lint (stage 4);
   assertions and the at-rest lints (stage 5); tangency constructions
   (stage 6).
 - **What retires as the build reaches it.** Where a companion clause
@@ -532,12 +531,15 @@ says what its refused side is, and every definite reading of it ends
 by that at each door. A side the lever reaches tells the lever story
 everywhere. A contradiction between a stored description and its
 stored geometry tells the lever story at a build. At the import door
-it is the file's: the import refuses typed, naming the file. Past the
-import door no state is reachable only through import ([import]), so
-only a kernel bug reaches it, and it panics ([failure]). A side no
-kernel construction produces panics at a build and past the import
-door, and at the import door is the file's like any other. No refusal
-names a lever the decision does not.
+it is the file's: the import refuses typed, naming the file. Every
+defect ending a bad file reaches there past ε_in names the file,
+whether the reading compares a value the file stored or one adoption
+derived from it; a sound file such an ending reaches is a kernel bug to
+fix. Past the import door no state is reachable only through import
+([import]), so only a kernel bug reaches it, and it panics ([failure]).
+A side no kernel construction produces panics at a build and past the
+import door, and at the import door is the file's like any other. No
+refusal names a lever the decision does not.
 
 How each door applies these (the import door's ε_in sentences and its
 stopgap, `Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
@@ -567,6 +569,35 @@ normal-variation enclosure machinery purchased only for visual
 smoothness δ already buys. A display-mesh lane, when built, gets its
 own separately-honest criterion and is never promoted into the
 certified export promise.
+
+**A measurement refines until a predicate over its enclosure resolves.**
+`[tolerance.measure]`
+A certified measurement (volume, area, moments) is an enclosure, never a
+number alone, and its width is part of the value. There is one door. It
+refines a face until a predicate over the enclosure resolves, until
+refinement stops paying (a floor no round removes), or until the per-face
+work bound (one bound, in one unit, for every lane). It returns the
+narrowest enclosure reached and why it stopped.
+
+A consumer that decides something passes its predicate: a sign, a
+relation against a bound as an assertion states it, or a containment. At
+the public doors the predicate is closed data, not a callable. A deciding
+predicate is a named predicate ([verdicts]). It settles when definite,
+refines while its enclosure straddles the threshold, stops when the
+enclosure lies wholly in the band, and is recorded at every round it is
+asked.
+
+A consumer that hands the number on passes a resolution, the width
+predicate: the mean boundary displacement it needs. That is a sizing,
+decides nothing against ε ([intrinsic.epsilon]), and is not recorded.
+The model defines its measures only to ε of boundary displacement, so no
+finer resolution is offered. There is no default: every caller states
+its predicate, a resolution included, at the call, so the precision a
+measurement buys is always the one its consumer asked for.
+
+A deciding predicate still undecided at the work bound is the one
+quadrature refusal, and it carries the enclosure. A resolution unmet
+there is the bracket, with the resolution it reached.
 
 **The margin dimensional convention.** `[tolerance.margins]`
 ε is a length: the maximum
@@ -1048,7 +1079,7 @@ suits the slot.
 
 - *Scalars:* `Length`, `Angle`, `Scalar`, `Count`.
 - *Discrete kinds:* a side, a half, a sense.
-- *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Frame`
+- *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Pivot`, `Flag`, `Frame`
   ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
   is a `Count`; and `Profile`. Only an operation defines a shape. A
@@ -1094,7 +1125,14 @@ construction reads one.
 
 A pose is a frame known up to its kind's symmetry, a subgroup of the
 rigid motions and the same `Subgroup` the mates fold (A11 (1)): a
-plane forgets in-plane motion, an axis slide and spin along itself.
+plane forgets in-plane motion, a flag (a plane, a line in it, and the
+side of the line its face lies on, read off a face and one of its
+bounding edges, or built as a plane cut by a plane) slide along its
+line, a pivot (an axis with a point on it, read off a circular edge, a
+cone, a torus, or a face with a vertex) spin about its axis, an axis
+slide and spin along itself. There is a kind for each subgroup that is
+the symmetry of something a cell determines, alone or with one cell
+incident to it, and only for those.
 The kinds are ordered by which determines which. A slot holds its own
 kind; a finer value is read through its projection, and the role it is
 read through (a frame's x, y or z axis, origin or coordinate plane; a
@@ -1257,7 +1295,7 @@ offers the existing one). A pick whose body the source no longer has
 is unresolved, typed, never re-pointed. Two placements of a
 part are two copies. Nothing moves a body: a copy is defined by its
 one placement and never moved after, and an operation that would move
-one (today's `Transform`) is a placement. A pattern is a placement
+one is a placement. A pattern is a placement
 whose reads reach an index (FORK-PAT, [repetition]): one copy per
 value, the index entering as a value or through a mate's target. A
 placement's mates and values together set every freedom: a bundle
@@ -1266,7 +1304,7 @@ pinned and an unwritten freedom cannot be represented. A body's symmetry pins no
 written value it makes unobservable, a placement's or a pose move's,
 is reported, never refused). A placed copy's frame is not a variable:
 it is the construction its bundle states, which the coincidence door
-replays like any other.
+reads by what its mates state and replays where they state nothing.
 
 **Constraints are on equal footing.** A placement's mates and values
 are on equal footing, and a constraint any of whose equations the
@@ -1284,7 +1322,8 @@ coordinate plane), never a frame standing for a part's coordinates.
 A mate states a physical relation; a placement whose source touches
 nothing has none, and its values state the whole motion. A mate holds
 no number of its own, and its sense is a construction (`Flip`) on one
-side; a number a kind's own equation fixes (a standoff along a plane's
+side (a flag's `Flip` keeps its side: the half-turn about the line in
+its plane perpendicular to the flag's line); a number a kind's own equation fixes (a standoff along a plane's
 normal) is a construction on the target, never a value. Which copy is
 defined is which placement reads it, and a pose of another copy is
 read as that copy carries it. A mate places and never checks.
@@ -1363,7 +1402,15 @@ coincidence holds across the family of the variables' values.
 **Structural.** `[coincidence.structural]` Two cells are structurally
 one when the document establishes them as one, decided by two rungs at
 one door. The first is the same construction read twice, directly or
-as projections of one construction. The second reads each output
+as projections of one construction. A mate is that rung's statement:
+the two poses a placement's mate equates, read with the sense it
+states, are one construction read twice, wherever the placement
+evaluates; a pose a value moves off the mate's target (a standoff) is
+not. Being one construction is the equivalence the document's
+constructions and mates generate, so a wall each part builds through
+the edge of a flag that a flag mate equates is one construction read
+over both, and that mate establishes the flush pair the two walls
+make. The second reads each output
 carrier as the function of its construction's inputs that the
 construction's own code computes, by evaluating that code with every
 variable a symbol: no operation describes its outputs a second time
@@ -1448,7 +1495,16 @@ space's carried bodies pairwise, and nothing it finds refuses. An
 **arrival** is what one definer of the space brought in under one
 rigid motion: one placement's copies at one value of its indices, or
 one construction's or operation's output. Between two arrivals the
-census decides each pair. Contact is an `unproven-coincidence` finding
+census decides each pair, once, at the highest-dimensional cells that
+touch: two faces meeting over an area are one pair, and the census
+asks nothing of a cell bounding one of them against a cell bounding
+the other, since wherever such cells meet is inside that area's
+closure and leaves the same contact, and any further coincidence such
+a meeting implies is a face pair of its own. Two faces on one carrier,
+facing the same way, whose boundaries meet while their interiors do
+not are a flush pair: no contact, but a coincidence the census infers
+from values, so a finding unless established, by a flag mate or by
+the replay. Contact is an `unproven-coincidence` finding
 unless it is structural (a mate-placed face is); an overlap of their
 material is an interference finding; and a pair the census has no
 lane for is a finding too, saying it could not look, so no outcome of
@@ -1845,7 +1901,7 @@ Each layer depends only on the layers below it.
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/contact-record machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |
-| `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one closed `Verb` enum reifying an operation's parameters as data, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |
+| `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one payload type per run door reifying an operation's parameters as data, the closed `VerbKind` vocabulary they project onto, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |
 | `mesh` / `stl` | Certified tessellation (watertight triangle meshes with source-`Face`/`Edge` back-references); STL export (binary + ASCII) |
 | `step-export` / `step-import` | STEP (AP214) analytic-subset export, and import of that subset as adoption ([import]) |
 | `quantity` | Typed quantities at the API boundary ([units]): `Length`, `Angle`, the unit table and the written forms |
@@ -2142,9 +2198,9 @@ is the board and `work/README.md` its contract.
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
 | `crates/editor-core/VARIABLES.md` | Ratified | How a variable is represented, VARIABLES-DESIGN VR1–VR9: minted identity and optional name, `Expr` holds no float, `Formula` lowered at the edit door, lifecycle, id-keyed tokens |
-| `crates/verbs/README.md` | Ratified (#1388, #1870, #1983, #1997) | The kernel query seat and one verb vocabulary, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: query doors at `topo`, the per-verb `Verb` declaration, the parameter→field flow |
+| `crates/verbs/README.md` | Ratified (#1388, #1870, #1983, #1997; V1's shape #5457) | The kernel query seat and one verb vocabulary, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: query doors at `topo`, the per-verb declaration (one payload type per door, `VerbKind`), the parameter→field flow |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
-| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 2026-09-16) | What a recipe reference may be, DM1–DM8: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` |
+| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 2026-09-16) | What a recipe reference may be, DM1–DM8: a sketch on a face placed against its plane, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` |
 | `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04) | How editor-core keeps [assemblies.pairing] and [assemblies.saving], DI1–DI5: node ids across history, the memo and the store, an evaluation's identity stamp, saving vs forking |
 | `scripts/gates/README.md` | Ratified (Ev, 2026-09-06) | The CI gate directory: one home per gate, both CI halves, and why the four grep gates stay greps (the S13 evaluation of lint alternatives) |
 | `tools/README.md` | Ratified (Ev, 2026-09-08) | The instrument crates' shared rule, CC1–CC5: a check owed on what a file says goes at the reading boundary and only there (CC1), and speaks in the harness voice (CC5); CC2–CC4 are the per-column admissions table's own |
@@ -2235,7 +2291,7 @@ Where the clauses of this document at commit `95c77e152a` now live.
 | D1 | [topology]; D1's frontier (c)–(f) moved to `docs/KERNEL-VERBS.md` |
 | D2 | [edges] |
 | D3 | [surfaces]; "One reading per question" is [one-way.readings]; "What a consumer does with the answer" is [verdicts.consumers] |
-| D4 | [tolerance]; ¶1 is [tolerance.epsilon] with [tolerance.recourse] (the two-tolerance principle and its (i)–(iv)), [tolerance.chordal] and [tolerance.margins]; ¶2 [tolerance.residuals]; ¶3 [tolerance.typed-failure]; ¶4 [tolerance.units]; ¶5 [tolerance.boundary] |
+| D4 | [tolerance]; ¶1 is [tolerance.epsilon] with [tolerance.recourse] (the two-tolerance principle and its (i)–(iv)), [tolerance.chordal], [tolerance.measure] and [tolerance.margins]; ¶2 [tolerance.residuals]; ¶3 [tolerance.typed-failure]; ¶4 [tolerance.units]; ¶5 [tolerance.boundary] |
 | D5 | [identity] |
 | D6 | [units] |
 | D7 | [import] |

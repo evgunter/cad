@@ -21,7 +21,7 @@ use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ArcSweep, bulge_from_center, test_support::bulge_loop};
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, split};
-use topo::{Body, DATUM_UNIT_NORM, transform_rigid};
+use topo::{Body, POSE_UNIT_NORM, transform_rigid};
 
 /// A meridian arc `(ρ, y) = (cx + r cos t, cy + r sin t)`, `t ∈ [t0, t1]`.
 #[derive(Clone, Copy)]
@@ -316,7 +316,7 @@ fn poses(s: f64) -> [(&'static str, Affine3<f64>); 2] {
 fn posed_plane(map: Affine3<f64>, n: Vec3<f64>, d: f64) -> SplitPlane<f64> {
     SplitPlane {
         origin: map.transform_point(Point3::new(n.x * d, n.y * d, n.z * d)),
-        normal: UnitVec3::new(map.transform_vec(n), DATUM_UNIT_NORM, band()).unwrap(),
+        normal: UnitVec3::new(map.transform_vec(n), POSE_UNIT_NORM, band()).unwrap(),
     }
 }
 

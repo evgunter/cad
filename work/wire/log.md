@@ -6531,3 +6531,432 @@ Signed (WIRE orchestrator).
   - `Meet` also publishes topo's held `UnspelledDecision`s and CLEAVE's
     15 cited misstatements truthfully.
   (WIRE orchestrator)
+
+- 2026-10-19 — Unit 2, PR 5378 (`wire/union-decision-log`), opened
+  green at 998ee55c3f.
+  - `Relation::Meet`; k-ary rows with `origin`; the citing filter
+    dropped; `member_cells` spelling.
+  - Deviation: `Meet` proves by `MarginIdentity`, with no k-carrier rung.
+  - The lane filed a residue: a Meet on a boolean-minted vertex omits the
+    cell that minted it.
+  - DUAL review dispatched under protocol `24b76fff0e`. Class H, so the
+    CONCURRENT arm: R1 and R2 on frozen head 998ee55c3f, with identical
+    briefs (`brief-review-5378.md` in the session scratchpad). No
+    method relaxations.
+  - The lane also reports main's slow-set entry
+    `census::…review_5006_delta::d1_tabs_a_few_bands_wide` listed three
+    times. That reds the slow-set name check for any topo-touching PR;
+    the PR dedups it.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5378 dual review delivered. R1 and R2 are both
+  APPROVE-WITH-FIXES with no MAJOR, so there are no tally candidates.
+  The pair is flagged: each glimpsed only the other's directory or probe
+  names, after or apart from its findings. The pre-note is in the
+  session scratchpad (`rev5378-prenote.md`); the dual-review row rides
+  the PR as its last commit at merge.
+  - Fix pass on the union: `restated` grouped by point, not by any
+    shared cell, and projected to Python and the viewer; a completeness
+    guard that a dropped cell turns red; the collapse requires the site;
+    the catch-all refuses; one `Meet` constructor; the vacuous
+    determinism test fixed or deleted.
+  - Q4 adjudicated: naming `Meet` in DM4 stays as the orchestrator's
+    elaboration of the approved "set of member cells that meet". The PR
+    body flags it for Ev's retroactive read.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5378 (unit 2, DM4's decision log) merged (248bf8cfaa).
+  - The concurrent dual (R1, R2) were both APPROVE-WITH-FIXES with no
+    MAJOR. The blinded coding (byte 214, even: A = R1) found 17 groups:
+    9 bilateral, 4 unilateral A, 4 unilateral B. 0 tallied.
+  - The row `docs/dual-review-log/rows/PR-5378.md` rode the PR as its
+    last commit.
+  - The `FoldRow::Unnamed` hold-out was narrowed to the table-miss error
+    before merge.
+  - Seven rows closed: the three-member, fold-steps, guard-pin,
+    cited-fold-row, minted-seam and two-member-margin rows, plus CLEAVE's
+    cited-misstatement row.
+  - Open residues filed on CLEAVE: the Meet that omits the minting cell;
+    the ring-tie pierce vertex; twins; the in-place Zeros.
+  (WIRE orchestrator)
+
+- 2026-10-19 (WIRE orchestrator) Triage: should-pair-seams-take-name-ordered-sides (P3 M, design), a-chord-between-two-merged-faces-within-no-rim-refuses (P3 M), a-split-merging-a-two-piece-wall-reads-its-seam-vertex-as-a-pinch-corner (P3 M). a-literal-placement-frame-crosses-scalars-by-closure… is D10 ground (placement): moved to work/wirehold, parked on transform-retires-into-a-placement.
+
+- 2026-10-19 (WIRE orchestrator) Dispatched wire-p4 (branch wire/p4-refusal-bundle): a-seated-entity-collision-refuses-as-a-name-minted-twice + editor-payload-lists-other-than-naming-are-kept-by-hand, one PR, STYLE review.
+
+- 2026-10-19 (WIRE orchestrator) Dispatched wire-chase (wire/one-chain-chase; STYLE review), for split-and-boolean-copy-chains-are-chased-three-ways. Dispatched wire-breaks (wire/eval-internal-breaks; FULL review), for eval-handles-internal-breaks-three-ways…. The breaks lane applies only a ratified rule for typed kernel-defect refusals vs D9 row 4 `unreachable!`. If none decides, it reports and a designer fork follows.
+
+- 2026-10-19 (WIRE orchestrator) PR 5405 (wire-chase) is green at 05e271e8da.
+  - One `names::chase::to_root` helper now runs four chases. A cycle past the bound is D9 row 4, consistent with ORIGIN's stated acyclicity argument on `Provenance::SplitEdge`.
+  - `Fused::origin` is total by `Minted` and stays as it is.
+  - Filed hone/split-null-pair-rows-…-minted-list (P4).
+  - STYLE review dispatched on the frozen head.
+
+- 2026-10-19 (WIRE orchestrator) PR 5407 (wire-p4) is green at 2369d63db3.
+  - The new arm `EntityNamed { name, held }` is ruled to cover an entity repeated inside one offered list. `insert_tied`'s silent dedup is gone.
+  - Six editor families are welded to f6 rosters. Swept: ParamBox SymbolsOverABox.
+  - Filed: kernel concision lists; the product carry messages.
+  - STYLE review dispatched; it presses the dedup removal as a behaviour change.
+
+- 2026-10-19 (WIRE orchestrator) PR 5406 (wire-breaks) is green at c9fe0c1b5e.
+  - Part 2 is done: `OpInput`; `ProfileRecordMissing.loop_` narrowed to `u32`; silent defaults removed.
+  - Part 1 came back as a question, which is right: D9 row 4 (Ev engaged via PR 4006) against an agent-written `KERNEL_DEFECT_ENDING` typed-defect family, about 44 files.
+  - Filed a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which (P2 M, design).
+  - Drew FORK-DEFECT on the analysis branch, unread; the designer pair is dispatched.
+  - FULL review of 5406 dispatched. 5406 closes only Part 2 and the defaults, and Part 1 moves to the new row.
+
+- 2026-10-19 (WIRE orchestrator) PR 5405 STYLE review at 05e271e8da: MERGEABLE AFTER MINORS.
+  - MINOR-1 (demonstrated): `reached`'s seen-stop absorbed a within-walk cycle. To be fixed.
+  - MINOR-3/4 and NIT-1/2/4: to be fixed.
+  - NIT-3, the helper's shape, is taste and is skipped.
+  - MINOR-2, a panic in editor-core vs typed `SplitLineageCycle` in topo for one fact: the PR follows D9 row 4 as ratified and notes FORK-DEFECT, which may move topo's arm.
+  - Fix pass sent back to the wire-chase lane.
+  - The reviewer's off-scope find, a mate Flip-chain walk with no guard, is filed parked in wirehold on a-mate-relates-two-poses.
+  - Class note: a dedup in a walk's stop closure can absorb a cycle the walk itself was meant to refuse.
+- 2026-10-19 (WIRE orchestrator) FORK-DEFECT crossover round 1: Designer O converged on the rule, the at-rest ending, the rename and the provenance. It reconciled the Emission count at ~135 non-test raises; most samples are row 0/4. Waiting on the other designer's round.
+
+- 2026-10-19 (WIRE orchestrator) FORK-DEFECT reconciled in one round. The rule converged: proof decides, a typed shortfall row 6, a `pub fn` precondition is row 1, `held_out` goes. Two residual splits go to Ev: the rename, and "or file" on an imported body's geometric gate. [ev] PR 5411 opened, editing D9, with fork-log row 177. Subscribed.
+
+- 2026-10-19 (WIRE orchestrator) PR 5406 FULL review at c9fe0c1b5e: MERGEABLE.
+  - Content keys and result hashes are unchanged at f64 and Interval (a probe run at head and at the merge base).
+  - Fix pass sent:
+    - M1, a wrong premise for keeping the assertion slice let-else: try a typed pair;
+    - M2, split the u32::MAX row into authored and kernel counts, and name `names::to_u32`;
+    - N1, the re-resolve comment's lost argument;
+    - N2, World in Part 1's list;
+    - S1, pairwise spelled two ways.
+  - M3 (row bookkeeping) is mine at merge. S2–S4 are taste.
+  - Class note: a 'keeps the key bytes' reason must be checked against how the key is fed. A hand-fed key is not a layout.
+
+- 2026-10-19 (WIRE orchestrator) PR 5405 merged (8d59072d88). The fix pass was read: a chain-local set gates `stop`, and a cycle test reds on the old order. Row closed.
+  - Parked a-split-merging-a-two-piece-wall… on the FORK-DEFECT row: its question is which ending a carrier-rounding pinch corner gets.
+  - Dispatched wire-mchord, an investigation (no PR), to find whether any door reaches MergedChordOffRim before a design fork is spent on its sides' order.
+
+- 2026-10-19 (WIRE orchestrator) PR 5407 STYLE review at 2369d63db3: mergeable.
+  - Fix pass sent:
+    - the in-list (held == name) sentence states the wrong fact;
+    - demonstrated: the census's own roster list is hand-kept (deleting a roster entry with its row stays green), so make forwarded_arm exhaustive over NodeErrorKind and weld or list the unwelded forwarders;
+    - the product row moves to wirehold;
+    - NITs.
+  - CI skipped demos, and this PR turns insert_tied's dedup loud, so the lane runs demos/tour before merge.
+  - Class note: a weld that fixes a hand-kept list must not add its own hand-kept list. Mutate the weld, not just the rows.
+
+- 2026-10-19 (WIRE orchestrator) PR 5406 merged (6bb0052fc3).
+  - I read the fix pass. The assertion payload is a typed pair whose key is fed the same bytes; `ProfileForm` decides the profile's form once, before the key; `pairwise` has one spelling.
+  - Part 2 is closed. Part 1 continues as FORK-DEFECT ([ev] 5411).
+
+- 2026-10-19 (WIRE orchestrator) Ev on 5411 asked for a principled reason not to convert the typed kernel-bug refusals to panics. I found none, and replied:
+  - row 6 rested on reading 'some input triggers it' as D9's input-reachable;
+  - the tree already types limits (KERNEL_LIMIT_*) and unbuilt cases (NOT_YET_ENDING) apart;
+  - defect-ending sites state that only a bug reaches them.
+  - Revised 5411 in place: row 6 withdrawn. Two clarifications: a defect-ending site panics or takes its true row's ending; a load-bearing re-deriving check panics in release.
+  - Class note: two designers converging is not a check against the ratified principle. Test the shared premise against D9's own words before sending.
+
+- 2026-10-19 (WIRE orchestrator) PR 5407 merged (3e04c6a0ac) over main's red python suite.
+  - The red: test_checks.py TestAProfileJunctionDecidedTangent, which broke when #5377's door refusal reached main. It is filed P1 on PATHS (a-python-junction-test-builds-a-junction-the-door-now-refuses), with a PR comment.
+  - The fix pass widened the census over all 74 NodeErrorKind arms, so forward is wildcard-free; it found and added 5 arms with no row.
+  - Demos tour 94/94 and wild 8 cells, run locally.
+  - Both rows closed.
+
+- 2026-10-20 (WIRE orchestrator) wire-mchord reported.
+  - A plain two-prism Union, Subtract, folds and split-then-union all refuse MergedChord, every hit zip-listed. MergedChordOffRim has no witness.
+  - The chord row is raised to P2 with the witnesses, and it joins should-pair-seams-take-name-ordered-sides (also P2) in one fork, FORK-PAIRSEAM. The byte is drawn, unread; the designer pair is dispatched.
+  - A three-member fold's borders refusal goes on borders' held-edge row as a possible witness.
+
+- 2026-10-20 (WIRE orchestrator) FORK-PAIRSEAM first reports.
+  - Both recommend name order everywhere and retiring Seams, of_published and the MergedChord arms.
+  - Divergent premise: one assumes the sides carry their read, while the other measured bare operand names (a Transform-copy subtract keeps distinct seams apart only by slot, and its four Crossings tie). The other's design is node-space sides, then name order.
+  - Filed a-subtract-of-a-transform-copy-ties-its-seam-crossings (P2). Crossover round 1 sent.
+
+- 2026-10-20 (WIRE orchestrator) FORK-PAIRSEAM converged in one round.
+  - B verified the sides are bare and adopted A's node-table sides; A adopted B's vertex and one-operand rules.
+  - [ev] PR 5423 edits N3 and N2's parenthesis, with fork-log row 178. 177 is 5411's, and a contacthold PR also cites 177, so renumber on merge.
+  - One small split for Ev: a chord within both inputs' rims is SharedRim or a defect.
+  - Before sending, the shared premise was checked against N3's ratified words ('an unmerged face's own name'): the clarified reading is consistent with it, and the order clause is new.
+  - Subscribed.
+
+- 2026-10-20 (WIRE orchestrator) Dispatched:
+  - FORK-SECTIONID (designer pair; row raised to P2, since a held SectionFace{k} silently rebinds);
+  - FORK-BLENDEMPTY (designer pair, smaller brief);
+  - wire-census2 (wire/census-tail; STYLE review), for the three P4 census rows, with Part kept on D10.
+  - Triaged list-positions-… as P3 M.
+  - The Transform-copy crossing tie waits on 5423.
+
+- 2026-10-20 (WIRE orchestrator) FORK-BLENDEMPTY: both designers converged on their first reports. The doors refuse an empty Edges selection through Select::fault, and BlendSelectionEmpty and the viewer's NoEdges go.
+  - The 'unfinished recipe' premise is agent text (e2985861f0); no flow grows a selection.
+  - No ratified text changes, so no [ev]. Each designer's optional doc sentence is left out.
+  - Build dispatched: wire-blend (wire/empty-blend-at-the-door; STYLE review). The fork-log row lands with the build PR, its A/B filled at merge.
+
+- 2026-10-20 (WIRE orchestrator) FORK-SECTIONID first reports converged on the shape: bare when alone, Borders when several, ties per N4, the index gone.
+  - O measured that a 0.06° tilt swaps indices on NOTCHED with no topology change.
+  - Divergent: a merged group's spelling (one plane-piece constituent, or each section by name), and the kernel record (O: absorbed sections lose their walls, so record them at completion).
+  - Round 1 sent.
+  - Found: fork-log row 163's Ev/match columns are a copy of row 165's. Fixing them in the next WIRE PR to touch the log: Ev 'sure, sounds good' (PR 5306, 2026-10-19), match both.
+
+- 2026-10-20 (WIRE orchestrator) FORK-SECTIONID converged in two rounds.
+  - The shape: bare when alone, Borders when several, ties per N4.
+  - The merged group cites the plane once (O moved to F's principle, F to O's outside-the-set form).
+  - The kernel record is the ring-to-island export plus the emitter's plane group (the orchestrator checked emit_topo ~503: the split records its other groups).
+  - Premise checked against N4 and N2's ratified words.
+  - [ev] PR 5426, fork-log row 179. Subscribed.
+
+- 2026-10-20 (WIRE orchestrator) PR 5427 (wire-census2) is green at 0072cfea6e.
+  - A multi-level weld over 18 kernel rosters adds ~45 rows.
+  - A new ROWLESS list holds back two over-budget rows.
+  - Two recourses added. 8 rows filed, D10 ones parked.
+  - STYLE review dispatched; it presses ROWLESS as a possible second hand-kept list.
+
+- 2026-10-20 (WIRE orchestrator) PR 5427 STYLE review at 0072cfea6e: MERGEABLE with MINORs.
+  - Demonstrated: three forward-arm mutations stay green (if-let levels act as wildcards, and nothing checks a roster is read).
+  - ROWLESS is a second hand-kept list. Replace it with name_words_corpus's OVER_BUDGET ceiling precedent.
+  - Stale header; check_findings' inline weld; NITs.
+  - Fix pass sent.
+  - Class note: an exhaustive roster proves the enum is listed, not that the list is consulted. Mutate the forward arms too.
+
+- 2026-10-20 (WIRE orchestrator) PR 5427 merged (f1a197be45).
+  - The fix pass was read. A ROSTERS table reds on any roster no row reaches, every level is an exhaustive match, and the reviewer's three mutations are now red. ROWLESS is replaced by OVER_BUDGET ceilings.
+  - The ResultEscalated row is pinned at margin 1e-20 for one length across eps. The longer tolerance-offering form is unmeasured, noted on the hone row.
+  - Three rows closed.
+
+- 2026-10-20 (WIRE orchestrator) PR 5436 (wire-blend) is green at aa71518c41, after resuming across a container restart.
+  - SelectionCount sits on the kind, with one Count fault. BlendSelectionEmpty and the viewer's BlendError go; the commit is disabled at 0 edges.
+  - Filed: band's kernel empty blend returns its input; wire's loft TooFewSections.
+  - STYLE review dispatched.
+  - Orchestrator error: blend-opus.md held the designer prompt (my extraction matched a phrase in the brief). Re-extracted; the build followed my brief's description, which matched the report.
+
+- 2026-10-20 (WIRE orchestrator) PR 5436 STYLE review at aa71518c41: mergeable after a fix pass.
+  - M3, demonstrated, is an input-reachable panic: the ungated pub selection_into mints an empty Edges var, the insert door's read check reads kind only, and evaluate hits the unreachable!. The fix is for the door to re-check Select::fault for a selection read by id, and to cfg-gate selection_into.
+  - Also: M1, a count fault needs its own recourse; M2, stub drift; S2, prose sweep; V1, the hover text; N1. Taste skipped.
+  - Fix pass sent.
+  - Class note: 'test-only' must be checked on the function's own cfg, not its caller's. An unreachable! behind an ungated pub door is row 1.
+
+- 2026-10-20 (WIRE orchestrator) PR 5436 merged (a0ac0b4ddd).
+  - The fix pass was read: the insert door re-checks Select::fault for a selection read by id, selection_into is cfg-gated, and a count fault gets its own recourse.
+  - Fork-log row 180 (BLENDEMPTY, decided without [ev], A/B filled) and row 163's Ev and match cells restored rode the PR's last commit. Row closed.
+  - Orchestrator slip: a failed 'worktree add' left a chained commit on local wire/orchestrator. It was never pushed; I moved it to the PR branch by cherry-pick and dropped it locally.
+  - Class note: chain a cd into a new worktree as 'cd X || exit', never after an && that can fail silently into the wrong checkout.
+
+- 2026-10-20 (WIRE orchestrator) Ev approved 5423 ('i still have no real opinion on the order but this seems ok'). Ev read the split as a question of fact, and I agreed in reply; the build settles it. Merged (7beba6f7ae), with fork-log row 178 filled.
+  - Slip, repeated: a main merge on the [ev] branch conflicted in the fork log and I committed over the markers. Caught before the merge and fixed. Commits are now gated on a marker grep for files lint does not cover.
+  - Dispatched wire-seamorder (wire/pair-seam-name-order; FULL review). It closes the order row, the merged-chord row and the Transform-copy tie row.
+
+- 2026-10-20 (WIRE orchestrator) Ev approved 5426 ('sure, this definitely seems like an improvement'), and it is merged (3b687e1652) with fork-log row 179 filled. The section row is back to open for the build.
+- Ev's broader point on 5426 (no consistent naming strategy) is filed as naming-has-no-single-strategy-and-each-fork-patches-one-entity (P1 H, design).
+  - It cites WIRE's six naming forks this week.
+  - A read-only survey lane (wire-namesurvey) is dispatched: a defect census grouped by what leaked, the clauses' generality, and an invariance-check sketch. The strategy itself will go to Ev as an [ev] PR.
+  - Not replied on 5426, since it is merged.
+
+- 2026-10-20 (WIRE orchestrator) Ev approved 5411 after asking to rewrite the misleading sentence: 'looks good!'. Merged (86f868aeb2), fork-log row 177 filled (match: neither). Fork row closed. Follow-ups:
+  - Filed scalar/kernel-defect-ending-sites-convert-to-panics-or-their-true-ending (P2 H), with the 28 outside sites by owning program.
+  - Raised CLEAVE's ring-tie row to P1, since it is a known-reached defect.
+  - WIRE rows:
+    - eval-typed-defect-arms-go-by-row-zero-or-panic (dispatched as wire-evalarms, FULL review, staying out of names/ while seamorder runs);
+    - names-emission-raises-panic-or-take-their-true-ending (after seamorder);
+    - held-out-goes-once-the-ring-tie-row-is-fixed (parked on CLEAVE).
+  - The pinch-corner row is unparked: it is a limit, row 1.
+
+- 2026-10-20 (WIRE orchestrator) wire-namesurvey reported, and the survey is saved on the strategy row.
+  - About 120 naming defects in six groups. The candidate principle fails as worded, since it needs declared symmetries, locality, reads, totality and birth records.
+  - The member-order probe on corpus::documents() found 0 differences: the wrong corpus.
+  - Filed intent/a-placement-adds-no-name-segment-is-said-three-ways (a RoleSeg::Placed inconsistency, D10).
+  - Dispatched FORK-NAMESTRATEGY (designer pair; byte drawn, unread).
+  - Dispatched wire-nameinv (wire/name-invariance-checks; STYLE review), six perturbations over a contact-heavy corpus with findings filed and admitted both ways.
+
+- 2026-10-20 (WIRE orchestrator) FORK-NAMESTRATEGY first reports. They converge on five principles, a derivation for new entities, no reversal of 158–179, and dropping OrderAlong.of (filed P2).
+  - O found that the principle is ratified already, in Ev's words: DESIGN.md [intrinsic.contingent], 436489e58b, 2026-10-17. Naming is missing from its 'Instantiated in' list, and N4's agent-written invariant predates it and is looser.
+  - Crossover round 1 sent on: the framing; the grammar (4 forms vs a 6-case ladder plus a type gate); checks P8 and the denotation verifier; the coincidence-row scope; the one-namer code-level cause.
+  - Passed perturbations 7 (insertion history) and 8 (arena permutation, only if a helper exists) to wire-nameinv.
+
+- 2026-10-20 (WIRE orchestrator) FORK-NAMESTRATEGY converged in one round.
+  - The result is N0: five principles NS1–NS5, a four-form grammar (Carried, Merged, Met, Made), a check per principle, and no reversal of rows 158–179.
+  - The premise was checked: [intrinsic.contingent] is ratified (via [ev] 5230), and naming never instantiated it.
+  - [ev] PR 5455 adds N0, rewrites N4's invariant, and lists [identity] in [intrinsic]. Fork-log row 183.
+  - Open: whether a crossing's sense may read an edge's stored orientation; it waits on the arena-permutation check. The Placed question goes to D10.
+  - Subscribed.
+
+- 2026-10-20 (WIRE orchestrator) Ev on 5455: 'this is looking good!'.
+  - Ev is sure of no frame and no value, but less sure of slot and order, and asked what slot means. Ev also asked for a usage example and how ties are ruled out for identical operands; 3 and 5 'yes'.
+  - Added a definition of slot (sequence vs set) and a worked example to N0 (26abb74f8d).
+  - Replied:
+    - slot and order explained, with the measurement under way in wire-nameinv;
+    - the example;
+    - identical operands never collide (the read is in every carried name), but N4 ties remain by design where geometry doesn't distinguish, plus D10's Placed question.
+
+- 2026-10-20 (WIRE orchestrator) PR 5460 (wire-nameinv) is green at 93d1cf0c37.
+  - Seven invariance tests over a contact-heavy corpus.
+  - Found:
+    - a body and its copy named from the copy minted first;
+    - a pinch named by the leg minted first;
+    - one pair-union order refusing EntityNamed.
+  - Filed 3 new wire rows, a P3 topo arena-helper row, and a cleave at-rest refusal.
+  - Perturbations 3 and 4 find nothing today.
+  - STYLE review dispatched; it presses whether the set-sort normalisation hides content leaks.
+
+- 2026-10-20 (WIRE orchestrator) PR 5457 (wire-evalarms) is green at 8f279e27fc.
+  - VerbArity and ProfileAnchor go by row 0; ProfilePieces and ProfileRecordMissing by row 4. MissingSlot is row 4 except on D10 readers (parked).
+  - Two rewordings forced by moved code: the bounds-allowlist pin goes 1→5, plus the real.rs SEAT-4 and the READMEs.
+  - Four rows filed.
+  - FULL review dispatched; it presses input-reachability per panic and the five-copy header.
+
+- 2026-10-20 (WIRE orchestrator) PR 5460 STYLE review at 93d1cf0c37: mergeable once M1 is fixed.
+  - Demonstrated: planted leaks red tests 1 and 3, and the admissions red both ways.
+  - M1, demonstrated: many cases are vacuous (both sides empty or refusing). Fix with a must-compare assertion and a VACUOUS admission.
+  - m1: the hand set-sort copies canonical.rs partially; use production canonicalisation.
+  - m2: per-witness admissions. m3: tilt refusals were skipped. m4: the copy row's remedy conflicts with N0. m5: wrong row cited. m6: add an OrderAlong case. m7: the arena row. m8: test 5 is a subset of 7.
+  - Fix pass sent.
+  - Class note: an invariance test over a corpus that mostly refuses or is empty passes by comparing nothing. Assert that each case compared something.
+
+- 2026-10-20 (WIRE orchestrator) PR 5457 FULL review at 8f279e27fc: approve with fixes.
+  - No input-reachable panic found arm by arm. The anchor mutations go red. Key bytes unchanged.
+  - MAJOR-1: Verb<T> left as an enum nothing in production builds, so the V1 rewording would have changed what V1 decides. The fix routes production through Verb with the typed doors as payloads and deletes Arity if unread. No [ev] needed if V1 keeps its decision.
+  - Also: one supertrait for the 5-copy bound (pin back to 1); profile_edges_of's caller-reachable assert; stale citers; derive_naming's silent no-Outer; NITs.
+  - Filed a-doc-deserialized-directly-skips-the-load-doors-checks (P2).
+  - Class note: a rewording 'because code moved' must be checked against whether the code still does what the clause decides.
+
+- 2026-10-20 (WIRE orchestrator) 5457: the lane showed that MAJOR-1's fix (route production through Verb<T>) is impossible without bringing the mismatch back. With no GADTs, a variant can't be tied to its operand type.
+  - V1 is ratified (#1388, #1870, #1983, #1997), so the question went on 5457 itself, titled [ev]. Recommended (a): delete Verb<T> and Arity, keep VerbKind closed. (b) keep a vocabulary-only wrapper; (c) one unreachable arm per lowering.
+  - The lane pushes items 2–6 meanwhile (DoorScalar, pin 2). Subscribed.
+
+- 2026-10-20 (WIRE orchestrator) PR 5460 merged.
+  - The fix pass was read: VACUOUS lists both ways; production canonicalisation via remap_name; per-count admissions; tilts compared not skipped; in-plane rotation added; twins merged into history.
+  - New rows: bridge-last fold refusal; CITED_GROUP_NOT_ONE_SEAM.
+  - Admitted counts recorded in the PR body.
+  - OrderAlong is unreachable with planar and cylindrical carriers, noted on its row.
+
+- 2026-10-20 (WIRE orchestrator) PR 5469 (wire-seamorder) is green at 253aefec22.
+  - Seam sides and crossings now come from the boolean's table with their read, in name order. Seams/of_published retire, as do the dead RankRule arms and MergedChord/OffRim.
+  - The both-rims case is a typed Emission: a probe never fired, and nothing citable rules it out.
+  - The vertex rule is narrowed from the designers' version, disclosed.
+  - Names moved: all 30 subtract tables; 5 of 21 unions, via embedded subtracts only.
+  - die_composed_tour.pncad is respelled by a scratch replay. The file is stale on main, filed with intent.
+  - Filed the Borders bare-names row.
+  - FULL review dispatched.
+
+- 2026-10-20 (WIRE orchestrator) PR 5469 FULL review at 253aefec22: changes requested.
+  - M1, demonstrated: the head predates 5460, so merging reds four name_invariance tests on 'two prisms' VACUOUS; it now compares with zero differences. Remove the entries.
+  - m1: the new typed Emissions misread D9. Correcting my own brief: the ratified rows 4/5 test is 'current best understanding', not a citation (that was 5411's withdrawn first draft). BOTH_RIMS becomes unreachable!; ONE_OPERAND and BESIDE_OFF_RIM become row 2 or row 4 by D9.
+  - m2: the zip-rim path is unit-only. m3: a silent unwrap_or_default. m4: RankRule (true,true) given a reading.
+  - Also: witnesses to assert agreement across symmetries; the RimPick ladder once; stale prose; rows.
+  - Fix pass sent.
+  - Class note: re-read the ratified text, not my memory of a draft, before briefing a D9 rule. A withdrawn draft's test leaked into a brief.
+
+- 2026-10-20 (WIRE orchestrator) PR 5469 merged (747279992d).
+  - The fix pass was read. BOTH_RIMS is now unreachable!. Distinct faces off their rim at a subtract or intersect are row 4 (a valid operand's faces meet only along edges); one face on both sides is row 2, the new ChordOffRim, Unruled.
+  - Name agreement is asserted across symmetries, and the RimPick ladder is written once.
+  - Three rows closed; the Transform-copy row is closed here.
+  - Dispatched (emit_topo is free now):
+    - wire-secface (wire/section-face-pieces; FULL review), the row-179 build;
+    - wire-mintfirst (wire/union-reads-not-mint-order; FULL review), for the copy-minted-first and pinch-leg-minted-first leaks, staying in emit_union.
+
+- 2026-10-20 (WIRE orchestrator) PR 5486 (wire-secface) is green at dd014186b8.
+  - SectionFace is a unit variant; pieces carry Borders walls; merged groups are Merged{SectionFace, floor}.
+  - The kernel exports SplitNaming::islands, via a second nest run.
+  - Goldens moved for the 3 split documents.
+  - The python suite was skipped, and the old swap was not re-measured on main.
+  - FULL review dispatched; it presses the kernel verdict log, the python suite, the motivating defect and the three Emissions.
+
+- 2026-10-20 (WIRE orchestrator) Ev on 5455 asked how a boolean gets its inputs.
+  - Answered from main: operands are BodyReads (a VarId, plus a CopyKey or indices); placement happens upstream (Transform, or a placement's copies); the boolean takes no placement info.
+  - What a placement is, and the read-vs-Placed question, are D10's (INTENT).
+- 2026-10-20 (WIRE orchestrator) PR 5488 (wire-mintfirst) is green at 3ec6022478, titled [ev].
+  - Flush stretches, vertices and crossing lines held by several members are now Merged of them in name order.
+  - It retires ratified flush clauses rows 74 and 121 (first-minted / least).
+  - The name_invariance history admissions go to empty, with no golden moved.
+  - Rows needs_ev. Subscribed. FULL review dispatched in parallel.
+
+- 2026-10-20 (WIRE orchestrator) PR 5486 FULL review at dd014186b8: NOT MERGEABLE.
+  - MAJOR 1, demonstrated: a pocket+pin+moat split that evaluated at base now refuses an Emission. The island record is taken pre-merge, and end_maximal dissolves the ring.
+  - MAJOR 2, demonstrated: test_north_star 0 != 14, a stale one-segment pattern against the approved spelling.
+  - Q1: the second nest run adds verdicts to five existing fixtures. Q3: the witness doesn't red on the old index (the fixture is drawn in the xy frame; the swap needs u=z), and split_pinch_keeps' tilt row compares name sets only.
+  - The Emissions are reclassed under D9; tied-flag fold; limits row; NITs.
+  - Goldens confirmed spelling-only by a full dump. Fix pass sent.
+  - Class note: a lane's 'motivating defect is fixed' needs the witness to red on the base. 'Now passes' is not 'would have caught it'.
+
+- 2026-10-20 (WIRE orchestrator) Ev approved 5455 ('this seems alright though i don't know if the intent refactor will affect it'). N0 merged (0c9d84779c); fork-log row 183 filled. Strategy row closed.
+  - Ev's caveat is recorded on intent's Placed row: N0's NS1(b)/NS4 are re-checked when the placement rebuild lands.
+  - Filed N0's follow-ups:
+    - clause pointers (P3);
+    - the RoleSeg→form map (P2);
+    - the denotation verifier (P2 H);
+    - the coverage fuzzer (P2 H).
+  - Already filed: the arena-permute helper (P2) and OrderAlong.of. The one-namer program is left to the slate.
+
+- 2026-10-20 (WIRE orchestrator) Ev on 5457 asked where the verb/door mismatch could happen before.
+  - Answered: never in shipped code. At the merge base every Verb door method took any variant and refused Arity at runtime; only the verbs crate's own door-matrix tests made the mismatched call, on purpose. editor-core's correspondences always matched.
+  - So the (a)/(b)/(c) choice is API shape only. (a) is the smallest.
+
+- 2026-10-20 (WIRE orchestrator) Ev approved 5488 ('this looks good'): retiring flush clauses rows 74/121 is ratified. needs_ev cleared; the merge waits on the FULL review's adjudication.
+
+- 2026-10-20 (WIRE orchestrator) PR 5488 FULL review at 3ec6022478: the code is right, and a planted least-pick reds two tests.
+  - MAJOR, demonstrated: line_sense/line_head still read mint order, on a pinch with one leg reversed (Leaves vs Enters by authoring order). The README sentence Ev approved stated 'its least edge' as the rule.
+  - Handled by disclosure: told Ev on the PR. The fix pass rewords the sentence to 'one of its edges; which is open', raises the row to P2 with the fixture measured and admitted, and fixes the citation (row 124, not 121).
+  - Also: line_head's unchecked flush assumption; stale docs; cites_both on the head; a locality assert; the tied flag; three rows (N5 two-hop offers, subtract seats via the least, the duplicated grouping helper).
+  - Class note: before merging a text Ev approved, check that the review didn't find the approved sentence itself false. If it did, narrow the text and tell Ev; don't merge it as ratified.
+
+- 2026-10-20 (WIRE orchestrator) Ev on 5457: '(a) works though the stakes seem low'. The lane finishes item 1: delete Verb<T>/Arity/VerbKind::arity, keep VerbKind closed, reword V1. Merge follows.
+
+- 2026-10-20 (WIRE orchestrator) PR 5457 merged (8428fbb043) as option (a). Verb<T>, Arity and VerbKind::arity are gone, VerbKind stays closed, and V1 is reworded per Ev.
+  - The fix-pass items are in: DoorScalar (pin 2), profile_edges_of's caller-reachable assert gone, derive_naming typed or row 4, stale citers fixed.
+  - Eval-arms row closed. MissingSlot stays typed on the D10 readers (parked row).
+
+- 2026-10-20 (WIRE orchestrator) PR 5488 merged (59c00412db) and its two mint-order rows closed.
+  - Fix pass: the least-edge sentence is narrowed to 'which edge orients it is open', and the orientation row is raised to P2 and measured (18 names, admitted as LINE_ORIENTED_BY_LEAST). Ev was told before the merge.
+  - line_head now checks it is a flush line; cites_both checks the head reads; a locality assert added; tied flag pinned.
+  - Rows: doctail N5 two-hop offers; one flush-grouping helper; pair-seam seat trace (no cross-seat least).
+  - [ev] taken off the title.
+
+- 2026-10-20 (WIRE orchestrator) PR 5486 fix pass at 4bddb8ab69 is green, including python.
+  - topo now defines a half's plane pieces (SplitNaming::plane_pieces); record_islands runs post-merge with new verdicts on ringed sides; the moat witness evaluates.
+  - The three Emissions are now unreachable!. A completion-index mutant reds both tilt rows. The tie flag is per wall set.
+  - Because the kernel part was rebuilt, a focused FULL re-review of the fix delta is dispatched.
+- 2026-10-20 (WIRE orchestrator) PR 5486 re-review (FULL, fix delta): MERGEABLE.
+  - Both MAJORs are closed by execution: the moat witness evaluates, including a two-pin variant, and the python count is exact (14/14).
+  - Mutant reds re-confirmed. No golden moved beyond the disclosed spelling change.
+  - Merged at 4ea2aa382f. The section-face row is closed.
+  - Filed `a-split-touching-a-wall-at-a-vertex-refuses-a-crossing-vertex-emission` (P2; pre-existing, legal input reaching an Emission) and `a-halfs-plane-has-two-definitions-and-n3-linking-two-homes` (P3; S1–S3, m1, m2 and nits).
+  - topo's `every_public_mutation_path_preserves_tier1` red is inherited from main and already filed (encl).
+- 2026-10-20 (WIRE orchestrator) Dispatched `names-emission-raises-panic-or-take-their-true-ending` as three lanes split by file. The brief is the D9 per-site ladder: row 0, then known reach (stays typed and filed), then row 1/2, then row 4.
+  - `wire-emis-topo` (wire/emission-topo): names/emit_topo.rs.
+  - `wire-emis-union` (wire/emission-union): emit_union.rs, join_names.rs, borders.rs, canonical.rs, defer.rs.
+  - `wire-emis-rest` (wire/emission-rest): emit.rs, emit_sweep.rs, emit_shell.rs, emit_blend.rs, eval/*, coincide.rs, verbs/mod.rs.
+  - Wire is at 69/30 load, so a split along the priority seam is owed (work/README.md "Track size"). This sitting is doing work first; the split is noted here.
+- 2026-10-20 (WIRE orchestrator) `wire-emis-topo` opened PR 5503 (head 368af77673). emit_topo's 76 raises: 8 to row 0, 48 to row 4, 3 to row 2 (SeamVertexParentage), 6 kept typed as reached, 11 survivors.
+  - It filed two rows: ten survivors have no row-1/2 variant, and a tied-set defect.
+  - PR CI ran only a narrow change-filter set; the lane's wide suites were local. A FULL review (`wire-emis-topo-rev`) re-runs the slow set and corrupt-input, and samples the row-4 claims for reach.
+  - Its emit.rs edits overlap `wire-emis-rest`'s file; that lane was told.
+- 2026-10-20 (WIRE orchestrator) `wire-emis-rest` opened PR 5502 (head b4ed55a10e). Of its raises, 57 went to row 4, 2 stay typed as reached, and 2 survive filed (coincide MEET_OF_ONE; union verdicts disagreeing). The rest wait elsewhere: 3 on the verbs row, 4 on D10 ground, and 12 in emit.rs's shared helpers, left because emit_topo, emit_union and others also call them. A FULL review (`wire-emis-rest-rev`) is dispatched; it also merges the 5503 head to check the two together. A follow-up for the 12 helpers is owed once all three lanes land.
+- 2026-10-20 (WIRE orchestrator) `wire-emis-union` opened PR 5501 (head 29b1e8985b). 2 raises went to row 0 and about 64 to row 4.
+  - 13 stay typed: 6 because legal input reaches them, and 7 a correct kernel may reach, which wait on a variant (filed).
+  - It edits `eval/wire.rs`'s `member_cells` caller (5502's file).
+  - A FULL review (`wire-emis-union-rev`) is dispatched, with a three-way merge check of 5501, 5502 and 5503.
+  - Rows owed after all three land:
+    - one NamingError row-1/2 variant set for the 17 deferred "correct kernel may reach" sites (topo 10, union 7; filed rows);
+    - the 12 shared helpers in emit.rs.
+- 2026-10-20 (WIRE orchestrator) PR 5503 FULL review: NOT MERGEABLE, one BLOCKER, DEMONSTRATED.
+  - `Track::runs_with`'s Zero arm panics under an accepted K=1.5: its row-4 argument needs K > 4, and `Tolerance` accepts any K > 1.
+  - Fix pass sent to `wire-emis-topo`:
+    - the Zero arms go typed;
+    - UNCLASSIFIED_SIDE goes back to typed (its union twin is reached);
+    - track_caller is useless inside closures;
+    - message values; the stale merged.rs doc; PR body corrections.
+  - **Class note:** a row-4 argument resting on a band or length bound must hold for every K and ε that `Tolerance` accepts, not the defaults. Both other reviewers were told to probe with CAD_AMBIGUITY_K=1.5 and CAD_TOLERANCE_EPS=1e-6.
+  - The stored-curve row (`naming-edge-curve-ladders-can-read-through-body-stored-curve`) closes when 5503 merges.
+- 2026-10-20 (WIRE orchestrator) PR 5502 FULL review: MERGEABLE. The low-K/ε probe fired no `unreachable!`, and the head merges clean with 5503.
+  - A small fix pass is sent for: stale "refuses" prose in sweep/blend and wire.rs, the RowCell::Result premise, emit_sweep's empty-run ordering and messages, track_caller, the new rows' frontmatter, and a PR body citation.
+  - Filed `emit-rs-shared-helpers-raise-emission-for-torn-reads` for the 12 shared-helper raises no lane owned (review M4).
+- 2026-10-20 (WIRE orchestrator) PR 5502 fix pass at 43ec29c0cb, read by the orchestrator: prose, the RowCell::Result premise (topo doc corrected), emit_sweep's message order, closures out of the panic paths. CI green; merged at 3b93410f6d. The parent row stays dispatched until 5501 and 5503 land.
+- 2026-10-20 (WIRE orchestrator) PR 5503 fix pass at 6a346388cb, read by the orchestrator.
+  - Both runs_with Zero arms refuse typed, with K=1.5 regressions. UNCLASSIFIED_SIDE is typed again. The helpers use match, so track_caller works.
+  - A local merge with main (which carries 5502) passes `cargo check -p editor-core --all-targets`. CI green; merged at 864aa4e786.
+  - The stored-curve row is closed. The parent Emission row waits on 5501.
+- 2026-10-20 (WIRE orchestrator) PR 5501 FULL review: MERGEABLE WITH MINORS. No panic reached under the defaults, K=1.5 or ε=1e-6, including on the three-way merge (one conflict, in wire.rs in_member_space).
+  - Ruling: the three row-4 sites whose argument rests on independent tolerance decisions agreeing go back to typed: name_by_parents' one-parent seam, Flush::line_sense, and sense_against/meeting.
+  - The class note now reads: a row-4 argument holds for every accepted K and ε, and does not rest on two independent decisions agreeing.
+  - Fix pass sent: merge main with the conflict resolution; fold the two variant-less rows into one; split the panicking test; stale prose (including a quote in a perf row); orient's message.
+- 2026-10-20 (WIRE orchestrator) **Cut along the priority seam** (work/README.md "Track size"). WIRE measured 69 budget points against 30. WIRETAIL, the P3/P4 tail, already stood at 25, so two new programs were opened. Rows moved by `git mv` with ids and bodies unchanged, each with a dated "Moved" section.
+  - **NAMECHECK** (14200–14299, 17.5 points, P2): N0's five check rows (verifier, fuzzer, form map, arena helper, pointer rewrite). They are checks, not naming defects.
+  - **WIREREST** (14300–14399, 27.5 points, P3/P4): thirteen rows.
+  - WIRE keeps its P2 naming-defect rows, plus the two P3 D9-class rows its lanes filed (the tied joined set, union verdicts disagreeing): 28.5 of 30.
+  - Priced on the way: the tied joined set P3/M, the loft count P3/E, and the variant-less emit_topo raises P2/M.
+  - Recorded in docs/MODEL-AB-LOG.md, with four live bands (13800–14199) the roster had missed.
+- 2026-10-20 (WIRE orchestrator) Dispatched `wire-docserde` (wire/doc-deserialize-door: Doc's public Deserialize goes through the load door; STYLE+correctness review) and `wire-splitvertex` (wire/split-wall-vertex-crossing: root-cause the vertex-touching moat refusal; FULL review). State sync PR 5509 opened.

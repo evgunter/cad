@@ -23,12 +23,12 @@
 //!
 //! `program` names one expression inside a profile PROGRAM, and its
 //! address is completed by two integers and an argument role that the
-//! word does not carry; `placement_step` names one expression of a
-//! transform's placement past its first step, completed by a step
-//! index; `world_slide` and `world_spin` name one move of a mate's
-//! world read, completed by the constraint and the move's place in the
-//! read, and `value_slide` and `value_spin` a value's number, completed
-//! by the constraint; `side` names one side of a constraint,
+//! word does not carry; `world_slide` and `world_spin` name one move
+//! of a mate's world read, completed by the constraint and the move's
+//! place in the read; `station_slide` and `station_spin` name one move
+//! of a loft section's station, completed by the section and the
+//! move's place in the station; and `value_slide` and `value_spin` a
+//! value's number, completed by the constraint; `side` names one side of a constraint,
 //! completed by the constraint and the side; a loft's `section`, a
 //! union's `member`, a placement's `shape` and a measure's `measured`
 //! name one entry of a list, completed by its position; `index` names
@@ -49,44 +49,27 @@ use pncad::document::{Axis3, OperandSlot, SlotId};
 /// here is a slot a caller can read off a refusal and cannot write
 /// back at.
 pub fn slot_from_word(word: &str) -> Option<SlotId> {
-    // The seven vector families spell their component INTO the word,
+    // The two vector families spell their component INTO the word,
     // exactly as the forward map does — `origin` alone names three
     // slots, and a caller handing one back must say which.
     let slot = match word {
         "origin_x" => SlotId::Origin(Axis3::X),
         "origin_y" => SlotId::Origin(Axis3::Y),
         "origin_z" => SlotId::Origin(Axis3::Z),
-        "normal_x" => SlotId::Normal(Axis3::X),
-        "normal_y" => SlotId::Normal(Axis3::Y),
-        "normal_z" => SlotId::Normal(Axis3::Z),
         "direction_x" => SlotId::Direction(Axis3::X),
         "direction_y" => SlotId::Direction(Axis3::Y),
         "direction_z" => SlotId::Direction(Axis3::Z),
-        "u_x" => SlotId::U(Axis3::X),
-        "u_y" => SlotId::U(Axis3::Y),
-        "u_z" => SlotId::U(Axis3::Z),
-        "v_x" => SlotId::V(Axis3::X),
-        "v_y" => SlotId::V(Axis3::Y),
-        "v_z" => SlotId::V(Axis3::Z),
-        "translation_x" => SlotId::Translation(Axis3::X),
-        "translation_y" => SlotId::Translation(Axis3::Y),
-        "translation_z" => SlotId::Translation(Axis3::Z),
-        "rotation_axis_x" => SlotId::RotationAxis(Axis3::X),
-        "rotation_axis_y" => SlotId::RotationAxis(Axis3::Y),
-        "rotation_axis_z" => SlotId::RotationAxis(Axis3::Z),
         "distance" => SlotId::Distance,
         "radius" => SlotId::Radius,
         "chamfer_distance" => SlotId::ChamferDistance,
         "shell_thickness" => SlotId::ShellThickness,
         "revolve_angle" => SlotId::RevolveAngle,
         "axis_heading" => SlotId::AxisHeading,
-        "spin" => SlotId::Spin,
         "tube_major_radius" => SlotId::TubeMajorRadius,
         "tube_minor_radius" => SlotId::TubeMinorRadius,
         "tube_window_start" => SlotId::TubeWindowStart,
         "tube_window_end" => SlotId::TubeWindowEnd,
         "tube_wall" => SlotId::TubeWall,
-        "rotation_angle" => SlotId::RotationAngle,
         "spacing" => SlotId::Spacing,
         "step" => SlotId::Step,
         "count" => SlotId::Count,

@@ -48,9 +48,9 @@ pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{
-    Affine3, FrameError, FrameInput, FrameVector, LeveredUnitError, Mat3, MotionPart, OrthoAxis,
-    OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, TurnError,
-    UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
+    Affine3, Angle, FrameError, FrameInput, FrameVector, LeveredUnitError, Mat3, MotionPart,
+    OrthoAxis, OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, TurnError,
+    Turns, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
     not_rigid_reading,
 };
 pub use predicate::{
@@ -60,13 +60,13 @@ pub use predicate::{
     KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin,
     MarginDiag, MarginKind, MissReading, MissSource, MissingRecourse, NOT_YET_ENDING,
     RANGE_RECOURSE, Recourse, RefusedReading, SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords,
-    StoredCulprit, SupSpeed, UNNAMED_DECISION, UNREADABLE_MARGIN_NOTE,
+    StoredCulprit, SupSpeed, UNNAMED_DECISION, UNREADABLE_FILE_MARGIN_NOTE, UNREADABLE_MARGIN_NOTE,
     UNREADABLE_STORED_MARGIN_NOTE, UndecidedRefusal, UnderTail, floor_note, lever_recourse, noted,
 };
 pub use readable::Readable;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_exact_zero, is_finite_length,
-    is_underflowed_length, is_zero_length,
+    is_underflowed_length, is_zero_length, pow2,
 };
 pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};

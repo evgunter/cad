@@ -66,7 +66,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::{
@@ -167,11 +166,9 @@ fn carve(
     residual: fn(u32, Point3<f64>) -> f64,
 ) -> Ruled {
     let doc = ProfileDoc::empty_derived(what, tol());
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![lp],
             ids: Vec::new(),
         }),
@@ -181,7 +178,6 @@ fn carve(
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
     );
     // A selection is stored in name order, which for one rod's edges
@@ -768,11 +764,9 @@ fn d_rod_doc(bored: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         });
     }
     let doc = ProfileDoc::empty_derived("d_rod", tol());
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -782,7 +776,6 @@ fn d_rod_doc(bored: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(ROD_L),
-            side: ExtrudeSide::Along,
         },
     );
     let mut selection = vec![lateral_edge(&doc, rod, 0), lateral_edge(&doc, rod, 1)];
