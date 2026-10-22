@@ -74,40 +74,31 @@ const CORPUS_EPS: f64 = 1e-9;
 // worse still reads as green.
 // ---------------------------------------------------------------
 
-// **Why the extreme-weight floors moved, and by how much.** These are
-// AREA-dominated carriers: their symmetric Lipschitz pad is what the
-// enclosure is made of, and the area rule now intersects that pad with
-// the cell's own hull of `g = |S_u×S_v|` instead of choosing between
-// them. Both bound the cell's mean, so the intersection is sound and
-// can only narrow — and on exactly these carriers, where the pad is
-// enormous and the hull is merely wide, it narrows by an order.
-// Nothing about the flux side moved: the carriers whose enclosure is
-// flux-dominated (the cylinders below) moved in their seventh digit,
-// which is the cut arithmetic, not the area rule.
+// Every floor but the C0 kink's is set by the flux's Taylor remainder,
+// whose `f_uu`/`f_vv` hulls are the quotient statement's
+// (`geom_core::spline::cell_measure_quotients`). The kink wall's is set
+// by the cells beside its kink.
 
 /// Möbius-reparameterized quarter cylinder (weight ratio 100).
-/// Was 5.165e-2 before the area rule intersected its two bounds.
-const MOEBIUS_FLOOR: f64 = 2.877_754_878_307e-3;
-/// Warped bilinear with 1e-1/1e1 weights. Was 1.916e-2, same cause.
-const HYPAR_FLOOR: f64 = 2.362_832_410_525e-3;
+const MOEBIUS_FLOOR: f64 = 2.015_259_398_904e-6;
+/// Warped bilinear with 1e-1/1e1 weights.
+const HYPAR_FLOOR: f64 = 1.295_834_045_203e-5;
 /// Quarter torus, R = 2 m, r = 0.5 m.
-const QUARTER_TORUS_FLOOR: f64 = 1.146e-6;
-/// Two-span half cylinder, r = 1 m, h = 2 m — the row that misses the
-/// DEFAULT ε (1.024e-6) by 27%. Re-measured at 1.303_516_100_912e-6,
-/// which its 1e-3 relative tolerance already covered; kept at three
-/// digits because that is the precision this row's claim needs.
-const HALF_CYLINDER_FLOOR: f64 = 1.304e-6;
+const QUARTER_TORUS_FLOOR: f64 = 4.648e-8;
+/// Two-span half cylinder, r = 1 m, h = 2 m: under the DEFAULT ε's
+/// 1.024e-6 m target by 38×.
+const HALF_CYLINDER_FLOOR: f64 = 2.688e-8;
 /// Bilinear unit square with a 1e-3/1e3 weight spread: the enclosure
-/// is uselessly wide, but it is now a WIDTH rather than a degeneracy
-/// (see the row for why the class changed).
-const SQUARE_FLOOR: f64 = 3.415_290_727_405e6;
+/// is uselessly wide, but it is a WIDTH rather than a degeneracy (see
+/// the row for why).
+const SQUARE_FLOOR: f64 = 6.357_819_236_722e5;
 /// C0-kink extruded wall (5 m profile).
 const C0_KINK_FLOOR: f64 = 4.785e-4;
 /// Unit sphere octant (degenerate pole row).
-const SPHERE_OCTANT_FLOOR: f64 = 9.683e-7;
+const SPHERE_OCTANT_FLOOR: f64 = 2.907e-8;
 /// Quarter cylinder at r = 1 km: the floor is a LENGTH, so it scales
 /// with the part (1e3 × the metre-scale quarter cylinder's).
-const HUGE_CYLINDER_FLOOR: f64 = 1.533_469_017_207e-4;
+const HUGE_CYLINDER_FLOOR: f64 = 3.352_413_123_990e-6;
 /// The outcomes a probe is allowed to have on the run's ε — three
 /// honest postures plus the degenerate-face refusal, which is sound
 /// but is a capability gap and so is pinned per carrier.
@@ -1019,9 +1010,12 @@ fn diag_uniform_weight_twins() {
                 rat.flux.lo(),
                 rat.flux.hi()
             );
+            // Read against the closed form, not the dense oracle: the
+            // same locus, and the oracle's own error (2e-13 here) is
+            // wider than this enclosure.
             assert!(
-                rat.flux.lo() <= of && of <= rat.flux.hi(),
-                "rational lane excludes the oracle: [{}, {}] vs {of}",
+                rat.flux.lo() <= truth && truth <= rat.flux.hi(),
+                "rational lane excludes the closed form 20/3: [{}, {}] (dense oracle {of})",
                 rat.flux.lo(),
                 rat.flux.hi()
             );

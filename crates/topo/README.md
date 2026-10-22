@@ -228,8 +228,9 @@ kernel derives exactly which.
 A continuation is not a contact and not a `ContactClass`: a mate (and every
 record and census reading) speaks `ContactClass`, and a boolean glues a
 pair as a `GlueClass`, which is `Rest | Continuation | Tangent`. A mate
-cannot state a continuation, and at rest two flush walls carry nothing
-to verify. A glued `Tangent` is the tangency of two distinct carriers
+cannot state a continuation; at rest two flush walls carry no contact,
+and their alignment is the flush pair the at-rest census records
+(DESIGN.md [assertions]). A glued `Tangent` is the tangency of two distinct carriers
 along a locus the witness lane certifies, and says nothing of the
 materials: whether the pair is a contact (a void crescent between the
 sheets), an overlap (a crescent both materials fill), a seam or a nested

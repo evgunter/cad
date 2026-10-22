@@ -88,3 +88,15 @@ refuses `Escalated { props_quad_converged }` instead. That is this
 door's translation dependence
 (`quad-rational-patch-cross-grows-with-translation`), and it does not
 reach a body through `topo`.
+
+## The rational area cell, 2026-10-22 (QUAD, `quad/rational-quotient-statement`)
+
+`rational_patch_face`'s area hull and pads no longer read a box: they
+are the quotient statement's `sup_norm` and `inf_norm`
+(`geom_core::spline::cell_measure_quotients`), `max_k ‖a_k‖/b_k` over
+each coefficient's own Euclidean norm, per hull block. The site this
+row lists first (`g_hull: (ch[0].sqr() + …).sqrt() / wh.powi(3)`) is
+gone. The rest of the list stands: `trimmed_patch_face_rounds`' `sup_g`,
+`norm_hi` (still read by the integral and trimmed lanes), `area_at`,
+`area_cell`, and the `p_bound` L1 folds. The rotation probe was not
+re-run.
