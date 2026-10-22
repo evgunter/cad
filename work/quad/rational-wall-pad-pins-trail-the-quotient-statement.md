@@ -2,10 +2,11 @@
 id: rational-wall-pad-pins-trail-the-quotient-statement
 kind: issue
 title: the rational-wall pad pins read 2.0016e-6 after the quotient statement tightened the f_uu hulls
-status: open
+status: closed
 priority: P1
 cost: E
 opened: 2026-10-22
+closed: 2026-10-22
 refs: [5582]
 ---
 
