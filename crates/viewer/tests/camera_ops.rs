@@ -115,8 +115,14 @@ fn a_viewport_too_narrow_to_fit_refuses_rather_than_clamping() {
                 required,
                 max_distance,
                 aspect: reported,
+                fov_y,
             }) => {
                 refusals += 1;
+                assert_eq!(
+                    fov_y,
+                    std::f64::consts::FRAC_PI_4,
+                    "the lens that was asked"
+                );
                 assert!(
                     required > max_distance,
                     "the refusal's own numbers disagree"
@@ -553,8 +559,27 @@ fn a_fit_with_no_extent_frames_the_default_and_keeps_the_orientation() {
             (turned.yaw(), turned.pitch()),
             "{extent:?}: a fit is not a reset"
         );
-        // The default sphere is contained, as any fitted sphere is.
+        // The default sphere is contained, as any fitted sphere is, and
+        // fills the view rather than sitting as a speck in it: its rim
+        // along the camera's own up axis reaches past half the frustum.
+        // Containment alone only gets easier the further the eye backs
+        // off.
         let r = camera::DEFAULT_FRAME_RADIUS;
+        let up = fitted.up();
+        let rim = Point3::new(
+            centre[0] + up.x * r,
+            centre[1] + up.y * r,
+            centre[2] + up.z * r,
+        );
+        let reach = fitted
+            .project(rim, aspect)
+            .expect("projects")
+            .expect("in front of the eye")[1]
+            .abs();
+        assert!(
+            (0.5..=1.0).contains(&reach),
+            "{extent:?}: the default sphere's rim projects to |ndc y| {reach}"
+        );
         for offset in [[r, 0.0, 0.0], [0.0, r, 0.0], [0.0, 0.0, r], [-r, -r, 0.0]] {
             let at = Point3::new(
                 centre[0] + offset[0],

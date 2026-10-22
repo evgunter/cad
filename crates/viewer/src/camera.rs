@@ -247,7 +247,8 @@ pub enum CameraError {
         fov_y: f64,
     },
     /// A framing input that cannot produce a camera: a bounding box
-    /// that carried a NaN bound (`Aabb`'s poison state) or was empty,
+    /// that carried a bound that is not a finite number (NaN is `Aabb`'s
+    /// poison state) or was inverted — a minimum above its maximum —
     /// **or** a viewport aspect at or below zero, or a viewport with a
     /// side of zero pixels or fewer.
     ///
@@ -286,19 +287,23 @@ pub enum CameraError {
     /// the scene-derived zoom band, so no camera in the band contains
     /// the scene.
     ///
-    /// Reachable on a viewport far narrower than it is tall: the
-    /// horizontal half-angle binds, and the required stand-off grows
-    /// as `1/sin(half)`. **Refused rather than clamped** — a clamped
-    /// "fit" is a camera that silently does not contain its scene,
-    /// which is the one answer [`Camera::fitted`]'s own contract must
-    /// never give.
+    /// The stand-off grows as `1/sin(half)` of the smaller half-angle,
+    /// so this is reachable two ways: a viewport far narrower than it
+    /// is tall, where the horizontal half-angle binds, and a camera
+    /// whose field of view is itself too narrow ([`Camera::new`] takes
+    /// any `fov_y` in `(0, π)`), where the vertical one binds at every
+    /// aspect. **Refused rather than clamped** — a clamped "fit" is a
+    /// camera that silently does not contain its scene, which is the
+    /// one answer [`Camera::fitted`]'s own contract must never give.
     Unfittable {
         /// The stand-off the fit needed.
         required: f64,
         /// The furthest the zoom band allows.
         max_distance: f64,
-        /// The aspect that demanded it.
+        /// The viewport aspect (width / height) the fit was asked at.
         aspect: f64,
+        /// The camera's vertical field of view, radians.
+        fov_y: f64,
     },
 }
 
@@ -334,18 +339,30 @@ impl core::fmt::Display for CameraError {
                  (about 3.4e38), so there is nothing to draw the picture with",
             ),
             Self::UnusableBounds => f.write_str(
-                "the framing request names no view — the bounds are empty or carry a \
-                 NaN bound, or the viewport aspect is not a positive number",
+                "the framing request names no view — the box to fit has a minimum above its \
+                 maximum or a bound that is not a finite number, or the viewport aspect is \
+                 not a positive number",
             ),
-            // The shape and the remedy. The stand-off and the band stay
+            // The cause and the remedy. The stand-off and the band stay
             // in the value for a caller that wants them; they are not
             // numbers a reader can act on.
-            Self::Unfittable { aspect, .. } => write!(
-                f,
-                "the viewport is about {:.0} times taller than it is wide, too narrow \
-                 to fit the picture; widen it",
-                aspect.recip()
+            Self::Unfittable { fov_y, .. } if lens_cannot_fit(*fov_y) => f.write_str(
+                "the camera's field of view is too narrow to fit the picture; widen the field \
+                 of view",
             ),
+            // The lens alone fits, so the horizontal half-angle is the
+            // one that binds and the pane is taller than it is wide. A
+            // ratio is said only where it reads as one.
+            Self::Unfittable { aspect, .. } => match aspect.recip() {
+                tall if (2.0..1.0e6).contains(&tall) => write!(
+                    f,
+                    "the viewport is about {tall:.0} times taller than it is wide, too \
+                     narrow to fit the picture; widen it"
+                ),
+                _ => f.write_str(
+                    "the viewport is too narrow for its height to fit the picture; widen it",
+                ),
+            },
         }
     }
 }
@@ -536,7 +553,7 @@ impl Camera {
     ///
     /// # Errors
     ///
-    /// [`CameraError::UnusableBounds`] for an empty or poisoned box or
+    /// [`CameraError::UnusableBounds`] for an inverted or non-finite box or
     /// a non-positive aspect, [`CameraError::NotFinite`] for a
     /// non-finite aspect or a box whose radius overflows, and
     /// [`CameraError::Unfittable`] for an aspect at which no camera in
@@ -593,6 +610,7 @@ impl Camera {
                 required: distance,
                 max_distance,
                 aspect,
+                fov_y: self.fov_y,
             });
         }
         Self::new(centre, distance, self.yaw, self.pitch, self.fov_y, radius)
@@ -1111,6 +1129,13 @@ fn stand_off(radius: f64, fov_y: f64, aspect: f64) -> f64 {
     let half_v = fov_y * 0.5;
     let half_h = (half_v.tan() * aspect).atan();
     radius * FRAMING_MARGIN / half_v.min(half_h).sin()
+}
+
+/// Whether a field of view is too narrow for a fit at ANY aspect: the
+/// vertical half-angle alone puts [`stand_off`] past [`band_ceiling`].
+/// Both scale with the radius, so a unit radius asks it for every one.
+fn lens_cannot_fit(fov_y: f64) -> bool {
+    stand_off(1.0, fov_y, f64::INFINITY) > band_ceiling(1.0)
 }
 
 fn finite(what: &'static str, value: f64) -> Result<(), CameraError> {

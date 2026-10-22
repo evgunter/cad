@@ -85,10 +85,25 @@ fn the_spike_document_becomes_a_drawable_scene() {
         (Axis::Y, PLATE[1]),
         (Axis::Z, PLATE[2]),
     ] {
+        // The box is over the `f32` corners drawn, so it is the
+        // plate to within the narrowing's rounding.
         let measured = bounds.max(axis) - bounds.min(axis);
         assert!(
-            (measured - extent).abs() < 1e-12,
+            (measured - extent).abs() < 1e-8,
             "extent on {axis:?}: {measured} vs {extent}"
+        );
+    }
+    // And it is the box of what is DRAWN: every corner the GPU holds,
+    // widened back, lies inside it, and touches each face.
+    for (index, axis) in [Axis::X, Axis::Y, Axis::Z].into_iter().enumerate() {
+        let drawn = mesh.positions().iter().map(|p| f64::from(p[index]));
+        let (lo, hi) = drawn.fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+            (lo.min(v), hi.max(v))
+        });
+        assert_eq!(
+            (bounds.min(axis), bounds.max(axis)),
+            (lo, hi),
+            "on {axis:?} the bounds are the drawn corners' own range"
         );
     }
 }

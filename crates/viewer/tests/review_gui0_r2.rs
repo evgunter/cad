@@ -319,9 +319,16 @@ fn map_stream_agrees_with_folding_its_own_output() {
         };
         let events: Vec<ViewportEvent> = (0..fuzz::scaled(12))
             .map(|_| {
-                if rng.below(4) == 0 {
+                // A quarter zooms, split between the wheel and the
+                // pinch; the other three quarters drag.
+                let kind = rng.below(8);
+                if kind == 0 {
                     ViewportEvent::Scroll {
                         units: rng.range(-4.0, 4.0),
+                    }
+                } else if kind == 1 {
+                    ViewportEvent::Pinch {
+                        factor: rng.range(0.5, 2.0),
                     }
                 } else {
                     ViewportEvent::Drag {
@@ -512,7 +519,7 @@ fn the_scene_bounds_are_the_documents_own_dimensions() {
         (Axis::Z, 0.0, 0.008),
     ] {
         assert!(
-            (b.min(axis) - lo).abs() < 1e-12 && (b.max(axis) - hi).abs() < 1e-12,
+            (b.min(axis) - lo).abs() < 1e-8 && (b.max(axis) - hi).abs() < 1e-8,
             "bounds on {axis:?}: [{}, {}] vs authored [{lo}, {hi}]",
             b.min(axis),
             b.max(axis)

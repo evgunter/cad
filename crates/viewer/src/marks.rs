@@ -583,7 +583,7 @@ pub fn edge_id_lane(index: &PickIndex, display: &DisplayView, id: EdgeId) -> Leg
 pub struct LegLane {
     segments: Vec<[f32; 3]>,
     undrawn: usize,
-    extent: Option<bvh::Aabb>,
+    points: Vec<[f32; 3]>,
 }
 
 impl LegLane {
@@ -607,12 +607,7 @@ impl LegLane {
         T: Narrow<Narrowed = [f32; 3]> + Copy,
     {
         match [from, to].narrow() {
-            Some(pair) => {
-                for end in pair {
-                    self.frame(end);
-                }
-                self.segments.extend(pair);
-            }
+            Some(pair) => self.segments.extend(pair),
             None => self.undrawn += 1,
         }
     }
@@ -624,28 +619,21 @@ impl LegLane {
         T: Narrow<Narrowed = [f32; 3]>,
     {
         if let Some(end) = at.narrow() {
-            self.frame(end);
+            self.points.push(end);
         }
-    }
-
-    fn frame(&mut self, [x, y, z]: [f32; 3]) {
-        let (x, y, z) = (f64::from(x), f64::from(y), f64::from(z));
-        let at = bvh::Aabb {
-            min_x: x,
-            min_y: y,
-            min_z: z,
-            max_x: x,
-            max_y: y,
-            max_z: z,
-        };
-        self.extent = Some(self.extent.map_or(at, |extent| extent.hull(&at)));
     }
 
     /// The box around every position this lane drew or holds, `None`
     /// for a lane with none.
     #[must_use]
     pub fn extent(&self) -> Option<bvh::Aabb> {
-        self.extent
+        crate::narrowing::drawn_box(self.corners())
+    }
+
+    /// Every position this lane drew or holds: its legs' ends, then its
+    /// lone points.
+    pub fn corners(&self) -> impl Iterator<Item = &[f32; 3]> {
+        self.segments.iter().chain(&self.points)
     }
 
     /// Append every leg of a polyline, in order.

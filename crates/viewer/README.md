@@ -26,6 +26,15 @@ it rather than using it. The ratified plan that record answers to is
 | ALT + LEFT drag | orbit — the trackpad binding (plain left never moves the camera) |
 | RIGHT drag | pan |
 | scroll | zoom |
+| ctrl/⌘ + scroll | zoom (as scroll) |
+
+**A pinch is not a mouse binding, and it zooms too**, with the model's
+apparent size following the fingers: a trackpad pinch where the
+platform reports one as a gesture (macOS and iOS through winit, and a
+browser through the web backend), and a touchscreen pinch. A platform
+that turns a pinch into a ctrl+wheel instead hands the viewer a scroll,
+which zooms at the scroll rate — by that mechanism, what a Windows
+precision touchpad's pinch would be.
 
 Left-drag in the viewport is inert **by design** — primary is reserved
 for selection; hold ALT to orbit with it on a trackpad. Moving an
@@ -210,12 +219,14 @@ Three things are known-absent by design:
   with no portal and no zenity gets. It opens on the built-in startup
   document and stays there. Document I/O in a browser needs the
   download/upload or OPFS story GUI-5 owns.
-- **No touch bindings.** `InputMap` binds orbit to a middle drag, pan to
-  a secondary drag, and zoom to a wheel; a phone has none of the three.
-  egui delivers the touch events and `Context::multi_touch` is there,
-  but nothing consumes them, so navigation is unusable on a phone until
-  a touch vocabulary lands. `InputMap::map` is a pure `ViewportEvent →
-  CameraOp` function, so that work is headless-testable.
+- **No touch orbit or pan.** A pinch zooms — a touchscreen's, and a
+  trackpad's the browser reports as a gesture, through
+  `ViewportEvent::Pinch` — but `InputMap` binds orbit to a middle drag
+  and pan to a secondary drag, and a phone has neither. egui delivers the touch events and `Context::multi_touch`
+  is there, but only its zoom is consumed, so orbiting and panning are
+  unreachable on a phone until a touch vocabulary for them lands.
+  `InputMap::map` is a pure `ViewportEvent → CameraOp` function, so
+  that work is headless-testable.
 - **No phone layout.** `initial_layout` splits viewport-beside-panels
   horizontally at a 1280×800 design size. On a ~390 px viewport the
   four-pane dock is unusable; the panes scroll, which is not the same as
@@ -784,8 +795,10 @@ subject enum, and a tuple variant matched at less than its arity —
 finds **no catch-all over a subject enum, no tuple-arity drop, and
 exactly three `..`**: `CameraOp::Frame` drops both its fields and
 reads as the button's name, "zoom to fit";
-`CameraError::Unfittable` drops `required` and `max_distance` and
-renders only the viewport's shape, rounded, with its remedy; and
+`CameraError::Unfittable`'s two arms drop `required` and
+`max_distance` and say the cause — a field of view too narrow, or the
+viewport's shape, as a rounded ratio only where one reads — with its
+remedy; and
 `MateToolEvent::PickLost` drops `resolution`. All three stay dropped —
 rendering any would change what the chrome says — and each carries
 the argument for the drop, `MateToolEvent`'s at its impl (the payload
@@ -1438,18 +1451,22 @@ is where the question of whether it should be broken at all is kept.
 
 ### Zoom to fit frames what is drawn
 
-Every fit — the toolbar's **Zoom to fit**, and the one startup and an
-open book through `pending_fit` — frames the **drawn extent**: the
-world box around what the viewport hands the GPU as geometry on that
-frame. That is the scene's drawn corners (`SceneMesh::bounds`), every
-committed profile's loops and every drawn preview's loops
-(`marks::LegLane::extent`), hulled by `pane::viewport`'s
-`drawn_extent`. A preview that failed to replay draws nothing and
-frames nothing; a loop of one vertex frames its point. The previews'
-step marks are not in it, nor is anything else sized by the view: a
-fit that framed them would depend on the camera it is choosing. So a
-frame builds the geometry lanes, derives the extent, fits, and only
-then sizes the marks against the camera the fit chose. The fit reads
+Every fit — the toolbar's **Zoom to fit**, and the fits that startup
+and an open book through `pending_fit` — frames the **drawn extent**:
+the world box around what the viewport hands the GPU as geometry on
+that frame. That is the scene's drawn corners (`SceneMesh::bounds`),
+every committed profile's loops and every drawn preview's loops
+(`marks::LegLane::extent`), joined by `pane::viewport`'s
+`drawn_extent`. All three are one rule, `narrowing::drawn_box`: the
+box of the `f32` corners that crossed the display seam, widened back.
+A preview that failed to replay draws nothing and frames nothing; a
+loop of one vertex frames its point. The previews' step marks are not
+in it, nor is anything else sized by the view: a fit that framed them
+would depend on the camera it is choosing. So a frame builds the
+geometry lanes, derives the extent, fits, folds the pointer's events,
+and only then sizes the marks against the camera that settled — one
+pure function, `pane::viewport::frame_camera`, whose order a row
+holds. The fit reads
 drawn positions and nothing else — no placement, product or document —
 so it holds over whatever the viewport composes.
 
