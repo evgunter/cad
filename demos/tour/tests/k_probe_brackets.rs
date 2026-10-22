@@ -4,14 +4,10 @@
 //! bodies it reads as a BRACKET are exactly the ones listed per ε.
 //!
 //! A body comes back as a bracket when its gate certified the sign and
-//! its quadrature schedule cannot reach the reporting target
-//! `1024·ε`; the lane says so after round 0 (`props::quad`'s
-//! `last_round_refuses`), and that decision is metered as a
-//! `props_quad_last_round` sample, so a bracket shows in the CSV as a
-//! `negative` row of that predicate. The lily's swept leaves are
-//! rational walls along a cubic spine whose last-round width is about
-//! 1.5e-8 m of mean displacement, so they certify at 1e-6 and 1e-9 and
-//! bracket at 1e-12.
+//! a face's quadrature lane stops (its floor or its work wall) short of
+//! the reporting target `1024·ε`. The lily's swept leaves are rational
+//! walls along a cubic spine, so whether they bracket at a row is the
+//! width their lane reaches at its wall against that row's target.
 //!
 //! The sweep writes one stderr record per body (`probe.rs`'s module
 //! doc): `k_probe(demo)\tvolume\t<scene>\t<label>\t<kind>\t<lo>\t<hi>`.
@@ -31,9 +27,8 @@ struct Reading {
     hi: f64,
 }
 
-/// Runs the sweep at `eps`; returns every body's reading and the
-/// outcomes of `demo/lily`'s `props_quad_last_round` samples.
-fn sweep(eps: &str) -> (Vec<Reading>, Vec<String>) {
+/// Runs the sweep at `eps`; returns every body's reading.
+fn sweep(eps: &str) -> Vec<Reading> {
     let csv = std::env::temp_dir().join(format!(
         "demo-tour-k-probe-brackets-{eps}-{}.csv",
         std::process::id()
@@ -76,14 +71,8 @@ fn sweep(eps: &str) -> (Vec<Reading>, Vec<String>) {
             }
         })
         .collect();
-    let rows = std::fs::read_to_string(&csv).expect("read the k-probe csv");
     let _ = std::fs::remove_file(&csv);
-    let last_round = rows
-        .lines()
-        .filter(|r| r.starts_with("demo/lily,props_quad_last_round,"))
-        .map(|r| r.rsplit(',').next().unwrap_or_default().to_string())
-        .collect();
-    (readings, last_round)
+    readings
 }
 
 /// The swept leaves' Pappus volumes: a rigid lens carried along the
@@ -149,26 +138,18 @@ fn check(eps: &str, readings: &[Reading], expect: &[&str]) {
 
 #[test]
 fn k_probe_brackets_the_swept_leaves_at_eps_1e_12() {
-    let (readings, last_round) = sweep("1e-12");
+    let readings = sweep("1e-12");
     check("1e-12", &readings, &["lily_leaf_b", "lily_leaf_c"]);
-    assert!(
-        !last_round.is_empty() && last_round.iter().all(|o| o == "negative"),
-        "the lily's last-round samples at 1e-12: {last_round:?}"
-    );
 }
 
 #[test]
 fn k_probe_measures_every_body_at_eps_1e_9() {
-    let (readings, last_round) = sweep("1e-9");
+    let readings = sweep("1e-9");
     check("1e-9", &readings, &[]);
-    assert!(
-        last_round.iter().all(|o| o != "negative"),
-        "the lily's last-round samples at 1e-9: {last_round:?}"
-    );
 }
 
 #[test]
 fn k_probe_measures_every_body_at_eps_1e_6() {
-    let (readings, _) = sweep("1e-6");
+    let readings = sweep("1e-6");
     check("1e-6", &readings, &[]);
 }

@@ -6648,30 +6648,33 @@ mod tests {
         // Anti-vacuity, ε-KEYED rather than waived. The INTEGRAL rows
         // ride the exact per-span Newton–Cotes lane, whose width is
         // outward rounding only — ε-independent, so they must certify on
-        // EVERY row of the matrix. The RATIONAL rows ride the O(h²)
-        // composite against an ε-coupled target, so they certify at the
-        // corpus ε and coarser and refuse typed below it; that boundary
-        // is PINNED, not relaxed, and a posture that moves in either
+        // EVERY row of the matrix. The RATIONAL rows ride the exact-v
+        // arm's O(h²) composite in u against an ε-coupled target: at the
+        // corpus ε and coarser every one certifies, and below it the
+        // smooth ones do (multiplicity under the degree, measured at its
+        // work wall) while the C⁰ kink's stops short. That boundary is
+        // PINNED, not relaxed, and a posture that moves in either
         // direction is a finding.
         let certified: Vec<&str> = postures
             .iter()
             .filter(|(_, p)| *p == EpsPosture::Certified)
             .map(|(r, _)| r.as_str())
             .collect();
-        let expected = if Tol::witness().get().eps >= CORPUS_EPS {
-            2 * pu
-        } else {
-            pu
-        };
+        let expected: Vec<String> = (1..=pu)
+            .flat_map(|mult| {
+                let rational = Tol::witness().get().eps >= CORPUS_EPS || mult < pu;
+                [
+                    Some(format!("mult {mult} / integral")),
+                    rational.then(|| format!("mult {mult} / rational")),
+                ]
+            })
+            .flatten()
+            .collect();
         assert_eq!(
-            certified.len(),
+            certified,
             expected,
-            "the ladder's ε posture MOVED at eps={:e}: certified {certified:?}, all {postures:?}",
+            "the ladder's ε posture MOVED at eps={:e}: all {postures:?}",
             Tol::witness().get().eps
-        );
-        assert!(
-            certified.iter().all(|r| r.ends_with("integral")) || certified.len() == 2 * pu,
-            "below the corpus ε only the exact-lane (integral) rows may certify: {certified:?}"
         );
     }
 
