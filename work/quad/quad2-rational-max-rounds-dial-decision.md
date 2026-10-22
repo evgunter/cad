@@ -101,6 +101,16 @@ reaches the quadrature: it refuses at the pcurve mint. The question is
 on an `[ev]` PR because it rewords `crates/geom-brep/README.md`'s
 clause (7) and adds a DESIGN.md clause.
 
+## Note (QUAD, 2026-10-22, PR 5582)
+
+The floors this row argues from moved when the rational lane's `f_dd`
+hulls began to read the quotient statement
+(`quad-rational-integrand-second-derivative-reads-the-quotient-rule-by-hand`).
+The quarter torus now bottoms out at 4.648e-8 m (it was 1.146e-6), and
+the two-span half cylinder at 2.688e-8 m (it was 1.3035e-6). Both
+certify at the default target without a schedule change. No dial is
+turned either way: the row was ruled on `[ev]` PR 5574 (below).
+
 ## Closed
 
 Ruled on `[ev]` PR 5574 (2026-10-22). The dial dissolves: no round cap is
