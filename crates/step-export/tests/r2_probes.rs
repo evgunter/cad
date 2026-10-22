@@ -48,11 +48,8 @@ fn r2_lamina_verdicts_versus_measured_volume() {
     for k in walls {
         let flipped = body.flipped_face_sense_for_tests(k).expect("live face");
         let errs = validate_geometric(&flipped, tol).unwrap_err();
-        let vol = topo::mass_properties(
-            &topo::test_support::finished("the measured body", flipped.clone(), tol),
-            tol,
-        )
-        .map(|m| m.volume);
+        // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+        let vol = topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume);
         let all_lamina = errs
             .iter()
             .all(|e| matches!(e, ValidationError::LaminaWedge { .. }));

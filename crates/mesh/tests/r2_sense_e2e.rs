@@ -60,11 +60,9 @@ fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
         let s = inside_out.get_face(k).unwrap().sense;
         inside_out.set_face_sense(k, !s).unwrap();
     }
-    let mp = mass_properties(
-        &topo::test_support::finished("the measured body", inside_out.clone(), Tol::witness()),
-        Tol::witness(),
-    )
-    .expect("the twin measures too");
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let mp = topo::test_support::measure_unvalidated(&inside_out, Tol::witness())
+        .expect("the twin measures too");
     assert!(
         (mp.volume + exact).abs() <= 1e-12 * exact,
         "reversing every face negates the enclosed volume: {}",

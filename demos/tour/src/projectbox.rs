@@ -203,11 +203,20 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
             .into(),
     ];
     let round = spring::<f64>(&round, PER_TURN, tol).expect("the round-wire coil builds");
-    let round_props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&round), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    );
+    // Tier 3 measures the volume first: where the quadrature runs out
+    // of budget it is the gate that refuses, and the wall reads that
+    // measurement's refusal.
+    let round_props = match pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&round), tol)
+    {
+        Ok(round) => pncad::topo::mass_properties(&round, tol),
+        Err(errors) => Err(errors
+            .into_iter()
+            .find_map(|e| match e {
+                pncad::topo::ValidationError::VolumeUncomputable { source, .. } => Some(source),
+                _ => None,
+            })
+            .expect("the round-wire coil passes tier 3 or cannot be measured")),
+    };
     if tol.eps() > pncad::tolerance::DEFAULT_EPS {
         let props = round_props.unwrap_or_else(|e| {
             panic!(

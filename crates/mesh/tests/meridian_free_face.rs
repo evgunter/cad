@@ -125,12 +125,10 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
             "z = {z}"
         );
         let exact = PI * (1.0 - z).powi(2) * (2.0 + z) / 3.0;
-        let volume = topo::mass_properties(
-            &topo::test_support::finished("the measured body", above.clone(), tol),
-            tol,
-        )
-        .unwrap()
-        .volume;
+        // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+        let volume = topo::test_support::measure_unvalidated(&above, tol)
+            .unwrap()
+            .volume;
         assert!(
             (volume - exact).abs() <= 1e-12 * exact,
             "cap above z = {z}: volume {volume} vs {exact}"
@@ -297,6 +295,7 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
             (1.125 * PI, 3.75 * PI),
         ),
     ] {
+        // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
         let (a, b) = (
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", (seamed).clone(), tol),
@@ -304,12 +303,9 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
             )
             .unwrap()
             .volume,
-            topo::mass_properties(
-                &topo::test_support::finished("the measured body", rim_only.clone(), tol),
-                tol,
-            )
-            .unwrap()
-            .volume,
+            topo::test_support::measure_unvalidated(&rim_only, tol)
+                .unwrap()
+                .volume,
         );
         assert!(
             (a - b).abs() <= 1e-12 * exact.0 && (a - exact.0).abs() <= 1e-12 * exact.0,
