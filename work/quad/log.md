@@ -156,3 +156,59 @@ Measured on main `258dc6c7c2`, with `ec32861499` (just before FLUX's #5442) as t
 - **swept circle: the position half is gone** (#5442). The knot-structure and degree findings stand: every `circle`-section cell refuses at the default ε, at widths 6e-6 to 2e-5. Stays P1: it still blocks ordinary round tubes. The row's own recipe now hits tour wall 9 (`PathTangentReversal`), so the lofted twin was measured instead.
 - **area pads: stands, first measurement.** The bracket width varies 1.13× under rotation, and the flux width 2.8×. Stays P3.
 - **Class finding, sent to FLUX's log:** #5442 reads a shell about its first quadrature face's start, which costs bodies at the origin. That is evidence for FLUX's `a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first`.
+
+## 2026-10-22 — `[ev]` PR 5574 ruled: the measurement door refines until a predicate resolves, no default
+
+Ev approved the converged round-4 design ("ok yay!"), asked for no default ("ideally every caller can be made to specify what it actually needs up front"), and approved the no-default text ("looks good!").
+- `quad2-rational-max-rounds-dial-decision` closed as ruled; fork row 188 (numbered 188 at merge: main had taken 187) is completed, with A = Fable and B = Opus (byte 111).
+- The build is `the-measurement-door-refines-until-a-predicate-resolves` (P1, H, design-first spec, then a DUAL review).
+- The rows it dissolves now name it as `parent`; COINCIDE's connectedness row is listed in its body.
+## 2026-10-21 — the dial weighed; `[ev]` PR 5574
+
+Designer pair on `quad2-rational-max-rounds-dial-decision`, on PR 5568's
+head, with the August numbers re-measured (unchanged: torus 1.146e-6,
+half cylinder 1.3035e-6, against 1.024e-6). The labels and blinding byte
+are on `analysis/design-fork/quad-rounds-dial`; fork-log row 187.
+- Round 1 split on whether a width wider than the target refuses.
+- Round 2 converged on a measurement that returns the bracket it reached,
+  at a per-call requested resolution, under one weighted work bound with a
+  stop on the narrowest round.
+- The change rewords `crates/geom-brep/README.md` C12(7) (agent-written,
+  `b54f9af64d`) and adds DESIGN.md `[tolerance.measure]`, so it is `[ev]`
+  PR 5574. If approved, the dial row closes into a unit that also
+  dissolves `quadrature-budget-conflates-its-lanes-and-budgets`,
+  `a-sign-walk-escalates-on-the-last-rounds-in-band-reporting-reading`
+  and QUADTAIL's stop-rule row, and finishes `C3`'s constant family.
+
+Filed off-question:
+- `the-area-pass-never-refines-beside-a-converged-volume` (P2);
+- `a-quadrature-loop-returns-its-last-round-not-its-narrowest` (P2);
+- QUADTAIL's `a-face-runs-rounds-it-never-intersects` (P4).
+
+`PastTarget::refine` reading `LAST_ROUND_EVERY_LANE_RUNS` while
+`sign_walk` reads `rounds_remain` (two readings of one schedule) goes to
+PR 5568's fix pass.
+
+## 2026-10-22 — PR 5568 merged; the face-extent row re-banded
+
+- **PR 5568 merged** (`a6bab62c71`, head `1d644699d4`). It took two base merges, one through FRAME's frame-spelling conflicts in `lily.rs` and `klein.rs`. The `viewer gui montage` render job is red on main's own drift: INTENT's datum retirement renamed `datum-extrude-place-profile-*`, and the old cells were never removed with `git rm`. FRAME's log already carries it as a seam to INTENT. A comment on PR 5568 says so.
+- **`quad-face-extent-trusts-caller-perimeter` P0 → P3, moved to QUADTAIL.** Its own body measures zero production violations; the bad perimeters are test probes. QUAD now has no P0.
+- **Next (sequencing):** `D30` (re-check first: it predates `Knots<T>` and NURBS's span-locator unit) and `an-undecided-ring-at-the-first-converged-round-refuses-instead-of-refining` in parallel. They work different regions of `quad.rs`.
+  - The dial-dependent P1s wait for Ev's ruling on `[ev]` PR 5574, because that PR's stop-rule unit rewrites the same loops: `quad-last-round-margin-has-no-sign-premise`, `quadrature-budget-conflates-its-lanes-and-budgets`, the reporting half of `a-swept-circle-section-loop-…`, and `C3`'s split.
+## 2026-10-21 — check 7's sign walk merged (PR 5568)
+
+- **Single FULL review** found no MAJOR. Four MINORs went to the fix pass, two of them regressions this PR introduced:
+  - `volume_backstop` went from 3.1 s to 53.4 s on a budget-refused face; fixed by `target_walk`, which runs 4 quadrature verdicts instead of 18;
+  - the tight re-derive of a fully-walked face read it at round 0; fixed by `taken_at`, without a witness.
+- **Lane coverage:** each lane and the carried refusal now have a row that goes red under its own revert.
+- **Focused re-review of the fix pass:** mergeable. Its notes are filed:
+  - `a-refused-faces-later-hard-error-is-swallowed-whatever-its-kind` (P3, E);
+  - `face-run-is-a-state-machine-kept-by-convention` (P3, M; a class finding: state held by filtering, not by type, sequenced with PR 5574's stop-rule unit).
+- The precedence call (a budget refusal wins over a later round's hard error on the same face) is the lane's, adjudicated as sound: every reachable kind is "cannot refine".
+- Render moves in `lofts`, `projectbox`, `teapot`, `twisted_duct` and `twisted_tube` are main's drift. The reviewer showed it by elimination: main has merged mesher PRs since the Oct 20 cells.
+- 2026-10-22 — **`an-undecided-ring-…` merged (PR 5580)** after a single FULL review, a focused re-review of the fix pass (which added `quad::Run` across all five lanes and the `refinable` rule), and one test fix (F5: the 1e-12 cylinder row was vacuous). Residue rows: P2 window-end ring, P3 early-round decisions.
+- 2026-10-22 — **D30 merged (PR 5579)**, after a single review and a fix pass taken on the orchestrator's read (each item mechanical; the one behaviour change is a refusal reason now agreeing with `KnotVector::clamped`). Residue filed: `derived-hands-raw-knot-lists-a-loose-knots-could-carry` (P1), `loose-knots-is-an-f64-knot-holder-the-held-derivative-must-carry` (P2).
+- 2026-10-22 — Lane on `quad-rational-integrand-second-derivative-reads-the-quotient-rule-by-hand` (branch `quad/rational-quotient-statement`): the rational lane's `f_dd` hulls and area pads read `geom_core::spline::cell_measure_quotients`, a new statement builder (area element, its slopes over `W⁴`, the flux's second partials over `W⁵`, restricted per hull block). Floors drop 22–305× on the metre-scale carriers; the torus and the two-span half cylinder certify at the default ε. The tightening exposed a rounded-midpoint term the remainder never covered (fixed on this lane; the integral composite filed as `the-integral-composite-reads-its-midpoint-rule-at-a-rounded-midpoint`, P1). Also filed: `quad-rational-position-bound-is-a-quotient-of-hulls` (P3), `quad-rational-area-reads-the-statement-per-hull-block` (P3); evidence added to the translation and per-coordinate-box rows.
+- 2026-10-22 — **`derived-hands-raw-knot-lists-a-loose-knots-could-carry` merged (PR 5581)** on the orchestrator's read (a type change the compiler checks, bits unchanged, the ratchet down one).
+- 2026-10-22 — Correction to the rational-quotient-statement entry: the floors drop 5–1430× (25–1430× but for the 1e-3/1e3 square, 5.4×; the 22–305× it gives undercounts the Möbius and hypar carriers). The fix pass on PR 5582 also re-cut the sweep thread-count goldens, made a cell's span a construction fact (`SpanCell`), and pinned the midpoint enclosure; the rows it filed are named in the PR.
+- 2026-10-22 — **PR 5582 merged** (the rational quotient statement). Dual review, concurrent arm (H). Both reviews NOT-MERGEABLE-AS-IS on the same two MAJORs, both bilateral, so the tally is 0. One fix pass, read on its head by the orchestrator. Pair judged fair despite R2's pattern `pkill` killing one of R1's test processes, which R1 re-ran in full. Class finding: reviewer briefs did not carry the never-kill-by-pattern rule; from now on QUAD's reviewer briefs state it, as implementer briefs do.

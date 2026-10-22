@@ -6,8 +6,8 @@ status: open
 opened: 2026-08-31
 github: 1368
 refs: [1366]
-priority: P0
-cost: D
+priority: P3
+cost: M
 ---
 
 ## From GitHub issue 1368
@@ -25,3 +25,14 @@ Second, smaller finding from the same corpus, recorded here rather than as its o
 ## Home
 
 S-CERT: the gate is `props_quad_face_extent` in `crates/geom-brep/src/props/*`, S-CERT territory, and the issue names its own ground as S-CERT-adjacent with CERT-10 editing nearby.
+
+## Re-banded P0 → P3 and moved to QUADTAIL (QUAD orchestrator, 2026-10-21)
+
+By the band definitions (`work/README.md`, Priority), this is not P0. The
+body above measures zero violations from the production caller across the
+whole corpus: every bad perimeter is one of `geom-brep`'s own test probes.
+So it is a guard that cannot be added until ten probes are fixed (latent
+unsoundness, P3), not a normal verb that is wrong on normal geometry. The
+structural fix is worth weighing against the `debug_assert!`: the lane
+derives the perimeter upper bound itself, so no caller supplies one. The
+only caller that passes one is `topo/src/props.rs`.

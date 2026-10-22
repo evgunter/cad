@@ -228,8 +228,9 @@ kernel derives exactly which.
 A continuation is not a contact and not a `ContactClass`: a mate (and every
 record and census reading) speaks `ContactClass`, and a boolean glues a
 pair as a `GlueClass`, which is `Rest | Continuation | Tangent`. A mate
-cannot state a continuation, and at rest two flush walls carry nothing
-to verify. A glued `Tangent` is the tangency of two distinct carriers
+cannot state a continuation; at rest two flush walls carry no contact,
+and their alignment is the flush pair the at-rest census records
+(DESIGN.md [assertions]). A glued `Tangent` is the tangency of two distinct carriers
 along a locus the witness lane certifies, and says nothing of the
 materials: whether the pair is a contact (a void crescent between the
 sheets), an overlap (a crescent both materials fill), a seam or a nested
@@ -814,14 +815,18 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   inside that island is the island's. Pieces that only touch (at a
   corner, along an edge, or across a face that contact records hold
   apart) are distinct solids, because touching is between distinct
-  entities (tier 3′). A piece that touches itself stays one solid. A
+  entities (tier 3′). A piece that touches itself stays one solid,
+  over an area too: `(bolt ⊔ plate) ∪ bead` is one connected solid
+  whose bolt and plate faces lie on each other, held apart by a record
+  that cites the `⊔` that decided it. Until the census and tier 3′
+  read an area self-touch inside one shell, an operator whose result
+  holds one refuses typed, naming the pair. A
   body is any number of solids, so a disjoint union is a body of
   several solids. Booleans, `shell` and `split` take bodies and return
   bodies, and each sorts its result into solids, so every output is an
-  operand. A product (the copies its world placements define, [placement]) is
-  not a boolean operand: the editor refuses it, naming the explicit union
-  of the copies that makes them one body
-  (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
+  operand, a body `⊔` assembled among them: an operator above it
+  decides only the meetings between its own operands (DESIGN
+  [coincidence.booleans]). Which solids are one part stays recipe
   structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
   The extrude/full-revolve
   hole asymmetry is structural: extruded holes are cap-to-cap tunnels
@@ -879,15 +884,18 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   every joinable vertex after the merge, whatever drew it. A body is then
   the unique complex with maximal faces and maximal edges over its face
   partition, up to the position of each closed edge's conventional
-  vertex, so a union's body does not depend on its member order, and
-  the form is checked at rest on the result alone, with no history, by
+  vertex, so a union's member order decides only which description a
+  glued face keeps and which fold step a refusal names (DESIGN
+  [operations.operators]), and the form is checked at rest on the
+  result alone, with no history, by
   the one predicate the join takes a vertex by: every door that
   finishes a body, import included, ends with the join, and a vertex
   whose regularity reading lands in the sliver band refuses at rest,
   naming the tolerance below which it would be decided.
   Load-bearing dependency: `merge_coplanar_faces` **never fuses two
   vertices into one**. A contact record is a pair of cells, one from each
-  touching shell (vertex, edge or face), whose interiors meet, plus its
+  touching shell (or two of one shell, where a piece touches itself;
+  vertex, edge or face), whose interiors meet, plus its
   backing. A vertex resting on an edge's interior is the record
   (vertex, edge). The output stage deletes a vertex in two shapes, both
   recorded in `killed_vertices`:

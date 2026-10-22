@@ -55,9 +55,7 @@ pub fn nonrational_second_derivative_sup(
                 // derivative hull against its own vector.
                 Derived::Vector(first) => Ok(first.pair().derivative_domain_hull()),
                 Derived::SpanConstant(_) => Err(SecondDerivativeUnbounded::DegreeBelowTwo),
-                Derived::Discontinuous { .. } => {
-                    Err(SecondDerivativeUnbounded::DerivativeKnotVector)
-                }
+                Derived::Discontinuous(_) => Err(SecondDerivativeUnbounded::DerivativeKnotVector),
             },
         )?;
         sum_sq = sum_sq + hull.sqr();

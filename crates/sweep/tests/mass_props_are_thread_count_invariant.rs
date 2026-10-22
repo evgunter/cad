@@ -69,9 +69,10 @@ fn arc_loft(s: f64) -> Body<f64> {
     .body
 }
 
-/// The thin curved strip, two stations high — the body whose volume
-/// enclosure straddles zero after the schedule has run out, so its
-/// target-level reading refuses and names a face.
+/// The thin curved strip, two stations high — the body no round of
+/// whose schedule meets the reporting target, so its target-level
+/// reading refuses after round 0 and names a face, while the gate
+/// refines on past round 0 until its sign settles.
 fn strip_loft(s: f64, delta: f64) -> Body<f64> {
     loft_body::<f64>(
         &[

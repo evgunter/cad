@@ -116,10 +116,14 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
 /// **The fixture** is `common::strip_section`'s thin curved strip:
 /// two large rational walls whose fluxes nearly cancel, so the volume
 /// is `≈ 2·s·delta` per unit height while the enclosure width is the
-/// walls' own. At `s = 1e12·ε` the schedule is exhausted after round 0
-/// at every ε — the family's disposition is a function of `delta/s`
-/// alone, which is why two thicknesses pin the same two arms at every
-/// ε row rather than going vacuous at one of them. Both traversal
+/// walls' own. At `s = 1e12·ε` no round reaches the reporting target
+/// at any ε, so the sign walk runs the schedule out wherever the sign
+/// stays open: at `delta/s = 1e-1` it settles, and at `1e-8` it does
+/// not after the last round (measured at 1e-6, 1e-9 and 1e-12; at
+/// `1e-6` it settles, so the refusing arm sits two decades past it).
+/// The family's disposition is a function of `delta/s` alone, which is
+/// why two thicknesses pin the same two arms at every ε row rather than
+/// going vacuous at one of them. Both traversal
 /// senses are built: the reversed strip is the inside-out twin, and
 /// an undecided sign cannot tell it from the upright one, which is
 /// the whole reason an undecided sign may not pass.
@@ -131,7 +135,7 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
     let tol = Tol::witness();
     let s = 1.0e12 * tol.get().eps;
     let (mut admitted, mut refused) = (0usize, 0usize);
-    for rel in [1e-1, 1e-3] {
+    for rel in [1e-1, 1e-8] {
         for reversed in [false, true] {
             let label = format!("strip rel={rel:e} reversed={reversed}");
             let body = strip_loft(s, rel * s, reversed)
