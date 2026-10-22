@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-21
 priority: P3
 cost: M
+parent: the-measurement-door-refines-until-a-predicate-resolves
 ---
 
 

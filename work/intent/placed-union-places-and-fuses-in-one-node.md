@@ -10,6 +10,8 @@ rides_with: patterns-are-index-variables
 cost: M
 ---
 
+**Spec:** `docs/INTENT-STAGE3-SPEC.md` §8 ("`PlacedUnion` retires"). Built by G, no design question of its own: a placement of the copies, a `Union` reading their pick family, the `Separation` certificate as the union's fast path where the union reads one pick family of one placement. FORK-DM4 is ruled and built (PRs 4527, 4674).
+
 Ev, 2026-10-08: "PlacedUnion sounds like it needs to be fixed". Under
 D10 a union reads shapes already in one space and places nothing, and a
 placement is the operation that defines a copy. `Node::PlacedUnion`

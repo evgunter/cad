@@ -918,14 +918,14 @@ fn signed_box(q: &QuotientPiece<Interval, 3>) -> [Interval; 3] {
 
 /// The quotient's norm sup over its piece, read from above; `NaN` when
 /// it does not certify.
-fn certified_sup(q: &QuotientPiece<Interval, 3>) -> f64 {
+pub(crate) fn certified_sup(q: &QuotientPiece<Interval, 3>) -> f64 {
     let s = q.sup_norm();
     if s.is_certified() { s.hi() } else { f64::NAN }
 }
 
 /// The quotient's norm inf over its piece, read from below; `0.0` when
 /// it does not certify or does not separate the piece from zero.
-fn certified_inf(q: &QuotientPiece<Interval, 3>) -> f64 {
+pub(crate) fn certified_inf(q: &QuotientPiece<Interval, 3>) -> f64 {
     let s = q.inf_norm();
     if s.is_certified() {
         s.lo().max(0.0)

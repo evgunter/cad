@@ -189,18 +189,15 @@ union of its readers' — a node slot, or another variable's definition —
 and one with no reader follows what it reads. One whose side is the
 cut's is declared in the part and deleted from the remainder.
 
-*Inline.* `refactor::inline` is the inverse. An instance whose mates all
-target the world splices its part's placements, each mate on the part's
-world moved by the motion the instance solved to, appended as moves
-about the world's own axes (at the identity, verbatim). Its numbers must
-be numbers (`InlineError::PinReadsVariable`), and a part value charted
-on the part's world refuses a moving landing
-(`InlineError::ValueOnAMovedWorld`). An instance placed by other
-constraints is inlined only when the part's one placement on its world
-is an instance pinned there at the identity, which takes the instance's
-bundle in place of its pin (`InlineError::UnplaceablePart`). A host
-mate reading the instance's copies crosses with its pose written afresh
-over the spliced copy its names land on.
+*Inline.* `refactor::inline` is the inverse, by one rule. It mints a
+`new_space()`, copies the other document's nodes into the host
+verbatim with that document's world read as the new space, and
+rewrites the instance as a placement of the copied product body into
+the instance's target under the instance's own bundle, verbatim. No
+motion is composed, every variable keeps driving its copy, and no
+landing refuses for its numbers. A host mate reading the instance's
+copy reads that placement's copy. Flattening an identity placement
+into its target is an edit of its own, not a case of inline's.
 
 Split and inline compute no frame. Both are pure, returning values plus
 edit lists.
@@ -208,7 +205,8 @@ edit lists.
 *Acceptance.* Split-then-evaluate equals unsplit evaluation at
 structural and name-resolution identity, not bit identity, up to the
 order of copies: the cut's world placements become the part's, and the
-remainder holds one instance of it. Inline-of-split returns the document
+remainder holds one instance of it. Inline-of-split, with the identity
+placement it lands flattened into its target, returns the document
 split was given, up to minted ids and order.
 
 *Crossings.* A kept constraint whose two face reads fall on opposite

@@ -4,6 +4,7 @@ kind: issue
 title: Split's name re-anchor matches a Part(Instance(k)) pick by evaluating k at the document's values, a positional pick that retires with Member keys
 status: open
 opened: 2026-10-09
+parent: patterns-are-index-variables
 ---
 
 
