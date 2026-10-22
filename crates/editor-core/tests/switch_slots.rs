@@ -679,6 +679,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         // The world: no slot at all.
         Node::World,
+        // A new space: no slot either.
+        Node::Space,
     ]);
     for kind in [
         PatternKind::Linear {

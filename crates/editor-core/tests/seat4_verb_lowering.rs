@@ -573,6 +573,11 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// sketch's `x` axis and their walls along their swept segments, where
 /// `orthonormal_basis` picked both off the axes. No plane moved as a
 /// point set.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body, and the content key
+/// holds a placement's target (`VERSION` 18), so ids drawn after a
+/// construction and every value token moved. No point moved.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -611,7 +616,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xbaaf_4dca_5080_816f,
+        got, 0xe886_d45c_1d51_d0d9,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

@@ -258,10 +258,13 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
             distance: len(1.0),
         },
     );
+    // The second joins the first's space, as an operator's operands
+    // share one.
+    let (doc, ext2_in) = crate::fixture::stood_in(doc, ext2, ext);
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![ext.into(), ext2.into()]),
+            members: editor_core::Bodies::Spelled(vec![ext.into(), ext2_in.into()]),
         },
     );
     let ev = run(&doc);

@@ -391,7 +391,10 @@ fn a_redefinition_over_a_measure_binds_after_the_measure_runs() {
 fn an_assertion_over_a_definition_is_poisoned_by_the_measure_under_it() {
     let (doc, a, b) = slabs("s2d-poison", 2.5);
     let [a0, a1] = caps(a);
-    let stray = editor_core::SitedRef::new(b, a0.name);
+    // Read at a copy of `b` standing in `a`'s space, as a measure's two
+    // sites share one.
+    let (doc, b_in) = fixture::stood_in(doc, b, a);
+    let stray = editor_core::SitedRef::new(b_in, a0.name);
     let (doc, measure) = fixture::measure_node(
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },

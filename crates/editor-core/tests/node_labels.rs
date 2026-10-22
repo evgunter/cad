@@ -631,13 +631,14 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     let pair_ref = store.insert(pair, tol);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty_derived("node-labels-inline-host", tol);
-    // The instance's bundle is empty: placed by no world mate, so only
-    // a part whose one world placement is an instance at the identity
-    // could take it, and this part's is a copy of a body.
+    // The instance stands in a space of its own: no world pin carries
+    // it, so only a part whose one world placement is an instance at
+    // the identity could take it, and this part's is a copy of a body.
     let (host, inst) = insert(host, fixture::mated_instance(doc_ref));
+    let (host, _) = fixture::into_new_space(host, inst);
     let host = set_label(host, inst, Some("left bracket"));
 
-    let refused = inline(&host, inst, &resolver, tol).expect_err("a loose plain part");
+    let refused = inline(&host, inst, &resolver, tol).expect_err("a plain part outside the world");
     let InlineError::UnplaceablePart {
         instance,
         why: Uncarried::NotAnInstance { placement },
@@ -1203,15 +1204,15 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     // once, by its noun where it has one and as `this node` where it has
     // none.
     let constraint = editor_core::ConstraintId(editor_core::MintId::new(8, 0x8));
-    let targets = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::Overconstrained {
+    let fixed_twice = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::Overconstrained {
         placement: body,
         constraints: vec![constraint, editor_core::ConstraintId(editor_core::MintId::new(9, 0x9))],
         free: 0,
     })));
-    let line = targets.line_at(body, Speaker::of(&doc));
+    let line = fixed_twice.line_at(body, Speaker::of(&doc));
     assert!(
         line.starts_with(&format!(
-            "{spoken} failed: the mate solve refused: this node's constraints "
+            "{spoken} failed: the mate solve refused: this node's each of constraints "
         )) && line.matches(&t).count() == 1,
         "{line}"
     );

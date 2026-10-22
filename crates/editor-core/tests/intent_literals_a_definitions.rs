@@ -584,7 +584,8 @@ fn a_variable_read_by_a_named_definition_may_be_anonymous() {
     );
     assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
     assert_eq!(applied.doc.var_name(id(&doc, "w")), None);
-    assert_eq!(applied.doc.vars().len(), 2);
+    // `w`, `h`, and the world's space every document holds.
+    assert_eq!(applied.doc.vars().len(), 3);
 }
 
 /// A definition whose input was deleted refuses at each reader, wrapped

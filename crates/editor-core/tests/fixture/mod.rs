@@ -526,6 +526,34 @@ pub fn stood(shapes: Vec<editor_core::BodyRead<Formula>>) -> AuthoredNode {
     )
 }
 
+/// **A copy of `body` standing in the space `of` is in** — the
+/// identity bundle, which reads nothing, so it stands a copy in any
+/// space: what a row writes to bring a construction into the space an
+/// operator reads its other operands in. The document and the
+/// placement.
+pub fn stood_in(doc: ProfileDoc, body: RecipeNodeId, of: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    let target = space(&doc, of);
+    let read = body_read(&doc, body.into());
+    insert(
+        doc,
+        Node::place(
+            vec![editor_core::BodyRead::plain(read)],
+            editor_core::Operand::Var(target),
+            editor_core::stand().bundle(),
+        ),
+    )
+}
+
+/// **The space `node`'s value is in**, which a row reads to stand
+/// another copy beside it ([`stood_in`]).
+///
+/// # Panics
+///
+/// If `node` is in no space.
+pub fn space(doc: &ProfileDoc, node: RecipeNodeId) -> VarId {
+    doc.node_space(node).expect("the node is in a space")
+}
+
 /// **The mate solve, through the ordinary door**, over the parts `o`'s
 /// resolver reaches. A row that solves with a store it does not hand
 /// here levers nothing: every mate on a part faults in the resolver's

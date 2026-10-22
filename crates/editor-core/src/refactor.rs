@@ -1265,8 +1265,9 @@ pub enum Uncarried {
         /// The placement, spoken from the document that holds it.
         placement: SpokenNode,
     },
-    /// The copy lives in a loose space, which a part does not deliver.
-    Loose {
+    /// The copy is in a space other than the world, which a part does
+    /// not deliver.
+    OtherSpace {
         /// The placement, spoken from the document that holds it.
         placement: SpokenNode,
     },
@@ -1299,9 +1300,10 @@ impl core::fmt::Display for Uncarried {
                 "{placement} places it at a pose of its own, so what stands where it did is a \
                  copy moved"
             ),
-            Self::Loose { placement } => write!(
+            Self::OtherSpace { placement } => write!(
                 f,
-                "{placement}'s copy is loose, and a part delivers only its world"
+                "{placement}'s copy is in a space other than the world, and a part delivers only \
+                 its world"
             ),
             Self::NotAnInstance { placement } => write!(
                 f,
@@ -2709,13 +2711,13 @@ enum SourceKey {
 /// **The numbers `placement` is pinned to the world by**, when its
 /// bundle places it in the world by numbers of the world's own
 /// ([`places_in_the_world`]): each world read's scalars and each
-/// value's, as slots. `None` for an empty bundle or one with a mate on
-/// another target.
+/// value's, as slots. `None` for a placement whose target is not the
+/// world, or one with a mate on another target.
 fn world_pin_of<P>(doc: &Doc<P>, placement: RecipeNodeId) -> Option<Vec<(crate::SlotId, VarId)>> {
     use crate::mate::BundleRows;
     let node = doc.node(placement)?;
     let bundle = crate::mate::solve::bundle_of(node)?;
-    if !places_in_the_world(bundle) {
+    if doc.node_space(placement) != Some(VarId::WORLD) || !places_in_the_world(bundle) {
         return None;
     }
     Some(
@@ -2914,7 +2916,7 @@ pub fn split(
                     _ => return Ok(None),
                 };
                 if !world(at) {
-                    return Err(Uncarried::Loose {
+                    return Err(Uncarried::OtherSpace {
                         placement: doc.spoken(at),
                     });
                 }

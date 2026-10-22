@@ -118,72 +118,46 @@ fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNod
     (applied.doc, applied.record.minted)
 }
 
-/// A placed copy of the pip at `p`: a placement of it, a plane mate of
-/// its start cap to the world's `xy`, and its slides and spin as
-/// values. Returns the document and the placement.
+/// A placed copy of the pip at `p`, in the cube's space `space`: a
+/// placement of it whose bundle is the pip's motion as values alone —
+/// its slides along the space's axes and its turn about one of them —
+/// written whole. Returns the document and the placement.
 fn place_pip(
     doc: TDoc,
     log: &mut Vec<TEdit>,
     pip: RecipeNodeId,
+    space: editor_core::VarId,
     p: &([f64; 3], [f64; 3], f64),
 ) -> (TDoc, RecipeNodeId) {
     use editor_core::{Coord, Operand, TargetAxis};
-    let (t, _, a) = p;
+    let (t, axis, a) = p;
+    let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
+    let slides = axes
+        .into_iter()
+        .zip(t)
+        .map(|(at, by)| (Coord::Slide(at), len(*by)));
+    let spins = axes.into_iter().zip(axis).map(|(at, k)| {
+        let by = if *k == 0.0 { 0.0 } else { k * a };
+        (Coord::SpinAbout(at), ang(by))
+    });
+    let placed = editor_core::Placed {
+        mate: None,
+        values: slides.chain(spins).collect(),
+        by: editor_core::PlacedBy::Identity,
+    };
     let (doc, placement) = step(
         doc,
         log,
         TEdit::InsertNode {
-            node: Box::new(editor_core::Node::place(vec![editor_core::BodyRead::plain(
-                Operand::Node(pip),
-            )], editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle())),
+            node: Box::new(editor_core::Node::place(
+                vec![editor_core::BodyRead::plain(Operand::Node(pip))],
+                Operand::Var(space),
+                placed.bundle(),
+            )),
             fresh: Vec::new(),
         },
     );
-    let placement = placement.expect("a placement mints");
-    let mate = editor_core::Mate {
-        on: crate::fixture::plane(Operand::select(
-            pip,
-            vec![crate::fixture::fname(
-                pip,
-                editor_core::RoleSeg::Cap(editor_core::CapEnd::Start),
-            )],
-        )),
-        to: editor_core::Target::World(editor_core::WorldRead::through(
-            editor_core::pose::PoseRole::Xy,
-        )),
-        class: editor_core::ContactClass::Rest,
-    };
-    let edit = TEdit::AddConstraint {
-        placement,
-        mate: Box::new(mate),
-        fresh: Vec::new(),
-    };
-    let applied = doc.apply(&edit, Tol::witness()).unwrap();
-    log.push(edit);
-    let id = applied.record.minted_constraints[0];
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(t[0])),
-        (Coord::Slide(TargetAxis::Y), len(t[1])),
-        (Coord::Spin, ang(*a)),
-    ]
-    .into_iter()
-    .fold(applied.doc, |doc, (coord, by)| {
-        step(
-            doc,
-            log,
-            TEdit::AddValue {
-                placement,
-                value: Box::new(editor_core::Value {
-                    mate: Some(id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
-    (doc, placement)
+    (doc, placement.expect("a placement mints"))
 }
 
 fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile, Formula> {
@@ -257,9 +231,10 @@ fn author_theirs() -> Authored {
     );
     let pip_e = pip_e.unwrap();
     let mut body = cube.unwrap();
+    let in_cube = doc.node_space(body).expect("the cube is in its own space");
     let (mut copies, mut subtracts) = (Vec::new(), Vec::new());
     for p in placements() {
-        let (d2, placed) = place_pip(doc, &mut log, pip_e, &p);
+        let (d2, placed) = place_pip(doc, &mut log, pip_e, in_cube, &p);
         let (d3, cut) = step(
             d2,
             &mut log,
@@ -323,9 +298,12 @@ fn author_mine() -> Authored {
         },
     );
     let pip_e = pip_e.unwrap();
+    let in_cube = doc
+        .node_space(cube.unwrap())
+        .expect("the cube is in its own space");
     let mut copies = Vec::new();
     for p in placements() {
-        let (d2, placed) = place_pip(doc, &mut log, pip_e, &p);
+        let (d2, placed) = place_pip(doc, &mut log, pip_e, in_cube, &p);
         doc = d2;
         copies.push(placed);
     }

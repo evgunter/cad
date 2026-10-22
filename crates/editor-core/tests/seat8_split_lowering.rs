@@ -488,6 +488,11 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// `x` axis and its walls along their swept segments, where
 /// `orthonormal_basis` picked both off the axes. No plane moved as a
 /// point set.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body, and the content key
+/// holds a placement's target (`VERSION` 18), so ids drawn after a
+/// construction and every value token moved. No point moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -508,7 +513,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x2408_3521_d2dd_0000,
+        got, 0xa218_4b53_38f5_c2fe,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

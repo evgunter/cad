@@ -218,10 +218,13 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
             distance: bad(),
         },
     );
+    // The second joins the first's space, as an operator's operands
+    // share one.
+    let (doc, fb_in) = crate::fixture::stood_in(doc, fb, fa);
     let (doc, join) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![fa.into(), fb.into()]),
+            members: editor_core::Bodies::Spelled(vec![fa.into(), fb_in.into()]),
         },
     );
     // One more hop: a copy of the poisoned join.
@@ -404,11 +407,14 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
             distance: Formula::div(len(1.0), scl(0.0)).unwrap(),
         },
     );
+    // The tool joins the union's space, as an operator's operands
+    // share one.
+    let (doc, bad_in) = crate::fixture::stood_in(doc, bad, u);
     let (doc, poisoned) = insert(
         doc,
         Node::Subtract {
             from: u.into(),
-            tool: bad.into(),
+            tool: bad_in.into(),
         },
     );
     (

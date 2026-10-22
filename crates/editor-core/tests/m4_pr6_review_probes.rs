@@ -315,11 +315,25 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     )
     .unwrap();
+    // `e1` joins `e0`'s space, as an operator's operands share one.
+    let in_e0 = doc.node_space(e0).expect("a construction is in its own space");
+    let e1_in = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::place(
+                vec![editor_core::BodyRead::plain(editor_core::Operand::from(e1))],
+                editor_core::Operand::Var(in_e0),
+                editor_core::stand().bundle(),
+            )),
+            fresh: Vec::new(),
+        },
+    )
+    .unwrap();
     let boole = push(
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: editor_core::Bodies::Spelled(vec![e0.into(), e1.into()]),
+                members: editor_core::Bodies::Spelled(vec![e0.into(), e1_in.into()]),
             }),
             fresh: Vec::new(),
         },
