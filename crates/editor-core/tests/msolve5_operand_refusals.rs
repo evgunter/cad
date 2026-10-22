@@ -22,10 +22,10 @@
 use crate::fixture;
 
 use editor_core::{
-    AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, Entry,
-    EvalOptions, Evaluation, Formula, MateFault, MateRef, MateSide, Node, NodeErrorKind,
-    NodeResult, NodeStanding, PartFault, PatternKind, ProductError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, StableName, TargetAxis, Value,
+    AssemblyError, CapEnd, ContactClass, Coord, DocumentId, EntityKind, Entry, EvalOptions,
+    Evaluation, Formula, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult,
+    NodeStanding, PartFault, PatternKind, ProductError, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedFace, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, gate, insert, len, on_frame, run, scl};
@@ -147,33 +147,16 @@ fn seat(
     base_top: SitedFace,
     bottom: SitedFace,
 ) -> (ProfileDoc, MateRef) {
-    let (mut doc, rest) = fixture::constrain_at(
+    fixture::mated(
         doc,
         top,
         fixture::rest(bottom, base_top, ContactClass::Rest),
-    );
-    for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(1.0)),
-        (Coord::Slide(TargetAxis::Y), len(1.0)),
-        (Coord::Spin, ang(0.0)),
-    ] {
-        doc = editor_core::apply(
-            &doc,
-            &DocEdit::AddValue {
-                placement: top,
-                value: Box::new(Value {
-                    mate: Some(rest.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
-        .doc;
-    }
-    (doc, rest)
+        &[
+            (Coord::Slide(TargetAxis::X), len(1.0)),
+            (Coord::Slide(TargetAxis::Y), len(1.0)),
+            (Coord::Spin, ang(0.0)),
+        ],
+    )
 }
 
 /// The placement `mate` refuses with its `on` pose's own refusal, and

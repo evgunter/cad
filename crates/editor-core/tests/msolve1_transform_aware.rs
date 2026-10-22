@@ -23,7 +23,7 @@ use crate::fixture;
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
     Evaluation, MateFault, MateRef, MateSide, NameRef, Node, Operand, PatternKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, VarId, StableName, load, product, save,
+    RecipeNodeId, RoleSeg, StableName, VarId, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
 use fixture::seat::map_gap;
@@ -205,7 +205,10 @@ fn world(
 /// its geometry as `o` evaluates it.
 fn place(doc: ProfileDoc, o: &EvalOptions, body: RecipeNodeId) -> ProfileDoc {
     let read = fixture::body_read(&doc, body.into());
-    let (doc, placement) = insert(doc, crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]));
+    let (doc, placement) = insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+    );
     fixture::pinned(doc, placement, o)
 }
 
@@ -517,7 +520,11 @@ fn a3a_a_pattern_of_a_placed_copy_seats() {
     {
         let (base_part, top_part, opts) = parts("msolve1-a3a");
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3a"), Tol::witness());
-        let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &opts);
+        let (doc, base) = insert_pinned(
+            doc,
+            crate::fixture::mated_instance(base_part.doc_ref),
+            &opts,
+        );
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
         let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
         let (doc, pattern) = insert(
@@ -617,7 +624,11 @@ fn two_operands(
 ) {
     let (base_part, top_part, opts) = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &opts);
+    let (doc, base) = insert_pinned(
+        doc,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, x1) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
     let (doc, x2) = place_moved(
@@ -696,7 +707,11 @@ fn a6_a_residual_bundle_refuses_on_the_target_or_its_copy() {
     let residual = |label: &str, lift: bool| -> (RecipeNodeId, editor_core::EditError) {
         let (base_part, top_part, opts) = parts(label);
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &opts);
+        let (doc, base) = insert_pinned(
+            doc,
+            crate::fixture::mated_instance(base_part.doc_ref),
+            &opts,
+        );
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
         let (doc, at) = if lift {
             place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts)
@@ -833,7 +848,11 @@ fn a8c_the_content_key_separates_two_operands() {
     let key_of = |label: &str, at_part: bool| -> editor_core::ContentKey {
         let (base_part, top_part, opts) = parts("msolve1-a8c");
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &opts);
+        let (doc, base) = insert_pinned(
+            doc,
+            crate::fixture::mated_instance(base_part.doc_ref),
+            &opts,
+        );
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
         let (doc, pattern) = insert(
             doc,
@@ -948,7 +967,11 @@ fn a8d_a_placed_copy_operand_round_trips_through_persistence() {
 fn a10_a_nested_pattern_head_is_read_at_its_copy() {
     let (base_part, top_part, opts) = parts("msolve1-a10");
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a10"), Tol::witness());
-    let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &opts);
+    let (doc, base) = insert_pinned(
+        doc,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     // Spaced so that every copy clears the others — inner along x,
     // outer along y.
@@ -1040,8 +1063,11 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
         .expect("the base is placed")
         .affine::<f64>();
     let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a10-alone"), Tol::witness());
-    let (alone, base_alone) =
-        insert_pinned(alone, crate::fixture::mated_instance(base_part.doc_ref), &opts);
+    let (alone, base_alone) = insert_pinned(
+        alone,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let local = product_face_frame(
         &alone,
         &run(&alone, &opts),
@@ -1168,10 +1194,14 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         .collect::<Vec<_>>()
         .try_into()
         .expect("one constrained instance stayed in the remainder");
-    let [c] = fixture::bundle(&out.remainder, moved)
+    let bundle = fixture::bundle(&out.remainder, moved);
+    let [m] = bundle
+        .iter()
+        .filter_map(editor_core::Constraint::mate)
+        .collect::<Vec<_>>()
         .try_into()
-        .expect("its bundle holds the rest");
-    let m = c.mate().expect("the rest is a mate");
+        .expect("its bundle holds the rest, and its values");
+    assert_eq!(bundle.len(), 4, "the rest and its three values");
     let on = fixture::face_reads(&out.remainder, m.on);
     let to = fixture::face_reads(&out.remainder, *m.to.pose().expect("a pose target"));
     let ([on], [to]) = (on.as_slice(), to.as_slice()) else {
@@ -1291,7 +1321,11 @@ fn a8h_a_cut_constraint_whose_operand_is_kept_refuses_with_the_same_variant() {
 fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, RecipeNodeId) {
     let (base_part, top_part, opts) = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &opts);
+    let (doc, base) = insert_pinned(
+        doc,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, mate) = constrain_at(
@@ -1320,7 +1354,11 @@ fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, Rec
 fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     let (base_part, top_part, opts) = parts("msolve1-a11");
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a11"), Tol::witness());
-    let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &opts);
+    let (doc, base) = insert_pinned(
+        doc,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let rule = |dir: [f64; 3], s: f64| PatternKind::Linear {
         direction: dir.map(scl),
@@ -1371,8 +1409,11 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     assert_eq!(row.body, 3 + 1, "copy (1, 1) is flat body j·M + i");
     let placement = poses.placement(&doc, base).unwrap().affine::<f64>();
     let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a11-alone"), Tol::witness());
-    let (alone, base_alone) =
-        insert_pinned(alone, crate::fixture::mated_instance(base_part.doc_ref), &opts);
+    let (alone, base_alone) = insert_pinned(
+        alone,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let local = product_face_frame(
         &alone,
         &run(&alone, &opts),
@@ -1416,7 +1457,11 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) 
     let label = format!("msolve1-a12-{k}-{j}-{i}-{via_placed}");
     let (base_part, top_part, opts) = parts(&label);
     let doc = ProfileDoc::empty(DocumentId::derive(&label), Tol::witness());
-    let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &opts);
+    let (doc, base) = insert_pinned(
+        doc,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let rule = |dir: [f64; 3]| PatternKind::Linear {
         direction: dir.map(scl),
