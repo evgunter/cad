@@ -27,7 +27,10 @@
 //!   vertex or another edge (passes 2′ and 5′, through
 //!   `geom_brep::curve_pair`); same-key opposed-sense curved
 //!   pairs (the conformal arm, [`sweep_conformal_patches`], through
-//!   the chart-region predicate); face–face records (the patch
+//!   the chart-region predicate); two planar faces of different solids
+//!   meeting over an area, one pair (the planar arm,
+//!   [`planar_face_pairs`], read before the sweeps, which then ask
+//!   nothing of the cells bounding it); face–face records (the patch
 //!   certifier on one carrier or two planes, the `Tangent` table along
 //!   the closed-form tangent line on two other carriers, the line
 //!   placed in both faces). A proper pierce
@@ -164,44 +167,27 @@
 //! The records this rule reconstructs FROM are vertex–vertex and
 //! vertex–face pairs. An edge–face record of a straight edge in a
 //! plane is confirmed by this same reconstruction and backs no event of
-//! its own, so what an overlap needs is unchanged by its presence. A
-//! body's records also hold face–face pairs, and each bullet
-//! below has a corresponding face rung — `Declared::vv_face_backed` /
-//! `vf_face_backed` / `ve_face_backed`, which back a subordinate
-//! vertex event from a declared FACE pair holding the entities it
-//! relates on the pair's two sides, and `ee_face_backed`, which stands
-//! in for a collinear overlap's edge–edge record where a declared face
-//! pair holds the two edges. Those rungs are named in the bullets
-//! rather than left out of the derivation that licenses them. There
-//! are four rungs and not one per bullet: a bound whose event is a
-//! vertex on an edge's interior reads `ve_face_backed` whichever
-//! overlap it bounds, edge-edge or edge-on-face.
+//! its own, so what an overlap needs is unchanged by its presence.
 //!
-//! **The ruled strength is UNIFIED** (CONTACT-DESIGN C3/C4's
-//! post-ratification annotation; `crates/topo/README.md`):
-//! *a declared pair answers exactly for its verified interface — the
-//! overlap region, with material opposition being what "interface"
-//! means for a crossing.* Two consult sites hold that strength: the
-//! crossing rung ([`ee_cross_backed`], born at it) and
-//! [`ef_bound_backed`]'s face-pair arms
-//! ([`Declared::vf_face_backed_confined`]). Every other rung is
-//! structural-incidence and region-unconfined — GRANDFATHERED BY NAME,
-//! each to be migrated one at a time with its own measurement:
-//! [`Declared::vv_face_backed`] at [`sweep_vertex_vertex`],
-//! [`Declared::vf_face_backed`] at [`sweep_vertex_face`],
-//! [`Declared::ve_face_backed`] at [`sweep_vertex_edge`] and
-//! [`sweep_vertex_curved_edge`],
-//! [`Declared::ee_face_backed`] at [`ee_collinear_lane`] and
-//! [`sweep_curved_edge_edge`], and
-//! [`ee_bound_backed`]'s face-pair arms. The face pairs every rung reads
-//! are the ones the body's face–face records name, not user
-//! declarations.
-//! A grandfathered rung asks whether a declared face pair HOLDS the
-//! entities of the event — one on each side, through boundary
-//! membership and an edge's incidence to the faces it bounds — and
-//! never where on those faces the event lies, so it backs an event on
-//! the entities it holds even where that event lies outside the
-//! pair's own overlap region.
+//! **A confirmed face pair is decided once** (`[assertions]`). The
+//! confirmed pairs ([`Declared::confirmed`]) are each face–face record
+//! that passes both doors ([`pair_verified`]) and each planar pair of
+//! two solids the face-pair arm finds meeting over an area
+//! ([`planar_face_pairs`]), recorded or not. The census asks nothing of
+//! a cell bounding one face of a confirmed pair against a cell bounding
+//! the other (a vertex through the faces its boundary holds, an edge
+//! through its two sides, a face as itself): each lane reads the rung
+//! BEFORE it reads the event's own margin, so an in-band event there is
+//! not escalated. The rungs are [`Declared::vv_face_backed`],
+//! [`Declared::vf_face_backed`], [`Declared::ve_face_backed`] and
+//! [`Declared::sides_face_backed`], and the bounds of a continuous
+//! overlap read the same ones ([`ee_bound_backed`], [`ef_bound_backed`]).
+//! A record whose pair does not confirm (no area, a pair on two
+//! carriers, a wrong pair) answers for nothing; its own state is the
+//! confirm pass's report. Where the closures of two faces meet away from
+//! their overlap (a non-convex pair), the meeting is the pair's all the
+//! same: the rung reads incidence, gated by the pair's confirmation.
+//!
 //! Continuous overlaps — two collinear edges sharing a positive-length
 //! segment, an edge resting in a face's region — are confirmed by
 //! **reconstruction from their bounding vertex events**:
@@ -2483,20 +2469,17 @@ fn any_boundary_vertex_at<T: Decide>(
 /// D3 backing for one bound of an edge-on-face overlap (module docs),
 /// at the two granularities a bound can have.
 ///
-/// Its face-pair arms hold the unified strength: a declared pair backs
-/// the bound only where the pair verifies, the bound lying in the
-/// closed intersection of its two regions by incidence
-/// ([`Declared::vf_face_backed_confined`]). Each is read after the
-/// record and structural arms of its bound, because the region doors it
-/// runs are the dearest reads here; it pushes nothing.
+/// Its face-pair arms read the confirmed pairs ([`Declared::confirmed`]):
+/// a pair answers for the bound only where both doors confirm it, the
+/// bound lying in the closed intersection of its two regions by
+/// incidence ([`Declared::vf_face_backed`]). It pushes nothing.
 ///
 /// Where a boundary edge of `f` crosses the edge at the bound, the
 /// event is that `EdgeEdgeCross`, and it takes that lane's backing: an
 /// op's edge-edge record, or the crossing rung ([`ee_cross_backed`]). A
 /// curved boundary edge's crossing is pass 5′'s event
 /// ([`sweep_curved_edge_edge`]), and backs this bound by its record
-/// alone: the face rung pass 5′ grandfathers holds no region, and this
-/// rung's face-pair arms are confined.
+/// alone.
 ///
 /// Where the EDGE holds a vertex at the bound, the event is that vertex
 /// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
@@ -2510,8 +2493,8 @@ fn any_boundary_vertex_at<T: Decide>(
 /// event is a vertex-on-edge, and it takes that lane's backing
 /// (its `(vertex, edge)` record, or the same declared face pair one
 /// incidence step further out, inside its interface), as
-/// [`ee_bound_backed`]'s asymmetric arm reads it (grandfathered there)
-/// for a collinear overlap. A bound is a bound
+/// [`ee_bound_backed`]'s asymmetric arm reads it for a collinear
+/// overlap. A bound is a bound
 /// of the overlap because some entity ends there; which side's entity
 /// that is, is a fact about the configuration, not about what a
 /// declaration can hold.
@@ -3582,11 +3565,9 @@ fn ee_meeting<T: Decide>(
 /// ([`curved::interiors_meeting`], the one reading of two carrier spans'
 /// meetings): each curved edge against the line edges and the later
 /// curved edges whose padded boxes meet its own. A meeting on both
-/// interiors is owed the pair's edge-edge record (D1), or a declared face
-/// pair holding the two edges ([`Declared::sides_face_backed`], the
-/// grandfathered rung of pass 5's overlap lane: the crossing rung,
-/// [`ee_cross_backed`], is planar-first and answers no curved pair, so
-/// a crossing takes the rung pass 2′ takes for its vertex). Unbacked,
+/// interiors is owed the pair's edge-edge record (D1), unless a confirmed
+/// face pair holds the two edges ([`Declared::sides_face_backed`], read
+/// before the meeting, so the census asks nothing of it). Unbacked,
 /// a crossing or touch at a point is an `EdgeEdgeCross` and an overlap
 /// along one curve an `EdgeEdgeOverlap`, each an `UnrecordedContact`. An overlap's bounds are
 /// vertex events, ends of one edge resting on the other or on each
@@ -3796,10 +3777,11 @@ enum CrossingBacking {
 ///    faces' `Face::sense` bits, levered by
 ///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
 ///    same arm the parallel gate meters). No new numerics; and
-/// 3. the pair itself is VERIFIED — [`pair_region_verified`], the
-///    confirm pass's two doors, tried in both frame orders (the
-///    certified answers are frame-invariant, `world_carrier`'s lemma;
-///    trying both keeps the rung total over the record's spelling).
+/// 3. the pair itself is CONFIRMED ([`Declared::confirmed`]): a record
+///    that passes the confirm pass's two doors ([`pair_verified`]), or
+///    a pair the planar face-pair arm found. The side test reads every
+///    recorded pair too, so a declared pair that holds the crossing
+///    with the materials on one side names that verdict.
 ///
 /// The side test is read BEFORE the verified-overlap doors, and the
 /// order is load-bearing rather than convenient: Door 1 CONTRADICTS a
@@ -3812,7 +3794,7 @@ enum CrossingBacking {
 ///
 /// **Two-pass shape, so the posture is a total function of the
 /// geometry and never of `FaceKey` order**: pass 1 walks each
-/// UNORDERED declared pair once (`Declared::index` stores both
+/// UNORDERED recorded or confirmed pair once (`Declared::index` stores both
 /// orientations; every screen and the side algebra are symmetric in
 /// the pair) and collects its outcome; pass 2 emits — every
 /// undecided candidate's escalation exactly once, whether or not some
@@ -3821,8 +3803,8 @@ enum CrossingBacking {
 /// else same-side over undecided (definite evidence over an
 /// escalation), else unanswered.
 ///
-/// **What region containment replaced, named**: the grandfathered
-/// rungs confine by STRUCTURAL INCIDENCE (the pair must hold the
+/// **What region containment replaced, named**: the other rungs confine
+/// by STRUCTURAL INCIDENCE to a confirmed pair (the pair must hold the
 /// event's entities); this rung confines by the carrier instead —
 /// nothing checks that `ea`/`eb` are boundary edges of `fa`/`fb`, and
 /// the CLOSED containment admits a pair whose region only
@@ -4773,11 +4755,9 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
 ///
 /// Scope, stated exactly:
 ///
-/// - **Curved faces only.** Planar conformal interfaces are already
-///   fully evidenced at vertex granularity by the exact sweeps (their
-///   every boundary event is a v-v/v-f/segment finding those passes
-///   report and records back), so the face-pair arm exists for the
-///   inventory the exact sweeps cannot read.
+/// - **Curved faces only.** Two planar faces of different solids
+///   meeting over an area are the planar arm's
+///   ([`planar_face_pairs`]).
 /// - **Shared key only.** C2's identity lemma makes every true
 ///   conformal contact same-carrier for analytic kinds, and within
 ///   ONE body the structural rung IS key identity; value-equal

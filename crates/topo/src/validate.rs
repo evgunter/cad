@@ -9509,11 +9509,12 @@ pub fn validate_pseudomanifold<
 /// every same-key opposed-sense curved pair, and the record
 /// confirm arm on every patch record whose pair passes Door 1 — each
 /// as [`ValidationError::CensusLaneUnsupported`] naming the pair; and
-/// the crossing rung's backing consult answers `false`, so an in-plane
-/// `EdgeEdgeCross` at a declared seat that [`validate_pseudomanifold`]
-/// reports backed is reported here as
-/// [`ValidationError::UnrecordedContact`], with the declaration in
-/// hand. The declaration is not found wrong; it is not read.
+/// it confirms no face pair, so the planar face-pair arm finds none and
+/// every meeting of the cells bounding a seat is read and reported as
+/// [`ValidationError::UnrecordedContact`] where [`validate_pseudomanifold`]
+/// confirms the seat's pair and asks nothing of them, with the
+/// declaration in hand. The declaration is not found wrong; it is not
+/// read.
 ///
 /// # Errors
 ///
@@ -9521,7 +9522,7 @@ pub fn validate_pseudomanifold<
 /// plus the closed form's typed refusal at check 7, plus the census's
 /// `CensusLaneUnsupported` on every conformal candidate and every
 /// Door-1-verified patch record, and an `UnrecordedContact` on every
-/// crossing a declared pair would have backed.
+/// meeting a confirmed pair would have answered for.
 pub fn validate_pseudomanifold_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(

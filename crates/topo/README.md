@@ -752,8 +752,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      (a blend face for the edge it rounds) takes no record from it.
    - **Certification strength equals its skeleton**: a curve touch is
      certified at its jet samples plus hull bounds, a patch by
-     definitely-positive region overlap in the shared chart, a
-     vertex-granularity area contact via its corner/segment records.
+     definitely-positive region overlap in the shared chart, and a
+     planar area contact between two solids is that patch, one face
+     pair, whatever records its corners and segments carry.
      Nested-shell pure containment (a void, zero coincidences) is
      census-invisible and certifies — the voids story below, not a
      gap.
@@ -982,7 +983,7 @@ event to vertex-vertex before records exist; at rest nothing refines. So
 `sweep_vertex_edge`, the asymmetric arm of `ee_bound_backed` and the
 edge-on-face bounds read two backings: the event's own `(vertex, edge)`
 record (a vertex–edge pair, which a join writes from the v-v record whose
-vertex it joined away), and `Declared::ve_face_backed`, a declared face
+vertex it joined away), and `Declared::ve_face_backed`, a confirmed face
 pair that holds the vertex on one boundary and names a face the edge
 bounds. With neither, the event is a defect
 (`CensusContact::VertexOnEdge` as `UnrecordedContact`). Both are written
@@ -1047,17 +1048,20 @@ of an edge lying in a face of its own solid (`edge_in_own_face`), and
 arm 2's touches between two solids (`TouchSite::verdict`). Every other
 use of a face's normal in the coincidence sweeps is sense-invariant.
 
-**Grandfathered rungs.** `vv_face_backed`, `vf_face_backed`,
-`ve_face_backed`, `ee_face_backed` (which stands in for a collinear
-overlap's edge–edge record), and the face-pair arms of `ee_bound_backed`
-confine by structural incidence only, so they can back an event outside
-the pair's overlap region. Each migrates to the unified strength one at a time,
-measured. `ef_bound_backed`'s face-pair arms hold the unified strength
-(`Declared::vf_face_backed_confined`): a declared pair incident to the
-bound backs it only where the pair passes Door 1 and Door 2 reaches
-`PositiveArea`. Incidence puts the bound in the closed intersection of
-the two regions, the licence the crossing rung reads; a curved pair
-answers nothing there.
+**Confirmed pairs.** Every face-pair rung (`vv_face_backed`,
+`vf_face_backed`, `ve_face_backed`, `sides_face_backed`, and the
+face-pair arms of `ee_bound_backed` and `ef_bound_backed`) reads the
+confirmed pairs: each face–face record that passes Door 1 and reaches
+`PositiveArea` at Door 2 (`pair_verified`), and each planar pair of two
+solids the census finds meeting over an area (`planar_face_pairs`),
+recorded or not. A confirmed pair is decided once, and the census asks
+nothing of a cell bounding one of its faces against a cell bounding the
+other: each lane reads the rung before the event's own margin, so an
+in-band event there does not escalate. A record whose pair does not
+confirm answers for nothing. The crossing rung's side test reads the
+recorded pairs as well as the confirmed ones, so a declared pair holding
+a crossing with the materials on one side names `SameSide`; it backs only
+through a confirmed pair.
 
 The edge-on-face lane cuts an edge at every boundary vertex on it and
 every place a boundary edge crosses it, each placed in metres along
