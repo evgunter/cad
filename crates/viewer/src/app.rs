@@ -49,7 +49,6 @@
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
 
 use editor_core::appearance::Rgba8;
 use eframe::egui;
@@ -64,7 +63,7 @@ use crate::evalseam::FitService;
 use crate::evalseam::ThreadEvaluator;
 use crate::frame::{self, RankedVerdict};
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
-use crate::idpass::IdQueryLog;
+use crate::idpass::{IdChannel, IdQueryLog};
 use crate::input::InputMap;
 use crate::marks;
 use crate::parts::PartChooser;
@@ -340,8 +339,8 @@ pub struct ViewerApp {
     /// document with a failed placement does not re-tessellate every
     /// healthy copy on every repainted frame.
     picks: PickCache,
-    /// Where the id pass leaves its answer: `serial << 32 | id`.
-    id_answer: Arc<AtomicU64>,
+    /// Where the id pass leaves its reply.
+    id_answer: IdChannel,
     /// Which id query is outstanding and what it was asked about.
     id_log: IdQueryLog,
     /// Bumped on every rebuild; the GPU uploads when it disagrees.
@@ -841,7 +840,7 @@ impl ViewerApp {
             delta,
             scene: Arc::new(mesh),
             picks: PickCache::new(indexer()?),
-            id_answer: Arc::new(AtomicU64::new(0)),
+            id_answer: IdChannel::new(),
             id_log: IdQueryLog::new(),
             revision: 1,
             scene_key: None,
@@ -2168,7 +2167,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// news to `notices` above ([`crate::pane::viewport`]: `land`, and
     /// the id pass).
     pub(crate) status: &'a mut Option<frame::Message>,
-    pub(crate) id_answer: &'a Arc<AtomicU64>,
+    pub(crate) id_answer: &'a IdChannel,
     pub(crate) id_log: &'a mut IdQueryLog,
     pub(crate) ops: &'a mut Vec<SessionOp>,
     /// A δ the View pane's field committed this frame. The pane holds

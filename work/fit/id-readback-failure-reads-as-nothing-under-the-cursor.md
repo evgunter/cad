@@ -2,7 +2,10 @@
 id: id-readback-failure-reads-as-nothing-under-the-cursor
 kind: issue
 title: A failed id readback is reported as an empty cursor, and the chrome blames the picture for it
-status: open
+status: closed
+closed: 2026-10-22
+branch: fit/id-answer-split
+pr: 5601
 opened: 2026-09-16
 priority: P1
 cost: M
@@ -70,3 +73,31 @@ No test can execute either today: the readback needs a real adapter
 row that has one, and it is the expected `--lib` red on a box with no
 Vulkan). Whatever shape the fix takes, the part that is testable
 headlessly is the door's vocabulary, not the readback.
+
+## Closed — a failed readback is no answer, and is said as the device's fault (fit/id-answer-split)
+
+**The door.** `ViewportRenderer::read_id_at` answers
+`Result<u32, idpass::ReadbackFault>`. Nothing to draw is
+`Ok(IdMap::NOTHING)`, an answer that is true of the picture on screen.
+A refused wait is `ReadbackFault::Wait` and a failed mapping is
+`ReadbackFault::Map`, each in the device's own words. A mapping shorter
+than one id is `ReadbackFault::Short`: the pure `gpu::id_in` reads the texel, and
+`a_readback_is_its_first_four_bytes_and_a_short_one_is_a_fault` pins it.
+
+**The call site.** `ViewportCallback::prepare` posts
+`IdReply { serial, read }` to an `idpass::IdChannel` with no fold. The
+channel replaces the `serial << 32 | id` atomic word, which had no value
+left over to mean "no answer".
+
+**The reader.** `idpass::compare` says a faulted reply as
+`IdNews::NoReadback` beside any ray answer or refusal, and never
+compares it. It reaches the status line under `Subject::Cursor`, so it
+is retired when the query is.
+`pane::viewport`'s `a_failed_readback_is_the_devices_fault_beside_any_ray_answer`
+puts each of its three rows beside the row the old fold produced. The
+fold gave a disagreement over a named face, silence over empty space and
+no verdict beside a refusal. The fault gives `NoReadback` in all three.
+
+**Residue, closed in the same PR.** A fault left the readback buffer
+mapped or pending, and the next query's submit panicked:
+`work/fit/a-failed-id-readback-wait-leaves-the-buffer-mapping.md`.
