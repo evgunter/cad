@@ -570,21 +570,25 @@ smoothness δ already buys. A display-mesh lane, when built, gets its
 own separately-honest criterion and is never promoted into the
 certified export promise.
 
-**A measurement's resolution is not a tolerance either.**
+**A measurement's resolution is the model's unless the caller asks for less.**
 `[tolerance.measure]`
-Mass properties take a per-call requested resolution: a length, the
-mean boundary displacement the certified enclosure's width corresponds
-to. It is of δ's kind: chosen per call, defaulting to a fixed length
-rather than one derived from ε, and participating in no kernel validity
-decision. The certified promise is the enclosure. A measurement refines
-until the request is met, refinement stops paying, or a per-face work
-bound (one bound, in one unit, for every lane) is reached. It then
-returns the narrowest enclosure it reached, with the request, the
-resolution reached and the reason it stopped. A width wider than the
-request is part of the value, never a refusal: only a face with no
-enclosure refuses. The validity decisions that read a volume (tier 3's
-sign, the boolean volume backstop, shell roles) decide a sign or a bound
-against the band, and never read the request.
+A certified measurement (volume, area, moments) is an enclosure, never a
+number alone, and its width is part of the value. Refinement aims at a
+resolution, metered as the mean boundary displacement the enclosure's
+width corresponds to. The model defines its solids only to ε of boundary
+displacement ([intrinsic.epsilon]), so no resolution finer than ε is
+offered. The default is `K_m·ε`, where `K_m` is a cost dial as K is and
+never a correctness parameter. A caller whose purpose needs less passes a
+coarser resolution per call, as an export chooses δ. A face stops when its
+enclosure meets the resolution, when refinement stops paying (a floor no
+round removes), or at the per-face work bound (one bound, in one unit,
+for every lane). It returns the narrowest enclosure reached, with the
+resolution asked for, the resolution reached and the reason it stopped.
+A width wider than the resolution is never a refusal: only a face with no
+enclosure refuses. The stop is a sizing, not a verdict: no predicate is
+asked, and no validity decision reads it. Decisions that read a volume
+(tier 3's sign, the boolean volume backstop, shell roles) read the
+enclosure's ends against the band.
 
 **The margin dimensional convention.** `[tolerance.margins]`
 ε is a length: the maximum
