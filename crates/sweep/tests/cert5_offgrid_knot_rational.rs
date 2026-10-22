@@ -216,8 +216,8 @@ fn oracle_volume() -> f64 {
         Tol::witness(),
     )
     .expect("extrude");
-    let want =
-        topo::mass_properties(&oracle.body, Tol::witness()).expect("analytic mass properties");
+    let want = topo::test_support::unmigrated_measure(&oracle.body, Tol::witness())
+        .expect("analytic mass properties");
     assert_eq!(
         want.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"
@@ -273,7 +273,7 @@ fn row(
     // every ε regardless of the posture below.
     topo::validate_closed(&body).expect("TIER-1/2: tiers 1/2 admit the blade");
     let eps = Tol::witness().get().eps;
-    let got = topo::mass_properties(&body, Tol::witness());
+    let got = topo::test_support::unmigrated_measure(&body, Tol::witness());
     let posture = body_posture(name, &got);
     eprintln!(
         "EPS-ROW {name} @ eps={eps:e}: {posture:?}{}",

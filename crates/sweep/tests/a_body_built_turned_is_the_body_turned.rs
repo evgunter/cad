@@ -121,7 +121,7 @@ fn split_cylinder(plane: SketchPlane<f64>, tol: Tol) -> [Body<f64>; 2] {
     let normal = plane.normal().get();
     let cut = topo::test_support::split_plane(plane.origin() + normal, normal, tol);
     let r = split(&body, &cut, tol).expect("the cut answers");
-    [r.below, r.above].map(|side| (*side.body().expect("material on each side")).clone())
+    [r.below, r.above].map(|side| topo::Body::clone(side.body().expect("material on each side")))
 }
 
 /// Every construction, labelled, built on `plane`.

@@ -429,7 +429,7 @@ fn built(
         body.edges().count(),
         body.vertices().count(),
     );
-    let volume = topo::mass_properties(body, Tol::witness())
+    let volume = topo::test_support::unmigrated_measure(body, Tol::witness())
         .expect("a built union measures")
         .volume;
     Decided::Built {

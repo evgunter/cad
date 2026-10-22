@@ -30,7 +30,7 @@ use geom::Surface;
 use geom_core::Tol;
 use sweep::Revolution;
 use sweep::test_support::{corners, revolved_about_y};
-use topo::{AtRestBody, Body, FaceKey, ShellError, ValidationError, mass_properties};
+use topo::{AtRestBody, Body, FaceKey, ShellError, ValidationError};
 
 fn revolved(points: &[(f64, f64)]) -> Body<f64> {
     revolved_about_y(corners(points), Revolution::Full, Tol::witness())
@@ -52,7 +52,9 @@ fn face_where(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -> FaceKey
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, Tol::witness()).unwrap().volume
+    topo::test_support::unmigrated_measure(body, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 /// Every error is `RingOutsideOuter`, and there are `n` of them.

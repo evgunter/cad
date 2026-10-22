@@ -114,7 +114,7 @@ fn volume(what: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
     AtRestBody::validate(body.clone(), tol)
         .unwrap_or_else(|e| panic!("{what}: the result is a finished body: {e:?}"));
-    topo::mass_properties(body, tol)
+    topo::test_support::unmigrated_measure(body, tol)
         .expect("closed-form mass properties")
         .volume
 }

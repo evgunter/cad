@@ -16,7 +16,7 @@ use geom_core::RigidMotion;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::SketchPlane;
 use sweep::test_support::{finished, prism_at, prism_on, sketch_from_axes};
-use topo::{Body, BooleanResult, ContactRecords, LoopBoundary, mass_properties, subtract, union};
+use topo::{Body, BooleanResult, ContactRecords, LoopBoundary, subtract, union};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -126,7 +126,9 @@ fn a_keel_ring_nests_inside_an_elliptic_section() {
                 Ok(()),
                 "{what}: tier 3′"
             );
-            let got = mass_properties(b, tol()).unwrap().volume;
+            let got = topo::test_support::unmigrated_measure(b, tol())
+                .unwrap()
+                .volume;
             assert!(
                 (got - volume).abs() < 1e-9 * volume,
                 "{what}: volume {got}, closed form {volume}"
@@ -238,7 +240,9 @@ fn a_keel_ring_on_an_island_in_a_hole_nests_on_the_island() {
                 // trench (`work/cleave/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
                 let pseudo = topo::validate_pseudomanifold(b, &ContactRecords::default(), tol());
                 assert_eq!(pseudo.is_ok(), tilt == 0.0, "{what}: tier 3′ {pseudo:?}");
-                let got = mass_properties(b, tol()).unwrap().volume;
+                let got = topo::test_support::unmigrated_measure(b, tol())
+                    .unwrap()
+                    .volume;
                 assert!(
                     (got - volume).abs() < 1e-9 * volume,
                     "{what}: volume {got}, closed form {volume}"

@@ -85,7 +85,7 @@ pub fn dump(body: &Body<f64>) -> String {
             let _ = writeln!(s);
         }
     }
-    let props = topo::mass_properties(body, Tol::witness()).unwrap();
+    let props = topo::test_support::unmigrated_measure(body, Tol::witness()).unwrap();
     let _ = writeln!(
         s,
         "props volume={:?} pad={:?} area={:?} apad={:?}",

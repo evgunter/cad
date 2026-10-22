@@ -255,7 +255,11 @@ fn the_acceptance_exports_parse_back_honestly_and_never_drift() {
         // ---- VOLUME: globally outward, and within 3δA of the exact
         // body volume.
         let vol = soup_volume(&facets);
-        let exact = topo::mass_properties(body, Tol::witness()).unwrap();
+        let exact = topo::mass_properties(
+            &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap();
         assert!(
             (vol - exact.volume).abs() <= 3.0 * delta * exact.surface_area,
             "VOLUME: {name}: parsed-back volume {vol} vs exact {} beyond 3δA",
@@ -573,7 +577,11 @@ fn consumer_e2e_vase_and_bracket() {
         topo::validate(body).unwrap();
         topo::validate_closed(body).unwrap();
         topo::validate_geometric(body, Tol::witness()).unwrap();
-        let props = topo::mass_properties(body, Tol::witness()).unwrap();
+        let props = topo::mass_properties(
+            &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap();
         assert!(props.volume > 0.0 && props.surface_area > 0.0);
         let mesh = mesh::tessellate(body, delta, Tol::witness()).unwrap();
         mesh::validate::check_mesh(&mesh).unwrap();
@@ -660,7 +668,11 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
         ),
     ];
     for (name, body) in &shapes {
-        let props = topo::mass_properties(body, Tol::witness()).unwrap();
+        let props = topo::mass_properties(
+            &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap();
         let mesh = mesh::tessellate(body, delta, Tol::witness()).unwrap();
         mesh::validate::check_mesh(&mesh).unwrap();
         let vm = mesh::validate::signed_volume(&mesh);

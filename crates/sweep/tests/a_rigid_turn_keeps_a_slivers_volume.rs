@@ -83,10 +83,8 @@ fn a_turned_sliver_validates_and_measures_its_own_volume() {
             seen.note("no sliver side");
             continue;
         };
-        let Ok(sliver) = AtRestBody::validate(sliver.clone(), tol) else {
-            seen.note("sliver invalid before the turn");
-            continue;
-        };
+        // The split's side is finished: its gate kept the verdict.
+        let sliver = sliver.clone();
         seen.note("turned");
         let [x, y, z] = axis;
         let axis = Vec3::new(x, y, z);
@@ -102,7 +100,7 @@ fn a_turned_sliver_validates_and_measures_its_own_volume() {
         );
         let truth = sliver_volume(psi);
         let before = topo::mass_properties(&sliver, tol).unwrap();
-        let after = topo::mass_properties(&turned, tol).unwrap();
+        let after = topo::test_support::unmigrated_measure(&turned, tol).unwrap();
         assert!(
             (after.volume - truth).abs() <= after.volume_pad,
             "{pose}: the turned sliver's enclosure {:e} ± {:e} misses its volume {truth:e}",

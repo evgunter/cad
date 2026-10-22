@@ -305,7 +305,7 @@ fn a_bore_inside_the_planar_bands_sliver_goes_with_it_at_interval() {
             "{verb:?} at Interval: the bored block's carve is that of the block with no hole"
         );
         let v0 = mass_properties(&body, tol).expect("interval props").volume;
-        let v1 = mass_properties(&out.body, tol)
+        let v1 = topo::test_support::unmigrated_measure(&out.body, tol)
             .expect("interval props")
             .volume;
         let want = section(verb, D) - PI * a * a;

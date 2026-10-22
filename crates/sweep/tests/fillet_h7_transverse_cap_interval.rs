@@ -33,7 +33,7 @@ use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, rod_creases, rod_d_profile_at,
     rod_section_cut,
 };
-use topo::{Body, EdgeKey, VertexKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, VertexKey, validate_geometric};
 
 /// An enclosure must contain its truth AND be a claim.
 fn assert_brackets(got: Interval, truth: f64, what: &str) {
@@ -64,7 +64,7 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     let creases = rod_creases(&source);
     assert_eq!(creases.len(), 2, "two ruling creases");
     let (v0, e0, f0) = census(&source);
-    let p0 = mass_properties(&source, tol).expect("interval props");
+    let p0 = topo::test_support::unmigrated_measure(&source, tol).expect("interval props");
     assert_eq!(p0.volume_pad, 0.0, "the source is closed-form");
     assert!(
         p0.volume.hi() - p0.volume.lo() < 1e-12,
@@ -164,7 +164,7 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     }
     assert_naming_totality(&source, &out, &creases, "the rod at Interval");
 
-    let p1 = mass_properties(&out.body, tol).expect("interval props");
+    let p1 = topo::test_support::unmigrated_measure(&out.body, tol).expect("interval props");
     assert_eq!(
         p1.volume_pad, 0.0,
         "closed-form inventory at the certified scalar too"

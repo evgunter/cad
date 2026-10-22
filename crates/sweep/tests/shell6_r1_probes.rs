@@ -92,7 +92,7 @@ fn corners(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
+    topo::test_support::unmigrated_measure(body, Tol::witness())
         .expect("props")
         .volume
 }

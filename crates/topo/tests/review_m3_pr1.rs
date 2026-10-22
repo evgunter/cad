@@ -396,7 +396,8 @@ fn null_scaffold_fail_loud_audit() {
         )
     );
     // Door 2: mass properties refuse, typed.
-    let err = topo::mass_properties(&cube.body, Tol::witness()).unwrap_err();
+    // Raw door: the measured body is a body still carrying a scaffolding strut, which tier 3 refuses (ScaffoldingStrutVertex).
+    let err = topo::test_support::measure_unvalidated(&cube.body, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, topo::MassPropsError::NullScaffoldEdge { edge } if edge == created.edge),
         "mass props must not skip or launder a null edge: {err:?}"
@@ -437,7 +438,13 @@ fn null_scaffold_fail_loud_audit() {
     // Cleanup door: kev consumes the scaffold; every gate reopens.
     cube.body.kev(created.he_plus).unwrap();
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
-    assert!(topo::mass_properties(&cube.body, Tol::witness()).is_ok());
+    assert!(
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", cube.body.clone(), Tol::witness()),
+            Tol::witness()
+        )
+        .is_ok()
+    );
 }
 
 /// TARGET 3: split_edge honesty on line carriers - a double split
@@ -449,9 +456,12 @@ fn null_scaffold_fail_loud_audit() {
 fn split_edge_double_split_preserves_tier3_and_volume() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
     describe_as_intersections(&mut cube.body, Tol::witness());
-    let vol0 = topo::mass_properties(&cube.body, Tol::witness())
-        .unwrap()
-        .volume;
+    let vol0 = topo::mass_properties(
+        &topo::test_support::finished("the measured body", cube.body.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     let edge = cube.mevs[0].edge; // A->B, unit line, params [0, 1]
     let first = cube.body.split_edge(edge, 0.25, Tol::witness()).unwrap();
     assert_eq!(
@@ -503,7 +513,8 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
     let p2 = cube.body.get_point(second.point).unwrap();
     assert_eq!((p2.x, p2.y, p2.z), (0.5, 0.0, 0.0));
     // Splitting is geometry-neutral: exact volume identical bitwise.
-    let vol1 = topo::mass_properties(&cube.body, Tol::witness())
+    // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+    let vol1 = topo::test_support::measure_unvalidated(&cube.body, Tol::witness())
         .unwrap()
         .volume;
     assert_eq!(vol0.to_bits(), vol1.to_bits(), "split changed the solid");
@@ -678,7 +689,8 @@ fn revert_on_split_body_involution_and_posture() {
         Err(joinable.clone())
     );
     let original = dump(&cube.body);
-    let vol = topo::mass_properties(&cube.body, Tol::witness())
+    // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+    let vol = topo::test_support::measure_unvalidated(&cube.body, Tol::witness())
         .unwrap()
         .volume;
     let reverted = cube.body.revert().unwrap();
@@ -697,7 +709,8 @@ fn revert_on_split_body_involution_and_posture() {
         "tier 3 on the reverted body must fail with exactly NegativeVolume and the split \
          vertices"
     );
-    let rvol = topo::mass_properties(&reverted, Tol::witness())
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let rvol = topo::test_support::measure_unvalidated(&reverted, Tol::witness())
         .unwrap()
         .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
@@ -924,8 +937,9 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
 fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
     let build = || annulus_top_cube();
     let (mut cube, center, _) = build();
+    // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
     assert_eq!(cube.body.faces().count(), 10); // 5 cube sides + 5 top
-    let vol0 = topo::mass_properties(&cube.body, Tol::witness())
+    let vol0 = topo::test_support::measure_unvalidated(&cube.body, Tol::witness())
         .unwrap()
         .volume;
     let outcome = cube.body.merge_coplanar_faces(Tol::witness()).unwrap();
@@ -942,7 +956,8 @@ fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
     // chord-line descriptions), volume unchanged (analytically the
     // same solid; allow only summation-order noise).
     assert_eq!(validate_closed(&cube.body), Ok(()));
-    let vol1 = topo::mass_properties(&cube.body, Tol::witness())
+    // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+    let vol1 = topo::test_support::measure_unvalidated(&cube.body, Tol::witness())
         .unwrap()
         .volume;
     assert!((vol0 - vol1).abs() < 1e-12, "merge changed the volume");
@@ -957,7 +972,8 @@ fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
     let original = dump(&cube.body);
     let reverted = cube.body.revert().unwrap();
     assert_eq!(validate_closed(&reverted), Ok(()));
-    let rvol = topo::mass_properties(&reverted, Tol::witness())
+    // Raw door: the measured body is the reverted copy of a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+    let rvol = topo::test_support::measure_unvalidated(&reverted, Tol::witness())
         .unwrap()
         .volume;
     assert_eq!(rvol.to_bits(), (-vol1).to_bits());

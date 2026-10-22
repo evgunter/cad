@@ -25,8 +25,8 @@ mod certified {
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, finished};
     use sweep::{Revolution, RevolveAxis, revolve};
+    use topo::Body;
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{Body, mass_properties};
 
     const DIE_L: f64 = 1.0;
     const DIE_R: f64 = 0.12;
@@ -197,7 +197,9 @@ mod certified {
             Ok(()),
             "tier 3"
         );
-        let vol = mass_properties(&die, Tol::witness()).unwrap().volume;
+        let vol = topo::test_support::unmigrated_measure(&die, Tol::witness())
+            .unwrap()
+            .volume;
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
         assert!(
             vol.lo() <= want && want <= vol.hi(),

@@ -203,7 +203,20 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
             .into(),
     ];
     let round = spring::<f64>(&round, PER_TURN, tol).expect("the round-wire coil builds");
-    let round_props = pncad::topo::mass_properties(&round, tol);
+    // Tier 3 measures the volume first: where the quadrature runs out
+    // of budget it is the gate that refuses, and the wall reads that
+    // measurement's refusal.
+    let round_props = match pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&round), tol)
+    {
+        Ok(round) => pncad::topo::mass_properties(&round, tol),
+        Err(errors) => Err(errors
+            .into_iter()
+            .find_map(|e| match e {
+                pncad::topo::ValidationError::VolumeUncomputable { source, .. } => Some(source),
+                _ => None,
+            })
+            .expect("the round-wire coil passes tier 3 or cannot be measured")),
+    };
     if tol.eps() > pncad::tolerance::DEFAULT_EPS {
         let props = round_props.unwrap_or_else(|e| {
             panic!(
@@ -249,7 +262,8 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
     }
 
     let body = spring::<f64>(&[square_wire(tol)], PER_TURN, tol).expect("the coil builds");
-    let props = pncad::topo::mass_properties(&body, tol).expect("the coil's volume");
+    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol)
+        .expect("the coil's volume");
     let want = coil_volume(4.0 * WIRE_H * WIRE_H);
     let gap = (props.volume - want) / want;
     assert!(
@@ -491,11 +505,15 @@ mod tests {
                 .unwrap_or_else(|e| panic!("{}: tier 3: {e:?}", part.name));
         }
         let shells: Vec<_> = above.body.shells().map(|(k, _)| k).collect();
-        let roles: Vec<ShellRole> = pncad::topo::classify_shells_of(&above.body, &shells, tol)
-            .expect("the above half's shells classify")
-            .into_iter()
-            .map(|c| c.role)
-            .collect();
+        let roles: Vec<ShellRole> = pncad::topo::classify_shells_of(
+            &crate::booleans::at_rest(&above.body, tol),
+            &shells,
+            tol,
+        )
+        .expect("the above half's shells classify")
+        .into_iter()
+        .map(|c| c.role)
+        .collect();
         assert_eq!(roles, [ShellRole::Outer; 3], "the above half's shell roles");
         assert_eq!(above.body.solids().count(), 3, "one solid per piece");
     }
@@ -513,7 +531,7 @@ mod tests {
         let want = coil_volume(4.0 * WIRE_H * WIRE_H);
         let gap = |per_turn| {
             let body = spring::<f64>(&[square_wire(tol)], per_turn, tol).expect("the coil");
-            let v = pncad::topo::mass_properties(&body, tol)
+            let v = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol)
                 .expect("the coil's volume")
                 .volume;
             (v - want) / want

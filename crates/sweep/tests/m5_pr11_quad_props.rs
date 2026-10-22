@@ -57,7 +57,7 @@ fn halves() -> (Body<f64>, Body<f64>) {
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
-    (above.clone(), below.clone())
+    (topo::Body::clone(above), topo::Body::clone(below))
 }
 
 /// The quadrature lane computes; the enclosure brackets the closed
@@ -67,7 +67,7 @@ fn tilted_halves_volume_enclosure_brackets_the_closed_form() {
     let (above, below) = halves();
     let half_exact = core::f64::consts::PI * R * R * H / 2.0;
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::mass_properties(body, Tol::witness())
+        let m = topo::test_support::unmigrated_measure(body, Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: the PR 11 quadrature lane computes: {e:?}"));
         assert!(
             m.volume_pad > 0.0,
@@ -97,7 +97,7 @@ fn half_area_enclosures_bracket_the_closed_form() {
     let pi = core::f64::consts::PI;
     let exact = pi * R * R + pi * R * H + pi * R * R / PHI.cos();
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::mass_properties(body, Tol::witness()).unwrap();
+        let m = topo::test_support::unmigrated_measure(body, Tol::witness()).unwrap();
         assert!(
             m.area_pad > 0.0,
             "{label}: the cut wall's area is a certified enclosure"
@@ -186,8 +186,8 @@ fn tier3_passes_on_both_halves() {
 #[test]
 fn quadrature_is_bit_deterministic() {
     let (above, _) = halves();
-    let a = topo::mass_properties(&above, Tol::witness()).unwrap();
-    let b = topo::mass_properties(&above, Tol::witness()).unwrap();
+    let a = topo::test_support::unmigrated_measure(&above, Tol::witness()).unwrap();
+    let b = topo::test_support::unmigrated_measure(&above, Tol::witness()).unwrap();
     assert_eq!(a.volume.to_bits(), b.volume.to_bits());
     assert_eq!(a.surface_area.to_bits(), b.surface_area.to_bits());
     assert_eq!(a.volume_pad.to_bits(), b.volume_pad.to_bits());
@@ -199,8 +199,8 @@ fn quadrature_is_bit_deterministic() {
 #[test]
 fn halves_sum_to_the_cylinder() {
     let (above, below) = halves();
-    let a = topo::mass_properties(&above, Tol::witness()).unwrap();
-    let b = topo::mass_properties(&below, Tol::witness()).unwrap();
+    let a = topo::test_support::unmigrated_measure(&above, Tol::witness()).unwrap();
+    let b = topo::test_support::unmigrated_measure(&below, Tol::witness()).unwrap();
     let full = core::f64::consts::PI * R * R * H;
     let sum = a.volume + b.volume;
     let pad = a.volume_pad + b.volume_pad;

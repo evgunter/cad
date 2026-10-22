@@ -862,7 +862,8 @@ fn the_bracket_corners_carve_at_the_certified_scalar() {
         let before = topo::mass_properties(&body, tol())
             .expect("mass properties")
             .volume;
-        let after = topo::mass_properties(&out.body, tol()).expect("mass properties");
+        let after =
+            topo::test_support::unmigrated_measure(&out.body, tol()).expect("mass properties");
         let (removed, pad) = (before - after.volume, after.volume_pad.hi());
         assert!(
             removed.lo() - pad <= want && want <= removed.hi() + pad,

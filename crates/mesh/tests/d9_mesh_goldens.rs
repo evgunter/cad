@@ -231,7 +231,7 @@ pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides of the oblique cut carry material");
     };
-    (above.clone(), below.clone())
+    (Body::clone(above), Body::clone(below))
 }
 
 /// The NURBS-walled corpus bodies. One name per body, kept because

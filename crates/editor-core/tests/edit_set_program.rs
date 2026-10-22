@@ -227,7 +227,7 @@ fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
         "the document evaluates:\n{}",
         bad.join("\n")
     );
-    topo::mass_properties(corpus::body_of(&ev, node), tol())
+    topo::test_support::unmigrated_measure(corpus::body_of(&ev, node), tol())
         .expect("closed-form mass properties")
         .volume
 }

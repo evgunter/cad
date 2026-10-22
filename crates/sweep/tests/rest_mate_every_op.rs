@@ -28,7 +28,7 @@ use crate::mate2_common::{collar_of, full_turn_collar, onto_y, peg_of};
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_y, finished};
-use topo::{AtRestBody, Body, BooleanOp, BooleanResult, mass_properties};
+use topo::{AtRestBody, Body, BooleanOp, BooleanResult};
 
 /// The collar's wall thickness, outside its bore.
 const WALL: f64 = 1.0;
@@ -94,7 +94,9 @@ fn spans(len: f64) -> [(&'static str, (f64, f64)); 5] {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    mass_properties(b, Tol::witness()).unwrap().volume
+    topo::test_support::unmigrated_measure(b, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> Body<f64> {

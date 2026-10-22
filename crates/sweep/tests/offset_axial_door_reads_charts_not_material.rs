@@ -17,7 +17,7 @@ use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
-use topo::{AtRestBody, Body, ValidationError, mass_properties};
+use topo::{AtRestBody, Body, ValidationError};
 
 const R: f64 = 3.0 / 64.0;
 const H: f64 = 8.0 / 64.0;
@@ -39,7 +39,9 @@ fn drum(ccw: bool) -> Body<f64> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, Tol::witness()).unwrap().volume
+    topo::test_support::unmigrated_measure(body, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 /// `body` finishes when `right_way`, and refuses on check 7 alone when

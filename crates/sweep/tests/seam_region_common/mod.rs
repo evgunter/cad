@@ -112,7 +112,7 @@ pub(crate) fn assert_refused(
         .unwrap_or_else(|| {
             panic!(
                 "{label}: flipping {set:?} passes tier 3 (measures {:?})",
-                topo::mass_properties(&flipped, tol).map(|m| m.volume)
+                topo::test_support::unmigrated_measure(&flipped, tol).map(|m| m.volume)
             )
         });
     for &face in named {
@@ -125,7 +125,7 @@ pub(crate) fn assert_refused(
     }
     // The door reads the same seam regions, so it refuses the same flips
     // without tier 3.
-    let door = topo::mass_properties(&flipped, tol);
+    let door = topo::test_support::unmigrated_measure(&flipped, tol);
     assert!(
         door.is_err(),
         "{label}: flipping {set:?}: tier 3 refuses, the door measures {:?}",
@@ -187,7 +187,9 @@ pub(crate) fn split_at_meridian(body: &mut Body<f64>, key: FaceKey, dir: Vec3<f6
 // Splits of the review of PR 5516 (R2), lifted into rows.
 
 pub(crate) fn volume(body: &Body<f64>, tol: Tol) -> Option<f64> {
-    topo::mass_properties(body, tol).ok().map(|m| m.volume)
+    topo::test_support::unmigrated_measure(body, tol)
+        .ok()
+        .map(|m| m.volume)
 }
 
 /// Splits the face of `body` that a meridian in direction `dir` passes
@@ -220,7 +222,7 @@ pub(crate) fn split_outside(body: &mut Body<f64>, dir: Vec3<f64>, tol: Tol) -> b
             split_at_meridian(&mut b, f, dir, tol)
         }))
         .is_ok();
-        let moved = match topo::mass_properties(&b, tol) {
+        let moved = match topo::test_support::unmigrated_measure(&b, tol) {
             Ok(m) => (m.volume - before).abs() > 1e-6 * before.abs(),
             Err(topo::MassPropsError::Face {
                 source: geom_brep::props::PropsError::SeamRegionOvercovered { .. },
