@@ -54,7 +54,9 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
     if let Err(errs) = topo::validate_geometric(body, Tol::witness()) {
         panic!("tier-3 validity: {errs:?}");
     }
-    let vol = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+    let vol = topo::test_support::unmigrated_measure(body, Tol::witness())
+        .unwrap()
+        .volume;
     assert!(
         (vol - expect_vol).abs() < 1e-9,
         "volume {vol} vs closed form {expect_vol}"
@@ -305,7 +307,7 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let parts = split(&body, &plane, Tol::witness()).expect("split");
     let below = finished(
         "the unmerged half-disc",
-        parts.below.body().expect("below").clone(), // NOT merged
+        topo::Body::clone(parts.below.body().expect("below")), // NOT merged
         Tol::witness(),
     );
     let vol_below = topo::mass_properties(&below, Tol::witness())

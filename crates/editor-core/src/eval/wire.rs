@@ -2553,7 +2553,8 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let coincidences = out.coincidences;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let side = |part: SplitPart<T>| match part {
-        SplitPart::Body(b) => SplitSide::Body(Arc::new(b)),
+        // The verdict the split's gate kept is not carried in a value yet (F2).
+        SplitPart::Body(b) => SplitSide::Body(Arc::new(b.into_body())),
         SplitPart::Empty => SplitSide::Empty,
     };
     let above = side(out.above);

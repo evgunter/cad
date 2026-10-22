@@ -15,7 +15,7 @@ use crate::common;
 
 use geom::Surface;
 use geom_core::{Band, Tol};
-use topo::{AtRestBody, Body, ChartMove, FaceKey, ValidationError, mass_properties};
+use topo::{AtRestBody, Body, ChartMove, FaceKey, ValidationError};
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
 /// when `ccw` (`inside_out_operand.rs`'s wedge).
@@ -108,7 +108,10 @@ fn top_normal_z(body: &Body<f64>) -> f64 {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, Tol::witness()).unwrap().volume
+    // Raw door: this helper measures each body before and after an offset, and tier 3 refuses the inside-out ones (NegativeVolume).
+    topo::test_support::measure_unvalidated(body, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 /// `body` finishes when `right_way`, and refuses on check 7 alone when

@@ -216,8 +216,8 @@ fn oracle_volume() -> f64 {
         Tol::witness(),
     )
     .expect("extrude");
-    let want =
-        topo::mass_properties(&oracle.body, Tol::witness()).expect("analytic mass properties");
+    let want = topo::test_support::unmigrated_measure(&oracle.body, Tol::witness())
+        .expect("analytic mass properties");
     assert_eq!(
         want.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"
@@ -273,7 +273,7 @@ fn row(
     // every ε regardless of the posture below.
     topo::validate_closed(&body).expect("TIER-1/2: tiers 1/2 admit the blade");
     let eps = Tol::witness().get().eps;
-    let got = topo::mass_properties(&body, Tol::witness());
+    let got = topo::test_support::unmigrated_measure(&body, Tol::witness());
     let posture = body_posture(name, &got);
     eprintln!(
         "EPS-ROW {name} @ eps={eps:e}: {posture:?}{}",
@@ -319,7 +319,7 @@ fn row(
     // `shell_reference`), so on these walls, centred on the world
     // origin, a quadrature face's lever is their diameter where the
     // origin's was their radius (`m8_3_rational_volume`'s ceiling).
-    // blade-8 measured 2.00e-6 at 1e-9, 1.95 times the target: the
+    // blade-8 measured 2.21e-6 at 1e-9, 2.16 times the target: the
     // ceiling is the measure with headroom, not a bound the rule
     // guarantees.
     let ceiling = 4.0 * QUAD_TARGET_LEN_FACTOR * eps;
@@ -341,7 +341,7 @@ fn row(
 
 /// blade-8's volume pad at the default ε, the measure the ceiling's
 /// comment cites.
-const BLADE_8_PAD_AT_DEFAULT_EPS: f64 = 2.001_6e-6;
+const BLADE_8_PAD_AT_DEFAULT_EPS: f64 = 2.210_6e-6;
 
 /// **The regression row** (issue 453): SIX stations, a quadratic skin,
 /// and a rational wall whose interior v knots are off the composite's

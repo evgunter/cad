@@ -442,8 +442,7 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
         // often meets both faces sharing it and the door names both
         // rather than choosing. The question this row asks is how near
         // the nearest surface is, and every tied answer answers it —
-        // so the nearest of them is read, which is what the viewer's
-        // own occlusion probe does.
+        // so the nearest of them is read.
         let Some(front) = nearest_surface(&index, eval, &ray) else {
             continue;
         };
@@ -451,12 +450,10 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
         let midpoint = Point3::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5);
         let depth = ray.dir.dot(midpoint - ray.origin);
         // The 1e-6 band is this row's OWN reading of "the same depth",
-        // spelled here rather than imported from the implementation's
-        // `OCCLUSION_SLACK_REL` (which is private, and would make the
-        // row agree with the code by construction). An independent
-        // number is the point: it says the two populations this row
-        // sorts are far enough apart that any sane threshold separates
-        // them.
+        // an oracle independent of the implementation, which orders
+        // certified spans and has no band: it says the two populations
+        // this row sorts are far enough apart that any sane threshold
+        // separates them.
         if front >= depth * (1.0 - 1.0e-6) {
             continue; // visible at its own pixel — not this row's subject
         }
@@ -1244,5 +1241,441 @@ fn a_cursor_the_face_pick_ties_on_still_picks_the_edge() {
     assert_eq!(
         edge_missed, 0,
         "the cursor is on a drawn edge's own midpoint, so the edge door answers it: {example}"
+    );
+}
+
+// --- the certified occlusion -----------------------------------------
+
+/// A session over `doc`, evaluated and landed.
+fn session_over(doc: pncad::document::Doc<pncad::document::ProfileProgram>) -> DocSession {
+    let mut session = DocSession::inline(doc, Tol::witness());
+    session.pump();
+    session
+}
+
+/// `doc` with a prism added and placed where it stands: `corners`
+/// (counter-clockwise in the xy plane) extruded `height` up `z`.
+/// Answers the document and the placement, the node its drawn copy is
+/// picked on.
+fn with_prism(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    corners: &[(f64, f64)],
+    height: f64,
+) -> (
+    pncad::document::Doc<pncad::document::ProfileProgram>,
+    RecipeNodeId,
+) {
+    let tol = Tol::witness();
+    let outline =
+        pncad::document::LoopProgram::polygon(corners.iter().copied()).expect("finite corners");
+    let (doc, profile) = common::inserted(
+        doc,
+        pncad::document::Node::Profile(pncad::document::ProfileProgram {
+            loops: vec![outline],
+            ids: Vec::new(),
+        }),
+        tol,
+    );
+    let (doc, extrude) = common::inserted(
+        &doc,
+        pncad::document::Node::Extrude {
+            profile: profile.into(),
+            distance: common::len(height),
+        },
+        tol,
+    );
+    common::placed(&doc, extrude, tol)
+}
+
+/// The drawn edge of `node` whose every chord point satisfies `on`.
+fn edge_where(
+    index: &PickIndex,
+    node: RecipeNodeId,
+    on: impl Fn(Point3<f64>) -> bool,
+) -> (EdgeId, Vec<Point3<f64>>) {
+    drawn_edges(index, node)
+        .into_iter()
+        .find(|(_, points)| !points.is_empty() && points.iter().all(|&p| on(p)))
+        .expect("the fixture draws the edge")
+}
+
+fn lerp(a: Point3<f64>, b: Point3<f64>, f: f64) -> Point3<f64> {
+    Point3::new(
+        a.x + (b.x - a.x) * f,
+        a.y + (b.y - a.y) * f,
+        a.z + (b.z - a.z) * f,
+    )
+}
+
+/// **A visible concave edge stays visible at grazing incidence.**
+///
+/// An L-shaped block's inner vertical edge, seen head-on across one of
+/// its two faces and edge-on across the other, at ever smaller angles
+/// to that second face. The ray through a pixel on the edge misses it
+/// by its own rounding, and on the material side of the grazed face
+/// that offset puts the face's crossing in front of the edge by the
+/// offset over the angle's sine — unbounded as the angle closes. The
+/// crossing is of a face the edge bounds, so it is the edge's own, and
+/// the edge is picked at every cursor along it.
+#[test]
+fn a_visible_concave_edge_at_grazing_incidence_is_picked() {
+    let (w, h) = (0.04, 0.01);
+    let half = w * 0.5;
+    let doc = pncad::document::Doc::empty_derived("occl-concave", Tol::witness());
+    let (doc, node) = with_prism(
+        &doc,
+        &[
+            (0.0, 0.0),
+            (w, 0.0),
+            (w, half),
+            (half, half),
+            (half, w),
+            (0.0, w),
+        ],
+        h,
+    );
+    let session = session_over(doc);
+    let index = plate_index(&session);
+    let eval = eval_of(&session);
+    let near = |a: f64, b: f64| (a - b).abs() < 1.0e-9;
+    let (concave, points) = edge_where(&index, node, |p| near(p.x, half) && near(p.y, half));
+    let (bottom, top) = (points[0], points[points.len() - 1]);
+    let mut cursors = 0usize;
+    for grazing in [1.0e-2, 1.0e-4, 1.0e-6, 1.0e-8] {
+        // The eye along +x, tilted `grazing` toward +y: the face x = w/2
+        // is seen head-on and the face y = w/2 edge-on from its outside.
+        let camera = Camera::new(
+            Point3::new(half, half, h * 0.5),
+            0.2,
+            grazing,
+            0.0,
+            std::f64::consts::FRAC_PI_4,
+            w,
+        )
+        .expect("a camera");
+        for step in 1..10 {
+            let at = lerp(bottom, top, f64::from(step) / 10.0);
+            let cursor = pixel_of(&camera, at);
+            cursors += 1;
+            let picked = index
+                .edge_at(eval, &camera, pane(), cursor)
+                .expect("un-projects")
+                .map(|pick| pick.id());
+            assert_eq!(
+                picked,
+                Some(concave),
+                "the concave edge at {at:?}, seen at {grazing:e} rad to one of its faces, \
+                 is hidden by its own face's crossing"
+            );
+        }
+    }
+    assert_eq!(cursors, 36, "every grazing angle measured every cursor");
+}
+
+/// **An edge hidden by less than a millionth of its own depth is not
+/// picked.**
+///
+/// The plate, framed from a hundred kilometres with a lens narrow
+/// enough to fill the pane: every hidden edge then sits behind its
+/// occluder by a gap of millimetres, which is below `1e-6` of its
+/// depth, and the depth is still certified to far better than that.
+/// The subjects are classified by this row's own oracle — a gap above a
+/// micrometre that is under `1e-6` of the depth — and every one is
+/// refused.
+#[test]
+fn an_edge_hidden_within_a_millionth_of_its_depth_is_not_picked() {
+    let tol = Tol::witness();
+    let (session, copy) = plate_session(tol);
+    let index = plate_index(&session);
+    let eval = eval_of(&session);
+    let [width, depth, thickness] = PLATE_EXTENT;
+    let distance = 1.0e5;
+    let camera = Camera::new(
+        Point3::new(width * 0.5, depth * 0.5, thickness * 0.5),
+        distance,
+        -std::f64::consts::FRAC_PI_3,
+        std::f64::consts::FRAC_PI_6,
+        2.0 * (width / distance).atan(),
+        distance,
+    )
+    .expect("a camera");
+    let mut hidden = 0usize;
+    for (id, points) in drawn_edges(&index, copy) {
+        if points.len() < 2 {
+            continue;
+        }
+        let at = (points.len() - 1) / 2;
+        let midpoint = lerp(points[at], points[at + 1], 0.5);
+        let cursor = pixel_of(&camera, midpoint);
+        let ray = camera.ray_through(cursor, pane()).expect("un-projects");
+        let Some(front) = nearest_surface(&index, eval, &ray) else {
+            continue;
+        };
+        let along = ray.dir.dot(midpoint - ray.origin) / ray.dir.dot(ray.dir);
+        let gap = along - front;
+        if !(gap > 1.0e-6 && gap < along * 1.0e-6) {
+            continue;
+        }
+        hidden += 1;
+        let picked = index
+            .edge_at(eval, &camera, pane(), cursor)
+            .expect("un-projects");
+        assert_ne!(
+            picked.as_ref().map(viewer::pickindex::EdgePick::id),
+            Some(id),
+            "an edge {gap:e} behind a surface at {front} ({:e} of its depth) was picked \
+             through the solid",
+            gap / along
+        );
+    }
+    assert!(
+        hidden > 0,
+        "no drawn edge of this view is hidden by under 1e-6 of its depth, so this row \
+         measured nothing"
+    );
+}
+
+/// **A silhouette edge is picked where the ray through it crosses
+/// neither of its faces.**
+///
+/// The hole's rim, from the default framing: along its near half the
+/// top face and the hole's wall both lie on one side of the rim in the
+/// picture, so a ray through a rim pixel that its rounding puts on the
+/// other side passes into the hole, crosses neither, and meets the far
+/// wall behind. The rim's own crossing is then the span of its own
+/// point alone, and nothing in front precedes it. The subjects are the
+/// chords where the row sees exactly that — no incident triangle
+/// crossed, a surface behind — and every one is picked.
+#[test]
+fn a_silhouette_edge_whose_faces_the_ray_misses_is_picked() {
+    let tol = Tol::witness();
+    let (session, copy) = plate_session(tol);
+    let index = plate_index(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let eval = eval_of(&session);
+    let [width, depth, thickness] = PLATE_EXTENT;
+    let (cx, cy) = (width * 0.5, depth * 0.5);
+    let part = index
+        .parts()
+        .iter()
+        .find(|part| part.node() == copy)
+        .expect("the plate is drawn");
+    let mesh = part.mesh();
+    let mut subjects = 0usize;
+    for (id, points) in drawn_edges(&index, copy) {
+        let rim = points.iter().all(|p| {
+            (p.z - thickness).abs() < 1.0e-9
+                && ((p.x - cx).powi(2) + (p.y - cy).powi(2)).sqrt() < PLATE_HOLE_RADIUS * 1.05
+        });
+        if !rim {
+            continue;
+        }
+        let chord_points = &mesh.boundaries[id.boundary].points;
+        for (segment, pair) in points.windows(2).enumerate() {
+            let cursor = pixel_of(&camera, lerp(pair[0], pair[1], 0.5));
+            let ray = camera.ray_through(cursor, pane()).expect("un-projects");
+            let (from, to) = (chord_points[segment], chord_points[segment + 1]);
+            let crosses_a_face = mesh
+                .patches
+                .iter()
+                .flat_map(|patch| &patch.triangles)
+                .filter(|tri| tri.contains(&from) && tri.contains(&to))
+                .any(|tri| {
+                    let corners = tri.map(|i| mesh.positions[i as usize]);
+                    editor_core::resolve::ray_triangle(&ray, &corners).is_some()
+                });
+            if crosses_a_face || nearest_surface(&index, eval, &ray).is_none() {
+                continue;
+            }
+            subjects += 1;
+            let picked = index
+                .edge_at(eval, &camera, pane(), cursor)
+                .expect("un-projects")
+                .map(|pick| pick.id());
+            assert_eq!(
+                picked,
+                Some(id),
+                "the rim's chord {segment} is a silhouette over the far wall and was not picked"
+            );
+        }
+    }
+    assert!(
+        subjects > 0,
+        "no rim chord's ray passes outside both its faces with a surface behind, so this \
+         row measured nothing"
+    );
+}
+
+/// **A tie across two parts offers both parts' edges.**
+///
+/// Two blocks placed side by side, overlapping by a third of their
+/// width, their top faces coincident over the overlap. A cursor there
+/// meets both tops and the door names both; the edge search is over
+/// both bodies, so a cursor beside EITHER block's edge on the overlap
+/// picks that edge — whichever body the list or a rounded parameter
+/// would have put first.
+#[test]
+fn a_tie_across_two_parts_offers_both_parts_edges() {
+    let (side, h) = (0.02, 0.01);
+    let doc = pncad::document::Doc::empty_derived("occl-two-parts", Tol::witness());
+    let square = |x0: f64| [(x0, 0.0), (x0 + side, 0.0), (x0 + side, side), (x0, side)];
+    let (doc, left) = with_prism(&doc, &square(0.0), h);
+    let (doc, right) = with_prism(&doc, &square(side * 0.5), h);
+    let session = session_over(doc);
+    let index = plate_index(&session);
+    let eval = eval_of(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let bounds = bvh::Aabb {
+        min_x: 0.0,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: side * 1.5,
+        max_y: side,
+        max_z: h,
+    };
+    let camera = Camera::framing(Some(bounds), aspect).expect("the pair frames");
+    let near = |a: f64, b: f64| (a - b).abs() < 1.0e-9;
+    // The right block's left top edge lies on the left block's top, and
+    // the left block's right top edge on the right block's.
+    let (right_edge, right_points) =
+        edge_where(&index, right, |p| near(p.x, side * 0.5) && near(p.z, h));
+    let (left_edge, left_points) = edge_where(&index, left, |p| near(p.x, side) && near(p.z, h));
+    for (name, id, points, other) in [
+        ("the right block's", right_edge, &right_points, &left_points),
+        ("the left block's", left_edge, &left_points, &right_points),
+    ] {
+        let (a, b) = middle_segment(&camera, points);
+        let (c, d) = middle_segment(&camera, other);
+        let toward = [(c[0] + d[0]) * 0.5, (c[1] + d[1]) * 0.5];
+        let cursor = offset_from(a, b, toward, 3.0);
+        let faces = index
+            .faces_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
+            .expect("un-projects");
+        let parts: std::collections::BTreeSet<RecipeNodeId> =
+            faces.iter().map(|face| face.node).collect();
+        assert_eq!(
+            parts.len(),
+            2,
+            "the premise: {name} edge's cursor is over both coincident tops, not {faces:?}"
+        );
+        let picked = index
+            .edge_at(eval, &camera, pane(), cursor)
+            .expect("un-projects")
+            .map(|pick| pick.id());
+        assert_eq!(
+            picked,
+            Some(id),
+            "{name} edge, 3 px from the cursor on a two-part tie, was not offered"
+        );
+    }
+}
+
+/// **A cursor on a chord's END, over a grazed face, picks an edge
+/// through that end.**
+///
+/// The plate, with each of its five visible faces grazed in turn — the
+/// top from a hair above it, each side from a hair outside it — at
+/// three angles. Every drawn chord point on the grazed face is aimed at
+/// its own pixel, the pixel the edge walk clamps any cursor past a
+/// chord's end onto, so the candidate there is a chord at `s → 1` (the
+/// one ending at the point: a curved edge keeps its earlier segment at
+/// a shared point) or `s → 0` (an edge starting at a vertex). The ray
+/// through a chord point misses it by its own rounding, and on the
+/// material side of the grazed face that miss is a crossing of a
+/// triangle around the point well in front of it — a triangle of the
+/// END's fan, which is not always one of the chord's own pair. Every
+/// chord point this row's own `1e-6` band calls visible is picked, by
+/// an edge whose polyline holds it.
+#[test]
+fn a_cursor_on_a_chord_end_over_a_grazed_face_picks_an_edge_through_it() {
+    let tol = Tol::witness();
+    let (session, copy) = plate_session(tol);
+    let index = plate_index(&session);
+    let eval = eval_of(&session);
+    let [width, depth, thickness] = PLATE_EXTENT;
+    let edges = drawn_edges(&index, copy);
+    let same = |q: Point3<f64>, p: Point3<f64>| {
+        [q.x, q.y, q.z].map(f64::to_bits) == [p.x, p.y, p.z].map(f64::to_bits)
+    };
+    let mut points: Vec<Point3<f64>> = Vec::new();
+    for (_, polyline) in &edges {
+        for &p in polyline {
+            if !points.iter().any(|&q| same(q, p)) {
+                points.push(p);
+            }
+        }
+    }
+    use std::f64::consts::{FRAC_PI_2, FRAC_PI_3, PI};
+    // (yaw, pitch, the grazed face) for an angle `g` off that face.
+    type OnFace = fn(Point3<f64>, [f64; 3]) -> bool;
+    type View = fn(f64) -> (f64, f64);
+    let faces: [(View, OnFace); 10] = [
+        (
+            |g| (-FRAC_PI_3, g),
+            |p, [_, _, t]| (p.z - t).abs() < 1.0e-12,
+        ),
+        (|g| (-FRAC_PI_3, -g), |p, _| p.z.abs() < 1.0e-12),
+        (|g| (-g, 0.5), |p, _| p.y.abs() < 1.0e-12),
+        (|g| (-g, -0.5), |p, _| p.y.abs() < 1.0e-12),
+        (|g| (g, 0.5), |p, [_, d, _]| (p.y - d).abs() < 1.0e-12),
+        (|g| (g, -0.5), |p, [_, d, _]| (p.y - d).abs() < 1.0e-12),
+        (|g| (FRAC_PI_2 + g, 0.5), |p, _| p.x.abs() < 1.0e-12),
+        (|g| (FRAC_PI_2 + g, -0.5), |p, _| p.x.abs() < 1.0e-12),
+        (
+            |g| (FRAC_PI_2 - g + PI, 0.5),
+            |p, [w, _, _]| (p.x - w).abs() < 1.0e-12,
+        ),
+        (
+            |g| (FRAC_PI_2 - g + PI, -0.5),
+            |p, [w, _, _]| (p.x - w).abs() < 1.0e-12,
+        ),
+    ];
+    let mut subjects = 0usize;
+    for (view, on_face) in faces {
+        for grazing in (3..=10).map(|k| 10f64.powi(-k)) {
+            let (yaw, pitch) = view(grazing);
+            let camera = Camera::new(
+                Point3::new(width * 0.5, depth * 0.5, thickness),
+                0.2,
+                yaw,
+                pitch,
+                std::f64::consts::FRAC_PI_4,
+                width,
+            )
+            .expect("a camera");
+            for &p in points.iter().filter(|&&p| on_face(p, PLATE_EXTENT)) {
+                let cursor = pixel_of(&camera, p);
+                let ray = camera.ray_through(cursor, pane()).expect("un-projects");
+                let Some(front) = nearest_surface(&index, eval, &ray) else {
+                    continue;
+                };
+                let along = ray.dir.dot(p - ray.origin) / ray.dir.dot(ray.dir);
+                if front < along * (1.0 - 1.0e-6) {
+                    continue; // hidden at its own pixel — not this row's subject
+                }
+                subjects += 1;
+                let picked = index
+                    .edge_at(eval, &camera, pane(), cursor)
+                    .expect("un-projects")
+                    .map(|pick| pick.id());
+                let through: Vec<EdgeId> = edges
+                    .iter()
+                    .filter(|(_, polyline)| polyline.iter().any(|&q| same(q, p)))
+                    .map(|(id, _)| *id)
+                    .collect();
+                assert!(
+                    picked.is_some_and(|id| through.contains(&id)),
+                    "the chord point {p:?}, visible {grazing:e} rad off a grazed face (yaw \
+                     {yaw}, pitch {pitch}), picked {picked:?} rather than one of the edges \
+                     through it {through:?}"
+                );
+            }
+        }
+    }
+    assert!(
+        subjects > 0,
+        "no chord point on a grazed face is visible at its own pixel, so this row measured \
+         nothing"
     );
 }

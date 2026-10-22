@@ -275,7 +275,9 @@ fn revert_extruded_prism_posture() {
     let body: Body<f64> = out.body;
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let original = format!("{body:?}");
-    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let vol = topo::test_support::unmigrated_measure(&body, Tol::witness())
+        .unwrap()
+        .volume;
     assert!(vol > 0.0);
     let reverted = body.revert().unwrap();
     assert_eq!(format!("{body:?}"), original, "revert mutated its operand");
@@ -287,7 +289,7 @@ fn revert_extruded_prism_posture() {
         }]),
         "tier 3 on a reverted prism must be exactly NegativeVolume"
     );
-    let rvol = topo::mass_properties(&reverted, Tol::witness())
+    let rvol = topo::test_support::unmigrated_measure(&reverted, Tol::witness())
         .unwrap()
         .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
@@ -323,7 +325,9 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
     let body: Body<f64> = out.body;
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let before = format!("{body:?}");
-    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let vol = topo::test_support::unmigrated_measure(&body, Tol::witness())
+        .unwrap()
+        .volume;
     assert!(vol > 0.0);
     // There really is a non-plane surface here (the arc wall).
     let curved: Vec<_> = body
@@ -358,7 +362,7 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         }]),
         "tier 3 on a reverted curved body must be exactly NegativeVolume"
     );
-    let rvol = topo::mass_properties(&reverted, Tol::witness())
+    let rvol = topo::test_support::unmigrated_measure(&reverted, Tol::witness())
         .unwrap()
         .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
@@ -386,7 +390,9 @@ fn split_then_null_lifecycle_on_prism() {
     )
     .unwrap();
     let mut body: Body<f64> = out.body;
-    let vol0 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let vol0 = topo::test_support::unmigrated_measure(&body, Tol::witness())
+        .unwrap()
+        .volume;
     // Split some line edge mid-span.
     let (edge, curve) = body
         .edges()
@@ -404,7 +410,7 @@ fn split_then_null_lifecycle_on_prism() {
     }]);
     assert_eq!(validate_geometric(&body, Tol::witness()), joinable);
     assert_eq!(
-        topo::mass_properties(&body, Tol::witness())
+        topo::test_support::unmigrated_measure(&body, Tol::witness())
             .unwrap()
             .volume
             .to_bits(),
@@ -421,7 +427,7 @@ fn split_then_null_lifecycle_on_prism() {
         )
         .unwrap();
     assert!(matches!(
-        topo::mass_properties(&body, Tol::witness()).unwrap_err(),
+        topo::test_support::unmigrated_measure(&body, Tol::witness()).unwrap_err(),
         topo::MassPropsError::NullScaffoldEdge { .. }
     ));
     assert!(validate_closed(&body).is_err());

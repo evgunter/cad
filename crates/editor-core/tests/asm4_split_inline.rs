@@ -109,7 +109,7 @@ fn volume_bits(body: &topo::Body<f64>) -> u64 {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
+    topo::test_support::unmigrated_measure(body, Tol::witness())
         .expect("mass properties")
         .volume
 }

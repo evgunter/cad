@@ -7,14 +7,14 @@ use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::rod_creases;
 use sweep::{Extrusion, extrude};
-use topo::{Body, mass_properties, validate_geometric};
+use topo::{Body, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("closed-form props");
+    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
     p.volume
 }
 

@@ -20,6 +20,16 @@ use pncad::topo::{AtRestBody, Body, EdgeKey, SolidContainment};
 mod rim_select;
 use rim_select::{Seeds, rim_at};
 
+/// A copy of `body` finished for the measurement doors, which read a
+/// finished body (Ev's decision on PR 4822).
+fn at_rest(
+    body: &pncad::topo::Body<f64>,
+    tol: pncad::geom_core::Tol,
+) -> pncad::topo::AtRestBody<f64> {
+    pncad::topo::AtRestBody::validate(body.clone(), tol)
+        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
+}
+
 fn tol() -> Tol {
     Tol::witness()
 }
@@ -102,7 +112,7 @@ fn ball(x: f64, y: f64, rad: f64) -> AtRestBody<f64> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("mass properties");
+    let p = mass_properties(&at_rest(body, tol()), tol()).expect("mass properties");
     assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
     p.volume
 }

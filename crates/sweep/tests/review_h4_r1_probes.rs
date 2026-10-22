@@ -39,7 +39,7 @@ use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::pappus::{pappus_volume, sector, segment, triangle};
 use sweep::test_support::{domed_cavity, rim_arcs_at, waisted};
-use topo::{Body, EdgeKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -366,12 +366,14 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
     );
 
     // The carve, and the fill by Pappus.
-    let v0 = mass_properties(&body, tol()).expect("props").volume;
+    let v0 = topo::test_support::unmigrated_measure(&body, tol())
+        .expect("props")
+        .volume;
     let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
         .unwrap_or_else(|e| panic!("the floor rim carves, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one band");
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
-    let p1 = mass_properties(&out.body, tol()).expect("props");
+    let p1 = topo::test_support::unmigrated_measure(&out.body, tol()).expect("props");
     assert_eq!(
         p1.volume_pad, 0.0,
         "closed-form inventory: the pad is exactly zero"

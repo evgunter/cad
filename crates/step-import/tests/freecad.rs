@@ -352,8 +352,11 @@ fn foreign_corpus() {
             "{name}: reported structure normalizations"
         );
 
-        let props = topo::mass_properties(&body, Tol::witness())
-            .unwrap_or_else(|err| panic!("{name}: {err}"));
+        let props = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|err| panic!("{name}: {err}"));
         // mm³ → m³ (the generator's unit is FreeCAD's mm).
         let expected_m3 = e.volume_mm3 * 1e-9;
         // Roundoff: the volume is a fixed-order sum of per-face
@@ -492,12 +495,18 @@ fn cross_dialect_fixed_point() {
             export1, export2,
             "{name}: the second export must be byte-identical to the first"
         );
-        let v1 = topo::mass_properties(&body1, Tol::witness())
-            .unwrap()
-            .volume;
-        let v2 = topo::mass_properties(&body2, Tol::witness())
-            .unwrap()
-            .volume;
+        let v1 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body1.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
+        let v2 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body2.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         // Bit-identity everywhere but ONE named fixture. Byte-identical
         // exports already prove both bodies carry the same stated
         // geometry, so any residue is arithmetic, not data — and the
@@ -531,9 +540,12 @@ fn cross_dialect_fixed_point() {
 /// S9 flip rows, where what matters is that two imports describe the
 /// same solid (or a stated multiple of it).
 fn volume_mm3(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
         * 1e9
 }
 
@@ -618,7 +630,12 @@ fn millimetre_lengths_scale_by_one_rounded_multiply() {
         "1 mm is the f64 nearest 1e-3 m — one rounded multiply, no more"
     );
     // And the closed form lands within the roundoff that implies.
-    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     assert!(
         (v - 1e-9).abs() <= 8.0 * f64::EPSILON * 1e-9,
         "unit cube volume {v} m³ vs 1e-9 m³"

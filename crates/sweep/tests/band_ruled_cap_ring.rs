@@ -36,17 +36,14 @@ use sweep::blend::{BlendError, Convexity, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, extruded, rod_chord_at, rod_creases, rod_section_cut,
 };
-use topo::{
-    AtRestPolicy, Body, ContactRecords, mass_properties, validate_geometric,
-    validate_pseudomanifold,
-};
+use topo::{AtRestPolicy, Body, ContactRecords, validate_geometric, validate_pseudomanifold};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, tol())
+    topo::test_support::unmigrated_measure(body, tol())
         .expect("closed-form props")
         .volume
 }
@@ -712,7 +709,11 @@ fn a_hole_whose_edge_leaves_the_slivers_enclosure_by_two_faces_carves_at_interva
         let out = fillet_edges(&body, &creases, iv(ROD_FILLET), tol)
             .unwrap_or_else(|e| panic!("{what}: both creases carve at Interval, got {e:?}"));
         validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
-        let vol = |b: &Body<Interval>| mass_properties(b, tol).expect("interval props").volume;
+        let vol = |b: &Body<Interval>| {
+            topo::test_support::unmigrated_measure(b, tol)
+                .expect("interval props")
+                .volume
+        };
         let dv = vol(&out.body) - vol(&body);
         let want = -2.0 * rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L;
         assert!(

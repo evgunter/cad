@@ -342,7 +342,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let vols: Vec<f64> = evs
         .iter()
         .map(|(_, ev, _)| {
-            pncad::topo::mass_properties(&body_of(ev, r.solid), tol)
+            pncad::topo::mass_properties(&crate::booleans::at_rest(&body_of(ev, r.solid), tol), tol)
                 .expect("the impeller has a volume")
                 .volume
         })
@@ -382,7 +382,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     evs.iter()
         .map(|(n, ev, caption)| {
             let body = body_of(ev, r.solid);
-            let vol = pncad::topo::mass_properties(&body, tol)
+            let vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol)
                 .expect("volume")
                 .volume;
             // Literal, not `format!` into a leaked `&'static str`:

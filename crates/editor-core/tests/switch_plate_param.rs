@@ -24,7 +24,6 @@ use editor_core::{
 };
 use geom_core::Tol;
 use profile::{ContactKind, PathError, ProfileError, ReplayErrorKind};
-use topo::mass_properties;
 
 /// The document, plus the ids the rows address.
 struct Scene {
@@ -127,7 +126,7 @@ fn a_parameter_edit_re_evaluates_into_new_geometry() {
         let doc = set_hole_r(&s.doc, r);
         let ev = eval::<f64>(&doc);
         assert_eq!(ev.outcome, EvalOutcome::Completed, "r = {r} evaluates");
-        mass_properties(body_of(&ev, s.solid), Tol::witness())
+        topo::test_support::unmigrated_measure(body_of(&ev, s.solid), Tol::witness())
             .expect("mass properties")
             .volume
     };
@@ -160,10 +159,10 @@ fn one_parameter_drives_both_holes() {
     let delta = {
         let a = eval::<f64>(&set_hole_r(&s.doc, 0.2));
         let b = eval::<f64>(&set_hole_r(&s.doc, 0.3));
-        mass_properties(body_of(&a, s.solid), Tol::witness())
+        topo::test_support::unmigrated_measure(body_of(&a, s.solid), Tol::witness())
             .expect("a")
             .volume
-            - mass_properties(body_of(&b, s.solid), Tol::witness())
+            - topo::test_support::unmigrated_measure(body_of(&b, s.solid), Tol::witness())
                 .expect("b")
                 .volume
     };

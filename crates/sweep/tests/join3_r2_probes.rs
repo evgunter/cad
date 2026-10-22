@@ -299,7 +299,9 @@ fn j3r2_pocket_battery() {
                 for (entry, z0, h) in entries {
                     let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
                     let c = body_of(plane, &shape, h);
-                    let vc = topo::mass_properties(&c, tol()).unwrap().volume;
+                    let vc = topo::test_support::unmigrated_measure(&c, tol())
+                        .unwrap()
+                        .volume;
                     if (vc - s * h).abs() > 1e-9 {
                         println!("J3R2 ORACLE-MISMATCH {name} {vc} vs {}", s * h);
                     }
@@ -361,7 +363,9 @@ fn j3r2_tilted_battery() {
                             &shape,
                             h,
                         );
-                        let vc = topo::mass_properties(&c, tol()).unwrap().volume;
+                        let vc = topo::test_support::unmigrated_measure(&c, tol())
+                            .unwrap()
+                            .volume;
                         let n = place.transform_vec(Vec3::new(0.0, 0.0, 1.0));
                         // The oblique closed form, only for the through
                         // pose and only once the caps clear the slab.
@@ -540,7 +544,9 @@ fn j3r2_groove_battery() {
             )
             .unwrap()
             .body;
-            let vr = topo::mass_properties(&rod, tol()).unwrap().volume;
+            let vr = topo::test_support::unmigrated_measure(&rod, tol())
+                .unwrap()
+                .volume;
             // The disc's part inside z ∈ [0, 1] (y is inside the block).
             let below = |h: f64| {
                 // area of the disc below the plane z = h
@@ -727,7 +733,9 @@ fn j3r2_reach_wall_c09() {
     let half = (1.0 - lo * lo).sqrt();
     let f = |x: f64| 0.5 * (x * (1.0 - x * x).sqrt() + x.asin()) - lo * x;
     let area = f(half.min(t1)) - f((-half).max(t0));
-    let va = topo::mass_properties(&a, tol()).unwrap().volume;
+    let va = topo::test_support::unmigrated_measure(&a, tol())
+        .unwrap()
+        .volume;
     for depth in [0.03, 0.1, 0.3] {
         let o = Point3::new(c * s, -c * s, 2.0 - depth + w / 2.0);
         let b = framed_bar(o, Vec3::new(s, s, 0.0), t0, t1, w);

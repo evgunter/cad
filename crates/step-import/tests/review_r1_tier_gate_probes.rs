@@ -625,8 +625,11 @@ fn r1_a_wedge_in_band_only_at_its_apex_edges_length_ships_as_a_corner() {
             Ok(()),
             "alpha={alpha:e}: the wedge is valid at rest"
         );
-        let mp = topo::mass_properties(&body, Tol::witness())
-            .unwrap_or_else(|e| panic!("alpha={alpha:e}: mass properties: {e:?}"));
+        let mp = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("alpha={alpha:e}: mass properties: {e:?}"));
         let exact = 0.5 * leg * leg * alpha.sin() * h;
         let rel = (mp.volume - exact).abs() / exact;
         assert!(

@@ -32,6 +32,14 @@ pub fn finished<S: Scalar>(what: &str, body: Body<S>, tol: Tol) -> AtRestBody<S>
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
+/// A copy of `body` finished for the measurement doors
+/// (`mass_properties`, `classify_shells`), which read a finished body
+/// (Ev's decision on PR 4822). Each body a stop measures is finished
+/// once, where props and classification both read it.
+pub fn at_rest<S: Scalar>(body: &Body<S>, tol: Tol) -> AtRestBody<S> {
+    finished("the measured body", body.clone(), tol)
+}
+
 /// A ∪* B — refusals surface to the caller; every result goes through
 /// the scene builders' exact-volume oracle before it ships.
 pub fn try_union<S: Scalar>(

@@ -365,7 +365,7 @@ fn row4_translated_arc_prism() {
     for metres in [0.0, 0.04, 0.4, 4.0, 40.0, 400.0, 4000.0] {
         let dx = metres / s;
         let body = arc_prism_at(s, dx);
-        let r = std::panic::catch_unwind(|| topo::mass_properties(&body, tol()));
+        let r = std::panic::catch_unwind(|| topo::test_support::unmigrated_measure(&body, tol()));
         match r {
             Ok(Ok(mp)) => println!(
                 "ROW4 eps={eps:e} s={s:e} at {metres} m: volume {:.6e} pad {:.3e} area {:.6e} pad {:.3e}",

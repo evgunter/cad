@@ -69,7 +69,10 @@ fn a_grazed_rim_lands_whole_or_refuses_typed() {
             Ok(s) => {
                 assert!(s.coincidences.is_empty(), "the rod {what}: no row");
                 assert!(
-                    !pinched_at_the_graze([s.above.body(), s.below.body()]),
+                    !pinched_at_the_graze([
+                        s.above.body().map(|b| &**b),
+                        s.below.body().map(|b| &**b)
+                    ]),
                     "the rod {what}: no pinch"
                 );
             }
@@ -89,7 +92,7 @@ fn a_grazed_rim_lands_whole_or_refuses_typed() {
     }
     match split(&bored, down) {
         Ok(s) => assert!(
-            !pinched_at_the_graze([s.above.body(), s.below.body()]),
+            !pinched_at_the_graze([s.above.body().map(|b| &**b), s.below.body().map(|b| &**b)]),
             "the bore -z: no pinch at the rim: {:?}",
             s.coincidences
         ),

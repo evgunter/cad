@@ -25,7 +25,7 @@ use sweep::test_support::{
     bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube, disc_of_arcs, pocket_of_arcs, prism,
     walked_chains, wedge_fill,
 };
-use topo::{Body, EdgeKey, VertexKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, VertexKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -318,7 +318,7 @@ fn r2_rims_one_n_past_the_suite_carve_at_the_homed_oracle() {
     for (name, body, z, signed) in &cases {
         let arcs = circle_arcs_at_z(body, *z);
         let n = arcs.len();
-        let p0 = mass_properties(body, tol()).expect("props");
+        let p0 = topo::test_support::unmigrated_measure(body, tol()).expect("props");
         assert_eq!(p0.volume_pad, 0.0, "{name}: closed-form faces only");
         let v0 = p0.volume;
         let c0 = (
@@ -355,7 +355,7 @@ fn r2_rims_one_n_past_the_suite_carve_at_the_homed_oracle() {
             Some(n - 1),
             "{name}: every host rim foot but the slit's is joined"
         );
-        let p1 = mass_properties(&out.body, tol()).expect("props");
+        let p1 = topo::test_support::unmigrated_measure(&out.body, tol()).expect("props");
         assert_eq!(p1.volume_pad, 0.0, "{name}: closed-form faces only after");
         assert!(
             (p1.volume - v0 - signed).abs() < 1e-13,

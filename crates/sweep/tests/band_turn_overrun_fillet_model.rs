@@ -21,8 +21,8 @@ use sweep::blend::BlendError;
 use sweep::blend::build::{Blended, fillet_edges};
 use sweep::test_support::at_rest;
 use topo::{
-    Body, ContactRecords, EdgeKey, SolidContainment, mass_properties, point_in_solid,
-    validate_geometric, validate_pseudomanifold,
+    Body, ContactRecords, EdgeKey, SolidContainment, point_in_solid, validate_geometric,
+    validate_pseudomanifold,
 };
 
 use crate::band_planar_cut_off::{D, edge, midpoint_tol, pad_ceiling, tol};
@@ -386,7 +386,7 @@ fn build(
 }
 
 fn vol(body: &Body<f64>) -> (f64, f64) {
-    let p = mass_properties(body, tol()).expect("props");
+    let p = topo::test_support::unmigrated_measure(body, tol()).expect("props");
     (p.volume, p.volume_pad)
 }
 

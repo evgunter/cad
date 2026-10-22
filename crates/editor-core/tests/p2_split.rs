@@ -165,7 +165,7 @@ fn extent(doc: &ProfileDoc, o: &EvalOptions) -> ([f64; 3], [f64; 3], f64) {
     let hi = pts.iter().fold([f64::NEG_INFINITY; 3], |m, p| {
         [m[0].max(p[0]), m[1].max(p[1]), m[2].max(p[2])]
     });
-    let volume = topo::mass_properties(&body, Tol::witness())
+    let volume = topo::test_support::unmigrated_measure(&body, Tol::witness())
         .expect("mass properties")
         .volume;
     (lo, hi, volume)

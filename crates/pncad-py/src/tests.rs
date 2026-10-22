@@ -3463,6 +3463,10 @@ fn check_registry_tags_are_stable() {
         "unsupported"
     );
     assert_eq!(shell_classify_error_tag(&refused), "zero_volume");
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::NotAtRest { errors: Vec::new() }),
+        "not_at_rest"
+    );
 }
 
 /// **Every constructible `CheckEvidence` arm's payload, built and
@@ -3473,16 +3477,16 @@ fn check_registry_tags_are_stable() {
 /// read off, and this pin says what each arm puts on the wire: the
 /// exact set it CARRIES, in publication order, with the rest `None`.
 ///
-/// **All six arms are built here.** `Escalated` and `Unsupported`
-/// hold the shell door's refusal, which `pncad::document` carries
-/// beside the evidence that rides it, so a value can be named and the
-/// table is total: each of those two carries the refusal's own word
-/// beside the sentence it renders.
+/// **Every arm is built here.** `Escalated` and `Unsupported` hold the
+/// shell door's refusal, which `pncad::document` carries beside the
+/// evidence that rides it, and `NotAtRest` the validator's findings, so
+/// a value can be named and the table is total: each of those three
+/// carries the refusal's own word beside the sentence it renders.
 ///
-/// Three of the six are unreachable from Python entirely (the shell
-/// door escalating on a gathered subject, the box builder refusing
-/// over the whole product), so this is where their projection is
-/// pinned at all: `tests/test_checks.py` reads the other three.
+/// Some are unreachable from Python entirely (the shell door
+/// escalating on a gathered subject, the box builder refusing over the
+/// whole product), so this is where their projection is pinned at all:
+/// `tests/test_checks.py` reads the rest.
 #[test]
 fn every_check_evidence_arm_projects_the_payload_it_carries() {
     use crate::check_payload::check_payload;
@@ -3545,6 +3549,22 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     assert_eq!(
         check_payload(&E::Escalated { source: refused }).inner_variant,
         Some("zero_volume")
+    );
+    // The body tier 3 refused: the first finding's sentence and its own
+    // word, as the shell door's refusal crosses.
+    let not_at_rest = E::NotAtRest {
+        errors: vec![pncad::topo::ValidationError::NegativeVolume {
+            solid: pncad::topo::SolidKey::default(),
+        }],
+    };
+    carries(&not_at_rest, &["reason", "inner_variant"]);
+    assert_eq!(
+        check_payload(&not_at_rest).inner_variant,
+        Some(crate::tags::validation_error_tag(
+            &pncad::topo::ValidationError::NegativeVolume {
+                solid: pncad::topo::SolidKey::default(),
+            }
+        ))
     );
     // The boolean class beside the sentence, and the two words are
     // read off the same evidence: a consumer branching on this one
@@ -4674,6 +4694,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_coherence_unexamined",
             "connectedness",
             "escalated",
+            "not_at_rest",
             "not_separated",
             "separation_unavailable",
             "stale_expectation",

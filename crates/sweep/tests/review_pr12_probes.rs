@@ -214,7 +214,8 @@ fn probe_e_hexagon_tier3_error() {
     );
     println!(
         "PROBE E: props = {:?}",
-        topo::mass_properties(&f.body, Tol::witness()).map(|p| (p.volume, p.volume_pad))
+        topo::test_support::unmigrated_measure(&f.body, Tol::witness())
+            .map(|p| (p.volume, p.volume_pad))
     );
     if let Err(errs) = topo::validate_geometric(&f.body, Tol::witness()) {
         for e in &errs {

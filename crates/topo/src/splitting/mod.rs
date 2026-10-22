@@ -1148,19 +1148,30 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     } else {
         operand
     };
-    let mut result = split_direct(operand, plane, tol)?;
-    for (side, part) in [
-        (PlaneSide::Above, &mut result.above),
-        (PlaneSide::Below, &mut result.below),
-    ] {
-        if let finish::SplitPart::Body(body) = part {
-            crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)
+    let finish::RawSplit {
+        above,
+        below,
+        naming,
+        coincidences,
+    } = split_direct(operand, plane, tol)?;
+    // Each side sorted into its pieces and gated at rest, the verdict kept
+    // ([`finish::SplitPart::Body`]).
+    let at_rest = |side, part| match part {
+        finish::RawPart::Body(mut body) => {
+            crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), None)
                 .map_err(SplitError::Pieces)?;
-            T::gate_at_rest(body, tol)
-                .map_err(|errors| SplitFinishError::not_at_rest(side, errors))?;
+            T::gate_at_rest_kept(body, tol)
+                .map(finish::SplitPart::Body)
+                .map_err(|errors| SplitError::from(SplitFinishError::not_at_rest(side, errors)))
         }
-    }
-    Ok(result)
+        finish::RawPart::Empty => Ok(finish::SplitPart::Empty),
+    };
+    Ok(SplitResult {
+        above: at_rest(PlaneSide::Above, above)?,
+        below: at_rest(PlaneSide::Below, below)?,
+        naming,
+        coincidences,
+    })
 }
 
 /// One run of the split pipeline over an operand read as one solid.
@@ -1175,14 +1186,14 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
-) -> Result<SplitResult<T>, SplitError> {
+) -> Result<finish::RawSplit<T>, SplitError> {
     let (red, completed, fragments) = split_scratch(operand, plane, tol)?;
     let mut result = finish::split_finish(red, &completed, fragments, tol)?;
     for (side, part) in [
         (PlaneSide::Above, &mut result.above),
         (PlaneSide::Below, &mut result.below),
     ] {
-        if let finish::SplitPart::Body(body) = part {
+        if let finish::RawPart::Body(body) = part {
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             // On this run's own output: a refusal discards it.

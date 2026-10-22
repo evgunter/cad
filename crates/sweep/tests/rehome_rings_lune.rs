@@ -106,7 +106,7 @@ fn assert_half(row: &str, part: &Body<f64>, holds_bore: bool) {
     if let Err(errs) = topo::validate_geometric(part, tol()) {
         panic!("{row}: tier 3 refused the half: {errs:?}");
     }
-    let v = topo::mass_properties(part, tol())
+    let v = topo::test_support::unmigrated_measure(part, tol())
         .unwrap_or_else(|e| panic!("{row}: mass properties refused: {e:?}"))
         .volume;
     let want = half_volume(holds_bore);
@@ -265,7 +265,7 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
         let column = PI * BORE * BORE * (0.2f64.mul_add(-cy, 0.5));
         let lower = finished(
             &format!("bore at ({cx}, {cy}): the lower piece"),
-            lower,
+            lower.into_body(),
             tol(),
         );
         for nx in [1.0, -1.0] {

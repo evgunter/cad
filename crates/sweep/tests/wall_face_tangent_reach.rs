@@ -123,7 +123,9 @@ fn the_tangent_rest<T: geom_core::Decide + geom_core::Bounds + AtRestPolicy>(
 #[test]
 fn a_tangent_rest_on_a_face_interior_records_its_union() {
     the_tangent_rest::<f64>(|b| {
-        let v = topo::mass_properties(b, Tol::witness()).unwrap().volume;
+        let v = topo::test_support::unmigrated_measure(b, Tol::witness())
+            .unwrap()
+            .volume;
         (v, v)
     });
 }
@@ -132,7 +134,9 @@ fn a_tangent_rest_on_a_face_interior_records_its_union() {
 fn a_tangent_rest_on_a_face_interior_records_its_union_at_interval() {
     use geom_core::Bounds;
     the_tangent_rest::<geom_core::Interval>(|b| {
-        let v = topo::mass_properties(b, Tol::witness()).unwrap().volume;
+        let v = topo::test_support::unmigrated_measure(b, Tol::witness())
+            .unwrap()
+            .volume;
         (v.lo(), v.hi())
     });
 }

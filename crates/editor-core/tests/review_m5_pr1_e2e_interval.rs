@@ -41,7 +41,7 @@ use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
 use geom_core::{Bounds, Interval, Real};
-use topo::{mass_properties, validate, validate_closed};
+use topo::{validate, validate_closed};
 
 #[test]
 fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
@@ -115,7 +115,9 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = mass_properties(body, Tol::witness()).unwrap().volume;
+    let vol = topo::test_support::unmigrated_measure(body, Tol::witness())
+        .unwrap()
+        .volume;
     // Interior rotated cuboid 0.5 x 0.5 x 1.0 => volume exactly 8 - 0.25.
     let oracle = 8.0 - 0.25;
     assert!(

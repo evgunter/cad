@@ -119,7 +119,7 @@ fn blend_one_box(
     );
     let (t, body) = (table(&ev, blended), corpus::body_of(&ev, blended));
     assert_eq!(body.solids().count(), 2, "{label}: still two solids");
-    let v = topo::mass_properties(body, tol())
+    let v = topo::test_support::unmigrated_measure(body, tol())
         .expect("closed-form mass properties")
         .volume;
     assert!(

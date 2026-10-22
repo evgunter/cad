@@ -70,7 +70,6 @@ class WorldPins(unittest.TestCase):
             (shelf, self.face(doc, shelf, CapEnd.Start)),
             (post, self.face(doc, post, CapEnd.End)),
             bench_scene.SHELF_ON_POST,
-            resolver=self.ws,
         )
 
     def loose(self, ref):
@@ -159,7 +158,6 @@ class WorldPins(unittest.TestCase):
                 PoseDef.flip(PoseDef.plane(post, self.face(doc, post, CapEnd.End))),
                 ContactClass.Rest,
             ),
-            resolver=self.ws,
         )
         self.assertEqual(doc.remove_mate(bare), [])
         self.assertEqual(doc.bundle(shelf), [])
@@ -304,7 +302,6 @@ class WorldPins(unittest.TestCase):
             (p2, self.face(doc, p2, CapEnd.End)),
             (shelf, self.face(doc, shelf, CapEnd.Start)),
             bench_scene.post_under_shelf(bench_scene.SEAT_A),
-            resolver=self.ws,
         )
         self.pinned(doc, self.post_ref, Frame.translation((1 * m, 0 * m, 0 * m)))
         ev = evaluate(doc, resolver=self.ws)

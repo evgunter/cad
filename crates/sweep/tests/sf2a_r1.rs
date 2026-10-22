@@ -113,7 +113,7 @@ fn points(body: &Body<f64>) -> Vec<Point3<f64>> {
 fn report(what: &str, r: Result<Body<f64>, topo::ShellError<f64>>) -> Option<Body<f64>> {
     match r {
         Ok(b) => {
-            let props = topo::mass_properties(&b, Tol::witness()).expect("props");
+            let props = topo::test_support::unmigrated_measure(&b, Tol::witness()).expect("props");
             println!(
                 "[r1] {what}: BUILDS  shells={} volume={:.17e} tier3={:?}",
                 b.shells().count(),
@@ -222,7 +222,7 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
             Tol::witness(),
         ) {
             Ok(topo::Shelled { body: b, .. }) => {
-                let got = topo::mass_properties(&b, Tol::witness())
+                let got = topo::test_support::unmigrated_measure(&b, Tol::witness())
                     .expect("props")
                     .volume;
                 println!(
@@ -335,7 +335,7 @@ fn r1d_the_straight_footprint_vertex_through_shell() {
         )
         .map(|shelled| shelled.body),
     ) {
-        let got = topo::mass_properties(&b, Tol::witness())
+        let got = topo::test_support::unmigrated_measure(&b, Tol::witness())
             .expect("props")
             .volume;
         println!(
@@ -485,7 +485,7 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                 Tol::witness(),
             ) {
                 Ok(topo::Shelled { body: b, .. }) => {
-                    let got = topo::mass_properties(&b, Tol::witness())
+                    let got = topo::test_support::unmigrated_measure(&b, Tol::witness())
                         .expect("props")
                         .volume;
                     println!(
@@ -572,7 +572,7 @@ fn r1g_box_control() {
         )
         .map(|shelled| shelled.body),
     ) {
-        let got = topo::mass_properties(&b, Tol::witness())
+        let got = topo::test_support::unmigrated_measure(&b, Tol::witness())
             .expect("props")
             .volume;
         println!(
@@ -655,7 +655,7 @@ fn wide_dump(body: &Body<f64>) -> String {
     for line in pc {
         let _ = writeln!(s, "{line}");
     }
-    let props = topo::mass_properties(body, Tol::witness()).unwrap();
+    let props = topo::test_support::unmigrated_measure(body, Tol::witness()).unwrap();
     let _ = writeln!(
         s,
         "props V={:x} A={:x} pad={:x}",

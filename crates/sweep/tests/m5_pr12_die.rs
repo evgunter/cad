@@ -258,7 +258,7 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
         "tier 3"
     );
     let want = DIE_L.powi(3) - 21.0 * cap(PIP_R, PIP_H);
-    let vol = topo::mass_properties(&pipped, Tol::witness())
+    let vol = topo::test_support::unmigrated_measure(&pipped, Tol::witness())
         .unwrap()
         .volume;
     assert!(
@@ -291,7 +291,7 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
 fn the_pip_caps_measure_through_the_closed_form() {
     let blank = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
     let pipped = subtract(&blank, &pip_tool());
-    let props = topo::mass_properties(&pipped, Tol::witness()).unwrap();
+    let props = topo::test_support::unmigrated_measure(&pipped, Tol::witness()).unwrap();
     println!(
         "PROBE pipped: volume={} volume_pad={} area={} area_pad={}",
         props.volume, props.volume_pad, props.surface_area, props.area_pad
@@ -381,7 +381,7 @@ fn deviation_1_both_doors_compose_and_agree() {
         Ok(()),
         "tier 3"
     );
-    let vb = topo::mass_properties(&via_surgery, Tol::witness())
+    let vb = topo::test_support::unmigrated_measure(&via_surgery, Tol::witness())
         .unwrap()
         .volume;
     assert!(

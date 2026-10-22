@@ -21,14 +21,14 @@ use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{arcs_at, dome, lantern, sphere_zone, waisted};
 use topo::query::rim_of;
-use topo::{Body, EdgeKey, RimBreak, RimError, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, RimBreak, RimError, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, tol())
+    topo::test_support::unmigrated_measure(body, tol())
         .expect("mass properties")
         .volume
 }

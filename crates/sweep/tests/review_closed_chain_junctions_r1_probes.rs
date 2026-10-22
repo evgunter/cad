@@ -28,7 +28,7 @@ use sweep::test_support::{
     walked_chains, wedge_fill,
 };
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, VertexKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, VertexKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -201,7 +201,7 @@ fn r1_every_junction_pairs_exactly_the_two_requested_edges_the_body_has_at_its_v
 #[test]
 fn r1_fixture_volumes_and_convexities_are_the_bodys() {
     for (name, body, z, side, v0) in fixtures() {
-        let props = mass_properties(&body, tol()).unwrap();
+        let props = topo::test_support::unmigrated_measure(&body, tol()).unwrap();
         assert_eq!(props.volume_pad, 0.0, "{name}");
         assert!(
             (props.volume - v0).abs() < 1e-12,
@@ -219,12 +219,14 @@ fn r1_fixture_volumes_and_convexities_are_the_bodys() {
 /// One carve, checked: one band, tier-3 valid, `V₁ − V₀` at the
 /// closed form.
 fn carve(body: &Body<f64>, arcs: &[EdgeKey], signed: f64, what: &str) {
-    let v0 = mass_properties(body, tol()).unwrap().volume;
+    let v0 = topo::test_support::unmigrated_measure(body, tol())
+        .unwrap()
+        .volume;
     let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), arcs, RHO, tol())
         .unwrap_or_else(|e| panic!("{what}: carves, got {e}"));
     assert_eq!(out.band_faces.len(), 1, "{what}: one band");
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
-    let p1 = mass_properties(&out.body, tol()).unwrap();
+    let p1 = topo::test_support::unmigrated_measure(&out.body, tol()).unwrap();
     assert_eq!(p1.volume_pad, 0.0, "{what}");
     let moved = p1.volume - v0;
     assert!(
@@ -288,7 +290,9 @@ fn r1_both_rims_of_a_three_arc_cylinder_walk_into_two_closed_chains_and_carve() 
         assert_eq!(c.junctions.len(), 3);
     }
     assert_pairing_is_the_bodys(&body, &inter, &chains, "both rims");
-    let v0 = mass_properties(&body, tol()).unwrap().volume;
+    let v0 = topo::test_support::unmigrated_measure(&body, tol())
+        .unwrap()
+        .volume;
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &inter,
@@ -298,7 +302,9 @@ fn r1_both_rims_of_a_three_arc_cylinder_walk_into_two_closed_chains_and_carve() 
     .unwrap_or_else(|e| panic!("both rims carve, got {e}"));
     assert_eq!(out.band_faces.len(), 2);
     validate_geometric(&out.body, tol()).unwrap();
-    let v1 = mass_properties(&out.body, tol()).unwrap().volume;
+    let v1 = topo::test_support::unmigrated_measure(&out.body, tol())
+        .unwrap()
+        .volume;
     assert!(
         (v1 - v0 + 2.0 * corner_fill(R, RHO, true)).abs() < 1e-13,
         "{}",
