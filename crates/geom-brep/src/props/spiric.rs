@@ -778,8 +778,9 @@ fn require_rings_wound_against(
 /// The face's enclosures at `pieces` resolution, a wall's chart terms
 /// loop by loop ([`wall_chart`]; none for a cap), and the part of the
 /// flux's width a later round removes: each spiric's moment `J`, which
-/// the flux reads through the lever as `(lever·n)·r·J`, and a wall's
-/// chart flux.
+/// the flux reads through the lever as `Σₖ leverₖ·nₖ·r·J` — component by
+/// component, as the interval sum carries `J`'s width, so a lever in the
+/// cap's own plane still carries it — and a wall's chart flux.
 fn face_bounds(
     face: &SpiricFaceQ,
     pieces: usize,
@@ -788,7 +789,11 @@ fn face_bounds(
     let mut removable = 0.0_f64;
     for e in &face.spirics {
         let (t, rem) = vector_area_split(e, pieces);
-        removable += (dot(&face.lever, &e.normal) * e.minor).mag() * rem;
+        removable += (0..3)
+            .map(|k| (face.lever[k] * e.normal[k]).mag())
+            .sum::<f64>()
+            * e.minor.mag()
+            * rem;
         va = [0, 1, 2].map(|k| va[k] + t[k]);
     }
     let position = dot(&face.lever, &va);
