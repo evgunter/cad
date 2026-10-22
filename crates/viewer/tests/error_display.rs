@@ -21,12 +21,16 @@
 //! produces it (`tests/path_authoring.rs`,
 //! `an_illegal_walk_refuses_at_the_preview_and_at_the_door`).
 
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used, clippy::panic)]
+
 use bvh::Aabb;
 use editor_core::{HitTestError, NameLookupError, NodePickError, NodeStanding, UnnamedEntity};
 use pncad::document::{EditError, RecipeNodeId, Said, Speaker};
+use pncad::geom_core::Point3;
 use pncad::mesh::TessellateError;
 use test_utils::refusal::tagged;
-use viewer::camera::{CameraError, CameraOp, CameraOpError};
+use viewer::camera::{Camera, CameraError, CameraOp, CameraOpError};
 use viewer::history::ReplayError;
 use viewer::matetool::MateToolError;
 use viewer::pickindex::{
@@ -76,16 +80,52 @@ fn camera_error_names_the_offending_value() {
     assert!(undrawable.contains("3.4e38"), "{undrawable}");
     prose(&undrawable, "UndrawableProjection");
 
-    let unfittable = CameraError::Unfittable {
-        required: 12.5,
-        max_distance: 8.25,
-        aspect: 0.125,
+    // The one aspect-dependent refusal says its cause and the remedy,
+    // through the door that raises it, at every input that reaches it:
+    // never the aspect's seventeen digits, the stand-off nobody can act
+    // on, a ratio that is not one ("about 0 times", "about inf times"),
+    // or a shape when the lens is what binds.
+    let unit = Some(Aabb {
+        min_x: 0.0,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: 1.0,
+        max_y: 1.0,
+        max_z: 1.0,
+    });
+    let refusal = |camera: Result<Camera, CameraError>| match camera {
+        Err(error @ CameraError::Unfittable { required, .. }) => (error.to_string(), required),
+        other => panic!("expected an unfittable refusal, got {other:?}"),
+    };
+    let tall = 1.0 / 36.6;
+    let (shape, required) = refusal(Camera::framing(unit, tall));
+    for wanted in ["37 times taller", "widen it"] {
+        assert!(shape.contains(wanted), "{shape} lacks {wanted:?}");
     }
-    .to_string();
-    for value in ["12.5", "8.25", "0.125"] {
-        assert!(unfittable.contains(value), "{unfittable} lacks {value}");
+    for unwanted in [tall.to_string(), required.to_string()] {
+        assert!(!shape.contains(&unwanted), "{shape} renders {unwanted}");
     }
-    prose(&unfittable, "Unfittable");
+    prose(&shape, "Unfittable");
+
+    let lens = Camera::new(Point3::new(0.0, 0.0, 0.0), 1.0, 0.0, 0.0, 0.01, 1.0)
+        .expect("a narrow lens is a camera");
+    for aspect in [2.0, 1.0, 0.2] {
+        let (said, _) = refusal(lens.fitted(unit, aspect));
+        assert!(
+            said.contains("field of view") && !said.contains("times"),
+            "at aspect {aspect} the narrow lens is the cause: {said}"
+        );
+        prose(&said, "Unfittable");
+    }
+
+    for aspect in [1.0e-200, 1.0e-310] {
+        let (said, _) = refusal(Camera::framing(unit, aspect));
+        assert!(
+            said.contains("too narrow for its height") && !said.contains("times"),
+            "at aspect {aspect:e} no ratio is readable: {said}"
+        );
+        assert!(!said.contains("inf") && !said.contains("e-"), "{said}");
+    }
 }
 
 #[test]
@@ -130,20 +170,25 @@ fn camera_op_renders_as_the_move_it_is() {
     assert!(dolly.contains("0.75"), "{dolly}");
     prose(&dolly, "Dolly");
 
-    let frame = CameraOp::Frame {
-        bounds: Aabb {
-            min_x: 0.0,
-            min_y: 0.0,
-            min_z: 0.0,
-            max_x: 1.0,
-            max_y: 1.0,
-            max_z: 1.0,
-        },
-        aspect: 1.5,
+    // The button's name, whatever the fit was handed: the error beside
+    // it says what was wrong, so neither field is rendered.
+    let unit = Aabb {
+        min_x: 0.0,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: 1.0,
+        max_y: 1.0,
+        max_z: 1.0,
+    };
+    for extent in [Some(unit), None] {
+        let frame = CameraOp::Frame {
+            extent,
+            aspect: 1.475_426_319_176_319_3,
+        }
+        .to_string();
+        assert_eq!(frame, "zoom to fit", "{extent:?}");
+        prose(&frame, "Frame");
     }
-    .to_string();
-    assert!(frame.contains("1.5"), "{frame}");
-    prose(&frame, "Frame");
 }
 
 #[test]
@@ -464,10 +509,6 @@ test_utils::loud_skip_marker!(
 #[test]
 fn startup_error_forwards_every_payload_arm() {
     use viewer::app::StartupError;
-
-    let camera = CameraError::UnusableBounds;
-    let outer = StartupError::Camera(camera).to_string();
-    assert!(outer.contains(&camera.to_string()), "{outer}");
 
     let scene = SceneError::EmptyMesh;
     let outer = StartupError::Scene(SceneError::EmptyMesh).to_string();

@@ -55,7 +55,7 @@ use eframe::egui;
 use egui_tiles::{ContainerKind, EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::geom_core::Tol;
 
-use crate::camera::{self, Camera, CameraError};
+use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
 use crate::drafts::{Drafts, ProfileDoors};
 use crate::evalseam::FitService;
@@ -574,8 +574,6 @@ pub enum StartupError {
     Document(scene::SceneDocError),
     /// The document did not produce a drawable scene.
     Scene(scene::SceneError),
-    /// The starting camera could not be framed on the scene.
-    Camera(camera::CameraError),
     /// `eframe` handed the application no wgpu render state — the
     /// application was built against a renderer it does not have.
     NoWgpuRenderState,
@@ -609,12 +607,6 @@ impl core::fmt::Display for StartupError {
             }
             Self::Scene(error) => {
                 write!(f, "the starting document draws no scene: {error}")
-            }
-            Self::Camera(error) => {
-                write!(
-                    f,
-                    "no camera could be framed on the starting scene: {error}"
-                )
             }
             Self::NoWgpuRenderState => f.write_str(
                 "eframe handed the viewer no wgpu render state: this build was linked \
@@ -776,12 +768,12 @@ impl ViewerApp {
         let delta = DisplayTolerance::new(scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
         let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
-        // A provisional camera at a square aspect, because no pane has
-        // been laid out yet and there is no real aspect to read. It is
-        // provisional for exactly one frame: `pending_fit` below makes
-        // the viewport re-frame at its true aspect the first time it
-        // runs, so what a user sees is never the invented framing.
-        let camera = Camera::framing(&mesh.bounds(), 1.0).map_err(StartupError::Camera)?;
+        // A provisional camera, because no pane has been laid out yet
+        // and there is no aspect to fit against. It is provisional for
+        // exactly one frame: `pending_fit` below makes the viewport fit
+        // what it draws at its true aspect the first time it runs — the
+        // same fit an open books — so what a user sees is never this.
+        let camera = Camera::default();
 
         // Preferences, before anything is drawn. A refusal here is
         // never fatal: a viewer that would not open because its

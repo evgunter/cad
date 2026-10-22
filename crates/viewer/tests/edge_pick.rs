@@ -955,6 +955,19 @@ fn a_hidden_copy_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
         index.edge_polyline_for(id, &hidden).is_empty(),
         "and it marks nothing either"
     );
+    // The plate is placed once, so hiding it hides the picture, which
+    // then has no extent: a hidden part does not frame.
+    let blank = index.scene_for(&hidden).expect("a blank picture");
+    assert!(blank.positions().is_empty(), "nothing is drawn");
+    assert_eq!(blank.bounds(), None, "and nothing frames");
+    assert!(
+        index
+            .scene_for(&DisplayView::none())
+            .expect("the plate draws")
+            .bounds()
+            .is_some(),
+        "while the plate shown frames"
+    );
 
     // Free-moved: the edge is picked at the DISPLACED midpoint, and
     // not at the tessellated one.

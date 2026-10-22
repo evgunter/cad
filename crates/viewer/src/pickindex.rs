@@ -1185,14 +1185,11 @@ impl PickIndex {
     /// # Errors
     ///
     /// As [`PickIndex::scene`]. **Drawing nothing is never an error
-    /// here**, and there are two ways to draw nothing. Hiding
-    /// EVERYTHING gives [`SceneMesh::empty`] — a blank picture whose
-    /// bounds are the hidden geometry's, so the camera keeps a real
-    /// extent to frame against. An index with NO PARTS AT ALL gives
-    /// [`SceneMesh::nothing`], which has no extent to carry; which
-    /// documents reach that state is
-    /// [`pncad::document::ProductErrorKind::means_no_body`]'s to say.
-    /// Either way the picture is never left stale behind a refusal.
+    /// here**: an index whose every part is hidden, and one with no
+    /// parts at all, both give [`SceneMesh::nothing`] (which documents
+    /// reach the second is
+    /// [`pncad::document::ProductErrorKind::means_no_body`]'s to say),
+    /// so the picture is never left stale behind a refusal.
     pub fn scene_for(&self, display: &DisplayView) -> Result<SceneMesh, SceneError> {
         self.scene_focused(display, &BTreeSet::new())
     }
@@ -1225,31 +1222,10 @@ impl PickIndex {
             });
         }
         if parts.is_empty() {
-            // Nothing is drawn, and there are two ways to arrive here.
-            // Every part hidden by the display view keeps its
-            // geometry's box, so a camera still has a real extent to
-            // frame against (the case the docs above state).
-            //
-            // An index with NO PARTS is the other, and whether such a
-            // document is a fault is `ProductErrorKind::means_no_body`'s
-            // to say. `SceneMesh::nothing` is the picture of one.
-            // Refusing here would instead leave the PREVIOUS picture on
-            // screen under an error line, so the document would go on
-            // showing a body it no longer has.
-            if self.parts.is_empty() {
-                return Ok(SceneMesh::nothing(self.key.delta()));
-            }
-            // Parts that exist but offer no point to bound is still a
-            // refusal, and deliberately still this one: that is a
-            // tessellation that produced nothing, which is the fault
-            // `EmptyMesh` has always named.
-            let bounds = bvh::Aabb::from_points(
-                self.parts
-                    .iter()
-                    .flat_map(|part| part.mesh().positions.iter().copied()),
-            )
-            .ok_or(SceneError::EmptyMesh)?;
-            return Ok(SceneMesh::empty(bounds, self.key.delta()));
+            // Refusing here would leave the PREVIOUS picture on screen
+            // under an error line, so the document would go on showing
+            // a body it no longer has.
+            return Ok(SceneMesh::nothing(self.key.delta()));
         }
         SceneMesh::build_parts_focused(&parts, self.key.delta(), focus)
     }

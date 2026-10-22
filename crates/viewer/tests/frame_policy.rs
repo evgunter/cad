@@ -650,7 +650,7 @@ fn a_startup_notice_echoing_a_key_that_holds_the_boundary_mark_still_splits_back
 #[test]
 fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
     let (cursor, pick) = (empty_landed("cursor"), empty_landed("pick"));
-    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
@@ -739,7 +739,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     // The badges here carry no node, so the document they speak in
     // holds none.
     let nodeless: Doc<ProfileProgram> = Doc::empty_derived("badges", Tol::witness());
-    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
@@ -1120,7 +1120,7 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
 /// it is out of.
 #[test]
 fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
-    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
@@ -1163,7 +1163,7 @@ fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
 /// two there are.
 #[test]
 fn the_two_policies_that_expire_are_the_two_subjects_the_roster_names() {
-    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let clean = viewer::camera::Folded {
         camera,
         applied: vec![CameraOp::Orbit {
@@ -3606,7 +3606,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
 #[test]
 fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
     let (cursor, pick) = (empty_landed("cursor"), empty_landed("pick"));
-    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let StatusUpdate::Show(fold) = frame::fold_status(&viewer::camera::Folded {
         camera,
         applied: Vec::new(),

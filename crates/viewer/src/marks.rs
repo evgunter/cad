@@ -571,10 +571,19 @@ pub fn edge_id_lane(index: &PickIndex, display: &DisplayView, id: EdgeId) -> Leg
 /// segments rather than recomputed by whoever wants to say so.
 ///
 /// [`undrawn`]: LegLane::undrawn
+///
+/// # Why the extent is too
+///
+/// A fit frames what is drawn, and a lane is the one place that knows
+/// which of its positions crossed the seam. [`extent`] is the box
+/// around exactly those, so a leg the seam refused frames nothing.
+///
+/// [`extent`]: LegLane::extent
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LegLane {
     segments: Vec<[f32; 3]>,
     undrawn: usize,
+    points: Vec<[f32; 3]>,
 }
 
 impl LegLane {
@@ -601,6 +610,30 @@ impl LegLane {
             Some(pair) => self.segments.extend(pair),
             None => self.undrawn += 1,
         }
+    }
+
+    /// A position the lane holds as no leg — a loop of one vertex —
+    /// joined to [`LegLane::extent`] if the seam takes it.
+    pub fn point<T>(&mut self, at: T)
+    where
+        T: Narrow<Narrowed = [f32; 3]>,
+    {
+        if let Some(end) = at.narrow() {
+            self.points.push(end);
+        }
+    }
+
+    /// The box around every position this lane drew or holds, `None`
+    /// for a lane with none.
+    #[must_use]
+    pub fn extent(&self) -> Option<bvh::Aabb> {
+        crate::narrowing::drawn_box(self.corners())
+    }
+
+    /// Every position this lane drew or holds: its legs' ends, then its
+    /// lone points.
+    pub fn corners(&self) -> impl Iterator<Item = &[f32; 3]> {
+        self.segments.iter().chain(&self.points)
     }
 
     /// Append every leg of a polyline, in order.
