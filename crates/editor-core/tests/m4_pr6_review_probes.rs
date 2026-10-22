@@ -316,7 +316,9 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     )
     .unwrap();
     // `e1` joins `e0`'s space, as an operator's operands share one.
-    let in_e0 = doc.node_space(e0).expect("a construction is in its own space");
+    let in_e0 = doc
+        .node_space(e0)
+        .expect("a construction is in its own space");
     let e1_in = push(
         &mut doc,
         DocEdit::InsertNode {

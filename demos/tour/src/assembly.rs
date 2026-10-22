@@ -109,8 +109,8 @@ use pncad::document::{
     LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node,
     OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, Placed, PlacedBy,
     ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, Target, TargetAxis, UNPINNED_RECOURSE,
-    ValuePayload, VarId, VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
-    parse_formula, pin_at, place_at, product_named, save, solve_document, split, stand,
+    ValuePayload, VarId, VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load,
+    mixed_pins, parse_formula, pin_at, place_at, product_named, save, solve_document, split, stand,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -370,7 +370,11 @@ fn place_in_world(
 fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     insert(
         doc,
-        Node::place(vec![body.into()], Operand::Var(VarId::WORLD), stand().bundle()),
+        Node::place(
+            vec![body.into()],
+            Operand::Var(VarId::WORLD),
+            stand().bundle(),
+        ),
         tol,
     )
 }
@@ -378,7 +382,11 @@ fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
 /// An instance of `part` standing where its part's world stands, in
 /// `space`: the identity bundle, which a gesture then writes over.
 fn instance(doc: &mut ProfileDoc, part: DocRef, space: Operand, tol: Tol) -> RecipeNodeId {
-    insert(doc, Node::instantiate_part(part, space, stand().bundle()), tol)
+    insert(
+        doc,
+        Node::instantiate_part(part, space, stand().bundle()),
+        tol,
+    )
 }
 
 /// Applies an edit that mints nothing.
@@ -714,7 +722,11 @@ fn layout_doc(
         );
         let placement = insert(
             &mut doc,
-            Node::place(vec![post.into()], Operand::Var(VarId::WORLD), stand().bundle()),
+            Node::place(
+                vec![post.into()],
+                Operand::Var(VarId::WORLD),
+                stand().bundle(),
+            ),
             tol,
         );
         place_in_world(&mut doc, placement, &lying, opts, tol);
@@ -1532,9 +1544,7 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
 fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let (post, shelf) = (parts.post, parts.shelf);
     let opts = with_store(ws);
-    println!(
-        "\n-- the v1 boundary, walked: four refusals an author actually hits --"
-    );
+    println!("\n-- the v1 boundary, walked: four refusals an author actually hits --");
 
     // (1) UNDER-DETERMINED. One planar rest between two parts fixes
     // the seating plane and nothing else — the shelf could still slide

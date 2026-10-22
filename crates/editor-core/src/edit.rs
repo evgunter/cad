@@ -6656,8 +6656,11 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // D10 `[placement.spaces]`, on EVERY arm: a node this edit left
     // reading two spaces is reported, never refused (a node an edit
     // writes whole is refused at its own door; a re-point is reported).
-    let before: std::collections::BTreeSet<RecipeNodeId> =
-        doc.space_faults().into_iter().map(|(id, _, _)| id).collect();
+    let before: std::collections::BTreeSet<RecipeNodeId> = doc
+        .space_faults()
+        .into_iter()
+        .map(|(id, _, _)| id)
+        .collect();
     for (node, a, b) in new.space_faults() {
         if !before.contains(&node) {
             reported.push(Maintenance::StrandedSpace {
@@ -6881,7 +6884,8 @@ fn mint_bundle(
         .map(|c| {
             if let crate::mate::ConstraintKind::Value(value) = &mut c.kind
                 && let Some(named) = value.mate
-                && let Some(&(_, minted)) = written.iter().find(|&&(as_written, _)| as_written == named)
+                && let Some(&(_, minted)) =
+                    written.iter().find(|&&(as_written, _)| as_written == named)
             {
                 value.mate = Some(minted);
             }

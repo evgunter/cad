@@ -562,7 +562,10 @@ fn carry<E>(
         let bundle: Vec<crate::mate::Constraint> = bundle
             .into_iter()
             .map(|mut constraint| {
-                if let Some(run) = fold.then(|| fold_world_run(source, &mut constraint)).flatten() {
+                if let Some(run) = fold
+                    .then(|| fold_world_run(source, &mut constraint))
+                    .flatten()
+                {
                     runs.insert(constraint.id, run);
                 }
                 constraint

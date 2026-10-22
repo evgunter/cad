@@ -130,7 +130,10 @@ fn an_insert_reports_its_outputs_and_a_delete_takes_them_with_its_node() {
     let node = applied.record.minted.expect("an insert mints its node");
     assert_eq!(applied.record.outputs, applied.doc.outputs(node));
     let [body, _space] = applied.record.outputs[..] else {
-        panic!("an extrude defines a body and its space: {:?}", applied.record.outputs)
+        panic!(
+            "an extrude defines a body and its space: {:?}",
+            applied.record.outputs
+        )
     };
     // Named, it stays named, and a later edit's sweep of unread
     // anonymous variables leaves it standing.

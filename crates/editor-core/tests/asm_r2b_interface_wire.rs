@@ -90,7 +90,12 @@ fn doc_with_a_crossing() -> ProfileDoc {
     // start cap rests on the world's xy plane.
     let host = push(
         &host,
-        Box::new(Node::instantiate_part_with(doc_ref, record, editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle())),
+        Box::new(Node::instantiate_part_with(
+            doc_ref,
+            record,
+            editor_core::Operand::Var(editor_core::VarId::WORLD),
+            editor_core::stand().bundle(),
+        )),
     );
     let instance = *host.ids().last().expect("the record's instance is live");
     fixture::constrain_at(

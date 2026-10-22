@@ -2966,7 +2966,8 @@ test_utils::f6_variants! {
 /// live node to move to.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
-    let spaces = editor_core::ProfileDoc::empty_derived("display-spaces", geom_core::Tol::witness());
+    let spaces =
+        editor_core::ProfileDoc::empty_derived("display-spaces", geom_core::Tol::witness());
     let cases = [
         (
             Maintenance::Strand {

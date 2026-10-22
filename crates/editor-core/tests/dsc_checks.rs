@@ -236,7 +236,10 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     );
     // An empty body has no geometry for a mate to read, so its
     // placement is a loose copy: placed, in no product.
-    insert(doc, crate::fixture::stood(vec![editor_core::BodyRead::plain(result)]))
+    insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(result)]),
+    )
 }
 
 #[test]

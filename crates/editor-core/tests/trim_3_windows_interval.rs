@@ -186,7 +186,9 @@ fn translated(
             _ => (coord, by),
         })
         .collect();
-    let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(body)]));
+    let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
+        body,
+    )]));
     r.constrain(placement, mate, values);
     placement
 }

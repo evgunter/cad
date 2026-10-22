@@ -451,7 +451,15 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
             inner: face(part_face(body)),
         }],
     };
-    let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record, editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle()));
+    let (doc, id) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            editor_core::Operand::Var(editor_core::VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+    );
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-referenced crossing round trips");
     (text, id)

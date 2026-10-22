@@ -254,7 +254,10 @@ impl SolvedPoses {
     /// whose map comes out as the identity: that is a value, not the
     /// recipe.
     pub fn at_identity(&self, placement: RecipeNodeId) -> bool {
-        matches!(self.placed.get(&placement), Some(Ok((crate::VarId::WORLD, None))))
+        matches!(
+            self.placed.get(&placement),
+            Some(Ok((crate::VarId::WORLD, None)))
+        )
     }
 
     /// **A copy's pose in its space**: where it sits in its target's

@@ -13,8 +13,8 @@
 
 use crate::fixture;
 use editor_core::{
-    Bodies, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault,
-    Maintenance, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, ProfileDoc, RecipeNodeId,
+    Bodies, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, Maintenance,
+    MateFault, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, ProfileDoc, RecipeNodeId,
     RoleSeg, SlotId, SlotValue, TargetAxis, VarId, VarKind, apply, load, save,
 };
 use fixture::{insert, len, on_frame, run, square, step};
@@ -67,7 +67,9 @@ fn a_union_of_two_constructions_refuses_at_the_door() {
         },
         Tol::witness(),
     ) {
-        Err(EditError::SpaceMismatch { a: one, b: other, .. }) => {
+        Err(EditError::SpaceMismatch {
+            a: one, b: other, ..
+        }) => {
             assert_eq!((one.id(), other.id()), (space_a, space_b));
         }
         other => panic!("two spaces refuse at the door, got {other:?}"),
@@ -93,7 +95,10 @@ fn a_re_target_strands_the_union_and_re_targeting_back_resolves_it() {
     let (doc, joined) = insert(doc, union(a, copy));
     assert_eq!(doc.node_space(joined), Some(space_a));
     let o = EvalOptions::default();
-    assert!(matches!(run(&doc, &o).result(joined), Some(NodeResult::Ok(_))));
+    assert!(matches!(
+        run(&doc, &o).result(joined),
+        Some(NodeResult::Ok(_))
+    ));
 
     let retarget = |doc: &ProfileDoc, space: VarId| {
         apply(
@@ -133,7 +138,10 @@ fn a_re_target_strands_the_union_and_re_targeting_back_resolves_it() {
 
     let back = retarget(&loaded, space_a).doc;
     assert_eq!(back.space_fault(joined), None);
-    assert!(matches!(run(&back, &o).result(joined), Some(NodeResult::Ok(_))));
+    assert!(matches!(
+        run(&back, &o).result(joined),
+        Some(NodeResult::Ok(_))
+    ));
 }
 
 /// **Test 18: every freedom is written.** An empty bundle, and a plane
@@ -157,7 +165,10 @@ fn an_empty_bundle_and_a_plane_mate_with_one_value_refuse_unpinned() {
     );
 
     let mate = fixture::mate(
-        fixture::plane(fixture::head(fixture::fname(a, RoleSeg::Cap(CapEnd::Start)))),
+        fixture::plane(fixture::head(fixture::fname(
+            a,
+            RoleSeg::Cap(CapEnd::Start),
+        ))),
         fixture::flip(fixture::plane(fixture::head_at(
             target,
             fixture::fname(b, RoleSeg::Cap(CapEnd::End)),
@@ -230,7 +241,8 @@ fn every_corpus_space_is_a_space_variable() {
         }
         let ev = run(&d.doc, &o);
         for id in d.doc.ids() {
-            if let Some(NodeErrorKind::SpaceMismatch { a, b }) = ev.node_error(id).map(|e| &e.kind) {
+            if let Some(NodeErrorKind::SpaceMismatch { a, b }) = ev.node_error(id).map(|e| &e.kind)
+            {
                 assert!(is_space(*a) && is_space(*b), "{}: {id:?}", d.name);
             }
         }

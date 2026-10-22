@@ -20,8 +20,7 @@ use crate::p2_gauges::{
 use editor_core::pose::PoseRole;
 use editor_core::{
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, Operand, ParamBox, ProfileDoc, RecipeNodeId, Target, VarName, WorldRead,
-    evaluate,
+    FreeVar, Operand, ParamBox, ProfileDoc, RecipeNodeId, Target, VarName, WorldRead, evaluate,
 };
 use fixture::resolver::with_resolver;
 use fixture::{ang, head, insert, len, run, solve, step};
@@ -325,7 +324,8 @@ fn the_clearance_door_refuses_two_selections_in_different_spaces() {
     };
     let p = parts("r2-clear");
     let doc = ProfileDoc::empty(DocumentId::derive("r2-clear"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &p.opts());
+    let (doc, base) =
+        fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &p.opts());
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, space) = fixture::into_new_space(doc, top);
     let report = clearance(

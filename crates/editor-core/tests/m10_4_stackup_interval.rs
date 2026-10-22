@@ -1143,8 +1143,7 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     walls.sort();
     // The hole's wall is read at a copy standing in the plate's space,
     // as a measure's two sites share one.
-    let (doc, hole_in) =
-        crate::fixture::stood_in(doc, hole, plate_node);
+    let (doc, hole_in) = crate::fixture::stood_in(doc, hole, plate_node);
     let refs = vec![
         SitedRef::new(hole_in, walls.remove(0)),
         SitedRef::new(plate_node, fname(plate_node, wall(&doc, plate_node, 0))),

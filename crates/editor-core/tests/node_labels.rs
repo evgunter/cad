@@ -1204,11 +1204,15 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     // once, by its noun where it has one and as `this node` where it has
     // none.
     let constraint = editor_core::ConstraintId(editor_core::MintId::new(8, 0x8));
-    let fixed_twice = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::Overconstrained {
-        placement: body,
-        constraints: vec![constraint, editor_core::ConstraintId(editor_core::MintId::new(9, 0x9))],
-        free: 0,
-    })));
+    let fixed_twice =
+        NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::Overconstrained {
+            placement: body,
+            constraints: vec![
+                constraint,
+                editor_core::ConstraintId(editor_core::MintId::new(9, 0x9)),
+            ],
+            free: 0,
+        })));
     let line = fixed_twice.line_at(body, Speaker::of(&doc));
     assert!(
         line.starts_with(&format!(

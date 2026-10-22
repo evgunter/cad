@@ -127,7 +127,9 @@ fn deepest_world_read_document(levels: usize) -> Recorder {
     let read = fixture::body_read(&r.doc, extrude.into());
     let placement = r
         .push(DocEdit::InsertNode {
-            node: Box::new(crate::fixture::stood(vec![editor_core::BodyRead::plain(read)])),
+            node: Box::new(crate::fixture::stood(vec![editor_core::BodyRead::plain(
+                read,
+            )])),
             fresh: Vec::new(),
         })
         .expect("a placement mints its node");

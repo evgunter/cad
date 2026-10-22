@@ -1866,13 +1866,13 @@ let placed = place_against(
     &EvalOptions::default(),
     tol,
 )?;
-let (next, tab_on_plate) = insert(&doc, Node::place(vec![BodyRead::plain(Operand::from(tab))]));
+// The tab's copy is placed into the plate's space, which the mate reads.
+let in_plate = Operand::Var(doc.node_space(plate).expect("a construction is in its own space"));
+let (next, tab_on_plate) = insert(
+    &doc,
+    Node::place(vec![BodyRead::plain(Operand::from(tab))], in_plate, placed.bundle()),
+);
 doc = next;
-placed.write(tab_on_plate, |edit| {
-    let applied = apply(&doc, &edit, tol)?;
-    doc = applied.doc;
-    Ok::<_, EditError>(applied.record.minted_constraints)
-})?;
 let (next, solid) = insert(&doc, Node::Union {
     members: Bodies::Spelled(vec![plate.into(), tab_on_plate.into()]),
 });

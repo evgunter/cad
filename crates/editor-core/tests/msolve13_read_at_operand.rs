@@ -20,7 +20,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, DocumentId, EvalOptions, Formula, MateRef, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, SitedFace, VarId, SplitError, StableName, member_of,
+    RecipeNodeId, SitedFace, SplitError, StableName, VarId, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, head, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve};

@@ -422,12 +422,7 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
                 a: editor_core::VarId::WORLD,
                 b: editor_core::VarId::new(0, tagged(7)),
             },
-            vec![
-                "different spaces",
-                "the world",
-                "the space #",
-                "Recourse:",
-            ],
+            vec!["different spaces", "the world", "the space #", "Recourse:"],
         ),
     ];
     assert_f6_every_variant(&cases, &HIT_TEST_ERROR, &[]);

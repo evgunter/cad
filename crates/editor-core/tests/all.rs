@@ -780,6 +780,8 @@ mod emit_union_rim_piece_ranks;
 mod emit_union_seam_rank;
 #[path = "glue_on_zero_rows.rs"]
 mod glue_on_zero_rows;
+#[path = "intent_dprime1_target_space.rs"]
+mod intent_dprime1_target_space;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]
@@ -804,8 +806,6 @@ mod intent_s2_d_measure;
 mod intent_s2_e_select;
 #[path = "intent_s2_f_mates.rs"]
 mod intent_s2_f_mates;
-#[path = "intent_dprime1_target_space.rs"]
-mod intent_dprime1_target_space;
 #[path = "intent_s3_a_poses.rs"]
 mod intent_s3_a_poses;
 #[path = "intent_s3_a_prime_moves.rs"]

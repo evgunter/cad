@@ -76,8 +76,11 @@ pub(crate) fn pinned_block(
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut store = PartStore::new();
     let (part, body) = store.insert_part(block(label), Tol::witness());
-    let (doc, id) =
-        fixture::insert_pinned(doc, crate::fixture::mated_instance(part), &with_resolver(store));
+    let (doc, id) = fixture::insert_pinned(
+        doc,
+        crate::fixture::mated_instance(part),
+        &with_resolver(store),
+    );
     (doc, id, body)
 }
 

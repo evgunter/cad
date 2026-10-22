@@ -120,7 +120,15 @@ fn with_record(
     record: InterfaceRecord,
     pin: Option<&EvalOptions>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record, editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle()));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            editor_core::Operand::Var(editor_core::VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+    );
     match pin {
         Some(o) => (fixture::pinned(doc, instance, o), instance),
         None => (doc, instance),
@@ -231,7 +239,12 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::instantiate_part_with(doc_ref, record(), editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle())),
+            node: Box::new(Node::instantiate_part_with(
+                doc_ref,
+                record(),
+                editor_core::Operand::Var(editor_core::VarId::WORLD),
+                editor_core::stand().bundle(),
+            )),
             fresh: Vec::new(),
         },
         Tol::witness(),
