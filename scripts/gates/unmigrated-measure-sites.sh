@@ -18,14 +18,18 @@
 # there. F2 brings every count to 0 and deletes the alias, this gate and
 # its baseline (`work/flux/the-measurement-doors-test-sites-still-read-through-the-transitional-alias.md`).
 #
-# WHAT IT COUNTS: a call `unmigrated_measure(` or `unmigrated_classify(`
-# in code (comments and string literals stripped, `gate_rust_code`) under
-# `crates/*/src` and `crates/*/tests`, the alias's own `fn` declarations
-# excluded. A path call (`topo::test_support::unmigrated_measure(`)
-# counts; a `use` of the name alone does not.
+# WHAT IT COUNTS: every REFERENCE to `unmigrated_measure` or
+# `unmigrated_classify` in code (comments and string literals stripped,
+# `gate_rust_code`), under every crate's src, tests, examples and benches,
+# and under demos/ and benches/ — a call, a turbofish, a fn pointer, a
+# `(path)(…)` call and a `use … as` rename each spell the name once, so a
+# renamed import is counted where it is spelled. The alias's own
+# declarations (topo's `pub use … as NAME;`) are not references. The
+# counter is `measure_door_census.py`, shared with the raw doors' gate.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+CENSUS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/measure_door_census.py"
 
 BASELINE=scripts/gates/unmigrated-measure-sites.counts
 
@@ -33,33 +37,12 @@ gate() {
   gate_require_file "$BASELINE"
   gate_require_crate_sources
   local files report
-  mapfile -t files < <(find crates/*/src crates/*/tests -type f -name '*.rs' 2>/dev/null | sort)
+  mapfile -t files < <(find crates/*/src crates/*/tests crates/*/examples crates/*/benches demos benches \
+    -type f -name '*.rs' -not -path '*/target/*' 2>/dev/null | sort)
+  GATE_SCAN_FILES=${#files[@]}
   if ! report=$(gate_rust_code "${files[@]}" \
-    | gate_grep -E '\bunmigrated_(measure|classify)\s*\(' \
-    | gate_grep -vE '\bfn\s+unmigrated_(measure|classify)\b' \
-    | python3 -c '
-import sys
-base = {}
-with open(sys.argv[1], encoding="utf-8") as fh:
-    for line in fh:
-        line = line.split("#", 1)[0].strip()
-        if line:
-            crate, n = line.split()
-            base[crate] = int(n)
-counts = {}
-for hit in sys.stdin:
-    parts = hit.split("/")
-    if len(parts) > 2 and parts[0] == "crates":
-        crate = "crates/" + parts[1]
-        counts[crate] = counts.get(crate, 0) + 1
-for crate in sorted(set(counts) | set(base)):
-    now, was = counts.get(crate, 0), base.get(crate, 0)
-    if now > was:
-        print(f"ROSE {crate}: {was} -> {now}")
-    elif now < was:
-        print(f"FELL {crate}: {was} -> {now}")
-print(f"TOTAL {sum(counts.values())}")
-' "$BASELINE"); then
+    | python3 "$CENSUS" "$BASELINE" \
+      unmigrated_measure unmigrated_classify); then
     gate_error "$(gate_name): the counter failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
     exit 1
   fi
@@ -99,20 +82,50 @@ plant_fell_unrecorded() {
     >> "$1/crates/clean/src/lib.rs"
 }
 
+# The alias's declarations are topo's `pub use … as NAME;`, and are not
+# references.
 plant_at_baseline() {
   printf 'crates/clean 1\n' >> "$1/$BASELINE"
   printf 'pub fn v(b: &B) -> f64 { unmigrated_measure(b, t()).volume }\n' \
     >> "$1/crates/clean/src/lib.rs"
-  printf 'pub fn unmigrated_measure(b: &B, t: T) -> M { m(b, t) }\n' \
-    >> "$1/crates/clean/src/lib.rs"
+  mkdir -p "$1/crates/topo/src"
+  printf 'pub mod test_support {\n    pub use crate::props::raw_door::measure_body as unmigrated_measure;\n}\n' \
+    > "$1/crates/topo/src/lib.rs"
 }
 
 plant_prose_only() {
   {
     printf '//! unmigrated_measure(b, t) is the transitional alias.\n'
     printf 'pub const WHY: &str = "unmigrated_classify(b, t)";\n'
-    printf 'use topo::test_support::unmigrated_measure;\n'
   } >> "$1/crates/clean/src/lib.rs"
+}
+
+# The spellings a call-shaped needle missed: each names the alias once.
+plant_use_as() {
+  printf 'use topo::test_support::unmigrated_measure as m;\npub fn v(b: &B) -> f64 { m(b, t()).volume }\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+plant_fn_pointer() {
+  printf 'pub const M: fn(&B, T) -> R = topo::test_support::unmigrated_measure;\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+plant_turbofish() {
+  printf 'pub fn v(b: &B) -> R { topo::test_support::unmigrated_classify::<f64>(b, t()) }\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+plant_paren_path() {
+  printf 'pub fn v(b: &B) -> R { (topo::test_support::unmigrated_measure)(b, t()) }\n' \
+    >> "$1/crates/clean/src/lib.rs"
+}
+plant_example_site() {
+  mkdir -p "$1/crates/clean/examples"
+  printf 'fn main() { let _ = topo::test_support::unmigrated_measure(&b(), t()); }\n' \
+    > "$1/crates/clean/examples/probe.rs"
+}
+plant_demo_site() {
+  mkdir -p "$1/demos/tour/src"
+  printf 'pub fn v(b: &B) -> R { pncad::topo::test_support::unmigrated_measure(b, t()) }\n' \
+    > "$1/demos/tour/src/stop.rs"
 }
 
 gate_selftest() {
@@ -120,10 +133,16 @@ gate_selftest() {
   gate_selftest_without_tool python3 "the counter failed"
   gate_selftest_case "sites rose" plant_new_site
   gate_selftest_case "sites rose" plant_new_test_site
+  gate_selftest_case "sites rose" plant_use_as
+  gate_selftest_case "sites rose" plant_fn_pointer
+  gate_selftest_case "sites rose" plant_turbofish
+  gate_selftest_case "sites rose" plant_paren_path
+  gate_selftest_case "sites rose" plant_example_site
+  gate_selftest_case "sites rose" plant_demo_site
   gate_selftest_case "sites fell" plant_fell_unrecorded
   gate_selftest_passes "a site at its baseline beside the alias's declaration" plant_at_baseline
-  gate_selftest_passes "prose, a string literal and a use naming the alias" plant_prose_only
-  printf '%s selftest OK: passes a clean fixture, one at its baseline beside the declaration, and prose, string and use mentions; fires on a new site in src or tests and on an unrecorded fall, and diagnoses a counter that cannot run\n' "$(gate_name)"
+  gate_selftest_passes "prose and a string literal naming the alias" plant_prose_only
+  printf '%s selftest OK: passes a clean fixture, one at its baseline beside the declaration, and prose and string mentions; fires on a new site in src, tests, examples or demos, on a use-as rename, a fn pointer, a turbofish and a (path)(…) call, and on an unrecorded fall, and diagnoses a counter that cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -43,7 +43,8 @@ fn certified<T: geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Doors<T> {
     Doors {
         pseudomanifold: topo::validate_pseudomanifold::<T>,
         marks: |body, tol| topo::contact_marks(body, tol).map(|m| sorted_marks(m.iter())),
-        mass: topo::test_support::unmigrated_measure::<T>,
+        // Raw door: the corpus holds corrupt bodies tier 3 refuses, and the dump is of what each door says of them.
+        mass: topo::test_support::measure_unvalidated::<T>,
     }
 }
 
