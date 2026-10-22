@@ -78,3 +78,34 @@ on `pick_for` are named in the plan.
 
 **Next.** The two P0s, each weighed by a designer pair first.
 (FIT orchestrator)
+
+## 2026-10-22 — the two P0s weighed and dispatched
+
+Both P0 rows were weighed by a designer pair (blinding on
+`analysis/design-fork/fit-p0`). Both pairs converged in their first
+reports, and no ratified text moves, so neither is a fork for Ev. The
+orchestrator adopted each:
+
+- **`ctrl-wheel-reaches-no-zoom`.** egui's `zoom_modifier` is set to
+  `NONE` once, so a ctrl/⌘+wheel is an ordinary `Scroll` at the one
+  wheel rate. A pinch (`zoom_delta()`, i.e. every pinch on every
+  backend, which the row undercounted) is `ViewportEvent::Pinch
+  { factor }` → `Dolly(1/factor)`, with no rate. The pair named the
+  variant `Magnify` and `Pinch`; `Pinch` was taken, naming the gesture
+  as `Scroll` does. Rejected: routing ctrl+wheel through egui's factor
+  with a synced `scroll_zoom_speed` (a second copy of the rate), and
+  converting the factor to notches. Review: style.
+- **`zoom-to-fit-frames-no-committed-profile`**, with the aspect
+  sentence riding along. The fit frames the drawn extent (the mesh,
+  committed loops and preview loops; never pixel-sized marks or
+  display aids). Absence is `None`, not `SceneMesh::nothing`'s
+  origin point. Hidden parts do not frame. An empty or point extent
+  frames at a named `DEFAULT_FRAME_RADIUS` with the orientation kept.
+  The fit moves after the geometry lanes and before the marks.
+  `CameraOp::Frame` reads "zoom to fit", and only `Unfittable` prints
+  the aspect. The refuse-not-default argument lived only in
+  agent-written comments. The design reads only drawn positions, so it
+  holds under D′. Review: full (moves the frame order and a type).
+  Correction: no `datums.rs` exists on main; the row's datum paragraph
+  is stale.
+(FIT orchestrator)
