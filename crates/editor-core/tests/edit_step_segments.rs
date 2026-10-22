@@ -3124,7 +3124,7 @@ fn a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is() {
             centre: [len(0.0), len(0.0)],
             radius: len(1.0),
             n: 4,
-            phase: fixture::ang(0.0),
+            phase: editor_core::Formula::zero(editor_core::Dimension::Angle),
         }],
     );
     let program = row.program();

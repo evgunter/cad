@@ -3671,12 +3671,9 @@ class Doc:
         """This document's identity as 32 lowercase hex digits — the
         save file's `id:` header, and the workspace store's key.
         Identity survives every edit; it is not a content hash."""
-    def apply(self, edit: DocEdit, *, resolver: Optional[Workspace] = None) -> Optional[NodeId]:
+    def apply(self, edit: DocEdit) -> Optional[NodeId]:
         """Apply one edit, answering the minted node id if the edit
         minted one.
-
-        `resolver` is the document seam an edit door reads parts
-        through; the mate door itself is structural and reads none.
 
         A constraint the door refuses — an `on` that does not read the
         copy, poses of two kinds, a world read whose moves do not
@@ -3775,18 +3772,14 @@ class Doc:
         (`constraint_on_non_placement`) for a node that holds no bundle,
         and (`unknown_node`) for one this document does not hold."""
 
-    def constrain(
-        self, placement: NodeId, mate: Mate, *, resolver: Optional[Workspace] = None
-    ) -> MateRef:
+    def constrain(self, placement: NodeId, mate: Mate) -> MateRef:
         """Add `mate` to `placement`'s bundle and answer the
         constraint's address: `apply` of `DocEdit.add_constraint`, the
         id minted by the edit. Refuses typed on `EditError`:
         `constraint_on_non_placement`, `mate_refused` (the door's
         fault — `mate_not_on_the_copy`, `mate_kinds_differ`,
         `mate_world_read`, `mate_overconstrained` where the bundle
-        already pins the copy), and the slot doors' refusals.
-        `resolver` is the seam the door reads parts through, as
-        `apply`'s."""
+        already pins the copy), and the slot doors' refusals."""
 
     def remove_mate(self, mate: MateRef) -> list[MateRef]:
         """Remove the constraint `mate` addresses as one action, a mate
@@ -3859,26 +3852,15 @@ class Doc:
         node: Node,
         *,
         label: Optional[str] = None,
-        resolver: Optional[Workspace] = None,
     ) -> NodeId:
         """Insert a node, answering its minted id — `apply` of
         `DocEdit.insert_node`.
 
         `label=` labels the new node in the same call: the insert and
         `DocEdit.set_label`, both applied or neither. A text that is
-        not a label raises EditError before anything is applied.
-
-        `resolver` is the document seam an edit door reads parts
-        through: an insert is a Join at most (the survivor keeps its
-        root), so its maintenance never consults it, and a mate's door
-        is structural — see `apply` for what a mate refuses here
-        (`mate_refused`)."""
-    def measure(
-        self,
-        primitives: list[MeasurePrimitive],
-        *,
-        resolver: Optional[Workspace] = None,
-    ) -> Measured:
+        not a label raises EditError before anything is applied. See
+        `apply` for what a mate refuses here (`mate_refused`)."""
+    def measure(self, primitives: list[MeasurePrimitive]) -> Measured:
         """Insert measures: one `Measure` node per primitive, in order,
         as one action — all land or none does. Answers a `Measured`:
         the measures and their outputs, the observed values an assertion

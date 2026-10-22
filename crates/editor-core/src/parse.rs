@@ -664,6 +664,23 @@ struct Parser<'a> {
 /// A binary smart constructor, as the grammar's operators name them.
 type Make = fn(Formula, Formula) -> Result<Formula, DimensionError>;
 
+/// A function of the vocabulary by its constructor, whose arity is the
+/// function's.
+#[derive(Clone, Copy)]
+enum Function {
+    Unary(fn(Formula) -> Result<Formula, DimensionError>),
+    Binary(Make),
+}
+
+impl Function {
+    fn arity(self) -> usize {
+        match self {
+            Self::Unary(_) => 1,
+            Self::Binary(_) => 2,
+        }
+    }
+}
+
 /// What closes a bracket level.
 enum Close {
     /// The whole text: the end of input.
@@ -675,7 +692,7 @@ enum Close {
     Call {
         pos: usize,
         canonical: &'static str,
-        arity: usize,
+        function: Function,
         args: Vec<Formula>,
     },
 }
@@ -889,7 +906,7 @@ impl Parser<'_> {
                     Close::Call {
                         pos,
                         canonical,
-                        arity,
+                        function,
                         mut args,
                     } => {
                         args.push(value);
@@ -898,13 +915,13 @@ impl Parser<'_> {
                             levels.push(Level::new(Close::Call {
                                 pos,
                                 canonical,
-                                arity,
+                                function,
                                 args,
                             }));
                             break;
                         }
                         self.expect(&Tok::RParen, "`)` or `,`")?;
-                        value = Self::apply(pos, canonical, arity, args)?;
+                        value = Self::apply(pos, canonical, function, args)?;
                     }
                 }
             }
@@ -933,12 +950,12 @@ impl Parser<'_> {
             }
             Some((pos, Tok::Ident(name))) => {
                 if let Some((_, Tok::LParen)) = self.peek() {
-                    let (canonical, arity) = function(pos, &name)?;
+                    let (canonical, function) = function(pos, &name)?;
                     self.expect(&Tok::LParen, "`(`")?;
                     levels.push(Level::new(Close::Call {
                         pos,
                         canonical,
-                        arity,
+                        function,
                         args: Vec::new(),
                     }));
                     Ok(None)
@@ -1123,42 +1140,20 @@ impl Parser<'_> {
     fn apply(
         pos: usize,
         canonical: &'static str,
-        arity: usize,
+        function: Function,
         args: Vec<Formula>,
     ) -> Result<Formula, ParseError> {
-        if args.len() != arity {
-            return Err(ParseError::WrongArity {
-                pos,
-                name: canonical,
-                expected: arity,
-                found: args.len(),
-            });
-        }
+        let found = args.len();
         let mut it = args.into_iter();
-        let (Some(a), b) = (it.next(), it.next()) else {
-            // args starts non-empty and the arity check bounds it.
-            return Err(ParseError::WrongArity {
-                pos,
-                name: canonical,
-                expected: arity,
-                found: 0,
-            });
-        };
-        let built = match (canonical, b) {
-            ("sin", None) => Formula::sin(a),
-            ("cos", None) => Formula::cos(a),
-            ("tan", None) => Formula::tan(a),
-            ("scalar", None) => Formula::count_to_scalar(a),
-            ("atan2", Some(b)) => Formula::atan2(a, b),
-            ("min", Some(b)) => Formula::min(a, b),
-            ("max", Some(b)) => Formula::max(a, b),
-            // Arity was just checked; unreachable, kept typed.
-            (_, _) => {
+        let built = match (function, it.next(), it.next(), it.next()) {
+            (Function::Unary(make), Some(a), None, _) => make(a),
+            (Function::Binary(make), Some(a), Some(b), None) => make(a, b),
+            _ => {
                 return Err(ParseError::WrongArity {
                     pos,
                     name: canonical,
-                    expected: arity,
-                    found: usize::MAX,
+                    expected: function.arity(),
+                    found,
                 });
             }
         };
@@ -1166,17 +1161,17 @@ impl Parser<'_> {
     }
 }
 
-/// The AST's closed function vocabulary: the canonical name and arity
-/// of the function `name` calls.
-fn function(pos: usize, name: &str) -> Result<(&'static str, usize), ParseError> {
+/// The AST's closed function vocabulary: the canonical name and
+/// constructor of the function `name` calls.
+fn function(pos: usize, name: &str) -> Result<(&'static str, Function), ParseError> {
     Ok(match name {
-        "sin" => ("sin", 1),
-        "cos" => ("cos", 1),
-        "tan" => ("tan", 1),
-        "scalar" => ("scalar", 1),
-        "atan2" => ("atan2", 2),
-        "min" => ("min", 2),
-        "max" => ("max", 2),
+        "sin" => ("sin", Function::Unary(Formula::sin)),
+        "cos" => ("cos", Function::Unary(Formula::cos)),
+        "tan" => ("tan", Function::Unary(Formula::tan)),
+        "scalar" => ("scalar", Function::Unary(Formula::count_to_scalar)),
+        "atan2" => ("atan2", Function::Binary(Formula::atan2)),
+        "min" => ("min", Function::Binary(Formula::min)),
+        "max" => ("max", Function::Binary(Formula::max)),
         _ => {
             return Err(ParseError::UnknownFunction {
                 pos,

@@ -2,11 +2,12 @@
 id: zoom-to-fit-frames-no-committed-profile
 kind: issue
 title: Zoom to fit frames bodies only, so a document holding only profiles, committed or being authored, has nothing to frame
-status: open
+status: closed
 opened: 2026-09-18
 priority: P0
 cost: M
-design: true
+closed: 2026-10-22
+pr: 5597
 ---
 
 
@@ -87,3 +88,22 @@ nothing); and when that union has no positive extent, the fit lands on
 a stated default rather than refusing — or the row says why a refusal is
 right. The wording of the refusal is a separate defect and has its own
 row, `a-degenerate-frame-refusal-prints-an-aspect-nobody-can-act-on`.
+
+## Closed
+
+PR 5597. Every fit (the Zoom to fit button, the fit at startup and the
+one an open books) frames the drawn extent: the world box around the
+scene's drawn corners, every committed profile's loops and every drawn
+preview's loops (`pane::viewport::drawn_extent`, over
+`marks::LegLane::extent`). A preview's step marks are left out, because
+they are sized by the view. When nothing is drawn, the extent is `None`,
+and `Camera::fitted` frames the world origin at
+`camera::DEFAULT_FRAME_RADIUS`. A lone point frames its own centre at
+that radius. The orientation is kept and the fit says nothing. Design
+and census: `crates/viewer/README.md`, "Zoom to fit frames what is
+drawn".
+
+The datum paragraph under "What a fix has to decide" is stale and has no
+subject: there is no `datums.rs`, and nothing in the viewer draws datums
+on main. So no datum joins the extent, and a document whose only roots
+are datums frames the default.

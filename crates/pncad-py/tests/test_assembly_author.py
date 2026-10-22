@@ -294,7 +294,7 @@ class TestBenchLayout(BenchWorkspace):
         cap = one(ev.select(first, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])))
         bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE)))
         joint, values = rest(
-            doc, shelf_i, (shelf_i, bottom), (first, cap), SHELF_ON_POST, resolver=self.ws
+            doc, shelf_i, (shelf_i, bottom), (first, cap), SHELF_ON_POST
         )
         solved = solve_document(doc, resolver=self.ws)
         self.assertIsNone(solved.fault(shelf_i))
@@ -524,8 +524,8 @@ class TestBenchStand(BenchWorkspace):
         # first, and the mate's poses and selections go with it, each a
         # silent retirement of an anonymous variable.
         for ref, _held in doc.bundle(post_b)[1:]:
-            doc.apply(DocEdit.remove_constraint(ref), resolver=self.ws)
-        doc.apply(DocEdit.remove_constraint(mate_2), resolver=self.ws)
+            doc.apply(DocEdit.remove_constraint(ref))
+        doc.apply(DocEdit.remove_constraint(mate_2))
         retired = [m.variant for m in doc.last_maintenance]
         self.assertTrue(retired)
         self.assertEqual(set(retired), {"anonymous_var_removed"})
@@ -539,7 +539,6 @@ class TestBenchStand(BenchWorkspace):
             (post_b, b_top),
             (shelf_i, s_bottom),
             bench_scene.POST_UNDER_SHELF,
-            resolver=self.ws,
         )
         self.assertEqual(doc.last_maintenance, [])
         # A REFUSED edit leaves the reading as it was: a mate whose `on`
@@ -548,7 +547,7 @@ class TestBenchStand(BenchWorkspace):
         stranded = [m.variant for m in doc.last_maintenance]
         elsewhere = Mate(PoseDef.plane(shelf_i, s_bottom), WorldRead.through("xy"), ContactClass.Rest)
         with self.assertRaises(pncad.EditError) as caught:
-            doc.constrain(post_b, elsewhere, resolver=self.ws)
+            doc.constrain(post_b, elsewhere)
         self.assertEqual(caught.exception.inner_variant, "mate_not_on_the_copy")
         self.assertEqual([m.variant for m in doc.last_maintenance], stranded)
 
@@ -728,7 +727,6 @@ class TestAssemblyRefusals(BenchWorkspace):
                 PoseDef.flip(PoseDef.plane(post_a, a_top)),
                 ContactClass.Rest,
             ),
-            resolver=self.ws,
         )
         return doc, (post_a, shelf_i), mate
 
@@ -768,7 +766,6 @@ class TestAssemblyRefusals(BenchWorkspace):
                 PoseDef.flip(PoseDef.plane(post_a, a_top)),
                 ContactClass.Rest,
             ),
-            resolver=self.ws,
         )
         seat = PoseDef.flip(PoseDef.plane(post_a, a_top))
         lower = PoseDef.slide(seat, RoleRead(seat, "normal"), 0.01 * m)
@@ -776,7 +773,6 @@ class TestAssemblyRefusals(BenchWorkspace):
             doc.constrain(
                 shelf_i,
                 Mate(PoseDef.plane(shelf_i, s_bottom), lower, ContactClass.Rest),
-                resolver=self.ws,
             )
         fault = caught.exception.fault
         self.assertEqual(fault.variant, "mate_overconstrained")
@@ -1020,7 +1016,6 @@ class TestAssemblyRefusals(BenchWorkspace):
             (post_j, top),
             (shelf_j, bottom),
             bench_scene.POST_UNDER_SHELF,
-            resolver=self.ws,
         )
         self.assertIsNone(solve_document(other, resolver=self.ws).fault(post_j))
 
@@ -1578,7 +1573,6 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
                 PoseDef.flip(PoseDef.plane(post_a, a_top)),
                 class_,
             ),
-            resolver=self.ws,
         )
         slide = bench_scene.shelf_on_post(b_seat or SEAT_A)
         for coord, by in (
@@ -1777,7 +1771,6 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
                 PoseDef.flip(PoseDef.plane(post_i, a_top)),
                 ContactClass.Rest,
             ),
-            resolver=self.ws,
         )
         slides = [
             doc.add_value(mate, Coord.slide(axis), by if isinstance(by, Formula) else by * m)
@@ -1793,9 +1786,7 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
 
         def base_pinned(doc):
             post_i = doc.insert(Node.instantiate_part(self.post_ref, []))
-            bench_scene.on_floor(
-                doc, post_i, post_i, self.instance_face(doc, post_i, CapEnd.Start), self.ws
-            )
+            bench_scene.on_floor(doc, post_i, post_i, self.instance_face(doc, post_i, CapEnd.Start))
             return post_i
 
         doc, _post_i, shelf_i, mate, _ = self.seated("from-face-follows", post=base_pinned)
@@ -1811,7 +1802,7 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
         )
         self.ws.resave(self.post)
         for edit in pncad.update_references(doc, self.post.id, content_pin(self.post)):
-            doc.apply(edit, resolver=self.ws)
+            doc.apply(edit)
         evaluate(doc, resolver=self.ws).value(mate.placement)
         after = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(
@@ -1844,7 +1835,6 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
         self.assertAlmostEqual(at.origin[0].meters, moved.origin[0].meters, places=12)
         doc.apply(
             DocEdit.set_var_value(pncad.VarName("slide"), pncad.FreeValue.length(0.3 * m)),
-            resolver=self.ws,
         )
         later = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(later.origin[0].meters - at.origin[0].meters, 0.2, places=12)
