@@ -52,9 +52,9 @@ The tour bench's three findings are gone, and the comment beside `bench`
 is gone with them; the tour now asserts 0 `unproven-coincidence`
 findings. `mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_reports`
 pins the proof. The replay this unit built reads the rows no mate states,
-with parts resolved where a left row needs them, and no switch.
-`asm2a_instantiate`'s row is renamed `a_symbolic_run_builds_a_part_and_the_door_reads_a_row_on_one`:
-its wall row is `Numeric`, with the budget's recourse. The two rows
+with parts resolved for an at-rest face pair it reads off the copies,
+and no switch; a node's row on a part stays `ThroughAPart`
+(`an-unmated-row-on-a-part-resolves-parts-at-sym-for-seconds`). The two rows
 stage 3 D pinned (`coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`
 and `glue_on_zero_rows::a_flush_rest_glues_and_records_its_unproven_rows`)
 stay unproven, correctly: their copies are placed by standoffs, which

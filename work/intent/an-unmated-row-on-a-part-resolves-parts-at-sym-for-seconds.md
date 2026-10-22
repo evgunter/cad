@@ -1,7 +1,7 @@
 ---
 id: an-unmated-row-on-a-part-resolves-parts-at-sym-for-seconds
 kind: issue
-title: the door resolves a document's parts at Sym for any unmated row standing on one: a fused-instance document's door job goes from 0.2 s to 3.9 s
+title: the door does not replay a node's row on a part, because resolving the parts at Sym costs seconds; owed, making that resolution cheap enough to read such rows
 status: open
 opened: 2026-10-22
 priority: P2
@@ -12,20 +12,35 @@ refs: [the-door-reads-a-mated-seat-by-its-mate]
 
 ## What
 
-With `REPLAYS_PLACED_COPIES` retired (`the-door-reads-a-mated-seat-by-its-mate`, PR 5587), the door's replay resolves the parts a document instances whenever a row the first rung leaves needs one (`crates/editor-core/src/coincide/replay.rs` `rungs`, `stands_on_a_part`). A row of a boolean over pinned instances (no mate states it) is now read at `Sym` and comes back `Numeric`, recourse `Budget`, where main answered `ThroughAPart`/`Assert` without building the parts. That is the honest answer, and it is what `asm2a_instantiate::a_symbolic_run_builds_a_part_and_the_door_reads_a_row_on_one` pins.
+The door's replay resolves the parts a document instances only for an
+at-rest face pair it reads off placed copies
+(`crates/editor-core/src/coincide/replay.rs` `rungs`, `reads_copies`).
+A row of a node that stands on a part (`stands_on_a_part`), such as a
+boolean over pinned instances that no mate states, is answered
+`Unreplayed::ThroughAPart` with the assertion recourse, without a
+replay. `asm2a_instantiate::a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed`
+pins that answer, with the evaluation's resolver and without one.
 
-## The cost
+So such a row is never proven, even where the replay could prove it.
 
-Measured locally, debug, with the resolution on and with it forced off for node rows:
+## The cost of reading them
+
+Measured locally in PR 5587, debug, with the parts resolved for node
+rows on parts and with them not resolved:
 
 | row | parts resolved | not resolved |
 |---|---|---|
 | `viewer::all assembly_display::fused_geometry_refuses_both_display_ops_typed` | 3.99 s | 0.24 s |
 | `viewer::all assembly_display::a_fused_instances_section_is_drawn_and_its_display_controls_are_refused` | 3.91 s | 0.20 s |
-| `editor-core::all asm2a_instantiate::a_symbolic_run_builds_a_part_and_the_door_reads_a_row_on_one` | 2.2 s | 0.46 s |
+| `editor-core::all asm2a_instantiate::a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed` | 2.2 s | 0.46 s |
 
-Both viewer rows went into the slow set in PR 5587. The viewer's door runs off the UI thread, so this is a latency of the checks readout, not of the frame. In the asm2a row, what the price buys is `Numeric` with the budget's recourse, not a proof; the viewer rows' answers were not read.
+With the parts resolved, the asm2a wall row came back `Numeric`, its
+form outgrowing the door's budget: the price bought no proof there.
 
 ## Owed
 
-Decide whether an unmated row on a part is worth resolving the parts at `Sym` for: keep it (and cut the cost, e.g. by resolving only the parts the left rows' cells reach), or answer `ThroughAPart` again for node rows and resolve only for at-rest face pairs.
+Make part resolution at `Sym` cheap enough to replay a node's row on a
+part, for instance by resolving only the parts the left rows' cells
+reach, or by reusing a part's symbolic evaluation across door jobs.
+Then read those rows through the replay, and move the asm2a row's
+expectation to whatever the replay answers.

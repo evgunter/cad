@@ -79,6 +79,7 @@ pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
     face_frame, vertex_position,
 };
+pub(crate) use nest::HoldMut;
 pub use nest::NameTextError;
 pub(crate) use nest::{read_door, write_door};
 pub use role::{

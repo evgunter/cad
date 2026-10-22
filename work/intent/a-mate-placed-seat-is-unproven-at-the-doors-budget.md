@@ -350,10 +350,11 @@ The owed list, bullet by bullet:
 - **The band:** no longer applies. A run whose tolerance makes no band
   refuses every node before an operation runs, so the replay builds no
   copy, and the row says why through `at_rest_unbuilt`. Past that, the
-  band is built, which the arm states as an invariant.
+  band is built; a run that reaches the arm without one says `Refused`.
 - **The recourse:** a mated seat is never over the budget now. Any row
   whose form freezes on the budget names it: `Recourse::Budget`, read
-  off `Undischarged::OverTheBudget`. This moves the filleted box's eight
-  mitres, the ring's fusion, the flush plate's rows and `asm2a`'s wall
-  row from `OneConstruction` to `Budget`.
+  off `Undischarged::OverTheBudget`, which only a term or degree bound
+  answers (a node the ring's guards froze reads `Otherwise`). This moves
+  the filleted box's eight mitres, the ring's fusion and the flush
+  plate's rows from `OneConstruction` to `Budget`.
 

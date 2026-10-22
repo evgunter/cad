@@ -24,12 +24,15 @@
 //!
 //! **A mate is that rung's statement** (`[coincidence.structural]`): two
 //! faces whose planes one mate of a pinning bundle equates, each read in
-//! the copy that mate's side reads, are one construction read twice,
-//! with the sense the mate's flips state ([`stated_by_a_mate`]). A
-//! placed copy's frame is the construction its bundle states
+//! a copy that holds it where that mate's side reads it
+//! ([`crate::mate::reads_in`]), are one construction read twice, with
+//! the sense the mate's flips state ([`stated_by_a_mate`]). A placed
+//! copy's frame is the construction its bundle states
 //! (`[placement.placement]`), so no replay reads the fold: the door
 //! reads what the mate states, and replays where it states nothing. A
-//! standoff equates no face's plane, so it states nothing here.
+//! standoff equates no face's plane, and a copy another bundle moves
+//! holds the face where the mate does not read it, so neither is
+//! stated here.
 //!
 //! A profile's junction no constructor made is a row of the profile
 //! node itself, its cells the two pieces that meet there
@@ -51,7 +54,8 @@
 //! re-run, so a row at rest between anything but two faces has no form
 //! the door reads, and one whose replay decides the pair otherwise is
 //! [`Unreplayed::OtherDecisions`]. Parts are resolved only where such a
-//! row is left.
+//! row is left; a node's row on a part is not replayed
+//! ([`Unreplayed::ThroughAPart`]).
 
 use core::fmt;
 
@@ -264,7 +268,8 @@ pub enum Unreplayed {
     /// tell.
     Numeric,
     /// The row stands on a part instance the replay resolves no part
-    /// for: the door was handed no resolver.
+    /// for: an at-rest row the door was handed no resolver for, or a
+    /// node's row, which the replay does not read through a part.
     ThroughAPart,
     /// The row is not replayed: an at-rest census row between cells
     /// other than two faces one carrier (the census itself is not
@@ -584,32 +589,31 @@ pub fn prove<P: crate::ProfilePayload>(
     tol: geom_core::Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Proof>>, Canceled> {
-    let walked: Vec<Vec<(Walked, bool)>> = nodes
+    let walked: Vec<Vec<Walked>> = nodes
         .iter()
-        .map(|(_, rows)| {
+        .map(|(_, rows)| rows.iter().map(|row| constructions(doc, row)).collect())
+        .collect();
+    let left: Vec<Vec<bool>> = nodes
+        .iter()
+        .zip(&walked)
+        .map(|((_, rows), walked)| {
             rows.iter()
-                .map(|row| {
-                    let constructions = constructions(doc, row);
-                    let first = one_construction(&constructions)
-                        || stated_by_a_mate(doc, row, &constructions);
-                    (constructions, first)
+                .zip(walked)
+                .map(|(row, constructions)| {
+                    !(one_construction(constructions) || stated_by_a_mate(doc, row, constructions))
                 })
                 .collect()
         })
-        .collect();
-    let left: Vec<Vec<bool>> = walked
-        .iter()
-        .map(|rows| rows.iter().map(|(_, first)| !first).collect())
         .collect();
     let replayed = match P::evaluable(doc) {
         Some(doc) if left.iter().flatten().any(|&l| l) => {
             replay::rungs(doc, nodes, &left, resolver, tol, cancel)?
         }
-        _ => nodes
+        _ => left
             .iter()
-            .map(|(_, rows)| {
-                rows.iter()
-                    .map(|_| Some(Err((Unreplayed::NotReplayed, Recourse::Assert))))
+            .map(|left| {
+                left.iter()
+                    .map(|&left| left.then_some(Err((Unreplayed::NotReplayed, Recourse::Assert))))
                     .collect()
             })
             .collect(),
@@ -621,23 +625,16 @@ pub fn prove<P: crate::ProfilePayload>(
             walked
                 .into_iter()
                 .zip(replayed)
-                .map(|((constructions, first), replayed)| {
-                    if first {
-                        return Proof::Structural(Rung::SameConstruction);
-                    }
-                    let Some(replayed) = replayed else {
-                        unreachable!("the replay answers every row the first rung leaves")
-                    };
-                    match replayed {
-                        Ok(rung) => Proof::Structural(rung),
-                        Err((replay, recourse)) => Proof::Unproven {
-                            residual: Residual {
-                                constructions,
-                                replay,
-                            },
-                            recourse,
+                .map(|(constructions, replayed)| match replayed {
+                    None => Proof::Structural(Rung::SameConstruction),
+                    Some(Ok(rung)) => Proof::Structural(rung),
+                    Some(Err((replay, recourse))) => Proof::Unproven {
+                        residual: Residual {
+                            constructions,
+                            replay,
                         },
-                    }
+                        recourse,
+                    },
                 })
                 .collect()
         })
@@ -680,13 +677,15 @@ fn one_construction(constructions: &[Result<Construction, Unwalked>]) -> bool {
 
 /// **The first rung's statement by a mate** (`[coincidence.structural]`):
 /// the row's two cells are the two faces whose planes one mate equates,
-/// each the copy that mate's side reads, and the row's relation is the
-/// sense the mate's flips state; or the row lays a cap's rim edge or
-/// vertex on a face ([`topo::Relation::OnCarrier`]), and that cap and
-/// the face are the mate's two faces, since the extrude mints its rim on
-/// its cap's plane ([`on_its_cap`]). The mate is in the bundle of a
-/// placement it pins, so the copy stands where its bundle's fold puts
-/// it, and the fold equates the two planes wherever it evaluates.
+/// each in a copy that holds it where that mate's side reads it
+/// ([`side_copies`]), and the row's relation is the sense the mate's
+/// flips state; or the row lays a cap's rim edge or vertex on a face
+/// ([`topo::Relation::OnCarrier`]), and that cap and the face are the
+/// mate's two faces, since the extrude mints its rim on its cap's plane
+/// ([`on_its_cap`]). The mate is in the bundle of a placement it pins,
+/// so its `on` copy stands where its bundle's fold puts it, and the
+/// fold equates that copy's plane with its target's, read where the
+/// target stands, wherever it evaluates.
 ///
 /// A standoff or any other construction off a face's plane equates no
 /// face's plane ([`crate::mate::planes_equated`]), so it states nothing
@@ -743,8 +742,8 @@ fn stated_by_a_mate<P>(
                     return false;
                 }
                 let (on, to) = (
-                    side_copies(doc, on, Some(placement)),
-                    side_copies(doc, to, None),
+                    side_copies(doc, placement, crate::mate::MateSide::On, on),
+                    side_copies(doc, placement, crate::mate::MateSide::To, to),
                 );
                 (on.contains(&a) && to.contains(&b)) || (on.contains(&b) && to.contains(&a))
             })
@@ -754,32 +753,41 @@ fn stated_by_a_mate<P>(
 /// **The cap a rim edge or a cap vertex lies on**: the construction of
 /// the extrude cap `Cap(end)` where `cell`'s minted name is the same
 /// extrude's `RimEdge(end, _)` or `CapVertex(end, _)`, read through the
-/// same carried segments and placements. The extrude mints each on its
-/// cap's plane. `None` for any other cell.
+/// same carried segments ([`crate::names::attribute::origin`]) and
+/// placements. The extrude mints each on its cap's plane, and a carried
+/// entity stands where the one it carries does, so the carried cap
+/// holds it too. `None` for any other cell.
 fn on_its_cap(cell: &Construction) -> Option<Construction> {
     fn lift(name: &StableName) -> Option<StableName> {
-        let path = match name.path.as_slice() {
-            [RoleSeg::RimEdge(end, _) | RoleSeg::CapVertex(end, _)] => vec![RoleSeg::Cap(*end)],
-            [RoleSeg::InPart { of }] => vec![RoleSeg::InPart {
+        use crate::names::attribute::{SegOrigin, origin};
+        let [seg] = name.path.as_slice() else {
+            return None;
+        };
+        let seg = match seg {
+            RoleSeg::RimEdge(end, _) | RoleSeg::CapVertex(end, _) => RoleSeg::Cap(*end),
+            // A part's entity enters at its instance, where the walk
+            // stops: the part's own name is lifted inside it.
+            RoleSeg::InPart { of } => RoleSeg::InPart {
                 of: lift(of)?.into(),
-            }],
-            [RoleSeg::Placed { of }] => vec![RoleSeg::Placed {
-                of: lift(of)?.into(),
-            }],
-            [RoleSeg::Instance { i, of }] => vec![RoleSeg::Instance {
-                i: *i,
-                of: lift(of)?.into(),
-            }],
-            [RoleSeg::From { read, of }] => vec![RoleSeg::From {
-                read: *read,
-                of: lift(of)?.into(),
-            }],
-            _ => return None,
+            },
+            carried => {
+                let SegOrigin::Carried(of, _) = origin(carried) else {
+                    return None;
+                };
+                let lifted = lift(of)?;
+                let mut seg = carried.clone();
+                seg.each_name_mut(&mut |held| {
+                    if let crate::names::HoldMut::Shared(of) = held {
+                        *of = lifted.clone().into();
+                    }
+                });
+                seg
+            }
         };
         Some(StableName {
             kind: crate::names::EntityKind::Face,
             node: name.node,
-            path,
+            path: vec![seg],
         })
     }
     let Origin::Minted(name) = &cell.origin else {
@@ -791,19 +799,21 @@ fn on_its_cap(cell: &Construction) -> Option<Construction> {
     })
 }
 
-/// **The constructions of the copy a mate side's face is read in**: the
-/// face the selection `face` names, walked from its body
-/// ([`construction`]), as the one placement copying that body carries
-/// it — the body itself where it is a placement's output, else under the
-/// `Place` that copies it, or under each `Place` copying a `Part` picking
-/// one of its copies (the walk's own `Instance` says which). A body no
-/// placement copies is read where it stands. Empty where the selection
-/// is no one face, the walk stops, two placements copy the body, or
-/// (`placed_by`) the copy is not that placement's.
+/// **The constructions of the copies a mate side's face is read in**:
+/// the face the selection `face` names, walked from its body
+/// ([`construction`]), in each copy of that body that holds it where
+/// a mate of `placement` reads it ([`crate::mate::reads_in`], the
+/// rule the gather mints the mate's record by): the body itself where
+/// it is that copy's output, else under the `Place` that copies it, or
+/// a `Part` picking one of its copies (the walk's own `Instance` says
+/// which). A body no placement copies is read where it stands, which is
+/// where its `to` side reads it. Empty where the selection is no one
+/// face or the walk stops.
 fn side_copies<P>(
     doc: &crate::doc::Doc<P>,
+    placement: RecipeNodeId,
+    side: crate::mate::MateSide,
     face: crate::VarId,
-    placed_by: Option<RecipeNodeId>,
 ) -> Vec<Construction> {
     let Some(select) = doc.selection(face) else {
         return Vec::new();
@@ -814,53 +824,25 @@ fn side_copies<P>(
     let Ok(read) = construction(doc, select.body, name) else {
         return Vec::new();
     };
-    let own = doc.operation_of(select.body);
-    let picks = |shape: crate::VarId| {
-        matches!(
-            doc.operation_of(shape).and_then(|at| doc.node(at)),
-            Some(Node::Part {
-                of,
-                select: crate::node::PartSelect::Instance(_),
-            }) if *of == select.body
-        )
-    };
-    let (mut whole, mut picked) = (Vec::new(), Vec::new());
-    for p in doc.placements() {
-        if own == Some(p) {
-            whole.push((p, read.clone()));
-            continue;
-        }
-        let Some(Node::Place { shapes, .. }) = doc.node(p) else {
-            continue;
+    let copies = crate::mate::copies_of(doc, select.body);
+    if copies.is_empty() {
+        return match side {
+            crate::mate::MateSide::To => vec![read],
+            crate::mate::MateSide::On => Vec::new(),
         };
-        let under = || Construction {
-            origin: read.origin.clone(),
-            placed: core::iter::once(Placed::World(p))
-                .chain(read.placed.iter().copied())
-                .collect(),
-        };
-        if shapes.iter().any(|shape| shape.read == select.body) {
-            whole.push((p, under()));
-        } else if shapes.iter().any(|shape| picks(shape.read)) {
-            picked.push((p, under()));
-        }
     }
-    let copies = match (whole.len(), picked.is_empty()) {
-        (0, true) => {
-            return if placed_by.is_none() {
-                vec![read]
-            } else {
-                Vec::new()
-            };
-        }
-        (0, false) => picked,
-        (1, true) => whole,
-        _ => return Vec::new(),
-    };
     copies
         .into_iter()
-        .filter(|(p, _)| placed_by.is_none_or(|by| by == *p))
-        .map(|(_, c)| c)
+        .filter(|&copy| crate::mate::reads_in(doc, placement, side, select.body, copy))
+        .map(|(p, how)| match how {
+            crate::mate::Copying::Own => read.clone(),
+            crate::mate::Copying::Whole | crate::mate::Copying::Pick(_) => Construction {
+                origin: read.origin.clone(),
+                placed: core::iter::once(Placed::World(p))
+                    .chain(read.placed.iter().copied())
+                    .collect(),
+            },
+        })
         .collect()
 }
 

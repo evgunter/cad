@@ -131,13 +131,15 @@ pub enum Undischarged {
     /// exposes.
     KeepsAnOpaqueAtom,
     /// The Zero that did not discharge is over the parameter symbols
-    /// alone, and its early form froze a node on the session's budget:
-    /// the tier did not read the whole form, so whether it is zero is
-    /// not decided at this budget.
+    /// alone, and its early form froze a node on the session's budget
+    /// (a term or degree bound): the tier did not read the whole form,
+    /// so whether it is zero is not decided at this budget.
     OverTheBudget,
     /// Any other way: a Zero whose form is over the parameter symbols
-    /// alone, read whole, and not zero, a margin that was not a Zero,
-    /// or one outside the session that decided it.
+    /// alone, read whole, and not zero, or frozen on the ring's guards
+    /// (a coefficient past its bound, an exponent overflow), which no
+    /// larger budget reads past; a margin that was not a Zero, or one
+    /// outside the session that decided it.
     Otherwise,
 }
 

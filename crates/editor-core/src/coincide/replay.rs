@@ -110,10 +110,14 @@ type Proved = Result<Rung, Left>;
 /// proved the row or why the replay could not, and `None` for a row
 /// the first rung proved. `nodes` holds each deciding node with its
 /// rows in decision order, which is what a row's ordinal is counted in.
-/// The replay resolves the parts a document instances only where a
-/// left row needs one: an at-rest row it reads off placed copies
-/// ([`reads_copies`]), or a row of a node that stands on a part
-/// ([`stands_on_a_part`]).
+///
+/// The replay resolves the parts a document instances only for an
+/// at-rest row it reads off placed copies ([`reads_copies`]). A row of
+/// a node that stands on a part ([`stands_on_a_part`]) is
+/// [`Unreplayed::ThroughAPart`] without a replay: resolving the parts at
+/// `Sym` costs seconds and has not bought such a row a proof
+/// (`work/intent/an-unmated-row-on-a-part-resolves-parts-at-sym-for-seconds.md`).
+/// Where no left row asks the replay anything, nothing is replayed.
 pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
@@ -122,14 +126,46 @@ pub(super) fn rungs(
     tol: Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Option<Proved>>>, Canceled> {
-    let parts = nodes.iter().zip(left).any(|(&(node, rows), left)| {
-        rows.iter().zip(left).any(|(row, &left)| {
-            left && if row.site == topo::DecisionSite::CensusAtRest {
-                reads_copies(row)
-            } else {
-                stands_on_a_part(doc, node)
-            }
+    if cancel.is_canceled() {
+        return Err(Canceled);
+    }
+    // What each row asks: `None` a row the first rung proved, `Some(Err)`
+    // one answered without a replay, `Some(Ok(()))` one the replay reads.
+    let asks: Vec<Vec<Option<Result<(), Left>>>> = nodes
+        .iter()
+        .zip(left)
+        .map(|(&(node, rows), left)| {
+            let on_a_part = rows
+                .iter()
+                .any(|row| row.site != topo::DecisionSite::CensusAtRest)
+                && stands_on_a_part(doc, node);
+            rows.iter()
+                .zip(left)
+                .map(|(row, &left)| {
+                    left.then(|| {
+                        let unread = |why| Err((why, Recourse::Assert));
+                        if row.site == topo::DecisionSite::CensusAtRest {
+                            // The census is not re-run: its row is read
+                            // off the copies.
+                            if reads_copies(row) {
+                                Ok(())
+                            } else {
+                                unread(Unreplayed::NotReplayed)
+                            }
+                        } else if on_a_part {
+                            unread(Unreplayed::ThroughAPart)
+                        } else {
+                            Ok(())
+                        }
+                    })
+                })
+                .collect()
         })
+        .collect();
+    let parts = nodes.iter().zip(&asks).any(|(&(_, rows), asks)| {
+        rows.iter()
+            .zip(asks)
+            .any(|(row, ask)| matches!(ask, Some(Ok(()))) && reads_copies(row))
     });
     let symbols = EvalOptions {
         symbols: true,
@@ -137,30 +173,38 @@ pub(super) fn rungs(
         ..EvalOptions::default()
     };
     let (out, _) = with_replay_session(symbols, |opts| {
-        let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, opts, tol);
-        if ev.outcome == EvalOutcome::Canceled {
-            return Err(Canceled);
-        }
+        // Replayed at the first row that asks, and only then.
+        let mut ev: Option<Evaluation<Lane>> = None;
         let band = Band::linear(tol);
-        nodes
-            .iter()
-            .zip(left)
-            .map(|(&(node, rows), left)| {
-                let mut ordinals = BTreeMap::new();
-                rows.iter()
-                    .zip(left)
-                    .map(|(row, &left)| {
-                        let ordinal = ordinals.entry(row.site).or_insert(0usize);
-                        let at = *ordinal;
-                        *ordinal += 1;
-                        if !left {
-                            return Ok(None);
-                        }
-                        prove_row(&ev, node, row, at, band, cancel).map(Some)
-                    })
-                    .collect()
-            })
-            .collect()
+        let mut out = Vec::with_capacity(nodes.len());
+        for (&(node, rows), asks) in nodes.iter().zip(asks) {
+            let mut ordinals = BTreeMap::new();
+            let mut answers = Vec::with_capacity(rows.len());
+            for (row, ask) in rows.iter().zip(asks) {
+                let ordinal = ordinals.entry(row.site).or_insert(0usize);
+                let at = core::mem::replace(ordinal, *ordinal + 1);
+                answers.push(match ask {
+                    None => None,
+                    Some(Err(why)) => Some(Err(why)),
+                    Some(Ok(())) => {
+                        let ev = match &mut ev {
+                            Some(ev) => &*ev,
+                            None => {
+                                let replayed: Evaluation<Lane> =
+                                    crate::eval::evaluate(doc, None, cancel, opts, tol);
+                                if replayed.outcome == EvalOutcome::Canceled {
+                                    return Err(Canceled);
+                                }
+                                &*ev.insert(replayed)
+                            }
+                        };
+                        Some(prove_row(ev, node, row, at, band, cancel)?)
+                    }
+                });
+            }
+            out.push(answers);
+        }
+        Ok(out)
     });
     out
 }
@@ -199,7 +243,9 @@ fn stands_on_a_part(doc: &crate::doc::Doc<ProfileProgram>, node: RecipeNodeId) -
 }
 
 /// The two symbolic rungs for one row, `at` its ordinal among its
-/// node's rows at its site. Canceled before it discharges a margin.
+/// node's rows at its site; an at-rest row is read off the copies by
+/// the carrier verdict alone (the census is not re-run). Canceled
+/// before it discharges a margin.
 fn prove_row(
     ev: &Evaluation<Lane>,
     node: RecipeNodeId,
@@ -215,17 +261,12 @@ fn prove_row(
     // could read, so the recourse is the assertion.
     let left = |why| Ok(Err((why, Recourse::Assert)));
     if row.site == topo::DecisionSite::CensusAtRest {
-        // The census is not re-run: its row is read off the copies.
-        if !reads_copies(row) {
-            return left(Unreplayed::NotReplayed);
-        }
         if let Some(why) = at_rest_unbuilt(ev, node, row) {
             return left(why);
         }
-        // Where the run's tolerance makes no band, the evaluator refuses
-        // every node before an operation runs, so no copy is built.
+        // A run whose tolerance makes no band takes no decision.
         let Ok(band) = band else {
-            unreachable!("the replay built the row's copies, so the run's band is built")
+            return left(Unreplayed::Refused);
         };
         return Ok(match carrier_verdict(ev, row, band) {
             Some(Ok(())) => Ok(Rung::CarrierVerdict),

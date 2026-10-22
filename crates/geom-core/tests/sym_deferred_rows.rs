@@ -132,3 +132,20 @@ fn a_frozen_form_over_the_parameters_keeps_no_opaque_atom() {
     });
     assert_eq!(got, Err(Undischarged::OverTheBudget));
 }
+
+/// **A form the ring's guards freeze is not over the budget.**
+/// `x·c⁸ − y·c⁸` at `x = y = 1`, `c = 0.1`, decides Zero by value; the
+/// products' coefficients outgrow the ring's coefficient bound well
+/// inside a generous term budget, so the form freezes and does not
+/// discharge, and what keeps it open is no budget a larger one would
+/// read past. Reds if a guard's freeze reads as the budget's.
+#[test]
+fn a_form_the_rings_guards_freeze_is_not_over_the_budget() {
+    let (got, _) = with_deferred_session(budget(), SymRules::shipped(), SymRetry::none(), || {
+        let c = || <Sym<f64> as geom_core::Real>::from_f64(0.1);
+        let scaled = |v: Sym<f64>| (0..8).fold(v, |acc, _| acc * c());
+        let frozen = zero(scaled(p("x", 1.0)) - scaled(p("y", 1.0)));
+        discharge_or_why(frozen)
+    });
+    assert_eq!(got, Err(Undischarged::Otherwise));
+}
