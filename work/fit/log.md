@@ -48,6 +48,28 @@ Signed (S-DUP orchestrator).
 
 - 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), third pass. `pickindex.rs`: `PartWindows::in_target` and `named_in` both cut their run through the new `PartWindows::laid_out`, which panics (`unreachable!`, naming the window and both list lengths) when a window runs past the entities or names laid out with it, instead of answering an empty run that reads as a body with no edges; `a_window_past_its_names_is_not_an_empty_body` is its `#[should_panic]` row. (AUTH-14 implementer)
 
+## 2026-10-22 — the budget is a target (PR 5600)
+
+Closes `the-budgets-predicted-count-is-not-always-an-over-count` and
+`a-flat-rung-pair-is-read-as-flat-below-it`.
+
+- `TRIANGLE_BUDGET` is documented as a target with a stated
+  precision, and `FittedDelta::predicted` is deleted.
+- `answer`'s Flat early return is gone, because the law already
+  commits the request there.
+- `display_budget.rs` holds the drawn count to 0.9–1.05× on every
+  bound corpus row. Measured: 0.927–1.0025.
+
+Review was a style lane. All five claims held, including the ~8.1×
+Flat bound, re-derived. Its two contradiction findings were fixed in
+place: S1, "a factor of at least two", which was false; and S2, the
+direction of the probe's error. A second error direction, the
+sagitta-sized excess of up to ~1.1%, is now stated beside the
+other.
+
+Filed: `a-dense-floor-is-priced-off-the-law-from-the-scale-probe`
+(threshold 62 500, the halving break) and
+`flat-harmlessness-is-unproven-on-the-nurbs-refinement-lane`.
 ## 2026-10-22 — taken up; the slate against the D10 hold
 
 An orchestrator (session 01QgNokkLTQtNJ3sdoLiqtf6) takes the track; status `active`.
@@ -128,4 +150,66 @@ The orchestrator checked: only tests read it, and in the bound case it
 is the constant budget. **Deleted**; the other designer's ceil argument
 becomes the documented reason for the band. The guard is the drawn
 count, held to a band on every bound corpus row. Review: style.
+(FIT orchestrator)
+
+## 2026-10-22 — a ctrl/⌘+wheel is a wheel, and a pinch zooms by its ratio (PR 5596)
+
+Closes `ctrl-wheel-reaches-no-zoom`.
+
+- `configure_input` sets egui's `zoom_modifier` to `NONE` once, and
+  both `assemble` and the test probe call it.
+- `ViewportEvent::Pinch { factor }` maps to `Dolly(1/factor)`.
+- `pointer_events` is the one composition of the adapter's reads,
+  shared with the probe.
+
+Review: a style lane, mergeable. Its two findings that could let the
+shipped wiring regress silently were fixed: a startup row now reads
+`zoom_modifier` off `started()`, and the probe no longer copies the
+composition. The docs' claims about native pinch were narrowed to
+winit's macOS/iOS `PinchGesture`. The hand-written variant lists went
+onto VDOC's covering row
+(`viewer-suites-hold-hand-written-complete-variant-lists`).
+
+Process: the branch carries two empty commits a lane pushed to
+re-trigger CI after the lavapipe install hung. They are disclosed on
+the PR, and the hang is filed as CIW's
+`the-lavapipe-apt-install-hangs-and-a-lane-cannot-re-run-it`.
+## 2026-10-22 — the occlusion slack weighed (pickindex row §3)
+
+One pair weighed it, and both corrected the premise. There is no
+certified second operand: the probe's edge depth is
+`ray_segment_closest`'s raw `t` along an un-projected pixel ray, so
+`front.span.precedes(&span)` has nothing on its right-hand side. The
+`1e-6` has been absorbing a geometric offset (spatial rounding over
+the cosine to the incident face, which is unbounded at grazing), not
+rounding alone. The question is a z-fight that `[verdicts]` says is
+posed so the choice does not arise. The pair converged:
+
+- The chord's depth is its OWN crossing: the hull of the kernel's
+  `ray_triangle` spans over the chord's incident triangles (exact by
+  mesh index).
+- It is hidden iff something in the front set certainly precedes it,
+  which is the kernel's `survivors` rule.
+- `OCCLUSION_SLACK_REL` is deleted.
+- `front_of` answers the survivor set: `nearest` by rounded `t` goes,
+  and the edge seed searches every body the tie names. That is an
+  unfiled cross-body defect: today a two-part tie offers one part's
+  edges by rounded `t` and list order.
+
+They differed on one gap, which the orchestrator settled. On a
+silhouette edge the ray passes just outside both incident triangles,
+so the hull is empty. One designer adds a kernel door for a certified
+point span (beside `ray_triangle`, counting units as `t_span` does);
+the other had no operand there. **Taken: the door.** `edge_pick.rs`'s
+own `1e-6` fixture classifier stays as an independent oracle.
+Review: full. Dispatch waits for disk (the lane builds editor-core
+and the viewer).
+
+**Friction (2026-10-22).** Three lane findings on this box:
+- the disk filled while four lanes held build directories (6–8 GB
+  each), and one reviewer could not check out;
+- a CI job that died on infrastructure could not be re-run (403),
+  and a lane pushed empty commits instead;
+- the isolation hook refused `setsid` launches, the very detach the
+  standing rules require.
 (FIT orchestrator)
