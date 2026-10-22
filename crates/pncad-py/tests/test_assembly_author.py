@@ -1816,7 +1816,7 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
         def base_pinned(doc):
             post_i = doc.insert(Node.instantiate_part(self.post_ref, doc.world))
             bench_scene.on_floor(
-                doc, post_i, post_i, self.instance_face(doc, post_i, CapEnd.Start), self.ws
+                doc, post_i, post_i, self.instance_face(doc, post_i, CapEnd.Start)
             )
             return post_i
 

@@ -959,8 +959,7 @@ fn the_gate_checks_each_new_space_whatever_the_world_holds() {
     let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
     let ev = run(&doc, &o);
     let refusal = editor_core::assemble(&doc, &ev, Tol::witness())
-        .err()
-        .expect("two tops at one seat do not certify inside their space");
+        .expect_err("two tops at one seat do not certify inside their space");
     assert!(
         !matches!(refusal, editor_core::AssemblyError::Product(_)),
         "the world gathers; the space refuses: {refusal}"

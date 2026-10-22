@@ -3125,6 +3125,11 @@ NOT_BOUND = {
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
     "product_recorded": INTERIOR,
+    # One `new_space()`'s copies gathered by themselves, interior with
+    # its `Product` (`Product::spaces`): Python's `assemble` gates each,
+    # and a refusal is `AssemblyError.variant == "own_space"`.
+    "SpaceGather": INTERIOR,
+    "space_gathers": INTERIOR,
     "run_checks_on": INTERIOR,
     # The registry with the coincidence door split off to run at rest,
     # for a frame that redraws on every edit: Python's `run_checks` is
@@ -3624,6 +3629,7 @@ MEMBERS_BOUND_AS = {
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
     "AssemblyError::CarriedAtRest": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
+    "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Uncertified": "AssemblyError.variant",
     # The two mint arms answer with a LIST, so the word a caller
     # branches on for ONE refused mate rides the row, not the gate.
