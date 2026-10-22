@@ -1695,6 +1695,129 @@ fn start_point<T: Decide + Bounds + CertifiedEnclosure>(
 
 #[cfg(test)]
 mod tests {
+    /// The interim reporting adapter ([`super::to_target`],
+    /// [`super::reported`]) on enclosures built to a chosen mean
+    /// boundary displacement.
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    mod reporting_adapter_tests {
+        use geom_brep::props::PropsCheck;
+        use geom_brep::props::quad::{FaceCutBounds, LaneEnd, LaneRun, LaneStop};
+        use geom_core::{Band, Interval};
+
+        use super::super::{OpenEnd, PropsError, RoundOutcome, reported, to_target};
+
+        /// An enclosure whose mean boundary displacement is `len`: a flux
+        /// of width `3·len` over a unit area.
+        fn of_len(len: f64) -> FaceCutBounds {
+            FaceCutBounds {
+                flux: Interval::from_bounds(0.0, 3.0 * len),
+                area: Interval::from_bounds(1.0, 1.0),
+            }
+        }
+
+        /// **A convergence margin within the band refines where the lane
+        /// can refine and escalates where it stops.** At a round the lane
+        /// can refine past, an in-band margin is no answer, and the next
+        /// round, about 4× narrower, decides it; at the round its floor or
+        /// work wall stops it, the width may be under the target and a
+        /// budget refusal would misstate it, so it escalates through the
+        /// funnel. A margin inside the zero band and one inside the
+        /// ambiguity band above it, on a band scaled to the target.
+        #[test]
+        fn an_in_band_margin_refines_where_the_lane_can_and_escalates_where_it_stops() {
+            let eps = 1e-9;
+            let target = 1024.0 * eps;
+            let band = Band::new(1e-3 * target, 1e-2 * target).unwrap();
+            for (what, len) in [
+                ("zero band", target),
+                ("ambiguity band", target * (1.0 - 5e-3)),
+            ] {
+                let mut accept = to_target::<f64>(eps, band);
+                assert!(
+                    !accept(&of_len(len), LaneStop::Refinable).unwrap(),
+                    "{what}: an in-band margin refines while the lane can"
+                );
+                for stop in [LaneStop::Floor, LaneStop::Wall] {
+                    match accept(&of_len(len), stop) {
+                        Err(PropsError::Escalated { cause, check }) => {
+                            assert_eq!(check, PropsCheck::Converged, "{what}, {stop:?}");
+                            assert_eq!(
+                                cause.predicate,
+                                Some("props_quad_converged"),
+                                "{what}, {stop:?}"
+                            );
+                        }
+                        other => panic!("{what}, {stop:?}: an in-band margin escalates: {other:?}"),
+                    }
+                }
+            }
+        }
+
+        /// **A definite margin is its own answer at any stop**: a width
+        /// well under the target converges, one well over it does not.
+        #[test]
+        fn a_definite_margin_answers_at_any_stop() {
+            let eps = 1e-9;
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            for stop in [LaneStop::Refinable, LaneStop::Floor, LaneStop::Wall] {
+                let mut accept = to_target::<f64>(eps, band);
+                assert!(accept(&of_len(1e-7), stop).unwrap(), "{stop:?}: under");
+                assert!(!accept(&of_len(1e-5), stop).unwrap(), "{stop:?}: over");
+            }
+        }
+
+        /// **A lane stopped short of the target refuses with a width that
+        /// really missed**: its narrowest enclosure's, the target the
+        /// run's, and the rounds it ran. An accepted round converges; a
+        /// window cut short stays open with no refusal.
+        #[test]
+        fn a_stopped_lane_refuses_with_its_narrowest_width() {
+            let eps = 1e-9;
+            let target = 1024.0 * eps;
+            let run = |end| LaneRun {
+                bounds: of_len(2.0 * target),
+                round: 4,
+                rounds: 7,
+                end,
+            };
+            for end in [LaneEnd::Floor, LaneEnd::Wall] {
+                match reported(run(end), eps).unwrap() {
+                    RoundOutcome::Open {
+                        round: 4,
+                        end:
+                            OpenEnd::Exhausted(PropsError::QuadratureBudget {
+                                width_len,
+                                target_len,
+                                rounds: 7,
+                            }),
+                        ..
+                    } => {
+                        assert!(
+                            width_len > target_len,
+                            "{end:?}: {width_len} vs {target_len}"
+                        );
+                        assert!((target_len - target).abs() <= target * 1e-12, "{end:?}");
+                    }
+                    other => panic!("{end:?}: {other:?}"),
+                }
+            }
+            assert!(matches!(
+                reported(run(LaneEnd::Window), eps).unwrap(),
+                RoundOutcome::Open {
+                    end: OpenEnd::Window,
+                    ..
+                }
+            ));
+            assert!(matches!(
+                reported(run(LaneEnd::Accepted(LaneStop::Wall)), eps).unwrap(),
+                RoundOutcome::Converged {
+                    refinable: false,
+                    ..
+                }
+            ));
+        }
+    }
+
     /// The scalar bracket seam, at the `Interval` scalar.
     ///
     /// A bracket can be sound and still inadmissible:

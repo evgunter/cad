@@ -6,12 +6,13 @@
 //! flux/area lie INSIDE the returned brackets, or the call refuses
 //! typed. A returned bracket that EXCLUDES the truth is the failure.
 //!
-//! **The refusals are held to a contract too** — they are not merely
-//! printed. Each one must be a typed outcome this lane is allowed to
-//! produce, must carry a FINITE width that really missed the run's own
-//! `1024·ε` target, and must land on the carrier's PINNED floor (the
-//! refinement schedule is fixed by D9, so only the target moves with
-//! ε). A probe that only prints its `Err` asserts nothing: that is how
+//! **The non-answers are held to a contract too** — they are not merely
+//! printed. A lane that stops short of the target must stop at its own
+//! floor or work wall, still contain the truth, carry a FINITE width
+//! that really missed the run's own `1024·ε` target, and land on the
+//! carrier's PINNED width (neither stop moves with ε, only the target
+//! does); a refusal must be a typed outcome this lane is allowed to
+//! produce. A probe that only prints its `Err` asserts nothing: that is how
 //! a convergence meter dividing by a cancelled lever reported an `inf`
 //! displacement — for a flux enclosure that was still narrowing —
 //! through eight rounds and two ε rows of a green suite.
@@ -26,7 +27,9 @@
 use crate::shared::patch::{Unmet, at_target, to_target};
 use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
-use geom_brep::props::quad::{LaneEnd, LaneRun, mean_boundary_displacement, nurbs_patch_face};
+use geom_brep::props::quad::{
+    LaneEnd, LaneRun, QUAD_TARGET_LEN_FACTOR, mean_boundary_displacement, nurbs_patch_face,
+};
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::Tol;
@@ -46,12 +49,6 @@ fn overshoot_ulps(lo: f64, hi: f64, v: f64) -> f64 {
     let mag = lo.abs().max(hi.abs()).max(v.abs()).max(f64::MIN_POSITIVE);
     ((lo - v).max(v - hi).max(0.0)) / (mag * f64::EPSILON)
 }
-
-/// The engine's convergence target as a multiple of ε
-/// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here, once for
-/// the aggregated binary, so a refusal's carried target can be checked
-/// against the run's ε).
-pub(crate) const TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// The corpus's declared ambient uncertainty — the ε the fixed
 /// quadrature schedule (D9) is dimensioned for, and the boundary the
@@ -75,32 +72,28 @@ const CORPUS_EPS: f64 = 1e-9;
 // worse still reads as green.
 // ---------------------------------------------------------------
 
-// Every floor but the C0 kink's is set by the flux's Taylor remainder,
-// whose `f_uu`/`f_vv` hulls are the quotient statement's
-// (`geom_core::spline::cell_measure_quotients`). The kink wall's is set
-// by the cells beside its kink.
+// Every width below is set by the flux's Taylor remainder, whose
+// `f_uu`/`f_vv` hulls are the quotient statement's
+// (`geom_core::spline::cell_measure_quotients`), at the round the
+// lane's work wall stops it: the composite arm's round 7, the exact-v
+// arm's round 10 (`props::quad`'s `FACE_WORK_WALL`).
 
-/// Möbius-reparameterized quarter cylinder (weight ratio 100).
-const MOEBIUS_FLOOR: f64 = 2.015_259_398_904e-6;
+/// Möbius-reparameterized quarter cylinder (weight ratio 100), exact-v.
+const MOEBIUS_FLOOR: f64 = 3.149_977_622_964e-8;
 /// Warped bilinear with 1e-1/1e1 weights.
-const HYPAR_FLOOR: f64 = 1.295_834_045_203e-5;
+const HYPAR_FLOOR: f64 = 1.295_839_630_913e-5;
 /// Quarter torus, R = 2 m, r = 0.5 m.
-const QUARTER_TORUS_FLOOR: f64 = 4.648e-8;
-/// Two-span half cylinder, r = 1 m, h = 2 m: under the DEFAULT ε's
-/// 1.024e-6 m target by 38×.
-const HALF_CYLINDER_FLOOR: f64 = 2.688e-8;
+const QUARTER_TORUS_FLOOR: f64 = 4.687_047_770_243e-8;
 /// Bilinear unit square with a 1e-3/1e3 weight spread: the enclosure
 /// is uselessly wide, but it is a WIDTH rather than a degeneracy (see
 /// the row for why).
-const SQUARE_FLOOR: f64 = 6.357_819_236_722e5;
-/// C0-kink extruded wall (5 m profile).
-const C0_KINK_FLOOR: f64 = 4.785e-4;
+const SQUARE_FLOOR: f64 = 6.357_819_244_047e5;
 /// Unit sphere octant (degenerate pole row).
-const SPHERE_OCTANT_FLOOR: f64 = 2.907e-8;
+const SPHERE_OCTANT_FLOOR: f64 = 2.920_125_725_497e-8;
 /// Quarter cylinder at r = 1 km: the floor is a LENGTH, so it scales
 /// with the part (1e3 × the metre-scale quarter cylinder's).
-const HUGE_CYLINDER_FLOOR: f64 = 3.352_413_123_990e-6;
-/// The outcomes a probe is allowed to have on the run's ε — three
+const HUGE_CYLINDER_FLOOR: f64 = 5.996_463_398_199e-8;
+/// The outcomes a probe is allowed to have on the run's ε — two
 /// honest postures plus the degenerate-face refusal, which is sound
 /// but is a capability gap and so is pinned per carrier.
 ///
@@ -466,7 +459,7 @@ fn probe(
         // still holds every truth in hand, and its width really missed
         // the run's own `1024·ε` target.
         Ok(run) => {
-            let target = TARGET_LEN_FACTOR * Tol::witness().get().eps;
+            let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
             let fb = run.bounds;
             let width_len = mean_boundary_displacement(fb.flux, fb.area).unwrap();
             println!("{name}: stopped short (sound): {run:?}");
@@ -642,8 +635,8 @@ fn probe_extreme_weight_square() {
     //
     // That is a refusal changing class, and in this direction it is
     // the honest one: the patch really is a unit square, the engine
-    // really cannot bracket it usefully, and a budget refusal carrying
-    // its width says exactly that, where `DegenerateFace` said the
+    // really cannot bracket it usefully, and a stop carrying its width
+    // says exactly that, where `DegenerateFace` said the
     // face had no extent — which was false of it. The enclosure is
     // still uselessly wide, so the capability gap this carrier exists
     // to hold still is intact; only its spelling improved.
@@ -715,8 +708,8 @@ fn quarter_cylinder_probe(name: &str, r: f64, h: f64) -> Posture {
 /// ε-keyed rather than waived here, and it predates the meter guard
 /// (verified: the pre-guard engine refuses the same row identically).
 ///
-/// The 1 km carrier's floor is 1e3× the metre-scale one and refuses on
-/// every row of the matrix.
+/// The 1 km carrier's width is 1e3× the metre-scale one's: it
+/// certifies at 1e-6 and 1e-9 and stops short at 1e-12.
 #[test]
 fn probe_scale_extremes() {
     let tiny = quarter_cylinder_probe("tiny-cylinder", 1e-6, 2e-6);
@@ -758,8 +751,8 @@ fn probe_scale_extremes() {
 ///   must certify, so the rational lane is covered too. Below the
 ///   corpus ε this is not available and pretending otherwise would be
 ///   the ε-blindness the [`Posture`] docs describe: the rational
-///   target is ε-coupled against a FIXED schedule (D9), so at
-///   ε = 1e-12 every rational carrier here honestly refuses.
+///   target is ε-coupled against a stop that is not, so at ε = 1e-12
+///   a rational carrier here may honestly stop short.
 ///
 /// (Containment is checked inside [`probe`]: certifying with a bracket
 /// that excluded the truth fails there, not here.)
@@ -831,7 +824,9 @@ fn probe_half_cylinder_interior_knot() {
         Some(2.0 * PI),
         Some(2.0 * PI),
     );
-    pin_floor("half-cylinder-2span", posture, HALF_CYLINDER_FLOOR);
+    // Its exact-v arm reaches 4.27e-10 m at the work wall, under the
+    // tightest row's 1.024e-9 m target, so it certifies on every row.
+    assert_eq!(posture, Posture::Certified, "half-cylinder-2span");
 }
 
 /// A C0 CORNER inside the domain (double knot, degree 2, kink not on
@@ -865,7 +860,10 @@ fn probe_c0_kink_area() {
         Some(4.0),
         Some(5.0),
     );
-    pin_floor("c0-kink-wall", posture, C0_KINK_FLOOR);
+    // Both legs are straight, so the knot-aligned cells carry no
+    // remainder and the enclosure is the arithmetic's: it certifies on
+    // every row.
+    assert_eq!(posture, Posture::Certified, "c0-kink-wall");
 }
 
 /// DIAGNOSIS: is certified knot refinement exact on the two-span
@@ -1075,9 +1073,9 @@ fn probe_interval_scalar_agrees() {
         band(),
         &mut to_target(eps),
     ));
-    // The agreement claim is ε-independent and covers the refusals too:
-    // below the corpus ε the ε-coupled target is out of the fixed
-    // schedule's reach and BOTH scalars must refuse, identically.
+    // The agreement claim is ε-independent and covers the stops too:
+    // below the corpus ε the ε-coupled target may be out of the lane's
+    // reach, and then BOTH scalars must stop short, identically.
     match (a, b) {
         (Ok(a), Ok(b)) => {
             assert_eq!(a.flux.lo().to_bits(), b.flux.lo().to_bits());

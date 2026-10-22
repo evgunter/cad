@@ -2155,8 +2155,8 @@ pub(super) fn output_substitutions(
 /// decides: both compared bodies' quadrature faces are taken one round
 /// further at a time from the round each met its target at
 /// ([`crate::props::PastTarget::refine`]), until the
-/// sign is decided or every face reaches the last round every lane runs
-/// (`geom_brep::props::quad::LAST_ROUND_EVERY_LANE_RUNS`).
+/// sign is decided or every face reaches its lane's own stop, its floor
+/// or its work wall (`geom_brep::props::quad::FACE_WORK_WALL`).
 ///
 /// There the rounds run out at a resolution: the last round's
 /// half-width, measured on the oblique-capped rod (`r = 0.5`, cut 20° at

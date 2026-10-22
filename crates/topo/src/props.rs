@@ -143,8 +143,7 @@ impl<T: Real> MassProperties<T> {
     /// size wherever it sits, whenever the walk holds a lane; these ends
     /// decide only a walk holding none
     /// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`),
-    /// and give a refusal its words. (The same shape of argument is
-    /// written out at `geom-brep`'s `last_round_width_lo`.)
+    /// and give a refusal its words.
     ///
     /// The UPPER end's arithmetic is untouched and deliberately so:
     /// it is the end the +V refusal has always read, its rounding is
@@ -518,13 +517,11 @@ fn round_hook<T: Decide>(
 /// round it happens. A face that refuses on BUDGET is different — it
 /// has an enclosure, and the sum keeps it — so the refusal rides on
 /// the certificate, and whether it is REPORTED is the caller's
-/// decision, taken by `last_word` below. Nor does a budget refusal end
-/// the face's rounds: it says the schedule cannot meet the reporting
-/// target, a question this walk does not ask, so a face carrying one
-/// refines with the rest while rounds remain. Those are rounds the
-/// reporting walk never runs, so a hard refusal met in one of them is
-/// not the reporting door's: the face stops at its last enclosure,
-/// keeping its budget refusal.
+/// decision, taken by `last_word` below. A face earns one only where its
+/// lane stopped short of the target, at its floor or its work wall, so
+/// it has no round left to refine; until then a face that has not met
+/// the target is simply open, and the walk does not know whether it
+/// will.
 ///
 /// **The verdict is decided once, inside the loop.** `settle` is the
 /// only reading of the enclosure, and the round it accepts is the
@@ -670,9 +667,9 @@ fn walk<'b, T: Decide, V>(
             // The schedule has nothing further to offer and `settle`
             // did not accept: the caller says what that means, with
             // the refusal a target-level reading of this body earns
-            // in hand. A face refused at the budget exit carries round
-            // 0's payload (`rounds: 1`) whatever rounds this walk ran on
-            // it after: it is the reporting door's refusal, verbatim.
+            // in hand — the reporting door's, verbatim, since each
+            // face's rounds and its narrowest enclosure are the ones
+            // that door's whole-schedule call reaches.
             None if exhausted => Some(last_word(refused.as_ref().map(|(face, source)| {
                 MassPropsError::Face {
                     face: *face,
@@ -1957,8 +1954,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// **What the continuation costs against one measurement.** The
     /// piece evaluations compose exactly, but each entry into a face's
     /// lane re-derives that face's round-independent SETUP — the
-    /// derivative grids, the block hulls, the last round's cut lists
-    /// and the bound read off them — because a `RoundWindow` enters the
+    /// derivative grids, the block hulls — because a `RoundWindow` enters the
     /// lane at its front door. **What that costs depends on whether the
     /// sign settled early**, which is a property of the body rather
     /// than of this call: a certificate whose `settle` ran the schedule

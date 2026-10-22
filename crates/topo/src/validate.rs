@@ -279,21 +279,18 @@
 //! order and stops at the first one whose lane refuses. So on a body
 //! whose sign settles early the check pays a fraction of the
 //! measurement, and on a body with a refusing face it can pay MORE:
-//! a face whose lane proves after round 0 that no round meets the
-//! reporting target costs the measurement one round, and the check
-//! every round its sign needs. The honest bound is the schedule's own:
-//! at worst every face's whole schedule.
+//! the measurement stops at the first refusing face, and the check
+//! reads every face until its sign settles. The honest bound is the
+//! lanes' own: at worst every face's rounds to its floor or its work
+//! wall.
 //!
 //! **Gating and then measuring costs more than measuring**, and that
 //! is worth knowing before a caller reaches for the continuation as a
 //! saving. On a face that meets the target, the piece evaluations
 //! compose exactly — the gate's rounds plus the continuation's are the
-//! measurement's; a face refused at the budget exit costs the
-//! measurement one round and the gate as many as its sign needs. And
-//! each entry into
+//! measurement's. And each entry into
 //! a face's lane re-derives that face's per-round-independent SETUP
-//! (the derivative grids, the block hulls, the last round's cut lists
-//! and the bound taken from them), so the pair runs 1.3–1.8× one
+//! (the derivative grids, the block hulls), so the pair runs 1.3–1.8× one
 //! measurement's wall time on the bodies measured. Reusing a face's
 //! setup across windows is `work/perf/`'s
 //! `quadrature-setup-is-re-derived-per-round-window`.

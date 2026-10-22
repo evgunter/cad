@@ -3207,47 +3207,44 @@ fn remainder_cell_v(hu: Interval, hv: Interval) -> Interval {
 ///
 /// The rule is O(h²) and the meter is a **LENGTH**, so the achievable
 /// width scales roughly linearly with part size while the target does
-/// not: the frontier is a part-SIZE frontier, and metre-scale parts sit
-/// ON it rather than comfortably inside. The refinement schedule is
-/// fixed (D9), so each carrier bottoms out at the same displacement on
-/// every ε row and only the `1024·ε` target moves. A "floor" here is
-/// the width the schedule's LAST round reaches: the Taylor remainder,
-/// which quarters per round (exactly where every cell splits evenly;
-/// more slowly where a cell abuts an off-grid knot), taken through
-/// the whole schedule. It is not an arithmetic floor — the midpoint
-/// sum's own width sits under a thousandth of the remainder on the
-/// carriers TCOST-K1's rows measure — which is what lets the loop bound
-/// its last round from the schedule alone ([`last_round_width_lo`]) and
-/// refuse without running it. Measured floors
+/// not: the frontier is a part-SIZE frontier. The lane's stops do not
+/// move with ε, so each carrier stops at the same displacement on every
+/// ε row and only the `1024·ε` target moves. The width here is the one
+/// the work wall stops the lane at ([`FACE_WORK_WALL`]): the composite
+/// arm's round 7, the exact-v arm's round 10. It is the Taylor
+/// remainder's, which quarters per round (exactly where every cell
+/// splits evenly; more slowly where a cell abuts an off-grid knot); the
+/// midpoint sum's own width is a small fraction of it on these carriers
+/// (under 1% on the torus at its wall), so none of them reaches its
+/// floor first. Measured
 /// (`crates/geom-brep/tests/review_r1_rational_probes.rs`, which pins
-/// each one), against the DEFAULT target of 1.024e-6 m:
+/// each one that stops short of a row's target), against the DEFAULT
+/// target of 1.024e-6 m:
 ///
 /// ```text
-/// carrier                                      floor (m)   @ ε = 1e-9
-/// 1 µm quarter cylinder                          <1e-9     certifies*
-/// 1 m × 2 m quarter cylinder, single span       3.352e-9   certifies (305×)
-/// unit sphere octant (degenerate pole row)      2.907e-8   certifies (35×)
-/// quarter torus, R = 2 m, r = 0.5 m             4.648e-8   certifies (22×)
-/// 1 m × 2 m half cylinder, TWO spans            2.688e-8   certifies (38×)
-/// 5 m C0-kink extruded wall                     4.785e-4   REFUSES
-/// 1 km quarter cylinder                         3.352e-6   REFUSES (3.3× over)
-/// warped bilinear, weights 1e-1/1e1             1.296e-5   REFUSES
-/// Möbius quarter cylinder, weight ratio 100     2.015e-6   REFUSES (2.0× over)
-/// bilinear square, weights 1e-3/1e3             6.358e+5   REFUSES
+/// carrier                                      width (m)   arm        @ ε = 1e-9
+/// 1 µm quarter cylinder                          <1e-12    exact-v    certifies*
+/// 1 m × 2 m quarter cylinder, single span       ≈6.0e-11   exact-v    certifies
+/// unit sphere octant (degenerate pole row)      2.920e-8   composite  certifies (35×)
+/// quarter torus, R = 2 m, r = 0.5 m             4.687e-8   composite  certifies (22×)
+/// 1 m × 2 m half cylinder, TWO spans            4.272e-10  exact-v    certifies
+/// 5 m C0-kink extruded wall                     exact      exact-v    certifies
+/// 1 km quarter cylinder                         5.996e-8   exact-v    certifies (17×)
+/// warped bilinear, weights 1e-1/1e1             1.296e-5   composite  STOPS SHORT
+/// Möbius quarter cylinder, weight ratio 100     3.150e-8   exact-v    certifies (33×)
+/// bilinear square, weights 1e-3/1e3             6.358e+5   composite  STOPS SHORT
 /// ```
 ///
-/// \* Convergence is never the small end's problem — its floor scales
+/// \* Convergence is never the small end's problem — its width scales
 /// with the part. The FACE-EXTENT gate is: at ε = 1e-6 the 1 µm
 /// cylinder's 0.22 µm mean width is under the run's own tolerance and
-/// the same face is refused [`PropsError::DegenerateFace`]. That gate
-/// is older than the meter guard and behaves identically with and
-/// without it.
+/// the same face is refused [`PropsError::DegenerateFace`].
 ///
-/// Read that honestly: metre-scale parts converge at the default ε
-/// with an order or more to spare, a kilometre-scale one does not, and
-/// a weight spread of 100 is enough to refuse a metre-scale one. Callers
-/// on large or extreme-weight parts should expect refusals rather than
-/// answers.
+/// Read that honestly: metre-scale parts converge at the default ε with
+/// an order or more to spare, a kilometre-scale one only by its exact-v
+/// arm's extra rounds, and a weight spread of 10² across a warped patch
+/// is enough to stop a metre-scale one short. Callers on large or
+/// extreme-weight parts should expect a bracket rather than a number.
 ///
 /// The last row is the extreme of the weight spread: at 1e-3/1e3 the
 /// area element itself ranges over ten orders across the square, so
@@ -3256,21 +3253,15 @@ fn remainder_cell_v(hu: Interval, hv: Interval) -> Interval {
 /// refusing a plain unit square as having no extent at all — is that
 /// the rule intersects the pad with the block's hull of `g`, whose
 /// lower end is a magnitude and cannot be negative. The face therefore
-/// certifies a positive extent and refuses with a width (its last
-/// round's bound, read after round 0). The width is useless; saying
-/// so is the point.
+/// certifies a positive extent and stops at the wall with a width. The
+/// width is useless; saying so is the point.
 ///
-/// Every other refusal is a typed [`PropsError::QuadratureBudget`]
-/// carrying its width: the last round's own when the schedule ran
-/// out, or the last round's lower bound when the loop proved after a
-/// round that the last round could not certify either — the same
-/// number to within the midpoint sum's width ([`last_round_width_lo`]
-/// says what the bound omits). The next levers, in order, are a
-/// higher-order rule (Simpson needs `A` to fifth derivatives), a
-/// finer hull-block grid, and the round budget
-/// itself: with the cells knot-aligned the enclosure quarters cleanly
-/// per round, so a carrier under a factor of two over target is
-/// exactly one round short.
+/// A carrier that stops short says where ([`LaneEnd`]) and hands back
+/// its narrowest enclosure. The next levers, in order, are a
+/// higher-order rule (Simpson needs `A` to fifth derivatives) and a
+/// finer hull-block grid: with the cells knot-aligned the enclosure
+/// quarters cleanly per round, so a carrier under a factor of four over
+/// target is one round short of a wall that admits no further round.
 ///
 /// The `w`-uniform-in-v fast path is no longer a lever — it is taken,
 /// below — but what it buys is worth stating, because it is not what
@@ -7184,35 +7175,36 @@ mod tests {
                 let s = kahan_dense_oracle(&e.u, &e.v, e.t0.lo(), e.t1.hi(), 400_000);
                 truth += if e.forward { s } else { -s };
             }
-            // Two honest outcomes, ε-dependent: a converged enclosure
+            // Two honest outcomes, ε-dependent: an accepted enclosure
             // MUST contain the oracle; at tight ε (1e-12 drives the
             // target to ~1e-9 m while the sliver's ring-arithmetic floor
-            // sits above it) the TYPED budget refusal is the correct answer — never a
-            // silently wide bracket, never a silent skip.
-            match met(cylinder_cut_face::<f64>(
+            // sits above it) the lane stops short at its own floor or
+            // wall — with an enclosure that still contains the oracle and
+            // really missed its target, never a silently wide bracket,
+            // never a silent skip.
+            let target = QUAD_TARGET_LEN_FACTOR * eps;
+            match cylinder_cut_face::<f64>(
                 pt(1.0),
                 Interval::zero(),
                 &[&edges],
                 band,
                 &mut to_target(eps),
-            )) {
-                Ok(out) => {
+            ) {
+                Ok(run) => {
+                    let out = run.bounds;
                     assert!(
                         out.flux.lo() <= truth && truth <= out.flux.hi(),
-                        "{label}: dense oracle {truth} escapes the certified flux {:?}",
+                        "{label}: dense oracle {truth} escapes the enclosure {:?} ({run:?})",
                         out.flux
                     );
-                }
-                Err(PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    ..
-                }) => {
-                    assert!(
-                        width_len > target_len,
-                        "{label}: a budget refusal must report an ACHIEVED width above \
-                         its target, got {width_len} vs {target_len}"
-                    );
+                    if !matches!(run.end, LaneEnd::Accepted(_)) {
+                        let width_len = mean_boundary_displacement(out.flux, out.area).unwrap();
+                        assert!(
+                            width_len > target,
+                            "{label}: a lane stopped short must report an ACHIEVED width \
+                             above its target, got {width_len} vs {target} ({run:?})"
+                        );
+                    }
                 }
                 Err(other) => panic!("{label}: outside the two honest arms: {other:?}"),
             }
