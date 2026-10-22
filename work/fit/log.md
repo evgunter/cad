@@ -48,6 +48,28 @@ Signed (S-DUP orchestrator).
 
 - 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), third pass. `pickindex.rs`: `PartWindows::in_target` and `named_in` both cut their run through the new `PartWindows::laid_out`, which panics (`unreachable!`, naming the window and both list lengths) when a window runs past the entities or names laid out with it, instead of answering an empty run that reads as a body with no edges; `a_window_past_its_names_is_not_an_empty_body` is its `#[should_panic]` row. (AUTH-14 implementer)
 
+## 2026-10-22 — the budget is a target (PR 5600)
+
+Closes `the-budgets-predicted-count-is-not-always-an-over-count` and
+`a-flat-rung-pair-is-read-as-flat-below-it`.
+
+- `TRIANGLE_BUDGET` is documented as a target with a stated
+  precision, and `FittedDelta::predicted` is deleted.
+- `answer`'s Flat early return is gone, because the law already
+  commits the request there.
+- `display_budget.rs` holds the drawn count to 0.9–1.05× on every
+  bound corpus row. Measured: 0.927–1.0025.
+
+Review was a style lane. All five claims held, including the ~8.1×
+Flat bound, re-derived. Its two contradiction findings were fixed in
+place: S1, "a factor of at least two", which was false; and S2, the
+direction of the probe's error. A second error direction, the
+sagitta-sized excess of up to ~1.1%, is now stated beside the
+other.
+
+Filed: `a-dense-floor-is-priced-off-the-law-from-the-scale-probe`
+(threshold 62 500, the halving break) and
+`flat-harmlessness-is-unproven-on-the-nurbs-refinement-lane`.
 ## 2026-10-22 — taken up; the slate against the D10 hold
 
 An orchestrator (session 01QgNokkLTQtNJ3sdoLiqtf6) takes the track; status `active`.
