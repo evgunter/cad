@@ -589,18 +589,17 @@ impl<T: Real, const D: usize> Grid<T, D> {
     }
 
     /// The grid's derivative along `u` (`along_u`) or `v`, the grid
-    /// stated over a parameter interval of `width` along it: a
-    /// degree-`n` line's `n·(c_{k+1} − c_k)/width`. `None` along a
-    /// degree-0 axis.
-    fn derived(&self, along_u: bool, width: T) -> Option<Self> {
+    /// stated over the parameter interval `ends` along it: a degree-`n`
+    /// line's `(c_{k+1} − c_k)·`[`span_derivative_scale`]`(n, ends)`.
+    /// `None` along a degree-0 axis.
+    fn derived(&self, along_u: bool, ends: (T, T)) -> Option<Self> {
         let n = if along_u {
             self.degree().0
         } else {
             self.degree().1
         };
         (n > 0).then_some(())?;
-        #[allow(clippy::cast_precision_loss)]
-        let scale = T::from_f64(n as f64) / width;
+        let scale = span_derivative_scale(n, ends.0, ends.1);
         let diff = |line: &[Vector<T, D>]| -> Option<Vec<Vector<T, D>>> {
             Some(line.windows(2).map(|x| (x[1] - x[0]) * scale).collect())
         };
@@ -759,11 +758,11 @@ impl<'a, T: Real> Axis<'a, T> {
         }
     }
 
-    /// The width of the parameter interval the axis's Bernstein rows
-    /// are stated over.
-    fn width(&self) -> T {
+    /// The parameter interval the axis's Bernstein rows are stated
+    /// over.
+    fn ends(&self) -> (T, T) {
         match *self {
-            Self::Span { ends, .. } => ends.1 - ends.0,
+            Self::Span { ends, .. } => ends,
         }
     }
 
@@ -875,11 +874,23 @@ struct Homogeneous<T> {
 }
 
 /// The second derivatives of a cell's `A` and `W`: `uu` absent along a
-/// degree-1 `u` (identically zero there), `vv` likewise.
+/// degree-1 `u` (identically zero there), `vv` likewise, and `uv`
+/// absent unless [`Second::All`] asked for it.
 struct SecondGrids<T> {
     uu: Option<(Grid<T, 3>, Grid<T, 1>)>,
-    uv: (Grid<T, 3>, Grid<T, 1>),
+    uv: Option<(Grid<T, 3>, Grid<T, 1>)>,
     vv: Option<(Grid<T, 3>, Grid<T, 1>)>,
+}
+
+/// Which second derivatives [`cell_whole`] forms.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Second {
+    /// None.
+    No,
+    /// `uu` and `vv` alone (the measure quotients').
+    Pure,
+    /// `uu`, `uv` and `vv` (the second-order quotients').
+    All,
 }
 
 /// The three second-order quotients of a tensor patch on one piece,
@@ -915,7 +926,8 @@ impl<T: Real> Homogeneous<T> {
             .times(2.0)?
             .minus(&x_wy(&self.au, w, &self.wv)?)?
             .minus(&x_wy(&self.av, w, &self.wu)?)?;
-        let (m, w3) = second_numerator(a, w, Some((&g.uv.0, &g.uv.1)), cross)?;
+        let uv = g.uv.as_ref()?;
+        let (m, w3) = second_numerator(a, w, Some((&uv.0, &uv.1)), cross)?;
         let uv = Raised::of(&m, w3)?;
         Some(SecondRaised { uu, uv, vv })
     }
@@ -1366,7 +1378,7 @@ fn cell_pieces<T: Real>(
     area: bool,
     second: bool,
 ) -> Option<CellPieces<T>> {
-    let whole = cell_whole(axes, block, second)?;
+    let whole = cell_whole(axes, block, if second { Second::All } else { Second::No })?;
     // Every quotient is formed once over the cell and halved into its
     // pieces, each weight power halved once for every quotient over it
     // ([`shared_pieces`]): `S_u` and `S_v` share `W²`, and the area and
@@ -1431,7 +1443,7 @@ pub fn cell_first_quotients<T: Real>(
     axes: (CellAxis<'_, T>, CellAxis<'_, T>),
     block: CellBlock<'_, T>,
 ) -> Option<CellFirstQuotients<T>> {
-    let first = cell_whole(axes, block, false)?.first_raised(false)?;
+    let first = cell_whole(axes, block, Second::No)?.first_raised(false)?;
     Some(CellFirstQuotients {
         u: first.u,
         v: first.v,
@@ -1609,7 +1621,7 @@ impl<const D: usize> Grid<crate::interval::Interval, D> {
 fn cell_whole<T: Real>(
     axes: (CellAxis<'_, T>, CellAxis<'_, T>),
     block: CellBlock<'_, T>,
-    second: bool,
+    second: Second,
 ) -> Option<Homogeneous<T>> {
     let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
     let (p, q) = (au.p(), av.p());
@@ -1672,7 +1684,9 @@ fn cell_whole<T: Real>(
             (a, w, u, v)
         }
     };
-    let second = if second {
+    let second = if second == Second::No {
+        None
+    } else {
         let uu = if p >= 2 {
             Some((
                 cell_grid(&au_w.map_u(|c| au.derive_at(2, c))?, (&au, 2), (&av, 0))?,
@@ -1689,13 +1703,15 @@ fn cell_whole<T: Real>(
         } else {
             None
         };
-        let uv = (
-            cell_grid(&au_w.map_v(|r| av.derive_at(1, r))?, (&au, 1), (&av, 1))?,
-            cell_grid(&wu_w.map_v(|r| av.derive_at(1, r))?, (&au, 1), (&av, 1))?,
-        );
+        let uv = if second == Second::All {
+            Some((
+                cell_grid(&au_w.map_v(|r| av.derive_at(1, r))?, (&au, 1), (&av, 1))?,
+                cell_grid(&wu_w.map_v(|r| av.derive_at(1, r))?, (&au, 1), (&av, 1))?,
+            ))
+        } else {
+            None
+        };
         Some(SecondGrids { uu, uv, vv })
-    } else {
-        None
     };
     Some(Homogeneous {
         second,
@@ -1795,21 +1811,23 @@ pub struct AreaSlopes<T> {
     pub v: QuotientPiece<T, 3>,
 }
 
-/// The measure quotients of `block` along `axes` (module docs, "The
-/// measure quotients"), the flux read about the point the block's
-/// homogeneous channels are stated from: `frame` is the block's frame
-/// `c` in the flux's coordinates (a [`CellBlock::Points`]'s `origin`,
-/// or the `c` of a [`CellBlock::Homogeneous`]'s `w·(P − c)`). `None` on a
+/// The measure quotients of the [`CellBlock::Points`] `block` along
+/// `axes` (module docs, "The measure quotients"), the flux read in the
+/// coordinates its points are stated in: the block's `origin` is the
+/// frame `c` of `N = A·(A_u×A_v) + c·M̃`. `None` on a
+/// [`CellBlock::Homogeneous`] block, whose channels name no frame, on a
 /// degree below one, a block of the wrong size, or a common degree
 /// `5·max(p, q)` above [`QUOTIENT_MAX_DEGREE`].
 pub fn cell_measure_quotients<T: Real>(
     axes: (CellAxis<'_, T>, CellAxis<'_, T>),
     block: CellBlock<'_, T>,
-    frame: [T; 3],
 ) -> Option<CellMeasureQuotients<T>> {
+    let CellBlock::Points { origin: frame, .. } = block else {
+        return None;
+    };
     let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
-    let (width_u, width_v) = (au.width(), av.width());
-    let h = cell_whole(axes, block, true)?;
+    let (ends_u, ends_v) = (au.ends(), av.ends());
+    let h = cell_whole(axes, block, Second::Pure)?;
     let second = h.second.as_ref()?;
     let base = product(&h.au, &h.av, cross)?;
     let m = h.area_numerator(&base)?;
@@ -1820,7 +1838,7 @@ pub fn cell_measure_quotients<T: Real>(
     let w4 = product(&w2, &w2, weight_times)?;
     let w5 = product(&w4, w, weight_times)?;
     let slope = |along_u: bool, wd: &Grid<T, 1>| -> Option<Raised<T, 3>> {
-        let md = m.derived(along_u, if along_u { width_u } else { width_v })?;
+        let md = m.derived(along_u, if along_u { ends_u } else { ends_v })?;
         let numer = product(&md, w, by_weight)?.minus(&product(&m, wd, by_weight)?.times(3.0)?)?;
         Raised::of(&numer, w4.clone())
     };
@@ -1828,9 +1846,9 @@ pub fn cell_measure_quotients<T: Real>(
                 wd: &Grid<T, 1>,
                 wdd: Option<&(Grid<T, 3>, Grid<T, 1>)>|
      -> Option<Raised<T, 1>> {
-        let width = if along_u { width_u } else { width_v };
-        let nd = n.derived(along_u, width)?;
-        let ndd = nd.derived(along_u, width)?;
+        let ends = if along_u { ends_u } else { ends_v };
+        let nd = n.derived(along_u, ends)?;
+        let ndd = nd.derived(along_u, ends)?;
         let mut numer = product(&ndd, &w2, by_weight)?
             .minus(&x_wy(&nd, wd, w)?.times(6.0)?)?
             .plus(&a_yz(&n, wd, wd)?.times(12.0)?)?;
@@ -2492,8 +2510,8 @@ mod tests {
                 weights: &weights,
                 origin,
             };
-            let whole = super::cell_measure_quotients(axes, block, origin)
-                .expect("a block under the ceiling");
+            let whole =
+                super::cell_measure_quotients(axes, block).expect("a block under the ceiling");
             let cut = |rng: &mut test_utils::fuzz::Rng, (s0, s1): (f64, f64)| {
                 let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
                 ((s0, s1), (x.min(y), x.max(y)))
@@ -2936,8 +2954,8 @@ mod tests {
         };
         for splits in [(1, 1), (2, 4), (8, 2)] {
             let counts = super::halving_counts(splits);
-            let whole =
-                super::cell_whole(axes(), block(), true).expect("a block under the ceiling");
+            let whole = super::cell_whole(axes(), block(), super::Second::All)
+                .expect("a block under the ceiling");
             let first = whole.first_raised(true).expect("the first order");
             let area = first.area.as_ref().expect("the area");
             let second = whole.second_raised().expect("the second order");

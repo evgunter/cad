@@ -87,3 +87,14 @@ full schedule refuses with the same payload (`rounds: 8`). Sound
 throughout. What a stricter ε buys on such a body is the budget
 exit's bracket, and that lives with this dial and with
 `SignCertificate::measure`'s stop-at-first-refusal, not with the demo.
+
+## Note (QUAD, 2026-10-22, PR 5582)
+
+The floors this row argues from moved when the rational lane's `f_dd`
+hulls began to read the quotient statement
+(`quad-rational-integrand-second-derivative-reads-the-quotient-rule-by-hand`).
+The quarter torus now bottoms out at 4.648e-8 m (it was 1.146e-6), and
+the two-span half cylinder at 2.688e-8 m (it was 1.3035e-6). Both
+certify at the default target without a schedule change. dm1's residual
+was not re-measured; the dial argument above should be re-read against
+it before anyone turns the dial.

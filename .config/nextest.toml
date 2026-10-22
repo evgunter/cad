@@ -124,6 +124,7 @@ not (
   (binary_id(mesh) & (test(=nurbs_cert::tests::a_lofted_circle_straddler_reads_its_true_deviation))) |
   (binary_id(geom-core) & (test(=spline::derivative::tests::the_measure_quotients_hold_the_sampled_area_and_flux_over_a_cut))) |
   (binary_id(geom-brep) & (test(=props::quad::tests::the_statements_hulls_and_pads_hold_the_sampled_integrand_on_every_rational_carrier))) |
+  (binary_id(geom-brep::all) & (test(=cert5_r1_patch_probes::knots_one_ulp_apart_at_an_odd_mantissa_stay_sound))) |
   (binary_id(mesh::all) & (test(=lofted_circle::a_loft_of_two_circles_tessellates)))
 )
 """

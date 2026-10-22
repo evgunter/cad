@@ -129,7 +129,7 @@
 //! [`nurbs_patch_face_rounds`] (the polynomial patch over a whole UV
 //! rectangle: [`patch_flux_exact`]'s per-span Newton–Cotes, with
 //! composite rounds behind it), `rational_patch_face` (the same
-//! rectangle through the quotient rule), [`area_midpoint_taylor`] (the
+//! rectangle through the quotient statement), [`area_midpoint_taylor`] (the
 //! area rule both patch lanes share), and — since TRIM-2 —
 //! [`trimmed_patch_face_rounds`], whose region is what a face's chart
 //! IMAGE bounds rather than a rectangle of its chart. That last one is
@@ -174,6 +174,7 @@ use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
 use super::{PropsCheck, PropsError};
 use crate::offset_meters::mig;
+use crate::patch_bound::{certified_inf, certified_sup};
 
 /// The initial piece count of the composite rule (round 0).
 pub(super) const QUAD_INIT_PIECES: usize = 16;
@@ -2919,8 +2920,7 @@ type CellCuts = (Option<AxisCut>, Option<AxisCut>);
 /// window's first point, and read on a quadrature cell or hull block by
 /// restricting it there. Every cell and block the lane reads lies
 /// inside one span cell, because its cut lists hold every interior knot
-/// ([`knot_aligned_cuts`]). Its readers pass the knot vectors it was
-/// built on.
+/// ([`knot_aligned_cuts`]), so each is read through its [`SpanCell`].
 struct MeasureCells {
     cells: Vec<((usize, usize), CellMeasureQuotients<Interval>)>,
 }
@@ -2964,15 +2964,13 @@ impl MeasureCells {
                         ws.push(pt(*weights.get(k).ok_or(Self::REFUSED_CUT)?));
                     }
                 }
-                let origin = points[0].map(|c| pt(c.lo()));
                 let q = cell_measure_quotients(
                     (CellAxis::Span(su, &held_u), CellAxis::Span(sv, &held_v)),
                     CellBlock::Points {
                         points: &points,
                         weights: &ws,
-                        origin,
+                        origin: points[0].map(|c| pt(c.lo())),
                     },
-                    origin,
                 )
                 .ok_or(PropsError::QuadratureUnsupported {
                     what: "a rational patch past the quotient statement's degree ceiling \
@@ -2989,40 +2987,27 @@ impl MeasureCells {
     /// the cell's part of it: `None` along an axis the cell covers whole.
     fn on(
         &self,
-        kvs: (&KnotVector, &KnotVector),
-        u: (f64, f64),
-        v: (f64, f64),
+        u: &SpanCell,
+        v: &SpanCell,
     ) -> Result<(&CellMeasureQuotients<Interval>, CellCuts), PropsError> {
-        let axis = |kv: &KnotVector, (lo, hi): (f64, f64)| -> Option<(usize, Option<AxisCut>)> {
-            let s = kv.span_at(lo.midpoint(hi))?.index();
-            let (s0, s1) = (kv.knots()[s], kv.knots()[s + 1]);
-            debug_assert!(s0 <= lo && hi <= s1, "a quadrature cell straddles a knot");
-            Some((s, (lo > s0 || hi < s1).then_some(((s0, s1), (lo, hi)))))
-        };
-        let ((su, cu), (sv, cv)) = axis(kvs.0, u)
-            .zip(axis(kvs.1, v))
-            .ok_or(Self::REFUSED_CUT)?;
         self.cells
             .iter()
-            .find(|(k, _)| *k == (su, sv))
-            .map(|(_, q)| (q, (cu, cv)))
+            .find(|(k, _)| *k == (u.span, v.span))
+            .map(|(_, q)| (q, (u.cut(), v.cut())))
             .ok_or(Self::REFUSED_CUT)
     }
-}
 
-impl MeasureCells {
-    /// The `(f_uu, f_vv)` hull of every block between consecutive
-    /// `edges`, row-major in `u` then `v`.
+    /// The `(f_uu, f_vv)` hull of every block `u × v`, row-major in `u`
+    /// then `v`.
     fn block_hulls(
         &self,
-        kvs: (&KnotVector, &KnotVector),
-        edges_u: &[f64],
-        edges_v: &[f64],
+        cells_u: &[SpanCell],
+        cells_v: &[SpanCell],
     ) -> Result<Vec<(Interval, Interval)>, PropsError> {
-        let mut out = Vec::with_capacity((edges_u.len() - 1) * (edges_v.len() - 1));
-        for u in edges_u.windows(2) {
-            for v in edges_v.windows(2) {
-                let (q, cuts) = self.on(kvs, (u[0], u[1]), (v[0], v[1]))?;
+        let mut out = Vec::with_capacity(cells_u.len() * cells_v.len());
+        for u in cells_u {
+            for v in cells_v {
+                let (q, cuts) = self.on(u, v)?;
                 let (uu, vv) = q.flux_second_on(cuts).ok_or(Self::REFUSED_CUT)?;
                 out.push((ratio_hull(&uu)?, ratio_hull(&vv)?));
             }
@@ -3030,51 +3015,100 @@ impl MeasureCells {
         Ok(out)
     }
 
-    /// An area cell's `(G_u, G_v, hull(g))`: upper bounds on
+    /// A cell's `(G_u, G_v, hull(g))`: upper bounds on
     /// `|∂_d(S_u×S_v)|` and the range of `|S_u×S_v|` over `u × v`.
-    fn area_bounds(
-        &self,
-        kvs: (&KnotVector, &KnotVector),
-        u: ParamRange,
-        v: ParamRange,
-    ) -> Result<(f64, f64, Interval), PropsError> {
-        let (q, cuts) = self.on(kvs, (u.start(), u.end()), (v.start(), v.end()))?;
+    fn area_bounds(&self, u: &SpanCell, v: &SpanCell) -> Result<(f64, f64, Interval), PropsError> {
+        let (q, cuts) = self.on(u, v)?;
         let on = q.area_on(cuts).ok_or(Self::REFUSED_CUT)?;
-        // The norm's floor along the piece's own direction is signed,
-        // and poison where that direction is: a magnitude's floor is
-        // zero there.
-        let floor = on.area.inf_norm();
-        let g_lo = if floor.is_certified() {
-            floor.lo().max(0.0)
-        } else {
-            0.0
-        };
         let (g_u, g_v, g_hi) = (
-            certified_hi(on.u.sup_norm()),
-            certified_hi(on.v.sup_norm()),
-            certified_hi(on.area.sup_norm()),
+            certified_sup(&on.u),
+            certified_sup(&on.v),
+            certified_sup(&on.area),
         );
         if g_u.is_finite() && g_v.is_finite() && g_hi.is_finite() {
-            Ok((g_u, g_v, Interval::from_bounds(g_lo, g_hi)))
+            Ok((
+                g_u,
+                g_v,
+                Interval::from_bounds(certified_inf(&on.area), g_hi),
+            ))
         } else {
             Err(Self::REFUSED_CUT)
         }
     }
 }
 
+/// One cell of a cut list together with the span of the knot vector
+/// it lies in. Minted only by [`span_cells`], which walks the cuts
+/// against the knots: a reader never re-locates a cell from a rounded
+/// point inside it, which on a cell an ulp wide can name the next span.
+#[derive(Clone, Copy, Debug)]
+struct SpanCell {
+    lo: f64,
+    hi: f64,
+    span: usize,
+    ends: (f64, f64),
+}
+
+impl SpanCell {
+    /// The restriction that keeps this cell's part of its span, `None`
+    /// when the cell is the whole span.
+    fn cut(&self) -> Option<AxisCut> {
+        (self.lo > self.ends.0 || self.hi < self.ends.1).then_some((self.ends, (self.lo, self.hi)))
+    }
+}
+
+/// The cells of the sorted cut list `cuts`, each with its span of `kv`.
+/// The first cut is located once (an exact cut, never a midpoint); each
+/// later cell takes the first span whose end lies past its lower cut,
+/// by exact comparison. A cell whose upper cut lies past that span's
+/// end holds a knot in its interior, which a cut list holding every
+/// interior knot ([`knot_aligned_cuts`]) never mints: refused typed.
+fn span_cells(kv: &KnotVector, cuts: &[f64]) -> Result<Vec<SpanCell>, PropsError> {
+    const STRADDLE: PropsError = PropsError::QuadratureUnsupported {
+        what: "a quadrature cell holding a knot in its interior — the cut list was \
+               not cut on the knot vector it is read against",
+    };
+    let k = kv.knots();
+    let first = *cuts.first().ok_or(STRADDLE)?;
+    let mut s = kv.span_at(first).ok_or(STRADDLE)?.index();
+    cuts.windows(2)
+        .map(|w| {
+            let (lo, hi) = (w[0], w[1]);
+            while s + 2 < k.len() && k[s + 1] <= lo {
+                s += 1;
+            }
+            let ends = (k[s], k[s + 1]);
+            if ends.0 <= lo && hi <= ends.1 {
+                Ok(SpanCell {
+                    lo,
+                    hi,
+                    span: s,
+                    ends,
+                })
+            } else {
+                Err(STRADDLE)
+            }
+        })
+        .collect()
+}
+
 /// The midpoint of the cell `[lo, hi]` as the rational flux rule reads
-/// it: the rounded midpoint, which locates the span, and the enclosure
-/// of the exact one, at which the span is evaluated. The rule's
-/// remainder `hull(f_dd)·h³/24` holds about the exact midpoint only; at
-/// a rounded one the first-order term `f_d·δ·h` stays outside it, and
-/// on a cell beside a knot 1e-9 from the rectangle's edge, whose
-/// integrand's slope is near 1e18, that term outweighs the remainder. The exact midpoint lies in the cell, so the
-/// enclosure is clamped to it: the outward sum may step an ulp past an
-/// end, and past the end of a span an ulp wide that is an
-/// extrapolation by the span's whole width.
+/// it: a locator in `[lo, hi)`, which names the cell's span, and the
+/// enclosure of the exact midpoint, at which the span is evaluated.
+///
+/// The rule's remainder `hull(f_dd)·h³/24` holds about the exact
+/// midpoint only; at a rounded one the first-order term `f_d·δ·h`
+/// stays outside it, and on a cell beside a knot 1e-9 from the
+/// rectangle's edge, whose integrand's slope is near 1e18, that term
+/// outweighs the remainder. The exact midpoint lies in the cell, so the
+/// enclosure is clamped to it: the outward sum steps past an end on
+/// about a third of adjacent-float pairs. The locator is the rounded
+/// midpoint unless that rounds up to `hi`, which on a cell an ulp wide
+/// is the next span's first knot; `lo` then.
 fn cell_midpoint(lo: f64, hi: f64) -> (f64, Interval) {
+    let m = lo.midpoint(hi);
     (
-        lo.midpoint(hi),
+        if m < hi { m } else { lo },
         ((pt(lo) + pt(hi)) * pt(0.5)).clamped_to(lo, hi),
     )
 }
@@ -3674,7 +3708,8 @@ fn rational_patch_face<T: Decide>(
     let edges_u = knot_aligned_cuts(u0, u1, QUAD2_HULL_BLOCKS, &knots_u);
     let edges_v = knot_aligned_cuts(v0, v1, QUAD2_HULL_BLOCKS, &knots_v);
     let nbv = edges_v.len() - 1;
-    let blocks = measure.block_hulls((kv_u, kv_v), &edges_u, &edges_v)?;
+    let (cells_u, cells_v) = (span_cells(kv_u, &edges_u)?, span_cells(kv_v, &edges_v)?);
+    let blocks = measure.block_hulls(&cells_u, &cells_v)?;
 
     // AREA: the shared [`area_midpoint_taylor`] rule with this lane's
     // quotient integrand `g = |S_u×S_v|`, its hull the area element's
@@ -3687,13 +3722,9 @@ fn rational_patch_face<T: Decide>(
     // over a superset holds on every sub-cell, and one reading per block
     // rather than per cell keeps the statement's restrictions off the
     // area grid's cell count.
-    let area_blocks = edges_u
-        .windows(2)
-        .flat_map(|u| {
-            edges_v.windows(2).map(|v| {
-                measure.area_bounds((kv_u, kv_v), cut_window(u[0], u[1]), cut_window(v[0], v[1]))
-            })
-        })
+    let area_blocks = cells_u
+        .iter()
+        .flat_map(|u| cells_v.iter().map(|v| measure.area_bounds(u, v)))
         .collect::<Result<Vec<_>, _>>()?;
     let area = area_midpoint_taylor(
         rect,
@@ -3937,7 +3968,7 @@ fn rational_patch_face<T: Decide>(
 /// resolution and O(h), because the +V gate meters `V/A` and needs an
 /// honest denominator. A patch with non-unit weights
 /// routes to [`rational_patch_face`] (M8-3), which certifies the same
-/// two numbers through the quotient rule.
+/// two numbers through the quotient statement.
 ///
 /// Honesty pads (both directions accounted): `boundary_defect` is the
 /// caller's `Σ (metric edge length)·(pcurve envelope)` bound on the
@@ -7120,9 +7151,12 @@ mod tests {
     /// the caller's net (`N/w³` and `|S_u×S_v|` through [`Ladder`]),
     /// differenced: a central second difference against each hull block's
     /// `f_uu` and `f_vv`, a central first difference of `g` against each
-    /// block's area pads, and `g` itself against its area hull. A
-    /// difference carries its own truncation, so each check allows a
-    /// thousandth of its bound's magnitude.
+    /// block's area pads, and `g` itself against its area hull, on a
+    /// 3 × 3 sample grid per block. Each check allows 1e-4 of its
+    /// bound's magnitude for the difference's truncation, and the
+    /// difference's rounding (`1e-13·|f|/h²`, `1e-10·|g|`) beside it.
+    /// It guards containment only: a bound that widens and still holds
+    /// is the floors' pins' to catch (`review_r1_rational_probes`).
     #[test]
     fn the_statements_hulls_and_pads_hold_the_sampled_integrand_on_every_rational_carrier() {
         for (name, ku, kv, control, weights) in rational_carriers() {
@@ -7158,28 +7192,31 @@ mod tests {
                 let c = a.cross_num(&w, cu, cv).map(mid);
                 (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt() / mid(w.chan(cu, cv)).powi(3)
             };
-            let slack = |x: Interval| 1e-3 * x.mag().max(1.0);
-            let inside = |x: f64, hull: Interval| {
-                hull.lo() - slack(hull) <= x && x <= hull.hi() + slack(hull)
+            let inside = |x: f64, hull: Interval, noise: f64| {
+                let slack = 1e-4 * hull.mag() + noise;
+                hull.lo() - slack <= x && x <= hull.hi() + slack
             };
-            let samples = |lo: f64, hi: f64| {
-                (0..2).map(move |i| lo + (hi - lo) * (0.25 + 0.5 * f64::from(i)))
+            let samples =
+                |lo: f64, hi: f64| (0..3).map(move |i| lo + (hi - lo) * (f64::from(i) + 0.5) / 3.0);
+            let cells = |kv: &KnotVector, knots: &[f64]| {
+                span_cells(kv, &knot_aligned_cuts(0.0, 1.0, QUAD2_HULL_BLOCKS, knots)).unwrap()
             };
-            let edges_u = knot_aligned_cuts(0.0, 1.0, QUAD2_HULL_BLOCKS, &knots_u);
-            let edges_v = knot_aligned_cuts(0.0, 1.0, QUAD2_HULL_BLOCKS, &knots_v);
-            let hulls = measure.block_hulls((&ku, &kv), &edges_u, &edges_v).unwrap();
+            let (cells_u, cells_v) = (cells(&ku, &knots_u), cells(&kv, &knots_v));
+            let hulls = measure.block_hulls(&cells_u, &cells_v).unwrap();
             let mut k = 0;
-            for bu in edges_u.windows(2) {
-                for bv in edges_v.windows(2) {
+            for bu in &cells_u {
+                for bv in &cells_v {
                     let (h_uu, h_vv) = hulls[k];
                     k += 1;
-                    let (hu, hv) = (1e-3 * (bu[1] - bu[0]), 1e-3 * (bv[1] - bv[0]));
-                    for u in samples(bu[0], bu[1]) {
-                        for v in samples(bv[0], bv[1]) {
-                            let f_uu = (f(u + hu, v) - 2.0 * f(u, v) + f(u - hu, v)) / (hu * hu);
-                            let f_vv = (f(u, v + hv) - 2.0 * f(u, v) + f(u, v - hv)) / (hv * hv);
+                    let (hu, hv) = (1e-3 * (bu.hi - bu.lo), 1e-3 * (bv.hi - bv.lo));
+                    for u in samples(bu.lo, bu.hi) {
+                        for v in samples(bv.lo, bv.hi) {
+                            let fm = f(u, v);
+                            let f_uu = (f(u + hu, v) - 2.0 * fm + f(u - hu, v)) / (hu * hu);
+                            let f_vv = (f(u, v + hv) - 2.0 * fm + f(u, v - hv)) / (hv * hv);
                             assert!(
-                                inside(f_uu, h_uu) && inside(f_vv, h_vv),
+                                inside(f_uu, h_uu, 1e-13 * fm.abs() / (hu * hu))
+                                    && inside(f_vv, h_vv, 1e-13 * fm.abs() / (hv * hv)),
                                 "{name}: at ({u}, {v}) the sampled (f_uu, f_vv) = ({f_uu}, {f_vv}) \
                                  escape the block hulls {h_uu:?}, {h_vv:?}"
                             );
@@ -7187,25 +7224,20 @@ mod tests {
                     }
                 }
             }
-            for cu in edges_u.windows(2) {
-                for cv in edges_v.windows(2) {
-                    let (g_u, g_v, g_hull) = measure
-                        .area_bounds(
-                            (&ku, &kv),
-                            cut_window(cu[0], cu[1]),
-                            cut_window(cv[0], cv[1]),
-                        )
-                        .unwrap();
-                    let (hu, hv) = (1e-4 * (cu[1] - cu[0]), 1e-4 * (cv[1] - cv[0]));
-                    for u in samples(cu[0], cu[1]) {
-                        for v in samples(cv[0], cv[1]) {
+            for cu in &cells_u {
+                for cv in &cells_v {
+                    let (g_u, g_v, g_hull) = measure.area_bounds(cu, cv).unwrap();
+                    let (hu, hv) = (1e-4 * (cu.hi - cu.lo), 1e-4 * (cv.hi - cv.lo));
+                    for u in samples(cu.lo, cu.hi) {
+                        for v in samples(cv.lo, cv.hi) {
                             let gm = g(u, v);
+                            let noise = 1e-10 * gm;
                             let d_u = ((g(u + hu, v) - g(u - hu, v)) / (2.0 * hu)).abs();
                             let d_v = ((g(u, v + hv) - g(u, v - hv)) / (2.0 * hv)).abs();
                             assert!(
-                                inside(gm, g_hull)
-                                    && d_u <= g_u + slack(pt(g_u))
-                                    && d_v <= g_v + slack(pt(g_v)),
+                                inside(gm, g_hull, noise)
+                                    && d_u <= g_u * (1.0 + 1e-4) + noise
+                                    && d_v <= g_v * (1.0 + 1e-4) + noise,
                                 "{name}: at ({u}, {v}) the sampled g = {gm}, |g_u| = {d_u}, \
                                  |g_v| = {d_v} escape the cell's hull {g_hull:?} or pads \
                                  ({g_u}, {g_v})"
@@ -7213,6 +7245,93 @@ mod tests {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /// Adjacent-float pairs from bases of both mantissa parities, near
+    /// knots the tests use, across binades: 2 000 pairs from each.
+    fn adjacent_pairs() -> impl Iterator<Item = (f64, f64)> {
+        [
+            0.5,
+            0.5f64.next_up(),
+            0.3,
+            1e-9,
+            1.0 - 1e-9,
+            0.75,
+            1e-300,
+            7.0,
+        ]
+        .into_iter()
+        .flat_map(|base| {
+            core::iter::successors(Some(base), |x: &f64| Some(x.next_up()))
+                .take(2000)
+                .map(|lo| (lo, lo.next_up()))
+        })
+    }
+
+    /// **A cell's midpoint enclosure is the cell itself on every
+    /// adjacent-float pair, and its locator lies in `[lo, hi)`.** The
+    /// exact midpoint of two adjacent floats lies strictly between
+    /// them, so its tightest enclosure is `[lo, hi]`: red if the clamp
+    /// goes (the outward sum steps past an end on about a third of the
+    /// pairs) or if the enclosure reverts to the rounded midpoint (a
+    /// point, which excludes the exact one), and red if the locator is
+    /// the rounded midpoint where that ties up to `hi`.
+    #[test]
+    fn a_cells_midpoint_encloses_the_exact_one_on_every_adjacent_pair() {
+        for (lo, hi) in adjacent_pairs() {
+            let (loc, enc) = cell_midpoint(lo, hi);
+            assert!(
+                enc.lo() == lo && enc.hi() == hi,
+                "[{lo:e}, {hi:e}]: the exact midpoint's enclosure is {enc:?}, not the cell"
+            );
+            assert!(
+                lo <= loc && loc < hi,
+                "[{lo:e}, {hi:e}]: the locator {loc:e} is outside [lo, hi)"
+            );
+        }
+        // Where the exact midpoint is a float, it is inside the enclosure.
+        let (lo, hi) = (0.5, 0.5f64.next_up().next_up());
+        assert!(cell_midpoint(lo, hi).1.contains(0.5f64.next_up()));
+    }
+
+    /// **Every cell of a cut list is read in the span it lies in**, on a
+    /// knot vector with a one-ulp span at each pair of
+    /// [`adjacent_pairs`]' first 100 per base: [`span_cells`] names the
+    /// span whose ends hold the cell, and the round loop's locator
+    /// ([`cell_midpoint`]) locates that same span. Red at
+    /// `k0 = 0.5⁺`, whose rounded midpoint with `k0⁺` ties up into the
+    /// next span, if either reads the cell off its rounded midpoint.
+    #[test]
+    fn every_cell_is_read_in_its_own_span_beside_a_one_ulp_span() {
+        for (k0, k1) in adjacent_pairs().step_by(20) {
+            if !(k0 > 0.0 && k1 < 1.0) {
+                continue;
+            }
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, k0, k1, 1.0, 1.0, 1.0], 2).unwrap();
+            let cuts = knot_aligned_cuts(0.0, 1.0, QUAD2_HULL_BLOCKS, &[k0, k1]);
+            let cells = span_cells(&kv, &cuts).unwrap();
+            assert!(
+                cells.iter().any(|c| (c.lo, c.hi) == (k0, k1)),
+                "the one-ulp span [{k0:e}, {k1:e}] is a cell"
+            );
+            for c in &cells {
+                assert!(
+                    c.ends.0 <= c.lo && c.hi <= c.ends.1,
+                    "[{:e}, {:e}] read in the span {:?}",
+                    c.lo,
+                    c.hi,
+                    c.ends
+                );
+                let loc = cell_midpoint(c.lo, c.hi).0;
+                assert_eq!(
+                    kv.span_at(loc).map(|s| s.index()),
+                    Some(c.span),
+                    "[{:e}, {:e}]: the locator {loc:e} names another span",
+                    c.lo,
+                    c.hi
+                );
             }
         }
     }
