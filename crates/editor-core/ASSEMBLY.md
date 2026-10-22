@@ -497,7 +497,9 @@ keeping its findings on the product (`Product::census`); the gate reads
 them and runs no census of its own. A mate places and never checks (D10):
 its record cites the at-rest census's decision that its two faces rest
 on one carrier (`topo::census_rest_decision`, a `CensusAtRest` row on
-the product, which the `unproven-coincidence` check reads), and a pair
+the product, which the `unproven-coincidence` check reads and the
+coincidence door proves by the mate's own statement,
+`[coincidence.structural]`), and a pair
 the census refuses mints no record, its finding raised by the gate
 beside the census's own. The gather's own tier-3 verdict rides
 on the product's body (`topo::AtRestBody`), so the gate reads both

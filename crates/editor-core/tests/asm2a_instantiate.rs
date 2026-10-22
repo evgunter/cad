@@ -1551,17 +1551,20 @@ fn two_cubes_glued_on_a_wall() -> (
     (doc, union, rows, opts)
 }
 
-/// **A symbolic run builds a part, and the door does not ask it to.**
+/// **A symbolic run builds a part, and the door reads a row on one.**
 /// Evaluated at `Sym` with every variable a symbol and the evaluation's
 /// resolver, the two cube instances and their union build: each part's
 /// variables are symbols of the part's own pinned version, so nothing
-/// across the seam refuses. The door's replay builds no placed copies
-/// ([`editor_core::coincide::REPLAYS_PLACED_COPIES`], off until the seat
-/// item turns it on), so handed the evaluation's resolver or none, each
-/// row on a part says the replay resolved no part and names an
+/// across the seam refuses. Handed the evaluation's resolver, the door's
+/// replay resolves the parts and reads the union's rows: the wall the
+/// cubes glue on is a part's width against a pin written as a
+/// translation by a value, which no mate states and which is no
+/// identity, so each row is a coincidence of values (`Numeric`), its
+/// form outgrowing the door's budget. Handed
+/// none, each row says the replay resolved no part, and names an
 /// assertion as its recourse.
 #[test]
-fn a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed() {
+fn a_symbolic_run_builds_a_part_and_the_door_reads_a_row_on_one() {
     let (doc, union, rows, opts) = two_cubes_glued_on_a_wall();
     let symbols = EvalOptions {
         symbols: true,
@@ -1586,12 +1589,22 @@ fn a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed() {
         )
         .expect("an uncanceled door");
         for proof in proofs.into_iter().flatten() {
+            let want = if resolver.is_some() {
+                (
+                    editor_core::Unreplayed::Numeric,
+                    editor_core::coincide::Recourse::Budget,
+                )
+            } else {
+                (
+                    editor_core::Unreplayed::ThroughAPart,
+                    editor_core::coincide::Recourse::Assert,
+                )
+            };
             assert!(
                 matches!(
                     &proof,
                     editor_core::Proof::Unproven { residual, recourse }
-                        if residual.replay == editor_core::Unreplayed::ThroughAPart
-                            && *recourse == editor_core::coincide::Recourse::Assert
+                        if (residual.replay, *recourse) == want
                 ),
                 "with a resolver {}: {proof:?}",
                 resolver.is_some()

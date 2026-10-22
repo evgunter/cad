@@ -563,3 +563,44 @@ fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
         "the stranded target resolves to no member; only the top's side does"
     );
 }
+
+/// **A top seated on a pattern's copy is proven by its mate.** The
+/// four-legs document seats the top on copy [`COPY`], which a `Place`
+/// copies into the world through a `Part` picking it: the at-rest
+/// census's row of the seat names the leg's cap in that copy, and the
+/// mate's target reads the same cap through the pattern, so the door's
+/// first rung reads the row as the mate's statement and the
+/// `unproven-coincidence` lint reports nothing against the mate.
+///
+/// *Breaks if* the door stops reading a mate side through the `Part`
+/// pick that copies it, or reads it in another copy.
+#[test]
+fn a_top_seated_on_a_pattern_copy_is_proven_by_its_mate() {
+    let (doc, _, _, _, mate, _) = four_legs("fix-xs-seat-door");
+    let ev = fixture::run(&doc, &legs_reach());
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the legs gather");
+    assert!(
+        product
+            .coincidences
+            .iter()
+            .any(|row| row.by == editor_core::AtRestBy::Mate(mate)),
+        "the premise: the census decided the seat: {:?}",
+        product.coincidences
+    );
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("checks run over the legs");
+    assert!(
+        !report
+            .findings
+            .iter()
+            .any(|f| f.check == editor_core::CheckId::UnprovenCoincidence
+                && f.subject == editor_core::FindingSubject::Node(mate.placement)),
+        "the seat on the copy is proven: {report}"
+    );
+}

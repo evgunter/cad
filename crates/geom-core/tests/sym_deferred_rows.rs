@@ -109,12 +109,14 @@ fn an_open_margin_says_whether_it_keeps_an_opaque_atom() {
     );
 }
 
-/// **A form too big for the budget is no opaque value.** `xy + yz + zx
-/// − 3` at `x = y = z = 1` decides Zero by value; at a budget of two
-/// terms its form freezes, so it does not discharge, and what keeps it
-/// open is a frozen form over the parameters alone, not a value
-/// computed apart from them, though the session holds an opaque value
-/// elsewhere. Reds if a frozen node reads as opaque.
+/// **A form too big for the budget is no opaque value, and says the
+/// budget.** `xy + yz + zx − 3` at `x = y = z = 1` decides Zero by
+/// value; at a budget of two terms its form freezes, so it does not
+/// discharge, and what keeps it open is a frozen form over the
+/// parameters alone, not a value computed apart from them, though the
+/// session holds an opaque value elsewhere. Reds if a frozen node reads
+/// as opaque, or as a form read whole (`x − y` above is one, and says
+/// `Otherwise`).
 #[test]
 fn a_frozen_form_over_the_parameters_keeps_no_opaque_atom() {
     let tight = SymBudget {
@@ -128,5 +130,5 @@ fn a_frozen_form_over_the_parameters_keeps_no_opaque_atom() {
         let frozen = zero(x * y + y * z + z * x - three);
         discharge_or_why(frozen)
     });
-    assert_eq!(got, Err(Undischarged::Otherwise));
+    assert_eq!(got, Err(Undischarged::OverTheBudget));
 }

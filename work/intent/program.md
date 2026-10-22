@@ -53,7 +53,6 @@ The INTENT orchestrator stopped here when the account's weekly usage ran low. A 
 - **D′** `a-placement-pins-by-written-values-without-a-mate` (P0 H, filed on D's branch). It carries the unmated spin chart, optional `Value.mate`, F counting spins by axis, the door refusal for an under-pinned bundle, the PR 5315 picks (retire `RoleSeg::Placed`/`InPart`/`CopyKey`/`copy_of`), and spec §1, §4 and §5. Its item lists `a-lone-slide-refuses-the-chart-it-never-reads` and two of D's width items to absorb.
 - **E** `an-operation-computes-in-a-frame-of-its-reads`.
 - **G** `patterns-are-index-variables`.
-- Release the seat item `a-mate-placed-seat-is-unproven-at-the-doors-budget` (route 0 noted there). Stage 4 H is merged; `coincide::REPLAYS_PLACED_COPIES` stays false until then.
 - The census units from PR 4666: `each-space-runs-its-census-between-arrivals` (P1 H), then `a-placement-carries-its-sources-at-rest-result` (P1 M). These are independent of D′, but D′'s carry shape must not preclude them.
 
 **Stage 4 J (contacts at rest):** #5325 (a part's census findings cross the seam) is finishing. Its A5 sentence describes PR 4666.

@@ -489,16 +489,39 @@ pub(crate) fn rested_faces<P>(
     doc: &crate::doc::Doc<P>,
     mate: &Mate,
 ) -> Option<(crate::VarId, crate::VarId)> {
-    let face = |mut var: crate::VarId| loop {
-        match doc.var(var).map(crate::Var::def)? {
-            crate::var::VarDef::Pose(crate::pose::PoseDef::Plane { face }) => return Some(*face),
-            crate::var::VarDef::Pose(crate::pose::PoseDef::Flip {
-                pose: crate::pose::RoleRead { read, role: None },
-            }) => var = *read,
-            _ => return None,
+    let (on, to, _) = planes_equated(doc, mate)?;
+    Some((on, to))
+}
+
+/// **The two faces whose planes a mate equates, and its sense**: each
+/// side a face read as its plane through any number of plain flips,
+/// `on`'s face first, and whether the flips on both sides together are
+/// odd, so the two faces' outward normals are opposite. `None` exactly
+/// where [`rested_faces`] answers `None`.
+pub(crate) fn planes_equated<P>(
+    doc: &crate::doc::Doc<P>,
+    mate: &Mate,
+) -> Option<(crate::VarId, crate::VarId, bool)> {
+    let face = |mut var: crate::VarId| {
+        let mut flipped = false;
+        loop {
+            match doc.var(var).map(crate::Var::def)? {
+                crate::var::VarDef::Pose(crate::pose::PoseDef::Plane { face }) => {
+                    return Some((*face, flipped));
+                }
+                crate::var::VarDef::Pose(crate::pose::PoseDef::Flip {
+                    pose: crate::pose::RoleRead { read, role: None },
+                }) => {
+                    flipped = !flipped;
+                    var = *read;
+                }
+                _ => return None,
+            }
         }
     };
-    Some((face(mate.on)?, face(*mate.to.pose()?)?))
+    let (on, on_flipped) = face(mate.on)?;
+    let (to, to_flipped) = face(*mate.to.pose()?)?;
+    Some((on, to, on_flipped != to_flipped))
 }
 
 /// **A bundle's slots**: each world read's scalars, addressed by the

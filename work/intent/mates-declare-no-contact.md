@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [placed-carriers-compare-through-their-frames]
+blocked_on: [the-census-records-a-planar-area-contact-as-one-face-pair]
 ---
 
 INTENT stage 4, PR I. Spec: `docs/INTENT-STAGE4-SPEC.md` §9.

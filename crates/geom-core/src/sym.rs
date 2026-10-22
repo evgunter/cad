@@ -4450,6 +4450,25 @@ fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
     })
 }
 
+/// **Whether the early form of `id` froze a node on its budget**: an
+/// indeterminate of the form, read through every atom's arguments, is a
+/// node the walk could not represent within the session's budget
+/// (`form_in`'s freeze). A poisoned form is no freeze: it has no value
+/// to be too big for. `None` outside a session.
+fn froze_on_its_budget(id: SymId) -> Option<bool> {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let sess = slot.as_mut()?;
+        let early = early_form(sess, id);
+        if early.poisoned {
+            return Some(false);
+        }
+        Some(any_indet(sess, &early, |x| {
+            sess.nodes.contains_key(&SymId(x))
+        }))
+    })
+}
+
 /// **Whether any indeterminate `form` reaches answers `hit`** — the
 /// one walk over a form's indeterminates, descending through every
 /// atom's argument forms ([`Session::atoms`]) and asking `hit` of each

@@ -130,9 +130,14 @@ pub enum Undischarged {
     /// ([`super::SymOp::Opaque`]), which no rebuilding of the variables
     /// exposes.
     KeepsAnOpaqueAtom,
+    /// The Zero that did not discharge is over the parameter symbols
+    /// alone, and its early form froze a node on the session's budget:
+    /// the tier did not read the whole form, so whether it is zero is
+    /// not decided at this budget.
+    OverTheBudget,
     /// Any other way: a Zero whose form is over the parameter symbols
-    /// alone and is not zero, or too big for the budget, a margin that
-    /// was not a Zero, or one outside the session that decided it.
+    /// alone, read whole, and not zero, a margin that was not a Zero,
+    /// or one outside the session that decided it.
     Otherwise,
 }
 
@@ -159,6 +164,9 @@ fn discharged(margin: MarginDiag, why: bool) -> Result<(), Undischarged> {
                 Some(_) => {}
                 None if why && super::keeps_an_opaque_atom(node) == Some(true) => {
                     return Err(Undischarged::KeepsAnOpaqueAtom);
+                }
+                None if why && super::froze_on_its_budget(node) == Some(true) => {
+                    return Err(Undischarged::OverTheBudget);
                 }
                 None => return Err(Undischarged::Otherwise),
             },
