@@ -67,9 +67,9 @@ pub use hit::{
     HitTestError, UnnamedEntity, body_name, edge_name, entity_name, face_name, vertex_name,
 };
 pub use pick::{
-    Answer, Crossing, FaceAnswer, MeshPick, MeshPickError, NameLookupError, NodePick,
+    Answer, ChordFaces, Crossing, FaceAnswer, MeshPick, MeshPickError, NameLookupError, NodePick,
     NodePickError, PickHit, PickMemo, PickTarget, TSpan, answer_of, crossing, pick_face,
-    ray_triangle,
+    ray_segment_point, ray_triangle,
 };
 pub use vdiff::{
     FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,

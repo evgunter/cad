@@ -536,11 +536,18 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// should not — which is the reason to keep it minimal rather than to
 /// tune it.
 ///
-/// `crate::pickindex`'s `OCCLUSION_SLACK_REL` plays the same
-/// coincident-edge-over-its-own-face role on the CPU pick lane, in a
-/// different numeric domain (f64 world-depth comparison there, f32
-/// clip z here) — a pointer each way, deliberately not one shared
-/// constant.
+/// The CPU pick lane answers the same coincident-edge-over-its-own-face
+/// question with no margin at all: its occlusion probe
+/// (`crate::pickindex::PickIndex::edge_at_for`) orders the chord's own
+/// certified crossing against the surface in front, and that crossing
+/// contains the probe ray's crossings of the triangles the chord point
+/// lies on (the vertex fan near an end), so where the face in front IS
+/// one of those triangles the edge overlaps it by construction. The
+/// one exception is a free-moved copy, whose front spans are its local
+/// ray's carried across unconverted
+/// (`work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`).
+/// A depth buffer holds no interval to order, which is why this lane
+/// needs a lift and that one does not.
 ///
 /// **A quad, unlike a line, reaches ONTO the facets its edge
 /// divides** — which is what sets the magnitude. On a concave edge

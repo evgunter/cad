@@ -262,3 +262,24 @@ Closes `a-refused-camera-op-prints-its-finite-fields-at-full-precision`. Every n
 
 Review: the orchestrator's own read. These were two cheap follow-ups to PRs 5600 and 5597, taken before handing back.
 (FIT orchestrator)
+
+## 2026-10-22 — the occlusion probe asks the kernel (PR 5603)
+
+Closes `pickindex-merges-parts-on-a-rounded-t-it-never-converts`, the last part of that row (§3). The P1s are done.
+
+**What replaced the slack.**
+- `OCCLUSION_SLACK_REL` is deleted.
+- A chord's depth is now its own crossing: the hull of a certified point span (the new editor-core door `ray_segment_point`) and the `ray_triangle` spans over its incident triangles.
+- At a chord end, the end's whole vertex fan is used. An end is a probe pixel clamped to it, or an `s` of exactly 0 or 1.
+- The chord is hidden iff `TSpan::survivors` drops its own crossing.
+
+**The seed.**
+- `front_of` answers the survivor set.
+- The edge search covers every body in a tie, which fixes a cross-part order dependence nobody had filed.
+- `ChordFaces` is a field of `NodePick`, so it is reused through `PickMemo`.
+
+**Review** (full, mergeable, no MAJOR). The door was stressed over 200k adversarial exact-rational cases, and the worst used 23% of its half-width.
+- MINOR-1: the door's table could not see an under-count. Fixed with a seeded counterexample search that goes red at k = 1/8.
+- MINOR-2: the endpoint arms were untested and their premise was fragile. Fixed with a pixel-clamp rule, a unit row and an end-to-end row.
+- `PROJECTION_ERROR_UNITS`' derivation now counts every caller's roundings, including `ray_triangle`'s `e1`/`e2` differences, which had never been counted: under 12.2u against 16u.
+(FIT orchestrator)
