@@ -1608,7 +1608,8 @@ mod tests {
     fn a_count_that_does_not_move_keeps_the_request() {
         let mut rungs: Vec<f64> = Vec::new();
         let flat = 62_500;
-        let fitted = fit_from_probes(delta(1.0e-4), |d| {
+        let requested = 1.0e-4;
+        let fitted = fit_from_probes(delta(requested), |d| {
             rungs.push(d);
             Ok(Probe {
                 triangles: flat,
@@ -1628,9 +1629,12 @@ mod tests {
             "the scale probe, the one step that discovers the count did not move, and the \
              request's own rung: {rungs:?}"
         );
-        let last = rungs.last().copied().expect("a rung");
-        assert!(
-            (last - 1.0e-4 * PROBE_FACTOR).abs() < f64::EPSILON,
+        // Exact: the request's rung is DEFINED as this one multiply
+        // (`DisplayTolerance::scaled`), and a ladder that reached it
+        // some other way would be pricing a different δ.
+        assert_eq!(
+            rungs.last().copied(),
+            Some(requested * PROBE_FACTOR),
             "the last rung prices the request: {rungs:?}"
         );
     }
