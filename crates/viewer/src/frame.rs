@@ -3184,7 +3184,7 @@ mod tests {
             max_y: 1.0,
             max_z: 1.0,
         };
-        Camera::framing(&unit, 16.0 / 9.0).expect("a unit box frames")
+        Camera::framing(Some(unit), 16.0 / 9.0).expect("a unit box frames")
     }
 
     /// A fold that applied everything it was given — the shape

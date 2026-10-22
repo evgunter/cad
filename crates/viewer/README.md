@@ -782,12 +782,15 @@ pattern that drops a field of the variant it renders — `{ .. }` or
 `, ..}` in a pattern, a catch-all `_ =>` or bare-binding arm over the
 subject enum, and a tuple variant matched at less than its arity —
 finds **no catch-all over a subject enum, no tuple-arity drop, and
-exactly two `..`**: `CameraOp::Frame` drops `bounds`, and
-`MateToolEvent::PickLost` drops `resolution`. Both stay dropped —
-rendering either would change what the chrome says — and both carry
+exactly three `..`**: `CameraOp::Frame` drops both its fields and
+reads as the button's name, "zoom to fit";
+`CameraError::Unfittable` drops `required` and `max_distance` and
+renders only the viewport's shape, rounded, with its remedy; and
+`MateToolEvent::PickLost` drops `resolution`. All three stay dropped —
+rendering any would change what the chrome says — and each carries
 the argument for the drop, `MateToolEvent`'s at its impl (the payload
 stays typed and full in the value; the sentence is what a person
-reads) and `CameraOp`'s at the arm. That is the property this rule is
+reads) and the camera's two at their arms. That is the property this rule is
 after: an omission that is a decision someone made. The rule matches
 one more site that is not an instance, and the distinction is the
 usual one: `frame.rs`'s
@@ -1432,6 +1435,32 @@ and its driver trading a minted value**, which is the boundary rule
 working rather than failing. Nothing in this section generalises to the
 second, and `work/view/seam-split-leaves-a-cycle-through-the-session`
 is where the question of whether it should be broken at all is kept.
+
+### Zoom to fit frames what is drawn
+
+Every fit — the toolbar's **Zoom to fit**, and the one startup and an
+open book through `pending_fit` — frames the **drawn extent**: the
+world box around what the viewport hands the GPU as geometry on that
+frame. That is the scene's drawn corners (`SceneMesh::bounds`), every
+committed profile's loops and every drawn preview's loops
+(`marks::LegLane::extent`), hulled by `pane::viewport`'s
+`drawn_extent`. A preview that failed to replay draws nothing and
+frames nothing; a loop of one vertex frames its point. The previews'
+step marks are not in it, nor is anything else sized by the view: a
+fit that framed them would depend on the camera it is choosing. So a
+frame builds the geometry lanes, derives the extent, fits, and only
+then sizes the marks against the camera the fit chose. The fit reads
+drawn positions and nothing else — no placement, product or document —
+so it holds over whatever the viewport composes.
+
+**Absence is a value.** The extent is an `Option<Aabb>`, and `None`
+means nothing is drawn; a hidden part is not drawn and does not frame.
+What that frames is the camera's (`Camera::fitted`): no extent frames
+the world origin, and an extent too small to hold a zoom band (a lone
+point) frames its centre, both at `camera::DEFAULT_FRAME_RADIUS`. The
+orientation is kept, as in every fit, and a clean default fit says
+nothing. `CameraError::DegenerateScene` is left to `Camera::new`
+handed a non-positive radius, where refusing is right.
 
 ### A pick id is one index's word
 

@@ -246,10 +246,10 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
         scene.flags().contains(&SceneMesh::FLAG_PROBE),
         "the probe's corners carry the distinctness flag"
     );
+    let drawn_box = scene.bounds().expect("the probed scene draws");
     assert!(
-        scene.bounds().max_x >= drawn.x - 1e-9,
-        "the drawn bounds reach the rotated probe: {:?}",
-        scene.bounds()
+        drawn_box.max_x >= drawn.x - 1e-9,
+        "the drawn bounds reach the rotated probe: {drawn_box:?}"
     );
 
     // The pick answers there, and the HIT POINT comes back in world.
@@ -1020,10 +1020,10 @@ fn r1_a_patterned_instance_hides_its_pattern_and_probes_its_own_space() {
         probed.flags().contains(&SceneMesh::FLAG_PROBE),
         "…its corners carry the flag"
     );
+    let probed_box = probed.bounds().expect("the probed scene draws");
     assert!(
-        probed.bounds().max_x > 0.5,
-        "…and the instance is DRAWN displaced by the probe: {:?}",
-        probed.bounds()
+        probed_box.max_x > 0.5,
+        "…and the instance is DRAWN displaced by the probe: {probed_box:?}"
     );
 
     // The `Pattern` node itself refuses both: it is no instance.

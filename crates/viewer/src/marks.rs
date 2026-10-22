@@ -571,10 +571,19 @@ pub fn edge_id_lane(index: &PickIndex, display: &DisplayView, id: EdgeId) -> Leg
 /// segments rather than recomputed by whoever wants to say so.
 ///
 /// [`undrawn`]: LegLane::undrawn
+///
+/// # Why the extent is too
+///
+/// A fit frames what is drawn, and a lane is the one place that knows
+/// which of its positions crossed the seam. [`extent`] is the box
+/// around exactly those, so a leg the seam refused frames nothing.
+///
+/// [`extent`]: LegLane::extent
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LegLane {
     segments: Vec<[f32; 3]>,
     undrawn: usize,
+    extent: Option<bvh::Aabb>,
 }
 
 impl LegLane {
@@ -598,9 +607,45 @@ impl LegLane {
         T: Narrow<Narrowed = [f32; 3]> + Copy,
     {
         match [from, to].narrow() {
-            Some(pair) => self.segments.extend(pair),
+            Some(pair) => {
+                for end in pair {
+                    self.frame(end);
+                }
+                self.segments.extend(pair);
+            }
             None => self.undrawn += 1,
         }
+    }
+
+    /// A position the lane holds as no leg — a loop of one vertex —
+    /// joined to [`LegLane::extent`] if the seam takes it.
+    pub fn point<T>(&mut self, at: T)
+    where
+        T: Narrow<Narrowed = [f32; 3]>,
+    {
+        if let Some(end) = at.narrow() {
+            self.frame(end);
+        }
+    }
+
+    fn frame(&mut self, [x, y, z]: [f32; 3]) {
+        let (x, y, z) = (f64::from(x), f64::from(y), f64::from(z));
+        let at = bvh::Aabb {
+            min_x: x,
+            min_y: y,
+            min_z: z,
+            max_x: x,
+            max_y: y,
+            max_z: z,
+        };
+        self.extent = Some(self.extent.map_or(at, |extent| extent.hull(&at)));
+    }
+
+    /// The box around every position this lane drew or holds, `None`
+    /// for a lane with none.
+    #[must_use]
+    pub fn extent(&self) -> Option<bvh::Aabb> {
+        self.extent
     }
 
     /// Append every leg of a polyline, in order.

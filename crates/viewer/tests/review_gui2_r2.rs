@@ -162,7 +162,7 @@ fn down_at(x: f64, y: f64) -> Ray {
 
 /// A camera looking at a box, at `aspect`.
 fn camera_on(doc_bounds: &bvh::Aabb, aspect: f64) -> Camera {
-    Camera::framing(doc_bounds, aspect).expect("a non-degenerate box frames")
+    Camera::framing(Some(*doc_bounds), aspect).expect("a non-degenerate box frames")
 }
 
 fn box_of(min: [f64; 3], max: [f64; 3]) -> bvh::Aabb {
@@ -1511,7 +1511,7 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
         height_px: 800.0,
     };
     let aspect = pane.aspect().expect("a positive aspect");
-    let camera = camera_on(&scene.bounds(), aspect);
+    let camera = camera_on(&scene.bounds().expect("the scene draws"), aspect);
     // A cursor aimed at the centroid of a drawn triangle, taken from the
     // scene's OWN position buffer. The pane centre would not do: the
     // gallery body is a ring, and the middle of the pane looks through

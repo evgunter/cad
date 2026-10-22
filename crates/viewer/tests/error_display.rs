@@ -76,14 +76,24 @@ fn camera_error_names_the_offending_value() {
     assert!(undrawable.contains("3.4e38"), "{undrawable}");
     prose(&undrawable, "UndrawableProjection");
 
+    // The one aspect-dependent refusal says the viewport's shape and
+    // the remedy, at a precision a reader can take in — not the
+    // aspect's seventeen digits, nor the stand-off nobody can act on.
+    let aspect = 1.0 / 36.6;
     let unfittable = CameraError::Unfittable {
-        required: 12.5,
+        required: 12.345_678_9,
         max_distance: 8.25,
-        aspect: 0.125,
+        aspect,
     }
     .to_string();
-    for value in ["12.5", "8.25", "0.125"] {
-        assert!(unfittable.contains(value), "{unfittable} lacks {value}");
+    for wanted in ["37 times taller", "widen"] {
+        assert!(unfittable.contains(wanted), "{unfittable} lacks {wanted:?}");
+    }
+    for unwanted in [aspect.to_string(), "12.3".to_owned(), "8.25".to_owned()] {
+        assert!(
+            !unfittable.contains(&unwanted),
+            "{unfittable} renders {unwanted}"
+        );
     }
     prose(&unfittable, "Unfittable");
 }
@@ -130,20 +140,25 @@ fn camera_op_renders_as_the_move_it_is() {
     assert!(dolly.contains("0.75"), "{dolly}");
     prose(&dolly, "Dolly");
 
-    let frame = CameraOp::Frame {
-        bounds: Aabb {
-            min_x: 0.0,
-            min_y: 0.0,
-            min_z: 0.0,
-            max_x: 1.0,
-            max_y: 1.0,
-            max_z: 1.0,
-        },
-        aspect: 1.5,
+    // The button's name, whatever the fit was handed: the error beside
+    // it says what was wrong, so neither field is rendered.
+    let unit = Aabb {
+        min_x: 0.0,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: 1.0,
+        max_y: 1.0,
+        max_z: 1.0,
+    };
+    for extent in [Some(unit), None] {
+        let frame = CameraOp::Frame {
+            extent,
+            aspect: 1.475_426_319_176_319_3,
+        }
+        .to_string();
+        assert_eq!(frame, "zoom to fit", "{extent:?}");
+        prose(&frame, "Frame");
     }
-    .to_string();
-    assert!(frame.contains("1.5"), "{frame}");
-    prose(&frame, "Frame");
 }
 
 #[test]
@@ -464,10 +479,6 @@ test_utils::loud_skip_marker!(
 #[test]
 fn startup_error_forwards_every_payload_arm() {
     use viewer::app::StartupError;
-
-    let camera = CameraError::UnusableBounds;
-    let outer = StartupError::Camera(camera).to_string();
-    assert!(outer.contains(&camera.to_string()), "{outer}");
 
     let scene = SceneError::EmptyMesh;
     let outer = StartupError::Scene(SceneError::EmptyMesh).to_string();

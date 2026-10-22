@@ -79,7 +79,7 @@ fn the_spike_document_becomes_a_drawable_scene() {
     );
     assert_eq!(mesh.normals().len(), mesh.positions().len());
 
-    let bounds = mesh.bounds();
+    let bounds = mesh.bounds().expect("the plate draws");
     for (axis, extent) in [
         (Axis::X, PLATE[0]),
         (Axis::Y, PLATE[1]),
@@ -191,7 +191,7 @@ fn a_camera_framed_on_the_scene_contains_every_vertex() {
     let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let mesh = scene::scene_of(&doc, delta(1.0e-4), tol).expect("the plate tessellates");
     let aspect = 16.0 / 9.0;
-    let camera = Camera::framing(&mesh.bounds(), aspect).expect("the scene frames");
+    let camera = Camera::framing(mesh.bounds(), aspect).expect("the scene frames");
     for (i, p) in mesh.positions().iter().enumerate() {
         let point =
             pncad::geom_core::Point3::new(f64::from(p[0]), f64::from(p[1]), f64::from(p[2]));

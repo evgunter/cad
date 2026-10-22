@@ -296,7 +296,7 @@ fn clicks_select_replace_and_clear_and_hover_is_transient() {
     // This suite's own framing: the index's scene bounds, not the
     // unit's plate helper.
     let scene = index.scene().expect("the fixture draws");
-    let camera = Camera::framing(&scene.bounds(), aspect).expect("the fixture frames");
+    let camera = Camera::framing(scene.bounds(), aspect).expect("the fixture frames");
     let cursor_at = |p: Point3<f64>| {
         let ndc = camera
             .project(p, aspect)
@@ -524,7 +524,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     };
     let aspect = viewport.aspect().expect("a positive aspect");
     let scene = index.scene().expect("the ring draws");
-    let camera = Camera::framing(&scene.bounds(), aspect).expect("the ring frames");
+    let camera = Camera::framing(scene.bounds(), aspect).expect("the ring frames");
 
     // Aim at the centroid of some triangle of the drawn tessellation
     // whose surface faces the camera — derived from the mesh itself,

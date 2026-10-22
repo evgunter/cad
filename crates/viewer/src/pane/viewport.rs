@@ -56,7 +56,9 @@ fn push_segment(
 /// by being closed by construction. One that does not must not: the
 /// leg back to the start is the provisional close `sketch::preview`
 /// walked the chain under and nobody authored, so the wrap is dropped
-/// and what is drawn is the authored legs exactly.
+/// and what is drawn is the authored legs exactly. A loop of one
+/// vertex has no leg and is held as its point ([`marks::LegLane::point`]),
+/// so a fit still frames it.
 fn push_loop(
     lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
@@ -76,11 +78,42 @@ fn push_loop(
             points[(index + 1) % points.len()],
         );
     }
+    if let (0, Some(&[x, y])) = (segments, points.first()) {
+        lane.point(plane.to_world(pncad::geom_core::Point2::new(x, y)));
+    }
 }
 
-/// **One drawn preview, placed on its plane and appended to a lane**:
-/// every loop's legs ([`push_loop`]) and the directed point at each of
-/// its steps, sized against `view` — or no marks at all without one.
+/// **The world box around what the viewport hands the GPU as
+/// geometry**: the scene's drawn corners, and the loops of the
+/// committed profiles and the previews ([`marks::LegLane::extent`]).
+/// `None` when none of them draws anything.
+///
+/// A preview's step marks are not in either lane, and must not be:
+/// they are sized against the view, so a fit that framed them would
+/// depend on the camera it is choosing.
+fn drawn_extent(
+    scene: Option<bvh::Aabb>,
+    profiles: &marks::LegLane,
+    preview: &marks::LegLane,
+) -> Option<bvh::Aabb> {
+    [scene, profiles.extent(), preview.extent()]
+        .into_iter()
+        .flatten()
+        .reduce(|a, b| a.hull(&b))
+}
+
+/// **One drawn preview's loops, placed on its plane and appended to a
+/// lane** ([`push_loop`]) — its geometry, which a fit frames.
+fn push_preview(lane: &mut marks::LegLane, drawn: &sketch::ProfilePreview) {
+    for polyline in &drawn.loops {
+        push_loop(lane, &drawn.plane, polyline);
+    }
+}
+
+/// **One drawn preview's step marks, appended to a lane**: the
+/// directed point at each of its steps, sized against `view` — or no
+/// marks at all without one. Kept out of [`push_preview`]'s lane
+/// because a mark's size is the view's, not the profile's.
 ///
 /// **The directed point at each step.** A tip is a position and, once
 /// a verb has bound one, a direction — the pair the lattice calls a
@@ -102,7 +135,7 @@ fn push_loop(
 /// start where the drawn steps close. An unfinished chain's tip keeps
 /// its arrowhead — it goes on from there as soon as the next step is
 /// written — so the two ends a reader must tell apart are drawn apart.
-fn push_preview(
+fn push_step_marks(
     lane: &mut marks::LegLane,
     drawn: &sketch::ProfilePreview,
     view: Option<screen::View>,
@@ -110,7 +143,6 @@ fn push_preview(
     let plane = drawn.plane;
     for polyline in &drawn.loops {
         let points = &polyline.points;
-        push_loop(lane, &plane, polyline);
         let refused_tip = match &polyline.end {
             sketch::LoopEnd::Refused(cut) if cut.closes => polyline.vertices.first().copied(),
             sketch::LoopEnd::Refused(_) => polyline.vertices.last().copied(),
@@ -169,21 +201,36 @@ pub(crate) fn push_committed(
     committed.undrawn.len()
 }
 
-/// **Each door's preview that drew, appended to a lane**
-/// ([`push_preview`]). A door with no preview taken, or whose preview
-/// has nothing to draw, adds nothing; the form says why.
-pub(crate) fn push_previews(
-    lane: &mut marks::LegLane,
-    previews: &ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>,
-    view: Option<screen::View>,
-) {
-    let drawn = previews
+/// The doors' profile previews, as each door holds one.
+type Previews = ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>;
+
+/// Each door's preview that drew. A door with no preview taken, or
+/// whose preview failed to replay, draws nothing; the form says why.
+fn drawn_previews(previews: &Previews) -> impl Iterator<Item = &sketch::ProfilePreview> {
+    previews
         .as_ref()
         .into_array()
         .into_iter()
-        .filter_map(|preview| preview.as_ref()?.as_ref().ok());
-    for drawn in drawn {
-        push_preview(lane, drawn, view);
+        .filter_map(|preview| preview.as_ref()?.as_ref().ok())
+}
+
+/// **Each drawn preview's loops, appended to a lane**
+/// ([`push_preview`]).
+pub(crate) fn push_previews(lane: &mut marks::LegLane, previews: &Previews) {
+    for drawn in drawn_previews(previews) {
+        push_preview(lane, drawn);
+    }
+}
+
+/// **Each drawn preview's step marks, appended to a lane**
+/// ([`push_step_marks`]).
+pub(crate) fn push_previews_marks(
+    lane: &mut marks::LegLane,
+    previews: &Previews,
+    view: Option<screen::View>,
+) {
+    for drawn in drawn_previews(previews) {
+        push_step_marks(lane, drawn, view);
     }
 }
 
@@ -726,12 +773,14 @@ impl ViewerBehavior<'_> {
             None if self.session.hover().is_some() => events.push(ViewportEvent::Leave),
             None => {}
         }
+        // The geometry this frame draws, before the fit that frames it.
+        let (profiles, preview) = self.geometry_lanes();
         // An owed fit is taken here and nowhere else: this is the only
         // place with a real aspect to fit against.
         if *self.pending_fit {
             *self.pending_fit = false;
             let fit = CameraOp::Frame {
-                bounds: self.scene.bounds(),
+                extent: drawn_extent(self.scene.bounds(), &profiles, &preview),
                 aspect,
             };
             let folded = camera::fold_recorded(self.camera, std::slice::from_ref(&fit));
@@ -855,65 +904,20 @@ impl ViewerBehavior<'_> {
             .held_refused
             .clone()
             .map(|refused| frame::Spelled::in_landed(refused, landed));
-        // **The two lanes this pane composes itself**, each as the
-        // value that owns the display seam's rule
-        // ([`marks::LegLane`]) rather than as a bare `Vec` each block
-        // narrows into on its own. What they carry beyond the
-        // segments is `undrawn()` — how many legs the seam refused —
-        // which is the state a reader would have to be told to know
-        // that an outline is missing a leg rather than ending where
-        // it appears to. Nothing here holds it: the badge that would
-        // say so and the field that would carry it between frames are
-        // `crate::frame`'s and `crate::app`'s. That half is the VNEWS
-        // row `an-overlay-leg-past-the-display-seam-is-not-badged`.
-        let mut profiles = marks::LegLane::default();
-        let mut preview = marks::LegLane::default();
-        // **The profiles the document holds**, from the landed
-        // evaluation, every frame, because a profile node has no body
-        // until something extrudes it and so nothing else would draw
-        // it.
-        //
-        // Left out: the profile the edit door is previewing, if any
-        // ([`ViewerBehavior::profile_edited`]) — drawn by its live
-        // preview below, or by nothing while that preview has nothing
-        // to draw, and never also as it was committed. The create door's
-        // profile is not a node while it is composed, and comes to
-        // rest when its add is accepted (`Drafts::accepted`), so it
-        // has nothing to leave out.
-        if let Some((doc, evaluation)) = self.session.landed_pair() {
-            *self.profiles_undrawn = push_committed(
-                &mut profiles,
-                doc,
-                evaluation,
-                self.delta.get(),
-                self.profile_edited,
-            );
-        }
-        // **The profile being authored, drawn where it would land.**
-        //
-        // The form's loops are on a sketch plane, so they HAVE a
-        // place: the wireframe goes in the viewport, at that place,
-        // rather than into a pane of its own — a preview beside the
-        // model cannot show what a preview is mostly for, which is
-        // whether the shape is the right size and in the right spot
-        // relative to what is already there.
-        //
-        // Drawn in the probe mark, never the selection mark, because
-        // it is not in the document (`EdgeOverlay::preview`). A loop
-        // whose replay refused a step draws the prefix before it, and
-        // one that replayed but does not VALIDATE draws whole: both
-        // are cases where looking at it is the whole point. A preview
-        // with nothing to draw says why in the form.
-        // Both doors of the one profile editor draw the same way: the
-        // add-profile form's loops and an edit's, each where it lands.
-        // The marks are sized in pixels, read at each vertex's own
-        // depth ([`screen::View::screen_metres_at`]). A window this
-        // camera has no view of draws the chain and no marks; the
-        // projection refusal below is what says why.
+        // **The previews' step marks, sized against the camera this
+        // frame settled on** — after the fit, so a fit never frames
+        // marks sized by the view it replaces. In pixels, read at each
+        // vertex's own depth ([`screen::View::screen_metres_at`]). A
+        // window this camera has no view of draws the chains and no
+        // marks; the projection refusal below is what says why.
         let view = view_of(self.camera, viewport).ok();
-        push_previews(&mut preview, self.profile_previews, view);
+        let mut steps = marks::LegLane::default();
+        push_previews_marks(&mut steps, self.profile_previews, view);
 
-        let marks = composed.with_lanes(profiles.into_segments(), preview.into_segments());
+        let marks = composed.with_lanes(
+            profiles.into_segments(),
+            [preview.into_segments(), steps.into_segments()].concat(),
+        );
 
         // **Held, not said.** A view matrix that cannot be formed is
         // true of this camera on every frame until it moves somewhere
@@ -1043,6 +1047,58 @@ impl ViewerBehavior<'_> {
             },
         ));
     }
+
+    /// **The two geometry lanes this pane composes itself** — the
+    /// committed profiles and the previews' loops — each as the value
+    /// that owns the display seam's rule ([`marks::LegLane`]) rather
+    /// than as a bare `Vec` each block narrows into on its own. What
+    /// they carry beyond the segments is `undrawn()` — how many legs the
+    /// seam refused — and `extent()`, what a fit frames. Nothing here
+    /// holds `undrawn()`: the badge that would say so is the VNEWS row
+    /// `an-overlay-leg-past-the-display-seam-is-not-badged`.
+    fn geometry_lanes(&mut self) -> (marks::LegLane, marks::LegLane) {
+        let mut profiles = marks::LegLane::default();
+        let mut preview = marks::LegLane::default();
+        // **The profiles the document holds**, from the landed
+        // evaluation, every frame, because a profile node has no body
+        // until something extrudes it and so nothing else would draw
+        // it.
+        //
+        // Left out: the profile the edit door is previewing, if any
+        // ([`ViewerBehavior::profile_edited`]) — drawn by its live
+        // preview below, or by nothing while that preview has nothing
+        // to draw, and never also as it was committed. The create door's
+        // profile is not a node while it is composed, and comes to
+        // rest when its add is accepted (`Drafts::accepted`), so it
+        // has nothing to leave out.
+        if let Some((doc, evaluation)) = self.session.landed_pair() {
+            *self.profiles_undrawn = push_committed(
+                &mut profiles,
+                doc,
+                evaluation,
+                self.delta.get(),
+                self.profile_edited,
+            );
+        }
+        // **The profile being authored, drawn where it would land.**
+        //
+        // The form's loops are on a sketch plane, so they HAVE a
+        // place: the wireframe goes in the viewport, at that place,
+        // rather than into a pane of its own — a preview beside the
+        // model cannot show what a preview is mostly for, which is
+        // whether the shape is the right size and in the right spot
+        // relative to what is already there. Both doors of the one
+        // profile editor draw the same way.
+        //
+        // Drawn in the probe mark, never the selection mark, because
+        // it is not in the document (`EdgeOverlay::preview`). A loop
+        // whose replay refused a step draws the prefix before it, and
+        // one that replayed but does not VALIDATE draws whole: both
+        // are cases where looking at it is the whole point. A preview
+        // with nothing to draw says why in the form.
+        push_previews(&mut preview, self.profile_previews);
+        (profiles, preview)
+    }
 }
 
 /// **Where a real fold meets a real landing.**
@@ -1062,9 +1118,9 @@ mod tests {
     use eframe::egui;
 
     use super::{
-        RayQuestion, button_events, cursor_news, drawn_index, egui_buttons, land, push_committed,
-        push_loop, push_preview, push_previews, push_segment, ray_asked_at, scroll_event,
-        viewer_button, viewer_modifiers,
+        RayQuestion, button_events, cursor_news, drawn_extent, drawn_index, egui_buttons, land,
+        push_committed, push_loop, push_preview, push_previews, push_segment, push_step_marks,
+        ray_asked_at, scroll_event, viewer_button, viewer_modifiers,
     };
     use crate::camera::{self, Camera, CameraOp, fold_recorded};
     use crate::display::DisplayView;
@@ -1084,14 +1140,14 @@ mod tests {
     use pncad::select::HitTestError;
 
     fn framed() -> Camera {
-        Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("the plate frames")
+        Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("the plate frames")
     }
 
     /// The re-frame `fit_on_scene` books when a document lands — the
     /// operation the viewport folds and lands on that very frame.
     fn the_re_frame_an_open_books() -> CameraOp {
         CameraOp::Frame {
-            bounds: scene::plate_bounds(),
+            extent: Some(scene::plate_bounds()),
             aspect: 16.0 / 9.0,
         }
     }
@@ -2474,6 +2530,77 @@ mod tests {
             4,
             "the two legs between ordinary corners are drawn"
         );
+        let extent = lane.extent().expect("the drawn legs frame");
+        assert_eq!(
+            (extent.max_x, extent.max_y),
+            (1.0, 1.0),
+            "a corner no drawn leg reaches frames nothing"
+        );
+    }
+
+    /// **The fit frames the loops, the scene and nothing sized by the
+    /// view.** A preview's step marks are drawn beside its loops and
+    /// reach past them; the extent is the loops' alone, joined to the
+    /// scene's box, and `None` when nothing draws. A loop of one vertex
+    /// has no leg and still frames its point.
+    #[test]
+    fn the_drawn_extent_is_the_loops_and_the_scene_and_not_the_step_marks() {
+        let nothing = marks::LegLane::default();
+        assert_eq!(drawn_extent(None, &nothing, &nothing), None);
+
+        let drawn = chain(Vec::new());
+        let mut loops = marks::LegLane::default();
+        push_preview(&mut loops, &drawn);
+        let mut steps = marks::LegLane::default();
+        push_step_marks(&mut steps, &drawn, Some(a_view()));
+        let extent = drawn_extent(None, &nothing, &loops).expect("the chain draws");
+        let (mut lo, mut hi) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+        for [x, y] in drawn.loops.iter().flat_map(|l| l.points.iter().copied()) {
+            lo = [lo[0].min(x), lo[1].min(y)];
+            hi = [hi[0].max(x), hi[1].max(y)];
+        }
+        let near = |a: f64, b: f64| (a - b).abs() < 1.0e-9;
+        assert!(
+            near(extent.min_x, lo[0])
+                && near(extent.min_y, lo[1])
+                && near(extent.max_x, hi[0])
+                && near(extent.max_y, hi[1]),
+            "the extent {extent:?} is the loops' box {lo:?}..{hi:?}"
+        );
+        let marked = steps.extent().expect("the fixture has marks");
+        assert!(
+            marked.max_x > extent.max_x + 1.0e-6 || marked.max_y > extent.max_y + 1.0e-6,
+            "the marks reach past the loops ({marked:?} vs {extent:?}), so leaving them \
+             out is what keeps the fit off the view"
+        );
+
+        let scene = bvh::Aabb {
+            min_x: 0.5,
+            min_y: 0.5,
+            min_z: 0.5,
+            max_x: 2.0,
+            max_y: 2.0,
+            max_z: 2.0,
+        };
+        let joined = drawn_extent(Some(scene), &nothing, &loops).expect("both draw");
+        assert!(
+            near(joined.min_x, lo[0]) && joined.max_x == 2.0 && joined.max_z == 2.0,
+            "the scene's box joins the loops': {joined:?}"
+        );
+
+        let lone = PreviewLoop {
+            points: vec![[0.02, -0.03]],
+            vertices: vec![0],
+            end: sketch::LoopEnd::Unfinished(None),
+        };
+        let mut point = marks::LegLane::default();
+        push_loop(&mut point, &pncad::profile::SketchPlane::xy(), &lone);
+        assert!(point.segments().is_empty(), "one vertex is no leg");
+        let at = drawn_extent(None, &point, &nothing).expect("the vertex frames");
+        assert!(
+            near(at.min_x, 0.02) && near(at.max_y, -0.03) && at.min_x == at.max_x,
+            "a lone vertex frames its point: {at:?}"
+        );
     }
 
     /// A view of the xy plane from a tenth of a metre, looking at the
@@ -2498,11 +2625,13 @@ mod tests {
         .expect("a view")
     }
 
-    /// Every segment [`push_preview`] put in the lane for `drawn`, as
-    /// sketch-plane pairs (the plane is xy, so world x and y).
+    /// Every segment [`push_preview`] and [`push_step_marks`] put in a
+    /// lane for `drawn`, as sketch-plane pairs (the plane is xy, so
+    /// world x and y).
     fn painted_preview(drawn: &ProfilePreview) -> Vec<[[f64; 2]; 2]> {
         let mut lane = marks::LegLane::default();
-        push_preview(&mut lane, drawn, Some(a_view()));
+        push_preview(&mut lane, drawn);
+        push_step_marks(&mut lane, drawn, Some(a_view()));
         lane.segments()
             .chunks_exact(2)
             .map(|pair| pair_2d([pair[0], pair[1]]))
@@ -2905,7 +3034,7 @@ mod tests {
             let undrawn = push_committed(&mut committed, &doc, &evaluation, chord, edited);
             assert_eq!(undrawn, 0, "the square draws when it is drawn at all");
             let mut drawn = marks::LegLane::default();
-            push_previews(&mut drawn, &previews, None);
+            push_previews(&mut drawn, &previews);
             (preview, segments(&committed), segments(&drawn))
         };
 

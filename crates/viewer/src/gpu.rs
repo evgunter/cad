@@ -2120,11 +2120,7 @@ mod tests {
         let delta = DisplayTolerance::new(1.0e-4).expect("a positive display tolerance");
         for theme in crate::theme::Theme::ALL {
             let block = ViewportCallback {
-                scene: Arc::new(SceneMesh::empty(
-                    bvh::Aabb::from_points([pncad::geom_core::Point3::new(0.0, 0.0, 0.0)])
-                        .expect("one point is a box"),
-                    delta,
-                )),
+                scene: Arc::new(SceneMesh::nothing(delta)),
                 revision: 0,
                 view_projection: [[0.0; 4]; 4],
                 // Nothing here lights anything: the row reads the
@@ -2201,10 +2197,7 @@ mod tests {
 
         // The empty picture draws nothing: `read_id_at` reads this as
         // "there is no answer" rather than submitting an empty pass.
-        assert_eq!(
-            corner_count(&SceneMesh::empty(mesh.bounds(), delta)),
-            Some(0)
-        );
+        assert_eq!(corner_count(&SceneMesh::nothing(delta)), Some(0));
     }
 
     /// **A vertex table too long to be a draw range is refused, not
@@ -2500,7 +2493,7 @@ mod tests {
         assert_eq!(faces.len(), 6, "a cube has six faces");
 
         let aspect = 1.0;
-        let framed = Camera::framing(&scene.bounds(), aspect).expect("the cube frames");
+        let framed = Camera::framing(scene.bounds(), aspect).expect("the cube frames");
         let behind = Camera::new(
             framed.target(),
             framed.distance(),
