@@ -2631,6 +2631,11 @@ struct Session {
     /// rather than stopping at the unrecorded node itself. Kept only
     /// while a drive memo is installed; empty otherwise.
     plain_tainted: IdSet,
+    /// **The nodes the first early walk froze on the session's budget**
+    /// ([`froze_on_its_budget`]): a form past a term or degree bound, as
+    /// against one the ring's guards refused
+    /// ([`form::Refusal::Ring`]).
+    budget_frozen: IdSet,
 }
 
 /// One memoized per-node reduction ([`Session::reductions`]).
@@ -2748,6 +2753,7 @@ impl Session {
             foreign: IdSet::default(),
             plain_unpublished: IdSet::default(),
             plain_tainted: IdSet::default(),
+            budget_frozen: IdSet::default(),
         }
     }
 
@@ -3733,7 +3739,11 @@ fn form_in(
     root: SymId,
     early: bool,
     registry: bool,
+    first: bool,
 ) -> Arc<Form> {
+    // The walk [`early_form`] runs: the one whose freezes
+    // [`froze_on_its_budget`] reads the cause of.
+    let notes_causes = first && early && !registry;
     // The freeze this WALK made. The running count is the leaf's WORK,
     // and it is what the column says only outside a drive: a leaf of a
     // drive has its column rewritten as its NEED at the leaf's end
@@ -3891,7 +3901,9 @@ fn form_in(
             profile::clear_note();
             #[cfg(feature = "sym-profile-testing")]
             let t0 = profile::clock();
+            form::take_refusal();
             let combined = combine(&node, kids, sess, early);
+            let refusal = form::take_refusal();
             // The per-node A/B reduction (`SymRules::early_ab`),
             // bounded in steps and in the size of the form it is asked
             // over, falling back to the un-reduced form when it does
@@ -3952,6 +3964,13 @@ fn form_in(
             } else {
                 combined
             };
+            let over = match &combined {
+                Some(f) => !within(budget, f),
+                None => refusal == Some(form::Refusal::Budget),
+            };
+            if over && notes_causes {
+                sess.budget_frozen.insert(id, ());
+            }
             let made = combined.filter(|f| within(budget, f));
             #[cfg(feature = "sym-profile-testing")]
             profile::record_node(
@@ -4292,9 +4311,9 @@ fn walk(
     };
     let WalkScope { sess, memo, .. } = &mut scope;
     let out = if first {
-        form_in(sess, memo, root, early, registry)
+        form_in(sess, memo, root, early, registry, true)
     } else {
-        rational::with_coeff_bound(bits, || form_in(sess, memo, root, early, registry))
+        rational::with_coeff_bound(bits, || form_in(sess, memo, root, early, registry, false))
     };
     #[cfg(feature = "sym-profile-testing")]
     profile::walk_done(
@@ -4446,6 +4465,28 @@ fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
         Some(any_indet(sess, &early, |x| {
             opaque.contains(&x)
                 || (sess.nodes.contains_key(&SymId(x)) && reaches_opaque(sess, SymId(x)))
+        }))
+    })
+}
+
+/// **Whether the early form of `id` froze a node on its budget**: an
+/// indeterminate of the form, read through every atom's arguments, is a
+/// node the walk froze because its form outgrew the session's term or
+/// degree bound (`form_in`'s freeze, [`Session::budget_frozen`]). A node
+/// the ring's guards froze (a coefficient past its bound, an exponent
+/// overflow) is not: a larger budget would not read it. A poisoned form
+/// is no freeze: it has no value to be too big for. `None` outside a
+/// session.
+fn froze_on_its_budget(id: SymId) -> Option<bool> {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let sess = slot.as_mut()?;
+        let early = early_form(sess, id);
+        if early.poisoned {
+            return Some(false);
+        }
+        Some(any_indet(sess, &early, |x| {
+            sess.budget_frozen.contains_key(&SymId(x))
         }))
     })
 }
