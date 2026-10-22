@@ -18,7 +18,7 @@
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    BodyRead, Doc, DocEdit, EvalOptions, Frame, Node, Operand, ProfileProgram, RecipeNodeId, apply,
+    BodyRead, Doc, DocEdit, EvalOptions, Frame, Operand, ProfileProgram, RecipeNodeId, apply,
     frame_at, place_against, place_at, stand,
 };
 use pncad::document::{Coord, Formula, Mate, Placed as Answer, Target};

@@ -693,22 +693,17 @@ BOUND_AS = {
     # consumer matching the class of a refusal that is neither `Clone`
     # nor `PartialEq`.
     "ProductErrorKind": "ProductError.variant",
-    # The placement vocabulary of D10: the space a node lives in is
-    # what `Evaluation.space` answers (`"world"`, or the loose copy);
-    # the pose door's refusal raises from `SolvedPoses.placement`; a
-    # constraint of a placement is a `(MateRef, Mate | MateValue)` row
-    # of `Doc.bundle` — which of the two is the kind — a mate's target
-    # is what `Mate.to` answers (a pose, or a `WorldRead`), and a loose
-    # space is the copy `Evaluation.loose` lists.
-    "Space": "Evaluation.space",
+    # The placement vocabulary of D10: the pose door's refusal raises
+    # from `SolvedPoses.placement`; a constraint of a placement is a
+    # `(MateRef, Mate | MateValue)` row of `Doc.bundle` — which of the
+    # two is the kind — and a mate's target is what `Mate.to` answers
+    # (a pose, or a `WorldRead`).
     "PoseRefusal": "SolvedPoses.placement",
     "Constraint": "Doc.bundle",
     "ConstraintKind": "Doc.bundle",
     "Target": "Mate.to",
     # An instance's value: its copies' bodies are `Value.bodies`.
     "Copies": "Value.bodies",
-    "LooseSpace": "Evaluation.loose",
-    "loose_spaces": "Evaluation.loose",
     # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
     # `StepImport::Solid::coherence` hands a Rust caller the kernel's
     # report whole and its discriminants are closed enums meant to be
@@ -2432,6 +2427,9 @@ NOT_BOUND = {
     # has none. Python reads a refusal's variable as the name its
     # message and payload carry.
     "SpokenVar": SHAPE,
+    # A space as a refusal speaks it: the world, its name, or the node
+    # whose space it is. Python reads a refusal's spaces in its message.
+    "SpokenSpace": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "CopyKey": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
     "KeyedCopy": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
@@ -3622,7 +3620,6 @@ MEMBERS_BOUND_AS = {
     "Value::coord": "MateValue.coord",
     "Value::by": "MateValue.by",
     "AssemblyError::Product": "AssemblyError.variant",
-    "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
     "AssemblyError::CarriedAtRest": "AssemblyError.variant",
@@ -3689,6 +3686,9 @@ MEMBERS_BOUND_AS = {
     "Maintenance::StrandedRead": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::StrandedSelection": "Maintenance.variant",
+    # A re-target through `DocEdit.set_param` at `target_space` makes
+    # one appear.
+    "Maintenance::StrandedSpace": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
@@ -3696,6 +3696,7 @@ MEMBERS_BOUND_AS = {
     "EditError::UnknownNode": "EditError.variant",
     "EditError::WorldIsUndeletable": "EditError.variant",
     "EditError::ConstraintOnNonPlacement": "EditError.variant",
+    "EditError::SpaceMismatch": "EditError.variant",
     "EditError::UnknownConstraint": "EditError.variant",
     "EditError::CopyReadOffBodySeat": "EditError.variant",
     "EditError::ProfileProgramRefused": "EditError.variant",
@@ -3828,7 +3829,6 @@ MEMBERS_BOUND_AS = {
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
-    "MateFault::TargetsDiffer": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
     "MateFault::WorldRead": "MateFault.variant",
@@ -4170,8 +4170,6 @@ MEMBERS_BOUND_AS = {
     # `class_` because `class` is a Python keyword — the `IN`/`inch`
     # shift, one level in.
     "MintedDeclaration::class": "MintedDeclaration.class_",
-    # The copies no part claims, read as the loose list the stub names.
-    "Evaluation::loose_copies": "Evaluation.loose",
     # The entity-kind filter, named for what it does at the door.
     "NamePat::kind": "NamePat.of_kind",
     # Spelled out, as the stub spells every direction.

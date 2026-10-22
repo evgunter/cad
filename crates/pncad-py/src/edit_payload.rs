@@ -288,6 +288,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::DuplicateWitnessEntry { node }
         | EditError::WorldIsUndeletable { node }
         | EditError::ConstraintOnNonPlacement { node }
+        | EditError::SpaceMismatch { node, a: _, b: _ }
         | EditError::PlacementRuleMismatch { node, shape: _ }
         | EditError::EmptyPlacementList { node }
         | EditError::UpdateOnNonInstance { node }

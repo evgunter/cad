@@ -101,22 +101,22 @@ def disjoint_union():
     doc = Doc("checks-disjoint")
     a = slab(doc, 0.0, 1.0)
     b = slab(doc, 3.0, 4.0, on=a)
-    placed = doc.place(doc.insert(Node.union([a, b])))
+    placed = doc.place(doc.insert(Node.union([a, b])), doc.world)
     return doc, placed, a
 
 
 def one_box():
     """One box, placed; answers its placement."""
     doc = Doc("checks-connected")
-    return doc, doc.place(slab(doc, 0.0, 1.0))
+    return doc, doc.place(slab(doc, 0.0, 1.0), doc.world)
 
 
 def two_placed(x0):
     """Two boxes, each placed — the document's product gathers both.
     Answers the two placements."""
     doc = Doc("checks-two-placed")
-    first = doc.place(slab(doc, 0.0, 1.0))
-    return doc, first, doc.place(slab(doc, x0, x0 + 1.0))
+    first = doc.place(slab(doc, 0.0, 1.0), doc.world)
+    return doc, first, doc.place(slab(doc, x0, x0 + 1.0), doc.world)
 
 
 class TestTheConnectednessResident(unittest.TestCase):
@@ -313,8 +313,8 @@ class TestTheRegistryVocabulary(unittest.TestCase):
 
         def checked(seed, text):
             doc = Doc(seed)
-            first = doc.place(slab(doc, 0.0, 1.0))
-            doc.place(slab(doc, 0.5, 1.5))
+            first = doc.place(slab(doc, 0.0, 1.0), doc.world)
+            doc.place(slab(doc, 0.5, 1.5), doc.world)
             doc.apply(DocEdit.set_label(first, text))
             report = run_checks(doc, evaluate(doc))
             return first, report
@@ -407,7 +407,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         ident = identities()["stand"]
         doc = Doc("checks-instantiated-assembly")
         instance = doc.insert(
-            Node.instantiate_part(DocRef(ident, store.current_pin(ident)))
+            Node.instantiate_part(DocRef(ident, store.current_pin(ident)), doc.world)
         )
         doc.pin(instance, resolver=store)
         return doc, instance, evaluate(doc, resolver=store)
@@ -462,16 +462,26 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         # refuses.
         doc.apply(DocEdit.declare_var(VarName("apart"), FreeVar.length(1.5 * m)))
         b = doc.place_against(a, slab(doc, 0.0, 1.0), Frame.translation((1.5 * m, 0 * m, 0 * m)))
-        ((mate, _),) = [(r, c) for r, c in doc.bundle(b) if isinstance(c, Mate)]
-        ((slide, _),) = [
-            (r, c)
-            for r, c in doc.bundle(b)
-            if isinstance(c, MateValue) and c.coord == Coord.slide("x")
-        ]
-        doc.apply(DocEdit.remove_constraint(slide))
-        doc.add_value(mate, Coord.slide("x"), doc.var(VarName("apart")))
+        # The bundle written again whole, its slide along `x` reading
+        # `apart`: the mate first, so each value names it at position 0.
+        ((_, mate),) = [(r, c) for r, c in doc.bundle(b) if isinstance(c, Mate)]
+        values = [c for _, c in doc.bundle(b) if isinstance(c, MateValue)]
+        doc.set_constraints(
+            b,
+            [
+                mate,
+                *(
+                    MateValue(
+                        0,
+                        c.coord,
+                        doc.var(VarName("apart")) if c.coord == Coord.slide("x") else c.by,
+                    )
+                    for c in values
+                ),
+            ],
+        )
         union = doc.insert(Node.union([a, b]))
-        root = doc.place(union)
+        root = doc.place(union, doc.world)
         self.assertAlmostEqual(
             evaluate(doc).value(union).body().mass_properties().volume, 2.0, places=9
         )

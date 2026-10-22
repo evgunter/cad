@@ -63,6 +63,7 @@ from pncad import (
     Formula,
     Frame,
     Mate,
+    MateValue,
     NamePat,
     Node,
     PartSelect,
@@ -151,7 +152,7 @@ def prism(seed, width, depth, height):
     # edited flat — the part edited until it no longer builds.
     built = height if height > 0 else 1.0
     body = doc.insert(Node.extrude(profile, Formula.length_in(built, m)))
-    placement = doc.place(body, [])
+    placement = doc.place(body, doc.world)
     on_floor(doc, placement, body, one(evaluate(doc).select(body, cap_selector(CapEnd.Start))))
     if built != height:
         doc.apply(DocEdit.set_param(body, "distance", Formula.length_in(height, m)))
@@ -163,14 +164,16 @@ def on_floor(doc, placement, at, base, resolver=None):
     `base`, read at `at`: a plane mate to the world's `xy` plane
     flipped, so the face's outward normal points down, and three zero
     values — the copy's own coordinates are the world's as far as the
-    floor allows. Answers the mate's address."""
-    mate = doc.constrain(
+    floor allows. The bundle is written whole, in place of the one the
+    placement holds. Answers the mate's address."""
+    del resolver
+    mate, *_ = doc.set_constraints(
         placement,
-        Mate(PoseDef.plane(at, base), WorldRead.through("xy").flip(), ContactClass.Rest),
-        resolver=resolver,
+        [
+            Mate(PoseDef.plane(at, base), WorldRead.through("xy").flip(), ContactClass.Rest),
+            *(MateValue(0, coord, 0) for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin())),
+        ],
     )
-    for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin()):
-        doc.add_value(mate, coord, 0)
     return mate
 
 
@@ -251,20 +254,21 @@ def rest(doc, placement, on, to, at, class_=ContactClass.Rest, resolver=None):
     other, and the two slides and the spin that set where on `to` the
     copy rests. `on` and `to` are `(node, face name)` pairs; `at` is
     `(slide x, slide y)` in metres, the spin zero — the two bodies'
-    own axes agree.
+    own axes agree. The bundle is written whole, in place of the one the
+    placement holds.
 
     Answers the mate's address and its three values' addresses.
     """
-    mate = doc.constrain(
+    del resolver
+    mate, *values = doc.set_constraints(
         placement,
-        Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), class_),
-        resolver=resolver,
+        [
+            Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), class_),
+            MateValue(0, Coord.slide("x"), at[0] * m),
+            MateValue(0, Coord.slide("y"), at[1] * m),
+            MateValue(0, Coord.spin(), 0),
+        ],
     )
-    values = [
-        doc.add_value(mate, Coord.slide("x"), at[0] * m),
-        doc.add_value(mate, Coord.slide("y"), at[1] * m),
-        doc.add_value(mate, Coord.spin(), 0),
-    ]
     return mate, values
 
 
@@ -319,9 +323,9 @@ def layout(store, post_ref, shelf_ref, posts=Node.pattern):
     layout document's placements ARE its subject, so where the parts
     sit has to be something this document SAYS.
 
-    The post instance's bundle is empty: it is a loose copy, its part's
-    own coordinates and no part of the product, which is what a pattern
-    master is here. The pattern steps along +y, which the turn about +y
+    The post instance is placed into a space of its own
+    (`Doc.new_space`), standing at its part's own coordinates there and
+    no part of the product, which is what a pattern master is here. The pattern steps along +y, which the turn about +y
     each copy is laid at leaves where it was.
 
     `posts` is the node the placed family is said with, and the two it
@@ -341,7 +345,9 @@ def layout(store, post_ref, shelf_ref, posts=Node.pattern):
     Answers the document and its three nodes, in document order.
     """
     doc = Doc(LAYOUT_SEED)
-    post_i = doc.insert(Node.instantiate_part(post_ref, []))
+    # The pattern's master is placed into a space of its own: no part
+    # of the product, only the copies placed into the world are.
+    post_i = doc.insert(Node.instantiate_part(post_ref, doc.new_space()))
     family = doc.insert(
         posts(
             post_i,
@@ -349,7 +355,7 @@ def layout(store, post_ref, shelf_ref, posts=Node.pattern):
             PatternKind.linear((Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)), Formula.length_in(PATTERN_SPACING, m)),
         )
     )
-    shelf_i = doc.insert(Node.instantiate_part(shelf_ref, []))
+    shelf_i = doc.insert(Node.instantiate_part(shelf_ref, doc.world))
     doc.pin(
         shelf_i,
         Frame.translation((FLAT_PACK_GAP * m, FLAT_PACK_SHELF_Y * m, 0 * m)),
@@ -358,12 +364,12 @@ def layout(store, post_ref, shelf_ref, posts=Node.pattern):
     if posts is Node.pattern:
         for i in range(PATTERN_COUNT):
             doc.place(
-                doc.insert(Node.part(family, PartSelect.instance(Formula.count(i)))),
+                doc.insert(Node.part(family, PartSelect.instance(Formula.count(i)))), doc.world,
                 pose=lying(),
                 resolver=store,
             )
     else:
-        doc.place(family, pose=lying(), resolver=store)
+        doc.place(family, doc.world, pose=lying(), resolver=store)
     return doc, post_i, family, shelf_i
 
 
@@ -372,16 +378,17 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
     SEATED on them by mates.
 
     Only the near post is pinned to the world; each other instance's
-    bundle is the one mate that places it and its three values — the
+    bundle, written whole in place of the identity it is inserted with,
+    is the one mate that places it and its three values — the
     shelf on the near post, the far post under the shelf. Answers the
     document, its three instances and its two mates' addresses, each in
     document order.
     """
     doc = Doc(STAND_SEED)
-    post_a = doc.insert(Node.instantiate_part(post_ref, []))
+    post_a = doc.insert(Node.instantiate_part(post_ref, doc.world))
     doc.pin(post_a, Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m)), resolver=store)
-    shelf_i = doc.insert(Node.instantiate_part(shelf_ref, []))
-    post_b = doc.insert(Node.instantiate_part(post_ref, []))
+    shelf_i = doc.insert(Node.instantiate_part(shelf_ref, doc.world))
+    post_b = doc.insert(Node.instantiate_part(post_ref, doc.world))
     a_top = instance_face(store, doc, post_a, CapEnd.End)
     b_top = instance_face(store, doc, post_b, CapEnd.End)
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)

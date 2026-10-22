@@ -31,6 +31,7 @@ from pncad import (
     Frame,
     FrameError,
     Mate,
+    MateValue,
     NamePat,
     Node,
     Open,
@@ -292,24 +293,28 @@ def die_tool_document():
     )
     ball_p = doc.insert(Node.profile(half_disc))
     ball = doc.insert(Node.revolve(ball_p, *axis, Formula.angle_in(2.0 * math.pi, rad)))
-    # The master ball stands in the cube's coordinates, its pole on the
+    # The master ball is placed into the cube's space, its pole on the
     # cube's own frame at its origin corner (`Doc.corner_frame`: the
     # edge up the cube's z, the vertex along its x): an axis mate from
     # the revolve's own axis, slid zero along it and spun zero about
     # it — the corpus document's `Recorder::on_axis`, edit for edit.
     zero = (0 * m, 0 * m, 0 * m)
     own = doc.corner_frame(cube, zero, (0 * m, 0 * m, DIE_L * m), (DIE_L * m, 0 * m, 0 * m))
-    master = doc.insert(Node.place(doc.output(ball, 0)))
-    pole = doc.constrain(
-        master,
-        Mate(
-            doc.output(ball, 1),
-            PoseDef.slide(RoleRead(own, "z"), RoleRead(own, "z"), Formula.zero("length")),
-            ContactClass.Rest,
-        ),
+    master = doc.insert(
+        Node.place(
+            doc.output(ball, 0),
+            doc.space(cube),
+            [
+                Mate(
+                    doc.output(ball, 1),
+                    PoseDef.slide(RoleRead(own, "z"), RoleRead(own, "z"), Formula.zero("length")),
+                    ContactClass.Rest,
+                ),
+                MateValue(0, Coord.slide("z"), Formula.zero("length")),
+                MateValue(0, Coord.spin(), Formula.zero("angle")),
+            ],
+        )
     )
-    doc.add_value(pole, Coord.slide("z"), Formula.zero("length"))
-    doc.add_value(pole, Coord.spin(), Formula.zero("angle"))
 
     # ---- the whole cutting tool, in ONE node ----
     tool = doc.insert(Node.placed_union_at(master, pip_placements()))
@@ -318,7 +323,7 @@ def die_tool_document():
     )
     # The pipped die is the product: placed once, last, as the corpus
     # document places it.
-    doc.place(pipped)
+    doc.place(pipped, doc.world)
     return doc, master, tool, pipped
 
 

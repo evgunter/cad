@@ -131,8 +131,7 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         E::StrandedPlacement { placement } => (id(placement), none(), none()),
         // The bodies to place, in document order, each its output
         // variable — the handle `Doc.place` takes.
-        // The loose copies are every one in the message.
-        E::EmptyProduct { unplaced, loose: _ } => (
+        E::EmptyProduct { unplaced } => (
             none(),
             none(),
             unplaced
@@ -999,16 +998,8 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
     let from = SpokenFrom::Doc(Arc::clone(&doc));
-    let mut node = none();
+    let node = none();
     let (refusals, findings) = match err {
-        // The loose copy is the subject; the space's own gather
-        // refusal is in the message.
-        E::Space { root, .. } => {
-            node = Py::new(py, NodeId(*root))
-                .map(|v| v.into_any())
-                .unwrap_or_else(|_| py.None());
-            (none(), none())
-        }
         // The carried arm carries FOREIGN mates, so every row carries
         // its own route: `of` is the document to open and `via` the
         // instances this document reached it through, and the row's

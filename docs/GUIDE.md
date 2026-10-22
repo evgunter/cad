@@ -425,7 +425,7 @@ assert blended.vertex_count == 4
 **A profile is 2-D, and a body has no location.** A profile is drawn
 on its own xy plane and an extrude runs up its own +z, so a
 construction lies in its own coordinates and reads no frame. Where it
-stands is a placement's: `doc.place(body, pose=frame)` stands it in the
+stands is a placement's: `doc.place(body, doc.world, pose=frame)` stands it in the
 world at a `Frame`, and `doc.place_against(target, body, frame)` stands
 it at a frame in `target`'s own coordinates — which is how a body
 joins a boolean with another construction.
@@ -459,7 +459,7 @@ slab = doc.insert(
         Formula.length_in(0.25, m),
     )
 )
-wall = doc.place(slab, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+wall = doc.place(slab, doc.world, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
 ev = evaluate(doc)
 assert abs(ev.value(wall).body().mass_properties().volume - 1.5) < 1e-12
 corners = [ev.vertex_position(wall, v) for v in ev.all_vertices(wall)]

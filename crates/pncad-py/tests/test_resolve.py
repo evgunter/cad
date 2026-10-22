@@ -201,7 +201,7 @@ class TestInOneRead(unittest.TestCase):
     def setUp(self):
         self.doc = Doc()
         self.cube = unit_cube(self.doc)
-        self.moved = self.doc.place(self.cube, pose=slid(3, 0, 0))
+        self.moved = self.doc.place(self.cube, self.doc.world, pose=slid(3, 0, 0))
         self.other = unit_cube(self.doc, at=(9.0, 9.0))
         self.ev = evaluate(self.doc)
 
