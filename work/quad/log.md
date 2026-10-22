@@ -260,3 +260,11 @@ PR 5568's fix pass.
   - `ImportReport` keeps the certificate and the caller measures;
   - what goes;
   - one `FaceRun` state.
+- 2026-10-22 — **Measure door unit A: lane stopped at the fork rule** with a baseline on main (per-lane µs/cell; weights in rational-composite units: composite 1.0, exact-v 3.7–5.8, integral 3.2, cylinder 0.32, spiric 4.6, trimmed 28–530). Orchestrator's rulings, now in the spec:
+  - the narrowest round survives across windows through `FaceRun::advance`;
+  - the wall is cumulative (`descent::Work`);
+  - geom-brep's whole-schedule doors take the target closure now, with no second adapter;
+  - no target-free early exit: refusals run to the wall, a cost accepted in round 2, with slow rows moved to the slow set;
+  - the adapter mints `props_quad_converged` through today's funnel call, so its roster removal moves to B.
+  
+  Filed: `a-trimmed-face-windowed-at-a-round-recomputes-its-area-at-that-round` (P2).

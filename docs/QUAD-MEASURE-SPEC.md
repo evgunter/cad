@@ -46,7 +46,9 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
   pads, and arithmetic). Each lane already computes the two apart. The
   stall rule is the backstop for a lane that cannot split them.
 - **R3. The work unit.**
-  - One constant, `FACE_WORK_WALL`, in weighted cell-evaluations.
+  - One constant, `FACE_WORK_WALL`, in weighted cell-evaluations,
+    **cumulative** over a face's rounds (`crate::descent::Work`), not per
+    round. A per-round wall would let the 1-D lanes spend up to 2W.
   - Each lane states its own fixed per-cell weight. The weights are
     calibrated once, measured on this box and recorded with the
     measurement, so that one unit costs roughly the same in every lane:
