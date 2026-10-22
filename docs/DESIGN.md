@@ -1105,8 +1105,8 @@ suits the slot.
   member list, and no origin, axis or plane that a reader takes as a
   pose. It is defined only by minting: the world, `new_space()`, and
   each construction, whose body is born in a space of its own
-  (`a.space`). A placement reads one as its target, and that
-  placement's values are the only readers of its axes.
+  (`a.space`). A placement reads a space as its target, and the
+  values of placements into a space are the only readers of its axes.
 - *Selections* of a shape: one cell of a body (`Face`, `Edge`,
   `Vertex`), or the set of them a reader takes (`Faces`, `Edges`; a
   set kind exists only for a slot that reads one).
@@ -1114,7 +1114,8 @@ suits the slot.
 **Free and defined.** A variable is **free** — a value, its written
 unit ([units]) and optionally a distribution — or **defined**: by an
 `Expr` over other variables, by a selection of a `Body` variable, or
-as an output of an operation. Poses are only defined.
+as an output of an operation. Poses are only defined, and spaces only
+minted.
 
 **No dimensioned literal.** `[variables.literals]` A dimensioned
 literal stands nowhere, neither in a slot nor inside a formula. The
@@ -1410,8 +1411,8 @@ every document holds and cannot delete: it sets the coordinates. Its
 axes chart the values of placements into it, and it is nothing else.
 It has no datum plane, origin or axis as a recipe object: a viewer
 may draw its axes or a grid as a display aid, and a gesture that drops
-a part on the floor writes values, neither of them read by a mate or
-a construction. Export and the viewer's drawing compose a body into
+a part on the floor writes values; neither is a recipe object, and no
+mate or construction reads the world. Export and the viewer's drawing compose a body into
 the coordinates of a space it reaches, the world's or any other shown
 space's, through one door that nothing else calls, and what they
 produce never re-enters the model. The **product** is the body the
