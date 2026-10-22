@@ -1,7 +1,7 @@
 ---
 id: quad-rational-area-reads-the-statement-per-hull-block
 kind: issue
-title: quad: the rational area rule reads its pads and hull per hull block; per area cell they are 4x narrower at 10-30x the cost
+title: quad: the rational area rule reads its pads and hull per hull block; per area cell they are 1.5-7x narrower and cost 7-20 s a face in a debug build
 status: open
 opened: 2026-10-22
 priority: P3
