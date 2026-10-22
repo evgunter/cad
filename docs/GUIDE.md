@@ -68,6 +68,8 @@ let rect: ClosedLoop<f64> = Open
 let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?;
 let plate = extrude(&profile, Extrusion::Distance { depth: real(mm(8.0)), side: ExtrudeSide::Along }, tol)?.body;
 validate_closed(&plate).expect("a closed solid");
+// The measurement reads a finished body: tier 3, once, at rest.
+let plate = AtRestBody::validate(plate, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
 let props = mass_properties(&plate, tol)?;
 assert!((props.volume - 2.56e-5).abs() < 1e-18);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -663,7 +665,10 @@ validate_pseudomanifold(&base, &ContactRecords::default(), tol)
 ### 2.4 Measure — mass properties and their pads
 
 `mass_properties` integrates over the exact B-rep — the divergence
-theorem on the real surfaces, not on a mesh:
+theorem on the real surfaces, not on a mesh. It reads a finished body
+(`&AtRestBody`): a Boolean's result is one already (`BooleanBody::body`
+holds the verdict its door kept, as a split's sides do), and a sweep's
+body is finished once with `AtRestBody::validate`, as `slab` does:
 
 ```
 use pncad::prelude::*;
@@ -887,6 +892,7 @@ let StepImport::Solid { body: reimported, .. } =
 else {
     panic!("the bracket re-imports as a solid, not a wireframe");
 };
+let reimported = AtRestBody::validate(reimported, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
 let back = mass_properties(&reimported, tol)?;
 assert!((back.volume - props.volume).abs() < 1e-15);
 # Ok::<(), E>(())
@@ -1710,7 +1716,9 @@ let NodeResult::Ok(value) = ev.result(plate).expect("the node is live") else {
 let ValuePayload::Body(body) = &value.payload else {
     panic!("an extrude yields a body");
 };
-let props = mass_properties(body.as_ref(), tol)?;
+// An evaluated value holds the body as built; the measurement reads it finished.
+let body = AtRestBody::validate(Body::clone(body), tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
+let props = mass_properties(&body, tol)?;
 let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
 assert!((props.volume - expected).abs() < 1e-9);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -1885,7 +1893,8 @@ let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("a union yields a body");
     };
-    mass_properties(body.as_ref(), tol).expect("mass properties").volume
+    let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
+    mass_properties(&body, tol).expect("mass properties").volume
 };
 
 // The analytic oracle: plate + tab − their overlap − two cylinders of

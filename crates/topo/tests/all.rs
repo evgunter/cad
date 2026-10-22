@@ -139,6 +139,8 @@ mod display_contract;
 mod edge_meeting_ray_probes;
 #[path = "euler_site_pcurve_rows.rs"]
 mod euler_site_pcurve_rows;
+#[path = "every_measurement_name_takes_a_finished_body.rs"]
+mod every_measurement_name_takes_a_finished_body;
 #[path = "fused_into_live_cells.rs"]
 mod fused_into_live_cells;
 #[path = "gate_reads_coincident_wedges.rs"]

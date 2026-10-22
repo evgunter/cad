@@ -459,7 +459,8 @@ fn every_structural_door_judges_orientation_at_any_scalar() {
         "the marks pass refuses the same body for the same reason"
     );
     assert!(
-        topo::mass_properties_structural(&d_inverted, tol)
+        // Raw door: the measured body is an inside-out cube at a dual, read beside tier 3's refusal of it (NegativeVolume).
+        topo::test_support::measure_unvalidated_structural(&d_inverted, tol)
             .expect("the closed form computes a volume at a dual")
             .volume
             .value
@@ -488,8 +489,11 @@ fn the_structural_certificate_continues_to_the_closed_form() {
         (0, 0),
         "a closed-form certificate carries pads of 0"
     );
-    let measured =
-        topo::mass_properties_structural(&f.body, tol).expect("the closed form measures");
+    let measured = topo::mass_properties_structural(
+        &topo::test_support::finished("the cube", f.body.clone(), tol),
+        tol,
+    )
+    .expect("the closed form measures");
     assert_eq!(format!("{continued:?}"), format!("{measured:?}"));
 
     let mut d = geometric_cube::<Dual64>(Tol::witness());
@@ -498,8 +502,11 @@ fn the_structural_certificate_continues_to_the_closed_form() {
         .expect("the cube passes the `_structural` door at a dual")
         .refine_to_target()
         .expect("a closed-form certificate's continuation cannot refuse at a dual");
-    let measured =
-        topo::mass_properties_structural(&d.body, tol).expect("the closed form measures at a dual");
+    let measured = topo::mass_properties_structural(
+        &topo::test_support::finished("the cube", d.body.clone(), tol),
+        tol,
+    )
+    .expect("the closed form measures at a dual");
     assert_eq!(
         (continued.volume_pad.to_bits(), continued.area_pad.to_bits()),
         (0, 0),

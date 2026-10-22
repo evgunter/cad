@@ -274,7 +274,9 @@ fn a_void_in_a_void_touching_at_every_edge_refuses() {
 
 /// The shell of `candidates` with the smaller enclosed volume.
 fn small(body: &Body<f64>, candidates: &[ShellKey]) -> ShellKey {
-    let classes = topo::classify_shells_of(body, candidates, tol()).expect("classifies");
+    // Raw door: the rows' bodies are wound or filed against their roles, which tier 3 refuses (ShellWinding, SolidOuterShells, NegativeVolume).
+    let classes =
+        topo::test_support::classify_unvalidated_of(body, candidates, tol()).expect("classifies");
     assert_eq!(classes.len(), 2, "two candidates");
     classes
         .iter()

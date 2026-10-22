@@ -339,6 +339,34 @@ pub mod test_support {
     /// As [`crate::classify_shells`].
     pub use crate::props::raw_door::classify_body as classify_unvalidated;
 
+    /// **The raw closed-form measurement door**:
+    /// [`crate::mass_properties_structural`] over a body that has not
+    /// passed tier 3, as [`measure_unvalidated`] is to
+    /// [`crate::mass_properties`].
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::mass_properties_structural`].
+    pub use crate::props::raw_door::measure_body_structural as measure_unvalidated_structural;
+
+    /// **The raw closed-form classification door**:
+    /// [`crate::classify_shells_structural`] over a body that has not
+    /// passed tier 3.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::classify_shells_structural`].
+    pub use crate::props::raw_door::classify_body_structural as classify_unvalidated_structural;
+
+    /// **The raw restricted classification door**:
+    /// [`crate::classify_shells_of`] over a body that has not passed
+    /// tier 3.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::classify_shells_of`].
+    pub use crate::props::raw_door::classify_body_of as classify_unvalidated_of;
+
     /// **The transitional measurement alias** (FLUX unit F1): the raw
     /// walk under the name a NOT-YET-MIGRATED test site reads it by,
     /// until F2 moves sweep's and editor-core's sites onto the typed

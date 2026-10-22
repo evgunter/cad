@@ -55,7 +55,8 @@ fn structural<T: geom_core::Bounds + topo::AtRestPolicy>() -> Doors<T> {
         marks: |body, tol| {
             topo::contact_marks_structural(body, tol).map(|m| sorted_marks(m.iter()))
         },
-        mass: topo::mass_properties_structural::<T>,
+        // Raw door: the corpus holds corrupt bodies tier 3 refuses, and the dump is of what each door says of them.
+        mass: topo::test_support::measure_unvalidated_structural::<T>,
     }
 }
 
@@ -165,7 +166,8 @@ fn m2r1_structural_at_dual64_is_the_f64_closed_form_and_refuses_where_the_lane_w
         assert_eq!(name, dname);
         let certified = topo::test_support::unmigrated_measure(b, tol)
             .unwrap_or_else(|e| panic!("{name}: the certified door refused a corpus body: {e:?}"));
-        match topo::mass_properties_structural(d, tol) {
+        // Raw door: the corpus holds corrupt bodies tier 3 refuses, and the row reads each door's answer on them.
+        match topo::test_support::measure_unvalidated_structural(d, tol) {
             Ok(s) => {
                 assert_eq!(
                     (s.volume.value.to_bits(), s.surface_area.value.to_bits()),

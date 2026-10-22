@@ -87,7 +87,12 @@ fn consume(label: &str, body: &Body<f64>, want_volume: f64, want_shells: usize) 
         props.volume_pad
     );
     let shells: Vec<_> = body.shells().map(|(k, _)| k).collect();
-    let roles = topo::classify_shells_of(body, &shells, tol()).expect("classify");
+    let roles = topo::classify_shells_of(
+        &topo::test_support::finished("the body", body.clone(), tol()),
+        &shells,
+        tol(),
+    )
+    .expect("classify");
     let outers = roles
         .iter()
         .filter(|r| r.role == topo::ShellRole::Outer)

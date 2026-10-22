@@ -27,7 +27,8 @@ fn classify_shells_structural_is_the_closed_form_and_refuses_where_the_lane_woul
     let mut refused = Vec::new();
     for (name, body) in corpus::<f64>() {
         let certified = topo::test_support::unmigrated_classify(&body, tol);
-        let structural = topo::classify_shells_structural(&body, tol);
+        // Raw door: the corpus holds inside-out bodies tier 3 refuses (NegativeVolume), read through both lanes alike.
+        let structural = topo::test_support::classify_unvalidated_structural(&body, tol);
         match (&certified, &structural) {
             (Ok(c), Ok(s)) => {
                 assert_eq!(c.len(), s.len(), "{name}: shell count");

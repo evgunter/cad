@@ -3161,8 +3161,11 @@ fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
     .expect("two closed-form boxes pass the no-lane tier-3′ door at a dual")
     .refine_to_target()
     .expect("a closed-form certificate's continuation cannot refuse");
-    let measured =
-        crate::mass_properties_structural(&body, tol).expect("the closed form measures two boxes");
+    let measured = crate::mass_properties_structural(
+        &crate::test_support::finished("the two boxes", body.clone(), tol),
+        tol,
+    )
+    .expect("the closed form measures two boxes");
     assert_eq!(
         format!("{continued:?}"),
         format!("{measured:?}"),

@@ -368,24 +368,30 @@ pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
     measure_body(body, tol)
 }
 
-pub(crate) use raw_door::{classify_body, measure_body};
+pub(crate) use raw_door::{
+    classify_body, classify_body_of, classify_body_structural, measure_body,
+    measure_body_structural,
+};
 
-/// The doors' walks over any body, finished or not. The module is
-/// private, so its items leave the crate only through
-/// `topo::test_support`'s re-exports (the raw door and the transitional
-/// alias), and carry this seam's bound there unrestated.
+/// The doors' walks over any body, finished or not: each typed door
+/// ([`mass_properties`], [`mass_properties_structural`],
+/// [`classify_shells`], [`classify_shells_structural`],
+/// [`classify_shells_of`]) is one of these over a finished body. The
+/// module is private, so its items leave the crate only through
+/// `topo::test_support`'s re-exports (the raw doors and the transitional
+/// alias), and carry this seam's bounds there unrestated; each is
+/// `pub` for those re-exports, so without test-support it is reachable
+/// only inside the crate (the `allow(unreachable_pub)` on each).
 pub(crate) mod raw_door {
     use super::*;
 
     /// [`mass_properties`]' walk over any body, finished or not: the
-    /// door's own measurement, and the raw door
-    /// (`topo::test_support::measure_unvalidated`) a test measures a body
-    /// tier 3 refuses through.
+    /// raw door (`topo::test_support::measure_unvalidated`) a test
+    /// measures a body tier 3 refuses through.
     ///
     /// # Errors
     ///
     /// As [`mass_properties`].
-    // Reachable from outside the crate only with test-support on.
     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
     pub fn measure_body<T: Decide + geom_core::CertifiedBounds>(
         body: &Body<T>,
@@ -395,8 +401,22 @@ pub(crate) mod raw_door {
         mass_properties_with(body, band, tol, Some(QuadLane::certified()))
     }
 
-    /// [`classify_shells`] over any body, finished or not: the door's own
-    /// classification, and the raw door
+    /// [`mass_properties_structural`]'s closed-form walk over any body
+    /// (`topo::test_support::measure_unvalidated_structural`).
+    ///
+    /// # Errors
+    ///
+    /// As [`mass_properties_structural`].
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
+    pub fn measure_body_structural<T: Decide>(
+        body: &Body<T>,
+        tol: Tol,
+    ) -> Result<MassProperties<T>, MassPropsError> {
+        let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+        mass_properties_closed_form(body, band, tol)
+    }
+
+    /// [`classify_shells`] over any body, finished or not
     /// (`topo::test_support::classify_unvalidated`).
     ///
     /// # Errors
@@ -408,7 +428,37 @@ pub(crate) mod raw_door {
         tol: Tol,
     ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
         let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
-        classify_shells_of(body, &every, tol)
+        classify_body_of(body, &every, tol)
+    }
+
+    /// [`classify_shells_of`] over any body, finished or not
+    /// (`topo::test_support::classify_unvalidated_of`).
+    ///
+    /// # Errors
+    ///
+    /// As [`classify_shells_of`].
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
+    pub fn classify_body_of<T: Decide + geom_core::CertifiedBounds>(
+        body: &Body<T>,
+        shells: &[ShellKey],
+        tol: Tol,
+    ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+        classify_shells_through(body, shells, tol, Some(QuadLane::certified()))
+    }
+
+    /// [`classify_shells_structural`] over any body, finished or not
+    /// (`topo::test_support::classify_unvalidated_structural`).
+    ///
+    /// # Errors
+    ///
+    /// As [`classify_shells_structural`].
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
+    pub fn classify_body_structural<T: Decide>(
+        body: &Body<T>,
+        tol: Tol,
+    ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+        let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
+        classify_shells_through(body, &every, tol, None)
     }
 }
 
@@ -429,11 +479,10 @@ pub(crate) mod raw_door {
 /// As [`mass_properties`], plus the closed form's typed refusal on
 /// every face the quadrature lane would have enclosed.
 pub fn mass_properties_structural<T: Decide>(
-    body: &Body<T>,
+    body: &crate::AtRestBody<T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
-    mass_properties_closed_form(body, band, tol)
+    measure_body_structural(body, tol)
 }
 
 /// [`mass_properties`] against a caller-built band and the caller's
@@ -4446,11 +4495,10 @@ pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
 /// form's typed refusal on every face the quadrature lane would have
 /// enclosed.
 pub fn classify_shells_structural<T: Decide>(
-    body: &Body<T>,
+    body: &crate::AtRestBody<T>,
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
-    let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
-    classify_shells_through(body, &every, tol, None)
+    classify_body_structural(body, tol)
 }
 
 /// [`classify_shells`] restricted to `shells` — the same classification,
@@ -4475,11 +4523,11 @@ pub fn classify_shells_structural<T: Decide>(
 /// [`ShellClassifyError`] — [`classify_shells`]'s, raised by the first
 /// NAMED shell that cannot be classified.
 pub fn classify_shells_of<T: Decide + geom_core::CertifiedBounds>(
-    body: &Body<T>,
+    body: &crate::AtRestBody<T>,
     shells: &[ShellKey],
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
-    classify_shells_through(body, shells, tol, Some(QuadLane::certified()))
+    classify_body_of(body, shells, tol)
 }
 
 /// The per-shell classification through `quad` — the shared body of
