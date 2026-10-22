@@ -5,7 +5,7 @@ title: PickIndex::name_of answers None for both the clear value and an id it nev
 status: open
 opened: 2026-09-25
 priority: P3
-cost: D
+cost: M
 ---
 
 Filed by `vnews/an-unnamed-id-is-not-nothing` (PR #3249).
