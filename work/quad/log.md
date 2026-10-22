@@ -268,3 +268,9 @@ PR 5568's fix pass.
   - the adapter mints `props_quad_converged` through today's funnel call, so its roster removal moves to B.
   
   Filed: `a-trimmed-face-windowed-at-a-round-recomputes-its-area-at-that-round` (P2).
+- 2026-10-22 — **Nightly 39728496598** (main `0ffab3663d`):
+  - `nightly-k-lint-dies-at-1e-9-…` closed: lily is past. dev-probe now stops on TCOST's `ray_wall_margin_twins`, which is filed there.
+  - **A QUAD-caused red:** `k-lint (dev-default)` `predicate_roster`. PR 5580's F5 test calls `classify_len::<f64>("props_quad_converged", …)` inside `quad.rs`'s test module, and the roster lexes the whole file. The PR gate does not run `tools/*` unless the diff touches them, so it went red only at the nightly.
+  - Fix lane dispatched: the roster blanks the source's `#[cfg(test)] mod tests` region, since it pins kernel mints only.
+  - Class finding: a PR that edits a `MINT_SOURCES` file should run k-lint's roster. The fix PR proposes how, or files it on INSTR.
+  - The other reds (the editor-core slow set, the sweep rows at 1e-12, the viewer pick tally, test-utils' census) are not on QUAD's ground.
