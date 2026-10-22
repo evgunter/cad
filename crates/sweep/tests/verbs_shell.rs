@@ -79,15 +79,13 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
     assert_eq!(hollow.shells().count(), 2, "outer boundary plus cavity");
     assert_eq!(hollow.solids().count(), 1, "one solid, two shells");
 
-    let roles = topo::classify_shells(
-        &topo::test_support::finished(
-            "the measured body",
-            topo::Body::clone(&hollow),
-            Tol::witness(),
-        ),
+    let hollow_at_rest = topo::test_support::finished(
+        "the measured body",
+        topo::Body::clone(&hollow),
         Tol::witness(),
-    )
-    .expect("the shells classify");
+    );
+    let roles =
+        topo::classify_shells(&hollow_at_rest, Tol::witness()).expect("the shells classify");
     let mut kinds: Vec<ShellRole> = roles.iter().map(|c| c.role).collect();
     kinds.sort_by_key(|r| format!("{r:?}"));
     assert_eq!(
@@ -96,15 +94,8 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
         "one outer boundary, one cavity"
     );
 
-    let props = topo::mass_properties(
-        &topo::test_support::finished(
-            "the measured body",
-            topo::Body::clone(&hollow),
-            Tol::witness(),
-        ),
-        Tol::witness(),
-    )
-    .expect("a planar body's props");
+    let props =
+        topo::mass_properties(&hollow_at_rest, Tol::witness()).expect("a planar body's props");
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * (h - 2.0 * t);
     assert!(
         (props.volume - want).abs() <= 1e-12,

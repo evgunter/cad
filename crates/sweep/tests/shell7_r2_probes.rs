@@ -348,17 +348,11 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
     let shelled = topo::shell(&finished("the operand", solid.clone(), tol()), t, tol())
         .expect("the solid torus shells");
     assert_eq!(topo::validate_geometric(&shelled.body, tol()), Ok(()));
-    let cls = topo::classify_shells(
-        &topo::test_support::finished("the measured body", topo::Body::clone(&shelled.body), tol()),
-        tol(),
-    )
-    .expect("shells classify");
+    let shelled_at_rest =
+        topo::test_support::finished("the measured body", topo::Body::clone(&shelled.body), tol());
+    let cls = topo::classify_shells(&shelled_at_rest, tol()).expect("shells classify");
     let roles: Vec<String> = cls.iter().map(|c| format!("{:?}", c.role)).collect();
-    let props = topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(&shelled.body), tol()),
-        tol(),
-    )
-    .expect("props");
+    let props = topo::mass_properties(&shelled_at_rest, tol()).expect("props");
     let want = 2.0 * PI * PI * R * (SMALL_R * SMALL_R - (SMALL_R - t) * (SMALL_R - t));
     eprintln!(
         "[e2e] solid torus shelled: {} shells {roles:?}, volume {} want {want} err {:e}",

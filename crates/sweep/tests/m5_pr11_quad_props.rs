@@ -201,24 +201,13 @@ fn tier3_passes_on_both_halves() {
 #[test]
 fn quadrature_is_bit_deterministic() {
     let (above, _) = halves();
-    let a = topo::mass_properties(
-        &topo::test_support::finished(
-            "the measured body",
-            topo::Body::clone(&above),
-            Tol::witness(),
-        ),
+    let above_at_rest = topo::test_support::finished(
+        "the measured body",
+        topo::Body::clone(&above),
         Tol::witness(),
-    )
-    .unwrap();
-    let b = topo::mass_properties(
-        &topo::test_support::finished(
-            "the measured body",
-            topo::Body::clone(&above),
-            Tol::witness(),
-        ),
-        Tol::witness(),
-    )
-    .unwrap();
+    );
+    let a = topo::mass_properties(&above_at_rest, Tol::witness()).unwrap();
+    let b = topo::mass_properties(&above_at_rest, Tol::witness()).unwrap();
     assert_eq!(a.volume.to_bits(), b.volume.to_bits());
     assert_eq!(a.surface_area.to_bits(), b.surface_area.to_bits());
     assert_eq!(a.volume_pad.to_bits(), b.volume_pad.to_bits());

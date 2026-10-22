@@ -255,15 +255,12 @@ fn probe_shell_of_a_hollow_thickens_every_boundary() {
         "one thin solid per operand shell"
     );
     assert_eq!(shelled.shells().count(), 4, "two shells per thin solid");
-    let roles = topo::classify_shells(
-        &topo::test_support::finished(
-            "the measured body",
-            topo::Body::clone(&shelled),
-            Tol::witness(),
-        ),
+    let shelled_at_rest = topo::test_support::finished(
+        "the measured body",
+        topo::Body::clone(&shelled),
         Tol::witness(),
-    )
-    .expect("classifies");
+    );
+    let roles = topo::classify_shells(&shelled_at_rest, Tol::witness()).expect("classifies");
     for (solid, _) in shelled.solids() {
         let mut kinds: Vec<topo::ShellRole> = roles
             .iter()
@@ -277,15 +274,7 @@ fn probe_shell_of_a_hollow_thickens_every_boundary() {
             "{solid:?}: one outer boundary and one cavity"
         );
     }
-    let props = topo::mass_properties(
-        &topo::test_support::finished(
-            "the measured body",
-            topo::Body::clone(&shelled),
-            Tol::witness(),
-        ),
-        Tol::witness(),
-    )
-    .expect("props");
+    let props = topo::mass_properties(&shelled_at_rest, Tol::witness()).expect("props");
     let v = |w: f64, d: f64, h: f64| w * d * h;
     let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5));
     assert!(
