@@ -2601,14 +2601,14 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// carries the source's names, contact records and declaration rows
 /// verbatim, as a copy carries them. Each record cites the body's
 /// record it is, through the read.
-fn wire_mirror<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     read: crate::VarId,
     source: RecipeNodeId,
     plane: &PoseValue<T>,
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = finished_operand(results, source, tol)?;
+    let body = body_operand(results, source)?;
     let PoseValue::Plane { origin, normal } = plane else {
         unreachable!(
             "the door admits a plane alone at a mirror's plane, not {}",
