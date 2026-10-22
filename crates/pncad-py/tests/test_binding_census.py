@@ -3127,7 +3127,10 @@ NOT_BOUND = {
     "product_recorded": INTERIOR,
     # One `new_space()`'s copies gathered by themselves, interior with
     # its `Product` (`Product::spaces`): Python's `assemble` gates each,
-    # and a refusal is `AssemblyError.variant == "own_space"`.
+    # and a refusal is `AssemblyError.variant == "own_space"`. The world
+    # gather's interim: D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`,
+    # `a-space-other-than-the-world-is-census-checked-only-if-a-new-space`)
+    # retires both into the `⊔` operator's door.
     "SpaceGather": INTERIOR,
     "space_gathers": INTERIOR,
     "run_checks_on": INTERIOR,
