@@ -358,13 +358,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xabec_a5a8_aa58_3491_u64),
-        ("part_select", 0x909e_06e1_e24c_6bdd),
-        ("kitchen_sink", 0x53da_49ea_7e4c_e120),
+        ("cut_cylinder", 0xa204_ea8f_4f36_b852_u64),
+        ("part_select", 0x096a_b0ce_20a4_aa88),
+        ("kitchen_sink", 0x99b3_96f7_8787_0655),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

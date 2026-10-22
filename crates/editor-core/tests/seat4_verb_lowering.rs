@@ -271,12 +271,18 @@ fn both_blends_evaluate_in_one_document() {
 /// outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x7a9c_21c7_17c5_dedd_u64),
-        ("die_chamfer", 0xcb28_64b7_d722_3f09),
+        ("die_fillet", 0xf484_d087_4cd9_c7fd_u64),
+        ("die_chamfer", 0x03f9_6c32_9b8d_d6a5),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -486,13 +492,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x23bf_b703_02a0_43eb_u64),
-        ("heat_sink", 0xc0e3_3930_ea4a_1486),
-        ("kiss_carry", 0xb7ee_bd48_8202_c020),
+        ("crossing_slots", 0xcdda_ac08_76e4_859f_u64),
+        ("heat_sink", 0x7d39_8e23_faa9_0232),
+        ("kiss_carry", 0xc4bf_a6e0_8afc_ec4b),
     ] {
         let doc = corpus::documents()
             .into_iter()
