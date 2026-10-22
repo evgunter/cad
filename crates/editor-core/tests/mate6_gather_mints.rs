@@ -19,11 +19,13 @@
 use crate::fixture;
 use editor_core::Formula;
 
+use editor_core::coincide::{NamedCell, NamedCoincidence, Proof, Rung};
 use editor_core::{
     AssemblyError, Attribution, CapEnd, ContactClass, Coord, DocEdit, DocRef, DocumentId,
     EntityKind, Frame, MateRef, MintRefusal, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
     TargetAxis, Value, assemble, product_recorded,
 };
+use editor_core::{Evaluation, Unreplayed};
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, mated_instance, on_frame, run};
 use geom_core::Tol;
@@ -828,19 +830,19 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
 // ---- What a record cites ----
 
 /// **A mated record cites the census's row, named in its copies, and
-/// the lint reports it.** Two cubes of one part, the second rested on
-/// the first by a plane mate and its three values: the product holds one
-/// face–face record, citing its row 0, the at-rest census's decision that
-/// the two seated caps rest on one carrier, kept beside the mate whose
-/// pair it decided. The row names each cap in its copy, as that
-/// instance's output names it. `unproven-coincidence` reports the row
-/// against the mate, not replayed: the door builds no placed copies at
-/// `Sym` ([`editor_core::coincide::REPLAYS_PLACED_COPIES`], off until
-/// `work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`),
-/// so it has no form of the row and its recourse is an assertion.
+/// the door proves it by the mate.** Two cubes of one part, the second
+/// rested on the first by a plane mate and its three values: the product
+/// holds one face–face record, citing its row 0, the at-rest census's
+/// decision that the two seated caps rest on one carrier, kept beside the
+/// mate whose pair it decided. The row names each cap in its copy, as
+/// that instance's output names it. The two caps are the faces whose
+/// planes the mate equates, so the door's first rung proves the row
+/// (`[coincidence.structural]`) and `unproven-coincidence` reports
+/// nothing.
 ///
 /// Red if the mint makes a record citing nothing the product holds,
-/// names a cap anywhere but in its copy, or the lint stays silent.
+/// names a cap anywhere but in its copy, or the door leaves the mate's
+/// own seat unproven.
 #[test]
 fn a_mated_record_cites_the_census_row_the_lint_reports() {
     let mut store = PartStore::default();
@@ -897,17 +899,434 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     )
     .expect("checks run over the stand");
     assert!(
-        report.findings.iter().any(|f| matches!(
-            &f.evidence,
-            editor_core::CheckEvidence::UnprovenCoincidence {
-                residual,
-                recourse: editor_core::coincide::Recourse::Assert,
-                ..
-            } if residual.replay == editor_core::Unreplayed::NotReplayed
-        ) && f.subject
-            == editor_core::FindingSubject::Node(mate.placement)),
-        "the census's row is reported against its mate, not replayed: {report}"
+        !report
+            .findings
+            .iter()
+            .any(|f| f.check == editor_core::CheckId::UnprovenCoincidence),
+        "the mate's own seat is proven: {report}"
     );
+    assert_eq!(
+        door(&stand, mate.placement, &row.row, &ev),
+        Proof::Structural(Rung::SameConstruction),
+        "by the first rung, the mate's statement"
+    );
+}
+
+// ---- What the door reads a seat by ----
+
+/// **The door's one proof of `row`**, decided at `at` with `ev`'s
+/// resolver.
+fn door(doc: &ProfileDoc, at: RecipeNodeId, row: &NamedCoincidence, ev: &Evaluation<f64>) -> Proof {
+    let mut proofs = editor_core::coincide::prove(
+        doc,
+        &[(at, std::slice::from_ref(row))],
+        ev.resolver(),
+        Tol::witness(),
+        &editor_core::CancelToken::new(),
+    )
+    .expect("an uncanceled door");
+    proofs.remove(0).remove(0)
+}
+
+/// What the replay made of an unproven row, `None` for a proven one.
+fn replayed(proof: &Proof) -> Option<(Unreplayed, editor_core::coincide::Recourse)> {
+    match proof {
+        Proof::Unproven { residual, recourse } => Some((residual.replay, *recourse)),
+        Proof::Structural(_) => None,
+    }
+}
+
+/// **The cap `cap` of the cube in `instance`'s copy**, as the at-rest
+/// census names it: in the instance's output.
+fn copy_cap(
+    doc: &ProfileDoc,
+    instance: RecipeNodeId,
+    body: RecipeNodeId,
+    cap: CapEnd,
+) -> NamedCell {
+    NamedCell::Entity {
+        input: doc
+            .output(instance, 0)
+            .expect("an instance defines its copies"),
+        name: in_part(instance, body, cap),
+    }
+}
+
+/// **A vertex of the cap `end` of the cube in `instance`'s copy**, as
+/// the copy's table names it.
+fn cap_vertex(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    instance: RecipeNodeId,
+    end: CapEnd,
+) -> NamedCell {
+    fn minted(name: &StableName) -> &StableName {
+        match name.path.as_slice() {
+            [RoleSeg::InPart { of } | RoleSeg::Placed { of }] => minted(of),
+            _ => name,
+        }
+    }
+    let input = doc
+        .output(instance, 0)
+        .expect("an instance defines its copies");
+    let name = ev
+        .table(input)
+        .expect("the copy evaluates")
+        .iter()
+        .map(|(name, _)| name)
+        .find(|name| {
+            name.kind == EntityKind::Vertex
+                && matches!(minted(name).path.as_slice(), [RoleSeg::CapVertex(e, _)] if *e == end)
+        })
+        .expect("the copy names its cap's vertices")
+        .clone();
+    NamedCell::Entity { input, name }
+}
+
+/// **An at-rest census row between `cells`**, decided `relation`, as
+/// the door is handed one.
+fn at_rest_row(cells: Vec<NamedCell>, relation: topo::Relation) -> NamedCoincidence {
+    let margin = geom_core::MarginDiag::value(0.0);
+    NamedCoincidence {
+        cells,
+        relation,
+        site: topo::DecisionSite::CensusAtRest,
+        margin,
+        discharge: topo::Discharge::of(margin),
+        origin: editor_core::coincide::RowOrigin::Node,
+    }
+}
+
+/// [`stand`] with the stand's mate as `mate` writes it, and its values
+/// as `values` says: the plane mate's three, or none.
+fn stand_by(
+    label: &str,
+    part: DocRef,
+    store: &PartStore,
+    mate: impl FnOnce(&[RecipeNodeId]) -> editor_core::Mate<Formula>,
+    values: bool,
+) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef) {
+    let (doc, ids) = seated_row(label, part, 2, store);
+    let seat = Seat {
+        mate: mate(&ids),
+        apart: 0.0,
+    };
+    let (doc, mate) = if values {
+        seated(doc, seat)
+    } else {
+        let placement = fixture::placed_by(&doc, &seat.mate);
+        fixture::constrain_at(doc, placement, seat.mate)
+    };
+    (doc, ids, mate)
+}
+
+/// **The first rung reads a seat by the mate that states it, and no
+/// other row by it** (`[coincidence.structural]`). Over [`stand`]'s two
+/// cubes, the census's row of the mate's seat is proven by the first
+/// rung. Each row below is NOT the mate's statement, so the first rung
+/// leaves it and the replay reads it:
+///
+/// - **cells that are not the mate's two faces**: the upper cube's top
+///   against the lower cube's top. The replay's carrier verdict decides
+///   two planes a unit apart, so it takes another decision.
+/// - **a sense the mate does not state**: the seat's two caps decided
+///   `SameOriented`, against the rest's flip. The replay's verdict
+///   decides them `SameOpposite`, which is not the row's relation.
+/// - **a vertex of a cap the mate does not seat**: the upper cube's top
+///   vertex laid on the lower cube's top. A vertex of the seated cap is
+///   the mate's statement, since the extrude mints it on that cap's
+///   plane; one of the other cap is not, and an at-rest row of a vertex
+///   has no form the replay reads.
+/// - **a mate that states the other sense**: a stand whose mate equates
+///   the two caps' planes with no flip, and the census's
+///   `SameOpposite` row of those caps.
+/// - **a standoff**: a stand whose mate's target is the lower cap's
+///   flipped plane slid along its normal by a length, here `0`. The mate
+///   equates no face's plane; the gap is a variable, so the replay reads
+///   the seat as a coincidence of values (`Numeric`).
+/// - **a mate whose bundle does not pin**: the rest with no values, a
+///   loose copy the mate does not place.
+///
+/// Red if the first rung reads any row a mate does not state as one, or
+/// stops reading the mate's own seat.
+#[test]
+fn a_mate_states_its_own_seat_and_no_other_row() {
+    use topo::Relation::{SameOpposite, SameOriented};
+    let mut store = PartStore::default();
+    let (part, body) = store.insert_part(cube_part("mate6-states-cube"), Tol::witness());
+    let (doc, ids, mate) = stand("mate6-states-stand", part, body, 0.0, &store);
+    let ev = run(&doc, &with_resolver(store.clone()));
+    let product = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
+    let [seat] = product.coincidences.as_slice() else {
+        panic!("one row: {:?}", product.coincidences);
+    };
+    let (upper_bottom, lower_top) = (
+        copy_cap(&doc, ids[1], body, CapEnd::Start),
+        copy_cap(&doc, ids[0], body, CapEnd::End),
+    );
+    assert_eq!(
+        seat.row.cells,
+        vec![upper_bottom.clone(), lower_top.clone()],
+        "the premise: the census's row is the mate's two caps, `on`'s first"
+    );
+    assert_eq!(
+        door(&doc, mate.placement, &seat.row, &ev),
+        Proof::Structural(Rung::SameConstruction),
+        "the mate's seat"
+    );
+    assert_eq!(
+        door(
+            &doc,
+            mate.placement,
+            &at_rest_row(vec![lower_top.clone(), upper_bottom.clone()], SameOpposite),
+            &ev
+        ),
+        Proof::Structural(Rung::SameConstruction),
+        "the mate's seat, its cells in the other order"
+    );
+    let upper_top = copy_cap(&doc, ids[1], body, CapEnd::End);
+    assert_eq!(
+        replayed(&door(
+            &doc,
+            mate.placement,
+            &at_rest_row(vec![upper_top, lower_top.clone()], SameOpposite),
+            &ev
+        )),
+        Some((
+            Unreplayed::OtherDecisions,
+            editor_core::coincide::Recourse::Assert
+        )),
+        "cells that are not the mate's two faces"
+    );
+    assert_eq!(
+        replayed(&door(
+            &doc,
+            mate.placement,
+            &at_rest_row(vec![upper_bottom, lower_top.clone()], SameOriented),
+            &ev
+        )),
+        Some((
+            Unreplayed::OtherDecisions,
+            editor_core::coincide::Recourse::Assert
+        )),
+        "a sense the mate does not state: the verdict decides the caps opposite"
+    );
+    let (upper_rim, upper_top_rim) = (
+        cap_vertex(&doc, &ev, ids[1], CapEnd::Start),
+        cap_vertex(&doc, &ev, ids[1], CapEnd::End),
+    );
+    assert_eq!(
+        door(
+            &doc,
+            mate.placement,
+            &at_rest_row(
+                vec![upper_rim, lower_top.clone()],
+                topo::Relation::OnCarrier
+            ),
+            &ev
+        ),
+        Proof::Structural(Rung::SameConstruction),
+        "a vertex of the mate's seated cap lies on its target, which the extrude mints it on"
+    );
+    assert_eq!(
+        replayed(&door(
+            &doc,
+            mate.placement,
+            &at_rest_row(vec![upper_top_rim, lower_top], topo::Relation::OnCarrier),
+            &ev
+        )),
+        Some((
+            Unreplayed::NotReplayed,
+            editor_core::coincide::Recourse::Assert
+        )),
+        "a vertex of the other cap is no cell of the mate's faces"
+    );
+
+    // A stand whose mate states the other sense, a standoff, and a loose
+    // copy: each read against the census row of its own two caps.
+    let plain = |on: StableName, to: StableName| editor_core::Mate {
+        on: fixture::plane(fixture::head(on)),
+        to: editor_core::Target::Pose(fixture::plane(fixture::head(to))),
+        class: ContactClass::Rest,
+    };
+    let standoff = |on: StableName, to: StableName| {
+        use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+        let up = || fixture::flip(fixture::plane(fixture::head(to.clone())));
+        editor_core::Mate {
+            on: fixture::plane(fixture::head(on)),
+            to: editor_core::Target::Pose(editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+                pose: RoleRead::plain(up()),
+                along: RoleRead::through(up(), PoseRole::Normal),
+                by: len(0.0),
+            }))),
+            class: ContactClass::Rest,
+        }
+    };
+    let rest = |on: StableName, to: StableName| {
+        fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
+    };
+    type Writes<'a> = &'a dyn Fn(StableName, StableName) -> editor_core::Mate<Formula>;
+    let cases: [(&str, Writes<'_>, bool, Unreplayed); 3] = [
+        (
+            "mate6-states-unflipped",
+            &plain,
+            true,
+            Unreplayed::OtherDecisions,
+        ),
+        (
+            "mate6-states-standoff",
+            &standoff,
+            true,
+            Unreplayed::Numeric,
+        ),
+        (
+            "mate6-states-loose",
+            &rest,
+            false,
+            Unreplayed::OtherDecisions,
+        ),
+    ];
+    for (label, writes, values, want) in cases {
+        let (doc, ids, mate) = stand_by(
+            label,
+            part,
+            &store,
+            |ids| {
+                writes(
+                    in_part(ids[1], body, CapEnd::Start),
+                    in_part(ids[0], body, CapEnd::End),
+                )
+            },
+            values,
+        );
+        let ev = run(&doc, &with_resolver(store.clone()));
+        let row = at_rest_row(
+            vec![
+                copy_cap(&doc, ids[1], body, CapEnd::Start),
+                copy_cap(&doc, ids[0], body, CapEnd::End),
+            ],
+            SameOpposite,
+        );
+        let proof = door(&doc, mate.placement, &row, &ev);
+        assert_eq!(
+            replayed(&proof).map(|(replay, _)| replay),
+            Some(want),
+            "{label}: {proof:?}"
+        );
+    }
+}
+
+/// **A row at rest the first rung leaves is read off the replay's
+/// copies** (`[coincidence.structural]`'s second rung). Two copies of
+/// one cube part, each standing where its body stands (the identity
+/// bundle), and an at-rest row between their tops, which no mate
+/// states:
+///
+/// - **two copies of one version** read its variables as one set of
+///   symbols, so the kernel's carrier verdict on the replay's two tops
+///   proves them one carrier;
+/// - **copies of two versions of one document** each bind their
+///   variables under their own pin (`analysis::symbol_scope`), through
+///   the resolved part's evaluation, so the tops are a coincidence of
+///   values (`Numeric`): two heights equal at their values;
+/// - **a door handed no resolver** builds neither copy, and says the
+///   row stands on a part (`ThroughAPart`), not that it was not read.
+///
+/// Red if the at-rest arm proves nothing, if a resolved part's variables
+/// lose their pin on the way into its evaluation, or if a copy the
+/// replay did not build reads as a row it did not read.
+#[test]
+fn a_row_at_rest_no_mate_states_is_read_off_the_replays_copies() {
+    let mut store = PartStore::default();
+    let (v1, body) = store.insert_part(cube_part("mate6-copies-cube"), Tol::witness());
+    let relabelled = fixture::step(
+        store.doc(v1.id),
+        DocEdit::SetLabel {
+            node: body,
+            label: Some(editor_core::Label::new("cube").expect("a label")),
+        },
+    )
+    .0;
+    let v2 = DocRef {
+        id: v1.id,
+        pin: editor_core::content_pin(&relabelled, Tol::witness()).expect("the pin computes"),
+    };
+    assert_ne!(v1.pin, v2.pin, "the premise: two versions of one document");
+    let versions = Versions(
+        [(v1, store.doc(v1.id)), (v2, relabelled)]
+            .into_iter()
+            .collect(),
+    );
+    let opts = editor_core::EvalOptions {
+        resolver: Some(std::sync::Arc::new(versions)),
+        ..editor_core::EvalOptions::default()
+    };
+    let stood = |label: &str, refs: [DocRef; 2]| {
+        let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+        let mut ids = Vec::new();
+        for r in refs {
+            let (next, id) = insert(doc, mated_instance(r));
+            doc = fixture::written(next, id, editor_core::stand());
+            ids.push(id);
+        }
+        let row = at_rest_row(
+            ids.iter()
+                .map(|&id| copy_cap(&doc, id, body, CapEnd::End))
+                .collect(),
+            topo::Relation::SameOriented,
+        );
+        (doc, ids, row)
+    };
+    let (doc, ids, row) = stood("mate6-copies-one-version", [v1, v1]);
+    let ev = run(&doc, &opts);
+    assert_eq!(
+        door(&doc, ids[0], &row, &ev),
+        Proof::Structural(Rung::CarrierVerdict),
+        "two copies of one version"
+    );
+    let unresolved = editor_core::coincide::prove(
+        &doc,
+        &[(ids[0], std::slice::from_ref(&row))],
+        None,
+        Tol::witness(),
+        &editor_core::CancelToken::new(),
+    )
+    .expect("an uncanceled door");
+    assert_eq!(
+        replayed(&unresolved[0][0]),
+        Some((
+            Unreplayed::ThroughAPart,
+            editor_core::coincide::Recourse::Assert
+        )),
+        "a door handed no resolver"
+    );
+    let (doc, ids, row) = stood("mate6-copies-two-versions", [v1, v2]);
+    let ev = run(&doc, &opts);
+    assert_eq!(
+        replayed(&door(&doc, ids[0], &row, &ev)).map(|(replay, _)| replay),
+        Some(Unreplayed::Numeric),
+        "copies of two versions"
+    );
+}
+
+/// A resolver holding several versions of a document, each by its pin.
+#[derive(Debug)]
+struct Versions(std::collections::BTreeMap<DocRef, ProfileDoc>);
+
+impl editor_core::PartResolver for Versions {
+    fn resolve(
+        &self,
+        doc_ref: &DocRef,
+        _tol: Tol,
+    ) -> Result<ProfileDoc, editor_core::ResolveFailure> {
+        self.0
+            .get(doc_ref)
+            .cloned()
+            .ok_or_else(|| editor_core::ResolveFailure {
+                fault: editor_core::ResolveFault::Unresolved,
+                message: "no such version".to_string(),
+            })
+    }
 }
 
 /// **Across the instantiate seam a record cites the part's record**:

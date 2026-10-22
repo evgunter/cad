@@ -495,7 +495,9 @@ keeping its findings on the product (`Product::census`); the gate reads
 them and runs no census of its own. A mate places and never checks (D10):
 its record cites the at-rest census's decision that its two faces rest
 on one carrier (`topo::census_rest_decision`, a `CensusAtRest` row on
-the product, which the `unproven-coincidence` check reads), and a pair
+the product, which the `unproven-coincidence` check reads and the
+coincidence door proves by the mate's own statement,
+`[coincidence.structural]`), and a pair
 the census refuses mints no record, its finding raised by the gate
 beside the census's own. The gather's own tier-3 verdict rides
 on the product's body (`topo::AtRestBody`), so the gate reads both
@@ -521,17 +523,23 @@ world copies of its members, read through those copies' placements
 (#4220). Each side's face is resolved once, at its selection, where the
 mate's own evaluation resolves it: its entity in the body the selection
 reads. The copy is the world placement reading that body, or reading
-the `Part` that picks the entity's copy out of a pattern's bodies; a
-placement moves its body and re-mints nothing, so the copy holds the
-entity under the same key, and the graft carries it into the product.
-Nothing is resolved against the product's table. A side whose body no
-placement reads has no world copy, and the mate mints nothing: such a
-mate relates a boolean's operands in the workbench, which is the
-boolean's coincidence door's business, not an at-rest fact of the
-product. A body placed twice refuses `RefusedRef::Ambiguous`, since a
-declaration names one pair of faces, and a mate with no value in the
-evaluation refuses `MintRefusal::Unevaluated` rather than passing the
-gate silently.
+the `Part` that picks the entity's copy out of a pattern's bodies,
+that holds the face where the mate reads it (`mate::reads_in`, the
+rule the coincidence door reads the mate by too): the mate's own
+placement's copy for `on`, which its fold moves; for `to`, the body
+itself where it is a placement's output, or a copy standing by the
+identity bundle. A placement moves its body and re-mints nothing, so
+the copy holds the entity under the same key, and the graft carries
+it into the product. Nothing is resolved against the product's table.
+A side whose body no placement reads has no world copy, and the mate
+mints nothing: such a mate relates a boolean's operands in the
+workbench, which is the boolean's coincidence door's business, not an
+at-rest fact of the product. Nor does one whose every copy another
+bundle moves off where the mate reads it: the mate states nothing
+about such a copy. Two copies holding the face refuse
+`RefusedRef::Ambiguous`, since a declaration names one pair of faces,
+and a mate with no value in the evaluation refuses
+`MintRefusal::Unevaluated` rather than passing the gate silently.
 
 *Across the seam.* A sub-assembly's declarations ride through the seam
 as records (`PartValue::contacts`), and so does the bookkeeping that
