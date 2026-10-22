@@ -5305,16 +5305,15 @@ mod tests {
             .expect("every lane meets the wall")
     }
 
-    /// **The work wall sits at the composite arm's round 7**, the
-    /// costliest face the round caps admitted, and each lane's nominal
-    /// face reaches the round its own weight buys: the integral
-    /// composite stops where its cap did, the exact-v arm, the 1-D lanes
-    /// and the trimmed lane run further on the same wall. The weights
-    /// are measured per cell on one box; these rounds are what they buy.
+    /// **The work wall sits at the composite arm's round 7**, and each
+    /// lane's nominal face reaches the round its own weight buys on it.
+    /// The weights are measured per cell on one box; these rounds are
+    /// what they buy.
     #[test]
     fn the_work_wall_buys_each_lane_its_measured_rounds() {
+        type Cost<'a> = &'a dyn Fn(usize) -> usize;
         let square = |w: usize| move |r: usize| w * (QUAD2_INIT_PIECES << r).pow(2);
-        let rows: [(&str, &dyn Fn(usize) -> usize, usize); 6] = [
+        let rows: [(&str, Cost<'_>, usize); 6] = [
             ("rational composite", &square(W_RATIONAL_COMPOSITE), 7),
             ("integral composite", &square(W_INTEGRAL_COMPOSITE), 6),
             (
