@@ -2,10 +2,12 @@
 id: the-census-records-a-planar-area-contact-as-one-face-pair
 kind: unit
 title: the at-rest census records a planar area contact between arrivals as one face pair, a flush pair as its own row, and asks nothing of a confirmed pair's boundary cells
-status: open
+status: closed
 opened: 2026-10-22
+closed: 2026-10-22
 priority: P1
 cost: H
+branch: intent/census-planar-face-pair
 ---
 
 
@@ -56,3 +58,52 @@ Today the census falls short in four ways:
   - two coplanar faces that meet only along a line (no face pair);
   - perf12's census goldens, re-blessed with their stated causes.
 - **On stage 4 I's path:** `mates-declare-no-contact` waits on this.
+
+## Closed (2026-10-22)
+
+- **The planar face-pair arm** is `census.rs` `planar_face_pairs`, run
+  before the sweeps over planar faces of two solids whose boxes meet.
+  Door 1 is the undeclared carrier reading (`SameOpposite`, a Zero
+  margin); Door 2 is the declared-pair overlap door on Door 1's verdict,
+  in either frame order, `PositiveArea`. An unrecorded pair is one
+  `UnrecordedContact` (`ConformalPatch`) carrying Door 1's margin, which
+  `census_contact_row` records as one `SameOpposite` face row. Door 2's
+  interior-witness rung now also runs on an escalated region walk
+  (`chart_region.rs` `declared_pair_overlap`), so a near-flush seat's
+  in-band boundary no longer keeps its area from certifying.
+- **The flush arm** is `AtRestPolicy::flush_at_rest`
+  (`census.rs` `flush_at_rest`), between groups only, called by the
+  gather (`product.rs`) and the STEP import's gate. Door 1 reads
+  `SameOriented`; the witness is an edge of each face overlapping
+  along a positive length; Door 2 reads no certified area both
+  interiors hold (`Empty`, or `TouchingBoundary` with the witness rung
+  declining, which is the empty overlap at ε for a pair whose trims
+  share a boundary). The row is `SameOriented` on the two faces, cited
+  by no record. An in-band pair is a `CensusUndecidable` naming the two
+  faces.
+- **Confinement.** Every face-pair rung reads `Declared::confirmed`:
+  each record that passes `pair_verified`, and each pair the planar arm
+  found, recorded or not. `vf_face_backed_confined` and
+  `ee_face_backed` are gone. Each lane reads the rung before its own
+  margin, so a confirmed pair's boundary cells are asked nothing and do
+  not escalate. A record that does not confirm answers for nothing, and
+  arm 2 no longer refuses on one (`RecordedFacePair` is gone). The
+  crossing rung still reads the side of every recorded pair, so
+  `SameSide` is still named.
+- **No refusal at rest**, elsewhere: not built. An in-band face pair's
+  own boundary cells still escalate, a pair-naming verdict still blocks
+  the arrivals' records, and the non-refusing vessel is stage 5's:
+  `an-in-band-face-pair-at-rest-is-not-one-finding`.
+- **Quieting.** `Gap` between two parallel planes is
+  `(o_inner − o_outer) · n_outer` (`eval/measure.rs` `gap`), the signed
+  offset along the outer face's outward normal: for an aligned pair the
+  role swap negates it and `= 0` reads either way, so it is the measure
+  the item names. The `unproven-coincidence` check reads no assertion
+  yet (`ChecksConfig::unproven_coincidence`), which is stage 5's.
+- **Rows:** `census_records_what_it_decides` (flush on 1, 2 and 3
+  sides, the overhang, the near-flush side, coplanar faces meeting
+  along a line); `census::tests::a_confirmed_pair_elsewhere_backs_no_crossing`;
+  `mate6_gather_mints` (a mated seat still proven by rung 1, beside its
+  four flush sides); perf12's census goldens re-blessed (rows only);
+  the tour's bench reports its two flush post ends.
+
