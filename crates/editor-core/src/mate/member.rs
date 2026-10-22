@@ -30,8 +30,8 @@ use crate::node::{Node, PartSelect, RecipeNodeId};
 /// way down: two references that reach one instance through different
 /// placings relate the same pair of instances through different static
 /// offsets, so they are different members, and a bundle holding a
-/// mate on each refuses (`MateFault::TargetsDiffer`) instead of
-/// folding them as one pair. Two references through ONE placement spelled two
+/// mate on each folds them as two constraints rather than as one
+/// pair. Two references through ONE placement spelled two
 /// ways — read at a placement, and at a union above it naming that
 /// member; read at a `Part` selecting a copy, and at the pattern naming
 /// that copy — are one member, and their mates fold.

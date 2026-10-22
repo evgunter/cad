@@ -541,9 +541,9 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// ([`EditError::ConstraintOnNonPlacement`]), a mate the solve
     /// refuses on its own datum ([`EditError::MateRefused`]: a side on
     /// neither the copy nor outside it, a read and a base that
-    /// disagree, the coset table's refusals), a target other than the
-    /// bundle's ([`crate::MateFault::TargetsDiffer`]), and a mate added
-    /// to a bundle that already pins its copy
+    /// disagree, the coset table's refusals), a target outside the
+    /// placement's target space ([`EditError::SpaceMismatch`]), and a
+    /// mate added to a bundle that already pins its copy
     /// ([`crate::MateFault::Overconstrained`]): a mate places and never
     /// checks, so none beyond the pin is kept.
     AddConstraint {
@@ -614,8 +614,9 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         fresh: Vec<FreshEntry>,
     },
     /// **Remove a constraint from a placement**: the bundle without it.
-    /// What it pinned is recomputed from what remains — a copy whose
-    /// mates no longer pin it is a loose copy, never a refusal.
+    /// What it pinned is recomputed from what remains, and every bundle
+    /// pins its copy, so a removal that leaves a freedom unwritten
+    /// refuses ([`crate::MateFault::Unpinned`]).
     ///
     /// Refuses a node that is no placement
     /// ([`EditError::ConstraintOnNonPlacement`]), an id the bundle
@@ -3109,8 +3110,7 @@ pub enum EditError {
     /// Two verdicts on the bundle arrive here too, both decided at the
     /// door from the bundle the placement already holds: the held
     /// bundle already pins the copy (`Overconstrained`), and the
-    /// constraint reads another target than the bundle's
-    /// (`TargetsDiffer`, the stage's interim B2).
+    /// bundle leaves a freedom unwritten (`Unpinned`).
     /// What is NOT this: any other verdict about a PAIR —
     /// contradicting ANOTHER mate, an escalation on a fold — which
     /// needs the whole bundle folded and stays the solve's; and a STATE a mate
