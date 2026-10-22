@@ -48,6 +48,12 @@ use crate::review_r1_rational_probes::TARGET_LEN_FACTOR;
 const RATIONAL_SCHEDULE_ROUNDS: usize = 8;
 const INTEGRAL_SCHEDULE_ROUNDS: usize = 7;
 
+/// The ε the rational carriers' refusal rows run at: their schedules
+/// bottom out between 2.7e-8 m (the half cylinder) and 4.7e-8 m (the
+/// quarter torus), so its `1024·ε` target of 1.024e-8 m sits a few
+/// times under each.
+const RATIONAL_EPS: f64 = 1e-11;
+
 fn p(x: f64, y: f64, z: f64) -> [Interval; 3] {
     [Interval::point(x), Interval::point(y), Interval::point(z)]
 }
@@ -196,7 +202,7 @@ fn half_cylinder(name: &'static str, knot: f64, boundary_defect: f64) -> Face {
 }
 
 /// Quarter cylinder (r = 1, h = 2), single span — the carrier whose
-/// schedule bottoms out at 1.533e-7 m (`quad.rs`'s floor table), so
+/// schedule bottoms out at 3.352e-9 m (`quad.rs`'s floor table), so
 /// an explicit ε can put its target just above that and make the
 /// certification happen at the schedule's END rather than at round 0
 /// (flux = π/2·r²h, area = π/2·r·h).
@@ -254,12 +260,12 @@ fn quintic_ridge() -> Face {
 /// **Certified — the exit did not pre-empt a certifying face.** Both
 /// carriers certify AFTER round 0, so the exit is consulted with a
 /// bound that must read positive: the quarter cylinder at an ε whose
-/// target (2.25e-7 m) sits 1.5× above its schedule's floor, so it
+/// target (5.02e-9 m) sits 1.5× above its schedule's floor, so it
 /// certifies at the schedule's end and a bound inflated by 4× would
 /// refuse it; the ridge at an ε its composite reaches mid-schedule.
 #[test]
 fn certify_exit_is_untouched() {
-    let eps = 2.2e-10;
+    let eps = 4.9e-12;
     let cyl = quarter_cylinder();
     let (out, secs) = cyl.run(eps, linear_band(eps));
     let fb = out.unwrap_or_else(|e| panic!("{}: must certify at ε = {eps:e}, got {e}", cyl.name));
@@ -293,12 +299,12 @@ fn certify_exit_is_untouched() {
 }
 
 /// **Refused early on the last-round bound**: the quarter torus at
-/// ε = 1e-9 cannot certify (its schedule's last round reaches 1.12×
-/// the target), so the loop refuses after ONE round — the receipt
+/// [`RATIONAL_EPS`] cannot certify (its schedule's last round reaches
+/// 4.5× the target), so the loop refuses after ONE round — the receipt
 /// says so — typed, at target `1024·ε`, with a width that missed.
 #[test]
 fn refused_early_on_the_last_round_bound() {
-    let eps = 1e-9;
+    let eps = RATIONAL_EPS;
     let torus = quarter_torus();
     let (out, secs) = torus.run(eps, linear_band(eps));
     let got = budget(torus.name, &out);
@@ -344,7 +350,7 @@ fn last_round_width(face: &Face) -> f64 {
 /// ends in its own budget refusal, carrying a width that missed.
 /// Returns `(bound, measured)`.
 fn early_then_exhausted(face: &Face) -> (f64, f64) {
-    let eps = 1e-9;
+    let eps = RATIONAL_EPS;
     let (early, secs_early) = face.run(eps, linear_band(eps));
     let got = budget(face.name, &early);
     assert_early(face.name, eps, got);
@@ -429,7 +435,7 @@ fn early_refusal_width_is_the_schedules_own() {
 /// folds in.
 #[test]
 fn the_pad_is_in_the_bound() {
-    let face = half_cylinder("half cylinder, boundary defect 3e-7", 0.5, 3e-7);
+    let face = half_cylinder("half cylinder, boundary defect 6e-9", 0.5, 6e-9);
     let (bound, measured) = early_then_exhausted(&face);
     let (bare, _) = early_then_exhausted(&half_cylinder("half cylinder, no defect", 0.5, 0.0));
     println!(
@@ -460,7 +466,7 @@ fn the_pad_is_in_the_bound() {
 #[test]
 fn an_in_band_bound_leaves_the_schedule_to_the_rounds() {
     let face = half_cylinder("half cylinder, in-band bound", 0.5, 0.0);
-    let eps = 1e-9;
+    let eps = RATIONAL_EPS;
     let (early, _) = face.run(eps, linear_band(eps));
     let got = budget(face.name, &early);
     assert_early(face.name, eps, got);
@@ -532,8 +538,7 @@ fn window(face: &Face, eps: f64, window: RoundWindow) -> Result<RoundOutcome, Pr
 /// reports the budget refusal with rounds still to run
 /// ([`OpenEnd::Unreachable`]), and round 1, resumed past the exit,
 /// runs and stops at its own window's end with no refusal of its own.
-fn assert_exit_keeps_the_schedule_open(face: &Face) {
-    let eps = 1e-9;
+fn assert_exit_keeps_the_schedule_open(face: &Face, eps: f64) {
     match window(face, eps, RoundWindow::at(0)) {
         Ok(RoundOutcome::Open {
             round: 0,
@@ -560,10 +565,10 @@ fn assert_exit_keeps_the_schedule_open(face: &Face) {
 
 #[test]
 fn the_rational_lanes_exit_keeps_the_schedule_open() {
-    assert_exit_keeps_the_schedule_open(&quarter_torus());
+    assert_exit_keeps_the_schedule_open(&quarter_torus(), RATIONAL_EPS);
 }
 
 #[test]
 fn the_integral_lanes_exit_keeps_the_schedule_open() {
-    assert_exit_keeps_the_schedule_open(&quintic_ridge());
+    assert_exit_keeps_the_schedule_open(&quintic_ridge(), 1e-9);
 }
