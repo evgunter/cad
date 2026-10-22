@@ -283,3 +283,28 @@ Closes `pickindex-merges-parts-on-a-rounded-t-it-never-converts`, the last part 
 - MINOR-2: the endpoint arms were untested and their premise was fragile. Fixed with a pixel-clamp rule, a unit row and an end-to-end row.
 - `PROJECTION_ERROR_UNITS`' derivation now counts every caller's roundings, including `ray_triangle`'s `e1`/`e2` differences, which had never been counted: under 12.2u against 16u.
 (FIT orchestrator)
+
+## 2026-10-22 — handed back
+
+FIT's P0 and P1 rows are done, so the track is handed back
+(`ready`), per the sitting rule (`memories/orchestration-model.md`).
+
+**Merged this sitting:**
+- 5596: ctrl+wheel and pinch;
+- 5597: zoom to fit frames the drawn extent;
+- 5600: the budget is a target;
+- 5601: a failed readback is a device fault, plus the latent readback panic it exposed;
+- 5603: certified occlusion, and the cross-part tie;
+- 5604: two easy tail rows;
+- tracker: 5593, 5602.
+
+**Left:** three P3 rows (6 points) and two rows parked on D′. The
+plan names them.
+
+**For a successor:**
+- Run `python3 scripts/work.py territory` before any `pick_for` lane;
+  VGEOM's `pick-ambiguity-lists-groups-in-id-order` sits on it.
+- The parked rows wake when INTENT's D′ row closes.
+- Three friction findings from today stand: disk, infra re-runs and
+  `setsid`. See the 2026-10-22 log entry. CIW holds the re-run row.
+(FIT orchestrator)
