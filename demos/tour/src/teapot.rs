@@ -238,14 +238,15 @@
 //!    the SIGN of the volume enclosure — the tier's own docs say
 //!    deciding that sign "is an act of certification rather than a
 //!    measurement" — and this body's enclosure excludes zero at the
-//!    very round the chase stops on, its lower end about ten of its
+//!    very round the chase stops on, its lower end some 270 of its
 //!    own half-widths clear at ε = 1e-12.
 //!    So the scene certifies at every ε, and where it has no number
 //!    to print the tour's ribbon prints the certified bracket
 //!    instead. The spout's own probe measures through the same door —
 //!    the certificate tier 3 hands back, continued by `measure` — so
-//!    on that refusal it reports the bracket it was refused on, and
-//!    holds the closed form to it.
+//!    on that refusal it reports the narrowest bracket the
+//!    certificate or its continuation held, and holds the closed form
+//!    to it.
 //!
 //!    More budget is not the fix, and that is measured: at
 //!    `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early exit stops firing, so
@@ -426,7 +427,7 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// of the volume enclosure — the tier's own docs say deciding that
 /// sign "is an act of certification rather than a measurement" — and
 /// this body's enclosure excludes zero at the round the chase stops
-/// on, its lower end about ten of its own half-widths clear at
+/// on, its lower end some 270 of its own half-widths clear at
 /// ε = 1e-12. So the solid is certified at every ε and what it lacks
 /// at 1e-12 is a number, which the tour's ribbon reports as the
 /// certified bracket rather than dying on.
@@ -2166,7 +2167,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     //
     // Tier 3 admits the body regardless — its +V check consumes only
     // the SIGN of this enclosure, decided at the very round the chase
-    // stops on, with the lower end about ten half-widths clear of zero
+    // stops on, with the lower end some 270 half-widths clear of zero
     // at 1e-12 — so the refusal here is a missing NUMBER and not a
     // missing certificate.
     //
@@ -2229,20 +2230,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket: Some(b),
             refusal,
         }) => {
-            // The bracket is the certificate's own — at 1e-12, ±9 % on
-            // this body: the gate's walk left no spout face open (each
-            // converged or refused at round 0), so the continuation
-            // resumes nothing and holds nothing narrower. Asserted bit
-            // for bit, so a spout that starts leaving a face open says
-            // so here.
-            assert_eq!(
-                [b.volume_lo.to_bits(), b.volume_hi.to_bits()],
-                [
-                    spout_gated.volume_lo.to_bits(),
-                    spout_gated.volume_hi.to_bits()
-                ],
-                "the spout's refusal bracket [{}, {}] is not the gate's [{}, {}]: the \
-                 continuation resumed a face the gate left open",
+            // The gate settles the sign with the faces
+            // whose schedule can still meet the target left open; the
+            // continuation refines those in arena order up to the first
+            // face carrying its budget refusal, so the bracket is the
+            // gate's or a narrower one, and never wider.
+            assert!(
+                b.volume_hi - b.volume_lo <= spout_gated.volume_hi - spout_gated.volume_lo,
+                "the spout's refusal bracket [{}, {}] is wider than the gate's [{}, {}]",
                 b.volume_lo,
                 b.volume_hi,
                 spout_gated.volume_lo,
@@ -2263,7 +2258,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  at a tight enough eps that chase is proven unreachable after round 0. What \
                  is missing is a number and not a certificate: tier 3 admitted this body at \
                  this same eps on the SIGN of the enclosure, and the certificate it handed \
-                 back keeps that bracket through the refusal — V in [{:.9}, {:.9}] m^3, whose \
+                 back, continued as far as the schedule reaches, keeps a bracket through the \
+                 refusal — V in [{:.9}, {:.9}] m^3, whose \
                  lower end clears zero by {:.1e} half-widths, and which holds the \
                  straightened frustum's V = {v_spout:.9}. The frustum's A = {a_spout:.9} m^2 \
                  has no bracket to sit in here: the certificate's area is the +V check's \
