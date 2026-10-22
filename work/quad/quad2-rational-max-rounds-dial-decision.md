@@ -2,12 +2,13 @@
 id: quad2-rational-max-rounds-dial-decision
 kind: issue
 title: QUAD2_RATIONAL_MAX_ROUNDS 7→8 would flip dm1 first-class and two shipped refusals — a dial decision owing a row-by-row refusal argument
-status: open
+status: closed
 opened: 2026-08-30
 github: 1315
 refs: [1314]
 priority: P1
-cost: D
+cost: H
+closed: 2026-10-22
 ---
 
 ## From GitHub issue 1315
@@ -88,6 +89,18 @@ throughout. What a stricter ε buys on such a body is the budget
 exit's bracket, and that lives with this dial and with
 `SignCertificate::measure`'s stop-at-first-refusal, not with the demo.
 
+## Weighed (2026-10-21)
+
+Two designers weighed what should decide when the quadrature stops and
+refuses, on PR 5568's head, with the August numbers re-measured: the
+quarter torus is 1.146e-6 and the two-span half cylinder 1.3035e-6
+against 1.024e-6, both unchanged. They converged in round 2: the dial
+dissolves, and a measurement returns the certified bracket it reached
+instead of refusing for width (`[tolerance.measure]`). dm1 no longer
+reaches the quadrature: it refuses at the pcurve mint. The question is
+on an `[ev]` PR because it rewords `crates/geom-brep/README.md`'s
+clause (7) and adds a DESIGN.md clause.
+
 ## Note (QUAD, 2026-10-22, PR 5582)
 
 The floors this row argues from moved when the rational lane's `f_dd`
@@ -95,6 +108,12 @@ hulls began to read the quotient statement
 (`quad-rational-integrand-second-derivative-reads-the-quotient-rule-by-hand`).
 The quarter torus now bottoms out at 4.648e-8 m (it was 1.146e-6), and
 the two-span half cylinder at 2.688e-8 m (it was 1.3035e-6). Both
-certify at the default target without a schedule change. dm1's residual
-was not re-measured; the dial argument above should be re-read against
-it before anyone turns the dial.
+certify at the default target without a schedule change. No dial is
+turned either way: the row was ruled on `[ev]` PR 5574 (below).
+
+## Closed
+
+Ruled on `[ev]` PR 5574 (2026-10-22). The dial dissolves: no round cap is
+turned. A measurement refines until the caller's predicate over its
+enclosure resolves, with no default (`[tolerance.measure]`). The build is
+`the-measurement-door-refines-until-a-predicate-resolves`.
