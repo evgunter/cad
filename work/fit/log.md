@@ -151,3 +151,27 @@ is the constant budget. **Deleted**; the other designer's ceil argument
 becomes the documented reason for the band. The guard is the drawn
 count, held to a band on every bound corpus row. Review: style.
 (FIT orchestrator)
+
+## 2026-10-22 — a ctrl/⌘+wheel is a wheel, and a pinch zooms by its ratio (PR 5596)
+
+Closes `ctrl-wheel-reaches-no-zoom`.
+
+- `configure_input` sets egui's `zoom_modifier` to `NONE` once, and
+  both `assemble` and the test probe call it.
+- `ViewportEvent::Pinch { factor }` maps to `Dolly(1/factor)`.
+- `pointer_events` is the one composition of the adapter's reads,
+  shared with the probe.
+
+Review: a style lane, mergeable. Its two findings that could let the
+shipped wiring regress silently were fixed: a startup row now reads
+`zoom_modifier` off `started()`, and the probe no longer copies the
+composition. The docs' claims about native pinch were narrowed to
+winit's macOS/iOS `PinchGesture`. The hand-written variant lists went
+onto VDOC's covering row
+(`viewer-suites-hold-hand-written-complete-variant-lists`).
+
+Process: the branch carries two empty commits a lane pushed to
+re-trigger CI after the lavapipe install hung. They are disclosed on
+the PR, and the hang is filed as CIW's
+`the-lavapipe-apt-install-hangs-and-a-lane-cannot-re-run-it`.
+(FIT orchestrator)
