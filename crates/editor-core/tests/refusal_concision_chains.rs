@@ -6077,6 +6077,17 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             ),
         ),
         (
+            "NotAtRest",
+            finding(
+                CheckId::Connectedness,
+                E::NotAtRest {
+                    errors: vec![topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    }],
+                },
+            ),
+        ),
+        (
             "Escalated",
             finding(
                 CheckId::Connectedness,

@@ -6821,6 +6821,10 @@ class CheckEvidence:
     than guessing; `inner_variant` is which of the shell door's nine
     refusals it was (`band`, `props`, `escalated`, `zero_volume`,
     `straddles`, `ray_in_band`, `corner`, `ray`, `sign_unresolved`).
+    `not_at_rest` (`reason`, `inner_variant`) — the body does not pass
+    validation, so its shells are not classified and the count is not
+    read; `reason` and `inner_variant` are the validator's first finding,
+    in `ValidationError`'s vocabulary.
     `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,

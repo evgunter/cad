@@ -3471,6 +3471,10 @@ fn check_registry_tags_are_stable() {
         "unsupported"
     );
     assert_eq!(shell_classify_error_tag(&refused), "zero_volume");
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::NotAtRest { errors: Vec::new() }),
+        "not_at_rest"
+    );
 }
 
 /// **Every constructible `CheckEvidence` arm's payload, built and
@@ -4682,6 +4686,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_coherence_unexamined",
             "connectedness",
             "escalated",
+            "not_at_rest",
             "not_separated",
             "separation_unavailable",
             "stale_expectation",
