@@ -1652,7 +1652,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
         own.spoken(&outer, &ev),
         format!(
             "InstantiatePart \"outer top\" ({tt}) failed: the mate solve refused: this node's \
-             each of constraints 1, 2 fixes an equation {}",
+             each of constraints 1, 5 fixes an equation {}",
             own.to_string()
                 .split_once(" fixes an equation ")
                 .expect("the pair's sentence")

@@ -462,7 +462,11 @@ pub fn squared(
     use editor_core::{Coord, TargetAxis, VarKind};
     let kind = pose_kind(doc, &mate.on).expect("the mate's `on` reads a pose of a known kind");
     let freedoms: Vec<Coord> = match kind {
-        VarKind::Plane => vec![Coord::Slide(TargetAxis::X), Coord::Slide(TargetAxis::Y), Coord::Spin],
+        VarKind::Plane => vec![
+            Coord::Slide(TargetAxis::X),
+            Coord::Slide(TargetAxis::Y),
+            Coord::Spin,
+        ],
         VarKind::Axis => vec![Coord::Slide(TargetAxis::Z), Coord::Spin],
         VarKind::Direction => vec![
             Coord::Slide(TargetAxis::X),
@@ -531,7 +535,11 @@ pub fn stood(shapes: Vec<editor_core::BodyRead<Formula>>) -> AuthoredNode {
 /// space: what a row writes to bring a construction into the space an
 /// operator reads its other operands in. The document and the
 /// placement.
-pub fn stood_in(doc: ProfileDoc, body: RecipeNodeId, of: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+pub fn stood_in(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    of: RecipeNodeId,
+) -> (ProfileDoc, RecipeNodeId) {
     let target = space(&doc, of);
     let read = body_read(&doc, body.into());
     insert(
@@ -577,15 +585,7 @@ pub fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
         .collect();
     let mut doc = doc;
     for (placement, frame) in placed {
-        // Each mate with the values naming it, as the façades remove one.
-        for c in bundle(&doc, placement) {
-            if c.value().is_some() {
-                continue;
-            }
-            for edit in DocEdit::removing(&doc, editor_core::MateRef::new(placement, c.id)) {
-                doc = step(doc, edit).0;
-            }
-        }
+        // The pin replaces the bundle whole.
         doc = pin(doc, placement, &frame, o);
     }
     doc
@@ -608,6 +608,13 @@ pub fn pin(
     if *pose == editor_core::Frame::IDENTITY {
         return written(doc, placement, editor_core::stand());
     }
+    // Read off the copy standing where its body stands: a copy its
+    // mates place stands by the identity bundle first.
+    let doc = if bundle(&doc, placement).iter().any(|c| c.mate().is_some()) {
+        written(doc, placement, editor_core::stand())
+    } else {
+        doc
+    };
     let mate = pin_mate(&doc, placement, pose, o);
     constrain_at(doc, placement, mate).0
 }

@@ -3000,9 +3000,9 @@ pub enum EditError {
         /// The node the edit would write.
         node: SpokenNode,
         /// One space it reads.
-        a: crate::spoken::SpokenSpace,
+        a: Box<crate::spoken::SpokenSpace>,
         /// Another.
-        b: crate::spoken::SpokenSpace,
+        b: Box<crate::spoken::SpokenSpace>,
     },
     /// A constraint edit aimed at a node that is no placement (D10:
     /// only a `Place` and an instance hold a bundle).
@@ -5507,8 +5507,15 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     pub fn finish(self) -> Result<Recorded<P>, EditError> {
         self.open()?;
         let doc = self.produced.unwrap_or_else(|| self.start.clone());
+        // A variable the action minted and removed again was never the
+        // document's: its removal is no maintenance of the action's.
+        let mut maintenance = self.maintenance.finish(&doc);
+        maintenance.retain(|row| match row {
+            Maintenance::AnonymousVarRemoved { var, .. } => self.start.var(var.id()).is_some(),
+            _ => true,
+        });
         Ok(Recorded {
-            maintenance: self.maintenance.finish(&doc),
+            maintenance,
             doc,
             edits: self.edits,
             minted: self.minted,
@@ -5528,7 +5535,8 @@ pub struct Recorded<P: crate::ProfilePayload> {
     /// applied.
     pub edits: Vec<DocEdit<P>>,
     /// The maintenance `edits` reported, net of what a later edit in
-    /// the list took back ([`MaintenanceNet`]), in edit order.
+    /// the list took back ([`MaintenanceNet`]) and of the removal of a
+    /// variable an earlier edit in the list minted, in edit order.
     pub maintenance: Vec<Maintenance>,
     /// What each edit minted, in the order the edits applied.
     pub minted: Vec<Option<RecipeNodeId>>,
@@ -5981,13 +5989,19 @@ fn check_written_node<P: crate::ProfilePayload>(
         return Err(EditError::WorldIsUndeletable { node: spoken() });
     }
     check_node_slots(new, doc, id, node)?;
-    // D10 `[placement.spaces]`: the node's own reads lie in one space,
-    // decided from the recipe.
-    if let Some((a, b)) = new.space_fault_of(node) {
+    // D10 `[placement.spaces]`: a node written whole reads one space,
+    // decided from the recipe. A re-point is the operand-write door's,
+    // which reports what it leaves in two spaces and never refuses it
+    // (`Maintenance::StrandedSpace`), as a re-target does: so an action
+    // re-pointing a node's reads one at a time (split, inline) passes
+    // through a state its next edit resolves.
+    if let Writes::Node = writes
+        && let Some((a, b)) = new.space_fault_of(node)
+    {
         return Err(EditError::SpaceMismatch {
             node: spoken(),
-            a: new.spoken_space(a),
-            b: new.spoken_space(b),
+            a: Box::new(new.spoken_space(a)),
+            b: Box::new(new.spoken_space(b)),
         });
     }
     // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
@@ -6639,9 +6653,9 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
-    // D10 `[placement.spaces]`, on EVERY arm: a node this edit did not
-    // write that it left reading two spaces is reported, never refused
-    // (the node an edit writes is refused at its own door).
+    // D10 `[placement.spaces]`, on EVERY arm: a node this edit left
+    // reading two spaces is reported, never refused (a node an edit
+    // writes whole is refused at its own door; a re-point is reported).
     let before: std::collections::BTreeSet<RecipeNodeId> =
         doc.space_faults().into_iter().map(|(id, _, _)| id).collect();
     for (node, a, b) in new.space_faults() {

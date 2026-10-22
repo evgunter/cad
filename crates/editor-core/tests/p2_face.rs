@@ -189,61 +189,43 @@ fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
 
 // ---- the seam ----
 
-/// **A mate whose target reads a mate-placed copy crosses split and
-/// inline, and the target's world pose does not move.** The kept
-/// constraint `m` reads the top — placed by its mate, not pinned —
-/// through its head face. Split re-anchors the head through the
-/// instance left behind, and the face it names is then a row of the new
-/// part; inline unwraps it back onto the inner top. At each of the
-/// three documents the target's world pose is the same, and
-/// `inline(split(d))` is `d` up to node ids under the R1 comparator —
-/// the constraint's poses included.
+/// **A valued mate whose target reads a mate-placed copy refuses to
+/// cross split, typed.** The kept constraint `m` reads the top —
+/// placed by its mate, not pinned — through its head face, and every
+/// bundle pins its copy, so `m` carries values. A value is charted on
+/// its mate's target body's own frame, which across the seam would be
+/// the instance's, the part's world, rather than the top's moved one:
+/// split refuses the reader `Posed`, naming the top's placement, where
+/// it once carried a mate that held no value (D′2 charts a value on the
+/// target space instead).
 ///
-/// *Breaks if* the head stays on the cut node, the face reads another
-/// place after either move, or the round trip loses the mate's read.
+/// *Breaks if* split carries a value onto another frame than the one
+/// it was charted on.
 #[test]
-fn a_mate_reading_a_mate_placed_copy_crosses_split_and_inline_unmoved() {
+fn a_valued_mate_reading_a_mate_placed_copy_refuses_to_cross_split() {
     let label = "p2-face-nonroot";
-    let (p, doc, [base, top, _k], m) = face_across(label);
+    let (p, doc, [base, top, k], _m) = face_across(label);
     let o = p.opts();
     assert!(
         fixture::offset_of(&doc, top).is_none(),
         "the top is placed by its mate, not pinned"
     );
-    let before = target_world(&doc, &o, m, [0.0; 3]);
-
-    let out = split(&doc, &[base, top], label, &o);
-    let mut store = p.store.clone();
-    store.insert(out.part.clone(), Tol::witness());
-    let with_part = with_resolver(store.clone());
-    assert_eq!(
-        fixture::side_head(&out.remainder, target_var(&out.remainder, m))
-            .name
-            .node,
-        out.instance,
-        "the head re-anchors through the instance"
-    );
-    same_world(
-        target_world(&out.remainder, &with_part, m, [0.0; 3]),
-        before,
-        "split: the target's world pose",
-    );
-
-    let back = editor_core::inline(
-        &out.remainder,
-        out.instance,
-        &resolver(&store),
+    match editor_core::split(
+        &doc,
+        &cut(&doc, &[base, top]),
+        DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("inline refused: {e}"));
-    same_world(
-        target_world(&back.doc, &o, m, [0.0; 3]),
-        before,
-        "inline: the target's world pose",
-    );
-    let (map, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &map, &steps)
-        .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
+        o.resolver.as_ref(),
+    ) {
+        Err(SplitError::RemainderReadUncarried {
+            reader,
+            why: editor_core::Uncarried::Posed { placement },
+        }) => {
+            assert_eq!(reader.id(), k, "the kept reader");
+            assert_eq!(placement.id(), top, "the top's own placement");
+        }
+        other => panic!("a valued mate on a moved copy refuses Posed, got {other:?}"),
+    }
 }
 
 /// **A mate whose target reads a pattern copy crosses split and inline,

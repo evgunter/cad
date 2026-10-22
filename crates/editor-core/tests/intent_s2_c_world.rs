@@ -562,9 +562,11 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         .doc
         .operation_of(members[0].read)
         .expect("the boolean's read is live");
+    // The spliced copy, in the world beside the boolean's other
+    // operand: the extrude's body is in a space of its own.
     assert!(
-        matches!(inlined.doc.node(read), Some(Node::Extrude { .. })),
-        "the boolean reads the inlined body"
+        matches!(inlined.doc.node(read), Some(Node::Place { .. })),
+        "the boolean reads the inlined copy"
     );
 }
 

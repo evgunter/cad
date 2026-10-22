@@ -3200,6 +3200,9 @@ impl<'d, P> SpaceWalk<'d, P> {
             VarDef::Output { .. } if held.kind() == crate::VarKind::Space => None,
             VarDef::Output { node, .. } => self.node(*node),
             VarDef::Select(select) => self.var(select.body),
+            // A carried pose is in its copy's space, whatever it was
+            // read off.
+            VarDef::Pose(crate::pose::PoseDef::Carried { copy, .. }) => self.var(*copy),
             VarDef::Pose(def) => {
                 let reads: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
                 reads.into_iter().find_map(|read| self.var(read))
@@ -3255,6 +3258,7 @@ impl<'d, P> SpaceWalk<'d, P> {
             return;
         };
         let space = match held.def() {
+            VarDef::Pose(crate::pose::PoseDef::Carried { copy, .. }) => self.var(*copy),
             VarDef::Pose(def) => {
                 let reads: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
                 for read in reads {

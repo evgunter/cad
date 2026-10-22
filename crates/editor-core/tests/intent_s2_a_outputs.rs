@@ -579,12 +579,14 @@ fn instance_named_bracket(
     std::sync::Arc<dyn editor_core::PartResolver>,
     RecipeNodeId,
 ) {
-    let (mut doc, profile, extrude) = block(seed);
+    let (doc, profile, extrude) = block(seed);
+    // The heir is the world copy, the extrude's body being in a space
+    // of its own.
+    let (mut doc, copy) = fixture::place(doc, extrude);
     if let Some(heir) = heir {
-        let body = doc.output(extrude, 0).expect("an extrude defines its body");
+        let body = doc.output(copy, 0).expect("a placement defines its copy");
         doc = named(doc, body, heir);
     }
-    doc = fixture::place(doc, extrude).0;
     if second_body {
         let (next, second) = insert(
             doc,
@@ -635,8 +637,10 @@ fn inline_carries_the_name_on_an_instances_body() {
         .def()
         .output()
         .expect("onto an output");
+    // Onto the spliced copy: the extrude's body is in a space of its
+    // own, the copy in the world where the instance stood.
     assert!(
-        matches!(out.doc.node(node), Some(Node::Extrude { .. })),
+        matches!(out.doc.node(node), Some(Node::Place { .. })),
         "{node:?}"
     );
     assert_eq!(port, 0);

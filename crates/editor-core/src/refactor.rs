@@ -4056,12 +4056,16 @@ pub fn inline(
     }
     // Whether a part copy stands where the instance put the body it
     // copies: landing verbatim at the identity, its placement pinned
-    // there too, so a reader of the copy reads that body.
+    // there too, over one shape already in the world, so a reader of
+    // the copy reads that shape. A construction's body is in a space of
+    // its own, so a copy of one is read as the copy.
     let verbatim = matches!(&landing, Landing::Pinned(None));
     let raw = |placement: RecipeNodeId| {
         verbatim
             && places_at_identity(placement)
-            && matches!(part.node(placement), Some(Node::Place { shapes, .. }) if shapes.len() == 1)
+            && matches!(part.node(placement), Some(Node::Place { shapes, .. })
+                if matches!(shapes.as_slice(), [shape]
+                    if part.space_of(shape.read) == Some(VarId::WORLD)))
     };
     // The instance's readers (A4, A10): every operand of the host that
     // reads its copies, whole, one copy by its key, or a selection of
