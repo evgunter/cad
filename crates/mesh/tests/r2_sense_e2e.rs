@@ -79,10 +79,8 @@ fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
     let mut one_band = ball.clone();
     let s = one_band.get_face(keys[0]).unwrap().sense;
     one_band.set_face_sense(keys[0], !s).unwrap();
-    let door = mass_properties(
-        &topo::test_support::finished("the measured body", one_band.clone(), Tol::witness()),
-        Tol::witness(),
-    );
+    // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+    let door = topo::test_support::measure_unvalidated(&one_band, Tol::witness());
     assert!(
         matches!(
             door,

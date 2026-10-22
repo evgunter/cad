@@ -70,11 +70,8 @@ fn r2_lamina_verdicts_versus_measured_volume() {
     for k in bands {
         let flipped = b.flipped_face_sense_for_tests(k).expect("live face");
         let errs = validate_geometric(&flipped, tol);
-        let vol = topo::mass_properties(
-            &topo::test_support::finished("the measured body", flipped.clone(), tol),
-            tol,
-        )
-        .map(|m| m.volume);
+        // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+        let vol = topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume);
         println!("R2 ball band {k:?}: volume {vol:?}; verdict {errs:?}");
     }
 }

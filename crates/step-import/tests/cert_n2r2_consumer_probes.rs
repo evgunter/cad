@@ -204,10 +204,8 @@ fn n2r2_props_mass_properties() {
     let mp = topo::test_support::measure_unvalidated(&body, tol());
     eprintln!("[props.rs:1349 x-poison] mass_properties -> {mp:?}");
     let (body, _, _) = masqueraded(poison_y);
-    let mp = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), tol()),
-        tol(),
-    );
+    // Raw door: the measured body is a body with a poisoned surface description, which tier 3 refuses (PoisonedSurfaceDescription).
+    let mp = topo::test_support::measure_unvalidated(&body, tol());
     eprintln!("[props.rs:1349 y-poison] mass_properties -> {mp:?}");
 }
 

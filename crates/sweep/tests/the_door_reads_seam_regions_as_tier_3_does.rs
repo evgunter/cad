@@ -238,8 +238,9 @@ fn the_door_names_the_flipped_face_tier_3_names() {
             let named = errs.iter().any(
                 |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face } if *face == f),
             );
+            // Raw door: the subject is a flipped face tier 3 refuses (CurvedSenseInverted), and which face the door names.
             if let Err(topo::MassPropsError::Face { face, source }) =
-                topo::test_support::unmigrated_measure(&fl, tol)
+                topo::test_support::measure_unvalidated(&fl, tol)
                 && named
                 && face != f
             {
@@ -293,7 +294,8 @@ fn an_over_cover_whose_region_encodes_its_side_is_refused_by_the_census() {
                         .any(|e| matches!(e, topo::ValidationError::SeamRegionOvercovered { .. })),
                     "{name} {d:?}: tier 3 refuses the over-cover by the census: {errs:?}"
                 );
-                let door = topo::test_support::unmigrated_measure(&c, tol);
+                // Raw door: the subject is an over-cover tier 3 refuses (SeamRegionOvercovered), and the door's own refusal of it.
+                let door = topo::test_support::measure_unvalidated(&c, tol);
                 assert!(
                     matches!(
                         door,
@@ -344,8 +346,14 @@ fn a_corrupt_body_is_refused_typed_at_the_door() {
     let mut panicked = Vec::new();
     for id in ids {
         let c = b.with_entity_removed_for_tests(id).unwrap();
+        // The typed door is not reached: no removal finishes.
+        assert!(
+            topo::AtRestBody::validate(c.clone(), tol).is_err(),
+            "{id:?}: the body with it removed finishes"
+        );
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            topo::test_support::unmigrated_measure(&c, tol)
+            // Raw door: the subject is a body with an entity removed, which tier 1 refuses, and whether the door panics on it.
+            topo::test_support::measure_unvalidated(&c, tol)
         })) {
             Ok(_) => {}
             Err(_) => panicked.push(format!("{id:?}")),
@@ -366,6 +374,46 @@ fn a_corrupt_body_is_refused_typed_at_the_door() {
     assert!(
         new.is_empty(),
         "the door panics past its face resolution on: {new:?}"
+    );
+}
+
+/// **A whole sphere shell flipped in a body of two shells**: the unit
+/// ball less a smaller ball inside it, every face of the inner shell
+/// flipped. Tier 3 refuses it, so the typed door never reads it; read
+/// through the raw door it measures a positive, wrong volume with no
+/// refusal, the shell's sign flipping under a total that stays positive
+/// (`work/flux/a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door.md`).
+#[test]
+fn a_whole_flipped_shell_of_two_does_not_finish_and_the_raw_door_measures_it_wrong() {
+    let tol = Tol::witness();
+    let unit = finished(
+        "a",
+        ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        tol,
+    );
+    let small_in = finished(
+        "s",
+        ball_poled(0.4, v(0.1, 0.2, -0.1), v(0.0, 1.0, 0.0), tol),
+        tol,
+    );
+    let hollow = g(topo::boolean::subtract(&unit, &small_in, tol)).expect("the hollow ball");
+    let measured = topo::mass_properties(&hollow, tol).unwrap().volume;
+    let (_, inner) = hollow
+        .shells()
+        .min_by_key(|(_, s)| s.faces.len())
+        .expect("two shells");
+    assert_eq!(hollow.shells().count(), 2, "the hollow ball has two shells");
+    let fl = flipped(&hollow, &inner.faces);
+    assert!(
+        topo::AtRestBody::validate(fl.clone(), tol).is_err(),
+        "the flipped inner shell does not finish"
+    );
+    // Raw door: the subject is a flipped shell tier 3 refuses, and what the door reads of it.
+    let raw = topo::test_support::measure_unvalidated(&fl, tol).map(|m| m.volume);
+    assert!(
+        matches!(raw, Ok(v) if v > measured),
+        "the raw door measures the flipped hollow ball's volume as the solid ball's, \
+         past the hollow's {measured}: {raw:?}"
     );
 }
 
@@ -391,7 +439,8 @@ fn a_members_own_contradicted_read_is_named_over_the_over_cover() {
     split_faces_at_equator(&mut body, tol);
     let faces = sphere_faces(&body);
     assert_eq!(faces.len(), 6, "each lune split at the equator");
-    let door = topo::test_support::unmigrated_measure(&flipped(&body, &faces), tol);
+    // Raw door: the subject is a double cover with every bit flipped, which tier 3 refuses, and which refusal the door names.
+    let door = topo::test_support::measure_unvalidated(&flipped(&body, &faces), tol);
     assert!(
         matches!(
             door,

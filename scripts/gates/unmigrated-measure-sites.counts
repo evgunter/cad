@@ -2,4 +2,4 @@
 # call sites per crate (scripts/gates/unmigrated-measure-sites.sh). A ratchet: lower a count when
 # F2 migrates a site; F2 deletes this file with the alias.
 crates/editor-core 106
-crates/sweep 531
+crates/sweep 523

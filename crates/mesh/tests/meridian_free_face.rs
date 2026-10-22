@@ -148,12 +148,10 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
             "z = {z}"
         );
         let exact = PI * (1.0 + z).powi(2) * (2.0 - z) / 3.0;
-        let volume = topo::mass_properties(
-            &topo::test_support::finished("the measured body", below.clone(), tol),
-            tol,
-        )
-        .unwrap()
-        .volume;
+        // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+        let volume = topo::test_support::measure_unvalidated(&below, tol)
+            .unwrap()
+            .volume;
         assert!(
             (volume - exact).abs() <= 1e-10 * exact,
             "ball below z = {z}: volume {volume} vs {exact}"
