@@ -8,6 +8,7 @@ priority: P2
 cost: M
 refs: [mass-properties-measures-a-flipped-seam-region-without-tier-3]
 closed: 2026-10-22
+pr: 5590
 ---
 
 
