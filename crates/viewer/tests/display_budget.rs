@@ -1078,17 +1078,19 @@ fn source_of(a: &Answer) -> String {
 }
 
 /// The most a drawn picture may carry, as a multiple of the budget.
-/// The corpus's worst is `hollow_tube_ring` at 1.0025, 0.25% of ceil
-/// terms; the headroom is for a document with more curved faces, since
-/// the term grows with their count.
+/// The corpus's worst is `hollow_tube_ring` at 1.0025. The terms that
+/// put a picture over are stated in `scene::TRIANGLE_BUDGET`'s "A
+/// target, not a cap"; the ceil one grows with the count of curved
+/// faces, and the headroom is for a document with more of them.
 const BAND_UPPER: f64 = 1.05;
 
 /// The least a picture the budget binds may carry, as a multiple of the
-/// budget. Not derived: the law prices a planar face as if it went on
-/// subdividing, so the shortfall is the bound body's planar share, and
-/// the corpus's lowest is `die_composed_tour` at 0.927 (a die's flat
-/// faces beside its curved ones; the tube documents land at 0.99–1.003).
-/// A fit that coarsened past the budget's answer by even 10% reds here.
+/// budget. Not derived: the shortfall is the bound body's planar share
+/// (`scene::TRIANGLE_BUDGET` again), and the corpus's lowest is
+/// `die_composed_tour` at 0.927; the tube documents land at 0.99–1.003.
+/// A δ 10% coarser than the fit's answer would red two of the seven
+/// bound rows (`die_composed_tour`, `tube_arc`), and 15% coarser all
+/// of them.
 const BAND_LOWER: f64 = 0.9;
 
 /// **No PROBE is larger than the picture it sizes**, on every document
@@ -1110,25 +1112,22 @@ const BAND_LOWER: f64 = 0.9;
 ///
 /// **And the picture lands near the budget wherever the budget
 /// binds** — the guard `scene::TRIANGLE_BUDGET` states its precision
-/// against. The budget is a target, not a cap: the fit's probe
-/// over-reads the ideal constant, so the error it can make toward
-/// over-budget is the per-direction `ceil` at the committed δ, about
-/// `2(n_u + n_v + 1)` triangles per curved face. That grows with the
-/// count of curved faces, so the band is read off this corpus rather
-/// than derived: [`BAND_UPPER`] and [`BAND_LOWER`] say what they were
-/// read off.
+/// against, in a band read off this corpus ([`BAND_UPPER`],
+/// [`BAND_LOWER`]). The rows it binds on are exactly the table's
+/// bound rows, so the band cannot quietly shrink to fewer of them.
 ///
 /// Every row the budget does not bind is held under the same upper
-/// bound, a [`ProbeStop::Flat`] row among them: Flat trusts nothing
-/// about the count below its last rung, and this is the drawn count
-/// it did not see.
+/// bound. On this corpus that is no check on a [`ProbeStop::Flat`]
+/// row: every Flat document draws a few hundred triangles, so a flat
+/// body growing below its last rung is `scene.rs`'s fake-probe row's
+/// to show, not this one's.
 ///
 /// The picture is [`scene::scene_of_body`] at the committed δ, counted
 /// by its own `stats().triangles`.
 #[test]
 fn no_probe_out_tessellates_the_picture_it_sizes() {
     let tol = Tol::witness();
-    let mut bound_rows = 0_usize;
+    let mut bound_rows: Vec<(&'static str, f64)> = Vec::new();
     for (document, doc) in budgeted_documents(tol) {
         let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
@@ -1158,7 +1157,7 @@ fn no_probe_out_tessellates_the_picture_it_sizes() {
                  budget: past the {BAND_UPPER}× its ceil terms account for"
             );
             if fitted.requested_cost.is_some() {
-                bound_rows += 1;
+                bound_rows.push((document, requested));
                 assert!(
                     ratio >= BAND_LOWER,
                     "{document} at δ = {requested} is bound and draws {picture} triangles, \
@@ -1168,9 +1167,14 @@ fn no_probe_out_tessellates_the_picture_it_sizes() {
             }
         }
     }
-    assert!(
-        bound_rows > 0,
-        "the budget binds nowhere in the corpus, so the band's lower side checked nothing"
+    let table: Vec<(&'static str, f64)> = ANSWERS
+        .iter()
+        .filter(|a| a.requested_cost.is_some())
+        .map(|a| (a.document, a.requested))
+        .collect();
+    assert_eq!(
+        bound_rows, table,
+        "the band's lower side checked these bound rows, and the table binds on these"
     );
 }
 

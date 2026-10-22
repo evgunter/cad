@@ -69,10 +69,11 @@ placed.
 ## Closed
 
 The budget is a target with a stated, guarded precision, not a cap.
-`scene::TRIANGLE_BUDGET`'s rustdoc says the drawn count lands within a
-ceil term of it and why: the probe over-reads the ideal constant, and
-the per-direction `ceil` at the committed δ is a per-curved-face term
-no fixed margin absorbs. `FittedDelta::predicted` is gone, and
+`scene::TRIANGLE_BUDGET`'s rustdoc says the drawn count lands near it
+on either side, and names the terms by direction: planar faces put it
+under; `sagitta_step`'s curvature (up to ~1.1%) and the `ceil` at the
+committed δ (a per-curved-face term no fixed margin absorbs) put it
+over. `FittedDelta::predicted` is gone, and
 `tests/display_budget.rs`'s `no_probe_out_tessellates_the_picture_it_sizes`
 holds the drawn count on every corpus row to `≤ 1.05×` the budget and
 every bound row to `≥ 0.9×` (measured 0.927–1.0025).

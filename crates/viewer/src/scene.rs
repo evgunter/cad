@@ -969,21 +969,35 @@ pub fn scene_of_body(
 ///
 /// # A target, not a cap
 ///
-/// **The drawn count lands within a ceil term of this number**, and
-/// the term can put it over. The fit reads `C = triangles·δ` off a
-/// rung coarser than its answer, and there `C` over-reads the ideal,
-/// ceil-free constant: every grid count is rounded up, and a planar
-/// face that has stopped subdividing is priced as if it would go on.
-/// So the probe's side of the error errs safe — the ideal count at the
-/// committed δ is at most the budget. The side that does not is the
-/// per-direction `ceil` at the committed δ itself: a curved face cut
-/// `n_u × n_v` draws up to `2(n_u + n_v + 1)` triangles more than its
-/// ideal `2·n_u·n_v`. That is a perimeter-over-area term, a fraction
-/// of a percent on a large face, and it grows with the number of
-/// curved faces, so no fixed margin on the solved δ makes the budget
-/// a cap. The guard is `tests/display_budget.rs`, which holds the
-/// drawn count to a stated band around the budget on every corpus row
-/// the budget binds.
+/// **The drawn count lands near this number, on either side of it.**
+/// The fit reads `C = triangles·δ` off a rung [`PROBE_FACTOR`] coarser
+/// than its answer and solves `δ = C / TRIANGLE_BUDGET`, so the drawn
+/// count is off by however much `C` at the answer differs from `C` at
+/// the rung. The terms, by direction:
+///
+/// - **Under the budget.** A planar face that has stopped subdividing
+///   is priced as if it would go on. This is the large term, and it is
+///   why the tour's die lands at 0.927 of the budget.
+/// - **Over it: the `sagitta_step` curvature.** `mesh::sizing`'s
+///   `sagitta_step` (cylinders, cones, spheres) is `2·acos(1 − δ/ρ)`,
+///   steeper than `√δ`, so across a factor of 8 its step shrinks by up
+///   to √8·1.0057 per direction rather than √8. A face sized by it in
+///   both directions then costs up to ~1.1% more per unit of `1/δ` at
+///   the answer than at the rung. The excess vanishes as `δ/ρ → 0` and
+///   reaches 1.1% only where the rung's step sits at the `cap_angular`
+///   cap. `curvature_step` (tori, ellipses, spirics, NURBS grids) is
+///   exactly `√δ` and adds nothing.
+/// - **Either way: the `ceil`.** A curved face cut `n_u × n_v` draws
+///   between 0 and `2(n_u + n_v + 1)` triangles more than its ideal
+///   `2·n_u·n_v`, at the rung and at the answer alike, so their
+///   difference takes either sign. Its bound at the answer is how far
+///   over it can go: a perimeter-over-area term, a fraction of a
+///   percent on a large face, growing with the number of curved faces.
+///
+/// No fixed margin on the solved δ therefore makes the budget a cap.
+/// The guard is `tests/display_budget.rs`, which holds the drawn count
+/// to a stated band around the budget on every corpus row the budget
+/// binds.
 ///
 /// # Why there is a budget at all
 ///
@@ -1034,8 +1048,8 @@ pub const TRIANGLE_BUDGET: usize = 1_000_000;
 
 /// How much coarser than the δ it prices a cost probe runs.
 ///
-/// Eight doublings-worth of cost is ~1/8 of the priced δ's
-/// tessellation, which is what makes a probe affordable; and it is
+/// A factor of eight in δ, three doublings, makes a probe ~1/8 of the
+/// priced δ's tessellation, which is what makes it affordable; and it is
 /// close enough to the target that the 1/δ law below still holds
 /// tightly (it softens at genuinely coarse δ, where planar faces have
 /// stopped subdividing and only the curved ones still respond).
@@ -1174,8 +1188,9 @@ impl FittedDelta {
 ///
 /// A value rather than a comment because the cost argument turns on
 /// it: [`ProbeStop::AtTheRequest`] is the rung a single probe would
-/// have read, [`ProbeStop::Flat`] is the reading the 1/δ law is not
-/// allowed to speak for, and a row can ask which one answered.
+/// have read, [`ProbeStop::Flat`] is a ladder that went straight to
+/// that rung because the count stopped moving, and a row can ask
+/// which one answered. Every stop is answered by the same law.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProbeStop {
     /// No ladder ran: the value was built by
@@ -1188,8 +1203,8 @@ pub enum ProbeStop {
     /// for itself.
     Converged,
     /// Two rungs in a row counted the same, the second at the
-    /// request's own rung: the body did not subdivide across that span,
-    /// so the 1/δ law is not run through it and the request stands.
+    /// request's own rung, reached straight from the first because a
+    /// count that did not move gives the law no step to size.
     Flat,
     /// A rung refused to tessellate. The reading is the rung before
     /// it, or — when the refusal was the first probe — the rung that
@@ -1226,31 +1241,28 @@ pub enum ProbeStop {
 /// 1.999 across four doublings, and on `diefillet` 1.99, 1.97, 1.98,
 /// 1.94. So `C` is read off a rung and δ* = C / budget.
 ///
-/// **A body that does not subdivide is not described by that law at
-/// all**, and the ladder does not run it: two rungs that count the
-/// same are a body whose count did not move across a factor of at
-/// least two in δ, and the request stands ([`ProbeStop::Flat`]).
+/// **A body whose count stops moving gives the law no step to size**,
+/// so the ladder goes straight to the request's own rung rather than
+/// crawling down in halvings ([`ProbeStop::Flat`]: two rungs in a row
+/// counted the same, across whatever span separated them, which is
+/// under a halving when the second is that last rung).
 ///
-/// That claims nothing about the count below the last rung, and a
-/// bound makes the omission harmless. A Flat stop's last rung is the
-/// request's own, at [`PROBE_FACTOR`] × it, and its count is under
-/// `TRIANGLE_BUDGET / PROBE_FACTOR`: the ladder descends from a count
-/// `T` at `δ` only to a `next < δ` with
-/// `next ≥ PROBE_FACTOR·T·δ / TRIANGLE_BUDGET`, so every rung it
-/// leaves counts under that bound, and a flat pair repeats the count
-/// of the rung it left. Two things follow.
-/// The law run from that rung prices the request under the budget, so
-/// it would commit the request too — Flat never changes the committed
-/// δ. And across the factor of 8 down to the request a per-direction
-/// step shrinks by at most √8 (exactly for `mesh::sizing`'s
-/// `curvature_step`; within 0.6% for its `sagitta_step`, whose `acos`
-/// is steeper than `√` short of the `cap_angular` cap, and the cap
-/// only lessens the shrink), so each `ceil_count` grows at most √8-fold
-/// plus one, and the count drawn at the request is at most about 8.1×
-/// the rung's plus those ceil terms: the budget's own ceil band. The
-/// NURBS lane's certificate refinement (`mesh::trimmed`) inserts
-/// centroids rather than steps, so it is outside that per-direction
-/// argument.
+/// The law answers a Flat stop like any other, and a bound says what it
+/// answers: the request. The ladder descends from a count `T` at `δ`
+/// only to a `next < δ` with `next ≥ PROBE_FACTOR·T·δ / TRIANGLE_BUDGET`,
+/// so every rung it leaves counts under `TRIANGLE_BUDGET / PROBE_FACTOR`,
+/// and a flat pair repeats the count of the rung it left. Read at the
+/// request's own rung, that prices the request under the budget.
+///
+/// What it does not see is the count below that rung, and the same
+/// bound limits it. Across the factor of 8 down to the request a
+/// per-direction step shrinks by at most √8·1.0057 (the `sagitta_step`
+/// term [`TRIANGLE_BUDGET`] states; `cap_angular` only lessens the
+/// shrink), so each `ceil_count` grows at most that much plus one, and
+/// the count drawn at the request is at most about 8.1× the rung's
+/// plus ceil terms: the budget's own band. The NURBS lane's
+/// certificate refinement (`mesh::trimmed`) inserts centroids rather
+/// than steps, so the argument does not reach it.
 ///
 /// # What it costs: no PROBE is larger than the picture it sizes
 ///
@@ -1366,7 +1378,6 @@ fn fit_from_probes(
                 Reading {
                     triangles: fallback.triangles,
                     delta: finest.get(),
-                    flat: false,
                     stop: ProbeStop::Refused,
                     largest: fallback.triangles,
                     total: fallback.triangles,
@@ -1389,10 +1400,9 @@ fn fit_from_probes(
         // TRIANGLE_BUDGET / PROBE_FACTOR by construction, which is
         // what makes descending to it affordable.
         //
-        // A count that did not move has no such rung to offer: the law
-        // is refuted for this body over this span, so the ladder goes
-        // straight to the request's own rung rather than crawling down
-        // in steps the law sizes from a constant it just disproved.
+        // A count that did not move gives the law no step to size, so
+        // the ladder goes straight to the request's own rung rather
+        // than crawling down in halvings.
         let next = if flat {
             finest.get()
         } else {
@@ -1413,7 +1423,8 @@ fn fit_from_probes(
         // or the finest probe there is, where an affordable request
         // gets its cost read off the very mesh a single probe would
         // have read it off. This terminates: `next` is bounded below
-        // by `finest` and every step at least halves the δ.
+        // by `finest`, and every step but one straight to `finest` at
+        // least halves the δ.
         if !flat && next > probe_delta * 0.5 && next > finest.get() {
             break ProbeStop::Converged;
         }
@@ -1431,7 +1442,6 @@ fn fit_from_probes(
         Reading {
             triangles,
             delta: probe_delta,
-            flat,
             stop,
             largest,
             total,
@@ -1443,7 +1453,6 @@ fn fit_from_probes(
 struct Reading {
     triangles: usize,
     delta: f64,
-    flat: bool,
     stop: ProbeStop,
     largest: usize,
     total: usize,
@@ -1455,19 +1464,6 @@ fn answer(requested: DisplayTolerance, reading: Reading) -> Result<FittedDelta, 
     let budget = TRIANGLE_BUDGET as f64;
     #[allow(clippy::cast_precision_loss)]
     let constant = reading.triangles as f64 * reading.delta;
-    // A count that did not respond to δ refutes the law over the last
-    // rung step, so the request stands (`fit_delta` bounds what that
-    // trusts).
-    if reading.flat {
-        return Ok(FittedDelta {
-            delta: requested,
-            requested,
-            requested_cost: None,
-            probe_triangles: reading.total,
-            largest_probe: reading.largest,
-            stop: reading.stop,
-        });
-    }
     let solved = constant / budget;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let at_request = (constant / requested.get()) as usize;
@@ -1630,7 +1626,7 @@ mod tests {
 
     use super::{
         DisplayTolerance, PROBE_FACTOR, Probe, ProbeStop, SCALE_PROBE_DELTA, SceneError, SceneMesh,
-        TRIANGLE_BUDGET, fit_from_probes, placed_rung_cost,
+        TRIANGLE_BUDGET, fit_from_probes,
     };
     use pncad::geom_core::Point3;
     use pncad::mesh::{FacePatch, Mesh, TessellateError};
@@ -1653,10 +1649,10 @@ mod tests {
         DisplayTolerance::new(value).expect("a positive δ")
     }
 
-    /// A body whose count never moves keeps its request without the
-    /// law — and in three probes, not the eleven a law-sized step would
-    /// crawl through at this count (`8 · 62_500 / 10⁶` is a step of one
-    /// halving).
+    /// A body whose count never moves keeps its request, answered by
+    /// the law at the request's own rung — and in three probes, not the
+    /// eleven a law-sized step would crawl through at this count
+    /// (`8 · 62_500 / 10⁶` is a step of one halving).
     #[test]
     fn a_count_that_does_not_move_keeps_the_request() {
         let mut rungs: Vec<f64> = Vec::new();
@@ -1670,7 +1666,11 @@ mod tests {
         })
         .expect("a flat body fits");
         assert_eq!(fitted.stop, ProbeStop::Flat);
-        assert_eq!(fitted.delta, fitted.requested, "the request stands");
+        assert_eq!(
+            fitted.delta, fitted.requested,
+            "the law, read at the request's own rung, commits the request"
+        );
+        assert_eq!(fitted.requested_cost, None, "with nothing to report");
         assert_eq!(
             rungs.len(),
             3,
@@ -1704,15 +1704,13 @@ mod tests {
     }
 
     /// **A body flat at the request's rung and growing below it keeps
-    /// the request, inside the budget.** Flat trusts nothing about the
-    /// count below its last rung, and this is the case it does not see:
-    /// the fake counts the same at every δ from `PROBE_FACTOR` × the
-    /// request up, and nine times that at the request. What makes the
-    /// trust harmless is the rung's bound, under
-    /// `TRIANGLE_BUDGET / PROBE_FACTOR`, so a ~9× jump still lands near
-    /// the budget rather than past it by a factor.
+    /// the request**, and its flat pair is a short step: 1e-3 → 8e-4,
+    /// a factor of 1.25, because the step to the request's own rung
+    /// skips the halving gate. The fake counts nine times as much below
+    /// that rung, which no rung sees; `fit_delta` states the bound on
+    /// what that can cost.
     #[test]
-    fn a_body_flat_above_the_request_and_growing_below_stays_near_the_budget() {
+    fn a_body_flat_above_the_request_keeps_it_across_a_short_last_step() {
         let requested = 1.0e-4;
         let rung = requested * PROBE_FACTOR;
         let floor = 100_000;
@@ -1726,19 +1724,7 @@ mod tests {
         .expect("the body fits");
         assert_eq!(fitted.stop, ProbeStop::Flat, "the ladder read it as flat");
         assert_eq!(fitted.delta, fitted.requested, "the request stands");
-        #[allow(clippy::cast_precision_loss)]
-        let largest = fitted.largest_probe as f64;
-        assert!(
-            largest < placed_rung_cost(),
-            "a flat rung counts under the budget's rung bound: {}",
-            fitted.largest_probe
-        );
-        let drawn = count(fitted.delta.get());
-        assert!(
-            drawn <= TRIANGLE_BUDGET,
-            "the picture at the committed δ is {drawn} triangles, past the \
-             {TRIANGLE_BUDGET} budget"
-        );
+        assert_eq!(fitted.requested_cost, None, "and nothing reports a cost");
     }
 
     /// The rung that prices the request is where an affordable request

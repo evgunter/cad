@@ -55,11 +55,15 @@ rung.
 
 ## Closed
 
-Flat no longer claims anything about counts below its last rung;
-`scene::fit_delta` states the bound that makes the trust harmless: a
-Flat rung counts under `TRIANGLE_BUDGET / PROBE_FACTOR`, so the law
-would commit the request too, and the count at the request is at most
-~8.1× the rung plus ceil terms. `scene.rs`'s
-`a_body_flat_above_the_request_and_growing_below_stays_near_the_budget`
-is the row. The adjacent hazard at the scale probe is filed as
+Flat is now only the name of why the ladder stopped. `answer` runs the
+law on a Flat reading like any other, and `scene::fit_delta` states
+the bound that makes that commit the request: a Flat rung counts
+under `TRIANGLE_BUDGET / PROBE_FACTOR`. The count below the rung,
+which no rung sees, is at most ~8.1× the rung's plus ceil terms on
+every step-sized lane. `scene.rs`'s
+`a_body_flat_above_the_request_keeps_it_across_a_short_last_step` is
+the row. The residue is the NURBS certificate-refinement lane, which
+the per-direction argument does not reach:
+`flat-harmlessness-is-unproven-on-the-nurbs-refinement-lane`. The
+adjacent hazard at the scale probe is
 `a-dense-floor-is-priced-off-the-law-from-the-scale-probe`.
