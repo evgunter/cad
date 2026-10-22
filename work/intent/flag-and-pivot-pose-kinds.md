@@ -2,10 +2,11 @@
 id: flag-and-pivot-pose-kinds
 kind: unit
 title: the Flag and Pivot pose kinds: reads, charts, folds, persistence, picks, and the rung-1 composition through each part's construction
-status: open
+status: parked
 opened: 2026-10-22
 priority: P1
 cost: H
+blocked_on: [a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space]
 ---
 
 
@@ -57,5 +58,7 @@ both together.
   - a bolt pivot-mated to a hole gives 0 findings;
   - axis plus plane on the same bolt refuses `Overconstrained`;
   - a drafted wall gives no flush pair.
-- **Sequencing:** after D′ (PR 5494's design), since the kinds land in
-  its placement model.
+- **Sequencing:** after D′2
+  (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`),
+  whose value chart the two kinds' mates fit; it can run beside D′3
+  (`docs/INTENT-STAGE3-SPEC.md` §12, "Sequencing", step 3).

@@ -1301,11 +1301,12 @@ there, at two places. **Only a placement relates two spaces**:
 without one, two spaces' coordinates say nothing of each other.
 
 An operator's operands share one space. The recipe decides it, with no
-value and no evaluation, so the check is the document's, as a
-dimension mismatch is (`persist::check::validate_document`): the
+value and no evaluation, as it decides a dimension mismatch: the
 façade's builder and the Python binding refuse the call that would
-write such a node (`SpaceMismatch`), and the GUI does not offer the
-gesture. An edit that re-targets a placement so that reads of its copy
+write such a node (`SpaceMismatch`), the GUI does not offer the
+gesture, and `persist::check::validate_document` marks such a read
+unresolved, as it marks a dangling one, rather than refusing the file.
+An edit that re-targets a placement so that reads of its copy
 land in another space leaves those reads unresolved and typed, as
 deleting a variable does ([operations]): the document stays valid and
 loads, and each such node refuses at evaluation, naming both spaces. A
