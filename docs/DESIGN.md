@@ -591,8 +591,9 @@ A consumer that hands the number on passes a resolution, the width
 predicate: the mean boundary displacement it needs. That is a sizing,
 decides nothing against ε ([intrinsic.epsilon]), and is not recorded.
 The model defines its measures only to ε of boundary displacement, so no
-finer resolution is offered. The default resolution is `K_m·ε`, where
-`K_m` is a cost dial as K is and never a correctness parameter.
+finer resolution is offered. There is no default: every caller states
+its predicate, a resolution included, at the call, so the precision a
+measurement buys is always the one its consumer asked for.
 
 A deciding predicate still undecided at the work bound is the one
 quadrature refusal, and it carries the enclosure. A resolution unmet
