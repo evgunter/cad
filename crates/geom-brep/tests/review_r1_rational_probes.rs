@@ -82,13 +82,18 @@ const CORPUS_EPS: f64 = 1e-9;
 const MOEBIUS_FLOOR: f64 = 3.149_977_622_964e-8;
 /// Warped bilinear with 1e-1/1e1 weights.
 const HYPAR_FLOOR: f64 = 1.295_839_630_913e-5;
-/// Quarter torus, R = 2 m, r = 0.5 m.
+/// Quarter torus, R = 2 m, r = 0.5 m. Round 7's own width: a pin of
+/// 4.648e-8 stood here while the budget exit refused this carrier, and
+/// that was the exit's lower bound on round 7's width, which omits the
+/// midpoint sum's own width — round 7's enclosure is the same.
 const QUARTER_TORUS_FLOOR: f64 = 4.687_047_770_243e-8;
 /// Bilinear unit square with a 1e-3/1e3 weight spread: the enclosure
 /// is uselessly wide, but it is a WIDTH rather than a degeneracy (see
 /// the row for why).
 const SQUARE_FLOOR: f64 = 6.357_819_244_047e5;
-/// Unit sphere octant (degenerate pole row).
+/// Unit sphere octant (degenerate pole row). Round 7's own width; the
+/// 2.907e-8 that stood here was the budget exit's lower bound on it, as
+/// for [`QUARTER_TORUS_FLOOR`].
 const SPHERE_OCTANT_FLOOR: f64 = 2.920_125_725_497e-8;
 /// Quarter cylinder at r = 1 km: the floor is a LENGTH, so it scales
 /// with the part (1e3 × the metre-scale quarter cylinder's).

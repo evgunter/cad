@@ -42,9 +42,14 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
   the predicate's question, asked in topo. `props_quad_face_extent` stays: it
   is a gate on the face, not a stop.
 - **R2. "Stops paying" is `Floor`, defined per lane** as the removable part
-  of the width (the rule remainder) falling below the irremovable part (the
-  pads, and arithmetic). Each lane already computes the two apart. The
-  stall rule is the backstop for a lane that cannot split them.
+  of the width (the rule remainder) falling to at most 2⁻¹⁰ of the width
+  (`removable·1024 ≤ width`); the rest is the irremovable part (the pads,
+  and arithmetic). Each lane computes the two apart. The stall rule is the
+  backstop for a lane that cannot split them.
+  - Evidence for 2⁻¹⁰ over "removable below irremovable": PR 5589's
+    `verbs_germarms::a_thin_bar_turned_about_two_axes_gets_through_the_join`,
+    a cylinder face stopped at round 4 with 23% of its width still
+    removable, which main certifies one round later.
 - **R3. The work unit.**
   - One constant, `FACE_WORK_WALL`, in weighted cell-evaluations,
     **cumulative** over a face's rounds (`crate::descent::Work`), not per

@@ -87,8 +87,9 @@
 //! caller's [`Accept`], which answers whether that is enough, and it
 //! stops short of an answer on one of two findings of its own
 //! ([`LaneStop`], read by the one [`Run`]): its FLOOR, where the part of
-//! the width a later round removes (the rule's remainder) is no longer
-//! above the part none removes (the honesty pads and the arithmetic),
+//! the width a later round removes (the rule's remainder) is at most
+//! [`FLOOR_SHARE`] of it, the rest being the part none removes (the
+//! honesty pads and the arithmetic),
 //! and the work WALL, [`FACE_WORK_WALL`], one bound in one unit for every
 //! lane, on the weighted cell evaluations a face spends over all its
 //! rounds. A call that ends unaccepted answers with its narrowest round
@@ -195,6 +196,16 @@ const fn square_cells_through(last: usize) -> usize {
     sum
 }
 
+/// **The floor's share**, `2⁻¹⁰`: a lane is at its floor once the part
+/// of a round's width a later round removes is at most this share of
+/// the width. A stop there can cost a convergence only for a face whose
+/// target lies within that share above its floor, about `1·ε` against
+/// the band's `K·ε` at the reporting target `1024·ε`, so such a face
+/// reads in-band, never certified.
+pub const FLOOR_SHARE: f64 = 1.0 / FLOOR_SHARE_INV;
+/// `1 /` [`FLOOR_SHARE`], exact: the floor test is `removable · 1024 ≤ width`.
+const FLOOR_SHARE_INV: f64 = 1024.0;
+
 /// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`]'s unit.
 const W_CYLINDER: usize = 3;
 /// Weight of one cell of the integral patch lane's composite.
@@ -262,9 +273,10 @@ pub enum LaneStop {
     /// The next round fits in the work wall and can narrow.
     Refinable,
     /// Refinement stopped paying: the part of the width a later round
-    /// removes (the rule's remainder) is no longer above the part none
-    /// removes (the honesty pads and the arithmetic), so a later round
-    /// can at most halve it. A lane with no rounds is at its floor.
+    /// removes (the rule's remainder) is at most [`FLOOR_SHARE`] of the
+    /// width, the rest being the part none removes (the honesty pads and
+    /// the arithmetic), so no later round narrows it by more than that
+    /// share. A lane with no rounds is at its floor.
     Floor,
     /// The next round would take the face past [`FACE_WORK_WALL`].
     Wall,
@@ -667,8 +679,8 @@ pub fn classify_len<T: Decide>(
 /// Per round a lane hands [`Run::stop`] its enclosure and the part of its
 /// flux width a later round removes (the rule's remainder); everything
 /// else in the width is the part no round removes. The stop is
-/// [`LaneStop::Floor`] once the removable part is no longer above the
-/// rest, [`LaneStop::Wall`] when the next round would pass
+/// [`LaneStop::Floor`] once the removable part is at most
+/// [`FLOOR_SHARE`] of the width, [`LaneStop::Wall`] when the next round would pass
 /// [`FACE_WORK_WALL`], and [`LaneStop::Refinable`] otherwise. Both read
 /// the round alone: the work through a round is the sum of its rounds'
 /// costs, which `cost` states without running them, so a window entered
@@ -718,7 +730,7 @@ impl<'c> Run<'c> {
         {
             self.narrowest = Some((round, bounds));
         }
-        if 2.0 * removable <= width {
+        if removable * FLOOR_SHARE_INV <= width {
             LaneStop::Floor
         } else if self.work.admits((self.cost)(round + 1)) {
             LaneStop::Refinable
@@ -5366,16 +5378,17 @@ mod tests {
         }
     }
 
-    /// **The floor is the removable part no longer above the rest**: a
-    /// round whose remainder is half its width or less stops there; one
-    /// whose remainder is more refines.
+    /// **The floor is a removable share of at most 2⁻¹⁰**: a round
+    /// whose remainder is that share of its width or less stops there;
+    /// one whose remainder is more refines, half its width included.
     #[test]
-    fn the_floor_is_the_remainder_no_longer_above_the_rest() {
+    fn the_floor_is_a_removable_share_of_at_most_one_in_1024() {
         let cost = |_: usize| 1;
         for (removable, want) in [
-            (0.5, LaneStop::Floor),
+            (FLOOR_SHARE, LaneStop::Floor),
             (0.0, LaneStop::Floor),
-            (0.500_001, LaneStop::Refinable),
+            (FLOOR_SHARE * 1.000_01, LaneStop::Refinable),
+            (0.5, LaneStop::Refinable),
         ] {
             let mut run = Run::enter(RoundWindow::SCHEDULE, &cost);
             assert_eq!(
@@ -5395,7 +5408,7 @@ mod tests {
         let cost = |_: usize| 1;
         let mut run = Run::enter(RoundWindow::SCHEDULE, &cost);
         let widths = [4.0, 1.0, 2.0];
-        let removable = [3.0, 0.9, 0.5];
+        let removable = [3.0, 0.9, 1e-3];
         let mut out = None;
         for round in 0..3 {
             let stop = run.stop(round, of_width(widths[round]), removable[round]);
@@ -6266,9 +6279,11 @@ mod tests {
     }
 
     /// Endpoint ignorance that no refinement narrows stops the lane at
-    /// its floor at once: the endpoint pad, a whole radian of `|f|`,
-    /// already dwarfs round 0's remainder, so the lane never returns a
-    /// silently wide bracket and never spends a round on it. The loop
+    /// its floor within three rounds: the endpoint pad, a whole radian of
+    /// `|f|`, already dwarfs round 0's remainder, which falls 8× a round
+    /// to under 2⁻¹⁰ of the width by round 2, so the lane never returns a
+    /// silently wide bracket and never refines toward a target it cannot
+    /// reach. The loop
     /// is the unit circle of the chart, `(u, v) = (cos t, sin t)`,
     /// closed; its start bracket is a whole radian wide.
     #[test]
@@ -6295,8 +6310,8 @@ mod tests {
         .expect("the hopeless loop has an enclosure");
         assert_eq!(
             (run.end, run.round, run.rounds),
-            (LaneEnd::Floor, 0, 1),
-            "the endpoint pad is a floor round 0 already sits on: {run:?}"
+            (LaneEnd::Floor, 2, 3),
+            "the endpoint pad is a floor round 2 sits on: {run:?}"
         );
     }
 
