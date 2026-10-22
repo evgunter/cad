@@ -46,11 +46,12 @@ Python keywords, which is more than restating callers.
 Closed 2026-10-22 (`intent/hygiene-batch`). `Doc.apply`, `Doc.constrain`,
 `Doc.insert` and `Doc.measure` no longer take `resolver=`, and the
 private `insert_node` and `minting` no longer carry one; the stub drops
-the keyword and the sentences calling it a seam. The callers lose it:
-13 keyword passes in `test_assembly_author.py`, `test_world_pins.py` and
-`bench_scene.py`, plus `bench_scene.rest` and `bench_scene.on_floor`,
-whose `resolver` parameter fed only `constrain` (one positional pass,
-`test_assembly_author.py`'s `base_pinned`).
+the keyword and the sentences calling it a seam. The callers lose it as well.
+That is 13 keyword passes to the four doors in `test_assembly_author.py`,
+`test_world_pins.py` and `bench_scene.py`. It also covers
+`bench_scene.rest` and `bench_scene.on_floor`, whose `resolver`
+parameter fed only `constrain`, with 7 keyword passes and one
+positional one (`test_assembly_author.py`'s `base_pinned`).
 
 `Doc.place` keeps its keyword and is not restated here: D′1
 (`a-placement-names-its-target-space`) rewrites `place`'s arms and its
