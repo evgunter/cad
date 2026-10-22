@@ -256,34 +256,11 @@ fn the_rung_backs_no_event_outside_the_declared_pairs_overlap_region() {
         1,
         "{errors:?}"
     );
-    // The unconfirmed record leaves the containment arm a meeting it
-    // cannot place, which it says rather than clearing the pair.
     let rest: Vec<ValidationError> = errors
         .iter()
-        .filter(|e| {
-            !matches!(
-                e,
-                ValidationError::UnrecordedContact { .. }
-                    | ValidationError::CensusUndecidable {
-                        a: topo::EntityId::Solid(_),
-                        b: topo::EntityId::Solid(_),
-                        ..
-                    }
-            )
-        })
+        .filter(|e| !matches!(e, ValidationError::UnrecordedContact { .. }))
         .cloned()
         .collect();
-    assert!(
-        errors.iter().any(|e| matches!(
-            e,
-            ValidationError::CensusUndecidable {
-                a: topo::EntityId::Solid(_),
-                b: topo::EntityId::Solid(_),
-                ..
-            }
-        )),
-        "{errors:?}"
-    );
     pair_declined(&rest, post_top, shelf_bottom);
 }
 
