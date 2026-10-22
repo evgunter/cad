@@ -14,7 +14,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, VarId, StableName,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -80,36 +80,13 @@ pub(crate) fn against_with(
     let read = editor_core::Operand::from(body);
     let placed = editor_core::place_against(&doc, &target.into(), &read, at, o, Tol::witness())
         .expect("the copy places against its target");
-    let (doc, placement) = insert(doc, crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]));
-    let applied = doc
-        .apply(
-            &DocEdit::AddConstraint {
-                placement,
-                mate: Box::new(placed.mate.expect("the copy is placed by a mate")),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .expect("the mate adds");
-    let mate = applied.record.minted_constraints[0];
-    let doc = placed
-        .values
-        .into_iter()
-        .fold(applied.doc, |doc, (coord, by)| {
-            step(
-                doc,
-                DocEdit::AddValue {
-                    placement,
-                    value: Box::new(editor_core::Value {
-                        mate: Some(mate),
-                        coord,
-                        by,
-                    }),
-                    fresh: Vec::new(),
-                },
-            )
-            .0
-        });
+    let (doc, placement) = insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+    );
+    assert!(placed.mate.is_some(), "the copy is placed by a mate");
+    // The mate and its values written whole, into the target's space.
+    let (doc, _) = crate::fixture::write_bundle(doc, placement, placed.bundle());
     (doc, placement)
 }
 

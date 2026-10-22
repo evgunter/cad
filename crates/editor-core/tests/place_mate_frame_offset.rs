@@ -21,8 +21,8 @@ use crate::p2_gauges::{Parts, block, body_of, cut, min_corner, parts};
 use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    FreeValue, FreeVar, Mate, MateRef, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
-    SplitError, Target, TargetAxis, Value, VarName, WorldRead, apply,
+    FreeValue, FreeVar, Mate, MateRef, ProfileDoc, RecipeNodeId, SlotId, SplitError, Target,
+    TargetAxis, Value, VarName, WorldRead, apply,
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -37,43 +37,36 @@ fn slide() -> VarName {
     VarName::from_static("slide")
 }
 
-/// **`edit` applied**, panicking on a refusal: the document and the constraint ids it minted.
-fn applied(
-    doc: &ProfileDoc,
-    edit: &DocEdit<ProfileProgram>,
-) -> (ProfileDoc, Vec<editor_core::ConstraintId>) {
-    let out =
-        apply(doc, edit, Tol::witness()).unwrap_or_else(|e| panic!("the edit is admitted: {e}"));
-    (out.doc, out.record.minted_constraints)
-}
-
-/// **A value setting `coord` of `mate` to `by`**, as an edit.
-fn add_value(mate: MateRef, coord: Coord, by: Formula) -> DocEdit<ProfileProgram> {
-    DocEdit::AddValue {
-        placement: mate.placement,
-        value: Box::new(Value {
-            mate: Some(mate.id),
-            coord,
-            by,
-        }),
-        fresh: Vec::new(),
-    }
-}
-
-/// [`add_value`] applied: the value's own address.
-fn valued(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> (ProfileDoc, MateRef) {
-    let (doc, ids) = applied(&doc, &add_value(mate, coord, by));
-    (doc, MateRef::new(mate.placement, ids[0]))
-}
-
-/// **`mate`'s three plane freedoms set**: a slide of `x` along the
-/// target's x, one of `y` along its y, and a spin of zero. Answers the
-/// x slide's address.
-fn plane_values(doc: ProfileDoc, mate: MateRef, x: Formula, y: Formula) -> (ProfileDoc, MateRef) {
-    let (doc, vx) = valued(doc, mate, Coord::Slide(TargetAxis::X), x);
-    let (doc, _) = valued(doc, mate, Coord::Slide(TargetAxis::Y), y);
-    let (doc, _) = valued(doc, mate, Coord::Spin, ang(0.0));
-    (doc, vx)
+/// **`mate` written as `placement`'s bundle with its three plane
+/// freedoms set**: a slide of `x` along the target's x, one of `y`
+/// along its y, and a spin of zero. Answers the mate's and the x
+/// slide's addresses.
+fn plane_seated(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    mate: Mate<Formula>,
+    x: Formula,
+    y: Formula,
+) -> (ProfileDoc, MateRef, MateRef) {
+    let (doc, m) = fixture::mated(
+        doc,
+        placement,
+        mate,
+        &[
+            (Coord::Slide(TargetAxis::X), x),
+            (Coord::Slide(TargetAxis::Y), y),
+            (Coord::Spin, ang(0.0)),
+        ],
+    );
+    let vx = fixture::bundle(&doc, placement)
+        .into_iter()
+        .find(|c| {
+            c.value()
+                .is_some_and(|v| v.mate == Some(m.id) && v.coord == Coord::Slide(TargetAxis::X))
+        })
+        .map(|c| MateRef::new(placement, c.id))
+        .expect("the x slide is held");
+    (doc, m, vx)
 }
 
 /// **An instance of `part` grounded in the world at the identity**:
@@ -86,7 +79,7 @@ fn grounded(
     body: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = insert(doc, fixture::mated_instance(part));
-    let (doc, ground) = constrain_at(
+    let (doc, _) = constrain_at(
         doc,
         id,
         Mate {
@@ -95,7 +88,7 @@ fn grounded(
             class: ContactClass::Rest,
         },
     );
-    (plane_values(doc, ground, len(0.0), len(0.0)).0, id)
+    (doc, id)
 }
 
 /// The two-block scene: the base grounded, the top, and the top's lower
@@ -113,7 +106,7 @@ fn seated(
     let doc = prelude(ProfileDoc::empty(DocumentId::derive(label), Tol::witness()));
     let (doc, base) = grounded(doc, p.base, p.base_body);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, m) = constrain_at(
+    let (doc, m, vx) = plane_seated(
         doc,
         top,
         rest(
@@ -121,8 +114,9 @@ fn seated(
             head(p.base_cap(base)),
             ContactClass::Rest,
         ),
+        x,
+        y,
     );
-    let (doc, vx) = plane_values(doc, m, x, y);
     (p, doc, [base, top], m, vx)
 }
 
@@ -271,16 +265,9 @@ fn a_parameter_drives_a_value_and_the_solved_pose_moves() {
         "the base reads nothing that moved"
     );
 
-    // The two parameter doors, as the value is added.
+    // The two parameter doors, as the bundle is written with the value.
     let (unvalued, _) = step(
         doc.clone(),
-        DocEdit::RemoveConstraint {
-            placement: top,
-            constraint: vx.id,
-        },
-    );
-    let (unvalued, _) = step(
-        unvalued,
         DocEdit::DeclareVar {
             name: VarName::from_static("tilt"),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
@@ -289,11 +276,19 @@ fn a_parameter_drives_a_value_and_the_solved_pose_moves() {
     let refused = |name: &'static str| {
         apply(
             &unvalued,
-            &add_value(
-                m,
-                Coord::Slide(TargetAxis::X),
-                Formula::named(VarName::from_static(name), Dimension::Length),
-            ),
+            &fixture::squared(
+                &unvalued,
+                rest(
+                    head(p.top_cap(top)),
+                    head(p.base_cap(base)),
+                    ContactClass::Rest,
+                ),
+                &[(
+                    Coord::Slide(TargetAxis::X),
+                    Formula::named(VarName::from_static(name), Dimension::Length),
+                )],
+            )
+            .write(m.placement),
             Tol::witness(),
         )
         .expect_err("the value refuses")
@@ -334,7 +329,7 @@ fn a_standoff_places_the_copy_and_declares_no_contact() {
         along: editor_core::pose::RoleRead::through(cap, PoseRole::Normal),
         by: len(0.25),
     }));
-    let (doc, m) = constrain_at(
+    let (doc, m, _) = plane_seated(
         doc,
         top,
         fixture::mate(
@@ -342,8 +337,9 @@ fn a_standoff_places_the_copy_and_declares_no_contact() {
             flip(standoff),
             ContactClass::Rest,
         ),
+        len(1.0),
+        len(1.0),
     );
-    let (doc, _) = plane_values(doc, m, len(1.0), len(1.0));
     let o = p.opts();
     assert_placed(&doc, &o, top);
     assert_eq!(
@@ -380,7 +376,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
     let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
     let seat_on = |doc: ProfileDoc, base: RecipeNodeId, x: Formula| {
         let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-        let (doc, m) = constrain_at(
+        let (doc, _, vx) = plane_seated(
             doc,
             top,
             rest(
@@ -388,8 +384,9 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
                 head(p.base_cap(base)),
                 ContactClass::Rest,
             ),
+            x,
+            len(1.0),
         );
-        let (doc, vx) = plane_values(doc, m, x, len(1.0));
         (doc, top, vx)
     };
     let (doc, top, vx) = seat_on(doc, base, Formula::named(slide(), Dimension::Length));
@@ -447,24 +444,20 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
         matches!(&err, SplitError::UncutVarReference { var, .. } if var.name() == Some(&slide())),
         "{err:?}"
     );
-    // The cut seat's value re-authored to read nothing: the parameter
-    // stays.
-    let (doc, _) = step(
+    // The cut seat's bundle re-authored with its value reading
+    // nothing: the parameter stays.
+    let _ = vx;
+    let (doc, _, _) = plane_seated(
         doc,
-        DocEdit::RemoveConstraint {
-            placement: top,
-            constraint: vx.id,
-        },
-    );
-    let rest_of_top = MateRef::new(
         top,
-        fixture::bundle(&doc, top)
-            .iter()
-            .find(|c| c.mate().is_some())
-            .expect("the top's rest")
-            .id,
+        rest(
+            head(p.top_cap(top)),
+            head(p.base_cap(base)),
+            ContactClass::Rest,
+        ),
+        len(1.5),
+        len(1.0),
     );
-    let (doc, _) = valued(doc, rest_of_top, Coord::Slide(TargetAxis::X), len(1.5));
     let out = editor_core::split(
         &doc,
         &cut(&doc, &[base, top]),
