@@ -1463,8 +1463,8 @@ pub struct PickHit {
     ///
     /// **The parameter is of the ray this call was given.** A consumer
     /// that carries a hit across a transform converts all three, or
-    /// none of them mean anything: the viewer's cross-part merge is
-    /// `work/vgeom/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`.
+    /// none of them mean anything: the viewer's moved-copy crossing is
+    /// `work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     pub t: f64,
     /// See [`PickHit::t`].
     pub t_lo: f64,
@@ -1823,6 +1823,41 @@ pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<TSpan> {
     let forward_and_finite =
         span.t >= 0.0 && span.t.is_finite() && span.t_lo.is_finite() && span.t_hi.is_finite();
     forward_and_finite.then_some(span)
+}
+
+/// **A segment point's parameter along the ray, as an INTERVAL** —
+/// [`ray_triangle`]'s sibling for a point that is not a crossing.
+///
+/// The point is `a + (b − a)·s`, spelled exactly so: a caller that
+/// answers that point (the viewer's edge pick reports the point of a
+/// drawn chord nearest a pixel ray) and asks this door about it is
+/// asking about the point it holds. `[t_lo, t_hi]` encloses the
+/// parameter `(P − o)·d / (d·d)` of the EXACT point
+/// `P = a + (b − a)·s`, taking `a`, `b`, `s` and the ray as exact; `t`
+/// is the rounded parameter of the rounded point. `s` is not clamped
+/// or checked: the enclosure holds for any finite one.
+///
+/// **The width is [`t_span`]'s, counted the same way**, with no
+/// barycentric term (the segment parameter is an operand, not a
+/// quotient) and with the one rounding the point carries that a
+/// triangle's does not: `fl(b − a)`. It takes the slot of the sum
+/// with `e2·v`, which is exact here because `e2 = 0`, so the point's
+/// `e·s` term goes through three roundings (the subtraction, the
+/// product, the sum with `a`) — the `γ_3` budget
+/// [`PROJECTION_ERROR_UNITS`] already counts that term at. The
+/// magnitude sum reads `|fl(b − a)_i·s|` where the bound wants
+/// `|(b − a)_i·s|`, at most one ulp apart, which the constant's
+/// stated margin carries as it carries the sum's own evaluation.
+///
+/// No sign test, unlike [`ray_triangle`]: this is the parameter of a
+/// point, and a point behind the origin has one. `None` exactly when
+/// any of the three numbers is not finite — a degenerate ray or an
+/// overflowing point is not a parameter anything can be ordered by.
+pub fn ray_segment_point(ray: &Ray, [a, b]: [Point3<f64>; 2], s: f64) -> Option<TSpan> {
+    let zero = Vec3::new(0.0, 0.0, 0.0);
+    let span = t_span(ray, a, b - a, zero, (s, 0.0), (0.0, 0.0));
+    let finite = span.t.is_finite() && span.t_lo.is_finite() && span.t_hi.is_finite();
+    finite.then_some(span)
 }
 
 /// **The clamp**: the per-coordinate RETRACTION onto the simplex —
@@ -3370,5 +3405,208 @@ mod tests {
             );
             assert_eq!(at.z, 1.0, "{name}: and it is in the triangle's own plane");
         }
+    }
+
+    // ---------------- the segment point's own rows ----------------
+
+    /// Every `f64` the rows below read, as an exact integer over
+    /// `2^POINT_SHIFT`.
+    const POINT_SHIFT: i64 = 600;
+
+    fn exact(x: f64) -> num_bigint::BigInt {
+        assert!(
+            x.is_finite(),
+            "the oracle reads finite values only, got {x}"
+        );
+        if x == 0.0 {
+            return num_bigint::BigInt::from(0);
+        }
+        let bits = x.to_bits();
+        let exponent = ((bits >> 52) & 0x7ff) as i64;
+        let fraction = bits & ((1_u64 << 52) - 1);
+        let (mantissa, power) = if exponent == 0 {
+            (fraction, -1074_i64)
+        } else {
+            (fraction | (1_u64 << 52), exponent - 1075)
+        };
+        let shift = usize::try_from(power + POINT_SHIFT).expect("on the oracle's grid");
+        let magnitude = num_bigint::BigInt::from(mantissa) << shift;
+        if bits >> 63 == 1 {
+            -magnitude
+        } else {
+            magnitude
+        }
+    }
+
+    /// Whether `bound` lies below (`below`) or above the EXACT
+    /// parameter of `a + (b − a)·s` along `ray`, all operands read as
+    /// exact rationals: `t = N / (DD · 2^SHIFT)` with `N` the exact
+    /// `(P − o)·d` at scale `2^(3·SHIFT)` and `DD` the exact `d·d` at
+    /// `2^(2·SHIFT)`, so `bound ≤ t` is `exact(bound)·DD ≤ N`.
+    fn bounds_the_exact_parameter(
+        ray: &Ray,
+        [a, b]: [Point3<f64>; 2],
+        s: f64,
+        bound: f64,
+        below: bool,
+    ) -> bool {
+        let unit = num_bigint::BigInt::from(1) << usize::try_from(POINT_SHIFT).expect("positive");
+        let s = exact(s);
+        let coordinate = |p: Point3<f64>, axis: usize| exact([p.x, p.y, p.z][axis]);
+        let along = [ray.dir.x, ray.dir.y, ray.dir.z].map(exact);
+        let mut n = num_bigint::BigInt::from(0);
+        let mut dd = num_bigint::BigInt::from(0);
+        for (axis, d) in along.iter().enumerate() {
+            let (a_i, b_i, o_i) = (
+                coordinate(a, axis),
+                coordinate(b, axis),
+                coordinate(ray.origin, axis),
+            );
+            let p_minus_o = &a_i * &unit + &s * (&b_i - &a_i) - &o_i * &unit;
+            n += p_minus_o * d;
+            dd += d * d;
+        }
+        let scaled = exact(bound) * dd;
+        if below { scaled <= n } else { scaled >= n }
+    }
+
+    /// **The interval encloses the exact parameter of the exact
+    /// point**, and the rounded parameter it answers lies inside it —
+    /// over a table of rays and segments chosen for what makes the
+    /// arithmetic round: thirds and sevenths that no binary fraction
+    /// holds, a direction that is not unit, an origin far from the
+    /// segment, and the ends `s = 0` and `s = 1` a clamped closest
+    /// point lands on.
+    ///
+    /// The width is not decoration: far from the origin, with the
+    /// segment a unit from the ray's origin, the point's own rounding is
+    /// many ulps of `t` and the exact parameter is outside the one-ulp
+    /// interval around it, so a door
+    /// that dropped the rounding term would fail the enclosure here.
+    #[test]
+    fn a_segment_points_span_encloses_its_exact_parameter() {
+        let third = 1.0 / 3.0;
+        let seventh = 1.0 / 7.0;
+        let cases = [
+            (
+                "unit ray, a third along",
+                Ray {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    dir: Vec3::new(0.0, 0.0, 1.0),
+                },
+                [Point3::new(-1.0, 0.1, 2.0), Point3::new(1.0, -0.1, 2.5)],
+                third,
+            ),
+            (
+                "skew ray, a seventh along",
+                Ray {
+                    origin: Point3::new(0.3, -0.2, 0.1),
+                    dir: Vec3::new(seventh, third, 1.0),
+                },
+                [Point3::new(0.01, 0.02, 0.9), Point3::new(0.05, 0.03, 0.7)],
+                seventh,
+            ),
+            (
+                "the start, s = 0",
+                Ray {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    dir: Vec3::new(third, seventh, 1.0),
+                },
+                [Point3::new(0.1, 0.2, third), Point3::new(0.3, 0.4, 0.5)],
+                0.0,
+            ),
+            (
+                "the end, s = 1",
+                Ray {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    dir: Vec3::new(third, seventh, 1.0),
+                },
+                [Point3::new(0.1, 0.2, third), Point3::new(0.3, 0.4, 0.5)],
+                1.0,
+            ),
+            (
+                "far origin",
+                Ray {
+                    origin: Point3::new(1.0e6 + third, -1.0e6, 1.0e6),
+                    dir: Vec3::new(-1.0, 1.0 + seventh, -1.0),
+                },
+                [
+                    Point3::new(1.0e6 + seventh, -1.0e6 + 0.5, 1.0e6 - 0.9),
+                    Point3::new(1.0e6 + 0.2, -1.0e6 - third, 1.0e6 - 1.1),
+                ],
+                third,
+            ),
+        ];
+        let mut width_needed = false;
+        for (name, ray, ends, s) in cases {
+            let span = super::ray_segment_point(&ray, ends, s)
+                .unwrap_or_else(|| panic!("{name}: a finite parameter"));
+            assert!(
+                span.t_lo <= span.t && span.t <= span.t_hi,
+                "{name}: the rounded parameter lies inside its own interval: {span:?}"
+            );
+            assert!(
+                bounds_the_exact_parameter(&ray, ends, s, span.t_lo, true),
+                "{name}: t_lo is at or below the exact parameter: {span:?}"
+            );
+            assert!(
+                bounds_the_exact_parameter(&ray, ends, s, span.t_hi, false),
+                "{name}: t_hi is at or above the exact parameter: {span:?}"
+            );
+            let one_ulp_encloses =
+                bounds_the_exact_parameter(&ray, ends, s, span.t.next_down(), true)
+                    && bounds_the_exact_parameter(&ray, ends, s, span.t.next_up(), false);
+            if name == "far origin" {
+                width_needed = !one_ulp_encloses;
+            }
+        }
+        assert!(
+            width_needed,
+            "the far-origin row's exact parameter is within one ulp of t, so this table \
+             cannot tell the rounding term from its absence"
+        );
+    }
+
+    /// **The width grows with the rounding it counts.** One segment
+    /// and one ray direction, carried ever further from the origin:
+    /// the coordinates' magnitudes, and with them the rounding of the
+    /// point and of its projection, grow at each step, and so does the
+    /// interval — while a segment at the origin has a width that is
+    /// not zero, because a third is not a binary fraction.
+    #[test]
+    fn a_segment_points_span_widens_as_its_rounding_grows() {
+        let third = 1.0 / 3.0;
+        let dir = Vec3::new(0.25, third, 1.0);
+        let mut last = 0.0_f64;
+        for offset in [0.0, 1.0e2, 1.0e5, 1.0e8] {
+            let shift = Vec3::new(offset, -offset, offset);
+            let ray = Ray {
+                origin: Point3::new(0.0, 0.0, 0.0) + shift,
+                dir,
+            };
+            let ends = [
+                Point3::new(-0.5, 0.2, 3.0) + shift,
+                Point3::new(0.5, 0.3, 3.5) + shift,
+            ];
+            let span = super::ray_segment_point(&ray, ends, third)
+                .unwrap_or_else(|| panic!("offset {offset:e}: a finite parameter"));
+            assert!(
+                span.width() > last,
+                "offset {offset:e}: the width {:e} grows past {last:e}",
+                span.width()
+            );
+            last = span.width();
+        }
+    }
+
+    /// The one refusal: a ray with no direction has no parameter.
+    #[test]
+    fn a_segment_point_on_a_ray_with_no_direction_has_no_span() {
+        let ray = Ray {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 0.0),
+        };
+        let ends = [Point3::new(0.0, 0.0, 1.0), Point3::new(1.0, 0.0, 1.0)];
+        assert_eq!(super::ray_segment_point(&ray, ends, 0.5), None);
     }
 }

@@ -86,7 +86,7 @@ use pncad::select::{
 // and the same one this crate's `bvh` and `Rgba8` edges cite. Spelling
 // the rule again here instead would be the second copy of the door
 // that `TSpan::survivors` and `answer_of` exist to prevent.
-use editor_core::resolve::{Answer, FaceAnswer, TSpan, answer_of};
+use editor_core::resolve::{Answer, FaceAnswer, TSpan, answer_of, ray_segment_point, ray_triangle};
 
 use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
@@ -954,6 +954,10 @@ pub struct PickIndex {
     /// The drawn edge polylines, part by part — the same layout over
     /// the same parts, in the same order, built in the same walk.
     edges: PartWindows<Edges>,
+    /// Each part's drawn chords and the triangles incident to them,
+    /// parallel to `parts`: what the occlusion probe reads a chord's
+    /// own crossing from ([`ChordFaces`]).
+    chords: Vec<ChordFaces>,
 }
 
 impl PickIndex {
@@ -1049,12 +1053,17 @@ impl PickIndex {
             edges.push(part, eval)?;
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
+        let chords = parts
+            .iter()
+            .map(|part| ChordFaces::of(part.mesh()))
+            .collect();
         Ok(Self {
             key,
             parts,
             ids,
             patches,
             edges,
+            chords,
         })
     }
 
@@ -1293,8 +1302,7 @@ impl PickIndex {
     /// units of `|dir|` means the same world distance in every group);
     /// a moved instance's hit crosses back with its point converted
     /// and its interval carried, which is
-    /// `work/vgeom/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`
-    /// §1.
+    /// `work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     ///
     /// # Errors
     ///
@@ -1356,8 +1364,7 @@ impl PickIndex {
                 // caller compares against the picture is world. The
                 // interval rides across unconverted, which is the
                 // rigid-frame argument above and
-                // `work/vgeom/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`
-                // §1.
+                // `work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
                 candidates.push(PickHit {
                     point: map.transform_point(hit.point),
                     ..hit
@@ -1529,9 +1536,16 @@ impl PickIndex {
 
     /// The tessellated part drawing one (node, body).
     fn part_of(&self, node: RecipeNodeId, body: u32) -> Option<&NodePick> {
-        self.parts
+        self.part_at(node, body).map(|(part, _)| part)
+    }
+
+    /// [`PickIndex::part_of`] with the part's [`ChordFaces`] beside it.
+    fn part_at(&self, node: RecipeNodeId, body: u32) -> Option<(&NodePick, &ChordFaces)> {
+        let at = self
+            .parts
             .iter()
-            .find(|part| part.node() == node && part.body() == body)
+            .position(|part| part.node() == node && part.body() == body)?;
+        Some((self.parts.get(at)?, self.chords.get(at)?))
     }
 
     /// The world polyline a drawn edge is drawn as, under a display
@@ -1577,12 +1591,13 @@ impl PickIndex {
     ///
     /// # The mechanism, and what it costs
     ///
-    /// The cursor's ray picks a face first, and that hit SEEDS the
-    /// search: only the edges of the body the cursor is actually over
-    /// are measured. That is cheap (one body's polylines, not the
-    /// document's) and it is what makes the answer an edge OF the face
-    /// under the cursor rather than of whatever else happens to project
-    /// nearby. The price, stated because it is a real limit rather
+    /// The cursor's ray picks a face first, and that answer SEEDS the
+    /// search: only the edges of the bodies the cursor is actually over
+    /// are measured — one body ordinarily, and every body a certified
+    /// tie names, in the tie's order. That is cheap (those bodies'
+    /// polylines, not the document's) and it is what makes the answer
+    /// an edge OF the surface under the cursor rather than of whatever
+    /// else happens to project nearby. The price, stated because it is a real limit rather
     /// than an oversight: an edge is reachable only where its own body
     /// is — a cursor just OUTSIDE a silhouette, over the background,
     /// picks nothing even when the silhouette edge is one pixel away.
@@ -1602,8 +1617,24 @@ impl PickIndex {
     /// re-picked against everything drawn, and a candidate the surface
     /// hides is rejected rather than selected through the solid.
     ///
+    /// **Hidden is the kernel's order, not a margin.** The chord's own
+    /// crossing of that ray is an interval: the hull of the certified
+    /// spans of its incident triangles' crossings ([`ray_triangle`]),
+    /// and always the span of the chord point the ray passes nearest
+    /// ([`ray_segment_point`]), which is the whole of it at a
+    /// silhouette, where the ray passes outside both incident
+    /// triangles. The chord is hidden exactly when the front set holds
+    /// a span that certainly precedes that interval
+    /// ([`TSpan::survivors`] drops it); overlap is visible. The incident
+    /// triangles are what keep a visible edge visible at grazing
+    /// incidence: the ray through a pixel misses the chord by its own
+    /// rounding, and divided by the cosine to an incident face that
+    /// offset is unbounded, but the front hit it produces IS that
+    /// face's crossing, which the chord's own interval contains.
+    ///
     /// Determinism: the candidates within the radius are ordered by
-    /// `(pixel distance, boundary position, segment position)` — a
+    /// `(pixel distance, body's place in the seed, boundary position,
+    /// segment position)` — a
     /// TOTAL order over pixels, which is this door's own and not the
     /// kernel's, so two edges meeting at the cursor answer the earlier
     /// one every time — and the answer is the first of them the solid
@@ -1612,10 +1643,11 @@ impl PickIndex {
     /// shared edge means anyway (below).
     ///
     /// **A certified tie between faces does not refuse here.** The
-    /// seed is a depth ([`PickIndex::front_of`]), and the cursors
+    /// seed is the front set ([`PickIndex::front_of`]), and the cursors
     /// where the face pick ties are exactly the cursors an edge is
-    /// aimed with — a shared edge's own pixels. The face answer is
-    /// where the tie costs something ([`PickIndex::hovered_for`]).
+    /// aimed with — a shared edge's own pixels, or the coincident faces
+    /// of two parts. The face answer is where the tie costs something
+    /// ([`PickIndex::hovered_for`]).
     ///
     /// # Errors
     ///
@@ -1630,10 +1662,8 @@ impl PickIndex {
         cursor: [f64; 2],
         display: &DisplayView,
     ) -> Result<Option<EdgePick>, PickError> {
-        let Some(front) = self.seed(eval, camera, viewport, cursor, display)? else {
-            return Ok(None);
-        };
-        self.edge_near(eval, camera, viewport, cursor, display, &front.nearest)
+        let front = self.seed(eval, camera, viewport, cursor, display)?;
+        self.edge_near(eval, camera, viewport, cursor, display, &front)
     }
 
     /// **The faces under a cursor**, whichever entity the priority rule
@@ -1672,27 +1702,24 @@ impl PickIndex {
             node: hit.node,
             body: hit.body,
         };
-        let Some(front) = self.seed(eval, camera, viewport, cursor, display)? else {
-            return Ok(Vec::new());
-        };
-        Ok(if front.tied.is_empty() {
-            vec![selection(front.nearest)]
-        } else {
-            front.tied.into_iter().map(selection).collect()
-        })
+        Ok(self
+            .seed(eval, camera, viewport, cursor, display)?
+            .into_iter()
+            .map(selection)
+            .collect())
     }
 
-    /// **What is in front on `ray`**, read as a MEASUREMENT: the
-    /// nearest of the faces the door names, and the whole tied set
-    /// when it names several.
+    /// **What is in front on `ray`**: the survivors of the kernel's
+    /// certified order over everything drawn — empty for a miss, one
+    /// hit when the door names one face, and every hit of the
+    /// certified tie when it names several.
     ///
-    /// A certified tie between faces is not a refusal here, because
-    /// the question is not which face the ray met. A ray that meets
-    /// two faces the arithmetic cannot order has met a surface either
-    /// way, and the tied answers pairwise overlap, so the smallest of
-    /// their rounded parameters is a depth this question can be asked
-    /// with and is a function of the set. Only a caller whose own
-    /// answer IS a face refuses on `tied`.
+    /// A tie is not a refusal here, because the question is not which
+    /// face the ray met. Every survivor is a true crossing that no
+    /// other crossing precedes, so the set is what the occlusion probe
+    /// orders a chord against and what names the bodies the edge
+    /// search is over. Only a caller whose own answer IS a face
+    /// refuses on a set of several ([`PickIndex::hovered_for`]).
     ///
     /// # Errors
     ///
@@ -1702,40 +1729,23 @@ impl PickIndex {
         eval: &Evaluation<f64>,
         ray: &Ray,
         display: &DisplayView,
-    ) -> Result<Option<Front>, HitTestError> {
-        match self.pick_for(eval, ray, display) {
-            Ok(hit) => Ok(hit.map(|hit| Front {
-                nearest: hit,
-                tied: Vec::new(),
-            })),
-            Err(HitTestError::Ambiguous { hits }) => {
-                // `min_by` keeps the FIRST of equal parameters, so a
-                // tie inside the tie falls to the list's order, which
-                // is the door's own. An empty list is not a refusal
-                // the kernel raises, and is a miss if one ever is.
-                let nearest = hits.iter().min_by(|left, right| left.t.total_cmp(&right.t));
-                Ok(nearest.cloned().map(|nearest| Front {
-                    nearest,
-                    tied: hits,
-                }))
-            }
-            Err(other) => Err(other),
-        }
+    ) -> Result<Vec<PickHit>, HitTestError> {
+        group_answer(self.pick_for(eval, ray, display))
     }
 
     /// The ray path's answer for a cursor: the un-projection and the
-    /// face pick, in one place because three doors above open with
+    /// front set, in one place because three doors above open with
     /// exactly these two steps and a fourth spelling is how they come
     /// to disagree about which ray a cursor names.
     ///
-    /// **The seed is a DEPTH, not a pick** — [`PickIndex::front_of`],
-    /// through the same door the occlusion probe reads. A cursor on a
-    /// shared edge is exactly the pixel a user aims an EDGE with, and
-    /// it is also where the face pick ties; seeding on the face
-    /// answer would refuse the edge search before it ran, on the
-    /// cursors it matters most on. So the tie rides along in
-    /// [`Front::tied`] and only the callers whose answer is a face
-    /// raise it.
+    /// **The seed is the front set, not a pick** —
+    /// [`PickIndex::front_of`], through the same door the occlusion
+    /// probe reads. A cursor on a shared edge is exactly the pixel a
+    /// user aims an EDGE with, and it is also where the face pick
+    /// ties; seeding on the face answer would refuse the edge search
+    /// before it ran, on the cursors it matters most on. So the tie
+    /// rides along and only the callers whose answer is a face raise
+    /// it.
     fn seed(
         &self,
         eval: &Evaluation<f64>,
@@ -1743,7 +1753,7 @@ impl PickIndex {
         viewport: ViewportSize,
         cursor: [f64; 2],
         display: &DisplayView,
-    ) -> Result<Option<Front>, PickError> {
+    ) -> Result<Vec<PickHit>, PickError> {
         let ray = camera
             .ray_through(cursor, viewport)
             .map_err(PickError::Camera)?;
@@ -1795,12 +1805,12 @@ impl PickIndex {
         display: &DisplayView,
         kinds: PickKinds,
     ) -> Result<Option<Hovered>, PickError> {
-        let Some(front) = self.seed(eval, camera, viewport, cursor, display)? else {
+        let front = self.seed(eval, camera, viewport, cursor, display)?;
+        if front.is_empty() {
             return Ok(None);
-        };
+        }
         if kinds.edges()
-            && let Some(edge) =
-                self.edge_near(eval, camera, viewport, cursor, display, &front.nearest)?
+            && let Some(edge) = self.edge_near(eval, camera, viewport, cursor, display, &front)?
         {
             return Ok(Some(Hovered::Edge(edge.selection())));
         }
@@ -1810,19 +1820,17 @@ impl PickIndex {
             // cursor can mean is here, not the face it did not aim at.
             return Ok(None);
         }
-        if !front.tied.is_empty() {
+        match <[PickHit; 1]>::try_from(front) {
+            Ok([hit]) => Ok(Some(Hovered::Face(FaceSelection {
+                name: hit.name,
+                node: hit.node,
+                body: hit.body,
+            }))),
             // The answer being asked for IS a face, and the door names
             // several it cannot order: this is where the refusal
             // belongs, after the edge rule has had the cursor.
-            return Err(PickError::HitTest(HitTestError::Ambiguous {
-                hits: front.tied,
-            }));
+            Err(hits) => Err(PickError::HitTest(HitTestError::Ambiguous { hits })),
         }
-        Ok(Some(Hovered::Face(FaceSelection {
-            name: front.nearest.name,
-            node: front.nearest.node,
-            body: front.nearest.body,
-        })))
     }
 
     /// [`PickIndex::hovered_for`] with nothing hidden or free-moved.
@@ -1847,8 +1855,9 @@ impl PickIndex {
         )
     }
 
-    /// The nearest edge of the hit body within the pick radius, or
-    /// `None`. See [`PickIndex::edge_at_for`] for the whole argument.
+    /// The nearest edge of the bodies `front` names within the pick
+    /// radius, or `None`. See [`PickIndex::edge_at_for`] for the whole
+    /// argument.
     fn edge_near(
         &self,
         eval: &Evaluation<f64>,
@@ -1856,65 +1865,84 @@ impl PickIndex {
         viewport: ViewportSize,
         cursor: [f64; 2],
         display: &DisplayView,
-        hit: &PickHit,
+        front: &[PickHit],
     ) -> Result<Option<EdgePick>, PickError> {
         // The caller un-projected a ray through this cursor already,
         // and that refuses first for a viewport with no area.
         let Some(aspect) = viewport.aspect() else {
             return Ok(None);
         };
-        let Some(part) = self.part_of(hit.node, hit.body) else {
-            return Ok(None);
-        };
-        let mesh = part.mesh();
-        let place = placement(display, hit.node);
+        // Every body the front set names, once each, in the set's order.
+        let mut bodies: Vec<(RecipeNodeId, u32)> = Vec::new();
+        for hit in front {
+            if !bodies.contains(&(hit.node, hit.body)) {
+                bodies.push((hit.node, hit.body));
+            }
+        }
         // One candidate per drawn edge — its own nearest segment —
         // rather than one per segment: a curved edge's chords all lie
         // near the cursor together, and the question being asked is
-        // which EDGE the cursor means.
-        let mut candidates: Vec<Candidate> = Vec::new();
-        for id in self.edges_in(hit.node, hit.body) {
-            let Some(boundary) = mesh.boundaries.get(id.boundary) else {
+        // which EDGE the cursor means. Each carries its body's place
+        // in `bodies`.
+        let mut candidates: Vec<(usize, Candidate)> = Vec::new();
+        for (rank, &(node, body)) in bodies.iter().enumerate() {
+            let Some((part, _)) = self.part_at(node, body) else {
                 continue;
             };
-            // Each chord point projected once, then the segments
-            // walked over the result: a shared point is projected by
-            // both of its segments otherwise, and the projection is
-            // the expensive half.
-            //
-            // A chord point on or behind the eye plane has no pixel,
-            // so a segment with such an endpoint is not offered:
-            // measuring it would need clipping, and an edge running
-            // through the eye is not something a cursor is aiming at.
-            let mut projected: Vec<Option<(Point3<f64>, [f64; 2])>> =
-                Vec::with_capacity(boundary.points.len());
-            for &index in &boundary.points {
-                let entry = match mesh.positions.get(index as usize) {
-                    Some(&position) => {
-                        let world = place(position);
-                        camera
-                            .project(world, aspect)
-                            .map_err(PickError::Camera)?
-                            .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
-                            .map(|pixel| (world, pixel))
-                    }
-                    None => None,
+            let mesh = part.mesh();
+            let place = placement(display, node);
+            for id in self.edges_in(node, body) {
+                let Some(boundary) = mesh.boundaries.get(id.boundary) else {
+                    continue;
                 };
-                projected.push(entry);
+                // Each chord point projected once, then the segments
+                // walked over the result: a shared point is projected
+                // by both of its segments otherwise, and the
+                // projection is the expensive half.
+                //
+                // A chord point on or behind the eye plane has no
+                // pixel, so a segment with such an endpoint is not
+                // offered: measuring it would need clipping, and an
+                // edge running through the eye is not something a
+                // cursor is aiming at.
+                let mut projected: Vec<Option<(Point3<f64>, [f64; 2])>> =
+                    Vec::with_capacity(boundary.points.len());
+                for &index in &boundary.points {
+                    let entry = match mesh.positions.get(index as usize) {
+                        Some(&position) => {
+                            let world = place(position);
+                            camera
+                                .project(world, aspect)
+                                .map_err(PickError::Camera)?
+                                .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
+                                .map(|pixel| (world, pixel))
+                        }
+                        None => None,
+                    };
+                    projected.push(entry);
+                }
+                candidates.extend(
+                    best_segment(cursor, id.boundary, &projected).map(|found| (rank, found)),
+                );
             }
-            candidates.extend(best_segment(cursor, id.boundary, &projected));
         }
-        // The tie-break, stated once: nearest first, then the earlier
-        // boundary, then the earlier segment — all integers after the
-        // first, and the first is a distance [`best_segment`] admitted,
-        // so it is finite.
-        candidates.sort_by(|left, right| {
+        // The tie-break, stated once: nearest first, then the body
+        // earlier in the seed, then the earlier boundary, then the
+        // earlier segment — all integers after the first, and the
+        // first is a distance [`best_segment`] admitted, so it is
+        // finite.
+        candidates.sort_by(|(left_rank, left), (right_rank, right)| {
             left.distance
                 .partial_cmp(&right.distance)
                 .unwrap_or(core::cmp::Ordering::Equal)
-                .then((left.boundary, left.segment).cmp(&(right.boundary, right.segment)))
+                .then((*left_rank, left.boundary, left.segment).cmp(&(
+                    *right_rank,
+                    right.boundary,
+                    right.segment,
+                )))
         });
-        for candidate in candidates {
+        for (rank, candidate) in candidates {
+            let (node, body) = bodies[rank];
             // Occlusion: the ray through this candidate's own pixel,
             // picked against everything drawn. A candidate the solid
             // hides is not what the cursor is aiming at however near
@@ -1926,17 +1954,36 @@ impl PickIndex {
                 .ray_through(candidate.pixel, viewport)
                 .map_err(PickError::Camera)?;
             let [a, b] = candidate.ends;
-            let (t, point) = ray_segment_closest(&ray, a, b);
-            let hidden = self
+            let (s, point) = ray_segment_closest(&ray, a, b);
+            let Some(own) = self.own_crossing(&ray, node, body, &candidate, s, display) else {
+                // A chord point the kernel cannot give a parameter has
+                // nothing to be ordered by, and is not offered — as a
+                // chord point with no pixel is not.
+                continue;
+            };
+            // A moved copy's front spans are its LOCAL ray's
+            // parameters, carried across unconverted, while `own` is
+            // the world ray's: comparable because the display admits
+            // only rigid probe frames, which is
+            // `work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
+            let mut spans: Vec<TSpan> = self
                 .front_of(eval, &ray, display)
                 .map_err(PickError::HitTest)?
-                .is_some_and(|front| front.nearest.t < t - OCCLUSION_SLACK_REL * t.abs());
-            if hidden {
+                .iter()
+                .map(|hit| TSpan {
+                    t: hit.t,
+                    t_lo: hit.t_lo,
+                    t_hi: hit.t_hi,
+                })
+                .collect();
+            let own_at = spans.len();
+            spans.push(own);
+            if !TSpan::survivors(&spans).contains(&own_at) {
                 continue;
             }
             let id = EdgeId {
-                node: hit.node,
-                body: hit.body,
+                node,
+                body,
                 boundary: candidate.boundary,
             };
             // The loud unnamed-entity arm reaches the caller as a
@@ -1954,6 +2001,59 @@ impl PickIndex {
             }));
         }
         Ok(None)
+    }
+
+    /// **The chord's own crossing of `ray`**, as an interval: the hull
+    /// of the span of the chord point at segment parameter `s`
+    /// ([`ray_segment_point`]) and the certified spans of every
+    /// crossing `ray` makes with the triangles incident to that point
+    /// ([`ray_triangle`]) — the chord's triangles when `s` is inside
+    /// it, and every triangle at the endpoint when the closest point
+    /// clamped to one ([`ChordFaces::incident`]).
+    ///
+    /// The triangles are placed through the same [`placement`] the
+    /// chord's points were, so a moved copy's chord and faces are
+    /// measured where they are drawn. `None` when the chord point has
+    /// no finite parameter.
+    fn own_crossing(
+        &self,
+        ray: &Ray,
+        node: RecipeNodeId,
+        body: u32,
+        candidate: &Candidate,
+        s: f64,
+        display: &DisplayView,
+    ) -> Option<TSpan> {
+        let own = ray_segment_point(ray, candidate.ends, s)?;
+        let Some((part, chords)) = self.part_at(node, body) else {
+            return Some(own);
+        };
+        let mesh = part.mesh();
+        let Some(&[from, to]) = mesh
+            .boundaries
+            .get(candidate.boundary)
+            .and_then(|boundary| {
+                boundary
+                    .points
+                    .get(candidate.segment..candidate.segment + 2)
+            })
+        else {
+            return Some(own);
+        };
+        let place = placement(display, node);
+        let corner = |index: u32| mesh.positions.get(index as usize).copied().map(&place);
+        Some(
+            chords
+                .incident([from, to], s)
+                .iter()
+                .filter_map(|&[i, j, k]| Some([corner(i)?, corner(j)?, corner(k)?]))
+                .filter_map(|tri| ray_triangle(ray, &tri))
+                .fold(own, |hull, span| TSpan {
+                    t: hull.t,
+                    t_lo: hull.t_lo.min(span.t_lo),
+                    t_hi: hull.t_hi.max(span.t_hi),
+                }),
+        )
     }
 
     /// **The whole cursor path, as one function**: a cursor action
@@ -2033,34 +2133,6 @@ impl PickIndex {
     }
 }
 
-/// How far, relative to its own distance from the eye, a candidate
-/// edge may sit BEHIND the surface picked at its own pixel and still
-/// count as visible.
-///
-/// It is a float-noise margin and nothing more. The edge polylines and
-/// the face patches are one tessellation that shares its boundary
-/// positions (the mesh crate's watertightness contract), so a visible
-/// edge and the surface at its pixel agree to the last bits, and the
-/// threshold's job is to sit above that agreement.
-///
-/// **What it is NOT is a guaranteed separation.** The usual hidden
-/// edge sits a whole feature behind its occluder, orders of magnitude
-/// above this margin — but that is typical geometry, not an
-/// invariant. A camera grazing a thin wall shrinks the gap
-/// continuously (a probe at a near-tangent view watched a genuinely
-/// hidden edge close to ~0.3% of its own depth: still 3000x this
-/// margin, but no longer "orders of magnitude"), and in the limit the
-/// two populations meet. What that costs at the limit is one pick
-/// answering the near edge where the far one is a rounding error
-/// away; the failure being traded against is a mark drawn through
-/// solid material, which is the louder of the two.
-///
-/// `crate::gpu`'s `EDGE_CLIP_Z_LIFT` plays the same
-/// coincident-edge-over-its-own-face role on the GPU draw lane, in
-/// f32 clip z — a pointer each way, deliberately not one shared
-/// constant.
-const OCCLUSION_SLACK_REL: f64 = 1.0e-6;
-
 /// How far below `|d|^2 |e|^2` the ray/segment denominator counts as
 /// cancellation noise rather than a crossing — see
 /// [`ray_segment_closest`].
@@ -2122,7 +2194,8 @@ impl EdgePick {
 /// and a group that cannot order its own faces has said nothing about
 /// another group's, so the tie travels to the cross-group merge
 /// instead of ending the call there
-/// ([`PickIndex::pick_for`]). Every other refusal is about the
+/// ([`PickIndex::pick_for`]), and is the front set
+/// ([`PickIndex::front_of`]). Every other refusal is about the
 /// TARGETS, not the geometry, and propagates.
 fn group_answer(
     answer: Result<Option<PickHit>, HitTestError>,
@@ -2134,20 +2207,73 @@ fn group_answer(
     }
 }
 
-/// **What the ray path found in front**, read as a measurement of the
-/// surface rather than as a pick of a face
-/// ([`PickIndex::front_of`]).
+/// **A part's drawn chords and the triangles incident to them**, by
+/// exact mesh index: a boundary polyline and the face patches share
+/// [`pncad::mesh::Mesh::positions`], so a chord's two indices are an
+/// edge of every triangle on either side of it and a chord point's
+/// index is a corner of every triangle around it.
 ///
-/// `nearest` is the hit with the smallest rounded parameter among the
-/// faces the door names — a point of the surface under the cursor
-/// whichever face of a tie owns it, and the body whose drawn edges an
-/// edge search is over. `tied` is empty when the door named one face
-/// and carries the whole certified tie when it named several, so a
-/// caller whose own answer is a face can raise the refusal verbatim
-/// while one asking about depth or about an edge never sees it.
-struct Front {
-    nearest: PickHit,
-    tied: Vec<PickHit>,
+/// Built once per [`PickIndex`], from the same meshes its parts hold,
+/// and keyed only on what a boundary draws — the occlusion probe asks
+/// about a drawn chord and nothing else.
+#[derive(Debug)]
+struct ChordFaces {
+    /// Each drawn chord, its indices in ascending order, with the
+    /// triangles that have it as an edge.
+    on_chord: BTreeMap<[u32; 2], Vec<[u32; 3]>>,
+    /// Each drawn chord point with the triangles that have it as a
+    /// corner.
+    at_point: BTreeMap<u32, Vec<[u32; 3]>>,
+}
+
+impl ChordFaces {
+    fn of(mesh: &pncad::mesh::Mesh) -> Self {
+        let mut on_chord: BTreeMap<[u32; 2], Vec<[u32; 3]>> = BTreeMap::new();
+        let mut at_point: BTreeMap<u32, Vec<[u32; 3]>> = BTreeMap::new();
+        for boundary in &mesh.boundaries {
+            for &point in &boundary.points {
+                at_point.entry(point).or_default();
+            }
+            for pair in boundary.points.windows(2) {
+                on_chord.entry(chord_key(pair[0], pair[1])).or_default();
+            }
+        }
+        for patch in &mesh.patches {
+            for &tri in &patch.triangles {
+                for corner in tri {
+                    if let Some(around) = at_point.get_mut(&corner) {
+                        around.push(tri);
+                    }
+                }
+                for (from, to) in [(tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])] {
+                    if let Some(beside) = on_chord.get_mut(&chord_key(from, to)) {
+                        beside.push(tri);
+                    }
+                }
+            }
+        }
+        Self { on_chord, at_point }
+    }
+
+    /// The triangles the point at parameter `s` of the chord
+    /// `from`–`to` lies on: the chord's own when `s` is inside it, and
+    /// every triangle at the endpoint when `s` is one —
+    /// [`ray_segment_closest`] clamps to exactly `0` or `1`.
+    fn incident(&self, [from, to]: [u32; 2], s: f64) -> &[[u32; 3]] {
+        let found = if s == 0.0 {
+            self.at_point.get(&from)
+        } else if s == 1.0 {
+            self.at_point.get(&to)
+        } else {
+            self.on_chord.get(&chord_key(from, to))
+        };
+        found.map_or(&[], Vec::as_slice)
+    }
+}
+
+/// A chord's key in [`ChordFaces`]: its two indices, ascending.
+fn chord_key(a: u32, b: u32) -> [u32; 2] {
+    if a <= b { [a, b] } else { [b, a] }
 }
 
 /// The best drawn edge segment a cursor found so far: how near it
@@ -2272,8 +2398,13 @@ fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64
     (distance, closest)
 }
 
-/// The point of the segment `a`–`b` nearest `ray`, and its distance
-/// along the ray.
+/// The point of the segment `a`–`b` nearest `ray`, as its parameter
+/// `s` along the segment and as the point `a + (b − a)·s` itself.
+///
+/// What it answers is a POSITION ([`EdgePick::point`]) and the `s` the
+/// occlusion probe hands to [`ray_segment_point`] and
+/// [`ChordFaces::incident`]; the depth that decides occlusion is the
+/// kernel's, not a parameter computed here.
 ///
 /// The ray comes from the pixel the segment's own projection is
 /// nearest, so the two very nearly meet; what this answers is where.
@@ -2306,13 +2437,7 @@ fn ray_segment_closest(ray: &Ray, a: Point3<f64>, b: Point3<f64>) -> (f64, Point
         0.0
     }
     .clamp(0.0, 1.0);
-    let point = a + segment * t_segment;
-    let t_ray = if aa > 0.0 {
-        along.dot(point - ray.origin) / aa
-    } else {
-        0.0
-    };
-    (t_ray, point)
+    (t_segment, a + segment * t_segment)
 }
 
 /// Why a cursor produced no answer (closed enum, D4 ¶3).
