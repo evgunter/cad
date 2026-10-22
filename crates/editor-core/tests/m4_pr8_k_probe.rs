@@ -51,7 +51,7 @@ use crate::fixture::value_channel::{
 use std::io::Write as _;
 
 use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
-use topo::{mass_properties, validate, validate_closed};
+use topo::{validate, validate_closed};
 
 use corpus::{body_of, documents, eval, failures};
 use editor_core::{BooleanValue, NodeResult, ValuePayload};
@@ -84,7 +84,7 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
         let body = body_of(&ev, result);
         validate(body).expect("tier 1");
         validate_closed(body).expect("closed");
-        mass_properties(body, Tol::witness()).expect("mass properties");
+        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
     }
     k_stats::take_samples()
 }
@@ -464,8 +464,8 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
             && matches!(ev_f.result(result), Some(NodeResult::Ok(_)))
         {
             let tol = Tol::witness();
-            let mf = mass_properties(body_of(&ev_f, result), tol);
-            let mp = mass_properties(body_of(&ev_p, result), tol);
+            let mf = topo::test_support::unmigrated_measure(body_of(&ev_f, result), tol);
+            let mp = topo::test_support::unmigrated_measure(body_of(&ev_p, result), tol);
             match (&mf, &mp) {
                 (Ok(a), Ok(b)) => {
                     let (ha, wa) = props_digest(a);

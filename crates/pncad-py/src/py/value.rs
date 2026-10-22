@@ -491,17 +491,26 @@ impl Body {
     /// Volume, area, and their certified pads — a certified
     /// quadrature from round 0 over the whole body.
     ///
-    /// **After a tier-3 gate this is a SECOND one.** Check 7 is itself
-    /// a certified quadrature over the same body at the same band, so
-    /// `validate_geometric()` then `mass_properties()` pays for the
-    /// measurement twice; [`Self::validate_geometric_measured`] is the
-    /// one-quadrature spelling of that pair. This door stays the right
-    /// one for a body that is not being gated here — measuring is not
-    /// validating, and asking for a volume does not imply a caller
-    /// wants tier 3 run.
+    /// **The measurement reads a finished body** (Ev's decision on PR
+    /// 4822): the body is gated at tier 3 first, and a body the gate
+    /// refuses raises the gate's `ValidationError`, as
+    /// [`Self::validate_geometric_measured`] does, rather than being
+    /// measured. Check 7 is itself a certified quadrature, so this pays
+    /// for two; [`Self::validate_geometric_measured`] is the
+    /// one-quadrature spelling.
     fn mass_properties(&self, py: Python<'_>) -> PyResult<MassProperties> {
         let tol = Tol::witness();
-        topo::mass_properties(&self.inner, tol)
+        let body = match topo::AtRestBody::validate(topo::Body::clone(&self.inner), tol) {
+            Ok(body) => body,
+            Err(failures) => {
+                return Err(Self::validator_err(
+                    py,
+                    ValidationRefusal::Geometric,
+                    &failures,
+                )?);
+            }
+        };
+        topo::mass_properties(&body, tol)
             .map(MassProperties::from)
             // No bracket: this door refuses with no certificate in
             // hand, so it has none to offer and must not appear to.
