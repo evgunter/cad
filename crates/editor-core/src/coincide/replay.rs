@@ -102,6 +102,9 @@ type Lane = Sym<f64>;
 /// Why a row is left unproven, and what would prove it.
 type Left = (Unreplayed, Recourse);
 
+/// A rung that proved a row, or why the replay could not.
+type Proved = Result<Rung, Left>;
+
 /// **The symbolic rungs for each row the first rung left**
 /// (`left`, in the shape of `nodes`): in the order given, a rung that
 /// proved the row or why the replay could not, and `None` for a row
@@ -118,7 +121,7 @@ pub(super) fn rungs(
     resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     cancel: &crate::CancelToken,
-) -> Result<Vec<Vec<Option<Result<Rung, Left>>>>, Canceled> {
+) -> Result<Vec<Vec<Option<Proved>>>, Canceled> {
     let parts = nodes.iter().zip(left).any(|(&(node, rows), left)| {
         rows.iter().zip(left).any(|(row, &left)| {
             left && if row.site == topo::DecisionSite::CensusAtRest {

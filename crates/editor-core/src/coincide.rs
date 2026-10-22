@@ -584,7 +584,7 @@ pub fn prove<P: crate::ProfilePayload>(
     tol: geom_core::Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Proof>>, Canceled> {
-    let walked: Vec<Vec<(Vec<Result<Construction, Unwalked>>, bool)>> = nodes
+    let walked: Vec<Vec<(Walked, bool)>> = nodes
         .iter()
         .map(|(_, rows)| {
             rows.iter()
@@ -643,6 +643,9 @@ pub fn prove<P: crate::ProfilePayload>(
         })
         .collect())
 }
+
+/// Each cell of a row walked to its construction, or why it was not.
+type Walked = Vec<Result<Construction, Unwalked>>;
 
 /// Each cell's construction.
 fn constructions<P>(
