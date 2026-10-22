@@ -87,11 +87,11 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::wgpu;
 
 use crate::camera::cursor_projection;
+use crate::idpass::{IdChannel, IdReply, ReadbackFault};
 use crate::marks::{EdgeLane, EdgeOverlay};
 use crate::pane::viewport::Composed;
 use crate::pickindex::IdMap;
@@ -827,9 +827,11 @@ impl ViewportRenderer {
     /// state machine spanning frames, for a query that only runs when
     /// the cursor moves inside the viewport.
     ///
-    /// `None` when there is nothing to draw, when the device refuses
-    /// the wait, or when the mapping fails — every one of which is
-    /// "the GPU has no answer", never a wrong answer.
+    /// **Nothing to draw is an answer**: [`IdMap::NOTHING`], the word
+    /// the pass would have read over an empty picture, so the reader
+    /// is told the cursor is over no geometry, which is true of the
+    /// picture on screen. A device that refuses the wait or a mapping
+    /// that fails is NO answer, and is the [`ReadbackFault`] it is.
     fn read_id_at(
         &mut self,
         device: &wgpu::Device,
@@ -837,11 +839,14 @@ impl ViewportRenderer {
         cursor_ndc: [f32; 2],
         viewport_px: [f32; 2],
         view_projection: &[[f32; 4]; 4],
-    ) -> Option<u32> {
-        let geometry = self.geometry.as_ref()?;
-        if geometry.corners == 0 {
-            return None;
-        }
+    ) -> Result<u32, ReadbackFault> {
+        let Some(geometry) = self
+            .geometry
+            .as_ref()
+            .filter(|geometry| geometry.corners > 0)
+        else {
+            return Ok(IdMap::NOTHING);
+        };
         queue.write_buffer(
             &self.id.uniforms,
             0,
@@ -933,15 +938,37 @@ impl ViewportRenderer {
             .readback
             .slice(..)
             .map_async(wgpu::MapMode::Read, |_| {});
-        device.poll(wgpu::PollType::wait_indefinitely()).ok()?;
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .map_err(|error| ReadbackFault::Wait(error.to_string()))?;
         let id = {
-            let view = self.id.readback.slice(..).get_mapped_range().ok()?;
-            let bytes: [u8; 4] = view.get(..4)?.try_into().ok()?;
-            u32::from_le_bytes(bytes)
+            let view = self
+                .id
+                .readback
+                .slice(..)
+                .get_mapped_range()
+                .map_err(|error| ReadbackFault::Map(error.to_string()))?;
+            id_in(&view)
         };
         self.id.readback.unmap();
-        Some(id)
+        id
     }
+}
+
+/// **The id a mapped readback holds**: its first four bytes, little
+/// endian, which is where the copy put the target's one texel. A
+/// mapping shorter than that holds no id and is a [`ReadbackFault`],
+/// never the clear value.
+fn id_in(mapped: &[u8]) -> Result<u32, ReadbackFault> {
+    mapped
+        .first_chunk::<4>()
+        .map(|bytes| u32::from_le_bytes(*bytes))
+        .ok_or_else(|| {
+            ReadbackFault::Map(format!(
+                "{} bytes mapped, fewer than one id's 4",
+                mapped.len()
+            ))
+        })
 }
 
 impl IdPass {
@@ -1308,15 +1335,12 @@ pub(crate) struct ViewportCallback {
 
 /// One id-buffer question, and where its answer goes.
 ///
-/// The answer travels back through a shared atomic rather than through
-/// `egui_wgpu`'s resources, because the asker is the application and
-/// the answerer is a paint callback: an `Arc` both hold is the whole
-/// channel, with no borrow of the render state in the frame loop.
+/// The answer travels back through an [`IdChannel`] rather than through
+/// `egui_wgpu`'s resources, which says why.
 ///
-/// `serial` is echoed into the high half of [`IdQuery::answer`] so the
-/// application can tell this frame's answer from the previous one's —
-/// an id of `NOTHING` is a real answer, so "unchanged" cannot stand in
-/// for "not yet run".
+/// `serial` is echoed into the [`IdReply`] so the application can tell
+/// this frame's answer from the previous one's — an id of `NOTHING` is
+/// a real answer, so "unchanged" cannot stand in for "not yet run".
 pub(crate) struct IdQuery {
     /// The cursor in normalized device coordinates within the pane.
     pub(crate) cursor_ndc: [f32; 2],
@@ -1324,8 +1348,8 @@ pub(crate) struct IdQuery {
     pub(crate) viewport_px: [f32; 2],
     /// This query's serial.
     pub(crate) serial: u32,
-    /// `serial << 32 | id` once the pass has run.
-    pub(crate) answer: Arc<AtomicU64>,
+    /// Where the reply goes once the pass has run.
+    pub(crate) answer: IdChannel,
 }
 
 impl ViewportCallback {
@@ -1401,19 +1425,17 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
             // it cannot ride in the command buffer egui submits after
             // this call returns.
             if let Some(query) = &self.id_query {
-                let id = renderer
-                    .read_id_at(
-                        device,
-                        queue,
-                        query.cursor_ndc,
-                        query.viewport_px,
-                        &self.view_projection,
-                    )
-                    .unwrap_or(IdMap::NOTHING);
-                query.answer.store(
-                    u64::from(query.serial) << 32 | u64::from(id),
-                    Ordering::Relaxed,
+                let read = renderer.read_id_at(
+                    device,
+                    queue,
+                    query.cursor_ndc,
+                    query.viewport_px,
+                    &self.view_projection,
                 );
+                query.answer.post(IdReply {
+                    serial: query.serial,
+                    read,
+                });
             }
         }
         Vec::new()
@@ -2244,6 +2266,31 @@ mod tests {
         );
     }
 
+    /// **A mapping too short to hold an id is a fault, not the clear
+    /// value**, and a mapping that holds one is read little endian from
+    /// its first four bytes whatever follows. Folded to an `Option` and
+    /// then to [`IdMap::NOTHING`], the short row would read as *nothing
+    /// under the cursor*.
+    #[test]
+    fn a_readback_is_its_first_four_bytes_and_a_short_one_is_a_fault() {
+        let mut row = [0xAB_u8; COPY_ROW_ALIGNMENT as usize];
+        row[..4].copy_from_slice(&[1, 2, 3, 4]);
+        assert_eq!(id_in(&row), Ok(0x0403_0201), "the texel, little endian");
+        assert_eq!(
+            id_in(&[0; 4]),
+            Ok(IdMap::NOTHING),
+            "a cleared texel is the pass's answer over empty space"
+        );
+        for short in [&[][..], &[9, 9, 9][..]] {
+            let read = id_in(short);
+            assert!(
+                matches!(&read, Err(ReadbackFault::Map(why)) if why.contains(&short.len().to_string())),
+                "{} mapped bytes hold no id, and the fault says how many: {read:?}",
+                short.len()
+            );
+        }
+    }
+
     /// **Both scene passes hand [`corner_count`]'s answer to `draw`,
     /// and neither reaches an index buffer.**
     ///
@@ -2564,20 +2611,23 @@ mod tests {
             // The id pass, one query per facing face, as the app asks it.
             for (serial, &(id, face)) in (1..).zip(&facing) {
                 let [x, y, _] = ndc(face);
-                let answer = Arc::new(AtomicU64::new(0));
+                let answer = IdChannel::new();
                 let mut encoder = device.create_command_encoder(&Default::default());
                 let _ = callback(Some(IdQuery {
                     cursor_ndc: [x as f32, y as f32],
                     viewport_px: [SIDE_PX as f32; 2],
                     serial,
-                    answer: Arc::clone(&answer),
+                    answer: answer.clone(),
                 }))
                 .prepare(&device, &queue, &screen, &mut encoder, &mut resources);
-                let answer = answer.load(Ordering::Relaxed);
-                assert_eq!(answer >> 32, u64::from(serial), "{view}: the id pass ran");
+                let answer = answer.latest().expect("{view}: the id pass ran");
                 assert_eq!(
-                    answer & u64::from(u32::MAX),
-                    u64::from(id),
+                    answer.serial, serial,
+                    "{view}: the id pass answered this query"
+                );
+                assert_eq!(
+                    answer.read,
+                    Ok(id),
                     "{view}: the id pass at the centre of face {id} answers another id — the \
                      face that faces the eye was culled and the one behind it answered"
                 );

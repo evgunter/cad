@@ -762,11 +762,7 @@ fn cursors_across_the_pane_never_disagree_with_the_id_map() {
             test_utils::fuzz::replay()
         );
         for id in ids {
-            let name = index
-                .name_of(*id)
-                .expect("a drawn id has a name slot")
-                .as_ref()
-                .expect("the patch is named");
+            let name = index.name_of(*id).expect("the patch is named");
             assert_eq!(
                 name,
                 &hit.name,
@@ -801,7 +797,7 @@ fn two_copies_of_one_body_draw_its_names_apart() {
         index
             .ids_of_node(copy)
             .into_iter()
-            .filter_map(|id| index.name_of(id).and_then(|name| name.as_ref().ok()))
+            .filter_map(|id| index.name_of(id).ok())
             .map(|name| {
                 let (placement, own) = name.copy_of().expect("a copy's name is wrapped");
                 assert_eq!(placement, copy, "headed at the copy that draws it");
@@ -810,7 +806,7 @@ fn two_copies_of_one_body_draw_its_names_apart() {
             .collect()
     };
     for id in index.ids().ids() {
-        if let Some(Ok(name)) = index.name_of(id) {
+        if let Ok(name) = index.name_of(id) {
             assert_eq!(index.ids_of(name).len(), 1, "{name:?} is drawn once");
         }
     }

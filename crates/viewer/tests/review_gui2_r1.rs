@@ -259,11 +259,7 @@ fn two_copies_draw_under_disjoint_ids_and_every_patch_is_named() {
         let key = ids.key_of(id).expect("assigned ids invert");
         assert_eq!(ids.id_of(key), Some(id), "the two directions agree");
         nodes.insert(key.node);
-        let name = index
-            .name_of(id)
-            .expect("a drawn id has a name slot")
-            .as_ref()
-            .expect("every drawn patch is named");
+        let name = index.name_of(id).expect("every drawn patch is named");
         assert!(
             index.ids_of(name).contains(&id),
             "the name's id list carries the id that named it"

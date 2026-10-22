@@ -1095,16 +1095,28 @@ impl PickIndex {
 
     /// The name of the patch `id` denotes.
     ///
-    /// `None` for [`IdMap::NOTHING`] and for an id this index did not
-    /// assign; `Some(Err(_))` for the loud unnamed-face bug report.
     /// **A flat lookup, with no window check and none needed**: a
     /// patch id is a GLOBAL address, assigned across every part, so
     /// there is no next body for it to run into. That is the
     /// difference [`PickIndex::edge_name_of`] carries a window check
     /// for.
-    pub fn name_of(&self, id: u32) -> Option<&Result<StableName, UnnamedEntity>> {
-        self.patches
-            .name_at(usize::try_from(id.checked_sub(1)?).ok()?)
+    ///
+    /// # Errors
+    ///
+    /// [`PatchNameFault`], per arm: the clear value, an id this index
+    /// never assigned, or a patch the naming layer could not name.
+    pub fn name_of(&self, id: u32) -> Result<&StableName, PatchNameFault> {
+        let Some(flat) = id.checked_sub(1) else {
+            return Err(PatchNameFault::Nothing);
+        };
+        let entry = usize::try_from(flat)
+            .ok()
+            .and_then(|flat| self.patches.name_at(flat));
+        match entry {
+            None => Err(PatchNameFault::Unassigned { id }),
+            Some(Ok(name)) => Ok(name),
+            Some(Err(error)) => Err(PatchNameFault::Unnamed { id, error: *error }),
+        }
     }
 
     /// The ids a name is drawn as — **the id map's inverse**, across
@@ -2327,6 +2339,52 @@ pub enum PickError {
     /// naming layer's lookup could not name.
     EdgeName(EdgeNameFault),
 }
+
+/// Why a patch id names no stable name here (closed enum, D4 ¶3):
+/// [`PickIndex::name_of`]'s refusal.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PatchNameFault {
+    /// [`IdMap::NOTHING`], the clear value: the id of no patch, and the
+    /// ordinary answer over empty space.
+    Nothing,
+    /// An id this index never assigned. No pass drawn from this index
+    /// writes one, so it is what a corrupt readback looks like.
+    Unassigned {
+        /// The id asked about.
+        id: u32,
+    },
+    /// A patch this index assigned and has no name for: the naming
+    /// layer's own bug report, carried verbatim.
+    Unnamed {
+        /// The patch id asked about.
+        id: u32,
+        /// Why the patch has no name.
+        error: UnnamedEntity,
+    },
+}
+
+impl Say for PatchNameFault {
+    /// The `Unnamed` arm forwards the carried value's own sentence:
+    /// the naming layer named that failure.
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            Self::Nothing => f.write_str("nothing"),
+            Self::Unassigned { id } => write!(f, "id {id}, which this index never assigned"),
+            Self::Unnamed { id, error } => {
+                write!(f, "id {id}, a drawn patch: {}", Said(error, by))
+            }
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for PatchNameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+impl core::error::Error for PatchNameFault {}
 
 /// Why an [`EdgeId`] names no stable name here (closed enum, D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]

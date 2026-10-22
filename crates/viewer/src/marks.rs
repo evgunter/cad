@@ -719,7 +719,7 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
     let made: Vec<(u32, NameOrigin)> = index
         .ids()
         .ids()
-        .filter_map(|id| Some((id, attribute(index.name_of(id)?.as_ref().ok()?))))
+        .filter_map(|id| Some((id, attribute(index.name_of(id).ok()?))))
         .collect();
     let mut out = BTreeSet::new();
     for node in nodes {

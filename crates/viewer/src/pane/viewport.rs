@@ -4,7 +4,6 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 use eframe::egui;
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
@@ -433,7 +432,7 @@ struct RayQuestion<'a> {
 fn cursor_news(
     index: &PickIndex,
     question: RayQuestion<'_>,
-    answer: u64,
+    answer: Option<&idpass::IdReply>,
     outstanding: Option<u32>,
     ray_asked: bool,
 ) -> Vec<frame::Message> {
@@ -971,7 +970,7 @@ impl ViewerBehavior<'_> {
             Some(cursor_news(
                 on_screen?,
                 question,
-                self.id_answer.load(Ordering::Relaxed),
+                self.id_answer.latest().as_ref(),
                 outstanding,
                 ray_asked,
             ))
@@ -1015,7 +1014,7 @@ impl ViewerBehavior<'_> {
                     cursor_ndc,
                     viewport_px,
                     serial,
-                    answer: Arc::clone(self.id_answer),
+                    answer: self.id_answer.clone(),
                 }),
             _ => None,
         };
@@ -1073,7 +1072,7 @@ mod tests {
     use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
     use crate::marks;
     use crate::pickcache::{self, NotIndexed};
-    use crate::pickindex::{IdMap, PickError, PickIndex, PictureKey};
+    use crate::pickindex::{IdMap, PatchNameFault, PickError, PickIndex, PictureKey};
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
@@ -1539,18 +1538,19 @@ mod tests {
         let id = index.ids().ids().next().expect("the plate draws patches");
         let named = index
             .name_of(id)
-            .expect("an id of this index has an entry")
-            .as_ref()
-            .expect("and the plate's patches name cleanly")
+            .expect("an id of this index names its patch cleanly")
             .clone();
 
         let serial = 7u32;
-        let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
+        let nothing = idpass::IdReply {
+            serial,
+            read: Ok(IdMap::NOTHING),
+        };
         assert_eq!(
             idpass::compare(
                 &index,
                 &DisplayView::none(),
-                nothing,
+                Some(&nothing),
                 Some(serial),
                 Ok(std::slice::from_ref(&named)),
             ),
@@ -1570,8 +1570,8 @@ mod tests {
     /// **A refused ray beside an id-pass face**: the plate's index, an
     /// evaluation of ANOTHER document its hit test refuses before
     /// reading a table (a distinct identity; a twin recipe derives the
-    /// same one), a framed cursor, and the channel word of an id-pass
-    /// answer naming a face the plate really draws.
+    /// same one), a framed cursor, and an id-pass reply naming a face
+    /// the plate really draws.
     struct RefusedRay {
         index: PickIndex,
         foreign: DocSession,
@@ -1582,7 +1582,7 @@ mod tests {
         /// The id the named face is drawn under.
         id: u32,
         serial: u32,
-        answer: u64,
+        answer: idpass::IdReply,
     }
 
     fn refused_ray() -> RefusedRay {
@@ -1597,9 +1597,7 @@ mod tests {
         let id = index.ids().ids().next().expect("the plate draws patches");
         let named = index
             .name_of(id)
-            .expect("an id of this index has an entry")
-            .as_ref()
-            .expect("and the plate's patches name cleanly")
+            .expect("an id of this index names its patch cleanly")
             .clone();
         let serial = 7u32;
         RefusedRay {
@@ -1614,7 +1612,10 @@ mod tests {
             named,
             id,
             serial,
-            answer: (u64::from(serial) << 32) | u64::from(id),
+            answer: idpass::IdReply {
+                serial,
+                read: Ok(id),
+            },
         }
     }
 
@@ -1646,7 +1647,7 @@ mod tests {
             ),
             "the planted refusal is the kernel declining: {refusal:?}"
         );
-        let (index, answer, serial) = (&fixture.index, fixture.answer, Some(fixture.serial));
+        let (index, answer, serial) = (&fixture.index, Some(&fixture.answer), Some(fixture.serial));
         let view = &DisplayView::none();
         assert_eq!(
             idpass::compare(index, view, answer, serial, Err(&refusal)),
@@ -1660,6 +1661,77 @@ mod tests {
                 from_ray: Vec::new(),
             })),
             "while a ray path that answered nothing is contradicted by the face"
+        );
+    }
+
+    /// **A failed readback is said as the device's fault, beside every
+    /// ray answer, and never as the two paths disagreeing.** The rows
+    /// the fault would have produced folded into [`IdMap::NOTHING`] sit
+    /// beside it: a disagreement over a named face, silence over empty
+    /// space, and no verdict beside a refusal.
+    #[test]
+    fn a_failed_readback_is_the_devices_fault_beside_any_ray_answer() {
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let display = DisplayView::none();
+        let refusal = fixture
+            .index
+            .faces_under_cursor(
+                foreign,
+                &fixture.camera,
+                fixture.pane,
+                fixture.cursor,
+                &display,
+            )
+            .expect_err("an evaluation of another document is refused");
+        let (index, serial) = (&fixture.index, fixture.serial);
+        let named = std::slice::from_ref(&fixture.named);
+        let fault = idpass::ReadbackFault::Wait("Timeout".to_owned());
+        let failed = idpass::IdReply {
+            serial,
+            read: Err(fault.clone()),
+        };
+        let folded = idpass::IdReply {
+            serial,
+            read: Ok(IdMap::NOTHING),
+        };
+        let none: &[StableName] = &[];
+        let rays = [
+            (
+                "a ray that names a face",
+                Ok(named),
+                Some(idpass::IdNews::Disagreement(idpass::Disagreement {
+                    from_gpu: idpass::IdAnswer::Nothing,
+                    from_ray: named.to_vec(),
+                })),
+            ),
+            ("a ray that names nothing", Ok(none), None),
+            ("a ray that refused", Err(&refusal), None),
+        ];
+        for (ray, from_ray, as_nothing) in rays {
+            assert_eq!(
+                idpass::compare(index, &display, Some(&failed), Some(serial), from_ray),
+                Some(idpass::IdNews::NoReadback(fault.clone())),
+                "beside {ray}, a failed readback is the device's fault"
+            );
+            assert_eq!(
+                idpass::compare(index, &display, Some(&folded), Some(serial), from_ray),
+                as_nothing,
+                "beside {ray}, the same fault read as the clear value says something else"
+            );
+        }
+        assert_eq!(
+            idpass::compare(index, &display, Some(&failed), Some(serial + 1), Ok(named)),
+            None,
+            "a fault answering another query is stale like any reply"
+        );
+        let said = idpass::IdNews::NoReadback(fault).to_string();
+        assert!(
+            said.contains("no answer") && said.contains("Timeout") && !said.contains("disagree"),
+            "the sentence names the device's fault and no disagreement: {said}"
         );
     }
 
@@ -1704,7 +1776,10 @@ mod tests {
         .expect("a cursor arriving is a new question");
         // The id pass's answer to THIS question, naming a face: fresh,
         // so a ray answer read as empty would be a disagreement.
-        let answer = (u64::from(serial) << 32) | u64::from(fixture.id);
+        let answer = idpass::IdReply {
+            serial,
+            read: Ok(fixture.id),
+        };
         assert!(
             ray_asked_at(&actions, arrived, at),
             "the hover asks the ray"
@@ -1718,7 +1793,13 @@ mod tests {
             display: &display,
         };
         assert_eq!(
-            cursor_news(&fixture.index, asked, answer, log.outstanding(), true),
+            cursor_news(
+                &fixture.index,
+                asked,
+                Some(&answer),
+                log.outstanding(),
+                true
+            ),
             Vec::new(),
             "the pick path said this refusal; the comparison adds nothing"
         );
@@ -1747,7 +1828,13 @@ mod tests {
             .faces_under_cursor(foreign, &moved, fixture.pane, at, &display)
             .expect_err("the moved ray is refused");
         assert_eq!(
-            cursor_news(&fixture.index, unasked, answer, log.outstanding(), false),
+            cursor_news(
+                &fixture.index,
+                unasked,
+                Some(&answer),
+                log.outstanding(),
+                false
+            ),
             vec![frame::pick_refusal(&refusal, (foreign_doc, foreign))],
             "the comparison says the refusal in the pick path's own words"
         );
@@ -1775,7 +1862,7 @@ mod tests {
         let (landed, eval) = session.landed_pair().expect("the plate lands");
         let unassigned = index.ids().ids().max().expect("the plate draws patches") + 1;
         assert!(
-            index.name_of(unassigned).is_none(),
+            index.name_of(unassigned) == Err(PatchNameFault::Unassigned { id: unassigned }),
             "an id past the last assigned one is no entry of this index"
         );
         let camera = framed();
@@ -1818,8 +1905,11 @@ mod tests {
             cursor,
             display: &display,
         };
-        let answer = (u64::from(serial) << 32) | u64::from(unassigned);
-        let news = cursor_news(&index, question, answer, log.outstanding(), true);
+        let answer = idpass::IdReply {
+            serial,
+            read: Ok(unassigned),
+        };
+        let news = cursor_news(&index, question, Some(&answer), log.outstanding(), true);
         let spoken = from_ray
             .iter()
             .map(|name| {
@@ -1894,7 +1984,7 @@ mod tests {
             .expect("the plate draws patches")
             + 1;
         assert!(
-            fixture.index.name_of(unassigned).is_none(),
+            fixture.index.name_of(unassigned) == Err(PatchNameFault::Unassigned { id: unassigned }),
             "an id past the last assigned one is no entry of this index"
         );
         let refusal = fixture
@@ -1917,7 +2007,10 @@ mod tests {
             IdStep::Hold | IdStep::Void => None,
         }
         .expect("a cursor arriving is a new question");
-        let answer = (u64::from(serial) << 32) | u64::from(unassigned);
+        let answer = idpass::IdReply {
+            serial,
+            read: Ok(unassigned),
+        };
         let question = RayQuestion {
             doc: foreign_doc,
             eval: foreign,
@@ -1934,12 +2027,24 @@ mod tests {
             frame::Retold::Again,
         );
         assert_eq!(
-            cursor_news(&fixture.index, question, answer, log.outstanding(), true),
+            cursor_news(
+                &fixture.index,
+                question,
+                Some(&answer),
+                log.outstanding(),
+                true
+            ),
             vec![said.clone()],
             "the pick path said the refusal; the comparison says the id"
         );
         assert_eq!(
-            cursor_news(&fixture.index, question, answer, log.outstanding(), false),
+            cursor_news(
+                &fixture.index,
+                question,
+                Some(&answer),
+                log.outstanding(),
+                false
+            ),
             vec![frame::pick_refusal(&refusal, (foreign_doc, foreign)), said],
             "nobody else said the refusal, so the comparison says it, and the id after it"
         );
@@ -1968,7 +2073,10 @@ mod tests {
                 &display,
             )
             .expect_err("an evaluation of another document is refused");
-        let answer = (u64::from(fixture.serial) << 32) | u64::from(IdMap::NOTHING);
+        let answer = idpass::IdReply {
+            serial: fixture.serial,
+            read: Ok(IdMap::NOTHING),
+        };
         let question = RayQuestion {
             doc: foreign_doc,
             eval: foreign,
@@ -1979,12 +2087,12 @@ mod tests {
         };
         let serial = Some(fixture.serial);
         assert_eq!(
-            cursor_news(&fixture.index, question, answer, serial, true),
+            cursor_news(&fixture.index, question, Some(&answer), serial, true),
             Vec::new(),
             "the pick path said the refusal, and nothing beside it is no news"
         );
         assert_eq!(
-            cursor_news(&fixture.index, question, answer, serial, false),
+            cursor_news(&fixture.index, question, Some(&answer), serial, false),
             vec![frame::pick_refusal(&refusal, (foreign_doc, foreign))],
             "the comparison says the refusal alone"
         );
@@ -2013,9 +2121,7 @@ mod tests {
             .expect("the plate's placement draws patches");
         let named = index
             .name_of(id)
-            .expect("an id of this index has an entry")
-            .as_ref()
-            .expect("and the plate's patches name cleanly")
+            .expect("an id of this index names its patch cleanly")
             .clone();
         let hidden = DisplayView {
             hidden_placements: std::collections::BTreeSet::from([copy]),
@@ -2036,9 +2142,18 @@ mod tests {
         );
 
         let serial = 7u32;
-        let answer = (u64::from(serial) << 32) | u64::from(id);
+        let answer = idpass::IdReply {
+            serial,
+            read: Ok(id),
+        };
         assert_eq!(
-            idpass::compare(&index, &DisplayView::none(), answer, Some(serial), Ok(&[])),
+            idpass::compare(
+                &index,
+                &DisplayView::none(),
+                Some(&answer),
+                Some(serial),
+                Ok(&[])
+            ),
             Some(idpass::IdNews::Disagreement(idpass::Disagreement {
                 from_gpu: idpass::IdAnswer::Named(named),
                 from_ray: Vec::new(),
@@ -2055,7 +2170,7 @@ mod tests {
             display: &hidden,
         };
         assert_eq!(
-            cursor_news(&index, question, answer, Some(serial), true),
+            cursor_news(&index, question, Some(&answer), Some(serial), true),
             vec![frame::Message::new(
                 frame::Subject::Cursor,
                 format!(
@@ -2079,7 +2194,7 @@ mod tests {
             .faces_under_cursor(foreign, &camera, pane, cursor, &DisplayView::none())
             .expect_err("an evaluation of another document is refused");
         assert_eq!(
-            idpass::compare(&index, &hidden, answer, Some(serial), Err(&refusal)),
+            idpass::compare(&index, &hidden, Some(&answer), Some(serial), Err(&refusal)),
             Some(idpass::IdNews::BesideRefusal { id }),
             "and beside a refused ray it is still said"
         );

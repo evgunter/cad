@@ -350,11 +350,7 @@ fn the_ray_paths_answer_is_the_id_maps_inverse() {
             .expect("a drawn id names a drawn patch");
         assert_eq!(key.node, hit.node);
         assert_eq!(key.body, hit.body);
-        let name = index
-            .name_of(*id)
-            .expect("a drawn id has a name slot")
-            .as_ref()
-            .expect("the face is named");
+        let name = index.name_of(*id).expect("the face is named");
         assert_eq!(*name, hit.name, "the id map inverts to the ray's answer");
     }
 }
