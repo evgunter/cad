@@ -1612,6 +1612,20 @@ impl Loose {
     }
 }
 
+/// `line` as the coefficients of `knots`: every line a [`Loose`]
+/// direction reads is built at its [`LooseKnots::control_count`], so a
+/// line of another length is a broken grid, not an input.
+fn loose_line<'l>(knots: &LooseKnots, line: &'l [Interval]) -> &'l [Interval] {
+    if line.len() != knots.control_count() {
+        unreachable!(
+            "a loose direction's line is its count long: {} coefficients against {}",
+            line.len(),
+            knots.control_count()
+        );
+    }
+    line
+}
+
 /// In-span de Boor on loose knots (the [`Loose::Raw`] evaluator).
 ///
 /// `coeffs` is the direction's line, built at [`Dir::count`] by
@@ -1638,6 +1652,7 @@ fn raw_eval_in_span(knots: &LooseKnots, coeffs: &[Interval], mid: f64, t: &Inter
 /// `degree ..= count − 1` ([`LooseKnots::span_of`]), so the window is
 /// in range.
 fn raw_de_boor(knots: &LooseKnots, coeffs: &[Interval], at: Param, t: Interval) -> Interval {
+    let coeffs = loose_line(knots, coeffs);
     let (span, degree) = (knots.span_of(at), knots.degree());
     let first = span - degree;
     de_boor_on(knots.knots(), degree, first, &coeffs[first..=span], t)
@@ -1647,6 +1662,7 @@ fn raw_de_boor(knots: &LooseKnots, coeffs: &[Interval], at: Param, t: Interval) 
 /// blocks of every touched span (the same convexity fact
 /// [`range_hull`] uses), over a line built as [`raw_eval`]'s is.
 fn raw_range_hull(knots: &LooseKnots, coeffs: &[Interval], range: ParamRange) -> Interval {
+    let coeffs = loose_line(knots, coeffs);
     let (start, end) = range.ends();
     let degree = knots.degree();
     let mut acc = Interval::refused();
@@ -1665,6 +1681,7 @@ fn raw_range_hull(knots: &LooseKnots, coeffs: &[Interval], range: ParamRange) ->
 /// coefficients, by the construction of [`Loose::Raw`] and [`Level::Loose`],
 /// so every index below is in range.
 fn raw_deriv(loose: &LooseKnots, coeffs: &[Interval]) -> Vec<Interval> {
+    let coeffs = loose_line(loose, coeffs);
     let (knots, degree) = (loose.knots(), loose.degree());
     #[allow(clippy::cast_precision_loss)]
     let p = pt(degree as f64);
@@ -1825,6 +1842,7 @@ impl PatchGrid {
             },
             // Degree 0: the span index is the coefficient index.
             Dir::Loose(Loose::Const(knots)) => {
+                let line = loose_line(knots, line);
                 match op {
                     // A non-finite point refuses, as the `Kv` and `Raw`
                     // point arms beside it do.
@@ -3047,11 +3065,8 @@ fn quotient_second(
 /// underneath; what differs is the range and the mandatory set each
 /// hands it.
 ///
-/// `knots` is the raw slice the caller cuts on. A caller cutting on a
-/// derivative's knots takes the once-differenced slice from
-/// [`geom_core::spline::KnotVector::derivative_knot_slice`] or its
-/// raw-slice twin [`geom_core::spline::derivative_knot_slice`], the one
-/// spelling every site in `geom-brep` and `mesh` uses.
+/// `knots` is the raw slice the caller cuts on. A derivative's interior
+/// knots are its parent's, so every caller cuts on the carrier's own.
 fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64> {
     // MANDATORY cuts: the rectangle's own ends and every interior
     // knot. These carry the whole smoothness invariant — a knot that

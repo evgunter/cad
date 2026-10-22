@@ -1,5 +1,7 @@
-//! The validated clamped knot vector — pure **structure** (C6): `f64`
-//! knots and a `usize` degree, produced and consumed by the
+//! The validated knot lists — pure **structure** (C6): the clamped
+//! [`KnotVector`], and the [`LooseKnots`] a derivative steps onto where
+//! no clamped vector holds it. `f64` knots and a `usize` degree,
+//! produced and consumed by the
 //! deterministic f64 lane. Raw `f64` comparisons are legal throughout
 //! this file (structure selection, never a topology decision).
 
@@ -27,8 +29,9 @@ pub fn knot_difference<T: Real>(lo: f64, hi: f64) -> T {
 /// D4: every invalid input is a named refusal, never a silent repair.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SplineError {
-    /// The knot vector fails the clamped-v1 contract; `reason` names
-    /// the exact violation.
+    /// The knot list fails its contract — [`KnotVector::clamped`]'s
+    /// clamped-v1, or the end-run clauses alone of
+    /// [`LooseKnots::new`]; `reason` names the exact violation.
     KnotVectorInvalid {
         /// The specific structural violation.
         reason: KnotVectorIssue,
@@ -511,16 +514,9 @@ impl KnotStructure {
         if degree == 0 {
             return issue(KnotVectorIssue::DegreeZero);
         }
-        let len: usize = multiplicities.iter().sum();
-        if len < 2 * (degree + 1) || multiplicities.len() < 2 {
-            return issue(KnotVectorIssue::TooShort);
-        }
-        if multiplicities[0] != degree + 1 {
-            return issue(KnotVectorIssue::StartNotClamped);
-        }
-        if multiplicities[multiplicities.len() - 1] != degree + 1 {
-            return issue(KnotVectorIssue::EndNotClamped);
-        }
+        end_runs_clamped(&multiplicities, degree)?;
+        // Indexing justified: exact end runs of `degree + 1` summing to
+        // at least `2·(degree + 1)` are two runs at least.
         let mut index = degree + 1;
         for &m in &multiplicities[1..multiplicities.len() - 1] {
             if m > degree {
@@ -1348,7 +1344,7 @@ impl KnotVector {
     /// and the degree by one (The NURBS Book Eq. 3.4), so every
     /// consumer that materialises a derivative structure starts here —
     /// whether it goes on to build a [`KnotVector`] (the clamped case)
-    /// or carries the raw slice because the result has an interior
+    /// or a [`LooseKnots`] because the result has an interior
     /// multiplicity the clamped invariant refuses.
     ///
     /// A slice, not a vector: the raw-slice consumers difference level
@@ -1561,24 +1557,22 @@ pub(crate) fn find_span_in(knots: &[f64], degree: usize, u: InteriorKnot) -> usi
 }
 
 /// [`KnotVector::derivative_knot_slice`] on a raw knot slice — the
-/// same "drop one knot at each end", for a consumer carrying knots no
-/// [`KnotVector`] can hold (a derivative whose interior multiplicity
-/// equals the parent degree is genuinely discontinuous, and the
-/// clamped invariant refuses it).
+/// same "drop one knot at each end", for [`LooseKnots::derivative`].
 ///
 /// Fewer than two knots answers the empty slice rather than panicking.
 #[must_use]
-pub fn derivative_knot_slice(knots: &[f64]) -> &[f64] {
+pub(crate) fn derivative_knot_slice(knots: &[f64]) -> &[f64] {
     knots.get(1..knots.len().saturating_sub(1)).unwrap_or(&[])
 }
 
 /// The clauses a clamped knot list keeps at every degree, its interior
 /// aside: at least `2·(degree + 1)` knots, all finite, non-decreasing,
-/// and both end runs exactly `degree + 1` long. [`KnotVector::clamped`]
-/// adds its degree and interior clauses to these; [`LooseKnots::new`]
-/// is these alone.
+/// and both end runs exactly `degree + 1` long ([`end_runs_clamped`]).
+/// [`KnotVector::clamped`] adds its degree and interior clauses to
+/// these; [`LooseKnots::new`] is these alone.
 fn end_clamped(knots: &[f64], degree: usize) -> Result<(), SplineError> {
     let issue = |reason| Err(SplineError::KnotVectorInvalid { reason });
+    // Ahead of the value clauses: a short list is refused as short.
     if knots.len() < 2 * (degree + 1) {
         return issue(KnotVectorIssue::TooShort);
     }
@@ -1593,18 +1587,24 @@ fn end_clamped(knots: &[f64], degree: usize) -> Result<(), SplineError> {
             return issue(KnotVectorIssue::Decreasing { index });
         }
     }
-    // Indexing justified: len ≥ 2(p+1) ≥ 1.
-    let len = knots.len();
-    let start_run = knots.iter().take_while(|k| **k == knots[0]).count();
-    if start_run != degree + 1 {
+    let multiplicities: Vec<usize> = runs_in(knots).map(|(_, m)| m).collect();
+    end_runs_clamped(&multiplicities, degree)
+}
+
+/// The length and end-run clauses over a list's run multiplicities —
+/// all a structure without positions has to read
+/// ([`KnotStructure::clamped`]), and the last step of
+/// [`end_clamped`]: at least `2·(degree + 1)` knots, then a first and a
+/// last run of exactly `degree + 1`.
+fn end_runs_clamped(multiplicities: &[usize], degree: usize) -> Result<(), SplineError> {
+    let issue = |reason| Err(SplineError::KnotVectorInvalid { reason });
+    if multiplicities.iter().sum::<usize>() < 2 * (degree + 1) {
+        return issue(KnotVectorIssue::TooShort);
+    }
+    if multiplicities.first() != Some(&(degree + 1)) {
         return issue(KnotVectorIssue::StartNotClamped);
     }
-    let end_run = knots
-        .iter()
-        .rev()
-        .take_while(|k| **k == knots[len - 1])
-        .count();
-    if end_run != degree + 1 {
+    if multiplicities.last() != Some(&(degree + 1)) {
         return issue(KnotVectorIssue::EndNotClamped);
     }
     Ok(())
@@ -1653,8 +1653,8 @@ impl LooseKnots {
         self.knots.len() - self.degree - 1
     }
 
-    /// The derivative's knots — one knot dropped at each end
-    /// ([`derivative_knot_slice`]) and the degree one less — or `None`
+    /// The derivative's knots — one knot dropped at each end (as
+    /// [`KnotVector::derivative_knot_slice`]) and the degree one less — or `None`
     /// at degree 0. Each end run loses one knot and the degree one, so
     /// the result is clamped at both ends again.
     #[must_use]
@@ -1673,7 +1673,14 @@ impl LooseKnots {
     /// a nonempty span: the search lands on a run's last copy, and the
     /// end runs are exact.
     pub fn span_of(&self, t: Param) -> usize {
-        search_offset_in(&self.knots, self.degree, t) + self.degree
+        let index = search_offset_in(&self.knots, self.degree, t) + self.degree;
+        // Nonemptiness is what a derivative across a long run rests on:
+        // its coefficient over an empty span is a filler, never read.
+        debug_assert!(
+            self.knots[index] < self.knots[index + 1],
+            "LooseKnots::span_of located an empty span {index}"
+        );
+        index
     }
 }
 
@@ -2542,5 +2549,30 @@ mod tests {
         let constant = linear.derivative().unwrap();
         assert_eq!((constant.degree(), constant.control_count()), (0, 4));
         assert_eq!(constant.derivative(), None, "degree 0 has no derivative");
+    }
+
+    /// A structure refuses its ends by the clauses its vector does: one
+    /// run long enough for two clamps is an unclamped start, and two
+    /// clamp runs with nothing between are a valid single span.
+    #[test]
+    fn a_structure_refuses_its_ends_as_its_vector_does() {
+        let reason = |e: SplineError| match e {
+            SplineError::KnotVectorInvalid { reason } => reason,
+            other => panic!("expected a knot-vector refusal, got {other:?}"),
+        };
+        for (multiplicities, knots) in [
+            (vec![6], vec![0.0; 6]),
+            (vec![2, 3], vec![0.0, 0.0, 1.0, 1.0, 1.0]),
+            (vec![3, 2], vec![0.0, 0.0, 0.0, 1.0, 1.0]),
+            (vec![3], vec![0.0; 3]),
+        ] {
+            let structure = KnotStructure::clamped(multiplicities.clone(), 2).unwrap_err();
+            let vector = KnotVector::clamped(knots, 2).unwrap_err();
+            assert_eq!(reason(structure), reason(vector), "runs {multiplicities:?}");
+        }
+        assert!(
+            KnotStructure::clamped(vec![3, 3], 2).is_ok(),
+            "one span, two clamps"
+        );
     }
 }
