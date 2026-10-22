@@ -350,13 +350,6 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "NodeStanding": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
                                "once, beside `Evaluation`; the general rule is at the "
                                "payload-rule header of crates/pncad/src/document.rs"),
-    # Which space a copy lives in (D10, Spaces: the world, or a loose copy's
-    # own) is the evaluation's own vocabulary as well, and the select-list
-    # refusals that meet two spaces (hit test, selection) name the two as
-    # their payload. The same rule as `NodeStanding`.
-    "Space": ("argued", "the placement vocabulary is `document`'s and is spelled "
-                        "once, beside `Evaluation`; the general rule is at the "
-                        "payload-rule header of crates/pncad/src/document.rs"),
 }
 
 
