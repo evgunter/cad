@@ -8,6 +8,8 @@ priority: P0
 cost: H
 parent: a-placement-pins-by-written-values-without-a-mate
 closed: 2026-10-22
+pr: 5592
+branch: intent/dprime1-placement-target-space
 ---
 
 
