@@ -8,6 +8,7 @@ closed: 2026-10-22
 priority: P1
 cost: H
 branch: intent/census-planar-face-pair
+pr: 5605
 ---
 
 
