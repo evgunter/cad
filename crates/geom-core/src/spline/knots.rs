@@ -1,5 +1,7 @@
-//! The validated clamped knot vector — pure **structure** (C6): `f64`
-//! knots and a `usize` degree, produced and consumed by the
+//! The validated knot lists — pure **structure** (C6): the clamped
+//! [`KnotVector`], and the [`LooseKnots`] a derivative steps onto where
+//! no clamped vector holds it. `f64` knots and a `usize` degree,
+//! produced and consumed by the
 //! deterministic f64 lane. Raw `f64` comparisons are legal throughout
 //! this file (structure selection, never a topology decision).
 
@@ -27,8 +29,9 @@ pub fn knot_difference<T: Real>(lo: f64, hi: f64) -> T {
 /// D4: every invalid input is a named refusal, never a silent repair.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SplineError {
-    /// The knot vector fails the clamped-v1 contract; `reason` names
-    /// the exact violation.
+    /// The knot list fails its contract — [`KnotVector::clamped`]'s
+    /// clamped-v1, or the end-run clauses alone of
+    /// [`LooseKnots::new`]; `reason` names the exact violation.
     KnotVectorInvalid {
         /// The specific structural violation.
         reason: KnotVectorIssue,
@@ -511,16 +514,9 @@ impl KnotStructure {
         if degree == 0 {
             return issue(KnotVectorIssue::DegreeZero);
         }
-        let len: usize = multiplicities.iter().sum();
-        if len < 2 * (degree + 1) || multiplicities.len() < 2 {
-            return issue(KnotVectorIssue::TooShort);
-        }
-        if multiplicities[0] != degree + 1 {
-            return issue(KnotVectorIssue::StartNotClamped);
-        }
-        if multiplicities[multiplicities.len() - 1] != degree + 1 {
-            return issue(KnotVectorIssue::EndNotClamped);
-        }
+        end_runs_clamped(&multiplicities, degree)?;
+        // Indexing justified: exact end runs of `degree + 1` summing to
+        // at least `2·(degree + 1)` are two runs at least.
         let mut index = degree + 1;
         for &m in &multiplicities[1..multiplicities.len() - 1] {
             if m > degree {
@@ -976,42 +972,14 @@ impl KnotVector {
         if degree == 0 {
             return issue(KnotVectorIssue::DegreeZero);
         }
-        if knots.len() < 2 * (degree + 1) {
-            return issue(KnotVectorIssue::TooShort);
-        }
-        for (index, k) in knots.iter().enumerate() {
-            if !k.is_finite() {
-                return issue(KnotVectorIssue::NonFinite { index });
-            }
-        }
-        for index in 1..knots.len() {
-            // Indexing justified: index ∈ [1, len), index − 1 ∈ [0, len).
-            if knots[index] < knots[index - 1] {
-                return issue(KnotVectorIssue::Decreasing { index });
-            }
-        }
-        // Exact end multiplicities. Indexing justified: len ≥ 2(p+1) ≥
-        // p + 2, so p + 1 and len − p − 2 are in range.
-        let len = knots.len();
-        let start_run = knots.iter().take_while(|k| **k == knots[0]).count();
-        if start_run != degree + 1 {
-            return issue(KnotVectorIssue::StartNotClamped);
-        }
-        let end_run = knots
-            .iter()
-            .rev()
-            .take_while(|k| **k == knots[len - 1])
-            .count();
-        if end_run != degree + 1 {
-            return issue(KnotVectorIssue::EndNotClamped);
-        }
+        end_clamped(&knots, degree)?;
         // Interior multiplicity ≤ degree: the same run scan
         // [`KnotVector::interior_knots`] serves, one frame before the
         // type exists — which is why it goes through [`runs_in`] over
         // [`interior_of`] rather than through the methods. (The end
         // runs are exact, so interior values differ from both end
         // values.) `interior_of`'s precondition is the `TooShort`
-        // clause, checked above.
+        // clause, which `end_clamped` checks.
         let mut index = degree + 1;
         for (_, mult) in runs_in(interior_of(&knots, degree)) {
             if mult > degree {
@@ -1376,7 +1344,7 @@ impl KnotVector {
     /// and the degree by one (The NURBS Book Eq. 3.4), so every
     /// consumer that materialises a derivative structure starts here —
     /// whether it goes on to build a [`KnotVector`] (the clamped case)
-    /// or carries the raw slice because the result has an interior
+    /// or a [`LooseKnots`] because the result has an interior
     /// multiplicity the clamped invariant refuses.
     ///
     /// A slice, not a vector: the raw-slice consumers difference level
@@ -1541,8 +1509,8 @@ fn runs_in(sorted: &[f64]) -> impl DoubleEndedIterator<Item = (f64, usize)> + Cl
 }
 
 /// The span **offset above `degree`** located for `t` in a clamped knot
-/// list — the span search for **clamped** vectors, shared by
-/// [`KnotVector::span_of`] and by the knot-algebra paths that hold a
+/// list — the span search for **clamped** lists, shared by
+/// [`KnotVector::span_of`], [`LooseKnots::span_of`] and by the knot-algebra paths that hold a
 /// raw list mid-mutation and so have no [`KnotVector`] to ask.
 ///
 /// It is [`last_at_or_below`] over the span starts
@@ -1550,11 +1518,8 @@ fn runs_in(sorted: &[f64]) -> impl DoubleEndedIterator<Item = (f64, usize)> + Cl
 /// the domain. At or above the domain end it lands on the last span
 /// because the slice stops at that span's start; at an interior knot it
 /// lands on the run's last copy, the nonempty span starting there.
-/// `geom-brep`'s `props::quad::raw_span` is the same search with its
-/// own clamping, over knot lists a `KnotVector` cannot represent (a
-/// derivative direction whose interior multiplicity exceeds its own
-/// degree): it clamps into a coefficient-count range and steps back
-/// off a trailing empty span.
+/// It reads only the end-run clauses, which [`LooseKnots`] keeps
+/// where a `KnotVector`'s interior clause does not hold.
 ///
 /// **Preconditions, and what a violation costs.** Taking a slice rather
 /// than `&self` moves two facts from *guaranteed by the type* to
@@ -1562,7 +1527,7 @@ fn runs_in(sorted: &[f64]) -> impl DoubleEndedIterator<Item = (f64, usize)> + Cl
 /// slice underflows `last`), and `knots` non-decreasing (otherwise the
 /// answer is in range but arbitrary). Both are strictly weaker than
 /// [`KnotVector`]'s construction invariant, so a `KnotVector`'s own
-/// knots always satisfy them; the raw knot-algebra paths satisfy them
+/// knots always satisfy them, as a [`LooseKnots`]'s do; the raw knot-algebra paths satisfy them
 /// because they start from a `KnotVector`'s knots and only insert
 /// interior values. A short slice underflows `usize` arithmetic — a
 /// debug panic, a wrapped index in release — which is why the doors
@@ -1592,15 +1557,131 @@ pub(crate) fn find_span_in(knots: &[f64], degree: usize, u: InteriorKnot) -> usi
 }
 
 /// [`KnotVector::derivative_knot_slice`] on a raw knot slice — the
-/// same "drop one knot at each end", for a consumer carrying knots no
-/// [`KnotVector`] can hold (a derivative whose interior multiplicity
-/// equals the parent degree is genuinely discontinuous, and the
-/// clamped invariant refuses it).
+/// same "drop one knot at each end", for [`LooseKnots::derivative`].
 ///
 /// Fewer than two knots answers the empty slice rather than panicking.
 #[must_use]
-pub fn derivative_knot_slice(knots: &[f64]) -> &[f64] {
+pub(crate) fn derivative_knot_slice(knots: &[f64]) -> &[f64] {
     knots.get(1..knots.len().saturating_sub(1)).unwrap_or(&[])
+}
+
+/// The clauses a clamped knot list keeps at every degree, its interior
+/// aside: at least `2·(degree + 1)` knots, all finite, non-decreasing,
+/// and both end runs exactly `degree + 1` long ([`end_runs_clamped`]).
+/// [`KnotVector::clamped`] adds its degree and interior clauses to
+/// these; [`LooseKnots::new`] is these alone.
+fn end_clamped(knots: &[f64], degree: usize) -> Result<(), SplineError> {
+    let issue = |reason| Err(SplineError::KnotVectorInvalid { reason });
+    // Ahead of the value clauses: a short list is refused as short.
+    if knots.len() < 2 * (degree + 1) {
+        return issue(KnotVectorIssue::TooShort);
+    }
+    for (index, k) in knots.iter().enumerate() {
+        if !k.is_finite() {
+            return issue(KnotVectorIssue::NonFinite { index });
+        }
+    }
+    for index in 1..knots.len() {
+        // Indexing justified: index ∈ [1, len), index − 1 ∈ [0, len).
+        if knots[index] < knots[index - 1] {
+            return issue(KnotVectorIssue::Decreasing { index });
+        }
+    }
+    let multiplicities: Vec<usize> = runs_in(knots).map(|(_, m)| m).collect();
+    end_runs_clamped(&multiplicities, degree)
+}
+
+/// The length and end-run clauses over a list's run multiplicities —
+/// all a structure without positions has to read
+/// ([`KnotStructure::clamped`]), and the last step of
+/// [`end_clamped`]: at least `2·(degree + 1)` knots, then a first and a
+/// last run of exactly `degree + 1`.
+fn end_runs_clamped(multiplicities: &[usize], degree: usize) -> Result<(), SplineError> {
+    let issue = |reason| Err(SplineError::KnotVectorInvalid { reason });
+    if multiplicities.iter().sum::<usize>() < 2 * (degree + 1) {
+        return issue(KnotVectorIssue::TooShort);
+    }
+    if multiplicities.first() != Some(&(degree + 1)) {
+        return issue(KnotVectorIssue::StartNotClamped);
+    }
+    if multiplicities.last() != Some(&(degree + 1)) {
+        return issue(KnotVectorIssue::EndNotClamped);
+    }
+    Ok(())
+}
+
+/// A knot list clamped at both ends that a [`KnotVector`] cannot hold:
+/// its interior runs may be of any length and its degree may be 0. A
+/// derivative's knots are this shape where they are no clamped vector
+/// ([`super::Derived::Discontinuous`]: an interior run longer than the
+/// derivative's degree; [`super::Derived::SpanConstant`]: degree 0),
+/// and so is every derivative below one ([`LooseKnots::derivative`]).
+///
+/// Its ends are a clamped vector's (end runs of exactly `degree + 1`),
+/// so it locates spans as one does ([`LooseKnots::span_of`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct LooseKnots {
+    knots: Vec<f64>,
+    degree: usize,
+}
+
+impl LooseKnots {
+    /// `knots` at `degree`, validated as clamped at both ends.
+    ///
+    /// # Errors
+    ///
+    /// [`SplineError::KnotVectorInvalid`] naming the violated clause,
+    /// as [`KnotVector::clamped`] names it: `TooShort`, `NonFinite`,
+    /// `Decreasing`, `StartNotClamped` or `EndNotClamped`.
+    pub fn new(knots: Vec<f64>, degree: usize) -> Result<Self, SplineError> {
+        end_clamped(&knots, degree)?;
+        Ok(Self { knots, degree })
+    }
+
+    /// The knots.
+    pub fn knots(&self) -> &[f64] {
+        &self.knots
+    }
+
+    /// The degree `p`.
+    pub fn degree(&self) -> usize {
+        self.degree
+    }
+
+    /// The coefficient count: `len − degree − 1`.
+    pub fn control_count(&self) -> usize {
+        self.knots.len() - self.degree - 1
+    }
+
+    /// The derivative's knots — one knot dropped at each end (as
+    /// [`KnotVector::derivative_knot_slice`]) and the degree one less — or `None`
+    /// at degree 0. Each end run loses one knot and the degree one, so
+    /// the result is clamped at both ends again.
+    #[must_use]
+    pub fn derivative(&self) -> Option<Self> {
+        let degree = self.degree.checked_sub(1)?;
+        Some(Self {
+            knots: derivative_knot_slice(&self.knots).to_vec(),
+            degree,
+        })
+    }
+
+    /// The index of the span `t` lies in, with [`KnotVector::span_of`]'s
+    /// clamping and tie-break: below the domain the first span, at or
+    /// above its end the last, and at a knot value the span starting
+    /// there. The answer is in `degree ..= control_count − 1` and names
+    /// a nonempty span: the search lands on a run's last copy, and the
+    /// end runs are exact.
+    pub fn span_of(&self, t: Param) -> usize {
+        let index = search_offset_in(&self.knots, self.degree, t) + self.degree;
+        // Nonemptiness is what a derivative across a long run rests on:
+        // its coefficient over an empty span is a filler, never read.
+        debug_assert!(
+            self.knots[index] < self.knots[index + 1],
+            "LooseKnots::span_of located an empty span {index}"
+        );
+        index
+    }
 }
 
 /// [`KnotVector::interior`] on a raw knot slice — the one home of the
@@ -2375,5 +2456,123 @@ mod tests {
                 _ => check(&arm.to_string()),
             }
         }
+    }
+
+    /// A clamped vector's knots read as [`LooseKnots`] locate every
+    /// parameter in the vector's own span: below, inside, at each knot
+    /// value and above the domain.
+    #[test]
+    fn loose_knots_locate_as_their_clamped_vector_does() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.5, 4.0, 4.0, 4.0], 2).unwrap();
+        let loose = LooseKnots::new(kv.knots().to_vec(), 2).unwrap();
+        for t in [-1.0, 0.0, 0.5, 1.0, 2.0, 2.5, 3.9, 4.0, 9.0] {
+            let t = Param::new(t).unwrap();
+            assert_eq!(
+                loose.span_of(t),
+                kv.span_of(t).index(),
+                "span of {t:?} disagrees with the vector's"
+            );
+        }
+    }
+
+    /// Across an interior run longer than the degree — the shape no
+    /// clamped vector holds — the located span is the nonempty one
+    /// starting at the run's last copy, at degree 1 and at degree 0.
+    #[test]
+    fn a_loose_span_is_the_nonempty_one_past_a_long_run() {
+        let raw = LooseKnots::new(vec![0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0], 1).unwrap();
+        let constant = LooseKnots::new(vec![0.0, 1.0, 1.0, 2.0], 0).unwrap();
+        for (name, knots, table) in [
+            (
+                "degree 1",
+                &raw,
+                [
+                    (-1.0, 1),
+                    (0.0, 1),
+                    (0.5, 1),
+                    (1.0, 4),
+                    (1.5, 4),
+                    (2.0, 4),
+                    (3.0, 4),
+                ],
+            ),
+            (
+                "degree 0",
+                &constant,
+                [
+                    (-1.0, 0),
+                    (0.0, 0),
+                    (0.5, 0),
+                    (1.0, 2),
+                    (1.5, 2),
+                    (2.0, 2),
+                    (3.0, 2),
+                ],
+            ),
+        ] {
+            for (t, want) in table {
+                assert_eq!(
+                    knots.span_of(Param::new(t).unwrap()),
+                    want,
+                    "{name}: span of {t}"
+                );
+            }
+        }
+    }
+
+    /// A list open at an end, or too short for its degree, is refused
+    /// by the clause [`KnotVector::clamped`] names; the derivative of a
+    /// loose list is the loose list one degree down, and degree 0 has
+    /// none.
+    #[test]
+    fn loose_knots_refuse_an_unclamped_end_and_step_down_a_degree() {
+        let invalid = |knots: Vec<f64>, degree| match LooseKnots::new(knots, degree) {
+            Err(SplineError::KnotVectorInvalid { reason }) => reason,
+            other => panic!("expected a refusal, got {other:?}"),
+        };
+        assert_eq!(invalid(vec![0.0], 0), KnotVectorIssue::TooShort);
+        assert_eq!(
+            invalid(vec![0.0, 0.0, 1.0, 1.0, 1.0], 1),
+            KnotVectorIssue::EndNotClamped
+        );
+        assert_eq!(
+            invalid(vec![0.0, 1.0, 1.0, 2.0, 2.0], 1),
+            KnotVectorIssue::StartNotClamped
+        );
+        let quadratic =
+            LooseKnots::new(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let linear = quadratic.derivative().unwrap();
+        assert_eq!(
+            linear,
+            LooseKnots::new(vec![0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0], 1).unwrap()
+        );
+        let constant = linear.derivative().unwrap();
+        assert_eq!((constant.degree(), constant.control_count()), (0, 4));
+        assert_eq!(constant.derivative(), None, "degree 0 has no derivative");
+    }
+
+    /// A structure refuses its ends by the clauses its vector does: one
+    /// run long enough for two clamps is an unclamped start, and two
+    /// clamp runs with nothing between are a valid single span.
+    #[test]
+    fn a_structure_refuses_its_ends_as_its_vector_does() {
+        let reason = |e: SplineError| match e {
+            SplineError::KnotVectorInvalid { reason } => reason,
+            other => panic!("expected a knot-vector refusal, got {other:?}"),
+        };
+        for (multiplicities, knots) in [
+            (vec![6], vec![0.0; 6]),
+            (vec![2, 3], vec![0.0, 0.0, 1.0, 1.0, 1.0]),
+            (vec![3, 2], vec![0.0, 0.0, 0.0, 1.0, 1.0]),
+            (vec![3], vec![0.0; 3]),
+        ] {
+            let structure = KnotStructure::clamped(multiplicities.clone(), 2).unwrap_err();
+            let vector = KnotVector::clamped(knots, 2).unwrap_err();
+            assert_eq!(reason(structure), reason(vector), "runs {multiplicities:?}");
+        }
+        assert!(
+            KnotStructure::clamped(vec![3, 3], 2).is_ok(),
+            "one span, two clamps"
+        );
     }
 }
