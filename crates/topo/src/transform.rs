@@ -187,6 +187,16 @@ pub enum TransformError {
         /// What was missing, for the log.
         what: &'static str,
     },
+    /// A reflection reverses an analytic chart's azimuth, and this
+    /// edge's image in that chart has no reflected image
+    /// ([`geom_brep::Pcurve::map_affine`]): a spiric wall, whose one
+    /// `sense` rides two channels, or a winding with no negation.
+    ChartReflected {
+        /// The edge whose chart image refused.
+        edge: EdgeKey,
+        /// Why the image has no reflection.
+        refusal: geom_brep::ChartMapRefusal,
+    },
 }
 
 impl TransformError {
@@ -238,6 +248,11 @@ impl TransformError {
                 "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
                 geom_core::NOT_YET_ENDING
             ),
+            Self::ChartReflected { refusal, .. } => format!(
+                "an edge's image in a curved face's chart has no mirror image ({refusal:?}), so \
+                 the body cannot be mirrored yet. {}",
+                geom_core::NOT_YET_ENDING
+            ),
             Self::Corrupt { what } => format!(
                 "the body references a missing {what} (a corrupt body). {}",
                 defect
@@ -279,19 +294,49 @@ fn map_vec<T: Real>(map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
 /// [`crate::Body::revert`] is the map that does both). `det = +1` is
 /// the [`RigidMotion`] type's, so there is no such branch to write here
 /// today.
+/// Whether an isometry keeps orientation ([`Hand::Proper`], a rigid
+/// motion) or reverses it ([`Hand::Improper`], a reflection —
+/// [`crate::mirror`]). Under an improper map every datum is written so
+/// the result is the INSIDE-OUT image: a plane's stored normal, an
+/// analytic face's outward side and every carrier's parameter are
+/// those of the reflected body turned inside out, which
+/// [`crate::mirror`]'s reversal then turns right side out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Hand {
+    /// Determinant `+1`.
+    Proper,
+    /// Determinant `−1`.
+    Improper,
+}
+
+impl Hand {
+    /// `v` under `map`'s linear part, negated under an improper map:
+    /// the axis that keeps a right-handed frame's sense of turning
+    /// (`(−M·a) × (M·u) = M·(a × u)` when `det M = −1`).
+    fn axial<T: Real>(self, map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
+        match self {
+            Hand::Proper => map_vec(map, v),
+            Hand::Improper => -map_vec(map, v),
+        }
+    }
+}
+
 fn map_surface<T: Decide + crate::props::AtRestPolicy>(
     map: &Affine3<T>,
+    hand: Hand,
     s: &Surface<T>,
     tol: Tol,
 ) -> Result<Surface<T>, TransformError> {
     Ok(match *s {
+        // The normal is the face's outward side, so the inside-out
+        // image's is the axial one; the chart is then `M∘S` exactly.
         Surface::Plane {
             origin,
             normal,
             u_ref,
         } => Surface::Plane {
             origin: map.transform_point(origin),
-            normal: map_vec(map, normal),
+            normal: hand.axial(map, normal),
             u_ref: map_vec(map, u_ref),
         },
         Surface::Cylinder {
@@ -355,6 +400,7 @@ fn map_surface<T: Decide + crate::props::AtRestPolicy>(
         }
         Surface::Approx(ref a) => Surface::Approx(map_approx(
             map,
+            hand,
             a,
             tol,
             <T as crate::props::AtRestPolicy>::offset_fit_lane(),
@@ -405,6 +451,7 @@ fn map_surface<T: Decide + crate::props::AtRestPolicy>(
 /// carry a certificate across a geometry change.
 fn map_approx<T: Decide>(
     map: &Affine3<T>,
+    hand: Hand,
     a: &geom::ApproxSurface<T>,
     tol: Tol,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
@@ -415,6 +462,12 @@ fn map_approx<T: Decide>(
     let old = a.spec();
     let geom::SurfaceDescription::Offset { ref base, d } = old.description;
     let base = Arc::new(base.map_points(|p| map.transform_point(p)));
+    // A reflected net's chart normal is the reflected normal negated,
+    // so the same offset surface stands at the opposite signed distance.
+    let d = match hand {
+        Hand::Proper => d,
+        Hand::Improper => -d,
+    };
     let spec = geom::SurfaceSpec {
         description: geom::SurfaceDescription::Offset {
             base: Arc::clone(&base),
@@ -441,7 +494,14 @@ fn map_approx<T: Decide>(
     }
 }
 
-fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, TransformError> {
+/// The carrier `map ∘ c` on `c`'s own parameter, under either hand: a
+/// carrier has no outward side, and keeping its parameter keeps every
+/// edge's range and its forward half-edge.
+fn map_carrier<T: Real>(
+    map: &Affine3<T>,
+    hand: Hand,
+    c: &Curve3<T>,
+) -> Result<Curve3<T>, TransformError> {
     Ok(match *c {
         Curve3::Line { origin, dir } => Curve3::Line {
             origin: map.transform_point(origin),
@@ -454,7 +514,7 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
             u_ref,
         } => Curve3::Circle {
             center: map.transform_point(center),
-            axis: map_vec(map, axis),
+            axis: hand.axial(map, axis),
             radius,
             u_ref: map_vec(map, u_ref),
         },
@@ -470,7 +530,7 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
             u_ref,
         } => Curve3::Ellipse {
             center: map.transform_point(center),
-            axis: map_vec(map, axis),
+            axis: hand.axial(map, axis),
             semi_u,
             semi_v,
             u_ref: map_vec(map, u_ref),
@@ -486,14 +546,23 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
             major_radius,
             minor_radius,
             offset,
-        } => Curve3::Spiric {
-            center: map.transform_point(center),
-            axis: map_vec(map, axis),
-            u_ref: map_vec(map, u_ref),
-            major_radius,
-            minor_radius,
-            offset,
-        },
+        } => {
+            // `(axis, u_ref, offset)` and `(−axis, −u_ref, −offset)` name
+            // one oval; under a reflection the image keeps its `v` with
+            // `axis` mapped and the plane's side negated.
+            let (u_ref, offset) = match hand {
+                Hand::Proper => (map_vec(map, u_ref), offset),
+                Hand::Improper => (-map_vec(map, u_ref), -offset),
+            };
+            Curve3::Spiric {
+                center: map.transform_point(center),
+                axis: map_vec(map, axis),
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            }
+        }
         // The surface arm's argument, one dimension down: a described
         // net maps by its control points (weights and knots verbatim)
         // and the placeholder alone is refused.
@@ -531,8 +600,54 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     motion: &RigidMotion<T>,
     tol: Tol,
 ) -> Result<Body<T>, TransformError> {
+    let mut out = map_isometry(body, &motion.to_affine(), Hand::Proper, tol)?;
+    // Pcurve caches (M5 PR 6, C4): the SAME posture as carriers and
+    // witnesses — construction-fresh re-derivation against the mapped
+    // geometry, never a mapped stored cache. A rigid map carries the
+    // chart frame with the surface, so chart coordinates are invariant
+    // and the re-derived caches are the same numbers; running the
+    // derivation anyway is what keeps the certificate honest (D4 ¶2).
+    // An operand at rest stores a row on every face that owes one, so an
+    // operand storing none has no face that does.
+    if out.pcurves().next().is_some() {
+        crate::pcurves::mint_pcurves(&mut out, tol)
+            .map_err(|source| TransformError::Pcurve { source })?;
+    }
+    Ok(out)
+}
+
+/// Whether a surface's chart is the analytic `(azimuth, ·)` kind whose
+/// frame a reflection maps forward, reversing the azimuth `u`
+/// (MIRROR-DESIGN P1): a cylinder, cone, sphere or torus. A plane is
+/// written so its chart is unmoved ([`map_surface`]), and a spline net
+/// maps by its points, its chart unmoved.
+fn azimuth_reversed<T: Real>(s: &Surface<T>) -> bool {
+    matches!(
+        s,
+        Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. }
+    )
+}
+
+/// The geometry half of [`transform_rigid`] and [`crate::mirror`]: every
+/// datum of `body` under `map`, topology and keys untouched, every edge
+/// re-certified. The pcurve rows are left as found, for the caller to
+/// re-mint once the body is whole.
+///
+/// Under [`Hand::Improper`] the result is the reflected body INSIDE OUT
+/// ([`Hand`]): the analytic faces' outward side is flipped on their
+/// `sense`, since their mapped frames carry the outward normal across,
+/// and an edge image in an analytic chart has its azimuth negated with
+/// the chart.
+pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    map: &Affine3<T>,
+    hand: Hand,
+    tol: Tol,
+) -> Result<Body<T>, TransformError> {
     let band = Band::linear(tol).map_err(TransformError::Band)?;
-    let map = &motion.to_affine();
     let mut out = body.clone();
 
     // Points and surfaces first — edge re-certification below reads
@@ -542,7 +657,7 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     }
     let mut mapped_surfaces = Vec::new();
     for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, s, tol)?));
+        mapped_surfaces.push((k, map_surface(map, hand, s, tol)?));
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;
@@ -576,7 +691,7 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
         let start = endpoint(&out, he_plus, false)?;
         let end = endpoint(&out, he_plus, true)?;
         let (param_start, param_end) = old.params();
-        let carrier = map_carrier(map, old.carrier())?;
+        let carrier = map_carrier(map, hand, old.carrier())?;
         let description = match old.description() {
             // Re-mint (module docs above): construction-fresh witness
             // from the MAPPED carrier at the pinned mid parameter
@@ -599,7 +714,7 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
                 let on_pair = EdgeDescriptionSpec::on_pair(*pair);
                 match old.authority() {
                     geom_brep::EdgeAuthority::Declared(mc) => {
-                        on_pair.declared_by(map_mapped_curve(map, &mc))
+                        on_pair.declared_by(map_mapped_curve(map, hand, &mc))
                     }
                     geom_brep::EdgeAuthority::Derived => on_pair,
                 }
@@ -611,21 +726,33 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
             // The authority record travels with the map, because a
             // sketch pushforward is stated in 3-space.
             EdgeDescription::Chart(c) => {
+                let reversed = hand == Hand::Improper
+                    && body.surfaces.get(c.surface).is_some_and(azimuth_reversed);
+                let image = if reversed {
+                    c.pcurve
+                        .map_affine(geom_brep::ChartMap {
+                            u: geom_brep::AxisMap::reflect(),
+                            v: geom_brep::AxisMap::identity(),
+                        })
+                        .map_err(|refusal| TransformError::ChartReflected { edge: ek, refusal })?
+                } else {
+                    c.pcurve.clone()
+                };
                 let chart = EdgeDescriptionSpec::Chart {
                     surface: c.surface,
-                    image: Some(c.pcurve.clone()),
+                    image: Some(image),
                     wrap: c.wrap,
                     declared: None,
                 };
                 match old.authority() {
                     geom_brep::EdgeAuthority::Declared(mc) => {
-                        chart.declared_by(map_mapped_curve(map, &mc))
+                        chart.declared_by(map_mapped_curve(map, hand, &mc))
                     }
                     geom_brep::EdgeAuthority::Derived => chart,
                 }
             }
             EdgeDescription::Scaffold(mc) => {
-                EdgeDescriptionSpec::Scaffold(map_mapped_curve(map, mc))
+                EdgeDescriptionSpec::Scaffold(map_mapped_curve(map, hand, mc))
             }
         };
         let spec = EdgeCurveSpec {
@@ -635,7 +762,7 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
             param_end,
         };
         let surfaces = |k| out.surfaces.get(k).cloned();
-        // A rigid motion keeps every length, so the wedge's reach is the
+        // An isometry keeps every length, so the wedge's reach is the
         // source body's, read before `out`'s curves are half mapped.
         let reach = crate::wedge_reach(
             body,
@@ -668,17 +795,16 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
         });
     }
 
-    // Pcurve caches (M5 PR 6, C4): the SAME posture as carriers and
-    // witnesses above — construction-fresh re-derivation against the
-    // mapped geometry, never a mapped stored cache. A rigid map carries
-    // the chart frame with the surface, so chart coordinates are
-    // invariant and the re-derived caches are the same numbers; running
-    // the derivation anyway is what keeps the certificate honest (D4 ¶2).
-    // An operand at rest stores a row on every face that owes one, so an
-    // operand storing none has no face that does.
-    if out.pcurves().next().is_some() {
-        crate::pcurves::mint_pcurves(&mut out, tol)
-            .map_err(|source| TransformError::Pcurve { source })?;
+    if hand == Hand::Improper {
+        let flipped: Vec<crate::entity::FaceKey> = out
+            .faces
+            .iter()
+            .filter(|(_, f)| out.surfaces.get(f.surface).is_some_and(azimuth_reversed))
+            .map(|(k, _)| k)
+            .collect();
+        for k in flipped {
+            out.faces[k].sense = !out.faces[k].sense;
+        }
     }
     Ok(out)
 }
@@ -712,7 +838,10 @@ fn endpoint<T: Real>(
         })
 }
 
-fn map_mapped_curve<T: Real>(map: &Affine3<T>, mc: &MappedCurve<T>) -> MappedCurve<T> {
+/// The pushforward under `map ∘ place`: the sketch datum stays as
+/// authored, so under a reflection `place` is improper and reads it
+/// back unchanged through its inverse.
+fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) -> MappedCurve<T> {
     MappedCurve {
         source: match mc.source {
             MappedSource::PlacedSegment { segment, place } => MappedSource::PlacedSegment {
@@ -734,7 +863,7 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, mc: &MappedCurve<T>) -> MappedCur
                 point,
                 place: *map * place,
                 axis_origin: map.transform_point(axis_origin),
-                axis_dir: map_vec(map, axis_dir),
+                axis_dir: hand.axial(map, axis_dir),
                 angle,
             },
         },
