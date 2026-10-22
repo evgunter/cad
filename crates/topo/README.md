@@ -26,7 +26,7 @@ feeds a decision, every walk is bounded.
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | Chart-boundary description | `src/chart_bound.rs` (`ChartBound`, `ChartLoop`, `ChartEdge`, `assembled`, `metred`, `MetredBound::certifies_outside`, `MetredRect`), `src/pcurves.rs` (`chart_boundary`) |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
-| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
+| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, and a glued slit's two edges merged across the sliver between them), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
 | Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_general.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_surfaces_together`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
@@ -131,7 +131,12 @@ and refuses `CensusUndecidable` otherwise. Within one solid, two
 distinct-key curved faces touching along a tangent locus through both
 interiors are discovered like any touch, and refuse `UnrecordedContact`
 where no record backs them; that discovery is the C9 exclusion ring
-for same-solid pairs, unbuilt (Open).
+for same-solid pairs. Its line lane is built
+(`census::sweep_same_solid_tangent_lines`): faces of one solid sharing
+no edge, on distinct carriers whose closed-form tangent line runs
+through both, read on the lane that confirms a two-carrier face–face
+record, where a material crescent is `CuspEdgesMissing` (C4); the
+rest of the ring is Open.
 
 A declaration licenses a coincidence, never a side. Every meeting between
 two solids — found undeclared by a sweep, named by a record, or backed by
@@ -223,8 +228,9 @@ kernel derives exactly which.
 A continuation is not a contact and not a `ContactClass`: a mate (and every
 record and census reading) speaks `ContactClass`, and a boolean glues a
 pair as a `GlueClass`, which is `Rest | Continuation | Tangent`. A mate
-cannot state a continuation, and at rest two flush walls carry nothing
-to verify. A glued `Tangent` is the tangency of two distinct carriers
+cannot state a continuation; at rest two flush walls carry no contact,
+and their alignment is the flush pair the at-rest census records
+(DESIGN.md [assertions]). A glued `Tangent` is the tangency of two distinct carriers
 along a locus the witness lane certifies, and says nothing of the
 materials: whether the pair is a contact (a void crescent between the
 sheets), an overlap (a crescent both materials fill), a seam or a nested
@@ -598,9 +604,16 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    the sheets differently, so a door that complements material across
    such a line re-pairs there.
    Tier 3′ reads every touch for sides, the coincident edges on one
-   line included: touching cells' material lies on opposite sides of
-   each other, except at a touch of one solid at an isolated point,
-   where no crease exists and a shared crescent is legal (C4).
+   line included. Along a line, touching cells' materials lie on
+   opposite sides of each other (each material sector has its own
+   edge). At an isolated point where one solid touches itself, no
+   crease runs through the touch, and the solid's whole link there
+   (every face of the solid through the point) bounds one material:
+   no two sheets cross, and each region about the point reads one
+   sense from every face bordering it (its winding over the sphere of
+   directions takes two consecutive values). A region two solids'
+   materials share is interference (C6); one solid's own material
+   shared across a point touch is legal (C4).
    Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
    sector classification), and none for a body's curve-touch records,
    refuse typed at the consumer.
@@ -653,9 +666,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      certifier on one carrier or two planes and the jet schedule
      along the closed-form tangent line on two other carriers,
      cross-solid pairs with a curved
-     side in reach refuse as undecidable, and same-solid distinct-key
-     curved pairs stay undetected until C9/C6 (`topo::census` module
-     docs). A record or candidate outside a certifier's lane refuses
+     side in reach refuse as undecidable, same-solid distinct-key
+     pairs touching along a closed-form tangent line are discovered
+     (C2), and the other same-solid distinct-key curved pairs stay
+     undetected until C9/C6 (`topo::census` module docs). A record or candidate outside a certifier's lane refuses
      typed `CensusUnsupported`, never samples. Every comparison is a
      named trilean ([verdicts]); indeterminates surface as typed
      `CensusEscalated`, never a silent skip.
@@ -801,14 +815,18 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   inside that island is the island's. Pieces that only touch (at a
   corner, along an edge, or across a face that contact records hold
   apart) are distinct solids, because touching is between distinct
-  entities (tier 3′). A piece that touches itself stays one solid. A
+  entities (tier 3′). A piece that touches itself stays one solid,
+  over an area too: `(bolt ⊔ plate) ∪ bead` is one connected solid
+  whose bolt and plate faces lie on each other, held apart by a record
+  that cites the `⊔` that decided it. Until the census and tier 3′
+  read an area self-touch inside one shell, an operator whose result
+  holds one refuses typed, naming the pair. A
   body is any number of solids, so a disjoint union is a body of
   several solids. Booleans, `shell` and `split` take bodies and return
   bodies, and each sorts its result into solids, so every output is an
-  operand. A product (the copies its world placements define, [placement]) is
-  not a boolean operand: the editor refuses it, naming the explicit union
-  of the copies that makes them one body
-  (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
+  operand, a body `⊔` assembled among them: an operator above it
+  decides only the meetings between its own operands (DESIGN
+  [coincidence.booleans]). Which solids are one part stays recipe
   structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
   The extrude/full-revolve
   hole asymmetry is structural: extruded holes are cap-to-cap tunnels
@@ -866,15 +884,18 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   every joinable vertex after the merge, whatever drew it. A body is then
   the unique complex with maximal faces and maximal edges over its face
   partition, up to the position of each closed edge's conventional
-  vertex, so a union's body does not depend on its member order, and
-  the form is checked at rest on the result alone, with no history, by
+  vertex, so a union's member order decides only which description a
+  glued face keeps and which fold step a refusal names (DESIGN
+  [operations.operators]), and the form is checked at rest on the
+  result alone, with no history, by
   the one predicate the join takes a vertex by: every door that
   finishes a body, import included, ends with the join, and a vertex
   whose regularity reading lands in the sliver band refuses at rest,
   naming the tolerance below which it would be decided.
   Load-bearing dependency: `merge_coplanar_faces` **never fuses two
   vertices into one**. A contact record is a pair of cells, one from each
-  touching shell (vertex, edge or face), whose interiors meet, plus its
+  touching shell (or two of one shell, where a piece touches itself;
+  vertex, edge or face), whose interiors meet, plus its
   backing. A vertex resting on an edge's interior is the record
   (vertex, edge). The output stage deletes a vertex in two shapes, both
   recorded in `killed_vertices`:
@@ -1020,8 +1041,11 @@ reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
 bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
-establishes the smooth precondition; the census is otherwise
-sense-invariant.
+establishes the smooth precondition. The census reads sides in two
+other places, both through the touch analysis's `rest::judge`: pass 4,
+of an edge lying in a face of its own solid (`edge_in_own_face`), and
+arm 2's touches between two solids (`TouchSite::verdict`). Every other
+use of a face's normal in the coincidence sweeps is sense-invariant.
 
 **Grandfathered rungs.** `vv_face_backed`, `vf_face_backed`,
 `ve_face_backed`, `ee_face_backed` (which stands in for a collinear
@@ -1076,4 +1100,4 @@ left).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
   `ChartDivergence`; the C9 exclusion ring for same-solid distinct-key
-  curved pairs is unbuilt.
+  curved pairs is built for the closed-form tangent line only (C2).

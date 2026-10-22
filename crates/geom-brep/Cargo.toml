@@ -34,6 +34,8 @@ geom = { path = "../geom" }
 slotmap = { workspace = true }
 
 [dev-dependencies]
+# `PatchBoundError`'s roster in its own unit tests (`EnumIter`).
+strum = { version = "0.28", features = ["derive"] }
 # Shared fuzz harness for this crate's randomized sweeps (one RNG, the
 # per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
 # named by [dev-dependencies] only, here and everywhere else — which is

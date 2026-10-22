@@ -40,7 +40,7 @@
 //! where the carrier passes the tube. `F = 2r·res·Q` with `Q ≥ R² − r²`
 //! on a ring torus, so the floor on `|F|` per metre of residual is
 //! `2r(R² − r²)`, and the harmonics' rounding is a residual error past
-//! the band once `ρ⁴ ≳ 10ε·r·R²/(u·HARMONIC_NOISE_ULPS)`: from
+//! the band once `ρ⁴ ≳ 10ε·r·R²/(u·SHORT_CHAIN_ULPS)`: from
 //! `ρ ≈ 50` at the default band against a torus `R = 1, r = 0.25`.
 //!
 //! So the subdivision does not read its Taylor terms from the harmonics.
@@ -155,7 +155,7 @@ use geom_brep::half_angle::{
 };
 use geom_brep::quartic::QuarticRows;
 use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
-use geom_brep::rounding_charge;
+use geom_core::rounding_charge;
 
 /// The circle × torus lane's ladder rows.
 const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {

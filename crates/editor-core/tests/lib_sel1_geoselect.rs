@@ -364,7 +364,7 @@ fn an_in_band_margin_refuses_typed() {
         SelectRefusal::InBand {
             name, predicate, ..
         } => {
-            assert_eq!(predicate, editor_core::SEL_DATUM_DISTANCE);
+            assert_eq!(predicate, editor_core::SEL_PLANE_DISTANCE);
             assert_eq!(name.kind, EntityKind::Vertex);
         }
         other => panic!("expected InBand, got {other:?}"),

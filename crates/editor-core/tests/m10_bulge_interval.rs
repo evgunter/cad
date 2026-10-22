@@ -195,7 +195,7 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///
 /// **INTENT stage 3 D** (a construction stands in the world by a mate
 /// and the values it leaves): the copy's plane mate reads its chart,
-/// which decides its three directions (`datum_unit_norm` 0/2 -> 0/5),
+/// which decides its three directions (`pose_unit_norm` 0/2 -> 0/5),
 /// the two swings onto the mated direction
 /// (`mate_chart_reference_antipode`, new at 2/0) and the one at-rest
 /// verdict of the solved map (`solve_copy_at_identity`, new at 1/0).
@@ -243,7 +243,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("chord_side", [6, 12]),
     ("circle_side", [2, 2]),
     ("contact_at_shared_vertex", [12, 4]),
-    ("datum_unit_norm", [0, 5]),
+    ("pose_unit_norm", [0, 5]),
     ("dihedral_arm", [0, 156]),
     ("dihedral_wedge", [0, 156]),
     ("extrusion_normal_component", [0, 2]),
@@ -363,7 +363,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 ///
 /// **INTENT stage 3 D** (a construction stands in the world by a mate
 /// and the values it leaves): the copy's plane mate reads its chart,
-/// which decides its three directions (`datum_unit_norm` 0/2 -> 0/5),
+/// which decides its three directions (`pose_unit_norm` 0/2 -> 0/5),
 /// the two swings onto the mated direction
 /// (`mate_chart_reference_antipode`, new at 2/0) and the one at-rest
 /// verdict of the solved map (`solve_copy_at_identity`, new at 1/0).
@@ -414,7 +414,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("carrier_on_surface_1", [126, 0]),
             ("carrier_on_surface_2", [126, 0]),
             ("contact_at_shared_vertex", [6, 3]),
-            ("datum_unit_norm", [0, 5]),
+            ("pose_unit_norm", [0, 5]),
             ("dihedral_arm", [0, 108]),
             ("dihedral_wedge", [0, 108]),
             ("extrusion_normal_component", [0, 2]),

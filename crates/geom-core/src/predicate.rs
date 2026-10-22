@@ -1350,6 +1350,14 @@ pub const UNREADABLE_MARGIN_NOTE: &str =
 pub const UNREADABLE_STORED_MARGIN_NOTE: &str =
     "an unreadable margin may indicate a kernel or file defect worth reporting";
 
+/// What an unreadable margin may mean at the STEP import door, which a
+/// damaged file reaches (a Part 21 real that overflows to ±inf among
+/// them): [`UNREADABLE_MARGIN_NOTE`]'s twin there.
+pub const UNREADABLE_FILE_MARGIN_NOTE: &str = concat!(
+    "an unreadable margin may indicate a damaged file worth reporting ",
+    crate::to_the_files_writer!()
+);
+
 /// **The recourse, labelled**: `Recourse: {action}`, the one spelling
 /// of the label a refusal's way through opens with.
 #[derive(Clone, Copy, Debug)]
@@ -1420,13 +1428,55 @@ pub enum RefusedReading {
     /// Nothing more than its class shows: no size, so it ends in the
     /// lever and [`SizedWords::no_size`].
     AsShown,
-    /// The decision's inputs are a stored body's, which no reading on
-    /// the refused side agrees with: the reading contradicts that data,
-    /// and it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`].
-    ContradictsStoredData,
-    /// The decision's inputs are a file's, read at the import door: the
-    /// reading names the file as damaged ([`DAMAGED_FILE_ENDING`]).
-    DamagedFile,
+    /// The decision's inputs are stored data, which no reading on the
+    /// refused side agrees with: the reading contradicts that data, and
+    /// it ends in the defect ending naming its culprit
+    /// ([`StoredCulprit::ending`]). Stored data reached the run from
+    /// outside it, so the culprit is never the kernel alone.
+    Defect(StoredCulprit),
+}
+
+/// **Who a defect ending names**: the one spelling of each culprit's
+/// ending. The caller that reads the door chooses it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Culprit {
+    /// The kernel alone, which built what it reads
+    /// ([`KERNEL_DEFECT_ENDING`]).
+    Kernel,
+    /// Stored data's culprit, read at rest or at the import door.
+    Stored(StoredCulprit),
+}
+
+/// **Who a contradiction of stored data names**: the kernel or the file,
+/// or the file alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StoredCulprit {
+    /// The kernel or the file ([`KERNEL_OR_FILE_DEFECT_ENDING`]).
+    KernelOrFile,
+    /// The file ([`DAMAGED_FILE_ENDING`]).
+    File,
+}
+
+impl Culprit {
+    /// The defect ending naming this culprit.
+    #[must_use]
+    pub const fn ending(self) -> &'static str {
+        match self {
+            Self::Kernel => KERNEL_DEFECT_ENDING,
+            Self::Stored(stored) => stored.ending(),
+        }
+    }
+}
+
+impl StoredCulprit {
+    /// The defect ending naming this culprit.
+    #[must_use]
+    pub const fn ending(self) -> &'static str {
+        match self {
+            Self::KernelOrFile => KERNEL_OR_FILE_DEFECT_ENDING,
+            Self::File => DAMAGED_FILE_ENDING,
+        }
+    }
 }
 
 impl SizedWords<'_> {
@@ -1460,8 +1510,7 @@ impl Shows {
             ),
             Self::NoSize | Self::Refused => match refused {
                 RefusedReading::AsShown => lever_recourse(lever, no_size),
-                RefusedReading::ContradictsStoredData => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
-                RefusedReading::DamagedFile => DAMAGED_FILE_ENDING.to_owned(),
+                RefusedReading::Defect(culprit) => culprit.ending().to_owned(),
             },
             Self::Floor => lever_recourse(lever, Some(&floor_note(size))),
             Self::Unresolved | Self::Past => lever_recourse(lever, None),
@@ -1565,8 +1614,12 @@ impl FileCoincidence {
                 format!("{head}, to which alone the file's data claims to agree. {stopgap}")
             }
             (MissSource::File, Within::Partly) => format!(
-                "{head}, to which alone the file's data claims to agree. {stopgap}; a miss that \
-                 persists there is a kernel defect or a damaged file, worth reporting"
+                concat!(
+                    "{}, to which alone the file's data claims to agree. {}; a miss that persists \
+                     there means the file is damaged, worth reporting ",
+                    crate::to_the_files_writer!()
+                ),
+                head, stopgap
             ),
             (MissSource::Fit, _) => format!(
                 "{head}, and may be the kernel's own approximation. {stopgap}; this refusal may \
@@ -2307,7 +2360,22 @@ macro_rules! kernel_or_file_defect_ending {
 #[macro_export]
 macro_rules! damaged_file_ending {
     () => {
-        "There is no way through: the file is damaged; report it to the program that wrote it"
+        concat!(
+            "There is no way through: the file is damaged; report it ",
+            $crate::to_the_files_writer!()
+        )
+    };
+}
+
+/// Whom a damaged file is reported to, as a literal for `concat!`: the
+/// one spelling every sentence that names a damaged file shares
+/// ([`DAMAGED_FILE_ENDING`], [`UNREADABLE_FILE_MARGIN_NOTE`], and the
+/// import door's miss that may persist past ε_in).
+#[doc(hidden)]
+#[macro_export]
+macro_rules! to_the_files_writer {
+    () => {
+        "to the program that wrote it"
     };
 }
 
@@ -3141,13 +3209,11 @@ mod tests {
             MarginDiag::INVALID,
         ];
         let mut seen = Vec::new();
-        for (refused, ending) in [
-            (
-                RefusedReading::ContradictsStoredData,
-                KERNEL_OR_FILE_DEFECT_ENDING,
-            ),
-            (RefusedReading::DamagedFile, DAMAGED_FILE_ENDING),
+        for (culprit, ending) in [
+            (StoredCulprit::KernelOrFile, KERNEL_OR_FILE_DEFECT_ENDING),
+            (StoredCulprit::File, DAMAGED_FILE_ENDING),
         ] {
+            let refused = RefusedReading::Defect(culprit);
             for margin in margins {
                 let shows = margin.shows(band, SizedPass::Positive);
                 seen.push(std::mem::discriminant(&shows));
@@ -3205,8 +3271,8 @@ mod tests {
                       1e-6 m, so the file cannot tell it from zero. Recourse: L";
         for refused in [
             RefusedReading::AsShown,
-            RefusedReading::ContradictsStoredData,
-            RefusedReading::DamagedFile,
+            RefusedReading::Defect(StoredCulprit::KernelOrFile),
+            RefusedReading::Defect(StoredCulprit::File),
         ] {
             for margin in [
                 MarginDiag::value(-5e-8),
@@ -3227,7 +3293,11 @@ mod tests {
             "Recourse: L; N"
         );
         assert_eq!(
-            past.sized_recourse_in_file(band, words(RefusedReading::DamagedFile), file),
+            past.sized_recourse_in_file(
+                band,
+                words(RefusedReading::Defect(StoredCulprit::File)),
+                file
+            ),
             DAMAGED_FILE_ENDING
         );
     }
@@ -3683,8 +3753,8 @@ mod tests {
                  1e-6 m; this refusal may indicate a kernel bug worth reporting"
             )
         };
-        let persists = "; a miss that persists there is a kernel defect or a damaged file, worth \
-                        reporting";
+        let persists = "; a miss that persists there means the file is damaged, worth reporting \
+                        to the program that wrote it";
         let banded = |m| MissReading::Banded(m, band);
         for (miss, lies) in [
             (banded(MarginDiag::value(5e-9)), Some("within")),

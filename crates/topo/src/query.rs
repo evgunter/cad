@@ -49,7 +49,7 @@
 //!
 //!   **This module names one decision that is not a selector site.**
 //!   A pose direction is decided by [`UnitVec3::new`](geom_core::UnitVec3::new) under
-//!   [`DATUM_UNIT_NORM`] (no `sel_` prefix): it decides that a
+//!   [`POSE_UNIT_NORM`] (no `sel_` prefix): it decides that a
 //!   direction has a finite, nonzero length before normalizing it, a
 //!   constructor refusing a value the type cannot hold, not a margin a
 //!   candidate is judged by. The body is `geom-core`'s
@@ -271,7 +271,7 @@ pub fn edge_adjacent_matches<T: Real>(
 /// A K row name reaching the funnel through a const, not a literal at
 /// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
 /// "The inventory method, restated").
-pub const DATUM_UNIT_NORM: &str = "datum_unit_norm";
+pub const POSE_UNIT_NORM: &str = "pose_unit_norm";
 
 // ---------------------------------------------------------------
 // The rim door: the whole closed rim one arc belongs to. EXACT —
@@ -416,7 +416,7 @@ fn half_edge_ends<T: Real>(
 
 /// The two end vertices of `e`, a live edge the walk reached, in
 /// `he_plus`-forward order.
-fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
+pub(crate) fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
     let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
     half_edge_ends(body, edge.he_plus, EntityId::Edge(e), "he_plus")
 }
@@ -616,7 +616,7 @@ mod tests {
     #[test]
     fn the_datum_constructor_refuses_an_underflowed_direction_by_its_own_name() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let refused = UnitVec3::new(Vec3::new(1e-180, 0.0, 0.0), DATUM_UNIT_NORM, band)
+        let refused = UnitVec3::new(Vec3::new(1e-180, 0.0, 0.0), POSE_UNIT_NORM, band)
             .expect_err("a direction with no measurable length is refused");
         assert_eq!(refused, UnitVec3Error::UnderflowedLength);
         let said = refused.to_string();

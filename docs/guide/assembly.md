@@ -24,7 +24,7 @@ Everything below runs. The Python blocks are executed by
 `test_assembly_eval.py` and `test_assembly_author.py` (which build
 one scene, `crates/pncad-py/tests/bench_scene.py`), and the same scene
 in Rust is `demos/tour/src/assembly.rs`, which goes one step further:
-it stands the stand on a turntable — the near post's world pin, whose
+it stands the stand on a turntable — the near post's world mate, whose
 frame turns about the turntable's pivot by a `swing` parameter — and
 sets a crate on the shelf by a mate and values in the crate's own
 bundle.
@@ -1046,8 +1046,8 @@ sub-assembly refuse even where the world beside them certifies.
 ## 6. Moving a part in or out: `split`, `inline`, and the pin door
 
 `split(doc, cut, part_id, resolver=)` cuts a closed node set out into
-a new document and leaves **one instance** of it behind, pinned where
-the part's world stands by the world pin, which reads nothing. `inline(doc,
+a new document and leaves **one instance** of it behind, standing where
+the part's world stands by the identity bundle, which reads nothing. `inline(doc,
 instance, resolver)` is its inverse: splice the referenced document's
 nodes back in.
 
@@ -1286,7 +1286,7 @@ held by mates onto two different copies refuses `mate_targets_differ`,
 naming the placement and the constraints whose targets differ. And the
 solve reads a face only of an instance, or of a pattern's copy of one:
 a face side on a copy `Doc.place` made of a body refuses typed, while
-a world pin works on any placement.
+a world mate works on any placement.
 
 **Only a placement places.** The product is the copies the
 document's placements define in the world's space — each instance

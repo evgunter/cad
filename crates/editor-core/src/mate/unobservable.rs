@@ -220,7 +220,7 @@ fn round_about(
         ) else {
             return false;
         };
-        let axis = UnitVec3::new(at.axis, topo::query::DATUM_UNIT_NORM, band);
+        let axis = UnitVec3::new(at.axis, topo::query::POSE_UNIT_NORM, band);
         let along = |a: UnitVec3<f64>| directions_parallel(a, dir, band, arm).unwrap_or(false);
         let on = |p: Point3<f64>| on_the_line(p, point, dir, band).unwrap_or(false);
         match kind {

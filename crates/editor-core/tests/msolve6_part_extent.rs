@@ -540,7 +540,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
 
 /// **No edit asks the store**: the edit door takes none and decides
 /// only what the recipe says, so on a mated document a seat added to a
-/// third instance, a world pin removed and re-added at another pose, an
+/// third instance, a world mate removed and re-added at another pose, an
 /// appearance, a union, a fourth instance and every removal — the
 /// seat's, the first instance's — each applies.
 ///
@@ -585,7 +585,7 @@ fn a6_no_edit_asks_the_store() {
             },
             tol,
         )
-        .expect("removing a world pin asks nothing")
+        .expect("removing a world mate asks nothing")
         .doc;
     let moved = editor_core::pin_at(
         &doc,
@@ -604,7 +604,7 @@ fn a6_no_edit_asks_the_store() {
             },
             tol,
         )
-        .expect("a world pin asks nothing")
+        .expect("a world mate asks nothing")
         .doc;
     let doc = doc
         .apply(
@@ -1031,16 +1031,16 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
     }
 }
 
-/// **A whole-assembly split pins its instance where it stands**: the
+/// **A whole-assembly split stands its instance where it stands**: the
 /// cut's instances move into the new part, and the instance left
-/// behind stands where the part's world stands, by one mate to the
-/// world read off the part's geometry — so a split handed no resolver
-/// has no geometry to stand it on, and refuses typed.
+/// behind stands where the part's world stands by the identity bundle,
+/// which reads nothing of the part — so a split handed no resolver
+/// stands it the same way.
 ///
-/// *Breaks if* a split leaves an unpinned instance, or splits without
-/// the geometry its pin reads.
+/// *Breaks if* a split leaves an unplaced instance, or reads the part
+/// to stand it.
 #[test]
-fn a6_a_split_pins_its_instance_where_it_stands_and_refuses_without_a_resolver() {
+fn a6_a_split_stands_its_instance_by_the_identity_bundle_with_or_without_a_resolver() {
     let (doc, ids, opts, body) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
     let [a, b] = [ids[0], ids[1]];
     let (doc, _) = seat(doc, (a, body), (b, body));
@@ -1068,9 +1068,12 @@ fn a6_a_split_pins_its_instance_where_it_stands_and_refuses_without_a_resolver()
                 .all(|c| c.value().is_some_and(|v| v.mate.is_none())),
         "the instance stands where it stands by the identity bundle: {bundle:?}"
     );
-    assert!(
-        matches!(split(None), Err(editor_core::SplitError::InstanceUnstood)),
-        "with no resolver the part offers no geometry to stand its instance on"
+    let unresolved = split(None).unwrap_or_else(|e| panic!("a cut splits with no resolver: {e}"));
+    let placements = unresolved.remainder.placements();
+    assert_eq!(
+        fixture::bundle(&unresolved.remainder, placements[0]),
+        bundle,
+        "with no resolver the instance stands by the same identity bundle"
     );
 }
 

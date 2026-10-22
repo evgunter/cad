@@ -131,9 +131,8 @@ const COPY: u32 = 2;
 /// [`COPY`]. Returns `(doc, leg, pattern, top, mate, leg_body)`, the
 /// last the leg part's body.
 ///
-/// A bare datum sits AHEAD of the instances and is never cut, so the part
-/// document's id space is offset from the host's — which is what makes
-/// the recorded map's rewrite observable rather than an identity.
+/// The part document mints its own id space, so the recorded map's
+/// rewrite is observable rather than an identity.
 fn four_legs(
     label: &str,
 ) -> (

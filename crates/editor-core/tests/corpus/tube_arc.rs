@@ -29,11 +29,10 @@
 //! `f64` rounding of an irrational rather than the geometry. The
 //! `die_chamfer` disposition, and both siblings'.
 
-use super::PlacePart;
 use editor_core::{DocEdit, Node, SlotId, TubeWindow};
 
 use super::super::fixture::{ang, len};
-use super::{CorpusDoc, Recorder};
+use super::{CorpusDoc, Recorder, spun_about_y};
 
 /// The spine circle's radius, meters (dyadic).
 pub const R: f64 = 2.0;
@@ -61,12 +60,11 @@ pub fn document() -> CorpusDoc {
         minor_radius: len(MINOR),
     });
 
-    // Placed where it is built. The tube turns about its own z, so
-    // there is no world spine axis for a lowering to assume. The quarter
-    // turn that stood it about +y (the retired spine frame's) is solved
-    // inexactly at Interval, and the start cap at t0 = 0 lies on the
-    // torus seam, so its pcurve's branch escalated there.
-    r.place_part(bend);
+    // The tube turns about its own z; in the world it turns about +y,
+    // a different spine axis from `tube_ring`'s deliberately, so a
+    // lowering that assumed one world axis has two documents to
+    // disagree with.
+    r.in_world_by(bend, spun_about_y());
 
     CorpusDoc {
         name: "tube_arc",

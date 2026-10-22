@@ -170,7 +170,7 @@ class TestPlaneDistance(unittest.TestCase):
             )
         refusal = caught.exception
         self.assertEqual(refusal.reason, "in_band")
-        self.assertEqual(refusal.predicate, "sel_datum_distance")
+        self.assertEqual(refusal.predicate, "sel_plane_distance")
         # The candidate is NAMED — as opaque text, carried not read.
         self.assertIsInstance(refusal.name, str)
         self.assertIsNone(refusal.matched)

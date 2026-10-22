@@ -2,9 +2,12 @@
 id: check-7-refuses-the-reporting-budget-on-a-definite-sign
 kind: issue
 title: check 7 refuses QuadratureBudget at the reporting target on a rational blade whose volume sign is not in doubt
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
+cost: M
+closed: 2026-10-21
+pr: 5568
 ---
 
 Met while giving the tour lily's blades lanceolate sections
@@ -122,6 +125,9 @@ Each answers the reporting question inside the sign walk.
 
 ## A second consequence: tighter ε reads worse
 
+Tracked as `measure-holds-a-budget-refused-faces-bracket-at-the-round-its-sign-settled`
+(measured unchanged by PR 5568).
+
 The exit also freezes `measure()`'s fallback BRACKET at round 0. The
 lily's degree-2 swept leaves pass the gate at every ε, but at
 ε = 1e-12 the bracket `measure()` hands back is about 1.5% wide —
@@ -179,3 +185,25 @@ tour runs:
 
 So the swept half of this row's evidence was the narrow-span defect.
 The lofted half is not, or not only. The row stays open on wall 16.
+
+## Closed
+
+PR 5568. The three patch lanes share one after-round-0 exit (`budget_exit`),
+whose `RoundOutcome::Open` end (`OpenEnd::Unreachable`) keeps the schedule
+open while carrying the reporting door's refusal. The sign walk refines past
+round 0 while rounds remain and its sign is undecided, so check 7 admits a
+definite sign the reporting target cannot reach (wall 16, the lofted lens
+blade, and Klein wall 5, both retired). The reporting doors refuse exactly as
+before. `volume_backstop` walks at the target level (`target_walk`) and pays no
+round past the exit. Reviewed by a single FULL review and a focused re-review
+of the fix pass; no MAJOR. Residue, each with its own row:
+- `measure-holds-a-budget-refused-faces-bracket-at-the-round-its-sign-settled`
+  (this row's "A second consequence");
+- `a-refused-faces-later-hard-error-is-swallowed-whatever-its-kind`;
+- `face-run-is-a-state-machine-kept-by-convention`;
+- `a-sign-walk-escalates-on-the-last-rounds-in-band-reporting-reading`;
+- COINCIDE's `connectedness-reads-shell-roles-through-the-reporting-walk`.
+
+The `taken_at` re-derive fix (review MINOR-4) has no witness. Two hunts (7
+blade poses, the strip family) found no shape that needs it, because it
+matters only on the tight `WorldOrigin` retry.

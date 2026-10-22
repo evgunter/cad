@@ -62,7 +62,6 @@ pub use member::{Member, Placing, head_face, head_of, member_of, member_reading}
 pub use pin::{
     FrameMove, PinRefusal, Placed, PlacedBy, corner_frame, corner_frame_in, frame_at, frame_at_in,
     moved_frame, pin_at, pin_at_in, place_against, place_against_in, place_at, place_at_in, stand,
-    stand_in,
 };
 pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach};
 pub use solve::{

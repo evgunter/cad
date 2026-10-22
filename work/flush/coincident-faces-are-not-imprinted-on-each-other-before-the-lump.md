@@ -2,11 +2,13 @@
 id: coincident-faces-are-not-imprinted-on-each-other-before-the-lump
 kind: issue
 title: A same-oriented coincident face pair is lumped before either is cut along the other's in-plane edges, so the kept edge topology depends on operand order
-status: dispatched
+status: closed
 opened: 2026-10-19
 priority: P1
 cost: H
 branch: flush/coincident-fate-cut
+pr: 5368
+closed: 2026-10-20
 ---
 
 
@@ -131,6 +133,15 @@ change.
   swap-identical. Example: a box sunk flush in a block gets a
   kept-beside-substituted cut on the block's top when the box is A,
   and the merge removes it. No reader sees the pieces.
+  - **Carve-out, curved coincident faces.** The merge does not join
+    curved faces, so the finished body keeps the junction where
+    operand A's coincident wall ends, and that moves with the swap:
+    coaxial rods over z 0..2 and z 1..3 ship the seam circle at z 2
+    with the lower rod as A and at z 1 swapped, identically on the
+    merge base. A discard's border along the junction moves with it,
+    and the other order's cap borders nothing, its circle lying inside
+    the kept wall where the result holds no vertex
+    (`sweep` `curved_coincident_fates::coaxial_rods_border_the_seam_circle_only_where_the_result_holds_it`).
 - **Rejected:** imprinting both copies at the glue door. The glue door
   knows no vertices, so it would need a second, two-dimensional
   intersection engine in carrier coordinates. Every extra cut it made
@@ -170,3 +181,28 @@ log):
 - `corner_pairs_battery`, `join1_delta_arc_battery` and the r2 pinch
   probes unmoved or better;
 - EMIT's `HeldInto` entry-vertex residue closes on landing.
+
+## Resolution (2026-10-20, PR 5368)
+
+Built as designed:
+- A dropped coincident face is cut where its fate changes, at `vtxfac` and `recl`, by a one-sided chord along the kept edge (`boolean/fate.rs`).
+- `BooleanNaming::substituted` (clone-keyed) replaces `covered`, and `HeldEdge`, `HeldInto` and `DiscardRow::held` retire.
+- Only the removed fragment is a discard. It borders the kept edge across the chord, or through a substituted neighbour (`DiscardRow::bordered_through`).
+- EMIT's pocket fixture names alike in every order.
+
+**Review.** A dual concurrent review found no MAJOR. The fix pass:
+- `sector_piece` propagates instead of falling back to the unsplit face. That exposed, and fixed, a reflex-wedge pose writing the wrong face.
+- A `by` is never a discard: the holder is read by the dropped sector's direction.
+- Borders read through substituted neighbours.
+- `fates` covers ∪, ∩ and both ∖.
+- Doc rot was fixed.
+
+The author also fixed a `hemi ∩ slab` refusal that the frozen head had introduced. The second reviewer's narrow re-check approved.
+
+**Batteries:** 0 lines moved.
+
+**Residues:**
+- `a-containment-fallback-substitutes-a-partly-held-dropped-face-whole`
+- `an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order`
+- `a-curved-coincident-wall-ships-its-seam-where-operand-a-ends`
+

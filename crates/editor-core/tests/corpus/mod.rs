@@ -95,6 +95,31 @@ impl PlacePart for Recorder {
     }
 }
 
+/// **The world's motion turning a construction's own `z` onto the
+/// world's `+y`**, its origin at the world's: `−turn/4` about `x`, so
+/// its own `y` lies along the world's `−z` — the values of a bundle with
+/// no mate ([`Recorder::in_world_by`]).
+pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
+    use editor_core::{Coord, Dimension, Formula, TargetAxis};
+    let quarter = Formula::turn_over(4).expect("a quarter turn");
+    let back = Formula::neg(quarter).expect("an angle negates");
+    [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
+        .into_iter()
+        .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
+        .chain([
+            (Coord::SpinAbout(TargetAxis::X), back),
+            (
+                Coord::SpinAbout(TargetAxis::Y),
+                Formula::zero(Dimension::Angle),
+            ),
+            (
+                Coord::SpinAbout(TargetAxis::Z),
+                Formula::zero(Dimension::Angle),
+            ),
+        ])
+        .collect()
+}
+
 /// **Each of a pattern's `count` copies placed in the world**, in
 /// instance order: a `Part` per instance, each placed at the identity.
 pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
@@ -108,7 +133,7 @@ pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
 }
 
 /// **[`place_instances`] at `at`**: each instance placed in the world
-/// at the frame its construction's datum put it.
+/// at the frame `at`.
 pub fn place_instances_at(
     r: &mut Recorder,
     pattern: RecipeNodeId,
@@ -280,9 +305,9 @@ pub fn documents() -> Vec<CorpusDoc> {
         // oracle (`lib_placedunion.rs`).
         heatsink_union::document(),
         die_tool::document(),
-        // `face_sketch` (DOCM-1): a boss sketched ON the box's top face
-        // through a derived frame — the first `Datum::FaceFrame` in the
-        // registry, so the derived frame carries the standard rows
+        // `face_sketch` (DOCM-1): a boss sketched ON the box's top face,
+        // placed by a plane mate naming that face, so the placement
+        // carries the standard rows
         // (every ε, the Interval lane under DM1c, persistence, latency).
         face_sketch::document(),
         // `part_select` (DOCM-2): a split's two halves read by port and

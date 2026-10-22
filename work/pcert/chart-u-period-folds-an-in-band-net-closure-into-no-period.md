@@ -27,6 +27,27 @@ joint (a seam crossed whole) keeps its gap of a whole `u` range.
 `PinMiss::Discontinuity`, i.e. `PcurveMintError::LoopDiscontinuity`,
 where the honest answer is an escalation: the net may close.
 
+**The `v` channel too (PCERT unit C).** `chart_u_period` and
+`chart_v_period` now share one closure rule, `net_closes`
+(`crates/topo/src/pcurves.rs`), deciding `pcurve_chart_u_closed` or
+`pcurve_chart_v_closed`. The fold is that helper's, so a net whose `v`
+seam rows sit in band is read as open in `v`, and its seam joint keeps a
+whole `v` range as its gap. The same rule also compares control points
+only, not weights, so two boundary rows with equal points and unequal
+(non-proportional) weights read as closed, in either channel. (It reads
+the first and last control rows as the boundary, which holds because
+every knot vector is clamped: `KnotVector`'s constructors, `clamped`,
+`bezier` and `unit_segment` in `crates/geom-core/src/spline/knots.rs`,
+admit no other.) The fix below covers `v` with `u`.
+
+**Pinned** by `pcurves::net_period_rows::a_seam_a_near_band_offset_apart`
+(`crates/topo/src/pcurves.rs`): a prism net closed in `v` whose last row
+is moved off its first by `d`. Under the band's zero (`d` up to 0.5 ε)
+it reads closed and its seam crossing is one `v` period; in the band it
+folds to open and the same crossing refuses as a decided
+`PinMiss::Discontinuity`. The fix turns that last assertion into an
+escalation.
+
 **The fix shape.** `chart_u_period` answers a tri-state (closes, decided
 open, in band with its cause). Its callers (`chart_boundary`,
 `decide_joint`'s callers, the split and merge walks, about six sites)

@@ -1,6 +1,6 @@
 //! **EDIT-PLACEMENT P2 over placements — poses, the constraint door
 //! and the spaces** (ASSEMBLY.md A4, A9, A11; D10, Spaces): a seat
-//! under a parametric world pin, a loose stack joining the world
+//! under a parametric world mate, a loose stack joining the world
 //! through one seat, split and
 //! inline over pinned and mate-placed instances, and the readers that
 //! must not compare a loose copy with anything outside its space — the
@@ -313,9 +313,8 @@ fn pinned_lifted(
     (pin_lifted(doc, id, index, angle, then, o), id)
 }
 
-/// **A seat under a world pin whose pose composes a parametric lift, a
-/// fixed turn and a rotated offset**, and a Transform of the pinned
-/// base, against an independent 4x4 composition in f64 and in the
+/// **A seat under a world mate whose pose composes a parametric lift, a
+/// fixed turn and a rotated offset**, against an independent 4x4 composition in f64 and in the
 /// interval lane at two values of the driving parameter.
 #[test]
 fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
@@ -463,7 +462,7 @@ fn one_seat_puts_a_loose_stack_in_the_world_and_the_target_stays() {
 }
 
 /// **The memo does not carry a measure across a space change**: with
-/// the top's world pin removed and the prior evaluation handed in, the
+/// the top's world mate removed and the prior evaluation handed in, the
 /// measure must re-evaluate, and then refuses across the two spaces.
 #[test]
 fn a_measure_reused_across_a_pin_removal_refuses_across_spaces() {
@@ -684,7 +683,7 @@ fn a_document_of_loose_copies_alone_names_them_and_still_checks_their_space() {
     own_space_refuses(&doc, &ev);
 }
 
-/// **A parametric world pin moves with the cut** (A4): the base's pin
+/// **A parametric world mate moves with the cut** (A4): the base's pin
 /// reads `lift`, which a kept instance's pin reads too, so the cut of
 /// the pair refuses `UncutVarReference` naming the parameter, the cut
 /// node and the kept one, with the recourse.
@@ -716,7 +715,7 @@ fn a_parametric_pin_read_on_both_sides_of_a_cut_refuses() {
 }
 
 /// **The memo key carries what places a copy**: an evaluation
-/// handed its prior moves an instance whose world pin's parameter moved,
+/// handed its prior moves an instance whose world mate's parameter moved,
 /// and a mate-placed instance with its target when the target's pin
 /// moved — neither changes a slot of the mate-placed instance's own,
 /// so only what its key folds of its target can tell the two runs
@@ -834,7 +833,7 @@ fn the_unplaceable_part_recourse_followed_inlines_in_place() {
 
 /// **Inline at a turned pose over a part of two pinned instances moves
 /// nothing** (A4): the host instance's pose composes into each inner
-/// instance's world pin, and no world pose moves.
+/// instance's world mate, and no world pose moves.
 #[test]
 fn an_inline_at_a_turned_pose_over_two_pinned_instances_moves_nothing() {
     let p = parts("minted-vs-hand");

@@ -127,7 +127,7 @@ use geom_brep::half_angle::{
 };
 use geom_brep::quartic::QuarticRows;
 use geom_brep::roots::{OnCarrier, Roots, Unsettled};
-use geom_brep::rounding_charge;
+use geom_core::rounding_charge;
 
 #[cfg(test)]
 mod circle_sphere_rows;
@@ -326,7 +326,7 @@ fn quadric_ladder<T: Decide>(
     };
     // The harmonics' rounding, in residual metres: the term bound is in
     // m², before the `2r` division. It is a charge on the residual's
-    // evaluation (`geom_brep::HARMONIC_NOISE_ULPS`), so it covers the
+    // evaluation (`geom_core::SHORT_CHAIN_ULPS`), so it covers the
     // arm's readings together — `c₀ ∓ A₁` and the `A₂` it charges.
     let noise = rounding_charge(h.terms) / h.per;
     let frame = ladder_frame(conic, (t0, t1), noise, h.floor);

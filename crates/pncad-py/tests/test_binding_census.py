@@ -395,21 +395,19 @@ def curated_declarations():
     A curated name enters only if `pncad.pyi` declares it top-level — a
     name in `BOUND_AS` or `NOT_BOUND` is argued WHOLE, with its reason at
     its entry, and the member rule is about what a name match accounts for.
-    The resolution is the sweep's: the declaration in the crate the `pub
-    use` statement named, falling back to the declaration set for that
-    spelling where the carrying crate does not declare it.
+    The resolution is the sweep's (`resolve_curated`): the declaration the
+    `pub use` chain that exports the name leads to.
     """
     sweep = resolver()
-    index = sweep.declarations(REPO, sweep.dependency_set(REPO))
+    crates = sweep.dependency_set(REPO)
+    index = sweep.declarations(REPO, crates)
     lists = tuple(stem.removesuffix(".rs") for stem in FACADE_FILES)
     top, _ = stub_surface()
     found = {}
-    for name, where in sweep.curated(REPO, lists).items():
+    for name, where in sweep.resolve_curated(REPO, lists, crates, index).items():
         if name not in top:
             continue
-        roots = {root for statements in where.values() for root in statements}
-        decls = [d for d in index.get(name, []) if d.crate in roots]
-        decls = decls or index.get(name, [])
+        decls = [d for stem in sorted(where) for d in where[stem]]
         if not decls:
             continue
         members = sweep.declared_members(decls[0])
@@ -728,14 +726,6 @@ BOUND_AS = {
     "CoherenceCondition": "CheckEvidence.chart_variant",
     "Unexaminable": "CheckEvidence.chart_variant",
     "CoherenceFinding": "CheckEvidence.metres",
-    # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
-    # internal wiring-bug refusal — and cross exactly as their carrier
-    # does: flattened to the `verb_arity` tag `EvaluationError.kind`
-    # answers (the same flattening the `UnitVec3` bullet above records
-    # for `UnitVec3Error`; the typed payload stays a Rust-side diagnosis
-    # surface).
-    "Arity": "EvaluationError.kind",
-    "VerbKind": "EvaluationError.kind",
     "UnevaluatedReason": "Verdict.reason",
     "PI": "pi_rad",
     # `DistributionField` names WHICH offset of a distribution a fault
@@ -962,6 +952,16 @@ BOUND_AS = {
     # `rim_share_tag`, so the two ways a rim fails to be unique are two
     # `inner_kind` words and not one sentence a caller has to parse.
     "RimShare": "EvaluationError.inner_kind",
+    # The shapes the missing-rule and precision-limit naming refusals
+    # carry, crossing as `RimShare` does: `naming_error_tag` delegates
+    # to one tag function per shape enum.
+    "DisagreeShape": "EvaluationError.inner_kind",
+    "JoinShape": "EvaluationError.inner_kind",
+    "SeamVertexShape": "EvaluationError.inner_kind",
+    "CrossingSensesShape": "EvaluationError.inner_kind",
+    "SeamSidesShape": "EvaluationError.inner_kind",
+    "UnionNameShape": "EvaluationError.inner_kind",
+    "WayShape": "EvaluationError.inner_kind",
     "BlendError": "EvaluationError.inner_kind",
     "BooleanError": "EvaluationError.inner_kind",
     "ExtrudeError": "EvaluationError.inner_kind",
@@ -999,9 +999,6 @@ BOUND_AS = {
     "keep_grid": "DocEdit.set_program",
     "ProfileEdgeRef": "Piece",
     "PieceRole": "Role",
-    # `PiecesFault` is what `NodeErrorKind::ProfilePieces` carries, and
-    # its arms cross at that carrier's second word.
-    "PiecesFault": "EvaluationError.inner_kind",
     # `MetaVersionError` is the same row one arm over, and it arrives
     # by the same reading failing. It was `NOT_CARRIED` under "the
     # curated face is a different shape", qualified: it is a nested
@@ -1618,7 +1615,7 @@ FAMILIES: dict[str, str] = {
         "the authored-step to profile-edge map — "
         "`ProfileProgram::profile_edges_of`, which answers which "
         "`ProfileEdgeRef`s one step of a loop program became. Closing "
-        "it needs the two records the door reads to be reachable from "
+        "it needs the record the door reads to be reachable from "
         "Python first (the replay/canonical structure record is not on "
         "`ProfileValue` at all today, so this waits on the Rust-side "
         "siting), then the method with its typed refusal, a `pncad.pyi` "
@@ -1791,7 +1788,7 @@ FAMILIES: dict[str, str] = {
 #:   PERFORMANCE door — "evaluate this in parallel" — would be a new
 #:   unit and a new entry, not this one.
 #: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
-#:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE` and `REGENERATE_RECOURSE`
+#:   `FIT_DEFERRAL`, `SEL_PLANE_DISTANCE` and `REGENERATE_RECOURSE`
 #:   are the prose a Rust refusal cites; Python's refusals carry theirs
 #:   in the exception's message.
 #:
@@ -2443,9 +2440,8 @@ NOT_BOUND = {
     # A direction refusal before it is spelled as a node error: which
     # vector the kernel's direction door refused and what it said. It
     # crosses as the node error it spells, a tag on
-    # `EvaluationError.kind` — the same flattening the
-    # `Arity`/`VerbKind` rows and the `UnitVec3` bullet's
-    # `UnitVec3Error` record, one level in.
+    # `EvaluationError.kind` — the same flattening the `UnitVec3`
+    # bullet's `UnitVec3Error` records, one level in.
     "DirectionRefusal": SHAPE,
     # `SnapshotError::InputList`'s payload: which of a node's own list
     # or designation rules a file broke. It crosses as its carrier does,
@@ -2634,7 +2630,7 @@ NOT_BOUND = {
     "RoleSeg": SHAPE,
     "RunLine": SHAPE,
     "ASSERT_BOUND": SHAPE,
-    "SEL_DATUM_DISTANCE": SHAPE,
+    "SEL_PLANE_DISTANCE": SHAPE,
     # A crossing's sense: a field of a `RoleSeg`, the inside of a name,
     # for `RoleSeg`'s reason.
     "Sense": SHAPE,
@@ -2780,9 +2776,10 @@ NOT_BOUND = {
     # The contact vocabulary's fourth quarter, curated beside the
     # three that were already here. `INTERIOR` by the carrier rule,
     # measured one rung DOWN from where its carrier now crosses: it is
-    # `CensusContact::ConformalPatch`'s payload, and `CensusContact`
-    # itself reaches Python as `ValidationFinding.contact_kind` —
-    # `conformal_patch`, the word — while what that arm CARRIES stays
+    # `CensusContact::ConformalPatch`'s and `FaceFaceTangent`'s payload,
+    # and `CensusContact` itself reaches Python as
+    # `ValidationFinding.contact_kind` — `conformal_patch` or
+    # `face_face_tangent`, the word — while what that arm CARRIES stays
     # behind it. The finding is a declared pair and a verdict, and
     # projecting it would be projecting a payload's payload; the
     # discriminant is what a curated list owes and it crosses.
@@ -3049,7 +3046,6 @@ NOT_BOUND = {
     "pin_at_in": INTERIOR,
     "place_at_in": INTERIOR,
     "place_against_in": INTERIOR,
-    "stand_in": INTERIOR,
     # A frame read off a body's geometry at a pose, as the pose operand
     # a placement gesture's mate reads: Python spells a frame read off
     # geometry through the `PoseDef` it names (`PoseDef.through` of an
@@ -3890,6 +3886,8 @@ MEMBERS_BOUND_AS = {
     "PathError::DegenerateArcChord": "PathError.variant",
     "PathError::ArcCenterNotEquidistant": "PathError.variant",
     "PathError::DegenerateArcCenter": "PathError.variant",
+    "PathError::ArcMissesAuthoredPoint": "PathError.variant",
+    "PathError::ArcMissBelowSceneResolution": "PathError.variant",
     "PathError::FarEndAnchorWithoutFillet": "PathError.variant",
     "PathError::Escalated": "PathError.variant",
     "PathError::Band": "PathError.variant",
@@ -3940,7 +3938,6 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::BadValue": "SelectRefusal.reason",
     "SelectRefusal::Band": "SelectRefusal.reason",
     "SplitError::EmptyCut": "SplitError.variant",
-    "SplitError::InstanceUnstood": "SplitError.variant",
     "SplitError::UnknownCutNode": "SplitError.variant",
     "SplitError::CutsTheWorld": "SplitError.variant",
     "SplitError::PartIdCollides": "SplitError.variant",
@@ -3995,6 +3992,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::EmptyLoop": "TessellateError.variant",
     "TessellateError::MissingEntity": "TessellateError.variant",
     "TessellateError::ResolutionOverflow": "TessellateError.variant",
+    "TessellateError::StepNotPositive": "TessellateError.variant",
     "TessellateError::CertificateExceeded": "TessellateError.variant",
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
@@ -4039,6 +4037,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::LaminaWedge": "ValidationFinding.variant",
     "ValidationError::LoopRoleInverted": "ValidationFinding.variant",
     "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
+    "ValidationError::SeamRegionOvercovered": "ValidationFinding.variant",
+    "ValidationError::SeamRegionCoverUnresolved": "ValidationFinding.variant",
     "ValidationError::NegativeVolume": "ValidationFinding.variant",
     "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",
@@ -4063,8 +4063,11 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CensusUnsupported": "ValidationFinding.variant",
     "ValidationError::CensusLaneUnsupported": "ValidationFinding.variant",
     "ValidationError::CensusUndecidable": "ValidationFinding.variant",
+    "ValidationError::FaceThroughEdgeWedge": "ValidationFinding.variant",
+    "ValidationError::FaceThroughEdgeWedgeUndecided": "ValidationFinding.variant",
     "ValidationError::ArcEndOffCorner": "ValidationFinding.variant",
     "ValidationError::InstanceInterference": "ValidationFinding.variant",
+    "ValidationError::CuspEdgesMissing": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",
     "ValidationError::NextPrevMismatch": "ValidationFinding.variant",
@@ -4229,14 +4232,6 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
-    # Two types, one word, in one crate: the resolver takes the first
-    # `Placed` `editor_core` declares, `coincide::Placed` (which copy a
-    # coincidence row's cell is on), where the façade's `Placed` is
-    # `mate::pin::Placed`, the placement gesture's answer, which
-    # Python's `Placed` mirrors (`mate`, `values`, `by`). Its arms have
-    # no Python namesake to be spelled on.
-    "Placed::Instance": SHAPE,
-    "Placed::World": SHAPE,
     # The document a report was taken of, which the kernel's `render`
     # checks it is handed. Python's `McReport` holds that document
     # itself and renders from it, so there is no second document to

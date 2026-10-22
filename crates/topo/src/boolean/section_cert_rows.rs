@@ -2196,13 +2196,13 @@ const RINGS: [(f64, f64); 4] = [(2.0, 0.5), (10.0, 0.1), (1.0, 0.9), (100.0, 1.0
 /// Whether a parallel leg on `ring`'s outer equator resolves its
 /// crossing of a meridian edge at this run's band: the root is a
 /// parameter of the leg, and the first-harmonic door charges a root's
-/// angle arithmetic `HARMONIC_NOISE_ULPS` half-ulps of a turn at the
+/// angle arithmetic `SHORT_CHAIN_ULPS` half-ulps of a turn at the
 /// leg's radius `R + r`; a slack past the band's zero refuses it
 /// (`Unsettled::Meter`). On the wide ring at ε `1e-12` it does not, and a
 /// point whose every path must cross a meridian edge on a parallel leg
 /// refuses `RayExhausted`, never answers.
 fn parallel_leg_resolves(ring: (f64, f64)) -> bool {
-    geom_brep::rounding_charge(TAU) * (ring.0 + ring.1) < band().zero()
+    geom_core::rounding_charge(TAU) * (ring.0 + ring.1) < band().zero()
 }
 
 /// The chart rectangle `[0, π/2] × [−π/4, π/4]` less a `du × dv` notch

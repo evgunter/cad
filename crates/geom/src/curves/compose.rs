@@ -71,6 +71,10 @@
 //!    recompose). Elevation is evaluation-invariant in ℝ but NOT
 //!    bit-preserving, so a mixed-degree chain's control net is the
 //!    ELEVATED legs' verbatim, not the authored legs'.
+//!    In floating point the elevated leg agrees with the authored one to
+//!    about `1e-12` of its largest control coordinate up to degree 10
+//!    and a few `1e-11` at degree 12, and no bound is surfaced
+//!    (`geom_core::spline::algebra::elevate_plan`).
 //! 2. **Weights.** A rational curve is invariant under a positive
 //!    scale of all its weights, so each leg after the first is scaled
 //!    once, by the factor that makes its start weight equal the

@@ -547,3 +547,45 @@ fn p6_an_independent_corpus_differential() {
         Err(e) => println!("[r2dump] hollow torus, shelled | refuses {e}"),
     }
 }
+
+/// **The edge-meeting ray's probe** of `p3b`'s tori: what each aimed ray
+/// of the side reader reads before the volume
+/// (`work/flush/a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face.md`).
+/// Evidence, not a pin: run with `--run-ignored only --no-capture` at
+/// `CAD_TOLERANCE_EPS=1e-12`.
+#[test]
+#[ignore = "probe: run by hand"]
+fn p3b_probe_the_tori_aimed_rays() {
+    for (major, minor) in [(2.0e-8, 5.0e-9), (2.0e-9, 5.0e-10), (1.0e-10, 2.0e-11)] {
+        let a = Point2::new(major + minor, 0.0);
+        let b = Point2::new(major - minor, 0.0);
+        let lp = bulge_loop(vec![(a, 1.0), (b, 1.0)]);
+        let Ok(profile) = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) else {
+            eprintln!("EMR torus R={major:e}: the profile refuses");
+            continue;
+        };
+        let axis = RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        };
+        let Ok(rev) = revolve(&profile, axis, Revolution::Full, tol()) else {
+            eprintln!("EMR torus R={major:e}: the revolve door refuses");
+            continue;
+        };
+        for body in [
+            rev.body.clone(),
+            rev.body.revert().expect("the torus reverts"),
+        ] {
+            for r in topo::test_support::aimed_rays(
+                &body,
+                geom_core::Band::linear(tol()).expect("the run's band"),
+            ) {
+                eprintln!(
+                    "EMR torus eps={:e} R={major:e}: {}",
+                    tol().eps(),
+                    r.chars().take(700).collect::<String>()
+                );
+            }
+        }
+    }
+}

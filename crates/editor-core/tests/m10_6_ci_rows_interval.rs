@@ -817,6 +817,11 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// ruling about placements can reach it; its verdict rows moved with
 /// main's. The neck's copy reads `place` and ran its map before
 /// FORK-REST as after.
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when the pose
+/// direction's predicate was renamed `pose_unit_norm` (it was
+/// `datum_unit_norm`): the vector's rows carry the name.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();

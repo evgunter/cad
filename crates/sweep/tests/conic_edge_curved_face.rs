@@ -21,7 +21,7 @@ use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y};
 use topo::{
-    AtRestBody, Body, BooleanOp, DATUM_UNIT_NORM, EdgeKey, FaceKey, SweepStrategy, sweep_traces,
+    AtRestBody, Body, BooleanOp, EdgeKey, FaceKey, POSE_UNIT_NORM, SweepStrategy, sweep_traces,
 };
 
 pub(crate) const DRUM_RADIUS: f64 = 0.5;
@@ -41,7 +41,7 @@ pub(crate) fn drum_lower() -> AtRestBody<f64> {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: UnitVec3::new(
             Vec3::new(TILT.sin(), 0.0, TILT.cos()),
-            DATUM_UNIT_NORM,
+            POSE_UNIT_NORM,
             Band::linear(tol).expect("the witness tolerance forms a band"),
         )
         .expect("a cut normal has a length"),

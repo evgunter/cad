@@ -401,7 +401,7 @@ impl SlackTerms {
             near: rho * near / swing / slope,
             far_share: rho * far / swing / slope,
             phase: rho * h.phase_error / h.e_u.hypot(h.e_v),
-            angle: rho * geom_brep::rounding_charge(core::f64::consts::TAU),
+            angle: rho * geom_core::rounding_charge(core::f64::consts::TAU),
             noise: lo_n.max(hi_n),
             lo: h.lo,
             hi: h.hi,

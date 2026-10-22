@@ -184,7 +184,7 @@ fn nominally_pinned_instance(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, Reci
     (fixture::constrain_at(doc, instance, mate).0, instance)
 }
 
-/// `node`'s bundle replaced by one world pin at the translation `at`,
+/// `node`'s bundle replaced by one world mate at the translation `at`,
 /// the store resolving its part. The values go first, since a value
 /// names its mate.
 fn place(doc: ProfileDoc, store: &PartStore, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {

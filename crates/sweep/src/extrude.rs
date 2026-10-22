@@ -1275,7 +1275,14 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 // the stations and the verdict policy are the
                 // rule's, not this arm's
                 // ([`geom_brep::must_carry_over_edge`]).
-                let (carrier, t0, t1) = stored_carrier(body, strut.edge)?;
+                let stored = body.stored_curve(strut.edge).map_err(|e| match e {
+                    EulerOpError::Argument(_) => unreachable!(
+                        "strut {:?} was minted by this extrude and is live",
+                        strut.edge
+                    ),
+                    e => e,
+                })?;
+                let (carrier, (t0, t1)) = (stored.carrier(), stored.params());
                 // In-band escalates as the typed sliver; a station that
                 // reads the join a corner where the midpoint read it
                 // smooth refutes this arm's premise, and the strut
@@ -1291,7 +1298,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 match geom_brep::must_carry_description(
                     geom_brep::SmoothJoin {
                         surfaces: [(k_prev, &s_prev), (k_next, &s_next)],
-                        carrier: &carrier,
+                        carrier,
                         interval: (t0, t1),
                         reach,
                         witness: mid,
@@ -1463,13 +1470,14 @@ struct LoopSwept {
 /// loop's [`swept::Join`]s and the walls minted so far (`faces`, in
 /// segment order). A line is one wall on a freshly built plane (Newell
 /// over its quad corners in loop order — outward by the orientation
-/// contract). An arc is one wall on a fresh cylinder (turn-signed axis,
-/// crate docs) whose `u_ref` aims at its start vertex — except across a
-/// circle's canonical cut ([`swept::Join::Cut`]), where each wall after
-/// the first shares its key ([`swept::shared_wall`]). Every arm
-/// states the segment's [`WallSeg::wall_sense`]: a concave arc's wall has
-/// its material outside the carrier cylinder, against the
-/// outward-radial chart normal.
+/// contract — charted along the swept segment's direction). An arc is
+/// one wall on a fresh cylinder (turn-signed axis, crate docs) whose
+/// `u_ref` aims at its start vertex — except across a circle's
+/// canonical cut ([`swept::Join::Cut`]), where each wall after the
+/// first shares its key ([`swept::shared_wall`]). Every arm states the
+/// segment's [`WallSeg::wall_sense`]: a concave arc's wall has its
+/// material outside the carrier cylinder, against the outward-radial
+/// chart normal.
 #[allow(clippy::too_many_arguments)] // one internal call site (see sweep_loop).
 fn side_surface<T: Decide>(
     body: &Body<T>,
@@ -1496,10 +1504,12 @@ fn side_surface<T: Decide>(
             // Quad corners in the side loop's next order starting at
             // the segment's start: v_j′, v_j, v_end, v_end′.
             let corners = [qs[j] + w, qs[j], qs[end], qs[end] + w];
-            let plane = newell_plane(&corners, band).map_err(|source| ExtrudeError::SidePlane {
-                loop_index,
-                segment_index: segs[j].chord.canonical_segment,
-                source,
+            let plane = newell_plane(&corners, qs[end] - qs[j], band).map_err(|source| {
+                ExtrudeError::SidePlane {
+                    loop_index,
+                    segment_index: segs[j].chord.canonical_segment,
+                    source,
+                }
             })?;
             Ok(FaceSurface::New {
                 surface: plane,
@@ -1536,25 +1546,6 @@ fn side_surface<T: Decide>(
     }
 }
 
-/// `edge`'s stored carrier and interval: what its re-description
-/// keeps, and so what the join and rim classifications read.
-fn stored_carrier<T: Real>(
-    body: &Body<T>,
-    edge: EdgeKey,
-) -> Result<(Curve3<T>, T, T), EulerOpError> {
-    let curve_key = body
-        .get_edge(edge)
-        .unwrap_or_else(|| unreachable!("edge {edge:?} was minted by this extrude and is live"))
-        .curve;
-    let curve = body
-        .get_curve_geom(curve_key)
-        .unwrap_or_else(|| unreachable!("curve {curve_key:?} is held by live edge {edge:?}"))
-        .certified()
-        .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
-    let (t0, t1) = curve.params();
-    Ok((curve.carrier().clone(), t0, t1))
-}
-
 /// Upgrades one cap–wall rim edge to `Intersection { cap, wall,
 /// witness }` (module docs, step 6 — the ratified rim decision). The
 /// witness is minted as the **carrier's mid-parameter point** — the S2
@@ -1581,9 +1572,15 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), ExtrudeError> {
-    let (carrier, t0, t1) = stored_carrier(body, edge)?;
+    let stored = body.stored_curve(edge).map_err(|e| match e {
+        EulerOpError::Argument(_) => {
+            unreachable!("rim {edge:?} was minted by this extrude and is live")
+        }
+        e => e,
+    })?;
+    let (carrier, (t0, t1)) = (stored.carrier(), stored.params());
     let witness = carrier.mid_point(t0, t1);
-    let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), &carrier, (t0, t1));
+    let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), carrier, (t0, t1));
     let s_cap = body.get_surface(cap).cloned().unwrap_or_else(|| {
         unreachable!("cap surface {cap:?} is held by a live cap face of this driver")
     });
@@ -1633,7 +1630,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
             match geom_brep::must_carry_description(
                 geom_brep::SmoothJoin {
                     surfaces: [(cap, &s_cap), (wall, &s_wall)],
-                    carrier: &carrier,
+                    carrier,
                     interval: (t0, t1),
                     reach,
                     witness,

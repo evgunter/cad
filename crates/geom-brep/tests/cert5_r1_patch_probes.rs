@@ -126,6 +126,38 @@ fn knots_one_ulp_apart_stay_sound() {
     );
 }
 
+/// The same twin knots one ulp apart, with the lower knot's mantissa
+/// ODD (`0.5⁺`): the f64 midpoint of the one-ulp span ties to the upper
+/// knot, so a reader that located the cell from it would read the next
+/// span. Same soundness contract, and no panic.
+#[test]
+fn knots_one_ulp_apart_at_an_odd_mantissa_stay_sound() {
+    let k0 = 0.5f64.next_up();
+    let k1 = k0.next_up();
+    assert_eq!(k0.midpoint(k1), k1, "the witness's midpoint ties up");
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, k0, k1, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let xs = [0.0, 0.5, 1.0, 1.5, 2.0];
+    let ys = [0.0, 0.6, 0.8, 0.6, 0.0];
+    let mut control = Vec::new();
+    let mut weights = Vec::new();
+    for (x, y) in xs.iter().zip(&ys) {
+        for z in &[0.0, 1.0] {
+            control.push([pt(*x), pt(*y), pt(*z)]);
+            weights.push(1.5);
+        }
+    }
+    drive(
+        "ulp-twin-knots-odd",
+        &ku,
+        &kv,
+        &control,
+        &weights,
+        8.0,
+        Tol::witness().get().eps,
+    );
+}
+
 /// Interior knots within an ulp of the trim rectangle's EDGES: the
 /// first/last cells are ulp-thin. Same soundness contract.
 #[test]

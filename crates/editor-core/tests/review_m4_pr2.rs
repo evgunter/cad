@@ -840,12 +840,14 @@ fn edit_back_restores_bit_identical_bodies() {
     let e0 = run(&d.doc, None, false);
     let fp0 = fingerprint(boolean_body(&e0, d.final_node));
 
-    // Slide the +z pip's placement a quarter along its x.
-    let slide_x = editor_core::Coord::Slide(editor_core::TargetAxis::X);
-    let (moved, _) = step(
-        d.doc.clone(),
-        crate::fixture::value_bump(&d.doc, d.pz_placement, slide_x, 0.25),
-    );
+    // Deepen the +z pip's master.
+    let depth = |by: f64| DocEdit::SetParam {
+        node: d.pz_extrude,
+        slot: SlotId::Distance,
+        value: len(by).into(),
+        fresh: Vec::new(),
+    };
+    let (moved, _) = step(d.doc.clone(), depth(0.1875));
     let e1 = run(&moved, Some(&e0), false);
     assert_ne!(
         fingerprint(boolean_body(&e1, d.final_node)),
@@ -854,15 +856,14 @@ fn edit_back_restores_bit_identical_bodies() {
     );
 
     // Edit BACK to the original value.
-    let back_edit = crate::fixture::value_bump(&moved, d.pz_placement, slide_x, -0.25);
-    let (back, _) = step(moved, back_edit);
+    let (back, _) = step(moved, depth(crate::fixture::DEPTH));
     let e2 = run(&back, Some(&e1), false);
     assert_eq!(
         fingerprint(boolean_body(&e2, d.final_node)),
         fp0,
         "edit-back must restore the ORIGINAL bits (memo through a stale prior)"
     );
-    // The reverted placement and the final subtract recompute; the rest
-    // reuses.
-    assert_eq!((e2.recomputed, e2.reused), (2, 54));
+    // The reverted master, its placement and the final subtract
+    // recompute; the rest reuses.
+    assert_eq!((e2.recomputed, e2.reused), (3, 53));
 }

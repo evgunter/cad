@@ -255,7 +255,9 @@ impl Frame {
         v: (Length, Length, Length),
     ) -> PyResult<Self> {
         let turns = pncad::geom_core::Turns::new(num, den).ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err("a fraction of a turn has a nonzero denominator")
+            pyo3::exceptions::PyValueError::new_err(
+                "a fraction of a turn has a nonzero denominator",
+            )
         })?;
         let band = pncad::geom_core::Band::linear(Tol::witness())
             .map_err(|error| super::checks::checks_err(py, &d::ChecksError::Band { error }))?;

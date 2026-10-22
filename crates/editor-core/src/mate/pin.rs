@@ -252,7 +252,7 @@ fn picked_frame(
         let Ok(line) = topo::readback::edge_pose(solid, edge) else {
             continue;
         };
-        let Ok(dir) = UnitVec3::new(line.axis, topo::query::DATUM_UNIT_NORM, band) else {
+        let Ok(dir) = UnitVec3::new(line.axis, topo::query::POSE_UNIT_NORM, band) else {
             continue;
         };
         let Some(edge_name) = name(EntityKey::Edge(edge)) else {
@@ -275,7 +275,7 @@ fn picked_frame(
                 foot,
                 dir,
                 off,
-                topo::query::DATUM_UNIT_NORM,
+                topo::query::POSE_UNIT_NORM,
                 band,
             ) else {
                 continue;
@@ -552,7 +552,7 @@ pub fn place_at_in(
             }
             let at = topo::readback::face_pose(&solid, face).ok()?;
             let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
-            let normal = UnitVec3::new(normal, topo::query::DATUM_UNIT_NORM, band).ok()?;
+            let normal = UnitVec3::new(normal, topo::query::POSE_UNIT_NORM, band).ok()?;
             Some((name.clone(), at.origin, normal))
         })
     };
@@ -587,7 +587,7 @@ pub fn place_at_in(
     let on = crate::pose::PoseValue::Plane { origin, normal };
     let to = crate::pose::PoseValue::Plane {
         origin: at.transform_point(origin),
-        normal: UnitVec3::new(at.linear * normal.get(), topo::query::DATUM_UNIT_NORM, band)
+        normal: UnitVec3::new(at.linear * normal.get(), topo::query::POSE_UNIT_NORM, band)
             .map_err(|_| PinRefusal::Band)?,
     };
     let crate::pose::PoseValue::Plane {
@@ -668,20 +668,12 @@ pub fn place_at_in(
 /// identity"): the identity bundle, no mate and the constant `0` on
 /// every freedom — a slide along each of the world's axes and a spin
 /// about each — so the copy's own coordinates are the world's. It reads
-/// nothing of the copy, so a revolve, a ring and an instance stand as an
-/// extrude does, at every value of their variables.
-///
-/// # Errors
-///
-/// [`PinRefusal`]: `body` reads no node, did not evaluate, is no body,
-/// or is a copy already placed.
-pub fn stand_in(
-    doc: &crate::ProfileDoc,
-    ev: &Evaluation<f64>,
-    body: &Operand,
-) -> Result<Placed, PinRefusal> {
-    copy_of(doc, ev, body)?;
-    Ok(Placed::identity())
+/// nothing of the copy, so every copy stands alike, a revolve, a ring
+/// and an instance as an extrude does, at every value of their
+/// variables, and whether or not the copy evaluates.
+#[must_use]
+pub fn stand() -> Placed {
+    Placed::identity()
 }
 
 /// **A plane-less construction's own axis**: the construction carried
@@ -862,7 +854,7 @@ fn axis_placed(
     let to = target(&at.compose(&own))?;
     let placed = at.affine::<f64>();
     let unit =
-        |v| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).map_err(|_| PinRefusal::Band);
+        |v| UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).map_err(|_| PinRefusal::Band);
     let on_value = crate::pose::PoseValue::Axis { origin, dir };
     let to_value = crate::pose::PoseValue::Axis {
         origin: placed.transform_point(origin),
@@ -1324,7 +1316,7 @@ pub fn place_against_in(
         (plane(body, copy_face), to, m)
     };
     let unit =
-        |v| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).map_err(|_| PinRefusal::Band);
+        |v| UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).map_err(|_| PinRefusal::Band);
     let on_value = crate::pose::PoseValue::Plane {
         origin: Point3::origin(),
         normal: unit(placed.linear.transpose() * to_normal)?,
@@ -1406,21 +1398,6 @@ pub fn place_at(
 ) -> Result<Placed, PinRefusal> {
     let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
     place_at_in(doc, &ev, body, pose, tol)
-}
-
-/// [`stand_in`], over an evaluation of `doc` under `opts` made here.
-///
-/// # Errors
-///
-/// As [`stand_in`]'s.
-pub fn stand(
-    doc: &crate::ProfileDoc,
-    body: &Operand,
-    opts: &EvalOptions,
-    tol: Tol,
-) -> Result<Placed, PinRefusal> {
-    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
-    stand_in(doc, &ev, body)
 }
 
 /// [`frame_at_in`], over an evaluation of `doc` under `opts` made here.

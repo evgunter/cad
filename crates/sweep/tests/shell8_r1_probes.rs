@@ -84,23 +84,76 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
     )
     .expect("a box a million metres away does not reach the vessel")
     .body;
+    // The box's own wall where it stands, the external oracle: a million
+    // metres out its stored coordinates are a ulp of 1.2e-10 apart, and
+    // the hollow box they bound holds 1.05e-9 m³ more than the closed
+    // form's, so the closed form is not the stored box's volume there.
+    // Its volume is read exactly off its own stored vertex points.
+    let far_box = stored_hollow_box_volume(
+        &far.vertex_points()
+            .map(|(_, p)| p)
+            .filter(|p| p.x > 1.0e3)
+            .collect::<Vec<_>>(),
+    );
     let wall = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
-    let boxwall =
-        box_volume(2.0, 3.0, 4.0) - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
+    let (alone, far) = (
+        topo::mass_properties(&alone, tol()).expect("props"),
+        topo::mass_properties(&far, tol()).expect("props"),
+    );
     println!(
-        "[r1] vessel alone {:.12}, in a far pair {:.12}, closed form {:.12}",
-        volume(&alone),
-        volume(&far),
-        wall
+        "[r1] vessel alone {:.12}, in a far pair {:.12}, closed form {:.12}, stored box {:.15}",
+        alone.volume, far.volume, wall, far_box
     );
+    assert!((alone.volume - wall).abs() < 1e-12, "the vessel's own wall");
     assert!(
-        (volume(&alone) - wall).abs() < 1e-12,
-        "the vessel's own wall"
+        (far.volume - (alone.volume + far_box)).abs() <= far.volume_pad + alone.volume_pad + 1e-12,
+        "the pair is the vessel's wall and the stored box's exact volume: {} against {} + {far_box}",
+        far.volume,
+        alone.volume
     );
-    assert!(
-        (volume(&far) - (wall + boxwall)).abs() < 1e-9,
-        "the pair is the sum of the two walls"
-    );
+}
+
+/// The exact volume of the hollow axis-aligned box whose stored vertex
+/// points are `points`, rounded once: its four distinct coordinates on
+/// each axis are the outer box's ends and the cavity's, and the outer
+/// box less the cavity is summed in exact arithmetic
+/// (`geom_core::exact::Expansion`), each difference and product exact.
+fn stored_hollow_box_volume(points: &[geom_core::Point3<f64>]) -> f64 {
+    use geom_core::exact::Expansion;
+    let axis = |pick: fn(&geom_core::Point3<f64>) -> f64| {
+        let mut c: Vec<f64> = points.iter().map(pick).collect();
+        c.sort_by(f64::total_cmp);
+        c.dedup();
+        assert_eq!(
+            c.len(),
+            4,
+            "a hollow box has four planes on each axis: {c:?}"
+        );
+        c
+    };
+    let (x, y, z) = (axis(|p| p.x), axis(|p| p.y), axis(|p| p.z));
+    let span = |c: &[f64], lo: usize, hi: usize| {
+        let mut d = Expansion::default();
+        d.add(c[hi]);
+        d.add(-c[lo]);
+        d
+    };
+    let times = |a: &Expansion, b: &Expansion| {
+        let mut out = Expansion::default();
+        for &k in b.components() {
+            out.add_expansion(&a.scaled(k));
+        }
+        out
+    };
+    let cuboid = |lo: usize, hi: usize| {
+        times(
+            &times(&span(&x, lo, hi), &span(&y, lo, hi)),
+            &span(&z, lo, hi),
+        )
+    };
+    let mut v = cuboid(0, 3);
+    v.add_expansion(&cuboid(1, 2).negated());
+    v.components().iter().rev().fold(0.0, |acc, &c| acc + c)
 }
 
 /// **A scope naming TWO of THREE solids.** Three boxes; move every

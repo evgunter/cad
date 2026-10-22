@@ -137,11 +137,11 @@ pub use edit::{
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
-    Arity, At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
+    At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
     Evaluation, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeStanding, NodeValue, PartFault, PiecesFault, PoseValue, ProfileLane,
-    ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
+    NodeResult, NodeStanding, NodeValue, PartFault, PoseValue, ProfileLane, ProfilePieces,
+    SplitSide, StepTurns, ValuePayload, evaluate,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -167,7 +167,7 @@ pub use mate::{
     class_admission, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
     member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,
     place_at, place_at_in, reference_about, relative_freedom_components, solve_document, stand,
-    stand_in, unobservable,
+    unobservable,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
@@ -181,17 +181,18 @@ pub use measure::{
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};
 pub use names::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
-    CurveKindSet, DeclaredContact, Denotation, DuplicateName, EntityKey, EntityKind, EntityNamed,
-    EntityRef, Entry, FIT_DEFERRAL, FaceName, FragmentGroups, GeomPred, InterrogateError,
-    KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError,
-    NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
-    Qualifier, RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_DATUM_DISTANCE,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
+    CrossingSensesShape, CurveKind, CurveKindSet, DeclaredContact, Denotation, DisagreeShape,
+    DuplicateName, EntityKey, EntityKind, EntityNamed, EntityRef, Entry, FIT_DEFERRAL, FaceName,
+    FragmentGroups, GeomPred, InterrogateError, JoinShape, KindMismatch, LeafRole, MeridianEnd,
+    NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName, OpGroup,
+    PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
+    RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE, SeamSidesShape, SeamVertexShape,
     SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side,
-    SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation, edge_carrier_kind,
-    edge_frame, face_carrier_kind, face_frame, leaf_role, meridian_vertex, role_leaf, select,
-    select_where, vertex_position,
+    SplitHalf, StableName, SurfaceKindSet, TagPat, UnionNameShape, WayShape, all_bodies, all_edges,
+    all_faces, all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation,
+    edge_carrier_kind, edge_frame, face_carrier_kind, face_frame, leaf_role, meridian_vertex,
+    role_leaf, select, select_where, vertex_position,
 };
 pub use node::{
     AuthoredNode, Axis3, ConstraintId, CountMismatch, InputFault, InterfaceCrossing,

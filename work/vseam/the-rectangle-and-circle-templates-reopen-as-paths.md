@@ -4,7 +4,7 @@ kind: issue
 title: A profile authored from the rectangle or circle template reopens in the editor as a path, not as the template
 status: open
 opened: 2026-09-19
-priority: P0
+priority: P1
 cost: D
 ---
 
@@ -32,3 +32,9 @@ centred on the origin, axis-aligned; a pair of concentric circles) and
 offer the template's fields when it matches, falling back to the path
 steps when it does not. The second is viewer-only but is a guess about
 intent; the first is the honest one.
+
+## 2026-10-21 — re-banded P0 → P1
+
+The profile still opens and its numbers round-trip exactly; what is
+lost is the template's interface in the edit door. That is an
+annoyance, P1's GUI band, and not a shape the GUI cannot author (P0).

@@ -2,11 +2,13 @@
 id: a-seam-region-covering-the-sphere-twice-is-unread
 kind: issue
 title: A seam region whose faces cover the sphere twice has no boundary, reads no side, and passes tier 3 with twice the volume
-status: open
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
 refs: [a-pair-of-seam-siblings-flipped-together-is-silent, a-seam-region-whose-boundary-carries-both-poles-is-unread]
+pr: 5516
+closed: 2026-10-21
 ---
 
 ## Measured
@@ -44,3 +46,14 @@ boundary whose member areas do not sum to `4πR²` (`props_sphere_face_area`
 classified against it) is a cover more than once, and could be refused by
 name.
 
+
+## Closed (PR 5516)
+
+Tier 3's check 6 reads each seam region's cover census
+(`crates/geom-brep/src/props/curved.rs`, `sphere_region_cover`). Under
+their bits, the members' Gauss–Bonnet claims less the area their
+boundary claims is a whole number of spheres, zero for a region covered
+once. A region its faces claim more than once refuses
+`SeamRegionOvercovered`. The witness rows now pin that refusal, plus the
+door's wrong volume, which
+`mass-properties-measures-a-flipped-seam-region-without-tier-3` owns.

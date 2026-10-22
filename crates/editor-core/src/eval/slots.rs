@@ -9,14 +9,9 @@
 //! - `eval_node`, twice per node: once at the evaluation scalar, whose
 //!   values the op runs on and the key's lane half holds, and once at
 //!   the document's nominal, whose values the key's other half holds
-//!   (`super::tag::slot`). An authored frame's f64 placement is minted
-//!   from the nominal list (`super::wire::mint_frame_placement`) and
-//!   rides the frame's value, so a profile drawn on that frame READS it
-//!   rather than asking this door for the frame's nine slots again;
-//! - the mate solve, for a placer's slots at the nominal
-//!   (`crate::mate::member`'s `node_slots`);
-//! - [`crate::Placement::eval`], over a placement's own rows
-//!   ([`eval_rows`]), for a caller holding a placement and no node.
+//!   (`super::tag::slot`);
+//! - a pose read of a revolve's axis output (`super::wire::pose`),
+//!   which reads the revolve's slots at the lane.
 //!
 //! A slot's variable is read in exactly one loop
 //! ([`eval_rows`]), and a refusal at any of them arrives in one shape.
@@ -79,8 +74,9 @@ pub(crate) fn eval_rows<'e, T: Decide>(
 }
 
 /// The scalar in a named slot (wiring helper; `None` if absent or a
-/// count — callers state the slot they mean, so a miss is a wiring
-/// bug surfaced as a typed operand error upstream).
+/// count). Callers state the slot they mean, so a miss is a wiring bug:
+/// `wire`'s `declared` panics on it, and the D10-held readers still
+/// refuse it as `NodeErrorKind::MissingSlot`.
 pub(crate) fn scalar<T: Copy>(values: &SlotValues<T>, slot: SlotId) -> Option<T> {
     values.iter().find_map(|(s, v)| match v {
         SlotVal::Scalar(x, _) if *s == slot => Some(*x),
@@ -106,20 +102,6 @@ pub(crate) fn count<T>(values: &SlotValues<T>, slot: SlotId) -> Option<i64> {
         SlotVal::Count(n) if *s == slot => Some(*n),
         _ => None,
     })
-}
-
-/// A named `[Expr; 2]` slot pair as a sketch-plane vector — the X and
-/// Y components only, for a node authored in a frame's own
-/// coordinates. `Z` is not read, because such a node carries no `Z`
-/// slot to read.
-pub(crate) fn vec2<T: geom_core::Real>(
-    values: &SlotValues<T>,
-    f: fn(crate::node::Axis3) -> SlotId,
-) -> Option<geom_core::Vec2<T>> {
-    Some(geom_core::Vec2::new(
-        scalar(values, f(crate::node::Axis3::X))?,
-        scalar(values, f(crate::node::Axis3::Y))?,
-    ))
 }
 
 /// A named `[Expr; 3]` slot triple as a vector (wiring helper).

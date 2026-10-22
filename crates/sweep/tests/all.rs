@@ -62,6 +62,8 @@ mod a_carried_record_no_reading_covers;
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
+#[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
+mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
@@ -74,6 +76,8 @@ mod a_flipped_shallow_dimple;
 mod a_keel_ring_in_an_elliptic_section;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
+#[path = "a_lofted_lens_blade_certifies_its_sign.rs"]
+mod a_lofted_lens_blade_certifies_its_sign;
 #[path = "a_minted_vertex_on_a_curved_face.rs"]
 mod a_minted_vertex_on_a_curved_face;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
@@ -108,6 +112,8 @@ mod a_seam_region_carrying_both_poles;
 mod a_seam_region_covering_the_sphere_twice;
 #[path = "a_short_shallow_strut_between_wide_walls_is_a_corner.rs"]
 mod a_short_shallow_strut_between_wide_walls_is_a_corner;
+#[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]
+mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
@@ -250,6 +256,8 @@ mod point_in_loop_arc_cap;
 mod point_touch_records;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
+#[path = "quad_frame_remeasure.rs"]
+mod quad_frame_remeasure;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -272,6 +280,8 @@ mod review_sixx_r2_probes;
 mod saddle_wall_offset_fit;
 #[path = "scaffolding_on_a_blend_support_face_does_not_finish.rs"]
 mod scaffolding_on_a_blend_support_face_does_not_finish;
+#[path = "seam_region_cover_census.rs"]
+mod seam_region_cover_census;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -302,6 +312,8 @@ mod spheres_crossing_off_every_edge;
 mod spiric_faces_fuzz;
 #[path = "sym11_far_placement_rows.rs"]
 mod sym11_far_placement_rows;
+#[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
+mod the_door_reads_seam_regions_as_tier_3_does;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
 #[path = "tilted_sphere_pair_k_rows.rs"]
@@ -951,6 +963,8 @@ mod r1_probes_m9_3;
 #[path = "curved_mergedoor.rs"]
 mod curved_mergedoor;
 
+#[path = "curved_coincident_fates.rs"]
+mod curved_coincident_fates;
 #[path = "curved_notch_pinch.rs"]
 mod curved_notch_pinch;
 
@@ -1210,6 +1224,8 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_body_built_turned_is_the_body_turned.rs"]
+mod a_body_built_turned_is_the_body_turned;
 #[path = "a_closed_conic_in_the_partners_face.rs"]
 mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]

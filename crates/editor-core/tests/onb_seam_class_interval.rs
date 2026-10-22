@@ -11,17 +11,15 @@
 //! Three rows, each measuring a different door on the same class:
 //!
 //! * a 45° chamfer face, minted through `newell_plane::<Interval>` from
-//!   exact `f64` quad corners, DECIDES and its `u_ref` is still a unit
+//!   exact `f64` quad corners, DECIDES and its `u_ref` is a unit
 //!   direction to [`UnitVec3::new`] — the door a derived sketch frame
-//!   goes through. On the earlier ratio (`|n.z| = max(|n.x|, |n.y|)`)
-//!   this face sat exactly on the seam, the frame came back as the hull
-//!   of two orthogonal candidates, and this door escalated on
-//!   `datum_unit_norm` with a margin of `[0, 1.4142]`;
+//!   goes through;
 //! * a face at the seam's OWN elevation, `atan(1/2) ≈ 26.57°`, where
-//!   the comparison cannot decide over an enclosure: the frame is a
-//!   hull, and the row states what a hull is and is not — bounded, but
-//!   not a unit direction, so the door refuses rather than inventing
-//!   one;
+//!   the comparison cannot decide over an enclosure: `newell_plane`
+//!   charts the face along the reference its caller holds, so the
+//!   stored frame is still a unit direction, while `orthonormal_basis`
+//!   over the same normal is a hull — bounded, but not a unit
+//!   direction, so the door refuses rather than inventing one;
 //! * an extrude on a TILTED sketch frame (45° and 30° about `x`), whose
 //!   four tilted planes are the case R2 measured refusing at the
 //!   clearance engine's `refines` door: `clearance` certifies on the
@@ -43,7 +41,7 @@ use editor_core::{
 use geom::Surface;
 use geom_brep::newell_plane;
 use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, UnitVec3, Vec3};
-use topo::DATUM_UNIT_NORM;
+use topo::POSE_UNIT_NORM;
 
 use fixture::{Recorder, len};
 
@@ -85,6 +83,16 @@ fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
     });
 }
 
+/// The strips' common edge direction, the reference each is charted
+/// along.
+fn along_x() -> Vec3<Interval> {
+    Vec3::new(
+        Interval::from_f64(1.0),
+        Interval::from_f64(0.0),
+        Interval::from_f64(0.0),
+    )
+}
+
 /// A quad, as the four corners of one face, at whichever scalar.
 fn quad<T: Real>(corners: [(f64, f64, f64); 4]) -> [Point3<T>; 4] {
     corners.map(|(x, y, z)| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)))
@@ -119,28 +127,21 @@ fn a_chamfer_face_decides_and_its_frame_is_a_unit_direction() {
             (0.0, dz, 1.0 + dy),
         ];
         let Ok(Surface::Plane { normal, u_ref, .. }) =
-            newell_plane::<Interval>(&quad::<Interval>(corners), band())
+            newell_plane::<Interval>(&quad::<Interval>(corners), along_x(), band())
         else {
             panic!("{name}: newell_plane refused at Interval");
         };
         let d = normal.z.abs() - normal.x.abs().max(normal.y.abs()) * Interval::from_f64(0.5);
         assert!(
             d.hi() <= 0.0 || d.lo() > 0.0,
-            "{name} chamfer: the axis comparison did not decide — d = [{}, {}], \
-             n = ([{}, {}], [{}, {}], [{}, {}])",
+            "{name} chamfer: the axis comparison did not decide — d = [{}, {}]",
             d.lo(),
             d.hi(),
-            normal.x.lo(),
-            normal.x.hi(),
-            normal.y.lo(),
-            normal.y.hi(),
-            normal.z.lo(),
-            normal.z.hi()
         );
         // The frame is a direction: the door a derived sketch frame
         // goes through accepts it, and its norm is 1 to within the
         // normal's own width.
-        UnitVec3::new(u_ref, DATUM_UNIT_NORM, band()).unwrap_or_else(|e| {
+        UnitVec3::new(u_ref, POSE_UNIT_NORM, band()).unwrap_or_else(|e| {
             panic!(
                 "{name} chamfer: the stored u_ref is not a unit direction: {e:?} \
                  (u_ref = ([{}, {}], [{}, {}], [{}, {}]))",
@@ -172,13 +173,14 @@ fn a_chamfer_face_decides_and_its_frame_is_a_unit_direction() {
 /// rather than a quarter. Two rows, on the two things that can happen:
 ///
 /// * a face minted through `newell_plane::<Interval>` from exact `f64`
-///   corners has a normal of width ~3e-16, so `d` straddles and the
-///   frame is the HULL of the two antiparallel candidates. What the row
-///   pins is that the hull is honest: bounded and certified — never the
-///   `[−∞, ∞] Trv` a division by an enclosure of zero gives — and not a
-///   unit direction, so the door that needs one refuses rather than
-///   taking the hull for an answer. That refusal is the design: the
-///   geometry on this seam is the geometry no corpus draws (0 of 817);
+///   corners has a normal of width ~3e-16, so `d` straddles. The stored
+///   frame is the strip's own edge and a unit direction all the same;
+///   `orthonormal_basis` over that normal is the HULL of the two
+///   antiparallel candidates. What the row pins is that the hull is
+///   honest: bounded and certified — never the `[−∞, ∞] Trv` a division
+///   by an enclosure of zero gives — and not a unit direction, so the
+///   door that needs one refuses rather than taking the hull for an
+///   answer;
 /// * a normal that is a POINT enclosure on the seam DECIDES. `ρ = 1/2`
 ///   is dyadic, so `max(|n.x|, |n.y|)/2` is an exact halving and the
 ///   comparison's two sides are the same number: `d = [0, 0]`, which
@@ -197,10 +199,13 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
     ];
     let r = 2.0 / 5f64.sqrt();
     let Ok(Surface::Plane { normal, u_ref, .. }) =
-        newell_plane::<Interval>(&quad::<Interval>(corners), band())
+        newell_plane::<Interval>(&quad::<Interval>(corners), along_x(), band())
     else {
         panic!("newell_plane refused at Interval");
     };
+    UnitVec3::new(u_ref, POSE_UNIT_NORM, band())
+        .expect("the stored frame is the caller's reference, a unit direction off the seam");
+    let (u_ref, _) = normal.orthonormal_basis();
     assert!(
         (normal.y.lo() - r).abs() <= 1e-12 && (normal.z.lo() - 0.5 * r).abs() <= 1e-12,
         "the fixture is not on the seam: n = (_, [{}, {}], [{}, {}])",
@@ -241,7 +246,7 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
         u_ref.x.hi()
     );
     assert!(
-        UnitVec3::new(u_ref, DATUM_UNIT_NORM, band()).is_err(),
+        UnitVec3::new(u_ref, POSE_UNIT_NORM, band()).is_err(),
         "the direction door accepted a hull spanning two antiparallel candidates"
     );
     // The same direction as a POINT enclosure: the tie decides.
@@ -258,7 +263,7 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
         d.hi()
     );
     let (b1, _) = point.orthonormal_basis();
-    UnitVec3::new(b1, DATUM_UNIT_NORM, band()).expect("a point enclosure on the seam decides");
+    UnitVec3::new(b1, POSE_UNIT_NORM, band()).expect("a point enclosure on the seam decides");
     assert!(
         b1.x.hi() < 0.0,
         "the tie did not take the e_z arm: b1.x = [{}, {}]",

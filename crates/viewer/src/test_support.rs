@@ -219,27 +219,21 @@ pub fn authored_ids(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 }
 
 /// **`doc` with `body` placed in the world** at the identity (A10): a
-/// placement of it, pinned there over its geometry ([`pinned`]),
+/// placement of it, standing where its body stands ([`pinned`]),
 /// answering the document and the placement.
 pub fn placed(
     doc: &Doc<ProfileProgram>,
     body: RecipeNodeId,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    placed_read(
-        doc,
-        pncad::document::Operand::from(body),
-        &EvalOptions::default(),
-        tol,
-    )
+    placed_read(doc, pncad::document::Operand::from(body), tol)
 }
 
 /// [`placed`] of any body read — an operation's port, an instance's
-/// copies — evaluated under `opts` to read the pin off it.
+/// copies.
 pub fn placed_read(
     doc: &Doc<ProfileProgram>,
     read: pncad::document::Operand,
-    opts: &EvalOptions,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, placement) = inserted(
@@ -247,27 +241,14 @@ pub fn placed_read(
         Node::place(vec![pncad::document::BodyRead::plain(read)]),
         tol,
     );
-    (pinned(&doc, placement, opts, tol), placement)
+    (pinned(&doc, placement, tol), placement)
 }
 
 /// The copy `placement` defines, standing where its body stands
 /// ([`pncad::document::stand`]): the identity bundle, no mate and the
-/// constant `0` on every freedom, so the copy follows its body's
-/// variables. A copy whose body does not evaluate is written the same
-/// bundle, which reads nothing of it.
-pub fn pinned(
-    doc: &Doc<ProfileProgram>,
-    placement: RecipeNodeId,
-    opts: &EvalOptions,
-    tol: Tol,
-) -> Doc<ProfileProgram> {
-    let copy = copy_of(doc, placement);
-    let placed = match pncad::document::stand(doc, &copy, opts, tol) {
-        Ok(stood) => stood,
-        Err(editor_core::PinRefusal::Unevaluated { .. }) => editor_core::Placed::identity(),
-        Err(refusal) => panic!("the copy stands: {refusal}"),
-    };
-    constrained(doc, placement, placed, tol)
+/// constant `0` on every freedom, which reads nothing of the copy.
+pub fn pinned(doc: &Doc<ProfileProgram>, placement: RecipeNodeId, tol: Tol) -> Doc<ProfileProgram> {
+    constrained(doc, placement, pncad::document::stand(), tol)
 }
 
 /// **`body`'s copy placed against `target`'s own geometry at `at`**
@@ -386,9 +367,15 @@ fn unread(copy: pncad::document::Operand, node: RecipeNodeId) -> editor_core::Pl
     editor_core::Placed {
         mate: Some(mate),
         values: vec![
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin, ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::Spin, Formula::zero(Dimension::Angle)),
         ],
         by: editor_core::PlacedBy::PlanarFace,
     }

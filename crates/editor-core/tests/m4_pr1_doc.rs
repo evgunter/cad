@@ -3,7 +3,7 @@
 //! and replay identity from the empty document (spec D7).
 //!
 //! Authoring choice (D8 left it open, reported in the PR): 21
-//! EXPLICIT Transform + Subtract chains, not patterns — a die's pip
+//! EXPLICIT placement + Subtract chains, not patterns — a die's pip
 //! layout is not a uniform lattice (1..6 pips per face at standard
 //! positions); patterns earn their keep in their own unit tests.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

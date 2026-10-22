@@ -98,7 +98,7 @@ pub enum InterrogateError {
     /// The name denotes a WHOLE BODY, which has no single frame — ask
     /// about one of its faces, edges, or vertices instead.
     WholeBody,
-    /// The node's value carries no bodies at all (a datum, a profile,
+    /// The node's value carries no bodies at all (a pose, a profile,
     /// a declaration list, or a boolean whose regularized result was
     /// empty), so there is no geometry to read.
     NoBodies {

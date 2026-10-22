@@ -90,7 +90,7 @@ use super::reduce::face_plane;
 use std::collections::BTreeMap;
 
 use super::sectors::{BoolSector, PierceLever, build_sectors, pierce_side_reported};
-use super::tables::{eq15_3_lump, lump_keeps_one};
+use super::tables::eq15_3_lump;
 use super::{AlongFace, Coincide, Contradiction, DeclarationRead};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
@@ -728,6 +728,9 @@ pub(super) struct VtxFacOut<T: geom_core::Real> {
     /// `(A face, B face)` for each coincident sector whose lump keeps
     /// one copy of the region (`BooleanReduction::covered`).
     pub covered: Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
+    /// What the covered sectors owe the dropped copy
+    /// ([`super::fate`]).
+    pub fates: super::fate::Fates<T>,
     /// Each edge at the piercing vertex, by the half-edge leaving it,
     /// with its side of the pierced face as first read, before any
     /// lump (`BooleanReduction::edge_classes`).
@@ -771,6 +774,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
     branch: Option<super::Branch>,
+    tips: &super::sectors::SlitTips,
     band: Band,
 ) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
@@ -832,7 +836,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // verdicts are unmoved.
     let pierced_lever = PierceLever::of(pierced_surface, p);
     let pierced_shape = super::sectors::FaceShape::of(pierced_surface);
-    let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
+    let sectors = build_sectors(piercing_body, piercing, vertex, tips, band)?;
     let n = sectors.len();
 
     // Entries = the bounds in orbit order (entry k = sector k's END
@@ -964,6 +968,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     let flat = |k: usize| tied[k] && tied[(k + 1) % n];
     let flush = (0..n).any(flat);
     let mut covered = Vec::new();
+    let mut fates = super::fate::Fates::default();
     for (k, s) in sectors.iter().enumerate() {
         if !flat(k) {
             continue;
@@ -1243,11 +1248,34 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 ));
             }
         };
-        if lump_keeps_one(op, rel) {
+        if let Some(keeper) = super::tables::kept_copy(op, rel) {
             covered.push(match piercing {
                 Operand::A => (s.face, contact.face),
                 Operand::B => (contact.face, s.face),
             });
+            let aligned = matches!(rel, super::PlaneRelation::SameOriented);
+            if keeper == piercing {
+                for (edge, _) in super::sectors::bound_edges(piercing_body, s) {
+                    fates.edges.push(super::fate::FateEdge {
+                        holder: piercing,
+                        edge,
+                        kept: s.face,
+                        face: contact.face,
+                        aligned,
+                    });
+                }
+            } else {
+                let inside = super::fate::bisector(s, band)?;
+                fates.corners.push(super::fate::FateCorner {
+                    holder: pierced_op,
+                    dropped: super::fate::SectorAt {
+                        he: s.he,
+                        face: s.face,
+                        dir: inside,
+                    },
+                    kept: super::fate::KeptAt::Pierced(contact.face, vertex, inside),
+                });
+            }
         }
         let lump = eq15_3_lump(op, piercing, rel);
         entries[k].class = lump;
@@ -1276,6 +1304,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         edges: Vec::new(),
         ring: None,
         covered,
+        fates,
         classes,
         datum: PierceDatum {
             normal: n_pierced,
@@ -1569,7 +1598,7 @@ pub(super) fn ring_groups<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] where the face's outer loop
 /// is no cycle; the Euler operators' refusals.
-fn ring_vertex_in<T: Decide + crate::props::AtRestPolicy>(
+pub(super) fn ring_vertex_in<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: crate::entity::FaceKey,
     p: geom_core::Point3<T>,
@@ -3910,7 +3939,14 @@ mod tests {
             .vertices()
             .find(|(v, _)| (body.resolve_vertex_point(*v, Proven) - corner).norm() < 1e-12)
             .expect("the reflex top corner");
-        let sectors = build_sectors(&body, Operand::A, vertex, band).unwrap();
+        let sectors = build_sectors(
+            &body,
+            Operand::A,
+            vertex,
+            &super::super::sectors::SlitTips::default(),
+            band,
+        )
+        .unwrap();
         let n = sectors.len();
         let (mut runs_read, mut twin_runs) = (0, 0);
         for az in (0..16).map(|k| 0.1 + f64::from(k) * std::f64::consts::TAU / 16.0) {
@@ -4209,6 +4245,7 @@ mod tests {
                 &super::super::ReductionContacts::default(),
                 None,
                 None,
+                &super::super::sectors::SlitTips::default(),
                 band,
             )
             .unwrap();

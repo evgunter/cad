@@ -56,6 +56,9 @@
 //!   candidates lifted out for ∖'s reading of coincident edges, boxes
 //!   the line edges the same way ([`edge_box`]): a loose box hands the
 //!   parallel screen and the overlap more pairs, which they part.
+//!   Its every-face class (`census::Trees::every_face`, [`face_box`] of
+//!   each face) reads the same direction for the same-solid tangent-line
+//!   pass: a loose box hands that reading a pair whose carriers it parts.
 //! - `validate`'s check 9 (`ring_pairs`) PRUNES the same way: two
 //!   rings of one face whose hulled edge boxes clear are never handed
 //!   to the contact arms, and whether two rings meet is decided by those
@@ -433,7 +436,10 @@ pub(crate) enum BoxFrame<T: Real> {
 }
 
 impl<T: Real> BoxFrame<T> {
-    /// The frame whose first axis is `aim`.
+    /// The frame whose first axis is `aim`. Its other two rows are
+    /// `orthonormal_basis`'s: a box read in it is scratch that no output
+    /// keeps, and every reading of it is the face's support along the
+    /// aim, which those rows do not move.
     pub(crate) fn aimed(aim: UnitVec3<T>) -> Self {
         let (b1, b2) = aim.orthonormal_basis();
         Self::Aimed([aim.get(), b1, b2])
@@ -3858,8 +3864,9 @@ pub(crate) mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts TEN: the pre-filter's `face_box` and
-        // `edge_box` reads, pass 2′'s curved-edge `edge_box` read
+        // `census.rs` counts TEN: the pre-filter's `face_box` read (one
+        // box per face, read by the planar and every-face classes) and
+        // its `edge_box` read, pass 2′'s curved-edge `edge_box` read
         // (`census::Candidates::build`, the pruning door) and
         // `collinear_overlaps`' `edge_box` read (the same pruning door),
         // three rule reads of its own and the edge reach's

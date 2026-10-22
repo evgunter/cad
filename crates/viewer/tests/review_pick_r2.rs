@@ -203,7 +203,13 @@ struct Tally {
 /// measured in aggregate only, at that intermediate state.
 ///
 /// No genuine crossing is refused.
-const PINNED: (usize, usize, usize, usize) = (440_460, 141_443, 13_482, 6_882);
+///
+/// It moved when the corpus die's pips came to stand on frames stated by
+/// exact turns (a frame mate each), from `(440460, 141443, 13482, 6882)`:
+/// 280 fewer grazes, the rays and the refusals unchanged. The die is
+/// the only document that moved; its vertices are now the merge base's
+/// bit for bit.
+const PINNED: (usize, usize, usize, usize) = (440_460, 141_163, 13_482, 6_882);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

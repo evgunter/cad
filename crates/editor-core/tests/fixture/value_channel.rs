@@ -21,7 +21,7 @@
 //! For every node in evaluation order: the result's arm
 //! (`Ok`/`Failed`/`Poisoned`), the payload's arm, and the payload's
 //! stored geometry read through the scalar's own value channel — every
-//! body point, every datum frame, every profile loop's vertices and
+//! body point, every profile loop's vertices and
 //! arc carriers, plus arena counts.
 //!
 //! It does NOT read curve carriers, surface geometry, or pcurves, and

@@ -60,7 +60,7 @@
 use geom_core::Real;
 use std::sync::Arc;
 use topo::{Body, FaceKey, ReplaceFaceError, ShellError, ShellNaming};
-use verbs::{ScalarParam, Verb, VerbRecord};
+use verbs::{ScalarParam, Shell, VerbRecord};
 
 use super::SlotJoin;
 use crate::names::{self, NameTable, NamingError};
@@ -78,14 +78,14 @@ pub(crate) type ShellEmitter<T> = fn(
 ) -> Result<Arc<NameTable>, NamingError>;
 
 /// **The shell's correspondence**, as data — everything the lowering
-/// needs to turn a `Node::Shell` into a [`verbs::Verb`] and its result into a
+/// needs to turn a `Node::Shell` into a [`verbs::Shell`] and its result into a
 /// name table. Adding a field here is how the verb declares something
 /// the lowering must know; adding an arm to a match inside the
 /// lowering is not.
 pub(crate) struct ShellVerb<T: geom_core::Real> {
     /// **Resolved open faces + slot value → the kernel verb.** The
     /// designation order crosses verbatim (module docs).
-    pub(crate) build: fn(Vec<FaceKey>, T) -> Verb<T>,
+    pub(crate) build: fn(Vec<FaceKey>, T) -> Shell<T>,
     /// This verb's naming emitter.
     pub(crate) emitter: ShellEmitter<T>,
     /// **This family's arm of the closed record channel**, as a
@@ -113,8 +113,8 @@ pub(crate) const SHELL_SLOTS: SlotJoin = SlotJoin {
 
 /// The shell's kernel payload. A named function rather than a closure
 /// so it can be a plain `fn` pointer in the struct above.
-fn build_shell<T: geom_core::Real>(open: Vec<FaceKey>, thickness: T) -> Verb<T> {
-    Verb::Shell { thickness, open }
+fn build_shell<T: geom_core::Real>(open: Vec<FaceKey>, thickness: T) -> Shell<T> {
+    Shell { thickness, open }
 }
 
 /// The shell family's arm of the record channel. Exhaustive with no
@@ -485,7 +485,7 @@ mod tests {
     /// scalar parameter.
     #[test]
     fn the_correspondence_builds_the_shell_in_designation_order() {
-        let v: Verb<f64> = (shell::<f64>().build)(Vec::new(), 1.0);
+        let v: Shell<f64> = (shell::<f64>().build)(Vec::new(), 1.0);
         assert_eq!(v.kind(), VerbKind::Shell, "the shell built a {v:?}");
         assert_eq!(
             shell::<f64>().slots.size_param.verb(),

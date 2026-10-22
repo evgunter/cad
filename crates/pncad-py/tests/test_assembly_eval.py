@@ -1099,7 +1099,7 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         The placed copies' box, through the tessellator the binding
         already exposes: the pattern master is a loose copy in its
         part's own coordinates, so the posts are read where each
-        pattern copy's world pin lays it, and the row below is what
+        pattern copy's world mate lays it, and the row below is what
         separates the posts inside the box.
         """
         store, docs = opened()
@@ -1305,7 +1305,7 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
         )
 
     def test_the_stands_placement_and_seats_still_match_the_tour(self):
-        """The near post's inset — the spot its world pin sets it at on
+        """The near post's inset — the spot its world mate sets it at on
         the turntable — and the seat each of the two mates is authored
         against IN DOCUMENT ORDER: a swapped pair of seats is a
         different bench that every volume in this file would still

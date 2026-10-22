@@ -2,17 +2,11 @@
 //! 2×2×2 cube, 21 pips 0.25×0.25×`pip_depth` — authored as a recipe
 //! through `apply`, evaluated by the M4 PR 2 service.
 //!
-//! REPORTED deviation from the PR 1 die authoring (spec D8): PR 1
-//! placed all 21 pips from ONE master via rotational Transforms
-//! (angles ±π/2, π). `sin`/`cos` of those angles are not exact in
-//! f64, so a rotational placement cannot hit the dyadic volume oracle
-//! bit-exactly. This document keeps the 21 interleaved
-//! Transform+Subtract pairs but derives each face's pips from a
-//! per-face master profile (6 masters), so every Transform is a
-//! translation-only rigid map (rotation angle exactly 0 — an exact
-//! identity in IEEE arithmetic) and the oracle stays exact. The
-//! rotational Transform path is exercised separately (non-dyadic
-//! assertions) in the wire tests.
+//! Each face's pips come from a per-face master profile (6 masters),
+//! and each pip's copy stands on a frame read off the cube's corner and
+//! moved by whole quarter turns and dyadic slides as written
+//! ([`square_frame`], [`Recorder::on_frame`]), so every placement is
+//! exact and the dyadic volume oracle holds bit for bit.
 //!
 //! **This file is the ONE home for what a name-reading suite works an
 //! evaluation with**: the die document above, the [`Recorder`] and the
@@ -140,7 +134,7 @@ pub fn plane(face: impl Into<editor_core::Operand>) -> editor_core::Operand {
 /// **The plane `by` up an extrude's own `z`**: its start cap's plane,
 /// flipped to face up its `z`, slid along that normal by `by` — a
 /// split's tool at a height the document can drive (`by` a named
-/// variable) where a datum plane stood at that height.
+/// variable).
 pub fn start_cap_at(
     extrude: RecipeNodeId,
     by: Formula,
@@ -338,7 +332,7 @@ pub fn solve(doc: &editor_core::ProfileDoc, o: &EvalOptions, tol: Tol) -> Solved
 /// **Every mate-placed copy pinned to the world where its mates solve
 /// it** — the edits a user makes to keep a part where it is shown
 /// before removing what places it: each placement whose bundle does not
-/// read the world gets its bundle replaced by one world pin at its
+/// read the world gets its bundle replaced by one world mate at its
 /// solved pose.
 pub fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
     let poses = solve(&doc, o, Tol::witness());
@@ -379,10 +373,7 @@ pub fn pin(
     o: &EvalOptions,
 ) -> ProfileDoc {
     if *pose == editor_core::Frame::IDENTITY {
-        let copy = copy_read(&doc, placement);
-        let stood = editor_core::stand(&doc, &copy, o, Tol::witness())
-            .unwrap_or_else(|refusal| panic!("the copy stands: {refusal}"));
-        return written(doc, placement, stood);
+        return written(doc, placement, editor_core::stand());
     }
     let mate = pin_mate(&doc, placement, pose, o);
     constrain_at(doc, placement, mate).0
@@ -768,7 +759,7 @@ pub fn axis_on(
 }
 
 /// Whether two placements are pinned to the world by the same world
-/// read, bit for bit as written (or neither is one world pin).
+/// read, bit for bit as written (or neither is one world mate).
 pub fn same_offset(a: &ProfileDoc, ai: RecipeNodeId, b: &ProfileDoc, bi: RecipeNodeId) -> bool {
     offset_of(a, ai) == offset_of(b, bi)
 }
@@ -881,8 +872,8 @@ pub fn label_every_node(doc: ProfileDoc, text: &str) -> ProfileDoc {
 }
 
 /// **A copy of `body` slid by `by` in `target`'s own coordinates**
-/// ([`against`] at a translation): how a construction that sat on a
-/// datum off its target's origin joins the target's space. Returns the
+/// ([`against`] at a translation): how a construction joins its
+/// target's space off the target's origin. Returns the
 /// document and the placement, whose output is the copy.
 pub fn slid(
     doc: ProfileDoc,
@@ -1728,19 +1719,15 @@ impl Recorder {
     /// body stands ([`editor_core::stand`]), returning the placement.
     pub fn place(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
         let read = body_read(&self.doc, body.into());
-        self.evaluated();
-        let ev = self.last.as_ref().expect("just evaluated");
-        let stood = editor_core::stand_in(&self.doc, ev, &read)
-            .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
         let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
-        self.write(placement, stood);
+        self.write(placement, editor_core::stand());
         placement
     }
 
     /// **One copy of `body` in the world at `at`**
     /// ([`editor_core::place_at`], [`Self::place`] at the identity):
-    /// how a construction that sat on a literal datum frame stands where
-    /// that frame put it. Returns the placement.
+    /// how a construction stands at a frame of the world. Returns the
+    /// placement.
     pub fn in_world(
         &mut self,
         body: impl Into<editor_core::Operand>,
@@ -1813,6 +1800,33 @@ impl Recorder {
             .unwrap_or_else(|refusal| panic!("the target has the corner: {refusal}"))
     }
 
+    /// **A copy of `body` whose own frame `own` (a frame read off it)
+    /// stands on `frame`** (a frame read off the body the copy joins,
+    /// stated by exact moves, [`square_frame`]): a frame mate, which
+    /// leaves no freedom to set. Returns the placement.
+    pub fn stood_on(
+        &mut self,
+        body: RecipeNodeId,
+        own: editor_core::Operand,
+        frame: editor_core::Operand,
+    ) -> RecipeNodeId {
+        let read = body_read(&self.doc, editor_core::Operand::output(body, 0));
+        let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
+        self.write(
+            placement,
+            editor_core::Placed {
+                mate: Some(editor_core::Mate {
+                    on: own,
+                    to: editor_core::Target::Pose(frame),
+                    class: editor_core::ContactClass::Rest,
+                }),
+                values: Vec::new(),
+                by: editor_core::PlacedBy::Pin,
+            },
+        );
+        placement
+    }
+
     /// **A copy of the full revolve `revolve` standing on the `z` of
     /// `frame`** (a frame read off the body the copy joins, stated by
     /// exact moves, [`editor_core::moved_frame`]): an `Axis` mate from
@@ -1874,6 +1888,130 @@ impl Recorder {
     }
 }
 
+/// **One copy of `body` in the world, its whole motion stated by
+/// `values`** ([`Recorder::in_world_by`]): a bundle with no mate.
+/// Returns the document and the placement; its copy is the placement's
+/// output.
+pub fn in_world_by(
+    doc: ProfileDoc,
+    body: impl Into<editor_core::Operand>,
+    values: Vec<(editor_core::Coord, Formula)>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let read = body_read(&doc, body.into());
+    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+    (step(doc, DocEdit::unmated(placement, values)).0, placement)
+}
+
+/// **One copy of `body` in the world on `at`, a frame whose axes are
+/// the world's up to sign and order**: its turns about x, then y, then z
+/// written as the fractions of a turn they are ([`square_turns`],
+/// [`turned_to`]), so the copy stands exactly where `at` says.
+///
+/// # Panics
+///
+/// If a turn of `at` is not a whole number of quarter turns.
+pub fn in_world_square(
+    doc: ProfileDoc,
+    body: impl Into<editor_core::Operand>,
+    at: &editor_core::Frame,
+) -> (ProfileDoc, RecipeNodeId) {
+    in_world_by(doc, body, turned_to(at.translation, &square_turns(at)))
+}
+
+/// **The turns of `at`, a frame whose axes are the world's up to sign
+/// and order**, about x, then y, then z (`Rz·Ry·Rx`), each a whole
+/// number of quarter turns written as the fraction of a turn it is; a
+/// turn by zero is not listed.
+///
+/// # Panics
+///
+/// If a turn of `at` is not a whole number of quarter turns.
+pub fn square_turns(at: &editor_core::Frame) -> Vec<(editor_core::TargetAxis, Formula)> {
+    use editor_core::TargetAxis;
+    use std::f64::consts::FRAC_PI_2;
+    let r = |i: usize, j: usize| at.columns[j][i];
+    let cos_beta = r(0, 0).hypot(r(1, 0));
+    let beta = (-r(2, 0)).atan2(cos_beta);
+    let (alpha, gamma) = if cos_beta > 0.5 {
+        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
+    } else {
+        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
+    };
+    let quarter = |a: f64| {
+        let k = (a / FRAC_PI_2).round();
+        assert!(
+            (a - k * FRAC_PI_2).abs() < 1e-12,
+            "{at:?} turns by a whole number of quarter turns"
+        );
+        let turn = |den| Formula::turn_over(den).expect("a fraction of a turn");
+        #[allow(clippy::cast_possible_truncation)]
+        match (k as i64).rem_euclid(4) {
+            0 => None,
+            1 => Some(turn(4)),
+            2 => Some(turn(2)),
+            _ => Some(Formula::neg(turn(4)).expect("an angle negates")),
+        }
+    };
+    [
+        (TargetAxis::X, alpha),
+        (TargetAxis::Y, beta),
+        (TargetAxis::Z, gamma),
+    ]
+    .into_iter()
+    .filter_map(|(axis, a)| quarter(a).map(|by| (axis, by)))
+    .collect()
+}
+
+/// **`own`, a frame read off a body at that body's own identity, moved
+/// onto `at`** ([`editor_core::moved_frame`]): `at`'s turns as the
+/// fractions of a turn they are ([`square_turns`]), then its slides, so
+/// the frame stands exactly where `at` says.
+///
+/// # Panics
+///
+/// If a turn of `at` is not a whole number of quarter turns.
+pub fn square_frame(own: editor_core::Operand, at: &editor_core::Frame) -> editor_core::Operand {
+    use editor_core::{FrameMove, TargetAxis};
+    let spins = square_turns(at)
+        .into_iter()
+        .map(|(axis, by)| FrameMove::Spin(axis, by));
+    let slides = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
+        .into_iter()
+        .zip(at.translation)
+        .filter(|&(_, by)| by != 0.0)
+        .map(|(axis, by)| FrameMove::Slide(axis, len(by)));
+    editor_core::moved_frame(own, &spins.chain(slides).collect::<Vec<_>>())
+}
+
+/// **The world's motion spinning a construction about the world's x, y
+/// and z axes in that order, each by the angle `spins` gives it, then
+/// sliding it to `origin`** — the values of a bundle with no mate
+/// ([`in_world_by`]). A spin not listed, and a slide of exactly zero,
+/// is the constant zero.
+pub fn turned_to(
+    origin: [f64; 3],
+    spins: &[(editor_core::TargetAxis, Formula)],
+) -> Vec<(editor_core::Coord, Formula)> {
+    use editor_core::{Coord, Dimension, TargetAxis};
+    let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
+    let slides = axes.into_iter().zip(origin).map(|(axis, at)| {
+        let by = if at == 0.0 {
+            Formula::zero(Dimension::Length)
+        } else {
+            len(at)
+        };
+        (Coord::Slide(axis), by)
+    });
+    let spun = axes.into_iter().map(|axis| {
+        let by = spins
+            .iter()
+            .find(|(a, _)| *a == axis)
+            .map_or_else(|| Formula::zero(Dimension::Angle), |(_, by)| by.clone());
+        (Coord::SpinAbout(axis), by)
+    });
+    slides.chain(spun).collect()
+}
+
 /// **The world's motion standing a construction's own `y` along the
 /// world's `z`, its origin at `origin`**: a quarter turn about `x`,
 /// written `turn/4`, and the three slides — the values of a bundle with
@@ -1912,8 +2050,6 @@ pub struct Die {
     /// The +z face's pip-master Extrude (the poisoning target: its
     /// descendants are exactly the LAST placement + subtract).
     pub pz_extrude: RecipeNodeId,
-    /// The +z pip's placement (the incremental-edit target).
-    pub pz_placement: RecipeNodeId,
     /// Total node count.
     pub n_nodes: usize,
 }
@@ -2018,18 +2154,27 @@ pub fn die() -> Die {
     // the cube with its start cap ON its cube face and its own +z
     // INTO the cube (the frame's `v` reversed), a coincidence the
     // subtract's margins decide and glue.
+    // Each pip's own frame is read at its square's corner `c`, and stands
+    // on the cube's own frame, read at its corner and moved by the pip's
+    // turns and slides as written: turned by `R`, slid to `at + R·c`.
+    let cube_frame = r.corner_frame(cube, [0.0; 3], [0.0, 0.0, 2.0], [2.0, 0.0, 0.0]);
+    let c = [-0.125, -0.125, 0.0];
     let mut acc = cube;
-    let mut pz_placement = acc; // overwritten below
     for &(ext, o, u, v, pips) in &masters {
+        let own = r.corner_frame(ext, c, [c[0], c[1], DEPTH], [0.125, c[1], 0.0]);
         for &(a, b) in pips {
-            let at = core::array::from_fn(|i| o[i] + a * u[i] + b * v[i]);
-            let placed = r.against(cube, ext, &frame_at(at, u, v.map(|c| -c)));
+            let at: [f64; 3] = core::array::from_fn(|i| o[i] + a * u[i] + b * v[i]);
+            let turn = frame_at([0.0; 3], u, v.map(|x| -x));
+            let corner: [f64; 3] = core::array::from_fn(|i| {
+                at[i] + (0..3).map(|j| turn.columns[j][i] * c[j]).sum::<f64>()
+            });
+            let frame = square_frame(cube_frame.clone(), &frame_at(corner, u, v.map(|x| -x)));
+            let placed = r.stood_on(ext, own.clone(), frame);
             let sub = r.insert(Node::Subtract {
                 from: acc.into(),
                 tool: placed.into(),
             });
             acc = sub;
-            pz_placement = placed;
         }
     }
 
@@ -2039,7 +2184,6 @@ pub fn die() -> Die {
         edits: r.edits,
         final_node: acc,
         pz_extrude: masters[5].0,
-        pz_placement,
         n_nodes,
     }
 }
@@ -2860,7 +3004,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
         | RoleSeg::SplitBody
-        | RoleSeg::SectionFace { .. }
+        | RoleSeg::SectionFace
         | RoleSeg::LoftWall(_)
         | RoleSeg::LoftSeam(_) => Vec::new(),
     }

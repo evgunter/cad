@@ -94,6 +94,7 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
     let projected = match err {
         T::InvalidChordalTolerance { value } => float(*value).map(|v| fields[1] = ("value", v)),
         T::ResolutionOverflow { count } => float(*count).map(|v| fields[1] = ("value", v)),
+        T::StepNotPositive { step, .. } => float(*step).map(|v| fields[1] = ("value", v)),
         T::CertificateExceeded {
             bound, requested, ..
         } => float(*bound).and_then(|b| {

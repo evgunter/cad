@@ -2,10 +2,11 @@
 id: degree-elevation-recomposition-error-grows-as-one-over-the-closest-knot-gap
 kind: issue
 title: degree elevation's recomposition removals amplify rounding by about one over the closest distinct-knot gap, so evaluation invariance is conditioned, not absolute
-status: open
-priority: P4
+status: closed
+priority: P3
 cost: M
 opened: 2026-09-24
+closed: 2026-10-20
 ---
 
 ## Finding
@@ -57,3 +58,89 @@ meet-in-the-middle. Such a split should apply to elevation only: in a
 lossy `remove_knot_plan` the split decides where the error lands and what
 the bound reports. It moves elevation's floating-point bits, so any
 digest over elevated geometry is re-cut with it.
+
+## Measured again (2026-10-20): the law grows with degree
+
+Measured on `main` 43b23583 with coordinates in ±10, weights 0.2–5
+or all 1, the sup over nine points per span, and the worst of 60
+curves. Each curve has one close interior pair `(a, a + g)` on
+`[0, 1]` and is elevated once (`elevate_degree(1)`):
+
+| source degree | g = 1e-3 | 1e-4 | 1e-5 | 1e-6 | law |
+|---|---|---|---|---|---|
+| 1–2 | 4e-15 | 4e-15 | 5e-15 | 5e-15 | none |
+| 3–4 | 4e-13 | 4e-12 | 5e-11 | 4e-10 | `1/g` |
+| 5 | 2e-12 | 3e-11 | 4e-10 | 3e-9 | `1/g` |
+| 6 | 2e-9 | 2e-7 | 1e-5 | 2e-3 | `1/g²` |
+| 7 | 4e-9 | 6e-7 | 3e-5 | 6e-3 | `1/g²` |
+| 8 | 3e-6 | 2e-3 | 1.7 | 7e2 | about `1/g³` |
+| 9 | 2e-5 | 1e-2 | 3.2 | 2e3 | about `1/g³` |
+
+- **Refusals.** At degree ≥ 8 with drawn weights, 5% (`g = 1e-5`) to
+  75% (`g = 1e-6`) of curves refused with `WeightCollapse`.
+- **Compounding.** Elevating by two compounds by the second step's
+  degree: degree 5, `elevate_degree(2)`, `g = 1e-8` is off by 2.2.
+- **The gap is relative.** What matters is a gap's ratio to the spans
+  around it, not its size: degree 3 with 1000 uniform knots 1e-3 apart
+  reads 5e-15.
+- **Graded knots fail with no close pair at all.** Medians of 30 drawn
+  curves on ±10 coordinates:
+  - geometric ×1.15 spacing at degree 10 with 40 knots: **0.15**;
+  - geometric ×2 spacing: refused from degree 8;
+  - graded `t^1.5` at degree 10: 2e-9.
+- **Uniform knots fail at degree 9.** Degree 9 reads 4e-9 with 40 uniform
+  knots and **1.6e-3** with 80. Degrees 3–8 and 10 are at rounding
+  (degree 10 with 50 knots: 7e-13).
+
+**Callers.**
+- **`NurbsCurve*::approximate`** (`crates/geom/src/curves/fit.rs`)
+  elevates from degree 1 and 2 only, so it is exact. That holds for
+  fit-like chord knots too, with gap ratios down to 1e-5 at 2000
+  samples.
+- **`compose_chain`** (`crates/geom/src/curves/compose.rs`) and
+  **`skin`** (`crates/sweep/src/skin.rs`) raise user geometry to the
+  largest degree among it. They read a degree-≥3 close pair `1/g` to
+  `1/g³` off, silently.
+- **Raised to P3** for that reason (silent, metre-scale, on user
+  geometry), whatever the consumer count.
+
+## Closed (2026-10-20)
+
+`elevate_plan`'s recomposition now tracks a first-order error
+estimate per control point. Each removal keeps Piegl–Tiller's midpoint
+unless another forward/backward split's estimated worst error is more
+than 2× smaller (`MIDPOINT_MARGIN`). `remove_knot_plan` keeps the
+midpoint.
+
+- **The plain `α ≥ ½` split was not enough.** On uniform knots `α` ties
+  at exactly ½, so it chained errors from knot to knot and refused every
+  curve at degree ≥ 6 with 50 knots.
+- **The margin is empirical.** It was fitted on uniform, graded,
+  geometric, jittered and close-pair knot families at degrees 3–10.
+  Medians of 30 curves on ±10, degree 10 with 40 knots:
+
+  | knots | midpoint | margin 1 | 2 | 8 |
+  |---|---|---|---|---|
+  | uniform | 3.1e-13 | 6.9e-13 | 3.1e-13 | 3.1e-13 |
+  | graded `t^1.5` | 2.0e-9 | 2.7e-12 | 1.7e-12 | 8.2e-12 |
+  | geometric ×1.15 | 0.15 | 6.1e-12 | 4.1e-12 | 1.1e-11 |
+  | geometric ×2 | refuses | 1.1e-13 | 1.1e-13 | 1.7e-11 |
+
+  - With no margin, uniform degree-10 near-ties doubled the median
+    rounding.
+  - A margin of 8 left graded rows up to 150× worse than 2.
+  - 2 is at or within 2× of the best on every family.
+  - **Rows pin both sides.** Margin 1 turns the split-choice unit row
+    red; margins 4 and 8 turn the steep-graded row red. No row tells
+    either tie rule (`<=` at the margin, nearest-the-midpoint among
+    equals) from its inverse.
+- **After the fix:**
+  - close pairs agree to about 4e-14 of the largest coordinate at every
+    degree ≤ 10 and gap ≥ 1e-9;
+  - graded degree-10 knots agree within 1e-12;
+  - uniform degree 9 reads 2–3e-13;
+  - uniform degree 10 reads the midpoint's medians.
+- **Bits.** Against the pure midpoint, the margin moves the bits of 90
+  of 800 uniform shapes (degrees 1–10, 1–80 knots), all at degree 9 or
+  10, at equal or lower error.
+- **Refusals:** the `WeightCollapse` refusals at degree ≥ 8 are gone.

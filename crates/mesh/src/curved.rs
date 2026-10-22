@@ -501,8 +501,13 @@ pub(crate) fn tessellate_curved(
 /// [`topo::props::loop_edges`], the same half-edge cycle the walk
 /// reads, so the door and the walk cannot disagree about which edges
 /// the face has; the band is props' own ([`SizingTols::band`]), so
-/// the decision is metered exactly as the flux lane meters it — no
-/// comparand and no margin of `mesh`'s.
+/// the decision is metered against the flux lane's band — no comparand
+/// and no margin of `mesh`'s. The geometry is not the flux lane's: the
+/// door reads the face as stored, and the flux lane reads each face
+/// moved by `−c`, its shell's reference (`topo::props`'
+/// `shell_reference`). The flux lane asks neither door (they are
+/// `mesh`'s alone, above), so no one predicate is read on both, and
+/// there is no decision the two could round apart.
 ///
 /// **A rimless sphere band passes**: it is a chart rectangle, and the
 /// door says so at its definition, so a partial sphere wedge meshes

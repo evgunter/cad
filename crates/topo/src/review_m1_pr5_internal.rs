@@ -264,6 +264,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "a test-support door that overwrites one surface datum in place; no vertex, edge, \
          loop, face or shell is touched, so tier 1 holds as it found it",
     ),
+    (
+        "rotate_shell_faces",
+        "a test-support door that rotates each shell's stored face list; tier 1 reads a \
+         shell's faces as a set with back-pointers, which a rotation keeps",
+    ),
     // ---- Pipelines composed of asserting operators. ----
     (
         "merge_coplanar_faces",
@@ -348,6 +353,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "reads the edge's own certified curve and writes it back through `set_edge_curve` \
          (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints \
          verbatim",
+    ),
+    (
+        "restate_stored_edge",
+        "writes through `set_edge_curve`'s certifying path (the same body, asserting) with \
+         the edge's own stored carrier and interval and only the DESCRIPTION the caller's; \
+         the curve swap and pcurve rows are that path's, so is the tier-1 sweep after them",
     ),
     // ---- Test-support fixture builders. Why they are in this
     // population at all is stated once, on

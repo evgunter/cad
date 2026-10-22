@@ -13,7 +13,7 @@ use viewer::history::History;
 use viewer::session::SessionOp;
 
 /// **The mate door through the session's history**: committing a mate
-/// between post_b, its world pin taken off, and the shelf adds the
+/// between post_b, its world mate taken off, and the shelf adds the
 /// constraint to post_b's bundle and leaves the shelf's as it was; undo
 /// restores the document, redo commits it again, and the log replays to
 /// the same document with no store.
@@ -60,7 +60,7 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
 /// **The at-rest badge checks a loose copy's own space** — the one gate
 /// the kernel's `assemble` runs, reached through `assemble_gathered`.
 /// Two posts seated at one spot under the shelf interpenetrate; with the
-/// shelf's world pin taken off, the three live in the shelf's own space
+/// shelf's world mate taken off, the three live in the shelf's own space
 /// beside one world instance. The kernel refuses, and the badge refuses
 /// with it rather than certify the world alone.
 #[test]
@@ -134,7 +134,7 @@ fn the_at_rest_badge_checks_a_loose_space() {
         assemble(&doc, &ev, tol).is_err(),
         "placed, the two posts interpenetrate in the world"
     );
-    // The shelf's world pin off: the shelf and both posts are loose.
+    // The shelf's world mate off: the shelf and both posts are loose.
     let edit = unpin(&doc, bench.shelf_i);
     step(&mut doc, edit);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);

@@ -147,9 +147,11 @@ pub enum TessellateError {
         /// The scaffolding edge.
         edge: EdgeKey,
     },
-    /// A curved face carries interior rings — no construction
-    /// produces one (curved patches are swept UV rectangles); refused
-    /// rather than guessed at.
+    /// A curved face carries interior rings, which the curved and
+    /// trimmed lanes do not mesh; refused rather than guessed at. A
+    /// boolean that pierces a torus wall with a plane leaves one, a
+    /// spiric ring, on a valid body
+    /// (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed`).
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -173,6 +175,18 @@ pub enum TessellateError {
     ResolutionOverflow {
         /// The computed count that overflowed.
         count: f64,
+    },
+    /// A chord or grid step reached the count with its sign bit set, or
+    /// as NaN: not a length, so no count of it means anything. Every
+    /// step the kernel hands the count is derived (`sqrt` of a
+    /// non-negative ratio, or capped by `cap_angular`), so this is a
+    /// kernel defect, refused before allocating rather than read as one
+    /// chord.
+    StepNotPositive {
+        /// The span the step was to divide.
+        span: f64,
+        /// The offending step.
+        step: f64,
     },
     /// An emitted triangle failed its closed-form deviation
     /// certificate against δ — the certified-conservative promise
@@ -554,6 +568,12 @@ impl core::fmt::Display for TessellateError {
                 "tessellate: δ is so small that one edge or face would need \
                  {count:e} chords or grid divisions, past the ~2²⁴ sanity cap — \
                  refused before allocating; ask for a coarser δ",
+            ),
+            Self::StepNotPositive { span, step } => write!(
+                f,
+                "tessellate: a sizing step of {step:e} reached the count for a \
+                 span of {span:e}; a step the kernel derives cannot be negative \
+                 or NaN, so this is a kernel defect, not an input to fix",
             ),
             Self::CertificateExceeded {
                 bound, requested, ..

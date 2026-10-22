@@ -422,19 +422,7 @@ impl<T: Decide> Body<T> {
         // and for why the new value is proven too.
         let hp_next = self.require_live(hp_data.next, link(EntityId::HalfEdge(hp.key()), "next"));
         let hm_prev = self.require_live(hm_data.prev, link(EntityId::HalfEdge(hm.key()), "prev"));
-        let entry = self.get_curve_geom(edge_data.curve).unwrap_or_else(|| {
-            dangling_link(
-                EntityId::Edge(edge),
-                "curve",
-                GeomRef::Curve(edge_data.curve),
-            )
-        });
-        let curve = entry
-            .certified()
-            .cloned()
-            .ok_or(EulerOpError::NullScaffoldCurve {
-                curve: edge_data.curve,
-            })?;
+        let curve = self.stored_curve(edge)?.clone();
         // Interiority (trilean, Q1): both sub-spans definitely
         // positive, metered in meters like the certification span gate.
         let (t0, t1) = curve.params();

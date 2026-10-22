@@ -2,10 +2,12 @@
 id: two-doors-answer-an-axis-off-a-tangent-with-no-rule-for-which
 kind: issue
 title: path_start_frame and Vec3::orthonormal_basis both answer 'an axis off a tangent' and nothing says which a caller uses
-status: open
+status: parked
 opened: 2026-09-15
 priority: P1
-cost: D
+cost: M
+blocked_on: [a-placement-pins-by-written-values-without-a-mate]
+design: true
 ---
 
 ## Finding
@@ -55,3 +57,7 @@ This is the second half of `work/comb/S35.md`'s
 evidence line pointing here.
 
 **Verdict:**
+
+## Parked under the D10 hold (2026-10-21)
+
+FRAME orchestrator. Half answered since filing: D10 `[placement.frame]` (a minted reference is a function of the inputs) and PR #5547's gate confine `orthonormal_basis` to scratch and input-coordinate homes, so the vector door is no longer a choice for a kept frame. The other door's fate is D′'s (see `path-start-frame-is-the-only-frame-from-a-tangent-and-is-named-for-the-start`). Re-priced `M` with `design: true` from legacy `D`.

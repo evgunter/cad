@@ -35,7 +35,7 @@
 //!    the anchor at EVERY node on its result arm (`Ok`/`Failed`/
 //!    `Poisoned`, same poison source) and, where both built, on a
 //!    digest of the VALUE CHANNEL of the whole payload — every body
-//!    point, datum frame, profile vertex, measured value and verdict,
+//!    point, profile vertex, measured value and verdict,
 //!    read through each scalar's own value bracket. That is DL3's
 //!    "value-channel equality" taken literally and per node; the dual
 //!    contract says the two are bit-identical, and the driver checks
@@ -856,7 +856,7 @@ impl Digest {
 }
 
 /// The value-channel digest of one payload: its arm, its counts, and
-/// every scalar it stores — body points, datum frames, profile
+/// every scalar it stores — body points, profile
 /// vertices and arc carriers, measured values, verdict numbers — through the
 /// scalar's own value bracket, so an `f64` build and a `Dual64` pass
 /// digest identically exactly when their value channels agree.

@@ -148,6 +148,16 @@ pub fn tangent_locus<T: Decide>(
     )
 }
 
+/// Whether carriers of kinds `a` and `b` are in the closed-form lane
+/// at all (plane × cylinder, cylinder × cylinder): every other pair is
+/// [`TangentLocusError::Unsupported`] before any extent is read, so a
+/// caller can leave it unasked.
+#[must_use]
+pub fn tangent_locus_kinds(a: geom::SurfaceKind, b: geom::SurfaceKind) -> bool {
+    use geom::SurfaceKind::{Cylinder, Plane};
+    matches!((a, b), (Plane | Cylinder, Cylinder) | (Cylinder, Plane))
+}
+
 /// [`tangent_locus`] of two faces on `a` and `b`, whose extents settle
 /// an in-band reading: `extents` gives each face's least and greatest
 /// coordinate along a unit direction about the world origin, padded,
@@ -729,6 +739,58 @@ fn parallel_cylinder_gaps<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **The kinds the lane holds are the kinds its dispatch reads.** A
+    /// pair outside [`tangent_locus_kinds`] is `Unsupported`, and a pair
+    /// inside it is not. Red when either side moves alone.
+    #[test]
+    fn the_lane_kinds_are_the_dispatchs() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, -1.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let cyl = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_x(),
+            radius: 1.0,
+            u_ref: Vec3::unit_z(),
+        };
+        let beside = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 2.0),
+            axis: Vec3::unit_x(),
+            radius: 1.0,
+            u_ref: Vec3::unit_z(),
+        };
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let metre = ExtentBall::new(Point3::origin(), 1.0);
+        for (a, b) in [
+            (&plane, &cyl),
+            (&cyl, &plane),
+            (&cyl, &beside),
+            (&plane, &plane),
+            (&plane, &sphere),
+            (&sphere, &cyl),
+        ] {
+            let unsupported = matches!(
+                tangent_locus(a, b, metre, band),
+                Err(TangentLocusError::Unsupported { .. })
+            );
+            assert_eq!(
+                tangent_locus_kinds(a.kind(), b.kind()),
+                !unsupported,
+                "{:?} x {:?}",
+                a.kind(),
+                b.kind()
+            );
+        }
+    }
 
     /// **The axis row is levered over the consumed extent.** A unit
     /// cylinder resting on `z = 0` at the origin, its axis rising

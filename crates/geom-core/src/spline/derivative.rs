@@ -120,6 +120,36 @@
 //! and `M` and `W³` are formed once over the span and halved into the
 //! pieces like the first order's.
 //!
+//! # The measure quotients
+//!
+//! A quadrature of a rational patch's area `∫∫ |S_u×S_v|` and flux
+//! `∫∫ S·(S_u×S_v)` reads three more quotients of the same shape
+//! ([`cell_measure_quotients`]):
+//!
+//! ```text
+//! ∂_d(M̃/W³)  = (M̃_d·W − 3·M̃·W_d) / W⁴
+//! S·(S_u×S_v) = N/W³,   N = A·(A_u×A_v) + c·M̃
+//! ∂_dd(N/W³) = (N_dd·W² − 6·N_d·W_d·W − 3·N·W_dd·W + 12·N·W_d²) / W⁵
+//! ```
+//!
+//! — the flux because `S − c = A/W` in the frame `c` of the block's
+//! channels, so `S·(S_u×S_v) = (A·M̃)/W⁴ + c·M̃/W³` and
+//! `A·M̃ = W·A·(A_u×A_v)`, the two weight terms of `M̃` crossing `A` with
+//! itself. Every term of the slope's numerator has bidegree
+//! `(4p − 2, 4q − 1)` along `u` against `W⁴`'s `(4p, 4q)`, and of the
+//! flux's `(5p − 3, 5q − 1)` against `W⁵`'s `(5p, 5q)` (`N` is
+//! `(3p − 1, 3q − 1)`); `v` mirrors them. Each is raised to its weight
+//! power's degree and read as the first order's convex combination,
+//! clause for clause; the weight powers are products of the positive
+//! weight row.
+//!
+//! `M̃_d`, `N_d` and `N_dd` are the derivatives of the grids formed over
+//! the whole span, `n·(c_{k+1} − c_k)/width` along the axis, so a reader
+//! that cuts the block restricts formed grids and differences none: the
+//! derivative is taken before any piece's own `degree/width` scale
+//! exists. `W_d` and `W_dd` are the weight's derivative rows, as the
+//! second order reads them.
+//!
 //! # Degree ceiling
 //!
 //! The Bernstein product of rows of degrees `m` and `n` has coefficients
@@ -128,7 +158,8 @@
 //! at most `C(m+n, k)` (Vandermonde), so every factor the statement
 //! forms is an exact `f64` integer while the result degree is at most
 //! [`QUOTIENT_MAX_DEGREE`] ([`super::pieces::binomial`]); above it the
-//! builders refuse (`None`). At `Interval` each factor is a point and
+//! builders refuse (`None`). The measure quotients' `W⁵` meets it first,
+//! at `5·max(p, q)`. At `Interval` each factor is a point and
 //! every product and quotient rounds outward; at `f64` the same
 //! expression rounds to nearest, and the reading can sit past the
 //! bound by more than an ulp, growing with the weight spread (PR 4954
@@ -240,8 +271,8 @@ fn cross<T: Real>(a: [T; 3], b: [T; 3]) -> [T; 3] {
 /// weight power's `b_k > 0` at one degree and one layout. Minted only
 /// by this module's builders ([`speed_pieces`], [`accel_pieces`],
 /// [`cell_quotients`], [`cell_second_quotients`],
-/// [`polynomial_area_pieces`], [`stretch_pieces`]), which hold both
-/// preconditions.
+/// [`polynomial_area_pieces`], [`stretch_pieces`],
+/// [`cell_measure_quotients`]), which hold both preconditions.
 #[derive(Clone, Debug)]
 pub struct QuotientPiece<T, const D: usize> {
     numer: Vec<[T; D]>,
@@ -506,6 +537,12 @@ impl<T: Real, const D: usize> Grid<T, D> {
     /// by its exact power `2⁻ʳ`, which reads every halving step's sums
     /// to the bit wherever no step leaves the normal range: a sum's
     /// rounding commutes with a power-of-two scale.
+    ///
+    /// One of restriction's three homes, kept as this module's halving:
+    /// it is generic over `T: Real` on `Vector<T, D>` grids, where
+    /// [`super::blossom::restrict_segment`], the door for a row read as
+    /// it comes and the tightest of the three, reads certification
+    /// scalars only.
     fn halved(&self, along_u: bool) -> Option<(Self, Self)> {
         let (nu, nv) = (self.nu(), self.nv);
         let (n, lines) = if along_u { (nu, nv) } else { (nv, nu) };
@@ -549,6 +586,36 @@ impl<T: Real, const D: usize> Grid<T, D> {
 
     fn arrays(&self) -> Vec<[T; D]> {
         self.c.iter().map(|v| v.0).collect()
+    }
+
+    /// The grid's derivative along `u` (`along_u`) or `v`, the grid
+    /// stated over the parameter interval `ends` along it: a degree-`n`
+    /// line's `(c_{k+1} − c_k)·`[`span_derivative_scale`]`(n, ends)`.
+    /// `None` along a degree-0 axis.
+    fn derived(&self, along_u: bool, ends: (T, T)) -> Option<Self> {
+        let n = if along_u {
+            self.degree().0
+        } else {
+            self.degree().1
+        };
+        (n > 0).then_some(())?;
+        let scale = span_derivative_scale(n, ends.0, ends.1);
+        let diff = |line: &[Vector<T, D>]| -> Option<Vec<Vector<T, D>>> {
+            Some(line.windows(2).map(|x| (x[1] - x[0]) * scale).collect())
+        };
+        if along_u {
+            self.map_u(diff)
+        } else {
+            self.map_v(diff)
+        }
+    }
+
+    /// Every coefficient mapped by `f`, at one shape.
+    fn map<const E: usize>(&self, f: impl Fn([T; D]) -> [T; E]) -> Grid<T, E> {
+        Grid {
+            nv: self.nv,
+            c: self.c.iter().map(|v| Vector(f(v.0))).collect(),
+        }
     }
 }
 
@@ -691,6 +758,14 @@ impl<'a, T: Real> Axis<'a, T> {
         }
     }
 
+    /// The parameter interval the axis's Bernstein rows are stated
+    /// over.
+    fn ends(&self) -> (T, T) {
+        match *self {
+            Self::Span { ends, .. } => ends,
+        }
+    }
+
     /// The span's Bernstein row of a window of this axis's degree less
     /// `order`: of its `order`-th derivative's window. The derived
     /// spline of degree `p − r` reads the same knot vector from index
@@ -799,11 +874,23 @@ struct Homogeneous<T> {
 }
 
 /// The second derivatives of a cell's `A` and `W`: `uu` absent along a
-/// degree-1 `u` (identically zero there), `vv` likewise.
+/// degree-1 `u` (identically zero there), `vv` likewise, and `uv`
+/// absent unless [`Second::All`] asked for it.
 struct SecondGrids<T> {
     uu: Option<(Grid<T, 3>, Grid<T, 1>)>,
-    uv: (Grid<T, 3>, Grid<T, 1>),
+    uv: Option<(Grid<T, 3>, Grid<T, 1>)>,
     vv: Option<(Grid<T, 3>, Grid<T, 1>)>,
+}
+
+/// Which second derivatives [`cell_whole`] forms.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Second {
+    /// None.
+    No,
+    /// `uu` and `vv` alone (the measure quotients').
+    Pure,
+    /// `uu`, `uv` and `vv` (the second-order quotients').
+    All,
 }
 
 /// The three second-order quotients of a tensor patch on one piece,
@@ -839,7 +926,8 @@ impl<T: Real> Homogeneous<T> {
             .times(2.0)?
             .minus(&x_wy(&self.au, w, &self.wv)?)?
             .minus(&x_wy(&self.av, w, &self.wu)?)?;
-        let (m, w3) = second_numerator(a, w, Some((&g.uv.0, &g.uv.1)), cross)?;
+        let uv = g.uv.as_ref()?;
+        let (m, w3) = second_numerator(a, w, Some((&uv.0, &uv.1)), cross)?;
         let uv = Raised::of(&m, w3)?;
         Some(SecondRaised { uu, uv, vv })
     }
@@ -869,11 +957,19 @@ impl<T: Real> Homogeneous<T> {
             &self.w,
             weight_times,
         )?;
+        Raised::of(
+            &self.area_numerator(&product(&self.au, &self.av, cross)?)?,
+            w3,
+        )
+    }
+
+    /// `M̃ = W·(A_u×A_v) − W_v·(A_u×A) − W_u·(A×A_v)`, unraised, from
+    /// the `A_u×A_v` grid `base`.
+    fn area_numerator(&self, base: &Grid<T, 3>) -> Option<Grid<T, 3>> {
         let scaled = |w: &Grid<T, 1>, x: &Grid<T, 3>| product(w, x, weighted);
-        let m = scaled(&self.w, &product(&self.au, &self.av, cross)?)?
+        scaled(&self.w, base)?
             .minus(&scaled(&self.wv, &product(&self.au, &self.a, cross)?)?)?
-            .minus(&scaled(&self.wu, &product(&self.a, &self.av, cross)?)?)?;
-        Raised::of(&m, w3)
+            .minus(&scaled(&self.wu, &product(&self.a, &self.av, cross)?)?)
     }
 }
 
@@ -911,6 +1007,12 @@ fn grid_pieces<T: Real, const D: usize>(
     grid: &Grid<T, D>,
     counts: (usize, usize),
 ) -> Option<Vec<Grid<T, D>>> {
+    // A one-channel grid here is a weight power: counted where it is
+    // halved, so a reader that halves one twice reads two.
+    #[cfg(test)]
+    if D == 1 {
+        tests::WEIGHT_HALVINGS.with(|n| n.set(n.get() + 1));
+    }
     let mut out = Vec::with_capacity(counts.0 * counts.1);
     for g in halvings(grid.clone(), counts.0, |g| g.halved(true))? {
         out.extend(halvings(g, counts.1, |g| g.halved(false))?);
@@ -929,23 +1031,21 @@ fn shared_pieces<T: Real, const D: usize, const N: usize>(
     denom: &Grid<T, 1>,
     counts: (usize, usize),
 ) -> Option<[Vec<QuotientPiece<T, D>>; N]> {
-    #[cfg(test)]
-    tests::WEIGHT_HALVINGS.with(|n| n.set(n.get() + 1));
     let denoms: Vec<Vec<T>> = grid_pieces(denom, counts)?
         .iter()
         .map(|d| d.c.iter().map(|w| w.0[0]).collect())
         .collect();
-    let lists = numers.map(|numer| -> Option<Vec<_>> {
-        grid_pieces(numer, counts)?
+    // Each numerator's list is filled or the whole reading refuses: no
+    // slot is left at a default.
+    let mut lists: [Vec<QuotientPiece<T, D>>; N] = core::array::from_fn(|_| Vec::new());
+    for (list, numer) in lists.iter_mut().zip(numers) {
+        *list = grid_pieces(numer, counts)?
             .iter()
             .zip(&denoms)
             .map(|(n, d)| QuotientPiece::new(n.arrays(), d.clone()))
-            .collect()
-    });
-    if lists.iter().any(Option::is_none) {
-        return None;
+            .collect::<Option<_>>()?;
     }
-    Some(lists.map(Option::unwrap_or_default))
+    Some(lists)
 }
 
 /// [`CellQuotients`] before it is cut.
@@ -1267,7 +1367,7 @@ pub fn polynomial_area_pieces<T: Real>(
     let numer = product(&du, &dv, cross)?;
     let (mu, mv) = numer.degree();
     let denom = Grid::new(mv + 1, vec![Vector([T::one()]); (mu + 1) * (mv + 1)])?;
-    Raised { numer, denom }.pieces((halving_count(splits.0), halving_count(splits.1)))
+    Raised { numer, denom }.pieces(halving_counts(splits))
 }
 
 #[allow(clippy::type_complexity)]
@@ -1278,7 +1378,7 @@ fn cell_pieces<T: Real>(
     area: bool,
     second: bool,
 ) -> Option<CellPieces<T>> {
-    let whole = cell_whole(axes, block, second)?;
+    let whole = cell_whole(axes, block, if second { Second::All } else { Second::No })?;
     // Every quotient is formed once over the cell and halved into its
     // pieces, each weight power halved once for every quotient over it
     // ([`shared_pieces`]): `S_u` and `S_v` share `W²`, and the area and
@@ -1343,7 +1443,7 @@ pub fn cell_first_quotients<T: Real>(
     axes: (CellAxis<'_, T>, CellAxis<'_, T>),
     block: CellBlock<'_, T>,
 ) -> Option<CellFirstQuotients<T>> {
-    let first = cell_whole(axes, block, false)?.first_raised(false)?;
+    let first = cell_whole(axes, block, Second::No)?.first_raised(false)?;
     Some(CellFirstQuotients {
         u: first.u,
         v: first.v,
@@ -1356,10 +1456,13 @@ impl<T: Real> CellFirstQuotients<T> {
     /// `v`, the area absent.
     #[must_use]
     pub fn pieces(&self, splits: (usize, usize)) -> Option<Vec<CellQuotients<T>>> {
-        let (u, v) = (
-            self.axis_pieces(true, splits)?,
-            self.axis_pieces(false, splits)?,
-        );
+        // `S_u` and `S_v` share `W²` (`Homogeneous::first_raised`): one
+        // halving of it serves both numerators.
+        let [u, v] = shared_pieces(
+            [&self.u.numer, &self.v.numer],
+            &self.u.denom,
+            halving_counts(splits),
+        )?;
         Some(
             u.into_iter()
                 .zip(v)
@@ -1425,11 +1528,15 @@ impl CellFirstQuotients<crate::interval::Interval> {
         splits: (usize, usize),
     ) -> (Option<IntervalPieces>, Option<IntervalPieces>) {
         let counts = halving_counts(splits);
-        let (u, v) = self.restrict_axes(cuts, axes);
-        (
-            u.and_then(|r| r.pieces(counts)),
-            v.and_then(|r| r.pieces(counts)),
-        )
+        match self.restrict_axes(cuts, axes) {
+            // Both axes share the one restricted `W²`: halved once.
+            (Some(u), Some(v)) => shared_pieces([&u.numer, &v.numer], &u.denom, counts)
+                .map_or((None, None), |[u, v]| (Some(u), Some(v))),
+            (u, v) => (
+                u.and_then(|r| r.pieces(counts)),
+                v.and_then(|r| r.pieces(counts)),
+            ),
+        }
     }
 
     /// The asked axes' quotients restricted; `S_u` and `S_v` share `W²`
@@ -1514,7 +1621,7 @@ impl<const D: usize> Grid<crate::interval::Interval, D> {
 fn cell_whole<T: Real>(
     axes: (CellAxis<'_, T>, CellAxis<'_, T>),
     block: CellBlock<'_, T>,
-    second: bool,
+    second: Second,
 ) -> Option<Homogeneous<T>> {
     let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
     let (p, q) = (au.p(), av.p());
@@ -1577,7 +1684,9 @@ fn cell_whole<T: Real>(
             (a, w, u, v)
         }
     };
-    let second = if second {
+    let second = if second == Second::No {
+        None
+    } else {
         let uu = if p >= 2 {
             Some((
                 cell_grid(&au_w.map_u(|c| au.derive_at(2, c))?, (&au, 2), (&av, 0))?,
@@ -1594,13 +1703,15 @@ fn cell_whole<T: Real>(
         } else {
             None
         };
-        let uv = (
-            cell_grid(&au_w.map_v(|r| av.derive_at(1, r))?, (&au, 1), (&av, 1))?,
-            cell_grid(&wu_w.map_v(|r| av.derive_at(1, r))?, (&au, 1), (&av, 1))?,
-        );
+        let uv = if second == Second::All {
+            Some((
+                cell_grid(&au_w.map_v(|r| av.derive_at(1, r))?, (&au, 1), (&av, 1))?,
+                cell_grid(&wu_w.map_v(|r| av.derive_at(1, r))?, (&au, 1), (&av, 1))?,
+            ))
+        } else {
+            None
+        };
         Some(SecondGrids { uu, uv, vv })
-    } else {
-        None
     };
     Some(Homogeneous {
         second,
@@ -1664,6 +1775,145 @@ pub fn stretch_pieces<T: Real>(
         }
     }
     Some(out)
+}
+
+/// **A cell block's measure quotients, formed once** (module docs, "The
+/// measure quotients"): what a quadrature of the area `∫∫ |S_u×S_v|` and
+/// of the flux `∫∫ S·(S_u×S_v)` reads off a block, each a polynomial
+/// over a power of `W` raised to that power's bidegree:
+///
+/// - the area element `S_u × S_v = M̃/W³`;
+/// - its slopes `∂_d(M̃/W³) = (M̃_d·W − 3·M̃·W_d)/W⁴` along `u` and `v`;
+/// - the flux integrand's second partials
+///   `∂_dd(N/W³) = (N_dd·W² − 6·N_d·W_d·W − 3·N·W_dd·W + 12·N·W_d²)/W⁵`,
+///   `N = A·(A_u×A_v) + c·M̃` for the block's frame `c`.
+///
+/// Read at [`Interval`](crate::interval::Interval) on the part of the
+/// block a cut keeps ([`Self::area_on`], [`Self::flux_second_on`]).
+#[derive(Clone, Debug)]
+pub struct CellMeasureQuotients<T> {
+    area: Raised<T, 3>,
+    slope_u: Raised<T, 3>,
+    slope_v: Raised<T, 3>,
+    flux_uu: Raised<T, 1>,
+    flux_vv: Raised<T, 1>,
+}
+
+/// The area element and its two slopes on one piece
+/// ([`CellMeasureQuotients::area_on`]).
+#[derive(Clone, Debug)]
+pub struct AreaSlopes<T> {
+    /// `S_u × S_v = M̃/W³`.
+    pub area: QuotientPiece<T, 3>,
+    /// `∂_u(S_u × S_v)`, over `W⁴`.
+    pub u: QuotientPiece<T, 3>,
+    /// `∂_v(S_u × S_v)`, over `W⁴`.
+    pub v: QuotientPiece<T, 3>,
+}
+
+/// The measure quotients of the [`CellBlock::Points`] `block` along
+/// `axes` (module docs, "The measure quotients"), the flux read in the
+/// coordinates its points are stated in: the block's `origin` is the
+/// frame `c` of `N = A·(A_u×A_v) + c·M̃`. `None` on a
+/// [`CellBlock::Homogeneous`] block, whose channels name no frame, on a
+/// degree below one, a block of the wrong size, or a common degree
+/// `5·max(p, q)` above [`QUOTIENT_MAX_DEGREE`].
+pub fn cell_measure_quotients<T: Real>(
+    axes: (CellAxis<'_, T>, CellAxis<'_, T>),
+    block: CellBlock<'_, T>,
+) -> Option<CellMeasureQuotients<T>> {
+    let CellBlock::Points { origin: frame, .. } = block else {
+        return None;
+    };
+    let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
+    let (ends_u, ends_v) = (au.ends(), av.ends());
+    let h = cell_whole(axes, block, Second::Pure)?;
+    let second = h.second.as_ref()?;
+    let base = product(&h.au, &h.av, cross)?;
+    let m = h.area_numerator(&base)?;
+    let n = product(&h.a, &base, |a, b| [dot(a, b)])?.plus(&m.map(|x| [dot(frame, x)]))?;
+    let w = &h.w;
+    let w2 = product(w, w, weight_times)?;
+    let w3 = product(&w2, w, weight_times)?;
+    let w4 = product(&w2, &w2, weight_times)?;
+    let w5 = product(&w4, w, weight_times)?;
+    let slope = |along_u: bool, wd: &Grid<T, 1>| -> Option<Raised<T, 3>> {
+        let md = m.derived(along_u, if along_u { ends_u } else { ends_v })?;
+        let numer = product(&md, w, by_weight)?.minus(&product(&m, wd, by_weight)?.times(3.0)?)?;
+        Raised::of(&numer, w4.clone())
+    };
+    let flux = |along_u: bool,
+                wd: &Grid<T, 1>,
+                wdd: Option<&(Grid<T, 3>, Grid<T, 1>)>|
+     -> Option<Raised<T, 1>> {
+        let ends = if along_u { ends_u } else { ends_v };
+        let nd = n.derived(along_u, ends)?;
+        let ndd = nd.derived(along_u, ends)?;
+        let mut numer = product(&ndd, &w2, by_weight)?
+            .minus(&x_wy(&nd, wd, w)?.times(6.0)?)?
+            .plus(&a_yz(&n, wd, wd)?.times(12.0)?)?;
+        if let Some((_, wdd)) = wdd {
+            numer = numer.minus(&a_yz(&n, wdd, w)?.times(3.0)?)?;
+        }
+        Raised::of(&numer, w5.clone())
+    };
+    Some(CellMeasureQuotients {
+        area: Raised::of(&m, w3)?,
+        slope_u: slope(true, &h.wu)?,
+        slope_v: slope(false, &h.wv)?,
+        flux_uu: flux(true, &h.wu, second.uu.as_ref())?,
+        flux_vv: flux(false, &h.wv, second.vv.as_ref())?,
+    })
+}
+
+impl CellMeasureQuotients<crate::interval::Interval> {
+    /// The area element and its slopes on the part of the block over
+    /// `[a, b]` along each axis given a cut, one piece each: every
+    /// numerator and weight power restricted as
+    /// [`CellFirstQuotients::restrict`] restricts them. The slopes share
+    /// one restricted `W⁴`. `None` on a refused restriction.
+    #[must_use]
+    pub fn area_on(
+        &self,
+        cuts: (Option<AxisCut>, Option<AxisCut>),
+    ) -> Option<AreaSlopes<crate::interval::Interval>> {
+        let w4 = self.slope_u.denom.restricted(cuts);
+        Some(AreaSlopes {
+            area: piece_on(&self.area, cuts, &self.area.denom.restricted(cuts))?,
+            u: piece_on(&self.slope_u, cuts, &w4)?,
+            v: piece_on(&self.slope_v, cuts, &w4)?,
+        })
+    }
+
+    /// `∂_uu` and `∂_vv` of the flux integrand on the part of the block
+    /// a cut keeps, one piece each, over one restricted `W⁵`.
+    #[must_use]
+    pub fn flux_second_on(
+        &self,
+        cuts: (Option<AxisCut>, Option<AxisCut>),
+    ) -> Option<(
+        QuotientPiece<crate::interval::Interval, 1>,
+        QuotientPiece<crate::interval::Interval, 1>,
+    )> {
+        let w5 = self.flux_uu.denom.restricted(cuts);
+        Some((
+            piece_on(&self.flux_uu, cuts, &w5)?,
+            piece_on(&self.flux_vv, cuts, &w5)?,
+        ))
+    }
+}
+
+/// `q`'s numerator restricted to `cuts`, as one piece over `denom`, the
+/// weight power restricted to the same cuts.
+fn piece_on<const D: usize>(
+    q: &Raised<crate::interval::Interval, D>,
+    cuts: (Option<AxisCut>, Option<AxisCut>),
+    denom: &Grid<crate::interval::Interval, 1>,
+) -> Option<QuotientPiece<crate::interval::Interval, D>> {
+    QuotientPiece::new(
+        q.numer.restricted(cuts).arrays(),
+        denom.c.iter().map(|w| w.0[0]).collect(),
+    )
 }
 
 #[cfg(test)]
@@ -2074,7 +2324,7 @@ mod tests {
             if i > n {
                 return 0.0;
             }
-            let binom = (0..i).fold(1.0, |b, k| b * (n - k) as f64 / (k + 1) as f64);
+            let binom = super::super::pieces::binomial(n, i);
             binom * t.powi(i as i32) * (1.0 - t).powi((n - i) as i32)
         }
         fn dbern(n: usize, i: usize, t: f64) -> f64 {
@@ -2173,6 +2423,215 @@ mod tests {
                                 hull[c].1
                             );
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    /// **The measure quotients hold the sampled area element, its
+    /// slopes and the flux integrand's second partials over a cut**
+    /// (counterexample search): on a random rational Bézier block, read
+    /// in a random frame and cut to a random sub-rectangle, every sampled
+    /// `|S_u×S_v|` lies between the area piece's `inf_norm` and
+    /// `sup_norm`, every `|∂_d(S_u×S_v)|` under its slope's `sup_norm`,
+    /// and every `∂_dd(S·(S_u×S_v))` in its piece's ratio range. The truth
+    /// is the patch's own Bernstein derivatives through the quotient and
+    /// Leibniz rules, in absolute coordinates: no formed grid, no
+    /// numerator formula of the statement's.
+    #[test]
+    fn the_measure_quotients_hold_the_sampled_area_and_flux_over_a_cut() {
+        // `d^k/dt^k B_{n,i}(t)`.
+        fn bern(n: usize, i: usize, k: usize, t: f64) -> f64 {
+            if i > n {
+                return 0.0;
+            }
+            if k == 0 {
+                let binom = super::super::pieces::binomial(n, i);
+                return binom * t.powi(i as i32) * (1.0 - t).powi((n - i) as i32);
+            }
+            if n == 0 {
+                return 0.0;
+            }
+            let left = if i == 0 {
+                0.0
+            } else {
+                bern(n - 1, i - 1, k - 1, t)
+            };
+            n as f64 * (left - bern(n - 1, i, k - 1, t))
+        }
+        fn cross3(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+            [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0],
+            ]
+        }
+        fn dot3(a: [f64; 3], b: [f64; 3]) -> f64 {
+            a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+        }
+        fn norm3(a: [f64; 3]) -> f64 {
+            dot3(a, a).sqrt()
+        }
+        let mut rng = test_utils::fuzz::start("measure-quotient-oracle");
+        for _ in 0..test_utils::fuzz::scaled(30) {
+            let (p, q) = (1 + rng.below(3), 1 + rng.below(3));
+            let n = (p + 1) * (q + 1);
+            let pts: Vec<[f64; 3]> = (0..n)
+                .map(|_| core::array::from_fn(|_| rng.range(-2.0, 2.0)))
+                .collect();
+            let wts: Vec<f64> = (0..n).map(|_| rng.range(0.2, 5.0)).collect();
+            let span = |rng: &mut test_utils::fuzz::Rng| {
+                let s0 = rng.range(-1.0, 1.0);
+                (s0, s0 + rng.range(0.3, 2.0))
+            };
+            let (du, dv) = (span(&mut rng), span(&mut rng));
+            let vector = |d: usize, (s0, s1): (f64, f64)| {
+                let k: Vec<f64> = core::iter::repeat_n(s0, d + 1)
+                    .chain(core::iter::repeat_n(s1, d + 1))
+                    .collect();
+                super::super::KnotVector::clamped(k, d).expect("a Bézier vector")
+            };
+            let (ku, kv) = (vector(p, du), vector(q, dv));
+            let held_u: Vec<Interval> = ku.knots().iter().map(|&k| Interval::from_f64(k)).collect();
+            let held_v: Vec<Interval> = kv.knots().iter().map(|&k| Interval::from_f64(k)).collect();
+            let axes = (
+                super::CellAxis::Span(ku.span(p).expect("the span"), &held_u),
+                super::CellAxis::Span(kv.span(q).expect("the span"), &held_v),
+            );
+            let points: Vec<[Interval; 3]> =
+                pts.iter().map(|x| x.map(Interval::from_f64)).collect();
+            let weights: Vec<Interval> = wts.iter().copied().map(Interval::from_f64).collect();
+            // A frame away from every point: the flux reads `c·M̃` too.
+            let frame: [f64; 3] = core::array::from_fn(|_| rng.range(-5.0, 5.0));
+            let origin = frame.map(Interval::from_f64);
+            let block = super::CellBlock::Points {
+                points: &points,
+                weights: &weights,
+                origin,
+            };
+            let whole =
+                super::cell_measure_quotients(axes, block).expect("a block under the ceiling");
+            let cut = |rng: &mut test_utils::fuzz::Rng, (s0, s1): (f64, f64)| {
+                let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+                ((s0, s1), (x.min(y), x.max(y)))
+            };
+            let (cu, cv) = (cut(&mut rng, du), cut(&mut rng, dv));
+            let area = whole.area_on((Some(cu), Some(cv))).expect("the cut's area");
+            let (fuu, fvv) = whole
+                .flux_second_on((Some(cu), Some(cv)))
+                .expect("the cut's flux");
+            // `∂_u^i ∂_v^j` of `A = Σ B w P` and `W = Σ B w` at `(x, y)`.
+            let at = |x: f64, y: f64| {
+                let (tu, tv) = ((x - du.0) / (du.1 - du.0), (y - dv.0) / (dv.1 - dv.0));
+                let (pts, wts) = (&pts, &wts);
+                move |i: usize, j: usize| -> ([f64; 3], f64) {
+                    let s = (du.1 - du.0).powi(i as i32) * (dv.1 - dv.0).powi(j as i32);
+                    let (mut a, mut w) = ([0.0; 3], 0.0);
+                    for ii in 0..=p {
+                        for jj in 0..=q {
+                            let k = ii * (q + 1) + jj;
+                            let b = bern(p, ii, i, tu) * bern(q, jj, j, tv) / s;
+                            w += wts[k] * b;
+                            for c in 0..3 {
+                                a[c] += wts[k] * pts[k][c] * b;
+                            }
+                        }
+                    }
+                    (a, w)
+                }
+            };
+            let slack = |x: f64| 1e-8 * x.abs().max(1.0);
+            let ratio_range = |r: (Interval, Interval)| (r.0.lo(), r.1.hi());
+            for i in 0..=6 {
+                for j in 0..=6 {
+                    let x = cu.1.0 + (cu.1.1 - cu.1.0) * f64::from(i) / 6.0;
+                    let y = cv.1.0 + (cv.1.1 - cv.1.0) * f64::from(j) / 6.0;
+                    let d = at(x, y);
+                    let (a, w) = d(0, 0);
+                    let s: [f64; 3] = a.map(|c| c / w);
+                    // `S_d = (A_d − S·W_d)/W`, and the second partials
+                    // `S_ab = (A_ab − S_a·W_b − S_b·W_a − S·W_ab)/W`.
+                    let first = |i: usize, j: usize| -> [f64; 3] {
+                        let (ad, wd) = d(i, j);
+                        core::array::from_fn(|c| (ad[c] - s[c] * wd) / w)
+                    };
+                    let (su, sv) = (first(1, 0), first(0, 1));
+                    let second = |(ia, ja): (usize, usize), (ib, jb): (usize, usize)| {
+                        let (aab, wab) = d(ia + ib, ja + jb);
+                        let (sa, sb) = (first(ia, ja), first(ib, jb));
+                        let (wa, wb) = (d(ia, ja).1, d(ib, jb).1);
+                        core::array::from_fn::<f64, 3, _>(|c| {
+                            (aab[c] - sa[c] * wb - sb[c] * wa - s[c] * wab) / w
+                        })
+                    };
+                    let (suu, suv, svv) = (
+                        second((1, 0), (1, 0)),
+                        second((1, 0), (0, 1)),
+                        second((0, 1), (0, 1)),
+                    );
+                    let n = cross3(su, sv);
+                    let slope_u: [f64; 3] =
+                        core::array::from_fn(|c| cross3(suu, sv)[c] + cross3(su, suv)[c]);
+                    let slope_v: [f64; 3] =
+                        core::array::from_fn(|c| cross3(suv, sv)[c] + cross3(su, svv)[c]);
+                    let g = norm3(n);
+                    assert!(
+                        area.area.inf_norm().lo() - slack(g) <= g
+                            && g <= area.area.sup_norm().hi() + slack(g),
+                        "|S_u×S_v| = {g} at ({x}, {y}) outside [{:?}, {:?}] (degrees {p}×{q})",
+                        area.area.inf_norm(),
+                        area.area.sup_norm()
+                    );
+                    for (along, slope, piece) in [("u", slope_u, &area.u), ("v", slope_v, &area.v)]
+                    {
+                        let m = norm3(slope);
+                        assert!(
+                            m <= piece.sup_norm().hi() + slack(m),
+                            "|∂_{along}(S_u×S_v)| = {m} at ({x}, {y}) over its sup_norm \
+                             {:?} (degrees {p}×{q})",
+                            piece.sup_norm()
+                        );
+                    }
+                    // `f = N·W⁻³`, `N = A·(A_u×A_v)` absolute, and
+                    // `f_dd = N_dd·g + 2·N_d·g_d + N·g_dd`, `g = W⁻³`; `N`'s
+                    // partials by Leibniz over its three factors.
+                    let flux_dd = |along_u: bool| -> f64 {
+                        let step = |k: usize| if along_u { (k, 0) } else { (0, k) };
+                        let dn = |k: usize| -> f64 {
+                            let mut sum = 0.0;
+                            for x in 0..=k {
+                                for y in 0..=k - x {
+                                    let z = k - x - y;
+                                    let multi = [1.0, 1.0, 2.0][k]
+                                        / ([1.0, 1.0, 2.0][x]
+                                            * [1.0, 1.0, 2.0][y]
+                                            * [1.0, 1.0, 2.0][z]);
+                                    let (sx, sy, sz) = (step(x), step(y), step(z));
+                                    let fa = d(sx.0, sx.1).0;
+                                    let fb = d(sy.0 + 1, sy.1).0;
+                                    let fc = d(sz.0, sz.1 + 1).0;
+                                    sum += multi * dot3(fa, cross3(fb, fc));
+                                }
+                            }
+                            sum
+                        };
+                        let (wd, wdd) = (d(step(1).0, step(1).1).1, d(step(2).0, step(2).1).1);
+                        let g = w.powi(-3);
+                        let gd = -3.0 * w.powi(-4) * wd;
+                        let gdd = 12.0 * w.powi(-5) * wd * wd - 3.0 * w.powi(-4) * wdd;
+                        dn(2) * g + 2.0 * dn(1) * gd + dn(0) * gdd
+                    };
+                    for (along_u, piece) in [(true, &fuu), (false, &fvv)] {
+                        let truth = flux_dd(along_u);
+                        let [r] = piece.coordinate_range();
+                        let (lo, hi) = ratio_range(r);
+                        assert!(
+                            lo - slack(truth) <= truth && truth <= hi + slack(truth),
+                            "f_{} = {truth} at ({x}, {y}) outside [{lo}, {hi}] (degrees {p}×{q}, \
+                             frame {frame:?})",
+                            if along_u { "uu" } else { "vv" }
+                        );
                     }
                 }
             }
@@ -2404,6 +2863,59 @@ mod tests {
         }
     }
 
+    /// **A cut reader halves its weight power once.**
+    /// [`super::CellFirstQuotients::pieces`] and the both-axes
+    /// [`super::CellFirstQuotients::cut_pieces`] pair one halving of the
+    /// shared `W²` with `S_u`'s and `S_v`'s numerators; a one-axis cut
+    /// halves it once for its one numerator, and a cut that asks for no
+    /// axis halves nothing. Counted where a weight power is halved, so red
+    /// if a reader, or `shared_pieces` itself, halves the shared `W²` once
+    /// per numerator.
+    #[test]
+    fn a_cut_reader_halves_its_weight_power_once() {
+        let RationalCell {
+            a,
+            w,
+            knots_u,
+            knots_v,
+            ku,
+            kv,
+        } = rational_cell();
+        let axes = (
+            super::CellAxis::Span(ku.span(3).expect("the span"), &knots_u[..]),
+            super::CellAxis::Span(kv.span(2).expect("the span"), &knots_v[..]),
+        );
+        let whole =
+            super::cell_first_quotients(axes, super::CellBlock::Homogeneous { a: &a, w: &w })
+                .expect("a block under the ceiling");
+        let halvings = |f: &dyn Fn()| {
+            let before = WEIGHT_HALVINGS.with(core::cell::Cell::get);
+            f();
+            WEIGHT_HALVINGS.with(core::cell::Cell::get) - before
+        };
+        let cuts = (
+            Some(((0.0, 1.0), (0.25, 0.5))),
+            Some(((0.0, 1.0), (0.5, 0.75))),
+        );
+        for splits in [(1, 1), (2, 2), (4, 2)] {
+            let whole_pieces = || {
+                whole.pieces(splits).expect("the whole pieces");
+            };
+            assert_eq!(halvings(&whole_pieces), 1, "the whole cell, {splits:?}");
+            for (asked, want) in [
+                ((true, true), 1),
+                ((true, false), 1),
+                ((false, true), 1),
+                ((false, false), 0),
+            ] {
+                let cut = || {
+                    let _ = whole.cut_pieces(cuts, asked, splits);
+                };
+                assert_eq!(halvings(&cut), want, "a cut asking {asked:?}, {splits:?}");
+            }
+        }
+    }
+
     /// **A shared halving reads each quotient's own halving to the
     /// bit.** Every piece [`super::cell_second_quotients`] serves (its
     /// `S_u`, `S_v`, area and three second partials, numerator and
@@ -2442,8 +2954,8 @@ mod tests {
         };
         for splits in [(1, 1), (2, 4), (8, 2)] {
             let counts = super::halving_counts(splits);
-            let whole =
-                super::cell_whole(axes(), block(), true).expect("a block under the ceiling");
+            let whole = super::cell_whole(axes(), block(), super::Second::All)
+                .expect("a block under the ceiling");
             let first = whole.first_raised(true).expect("the first order");
             let area = first.area.as_ref().expect("the area");
             let second = whole.second_raised().expect("the second order");

@@ -345,7 +345,7 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (1, 622, 621, 224),
+        (1, 626, 625, 228),
         "the measured receipt, pinned — and load-bearing beyond this row's own subject: \
          a drop rule that lets an in-band or poison margin separate, or a description \
          tightened at the 0.05 scale, changes these counts while leaving every verdict \
@@ -359,7 +359,12 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
          579, 228) on INTENT stage 3 D: the floated block's spin is the written constant \
          `0`, now read as its exact sine and cosine at every scalar, so its placement's \
          turn carries no enclosure dust; the sweep reaches the same verdict in 621 \
-         splits and proves 224 cells outside: {}",
+         splits and proves 224 cells outside. RE-BASELINED from (1, 622, 621, 224) when a \
+         minted plane's `u_ref` became a direction its construction holds: the engine \
+         reads the stored chart, which is now charted along the sketch's `x` axis or the \
+         swept segment rather than off the axes, so the same window is cut along other \
+         lines first; the sweep reaches the same verdict in 625 splits and proves 228 \
+         cells outside: {}",
         tight.serialize()
     );
 }

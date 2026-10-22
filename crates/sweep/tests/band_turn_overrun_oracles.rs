@@ -26,6 +26,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Bounds, Interval, Point2, Point3, Vec3};
+use geom_core::{RigidMotion, Turns, UnitVec3};
+use profile::SketchPlane;
 use sweep::blend::BlendError;
 use sweep::blend::build::{Blended, chamfer_edges};
 use sweep::test_support::{
@@ -322,12 +324,11 @@ impl Poly {
 /// Halves: 0 bottom, 1 right, 2 top, 3 leaning wall, 4 front (`y = 0`),
 /// 5 back.
 pub(crate) fn leaning(s: f64, h: f64, k: f64) -> Poly {
-    let plane = sketch_from_axes(
+    let plane = SketchPlane::from_frame(RigidMotion::turned(
         pt([0.0; 3]),
-        vc([1.0, 0.0, 0.0]),
-        vc([0.0, 0.0, 1.0]),
-        tol(),
-    );
+        UnitVec3::exact_x(),
+        Turns::quarters(1),
+    ));
     let body = prism_on(
         plane,
         corners(&[(0.0, 0.0), (2.0 * k, 0.0), (2.0 * k, h * k), (s * k, h * k)]),
@@ -383,12 +384,11 @@ pub(crate) fn hexahedron(x: Hex) -> Poly {
     } = x;
     let top_at = |x: f64| h + a * x;
     let prism = prism_on(
-        sketch_from_axes(
+        SketchPlane::from_frame(RigidMotion::turned(
             pt([0.0, 6.0, 0.0]),
-            vc([1.0, 0.0, 0.0]),
-            vc([0.0, 0.0, 1.0]),
-            tol(),
-        ),
+            UnitVec3::exact_x(),
+            Turns::quarters(1),
+        )),
         corners(&[(0.0, 0.0), (x1, 0.0), (x1, top_at(x1)), (s, top_at(s))]),
         6.0 + depth,
         tol(),

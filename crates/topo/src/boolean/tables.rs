@@ -88,7 +88,7 @@ pub fn eq15_3_lump(op: BooleanOp, on_side: Operand, relation: PlaneRelation) -> 
 /// Whether the Eq. 15.3 lump of a coincident sector pair keeps exactly
 /// one operand's copy of the shared region, so that the result holds
 /// one face's region through the other face
-/// (`BooleanNaming::covered`). The other arms keep neither copy.
+/// (`BooleanNaming::substituted`). The other arms keep neither copy.
 pub fn lump_keeps_one(op: BooleanOp, relation: PlaneRelation) -> bool {
     kept_copy(op, relation).is_some()
 }
@@ -180,6 +180,21 @@ mod tests {
         ];
         for (op, rel, keeps_one) in cells {
             assert_eq!(lump_keeps_one(op, rel), keeps_one, "{op:?} {rel:?}");
+        }
+    }
+
+    /// Where the lump keeps one copy, it keeps operand A's: B's copy is
+    /// the one dropped in every op. So a containment fallback that keeps
+    /// B whole drops no copy of a pair it holds (`fate::uncut`).
+    #[test]
+    fn the_lump_keeps_operand_as_copy_where_it_keeps_one() {
+        for op in [Union, Intersect, Subtract] {
+            for rel in [Plus, Minus] {
+                assert!(
+                    matches!(kept_copy(op, rel), None | Some(A)),
+                    "{op:?} {rel:?}"
+                );
+            }
         }
     }
 

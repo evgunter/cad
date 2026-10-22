@@ -555,7 +555,7 @@ the table.
   (`all_edges`/`all_faces`, deterministic arena order), the EXACT
   kind predicates (`edge_carrier_matches`, `face_surface_matches`,
   `edge_adjacent_matches`) and the DECIDED datum-distance door
-  (`datum_distance_sign`, the `sel_datum_distance` funnel), so "the
+  (`pose_distance_sign`, the `sel_plane_distance` funnel), so "the
   cone×cylinder corners" on a body built by calling `revolve`
   directly is the materializer filtered by the adjacent-kind
   predicate (`klein::corner_edges` is that filter now — no arena

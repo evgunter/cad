@@ -430,8 +430,8 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
             vec!["whole body", "faces, edges, or vertices"],
         ),
         (
-            InterrogateError::NoBodies { payload: "datum" },
-            vec!["datum", "no bodies"],
+            InterrogateError::NoBodies { payload: "pose" },
+            vec!["pose", "no bodies"],
         ),
         (
             InterrogateError::NoSuchBody { index: 2 },
@@ -525,8 +525,8 @@ fn select_refusal_display_names_its_content_not_its_struct() {
         (
             SelectRefusal::InBand {
                 name: Box::new(face_name()),
-                predicate: editor_core::SEL_DATUM_DISTANCE,
-                source: in_band(editor_core::SEL_DATUM_DISTANCE),
+                predicate: editor_core::SEL_PLANE_DISTANCE,
+                source: in_band(editor_core::SEL_PLANE_DISTANCE),
             },
             vec![
                 "the end cap",
@@ -2460,16 +2460,22 @@ test_utils::f6_variants! {
         Emission,
         SplitLineage,
         Settle,
-        SeamVertexParentage,
+        UnsupportedSeamVertex,
         SeamVertexPartners,
         SharedRim,
-        MergedChord,
-        MergedChordOffRim,
+        ChordOffRim,
         MemberEdgeTied,
         ConventionalVertex,
         ClosedCarrierUnread,
         CarrierUnplaced,
         PartnerUnread,
+        UnsupportedCrossingSenses,
+        UnsupportedSeamSides,
+        UnsupportedJoin,
+        UnsupportedUnionName,
+        WayInZeroBand,
+        JoinedPieceOffRoot,
+        BandVerdictsDisagree,
         Band,
         Escalated,
     ];
@@ -2635,17 +2641,74 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::Emission {
-                what: "section face classified On",
+                what: "a chart cut survives in the result",
             },
-            vec!["section face classified On"],
+            vec!["a chart cut survives in the result"],
         ),
         (
             NamingError::SplitLineage(topo::SplitLineageCycle { edge }),
             vec!["split lineage of edge"],
         ),
         (
-            NamingError::SeamVertexParentage { vertex },
+            NamingError::UnsupportedSeamVertex {
+                vertex,
+                shape: editor_core::SeamVertexShape::NoEdgePair,
+            },
             vec!["seam vertex", "half-decided"],
+        ),
+        (
+            NamingError::UnsupportedCrossingSenses {
+                vertex,
+                shape: editor_core::CrossingSensesShape::PiecesBothSides,
+            },
+            vec!["crossing vertex", "on both sides of the other operand"],
+        ),
+        (
+            NamingError::UnsupportedSeamSides {
+                edge,
+                shape: editor_core::SeamSidesShape::NotTwoFaces,
+            },
+            vec!["does not lie between two faces"],
+        ),
+        (
+            NamingError::UnsupportedJoin {
+                edge,
+                shape: editor_core::JoinShape::ChordWithPiece,
+            },
+            vec!["joined edge", "a piece of an operand edge"],
+        ),
+        (
+            NamingError::UnsupportedUnionName {
+                name: Box::new(StableName {
+                    kind: EntityKind::Vertex,
+                    node: RecipeNodeId::new(0, tagged(41)),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                }),
+                shape: editor_core::UnionNameShape::JunctionLinesCollide,
+            },
+            vec!["union name", "node 000000000029", "one member-space line"],
+        ),
+        (
+            NamingError::WayInZeroBand {
+                edge,
+                shape: editor_core::WayShape::Line,
+            },
+            vec!["on another segment's line", "ambiguity factor K"],
+        ),
+        (
+            NamingError::JoinedPieceOffRoot { edge },
+            vec![
+                "joined piece",
+                "lies off an operand edge",
+                "move the geometry",
+            ],
+        ),
+        (
+            NamingError::BandVerdictsDisagree {
+                vertex,
+                shape: editor_core::DisagreeShape::PiecesAtOneVertex,
+            },
+            vec!["two pieces of one member line", "longer than the band"],
         ),
         (
             NamingError::SharedRim {
@@ -2655,10 +2718,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 found: RimShare::Several,
             },
             vec!["operand node 000000000017", "more than one edge"],
-        ),
-        (
-            NamingError::MergedChord { edge },
-            vec!["merged faces", "the join's own edge"],
         ),
         (
             NamingError::SeamVertexPartners {
@@ -2685,16 +2744,12 @@ fn naming_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            NamingError::MergedChordOffRim {
+            NamingError::ChordOffRim {
                 edge,
                 node: RecipeNodeId::new(0, tagged(29)),
-                rim: edge,
+                face: topo::FaceKey::default(),
             },
-            vec![
-                "one merged",
-                "operand node 00000000001d",
-                "within neither the rim",
-            ],
+            vec!["two pieces of face", "operand node 00000000001d"],
         ),
         (
             NamingError::ClosedCarrierUnread {
@@ -3179,7 +3234,7 @@ test_utils::f6_variants! {
     /// the door could not answer, so every arm must say which question
     /// in words a consumer can act on.
     const STEP_SEGMENTS_ERROR: StepSegmentsError =
-        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, RadiusNotAnArgument,
+        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, LoopOrder, RadiusNotAnArgument,
          EmissionOffTheLoop, CarrierRecordsEmissions, SpanOffTheLoop];
 }
 
@@ -3201,8 +3256,8 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
             vec!["loop 1", "authors 5 steps", "describes 4"],
         ),
         (
-            StepSegmentsError::NoAnchor { loop_: 0 },
-            vec!["naming anchor", "loop 0"],
+            StepSegmentsError::LoopOrder { outer_loops: 2 },
+            vec!["calls 2 loops outer", "exactly one"],
         ),
         // The WHOLE sentence, not three substrings of it: every
         // radius-role label already ends in the word "radius"

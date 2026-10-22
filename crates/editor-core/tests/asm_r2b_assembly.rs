@@ -506,7 +506,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
 #[test]
 fn row3_a_an_unmated_touching_pair_is_rows_of_the_two_copies() {
     // The same touching geometry, with the mate REPLACED by a world
-    // pin at the pose it solved — the pin is document data, so the
+    // mate at the pose it solved — the mate is document data, so the
     // instances still touch and no mate relates them.
     let (doc, ids, mate, store, _) = stacked("asm-r2b-row3a", 1.0);
     let o = with_resolver(store);
@@ -1669,7 +1669,7 @@ fn a_flush_seat_certifies_at_the_gate() {
 #[test]
 fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
-    // The mate replaced by a world pin at the seat it solved: the
+    // The mate replaced by a world mate at the seat it solved: the
     // instances still touch, and no record backs it.
     let o = with_resolver(store);
     let doc = pinned_where_solved(doc, &o);

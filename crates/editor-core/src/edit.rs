@@ -5019,11 +5019,7 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
         node: doc.spoken(node),
         refusal: Box::new(refusal),
     };
-    let before = match old.drawn_pieces(&env, tol) {
-        Ok(drawn) => Some(drawn),
-        Err(refusal @ crate::ProgramRefusal::Pieces(_)) => return Err(refused(refusal)),
-        Err(_) => None,
-    };
+    let before = old.drawn_pieces(&env, tol).ok();
     // The new program reads the variables its lowering minted, which
     // the document it is written into holds.
     let after = new
@@ -5882,7 +5878,7 @@ enum Writes {
 /// - its payload's names and read sites live ([`check_payload_refs`]),
 ///   where the door writes the payload (`writes`);
 /// - DM5 and the list floor ([`check_node_inputs`]);
-/// - a transform's literal steps ([`Node::placement_frame_fault`]);
+/// - the world, which no edit writes;
 /// - the variable every slot and payload expression reads, a measure's
 ///   reference indices, and an assertion's bound against the dimension
 ///   of the measure it reads ([`check_node_slots`]);

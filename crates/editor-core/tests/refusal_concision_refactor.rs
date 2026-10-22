@@ -84,7 +84,7 @@ fn var() -> editor_core::SpokenVar {
 
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
-        EmptyCut, UnknownCutNode, CutsTheWorld, InstanceUnstood, PartIdCollides, RemainderReadUncarried,
+        EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
         SeveredEdge, NoMaterial, UncutVarReference, DefinitionStraddlesCut,
         UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep, RankedRunReordered,
         BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
@@ -141,7 +141,6 @@ fn split_refusals() -> Vec<SplitError> {
             id: SpokenNode::absent(n(9)),
         },
         SplitError::CutsTheWorld,
-        SplitError::InstanceUnstood,
         SplitError::PartIdCollides {
             id: DocumentId::derive("refusal-concision-refactor"),
         },

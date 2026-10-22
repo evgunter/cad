@@ -27,7 +27,7 @@
 //! the admission test ([`free_move_check`]) reads it off an evaluation
 //! that answers the document, and refuses typed while none has landed
 //! ([`AdmissionFault::NotEvaluated`]) rather than waiting. A copy the
-//! world pins, or one mated onto a copy in the world, lives in the
+//! world mates, or one mated onto a copy in the world, lives in the
 //! world's space and refuses ([`AdmissionFault::InTheWorld`]): its pose
 //! is the document's, and a display value contradicting it would draw
 //! a relation the document does not have. Two copies mated to each
@@ -221,7 +221,7 @@ pub enum AdmissionFault {
         node: SpokenNode,
     },
     /// The instance's copy lives in the world's space: its placement
-    /// pins it there, by a world pin or a mate onto a copy in the world.
+    /// pins it there, by a world mate or a mate onto a copy in the world.
     /// Free-move moves the picture of a loose space (DI5) and a world
     /// copy is drawn where the document puts it, so the probe refuses.
     InTheWorld {
@@ -288,7 +288,7 @@ impl core::fmt::Display for AdmissionFault {
             Self::InTheWorld { instance } => write!(
                 f,
                 "{instance} lives in the world's space: its placement pins it there (a world \
-                 pin, or a mate onto a copy in the world), so the free-move probe refuses. \
+                 mate, or a mate onto a copy in the world), so the free-move probe refuses. \
                  Free-move moves a loose space, a copy nothing pins to the world"
             ),
             Self::NotEvaluated { instance } => write!(

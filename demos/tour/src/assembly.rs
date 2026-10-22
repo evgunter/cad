@@ -353,10 +353,7 @@ fn seated_at(x: f64, y: f64) -> [(Coord, Formula); 3] {
     [
         (Coord::Slide(TargetAxis::X), length(x)),
         (Coord::Slide(TargetAxis::Y), length(y)),
-        (
-            Coord::Spin,
-            Formula::literal(0.0, Dimension::Angle).expect("a zero angle"),
-        ),
+        (Coord::Spin, Formula::zero(Dimension::Angle)),
     ]
 }
 
@@ -398,8 +395,7 @@ fn place_in_world(
 /// ([`stand`]: the identity bundle, no mate and the constant `0` on
 /// every freedom) and returns the placement's id.
 fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
-    let placed = stand(doc, &body.into(), &EvalOptions::default(), tol)
-        .unwrap_or_else(|refusal| panic!("the copy stands: {refusal}"));
+    let placed = stand();
     let placement = insert(doc, Node::place(vec![body.into()]), tol);
     placed
         .write(placement, |e| {
@@ -485,8 +481,8 @@ fn product_of(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> (Body<f64>, N
 /// lets the post declare TWO parameters and spend one of them twice —
 /// a square section is one dimension, not two.
 ///
-/// The extrusion runs +z from the sketch plane at z = 0, so the part's
-/// SEATING face is its top cap and its datum face is the origin plane.
+/// The extrusion runs up its own +z from z = 0, so the part's SEATING
+/// face is its top cap and its base cap lies on the origin plane.
 fn prism_part(
     label: &str,
     params: &[(&'static str, f64)],
@@ -508,7 +504,7 @@ fn prism_part(
         );
         scope.insert(name, Dimension::Length);
     }
-    let zero = pe("0 mm", &scope);
+    let zero = Formula::zero(Dimension::Length);
     // The section, counter-clockwise from the origin corner: the two
     // extents are the document's own named parameters, so the corners
     // are expressions and the loop is built from them directly.
@@ -1136,7 +1132,7 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
 }
 
 /// The assembled bench at its authored swing: the near post's world
-/// pin places it through the turntable, the mates place the rest onto
+/// mate places it through the turntable, the mates place the rest onto
 /// it, the mates mint their declarations, and the gate reports what it
 /// could decide.
 fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evaluation<f64> {

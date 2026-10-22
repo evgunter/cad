@@ -2,10 +2,13 @@
 id: a-boolean-builds-a-reflex-edge-lying-inside-a-face
 kind: issue
 title: The boolean builds a reflex edge lying inside a face, and returns one solid for a wall-to-wall trench
-status: open
+status: closed
 opened: 2026-10-12
 priority: P1
 cost: M
+branch: cleave/boolean-builds-the-slit-form
+pr: 5380
+closed: 2026-10-20
 ---
 
 Found by the keel design fork (`[ev]` PR 4795, designer reports in its
@@ -48,3 +51,37 @@ wall-to-wall case returns two solids. Nearest row:
 
 
 **Unblocked (CLEAVE, 2026-10-19).** `[ev]` PR 4795 merged (`0a702a9bc1`). Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where more than two sheets meet on a line, the material decides the edges, and the complement re-pairs. Radial edges were declined.
+
+**Built (CLEAVE lane, 2026-10-19).** `topo::boolean::slit` parts every
+edge of a Boolean result lying in one of its faces whose material both
+the edge's faces leave the line into: a ring, a slit, or a divided face
+and parted ends, on the seam path and the containment fallback (the
+cavity twin, a trench inside the slab resting its keel on the floor,
+had the same rider form across two shells). The three extents agree
+with the split on main (PR 5350 merged). Where the parting is not built
+it refuses `BooleanError::EdgeInFace`, typed, never the rider form: a
+tangent wall (the doubled cusp) and an arc (the curved twin) refuse
+before parting. A later Boolean reads an operand's slit tip as its face's
+full turn (`sectors::SlitTips`). Where another solid's edge runs along
+the slit's line, or glues away its face, it refuses typed
+(`SlitLineCrossed`, `SlitFaceGlued`). Filed:
+`a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted` (p12's
+`A ∖ B`), `a-boolean-edge-lying-in-a-curved-face-is-not-read`,
+`the-boolean-parting-refuses-its-rarer-configurations`,
+`a-boolean-places-two-germs-along-a-slit-line` and
+`a-boolean-glues-away-the-face-a-slit-lies-in`. The curved twin's
+evidence is on
+`a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`. The
+editor names all three extents, the two keel edges apart.
+
+## Note from RESTREAD (2026-10-20): tier 3′ refuses the rider form
+
+Branch `restread/face-in-edge-wedge`: tier 3′ reads an edge lying in a
+face of its own solid for sides and refuses this row's form
+`FaceThroughEdgeWedge`
+(`crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`,
+the keel in the floor built as one prism). Merged with the slit
+parting, none of the results that branch had pinned in the rider form
+reaches tier 3′ in it: the trenches and the glued tip build the slit
+form, which tier 3′ passes, and the others build without the refusal
+or refuse `EdgeInFace`.

@@ -314,7 +314,7 @@ class TestBenchLayout(BenchWorkspace):
         the master's cap sits; and the pattern rule steps it along +y
         once per instance. What `face_frame` answers on the LAYOUT's
         family must be that ladder, one rung per instance; and the
-        world pin each placed copy holds moves it, bit for bit, to the
+        world mate each placed copy holds moves it, bit for bit, to the
         pose the scene lays it at.
 
         The index is read off the GEOMETRY, not off the name: an

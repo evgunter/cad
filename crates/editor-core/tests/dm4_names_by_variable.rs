@@ -188,7 +188,7 @@ fn the_section_face_is_one_name_and_each_halfs_read_resolves_its_own() {
     let section = StableName {
         kind: EntityKind::Face,
         node: split,
-        path: vec![RoleSeg::SectionFace { section: 0 }],
+        path: vec![RoleSeg::SectionFace],
     };
     let ctx = RunCtx {
         doc: &doc,
@@ -224,7 +224,7 @@ fn a_paint_on_one_halfs_section_face_leaves_the_other_halfs_unpainted() {
     let section = StableName {
         kind: EntityKind::Face,
         node: split,
-        path: vec![RoleSeg::SectionFace { section: 0 }],
+        path: vec![RoleSeg::SectionFace],
     };
     let read = |half: SplitHalf| doc.output(split, half.port()).expect("a half's read");
     let (painted, _) = fixture::step(
@@ -260,22 +260,22 @@ fn a_paint_on_one_halfs_section_face_leaves_the_other_halfs_unpainted() {
     assert_eq!(at_split.len(), 1, "one face painted: {at_split:?}");
 }
 
-/// **A name saved with a half refuses typed.** The half is not a field
-/// of a split's roles any more; the format carries no migration chain,
-/// so a document spelling one refuses at the deserializer, which names
-/// what it could not place.
+/// **A name saved with a half, or a section index, refuses typed.**
+/// Neither is a field of a split's roles; the format carries no
+/// migration chain, so a document spelling one refuses at the
+/// deserializer, which names what it could not place.
 #[test]
 fn a_split_role_spelled_with_a_half_refuses_typed() {
     for old in [
         r#"{"SectionFace":{"side":"Above","section":0}}"#,
+        r#"{"SectionFace":{"section":0}}"#,
         r#"{"SplitBody":"Below"}"#,
     ] {
         let read: Result<RoleSeg, _> = serde_json::from_str(old);
         assert!(read.is_err(), "{old} reads as {read:?}");
     }
-    let now: RoleSeg = serde_json::from_str(r#"{"SectionFace":{"section":0}}"#)
-        .expect("the half-free spelling reads");
-    assert_eq!(now, RoleSeg::SectionFace { section: 0 });
+    let now: RoleSeg = serde_json::from_str(r#""SectionFace""#).expect("the bare spelling reads");
+    assert_eq!(now, RoleSeg::SectionFace);
 }
 
 /// The stored documents this unit regenerated: each one whose

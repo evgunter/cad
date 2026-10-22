@@ -48,7 +48,7 @@
 // `ParamBoxError` and `SeedError` are what `document::NodeErrorKind`'s
 // `ParamBox` and `Seed` arms hold: a payload type a consumer can match
 // and cannot name is the refusal `crate::document` rules out for
-// `VerbKind` and `NodeRefusal`.
+// `NodeRefusal`.
 pub use editor_core::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, DEFAULT_QUANTILE_MASS,
     MeasureUnavailable, OffsetInterval, ParamBoxError, SeedError, analyzed_box, box_mass,

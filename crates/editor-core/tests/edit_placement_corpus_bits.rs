@@ -101,29 +101,49 @@ use editor_core::Node;
 /// copy and the product. The product's ordinal fell from 101 to 59:
 /// the master's placement mints 42 fewer ids than `place_against`'s
 /// did.
+///
+/// `tube_arc`'s and `hollow_tube_elbow`'s rows moved when each tube,
+/// built about its own `z`, came to stand about the world's `+y` again
+/// as its retired spine frame had it: a bundle with no mate spun
+/// `−turn/4` about `x`, so its world copy is where it stood before D.
+///
+/// Merging main at `be82e5ad6b` into D moved `die_composed`'s row and
+/// the tour document's last: each is the world placement of the
+/// filleted die, minted after the fillet, whose stored selection names
+/// the pip rim by seam sides carried in through their reads (N3,
+/// main's); the fillet's id moved with its payload, and the
+/// placement's with it. Neither tree moved these words alone; every
+/// other row held.
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 122, 0xedc88b0c9768a183),
-    ("die", 137, 0x3b18c1950c918b57),
-    ("die", 152, 0x63812ab142fdb33b),
-    ("die", 167, 0x752236e951e8d166),
-    ("die", 182, 0xce61383f419e19a0),
-    ("die", 197, 0xf8988f096b4ac0c3),
-    ("die", 212, 0xfc85e4e82783110e),
-    ("die", 265, 0x3d1a619fec2796f2),
-    ("die", 318, 0xe23e2eea32c67f67),
-    ("die", 413, 0xc6677290692adc1f),
-    ("die", 508, 0x9ae5ed143907df05),
-    ("die", 603, 0x14f14caa34f108f4),
-    ("die", 698, 0x6ac695d01e8e955e),
-    ("die", 793, 0x22449ee2ec425e28),
-    ("die", 888, 0x6b9baaf0412f4cc6),
-    ("die", 983, 0xc3d6c3b5776da00c),
-    ("die", 1078, 0x866932a5d58dea40),
-    ("die", 1145, 0x6def74aef724f900),
-    ("die", 1212, 0x48484b3ec98c1577),
-    ("die", 1279, 0x3ea4b8a2bf1015fe),
-    ("die", 1346, 0xb6b6fd692089d187),
-    ("die", 1366, 0xd1ffac72b054e934),
+    ("die", 158, 0x44c5cf62038ec9cc),
+    ("die", 194, 0xcc6d54ad10842867),
+    ("die", 230, 0x4dad9803fef921db),
+    ("die", 266, 0x2c7b3b7aaf508ab7),
+    ("die", 302, 0xfeb0e75e6ecd7964),
+    ("die", 338, 0x60446c01a7f5733f),
+    ("die", 388, 0x7ada9a0b99178a2b),
+    ("die", 438, 0xdef64afbf6c8cf99),
+    ("die", 481, 0xd601870d990ce63a),
+    ("die", 524, 0x73931045601fe762),
+    ("die", 567, 0xc6e09dc860e05ea9),
+    ("die", 610, 0x1199acdbf9c83db6),
+    ("die", 653, 0xe89616ee222c4234),
+    ("die", 703, 0x1a29d0fde7541362),
+    ("die", 753, 0xa0ef4b37e92acf68),
+    ("die", 803, 0x4b3fe894cd06ee7b),
+    ("die", 839, 0x5cc3a42a8cfd4f54),
+    ("die", 875, 0x7978939343e08d64),
+    ("die", 911, 0x23755dc536577ce8),
+    ("die", 947, 0xe322a2d269e1f78f),
+    ("die", 990, 0x9f9f378f938e1c87),
     ("corner_table", 37, 0x56f145c8b37bfabf),
     ("corner_table", 74, 0xa47b8bb17613453b),
     ("corner_table", 111, 0x2f6fbc248977629d),
@@ -187,7 +207,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("part_select", 56, 0xd6c1e39940b5f496),
     ("loft_prism", 51, 0x7b39a360638cd8a1),
     ("die_composed", 36, 0x9799e9408a965673),
-    ("die_composed", 89, 0x4bca5573dec89b94),
+    ("die_composed", 89, 0x9e11aafa0ce9cf70),
     ("die_composed_tour", 40, 0xa6ebce75136e3f6c),
     ("die_composed_tour", 101, 0x3cfecee20be34e65),
     ("die_composed_tour", 176, 0x298467248d835200),
@@ -209,15 +229,15 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("die_composed_tour", 1376, 0xe8227e6c4f410265),
     ("die_composed_tour", 1451, 0x6b1a01b34ed6d881),
     ("die_composed_tour", 1526, 0xa264fe57d2a657e2),
-    ("die_composed_tour", 1613, 0x06f090e809052b4d),
+    ("die_composed_tour", 1613, 0x2941f42aa64024d9),
     ("plate_param", 44, 0xb131b90c7283e469),
     ("plate_param", 63, 0x778c16d8f77b1175),
     ("kiss_carry", 37, 0x5327fb974bfe45c1),
     ("kiss_carry", 74, 0x21f1f9dbf876d243),
     ("kiss_carry", 93, 0xf9d9270ccbfdcf21),
     ("tube_ring", 5, 0x28708aadf200c24a),
-    ("tube_arc", 7, 0xda5de013096cb80d),
-    ("hollow_tube_elbow", 8, 0x195ecd4525de4b1e),
+    ("tube_arc", 7, 0x78b0777814e2560d),
+    ("hollow_tube_elbow", 8, 0x34e28ea09a5238fe),
     ("hollow_tube_ring", 6, 0xc17178d9cde4a81e),
     ("reshaped_rod", 48, 0x6713d9dd15ba1cb2),
 ];

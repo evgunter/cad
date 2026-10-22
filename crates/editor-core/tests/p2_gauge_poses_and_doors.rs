@@ -1,6 +1,6 @@
 //! **EDIT-PLACEMENT P2 — world poses against an independent
 //! composition, and the doors across spaces** (ASSEMBLY.md A4, A9,
-//! A11 (2)–(5); D10, Spaces): a seat under a world pin whose pose two
+//! A11 (2)–(5); D10, Spaces): a seat under a world mate whose pose two
 //! parameters drive, and a copy stacked on the seated copy, in f64 and in
 //! the interval lane; a constraint that moves a loose space onto the
 //! world; the clearance door, the at-rest gate and the document seam
@@ -251,7 +251,7 @@ fn the_seat_relation_the_rows_compose_with_is_the_solves() {
     assert!(got.dist(&seat_rep()) <= 1e-15, "{got:?}");
 }
 
-/// **A seat under a two-parameter world pin against an independent
+/// **A seat under a two-parameter world mate against an independent
 /// composition**: the base pinned to the world at a pose two parameters
 /// drive composed with a turned literal, the top seated on it, and a
 /// second top stacked on the seated one, in f64 and in the interval lane

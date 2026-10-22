@@ -21,8 +21,8 @@ lanes by their placement terms (`placement_terms`, read off
 `angle_periods`).
 
 A **spline** chart closed in a channel has a period too: the knot
-domain's length, decided closed by `topo` (`chart_u_period` in `u`; a
-net's `v` period lands with PCERT unit C). Its rows certify through the iso
+domain's length, decided closed by `topo` (`chart_u_period` in `u`, `chart_v_period`
+in `v`, both through `net_closes` in `crates/topo/src/pcurves.rs`). Its rows certify through the iso
 lane (`IsoLine`, `IsoArc`: the control-difference hull) or the fitted
 and general lanes (the hull of the composed net). None carries a
 placement term, and `angle_periods` answers `None` there. A spline
@@ -36,8 +36,8 @@ pins which.
 Whether each spline lane refuses a lifted copy, and as which check:
 - probe `IsoLine` / `IsoArc` rows translated by the knot period on a net
   closed in `u` (`pole_slit_tests::prism_patch_across_the_seam`), and on
-  a net closed in `v` once unit C lands its fixture, at `f64` and at
-  `Interval`;
+  a net closed in `v` (`pole_slit_tests::prism_patch_across_the_v_seam`),
+  at `f64` and at `Interval`;
 - then either pin the refusal, or give those lanes a placement term read
   off the chart's own periods (which needs the band-decided closure from
   `topo`, or a placement the mint and check 4 share).

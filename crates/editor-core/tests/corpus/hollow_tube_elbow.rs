@@ -19,11 +19,10 @@
 //! `==`, so it would pin `f64` rounding of an irrational rather than
 //! the geometry — the `die_chamfer` disposition.
 
-use super::PlacePart;
 use editor_core::{DocEdit, Node, SlotId, TubeWindow};
 
 use super::super::fixture::{ang, len};
-use super::{CorpusDoc, Recorder};
+use super::{CorpusDoc, Recorder, spun_about_y};
 
 /// The spine circle's radius, meters (dyadic).
 pub const R: f64 = 2.0;
@@ -60,12 +59,11 @@ pub fn document() -> CorpusDoc {
         wall: len(WALL),
     });
 
-    // Placed where it is built, as `tube_arc` is: the elbow turns about
-    // its own z, so there is no world spine axis for a lowering to
-    // assume, and the quarter turn that stood it about +y (the retired
-    // spine frame's) is solved inexactly at Interval, where its start
-    // cap on the torus seam escalated its pcurve's branch.
-    r.place_part(elbow);
+    // The tube turns about its own z; in the world it turns about +y,
+    // a different spine axis from `tube_ring`'s deliberately, so a
+    // lowering that assumed one world axis has two documents to
+    // disagree with.
+    r.in_world_by(elbow, spun_about_y());
 
     CorpusDoc {
         name: "hollow_tube_elbow",

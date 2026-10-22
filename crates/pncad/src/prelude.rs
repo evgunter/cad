@@ -528,7 +528,7 @@ pub use topo::{
 //   subject whose parts this list already spelled.
 //
 // THE RUNG BELOW IS CARRIED TOO, and where it stops is one further
-// down. `CensusContact::ConformalPatch` carries a
+// down. `CensusContact::ConformalPatch` and `FaceFaceTangent` carry a
 // `topo::ContactFinding`, which rides in group 9 with the rest of the
 // contact vocabulary; `ReadbackError::Dangling` carries an
 // `EntityId`, which rides in group 4 with the keys it sums over. What
@@ -738,7 +738,7 @@ pub use crate::select::{
     CurveKind, CurveKindSet, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, GeomPred,
     InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
     PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
-    RunLine, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense,
+    RunLine, SEL_PLANE_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense,
     Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
     all_vertices, attribute, denotation, edge_carrier_kind, edge_frame, edge_name,
     face_carrier_kind, face_frame, face_name, select, select_where, vertex_position,

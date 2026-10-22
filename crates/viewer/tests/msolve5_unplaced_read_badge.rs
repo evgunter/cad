@@ -74,7 +74,7 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
             },
             tol,
         );
-        asm = common::placed_read(&asm, copy.into(), &bench.opts(), tol).0;
+        asm = common::placed_read(&asm, copy.into(), tol).0;
     }
     // The shelf's bottom as the lifted body names it: the instance's
     // name, as the lift's second copy.

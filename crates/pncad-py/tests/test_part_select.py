@@ -12,12 +12,15 @@ WHAT A READ OF A HALF MEANS, and what the rows below check. Nothing is
 moved, re-stamped or recomputed: a reader of the half reads the
 split's own side, so a reader of it weighs what the side `Value.split`
 hands back weighs (`TestTheHalfIsItsPort`), the two halves unioned are
-the box again (`test_the_halves_rejoin_into_the_box`), and each port is
-its half's own table (`test_each_port_is_its_halfs_table`). A Part's index is STRUCTURAL, so
+the box again (`test_the_halves_rejoin_into_the_box`), and the names
+pass through, so every face a reader names carries a face name of the
+split's half unchanged (`test_the_names_pass_through`). A Part's index
+is STRUCTURAL, so
 moving it recomputes the Part and nothing upstream
 (`test_moving_the_index_recomputes_the_part_alone`).
 """
 
+import json
 import unittest
 
 from pncad import (
@@ -86,6 +89,12 @@ def still(doc, read):
     """A reader of `read` that changes nothing: a union of that one
     member, which holds its body."""
     return doc.insert(Node.union([read]))
+
+
+def canonical(name):
+    """A face name's wire form, keys sorted, so two spellings of one
+    name compare equal."""
+    return json.dumps(name, sort_keys=True)
 
 
 def mass_of(ev, node):
@@ -164,17 +173,24 @@ class TestTheHalfIsItsPort(unittest.TestCase):
         self.assertEqual(mass.volume, 2.0 * 2.0 * 1.0)
         self.assertEqual(mass.surface_area, 2 * 2.0 * 2.0 + 4 * 2.0 * 1.0)
 
-    def test_each_port_is_its_halfs_table(self):
-        """A read of a half reads that half's table, and a reader of it
-        names each of its faces once. A split's names spell no half:
+    def test_the_names_pass_through(self):
+        """A read of a half hands on that half's table: every face name
+        a reader answers with is the reader's own `From` layer over a
+        face name of the split's half, unchanged, and the names it
+        carries are exactly that half's. A split's names spell no half:
         each half is its own table, so the section face and each wall's
         fragment are ONE name the two halves' tables each hold."""
         doc, split, above, below = self.build()
         ev = evaluate(doc)
         upper = set(ev.all_faces(doc.output(split, 0)))
         lower = set(ev.all_faces(doc.output(split, 1)))
-        self.assertEqual(len(ev.all_faces(above)), len(upper))
-        self.assertEqual(len(ev.all_faces(below)), len(lower))
+        for reader, half in ((above, upper), (below, lower)):
+            carried = []
+            for name in ev.all_faces(reader):
+                (seg,) = json.loads(name)["path"]
+                carried.append(canonical(seg["From"]["of"]))
+            self.assertEqual(len(carried), len(half), "one name per face")
+            self.assertEqual(set(carried), {canonical(json.loads(n)) for n in half})
         # What the halves share is what the split's names no longer
         # tell apart by half: the section face and the four walls'
         # fragments, each one name that each half's table holds. The

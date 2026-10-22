@@ -2,10 +2,11 @@
 id: a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass
 kind: issue
 title: The fin crown at rest holds a region that winds −1, and check 7 and the census pass it; which of its unions refuses is face order's choice
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: M
+branch: flush/fin-crown-winding
 ---
 
 
@@ -65,3 +66,11 @@ slit's mouth, and whether the fixture means to hold that region at all.
 A candidate remedy at the check, for this row and not the PR that found
 it: a cross-check between readings, so that two aimed rays that decide
 opposite sides refuse rather than whichever comes first answering.
+
+## Measured on the edge-meeting ray
+
+With the edge-meeting ray's near-normal aims (FLUSH,
+`a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face`), `x ∪ y`
+of probes 2 and 4 refuses `ResultInvalid` at all five poses, the two
+flipped ones included; `y ∪ x` and probe 1 still build holding the
+region. Pinned in `KNOWN_INSIDE_OUT` and `KNOWN_WRONG`.

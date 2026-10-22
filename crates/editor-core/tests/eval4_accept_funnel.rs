@@ -4,7 +4,7 @@
 //! beside the documents and the recorded edits, never instead of them.
 //!
 //! No edit records a frame (A11 (2)), so a mated pair cut whole or
-//! spliced back reports nothing: its world pin and its mate move as the
+//! spliced back reports nothing: its world mate and its mate move as the
 //! bundles they are. Each row reads the bundles of the documents that
 //! came back, so an empty report is checked against what moved rather
 //! than read as "nothing moved".
@@ -76,7 +76,7 @@ fn stacked(doc: ProfileDoc, a: StableName, b: StableName) -> (ProfileDoc, MateRe
 }
 
 /// Row 2 — a mated pair cut whole moves as selected (A4): the pinned
-/// instance keeps its world pin in the part, the mate-placed one its
+/// instance keeps its world mate in the part, the mate-placed one its
 /// mate, and the instance left behind is pinned where it stands, at the
 /// identity; neither side reports anything: no edit records a frame.
 #[test]

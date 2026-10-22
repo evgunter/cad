@@ -58,7 +58,7 @@ pub enum MeasurePrimitive<R = SitedRef> {
     /// reference to a BODY selects all of that body's faces, a
     /// reference to a FACE selects that one. Those are the two scopes
     /// M10-5's `clearance::FaceScope` carries. A reference to anything
-    /// else (a vertex, an edge, a datum) refuses typed.
+    /// else (a vertex, an edge, a pose) refuses typed.
     ///
     /// **Its value is an enclosure, so it exists only where enclosures
     /// do.** At `f64`, `Probe` and `Dual<f64>` the measure has no

@@ -25,8 +25,8 @@ use geom_core::Tol;
 /// schedule's own association `t0 + (t1 − t0)·½` (chord midpoints fail
 /// on arcs), and the faces' extent its wedge is levered at
 /// ([`topo::wedge_reach`]).
-struct EdgeData<T: Real> {
-    carrier: Curve3<T>,
+struct EdgeData<'b, T: Real> {
+    carrier: &'b Curve3<T>,
     t0: T,
     t1: T,
     witness: Point3<T>,
@@ -36,23 +36,17 @@ struct EdgeData<T: Real> {
 fn edge_data<T: SpanLocate + Decide>(
     body: &Body<T>,
     edge: EdgeKey,
-) -> Result<EdgeData<T>, RevolveError> {
-    let edge_rec = body.get_edge(edge).unwrap_or_else(|| {
-        unreachable!(
+) -> Result<EdgeData<'_, T>, RevolveError> {
+    let curve = body.stored_curve(edge).map_err(|e| match e {
+        EulerOpError::Argument(_) => unreachable!(
             "edge {edge:?} was minted by this revolve and is upgraded before any kill of it"
-        )
-    });
-    let curve = body
-        .get_curve_geom(edge_rec.curve)
-        .unwrap_or_else(|| unreachable!("curve {:?} is held by live edge {edge:?}", edge_rec.curve))
-        .certified()
-        .ok_or(EulerOpError::NullScaffoldCurve {
-            curve: edge_rec.curve,
-        })?;
-    let carrier = curve.carrier().clone();
+        ),
+        e => e,
+    })?;
+    let carrier = curve.carrier();
     let (t0, t1) = curve.params();
     let witness = curve.mid_point();
-    let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), &carrier, (t0, t1));
+    let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), carrier, (t0, t1));
     Ok(EdgeData {
         carrier,
         t0,
@@ -128,7 +122,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             match must_carry_description(
                 SmoothJoin {
                     surfaces: [(s1, &surf1), (s2, &surf2)],
-                    carrier: &data.carrier,
+                    carrier: data.carrier,
                     interval: (data.t0, data.t1),
                     reach: data.reach,
                     witness: data.witness,

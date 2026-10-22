@@ -953,8 +953,12 @@ curved-cut faces are certified quadrature (C9, `props/quad.rs`):
 harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
-pcurve channels refuse `QuadratureUnsupported`; exhaustion is
-`QuadratureBudget`, never a silent Gaussian. A plane cap or torus wall
+pcurve channels refuse `QuadratureUnsupported`. A face refines until
+its caller's predicate over the enclosure resolves (a sign, a relation,
+or a resolution, each stated by the caller), refinement stops paying, or the
+per-face work bound is reached. It returns the narrowest certified
+enclosure it reached, with the reason it stopped (`[tolerance.measure]`):
+never a silent Gaussian, and never a refusal for width alone. A plane cap or torus wall
 bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
 area and the wall's chart Green form along the spiric are elliptic
 integrals in the torus minor angle, enclosed by a fifth-order Taylor
@@ -974,12 +978,27 @@ region is the side of its boundary that holds such a pole
 (`sphere_region_material_sign`); a region with two or more boundary
 loops is read by the sign of its area. A region with no boundary covers
 the sphere and encodes no side: covered once, it is a shell whose
-orientation checks 7 and 10 read; covered more than once, its faces
-overlap and nothing here reads it. A region whose boundary carries both
+orientation checks 7 and 10 read. A region whose boundary carries both
 poles, or whose poles lie on no member's loop, encodes no side: the
 pole-free reading would assume the rule above, which validity does not
 yet enforce. For a region of one face the flipped bit describes the
-complement, another valid body. A loop with a pole off it on each side
+complement, another valid body. Where a region's faces overlap, tier 3
+refuses it by its cover census (`sphere_region_cover`), read for every
+seam region of two faces or more, whatever its members' own boundaries
+encode: each member's Gauss–Bonnet area on the side its bit claims,
+summed, less the area its boundary claims (the sphere, with no
+boundary), is a whole number of spheres, so the members claim the region
+a whole number of times, once for a region covered once. A cover of the
+sphere twice over is claimed twice. A region whose members all carry the
+wrong bit is claimed `Σ χ_f − χ_R + 1` times, `χ` the Euler
+characteristic of each member and of the region as spheres with holes:
+`n + m − 1` times for `n` one-loop faces bounded by `m` loops, so twice
+for a both-poles pair, and `n − 1` times for a ball of `n` lunes turned
+inside out, which the census refuses from three lunes on. The
+measurement door reads the same seam regions without tier 3
+(`topo/src/props.rs`, `seam_refusals`), so it refuses the regions tier 3
+refuses, and a region whose faces' bits disagree, which tier 3 refuses
+as check 4's lamina. A loop with a pole off it on each side
 encodes no side: under either sense its face holds a pole, which is
 validity's to refuse. Nor does a loop whose poles both read undecided: a
 pole within the ambiguity band of a great or near-great carrier's plane

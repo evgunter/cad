@@ -2,7 +2,8 @@
 id: lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late
 kind: issue
 title: a lofted Circle section is unmeshable, and the refusal arrives three steps downstream
-status: open
+status: closed
+closed: 2026-10-20
 opened: 2026-09-10
 priority: P0
 cost: H
@@ -109,3 +110,75 @@ now be wrong if it stopped at "point at `CircleSplit`".
 ## Re-homed at S-MESH's exit (2026-09-16)
 
 Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Scoped (2026-10-20, the NURBS lane on TESS ground)
+
+**Where the crease is.** `LoopProgram::Circle` is two half-turn arcs.
+`sweep::skin::segment_curve` cuts each into two rational quadratic
+quarter arcs joined at a knot of multiplicity 2 (= degree): a C⁰ crease
+in the wall's `u` direction, which `geom_brep::patch_bound::check_direction`
+refuses. The rims stay analytic `Curve3::Circle`s; the crease meets them
+at the arc's mid-angle.
+
+**Remedies ruled.**
+- **Mesh the crease** (approved): the C¹ gate admits a crease on the
+  rational arm, each crease becomes a constrained polyline in the
+  trimmed lane's CDT, and each boundary edge crossing it gains a chord
+  point at the exact joint parameter (the same expression that places
+  `segment_curve`'s knot), with its UV snapped onto the crease. Other
+  pcurves crossing a crease refuse typed.
+- **Refuse at `Node::Loft`** (rejected): it would refuse exactly the
+  lofts the remedy above meshes, so the two would fight.
+- **Split walls at the crease in the loft's emitter** (rejected): it
+  changes topology (more walls and edges), so names, digests and
+  persistence move, where meshing the crease keeps the body
+  bit-identical and also covers imported creased faces.
+- **The doc line pointing at `CircleSplit`**: wrong, per the update
+  above.
+
+**Soundness first.** `NurbsCellGrid::cert`'s straddler argument (the max
+of per-cell bounds dominates a box crossing cells) needs C¹ across the
+cut, and straddlers are not only boundary fans: the trimmed lane's `u`
+columns are uniform over the trim box, so interior triangles straddle
+`u` cuts too. `cert` now answers `+∞` for a box strictly crossing a
+crease (`tess/cert-refuses-a-crease-straddler`); until the mesh remedy
+lands, a creased face would refuse there, loudly.
+
+**Still open behind it**: a lofted circle then meets QUAD's
+`mass_properties` door (rational walls at ε 1e-12 run out of chase
+budget, as the update above records). Meshing the crease does not
+touch it.
+
+## Closed (2026-10-20): the crease meshes
+
+A lofted `LoopProgram::Circle` tessellates (`tess/lofted-circle-meshes`).
+- **The gate.** The rational arm admits a degree-≥ 2 crease
+  (`geom_brep::patch_bound::patch_cells_across_creases`, the mesher's
+  door): it reads each span's own window, so its cells are those of
+  the two halves (`a_rational_crease_reads_as_two_patches`). The
+  integral arm, and degree-1 creases, still refuse.
+- **The chord point.** An arc rim of `m ≥ 2` sub-arcs rounds its chord
+  count up to a multiple of `m` (`crates/mesh/src/chords.rs`), so a
+  point lands on each joint at the parameter `segment_curve` places
+  the joint knot with: `geom_brep::sub_arc_joint`, the one spelling of
+  `k/m` both read.
+- **The crease lines.** The trimmed lane snaps boundary and grid points
+  within rounding of a crease onto it and chains the points on it into
+  constraints (`crates/mesh/src/trimmed.rs`, `Creases`), so no triangle
+  crosses it. A boundary crossing one off a chord point, and creases in
+  both directions, refuse typed.
+- **The rows** are in `crates/mesh/tests/lofted_circle.rs`, the
+  `trimmed` and `nurbs_cert` unit tests, and the Z1 falsifier's
+  fixtures (`lofted_cylinder`).
+
+**Not every δ meshes**: `work/tess/lofted-rational-walls-refuse-at-some-deltas`
+records the δ bands where a lofted rational wall refuses at a sliver
+away from the crease, a class a crease-free arc loft meets too.
+
+**QUAD's door stays open behind it.** `topo::mass_properties` of
+`sweep::test_support::lofted_cylinder(1.0)` at `Tol::witness()`
+refuses: "a face's certified contribution stayed 1.833e-6 m wide after
+1 refinement round(s), above the 1.024e-6 m this tolerance targets".
+Measured on this branch; meshing does not touch it. The lever QUAD
+names for one wide rational span is
+`work/quad/a-ninety-degree-rational-span-encloses-looser-than-two-forty-five-degree-spans`.

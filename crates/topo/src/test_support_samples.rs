@@ -731,6 +731,10 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             half_edge,
             cause: diag(),
         },
+        PcurveMintError::NetStretchUndecided {
+            half_edge,
+            cause: diag(),
+        },
     ];
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
     v.extend(
@@ -757,6 +761,9 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::HolesExceedFace,
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
+        PropsError::SeamRegionOvercovered { times: 2 },
+        PropsError::SeamRegionCoverUnresolved,
+        PropsError::SeamRegionSensesDisagree,
         PropsError::RingWoundWithFace,
         PropsError::ChartLoopOpen,
         PropsError::LoopsWindChart,
@@ -962,6 +969,16 @@ fn census_contacts() -> Vec<CensusContact> {
         },
         CensusContact::EdgeEdgeOverlap { a: edge, b: edge },
         CensusContact::EdgeFaceOverlap { edge, face },
+        CensusContact::FaceFaceTangent {
+            finding: ContactFinding {
+                pair: DeclaredContact {
+                    a: face,
+                    b: face,
+                    class: ContactClass::Tangent,
+                },
+                verdict: ContactVerdict::Definite,
+            },
+        },
         CensusContact::ConformalPatch {
             finding: ContactFinding {
                 pair: DeclaredContact {
@@ -1296,6 +1313,8 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             r#loop: loop_,
         },
         ValidationError::CurvedSenseInverted { face },
+        ValidationError::SeamRegionOvercovered { face, times: 2 },
+        ValidationError::SeamRegionCoverUnresolved { face },
         ValidationError::NegativeVolume { solid },
         ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
@@ -1309,6 +1328,11 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             outer: solid,
             inner: solid,
             witness: vertex,
+        },
+        ValidationError::CuspEdgesMissing {
+            a: face,
+            b: face,
+            witness: "(0.0, 2.0, 0.5)".to_owned(),
         },
     ] {
         s.push((label("", &e).trim_start_matches('/').to_owned(), e));
@@ -1654,6 +1678,25 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    s.push((
+        "FaceThroughEdgeWedge".to_owned(),
+        ValidationError::FaceThroughEdgeWedge {
+            edge: EdgeKey::default(),
+            face,
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        },
+    ));
+    for why in crate::census::TouchUnread::iter() {
+        s.push((
+            format!("FaceThroughEdgeWedgeUndecided/{why:?}"),
+            ValidationError::FaceThroughEdgeWedgeUndecided {
+                edge: EdgeKey::default(),
+                face,
+                witness: "(0.0, 0.0, 0.0)".to_owned(),
+                why,
+            },
+        ));
+    }
     let ContainError::ArcEndClearOfCorners(gaps) = arc_end_clear_of_corners(true) else {
         unreachable!("the sample builds the arc-end finding")
     };
@@ -1797,34 +1840,104 @@ mod tests {
     use geom_brep::recourse::Reading;
     use geom_core::FileCoincidence;
 
+    /// **No sample renders a run of spaces or a line break**: the marks
+    /// of a string literal continued onto its next line without its `\`,
+    /// which keeps the line break and the next line's indentation, one
+    /// space or many, in the text. Read over every tier-3 finding and
+    /// every measurement refusal, so over every `PropsError`
+    /// (`MassPropsError::Face`'s own words), whose words tier 3 does not
+    /// render.
+    #[test]
+    fn no_sample_renders_a_run_of_spaces() {
+        let rendered = super::validation_error_samples()
+            .into_iter()
+            .map(|(label, e)| (label, e.to_string()))
+            .chain(
+                super::mass_props_errors()
+                    .into_iter()
+                    .map(|e| (format!("{e:?}"), e.to_string())),
+            );
+        let problems: Vec<_> = rendered
+            .filter(|(_, text)| text.contains("  ") || text.contains('\n'))
+            .map(|(label, text)| format!("{label}: {text:?}"))
+            .collect();
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
+    }
+
     /// **Every certification refusal ends alike at rest and at the import
-    /// door but for the file's ε_in and the file's damage** (D4 ¶1: one
-    /// recourse per decision, wherever it is read): the door's ending
-    /// departs from the at-rest one only through its ε_in sentences, which
-    /// name ε_in, and where a sized decision's defect ending at rest is
-    /// the file's at the door ([`geom_core::DAMAGED_FILE_ENDING`]). The
-    /// roster is [`super::certify_errors`], which `nested_coverage_gaps`
-    /// holds to every `CertifyError`, `PlaneNurbsRefusal` and
-    /// `AnalyticRung3Refusal` variant. Red where the door's ending departs
-    /// from the at-rest one any other way.
+    /// door but for the file's ε_in and its culprit** (D4 ¶1: one
+    /// recourse per decision, wherever it is read; (iv)): the door's
+    /// ending departs from the at-rest one only through its ε_in
+    /// sentences, which name ε_in, and where a defect ending at rest names
+    /// the kernel or the file, which at the door names the file
+    /// ([`geom_core::DAMAGED_FILE_ENDING`]). The roster is
+    /// [`super::certify_errors`], which `nested_coverage_gaps` holds to
+    /// every `CertifyError`, `PlaneNurbsRefusal` and `AnalyticRung3Refusal`
+    /// variant. Red where the door's ending departs from the at-rest one
+    /// any other way, the door naming the kernel included, or where no
+    /// refusal reaches the file's ending.
     #[test]
     fn every_certify_refusal_ends_alike_at_rest_and_at_the_import_door() {
         use geom_core::{DAMAGED_FILE_ENDING, KERNEL_OR_FILE_DEFECT_ENDING};
 
         let file = FileCoincidence::new(1e-6);
-        let split: Vec<String> = super::certify_errors()
+        // Each refusal's ending at rest, and at the door where it is
+        // read past ε_in (`None` where the door reads it within).
+        let errors = super::certify_errors();
+        let endings: Vec<_> = errors
             .iter()
-            .filter(|e| {
-                let (rest, door) = (e.ending(Reading::AtRest), e.ending(file));
-                let damaged = rest.as_deref() == Some(KERNEL_OR_FILE_DEFECT_ENDING)
-                    && door.as_deref() == Some(DAMAGED_FILE_ENDING);
-                rest != door && !damaged && !door.is_some_and(|d| d.contains("ε_in"))
+            .filter_map(|e| {
+                let door = e.ending(file);
+                let within = door.as_deref().is_some_and(|d| d.contains("ε_in"));
+                (!within).then(|| (e, e.ending(Reading::AtRest), door))
             })
-            .map(|e| format!("{e:?}"))
+            .collect();
+        let split: Vec<String> = endings
+            .iter()
+            .filter(|(_, rest, door)| {
+                let want = match rest.as_deref() {
+                    Some(KERNEL_OR_FILE_DEFECT_ENDING) => Some(DAMAGED_FILE_ENDING.to_owned()),
+                    _ => rest.clone(),
+                };
+                *door != want
+            })
+            .map(|(e, ..)| format!("{e:?}"))
             .collect();
         assert!(
             split.is_empty(),
-            "the doors end apart, beyond the file's ε_in: {split:#?}"
+            "the doors end apart, beyond the file's ε_in and its culprit: {split:#?}"
+        );
+        assert!(
+            endings
+                .iter()
+                .any(|(_, rest, _)| rest.as_deref() == Some(KERNEL_OR_FILE_DEFECT_ENDING)),
+            "no refusal in the roster reads a defect at rest"
+        );
+    }
+
+    /// **A shell-classify defect read at the import door names the file**
+    /// ([`crate::ShellClassifyError::recourse`]): the door it is given is
+    /// the door its defect ending reads, at rest the kernel or the file
+    /// and at the import door the file. Red if the classifier reads the
+    /// import door as at rest.
+    #[test]
+    fn a_shell_classify_defect_names_the_file_at_the_import_door() {
+        use geom_core::{DAMAGED_FILE_ENDING, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag};
+
+        let refusal = crate::ShellClassifyError::Straddles {
+            shell: crate::ShellKey::default(),
+            low: MarginDiag::value(-1.0),
+            high: MarginDiag::value(1.0),
+        };
+        assert_eq!(
+            refusal.recourse(Reading::AtRest).as_deref(),
+            Some(KERNEL_OR_FILE_DEFECT_ENDING),
+            "at rest"
+        );
+        assert_eq!(
+            refusal.recourse(FileCoincidence::new(1e-6)).as_deref(),
+            Some(DAMAGED_FILE_ENDING),
+            "at the import door"
         );
     }
 }

@@ -1136,8 +1136,7 @@ impl Parser<'_> {
         }
         let mut it = args.into_iter();
         let (Some(a), b) = (it.next(), it.next()) else {
-            // args starts non-empty and the arity check bounds it;
-            // typed rather than trusted (no panic paths).
+            // args starts non-empty and the arity check bounds it.
             return Err(ParseError::WrongArity {
                 pos,
                 name: canonical,

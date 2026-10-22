@@ -106,6 +106,29 @@ fn an_unknown_variant_refuses_naming_it() {
     }
 }
 
+/// A snapshot of the wrong JSON type: the refusal names the type the
+/// file spells, `Doc`, and carries the recourse once.
+#[test]
+fn a_snapshot_of_the_wrong_type_refuses_naming_doc() {
+    let (header, mut v) = split(&small());
+    v["snapshot"] = serde_json::Value::from(5);
+    let mutated = join(&header, &v);
+    match load(&mutated, Tol::witness()) {
+        Err(err @ PersistError::Unreadable { .. }) => {
+            let PersistError::Unreadable { detail, .. } = &err else {
+                unreachable!()
+            };
+            assert!(
+                detail.contains("invalid type: integer `5`, expected struct Doc"),
+                "the refusal names the document's type: {detail}"
+            );
+            let msg = err.to_string();
+            assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
+        }
+        other => panic!("a non-object snapshot must refuse unreadable, got {other:?}"),
+    }
+}
+
 /// A field this build requires and the document lacks: the shape of a
 /// document from before the field existed. Typed, named, recourse once.
 #[test]

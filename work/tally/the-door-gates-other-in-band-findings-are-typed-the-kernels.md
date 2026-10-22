@@ -38,7 +38,10 @@ runs refuse `ResultInvalid { RingContactEscalated }` at the gate:
 more the same way (`vee300 nt e0 a0 d1e-7 face` ac U, ca U, ca S, and
 `e1 a4` likewise). TALLY's
 `a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate`
-is the same finding on a brick.
+was read as the same finding on a brick, and was not: there check 9
+read an in-band side of two edges far apart along one line, a
+misreading rather than conditioning, and reading their gap first
+builds all six (closed by PR 5492).
 
 **Two sibling sites read the same kind of finding, untyped.**
 - **The split.** `splitting/mod.rs`'s finished-body gate maps every

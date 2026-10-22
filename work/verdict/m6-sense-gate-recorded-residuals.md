@@ -90,6 +90,14 @@ unchanged (a shell-level orientation check or a second encoding
 channel); what is added here is that the measuring door's silence is
 part of what that design conversation has to answer.
 
+**Half 1 closed (FLUX, 2026-10-21).** The measuring door now reads the
+ball's seam region as tier 3 does (`crates/topo/src/props.rs`,
+`seam_refusals`), and refuses the one-band twin
+`PropsError::SeamRegionSensesDisagree`, the lamina tier 3 names. The row
+is now
+`crates/mesh/tests/r2_sense_e2e.rs::a_reversed_band_is_refused_as_a_lamina_by_both_doors`.
+Half 2, tier 3 naming a lamina rather than the inverted face, stands.
+
 ## Residual 2's misnomer, a second instance: a rod with one wall reversed (SENSE-FOLD, 2026-09-15)
 
 A rod (two half-arc profile segments extruded: two half-cylinder walls

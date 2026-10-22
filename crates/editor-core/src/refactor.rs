@@ -880,10 +880,6 @@ pub enum SplitError {
     /// The cut names the world, which every document holds: the part
     /// has its own, and the remainder keeps this one.
     CutsTheWorld,
-    /// The instance left in the remainder offers no geometry to stand
-    /// it where its part's world stands ([`crate::mate::stand`]): its
-    /// part evaluated to no body, or to one with no face to read.
-    InstanceUnstood,
     /// The new document's identity collides with the document being
     /// split or with a document the cut nodes reference — the new id
     /// must be fresh, or the produced pair could not both exist in one
@@ -1064,12 +1060,6 @@ impl core::fmt::Display for SplitError {
                 f,
                 "split: the cut set is empty, so there is nothing to split out. {}",
                 Recourse("name at least one live node in the cut")
-            ),
-            Self::InstanceUnstood => write!(
-                f,
-                "split: the part evaluates to no body with a face to stand its instance on, so \
-                 the instance cannot be placed where the cut stood. {}",
-                Recourse("cut placements whose copies evaluate to a body")
             ),
             Self::UnknownCutNode { id } => write!(
                 f,
@@ -1374,7 +1364,7 @@ pub enum InlineError {
         node: SpokenNode,
     },
     /// **The instance is placed by other constraints than one world
-    /// pin, and the part is not one instance pinned to its world at the
+    /// mate, and the part is not one instance pinned to its world at the
     /// identity** (A4): only such a part's one placement can take the
     /// instance's bundle and move the part's copies as the instance
     /// moved them.
@@ -2104,7 +2094,7 @@ impl SegRewrite for Remapping<'_> {
             Unrankable::RunLeastLineMoved => Err(RemapError::RankedRunReordered {
                 vertex: Box::new(was.clone()),
             }),
-            Unrankable::SidedVertexRank | Unrankable::RankOutsideCount => Ok(()),
+            Unrankable::Reshaped | Unrankable::RankOutsideCount => Ok(()),
         }
     }
 }
@@ -2148,8 +2138,8 @@ enum RemapMiss {
     },
 }
 
-/// Rewrites a placement rule's id references: the circular rule's datum
-/// axis is the only one the vocabulary carries (a linear rule is pure
+/// Rewrites a placement rule's id references: the circular rule's axis
+/// read is the only one the vocabulary carries (a linear rule is pure
 /// expressions, an explicit rule pure frames). Shared by both
 /// placement-rule nodes so their seam behavior cannot drift apart.
 ///
@@ -2754,29 +2744,6 @@ fn world_pin_of<P>(doc: &Doc<P>, placement: RecipeNodeId) -> Option<Vec<(crate::
     )
 }
 
-/// **A resolver that serves one more part**: the part split is about
-/// to write, beside whatever the caller's resolver serves.
-#[derive(Debug)]
-struct WithPart {
-    part: (DocRef, ProfileDoc),
-    rest: Option<std::sync::Arc<dyn PartResolver>>,
-}
-
-impl PartResolver for WithPart {
-    fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, crate::ResolveFailure> {
-        if *doc_ref == self.part.0 {
-            return Ok(self.part.1.clone());
-        }
-        match &self.rest {
-            Some(rest) => rest.resolve(doc_ref, tol),
-            None => Err(crate::ResolveFailure::new(
-                crate::ResolveFault::Unresolved,
-                "no resolver serves a part other than the one split writes",
-            )),
-        }
-    }
-}
-
 /// Cuts `cut` out of `doc` into a new document under `part_id` (the
 /// caller's identity — [`DocumentId::derive`] for deterministic
 /// callers, the document layer's `random_document_id` for interactive
@@ -2845,8 +2812,8 @@ pub fn split(
             .is_some()
             && evaluation.space(placement) == crate::mate::Space::World
     };
-    // Whether a copy stands where its body did: its placement solved to
-    // the identity of the world's coordinates, the fold's own verdict.
+    // Whether a copy stands where its body did: its bundle is the
+    // identity bundle, read off the recipe.
     let places_at_identity = |placement: RecipeNodeId| poses.at_identity(placement);
     // A cut name re-anchors as the part's product spells it: a name a
     // cut world placement mints (its copy's own, or an instance's) as
@@ -3540,9 +3507,9 @@ pub fn split(
         remainder.apply(edit).map(|_| ()).map_err(rem_refused)
     };
     // The instance is a placement (D10), standing where its part's
-    // world stands ([`crate::mate::stand`]), so the part's world copies
-    // stand where the cut's did. The part is read as it is about to be
-    // written, beside whatever the caller's resolver serves.
+    // world stands by the identity bundle ([`crate::mate::stand`]),
+    // which reads nothing of the part, so the part's world copies stand
+    // where the cut's did.
     let doc_ref = DocRef { id: part_id, pin };
     let instance = remainder
         .insert(Node::instantiate_part_with(
@@ -3550,33 +3517,10 @@ pub fn split(
             InterfaceRecord { crossings },
         ))
         .map_err(rem_refused)?;
-    let with_part = crate::eval::EvalOptions {
-        resolver: Some(std::sync::Arc::new(WithPart {
-            part: (doc_ref, part.doc().clone()),
-            rest: resolver.cloned(),
-        })),
-        ..crate::eval::EvalOptions::default()
-    };
-    let stood = remainder
-        .doc()
-        .output(instance, 0)
-        .ok_or(SplitError::InstanceUnstood)
-        .and_then(|copies| {
-            crate::mate::stand(
-                remainder.doc(),
-                &crate::Operand::Var(copies),
-                &with_part,
-                tol,
-            )
-            .map_err(|_| SplitError::InstanceUnstood)
-        })?;
-    let crate::mate::Placed {
-        mate: None, values, ..
-    } = stood
-    else {
-        unreachable!("stand writes the identity bundle, which has no mate")
-    };
-    rem_apply(&mut remainder, DocEdit::unmated(instance, values))?;
+    rem_apply(
+        &mut remainder,
+        DocEdit::unmated(instance, crate::mate::stand().values),
+    )?;
     let copies = remainder
         .doc()
         .output(instance, 0)
@@ -3963,8 +3907,8 @@ pub fn inline(
         ..crate::eval::EvalOptions::default()
     };
     let part_poses = crate::mate::solve_document(&part, &opts, tol);
-    // Whether a part copy stands where its body did: its placement
-    // solved to the identity of the part's world, decided at the band.
+    // Whether a part copy stands where its body did: its bundle is the
+    // identity bundle, read off the recipe.
     let places_at_identity = |placement: RecipeNodeId| part_poses.at_identity(placement);
     let part_world: Vec<RecipeNodeId> = part
         .placements()
@@ -5154,7 +5098,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
     }
 
     #[test]
-    fn a_pair_booleans_sets_borders_and_junction_are_resorted_and_its_seams_stay_sided() {
+    fn a_pair_booleans_sets_borders_junction_and_seams_are_resorted() {
         // Boolean 5 over operands 1 and 2, with 3 a third name.
         let face = |n| cap(EntityKind::Face, n);
         let was = name(
@@ -5183,18 +5127,22 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
         assert_eq!(
             out.path,
             vec![seam(face(30), face(32)), seam(face(31), face(32))],
-            "the run re-sorted, each line A-first"
+            "the run re-sorted, each line in name order"
         );
-        let sided = name(
+        // A pair boolean's seam vertex is in name order as a union's is;
+        // its two sides are faces, so the rank keeps its reading.
+        let ranked = name(
             EntityKind::Vertex,
             5,
-            vec![seam(cap(EntityKind::Edge, 1), face(2)), rank(0, 3)],
+            vec![seam(face(2), face(1)), rank(0, 3)],
         );
-        let out = remap_name(&sided, &map(), &StepMap::new(), &mirrored_reads()).expect("covered");
+        let out = remap_name(&ranked, &map(), &StepMap::new(), &mirrored_reads()).expect("covered");
+        let (x, y) = (face(31), face(30));
+        let (x, y) = if x < y { (x, y) } else { (y, x) };
         assert_eq!(
             out.path,
-            vec![seam(cap(EntityKind::Edge, 31), face(30)), rank(0, 3)],
-            "a pair boolean's seam is sided: no swap, no reversal"
+            vec![seam(x, y), rank(0, 3)],
+            "the pair in name order"
         );
     }
 }

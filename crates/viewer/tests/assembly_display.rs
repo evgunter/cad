@@ -271,7 +271,7 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         },
         tol,
     );
-    let doc = common::placed_read(&doc, weld.into(), &bench.opts(), tol).0;
+    let doc = common::placed_read(&doc, weld.into(), tol).0;
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
     let mut session = DocSession::inline(
         pncad::document::Doc::empty_derived(&format!("gui4-{tag}-boot"), tol),
@@ -347,7 +347,7 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
             },
             tol,
         );
-        let doc = common::placed_read(&doc, union.into(), &bench.opts(), tol).0;
+        let doc = common::placed_read(&doc, union.into(), tol).0;
         (doc, members, union)
     };
     let (doc, members, union) = fused(4);
@@ -597,7 +597,7 @@ fn hide_is_never_persisted() {
 
 // --- free-move (deliverable 3) ------------------------------------
 
-/// **Free-move admits a loose space and nothing the world pins** (DI5).
+/// **Free-move admits a loose space and nothing the world mates** (DI5).
 /// A copy pinned to the world refuses typed, and so does one mated onto
 /// a copy in the world, as does the world copy it is mated onto: all
 /// three live in the world's space. The same post, its pin taken off,
@@ -607,7 +607,7 @@ fn free_move_accepts_only_a_loose_space() {
     let tol = Tol::witness();
     let bench = asm::bench("fmeligible", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // Constrain post_a by mating it to the shelf, its world pin off.
+    // Constrain post_a by mating it to the shelf, its world mate off.
     asm::unpin(&mut session, bench.post_a);
     common::commit_mate(
         &mut session,
@@ -677,14 +677,14 @@ fn free_move_accepts_only_a_loose_space() {
 /// **Two copies mated to each other free-move as one** (DI5): a loose
 /// space holds every copy pinned to it, so either copy admits the probe
 /// to the one space, by its root, and the frame moves both pictures.
-/// Then a placement pins the space — the shelf's world pin put back —
+/// Then a placement pins the space — the shelf's world mate put back —
 /// and the landing that knows it drops the frame, saying why.
 #[test]
 fn two_copies_mated_to_each_other_free_move_as_one() {
     let tol = Tol::witness();
     let bench = asm::bench("fmspace", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b and the shelf, their world pins off, the post mated onto
+    // post_b and the shelf, their world mates off, the post mated onto
     // the shelf: one loose space.
     asm::unpin(&mut session, bench.post_b);
     asm::unpin(&mut session, bench.shelf_i);
@@ -738,7 +738,7 @@ fn two_copies_mated_to_each_other_free_move_as_one() {
     }
     assert!(
         !view.moved_placements.contains_key(&bench.post_a),
-        "and nothing the world pins"
+        "and nothing the world mates"
     );
 
     // Driven from the other copy, the probe is the same space's: its
@@ -766,7 +766,7 @@ fn two_copies_mated_to_each_other_free_move_as_one() {
         "one space, one frame"
     );
 
-    // A placement pins the space: the shelf's world pin, put back where
+    // A placement pins the space: the shelf's world mate, put back where
     // it stood. The edit alone does not know the space; its landing
     // does, and drops the frame.
     let shelf_copy = pncad::document::Operand::Var(
@@ -825,7 +825,7 @@ fn two_copies_mated_to_each_other_free_move_as_one() {
 /// probed post's own loose space is keyed by its root; a mate onto
 /// another LOOSE copy puts the post in that copy's space, so the root
 /// no longer names a loose space and the landing drops the frame —
-/// reporting the join, not a world pin, because the joined space is
+/// reporting the join, not a world mate, because the joined space is
 /// still loose and the probe still admits the post to it.
 #[test]
 fn a_frame_whose_space_joins_another_goes_saying_so() {
@@ -1391,7 +1391,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     let tol = Tol::witness();
     let bench = asm::bench("fmgesture", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b's world pin off: a loose space of its own, which the probe
+    // post_b's world mate off: a loose space of its own, which the probe
     // moves, each frame composed so it is drawn where its pin stood it.
     asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
@@ -1559,7 +1559,7 @@ fn a_landing_mate_discards_the_probe_value() {
     let bench = asm::bench("fmsupersede", tol);
     let mut session = asm::open_bench(&bench, tol);
     let index = asm::index_of(&session);
-    // Its world pin off, post_b is a loose space.
+    // Its world mate off, post_b is a loose space.
     asm::unpin(&mut session, bench.post_b);
     // Probe post_b somewhere.
     for op in [

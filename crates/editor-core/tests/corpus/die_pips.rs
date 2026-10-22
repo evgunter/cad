@@ -48,17 +48,13 @@
 //!
 //! # One further REPORTED deviation
 //!
-//! **(a) A per-pole master ball, not a rotated copy.** The sweep unit
-//! rotates one +Y-poled ball onto each face normal. `Node::Transform`
-//! could do the same, but `sin`/`cos` of ±π/2 are not exact in `f64`,
-//! so the rotated chart's polar axis would sit ~1e-16 off the face
-//! normal — inside every ε row's band, but an approximation where an
-//! exact placement was available. Instead the ball's revolve axis IS
-//! the face normal (the sketch frame is chosen so its v-axis is +Z),
-//! and the `Node::Transform` is translation-only, rotation angle
-//! exactly `0`. This is the discipline `tests/fixture/mod.rs` already
-//! records for the M4 die, applied to the chart instead of the volume
-//! oracle.
+//! **(a) The pip stands on the face's axis, not a rotated copy.** The
+//! sweep unit rotates one +Y-poled ball onto each face normal. Here the
+//! ball revolves about its own pole, and its copy stands by an axis
+//! mate from that pole onto the +Z face's centre line — a frame read
+//! off the cube's corner, slid by exact moves (`moved_frame`) — its
+//! spin the constant `0`, so the chart's polar axis lies on the face
+//! normal exactly rather than ~1e-16 off it.
 //!
 //! # No mass pin
 //!

@@ -1302,7 +1302,7 @@ pub enum SnapshotError {
     },
     /// An appearance entry is read in a variable the document holds
     /// live that is no output holding a body — a scalar, a selection,
-    /// a datum's output — so no table names what it holds. No edit
+    /// a pose output — so no table names what it holds. No edit
     /// writes one (`EditError::AppearanceBodyNotARead`); a deleted
     /// operation's read, the stranded key, is legal.
     AppearanceReadNotABody {

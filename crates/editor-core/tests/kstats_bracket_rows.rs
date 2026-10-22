@@ -89,7 +89,7 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 /// The decisions the part's profile pre-pass makes on the one-solid
 /// part: the program's four junctions and the f64 validation of the
 /// assembled profile, drawn on its own xy.
-const PRE_PASS: usize = 76;
+const PRE_PASS: usize = 88;
 /// The one-solid part's log sizes by node at `f64`: profile, extrude,
 /// placement. At `f64` the Profile node's op takes the pre-pass's
 /// validated form (`editor_core::ProfileLane`) and logs what the second
@@ -97,12 +97,12 @@ const PRE_PASS: usize = 76;
 const EXTRUDE_LOG: usize = 655;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
-const LANE_OP: usize = 71;
+const LANE_OP: usize = 83;
 const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
 /// A placement standing where its body stands ([`fixture::place`]): the
 /// identity bundle, which the fold places by no map, deciding nothing.
 const PLACEMENT_LOG: usize = 0;
-/// Each instance's own op: its pin's fold off the identity (two datum
+/// Each instance's own op: its pin's fold off the identity (two pose
 /// normals and the map's seven rigidity margins, run as every
 /// placement but the identity bundle runs its map), then placement and
 /// validation of the placed body.
@@ -330,7 +330,7 @@ fn the_profile_nodes_log_at_f64_opens_with_the_pre_pass() {
         *histogram.entry(v.predicate).or_default() += 1;
     }
     assert!(
-        !histogram.contains_key("datum_unit_norm"),
+        !histogram.contains_key("pose_unit_norm"),
         "the plane's axes are the FRAME's decision, not the profile's: {histogram:?}"
     );
     // Seven from the replay's junctions (each read at its arriving
@@ -521,12 +521,14 @@ fn a_pre_op_failure_has_empty_escalations() {
 /// f64 and would refuse an in-band one), then the parameter's VALUE is
 /// moved to an in-band distance inside the outer edge — a door that
 /// validates nothing, by design, because the evaluation's pre-pass is
-/// where a parameter's profile is decided. That pre-pass escalates on
-/// `chord_side` between the outer edge and the island's, and the node
-/// refuses before its op runs; the
-/// escalation is on the node's error — the frame is the node's whether
-/// the refusal came from the op or from the pass before the key — and
-/// in no outer frame.
+/// where a parameter's profile is decided. That pre-pass reads an
+/// island edge's gap to the outer right edge in band (`segment_gap`, a
+/// screen the pair then reads past on a definite carrier side), then
+/// escalates on `chord_side` between the outer edge and the island's,
+/// and the node refuses before its op runs. Both in-band readings are on
+/// the node's error, in the order made — the frame is the node's
+/// whether the refusal came from the op or from the pass before the key
+/// — and in no outer frame.
 #[test]
 fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let tol = Tol::witness();
@@ -580,7 +582,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let named: Vec<&str> = err.escalations.iter().map(|e| e.predicate()).collect();
     assert_eq!(
         named,
-        ["chord_side"],
+        ["segment_gap", "chord_side"],
         "the pre-pass's escalation rides the refusal: {}",
         err.kind
     );

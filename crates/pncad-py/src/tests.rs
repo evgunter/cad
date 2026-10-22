@@ -90,18 +90,11 @@ fn stood(
     doc: pncad::document::ProfileDoc,
     placement: pncad::document::RecipeNodeId,
 ) -> pncad::document::ProfileDoc {
-    use pncad::document::{Node, Operand};
-    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
+    use pncad::document::Node;
+    let Some(Node::Place { .. }) = doc.node(placement) else {
         panic!("{placement} is a placement");
     };
-    let copy = Operand::Var(shapes[0].read);
-    let placed = pncad::document::stand(
-        &doc,
-        &copy,
-        &pncad::document::EvalOptions::default(),
-        pncad::tolerance::Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the copy stands: {e}"));
+    let placed = pncad::document::stand();
     let mut doc = doc;
     placed
         .write(placement, |edit| {
@@ -2128,9 +2121,6 @@ fn node_error_tags_are_the_published_words() {
         Profile => "profile",
         ProfileReplay => "profile_replay",
         ProfileLaneReplay => "profile_lane_replay",
-        ProfileAnchor => "profile_anchor",
-        ProfilePieces => "profile_pieces",
-        ProfileRecordMissing => "profile_record_missing",
         Extrude => "extrude",
         Revolve => "revolve",
         Tube => "tube",
@@ -2163,7 +2153,6 @@ fn node_error_tags_are_the_published_words() {
         UnderflowedDirection => "underflowed_direction",
         Band => "band",
         MissingSlot => "missing_slot",
-        VerbArity => "verb_arity",
         Escalated => "escalated",
         PoseRead => "pose_read",
         PoseDegenerate => "pose_degenerate",
@@ -4589,6 +4578,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_sector_side_unsupported",
             "declaration_contradicted",
             "degenerate_torus",
+            "edge_in_face",
             "edge_undescribed",
             "escalated",
             "euler",
@@ -4633,6 +4623,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_orientation",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
+            "slit_face_glued",
+            "slit_line_crossed",
             "spheres_meet",
             "split_lineage_cycle",
             "torn_component",
@@ -4670,6 +4662,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edge_edge_overlap",
             "edge_face_overlap",
             "edge_face_pierce",
+            "face_face_tangent",
             "vertex_on_edge",
             "vertex_on_face",
             "vertex_vertex",
@@ -4779,6 +4772,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "crossing_senses_shape_tag",
+        values: &[
+            "unsupported_crossing_senses_name_reads_two_senses",
+            "unsupported_crossing_senses_pieces_both_sides",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "crossing_side_tag",
         values: &["opposite_sides", "same_side", "undecided"],
         delegates: &[],
@@ -4798,6 +4799,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "split_on",
             "tangent_witness",
             "vertex_fusion",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "disagree_shape_tag",
+        values: &[
+            "band_verdicts_disagree_flush_senses_disagree",
+            "band_verdicts_disagree_joined_edge_off_members",
+            "band_verdicts_disagree_pieces_at_one_vertex",
+            "band_verdicts_disagree_vertex_off_joined_set",
         ],
         delegates: &[],
     },
@@ -5126,6 +5137,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
         ],
     },
     TagEntry {
+        function: "join_shape_tag",
+        values: &[
+            "unsupported_join_chord_beside_merged_face",
+            "unsupported_join_chord_with_piece",
+            "unsupported_join_outright",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "label_fault_tag",
         values: &[
             "label_blank",
@@ -5229,26 +5249,35 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "naming_error_tag",
         values: &[
             "carrier_unplaced",
+            "chord_off_rim",
             "closed_carrier_unread",
             "conventional_vertex",
             "duplicate",
             "emission",
             "entity_named",
             "escalated",
+            "joined_piece_off_root",
             "kind_mismatch",
             "member_edge_tied",
-            "merged_chord",
-            "merged_chord_off_rim",
             "missing_upstream",
             "partner_unread",
-            "seam_vertex_parentage",
             "seam_vertex_partners",
             "short_tie",
             "split_lineage_cycle",
             "unnamed",
             "unsettled_vertex",
         ],
-        delegates: &["band_error_tag", "rim_share_tag"],
+        delegates: &[
+            "band_error_tag",
+            "crossing_senses_shape_tag",
+            "disagree_shape_tag",
+            "join_shape_tag",
+            "rim_share_tag",
+            "seam_sides_shape_tag",
+            "seam_vertex_shape_tag",
+            "union_name_shape_tag",
+            "way_shape_tag",
+        ],
     },
     TagEntry {
         function: "no_chart_why_tag",
@@ -5331,10 +5360,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pose_scalar",
             "product_operand",
             "profile",
-            "profile_anchor",
             "profile_lane_replay",
-            "profile_pieces",
-            "profile_record_missing",
             "profile_replay",
             "revolve",
             "seed",
@@ -5352,7 +5378,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "union_fold_step",
             "unresolved_read",
             "unschedulable_cycle",
-            "verb_arity",
             "witness_bifurcation",
             "wrong_operand",
         ],
@@ -5377,7 +5402,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "loft_error_tag",
             "naming_error_tag",
             "param_box_error_tag",
-            "pieces_fault_tag",
             "placement_rule_inner_tag",
             "pose_read_fault_tag",
             "profile_error_tag",
@@ -5473,6 +5497,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "arc_center_not_equidistant",
             "arc_leg_on_open_fillet",
+            "arc_miss_below_scene_resolution",
+            "arc_misses_authored_point",
             "arc_sweep_not_short_of_full_turn",
             "arc_via_collinear",
             "band",
@@ -5525,11 +5551,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_invalid",
             "unreadable",
         ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "pieces_fault_tag",
-        values: &["length", "no_ids", "no_record", "no_step_id"],
         delegates: &[],
     },
     TagEntry {
@@ -5628,7 +5649,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "program_refusal_tag",
         values: &[
             "geometry",
-            "pieces",
             "resolve",
             "step_ids",
             "transition",
@@ -5771,6 +5791,25 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "vertex_on_edge",
             "vertex_on_ring_edge",
             "vertex_vertex",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "seam_sides_shape_tag",
+        values: &[
+            "unsupported_seam_sides_inside_one_parent",
+            "unsupported_seam_sides_name_spells_two_seams",
+            "unsupported_seam_sides_not_two_faces",
+            "unsupported_seam_sides_within_one_operand",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "seam_vertex_shape_tag",
+        values: &[
+            "unsupported_seam_vertex_line_across_several_faces",
+            "unsupported_seam_vertex_no_edge_pair",
+            "unsupported_seam_vertex_one_operand_seam",
         ],
         delegates: &[],
     },
@@ -5970,7 +6009,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cuts_the_world",
             "definition_straddles_cut",
             "empty_cut",
-            "instance_unstood",
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",
@@ -6095,6 +6133,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ring_on_curved_face",
             "self_touching_trim_loop",
             "single_column_curved_face",
+            "step_not_positive",
             "tolerance_band_unformable",
             "triangulation",
             "unsupported_curve",
@@ -6140,6 +6179,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "union_name_shape_tag",
+        values: &[
+            "unsupported_union_name_junction_lines_collide",
+            "unsupported_union_name_run_least_line_moved",
+            "unsupported_union_name_seam_group_no_member_edge",
+            "unsupported_union_name_several_parents",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "unlocalized_tag",
         values: &[
             "containment",
@@ -6178,6 +6227,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "component_euler_violation",
             "contact_contradicted",
             "curved_sense_inverted",
+            "cusp_edges_missing",
             "dangling_description",
             "dangling_geometry",
             "dangling_topology",
@@ -6191,6 +6241,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edge_slot_backpointer_mismatch",
             "emanating_start_mismatch",
             "empty_loop_vertex_with_emanating",
+            "face_through_edge_wedge",
+            "face_through_edge_wedge_undecided",
             "half_edge_multiply_claimed",
             "half_edge_unclaimed",
             "instance_interference",
@@ -6236,6 +6288,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffold_at_rest",
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
+            "seam_region_cover_unresolved",
+            "seam_region_overcovered",
             "shell_disconnected",
             "shell_role_undecided",
             "shell_winding",
@@ -6270,6 +6324,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "validate_geometric",
             "validate_pseudomanifold",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "way_shape_tag",
+        values: &["way_in_zero_band_carrier", "way_in_zero_band_line"],
         delegates: &[],
     },
     TagEntry {
@@ -6445,8 +6504,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("pcurves", 3),
     // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
-    // whole by each verb. The profile program's word is a coincidence.
-    ("pieces", 3),
+    // whole by each verb.
+    ("pieces", 2),
     ("pin", 2),
     ("placement_rule_mismatch", 2),
     ("poisoned", 2),

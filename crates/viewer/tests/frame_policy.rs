@@ -3352,7 +3352,7 @@ fn the_preferences_path_follows_the_xdg_rules() {
 /// a REAL landing — a real mate on a real assembly — because a
 /// hand-made report would assert about a shape rather than about the
 /// path. Under DI5 a free-move moves a loose space, so the post is
-/// unpinned first, and a mate onto the shelf, which the world pins,
+/// unpinned first, and a mate onto the shelf, which the world mates,
 /// moves the post into the world's space: the supersession arrives
 /// when the evaluation that pins it lands, not with the edit.
 #[test]
@@ -3505,7 +3505,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     let post = test_utils::refusal::tag(bench.post_b.0.digest());
     let in_the_world = format!(
         "InstantiatePart {post} lives in the world's space: its placement pins it there (a \
-         world pin, or a mate onto a copy in the world), so the free-move probe refuses. \
+         world mate, or a mate onto a copy in the world), so the free-move probe refuses. \
          Free-move moves a loose space, a copy nothing pins to the world"
     );
     assert_eq!(

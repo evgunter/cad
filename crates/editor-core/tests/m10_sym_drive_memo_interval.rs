@@ -566,7 +566,7 @@ fn every_leaf_reports_one_column_under_every_schedule_and_both_dials() {
 }
 
 /// **R2's own end-to-end row, kept whole** — two freezing documents
-/// (a boss on a derived frame over a tilted datum, and the plate) at
+/// (a boss on a tilted pose read off a cube, and the plate) at
 /// the unit's pin budget, driven sequentially, on one, two and four
 /// rayon workers, and with the dial off, everything byte-identical.
 ///

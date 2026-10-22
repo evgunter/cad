@@ -204,7 +204,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         applied.record.minted.expect("insert mints an id")
     };
     let circle = |r_mm: f64| LoopProgram::Circle {
-        centre: [mm(R_MM), mm(0.0)],
+        centre: [mm(R_MM), Formula::zero(Dimension::Length)],
         radius: mm(r_mm),
     };
     let profile = insert(

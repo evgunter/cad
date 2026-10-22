@@ -1,7 +1,7 @@
 //! **The frame witness, exercised from outside geom-core** — the
 //! aiming ladders against the arithmetic they replaced, a tube built
 //! the way a user builds one, the sketch-plane door's repair of a
-//! skewed pair, and a frame datum carried whole through the document.
+//! skewed pair.
 //!
 //! These rows came out of a review of the type and were kept as
 //! ordinary suite rows, trimmed to what nothing else asserts:

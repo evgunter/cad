@@ -23,16 +23,12 @@ use crate::part::ResolveFault;
 /// variant per value, named for the arm and then the value. The two
 /// blends share one kernel error type and one arm, so the VERB decides
 /// ([`Self::Fillet`], [`Self::Chamfer`], and their selection refusals);
-/// a placement rule's fault, a carried frame direction's fact, an
-/// instantiation's fault and a mate's fault each decide theirs. Nothing
-/// else in a payload is read.
+/// a placement rule's fault, an instantiation's fault and a mate's
+/// fault each decide theirs. Nothing else in a payload is read.
 ///
 /// [`NodeErrorKind::class`] matches exhaustively, and so does every
-/// split inside it but the carried frame direction's — an arm added to
-/// the error, or a value added to a split, reds `class` itself, here in
-/// this crate. The frame direction's split is read off the raise it
-/// carries ([`Self::raised`]), so a new direction fact reds at that
-/// raise's own map in `wire`.
+/// split inside it — an arm added to the error, or a value added to a
+/// split, reds `class` itself, here in this crate.
 ///
 /// A variant HERE with no arm behind it is a phantom: nothing constructs
 /// it, so no test can reach it. This module's tests therefore carry the
@@ -53,12 +49,6 @@ pub enum NodeErrorClass {
     ProfileReplay,
     /// [`NodeErrorKind::ProfileLaneReplay`].
     ProfileLaneReplay,
-    /// [`NodeErrorKind::ProfileAnchor`].
-    ProfileAnchor,
-    /// [`NodeErrorKind::ProfilePieces`].
-    ProfilePieces,
-    /// [`NodeErrorKind::ProfileRecordMissing`].
-    ProfileRecordMissing,
     /// [`NodeErrorKind::Extrude`].
     Extrude,
     /// [`NodeErrorKind::Revolve`].
@@ -123,8 +113,6 @@ pub enum NodeErrorClass {
     Band,
     /// [`NodeErrorKind::MissingSlot`].
     MissingSlot,
-    /// [`NodeErrorKind::VerbArity`].
-    VerbArity,
     /// [`NodeErrorKind::Escalated`].
     Escalated,
     /// [`NodeErrorKind::PoseRead`].
@@ -259,9 +247,6 @@ impl NodeErrorKind {
             Self::Profile(_) => C::Profile,
             Self::ProfileReplay { .. } => C::ProfileReplay,
             Self::ProfileLaneReplay { .. } => C::ProfileLaneReplay,
-            Self::ProfileAnchor => C::ProfileAnchor,
-            Self::ProfilePieces { .. } => C::ProfilePieces,
-            Self::ProfileRecordMissing { .. } => C::ProfileRecordMissing,
             Self::Extrude(_) => C::Extrude,
             Self::Revolve(_) => C::Revolve,
             Self::Tube(_) => C::Tube,
@@ -293,7 +278,6 @@ impl NodeErrorKind {
             Self::UnderflowedDirection { .. } => C::UnderflowedDirection,
             Self::Band(_) => C::Band,
             Self::MissingSlot { .. } => C::MissingSlot,
-            Self::VerbArity { .. } => C::VerbArity,
             Self::Escalated { .. }
             | Self::MeasureEscalated { .. }
             | Self::PlacementAxisEscalated { .. }
@@ -421,9 +405,6 @@ mod tests {
         Profile,
         ProfileReplay,
         ProfileLaneReplay,
-        ProfileAnchor,
-        ProfilePieces,
-        ProfileRecordMissing,
         Extrude,
         Revolve,
         Tube,
@@ -456,7 +437,6 @@ mod tests {
         UnderflowedDirection,
         Band,
         MissingSlot,
-        VerbArity,
         Escalated,
         PoseRead,
         PoseDegenerate,
@@ -603,15 +583,6 @@ mod tests {
                 step: 2,
                 structure: None,
             },
-            C::ProfileAnchor => K::ProfileAnchor,
-            C::ProfilePieces => K::ProfilePieces {
-                fault: crate::PiecesFault::Length {
-                    loop_: 0,
-                    recorded: 4,
-                    anchored: 5,
-                },
-            },
-            C::ProfileRecordMissing => K::ProfileRecordMissing { loop_: 1 },
             C::Extrude => K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
             C::Revolve => K::Revolve(sweep::RevolveError::DegenerateAxis),
             C::Tube => K::Tube(Box::new(sweep::TubeError::DegenerateWindow)),
@@ -714,10 +685,6 @@ mod tests {
             C::Band => K::Band(band_error()),
             C::MissingSlot => K::MissingSlot {
                 slot: SlotId::Distance,
-            },
-            C::VerbArity => K::VerbArity {
-                verb: verbs::VerbKind::Fillet,
-                given: verbs::Arity::Two,
             },
             C::Escalated => K::Escalated {
                 predicate: "side_of_plane",

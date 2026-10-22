@@ -257,7 +257,7 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
     )
     .unwrap()
     .doc;
-    // The part's world pin reads its frame off an edge and a vertex of
+    // The part's world mate reads its frame off an edge and a vertex of
     // the body, which the reshape may move: the placement is pinned
     // again where the reshaped body stands in its own coordinates.
     let [placement] = doc.placements()[..] else {

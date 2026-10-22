@@ -191,6 +191,15 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     else {
         panic!("slot() cuts the plate with a subtract");
     };
+    // A seam's side: the bar's wall as the cut's table carries it in.
+    let cutter = |segment| StableName {
+        kind: EntityKind::Face,
+        node: cut1,
+        path: vec![RoleSeg::From {
+            read: tool_read.read,
+            of: wall(segment).into(),
+        }],
+    };
     let mut vanished = 0;
     for name in &names {
         // The plate's fragments; the bar's edges are lone pieces whose
@@ -209,9 +218,9 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
         // near rim edge.
         // The cutters are read in name order.
         let (gone, new) = match name.kind {
-            EntityKind::Face => (vec![], vec![wall(0)]),
+            EntityKind::Face => (vec![], vec![cutter(0)]),
             _ => {
-                let mut gone = vec![wall(1), wall(3)];
+                let mut gone = vec![cutter(1), cutter(3)];
                 gone.sort();
                 (gone, vec![])
             }

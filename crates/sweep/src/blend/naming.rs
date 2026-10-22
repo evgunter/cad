@@ -50,7 +50,7 @@
 //! consumer (one IMPLEMENTATION, reached through both verbs' thin
 //! emitter doors). It reads every field, [`Retired`] included, but
 //! not all for one job: the mint rows are what it names FROM, while
-//! [`Retired`] is a GUARD, refusing an output key the records say
+//! [`Retired`] is a GUARD, panicking on an output key the records say
 //! was retired rather than naming it a survivor. That guard cannot
 //! fire while the arenas reissue no retired key; it holds the
 //! invariant against that changing.
@@ -95,9 +95,9 @@ use topo::{EdgeKey, FaceKey, VertexKey};
 /// The seam is where a break is absorbed: a rename on this side that
 /// the emitter still maps needs no version bump.
 ///
-/// **If the twin ever collapses, `verbs::Verb` is the canonical owner
+/// **If the twin ever collapses, `verbs::Blend` is the canonical owner
 /// it collapses onto** — the persisted spelling becoming a stable-tag
-/// match over that enum, the way every other per-verb commitment is
+/// match over the verb vocabulary, the way every other per-verb commitment is
 /// held. That is recorded here, where the twin lives, and not taken:
 /// the indirection is not load-bearing for two variants, and this type
 /// belongs to the BIRTH RECORD rather than to a verb's payload, so a

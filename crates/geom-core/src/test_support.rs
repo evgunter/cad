@@ -26,3 +26,18 @@ pub fn rigid<T: Decide>(map: &Affine3<T>, tol: Tol) -> RigidMotion<T> {
     RigidMotion::check_rigid(map, band)
         .unwrap_or_else(|e| panic!("the map is not admitted as a rigid motion: {e}"))
 }
+
+/// The Bernstein row on `[a, b] ⊆ [0, 1]` of a `[0, 1]` row, by the
+/// arithmetic the retired `restrict_bernstein` ran: the oracle for the
+/// trim bisection's bit-identity row against the door it moved to,
+/// [`crate::spline::restrict_segment`] on `[0, 1]`.
+///
+/// # Errors
+///
+/// As the retired door: an empty row, or an end outside `[0, 1]`.
+pub fn bernstein_restriction_as_retired(
+    row: &[crate::Interval],
+    ends: (crate::Interval, crate::Interval),
+) -> Result<Vec<crate::Interval>, crate::spline::BlossomError> {
+    crate::spline::blossom::bernstein_restriction_as_retired(row, ends)
+}

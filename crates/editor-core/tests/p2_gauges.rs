@@ -1,8 +1,8 @@
-//! **EDIT-PLACEMENT P2 over placements — world pins, seated copies
+//! **EDIT-PLACEMENT P2 over placements — world mates, seated copies
 //! and loose copies** (ASSEMBLY.md A4, A9, A11; D10, Spaces).
 //!
 //! An instance is a placement: its bundle pins its copy, and an empty
-//! bundle leaves it loose, in a space of its own. One world pin puts it
+//! bundle leaves it loose, in a space of its own. One world mate puts it
 //! in the world at the pin's pose, which may read a document parameter;
 //! a seat puts it where its target's copy says. No edit records a
 //! solved frame, so removing what pins a copy is never refused and a
@@ -297,7 +297,7 @@ pub(crate) fn pinned_lifting(
     (fixture::constrain_at(doc, id, pin).0, id)
 }
 
-/// **`placement`'s bundle replaced** by one world pin at `pose`, or
+/// **`placement`'s bundle replaced** by one world mate at `pose`, or
 /// emptied (a loose copy) for `None`; `o` resolves its part.
 pub(crate) fn set_pin(
     doc: ProfileDoc,
@@ -312,10 +312,10 @@ pub(crate) fn set_pin(
     }
 }
 
-/// **Whether the interval lane may escalate where a Transform reads a
+/// **Whether the interval lane may escalate where a placement maps a
 /// copy pinned over its geometry** (`pin_at` at a pose off the
 /// identity): at ε = 1e-12 the copy carries its geometry's enclosure, a
-/// few ε wide, into the map, and certifying the Transform's moved edges
+/// few ε wide, into the map, and certifying the placed copy's moved edges
 /// escalates at some values of the pin's parameters
 /// (`work/intent/a-pin-read-off-a-copys-geometry-carries-its-width-into-the-copy.md`).
 pub(crate) fn a_pinned_copy_escalates_its_transform() -> bool {
@@ -391,7 +391,7 @@ pub(crate) fn resolver(store: PartStore) -> Arc<dyn PartResolver> {
     Arc::new(store)
 }
 
-// ---- Row 1: a world pin at a parametric pose ----
+// ---- Row 1: a world mate at a parametric pose ----
 
 /// **An instance pinned to the world at a composed parametric pose sits
 /// there, and one document parameter moves every pose reading it.** One
@@ -553,8 +553,8 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
 
 // ---- Row 3: what is never refused, and the loose copy ----
 
-/// **Removing a world pin or a value of a placing seat is not refused,
-/// and what stays placed is recomputed.** Removing the base's world pin
+/// **Removing a world mate or a value of a placing seat is not refused,
+/// and what stays placed is recomputed.** Removing the base's world mate
 /// leaves the base loose and the top, pinned to it, in the base's
 /// space; removing the seat's spin leaves the top loose by itself. Each
 /// loose copy still evaluates, in its own space, and has no world pose.
@@ -574,7 +574,7 @@ fn removing_what_pins_a_copy_is_never_refused_and_leaves_it_loose() {
         .id;
     for (what, edit, loose) in [
         (
-            "the world pin",
+            "the world mate",
             DocEdit::RemoveConstraint {
                 placement: base,
                 constraint: pin,
@@ -740,7 +740,7 @@ fn an_old_file_refuses_and_a_loose_instance_saves_and_loads() {
 
 // ---- Row 5: a parametric pin, in every lane ----
 
-/// **A seat under a parametric world pin poses alike in every lane.**
+/// **A seat under a parametric world mate poses alike in every lane.**
 /// The base is pinned at a pose turned a quarter of a radian about z and
 /// lifted by `lift`; the top is seated on it, and a second top is
 /// stacked on the seated one:
@@ -882,7 +882,7 @@ fn left_at_identity(p: &Parts, out: &editor_core::SplitOutcome) -> bool {
 
 /// **A cut of one placed pair moves as selected** (A4). The instance
 /// left behind sits on the world at the identity, the base keeps its
-/// world pin in the part, and the top keeps its seat.
+/// world mate in the part, and the top keeps its seat.
 #[test]
 fn a_cut_of_one_placed_pair_moves_its_bundles_as_they_are() {
     let (p, doc, [base, top], _) = placed_pair("p2-one-group");
@@ -902,7 +902,7 @@ fn a_cut_of_one_placed_pair_moves_its_bundles_as_they_are() {
     assert!(
         offset_of(&doc, base).is_some()
             && fixture::same_offset(&out.part, out.node_map[&base], &doc, base),
-        "and the base keeps its world pin in the part"
+        "and the base keeps its world mate in the part"
     );
     let top_bundle = fixture::bundle(&out.part, out.node_map[&top]);
     assert_eq!(
@@ -916,7 +916,7 @@ fn a_cut_of_one_placed_pair_moves_its_bundles_as_they_are() {
 /// **Inline at the identity, and at any other pose** (A4): at the
 /// identity the content lands verbatim, so the round trip of a cut
 /// returns the pair with the base's pin; at another pose the part's
-/// world pins move by the instance's solved motion and nothing in the
+/// world mates move by the instance's solved motion and nothing in the
 /// part moves relative to it. An instance with an empty bundle, over a
 /// part that is not one instance at the identity, has no placement to
 /// hand its bundle to and refuses typed.
@@ -1065,7 +1065,7 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
 
 /// **A cut of two pinned instances moves verbatim** (A4): the instance
 /// left behind sits on the world at the identity and each keeps its own
-/// world pin in the part.
+/// world mate in the part.
 #[test]
 fn a_cut_of_two_pinned_instances_moves_verbatim() {
     let p = parts("p2-two-groups");
@@ -1089,7 +1089,7 @@ fn a_cut_of_two_pinned_instances_moves_verbatim() {
         assert!(
             offset_of(&doc, id).is_some()
                 && fixture::same_offset(&out.part, out.node_map[&id], &doc, id),
-            "each keeps its own world pin"
+            "each keeps its own world mate"
         );
     }
 }
@@ -1105,10 +1105,10 @@ fn pair_beside_a_base(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     (p, doc, [base, top, second])
 }
 
-/// One instance's world pin beside its image's.
+/// One instance's world mate beside its image's.
 type PinPair = (Option<WorldRead<Formula>>, Option<WorldRead<Formula>>);
 
-/// Every instance's world pin in `doc` beside the one `onto` holds at
+/// Every instance's world mate in `doc` beside the one `onto` holds at
 /// its image under `map`.
 fn pins_through(
     doc: &ProfileDoc,
@@ -1149,7 +1149,7 @@ fn replay(from: &ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -> 
 }
 
 /// **C1 at split: a verbatim move keeps every bundle.** The part holds
-/// exactly the source's world pins and each placement's constraints, and
+/// exactly the source's world mates and each placement's constraints, and
 /// the split reports no maintenance for a carried node.
 #[test]
 fn a_verbatim_split_keeps_every_bundle() {

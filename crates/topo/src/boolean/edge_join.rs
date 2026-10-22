@@ -703,8 +703,15 @@ pub enum JoinRefusal {
         closed: bool,
     },
     /// The kill, the re-description or the re-mint refused on a body
-    /// that passed tier 2: a kernel or file defect, by the refusal's
-    /// kind.
+    /// that passed tier 2: every other [`BooleanError`] the join
+    /// raises ([`JoinRefusal::of`]). That mixes causes: Euler
+    /// certification's limit, which user geometry reaches at a build;
+    /// the pair rule's refusal over the joined span (a seam's lever
+    /// rung, its undecided jet, a mixed seam); and the bug-only
+    /// [`BooleanError::JoinDesync`]. A build ends in the last resort
+    /// ([`geom_core::KERNEL_LIMIT_RECOURSE`]), the one ending honest
+    /// across that mix; read over a body at rest or a file, it is a
+    /// stored contradiction and ends in the door's defect ending.
     Kernel {
         /// The boolean refusal's kind.
         kind: super::BooleanErrorKind,
@@ -734,15 +741,23 @@ impl JoinRefusal {
     }
 }
 
-impl core::fmt::Display for JoinRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let undecided = |f: &mut core::fmt::Formatter<'_>, diag: &Indeterminate| {
-            write!(
-                f,
-                "{JOIN_SUBJECT} is undecided ({}). {}",
-                diag.payload(),
-                diag.ending(JOIN_LEVER)
-            )
+impl JoinRefusal {
+    /// This refusal's text read at `at`: a reading in band ends in the
+    /// join's lever, a poisoned one with the door's unreadable-margin
+    /// note ([`geom_brep::recourse::unreadable_margin_note`]), a refused
+    /// kill or re-mint as [`Self::Kernel`] says, and a defect in the
+    /// door's defect ending ([`geom_brep::recourse::defect_ending`]).
+    #[must_use]
+    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
+        use geom_brep::recourse::{ReadAt, Reading, defect_ending, unreadable_margin_note};
+        let at = at.into();
+        let defect = defect_ending(at);
+        let undecided = |diag: &Indeterminate| {
+            let ending = match at {
+                ReadAt::Run(Reading::Build) => diag.ending(JOIN_LEVER),
+                _ => diag.ending_noted(JOIN_LEVER, unreadable_margin_note(at)),
+            };
+            format!("{JOIN_SUBJECT} is undecided ({}). {ending}", diag.payload())
         };
         match self {
             Self::Undecided(JoinUndecided {
@@ -752,18 +767,15 @@ impl core::fmt::Display for JoinRefusal {
             | Self::Undecided(JoinUndecided {
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(diag)),
                 ..
-            }) => undecided(f, diag),
+            }) => undecided(diag),
             Self::Undecided(JoinUndecided {
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
                 ..
-            }) => write!(
-                f,
+            }) => format!(
                 "two edges meeting at a vertex on one surface have no chart image to read \
-                 their family off ({e}). {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                 their family off ({e}). {defect}"
             ),
-            Self::CarrierUnsupported { carrier, closed } => write!(
-                f,
+            Self::CarrierUnsupported { carrier, closed } => format!(
                 "two edges meet at a vertex on one {} carrier, which the join cannot run an \
                  edge on {} yet (work/hone/joining-a-spline-carrier-is-unbuilt); there is no \
                  way through this yet",
@@ -774,13 +786,23 @@ impl core::fmt::Display for JoinRefusal {
                     "through the vertex"
                 }
             ),
-            Self::Kernel { kind } => write!(
-                f,
+            Self::Kernel { kind } => format!(
                 "the join of two edges meeting at a vertex on one curve refused ({}). {}",
                 kind_word(*kind),
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                match at {
+                    ReadAt::Run(Reading::Build) => geom_core::KERNEL_LIMIT_RECOURSE,
+                    _ => defect,
+                }
             ),
         }
+    }
+}
+
+/// Read at a build: every operation that reports it joins the edges of
+/// a body it built.
+impl core::fmt::Display for JoinRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
     }
 }
 
@@ -1394,5 +1416,47 @@ mod undecided_text {
              its description-driven iso/fitted lanes instead of this door, and an image outside \
              the chart's harmonic family belongs to the fitted lane where one exists"
         );
+    }
+}
+
+#[cfg(test)]
+mod kernel_text {
+    //! **A refused kill or re-mint ends by its door**: at a build, the
+    //! kernel-limit last resort, since user geometry reaches Euler
+    //! certification's limit there; at rest, the kernel-or-file defect
+    //! ending; at the import door, the file's.
+
+    use geom_brep::recourse::Reading;
+    use geom_core::FileCoincidence;
+
+    use super::JoinRefusal;
+
+    #[test]
+    fn a_refused_join_ends_by_its_door() {
+        let refusal = JoinRefusal::Kernel {
+            kind: crate::BooleanErrorKind::Euler,
+        };
+        let lead = "the join of two edges meeting at a vertex on one curve refused (Euler). ";
+        let rows = [
+            (
+                "a build",
+                refusal.to_string(),
+                "Recourse: loosen the tolerance, as a last resort; this refusal may indicate \
+                 a kernel bug worth reporting",
+            ),
+            (
+                "at rest",
+                refusal.render(Reading::AtRest),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "the import door",
+                refusal.render(FileCoincidence::new(1e-6)),
+                geom_core::DAMAGED_FILE_ENDING,
+            ),
+        ];
+        for (door, got, ending) in rows {
+            assert_eq!(got, format!("{lead}{ending}"), "{door}");
+        }
     }
 }

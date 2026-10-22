@@ -85,6 +85,22 @@ impl Slot {
         }
         .in_copy(self.bar.placement)
     }
+
+    /// The bar's wall `segment` as the cut's table carries it in,
+    /// through the read the cut's tool seat holds: a seam's side (N3).
+    fn cutter(&self, segment: u32) -> StableName {
+        let Some(Node::Subtract { tool, .. }) = self.doc.node(self.cut) else {
+            panic!("the cut is a subtract");
+        };
+        StableName {
+            kind: EntityKind::Face,
+            node: self.cut,
+            path: vec![RoleSeg::From {
+                read: tool.read,
+                of: self.wall(segment).into(),
+            }],
+        }
+    }
 }
 
 fn slot() -> Slot {
@@ -373,7 +389,7 @@ fn a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor(
                 // crosses it too.
                 cutters: GroupCutters::Read {
                     gone: vec![],
-                    new: vec![s.wall(0)],
+                    new: vec![s.cutter(0)],
                 },
             },
             "y = {to}"
@@ -451,7 +467,7 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
                     // walls at once, read in name order.
                     cutters: GroupCutters::Read {
                         gone: {
-                            let mut gone = vec![s.wall(1), s.wall(3)];
+                            let mut gone = vec![s.cutter(1), s.cutter(3)];
                             gone.sort();
                             gone
                         },

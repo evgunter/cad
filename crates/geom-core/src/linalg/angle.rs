@@ -2,7 +2,7 @@
 //! `[variables.literals]`: a rational fraction of a turn is a constant).
 //!
 //! A rotation reads an angle only through its sine and cosine. An angle
-//! written as a rational fraction of a turn ([`Angle::of_turns`]) gives
+//! written as a rational fraction of a turn ([`Angle::from_turns`]) gives
 //! them from the fraction, never from the rounded radian: a multiple of
 //! a quarter turn gives `0` and `±1`, a sine or cosine of `±1/2` (the
 //! other rational values, Niven) gives `±1/2`, and every other value is
@@ -32,6 +32,18 @@ impl Turns {
         let den = den / g;
         let num = num / i64::try_from(g).ok()?;
         Some(Self { num, den })
+    }
+
+    /// **`n` quarter turns**, reduced — [`Self::new`]`(n, 4)`, whose
+    /// denominator is a literal four and so cannot refuse.
+    #[must_use]
+    pub fn quarters(n: i64) -> Self {
+        // `g` divides four, so it is 1, 2 or 4 and its signed cast exact.
+        let g = gcd(n.unsigned_abs(), 4);
+        Self {
+            num: n / g.cast_signed(),
+            den: 4 / g,
+        }
     }
 
     /// The numerator, carrying the sign.
@@ -178,6 +190,19 @@ impl Turns {
     }
 }
 
+/// **`n` at `T`, for `|n| < 2^64`**: one exact literal up to `2^53`,
+/// past it `hi · 2^32 + lo` with both halves exact, so the one rounding
+/// is the sum's (outward at `Interval`).
+#[allow(clippy::cast_precision_loss)]
+fn integer<T: Real>(n: i128) -> T {
+    const EXACT: i128 = 1 << 53;
+    if n.abs() <= EXACT {
+        return T::from_f64(n as f64);
+    }
+    let (hi, lo) = (n >> 32, n & 0xffff_ffff);
+    T::from_f64(hi as f64) * T::from_f64(4_294_967_296.0) + T::from_f64(lo as f64)
+}
+
 fn gcd(mut a: u64, mut b: u64) -> u64 {
     while b != 0 {
         (a, b) = (b, a % b);
@@ -203,9 +228,23 @@ impl<T: Real> Angle<T> {
         }
     }
 
+    /// **`turns` of a turn**: the fraction its sine and cosine are read
+    /// from, and the value it stands for, `τ · num / den`, evaluated at
+    /// `T`. The numerator and denominator enter `T` exactly and `τ` is
+    /// [`Real::tau`], so at `Interval` the value encloses the true
+    /// radian.
+    pub fn from_turns(turns: Turns) -> Self {
+        Self {
+            radians: T::tau() * integer::<T>(i128::from(turns.num()))
+                / integer::<T>(i128::from(turns.den())),
+            turns: Some(turns),
+        }
+    }
+
     /// **`turns` of a turn, whose value at `T` is `radians`**: the
     /// value as the caller evaluated the fraction, and the fraction its
-    /// sine and cosine are read from.
+    /// sine and cosine are read from — for a caller that holds the
+    /// value already; [`Self::from_turns`] evaluates it.
     pub fn of_turns(radians: T, turns: Turns) -> Self {
         Self {
             radians,
@@ -253,20 +292,86 @@ impl<T: Real> Angle<T> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{Angle, Turns};
-    use crate::{Bounds, Interval, Real};
+    use super::{Angle, Turns, integer};
+    use crate::{Bounds, Interval};
 
     fn turns(num: i64, den: u64) -> Turns {
         Turns::new(num, den).expect("a nonzero denominator")
     }
 
     fn at(num: i64, den: u64) -> Angle<f64> {
-        let t = turns(num, den);
-        Angle::of_turns(
-            core::f64::consts::TAU * (t.num() as f64) / (t.den() as f64),
-            t,
-        )
+        Angle::from_turns(turns(num, den))
+    }
+
+    /// `Turns::quarters(n)` is `Turns::new(n, 4)`, reduced the same way,
+    /// out to the ends of `i64`.
+    #[test]
+    fn quarters_are_the_fraction_over_four() {
+        for n in (-9..=9).chain([i64::MIN, i64::MIN + 1, i64::MAX - 1, i64::MAX]) {
+            assert_eq!(Some(Turns::quarters(n)), Turns::new(n, 4), "{n} quarters");
+        }
+    }
+
+    /// **A quarter turn's value is `τ/4`**: at `f64` the rounded `π/2`
+    /// bit for bit, at `Interval` an enclosure of the true `π/2` that a
+    /// point could not be, its sine and cosine the exact points.
+    #[test]
+    fn a_quarter_turn_s_value_is_derived_from_the_fraction() {
+        let a = Angle::<f64>::from_turns(turns(1, 4));
+        assert_eq!(
+            a.get().to_bits(),
+            core::f64::consts::FRAC_PI_2.to_bits(),
+            "f64 value"
+        );
+        assert_eq!(a.sin_cos(), (1.0, 0.0), "f64 sine and cosine");
+        let i = Angle::<Interval>::from_turns(turns(1, 4));
+        let r = i.get();
+        assert!(
+            r.lo() < r.hi() && r.lo() <= core::f64::consts::FRAC_PI_2,
+            "Interval value {r:?} is a proper enclosure about π/2"
+        );
+        assert!(
+            core::f64::consts::FRAC_PI_2 <= r.hi(),
+            "Interval value {r:?}"
+        );
+        assert!(
+            r.hi() - r.lo() <= f64::EPSILON,
+            "Interval value {r:?} is τ's one-ulp enclosure quartered, no wider"
+        );
+        let (s, c) = i.sin_cos();
+        assert_eq!(
+            (s.lo(), s.hi(), c.lo(), c.hi()),
+            (1.0, 1.0, 0.0, 0.0),
+            "Interval sine and cosine"
+        );
+    }
+
+    /// **An integer past `2^53` enters as an enclosure, not a rounding**:
+    /// `2^60 + 1` has no `f64`, so `Interval` holds the two `f64`s about
+    /// it, each end at most one outward ulp further, where `f64` rounds
+    /// to the nearer.
+    #[test]
+    fn a_numerator_past_the_mantissa_is_enclosed() {
+        let n = (1_i128 << 60) + 1;
+        let lo = 2f64.powi(60);
+        let hi = lo.next_up();
+        let at_interval = integer::<Interval>(n);
+        assert!(
+            at_interval.lo() <= lo && hi <= at_interval.hi(),
+            "Interval {at_interval:?} encloses 2^60 + 1"
+        );
+        assert!(
+            lo.next_down() <= at_interval.lo() && at_interval.hi() <= hi.next_up(),
+            "Interval {at_interval:?} is within one ulp of the f64s about 2^60 + 1"
+        );
+        assert_eq!(integer::<f64>(n), lo, "f64 rounds to nearest");
+        assert_eq!(
+            integer::<f64>(-(1_i128 << 53)),
+            -(2f64.powi(53)),
+            "f64 exact"
+        );
     }
 
     /// Every whole number of quarter turns, either sign and past one
@@ -340,18 +445,6 @@ mod tests {
         let (s1, c1) = at(1, 8).sin_cos();
         let (s3, c3) = at(3, 8).sin_cos();
         assert_eq!((s3, c3), (c1, -s1));
-    }
-
-    /// At `Interval` the quarter turn's sine and cosine are the exact
-    /// points, where the rounded radian's enclosures are wide.
-    #[test]
-    fn a_quarter_turn_is_exact_at_an_interval() {
-        let a = Angle::of_turns(
-            Interval::from_f64(core::f64::consts::FRAC_PI_2),
-            turns(1, 4),
-        );
-        let (s, c) = a.sin_cos();
-        assert_eq!((s.lo(), s.hi(), c.lo(), c.hi()), (1.0, 1.0, 0.0, 0.0));
     }
 
     /// A value of no form keeps its own sine and cosine.

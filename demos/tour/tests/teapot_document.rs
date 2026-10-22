@@ -34,8 +34,8 @@ use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
     CancelToken, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    LoopProgram, Node, NodeErrorClass, Operand, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, ValuePayload, apply, evaluate, split, stand,
+    LoopProgram, Node, NodeErrorClass, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, ValuePayload, apply, evaluate, split, stand,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -110,16 +110,7 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
 /// `Node::place`, then `stand`'s identity bundle written onto it.
 fn place_in_world(doc: &mut Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) {
     let placement = insert(doc, Node::place(vec![body.into()]), tol);
-    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
-        panic!("a placement was inserted")
-    };
-    let placed = stand(
-        doc,
-        &Operand::Var(shapes[0].read),
-        &EvalOptions::default(),
-        tol,
-    )
-    .unwrap_or_else(|refusal| panic!("the copy stands: {refusal}"));
+    let placed = stand();
     placed
         .write(placement, |edit| {
             let applied = apply(doc, &edit, tol)?;

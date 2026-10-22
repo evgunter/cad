@@ -2,10 +2,11 @@
 id: surface-knot-insertion-writes-weights-validate-counts-refuses
 kind: issue
 title: NurbsSurface knot insertion writes weights validate_counts would refuse (a subnormal net refines to a zero weight)
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
+closed: 2026-10-20
 ---
 
 Filed by PCERT (PR 3614's fix pass) on PROPS' slate, because
@@ -61,3 +62,40 @@ no ratio, so the overflow and its `weight_ratio_poison` pin are gone.
 ## Re-homed from FLUX to KNOT (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. KNOT collects the spline, net and fit doors in `geom-core` and `geom`: refinement inside an enclosure, the net-state reads, the NURBS derivative and projection doors, and the fit's refusals and solves. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Closed (2026-10-20)
+
+Fixed at the producer by PR 4923 (`nurbs/insert-weight-collapse`,
+merged `50d2297d9a`), which was not linked here, so this item stayed
+open after it:
+
+- **Every plan admits the weights it writes.** `d7b1f76831` routes
+  each weight a knot-algebra plan writes through one check,
+  `geom_core::spline::algebra::written_weight`, against
+  `knots::weight_in_regime`. That is the same predicate `new`'s
+  `check_weight_values` spells. Insertion, refinement, elevation and
+  removal (its two unblend chains) all pass through it, and a weight
+  out of the regime refuses `KnotAlgebraError::WeightCollapse` at its
+  new-polygon index.
+- **The surface doors inherit it.** `insert_knot_u/v`,
+  `refine_knots_u/v` and `elevate_degree_u/v` build their columns'
+  plans through `map_u_columns`, so the refusal reaches them before
+  `from_u_columns` reassembles the net. Each column's scalar weights
+  come from `CurvePlan::apply_rational` by the same formula as the
+  checked channel (`a·w_y + (1−a)·w_x` for a blend, the two unblends
+  likewise), so at `f64` they are the checked values.
+- **The rows, one per door.** The surface row is
+  `surfaces/nurbs_surface.rs`
+  `a_surface_knot_operation_that_would_write_a_zero_weight_is_refused`:
+  the witness above, least-subnormal weights, all six doors, index 1
+  along each door's own direction so a mis-mapped transpose reads
+  another slot. The curve twin is `curves/nurbs_differential.rs`
+  `a_knot_operation_that_would_write_a_zero_weight_is_refused`. With
+  `written_weight` admitting everything (measured 2026-10-20 on
+  `219c657438`), both rows go red; restored, both pass.
+- **The consumer re-checks are gone.** The curve's
+  `rational_span_scan` went with the refined-span scan (`cab4b51ccc`).
+  `weight_ratio_factor` was retired by PR 4928.
+
+No code changes here: valid nets refine through the same plans,
+bit for bit as before.

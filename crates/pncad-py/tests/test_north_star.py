@@ -1898,8 +1898,12 @@ class TestTiltedcut(unittest.TestCase):
                 self.assertIsNotNone(half)
                 half.validate()
                 props = half.mass_properties()
-                self.assertLessEqual(props.volume - props.volume_pad, exact)
-                self.assertLessEqual(exact, props.volume + props.volume_pad)
+                # The pad bounds the wall's quadrature; the closed forms'
+                # floating-point rounding, which no pad states, needs a
+                # few ulps more.
+                slack = props.volume_pad + 1e-12 * exact
+                self.assertLessEqual(props.volume - slack, exact)
+                self.assertLessEqual(exact, props.volume + slack)
 
     def test_a_split_value_is_not_a_body(self):
         """The value's KIND is the honest one: a split denotes two
@@ -2209,10 +2213,10 @@ class TestHollowring(unittest.TestCase):
 
     This is the easiest row in the tour to be sure of, because the
     Rust scene settles it itself: `ring::through_the_document` builds
-    the same ring as a three-node recipe — a two-loop `Profile`, a
-    `Datum::Axis`, a full `Revolve` — and the scene asserts the plain
-    door and the recipe agree on volume EXACTLY, not merely on census.
-    Those three nodes are exactly what Python binds, so this rebuilds
+    the same ring as a recipe — a two-loop `Profile` and a full
+    `Revolve` about the profile's own `+y` — and the scene asserts the
+    plain door and the recipe agree on volume EXACTLY, not merely on
+    census. Those nodes are exactly what Python binds, so this rebuilds
     that recipe and checks the scene's own oracles.
 
     The torus closed forms, outer minus bore:
@@ -4381,11 +4385,15 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sel = Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag)))
             return sum(len(ev.select(h, sel)) for h in halves)
 
-        self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
-        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 14)
         def pieces(kind, tag):
             pat = NamePat.of_kind(kind).path([SegPat.tag(tag), SegPat.tag(SegTag.Fragment)])
             return sum(len(ev.select(h, Selector.of(pat))) for h in halves)
+
+        self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
+        # Each half holds several pieces of the plane, each the plane
+        # qualified by the walls it borders, so none is the bare plane.
+        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 0)
+        self.assertEqual(pieces(EntityKind.Face, SegTag.SectionFace), 14)
 
         # A section line that re-enters one operand face cuts several
         # chords of it, each named by its ends.

@@ -1,7 +1,7 @@
 //! Corpus document **tube_ring** — a solid ring torus authored through
 //! `Node::Tube`, the smallest document that exercises the solid door.
 //!
-//! Two nodes: a datum axis and the tube. That IS the recipe — a tube
+//! The tube and its copy in the world. That IS the recipe — a tube
 //! takes no profile, because its cross-section is the door's own
 //! intent parameters rather than a sketch, which is the whole reason
 //! the door exists.

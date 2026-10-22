@@ -37,14 +37,13 @@
 //!
 //! An output entity is either a recorded mint or a survivor keeping its
 //! source arena key. A would-be survivor whose key the record lists as
-//! RETIRED refuses [`NamingError::Emission`] — unreachable by
-//! construction (the arenas are slotmaps whose keys carry a version, so
-//! a retired key is never reissued), and kept for the reason
-//! `emit_blend` keeps its guard: the property rests on another crate's
-//! container choice. A survivor face must additionally be an `outer`
-//! row: the record lists every non-designated source face there, so a
-//! face that is neither minted nor listed has no provenance and refuses
-//! the same way. Anything that is neither a survivor nor a recorded
+//! RETIRED panics: the arenas are slotmaps whose keys carry a version,
+//! so a retired key is never reissued, and the guard is kept for the
+//! reason `emit_blend` keeps its own — the property rests on another
+//! crate's container choice. A survivor face must additionally be an
+//! `outer` row: the record lists every non-designated source face
+//! there, so a face that is neither minted nor listed has no provenance
+//! and panics the same way. Anything that is neither a survivor nor a recorded
 //! mint is [`NamingError::MissingUpstream`], loudly; the final
 //! [`check_total`] closes the other direction.
 //!
@@ -78,9 +77,16 @@ use crate::node::RecipeNodeId;
 ///
 /// [`NamingError::MissingUpstream`] when a record (or a survivor) names
 /// a source entity the target's table does not carry — a wiring bug;
-/// [`NamingError::Emission`] on a survivor the record retired or does
-/// not list; [`NamingError::Duplicate`] on aliasing at insertion;
+/// [`NamingError::Duplicate`] on aliasing at insertion;
 /// [`NamingError::Unnamed`] if the result is not covered.
+///
+/// # Panics
+///
+/// Where `rec` contradicts itself or `body`: an entity recorded twice, a
+/// rim chart with no designated face, or an output entity that is
+/// neither minted nor a survivor the record lists. `rec` is the shell
+/// door's own record of `body`, written as it mutated, so each is a
+/// kernel bug.
 pub(crate) fn name_shell<T: geom_core::Real>(
     node: RecipeNodeId,
     target_node: RecipeNodeId,
@@ -102,9 +108,10 @@ pub(crate) fn name_shell<T: geom_core::Real>(
         // Two records for one key is an emission bug, not a tie: the
         // doors mint each entity once.
         if minted.insert(key, (seg, tied)).is_some() {
-            return Err(NamingError::Emission {
-                what: "the shell recorded one entity twice",
-            });
+            unreachable!(
+                "the shell's record mints {key:?} twice, though the shell door mints each \
+                 entity once and records it as it mints"
+            );
         }
         Ok(())
     };
@@ -116,9 +123,11 @@ pub(crate) fn name_shell<T: geom_core::Real>(
     // order only makes the read the record's own.
     for rim in &rec.rims {
         let Some(first) = rim.sources.first() else {
-            return Err(NamingError::Emission {
-                what: "the shell recorded a rim with no designated face",
-            });
+            unreachable!(
+                "the shell recorded rim {:?} with no designated face, though a rim row is \
+                 written per designated chart and lists the chart's faces",
+                rim.rim
+            );
         };
         let f = up_f(*first)?;
         put(
@@ -260,16 +269,16 @@ pub(crate) fn name_shell<T: geom_core::Real>(
                     EntityKey::Body => (false, true),
                 };
                 if dead {
-                    return Err(NamingError::Emission {
-                        what: "an output entity is neither minted nor a survivor: its key was \
-                               recorded as RETIRED, so the match is an arena coincidence",
-                    });
+                    unreachable!(
+                        "output entity {key:?} is neither minted nor a survivor: the shell \
+                         recorded its key as RETIRED, and a versioned arena never reissues one"
+                    );
                 }
                 if !listed {
-                    return Err(NamingError::Emission {
-                        what: "an output face is neither minted nor an `outer` row of the \
-                               shell's record, so it has no provenance",
-                    });
+                    unreachable!(
+                        "output face {key:?} is neither minted nor an `outer` row of the \
+                         shell's record, which lists every face it did not designate"
+                    );
                 }
                 let u = up(key)?;
                 (

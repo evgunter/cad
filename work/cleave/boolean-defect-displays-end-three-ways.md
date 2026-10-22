@@ -29,5 +29,21 @@ among them, takes the three as typed refusals.
 
 ## Owed
 
+**Superseded in direction (ENCL, 2026-10-20): read "Evidence: the owed repair is the shape D2 retires" below before acting on this section.** Ending these arms in `KERNEL_DEFECT_ENDING` is the shape the parent census retires.
+
+
 End each defect `Display` in `KERNEL_DEFECT_ENDING` (one story, D4 ¶1
 (i)), so `offer_key` reads the ending alone and its kind list goes.
+
+## Evidence: the owed repair is the shape D2 retires (ENCL, 2026-10-20)
+
+`work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` holds that a typed refusal ending in `KERNEL_DEFECT_ENDING` is wrong
+in both of `[failure]`'s classes. If input reaches the state, the
+ending's claim is false. If only a bug reaches it, the state must panic.
+So ending `TornComponent`, `SeamOrientation` and `ZipCorrespondence` in
+the constant converts a tag into the laundering that row is retiring.
+Classify each one instead: panic if it is bug-only (its text already
+says "kernel bug"), or give it its decision's lever if input reaches it.
+`classification-invariant-family-types-bug-only-states-against-d9-row-4`
+is the home for that classification. Once the defect variants panic,
+`offer_key`'s kind list goes away of its own accord.

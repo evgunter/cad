@@ -12,13 +12,12 @@ points against 30 with its P0 units landed or parked (PRs 4363, 4368,
 As of the 2026-10-19 hand-back. `python3 scripts/work.py` lists every
 row; this names the ones that set the order.
 
-- **Decided** (`[ev]` PR 5395, fork-log row 182): a material crescent
-  along a tangent line is two coincident cusp edges; a void crescent and
-  every point touch are records. The P1
-  `the-census-discovers-no-same-solid-tangent-touch-through-face-interiors`
-  is dispatchable (the discovery reads sides), with the builds it named:
+- **Built:** the P1 same-solid discovery (PR 5456, line lane); its
+  residue `the-census-discovers-no-same-solid-touch-off-the-closed-form-tangent-line`.
+- **P2, the pinch ruling's builds** (`[ev]` PR 5395, fork-log row 182):
   `a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`
-  and `a-material-crescent-face-face-record-refuses-typed-at-the-op-and-the-carry`.
+  and `a-material-crescent-face-face-record-refuses-typed-at-the-op-and-the-carry`
+  (the error type is `ValidationError::CuspEdgesMissing`, PR 5456).
 - **P2, dispatchable:** `a-touch-along-a-glued-tangency-cites-no-tangency-decision`
   (unreached today; measure first), `a-point-touchs-kappa-is-levered-by-the-carriers-radius-not-the-cells-reach`
   (a design question under C3), `an-inherited-pinch-decided-onto-the-ops-face-records-nothing`,

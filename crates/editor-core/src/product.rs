@@ -512,7 +512,7 @@ impl ProductErrorKind {
     /// [`ProductErrorKind::EmptyProduct`] is the only class where there
     /// is nothing to gather rather than something wrong: a document
     /// whose world holds no placement — a fresh one, one holding only
-    /// sketches, datums and unplaced bodies.
+    /// sketches, poses and unplaced bodies.
     /// Every other class is a refusal, with a cause the error carries.
     ///
     /// **What a consumer does with either answer stays the consumer's,

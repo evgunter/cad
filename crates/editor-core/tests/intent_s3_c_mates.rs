@@ -35,7 +35,7 @@ fn band() -> Band {
 }
 
 fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
-    UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band()).expect("a direction")
+    UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band()).expect("a direction")
 }
 
 /// A deterministic stream of numbers in `[-1, 1)`, so a row's failure
@@ -641,7 +641,7 @@ fn a_prisms_flat_through_zero_turns_by_its_angle() {
 fn the_antipode_is_decided_exactly_and_the_band_refuses() {
     let band = band();
     let x = Vec3::new(1.0, 0.0, 0.0);
-    let unit = |v: Vec3<f64>| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).unwrap();
+    let unit = |v: Vec3<f64>| UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).unwrap();
     let exact = editor_core::reference_about(unit(Vec3::new(0.0, 0.0, -1.0)), 1.0, band)
         .expect("the antipode decides");
     assert_eq!(
@@ -1121,7 +1121,8 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
 /// every lane.** Whether a copy is placed by no map is read off its
 /// recipe: the identity bundle ([`editor_core::stand`]: no mate, the
 /// constant `0` on every freedom) is placed by none in the `f64`, the
-/// interval and the dual lane alike, while a box pinned at the identity
+/// interval, the dual and the symbolic lane alike (and the probe lane,
+/// under `--features probe`), while a box pinned at the identity
 /// by `pin_at`'s frame mate runs its map in every lane, though the map
 /// comes out as the identity.
 ///
@@ -1135,15 +1136,23 @@ fn only_the_identity_bundle_is_placed_by_no_map_in_every_lane() {
             seed: doc.var_named("unread"),
             ..EvalOptions::default()
         };
-        [
-            motion_of(&evaluated::<f64>(doc, &EvalOptions::default()), placement).is_none(),
-            motion_of(
-                &evaluated::<geom_core::Interval>(doc, &EvalOptions::default()),
-                placement,
-            )
-            .is_none(),
+        let plain = EvalOptions::default();
+        let lanes = vec![
+            motion_of(&evaluated::<f64>(doc, &plain), placement).is_none(),
+            motion_of(&evaluated::<geom_core::Interval>(doc, &plain), placement).is_none(),
             motion_of(&evaluated::<geom_core::Dual64>(doc, &seeded), placement).is_none(),
-        ]
+            motion_of(&evaluated::<geom_core::Sym<f64>>(doc, &plain), placement).is_none(),
+        ];
+        #[cfg(feature = "probe")]
+        let lanes = {
+            let mut lanes = lanes;
+            lanes.push(motion_of(&evaluated::<geom_core::Probe>(doc, &plain), placement).is_none());
+            lanes
+        };
+        lanes
+    };
+    let every = |placed_by_no_map: bool| {
+        vec![placed_by_no_map; if cfg!(feature = "probe") { 5 } else { 4 }]
     };
     let unread = |doc| {
         fixture::step(
@@ -1163,7 +1172,7 @@ fn only_the_identity_bundle_is_placed_by_no_map_in_every_lane() {
     let stood = fixture::pinned(doc.clone(), placement, &EvalOptions::default());
     assert_eq!(
         lanes(&unread(stood), placement),
-        [true; 3],
+        every(true),
         "the identity bundle is placed by no map"
     );
     let mate = fixture::pin_mate(
@@ -1175,7 +1184,7 @@ fn only_the_identity_bundle_is_placed_by_no_map_in_every_lane() {
     let (pinned, _) = fixture::constrain_at(doc, placement, mate);
     assert_eq!(
         lanes(&unread(pinned), placement),
-        [false; 3],
+        every(false),
         "a frame mate at the identity runs its map"
     );
 }
@@ -1450,16 +1459,16 @@ fn a_box_of_height_standing(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// **A copy stands where its body stands, at every value.** A box whose
-/// height is a variable, its copy standing on its start cap (a face no
-/// variable reaches): the copy is in the world and placed by no map at
-/// the nominal, at another value, and under an interval box over the
-/// height (a tenth of ε wide, so the body itself certifies), where a pin
-/// read off a face the height reaches would carry the height's width
+/// height is a variable, its copy standing by the identity bundle, which
+/// reads nothing of the copy: the copy is in the world and placed by no
+/// map at the nominal, at another value, and under an interval box over
+/// the height (a tenth of ε wide, so the body itself certifies), where a
+/// pin read off a face the height reaches would carry the height's width
 /// into the copy.
 ///
-/// *Breaks if* the stand reads a face the height reaches or a number
-/// (a map would appear under the box), or places the copy anywhere but
-/// the world.
+/// *Breaks if* the stand reads the copy's geometry or a number (a map
+/// would appear under the box), or places the copy anywhere but the
+/// world.
 #[test]
 fn a_copy_stands_where_its_body_stands_at_every_value() {
     for nominal in [1.0, 2.5] {

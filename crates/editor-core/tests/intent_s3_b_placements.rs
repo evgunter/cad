@@ -658,7 +658,7 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
 }
 
 /// **A mate on a pinned copy is overconstrained**: on a copy its world
-/// pin already pins, a rest on another copy in the world that holds
+/// mate already pins, a rest on another copy in the world that holds
 /// where the pin puts it is a mate the pin already fixes, refused at
 /// the door, naming both — the case `(Trivial, _)`.
 #[test]

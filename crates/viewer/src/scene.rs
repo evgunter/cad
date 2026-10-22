@@ -855,8 +855,7 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         ))]),
         tol,
     )?;
-    let placed = editor_core::stand(&doc, &Operand::from(extrude), &EvalOptions::default(), tol)
-        .map_err(SceneDocError::Place)?;
+    let placed = editor_core::stand();
     let mut doc = doc;
     placed.write(placement, |e| {
         let (next, record) = edit(doc.clone(), e, tol)?;

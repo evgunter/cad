@@ -134,10 +134,10 @@ use pncad::document::{
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
     EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
     MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
-    NodeStanding, ParseError, PersistError, PiecesFault, PinRefusal, PlacedBy, PlacementRuleFault,
-    ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation,
-    ResolveFault, ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal,
-    StepIdFault, TargetAxis, Unlocalized, UpdateError, WorldReadFault,
+    NodeStanding, ParseError, PersistError, PinRefusal, PlacedBy, PlacementRuleFault, ProgramFault,
+    ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
+    TargetAxis, Unlocalized, UpdateError, WorldReadFault,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -147,8 +147,10 @@ use pncad::profile::{
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    EntityKind, HitTestError, InterrogateError, MeshPickError, NameLookupError, NamingError,
-    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate, RimShare,
+    CrossingSensesShape, DisagreeShape, EntityKind, HitTestError, InterrogateError, JoinShape,
+    MeshPickError, NameLookupError, NamingError, NodePickError, ReadbackError, Resolution,
+    ResolveError, ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape,
+    WayShape,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -208,6 +210,8 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",
         PathErrorKind::ArcCenterNotEquidistant => "arc_center_not_equidistant",
         PathErrorKind::DegenerateArcCenter => "degenerate_arc_center",
+        PathErrorKind::ArcMissesAuthoredPoint => "arc_misses_authored_point",
+        PathErrorKind::ArcMissBelowSceneResolution => "arc_miss_below_scene_resolution",
         PathErrorKind::FarEndAnchorWithoutFillet => "far_end_anchor_without_fillet",
         PathErrorKind::Escalated => "escalated",
         PathErrorKind::Band => "band",
@@ -876,9 +880,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Profile => "profile",
         C::ProfileReplay => "profile_replay",
         C::ProfileLaneReplay => "profile_lane_replay",
-        C::ProfileAnchor => "profile_anchor",
-        C::ProfilePieces => "profile_pieces",
-        C::ProfileRecordMissing => "profile_record_missing",
         C::Extrude => "extrude",
         C::Revolve => "revolve",
         // ONE tag for both tube kinds, matching every other op on
@@ -942,7 +943,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::UnderflowedDirection => "underflowed_direction",
         C::Band => "band",
         C::MissingSlot => "missing_slot",
-        C::VerbArity => "verb_arity",
         C::Escalated => "escalated",
         C::PoseRead => "pose_read",
         C::PoseDegenerate => "pose_degenerate",
@@ -1062,9 +1062,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             Some(refusal) => Some(structure_refusal_tag(&refusal.kind)),
             None => None,
         },
-        NodeErrorKind::ProfileAnchor => None,
-        NodeErrorKind::ProfilePieces { fault } => Some(pieces_fault_tag(fault)),
-        NodeErrorKind::ProfileRecordMissing { .. } => None,
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
@@ -1098,7 +1095,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnderflowedDirection { .. } => None,
         NodeErrorKind::Band(inner) => Some(band_error_tag(inner)),
         NodeErrorKind::MissingSlot { .. } => None,
-        NodeErrorKind::VerbArity { .. } => None,
         // The escalation's payload is a MARGIN and a band, not an arm;
         // the predicate that escalated is a name the kernel mints and
         // the message carries.
@@ -1593,6 +1589,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GraftRecertify => "graft_recertify",
         BooleanErrorKind::Pieces => "pieces",
         BooleanErrorKind::Revert => "revert",
+        BooleanErrorKind::EdgeInFace => "edge_in_face",
+        BooleanErrorKind::SlitLineCrossed => "slit_line_crossed",
+        BooleanErrorKind::SlitFaceGlued => "slit_face_glued",
         BooleanErrorKind::LineWedges => "line_wedges",
     }
 }
@@ -1694,6 +1693,83 @@ pub fn rim_share_tag(found: &RimShare) -> &'static str {
     }
 }
 
+/// The stable tag for the shape a seam vertex's edges met — the inner arm of
+/// [`NamingError::UnsupportedSeamVertex`], crossing as
+/// [`rim_share_tag`] does: each shape is a different construction, and
+/// the tag is the variant's word and the shape's.
+pub fn seam_vertex_shape_tag(shape: &SeamVertexShape) -> &'static str {
+    match shape {
+        SeamVertexShape::OneOperandSeam => "unsupported_seam_vertex_one_operand_seam",
+        SeamVertexShape::LineAcrossSeveralFaces => {
+            "unsupported_seam_vertex_line_across_several_faces"
+        }
+        SeamVertexShape::NoEdgePair => "unsupported_seam_vertex_no_edge_pair",
+    }
+}
+
+/// The stable tag for what a crossing's classes read — the inner arm of
+/// [`NamingError::UnsupportedCrossingSenses`].
+pub fn crossing_senses_shape_tag(shape: &CrossingSensesShape) -> &'static str {
+    match shape {
+        CrossingSensesShape::PiecesBothSides => "unsupported_crossing_senses_pieces_both_sides",
+        CrossingSensesShape::NameReadsTwoSenses => {
+            "unsupported_crossing_senses_name_reads_two_senses"
+        }
+    }
+}
+
+/// The stable tag for what the faces beside an edge are — the inner arm of
+/// [`NamingError::UnsupportedSeamSides`].
+pub fn seam_sides_shape_tag(shape: &SeamSidesShape) -> &'static str {
+    match shape {
+        SeamSidesShape::NotTwoFaces => "unsupported_seam_sides_not_two_faces",
+        SeamSidesShape::NameSpellsTwoSeams => "unsupported_seam_sides_name_spells_two_seams",
+        SeamSidesShape::WithinOneOperand => "unsupported_seam_sides_within_one_operand",
+        SeamSidesShape::InsideOneParent => "unsupported_seam_sides_inside_one_parent",
+    }
+}
+
+/// The stable tag for what a joined edge's cover holds — the inner arm of
+/// [`NamingError::UnsupportedJoin`].
+pub fn join_shape_tag(shape: &JoinShape) -> &'static str {
+    match shape {
+        JoinShape::ChordWithPiece => "unsupported_join_chord_with_piece",
+        JoinShape::ChordBesideMergedFace => "unsupported_join_chord_beside_merged_face",
+        JoinShape::Outright => "unsupported_join_outright",
+    }
+}
+
+/// The stable tag for what a union's name met — the inner arm of
+/// [`NamingError::UnsupportedUnionName`].
+pub fn union_name_shape_tag(shape: &UnionNameShape) -> &'static str {
+    match shape {
+        UnionNameShape::SeamGroupNoMemberEdge => "unsupported_union_name_seam_group_no_member_edge",
+        UnionNameShape::SeveralParents => "unsupported_union_name_several_parents",
+        UnionNameShape::RunLeastLineMoved => "unsupported_union_name_run_least_line_moved",
+        UnionNameShape::JunctionLinesCollide => "unsupported_union_name_junction_lines_collide",
+    }
+}
+
+/// The stable tag for which way-along comparison decided zero — the inner arm of
+/// [`NamingError::WayInZeroBand`].
+pub fn way_shape_tag(shape: &WayShape) -> &'static str {
+    match shape {
+        WayShape::Carrier => "way_in_zero_band_carrier",
+        WayShape::Line => "way_in_zero_band_line",
+    }
+}
+
+/// The stable tag for which two band verdicts disagree — the inner arm of
+/// [`NamingError::BandVerdictsDisagree`].
+pub fn disagree_shape_tag(shape: &DisagreeShape) -> &'static str {
+    match shape {
+        DisagreeShape::VertexOffJoinedSet => "band_verdicts_disagree_vertex_off_joined_set",
+        DisagreeShape::FlushSensesDisagree => "band_verdicts_disagree_flush_senses_disagree",
+        DisagreeShape::PiecesAtOneVertex => "band_verdicts_disagree_pieces_at_one_vertex",
+        DisagreeShape::JoinedEdgeOffMembers => "band_verdicts_disagree_joined_edge_off_members",
+    }
+}
+
 /// The stable tag for a name-EMISSION refusal — the inner arm of
 /// [`NodeErrorKind::Naming`].
 pub fn naming_error_tag(err: &NamingError) -> &'static str {
@@ -1710,16 +1786,24 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         // The MISSING-RULE arms, tagged apart from "emission": a caller
         // branching on this word is deciding whether to report a kernel
         // bug, and these are not one.
-        NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
+        NamingError::UnsupportedSeamVertex { shape, .. } => seam_vertex_shape_tag(shape),
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
-        NamingError::MergedChord { .. } => "merged_chord",
-        NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
+        NamingError::ChordOffRim { .. } => "chord_off_rim",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
         NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",
         NamingError::CarrierUnplaced { .. } => "carrier_unplaced",
         NamingError::PartnerUnread { .. } => "partner_unread",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
+        NamingError::UnsupportedCrossingSenses { shape, .. } => crossing_senses_shape_tag(shape),
+        NamingError::UnsupportedSeamSides { shape, .. } => seam_sides_shape_tag(shape),
+        NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
+        NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
+        // The PRECISION-LIMIT arms: a lever the model holds, neither a
+        // kernel bug nor a missing rule.
+        NamingError::WayInZeroBand { shape, .. } => way_shape_tag(shape),
+        NamingError::JoinedPieceOffRoot { .. } => "joined_piece_off_root",
+        NamingError::BandVerdictsDisagree { shape, .. } => disagree_shape_tag(shape),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
     }
@@ -1766,7 +1850,6 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
         ProgramRefusal::StepIds(_) => "step_ids",
-        ProgramRefusal::Pieces(_) => "pieces",
     }
 }
 
@@ -2343,6 +2426,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::EmptyLoop { .. } => "empty_loop",
         TessellateError::MissingEntity { .. } => "missing_entity",
         TessellateError::ResolutionOverflow { .. } => "resolution_overflow",
+        TessellateError::StepNotPositive { .. } => "step_not_positive",
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
@@ -2515,7 +2599,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
         SplitError::CutsTheWorld => "cuts_the_world",
-        SplitError::InstanceUnstood => "instance_unstood",
         SplitError::NoMaterial { .. } => "no_material",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
         SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
@@ -3089,6 +3172,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
+        ValidationError::SeamRegionOvercovered { .. } => "seam_region_overcovered",
+        ValidationError::SeamRegionCoverUnresolved { .. } => "seam_region_cover_unresolved",
         ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",
@@ -3113,8 +3198,13 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CensusUnsupported { .. } => "census_unsupported",
         ValidationError::CensusLaneUnsupported { .. } => "census_lane_unsupported",
         ValidationError::CensusUndecidable { .. } => "census_undecidable",
+        ValidationError::FaceThroughEdgeWedge { .. } => "face_through_edge_wedge",
+        ValidationError::FaceThroughEdgeWedgeUndecided { .. } => {
+            "face_through_edge_wedge_undecided"
+        }
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
+        ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",
         ValidationError::NextPrevMismatch { .. } => "next_prev_mismatch",
@@ -3253,6 +3343,7 @@ pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
         CensusContact::EdgeEdgeCross { .. } => "edge_edge_cross",
         CensusContact::EdgeEdgeOverlap { .. } => "edge_edge_overlap",
         CensusContact::EdgeFaceOverlap { .. } => "edge_face_overlap",
+        CensusContact::FaceFaceTangent { .. } => "face_face_tangent",
         CensusContact::ConformalPatch { .. } => "conformal_patch",
     }
 }
@@ -3342,18 +3433,6 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
-    }
-}
-
-/// The stable tag for where a profile's naming anchor, replay record
-/// and minted ids disagree — the fault `NodeErrorKind::ProfilePieces`
-/// carries, published on `inner_variant` beside the node error's word.
-pub fn pieces_fault_tag(fault: &PiecesFault) -> &'static str {
-    match fault {
-        PiecesFault::NoRecord { .. } => "no_record",
-        PiecesFault::NoIds { .. } => "no_ids",
-        PiecesFault::Length { .. } => "length",
-        PiecesFault::NoStepId { .. } => "no_step_id",
     }
 }
 

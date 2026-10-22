@@ -77,6 +77,8 @@ mod curves_curvo_oracle;
 mod curves_decoration_certified_coords;
 #[path = "curves/domain_door.rs"]
 mod curves_domain_door;
+#[path = "curves/elevation_conditioning.rs"]
+mod curves_elevation_conditioning;
 #[path = "curves/fit_certify.rs"]
 mod curves_fit_certify;
 #[path = "curves/fitting.rs"]

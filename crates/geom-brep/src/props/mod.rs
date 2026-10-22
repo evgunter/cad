@@ -138,9 +138,9 @@ use geom_core::{Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, Sized
 use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, Unsized};
 
 pub use curved::{
-    MaterialSign, boundary_material_sign, boundary_material_sign_loops, cone_face_closed_form,
-    curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
-    sphere_region_material_sign,
+    MaterialSign, SeamCover, SeamLoops, boundary_material_sign, boundary_material_sign_loops,
+    cone_face_closed_form, curved_face, curved_face_loops, require_iso_rectangle,
+    require_one_chart_branch, seam_loops, sphere_region_cover, sphere_region_material_sign,
 };
 pub use loop_area::{arc_segment_term, chord_bulge, loop_vector_area};
 
@@ -381,12 +381,33 @@ pub enum PropsError {
     /// its boundary encodes — the side of its loops with positive
     /// area, which no chart pole enters — so the bit is inverted.
     SenseInverted,
+    /// **A sphere seam region's faces overlap**: under their sense bits,
+    /// its members claim the region `times` times over (`times ≥ 2`,
+    /// [`sphere_region_cover`]). Tier 3's check 6 refuses the same region
+    /// (`ValidationError::SeamRegionOvercovered`).
+    SeamRegionOvercovered {
+        /// How many times over the members claim the region.
+        times: usize,
+    },
+    /// **A sphere seam region's cover census is undecided**: in the band
+    /// of a half-sphere threshold, or below its floor of no cover
+    /// ([`SeamCover::Unresolved`]). Tier 3's check 6 refuses the same
+    /// (`ValidationError::SeamRegionCoverUnresolved`).
+    SeamRegionCoverUnresolved,
+    /// **Two faces of one sphere meet with their material on one side of
+    /// their seam**: their sense bits disagree across a shared edge, a
+    /// lamina there. It is the finding tier 3's check 4 names
+    /// (`ValidationError::LaminaWedge`), read here off the seam region
+    /// ([`SeamCover::MixedSense`]), since the measurement door runs no
+    /// check 4.
+    SeamRegionSensesDisagree,
     /// **A hole is wound the same way as its face** (`props_ring_winding`):
     /// a ring's signed area has the sign of the face's whole, where a
     /// hole's boundary is traversed opposite to the region it is cut
     /// from. Its area would be ADDED to the face's. Stored data that is
-    /// wrong, whichever lane reads it: the closed forms' and the
-    /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
+    /// wrong, whichever lane reads it: the closed forms', the cylinder
+    /// quadrature's and the spiric lane's one decision
+    /// (`curved::require_holes_wound_against`).
     RingWoundWithFace,
     /// **A loop does not close on its periodic chart**
     /// (`props_chart_junction_open`): at one junction the edge after
@@ -682,6 +703,20 @@ impl core::fmt::Display for PropsError {
                 f,
                 "a face's holes cover more area than its outer boundary encloses, so they \
                  overlap one another or leave the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::SeamRegionOvercovered { times } => write!(
+                f,
+                "the faces of one sphere overlap: together they cover their region {times} \
+                 times. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::SeamRegionCoverUnresolved => f.write_str(
+                "whether the faces of one sphere overlap cannot be decided at this tolerance. \
+                 Recourse: measure at a finer tolerance",
+            ),
+            Self::SeamRegionSensesDisagree => write!(
+                f,
+                "two faces of one sphere meet with their material on the same side of the edge \
+                 between them, so the body is a sheet there. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::SenseContradicted => write!(
                 f,

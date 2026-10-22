@@ -61,3 +61,31 @@ held, reaches the end pass there. The cause is the end pass reading a
 corner the accumulation already holds as several
 (`names/borders.rs` `Obstacles::split_corner`), not a missing topo
 row. `Intersect [prism, cube, big]` was not re-run.
+
+## More witnesses (WIRE lane `wire-nameinv`, 2026-10-20)
+
+`crates/editor-core/tests/name_invariance.rs` reaches this refusal in
+three of its cases, and admits each one against this row:
+- `pinch and far / union` (`a_member_order_moves_no_name`): the orders
+  `[1, 0, 2]` and `[0, 1, 2]` of `[prism, cube, far]` refuse, and the
+  others build 97 names.
+- `pinch and cap / intersect`: `Intersect [prism, cube, cap]` in those
+  same two orders refuses, and the others build 46 names. So the
+  intersect reaches it without a covering block.
+- `prism and cube / a far member` (`a_far_feature_moves_no_other_name`):
+  `Union [prism, cube]` builds 71 names, and appending a far block
+  (x 9..10, y 9..10) as a last member refuses.
+
+## A pair subtract reaches it too (wire-splitvertex, 2026-10-20)
+
+Measured on main at `179890fe2f`: in
+`crates/editor-core/tests/split_pinch_keeps.rs`'s `moat_split`, a
+pocket and then a moat, both the diamond `[(2, 0), (4, 2), (2, 4),
+(0, 2)]` (drawn in `z`, `x`) round the pin `[1.5, 2.5]²`, subtracted
+from the 4 × 3 × 4 block from `y = 1` and `y = 0.5`. The first subtract
+leaves each diamond corner lying in a block wall; the second, a pair
+boolean rather than a fold step, refuses
+`Naming(Emission { what: "a copy of a corner held as several meets no
+recorded discard between them" })` over the corners the first made.
+The split along the first's floor refuses earlier in the kernel
+(`work/cleave/a-split-through-a-pocket-floor-touching-the-block-walls-refuses-a-sliver-sector.md`).

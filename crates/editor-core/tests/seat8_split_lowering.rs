@@ -2,7 +2,7 @@
 //! moved with it** — the SEAT-4/5/7 method, for the first verb whose
 //! result is two-sided.
 //!
-//! `Node::Split` builds a `verbs::Verb`, runs it through the split
+//! `Node::Split` builds a `verbs::Split`, runs it through the split
 //! door, takes its birth record out of the closed record channel and
 //! its two sides out of the door's own out-type, and emits names from
 //! the record. A re-plumbing's failure mode is a difference nobody
@@ -344,13 +344,27 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// rounded turns. On the merged tree with the exact heading alone it
 /// read `0xcd7f_f823_b396_33fc`. The other rows held across main's merge
 /// at `557e581a64` and this lane.
+///
+/// Re-measured merging main at `be82e5ad6b` into D, `cut_cylinder`,
+/// `part_select` and `kitchen_sink`: main's N3 names each seam side and
+/// crossing line with the read it came in through, and in D a later
+/// operand is a placed copy, so the names it spells moved under both
+/// changes and the value is neither tree's. No other row moved.
+///
+/// RE-BLESSED, every row, for a minted reference that comes from the
+/// inputs (PR #5547): the digest feeds each plane's `u_ref`, which a
+/// cap now takes from the sketch's `x` axis and an extruded wall from
+/// its segment, where `orthonormal_basis` picked it off the axes. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xacfc_bd06_c584_16a7u64),
-        ("part_select", 0xd94a_a647_45b1_289b),
-        ("kitchen_sink", 0x04bc_da74_1fbe_d57c),
+        ("cut_cylinder", 0xabec_a5a8_aa58_3491_u64),
+        ("part_select", 0x909e_06e1_e24c_6bdd),
+        ("kitchen_sink", 0x53da_49ea_7e4c_e120),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -468,6 +482,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// reads a face with the stated normal) where it was a frame read off
 /// the cube's edges moved by turns read off by `atan2`, so its pose's
 /// nodes and the names the split mints moved.
+///
+/// RE-BLESSED when a minted plane's `u_ref` became a direction its
+/// construction holds: the cube's caps are charted along its sketch's
+/// `x` axis and its walls along their swept segments, where
+/// `orthonormal_basis` picked both off the axes. No plane moved as a
+/// point set.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -488,7 +508,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x9ddd_e390_4cc2_ff78,
+        got, 0x2408_3521_d2dd_0000,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

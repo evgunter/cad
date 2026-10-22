@@ -130,7 +130,7 @@
 //! refusal route: it is refused at the mint, before there is a door to
 //! answer.
 
-use super::knots::{KnotVector, KnotVectorIssue, Span, SplineError, knot_difference};
+use super::knots::{KnotVector, KnotVectorIssue, LooseKnots, Span, SplineError, knot_difference};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::real::CertifiedBounds;
@@ -547,20 +547,15 @@ impl KnotVector {
     }
 
     /// This vector's derivative, by cause: [`Derived`].
-    pub fn derived(&self) -> Derived<'_> {
-        let slice = self.derivative_knot_slice();
+    pub fn derived(&self) -> Derived {
         if self.degree() == 1 {
-            return Derived::SpanConstant(slice);
+            return Derived::SpanConstant(LooseKnots::derivative_of(self));
         }
-        let degree = self.degree() - 1;
-        match KnotVector::clamped(slice.to_vec(), degree) {
+        match KnotVector::clamped(self.derivative_knot_slice().to_vec(), self.degree() - 1) {
             Ok(kv) => Derived::Vector(kv),
             Err(SplineError::KnotVectorInvalid {
                 reason: KnotVectorIssue::InteriorMultiplicityTooHigh { .. },
-            }) => Derived::Discontinuous {
-                knots: slice,
-                degree,
-            },
+            }) => Derived::Discontinuous(LooseKnots::derivative_of(self)),
             Err(e) => unreachable!("a clamped vector's derived knots refused as {e:?}"),
         }
     }
@@ -573,11 +568,12 @@ impl KnotVector {
     /// [`C1Break::Degree1Crease`] at degree 1 with an interior knot,
     /// [`C1Break::Crease`] at a full-multiplicity interior knot.
     pub fn c1(&self) -> Result<(), C1Break> {
-        match self.derived() {
-            Derived::Vector(_) => Ok(()),
-            Derived::SpanConstant(breaks) if breaks.len() == 2 => Ok(()),
-            Derived::SpanConstant(_) => Err(C1Break::Degree1Crease),
-            Derived::Discontinuous { .. } => Err(C1Break::Crease),
+        // A crease is [`KnotStructure::crease_runs`]'s; at degree ≥ 2 it
+        // is exactly where the derivative is [`Derived::Discontinuous`].
+        match (self.structure().crease_runs().next(), self.degree()) {
+            (None, _) => Ok(()),
+            (Some(_), 1) => Err(C1Break::Degree1Crease),
+            (Some(_), _) => Err(C1Break::Crease),
         }
     }
 
@@ -591,41 +587,38 @@ impl KnotVector {
 /// A derivative, by the structure of its knots. The outer knot pair
 /// dropped and the degree one less
 /// ([`KnotVector::derivative_knot_slice`]) is a clamped vector, or one
-/// of the two structures [`KnotVector::clamped`] refuses.
+/// of the two structures [`KnotVector::clamped`] refuses, each a
+/// [`LooseKnots`].
 #[derive(Clone, Debug)]
-pub enum Derived<'a, V = KnotVector> {
+pub enum Derived<V = KnotVector> {
     /// A clamped vector, or what a door builds on it.
     Vector(V),
-    /// Degree 1: the derivative is constant on each span. Difference
-    /// coefficient `i` is its value on `breaks[i] .. breaks[i + 1]`,
-    /// `breaks` strictly ascending.
-    SpanConstant(&'a [f64]),
+    /// Degree 1: the derivative is constant on each span, its knots a
+    /// degree-0 [`LooseKnots`] with no repeated value. Difference
+    /// coefficient `i` is its value on `knots[i] .. knots[i + 1]`.
+    SpanConstant(LooseKnots),
     /// Degree ≥ 2 with an interior knot of multiplicity equal to the
-    /// degree: a spline discontinuous at that knot.
-    Discontinuous {
-        /// The derivative's raw knot list.
-        knots: &'a [f64],
-        /// The derivative's degree, one less than the vector's.
-        degree: usize,
-    },
+    /// degree: a spline discontinuous at that knot, on knots of degree
+    /// one less than the vector's.
+    Discontinuous(LooseKnots),
 }
 
-impl<'a, V> Derived<'a, V> {
+impl<V> Derived<V> {
     /// The [`Derived::Vector`] payload, `None` at the other two.
     pub fn vector(self) -> Option<V> {
         match self {
             Self::Vector(v) => Some(v),
-            Self::SpanConstant(_) | Self::Discontinuous { .. } => None,
+            Self::SpanConstant(_) | Self::Discontinuous(_) => None,
         }
     }
 
     /// The same cause, with `f` applied to a [`Derived::Vector`]
     /// payload.
-    pub fn map<W>(self, f: impl FnOnce(V) -> W) -> Derived<'a, W> {
+    pub fn map<W>(self, f: impl FnOnce(V) -> W) -> Derived<W> {
         match self {
             Self::Vector(v) => Derived::Vector(f(v)),
-            Self::SpanConstant(b) => Derived::SpanConstant(b),
-            Self::Discontinuous { knots, degree } => Derived::Discontinuous { knots, degree },
+            Self::SpanConstant(k) => Derived::SpanConstant(k),
+            Self::Discontinuous(k) => Derived::Discontinuous(k),
         }
     }
 }
@@ -697,7 +690,7 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
 
     /// The derivative by cause ([`KnotVector::derived`]), the
     /// [`Derived::Vector`] arm carrying the pair.
-    pub fn derived(self) -> Derived<'a, SplineCoeffsBuf<Interval>> {
+    pub fn derived(self) -> Derived<SplineCoeffsBuf<Interval>> {
         self.knots.derived().map(|knots| SplineCoeffsBuf {
             knots,
             coeffs: self.derivative_coeffs(),
@@ -1028,9 +1021,17 @@ mod tests {
         let Derived::SpanConstant(breaks) = line.derived() else {
             panic!("degree 1 read as {:?}", line.derived());
         };
-        assert_eq!(breaks, [0.0, 0.5, 1.0], "the breaks");
+        assert_eq!(
+            (breaks.knots(), breaks.degree()),
+            (&[0.0, 0.5, 1.0][..], 0),
+            "the breaks"
+        );
         let slopes = line.difference_coeffs(&[0.0, 1.0, 1.0]);
-        assert_eq!(slopes.len() + 1, breaks.len(), "one constant per span");
+        assert_eq!(
+            slopes.len(),
+            breaks.control_count(),
+            "one constant per span"
+        );
         for (i, want) in [2.0, 0.0].into_iter().enumerate() {
             assert!(
                 slopes[i].contains(want),
@@ -1050,11 +1051,11 @@ mod tests {
         );
 
         let kinked = kv(&[0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2);
-        let Derived::Discontinuous { knots, degree } = kinked.derived() else {
+        let Derived::Discontinuous(knots) = kinked.derived() else {
             panic!("a double knot at degree 2 read as {:?}", kinked.derived());
         };
         assert_eq!(
-            (knots, degree),
+            (knots.knots(), knots.degree()),
             (&[0.0, 0.0, 0.5, 0.5, 1.0, 1.0][..], 1),
             "the raw list"
         );

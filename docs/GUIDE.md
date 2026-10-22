@@ -691,22 +691,28 @@ let props = mass_properties(&result.body, tol)?;
 assert!((props.volume - 2.984e-5).abs() < 1e-15);       // m³
 assert!((props.surface_area - 1.0696e-2).abs() < 1e-12); // m²
 
-// Every face here has a closed form, so the certified pads are
-// exactly zero — the measure is not approximate.
+// Every face here has a closed form, so the pads are exactly zero:
+// no face needed a quadrature.
 assert_eq!(props.volume_pad, 0.0);
 assert_eq!(props.area_pad, 0.0);
 # Ok::<(), E>(())
 ```
 
-The **pads** are the part people miss. `volume` and `surface_area`
-are not bare numbers, they are the midpoints of *certified
-enclosures*, and `volume_pad`/`area_pad` are the half-widths. The
-true value is inside `volume ± volume_pad`, guaranteed, not
-estimated. Planar and other closed-form faces contribute exactly, so
-their pads are `0.0`; a curved *cut* face contributes a certified
-quadrature bracket and widens the pad. A nonzero pad is the kernel
-telling you how much it does not know, and a program that cares about
-a tolerance should read it rather than assume it.
+The **pads** are the part people miss. Where a face needs a
+quadrature, `volume` and `surface_area` are the midpoints of
+*certified enclosures*, and `volume_pad`/`area_pad` are their
+half-widths: a curved *cut* face contributes a certified quadrature
+bracket and widens the pad. Planar and other closed-form faces
+contribute their closed form, evaluated in floating point, and no pad.
+So a pad of `0.0` means every face had a closed form, not that the
+value is exact, and the true value lies within `volume ± volume_pad`
+up to the floating-point rounding of the closed forms and their sum,
+which the pad does not state. That rounding is a few ulps for a body
+whose surfaces are stated about the body. It is more for a face whose
+surface is stated through a point far from it, a plane through a
+point kilometres away for instance. A nonzero pad is the kernel
+telling you how much its quadrature does not know, and a program that
+cares about a tolerance should read it rather than assume it.
 
 **Gating and then measuring pays for one quadrature, not two — if you
 ask for it that way.** Tier 3's orientation check *is* a certified
@@ -951,8 +957,8 @@ assert abs(props.volume - 2.984e-5) < 1e-15
 assert props.volume_pad == 0.0
 
 # Export through the document layer, and re-import to prove it. The
-# report's `enclosure` is the IMPORT GATE's own certified measurement
-# of the body it just adopted — reading it re-measures nothing.
+# report's `enclosure` is the IMPORT GATE's own measurement of the
+# body it just adopted — reading it re-measures nothing.
 step = ev.step_string(lightened, product_name="bracket")
 assert step.startswith("ISO-10303-21;")
 report = import_step(step)
@@ -1520,7 +1526,8 @@ cup = doc.insert(Node.shell(box, Formula.length_in(T, m), top))
 body = evaluate(doc).value(cup).body()
 body.validate()
 inner = L - 2 * T
-assert body.mass_properties().volume == L**3 - inner * inner * (L - T)
+want = L**3 - inner * inner * (L - T)
+assert abs(body.mass_properties().volume - want) <= 1e-12 * want
 
 # The cup's own vocabulary: one rim (named for the top it replaced)
 # and five cavity twins group as the SHELL's; the five outer faces are
@@ -1665,7 +1672,6 @@ let tol = Tol::witness();
 // Author a plate with a round hole. Both the outline and the hole
 // are programs; every coordinate is an expression.
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
     .expect("finite corners");
 let hole = LoopProgram::Circle {
@@ -1679,32 +1685,22 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
-// The frame the plate is drawn on. A profile names a frame NODE:
-// the plane is an authoring step, a row in the tree, and something
-// you can edit after drawing on it.
-let (next, frame) = insert(
-    &doc,
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }),
-);
-doc = next;
+// The plate is drawn in the profile's own plane and extruded up its
+// own +z: a construction lies in its own coordinates, and where it
+// stands in the world is a placement's to say.
 let (next, profile) = insert(
     &doc,
     Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![outline, hole],
         ids: Vec::new(),
     }),
 );
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5), side: ExtrudeSide::Along });
+let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5) });
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-assert_eq!(ev.recomputed, 3); // the frame, the profile, the plate
+assert_eq!(ev.recomputed, 2); // the profile, the plate
 assert_eq!(ev.reused, 0);
 
 // Reach the body the same way the export door does.
@@ -1736,12 +1732,9 @@ use pncad::prelude::*;
 #     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
-# let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
-# let (next, frame) = insert(&doc, Node::Datum(Datum::Frame { origin: [len(0.0), len(0.0), len(0.0)], u: [scl(1.0), scl(0.0), scl(0.0)], v: [scl(0.0), scl(1.0), scl(0.0)] }));
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { loops: vec![outline, hole], ids: Vec::new() }));
 # doc = next;
-# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![outline, hole], ids: Vec::new() }));
-# doc = next;
-# let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5), side: ExtrudeSide::Along });
+# let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5) });
 # doc = next;
 # let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 // Make the plate twice as thick.
@@ -1752,12 +1745,11 @@ let thicker = apply(&doc, &DocEdit::SetParam {
     fresh: Vec::new(),
 }, tol)?.doc;
 
-// Pass the PRIOR evaluation: the frame and the profile are
-// untouched, so their values are reused by content key and only the
-// extrude re-runs.
+// Pass the PRIOR evaluation: the profile is untouched, so its value
+// is reused by content key and only the extrude re-runs.
 let ev2 = evaluate::<f64>(&thicker, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 1);
-assert_eq!(ev2.reused, 2);
+assert_eq!(ev2.reused, 1);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
@@ -1817,7 +1809,7 @@ one identifier) with a `VarNameFault`:
 
 ```
 use pncad::prelude::*;
-use pncad::document::{Bodies, BooleanValue, NodeResult};
+use pncad::document::{Bodies, BodyRead, BooleanValue, EditError, Frame, NodeResult, Operand, place_against};
 
 let tol = Tol::witness();
 let lit = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
@@ -1844,35 +1836,19 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
 // The plate: outline plus both parametric holes, one profile.
 let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
     .expect("finite corners");
-let sc = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
-// The plate's frame. The tab below is sketched at a different
-// height, so it gets its OWN frame — two planes, visible as two
-// rows, rather than two poses frozen inside two sketches.
-let (next, base_frame) = insert(&doc, Node::Datum(Datum::Frame {
-    origin: [lit(0.0), lit(0.0), lit(0.0)],
-    u: [sc(1.0), sc(0.0), sc(0.0)],
-    v: [sc(0.0), sc(1.0), sc(0.0)],
-}));
-doc = next;
 let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
-    frame: base_frame.into(),
     loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
     ids: Vec::new(),
 }));
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: lit(0.5), side: ExtrudeSide::Along });
+let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: lit(0.5) });
 doc = next;
 
 // A plain tab on its own branch — parametrically inert, there so the
-// re-evaluation below has a sibling to REUSE.
-let (next, tab_frame) = insert(&doc, Node::Datum(Datum::Frame {
-    origin: [lit(0.0), lit(0.0), lit(0.125)],
-    u: [sc(1.0), sc(0.0), sc(0.0)],
-    v: [sc(0.0), sc(1.0), sc(0.0)],
-}));
-doc = next;
+// re-evaluation below has a sibling to REUSE. It is drawn in its own
+// coordinates and joins the plate's space by a placement against the
+// plate, 0.125 up the plate's own z.
 let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
-    frame: tab_frame.into(),
     loops: vec![
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
             .expect("finite corners"),
@@ -1880,10 +1856,25 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
     ids: Vec::new(),
 }));
 doc = next;
-let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: lit(0.25), side: ExtrudeSide::Along });
+let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: lit(0.25) });
 doc = next;
+let placed = place_against(
+    &doc,
+    &plate.into(),
+    &tab.into(),
+    &Frame::translation([0.0, 0.0, 0.125]),
+    &EvalOptions::default(),
+    tol,
+)?;
+let (next, tab_on_plate) = insert(&doc, Node::place(vec![BodyRead::plain(Operand::from(tab))]));
+doc = next;
+placed.write(tab_on_plate, |edit| {
+    let applied = apply(&doc, &edit, tol)?;
+    doc = applied.doc;
+    Ok::<_, EditError>(applied.record.minted_constraints)
+})?;
 let (next, solid) = insert(&doc, Node::Union {
-    members: Bodies::Spelled(vec![plate.into(), tab.into()]),
+    members: Bodies::Spelled(vec![plate.into(), tab_on_plate.into()]),
 });
 doc = next;
 
@@ -1908,16 +1899,19 @@ let v = |r: f64| {
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 
-// One `DefineVar` moves BOTH holes; the tab branch never re-runs.
+// One `DefineVar` moves BOTH holes; the tab's own branch never
+// re-runs. Its placement does: it is placed against the plate's
+// geometry, so it reads the plate.
 let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
     fresh: Vec::new(),
 }, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
-assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
-assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
-                               // branch, by content key
+assert_eq!(ev2.recomputed, 4); // the profile, the plate, the tab's
+                               // placement, the union
+assert_eq!(ev2.reused, 2);     // the tab's profile and extrude, by
+                               // content key
 assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
 
 // The holes were authored by NAME and are stored by IDENTITY: the

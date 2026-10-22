@@ -424,6 +424,11 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         CensusContact::EdgeEdgeCross { .. } => true,
         CensusContact::EdgeEdgeOverlap { .. } => true,
         CensusContact::EdgeFaceOverlap { .. } => true,
+        // A face–face record of class `Tangent` backs it.
+        CensusContact::FaceFaceTangent { finding } => {
+            named::<ContactFinding>(finding);
+            true
+        }
         // The arm the stop was named at, and its payload has a name
         // now: a caller that reaches a conformal patch asks what the
         // finding CLAIMS and what verdict decided it, instead of
@@ -2145,18 +2150,11 @@ fn stood(
     doc: pncad::document::ProfileDoc,
     placement: pncad::document::RecipeNodeId,
 ) -> pncad::document::ProfileDoc {
-    use pncad::document::{Node, Operand};
-    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
+    use pncad::document::Node;
+    let Some(Node::Place { .. }) = doc.node(placement) else {
         panic!("{placement} is a placement");
     };
-    let copy = Operand::Var(shapes[0].read);
-    let placed = pncad::document::stand(
-        &doc,
-        &copy,
-        &pncad::document::EvalOptions::default(),
-        pncad::tolerance::Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the copy stands: {e}"));
+    let placed = pncad::document::stand();
     let mut doc = doc;
     placed
         .write(placement, |edit| {
@@ -2416,6 +2414,8 @@ fn the_persist_doors_round_trip_through_the_facade() {
     )
     .expect("mass properties")
     .volume;
+    // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
+    // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(volume, 6.0);
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
@@ -4854,7 +4854,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   holds and `NamingError` is what `NodeErrorKind::Naming` holds,
 ///   and both carriers are curated — so a consumer could match either
 ///   arm and had no way to name what it caught. That is the payload
-///   rule this list's own `VerbKind` entry states, and `crate::document`
+///   rule this list's own `NodeRefusal` entry states, and `crate::document`
 ///   and `crate::select` carry them now. `BifurcationKind` stays: its
 ///   carrier arm is not constructed before the M6 solver, so nothing
 ///   can hold one to name. (`ClassAdmission`/`class_admission` left this family
@@ -6546,7 +6546,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 mod unit_vector_witness_through_the_facade {
     use pncad::document::PoseValue;
     use pncad::geom_core::{Band, Point3, Tol, UnitVec3, UnitVec3Error, Vec3};
-    use pncad::topo::DATUM_UNIT_NORM;
+    use pncad::topo::POSE_UNIT_NORM;
 
     fn bits(v: Vec3<f64>) -> [u64; 3] {
         [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]
@@ -6561,9 +6561,9 @@ mod unit_vector_witness_through_the_facade {
         use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
         let band = Band::linear(Tol::witness()).unwrap();
         let origin = Point3::new(1.0, 2.0, 3.0);
-        let normal = UnitVec3::new(Vec3::new(0.0, 0.0, 2.5), DATUM_UNIT_NORM, band).unwrap();
+        let normal = UnitVec3::new(Vec3::new(0.0, 0.0, 2.5), POSE_UNIT_NORM, band).unwrap();
         let ao = Point3::origin();
-        let dir = UnitVec3::new(Vec3::new(3.0, 4.0, 0.0), DATUM_UNIT_NORM, band).unwrap();
+        let dir = UnitVec3::new(Vec3::new(3.0, 4.0, 0.0), POSE_UNIT_NORM, band).unwrap();
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));
         assert_eq!(bits(dir.get()), bits(Vec3::new(0.6, 0.8, 0.0)));
 
@@ -6593,12 +6593,12 @@ mod unit_vector_witness_through_the_facade {
     }
 
     /// The funnel-site name is the caller's: a direction minted under
-    /// ANY name builds a `PoseValue`, so "a datum's direction is
-    /// decided under `datum_unit_norm`" is `editor-core`'s convention
-    /// at its `datum_unit` door, not a property of the type. The
-    /// refusals under the datum name are the constructor's typed ones.
+    /// ANY name builds a `PoseValue`, so "a pose's direction is
+    /// decided under `pose_unit_norm`" is `editor-core`'s convention
+    /// at its `pose_unit` door, not a property of the type. The
+    /// refusals under that name are the constructor's typed ones.
     #[test]
-    fn any_site_name_mints_a_datum_direction() {
+    fn any_site_name_mints_a_pose_direction() {
         let band = Band::linear(Tol::witness()).unwrap();
         let n = UnitVec3::new(
             Vec3::new(0.0, 0.0, 2.0),
@@ -6611,11 +6611,11 @@ mod unit_vector_witness_through_the_facade {
             normal: n,
         };
         let PoseValue::Plane { normal, .. } = d else {
-            panic!("a plane datum");
+            panic!("a plane pose");
         };
         assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));
         assert_eq!(
-            UnitVec3::new(Vec3::new(0.0, 0.0, 0.0), DATUM_UNIT_NORM, band).err(),
+            UnitVec3::new(Vec3::new(0.0, 0.0, 0.0), POSE_UNIT_NORM, band).err(),
             Some(UnitVec3Error::Degenerate)
         );
     }
@@ -6701,6 +6701,8 @@ mod the_hollowed_box_through_the_facade {
         let props = pncad::topo::mass_properties(body, Tol::witness()).expect("the cup measures");
         let inner: f64 = 1.0 - 0.25;
         let want = 1.0 - inner * inner * (1.0 - 0.125);
+        // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
+        // their sum are exact in f64 (a zero pad states no rounding; here there is none).
         assert_eq!(props.volume, want, "the cup's volume is its closed form");
     }
 
@@ -6840,29 +6842,68 @@ fn consistency_asked(run: impl FnOnce()) -> Vec<&'static str> {
         .collect()
 }
 
-/// A lattice-authored D-shape, 40 km out: the arc whose landing the
-/// public door once read as a definite inconsistency at ε 1e-12.
-fn far_d_shape(tol: Tol) -> ClosedLoop<f64> {
-    Open.at(p2(40_699.090_051_304_694, -8_736.154_085_499_025))
+/// A lattice-authored D-shape, scaled by `s` about the origin; at `s = 1`
+/// it stands 40 km out, the arc whose landing the public door once read
+/// as a definite inconsistency at ε 1e-12. The bulge is a ratio, so the
+/// scaled shape is the same D.
+fn d_shape(s: f64, tol: Tol) -> Result<ClosedLoop<f64>, PathError<f64>> {
+    Open.at(p2(40_699.090_051_304_694 * s, -8_736.154_085_499_025 * s))
         .arc_to(
             Bulge {
-                p: p2(36_968.901_970_701_314, -16_772.046_835_665_85),
+                p: p2(36_968.901_970_701_314 * s, -16_772.046_835_665_85 * s),
                 b: -1.308_736_876_905_907_8,
             },
             tol,
         )
         .and_then(|c| c.line_to(Start, tol))
-        .expect("the builder authors the arc")
+}
+
+/// How far out the path door's arc read-back can tell a landing miss
+/// from its own rounding at the run's ε: `K·ε/(16·2⁻⁵²)` m, the scale at
+/// which the read-back's headroom (`profile::seg::resolution_headroom`,
+/// `LANDING_ULPS = 16`) reaches zero. Past it, an f64 landing cannot be
+/// read within the band's zero except by landing bit for bit (at 40 km
+/// one coordinate ulp is already `7.3·10⁻¹²`), and a definite miss is
+/// refused `ArcMissBelowSceneResolution`, the tripwire's honest verdict:
+/// about 2.8 km at ε 1e-12, 2.8·10⁶ m at the default 1e-9.
+fn landing_reach(tol: Tol) -> f64 {
+    tol.k() * tol.eps() / (16.0 * f64::EPSILON)
+}
+
+/// How far the unscaled [`d_shape`]'s start stands from the origin.
+fn d_shape_reach() -> f64 {
+    40_699.090_051_304_694_f64.hypot(8_736.154_085_499_025)
+}
+
+/// The D-shape the row reads: the 40 km one wherever the run's ε reads
+/// it (the default ε and 1e-6), and otherwise the same D scaled to a
+/// quarter of [`landing_reach`] from the origin, so the builder can
+/// author its arc at every ε.
+fn far_d_shape(tol: Tol) -> ClosedLoop<f64> {
+    let s = (0.25 * landing_reach(tol) / d_shape_reach()).min(1.0);
+    d_shape(s, tol).expect("the builder authors the arc within its reach")
 }
 
 /// **The public door validates a lattice-built loop by its provenance.**
 /// `validated` takes the loops the lattice constructed, whose arcs were
 /// verified at their construction (D1), and decides none of their
 /// consistency checks; the same loop given up to a table and validated
-/// as one decides them.
+/// as one decides them. The loop is [`far_d_shape`]: 40 km out wherever
+/// the run's ε can read it there. Where it cannot (ε 1e-12), the 40 km
+/// D's arc is refused at the builder, below the scene's resolution, as
+/// the arc-landing tripwire says it must be, and the row reads the same
+/// D scaled within reach.
 #[test]
 fn validated_decides_no_consistency_check_on_a_lattice_built_loop() {
     let tol = Tol::witness();
+    if 0.25 * landing_reach(tol) < d_shape_reach() {
+        match d_shape(1.0, tol) {
+            Err(PathError::ArcMissBelowSceneResolution { predicate, .. }) => {
+                assert_eq!(predicate, "path_arc_landing");
+            }
+            other => panic!("the 40 km D past the scene's resolution: {other:?}"),
+        }
+    }
     let mut door = None;
     let asked = consistency_asked(|| {
         door = Some(validated(

@@ -735,7 +735,7 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
 
     // The undriven rungs, with the reason in the doc comment above.
     let undriven = [
-        InterrogateError::NoBodies { payload: "datum" },
+        InterrogateError::NoBodies { payload: "pose" },
         InterrogateError::NoSuchBody { index: 7 },
     ];
     for err in &undriven {

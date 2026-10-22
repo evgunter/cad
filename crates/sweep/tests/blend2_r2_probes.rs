@@ -194,9 +194,20 @@ fn r2_p4_four_rims_in_a_sharing_cycle_compose_in_one_call() {
         &[ZONE_BORE_HI, ZONE_SPHERE_LO, ZONE_BORE_LO, ZONE_SPHERE_HI],
         r,
     );
+    // Bit-equal to both orders while every face was read about the world
+    // origin. Each face is now read about a vertex of its shell, the
+    // first loop point in the shell's stored face order, and the two
+    // orders store the result's faces differently: the call lands ON
+    // the first order and one summation ulp off the second
+    // (1.59509590458337787e1 vs …769e1), P3's shape.
+    let ulp = 2.0 * f64::EPSILON * v1;
     assert!(
-        v1 == v_a && v1 == v_b,
-        "bit-equal, two sequential orders: {v1:.17e} vs {v_a:.17e} / {v_b:.17e}"
+        (v1 - v_a).abs() <= ulp && (v1 - v_b).abs() <= ulp,
+        "within a summation ulp both orders: {v1:.17e} vs {v_a:.17e} / {v_b:.17e}"
+    );
+    assert!(
+        v1 == v_a || v1 == v_b,
+        "one call lands ON one sequential order"
     );
 }
 

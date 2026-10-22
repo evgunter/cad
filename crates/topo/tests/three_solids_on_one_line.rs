@@ -324,12 +324,29 @@ struct Closed<'a> {
     volume: f64,
 }
 
-/// The cells of [`every_op`] the result gate refuses
-/// (`BooleanError::LineWedges`), by the cell's name: each result
-/// carries coincident edges on the line whose wedges overlap, which
-/// every tier passed. They return with the re-pairing
-/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
-const OVERLAPPING: &[&str] = &[
+/// The cells of [`every_op`] that refuse `EdgeInFace`, by the cell's
+/// name: each leaves an edge lying in a face whose material parts it,
+/// and the parting is not built there.
+///
+/// - The line body less the 0° prism against the bisector, every order:
+///   the prism's edge lies in the third's face along part of its length
+///   (`Partly`). At its midpoint, from the face's own direction round
+///   into it, the material is solid to 30°, empty to 80°, solid to 180°,
+///   empty to 270°, solid to 300° and empty beyond.
+/// - The line body towards 350° less the prisms over 0°–50° and
+///   280°–330°: the prism's edge lies in the wedge's face, whose material
+///   divides it, and an end touches an edge there (`DividedEndTouched`).
+/// - The line body less the bridge moved 1e-2 along x, every order: the
+///   bridge's edge lies in a face along part of its length (`Partly`;
+///   solid to 39°, empty to 149°, solid to 180°, empty beyond).
+///
+/// Main built each as one edge, its wedge claiming the empty sector
+/// between the face's material and the prism's; the result gate refused
+/// the first two groups `LineWedges` (their overlapping wedges) and
+/// passed the third
+/// (`work/cleave/a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted.md`,
+/// `work/cleave/the-boolean-parting-refuses-its-rarer-configurations.md`).
+const UNPARTED: &[&str] = &[
     "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [0, 1, 2], the line body first: true",
     "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [0, 2, 1], the line body first: true",
     "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [1, 0, 2], the line body first: true",
@@ -344,25 +361,24 @@ const OVERLAPPING: &[&str] = &[
     "subtraction of the wedge towards 350°, the line body [1, 2, 0], the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body first: true",
     "subtraction of the wedge towards 350°, the line body [2, 1, 0], the prism over [(1.5, 1.0), (1.569459271066772, 0.6060768987951167), (1.8464101615137753, 0.7999999999999998)], the line body first: true",
     "subtraction of the wedge towards 350°, the line body [2, 1, 0], the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body first: true",
+    "subtraction of the line from [0, 1, 2] and the bridge moved (0.01, 0), the line body first: true",
+    "subtraction of the line from [0, 2, 1] and the bridge moved (0.01, 0), the line body first: true",
+    "subtraction of the line from [1, 0, 2] and the bridge moved (0.01, 0), the line body first: true",
+    "subtraction of the line from [1, 2, 0] and the bridge moved (0.01, 0), the line body first: true",
+    "subtraction of the line from [2, 0, 1] and the bridge moved (0.01, 0), the line body first: true",
+    "subtraction of the line from [2, 1, 0] and the bridge moved (0.01, 0), the line body first: true",
 ];
 
-/// Whether `got` is the result gate's refusal of overlapping wedges in
-/// a cell [`OVERLAPPING`] names; a cell it names that does not refuse so
-/// is a pin gone stale.
-fn overlap_pinned(what: &str, got: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
-    let overlap = matches!(
-        got,
-        Err(topo::BooleanError::LineWedges {
-            fault: topo::LineWedgeFault::Overlap { .. },
-            ..
-        })
-    );
-    let pinned = OVERLAPPING.contains(&what);
+/// Whether `got` is the refusal [`UNPARTED`] names for the cell; a cell
+/// it names that does not refuse so is a pin gone stale.
+fn pinned(what: &str, got: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
+    let unparted = matches!(got, Err(topo::BooleanError::EdgeInFace { .. }));
+    let pinned = UNPARTED.contains(&what);
     assert!(
-        overlap || !pinned,
-        "{what}: {got:?}, where the result gate refuses its overlapping wedges"
+        unparted || !pinned,
+        "{what}: {got:?}, where it refuses `EdgeInFace`"
     );
-    overlap && pinned
+    unparted && pinned
 }
 
 /// **Every op of `line` and `tool`, either operand first**: each builds
@@ -385,7 +401,7 @@ fn every_op(
                 (tool, line)
             };
             let got = op(x.body, y.body, t());
-            if overlap_pinned(&what, &got) {
+            if pinned(&what, &got) {
                 continue;
             }
             let body = match (got, refuses(name, line_first)) {
@@ -900,7 +916,7 @@ fn edges_on_the_line_recorded(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f6
         for (first, a, b) in [(true, x, y), (false, y, x)] {
             let what = format!("{name} of {what}, the line body first: {first}");
             let got = op(a, b, t());
-            if overlap_pinned(&what, &got) {
+            if pinned(&what, &got) {
                 continue;
             }
             let r = match got {

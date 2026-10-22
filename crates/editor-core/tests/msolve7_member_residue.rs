@@ -520,6 +520,11 @@ fn a4_a_stray_key_on_a_constraint_refuses_at_the_load_door() {
 /// places one copy against another), so the corpus exercises the
 /// attribute: what it proves is that the bundles checked in load.
 ///
+/// The documents are authored at the default ε, and at another ε row
+/// the load door refuses each at its last door (`ToleranceConflict`),
+/// after the attribute has read every field. Nothing loads there to
+/// count, so that row says it skips the count.
+///
 /// *Breaks if* a tracked document stops loading, or the corpus stops
 /// carrying a bundle for the attribute to reach.
 #[test]
@@ -538,7 +543,7 @@ fn a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute() {
         .map(str::to_owned)
         .collect();
     assert_eq!(walked.len(), 4, "the corpus this row walks: {walked:?}");
-    let mut bundles = 0;
+    let (mut loaded_here, mut bundles) = (0, 0);
     for path in &walked {
         let text = std::fs::read_to_string(root.join(path)).expect("readable");
         let loaded = match load(&text, Tol::witness()) {
@@ -549,7 +554,17 @@ fn a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute() {
             Err(PersistError::ToleranceConflict { .. }) => continue,
             Err(e) => panic!("{path}: loads under the attribute: {e}"),
         };
+        loaded_here += 1;
         bundles += fixture::constrained(&loaded.doc).len();
+    }
+    if loaded_here == 0 {
+        println!(
+            "SKIPPED at ε {}: no tracked document is authored at this ε, so the load door \
+             refuses each at its last door and there is no bundle to count; the default ε \
+             row counts them",
+            Tol::witness().eps()
+        );
+        return;
     }
     assert!(
         bundles > 0,

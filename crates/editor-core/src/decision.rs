@@ -107,8 +107,9 @@ decisions! {
     OnSeamLine => crate::names::ON_SEAM_LINE, SIZED;
     /// Whether a chord lies on its rim: a distance in the result.
     ChordOnRim => crate::names::CHORD_ON_RIM, SIZED;
-    /// A datum distance against a stated value: a length the user wrote.
-    SelDatumDistance => crate::pose::SEL_DATUM_DISTANCE, SIZED;
+    /// A distance from a plane against a stated value: a length the user
+    /// wrote.
+    SelPlaneDistance => crate::pose::SEL_PLANE_DISTANCE, SIZED;
 }
 
 impl Decision {
@@ -251,8 +252,8 @@ mod undecided_text {
     }
 
     /// **The evaluation's direction length is a gauge**, and ends in
-    /// the lever alone. A datum's and a pose's direction length, the
-    /// same arithmetic under `datum_unit_norm`, keep their held sentence
+    /// the lever alone. A pose's direction length, the
+    /// same arithmetic under `pose_unit_norm`, keep their held sentence
     /// (`NodeErrorKind::PoseDirectionEscalated`), so the two end two ways
     /// while D10's pose ground is held.
     #[test]
@@ -350,7 +351,7 @@ mod undecided_text {
     }
 
     /// **The selection's undecided distance asks one question and ends
-    /// sized**: the distance from the datum against the stated value is
+    /// sized**: the distance from the plane against the stated value is
     /// a length the user wrote.
     #[test]
     fn a_selections_undecided_distance_ends_sized() {
@@ -363,8 +364,8 @@ mod undecided_text {
                         node: RecipeNodeId::new(0, 7),
                         path: vec![],
                     }),
-                    predicate: crate::SEL_DATUM_DISTANCE,
-                    source: at(crate::SEL_DATUM_DISTANCE, m),
+                    predicate: crate::SEL_PLANE_DISTANCE,
+                    source: at(crate::SEL_PLANE_DISTANCE, m),
                 }
                 .to_string()
             },

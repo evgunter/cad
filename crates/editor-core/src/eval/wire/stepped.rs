@@ -29,8 +29,8 @@ const MAX_TURNS: u64 = 1 << 52;
 
 /// The resolved operands of a stepped placement rule: what the rule's
 /// math consumes, every direction unit by type: a LINEAR rule's
-/// direction minted through [`unit()`], a CIRCULAR rule's axis a
-/// datum's `UnitVec3`, not re-decided.
+/// direction minted through [`unit()`], a CIRCULAR rule's axis its
+/// pose read's `UnitVec3`, not re-decided.
 pub(crate) struct SteppedOperands<T: geom_core::Real>(Rule<T>);
 
 enum Rule<T: geom_core::Real> {
@@ -41,11 +41,11 @@ enum Rule<T: geom_core::Real> {
         /// The per-step translation distance along it, positive.
         spacing: T,
     },
-    /// A circular rule: the datum axis and the angle per step.
+    /// A circular rule: the axis read and the angle per step.
     Circular {
-        /// A point on the axis, the datum's own.
+        /// A point on the axis, the read's own.
         origin: Point3<T>,
-        /// The axis direction, the datum's own witness.
+        /// The axis direction, the read's own witness.
         dir: UnitVec3<T>,
         /// The rotation angle per step, signed by the right-hand rule
         /// about `dir`, nonzero and within a turn, with the form it was
