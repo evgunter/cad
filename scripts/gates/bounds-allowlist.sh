@@ -783,8 +783,10 @@ BOUNDS_ALLOWLIST=(
   # code over the C10 tree, under the driver amendment like `separation`.
   # The seventh is `collinear_overlaps`, the edge-edge pass's candidates
   # over the same edge boxes, lifted out for ∖'s reading of coincident
-  # edges.
-  'crates/topo/src/census.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
+  # edges. The eighth is `flush_at_rest`, its candidates the planar faces
+  # whose boxes meet in a tree over the same `face_box` reads: the bound
+  # reaches the box and nothing else, each candidate read exactly.
+  'crates/topo/src/census.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the

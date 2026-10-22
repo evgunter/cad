@@ -4542,9 +4542,8 @@ fn projected_overlap<T: Decide>(
 }
 
 /// **A collinear overlap of two line edges**: a pair whose interiors
-/// meet, so it is owed its edge-edge record (D1), or a declared face
-/// pair whose interface it lies on ([`Declared::ee_face_backed`]), and
-/// the record is confirmed by reconstruction from its bounds: between
+/// meet, so it is owed its edge-edge record (D1), and the record is
+/// confirmed by reconstruction from its bounds: between
 /// two backed bounds, two lines sharing two points are one line. Two
 /// straight edges ending at one point key at both bounds
 /// ([`Bound::Shared`] at each) are one segment by structure, which owes
