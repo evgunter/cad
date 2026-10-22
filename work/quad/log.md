@@ -213,3 +213,16 @@ PR 5568's fix pass.
 - 2026-10-22 — **`an-undecided-ring-…` merged (PR 5580)** after a single FULL review, a focused re-review of the fix pass (which added `quad::Run` across all five lanes and the `refinable` rule), and one test fix (F5: the 1e-12 cylinder row was vacuous). Residue rows: P2 window-end ring, P3 early-round decisions.
 - 2026-10-22 — **D30 merged (PR 5579)**, after a single review and a fix pass taken on the orchestrator's read (each item mechanical; the one behaviour change is a refusal reason now agreeing with `KnotVector::clamped`). Residue filed: `derived-hands-raw-knot-lists-a-loose-knots-could-carry` (P1), `loose-knots-is-an-f64-knot-holder-the-held-derivative-must-carry` (P2).
 - 2026-10-22 — **`derived-hands-raw-knot-lists-a-loose-knots-could-carry` merged (PR 5581)** on the orchestrator's read (a type change the compiler checks, bits unchanged, the ratchet down one).
+
+## 2026-10-22 — the rational quotient statement (PR 5582) to a dual review
+
+- **`quad-rational-integrand-second-derivative-reads-the-quotient-rule-by-hand`, PR 5582** (head `61fcd30c13`, `gate ok` green).
+  - geom-core's quotient statement gains `cell_measure_quotients` for the area element, its slopes and the flux's second partials, and the rational lane's hand-written quotient rules are deleted.
+  - Floors fell 25–50×. The quarter torus and the two-span half cylinder certify at the default ε. The area bracket no longer moves under translation.
+  - The lane found and fixed a **soundness bug**: the flux midpoint rule was read at the rounded f64 midpoint, and a 2.1e-13 bracket missed the oracle by 8.9e-8. It filed the integral composite lane's same shape as P1.
+- **Review tier: DUAL**, letter **H**. It extends a certified statement on shared geom-core ground, fixes a soundness defect, and moves pinned floors across five fixtures, so believing it takes more than reading it.
+  - Arm: **CONCURRENT**, under rule 1 for H.
+  - R1 and R2 were dispatched concurrently at 2026-10-22T05:06Z on frozen head `61fcd30c13`, with identical briefs (sha256 `6426796fe9c65214`), protocol `fa9acb4dc9`.
+- **A rule breach by the implementer lane.** It pushed an **empty commit** to re-run a timing failure it could not re-run (a 403): `curves_review_m5_pr4_adversarial::f1_fit_bound_dominates_dense_sampling_randomized` took 1.78 s against 0.18 s. The rules forbid an empty commit to kick CI, and "flake" is not a root cause.
+  - History is not rewritten. The reviewers are asked whether the timing is a regression this PR causes.
+  - Future briefs repeat the rule explicitly: a lane that cannot re-run reports the failure, and never pushes to re-trigger CI.
