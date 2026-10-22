@@ -85,8 +85,7 @@ use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
 use super::closure::{IntervalJunction, interval_loop_turns};
 use super::quad::{
     FaceCutBounds, QUAD_INIT_PIECES, QUAD_MAX_ROUNDS, QUAD_TARGET_LEN_FACTOR, RVec3, RoundOutcome,
-    RoundWindow, classify_len, mean_boundary_displacement, rotate, round_exit, spread_cos,
-    spread_sin, trig_at,
+    RoundWindow, classify_len, mean_boundary_displacement, rotate, spread_cos, spread_sin, trig_at,
 };
 use super::{PropsCheck, PropsError};
 
@@ -825,8 +824,9 @@ fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsE
 /// over them all, bounds a region of the lifted chart only then. Each
 /// ring must also be wound against the face at the round returned
 /// ([`require_rings_wound_against`]), or it would add itself to the
-/// face's area; a converged face whose ring is undecided refines on,
-/// and the escalation stands at the last round the window runs.
+/// face's area; a converged face whose ring straddles the band refines
+/// on, and the escalation stands at the last round the window runs, or
+/// at once for a ring wholly in the band (`quad::Run::ringed`).
 ///
 /// # Errors
 ///
@@ -867,11 +867,6 @@ pub fn spiric_face_rounds<T: Decide>(
             (target_len, width_len),
             band,
         )?;
-        let rings = || {
-            face.wall.as_ref().map_or(Ok(()), |chart| {
-                require_rings_wound_against(face, chart, &loops, band)
-            })
-        };
         if converged {
             match classify_len::<T>(
                 "props_quad_face_extent",
@@ -882,22 +877,18 @@ pub fn spiric_face_rounds<T: Decide>(
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
-            // A ring the converged enclosure leaves undecided refines
-            // while the window has rounds: the face's flux needs no
-            // later round, but the ring's own enclosure narrows.
-            if schedule.within(window).decided(round, rings())?.is_some() {
-                return Ok(RoundOutcome::Converged(bounds));
-            }
-        } else if let Some(out) = round_exit(
+        }
+        if let Some(out) = schedule.run(window).ringed(
             round,
-            schedule.last(),
-            window,
+            converged,
             bounds,
             (width_len, target_len),
-        ) {
-            // An open enclosure is read too (a sign walk settles on one),
-            // and it encloses the face's flux only if its rings are holes.
-            rings()?;
+            || {
+                face.wall.as_ref().map_or(Ok(()), |chart| {
+                    require_rings_wound_against(face, chart, &loops, band)
+                })
+            },
+        )? {
             return Ok(out);
         }
         pieces *= 2;
@@ -1806,8 +1797,10 @@ mod tests {
     /// face's area, as does the loop's own copy beside it, and the loop's
     /// copy run backwards leaves a whole of no area, on which the read
     /// takes no side (it escalates `props_chart_area_side`); each at both
-    /// scalars. A ring in the band at every round escalates
-    /// `props_ring_winding` at the window's last round. A ring
+    /// scalars. A ring wholly in the band escalates
+    /// `props_ring_winding` at once; one whose round-0 enclosure
+    /// straddles the band's edge escalates at a window ending there, and
+    /// the whole schedule refines on until a later round decides it. A ring
     /// whose lift stays open by a part of a period, as a ring crossing
     /// the chart's seam would where its images do not continue across
     /// it, refuses [`PropsError::ChartLoopOpen`]; one whose lift restarts
@@ -1904,6 +1897,51 @@ mod tests {
         let outer = closed(0.3, true);
         let inner = closed(0.05, true);
         let hole = closed(0.05, false);
+        // A ring round 0 leaves straddling the band's escalate edge and
+        // round 1 decides. Its round-0 enclosure is some 0.13% of its
+        // mean width wide, so the offsets whose enclosure straddles the
+        // edge are a window that narrow, about `170.55·ε` to `170.77·ε`
+        // at `K = 10`: found from round 0's own readings rather than
+        // named, as the two ends of that window, between an offset whose
+        // ring is wholly in the band and one round 0 decides. A round's
+        // enclosure is about 8× narrower than the one before, so an
+        // offset a quarter of the window in from its decided end is
+        // decided at round 1.
+        let ring_at = |d: f64| closed(d, false);
+        let reading = |d: f64| match within(
+            0,
+            &wall_face(&[outer.clone(), ring_at(d)]),
+            RoundWindow::at(0),
+        ) {
+            Err(PropsError::Escalated { cause, .. })
+                if cause.predicate == Some("props_ring_winding") =>
+            {
+                usize::from(!cause.terminal_sliver)
+            }
+            _ => 2,
+        };
+        let edge = |past: usize| {
+            let (mut lo, mut hi) = (10.0 * tol.k() * tol.eps(), 30.0 * tol.k() * tol.eps());
+            assert!(
+                reading(lo) == 0 && reading(hi) == 2,
+                "the window lies between"
+            );
+            for _ in 0..24 {
+                let mid = 0.5 * (lo + hi);
+                if reading(mid) >= past {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
+            }
+            hi
+        };
+        let (straddles, decided) = (edge(1), edge(2));
+        assert!(
+            straddles < decided,
+            "round 0 straddles the edge on a window: {straddles} {decided}"
+        );
+        let straddling = ring_at(decided - 0.25 * (decided - straddles));
         for scalar in 0..2 {
             let alone = |l: &(SpiricEdgeQ, MeridianQ, Vec<ChartEndsQ>)| {
                 area(&at(scalar, &wall_face(core::slice::from_ref(l))))
@@ -1950,18 +1988,39 @@ mod tests {
                     if cause.predicate == Some("props_chart_area_side")),
                 "scalar {scalar}, the loop's copy run backwards: {got:?}"
             );
-            // A ring whose mean width is in the band at every round
-            // refines through the window and escalates at its end.
-            let got = within(
-                scalar,
-                &wall_face(&[outer.clone(), closed(100.0 * tol.eps(), false)]),
-                RoundWindow { first: 0, last: 2 },
-            );
+            // A ring whose mean width is wholly in the band escalates at
+            // once, at any window: no round decides it.
+            for window in [RoundWindow::at(0), RoundWindow::SCHEDULE] {
+                let got = within(
+                    scalar,
+                    &wall_face(&[outer.clone(), ring_at(10.0 * tol.k() * tol.eps())]),
+                    window,
+                );
+                assert!(
+                    matches!(&got, Err(PropsError::Escalated { cause, .. })
+                        if cause.predicate == Some("props_ring_winding")
+                            && cause.terminal_sliver),
+                    "scalar {scalar}, {window:?}, a ring in the band: {got:?}"
+                );
+            }
+            // The straddling ring escalates at a window ending at round
+            // 0, and the whole schedule refines on past the face's
+            // convergence until round 1 decides it a hole.
+            let face = wall_face(&[outer.clone(), straddling.clone()]);
+            let got = within(scalar, &face, RoundWindow::at(0));
             assert!(
                 matches!(&got, Err(PropsError::Escalated { cause, .. })
-                    if cause.predicate == Some("props_ring_winding")),
-                "scalar {scalar}, a ring in the band: {got:?}"
+                    if cause.predicate == Some("props_ring_winding")
+                        && !cause.terminal_sliver),
+                "scalar {scalar}, a ring round 0 leaves straddling: {got:?}"
             );
+            for window in [RoundWindow::at(1), RoundWindow::SCHEDULE] {
+                let got = within(scalar, &face, window);
+                assert!(
+                    matches!(got, Ok(RoundOutcome::Converged(_))),
+                    "scalar {scalar}, {window:?}, the straddling ring decided: {got:?}"
+                );
+            }
         }
         let (oval, meridian, loop_ends) = inner;
         let (ends, back) = (loop_ends[0], loop_ends[1]);

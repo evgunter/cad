@@ -27,8 +27,8 @@ neither is measured to fire.
    (`mean_boundary_displacement`), so a later round can move the
    margin only by about that fraction of itself: a verdict that a
    later round flips needs a margin within ~3·10³·ε relative of a band
-   edge. Real but narrow; `Schedule::decided` is the mechanism if it
-   is taken (the `Zero` arm too, which reads a lower bound as the
+   edge. Real but narrow; `quad::Run::ringed`'s `refinable` reading is
+   the mechanism if it is taken (the `Zero` arm too, which reads a lower bound as the
    area).
 2. **`displacement_len`'s lever guard** (`denom <= 0.0` →
    `DegenerateFace`), at any round: its docs argue it reaches the

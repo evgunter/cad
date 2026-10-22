@@ -16,8 +16,8 @@ cost: M
 (`props_ring_winding`) at whichever round a window returns. Since the
 fix for
 `an-undecided-ring-at-the-first-converged-round-refuses-instead-of-refining`,
-a ring the converged enclosure leaves undecided refines on while the
-WINDOW has rounds (`Schedule::within(window).decided`). At the
+a ring the converged enclosure leaves straddling the band refines on
+while the WINDOW has rounds (`quad::Run::ringed`). At the
 window's own last round the escalation still stands, though the
 schedule has rounds left: an `Open { end: OpenEnd::Window }` would
 hand back an enclosure that encloses the face's flux only if the ring

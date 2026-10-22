@@ -669,8 +669,9 @@ pub(super) fn classify_len<T: Decide>(
 /// **A lane's refinement schedule**: rounds `0..=last`, each an
 /// independent recomputation over twice the previous round's pieces
 /// ([`RoundWindow`]). A lane states its last round once, here, and its
-/// loop, its exit ([`round_exit`]) and its convergence reading
-/// ([`Schedule::converged`]) all take it from the one value.
+/// loop, its convergence reading ([`Schedule::converged`]) and the one
+/// call's rounds ([`Schedule::run`], whose exits end at the earlier of
+/// this last round and the window's) all take it from the one value.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Schedule {
     last: usize,
@@ -723,11 +724,11 @@ impl Schedule {
         band: Band,
     ) -> Result<bool, PropsError> {
         let last = round >= self.last;
-        match self.decided(round, reading)? {
-            Some(Sign::Positive) => Ok(true),
-            Some(Sign::Negative) | None => Ok(false),
-            Some(Sign::Zero) if !last => Ok(false),
-            Some(Sign::Zero) => {
+        match reading {
+            Ok(Sign::Positive) => Ok(true),
+            Ok(Sign::Negative) => Ok(false),
+            Ok(Sign::Zero) if !last => Ok(false),
+            Ok(Sign::Zero) => {
                 match geom_core::k_stats::decide_positive(
                     "props_quad_converged",
                     Margin::of(target_len - width_len).lift::<T>(),
@@ -740,32 +741,138 @@ impl Schedule {
                     }),
                 }
             }
+            Err(PropsError::Escalated { .. }) if !last => Ok(false),
+            Err(other) => Err(other),
         }
     }
 
-    /// **A decision read off `round`'s enclosure, under the schedule.**
-    /// An in-band reading ([`PropsError::Escalated`]) at a round with a
-    /// successor is no answer — the next round's enclosure is narrower
-    /// and may decide it — so it reads `None` and the round refines; at
-    /// the last round it stands. Any other reading is the answer.
-    pub(super) fn decided<V>(
+    /// **The rounds one call runs**: this schedule, entered and left
+    /// where `window` says. Its exits end at the earlier of the two last
+    /// rounds; the convergence reading stays the schedule's own
+    /// ([`Schedule::converged`]), whose last round is the lane's.
+    pub(super) fn run(self, window: RoundWindow) -> Run {
+        Run {
+            lane_last: self.last,
+            window,
+        }
+    }
+}
+
+/// **One call's rounds**: a lane's [`Schedule`] entered through a
+/// [`RoundWindow`] ([`Schedule::run`]). It answers where the call ends
+/// and with what; it is not a schedule, and has no convergence reading
+/// of its own.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Run {
+    lane_last: usize,
+    window: RoundWindow,
+}
+
+impl Run {
+    /// **The round loop's exit ladder**, one home for every lane.
+    ///
+    /// Asked after a round that did NOT converge: is there anything to
+    /// return, or is there another round? `Some` is the lane's answer —
+    /// the SCHEDULE's last round, which carries the budget refusal a
+    /// number-wanting caller earns (its width is
+    /// [`mean_boundary_displacement`]'s, finite and non-negative by that
+    /// function's invariant, so the refusal carries a number the caller
+    /// can act on — the `eps_posture` contract the suites pin), or the
+    /// WINDOW's last, which carries no refusal because rounds remain.
+    /// `None` means refine.
+    ///
+    /// One home because the ladder is one decision written once per lane
+    /// otherwise, and the lanes differ in it only by their own
+    /// last-round constant. What each lane keeps is the bound it hands
+    /// the budget exit ([`budget_exit`]), which only that lane can
+    /// compute; the exit itself is shared too.
+    pub(super) fn exit(
         self,
         round: usize,
-        reading: Result<V, PropsError>,
-    ) -> Result<Option<V>, PropsError> {
-        match reading {
-            Err(PropsError::Escalated { .. }) if round < self.last => Ok(None),
-            reading => reading.map(Some),
+        bounds: FaceCutBounds,
+        (width_len, target_len): (f64, f64),
+    ) -> Option<RoundOutcome> {
+        if round == self.lane_last {
+            return Some(RoundOutcome::Open {
+                bounds,
+                round,
+                end: OpenEnd::Exhausted(PropsError::QuadratureBudget {
+                    width_len,
+                    target_len,
+                    rounds: self.lane_last + 1,
+                }),
+            });
         }
+        (round == self.window.last).then_some(RoundOutcome::Open {
+            bounds,
+            round,
+            end: OpenEnd::Window,
+        })
     }
 
-    /// The rounds one call runs: this schedule, ended at `window`'s
-    /// last round if that comes first.
-    pub(super) fn within(self, window: RoundWindow) -> Self {
-        Self {
-            last: self.last.min(window.last),
+    /// **The ringed lanes' ladder** (the cylinder's and the spiric's),
+    /// asked after a round's convergence reading and, when it
+    /// converged, the lane's own face-extent gate: `rings` is the lane's
+    /// decision that every ring winds against its face, read off this
+    /// round's per-loop enclosures.
+    ///
+    /// - **Converged**: rings decided, the round is the answer. A ring
+    ///   reading that is [`refinable`] at a round before the call's last
+    ///   refines instead — the face's flux needs no later round, but the
+    ///   ring's own enclosure narrows. At the call's last round, or on
+    ///   any other refusal, the reading stands.
+    /// - **Not converged**: [`Run::exit`]'s ladder. An open enclosure is
+    ///   read too (a sign walk settles on one), and it encloses the
+    ///   face's flux only if its rings are holes, so the rings must be
+    ///   decided before it is returned.
+    ///
+    /// The escalation stands at a window's last round even with lane
+    /// rounds left: [`RoundOutcome`] has no outcome for an enclosure
+    /// whose rings are undecided, and an `Open` one would claim them
+    /// holes (`work/quad/a-ring-undecided-at-a-windows-last-round-refuses-a-sign-walk.md`).
+    pub(super) fn ringed(
+        self,
+        round: usize,
+        converged: bool,
+        bounds: FaceCutBounds,
+        widths: (f64, f64),
+        rings: impl FnOnce() -> Result<(), PropsError>,
+    ) -> Result<Option<RoundOutcome>, PropsError> {
+        if converged {
+            return match rings() {
+                Err(PropsError::Escalated { cause, .. })
+                    if round < self.lane_last.min(self.window.last) && refinable(&cause) =>
+                {
+                    Ok(None)
+                }
+                reading => reading.map(|()| Some(RoundOutcome::Converged(bounds))),
+            };
         }
+        let Some(out) = self.exit(round, bounds, widths) else {
+            return Ok(None);
+        };
+        rings()?;
+        Ok(Some(out))
     }
+}
+
+/// **Whether a later round can decide a ring reading this round left
+/// undecided.** The predicates the ringed lanes' `rings` reach are
+/// `props_chart_area_side` (the face's whole) and `props_ring_winding`
+/// (each ring), both the mean width `2·A/P` of a loop through
+/// `curved::require_holes_wound_against` at the interval scalar: `A` is
+/// this round's sound enclosure of the loop's signed chart area,
+/// recomputed over twice the pieces next round, and `P` an upper bound
+/// on its length that no round changes. Each round encloses the same
+/// true mean width, so a reading is refinable exactly when its
+/// enclosure STRADDLES a decision boundary: one lying wholly inside an
+/// open sliver band ([`geom_core::Indeterminate::terminal_sliver`]) has
+/// its true value there, and every later sound enclosure holds that
+/// value, so none decides it; a point or poisoned margin is no
+/// enclosure to narrow. Read off the escalation itself, so a predicate
+/// reaching here that is not enclosure-shaped refines nothing.
+fn refinable(cause: &geom_core::Indeterminate) -> bool {
+    cause.margin.kind() == geom_core::MarginKind::Enclosure && !cause.terminal_sliver
 }
 
 /// The convergence meter: the flux enclosure's width expressed as the
@@ -861,48 +968,6 @@ fn displacement_len(width: f64, area: Interval) -> Result<f64, PropsError> {
     Ok(len)
 }
 
-/// **The round loop's exit ladder**, one home for the three lanes.
-///
-/// Asked after a round that did NOT converge: is there anything to
-/// return, or is there another round? `Some` is the lane's answer —
-/// the SCHEDULE's last round, which carries the budget refusal a
-/// number-wanting caller earns (its width is
-/// [`mean_boundary_displacement`]'s, finite and non-negative by that
-/// function's invariant, so the refusal carries a number the caller
-/// can act on — the `eps_posture` contract the suites pin), or the
-/// WINDOW's last, which carries no refusal because rounds remain.
-/// `None` means refine.
-///
-/// One home because the ladder is one decision written three times
-/// otherwise, and the three lanes differ in it only by their own
-/// last-round constant. What each lane keeps is the bound it hands the
-/// budget exit ([`budget_exit`]), which only that lane can compute; the
-/// exit itself is shared too.
-pub(super) fn round_exit(
-    round: usize,
-    max_rounds: usize,
-    window: RoundWindow,
-    bounds: FaceCutBounds,
-    (width_len, target_len): (f64, f64),
-) -> Option<RoundOutcome> {
-    if round == max_rounds {
-        return Some(RoundOutcome::Open {
-            bounds,
-            round,
-            end: OpenEnd::Exhausted(PropsError::QuadratureBudget {
-                width_len,
-                target_len,
-                rounds: max_rounds + 1,
-            }),
-        });
-    }
-    (round == window.last).then_some(RoundOutcome::Open {
-        bounds,
-        round,
-        end: OpenEnd::Window,
-    })
-}
-
 /// The flux and area enclosures of a **cylinder** face with a curved
 /// trim (module docs: the Green form, the composite rule, the
 /// refinement funnel, the honesty pads), over every loop of the face,
@@ -919,9 +984,9 @@ pub(super) fn round_exit(
 /// a loop that winds the cylinder by no whole number of turns, or loops
 /// that wind it together ([`PropsError::LoopsWindChart`]),
 /// a ring wound with its face at any round it returns
-/// ([`PropsError::RingWoundWithFace`]) or still undecided at the last
-/// round the window runs (a converged face whose ring is undecided
-/// refines on), or
+/// ([`PropsError::RingWoundWithFace`]), one wholly inside the band, or
+/// one still straddling it at the last round the window runs (a
+/// converged face whose ring straddles refines on, [`Run::ringed`]), or
 /// the typed [`PropsError::QuadratureBudget`] refusal when the
 /// enclosure will not tighten to target within the round budget.
 pub fn cylinder_cut_face<T: Decide>(
@@ -982,7 +1047,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         // zero-UV-area trim loop makes `area` exactly `[0, 0]` here,
         // which is a degenerate face and not a tolerance question.
         let width_len = mean_boundary_displacement(flux, area)?;
-        if schedule.converged::<T>(
+        let converged = schedule.converged::<T>(
             round,
             classify_len::<T>(
                 "props_quad_converged",
@@ -992,7 +1057,8 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             ),
             (target_len, width_len),
             band,
-        )? {
+        )?;
+        if converged {
             // Face-extent gate on the CONVERGED enclosure: the area
             // must be definitely positive, metered as the face's mean
             // width area/perimeter — a length (the closed-form lanes'
@@ -1011,30 +1077,14 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
-            // A ring the converged enclosure leaves undecided refines
-            // while the window has rounds: the face's flux needs no
-            // later round, but the ring's own enclosure narrows.
-            if schedule
-                .within(window)
-                .decided(
-                    round,
-                    require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band),
-                )?
-                .is_some()
-            {
-                return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
-            }
-        } else if let Some(out) = round_exit(
+        }
+        if let Some(out) = schedule.run(window).ringed(
             round,
-            schedule.last(),
-            window,
+            converged,
             FaceCutBounds { flux, area },
             (width_len, target_len),
-        ) {
-            // An open enclosure is read too (a sign walk settles on
-            // one), and it encloses the face's flux only if its rings
-            // are holes.
-            require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band)?;
+            || require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band),
+        )? {
             return Ok(out);
         }
         pieces *= 2;
@@ -3934,13 +3984,11 @@ fn rational_patch_face<T: Decide>(
             round < schedule.last() || pieces == last_pieces,
             "the schedule's last round is the bound's"
         );
-        if let Some(out) = round_exit(
-            round,
-            schedule.last(),
-            window,
-            FaceCutBounds { flux, area },
-            (width_len, target_len),
-        ) {
+        if let Some(out) =
+            schedule
+                .run(window)
+                .exit(round, FaceCutBounds { flux, area }, (width_len, target_len))
+        {
             return Ok(out);
         }
         pieces *= 2;
@@ -4338,13 +4386,11 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             round < schedule.last() || pieces == last_pieces,
             "the schedule's last round is the bound's"
         );
-        if let Some(out) = round_exit(
-            round,
-            schedule.last(),
-            window,
-            FaceCutBounds { flux, area },
-            (width_len, target_len),
-        ) {
+        if let Some(out) =
+            schedule
+                .run(window)
+                .exit(round, FaceCutBounds { flux, area }, (width_len, target_len))
+        {
             return Ok(out);
         }
         pieces *= 2;
@@ -5574,13 +5620,11 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         )? {
             return Ok(out);
         }
-        if let Some(out) = round_exit(
-            round,
-            schedule.last(),
-            window,
-            FaceCutBounds { flux, area },
-            (width_len, target_len),
-        ) {
+        if let Some(out) =
+            schedule
+                .run(window)
+                .exit(round, FaceCutBounds { flux, area }, (width_len, target_len))
+        {
             return Ok(out);
         }
         pieces *= 2;
@@ -5941,25 +5985,24 @@ mod tests {
     /// its mean width straddles the band there (`props_ring_winding`),
     /// and a window ending at round 0 escalates, while the whole
     /// schedule refines until the ring is decided and measures
-    /// `2 − π·r²`.
+    /// `2 − π·r²`, and not the island's `2 + π·r²`.
+    ///
+    /// The rings are as large as round 0 still leaves straddling (about
+    /// ±3e-5 off the anchor level, `2e-5` to `3e-5` here), so the
+    /// converged flux enclosure, about `5e-5·r` wide, is narrower than
+    /// the `2·π·r²` between the two answers at every ε; and their mean
+    /// width, `r/2` (the length is the chart metric's `4·π·r` bound), is
+    /// clear of the band's escalate edge `K·ε` wherever the row runs.
     #[test]
     fn a_ring_undecided_at_the_first_converged_round_refines_on() {
-        let band = geom_core::Band::linear(Tol::witness()).unwrap();
-        let eps = Tol::witness().get().eps;
-        let ring_undecided = |got: Option<&PropsError>| {
-            matches!(
-                got,
-                Some(PropsError::Escalated { cause, .. })
-                    if cause.predicate == Some("props_ring_winding")
-            )
-        };
-        // Rings from 30·ε up, clear of the band (`2·A/P = r`), and small
-        // enough that round 0's enclosure, about ±3e-5 at these levels,
-        // straddles it: at least the first at every ε row.
-        let rings = [(30.0, 0.2), (300.0, 0.95), (3000.0, 0.2)]
-            .map(|(k, level)| (k * eps, level))
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let eps = tol.get().eps;
+        let rings = [(3e-5, 0.2), (3e-5, 0.95), (2e-5, 0.95)]
             .into_iter()
-            .filter(|&(r, _)| r <= 3e-5);
+            .filter(|&(r, _)| r / 2.0 >= 1.5 * tol.k() * eps)
+            .collect::<Vec<_>>();
+        assert!(!rings.is_empty(), "a row runs at ε {eps}");
         for (r, level) in rings {
             let [outer, ring] = rectangle_with_circle(true, 0.0, (r, level));
             let loops: [&[TrimEdgeQ]; 2] = [&outer, &ring];
@@ -5972,52 +6015,64 @@ mod tests {
                 RoundWindow::at(0),
             );
             assert!(
-                ring_undecided(at0.as_ref().err()),
-                "ring {r} at {level}: round 0 must leave the ring undecided: {at0:?}"
+                matches!(
+                    &at0,
+                    Err(PropsError::Escalated { cause, .. })
+                        if cause.predicate == Some("props_ring_winding")
+                            && !cause.terminal_sliver
+                ),
+                "ring {r} at {level}: round 0's enclosure must straddle the band: {at0:?}"
             );
             let whole = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, eps, band)
                 .unwrap_or_else(|e| panic!("ring {r} at {level}: the schedule refused: {e}"));
-            let exact = 2.0 - core::f64::consts::PI * r * r;
+            let pir2 = core::f64::consts::PI * r * r;
+            let (hole, island) = (2.0 - pir2, 2.0 + pir2);
             assert!(
-                whole.flux.lo() <= exact && exact <= whole.flux.hi(),
-                "ring {r} at {level}: flux {:?} must bracket {exact}",
+                whole.flux.lo() <= hole && hole <= whole.flux.hi() && whole.flux.hi() < island,
+                "ring {r} at {level}: flux {:?} must bracket the hole's {hole} and not the island's {island}",
                 whole.flux
             );
         }
-        // A ring in the band at every round refines through the window
-        // and escalates at its last round.
-        let [outer, ring] = rectangle_with_circle(true, 0.0, (12.0 * eps, 0.5));
-        let got = cylinder_cut_face_rounds::<f64>(
+    }
+
+    /// **A ring wholly inside the band escalates at once**
+    /// (`props_ring_winding`), at any window: its enclosure lies inside
+    /// one open sliver band ([`geom_core::Indeterminate::terminal_sliver`]),
+    /// so its true mean width is there and no round decides it, and the
+    /// schedule is not spent on it. A ring of radius `(1 + K)·ε` at the
+    /// anchor level has mean width `(1 + K)·ε/2`, inside `(ε, K·ε)` for
+    /// any `K > 1`, and its round-0 enclosure is some 0.2% of that wide.
+    /// Every window's escalation carries round 0's own enclosure: a later
+    /// round's would be about 8× narrower per round.
+    #[test]
+    fn a_ring_wholly_in_the_band_escalates_at_once() {
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let eps = tol.get().eps;
+        let [outer, ring] = rectangle_with_circle(true, 0.0, ((1.0 + tol.k()) * eps, 0.5));
+        let read = |window| match cylinder_cut_face_rounds::<f64>(
             pt(1.0),
             Interval::zero(),
             &[&outer, &ring],
             eps,
             band,
-            RoundWindow { first: 0, last: 2 },
-        );
-        assert!(
-            ring_undecided(got.as_ref().err()),
-            "a ring in the band at every round escalates at the window's end: {got:?}"
-        );
-    }
-
-    /// **A ring inside the band at every round escalates at the
-    /// schedule's end** (`props_ring_winding`), having refined through
-    /// every round.
-    #[test]
-    fn a_ring_in_the_band_at_every_round_escalates_at_the_schedules_end() {
-        let band = geom_core::Band::linear(Tol::witness()).unwrap();
-        let eps = Tol::witness().get().eps;
-        let [outer, ring] = rectangle_with_circle(true, 0.0, (12.0 * eps, 0.5));
-        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band);
-        assert!(
-            matches!(
-                &got,
-                Err(PropsError::Escalated { cause, .. })
-                    if cause.predicate == Some("props_ring_winding")
-            ),
-            "a ring in the band at every round escalates at the schedule's end: {got:?}"
-        );
+            window,
+        ) {
+            Err(PropsError::Escalated { cause, .. })
+                if cause.predicate == Some("props_ring_winding") && cause.terminal_sliver =>
+            {
+                cause.margin
+            }
+            got => panic!("{window:?}: a ring wholly in the band escalates: {got:?}"),
+        };
+        let round0 = read(RoundWindow::at(0));
+        for window in [RoundWindow { first: 0, last: 2 }, RoundWindow::SCHEDULE] {
+            assert_eq!(
+                read(window),
+                round0,
+                "{window:?}: the escalation is round 0's"
+            );
+        }
     }
 
     /// **A ring is a loop of its own.** The rectangle less the circle
