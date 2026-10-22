@@ -1205,9 +1205,11 @@ impl<T: Decide> Subject<'_, T> {
 /// component count of a subject is its number of definitely-`Outer`
 /// shells ([`topo::classify_shells`]) — an internal void is boundary,
 /// not a component, at every tolerance row — compared EXACTLY (`!=`)
-/// against the expectation. A shell the door cannot classify surfaces
-/// as its own typed finding ([`CheckEvidence::Escalated`] /
-/// [`CheckEvidence::Unsupported`]), never as a silent skip.
+/// against the expectation. A subject tier 3 refuses is not classified
+/// and surfaces as [`CheckEvidence::NotAtRest`]; a shell the door cannot
+/// classify surfaces as its own typed finding
+/// ([`CheckEvidence::Escalated`] / [`CheckEvidence::Unsupported`]). Neither
+/// is a silent skip.
 ///
 /// Expectations are TWO-DIRECTIONAL: every
 /// [`ChecksConfig::expected_components`] entry must be consumed by a
