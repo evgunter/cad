@@ -3,8 +3,10 @@
 //! The toolkit's job is to say *what the pointer did*; this module's
 //! job is to say *which operation that is*. Both halves are ordinary
 //! values — [`ViewportEvent`] in, [`CameraOp`] out — so the whole
-//! mapping is replayable in a headless test, and the egui layer above
-//! contains no navigation policy at all.
+//! mapping is replayable in a headless test. The egui layer above
+//! decides which toolkit values reach this vocabulary — for one, that
+//! a modified wheel stays a wheel (`pane::viewport::configure_input`)
+//! — and none of what an event means.
 //!
 //! # Screen conventions
 //!
@@ -28,7 +30,10 @@
 //!   subtend *at the target plane*, so the point under the cursor
 //!   stays under the cursor.
 //! - **Zoom**: a scroll notch is a fixed multiplicative step, so
-//!   zooming is scale-invariant and reversible.
+//!   zooming is scale-invariant and reversible. A pinch is a ratio and
+//!   is read as one: spreading the fingers by a factor brings the eye
+//!   that factor closer, so the model's apparent size follows the
+//!   fingers, with no rate between.
 //!
 //! **The primary (left) button selects, and a plain drag of it moves
 //! no camera.** It is the button click-to-select takes — the first of
@@ -90,9 +95,24 @@ pub enum ViewportEvent {
         delta_px: [f64; 2],
     },
     /// A wheel notch; positive scrolls "up", which zooms in.
+    ///
+    /// A wheel turned with ctrl or ⌘ held is one too, read at the same
+    /// rate — not a [`ViewportEvent::Pinch`].
     Scroll {
         /// Notches (fractional on a trackpad).
         units: f64,
+    },
+    /// A pinch: the factor the fingers' spread changed by since the
+    /// previous frame — above 1 spreading them (zoom in), below 1
+    /// drawing them together.
+    ///
+    /// A ratio rather than [`ViewportEvent::Scroll`]'s notches, because
+    /// that is what a pinch measures: converting it to notches only for
+    /// [`InputMap::zoom_rate_per_notch`] to convert it back would put a
+    /// rate where the gesture has none.
+    Pinch {
+        /// The magnification; exactly 1 is no pinch.
+        factor: f64,
     },
     /// The pointer is inside the viewport at this position, with no
     /// button held. Physical pixels from the viewport's top-left
@@ -289,7 +309,8 @@ pub fn preset_by_name(name: &str) -> Option<InputMap> {
 impl InputMap {
     /// The operation an event denotes, or `None` when this event is
     /// bound to no operation (a drag on an unbound button, a drag or
-    /// scroll of exactly zero, or a viewport with no area).
+    /// scroll of exactly zero, a pinch of exactly 1, or a viewport with
+    /// no area).
     ///
     /// `camera` and `viewport` enter because pan is defined in world
     /// units: the conversion from pixels needs the distance to the
@@ -342,6 +363,18 @@ impl InputMap {
                     factor: (-units * self.zoom_rate_per_notch).exp(),
                 })
             }
+            ViewportEvent::Pinch { factor } => {
+                if factor == 1.0 {
+                    return None;
+                }
+                // Apparent size goes as the reciprocal of distance, so
+                // the distance scales by the reciprocal of the spread.
+                // A factor that is not a positive number is passed on:
+                // `camera::apply` refuses it.
+                Some(CameraOp::Dolly {
+                    factor: factor.recip(),
+                })
+            }
             // Cursor events move no camera. They are not "unbound":
             // they are the other mapping's subject, and `pick` below
             // is where they are read.
@@ -352,7 +385,7 @@ impl InputMap {
     }
 
     /// The cursor action an event denotes, or `None` when this event
-    /// asks for no pick — every drag and scroll, and a click on a
+    /// asks for no pick — every drag, scroll and pinch, and a click on a
     /// button that is not [`InputMap::select_button`].
     ///
     /// Needs no camera and no viewport: a cursor action names a screen
@@ -366,7 +399,8 @@ impl InputMap {
             ViewportEvent::Leave => Some(PickAction::ClearHover),
             ViewportEvent::Click { .. }
             | ViewportEvent::Drag { .. }
-            | ViewportEvent::Scroll { .. } => None,
+            | ViewportEvent::Scroll { .. }
+            | ViewportEvent::Pinch { .. } => None,
         }
     }
 

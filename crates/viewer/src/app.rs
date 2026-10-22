@@ -49,14 +49,13 @@
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
 
 use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{ContainerKind, EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::geom_core::Tol;
 
-use crate::camera::{self, Camera, CameraError};
+use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
 use crate::drafts::{Drafts, ProfileDoors};
 use crate::evalseam::FitService;
@@ -64,7 +63,7 @@ use crate::evalseam::FitService;
 use crate::evalseam::ThreadEvaluator;
 use crate::frame::{self, RankedVerdict};
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
-use crate::idpass::IdQueryLog;
+use crate::idpass::{IdChannel, IdQueryLog};
 use crate::input::InputMap;
 use crate::marks;
 use crate::parts::PartChooser;
@@ -340,8 +339,8 @@ pub struct ViewerApp {
     /// document with a failed placement does not re-tessellate every
     /// healthy copy on every repainted frame.
     picks: PickCache,
-    /// Where the id pass leaves its answer: `serial << 32 | id`.
-    id_answer: Arc<AtomicU64>,
+    /// Where the id pass leaves its reply.
+    id_answer: IdChannel,
     /// Which id query is outstanding and what it was asked about.
     id_log: IdQueryLog,
     /// Bumped on every rebuild; the GPU uploads when it disagrees.
@@ -575,8 +574,6 @@ pub enum StartupError {
     Document(scene::SceneDocError),
     /// The document did not produce a drawable scene.
     Scene(scene::SceneError),
-    /// The starting camera could not be framed on the scene.
-    Camera(camera::CameraError),
     /// `eframe` handed the application no wgpu render state — the
     /// application was built against a renderer it does not have.
     NoWgpuRenderState,
@@ -610,12 +607,6 @@ impl core::fmt::Display for StartupError {
             }
             Self::Scene(error) => {
                 write!(f, "the starting document draws no scene: {error}")
-            }
-            Self::Camera(error) => {
-                write!(
-                    f,
-                    "no camera could be framed on the starting scene: {error}"
-                )
             }
             Self::NoWgpuRenderState => f.write_str(
                 "eframe handed the viewer no wgpu render state: this build was linked \
@@ -777,12 +768,12 @@ impl ViewerApp {
         let delta = DisplayTolerance::new(scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
         let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
-        // A provisional camera at a square aspect, because no pane has
-        // been laid out yet and there is no real aspect to read. It is
-        // provisional for exactly one frame: `pending_fit` below makes
-        // the viewport re-frame at its true aspect the first time it
-        // runs, so what a user sees is never the invented framing.
-        let camera = Camera::framing(&mesh.bounds(), 1.0).map_err(StartupError::Camera)?;
+        // A provisional camera, because no pane has been laid out yet
+        // and there is no aspect to fit against. It is provisional for
+        // exactly one frame: `pending_fit` below makes the viewport fit
+        // what it draws at its true aspect the first time it runs — the
+        // same fit an open books — so what a user sees is never this.
+        let camera = Camera::default();
 
         // Preferences, before anything is drawn. A refusal here is
         // never fatal: a viewer that would not open because its
@@ -837,6 +828,10 @@ impl ViewerApp {
         // a default rather than a check.
         crate::widgets::install_number_formatter(egui_ctx);
 
+        // And the toolkit's input options: a wheel is a scroll whatever
+        // modifier is held (`configure_input`'s doc says why).
+        crate::pane::viewport::configure_input(egui_ctx);
+
         let mut session = DocSession::new(document, tol, evaluator()?).with_door(prover()?);
         session.set_notation(notation);
 
@@ -845,7 +840,7 @@ impl ViewerApp {
             delta,
             scene: Arc::new(mesh),
             picks: PickCache::new(indexer()?),
-            id_answer: Arc::new(AtomicU64::new(0)),
+            id_answer: IdChannel::new(),
             id_log: IdQueryLog::new(),
             revision: 1,
             scene_key: None,
@@ -2172,7 +2167,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// news to `notices` above ([`crate::pane::viewport`]: `land`, and
     /// the id pass).
     pub(crate) status: &'a mut Option<frame::Message>,
-    pub(crate) id_answer: &'a Arc<AtomicU64>,
+    pub(crate) id_answer: &'a IdChannel,
     pub(crate) id_log: &'a mut IdQueryLog,
     pub(crate) ops: &'a mut Vec<SessionOp>,
     /// A δ the View pane's field committed this frame. The pane holds
@@ -3509,7 +3504,7 @@ mod tests {
     /// The context startup installed onto, and the app it assembled.
     ///
     /// [`ViewerApp::assemble`] is the half of startup that needs no
-    /// graphics device, and both of the context-wide installs are in
+    /// graphics device, and every context-wide install is in
     /// it — the `egui::Context` it is handed reaches nothing else —
     /// so a bare context is the whole subject. **No frame is run**:
     /// each install exists to be in force before anything is drawn,
@@ -3554,6 +3549,28 @@ mod tests {
             matches!(app.theme.polarity, Polarity::Dark),
             "startup resolved {:?} and the visuals a first frame would paint report dark_mode = {dark_mode}",
             app.theme.polarity
+        );
+    }
+
+    /// **Startup turns the toolkit's wheel-zoom routing off**, so a
+    /// ctrl/⌘+wheel reaches the viewport as a scroll
+    /// (`pane::viewport::configure_input`). The first assertion is
+    /// what makes the second a statement about startup: an untouched
+    /// context routes a COMMAND wheel to zoom.
+    #[test]
+    fn startup_reads_every_wheel_as_a_scroll() {
+        let untouched =
+            egui::Context::default().options(|options| options.input_options.zoom_modifier);
+        assert_ne!(
+            untouched,
+            egui::Modifiers::NONE,
+            "the toolkit's default already reads every wheel as a scroll, so nothing below sees the install"
+        );
+        let (ctx, _app) = started();
+        assert_eq!(
+            ctx.options(|options| options.input_options.zoom_modifier),
+            egui::Modifiers::NONE,
+            "startup leaves a modified wheel routed to the toolkit's zoom"
         );
     }
 

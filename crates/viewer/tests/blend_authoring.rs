@@ -1213,8 +1213,7 @@ fn only_a_drawn_selection_names_a_body_for_the_all_edges_door() {
     let face = index
         .ids_in(drawn, 0)
         .first()
-        .and_then(|&id| index.name_of(id))
-        .and_then(|named| named.as_ref().ok())
+        .and_then(|&id| index.name_of(id).ok())
         .map(|name| FaceSelection {
             name: name.clone(),
             node: drawn,

@@ -1095,16 +1095,28 @@ impl PickIndex {
 
     /// The name of the patch `id` denotes.
     ///
-    /// `None` for [`IdMap::NOTHING`] and for an id this index did not
-    /// assign; `Some(Err(_))` for the loud unnamed-face bug report.
     /// **A flat lookup, with no window check and none needed**: a
     /// patch id is a GLOBAL address, assigned across every part, so
     /// there is no next body for it to run into. That is the
     /// difference [`PickIndex::edge_name_of`] carries a window check
     /// for.
-    pub fn name_of(&self, id: u32) -> Option<&Result<StableName, UnnamedEntity>> {
-        self.patches
-            .name_at(usize::try_from(id.checked_sub(1)?).ok()?)
+    ///
+    /// # Errors
+    ///
+    /// [`PatchNameFault`], per arm: the clear value, an id this index
+    /// never assigned, or a patch the naming layer could not name.
+    pub fn name_of(&self, id: u32) -> Result<&StableName, PatchNameFault> {
+        let Some(flat) = id.checked_sub(1) else {
+            return Err(PatchNameFault::Nothing);
+        };
+        let entry = usize::try_from(flat)
+            .ok()
+            .and_then(|flat| self.patches.name_at(flat));
+        match entry {
+            None => Err(PatchNameFault::Unassigned { id }),
+            Some(Ok(name)) => Ok(name),
+            Some(Err(error)) => Err(PatchNameFault::Unnamed { id, error: *error }),
+        }
     }
 
     /// The ids a name is drawn as — **the id map's inverse**, across
@@ -1173,14 +1185,11 @@ impl PickIndex {
     /// # Errors
     ///
     /// As [`PickIndex::scene`]. **Drawing nothing is never an error
-    /// here**, and there are two ways to draw nothing. Hiding
-    /// EVERYTHING gives [`SceneMesh::empty`] — a blank picture whose
-    /// bounds are the hidden geometry's, so the camera keeps a real
-    /// extent to frame against. An index with NO PARTS AT ALL gives
-    /// [`SceneMesh::nothing`], which has no extent to carry; which
-    /// documents reach that state is
-    /// [`pncad::document::ProductErrorKind::means_no_body`]'s to say.
-    /// Either way the picture is never left stale behind a refusal.
+    /// here**: an index whose every part is hidden, and one with no
+    /// parts at all, both give [`SceneMesh::nothing`] (which documents
+    /// reach the second is
+    /// [`pncad::document::ProductErrorKind::means_no_body`]'s to say),
+    /// so the picture is never left stale behind a refusal.
     pub fn scene_for(&self, display: &DisplayView) -> Result<SceneMesh, SceneError> {
         self.scene_focused(display, &BTreeSet::new())
     }
@@ -1213,31 +1222,10 @@ impl PickIndex {
             });
         }
         if parts.is_empty() {
-            // Nothing is drawn, and there are two ways to arrive here.
-            // Every part hidden by the display view keeps its
-            // geometry's box, so a camera still has a real extent to
-            // frame against (the case the docs above state).
-            //
-            // An index with NO PARTS is the other, and whether such a
-            // document is a fault is `ProductErrorKind::means_no_body`'s
-            // to say. `SceneMesh::nothing` is the picture of one.
-            // Refusing here would instead leave the PREVIOUS picture on
-            // screen under an error line, so the document would go on
-            // showing a body it no longer has.
-            if self.parts.is_empty() {
-                return Ok(SceneMesh::nothing(self.key.delta()));
-            }
-            // Parts that exist but offer no point to bound is still a
-            // refusal, and deliberately still this one: that is a
-            // tessellation that produced nothing, which is the fault
-            // `EmptyMesh` has always named.
-            let bounds = bvh::Aabb::from_points(
-                self.parts
-                    .iter()
-                    .flat_map(|part| part.mesh().positions.iter().copied()),
-            )
-            .ok_or(SceneError::EmptyMesh)?;
-            return Ok(SceneMesh::empty(bounds, self.key.delta()));
+            // Refusing here would leave the PREVIOUS picture on screen
+            // under an error line, so the document would go on showing
+            // a body it no longer has.
+            return Ok(SceneMesh::nothing(self.key.delta()));
         }
         SceneMesh::build_parts_focused(&parts, self.key.delta(), focus)
     }
@@ -2328,6 +2316,52 @@ pub enum PickError {
     EdgeName(EdgeNameFault),
 }
 
+/// Why a patch id names no stable name here (closed enum, D4 ¶3):
+/// [`PickIndex::name_of`]'s refusal.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PatchNameFault {
+    /// [`IdMap::NOTHING`], the clear value: the id of no patch, and the
+    /// ordinary answer over empty space.
+    Nothing,
+    /// An id this index never assigned. No pass drawn from this index
+    /// writes one, so it is what a corrupt readback looks like.
+    Unassigned {
+        /// The id asked about.
+        id: u32,
+    },
+    /// A patch this index assigned and has no name for: the naming
+    /// layer's own bug report, carried verbatim.
+    Unnamed {
+        /// The patch id asked about.
+        id: u32,
+        /// Why the patch has no name.
+        error: UnnamedEntity,
+    },
+}
+
+impl Say for PatchNameFault {
+    /// The `Unnamed` arm forwards the carried value's own sentence:
+    /// the naming layer named that failure.
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            Self::Nothing => f.write_str("nothing"),
+            Self::Unassigned { id } => write!(f, "id {id}, which this index never assigned"),
+            Self::Unnamed { id, error } => {
+                write!(f, "id {id}, a drawn patch: {}", Said(error, by))
+            }
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for PatchNameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+impl core::error::Error for PatchNameFault {}
+
 /// Why an [`EdgeId`] names no stable name here (closed enum, D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
 pub enum EdgeNameFault {
@@ -2507,6 +2541,30 @@ mod tests {
             node: RecipeNodeId::new(0, tag),
             path: Vec::new(),
         }
+    }
+
+    /// **Each patch-name refusal says the id and what it is**: the
+    /// clear value as nothing, an id the index never assigned as that,
+    /// and an unnamed patch as a drawn one with the naming layer's own
+    /// sentence. The id arms are the words the cursor line reads.
+    #[test]
+    fn each_patch_name_fault_says_its_id_and_what_it_is() {
+        let error = UnnamedEntity {
+            node: RecipeNodeId::new(0, 2),
+            entity: editor_core::names::EntityRef {
+                body: 0,
+                key: editor_core::names::EntityKey::Body,
+            },
+        };
+        assert_eq!(PatchNameFault::Nothing.to_string(), "nothing");
+        assert_eq!(
+            PatchNameFault::Unassigned { id: 9 }.to_string(),
+            "id 9, which this index never assigned"
+        );
+        assert_eq!(
+            PatchNameFault::Unnamed { id: 9, error }.to_string(),
+            format!("id 9, a drawn patch: {error}")
+        );
     }
 
     /// `count` names, `tag`-distinct, as one part's run.
