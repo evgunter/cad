@@ -570,6 +570,35 @@ smoothness δ already buys. A display-mesh lane, when built, gets its
 own separately-honest criterion and is never promoted into the
 certified export promise.
 
+**A measurement refines until a predicate over its enclosure resolves.**
+`[tolerance.measure]`
+A certified measurement (volume, area, moments) is an enclosure, never a
+number alone, and its width is part of the value. There is one door. It
+refines a face until a predicate over the enclosure resolves, until
+refinement stops paying (a floor no round removes), or until the per-face
+work bound (one bound, in one unit, for every lane). It returns the
+narrowest enclosure reached and why it stopped.
+
+A consumer that decides something passes its predicate: a sign, a
+relation against a bound as an assertion states it, or a containment. At
+the public doors the predicate is closed data, not a callable. A deciding
+predicate is a named predicate ([verdicts]). It settles when definite,
+refines while its enclosure straddles the threshold, stops when the
+enclosure lies wholly in the band, and is recorded at every round it is
+asked.
+
+A consumer that hands the number on passes a resolution, the width
+predicate: the mean boundary displacement it needs. That is a sizing,
+decides nothing against ε ([intrinsic.epsilon]), and is not recorded.
+The model defines its measures only to ε of boundary displacement, so no
+finer resolution is offered. There is no default: every caller states
+its predicate, a resolution included, at the call, so the precision a
+measurement buys is always the one its consumer asked for.
+
+A deciding predicate still undecided at the work bound is the one
+quadrature refusal, and it carries the enclosure. A resolution unmet
+there is the bracket, with the resolution it reached.
+
 **The margin dimensional convention.** `[tolerance.margins]`
 ε is a length: the maximum
 deviation from specified geometry at a single point. Four clauses
@@ -2245,7 +2274,7 @@ Where the clauses of this document at commit `95c77e152a` now live.
 | D1 | [topology]; D1's frontier (c)–(f) moved to `docs/KERNEL-VERBS.md` |
 | D2 | [edges] |
 | D3 | [surfaces]; "One reading per question" is [one-way.readings]; "What a consumer does with the answer" is [verdicts.consumers] |
-| D4 | [tolerance]; ¶1 is [tolerance.epsilon] with [tolerance.recourse] (the two-tolerance principle and its (i)–(iv)), [tolerance.chordal] and [tolerance.margins]; ¶2 [tolerance.residuals]; ¶3 [tolerance.typed-failure]; ¶4 [tolerance.units]; ¶5 [tolerance.boundary] |
+| D4 | [tolerance]; ¶1 is [tolerance.epsilon] with [tolerance.recourse] (the two-tolerance principle and its (i)–(iv)), [tolerance.chordal], [tolerance.measure] and [tolerance.margins]; ¶2 [tolerance.residuals]; ¶3 [tolerance.typed-failure]; ¶4 [tolerance.units]; ¶5 [tolerance.boundary] |
 | D5 | [identity] |
 | D6 | [units] |
 | D7 | [import] |

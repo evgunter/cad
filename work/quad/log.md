@@ -157,6 +157,12 @@ Measured on main `258dc6c7c2`, with `ec32861499` (just before FLUX's #5442) as t
 - **area pads: stands, first measurement.** The bracket width varies 1.13× under rotation, and the flux width 2.8×. Stays P3.
 - **Class finding, sent to FLUX's log:** #5442 reads a shell about its first quadrature face's start, which costs bodies at the origin. That is evidence for FLUX's `a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first`.
 
+## 2026-10-22 — `[ev]` PR 5574 ruled: the measurement door refines until a predicate resolves, no default
+
+Ev approved the converged round-4 design ("ok yay!"), asked for no default ("ideally every caller can be made to specify what it actually needs up front"), and approved the no-default text ("looks good!").
+- `quad2-rational-max-rounds-dial-decision` closed as ruled; fork row 188 (numbered 188 at merge: main had taken 187) is completed, with A = Fable and B = Opus (byte 111).
+- The build is `the-measurement-door-refines-until-a-predicate-resolves` (P1, H, design-first spec, then a DUAL review).
+- The rows it dissolves now name it as `parent`; COINCIDE's connectedness row is listed in its body.
 ## 2026-10-21 — the dial weighed; `[ev]` PR 5574
 
 Designer pair on `quad2-rational-max-rounds-dial-decision`, on PR 5568's
