@@ -1552,11 +1552,12 @@ fn two_cubes_glued_on_a_wall() -> (
 /// Evaluated at `Sym` with every variable a symbol and the evaluation's
 /// resolver, the two cube instances and their union build: each part's
 /// variables are symbols of the part's own pinned version, so nothing
-/// across the seam refuses. The door's replay builds no placed copies
-/// ([`editor_core::coincide::REPLAYS_PLACED_COPIES`], off until the seat
-/// item turns it on), so handed the evaluation's resolver or none, each
-/// row on a part says the replay resolved no part and names an
-/// assertion as its recourse.
+/// across the seam refuses. The door's replay reads no node's row on a
+/// part, since resolving the parts at `Sym` costs seconds and has bought
+/// such a row no proof
+/// (`work/intent/an-unmated-row-on-a-part-resolves-parts-at-sym-for-seconds.md`):
+/// handed the evaluation's resolver or none, each row on a part says the
+/// replay resolved no part and names an assertion as its recourse.
 #[test]
 fn a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed() {
     let (doc, union, rows, opts) = two_cubes_glued_on_a_wall();
@@ -1597,12 +1598,11 @@ fn a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed() {
     }
 }
 
-/// **A canceled token reaches the door's replay.** Each row here stands
-/// on a part, which the replay answers without discharging a margin, so
-/// the door consults no token of its own after the replay: only a
-/// replay that runs under the caller's token stops canceled. A replay
-/// under a token of its own runs to the end, and the rows come back
-/// unproven instead.
+/// **A canceled token stops the door before it answers.** Each row here
+/// stands on a part, which the door answers without a replay or a
+/// margin to discharge, so only the token read where the door's replay
+/// begins stops it: a door that read it only inside a replay would
+/// answer the rows unproven instead.
 #[test]
 fn a_canceled_door_stops_in_its_replay() {
     let (doc, union, rows, _) = two_cubes_glued_on_a_wall();

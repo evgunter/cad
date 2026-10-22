@@ -47,3 +47,85 @@ Signed (S-DUP orchestrator).
 - 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), review fixes; supersedes the shapes in the note above. `pickindex.rs`: `EdgeNamesRefused` is `{ node, body, first: UnnamedEntity, named, refused }`, rendered as "the index names N of the M edges it draws on body B of node K; the first it cannot: <EdgeNameFault::Unnamed>"; `edge_names_in` reads the window through `PartWindows::named_in`, so only the unnamed arm can refuse; `EdgeNameFault` does not gain `Eq` after all. `blend.rs`: `BlendEvent::EdgesUnnamed { refused }` (no separate `target`). `frame.rs`: `SeamSubject for EdgeNamesRefused` is `Subject::Document` (the line's `tool_notice` subject too), not the pick-index seam. `test_support.rs`: `unnamed_edge(node, body)`. Filed `work/chrome/the-per-frame-badge-reads-are-three-hand-copied-fields`. (AUTH-14 implementer)
 
 - 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), third pass. `pickindex.rs`: `PartWindows::in_target` and `named_in` both cut their run through the new `PartWindows::laid_out`, which panics (`unreachable!`, naming the window and both list lengths) when a window runs past the entities or names laid out with it, instead of answering an empty run that reads as a body with no edges; `a_window_past_its_names_is_not_an_empty_body` is its `#[should_panic]` row. (AUTH-14 implementer)
+
+## 2026-10-22 — taken up; the slate against the D10 hold
+
+An orchestrator (session 01QgNokkLTQtNJ3sdoLiqtf6) takes the track; status `active`.
+
+**The hold.** Other programs hold off starting units that meaningfully
+touch dependency, placement or intent (`docs/DESIGN.md`, State of the
+build). No FIT row changes how any of those is said, but stage 3 D′
+(`work/intent/a-placement-pins-by-written-values-without-a-mate.md`,
+`[ev]` PR 5494, open) retires loose spaces and decides what the viewer
+shows: a set of spaces drawn through one composing door shared with
+export. Two rows stand on that ground and are parked on the D′ row:
+`one-failed-root-refuses-the-whole-pick-index` (its walk is
+`PickIndex::assemble`'s world-plus-loose-spaces filter, and its question
+is the shown set), and the pickindex row's §1, split into
+`a-moved-copys-pick-span-crosses-its-frame-unconverted` (it reads
+`DisplayView::moved_placements`, free-move over loose spaces). Every
+other row was checked live on main at `85136071`.
+
+**Re-priced.** Legacy `D` read and priced `M`. `ctrl-wheel-reaches-no-zoom`
+`E` → `M` with `design`: its body names three open questions. The
+pickindex row is `M` with `design` (§3 alone). The aspect-sentence row
+had no band: `P3`, `E`, riding with zoom-to-fit. Load 30.5 → 25.5.
+
+**Overlap.** No open PR touches FIT's files, and every sibling on the
+viewer ground (VGEOM, VSEAM, VNEWS, CHROME, POLISH) is `ready` with no
+orchestrator, so no lane is live beside this one. The neighbouring rows
+on `pick_for` are named in the plan.
+
+**Next.** The two P0s, each weighed by a designer pair first.
+(FIT orchestrator)
+
+## 2026-10-22 — the two P0s weighed and dispatched
+
+Both P0 rows were weighed by a designer pair (blinding on
+`analysis/design-fork/fit-p0`). Both pairs converged in their first
+reports, and no ratified text moves, so neither is a fork for Ev. The
+orchestrator adopted each:
+
+- **`ctrl-wheel-reaches-no-zoom`.** egui's `zoom_modifier` is set to
+  `NONE` once, so a ctrl/⌘+wheel is an ordinary `Scroll` at the one
+  wheel rate. A pinch (`zoom_delta()`, i.e. every pinch on every
+  backend, which the row undercounted) is `ViewportEvent::Pinch
+  { factor }` → `Dolly(1/factor)`, with no rate. The pair named the
+  variant `Magnify` and `Pinch`; `Pinch` was taken, naming the gesture
+  as `Scroll` does. Rejected: routing ctrl+wheel through egui's factor
+  with a synced `scroll_zoom_speed` (a second copy of the rate), and
+  converting the factor to notches. Review: style.
+- **`zoom-to-fit-frames-no-committed-profile`**, with the aspect
+  sentence riding along. The fit frames the drawn extent (the mesh,
+  committed loops and preview loops; never pixel-sized marks or
+  display aids). Absence is `None`, not `SceneMesh::nothing`'s
+  origin point. Hidden parts do not frame. An empty or point extent
+  frames at a named `DEFAULT_FRAME_RADIUS` with the orientation kept.
+  The fit moves after the geometry lanes and before the marks.
+  `CameraOp::Frame` reads "zoom to fit", and only `Unfittable` prints
+  the aspect. The refuse-not-default argument lived only in
+  agent-written comments. The design reads only drawn positions, so it
+  holds under D′. Review: full (moves the frame order and a type).
+  Correction: no `datums.rs` exists on main; the row's datum paragraph
+  is stale.
+(FIT orchestrator)
+
+## 2026-10-22 — the budget pair weighed and dispatched
+
+`the-budgets-predicted-count-is-not-always-an-over-count` and
+`a-flat-rung-pair-is-read-as-flat-below-it` were weighed by one pair
+(blinding byte on `analysis/design-fork/fit-p0`). The pair converged:
+the budget is a **target with a stated, guarded precision**, not a cap.
+Every "not a cap" in the tree means that a typed δ overrides the
+budget, while finding 1 is about precision. The over-run is a
+per-face `ceil` term that grows with curved-face count, so no margin
+makes it a cap. A verifying tessellation buys a promise no reader
+holds. Flat never changes the committed δ (a Flat stop holds under
+budget/8 at 8× the request), so finding 2 concerns a reported number,
+not the budget, and the row's ~15 000 threshold was not derived.
+They split on one point, keeping or deleting `FittedDelta::predicted`.
+The orchestrator checked: only tests read it, and in the bound case it
+is the constant budget. **Deleted**; the other designer's ceil argument
+becomes the documented reason for the band. The guard is the drawn
+count, held to a band on every bound corpus row. Review: style.
+(FIT orchestrator)

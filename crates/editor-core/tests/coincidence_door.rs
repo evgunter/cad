@@ -528,9 +528,9 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
     );
     assert_eq!(
         recourses(&proved),
-        [Some(coincide::Recourse::OneConstruction); 8],
+        [Some(coincide::Recourse::Budget); 8],
         "the feet distance freezes on the door's budget, which is no value computed apart \
-         from the variables: no special recourse"
+         from the variables: the recourse names the budget"
     );
     assert_eq!(unproven(&doc, &ev).len(), 8);
 }
@@ -1797,10 +1797,9 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// as two vertices. It records the decision: one `VertexFusion`
 /// `Meet` row, its two cells the two blocks' edges as the union names
 /// them, sharing the point each pierce was minted at, its margin the
-/// gap. The door leaves it unproven
-/// with the one-construction recourse, and the check reports it: the
-/// blocks are copies placed on the plate, which the door compares
-/// through their frames (stage 4 H). Red if
+/// gap. The door leaves it unproven, its form outgrowing the door's
+/// budget, and the check reports it: the blocks are copies placed
+/// against the plate, and no mate states their edges one. Red if
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
 ///
@@ -1872,8 +1871,8 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     );
     assert_eq!(
         recourses(&proofs(&doc, common, &fused)),
-        vec![Some(coincide::Recourse::OneConstruction)],
-        "unproven, with the one-construction recourse"
+        vec![Some(coincide::Recourse::Budget)],
+        "unproven, its form outgrowing the door's budget"
     );
     let reported: Vec<_> = unproven(&doc, &ev)
         .into_iter()

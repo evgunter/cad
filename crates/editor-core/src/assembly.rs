@@ -86,7 +86,7 @@ use crate::mate::{
     ClassAdmission, ContactClass, MateSide, NO_AT_REST_RECORD_RECOURSE, class_admission,
 };
 use crate::names::{Entry, NameTable, StableName};
-use crate::node::{Node, RecipeNodeId, SitedFace};
+use crate::node::{RecipeNodeId, SitedFace};
 use crate::product::{Product, ProductError, product_recorded};
 use crate::spoken::HeldNodes;
 use geom_core::Tol;
@@ -1481,15 +1481,16 @@ pub(crate) fn seam_verdict<T: crate::checks::at_rest::LocalizeLane>(
 ///
 /// **A mate mints on the copies of what it reads** (#4220): each side's
 /// face is the selection's entity, and the copy is the world placement
-/// reading the selection's body, whose own value holds that entity
-/// under the same key (a placement moves a body and re-mints nothing);
-/// `copies` is the graft bridge from each placement's copy to the
-/// product, and the product comes with how a row names a face of it: in
-/// its copy, as that copy's placement output names it. A side whose
-/// body no placement reads has no world copy, so the mate mints
-/// nothing: such a mate relates, say, a boolean's operands in the
-/// workbench, which is the boolean's coincidence door's business, not
-/// an at-rest fact of the product.
+/// whose copy of the selection's body holds that entity where the mate
+/// reads it ([`crate::mate::reads_in`]), under the same key (a placement
+/// moves a body and re-mints nothing); `copies` is the graft bridge
+/// from each placement's copy to the product, and the product comes
+/// with how a row names a face of it: in its copy, as that copy's
+/// placement output names it. A side whose body no placement reads has
+/// no world copy, so the mate mints nothing: such a mate relates, say,
+/// a boolean's operands in the workbench, which is the boolean's
+/// coincidence door's business, not an at-rest fact of the product.
+/// Nor does one whose every copy is moved off where the mate reads it.
 ///
 /// **Total over the document's live mates**: a mate this cannot mint
 /// yields a [`MintRefusal`] row and the walk CONTINUES, so the record
@@ -1712,9 +1713,11 @@ impl AtRestRows {
 }
 
 /// **One mate side → the product face of its member's world copy**:
-/// `None` where no world placement reads the side's body (the member is
-/// not in the product, so the mate mints nothing there), or the typed
-/// refusal. A tie is never broken by picking a copy.
+/// `None` where no copy of the side's body holds the face where the mate
+/// reads it ([`crate::mate::reads_in`]): no placement reads the body, so
+/// the member is not in the product, or every copy is moved off where
+/// the mate reads it, so the mate states nothing about any copy. Else
+/// the typed refusal. A tie is never broken by picking a copy.
 ///
 /// The face is resolved ONCE, at the selection, where the mate's own
 /// evaluation already resolved it: its entity in the body the
@@ -1723,10 +1726,11 @@ impl AtRestRows {
 /// (`topo::transform_rigid`), and the graft bridge carries it into the
 /// product. Nothing is resolved against the product's table.
 ///
-/// - **One placement** reads the body, or the `Part` that picks the
-///   entity's copy out of a pattern's bodies: its copy's face.
-/// - **Two or more** ([`RefusedRef::Ambiguous`]): the body is placed
-///   twice, and a declaration names ONE pair of faces.
+/// - **One copy** holds the face where the mate reads it, through the
+///   body or the `Part` that picks the entity's copy out of a pattern's
+///   bodies: its face.
+/// - **Two or more** ([`RefusedRef::Ambiguous`]): a declaration names
+///   ONE pair of faces.
 fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -1757,33 +1761,22 @@ fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
     let Some(key) = ent.key.face() else {
         unreachable!("the landing is a face")
     };
-    // The copies of the side's body: a placement of the body itself, or
-    // of the one copy a `Part` picks from a pattern's bodies — the copy
-    // the entity is in. A `Part` moves nothing and re-mints nothing, so
-    // the copy holds the entity under the same key.
+    // The copies of the side's body that hold the entity (a `Part`
+    // moves nothing and re-mints nothing, so the copy it picks holds it
+    // under the same key) where the mate reads it.
     let env = doc.var_env::<f64>();
-    let copies_body = |body: crate::VarId| {
-        body == select.body
-            || matches!(
-                doc.operation_of(body).and_then(|at| doc.node(at)),
-                Some(Node::Part {
-                    of,
-                    select: crate::node::PartSelect::Instance(index),
-                }) if *of == select.body
-                    && crate::expr::eval_var_count(*index, &env).ok() == Some(i64::from(ent.body))
-            )
-    };
-    // A placement's own output is its copy; a `Place` copies the
-    // shapes it reads.
-    let placements: Vec<RecipeNodeId> = doc
-        .placements()
+    let mut placements: Vec<RecipeNodeId> = crate::mate::copies_of(doc, select.body)
         .into_iter()
-        .filter(|&p| {
-            doc.operation_of(select.body) == Some(p)
-                || matches!(doc.node(p), Some(Node::Place { shapes, .. })
-                    if shapes.iter().any(|shape| copies_body(shape.read)))
+        .filter(|&(_, how)| match how {
+            crate::mate::Copying::Pick(index) => {
+                crate::expr::eval_var_count(index, &env).ok() == Some(i64::from(ent.body))
+            }
+            crate::mate::Copying::Own | crate::mate::Copying::Whole => true,
         })
+        .filter(|&copy| crate::mate::reads_in(doc, mate.placement, side, select.body, copy))
+        .map(|(p, _)| p)
         .collect();
+    placements.dedup();
     let placement = match placements.as_slice() {
         [] => return Ok(None),
         [placement] => *placement,
@@ -1809,23 +1802,14 @@ fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
 }
 
 /// **Whether anything places the body a mate side reads**: a placement
-/// of the body, or of a `Part` picking one of its copies. Which copy is
-/// [`copy_face`]'s question, asked only of a live mate. A side that is
-/// no selection at all is not answered here: the mate is refused as the
-/// evaluation refused it.
+/// of the body, or of a `Part` picking one of its copies
+/// ([`crate::mate::copies_of`]). Which copy is [`copy_face`]'s
+/// question, asked only of a live mate. A side that is no selection at
+/// all is not answered here: the mate is refused as the evaluation
+/// refused it.
 fn side_placed<P: crate::ProfilePayload>(doc: &Doc<P>, read: crate::VarId) -> bool {
-    let Some(select) = doc.selection(read) else {
-        return true;
-    };
-    doc.placements().into_iter().any(|p| {
-        doc.operation_of(select.body) == Some(p)
-            || matches!(doc.node(p), Some(Node::Place { shapes, .. })
-            if shapes.iter().any(|shape| shape.read == select.body
-                || matches!(
-                    doc.operation_of(shape.read).and_then(|at| doc.node(at)),
-                    Some(Node::Part { of, .. }) if *of == select.body
-                )))
-    })
+    doc.selection(read)
+        .is_none_or(|select| !crate::mate::copies_of(doc, select.body).is_empty())
 }
 
 /// Which home of the declaration vocabulary answered the pair lookup —

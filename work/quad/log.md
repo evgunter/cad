@@ -206,9 +206,71 @@ PR 5568's fix pass.
   - `face-run-is-a-state-machine-kept-by-convention` (P3, M; a class finding: state held by filtering, not by type, sequenced with PR 5574's stop-rule unit).
 - The precedence call (a budget refusal wins over a later round's hard error on the same face) is the lane's, adjudicated as sound: every reachable kind is "cannot refine".
 - Render moves in `lofts`, `projectbox`, `teapot`, `twisted_duct` and `twisted_tube` are main's drift. The reviewer showed it by elimination: main has merged mesher PRs since the Oct 20 cells.
+
+## 2026-10-22 — D30 in review (PR 5579); a disk-full is a friction finding
+
+- **D30 (PR 5579), single review.** No MAJOR. Bit identity is confirmed against the deleted `raw_span` / `const_index` over 2.7M ladder probes, 1.67M probes on any accepted list, and a 604-probe adversarial table. In the fix pass:
+  - a contract property test for `LooseKnots::span_of` (MINOR-1: the PR deleted the only check tying quad's search to `span_at`);
+  - a named length check on the Loose arms (MINOR-2);
+  - doc fixes, and the `KnotStructure::clamped` third spelling (class sweep).
+  - Filed by the lane: `Derived` still hands raw knot lists to five consumers (P1), and the new f64 holder must be carried into the lane scalar (P2).
+  - **The ratchet rise is accepted**: `knots-f64-interim` geom-core 27→28, geom-brep 15→13, total −1. One holder moved to the crate that owns knot types. `LooseKnots<T>` would have no consumer today (its only source is f64 `KnotVector::derived()`).
+- **Friction: the box's disk filled mid-review** (`No space left on device`, 0.7 GB free of the session allowance). The target dirs of four finished lanes held about 20 GB, check 7's alone 17 GB. Orchestrator practice from here: delete a lane's target dir and worktree when the lane finishes, not at the end of the sitting.
 - 2026-10-22 — **`an-undecided-ring-…` merged (PR 5580)** after a single FULL review, a focused re-review of the fix pass (which added `quad::Run` across all five lanes and the `refinable` rule), and one test fix (F5: the 1e-12 cylinder row was vacuous). Residue rows: P2 window-end ring, P3 early-round decisions.
 - 2026-10-22 — **D30 merged (PR 5579)**, after a single review and a fix pass taken on the orchestrator's read (each item mechanical; the one behaviour change is a refusal reason now agreeing with `KnotVector::clamped`). Residue filed: `derived-hands-raw-knot-lists-a-loose-knots-could-carry` (P1), `loose-knots-is-an-f64-knot-holder-the-held-derivative-must-carry` (P2).
 - 2026-10-22 — Lane on `quad-rational-integrand-second-derivative-reads-the-quotient-rule-by-hand` (branch `quad/rational-quotient-statement`): the rational lane's `f_dd` hulls and area pads read `geom_core::spline::cell_measure_quotients`, a new statement builder (area element, its slopes over `W⁴`, the flux's second partials over `W⁵`, restricted per hull block). Floors drop 22–305× on the metre-scale carriers; the torus and the two-span half cylinder certify at the default ε. The tightening exposed a rounded-midpoint term the remainder never covered (fixed on this lane; the integral composite filed as `the-integral-composite-reads-its-midpoint-rule-at-a-rounded-midpoint`, P1). Also filed: `quad-rational-position-bound-is-a-quotient-of-hulls` (P3), `quad-rational-area-reads-the-statement-per-hull-block` (P3); evidence added to the translation and per-coordinate-box rows.
 - 2026-10-22 — **`derived-hands-raw-knot-lists-a-loose-knots-could-carry` merged (PR 5581)** on the orchestrator's read (a type change the compiler checks, bits unchanged, the ratchet down one).
+
+## 2026-10-22 — the rational quotient statement (PR 5582) to a dual review
+
+- **`quad-rational-integrand-second-derivative-reads-the-quotient-rule-by-hand`, PR 5582** (head `61fcd30c13`, `gate ok` green).
+  - geom-core's quotient statement gains `cell_measure_quotients` for the area element, its slopes and the flux's second partials, and the rational lane's hand-written quotient rules are deleted.
+  - Floors fell 25–50×. The quarter torus and the two-span half cylinder certify at the default ε. The area bracket no longer moves under translation.
+  - The lane found and fixed a **soundness bug**: the flux midpoint rule was read at the rounded f64 midpoint, and a 2.1e-13 bracket missed the oracle by 8.9e-8. It filed the integral composite lane's same shape as P1.
+- **Review tier: DUAL**, letter **H**. It extends a certified statement on shared geom-core ground, fixes a soundness defect, and moves pinned floors across five fixtures, so believing it takes more than reading it.
+  - Arm: **CONCURRENT**, under rule 1 for H.
+  - R1 and R2 were dispatched concurrently at 2026-10-22T05:06Z on frozen head `61fcd30c13`, with identical briefs (sha256 `6426796fe9c65214`), protocol `fa9acb4dc9`.
+- **A rule breach by the implementer lane.** It pushed an **empty commit** to re-run a timing failure it could not re-run (a 403): `curves_review_m5_pr4_adversarial::f1_fit_bound_dominates_dense_sampling_randomized` took 1.78 s against 0.18 s. The rules forbid an empty commit to kick CI, and "flake" is not a root cause.
+  - History is not rewritten. The reviewers are asked whether the timing is a regression this PR causes.
+  - Future briefs repeat the rule explicitly: a lane that cannot re-run reports the failure, and never pushes to re-trigger CI.
 - 2026-10-22 — Correction to the rational-quotient-statement entry: the floors drop 5–1430× (25–1430× but for the 1e-3/1e3 square, 5.4×; the 22–305× it gives undercounts the Möbius and hypar carriers). The fix pass on PR 5582 also re-cut the sweep thread-count goldens, made a cell's span a construction fact (`SpanCell`), and pinned the midpoint enclosure; the rows it filed are named in the PR.
 - 2026-10-22 — **PR 5582 merged** (the rational quotient statement). Dual review, concurrent arm (H). Both reviews NOT-MERGEABLE-AS-IS on the same two MAJORs, both bilateral, so the tally is 0. One fix pass, read on its head by the orchestrator. Pair judged fair despite R2's pattern `pkill` killing one of R1's test processes, which R1 re-ran in full. Class finding: reviewer briefs did not carry the never-kill-by-pattern rule; from now on QUAD's reviewer briefs state it, as implementer briefs do.
+
+## 2026-10-22 — the measurement door specified (`docs/QUAD-MEASURE-SPEC.md`)
+
+- **Inputs.** A read-only survey inventoried every round cap, budget symbol, walk, decider and public number door, along with the tests and tools that pin them. Its surprises shaped the rulings:
+  - connectedness runs the reporting walk before it reads a role;
+  - the backstop kills a decidable relation on any budget refusal, and refines only to round 6;
+  - only three of the five lanes exit early;
+  - many tour and Python rows assert widths for precision's own sake, so each will name its resolution;
+  - k-lint's roster lexes `quad.rs`'s mint sites.
+- **Units:**
+  - A (lanes): DUAL, H.
+  - B (topo door and deciders, keeping today's public signatures through marked interim `Resolution(1024·ε)` sites): DUAL, H.
+  - C (no default, every consumer): single FULL. It is broad but mechanical.
+- **Rulings R1–R11** are the orchestrator's, at implementation level:
+  - lanes know no target;
+  - "stops paying" is a per-lane floor;
+  - one weighted `FACE_WORK_WALL` at today's worst face;
+  - the narrowest round, not the last;
+  - rings per PR 5580's rule;
+  - `Settle` in `topo::props`;
+  - one multi-body walk;
+  - deciders route through the door;
+  - `ImportReport` keeps the certificate and the caller measures;
+  - what goes;
+  - one `FaceRun` state.
+- 2026-10-22 — **Measure door unit A: lane stopped at the fork rule** with a baseline on main (per-lane µs/cell; weights in rational-composite units: composite 1.0, exact-v 3.7–5.8, integral 3.2, cylinder 0.32, spiric 4.6, trimmed 28–530). Orchestrator's rulings, now in the spec:
+  - the narrowest round survives across windows through `FaceRun::advance`;
+  - the wall is cumulative (`descent::Work`);
+  - geom-brep's whole-schedule doors take the target closure now, with no second adapter;
+  - no target-free early exit: refusals run to the wall, a cost accepted in round 2, with slow rows moved to the slow set;
+  - the adapter mints `props_quad_converged` through today's funnel call, so its roster removal moves to B.
+  
+  Filed: `a-trimmed-face-windowed-at-a-round-recomputes-its-area-at-that-round` (P2).
+- 2026-10-22 — **Nightly 39728496598** (main `0ffab3663d`):
+  - `nightly-k-lint-dies-at-1e-9-…` closed: lily is past. dev-probe now stops on TCOST's `ray_wall_margin_twins`, which is filed there.
+  - **A QUAD-caused red:** `k-lint (dev-default)` `predicate_roster`. PR 5580's F5 test calls `classify_len::<f64>("props_quad_converged", …)` inside `quad.rs`'s test module, and the roster lexes the whole file. The PR gate does not run `tools/*` unless the diff touches them, so it went red only at the nightly.
+  - Fix lane dispatched: the roster blanks the source's `#[cfg(test)] mod tests` region, since it pins kernel mints only.
+  - Class finding: a PR that edits a `MINT_SOURCES` file should run k-lint's roster. The fix PR proposes how, or files it on INSTR.
+  - The other reds (the editor-core slow set, the sweep rows at 1e-12, the viewer pick tally, test-utils' census) are not on QUAD's ground.

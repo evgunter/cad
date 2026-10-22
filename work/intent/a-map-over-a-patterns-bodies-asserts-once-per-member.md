@@ -2,12 +2,13 @@
 id: a-map-over-a-patterns-bodies-asserts-once-per-member
 kind: issue
 title: A map over a pattern's Bodies states one assertion per member, and a map over pairs of members states one per adjacent or every pair
-status: open
+status: parked
 opened: 2026-10-08
 priority: P0
 refs: [interference-at-rest-is-a-finding]
 cost: M
 rides_with: patterns-are-index-variables
+blocked_on: [patterns-are-index-variables]
 ---
 
 **Spec:** `docs/INTENT-STAGE3-SPEC.md` §8 ("Per-member assertions"). Build only (Ev on PR 5230 settled the design): rides with G, since it needs G's index. Stage 5 B (`interference-at-rest-is-a-finding`) has merged.

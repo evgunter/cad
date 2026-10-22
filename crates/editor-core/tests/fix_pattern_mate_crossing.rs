@@ -566,3 +566,107 @@ fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
         "the stranded target resolves to no member; only the top's side does"
     );
 }
+
+/// **A top seated on a pattern's copy is proven by its mate.** The
+/// four-legs document seats the top on copy [`COPY`], which a `Place`
+/// copies into the world through a `Part` picking it: the at-rest
+/// census's row of the seat names the leg's cap in that copy, and the
+/// mate's target reads the same cap through the pattern, so the door's
+/// first rung reads the row as the mate's statement and the
+/// `unproven-coincidence` lint reports nothing against the mate.
+///
+/// *Breaks if* the door stops reading a mate side through the `Part`
+/// pick that copies it, or reads it in another copy.
+#[test]
+fn a_top_seated_on_a_pattern_copy_is_proven_by_its_mate() {
+    let (doc, _, _, _, mate, _) = four_legs("fix-xs-seat-door");
+    let ev = fixture::run(&doc, &legs_reach());
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the legs gather");
+    assert!(
+        product
+            .coincidences
+            .iter()
+            .any(|row| row.by == editor_core::AtRestBy::Mate(mate)),
+        "the premise: the census decided the seat: {:?}",
+        product.coincidences
+    );
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("checks run over the legs");
+    assert!(
+        !report
+            .findings
+            .iter()
+            .any(|f| f.check == editor_core::CheckId::UnprovenCoincidence
+                && f.subject == editor_core::FindingSubject::Node(mate.placement)),
+        "the seat on the copy is proven: {report}"
+    );
+}
+
+/// **A seat on a copy its own pin moves is not the mate's statement.**
+/// The four-legs top is seated on copy [`COPY`] as the pattern holds
+/// it, which is where the mate reads its target. Here that copy's
+/// placement is re-pinned half a unit along by a frame mate of its own
+/// rather than the identity bundle, so the copy no longer stands where
+/// the mate reads its face: the mate states nothing about it. The gather
+/// mints the mate no record and attributes it no census row, and the
+/// door's first rung does not read the seat's row (the top's cap on the
+/// copy's) as the mate's statement.
+///
+/// *Breaks if* a mate side is read in a copy whose placement's bundle
+/// moves it off where the mate reads it.
+#[test]
+fn a_seat_on_a_copy_its_own_pin_moves_is_not_the_mates_statement() {
+    let o = legs_reach();
+    let (doc, _, pattern, _, mate, _) = four_legs("fix-xs-seat-moved");
+    let ev = fixture::run(&doc, &o);
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the legs gather");
+    let Some(seat) = product
+        .coincidences
+        .iter()
+        .find(|row| row.by == editor_core::AtRestBy::Mate(mate))
+    else {
+        panic!(
+            "the premise: the census decided the seat: {:?}",
+            product.coincidences
+        )
+    };
+    let q = copy_placement(&doc, pattern, COPY);
+    let shifted = editor_core::Frame::translation([0.5, 0.0, 0.0]);
+    let doc = fixture::pin(doc, q, &shifted, &o);
+    let ev = fixture::run(&doc, &o);
+    fixture::assert_mints_nothing(&doc, &ev, mate);
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the legs gather");
+    assert!(
+        product
+            .coincidences
+            .iter()
+            .all(|row| row.by != editor_core::AtRestBy::Mate(mate)),
+        "the gather attributes no row to the mate: {:?}",
+        product.coincidences
+    );
+    let proof = editor_core::coincide::prove(
+        &doc,
+        &[(mate.placement, std::slice::from_ref(&seat.row))],
+        ev.resolver(),
+        Tol::witness(),
+        &editor_core::CancelToken::new(),
+    )
+    .expect("an uncanceled door")
+    .remove(0)
+    .remove(0);
+    assert!(
+        !matches!(
+            proof,
+            editor_core::Proof::Structural(editor_core::Rung::SameConstruction)
+        ),
+        "the first rung does not read the seat on the moved copy: {proof:?}"
+    );
+}

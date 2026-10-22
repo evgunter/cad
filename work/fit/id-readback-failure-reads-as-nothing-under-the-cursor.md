@@ -5,7 +5,7 @@ title: A failed id readback is reported as an empty cursor, and the chrome blame
 status: open
 opened: 2026-09-16
 priority: P1
-cost: D
+cost: M
 ---
 
 
