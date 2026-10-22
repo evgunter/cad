@@ -246,10 +246,10 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
         scene.flags().contains(&SceneMesh::FLAG_PROBE),
         "the probe's corners carry the distinctness flag"
     );
+    let drawn_box = scene.bounds().expect("the probed scene draws");
     assert!(
-        scene.bounds().max_x >= drawn.x - 1e-9,
-        "the drawn bounds reach the rotated probe: {:?}",
-        scene.bounds()
+        drawn_box.max_x >= drawn.x - 1e-9,
+        "the drawn bounds reach the rotated probe: {drawn_box:?}"
     );
 
     // The pick answers there, and the HIT POINT comes back in world.

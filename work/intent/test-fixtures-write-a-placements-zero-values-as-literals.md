@@ -59,3 +59,33 @@ component) becomes the constant. A zero that a test means as a written
 value it later moves stays as it is. Several of these tests assert on
 the minted-variable count or on content keys, so expect re-blesses,
 each with its cause stated.
+
+## Split phases done; the placement half is D′'s (2026-10-22)
+
+The hygiene batch (`intent/hygiene-batch`) took the half that is not a
+placement's: a split's `phase`. The item listed two of those rows, and
+a sweep for `phase: …ang(0.0)` / `rad(0)` / `Formula.literal(0` over
+`crates/` and `demos/` found four more. Their dispositions:
+
+- `edit_step_segments.rs`
+  (`a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is`),
+  `m10_9_r1_probes_interval.rs` (`split_bore_disc`),
+  `edit_set_program.rs`
+  (`a_reshapings_values_strand_what_a_slot_edit_of_them_would_not`,
+  `a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes`)
+  and `face_face_touch_carry.rs`: a phase with no turn, so it becomes
+  `Formula::zero(Dimension::Angle)`. Nothing re-blessed.
+- `edit_set_program.rs`
+  (`a_circle_splits_phase_edit_moves_its_pieces_and_renames_none`):
+  stays `ang(0.0)`. It is a written value that the test moves to `π/2`
+  through `SetParam`.
+
+Everything else on this row is left for D′. The mate and placement
+values, the viewer `AddTransform` row (whose door is
+`place_against`) and the Python direction components all fall there.
+D′1 restates most of the listed fixture files, and D′2
+(`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`)
+rewrites `Value { coord, by }`, `Coord` and the helpers (`place_at`,
+`place_against`), with its spec listing this row among its re-reads.
+So the placement half waits for D′2 to land, and then gets one pass
+over whatever fixtures still write a zero.

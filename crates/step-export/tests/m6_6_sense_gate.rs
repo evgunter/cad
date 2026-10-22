@@ -424,7 +424,8 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
         named, planar,
         "exactly the circle-bounded cap and the ellipse-bounded section face refuse, once each"
     );
-    let v = topo::mass_properties(&inverted, Tol::witness())
+    // Raw door: the measured body is a body whose loop roles are inverted, which tier 3 refuses (LoopRoleInverted).
+    let v = topo::test_support::measure_unvalidated(&inverted, Tol::witness())
         .expect("volume computes")
         .volume;
     assert!(

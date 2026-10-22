@@ -44,6 +44,16 @@ use pncad::profile::ArcSweep;
 use pncad::select::{ProfilePieces, band_rim, band_rim_pi, edge_name};
 use pncad::topo::{AtRestBody, Body, EdgeKey};
 
+/// A copy of `body` finished for the measurement doors, which read a
+/// finished body (Ev's decision on PR 4822).
+fn at_rest(
+    body: &pncad::topo::Body<f64>,
+    tol: pncad::geom_core::Tol,
+) -> pncad::topo::AtRestBody<f64> {
+    pncad::topo::AtRestBody::validate(body.clone(), tol)
+        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
+}
+
 // ---- the lid's stations, from `src/teapot.rs` ----
 const R_NECK: f64 = 3.0 / 64.0;
 const Y_MOUTH: f64 = 8.0 / 64.0;
@@ -404,8 +414,8 @@ fn one_request_builds_the_kernels_body() {
         bands(&doc_body),
         "the three bands' STORED (station, major, minor) must be identical bits"
     );
-    let p1 = pncad::topo::mass_properties(&kernel, tol).expect("kernel props");
-    let p2 = pncad::topo::mass_properties(&doc_body, tol).expect("document props");
+    let p1 = pncad::topo::mass_properties(&at_rest(&kernel, tol), tol).expect("kernel props");
+    let p2 = pncad::topo::mass_properties(&at_rest(&doc_body, tol), tol).expect("document props");
     assert!(
         ((p1.volume - p2.volume) / p1.volume).abs() < 1e-14
             && ((p1.surface_area - p2.surface_area) / p1.surface_area).abs() < 1e-14,

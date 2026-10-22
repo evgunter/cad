@@ -812,7 +812,12 @@ fn a_tube_is_minted_and_built_from_prelude_names_alone() {
     let minor = 0.25;
     let built =
         tube_along_arc(frame, major, TubeWindow::Full, minor, tol).expect("the tube builds");
-    let props = mass_properties(&built.body, tol).expect("mass properties");
+    let props = mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("mass properties");
     // Pappus: V = 2 pi^2 R r^2.
     let want = 2.0 * core::f64::consts::PI * core::f64::consts::PI * major * minor * minor;
     assert!(
@@ -1204,7 +1209,12 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     // A primitive body: no declared contacts, so the tier-3 arm.
     ladder(&built.body, None);
 
-    let props = mass_properties(&built.body, Tol::witness()).expect("mass properties");
+    let props = mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), Tol::witness())
+            .expect("the measured body passes tier 3"),
+        Tol::witness(),
+    )
+    .expect("mass properties");
     assert!(
         (props.volume - 3.0).abs() < 1e-12,
         "volume {}",
@@ -1443,7 +1453,12 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<&Vec<Unexamined>>(&empty.unexamined);
 
     // "Not a second computation", as an equality rather than a claim.
-    let again = mass_properties(&body, Tol::witness()).expect("imported mass properties");
+    let again = mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
+            .expect("the measured body passes tier 3"),
+        Tol::witness(),
+    )
+    .expect("imported mass properties");
     assert_eq!(enclosure.volume.to_bits(), again.volume.to_bits());
     assert_eq!(
         enclosure.surface_area.to_bits(),
@@ -2359,10 +2374,16 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     );
     let evaluated = doors_evaluate(&doc);
     let volume = mass_properties(
-        match &evaluated.value(body).expect("the plate evaluated").payload {
-            ValuePayload::Body(b) => b,
-            other => panic!("expected a body, got {other:?}"),
-        },
+        &pncad::topo::AtRestBody::validate(
+            pncad::topo::Body::clone(
+                match &evaluated.value(body).expect("the plate evaluated").payload {
+                    ValuePayload::Body(b) => b,
+                    other => panic!("expected a body, got {other:?}"),
+                },
+            ),
+            Tol::witness(),
+        )
+        .expect("the measured body passes tier 3"),
         Tol::witness(),
     )
     .expect("mass properties")
@@ -2391,10 +2412,16 @@ fn the_persist_doors_round_trip_through_the_facade() {
     let (doc, _, body_node) = box_doc("all");
     let before = doors_evaluate(&doc);
     let volume = mass_properties(
-        match &before.value(body_node).expect("the box evaluated").payload {
-            pncad::document::ValuePayload::Body(b) => b,
-            other => panic!("expected a body, got {}", other.kind_name()),
-        },
+        &pncad::topo::AtRestBody::validate(
+            pncad::topo::Body::clone(
+                match &before.value(body_node).expect("the box evaluated").payload {
+                    pncad::document::ValuePayload::Body(b) => b,
+                    other => panic!("expected a body, got {}", other.kind_name()),
+                },
+            ),
+            Tol::witness(),
+        )
+        .expect("the measured body passes tier 3"),
         Tol::witness(),
     )
     .expect("mass properties")
@@ -2419,14 +2446,20 @@ fn the_persist_doors_round_trip_through_the_facade() {
 
     let after = doors_evaluate(&loaded.doc);
     let replayed = mass_properties(
-        match &after
-            .value(body_node)
-            .expect("the box re-evaluated")
-            .payload
-        {
-            pncad::document::ValuePayload::Body(b) => b,
-            other => panic!("expected a body, got {}", other.kind_name()),
-        },
+        &pncad::topo::AtRestBody::validate(
+            pncad::topo::Body::clone(
+                match &after
+                    .value(body_node)
+                    .expect("the box re-evaluated")
+                    .payload
+                {
+                    pncad::document::ValuePayload::Body(b) => b,
+                    other => panic!("expected a body, got {}", other.kind_name()),
+                },
+            ),
+            Tol::witness(),
+        )
+        .expect("the measured body passes tier 3"),
         Tol::witness(),
     )
     .expect("mass properties")
@@ -2451,9 +2484,13 @@ fn the_export_door_serves_the_one_shot_journey() {
         .expect("the export re-imports");
     match imported {
         pncad::step_import::StepImport::Solid { body, .. } => {
-            let v = mass_properties(&body, Tol::witness())
-                .expect("imported mass properties")
-                .volume;
+            let v = mass_properties(
+                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
+                    .expect("the measured body passes tier 3"),
+                Tol::witness(),
+            )
+            .expect("imported mass properties")
+            .volume;
             assert!((v - 6.0).abs() < 1e-9, "imported volume {v} differs");
         }
         other => panic!("expected a solid import, got {other:?}"),
@@ -2513,9 +2550,13 @@ fn the_document_export_door_ships_the_multi_solid_product() {
     match imported {
         pncad::step_import::StepImport::Solid { body, .. } => {
             assert_eq!(body.solids().count(), 2, "two disjoint solids ship");
-            let v = mass_properties(&body, Tol::witness())
-                .expect("imported mass properties")
-                .volume;
+            let v = mass_properties(
+                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
+                    .expect("the measured body passes tier 3"),
+                Tol::witness(),
+            )
+            .expect("imported mass properties")
+            .volume;
             assert!(
                 (v - (2.0 * 2.0 * 1.5 + 1.0)).abs() < 1e-9,
                 "imported volume {v} is not the parts' sum"
@@ -2877,9 +2918,13 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("a union yields a body");
     };
-    let volume = mass_properties(body.as_ref(), Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let volume = mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.as_ref()), Tol::witness())
+            .expect("the measured body passes tier 3"),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume;
     // Plate + tab − their overlap − two cylinders of radius 0.25: the
     // same closed form `switch_plate_param.rs` asserts, tab included.
     let oracle = 4.0 * 2.0 * 0.5 + 1.0 * 0.75 * 0.25
@@ -3685,9 +3730,13 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     let part_body =
         pncad::document::product(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
     let vol = |b: &pncad::topo::Body<f64>| {
-        pncad::topo::mass_properties(b, Tol::witness())
-            .expect("mass properties")
-            .volume
+        pncad::topo::mass_properties(
+            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
+                .expect("the measured body passes tier 3"),
+            Tol::witness(),
+        )
+        .expect("mass properties")
+        .volume
     };
     assert_eq!(
         vol(&body).to_bits(),
@@ -3831,9 +3880,13 @@ fn asm2a_child_product_probe() {
     let (doc, _) = asm2a_assembly(&dir, "asm2a-probe-asm", doc_ref, 2);
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
-    let v = pncad::topo::mass_properties(&body, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let v = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
+            .expect("the measured body passes tier 3"),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume;
     std::fs::write(&out, format!("{}", v.to_bits())).expect("probe output writable");
 }
 
@@ -3977,9 +4030,13 @@ fn asm_r2a_child_mated_probe() {
     let placed = poses.placement(&doc, ids[1]).expect("the pair determines");
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
-    let v = pncad::topo::mass_properties(&body, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let v = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
+            .expect("the measured body passes tier 3"),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume;
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     std::fs::write(
         &out,
@@ -4088,9 +4145,13 @@ fn asm_r2b_child_crossing_probe() {
 
     let ev = asm2a_eval(&doc, &ws);
     let assembled = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
-    let v = pncad::topo::mass_properties(&assembled, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let v = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&assembled), Tol::witness())
+            .expect("the measured body passes tier 3"),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume;
     std::fs::write(
         &out,
         format!(
@@ -4210,9 +4271,13 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     assert_eq!(ev.part_evaluations, 2);
 
     let vol = |b: &pncad::topo::Body<f64>| {
-        pncad::topo::mass_properties(b, Tol::witness())
-            .expect("mass properties")
-            .volume
+        pncad::topo::mass_properties(
+            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
+                .expect("the measured body passes tier 3"),
+            Tol::witness(),
+        )
+        .expect("mass properties")
+        .volume
     };
     let part_doc = ws.resolve(&p, Tol::witness()).expect("resolves");
     let part_ev = asm2a_eval(&part_doc, &ws);
@@ -4280,9 +4345,13 @@ fn asm2b_child_product_probe() {
     let (doc, _) = asm2b_outer(&dir, "asm2b-probe-asm", b);
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
-    let v = pncad::topo::mass_properties(&body, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let v = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
+            .expect("the measured body passes tier 3"),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume;
     let text = format!("{}|{}", v.to_bits(), asm2b_signature(&body));
     std::fs::write(&out, text).expect("probe output writable");
 }
@@ -4387,10 +4456,14 @@ fn asm4_split_and_inline_through_the_real_store() {
     let ev1 = asm2a_eval(&doc, &ws);
     let body1 = d::product(&doc, &ev1, Tol::witness()).expect("gathers");
     let vol = |b: &pncad::topo::Body<f64>| {
-        pncad::topo::mass_properties(b, Tol::witness())
-            .expect("mass properties")
-            .volume
-            .to_bits()
+        pncad::topo::mass_properties(
+            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
+                .expect("the measured body passes tier 3"),
+            Tol::witness(),
+        )
+        .expect("mass properties")
+        .volume
+        .to_bits()
     };
 
     let cut = std::collections::BTreeSet::from([ids[1]]);
@@ -4546,9 +4619,13 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
     let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
 
     let vol = |b: &pncad::topo::Body<f64>| {
-        pncad::topo::mass_properties(b, Tol::witness())
-            .expect("mass properties")
-            .volume
+        pncad::topo::mass_properties(
+            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
+                .expect("the measured body passes tier 3"),
+            Tol::witness(),
+        )
+        .expect("mass properties")
+        .volume
     };
     let ev = asm2a_eval(&doc, &ws);
     let before = vol(&d::product(&doc, &ev, Tol::witness()).expect("gathers"));
@@ -4678,7 +4755,11 @@ fn asm_upd_child_update_probe() {
     }
     let ev = asm2a_eval(&updated, &ws);
     let volume = pncad::topo::mass_properties(
-        &d::product(&updated, &ev, Tol::witness()).expect("gathers"),
+        &pncad::topo::AtRestBody::validate(
+            pncad::topo::Body::clone(&d::product(&updated, &ev, Tol::witness()).expect("gathers")),
+            Tol::witness(),
+        )
+        .expect("the measured body passes tier 3"),
         Tol::witness(),
     )
     .expect("mass properties")
@@ -6660,7 +6741,12 @@ mod the_hollowed_box_through_the_facade {
         else {
             panic!("the shell's payload is not a body");
         };
-        let props = pncad::topo::mass_properties(body, Tol::witness()).expect("the cup measures");
+        let props = pncad::topo::mass_properties(
+            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), Tol::witness())
+                .expect("the measured body passes tier 3"),
+            Tol::witness(),
+        )
+        .expect("the cup measures");
         let inner: f64 = 1.0 - 0.25;
         let want = 1.0 - inner * inner * (1.0 - 0.125);
         // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and

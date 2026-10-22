@@ -1091,8 +1091,8 @@ pub fn frame_status(
 /// list. The sweep that routed every writer through the ranking put
 /// four more on it: [`Subject::Camera`] ([`fold_status`]'s refused
 /// fold, delivered at [`crate::pane::viewport::land`]),
-/// [`Subject::Cursor`] (`idpass::IdNews`'s notices: a disagreement, or
-/// an id said beside a refused ray),
+/// [`Subject::Cursor`] (`idpass::IdNews`'s notices: a disagreement, an
+/// id said beside a refused ray, or a readback that answered nothing),
 /// [`Subject::Display`] (the pick index's
 /// refused click and the δ field's two doors, through
 /// [`PICK_INDEX_SEAM`] and [`SCENE_SEAM`]) and [`Subject::Preferences`]
@@ -1719,8 +1719,8 @@ pub fn fold_status(folded: &Folded) -> StatusUpdate {
 ///
 /// This is a policy over a value, not a report: it never SHOWS
 /// anything. What the cursor has to say is `idpass::IdNews`'s — a
-/// disagreement, or an id said beside a refused ray — raised where the
-/// two picking paths are compared.
+/// disagreement, an id said beside a refused ray, or a readback that
+/// answered nothing — raised where the two picking paths are compared.
 pub fn cursor_status(step: IdStep) -> StatusUpdate {
     match step {
         IdStep::Hold => StatusUpdate::Keep,
@@ -3195,7 +3195,7 @@ mod tests {
             max_y: 1.0,
             max_z: 1.0,
         };
-        Camera::framing(&unit, 16.0 / 9.0).expect("a unit box frames")
+        Camera::framing(Some(unit), 16.0 / 9.0).expect("a unit box frames")
     }
 
     /// A fold that applied everything it was given — the shape

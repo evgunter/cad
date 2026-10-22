@@ -323,7 +323,7 @@ fn two_chords_of_one_seam_are_told_apart_by_their_ends() {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
+    topo::test_support::unmigrated_measure(body, Tol::witness())
         .expect("mass")
         .volume
 }

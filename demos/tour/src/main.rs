@@ -446,7 +446,7 @@ fn mesh_area(mesh: &pncad::mesh::Mesh) -> f64 {
 /// The reporting door, for the one arm that still has to ask it.
 fn reported(label: &str, body: &Body<f64>, tol: Tol) -> VolumeReading<f64> {
     VolumeReading::Number(
-        pncad::topo::mass_properties(body, tol)
+        pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
             .unwrap_or_else(|e| panic!("{label}: mass properties failed: {e:?}")),
     )
 }

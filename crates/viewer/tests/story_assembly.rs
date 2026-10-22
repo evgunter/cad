@@ -382,8 +382,9 @@ fn the_windmill_story() {
     let bounds = index
         .scene_for(&session.display_view())
         .expect("a scene")
-        .bounds();
-    let framed = Camera::framing(&bounds, aspect).expect("the windmill frames");
+        .bounds()
+        .expect("the windmill draws");
+    let framed = Camera::framing(Some(bounds), aspect).expect("the windmill frames");
     let turned = camera::apply(
         &framed,
         &CameraOp::Orbit {
@@ -392,8 +393,14 @@ fn the_windmill_story() {
         },
     )
     .expect("a finite orbit");
-    let camera = camera::apply(&turned, &CameraOp::Frame { bounds, aspect })
-        .expect("the windmill re-frames");
+    let camera = camera::apply(
+        &turned,
+        &CameraOp::Frame {
+            extent: Some(bounds),
+            aspect,
+        },
+    )
+    .expect("the windmill re-frames");
     assert_eq!(camera.yaw(), turned.yaw(), "a fit keeps the orientation");
     for corner in common::corners(&bounds) {
         let ndc = camera

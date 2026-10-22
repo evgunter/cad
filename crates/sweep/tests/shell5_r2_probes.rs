@@ -20,7 +20,7 @@ use sweep::test_support::finished;
 use sweep::test_support::{block, brick};
 
 fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
-    topo::classify_shells(body, Tol::witness())
+    topo::test_support::unmigrated_classify(body, Tol::witness())
         .expect("classifies")
         .iter()
         .filter(|c| c.role == ShellRole::Void)
@@ -137,7 +137,7 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
     let s = topo::shell(&finished("the operand", body.clone(), tol), 0.1, tol)
         .expect("clear of every wall");
     assert_eq!(topo::validate_geometric(&s.body, tol), Ok(()));
-    let props = topo::mass_properties(&s.body, tol).expect("props");
+    let props = topo::test_support::unmigrated_measure(&s.body, tol).expect("props");
     // Erode every plane by t: the box to 5.8 × 3.8 × 3.8, each notch
     // grown by t on its three material sides and running from the
     // eroded outer face it opens on (notch 1: x 0.9..2.6, y 0.1..1.9;
@@ -261,7 +261,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
         tb[0].1
     );
 
-    let props = topo::mass_properties(out, tol).expect("props");
+    let props = topo::test_support::unmigrated_measure(out, tol).expect("props");
     println!("thin-curved-wall volume = {}", props.volume);
 }
 
@@ -433,7 +433,7 @@ fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
         "check 7's subject is the solid: the minted one encloses negative volume, \
          and the hollow box beside it is not implicated"
     );
-    let roles = topo::classify_shells(&body, tol).expect("classifies");
+    let roles = topo::test_support::unmigrated_classify(&body, tol).expect("classifies");
     let minted_roles: Vec<ShellRole> = roles
         .iter()
         .filter(|c| c.solid == minted)

@@ -76,7 +76,7 @@ pub fn plate_volume() -> f64 {
 /// This IS a call to `Camera::framing`, so a row whose subject is that
 /// door cannot take its camera from here and still be checking it.
 pub fn framed(aspect: f64) -> Camera {
-    Camera::framing(&plate_bounds(), aspect).expect("the plate frames")
+    Camera::framing(Some(plate_bounds()), aspect).expect("the plate frames")
 }
 
 /// The eight corners of a box.

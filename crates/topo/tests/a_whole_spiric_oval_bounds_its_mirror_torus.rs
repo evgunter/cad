@@ -105,7 +105,8 @@ fn the_quadrature_lane_refuses_a_mirror_wall_typed() {
     for sigma in [1.0, -1.0] {
         let (mut body, _) = mirror_oval::<f64>(sigma);
         topo::mint_pcurves(&mut body, tol).unwrap();
-        let shown = match topo::mass_properties(&body, tol) {
+        // Raw door: the measured body is a body tier 3 cannot measure (VolumeUncomputable), whose typed refusal is the subject.
+        let shown = match topo::test_support::measure_unvalidated(&body, tol) {
             Ok(m) => panic!(
                 "axis {sigma}: integrated a mirror wall: {:?}",
                 m.enclosure()

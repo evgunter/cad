@@ -242,9 +242,7 @@ pub enum SceneError {
     NoProduct(Box<ProductError>, HeldNodes),
     /// The body did not tessellate at this δ.
     NotTessellated(TessellateError),
-    /// The tessellation was empty, or its positions gave no usable
-    /// bounding box — nothing to look at, and nothing to frame a
-    /// camera against.
+    /// The tessellation was empty — nothing to look at.
     EmptyMesh,
     /// A part offered its patches' ids, but not one per patch.
     ///
@@ -325,10 +323,9 @@ impl core::fmt::Display for SceneError {
                     "the body did not tessellate at this display tolerance: {error}"
                 )
             }
-            Self::EmptyMesh => f.write_str(
-                "the tessellation drew nothing — there is no picture to show and no \
-                 bounds to frame a camera against",
-            ),
+            Self::EmptyMesh => {
+                f.write_str("the tessellation drew nothing — there is no picture to show")
+            }
             Self::MispairedIds { ids, patches } => write!(
                 f,
                 "a part offered {ids} patch ids for {patches} patches; a part carries \
@@ -397,7 +394,6 @@ pub struct SceneMesh {
     /// headless row can assert its presence, rather than decided at
     /// paint time where nothing can.
     flags: Vec<u32>,
-    bounds: Aabb,
     stats: SceneStats,
 }
 
@@ -468,21 +464,22 @@ impl SceneMesh {
     /// flags word already travels to the shader.
     pub const FLAG_FOCUS: u32 = 2;
 
-    /// The empty picture: what a scene where EVERYTHING is hidden
-    /// draws. Zero triangles, legally — an honest blank viewport, not
-    /// an error — with `bounds` carried from the geometry that exists
-    /// but is not drawn, so a camera still has something real to frame
-    /// against. Distinct from [`SceneMesh::nothing`], the picture of a
-    /// document with no geometry to carry a box from, and from
-    /// [`SceneError::EmptyMesh`], the refusal for parts that exist and
-    /// tessellated to nothing.
-    pub fn empty(bounds: Aabb, delta: DisplayTolerance) -> Self {
+    /// **The picture with no parts in it**: what a document that
+    /// denotes no geometry draws (which documents those are is
+    /// `ProductErrorKind::means_no_body`'s), and what one whose every
+    /// part is hidden draws. Zero triangles and no
+    /// [`SceneMesh::bounds`], legally — an honest blank viewport, not
+    /// an error.
+    ///
+    /// [`SceneError::EmptyMesh`] stays a refusal: parts that are drawn
+    /// and tessellated to nothing are a fault in the tessellation,
+    /// not a picture with nothing in it.
+    pub fn nothing(delta: DisplayTolerance) -> Self {
         Self {
             positions: Vec::new(),
             normals: Vec::new(),
             ids: Vec::new(),
             flags: Vec::new(),
-            bounds,
             stats: SceneStats {
                 faces: 0,
                 triangles: 0,
@@ -491,36 +488,6 @@ impl SceneMesh {
                 focus_patches: 0,
             },
         }
-    }
-
-    /// **The picture of a document that denotes no geometry at all**
-    /// (which documents those are is `ProductErrorKind::means_no_body`'s).
-    ///
-    /// [`SceneMesh::empty`]'s sibling, and the distinction between
-    /// them is where the extent comes from: that one is drawn from
-    /// geometry that EXISTS and is hidden, so it carries that
-    /// geometry's box; this one has no geometry to take a box from,
-    /// and says so with a degenerate one at the world origin. A
-    /// camera asked to frame it refuses with
-    /// [`crate::camera::CameraError::DegenerateScene`], which is the
-    /// honest answer — inventing a scale for a document with no
-    /// extent would put the user somewhere no fact chose.
-    ///
-    /// This is a legal outcome, not a refusal.
-    /// [`SceneError::EmptyMesh`] stays what it always was: parts that
-    /// exist and tessellated to nothing, which is a fault in the
-    /// tessellation rather than a document with nothing in it.
-    pub fn nothing(delta: DisplayTolerance) -> Self {
-        // `from_points` answers `None` only for an EMPTY iterator, and
-        // this one holds a point — but the absence is handled rather
-        // than asserted away, because a panic in the picture of an
-        // empty document would be the loudest possible answer to the
-        // quietest possible state. The poison box is the fallback with
-        // the same meaning the degenerate one has here: nothing a
-        // camera can frame.
-        let nowhere =
-            Aabb::from_points([Point3::new(0.0_f64, 0.0, 0.0)]).unwrap_or_else(Aabb::poison);
-        Self::empty(nowhere, delta)
     }
 
     /// Build a drawable scene from a tessellated body.
@@ -534,7 +501,7 @@ impl SceneMesh {
     /// # Errors
     ///
     /// [`SceneError::EmptyMesh`] when the tessellation carries no
-    /// triangle, or no finite bounding box;
+    /// triangle;
     /// [`SceneError::BrokenPatchIndex`] when a patch names a vertex
     /// the shared position table does not have.
     pub fn build(mesh: &Mesh, delta: DisplayTolerance) -> Result<Self, SceneError> {
@@ -687,20 +654,11 @@ impl SceneMesh {
                 }
             }
         }
-        let bounds = Aabb::from_points(parts.iter().flat_map(|part| {
-            let map: Option<Affine3<f64>> = part.probe.map(|frame| frame.affine());
-            part.mesh
-                .positions
-                .iter()
-                .map(move |p| map.as_ref().map_or(*p, |m| m.transform_point(*p)))
-        }))
-        .ok_or(SceneError::EmptyMesh)?;
         Ok(Self {
             positions,
             normals,
             ids,
             flags,
-            bounds,
             stats: SceneStats {
                 faces,
                 triangles,
@@ -737,18 +695,11 @@ impl SceneMesh {
         &self.flags
     }
 
-    /// A bounding box of the scene, in world units — what a camera
-    /// frames against.
-    ///
-    /// Taken over the tessellation's whole shared position table, not
-    /// over the corners actually emitted into
-    /// [`SceneMesh::positions`]. The two coincide whenever every mesh
-    /// vertex is used by some patch, which is the tessellator's normal
-    /// output; when they do not, this is the **superset**, so a camera
-    /// framed on it still contains everything drawn. That is the safe
-    /// direction, and it is stated rather than claimed as identity.
-    pub fn bounds(&self) -> Aabb {
-        self.bounds
+    /// The box around the corners this scene draws
+    /// ([`SceneMesh::positions`]), in world units — the scene's share
+    /// of what a fit frames. `None` when nothing is drawn.
+    pub fn bounds(&self) -> Option<Aabb> {
+        crate::narrowing::drawn_box(&self.positions)
     }
 
     /// What this scene cost.
@@ -957,8 +908,42 @@ pub fn scene_of_body(
     SceneMesh::build(&mesh, delta)
 }
 
-/// **The picture's triangle budget**: the most a scene may carry
-/// before the viewer draws it at a coarser δ than it was asked for.
+/// **The picture's triangle budget**: the size [`fit_delta`] aims a
+/// document at when the δ asked for would draw it larger. The
+/// document opens at the δ the 1/δ law prices at this many triangles,
+/// and a δ typed afterwards overrides it.
+///
+/// # A target, not a cap
+///
+/// **The drawn count lands near this number, on either side of it.**
+/// The fit reads `C = triangles·δ` off a rung [`PROBE_FACTOR`] coarser
+/// than its answer and solves `δ = C / TRIANGLE_BUDGET`, so the drawn
+/// count is off by however much `C` at the answer differs from `C` at
+/// the rung. The terms, by direction:
+///
+/// - **Under the budget.** A planar face that has stopped subdividing
+///   is priced as if it would go on. This is the large term, and it is
+///   why the tour's die lands at 0.927 of the budget.
+/// - **Over it: the `sagitta_step` curvature.** `mesh::sizing`'s
+///   `sagitta_step` (cylinders, cones, spheres) is `2·acos(1 − δ/ρ)`,
+///   steeper than `√δ`, so across a factor of 8 its step shrinks by up
+///   to √8·1.0057 per direction rather than √8. A face sized by it in
+///   both directions then costs up to ~1.1% more per unit of `1/δ` at
+///   the answer than at the rung. The excess vanishes as `δ/ρ → 0` and
+///   reaches 1.1% only where the rung's step sits at the `cap_angular`
+///   cap. `curvature_step` (tori, ellipses, spirics, NURBS grids) is
+///   exactly `√δ` and adds nothing.
+/// - **Either way: the `ceil`.** A curved face cut `n_u × n_v` draws
+///   between 0 and `2(n_u + n_v + 1)` triangles more than its ideal
+///   `2·n_u·n_v`, at the rung and at the answer alike, so their
+///   difference takes either sign. Its bound at the answer is how far
+///   over it can go: a perimeter-over-area term, a fraction of a
+///   percent on a large face, growing with the number of curved faces.
+///
+/// No fixed margin on the solved δ therefore makes the budget a cap.
+/// The guard is `tests/display_budget.rs`, which holds the drawn count
+/// to a stated band around the budget on every corpus row the budget
+/// binds.
 ///
 /// # Why there is a budget at all
 ///
@@ -967,10 +952,15 @@ pub fn scene_of_body(
 /// application starts at is a small picture of the startup plate and
 /// a 1.6·10⁵-triangle picture of the tour's `hollowring`
 /// (a torus of R = 0.30 m), and a body a few times larger or a δ a
-/// decade finer asks for millions — seconds of tessellation and index
-/// build with the window frozen, still showing the previous document,
-/// which reads as "Open does nothing". A budget is what stops an
-/// absolute δ from asking for a picture nobody can wait for.
+/// decade finer asks for millions. What that costs is latency and
+/// memory, not a frozen window: the tessellation and BVH build run on
+/// the index worker, which takes seconds on millions of triangles
+/// while the viewport goes on drawing the previous document under
+/// `indexing…` and refuses picks against it; once it lands, every
+/// display or selection change rebuilds the scene from that index on
+/// the UI thread (`PickIndex::scene_focused`) and uploads it. A budget
+/// is what stops an absolute δ from asking for a picture nobody can
+/// wait for.
 ///
 /// # Why one million
 ///
@@ -1004,8 +994,8 @@ pub const TRIANGLE_BUDGET: usize = 1_000_000;
 
 /// How much coarser than the δ it prices a cost probe runs.
 ///
-/// Eight doublings-worth of cost is ~1/8 of the priced δ's
-/// tessellation, which is what makes a probe affordable; and it is
+/// A factor of eight in δ, three doublings, makes a probe ~1/8 of the
+/// priced δ's tessellation, which is what makes it affordable; and it is
 /// close enough to the target that the 1/δ law below still holds
 /// tightly (it softens at genuinely coarse δ, where planar faces have
 /// stopped subdividing and only the curved ones still respond).
@@ -1079,29 +1069,6 @@ pub struct FittedDelta {
     pub delta: DisplayTolerance,
     /// The δ that was asked for.
     pub requested: DisplayTolerance,
-    /// The triangle count predicted at [`FittedDelta::delta`] — a
-    /// prediction, not a measurement of the picture that gets built
-    /// (`fit_delta` says why it is not verified), and the measured
-    /// count itself when the ladder found the body flat
-    /// ([`ProbeStop::Flat`]).
-    ///
-    /// **The error is two-sided, and small.** The big term is one-way:
-    /// the 1/δ law describes the CURVED faces, planar ones stop
-    /// subdividing and cost the same at every δ, so extrapolating them
-    /// from a coarse rung OVER-counts — which is why a flat reading is
-    /// taken as the count rather than run through the law. The other
-    /// term is not one-way: the grid's per-direction step counts are
-    /// `ceil`ed, so `C = triangles · δ` wobbles by a fraction of a
-    /// percent with δ (`tube_ring` reads 64.296 at 4·10⁻⁴ and 64.106 at
-    /// 8·10⁻⁴), and a reading off the low side of that wobble predicts
-    /// a δ slightly finer than the budget wanted. The picture can
-    /// therefore land just OVER `TRIANGLE_BUDGET`: measured at 1 002
-    /// 536 and 1 001 088 triangles on two corpus rows, +0.25% at the
-    /// worst, and `tests/display_budget.rs` holds the drawn count to
-    /// the budget with a margin rather than as a cap. Whether the
-    /// budget should be a cap that absorbs that error is
-    /// `work/view/the-budgets-predicted-count-is-not-always-an-over-count.md`.
-    pub predicted: usize,
     /// What the requested δ was predicted to cost, when the budget
     /// moved δ; `None` when the request was affordable and nothing
     /// was changed.
@@ -1129,7 +1096,6 @@ impl FittedDelta {
         Self {
             delta: requested,
             requested,
-            predicted: 0,
             requested_cost: None,
             probe_triangles: 0,
             largest_probe: 0,
@@ -1168,8 +1134,9 @@ impl FittedDelta {
 ///
 /// A value rather than a comment because the cost argument turns on
 /// it: [`ProbeStop::AtTheRequest`] is the rung a single probe would
-/// have read, [`ProbeStop::Flat`] is the reading the 1/δ law is not
-/// allowed to speak for, and a row can ask which one answered.
+/// have read, [`ProbeStop::Flat`] is a ladder that went straight to
+/// that rung because the count stopped moving, and a row can ask
+/// which one answered. Every stop is answered by the same law.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProbeStop {
     /// No ladder ran: the value was built by
@@ -1181,9 +1148,9 @@ pub enum ProbeStop {
     /// A finer rung would not have moved the reading enough to pay
     /// for itself.
     Converged,
-    /// Two rungs in a row counted the same at the request's own rung:
-    /// the body does not subdivide across that span, so the count IS
-    /// the prediction and the 1/δ law says nothing about it.
+    /// Two rungs in a row counted the same, the second at the
+    /// request's own rung, reached straight from the first because a
+    /// count that did not move gives the law no step to size.
     Flat,
     /// A rung refused to tessellate. The reading is the rung before
     /// it, or — when the refusal was the first probe — the rung that
@@ -1220,17 +1187,28 @@ pub enum ProbeStop {
 /// 1.999 across four doublings, and on `diefillet` 1.99, 1.97, 1.98,
 /// 1.94. So `C` is read off a rung and δ* = C / budget.
 ///
-/// **A body that does not subdivide is not described by that law at
-/// all**, and the ladder says so rather than extrapolating: two rungs
-/// that count the same are a body whose count did not move across a
-/// factor of at least two in δ, so the count itself is the prediction
-/// ([`ProbeStop::Flat`], and [`FittedDelta::predicted`] is then the
-/// measured count rather than `C/δ`). What that rule takes on trust is
-/// that a body flat across one rung step is flat below it too — true
-/// for every corpus document (`tests/display_budget.rs` asserts the
-/// flat rows' prediction against the drawn picture, exactly) and
-/// stated as a residue in
-/// `work/view/a-flat-rung-pair-is-read-as-flat-below-it.md`.
+/// **A body whose count stops moving gives the law no step to size**,
+/// so the ladder goes straight to the request's own rung rather than
+/// crawling down in halvings ([`ProbeStop::Flat`]: two rungs in a row
+/// counted the same, across whatever span separated them, which is
+/// under a halving when the second is that last rung).
+///
+/// The law answers a Flat stop like any other, and a bound says what it
+/// answers: the request. The ladder descends from a count `T` at `δ`
+/// only to a `next < δ` with `next ≥ PROBE_FACTOR·T·δ / TRIANGLE_BUDGET`,
+/// so every rung it leaves counts under `TRIANGLE_BUDGET / PROBE_FACTOR`,
+/// and a flat pair repeats the count of the rung it left. Read at the
+/// request's own rung, that prices the request under the budget.
+///
+/// What it does not see is the count below that rung, and the same
+/// bound limits it. Across the factor of 8 down to the request a
+/// per-direction step shrinks by at most √8·1.0057 (the `sagitta_step`
+/// term [`TRIANGLE_BUDGET`] states; `cap_angular` only lessens the
+/// shrink), so each `ceil_count` grows at most that much plus one, and
+/// the count drawn at the request is at most about 8.1× the rung's
+/// plus ceil terms: the budget's own band. The NURBS lane's
+/// certificate refinement (`mesh::trimmed`) inserts centroids rather
+/// than steps, so the argument does not reach it.
 ///
 /// # What it costs: no PROBE is larger than the picture it sizes
 ///
@@ -1243,7 +1221,7 @@ pub enum ProbeStop {
 /// at `PROBE_FACTOR · C / TRIANGLE_BUDGET`, whose predicted cost is
 /// `TRIANGLE_BUDGET / PROBE_FACTOR` — a bound the actual count meets
 /// up to the law's own error, which is two-sided and small (see
-/// [`FittedDelta::predicted`]).
+/// [`TRIANGLE_BUDGET`]).
 ///
 /// **What the whole ladder costs is a sum, not that bound**
 /// ([`FittedDelta::probe_triangles`]): rungs × what a rung costs. Two
@@ -1288,7 +1266,7 @@ pub enum ProbeStop {
 /// [`SceneError::NotTessellated`] only when BOTH the scale probe and
 /// the rung that prices the request refuse — a refusal anywhere else
 /// falls back to a reading already taken, because a document that
-/// opens un-budgeted is the freeze this exists to prevent.
+/// opens un-budgeted is the wait this exists to prevent.
 /// [`SceneError::InvalidDisplayTolerance`] if the solved δ is not a
 /// usable one.
 pub fn fit_delta(
@@ -1346,7 +1324,6 @@ fn fit_from_probes(
                 Reading {
                     triangles: fallback.triangles,
                     delta: finest.get(),
-                    flat: false,
                     stop: ProbeStop::Refused,
                     largest: fallback.triangles,
                     total: fallback.triangles,
@@ -1369,10 +1346,9 @@ fn fit_from_probes(
         // TRIANGLE_BUDGET / PROBE_FACTOR by construction, which is
         // what makes descending to it affordable.
         //
-        // A count that did not move has no such rung to offer: the law
-        // is refuted for this body over this span, so the ladder goes
-        // straight to the request's own rung rather than crawling down
-        // in steps the law sizes from a constant it just disproved.
+        // A count that did not move gives the law no step to size, so
+        // the ladder goes straight to the request's own rung rather
+        // than crawling down in halvings.
         let next = if flat {
             finest.get()
         } else {
@@ -1393,7 +1369,8 @@ fn fit_from_probes(
         // or the finest probe there is, where an affordable request
         // gets its cost read off the very mesh a single probe would
         // have read it off. This terminates: `next` is bounded below
-        // by `finest` and every step at least halves the δ.
+        // by `finest`, and every step but one straight to `finest` at
+        // least halves the δ.
         if !flat && next > probe_delta * 0.5 && next > finest.get() {
             break ProbeStop::Converged;
         }
@@ -1411,7 +1388,6 @@ fn fit_from_probes(
         Reading {
             triangles,
             delta: probe_delta,
-            flat,
             stop,
             largest,
             total,
@@ -1423,7 +1399,6 @@ fn fit_from_probes(
 struct Reading {
     triangles: usize,
     delta: f64,
-    flat: bool,
     stop: ProbeStop,
     largest: usize,
     total: usize,
@@ -1435,20 +1410,6 @@ fn answer(requested: DisplayTolerance, reading: Reading) -> Result<FittedDelta, 
     let budget = TRIANGLE_BUDGET as f64;
     #[allow(clippy::cast_precision_loss)]
     let constant = reading.triangles as f64 * reading.delta;
-    // A count that does not respond to δ gives the budget no lever:
-    // every δ draws the same picture, so the request stands and the
-    // prediction is the count itself rather than the law's `C/δ`.
-    if reading.flat {
-        return Ok(FittedDelta {
-            delta: requested,
-            requested,
-            predicted: reading.triangles,
-            requested_cost: None,
-            probe_triangles: reading.total,
-            largest_probe: reading.largest,
-            stop: reading.stop,
-        });
-    }
     let solved = constant / budget;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let at_request = (constant / requested.get()) as usize;
@@ -1456,7 +1417,6 @@ fn answer(requested: DisplayTolerance, reading: Reading) -> Result<FittedDelta, 
         return Ok(FittedDelta {
             delta: requested,
             requested,
-            predicted: at_request,
             requested_cost: None,
             probe_triangles: reading.total,
             largest_probe: reading.largest,
@@ -1466,7 +1426,6 @@ fn answer(requested: DisplayTolerance, reading: Reading) -> Result<FittedDelta, 
     Ok(FittedDelta {
         delta: DisplayTolerance::new(solved)?,
         requested,
-        predicted: TRIANGLE_BUDGET,
         requested_cost: Some(at_request),
         probe_triangles: reading.total,
         largest_probe: reading.largest,
@@ -1636,15 +1595,16 @@ mod tests {
         DisplayTolerance::new(value).expect("a positive δ")
     }
 
-    /// A body whose count never moves is answered by the count, not by
-    /// the law — and in two probes, not the eleven a law-sized step
-    /// would crawl through at this count (`8 · 62_500 / 10⁶` is a step
-    /// of one halving).
+    /// A body whose count never moves keeps its request, answered by
+    /// the law at the request's own rung — and in three probes, not the
+    /// eleven a law-sized step would crawl through at this count
+    /// (`8 · 62_500 / 10⁶` is a step of one halving).
     #[test]
-    fn a_count_that_does_not_move_is_the_prediction() {
+    fn a_count_that_does_not_move_keeps_the_request() {
         let mut rungs: Vec<f64> = Vec::new();
         let flat = 62_500;
-        let fitted = fit_from_probes(delta(1.0e-4), |d| {
+        let requested = 1.0e-4;
+        let fitted = fit_from_probes(delta(requested), |d| {
             rungs.push(d);
             Ok(Probe {
                 triangles: flat,
@@ -1653,17 +1613,23 @@ mod tests {
         })
         .expect("a flat body fits");
         assert_eq!(fitted.stop, ProbeStop::Flat);
-        assert_eq!(fitted.predicted, flat, "the count IS the prediction");
-        assert_eq!(fitted.delta, fitted.requested, "and the request stands");
+        assert_eq!(
+            fitted.delta, fitted.requested,
+            "the law, read at the request's own rung, commits the request"
+        );
+        assert_eq!(fitted.requested_cost, None, "with nothing to report");
         assert_eq!(
             rungs.len(),
             3,
             "the scale probe, the one step that discovers the count did not move, and the \
              request's own rung: {rungs:?}"
         );
-        let last = rungs.last().copied().expect("a rung");
-        assert!(
-            (last - 1.0e-4 * PROBE_FACTOR).abs() < f64::EPSILON,
+        // Exact: the request's rung is DEFINED as this one multiply
+        // (`DisplayTolerance::scaled`), and a ladder that reached it
+        // some other way would be pricing a different δ.
+        assert_eq!(
+            rungs.last().copied(),
+            Some(requested * PROBE_FACTOR),
             "the last rung prices the request: {rungs:?}"
         );
     }
@@ -1683,8 +1649,32 @@ mod tests {
         })
         .expect("a flat body fits");
         assert_eq!(fitted.stop, ProbeStop::Flat);
-        assert_eq!(fitted.predicted, 348);
+        assert_eq!(fitted.delta, fitted.requested, "the request stands");
         assert_eq!(rungs.len(), 2, "{rungs:?}");
+    }
+
+    /// **A body flat at the request's rung and growing below it keeps
+    /// the request**, and its flat pair is a short step: 1e-3 → 8e-4,
+    /// a factor of 1.25, because the step to the request's own rung
+    /// skips the halving gate. The fake counts nine times as much below
+    /// that rung, which no rung sees; `fit_delta` states the bound on
+    /// what that can cost.
+    #[test]
+    fn a_body_flat_above_the_request_keeps_it_across_a_short_last_step() {
+        let requested = 1.0e-4;
+        let rung = requested * PROBE_FACTOR;
+        let floor = 100_000;
+        let count = move |d: f64| if d >= rung { floor } else { 9 * floor };
+        let fitted = fit_from_probes(delta(requested), |d| {
+            Ok(Probe {
+                triangles: count(d),
+                extent: 1.0e-3,
+            })
+        })
+        .expect("the body fits");
+        assert_eq!(fitted.stop, ProbeStop::Flat, "the ladder read it as flat");
+        assert_eq!(fitted.delta, fitted.requested, "the request stands");
+        assert_eq!(fitted.requested_cost, None, "and nothing reports a cost");
     }
 
     /// The rung that prices the request is where an affordable request
@@ -1696,8 +1686,6 @@ mod tests {
         assert_eq!(fitted.stop, ProbeStop::AtTheRequest);
         assert_eq!(fitted.delta, fitted.requested);
         assert_eq!(fitted.requested_cost, None);
-        // C/δ at the request, off the rung at PROBE_FACTOR × it.
-        assert_eq!(fitted.predicted, 160_000);
     }
 
     /// A request the budget binds is answered from a rung
@@ -1751,7 +1739,10 @@ mod tests {
         .expect("the fit survives a coarse refusal");
         assert_eq!(fitted.stop, ProbeStop::Refused);
         assert_eq!(fitted.delta, fitted.requested);
-        assert_eq!(fitted.predicted, 160_000, "priced off the request's rung");
+        assert_eq!(
+            fitted.largest_probe, 20_000,
+            "priced off the request's rung, C / (PROBE_FACTOR · δ)"
+        );
         assert_eq!(rungs.len(), 2, "the refusal and the fallback: {rungs:?}");
     }
 

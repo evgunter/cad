@@ -281,7 +281,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // Then numerically, against the torus closed forms — outer minus
     // bore. This is the assertion a body that had built as a plain
     // torus would fail.
-    let props = pncad::topo::mass_properties(&ring.body, tol).expect("mass properties");
+    // Finished once: the props and the shell roles below both read it.
+    let ring_at_rest = crate::booleans::at_rest(&ring.body, tol);
+    let props = pncad::topo::mass_properties(&ring_at_rest, tol).expect("mass properties");
     let v_solid = 2.0 * PI * PI * R * RO * RO;
     let v_want = 2.0 * PI * PI * R * (RO * RO - RI * RI);
     let a_want = 4.0 * PI * PI * R * (RO + RI);
@@ -299,7 +301,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // And per shell (finding 2 above, executed): the `Void`-role shell
     // IS the named cavity, and its signed volume is the bore's closed
     // form, negated — the bore's own capacity, asked for directly.
-    let classes = pncad::topo::classify_shells(&ring.body, tol).expect("per-shell classification");
+    let classes =
+        pncad::topo::classify_shells(&ring_at_rest, tol).expect("per-shell classification");
     let voids: Vec<_> = classes
         .iter()
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
@@ -344,7 +347,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         (2, v, e, f),
         "the recipe layer carries the hole through to the same verb"
     );
-    let doc_props = pncad::topo::mass_properties(&doc_ring, tol).expect("recipe mass properties");
+    let doc_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&doc_ring, tol), tol)
+        .expect("recipe mass properties");
     assert_eq!(
         doc_props.volume, props.volume,
         "the two doors build the same solid, not merely the same census"

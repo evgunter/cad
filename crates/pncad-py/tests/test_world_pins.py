@@ -70,7 +70,6 @@ class WorldPins(unittest.TestCase):
             (shelf, self.face(doc, shelf, CapEnd.Start)),
             (post, self.face(doc, post, CapEnd.End)),
             bench_scene.SHELF_ON_POST,
-            resolver=self.ws,
         )
 
     def stood(self, doc, ref):

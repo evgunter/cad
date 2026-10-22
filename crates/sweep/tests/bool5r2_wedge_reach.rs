@@ -66,7 +66,7 @@ fn the_dimpled_ring_measures_its_closed_form_at_a_quarter_turn() {
     let vp = validated(vec![dimpled_ring(l)]);
     let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    let v = topo::mass_properties(&t.body, Tol::witness())
+    let v = topo::test_support::unmigrated_measure(&t.body, Tol::witness())
         .unwrap()
         .volume;
     let want = exact_volume(l, theta);
@@ -140,7 +140,7 @@ fn a_hairline_revolve_of_a_dimpled_ring_refuses_typed_at_the_props_door() {
         "the full tier-3 walk refuses the hairline body"
     );
     println!("[bool5r2] tier 3 on the hairline ring: {tier3:?}");
-    let got = topo::mass_properties(&t.body, Tol::witness()).map(|m| m.volume);
+    let got = topo::test_support::unmigrated_measure(&t.body, Tol::witness()).map(|m| m.volume);
     assert!(
         matches!(
             &got,

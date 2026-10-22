@@ -44,7 +44,7 @@ use sweep::blend::BlendError;
 use sweep::blend::battery::chain_g1;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{assert_naming_totality, revolved_about_y};
-use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, FaceSurface, ValidationError, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -285,7 +285,8 @@ fn the_filleted_dome_matches_its_closed_form_volume_with_no_quadrature_pad() {
         tol(),
     )
     .unwrap();
-    let props = mass_properties(&out.body, tol()).expect("mass properties must compute");
+    let props = topo::test_support::unmigrated_measure(&out.body, tol())
+        .expect("mass properties must compute");
     assert_eq!(
         props.volume_pad, 0.0,
         "every face of the filleted dome is closed-form"

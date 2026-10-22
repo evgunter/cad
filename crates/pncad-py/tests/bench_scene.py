@@ -159,14 +159,13 @@ def prism(seed, width, depth, height):
     return doc
 
 
-def on_floor(doc, placement, at, base, resolver=None):
+def on_floor(doc, placement, at, base):
     """`placement`'s copy standing on the world's floor by its face
     `base`, read at `at`: a plane mate to the world's `xy` plane
     flipped, so the face's outward normal points down, and three zero
     values — the copy's own coordinates are the world's as far as the
     floor allows. The bundle is written whole, in place of the one the
     placement holds. Answers the mate's address."""
-    del resolver
     mate, *_ = doc.set_constraints(
         placement,
         [
@@ -248,7 +247,7 @@ def face_facing(store, doc, node, normal):
     return one([name for name in ev.all_faces(node) if outward(name) == normal])
 
 
-def rest(doc, placement, on, to, at, class_=ContactClass.Rest, resolver=None):
+def rest(doc, placement, on, to, at, class_=ContactClass.Rest):
     """`placement`'s copy seated by its face `on` resting on the face
     `to`: a plane mate, the target flipped so the two faces face each
     other, and the two slides and the spin that set where on `to` the
@@ -259,7 +258,6 @@ def rest(doc, placement, on, to, at, class_=ContactClass.Rest, resolver=None):
 
     Answers the mate's address and its three values' addresses.
     """
-    del resolver
     mate, *values = doc.set_constraints(
         placement,
         [
@@ -399,7 +397,6 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
         (post_a, a_top),
         SHELF_ON_POST,
         class_,
-        resolver=store,
     )
     mate_2, _ = rest(
         doc,
@@ -408,7 +405,6 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
         (shelf_i, s_bottom),
         POST_UNDER_SHELF,
         class_,
-        resolver=store,
     )
     return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)
 

@@ -1371,11 +1371,15 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     // authored x-extent end + the probe's 0.05, past the shelf's 0.10
     // that bounded the baseline.
     let want_max_x = asm::POST_B_AT[0] + asm::POST_SECTION + 0.05;
+    let (probed_box, baseline_box) = (
+        probed.bounds().expect("the probed picture draws"),
+        baseline.bounds().expect("the baseline picture draws"),
+    );
     assert!(
-        (probed.bounds().max_x - want_max_x).abs() < 1e-6,
+        (probed_box.max_x - want_max_x).abs() < 1e-6,
         "the probed part is DRAWN displaced by the probe: {} vs {want_max_x} (baseline {})",
-        probed.bounds().max_x,
-        baseline.bounds().max_x
+        probed_box.max_x,
+        baseline_box.max_x
     );
 
     // The pick follows the picture: the probed instance answers at

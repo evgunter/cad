@@ -13,8 +13,8 @@ use crate::common::bores::{halves_at_rest, section_faces};
 use core::f64::consts::PI;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use topo::Body;
 use topo::splitting::{SectionEdge, SplitPlane, plane_section};
-use topo::{Body, mass_properties};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -95,7 +95,7 @@ impl core::ops::Add for Vol {
 }
 
 fn volume(h: &Body<f64>) -> Vol {
-    let m = mass_properties(h, tol()).unwrap();
+    let m = topo::test_support::unmigrated_measure(h, tol()).unwrap();
     Vol {
         v: m.volume,
         pad: m.volume_pad,

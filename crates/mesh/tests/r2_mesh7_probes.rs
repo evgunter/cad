@@ -76,10 +76,13 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
     let tol = Tol::witness();
     let patterns: [&[f64]; 2] = [&[0.5], &[0.3129, 0.15645]];
     let n_edges = donut().edges().count();
-    let v0 = topo::mass_properties(&donut(), tol)
-        .unwrap()
-        .volume
-        .to_bits();
+    let v0 = topo::mass_properties(
+        &topo::test_support::finished("the measured body", donut().clone(), tol),
+        tol,
+    )
+    .unwrap()
+    .volume
+    .to_bits();
     let mut wrong = Vec::new();
     for i in 0..n_edges {
         for (pi, fracs) in patterns.iter().enumerate() {
@@ -99,7 +102,8 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
                 body.split_edge(ek, t0 + f * (t1 - t0), tol).unwrap();
             }
             let got = mesh::tessellate(&body, 0.1, tol).map(|m| m.positions.len());
-            let vol = topo::mass_properties(&body, tol).map(|m| m.volume);
+            // Raw door: these witness bodies are read alike, and tier 3 refuses the ones whose joinable vertices are still at rest (JoinableVertexAtRest).
+            let vol = topo::test_support::measure_unvalidated(&body, tol).map(|m| m.volume);
             println!("edge {i} (r = {radius}), pattern {pi}: {got:?}, V = {vol:?}");
             if got.is_err() || vol.as_ref().map(|v| v.to_bits()) != Ok(v0) {
                 wrong.push((i, pi, format!("{got:?} / {vol:?}")));
@@ -123,7 +127,8 @@ fn the_witness_bodies_are_topologically_valid_and_tier3_refuses_them() {
     for (name, (body, _face)) in [("keyway", keyway()), ("oblique lens", oblique_lens())] {
         let topo_ok = topo::validate(&body);
         let closed = topo::validate_closed(&body);
-        let mass = topo::mass_properties(&body, Tol::witness()).map(|m| m.volume);
+        // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+        let mass = topo::test_support::measure_unvalidated(&body, Tol::witness()).map(|m| m.volume);
         println!("{name}: validate = {topo_ok:?}, closed = {closed:?}, mass = {mass:?}");
         assert!(topo_ok.is_ok(), "{name} is a topologically valid body");
     }

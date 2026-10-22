@@ -309,7 +309,7 @@ class TestBenchLayout(BenchWorkspace):
         cap = one(ev.select(first, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])))
         bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE)))
         joint, values = rest(
-            doc, shelf_i, (shelf_i, bottom), (first, cap), SHELF_ON_POST, resolver=self.ws
+            doc, shelf_i, (shelf_i, bottom), (first, cap), SHELF_ON_POST
         )
         solved = solve_document(doc, resolver=self.ws)
         self.assertIsNone(solved.fault(shelf_i))
@@ -540,7 +540,7 @@ class TestBenchStand(BenchWorkspace):
         # `apply`: writing the identity bundle over a mate's records no
         # frame. The mate's poses and selections go with it, each a
         # silent retirement of an anonymous variable.
-        doc.apply(DocEdit.set_constraints(post_b, identity()), resolver=self.ws)
+        doc.apply(DocEdit.set_constraints(post_b, identity()))
         retired = [m.variant for m in doc.last_maintenance]
         self.assertTrue(retired)
         self.assertEqual(set(retired), {"anonymous_var_removed"})
@@ -555,7 +555,6 @@ class TestBenchStand(BenchWorkspace):
             (post_b, b_top),
             (shelf_i, s_bottom),
             bench_scene.POST_UNDER_SHELF,
-            resolver=self.ws,
         )
         self.assertEqual([m.variant for m in doc.last_maintenance], identity_retired)
         # A REFUSED edit leaves the reading as it was: a mate whose `on`
@@ -1037,7 +1036,6 @@ class TestAssemblyRefusals(BenchWorkspace):
             (post_j, top),
             (shelf_j, bottom),
             bench_scene.POST_UNDER_SHELF,
-            resolver=self.ws,
         )
         self.assertIsNone(solve_document(other, resolver=self.ws).fault(post_j))
 
@@ -1835,7 +1833,7 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
         )
         self.ws.resave(self.post)
         for edit in pncad.update_references(doc, self.post.id, content_pin(self.post)):
-            doc.apply(edit, resolver=self.ws)
+            doc.apply(edit)
         evaluate(doc, resolver=self.ws).value(mate.placement)
         after = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(
@@ -1868,7 +1866,6 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
         self.assertAlmostEqual(at.origin[0].meters, moved.origin[0].meters, places=12)
         doc.apply(
             DocEdit.set_var_value(pncad.VarName("slide"), pncad.FreeValue.length(0.3 * m)),
-            resolver=self.ws,
         )
         later = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(later.origin[0].meters - at.origin[0].meters, 0.2, places=12)

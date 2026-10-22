@@ -73,7 +73,7 @@ fn blade(tol: Tol) -> topo::Body<f64> {
 #[test]
 fn a_lofted_lens_blade_certifies_its_sign_past_the_budget_exit() {
     let tol = Tol::witness();
-    let body = blade(tol);
+    let body = topo::test_support::finished("the lens blade", blade(tol), tol);
     let certificate = topo::validate_geometric_certificate(&body, tol).unwrap_or_else(|e| {
         panic!(
             "check 7 refuses the lens blade at ε = {:e}: {e:?}",
@@ -125,7 +125,7 @@ fn the_volume_backstop_runs_no_round_past_the_budget_exit() {
         );
         return;
     }
-    let body = blade(tol);
+    let body = topo::test_support::finished("the lens blade", blade(tol), tol);
     let brick = crate::common::square_prism();
     let reporting = crate::common::quad_verdicts(|| {
         topo::mass_properties(&body, tol).expect_err("the reporting door refuses the blade");

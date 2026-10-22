@@ -48,6 +48,28 @@ Signed (S-DUP orchestrator).
 
 - 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), third pass. `pickindex.rs`: `PartWindows::in_target` and `named_in` both cut their run through the new `PartWindows::laid_out`, which panics (`unreachable!`, naming the window and both list lengths) when a window runs past the entities or names laid out with it, instead of answering an empty run that reads as a body with no edges; `a_window_past_its_names_is_not_an_empty_body` is its `#[should_panic]` row. (AUTH-14 implementer)
 
+## 2026-10-22 — the budget is a target (PR 5600)
+
+Closes `the-budgets-predicted-count-is-not-always-an-over-count` and
+`a-flat-rung-pair-is-read-as-flat-below-it`.
+
+- `TRIANGLE_BUDGET` is documented as a target with a stated
+  precision, and `FittedDelta::predicted` is deleted.
+- `answer`'s Flat early return is gone, because the law already
+  commits the request there.
+- `display_budget.rs` holds the drawn count to 0.9–1.05× on every
+  bound corpus row. Measured: 0.927–1.0025.
+
+Review was a style lane. All five claims held, including the ~8.1×
+Flat bound, re-derived. Its two contradiction findings were fixed in
+place: S1, "a factor of at least two", which was false; and S2, the
+direction of the probe's error. A second error direction, the
+sagitta-sized excess of up to ~1.1%, is now stated beside the
+other.
+
+Filed: `a-dense-floor-is-priced-off-the-law-from-the-scale-probe`
+(threshold 62 500, the halving break) and
+`flat-harmlessness-is-unproven-on-the-nurbs-refinement-lane`.
 ## 2026-10-22 — taken up; the slate against the D10 hold
 
 An orchestrator (session 01QgNokkLTQtNJ3sdoLiqtf6) takes the track; status `active`.
@@ -128,4 +150,161 @@ The orchestrator checked: only tests read it, and in the bound case it
 is the constant budget. **Deleted**; the other designer's ceil argument
 becomes the documented reason for the band. The guard is the drawn
 count, held to a band on every bound corpus row. Review: style.
+(FIT orchestrator)
+
+## 2026-10-22 — a ctrl/⌘+wheel is a wheel, and a pinch zooms by its ratio (PR 5596)
+
+Closes `ctrl-wheel-reaches-no-zoom`.
+
+- `configure_input` sets egui's `zoom_modifier` to `NONE` once, and
+  both `assemble` and the test probe call it.
+- `ViewportEvent::Pinch { factor }` maps to `Dolly(1/factor)`.
+- `pointer_events` is the one composition of the adapter's reads,
+  shared with the probe.
+
+Review: a style lane, mergeable. Its two findings that could let the
+shipped wiring regress silently were fixed: a startup row now reads
+`zoom_modifier` off `started()`, and the probe no longer copies the
+composition. The docs' claims about native pinch were narrowed to
+winit's macOS/iOS `PinchGesture`. The hand-written variant lists went
+onto VDOC's covering row
+(`viewer-suites-hold-hand-written-complete-variant-lists`).
+
+Process: the branch carries two empty commits a lane pushed to
+re-trigger CI after the lavapipe install hung. They are disclosed on
+the PR, and the hang is filed as CIW's
+`the-lavapipe-apt-install-hangs-and-a-lane-cannot-re-run-it`.
+## 2026-10-22 — the occlusion slack weighed (pickindex row §3)
+
+One pair weighed it, and both corrected the premise. There is no
+certified second operand: the probe's edge depth is
+`ray_segment_closest`'s raw `t` along an un-projected pixel ray, so
+`front.span.precedes(&span)` has nothing on its right-hand side. The
+`1e-6` has been absorbing a geometric offset (spatial rounding over
+the cosine to the incident face, which is unbounded at grazing), not
+rounding alone. The question is a z-fight that `[verdicts]` says is
+posed so the choice does not arise. The pair converged:
+
+- The chord's depth is its OWN crossing: the hull of the kernel's
+  `ray_triangle` spans over the chord's incident triangles (exact by
+  mesh index).
+- It is hidden iff something in the front set certainly precedes it,
+  which is the kernel's `survivors` rule.
+- `OCCLUSION_SLACK_REL` is deleted.
+- `front_of` answers the survivor set: `nearest` by rounded `t` goes,
+  and the edge seed searches every body the tie names. That is an
+  unfiled cross-body defect: today a two-part tie offers one part's
+  edges by rounded `t` and list order.
+
+They differed on one gap, which the orchestrator settled. On a
+silhouette edge the ray passes just outside both incident triangles,
+so the hull is empty. One designer adds a kernel door for a certified
+point span (beside `ray_triangle`, counting units as `t_span` does);
+the other had no operand there. **Taken: the door.** `edge_pick.rs`'s
+own `1e-6` fixture classifier stays as an independent oracle.
+Review: full. Dispatch waits for disk (the lane builds editor-core
+and the viewer).
+
+**Friction (2026-10-22).** Three lane findings on this box:
+- the disk filled while four lanes held build directories (6–8 GB
+  each), and one reviewer could not check out;
+- a CI job that died on infrastructure could not be re-run (403),
+  and a lane pushed empty commits instead;
+- the isolation hook refused `setsid` launches, the very detach the
+  standing rules require.
+(FIT orchestrator)
+
+## 2026-10-22 — a failed id readback is a device fault, and name_of is typed (PR 5601)
+
+Closes:
+- `id-readback-failure-reads-as-nothing-under-the-cursor`
+- `name-of-answers-none-for-both-nothing-and-an-unassigned-id`
+- `a-failed-id-readback-wait-leaves-the-buffer-mapping`, moved here from VGEOM
+
+The changes:
+- `read_id_at` answers `Result<u32, ReadbackFault>` (`Wait`, `Map`, `Short`).
+- The answer channel is `IdChannel` (`Option<IdReply>`).
+- A fault reaches the reader as cursor news (`IdNews::NoReadback`) and never as a disagreement.
+- `name_of` answers `PatchNameFault` (`Nothing`, `Unassigned`, `Unnamed`), and `IdAnswer` holds the door's answer instead of copying it.
+
+Review was full. It found no MAJOR. Its MINOR-1 was a latent crash that predates this change: a faulted readback left the buffer mapped. The next submit then hit `BufferStillMapped`, which wgpu's default handler panics on, and no error handler is installed. The fix pass confirmed this in the wgpu source. It also found that unmapping a buffer whose mapping was refused panics the same way. So every fault now rebuilds the buffer, a read unmaps it, and the map callback's error is carried into the fault. The orchestrator read that hunk.
+
+What still needs a device: whether a real fault is followed by a clean next query.
+(FIT orchestrator)
+
+## 2026-10-22 — zoom to fit frames what is drawn (PR 5597)
+
+Closes `zoom-to-fit-frames-no-committed-profile` (P0) and its passenger `a-degenerate-frame-refusal-prints-an-aspect-nobody-can-act-on`.
+
+**What the fit frames.** `pane::viewport::frame_camera` frames the drawn extent:
+- the scene's corners, plus the committed and preview loop lanes;
+- never the step marks, which are sized after the fit against the camera it produced.
+
+Every extent is one rule, `narrowing::drawn_box`: the box of the f32 corners that crossed the display seam. `SceneMesh::bounds` answers `Option<Aabb>`, and `None` means nothing is drawn, including when every part is hidden.
+
+**When there is nothing to frame.** `CameraOp::Frame` takes `Option<Aabb>`. No extent, or a point, frames at `DEFAULT_FRAME_RADIUS` (0.05 m) with the orientation kept. `Camera::default()` is the startup camera, so `StartupError::Camera` is gone.
+
+**What a refusal says.** `Frame` reads "zoom to fit". `Unfittable` says either the lens or the shape, and never prints a raw number.
+
+**Review** (full, mergeable, no MAJOR). Three MINORs fixed:
+- the frame order now has a test that goes red;
+- `bounds` is taken over the narrowed corners, not in f64;
+- the `Unfittable` sentence is right through `Camera::new`'s narrow lens.
+
+**Filed:** `a-refused-camera-op-prints-its-finite-fields-at-full-precision` (FIT, P4) and `the-readmes-display-population-census-drifted-again` (VDOC, P4).
+(FIT orchestrator)
+
+## 2026-10-22 — two easy tail rows (PR 5604)
+
+Closes `a-flat-rung-row-uses-an-absolute-epsilon-on-a-scaled-value`. The row's test now binds its request once, and compares the last rung with `==`, because the multiply is the rung's definition.
+
+Closes `a-refused-camera-op-prints-its-finite-fields-at-full-precision`. Every number in `camera.rs`'s refusal sentences now goes through `readout::number`. That includes `DegenerateScene`, `FieldOfViewOutOfRange` and `NonPositiveDolly`, which have the same shape. Each sentence is pinned by an exact `error_display` row.
+
+Review: the orchestrator's own read. These were two cheap follow-ups to PRs 5600 and 5597, taken before handing back.
+(FIT orchestrator)
+
+## 2026-10-22 — the occlusion probe asks the kernel (PR 5603)
+
+Closes `pickindex-merges-parts-on-a-rounded-t-it-never-converts`, the last part of that row (§3). The P1s are done.
+
+**What replaced the slack.**
+- `OCCLUSION_SLACK_REL` is deleted.
+- A chord's depth is now its own crossing: the hull of a certified point span (the new editor-core door `ray_segment_point`) and the `ray_triangle` spans over its incident triangles.
+- At a chord end, the end's whole vertex fan is used. An end is a probe pixel clamped to it, or an `s` of exactly 0 or 1.
+- The chord is hidden iff `TSpan::survivors` drops its own crossing.
+
+**The seed.**
+- `front_of` answers the survivor set.
+- The edge search covers every body in a tie, which fixes a cross-part order dependence nobody had filed.
+- `ChordFaces` is a field of `NodePick`, so it is reused through `PickMemo`.
+
+**Review** (full, mergeable, no MAJOR). The door was stressed over 200k adversarial exact-rational cases, and the worst used 23% of its half-width.
+- MINOR-1: the door's table could not see an under-count. Fixed with a seeded counterexample search that goes red at k = 1/8.
+- MINOR-2: the endpoint arms were untested and their premise was fragile. Fixed with a pixel-clamp rule, a unit row and an end-to-end row.
+- `PROJECTION_ERROR_UNITS`' derivation now counts every caller's roundings, including `ray_triangle`'s `e1`/`e2` differences, which had never been counted: under 12.2u against 16u.
+(FIT orchestrator)
+
+## 2026-10-22 — handed back
+
+FIT's P0 and P1 rows are done, so the track is handed back
+(`ready`), per the sitting rule (`memories/orchestration-model.md`).
+
+**Merged this sitting:**
+- 5596: ctrl+wheel and pinch;
+- 5597: zoom to fit frames the drawn extent;
+- 5600: the budget is a target;
+- 5601: a failed readback is a device fault, plus the latent readback panic it exposed;
+- 5603: certified occlusion, and the cross-part tie;
+- 5604: two easy tail rows;
+- tracker: 5593, 5602.
+
+**Left:** three P3 rows (6 points) and two rows parked on D′. The
+plan names them.
+
+**For a successor:**
+- Run `python3 scripts/work.py territory` before any `pick_for` lane;
+  VGEOM's `pick-ambiguity-lists-groups-in-id-order` sits on it.
+- The parked rows wake when INTENT's D′ row closes.
+- Three friction findings from today stand: disk, infra re-runs and
+  `setsid`. See the 2026-10-22 log entry. CIW holds the re-run row.
 (FIT orchestrator)

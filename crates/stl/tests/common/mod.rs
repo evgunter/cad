@@ -108,7 +108,7 @@ pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
-    (above.clone(), below.clone())
+    (Body::clone(above), Body::clone(below))
 }
 
 /// M5 shape (ii): cylinder boss ∪ plate — the boss's three 120° wall

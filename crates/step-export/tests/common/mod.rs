@@ -266,7 +266,7 @@ pub fn cut_cylinder() -> Body<f64> {
     let SplitPart::Body(above) = &result.above else {
         panic!("the above half carries material");
     };
-    above.clone()
+    Body::clone(above)
 }
 
 /// M5 shape (ii): a 4×4×1 plate ∪ a radius-½ cylindrical boss (three

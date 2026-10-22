@@ -23,7 +23,7 @@ use crate::corpus;
 use std::collections::BTreeSet;
 
 use editor_core::{CancelToken, EvalOptions, EvalOutcome, evaluate};
-use topo::{mass_properties, validate, validate_closed};
+use topo::{validate, validate_closed};
 
 use corpus::{
     EDIT_KINDS, NODE_KINDS, SUB_KINDS, body_of, cone, documents, eval, failures, vocabulary,
@@ -64,7 +64,8 @@ fn exact_mass_pins_hold() {
         assert_eq!(validate_closed(body), Ok(()), "{}: closed", d.name);
         let Some(pin) = d.pin else { continue };
         pinned += 1;
-        let m = mass_properties(body, Tol::witness()).expect("mass properties");
+        let m =
+            topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
         assert_eq!(
             m.volume, pin.volume,
             "{}: volume {} != exact oracle {} (derivation in the document's module docs)",

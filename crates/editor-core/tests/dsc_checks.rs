@@ -996,3 +996,56 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
         "the recourse says what a finding is and is not: {rendered}"
     );
 }
+
+/// **A root tier 3 refuses is a finding, never a silent skip** (F6): the
+/// connectedness check reads a finished body, so a subject the at-rest
+/// gate refuses is reported `NotAtRest` with the validator's findings
+/// verbatim, its rendering names the first, and `enforce_checks` at
+/// `Error` refuses on it. No real document reaches the gate's refusal
+/// today — every op that hands back a body gates it or builds one tier 3
+/// passes — so the evaluated slab's value is replaced with the same slab
+/// turned inside out (`Body::revert`, a public op), which tier 3 refuses
+/// `NegativeVolume`.
+#[test]
+fn a_root_tier_3_refuses_is_reported_not_at_rest() {
+    use editor_core::{NodeResult, ValuePayload};
+    let doc = ProfileDoc::empty_derived("dsc-checks-not-at-rest", Tol::witness());
+    let (doc, slab) = slab(doc, 0.0, 0.5, 1.0);
+    let (doc, root) = fixture::place(doc, slab);
+    let mut ev = run(&doc);
+    let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&root) else {
+        panic!("the slab evaluates");
+    };
+    let ValuePayload::Body(body) = &value.payload else {
+        panic!("a placed slab is a body");
+    };
+    let reverted = topo::Body::clone(body).revert().expect("the slab reverts");
+    let errors = topo::validate_geometric(&reverted, Tol::witness())
+        .expect_err("tier 3 refuses the inside-out slab");
+    value.payload = ValuePayload::Body(std::sync::Arc::new(reverted));
+
+    // The separation and coincidence residents read the gathered
+    // product, whose own at-rest gate refuses this root first; off, the
+    // connectedness pass is the one that speaks.
+    let cfg = ChecksConfig {
+        connectedness: Severity::Error,
+        separation: Advisory::Off,
+        unproven_coincidence: Advisory::Off,
+        ..ChecksConfig::default()
+    };
+    let report = run_checks(&doc, &ev, &cfg, Tol::witness()).expect("the checks run");
+    assert_eq!(
+        report.findings,
+        vec![CheckFinding {
+            check: CheckId::Connectedness,
+            subject: editor_core::FindingSubject::Output { root, output_ix: 0 },
+            evidence: CheckEvidence::NotAtRest {
+                errors: errors.clone()
+            },
+        }]
+    );
+    let rendered = report.findings[0].to_string();
+    assert!(rendered.contains(&errors[0].to_string()), "{rendered}");
+    let refusal = enforce_checks(&report, &cfg).unwrap_err();
+    assert_eq!(refusal.findings, report.findings);
+}

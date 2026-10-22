@@ -97,8 +97,8 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
     );
     let wall = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
     let (alone, far) = (
-        topo::mass_properties(&alone, tol()).expect("props"),
-        topo::mass_properties(&far, tol()).expect("props"),
+        topo::test_support::unmigrated_measure(&alone, tol()).expect("props"),
+        topo::test_support::unmigrated_measure(&far, tol()).expect("props"),
     );
     println!(
         "[r1] vessel alone {:.12}, in a far pair {:.12}, closed form {:.12}, stored box {:.15}",
@@ -256,7 +256,8 @@ fn r1_a_hollow_and_a_plain_solid_shell_together() {
         out.shells().count()
     );
     assert_eq!(out.solids().count(), 3, "three thin solids");
-    let roles = topo::classify_shells(&body, tol()).expect("the operand classifies");
+    let roles =
+        topo::test_support::unmigrated_classify(&body, tol()).expect("the operand classifies");
     let outer = roles
         .iter()
         .filter(|c| c.role == topo::ShellRole::Outer)

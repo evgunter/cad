@@ -68,7 +68,7 @@ fn sub_period_wall_pieces_remerge_structurally() {
         geom_core::Tol::witness(),
     );
     let parts = split(&body, &plane, Tol::witness()).expect("the tilted-cut lane splits it");
-    let mut part = parts.below.body().expect("a below part exists").clone();
+    let mut part = topo::Body::clone(parts.below.body().expect("a below part exists"));
     let groups: Vec<_> = parts
         .naming
         .merge_groups
@@ -83,7 +83,11 @@ fn sub_period_wall_pieces_remerge_structurally() {
 
     // Volume exact: the halves hold the operand's (the merge is pure
     // structure), and a second merge finds nothing.
-    let vol = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &Body<f64>| {
+        topo::test_support::unmigrated_measure(b, Tol::witness())
+            .unwrap()
+            .volume
+    };
     let halves = vol(&part) + vol(parts.above.body().expect("an above part exists"));
     assert!(
         (halves - vol(&body)).abs() < 1e-12,
@@ -111,7 +115,9 @@ fn full_period_closure_skips_loudly() {
     // — recorded as a LOUD skip naming the period closure; the body
     // is untouched and its volume stays exact.
     let mut body = disc_cylinder();
-    let vol_before = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let vol_before = topo::test_support::unmigrated_measure(&body, Tol::witness())
+        .unwrap()
+        .volume;
     let out = body
         .merge_coplanar_faces(Tol::witness())
         .expect("the merge call itself");
@@ -125,7 +131,9 @@ fn full_period_closure_skips_loudly() {
         "the skip carries the period-closure refusal itself: {:?}",
         out.skipped[0].reason
     );
-    let vol_after = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let vol_after = topo::test_support::unmigrated_measure(&body, Tol::witness())
+        .unwrap()
+        .volume;
     assert!((vol_after - vol_before).abs() == 0.0, "body untouched");
     topo::validate_closed(&body).unwrap();
 }

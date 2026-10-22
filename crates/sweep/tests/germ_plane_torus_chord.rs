@@ -252,7 +252,7 @@ pub(crate) fn volume_and_points(
         Ok(()),
         "{what}: tier 3"
     );
-    let v = topo::mass_properties(b, Tol::witness())
+    let v = topo::test_support::unmigrated_measure(b, Tol::witness())
         .unwrap_or_else(|e| panic!("{what}: the volume: {e:?}"))
         .volume;
     assert!(

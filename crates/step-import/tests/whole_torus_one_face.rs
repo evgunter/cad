@@ -101,7 +101,11 @@ fn the_whole_torus_is_one_face_cut_once_each_way() {
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2");
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()), "tier 3");
-    let mp = topo::mass_properties(&body, tol()).unwrap();
+    let mp = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), tol()),
+        tol(),
+    )
+    .unwrap();
     let (volume, area) = (2.0 * PI * PI * R * MINOR * MINOR, 4.0 * PI * PI * R * MINOR);
     assert!(
         (mp.volume - volume).abs() < 1e-12,

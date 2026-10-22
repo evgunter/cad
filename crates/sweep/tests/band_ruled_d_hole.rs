@@ -19,7 +19,7 @@ use sweep::test_support::{
     ROD_FILLET, ROD_L, ROD_R, assert_naming_totality, rod_chord_at, rod_creases, rod_section_cut,
 };
 use sweep::{Extrusion, extrude};
-use topo::{Body, mass_properties, validate_geometric};
+use topo::{Body, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -34,7 +34,7 @@ fn census(body: &Body<f64>) -> (usize, usize, usize) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("closed-form props");
+    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
 }

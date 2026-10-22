@@ -625,12 +625,12 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
     let doc = set_pin(doc, top, None, &o);
     let ev = run(&doc, &o);
     let world = |id| {
-        topo::mass_properties(body_of(&ev, id).as_ref(), Tol::witness())
+        topo::test_support::unmigrated_measure(body_of(&ev, id).as_ref(), Tol::witness())
             .expect("mass properties")
             .volume
     };
     let gathered = product(&doc, &ev, Tol::witness()).expect("the world gathers");
-    let volume = topo::mass_properties(&gathered, Tol::witness())
+    let volume = topo::test_support::unmigrated_measure(&gathered, Tol::witness())
         .expect("mass properties")
         .volume;
     assert_eq!(
@@ -925,7 +925,7 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose(
         "the base's pin comes back as it was"
     );
     let volume = |d: &ProfileDoc| {
-        topo::mass_properties(
+        topo::test_support::unmigrated_measure(
             &product(d, &run(d, &o), Tol::witness()).expect("gathers"),
             Tol::witness(),
         )

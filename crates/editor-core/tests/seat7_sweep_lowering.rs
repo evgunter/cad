@@ -1004,7 +1004,7 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         "one declared parameter's two walls must decide equal radii: {:?}",
         value.coincidences
     );
-    let from_document = topo::mass_properties(body_of(&ev, union), tol())
+    let from_document = topo::test_support::unmigrated_measure(body_of(&ev, union), tol())
         .unwrap()
         .volume;
 

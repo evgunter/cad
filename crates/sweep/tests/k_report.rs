@@ -66,7 +66,7 @@ use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
 use geom_core::{Point2, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{mass_properties, validate, validate_closed, validate_geometric};
+use topo::{mass_properties, validate, validate_closed};
 
 fn p2(x: f64, y: f64) -> Point2<Probe> {
     Point2::new(Probe(x), Probe(y))
@@ -96,7 +96,7 @@ fn run_shape(build: impl FnOnce() -> topo::Body<Probe>) -> Vec<MarginSample> {
     let body = build();
     validate(&body).expect("tier 1");
     validate_closed(&body).expect("tier 2");
-    validate_geometric(&body, Tol::witness()).expect("tier 3");
+    let body = topo::AtRestBody::validate(body, Tol::witness()).expect("tier 3");
     mass_properties(&body, Tol::witness()).expect("mass properties");
     k_stats::take_samples()
 }

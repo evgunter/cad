@@ -23,7 +23,12 @@ fn solid(text: &str) -> topo::Body<f64> {
 }
 
 fn vol(b: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(b, Tol::witness()).unwrap().volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", (b).clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 fn bbox(b: &topo::Body<f64>) -> [f64; 6] {

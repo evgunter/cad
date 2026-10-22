@@ -3704,12 +3704,9 @@ class Doc:
         """This document's identity as 32 lowercase hex digits — the
         save file's `id:` header, and the workspace store's key.
         Identity survives every edit; it is not a content hash."""
-    def apply(self, edit: DocEdit, *, resolver: Optional[Workspace] = None) -> Optional[NodeId]:
+    def apply(self, edit: DocEdit) -> Optional[NodeId]:
         """Apply one edit, answering the minted node id if the edit
         minted one.
-
-        `resolver` is the document seam an edit door reads parts
-        through; the mate door itself is structural and reads none.
 
         A constraint the door refuses — an `on` that does not read the
         copy, poses of two kinds, a world read whose moves do not
@@ -3836,18 +3833,14 @@ class Doc:
         (`constraint_on_non_placement`) for a node that holds no bundle,
         and (`unknown_node`) for one this document does not hold."""
 
-    def constrain(
-        self, placement: NodeId, mate: Mate, *, resolver: Optional[Workspace] = None
-    ) -> MateRef:
+    def constrain(self, placement: NodeId, mate: Mate) -> MateRef:
         """Add `mate` to `placement`'s bundle and answer the
         constraint's address: `apply` of `DocEdit.add_constraint`, the
         id minted by the edit. Refuses typed on `EditError`:
         `constraint_on_non_placement`, `mate_refused` (the door's
         fault — `mate_not_on_the_copy`, `mate_kinds_differ`,
         `mate_world_read`, `mate_overconstrained` where the bundle
-        already pins the copy), and the slot doors' refusals.
-        `resolver` is the seam the door reads parts through, as
-        `apply`'s."""
+        already pins the copy), and the slot doors' refusals."""
 
     def remove_mate(self, mate: MateRef) -> list[MateRef]:
         """Remove the constraint `mate` addresses as one action, a mate
@@ -3920,26 +3913,15 @@ class Doc:
         node: Node,
         *,
         label: Optional[str] = None,
-        resolver: Optional[Workspace] = None,
     ) -> NodeId:
         """Insert a node, answering its minted id — `apply` of
         `DocEdit.insert_node`.
 
         `label=` labels the new node in the same call: the insert and
         `DocEdit.set_label`, both applied or neither. A text that is
-        not a label raises EditError before anything is applied.
-
-        `resolver` is the document seam an edit door reads parts
-        through: an insert is a Join at most (the survivor keeps its
-        root), so its maintenance never consults it, and a mate's door
-        is structural — see `apply` for what a mate refuses here
-        (`mate_refused`)."""
-    def measure(
-        self,
-        primitives: list[MeasurePrimitive],
-        *,
-        resolver: Optional[Workspace] = None,
-    ) -> Measured:
+        not a label raises EditError before anything is applied. See
+        `apply` for what a mate refuses here (`mate_refused`)."""
+    def measure(self, primitives: list[MeasurePrimitive]) -> Measured:
         """Insert measures: one `Measure` node per primitive, in order,
         as one action — all land or none does. Answers a `Measured`:
         the measures and their outputs, the observed values an assertion
@@ -4750,7 +4732,18 @@ class Body:
     one body and pairing it with another is the mistake the tier-3′
     contract exists to refuse."""
 
-    def mass_properties(self) -> MassProperties: ...
+    def mass_properties(self) -> MassProperties:
+        """Volume, area and their certified pads, of a FINISHED body.
+
+        The measurement reads a body that passes tier 3, so this IS
+        `validate_geometric_measured()`: the gate runs, and its own
+        certified quadrature, continued to the reporting target, is the
+        answer — one quadrature. A body tier 3 refuses raises
+        `ValidationError` (`door == "validate_geometric"`, its findings
+        as that door reports them) instead of being measured; a body
+        it admits whose number this eps cannot reach raises
+        `ValidationError` with `reason == "mass_properties_failed"` and
+        the bracket the quadrature held."""
     def validate(self) -> None: ...
     def validate_closed(self) -> None: ...
     def validate_geometric(self) -> None: ...
@@ -4758,12 +4751,12 @@ class Body:
         """Tier 3 and the number its own +V check computed, in ONE
         certified quadrature.
 
-        `validate_geometric()` then `mass_properties()` measures the
-        same body twice — check 7 IS a certified quadrature and the
-        reporting door starts another from round 0. This door keeps
-        the certificate the gate decided the sign on and continues
-        that quadrature to the reporting target, so it answers the
-        pair's second call bit for bit at one quadrature's cost.
+        Check 7 IS a certified quadrature, and a measurement after it
+        would start another from round 0. This door keeps the
+        certificate the gate decided the sign on and continues that
+        quadrature to the reporting target, so it answers the typed
+        measurement of the finished body bit for bit at one
+        quadrature's cost. `mass_properties()` is this door.
 
         It can refuse where `validate_geometric()` alone passes: the
         reporting target scales with eps while the refinement
@@ -6888,6 +6881,10 @@ class CheckEvidence:
     than guessing; `inner_variant` is which of the shell door's nine
     refusals it was (`band`, `props`, `escalated`, `zero_volume`,
     `straddles`, `ray_in_band`, `corner`, `ray`, `sign_unresolved`).
+    `not_at_rest` (`reason`, `inner_variant`) — the body does not pass
+    validation, so its shells are not classified and the count is not
+    read; `reason` and `inner_variant` are the validator's first finding,
+    in `ValidationError`'s vocabulary.
     `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,

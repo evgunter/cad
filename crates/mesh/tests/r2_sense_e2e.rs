@@ -40,7 +40,11 @@ fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
     let keys: Vec<_> = ball.faces().map(|(k, _)| k).collect();
     let exact = 4.0 / 3.0 * std::f64::consts::PI;
 
-    let mp = mass_properties(&ball, Tol::witness()).expect("the ball measures");
+    let mp = mass_properties(
+        &topo::test_support::finished("the measured body", ball.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the ball measures");
     assert!(
         (mp.volume - exact).abs() <= 1e-12 * exact,
         "the revolved unit ball encloses 4/3·π: {}",
@@ -56,7 +60,9 @@ fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
         let s = inside_out.get_face(k).unwrap().sense;
         inside_out.set_face_sense(k, !s).unwrap();
     }
-    let mp = mass_properties(&inside_out, Tol::witness()).expect("the twin measures too");
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let mp = topo::test_support::measure_unvalidated(&inside_out, Tol::witness())
+        .expect("the twin measures too");
     assert!(
         (mp.volume + exact).abs() <= 1e-12 * exact,
         "reversing every face negates the enclosed volume: {}",
@@ -73,7 +79,8 @@ fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
     let mut one_band = ball.clone();
     let s = one_band.get_face(keys[0]).unwrap().sense;
     one_band.set_face_sense(keys[0], !s).unwrap();
-    let door = mass_properties(&one_band, Tol::witness());
+    // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+    let door = topo::test_support::measure_unvalidated(&one_band, Tol::witness());
     assert!(
         matches!(
             door,

@@ -26,6 +26,15 @@ it rather than using it. The ratified plan that record answers to is
 | ALT + LEFT drag | orbit — the trackpad binding (plain left never moves the camera) |
 | RIGHT drag | pan |
 | scroll | zoom |
+| ctrl/⌘ + scroll | zoom (as scroll) |
+
+**A pinch is not a mouse binding, and it zooms too**, with the model's
+apparent size following the fingers: a trackpad pinch where the
+platform reports one as a gesture (macOS and iOS through winit, and a
+browser through the web backend), and a touchscreen pinch. A platform
+that turns a pinch into a ctrl+wheel instead hands the viewer a scroll,
+which zooms at the scroll rate — by that mechanism, what a Windows
+precision touchpad's pinch would be.
 
 Left-drag in the viewport is inert **by design** — primary is reserved
 for selection; hold ALT to orbit with it on a trackpad. Moving an
@@ -210,12 +219,14 @@ Three things are known-absent by design:
   with no portal and no zenity gets. It opens on the built-in startup
   document and stays there. Document I/O in a browser needs the
   download/upload or OPFS story GUI-5 owns.
-- **No touch bindings.** `InputMap` binds orbit to a middle drag, pan to
-  a secondary drag, and zoom to a wheel; a phone has none of the three.
-  egui delivers the touch events and `Context::multi_touch` is there,
-  but nothing consumes them, so navigation is unusable on a phone until
-  a touch vocabulary lands. `InputMap::map` is a pure `ViewportEvent →
-  CameraOp` function, so that work is headless-testable.
+- **No touch orbit or pan.** A pinch zooms — a touchscreen's, and a
+  trackpad's the browser reports as a gesture, through
+  `ViewportEvent::Pinch` — but `InputMap` binds orbit to a middle drag
+  and pan to a secondary drag, and a phone has neither. egui delivers the touch events and `Context::multi_touch`
+  is there, but only its zoom is consumed, so orbiting and panning are
+  unreachable on a phone until a touch vocabulary for them lands.
+  `InputMap::map` is a pure `ViewportEvent → CameraOp` function, so
+  that work is headless-testable.
 - **No phone layout.** `initial_layout` splits viewport-beside-panels
   horizontally at a 1280×800 design size. On a ~390 px viewport the
   four-pane dock is unusable; the panes scroll, which is not the same as
@@ -782,12 +793,17 @@ pattern that drops a field of the variant it renders — `{ .. }` or
 `, ..}` in a pattern, a catch-all `_ =>` or bare-binding arm over the
 subject enum, and a tuple variant matched at less than its arity —
 finds **no catch-all over a subject enum, no tuple-arity drop, and
-exactly two `..`**: `CameraOp::Frame` drops `bounds`, and
-`MateToolEvent::PickLost` drops `resolution`. Both stay dropped —
-rendering either would change what the chrome says — and both carry
+exactly three `..`**: `CameraOp::Frame` drops both its fields and
+reads as the button's name, "zoom to fit";
+`CameraError::Unfittable`'s two arms drop `required` and
+`max_distance` and say the cause — a field of view too narrow, or the
+viewport's shape, as a rounded ratio only where one reads — with its
+remedy; and
+`MateToolEvent::PickLost` drops `resolution`. All three stay dropped —
+rendering any would change what the chrome says — and each carries
 the argument for the drop, `MateToolEvent`'s at its impl (the payload
 stays typed and full in the value; the sentence is what a person
-reads) and `CameraOp`'s at the arm. That is the property this rule is
+reads) and the camera's two at their arms. That is the property this rule is
 after: an omission that is a decision someone made. The rule matches
 one more site that is not an instance, and the distinction is the
 usual one: `frame.rs`'s
@@ -841,7 +857,7 @@ neither.
 | `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door, and `RowEdit` a change to the shape of one of its step lists), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-profile form's `SessionOp` (on its own plane, or sketched on a picked face) — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `RankedVerdict`, `Badge`, the doors that build one and the two that spend one — `deliver` for a policy's `StatusUpdate`, `apply` for the ranking's `RankedVerdict`, each taking only its own type, so the compiler rejects a policy's verdict at the ranked door — though a hand-built `RankedVerdict::Show` still passes, which is `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors.md`), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`) and the one a failed instance makes (`version_offer`), what a folded event stream amounts to (`folded_is_a_camera_event`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, whose `unusable` answers the reason a dialog the environment cannot put up gives for being disabled; `chooser_backend`; `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`) and the WSL probe (`running_under_wsl`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
-| `idpass` | The GPU id pass's bookkeeping: what query is outstanding, what it was asked about, and what its answer is worth when it comes back (`IdQueryLog`, `IdSubject`, `IdStep`, `IdAnswer`, `Disagreement`, `IdNews`, `compare`). The id pass is a round trip — one frame issues a query, a later frame reads the answer, and in between the cursor can move, the picture can be rebuilt and the index can be replaced — so the only thing that can say whether an answer still describes its question is state carried ACROSS frames. That is what puts it here rather than in `frame`, whose policies are values precisely so they can be replayed: everything in this module exists because it REMEMBERS. The failure it remembers against is an answer outliving its question, which does not look like a fault — it reports as *the two picking paths disagree* |
+| `idpass` | The GPU id pass's bookkeeping: what query is outstanding, what it was asked about, how its reply travels back, and what that reply is worth when it comes (`IdQueryLog`, `IdSubject`, `IdStep`, `IdChannel`, `IdReply`, `ReadbackFault`, `IdAnswer`, `Disagreement`, `IdNews`, `compare`). The id pass is a round trip — one frame issues a query, a later frame reads the answer, and in between the cursor can move, the picture can be rebuilt and the index can be replaced — so the only thing that can say whether an answer still describes its question is state carried ACROSS frames. That is what puts it here rather than in `frame`, whose policies are values precisely so they can be replayed: everything in this module REMEMBERS, or carries what is remembered from the frame that asked to the frame that reads. That includes the reply's failure, `ReadbackFault`: `gpu` raises it, but the frame reads it and `gpu` is `app`-only, so it is named here, carrying the device's words as text and no driver type. The failure it remembers against is an answer outliving its question, which does not look like a fault — it reports as *the two picking paths disagree* |
 
 ### Two axes: which channel, and what retires it
 
@@ -927,7 +943,7 @@ that say a node is not live, and `AdmissionFault::NoSuchNode`.
 drawn.** The pick index, its edge names, the id pass and the blend
 tool's loads are built from the landed run alone, so `PickIndexError`,
 `IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
-`BlendTarget`, `BlendEvent`, `idpass::IdAnswer` and
+`BlendTarget`, `BlendEvent`, `PatchNameFault`, `idpass::IdAnswer` and
 `idpass::Disagreement` carry no document and implement `Say`; their
 `Display` says each node by its tag. The frame that draws one speaks
 it from the landed document (`DocSession::landed_pair`), the one whose
@@ -1432,6 +1448,36 @@ and its driver trading a minted value**, which is the boundary rule
 working rather than failing. Nothing in this section generalises to the
 second, and `work/view/seam-split-leaves-a-cycle-through-the-session`
 is where the question of whether it should be broken at all is kept.
+
+### Zoom to fit frames what is drawn
+
+Every fit — the toolbar's **Zoom to fit**, and the fits that startup
+and an open book through `pending_fit` — frames the **drawn extent**:
+the world box around what the viewport hands the GPU as geometry on
+that frame. That is the scene's drawn corners (`SceneMesh::bounds`),
+every committed profile's loops and every drawn preview's loops
+(`marks::LegLane::extent`), joined by `pane::viewport`'s
+`drawn_extent`. All three are one rule, `narrowing::drawn_box`: the
+box of the `f32` corners that crossed the display seam, widened back.
+A preview that failed to replay draws nothing and frames nothing; a
+loop of one vertex frames its point. The previews' step marks are not
+in it, nor is anything else sized by the view: a fit that framed them
+would depend on the camera it is choosing. So a frame builds the
+geometry lanes, derives the extent, fits, folds the pointer's events,
+and only then sizes the marks against the camera that settled — one
+pure function, `pane::viewport::frame_camera`, whose order a row
+holds. The fit reads
+drawn positions and nothing else — no placement, product or document —
+so it holds over whatever the viewport composes.
+
+**Absence is a value.** The extent is an `Option<Aabb>`, and `None`
+means nothing is drawn; a hidden part is not drawn and does not frame.
+What that frames is the camera's (`Camera::fitted`): no extent frames
+the world origin, and an extent too small to hold a zoom band (a lone
+point) frames its centre, both at `camera::DEFAULT_FRAME_RADIUS`. The
+orientation is kept, as in every fit, and a clean default fit says
+nothing. `CameraError::DegenerateScene` is left to `Camera::new`
+handed a non-positive radius, where refusing is right.
 
 ### A pick id is one index's word
 
