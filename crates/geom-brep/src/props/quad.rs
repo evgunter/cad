@@ -163,11 +163,10 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::spline::algebra;
-use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
-    CoeffWindow, Derived, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs,
-    SplineCoeffsBuf, TensorChannels, diagonal_in_span, last_at_or_below, restrict_segment,
+    CoeffWindow, Derived, KnotVector, LooseKnots, Param, ParamRange, RingRefinement, SplineCoeffs,
+    SplineCoeffsBuf, TensorChannels, diagonal_in_span, restrict_segment,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -1271,7 +1270,7 @@ fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
 /// `active` the `p + 1` coefficients of the span whose first control is
 /// `first`, over the knot list `u` they are a span of — a
 /// [`CoeffWindow`]'s, or a raw direction's line windowed by
-/// [`raw_span`]. Both callers form `active` from the span that `first`
+/// [`LooseKnots::span_of`]. Both callers form `active` from the span that `first`
 /// names, so every index here is in range.
 ///
 /// A `t` lying whole in the span's closure is the piece's blossom on
@@ -1362,11 +1361,9 @@ impl Level {
     fn hull(&self, range: ParamRange) -> Interval {
         match self {
             Self::Spline(buf) => range_hull(buf.pair(), range),
-            Self::Loose(Loose::Raw { knots, degree }, coeffs) => {
-                raw_range_hull(knots, *degree, coeffs, range)
-            }
+            Self::Loose(Loose::Raw(knots), coeffs) => raw_range_hull(knots, coeffs, range),
             // The whole-domain coefficient hull: sound for any range.
-            Self::Loose(Loose::Const { .. }, q) => {
+            Self::Loose(Loose::Const(_), q) => {
                 let mut acc = Interval::refused();
                 for (n, c) in q.iter().enumerate() {
                     acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
@@ -1517,10 +1514,8 @@ pub fn bspline_green_integral(
         let fm = eval_at(u, m)
             * match &v_ladder.d1 {
                 Level::Spline(v1) => eval_at(v1.pair(), m),
-                Level::Loose(Loose::Raw { knots, degree }, coeffs) => {
-                    raw_eval(knots, *degree, coeffs, m)
-                }
-                Level::Loose(Loose::Const { .. }, _) => v1h,
+                Level::Loose(Loose::Raw(knots), coeffs) => raw_eval(knots, coeffs, m),
+                Level::Loose(Loose::Const(_), _) => v1h,
             };
         // f\'\' = u\'\'·v\' + 2·u\'·v\'\' + u·v\'\'\' over the knot-free piece.
         let f2 = u_ladder.hull(2, piece) * v1h
@@ -1639,61 +1634,44 @@ enum Dir {
 
 /// A derivative direction whose knot vector is **not representable** as
 /// a [`KnotVector`] — shared by the patch lanes' [`Dir`] and the 1-D
-/// [`Level`].
+/// [`Level`]. Its knots are a [`LooseKnots`], which locates spans as a
+/// clamped vector does.
 #[derive(Clone)]
 enum Loose {
-    /// A derivative of degree ≥ 1 on a raw knot list: an interior knot
+    /// A derivative of degree ≥ 1: an interior knot
     /// of multiplicity equal to the parent's degree (the standard
     /// rational-arc structure) makes the derivative genuinely
     /// DISCONTINUOUS there, and the clamped invariant refuses interior
-    /// multiplicity above the degree.
-    ///
-    /// Before M8-3 this case fell through to [`Loose::Const`], which
-    /// silently read the FIRST derivative of a degree-2 spline as a
-    /// per-span constant — wrong by O(1), and reachable from the
-    /// integral lane's composite fallback too. Evaluated span-locally
-    /// on the raw knots instead; the discontinuity is honest, and no
+    /// multiplicity above the degree. Evaluated span-locally
+    /// on the loose knots; the discontinuity is honest, and no
     /// patch cell spans it — the composite cells are cut on the
     /// interior knots ([`knot_aligned_cuts`]).
-    Raw { knots: Vec<f64>, degree: usize },
+    Raw(LooseKnots),
     /// The degree-0 remnant a derivative ladder bottoms out at:
     /// coefficients are per-span constants over `knots[i]..knots[i+1]`
     /// — the parent's interior knot list, kept so span-LOCAL collapse
     /// stays exact; the 1-D ladder's whole-domain hull would lose the
     /// per-span constancy the Newton–Cotes lane depends on.
-    Const { knots: Vec<f64> },
+    Const(LooseKnots),
 }
 
 impl Loose {
     /// A [`Derived`]'s clamped payload, or the structure no clamped
     /// vector spells.
-    fn from_derived<V>(derived: Derived<'_, V>) -> Result<V, Self> {
+    fn from_derived<V>(derived: Derived<V>) -> Result<V, Self> {
         match derived {
             Derived::Vector(v) => Ok(v),
-            Derived::SpanConstant(breaks) => Err(Self::Const {
-                knots: breaks.to_vec(),
-            }),
-            Derived::Discontinuous { knots, degree } => Err(Self::Raw {
-                knots: knots.to_vec(),
-                degree,
-            }),
+            Derived::SpanConstant(knots) => Err(Self::Const(knots)),
+            Derived::Discontinuous(knots) => Err(Self::Raw(knots)),
         }
     }
 
-    /// The structure of a [`Loose::Raw`] level's derivative, of degree
-    /// `degree` on the raw knot list `knots`: [`Loose::Raw`] at degree
-    /// ≥ 1, [`Loose::Const`] at 0. A [`KnotVector`]'s own derivative is
-    /// [`KnotVector::derived`]'s.
-    ///
-    /// `knots` is a clamped vector's knot list with an outer pair dropped
-    /// per derivative (`derivative_knot_slice`), so it is nondecreasing:
-    /// that is what [`raw_span`] searches by and what puts
-    /// [`de_boor_on`]'s ratios in `[0, 1]` at a parameter inside the span.
-    fn of(knots: Vec<f64>, degree: usize) -> Self {
-        if degree >= 1 {
-            Self::Raw { knots, degree }
+    /// [`Loose::Raw`] at degree ≥ 1, [`Loose::Const`] at 0.
+    fn of(knots: LooseKnots) -> Self {
+        if knots.degree() >= 1 {
+            Self::Raw(knots)
         } else {
-            Self::Const { knots }
+            Self::Const(knots)
         }
     }
 
@@ -1701,104 +1679,75 @@ impl Loose {
     /// `None` at per-span constants (the ladder's outer-None).
     fn step(&self) -> Option<(Self, DerivTake)> {
         match self {
-            Self::Raw { knots, degree } => {
-                let (knots, degree) = (knots.clone(), *degree);
+            Self::Raw(knots) => {
+                let below = knots.derivative()?;
+                let knots = knots.clone();
                 Some((
-                    Self::of(derivative_knot_slice(&knots).to_vec(), degree - 1),
-                    Box::new(move |c: &[Interval]| raw_deriv(&knots, degree, c)),
+                    Self::of(below),
+                    Box::new(move |c: &[Interval]| raw_deriv(&knots, c)),
                 ))
             }
-            Self::Const { .. } => None,
+            Self::Const(_) => None,
         }
     }
 }
 
-/// The span index of `t` in a raw knot slice: the last nonempty span
-/// whose lower knot does not exceed `t`, clamped into the valid range
-/// (`degree` when none does). It is [`last_at_or_below`] over the span
-/// starts `knots[degree ..= top]`, which lands on a run's last copy —
-/// nonempty unless the run continues past `top`, where it steps back to
-/// the nonempty span below the run.
-fn raw_span(knots: &[f64], degree: usize, count: usize, t: Param) -> usize {
-    let last = count.saturating_sub(1).max(degree);
-    let top = last.min(knots.len().saturating_sub(2));
-    if top < degree {
-        return degree;
+/// `line` as the coefficients of `knots`: every line a [`Loose`]
+/// direction reads is built at its [`LooseKnots::control_count`], so a
+/// line of another length is a broken grid, not an input.
+fn loose_line<'l>(knots: &LooseKnots, line: &'l [Interval]) -> &'l [Interval] {
+    if line.len() != knots.control_count() {
+        unreachable!(
+            "a loose direction's line is its count long: {} coefficients against {}",
+            line.len(),
+            knots.control_count()
+        );
     }
-    let Some(j) = last_at_or_below(&knots[degree..=top], t) else {
-        return degree;
-    };
-    // Indexing justified: degree ≤ i ≤ top ≤ len − 2.
-    let mut i = degree + j;
-    while knots[i] == knots[i + 1] {
-        if i == degree {
-            return degree;
-        }
-        i -= 1;
-    }
-    i
+    line
 }
 
-/// In-span de Boor on a raw knot slice (the [`Loose::Raw`] evaluator).
+/// In-span de Boor on loose knots (the [`Loose::Raw`] evaluator).
 ///
-/// `coeffs` is the direction's line, built at [`Dir::count`]
-/// (`knots.len() − degree − 1 ≥ degree + 1`) by `collapse_1d`.
-fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interval {
+/// `coeffs` is the direction's line, built at [`Dir::count`] by
+/// `collapse_1d`.
+fn raw_eval(knots: &LooseKnots, coeffs: &[Interval], t: f64) -> Interval {
     match finite_param(t) {
-        Some(at) => raw_de_boor(knots, degree, coeffs, at, pt(t)),
+        Some(at) => raw_de_boor(knots, coeffs, at, pt(t)),
         None => Interval::refused(),
     }
 }
 
-/// In-span de Boor at an ENCLOSED parameter on a raw knot slice (the
+/// In-span de Boor at an ENCLOSED parameter on loose knots (the
 /// [`Loose::Raw`] counterpart of [`de_boor`]): the node lies in the
 /// closure of `mid`'s span, and the span polynomial is what the rule
 /// integrates.
-fn raw_eval_in_span(
-    knots: &[f64],
-    degree: usize,
-    coeffs: &[Interval],
-    mid: f64,
-    t: &Interval,
-) -> Interval {
+fn raw_eval_in_span(knots: &LooseKnots, coeffs: &[Interval], mid: f64, t: &Interval) -> Interval {
     match Param::new(mid) {
-        Some(mid) => raw_de_boor(knots, degree, coeffs, mid, *t),
+        Some(mid) => raw_de_boor(knots, coeffs, mid, *t),
         None => Interval::refused(),
     }
 }
 
-/// [`de_boor_on`] in the raw span that `at` locates. [`raw_span`]
-/// answers within `degree ..= count − 1`, so the window is in range.
-fn raw_de_boor(
-    knots: &[f64],
-    degree: usize,
-    coeffs: &[Interval],
-    at: Param,
-    t: Interval,
-) -> Interval {
-    let span = raw_span(knots, degree, coeffs.len(), at);
+/// [`de_boor_on`] in the span that `at` locates, which is in
+/// `degree ..= count − 1` ([`LooseKnots::span_of`]), so the window is
+/// in range.
+fn raw_de_boor(knots: &LooseKnots, coeffs: &[Interval], at: Param, t: Interval) -> Interval {
+    let coeffs = loose_line(knots, coeffs);
+    let (span, degree) = (knots.span_of(at), knots.degree());
     let first = span - degree;
-    de_boor_on(knots, degree, first, &coeffs[first..=span], t)
+    de_boor_on(knots.knots(), degree, first, &coeffs[first..=span], t)
 }
 
 /// Hull of a [`Loose::Raw`] spline over `range`: the local control
 /// blocks of every touched span (the same convexity fact
 /// [`range_hull`] uses), over a line built as [`raw_eval`]'s is.
-fn raw_range_hull(
-    knots: &[f64],
-    degree: usize,
-    coeffs: &[Interval],
-    range: ParamRange,
-) -> Interval {
+fn raw_range_hull(knots: &LooseKnots, coeffs: &[Interval], range: ParamRange) -> Interval {
+    let coeffs = loose_line(knots, coeffs);
     let (start, end) = range.ends();
-    let (s0, s1) = (
-        raw_span(knots, degree, coeffs.len(), start),
-        raw_span(knots, degree, coeffs.len(), end),
-    );
+    let degree = knots.degree();
     let mut acc = Interval::refused();
     let mut seeded = false;
-    for span in s0..=s1 {
-        // `raw_span` answers within `degree ..= count − 1`.
+    for span in knots.span_of(start)..=knots.span_of(end) {
         for c in &coeffs[span - degree..=span] {
             acc = if seeded { Interval::hull(acc, *c) } else { *c };
             seeded = true;
@@ -1807,11 +1756,13 @@ fn raw_range_hull(
     acc
 }
 
-/// Derivative coefficients on a raw knot slice. `degree ≥ 1` and the
+/// Derivative coefficients on loose knots. `degree ≥ 1` and the
 /// line holds the direction's `knots.len() − degree − 1 ≥ 2`
 /// coefficients, by the construction of [`Loose::Raw`] and [`Level::Loose`],
 /// so every index below is in range.
-fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[Interval]) -> Vec<Interval> {
+fn raw_deriv(loose: &LooseKnots, coeffs: &[Interval]) -> Vec<Interval> {
+    let coeffs = loose_line(loose, coeffs);
+    let (knots, degree) = (loose.knots(), loose.degree());
     #[allow(clippy::cast_precision_loss)]
     let p = pt(degree as f64);
     (0..coeffs.len() - 1)
@@ -1819,8 +1770,8 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[Interval]) -> Vec<Interval>
             let (a, b) = (knots[i + degree + 1], knots[i + 1]);
             // `knots[i+1] == knots[i+degree+1]` marks a DEGENERATE
             // (empty) span — the derivative has no coefficient there
-            // because the function has no value there. `raw_span`
-            // never selects an empty span, so this slot is only ever
+            // because the function has no value there.
+            // `LooseKnots::span_of` never selects an empty span, so this slot is only ever
             // hulled; zero is the safe filler (enlarging a hull can
             // never make a containment claim false).
             if a == b {
@@ -1842,20 +1793,8 @@ impl Dir {
     fn count(&self) -> usize {
         match self {
             Self::Kv(kv) => kv.control_count(),
-            Self::Loose(Loose::Raw { knots, degree }) => knots.len() - degree - 1,
-            Self::Loose(Loose::Const { knots }) => knots.len() - 1,
+            Self::Loose(Loose::Raw(knots) | Loose::Const(knots)) => knots.control_count(),
         }
-    }
-
-    /// The per-span-constant coefficient index for `t`: how many span
-    /// ends at or below it the coefficients reach ([`last_at_or_below`]
-    /// over `knots[1..m]`), so `0` below the first end.
-    fn const_index(knots: &[f64], t: Param, count: usize) -> usize {
-        let m = count.min(knots.len());
-        if m <= 1 {
-            return 0;
-        }
-        last_at_or_below(&knots[1..m], t).map_or(0, |j| j + 1)
     }
 }
 
@@ -1976,27 +1915,28 @@ impl PatchGrid {
                     Collapse::Over(range) => range_hull(pair, range),
                 }
             }
-            Dir::Loose(Loose::Raw { knots, degree }) => match op {
-                Collapse::At(t) => raw_eval(knots, *degree, line, t),
-                Collapse::AtSpan { mid, t } => raw_eval_in_span(knots, *degree, line, mid, t),
-                Collapse::Over(range) => raw_range_hull(knots, *degree, line, range),
+            Dir::Loose(Loose::Raw(knots)) => match op {
+                Collapse::At(t) => raw_eval(knots, line, t),
+                Collapse::AtSpan { mid, t } => raw_eval_in_span(knots, line, mid, t),
+                Collapse::Over(range) => raw_range_hull(knots, line, range),
             },
-            Dir::Loose(Loose::Const { knots }) => {
+            // Degree 0: the span index is the coefficient index.
+            Dir::Loose(Loose::Const(knots)) => {
+                let line = loose_line(knots, line);
                 match op {
                     // A non-finite point refuses, as the `Kv` and `Raw`
                     // point arms beside it do.
                     Collapse::At(t) => match finite_param(t) {
-                        Some(t) => line[Dir::const_index(knots, t, line.len())],
+                        Some(t) => line[knots.span_of(t)],
                         None => Interval::refused(),
                     },
                     Collapse::AtSpan { mid, .. } => match Param::new(mid) {
-                        Some(mid) => line[Dir::const_index(knots, mid, line.len())],
+                        Some(mid) => line[knots.span_of(mid)],
                         None => Interval::refused(),
                     },
                     Collapse::Over(range) => {
                         let (start, end) = range.ends();
-                        let a = Dir::const_index(knots, start, line.len());
-                        let b = Dir::const_index(knots, end, line.len());
+                        let (a, b) = (knots.span_of(start), knots.span_of(end));
                         let mut acc = line[a];
                         for c in &line[a..=b.max(a)] {
                             acc = Interval::hull(acc, *c);
@@ -3205,11 +3145,8 @@ fn quotient_second(
 /// underneath; what differs is the range and the mandatory set each
 /// hands it.
 ///
-/// `knots` is the raw slice the caller cuts on. A caller cutting on a
-/// derivative's knots takes the once-differenced slice from
-/// [`geom_core::spline::KnotVector::derivative_knot_slice`] or its
-/// raw-slice twin [`geom_core::spline::derivative_knot_slice`], the one
-/// spelling every site in `geom-brep` and `mesh` uses.
+/// `knots` is the raw slice the caller cuts on. A derivative's interior
+/// knots are its parent's, so every caller cuts on the carrier's own.
 fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64> {
     // MANDATORY cuts: the rectangle's own ends and every interior
     // knot. These carry the whole smoothness invariant — a knot that
@@ -4561,7 +4498,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefus
     breaks.dedup();
     let mut add: Vec<f64> = Vec::new();
     for b in &breaks {
-        let mult = kv.knots().iter().filter(|k| *k == b).count();
+        let mult = kv.multiplicity_of(*b).map_or(0, |(m, _)| m);
         for _ in mult..p {
             add.push(*b);
         }
@@ -8936,17 +8873,12 @@ mod tests {
     fn a_nan_point_collapses_to_a_refusal_on_every_dir() {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
         let coeffs: Vec<Interval> = (0..5).map(|i| pt(f64::from(i))).collect();
-        let knots = kv.knots().to_vec();
+        let raw = LooseKnots::new(kv.knots().to_vec(), 2).unwrap();
+        let constant = LooseKnots::new(vec![0.0, 1.0, 2.0, 3.0], 0).unwrap();
         let dirs = [
             ("Kv", Dir::Kv(kv)),
-            (
-                "Raw",
-                Dir::Loose(Loose::Raw {
-                    knots: knots.clone(),
-                    degree: 2,
-                }),
-            ),
-            ("Const", Dir::Loose(Loose::Const { knots })),
+            ("Raw", Dir::Loose(Loose::Raw(raw))),
+            ("Const", Dir::Loose(Loose::Const(constant))),
         ];
         let t = pt(0.5);
         for (name, dir) in &dirs {

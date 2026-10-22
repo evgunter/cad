@@ -132,25 +132,6 @@ fn retired_linear_span(knots: &[f64], u: f64) -> usize {
     k
 }
 
-/// `geom-brep/src/props/quad.rs`'s `raw_span`, reproduced: the other
-/// raw-slice span search live in the tree. Evidence for a census note,
-/// not a gate.
-fn quad_raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> Option<usize> {
-    if t.is_nan() {
-        return None;
-    }
-    let last = count.saturating_sub(1).max(degree);
-    let mut span = degree;
-    let mut i = degree;
-    while i <= last && i + 1 < knots.len() {
-        if knots[i] <= t && knots[i] < knots[i + 1] {
-            span = i;
-        }
-        i += 1;
-    }
-    Some(span.min(last))
-}
-
 // ---------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------
@@ -561,11 +542,6 @@ fn check_span(name: &str, kv: &KnotVector) {
 
     for t in probes(kv) {
         let located = kv.span_at(t).map(|s| s.index());
-        assert_eq!(
-            quad_raw_span(knots, kv.degree(), kv.control_count(), t).is_none(),
-            t.is_nan(),
-            "{name}: quad.rs's raw_span copy refuses at {t} where span_at does not, or the reverse"
-        );
         let Some(got) = located else {
             assert!(t.is_nan(), "{name}: span_at({t}) refused a number");
             continue;
@@ -612,15 +588,6 @@ fn check_span(name: &str, kv: &KnotVector) {
                 "{name}: below the domain the retired scan returns its initialiser"
             );
         }
-        // Evidence, not a gate: `quad.rs`'s raw-slice span
-        // search is the same function as `span_at` on a valid clamped
-        // vector, at every probe including the clamping exits.
-        assert_eq!(
-            quad_raw_span(knots, kv.degree(), kv.control_count(), t),
-            Some(got),
-            "{name}: quad.rs's raw_span disagrees with span_at at {t} — if this ever \
-             fires the census note about it is wrong"
-        );
         // `span_at` must never land on an empty span; its tie-break is
         // the whole reason the raw insertion path can index `knots[k+1]`.
         assert!(
