@@ -25,7 +25,7 @@ use std::f64::consts::{FRAC_PI_2, PI};
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use topo::splitting::{SplitPart, SplitPlane, split};
-use topo::{AtRestBody, Body, ContactRecords, mass_properties};
+use topo::{AtRestBody, ContactRecords, mass_properties};
 
 /// Tilts off tangency, both senses and both sides of the axis.
 const TILTS: [f64; 8] = [0.05, 0.4, 1.0, FRAC_PI_2, 2.0, 3.0, -0.4, -1.2];

@@ -440,11 +440,8 @@ fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
         "check 7's subject is the solid: the minted one encloses negative volume, \
          and the hollow box beside it is not implicated"
     );
-    let roles = topo::classify_shells(
-        &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
-        tol,
-    )
-    .expect("classifies");
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let roles = topo::test_support::classify_unvalidated(&body, tol).expect("classifies");
     let minted_roles: Vec<ShellRole> = roles
         .iter()
         .filter(|c| c.solid == minted)

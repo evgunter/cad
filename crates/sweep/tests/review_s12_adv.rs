@@ -35,12 +35,10 @@ use topo::boolean::{BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap()
-    .volume
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    topo::test_support::measure_unvalidated(body, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 /// 2-arc disc radius `r` centred at origin with seam vertices at

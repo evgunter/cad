@@ -450,12 +450,10 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
             image,
             "repair = {repair}, order = {order}: the survivor wraps"
         );
-        let volume = topo::mass_properties(
-            &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
-            tol(),
-        )
-        .unwrap()
-        .volume;
+        // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+        let volume = topo::test_support::measure_unvalidated(&body, tol())
+            .unwrap()
+            .volume;
         assert!(
             (volume - core::f64::consts::PI).abs() < 1e-9,
             "repair = {repair}, order = {order}: the wall meters π, got {volume}"

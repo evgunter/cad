@@ -479,13 +479,11 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
         ("fine then exhausting", grafted(&[fine(), exhausting()])),
     ] {
         assert_eq!(body.solids().count(), 2, "ROUND SPLIT {label}: two solids");
+        // Finished outside the count: the count is the one measurement's.
+        let finished =
+            topo::test_support::finished("the measured body", topo::Body::clone(&body), tol);
         let mut measured = None;
-        let one = quad_verdicts(|| {
-            measured = Some(topo::mass_properties(
-                &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
-                tol,
-            ))
-        });
+        let one = quad_verdicts(|| measured = Some(topo::mass_properties(&finished, tol)));
         let measured = measured.expect("the closure ran");
 
         let mut gated = None;

@@ -40,10 +40,8 @@ fn an_exterior_meridian_covers_the_sphere_twice_and_is_refused() {
         ),
         "the doubled ball is refused as covered twice: {errs:?}"
     );
-    let door = topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
-        tol,
-    );
+    // Raw door: the measured body is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
+    let door = topo::test_support::measure_unvalidated(&body, tol);
     assert!(
         matches!(
             door,
@@ -101,10 +99,8 @@ fn a_double_cover_whose_faces_each_read_their_own_side_is_refused() {
         ),
         "the split double cover is refused as covered twice: {errs:?}"
     );
-    let door = topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
-        tol,
-    );
+    // Raw door: the measured body is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
+    let door = topo::test_support::measure_unvalidated(&body, tol);
     assert!(
         matches!(
             door,

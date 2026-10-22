@@ -147,15 +147,8 @@ fn a_hairline_revolve_of_a_dimpled_ring_refuses_typed_at_the_props_door() {
         "the full tier-3 walk refuses the hairline body"
     );
     println!("[bool5r2] tier 3 on the hairline ring: {tier3:?}");
-    let got = topo::mass_properties(
-        &topo::test_support::finished(
-            "the measured body",
-            topo::Body::clone(&t.body),
-            Tol::witness(),
-        ),
-        Tol::witness(),
-    )
-    .map(|m| m.volume);
+    // Raw door: the measured body is a body tier 3 cannot measure (VolumeUncomputable), whose typed refusal is the subject.
+    let got = topo::test_support::measure_unvalidated(&t.body, Tol::witness()).map(|m| m.volume);
     assert!(
         matches!(
             &got,

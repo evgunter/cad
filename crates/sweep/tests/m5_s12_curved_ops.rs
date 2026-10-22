@@ -64,12 +64,10 @@ fn slack() -> f64 {
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap()
-    .volume
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    topo::test_support::measure_unvalidated(body, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 fn rect(w: f64, h: f64) -> ProfileLoop<f64> {

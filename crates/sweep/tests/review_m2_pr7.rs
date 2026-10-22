@@ -348,14 +348,8 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
             Tol::witness(),
         )
         .expect("diagonal chord split through the public operator");
-    match topo::mass_properties(
-        &topo::test_support::finished(
-            "the measured body",
-            topo::Body::clone(&body),
-            Tol::witness(),
-        ),
-        Tol::witness(),
-    ) {
+    // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+    match topo::test_support::measure_unvalidated(&body, Tol::witness()) {
         Err(MassPropsError::Face { source, .. }) => {
             // A diagonal chord across the wall sags inside the
             // cylinder between its ends: an incidence premise, and so

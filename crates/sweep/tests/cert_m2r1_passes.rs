@@ -164,11 +164,9 @@ fn m2r1_structural_at_dual64_is_the_f64_closed_form_and_refuses_where_the_lane_w
     let mut refused = Vec::new();
     for ((name, b), (dname, d)) in base.iter().zip(&dual) {
         assert_eq!(name, dname);
-        let certified = topo::mass_properties(
-            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
-            tol,
-        )
-        .unwrap_or_else(|e| panic!("{name}: the certified door refused a corpus body: {e:?}"));
+        // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+        let certified = topo::test_support::measure_unvalidated(b, tol)
+            .unwrap_or_else(|e| panic!("{name}: the certified door refused a corpus body: {e:?}"));
         match topo::mass_properties_structural(d, tol) {
             Ok(s) => {
                 assert_eq!(

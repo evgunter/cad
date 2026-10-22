@@ -76,14 +76,8 @@ fn symmetric_double_rim_split_volume_at_base() {
             .expect("rim split at rest");
     }
     let tier3 = topo::validate_geometric(&body, Tol::witness());
-    match topo::mass_properties(
-        &topo::test_support::finished(
-            "the measured body",
-            topo::Body::clone(&body),
-            Tol::witness(),
-        ),
-        Tol::witness(),
-    ) {
+    // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+    match topo::test_support::measure_unvalidated(&body, Tol::witness()) {
         Err(e) => eprintln!("BASE: props refused typed ({e:?}) — main honest"),
         Ok(p) => {
             eprintln!(

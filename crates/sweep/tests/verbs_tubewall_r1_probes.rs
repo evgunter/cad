@@ -426,15 +426,9 @@ mod certified {
                 }
                 Err(e) => panic!("unexpected refusal at Interval for R={major}: {e}"),
             };
-            let m = topo::mass_properties(
-                &topo::test_support::finished(
-                    "the measured body",
-                    topo::Body::clone(&t.body),
-                    Tol::witness(),
-                ),
-                Tol::witness(),
-            )
-            .expect("props");
+            // Raw door: the measured body is a body tier 3 refuses (OrientationUndecided).
+            let m =
+                topo::test_support::measure_unvalidated(&t.body, Tol::witness()).expect("props");
             let inner = outer - wall;
             let ring = outer * outer - inner * inner;
             let v = match window {

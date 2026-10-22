@@ -42,10 +42,8 @@ fn overcovered(label: &str, body: &Body<f64>, tol: Tol) {
         ),
         "{label}: refused as covered twice: {errs:?}"
     );
-    let door = topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
-        tol,
-    );
+    // Raw door: the measured body is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
+    let door = topo::test_support::measure_unvalidated(body, tol);
     assert!(
         matches!(
             door,

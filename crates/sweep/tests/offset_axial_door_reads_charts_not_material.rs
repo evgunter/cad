@@ -39,12 +39,10 @@ fn drum(ccw: bool) -> Body<f64> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap()
-    .volume
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    topo::test_support::measure_unvalidated(body, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 /// `body` finishes when `right_way`, and refuses on check 7 alone when

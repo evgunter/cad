@@ -102,10 +102,8 @@ fn per_face(body: &topo::Body<f64>) -> (f64, f64) {
 /// The door refuses a ball with one band flipped: the two bands' seam
 /// region's bits disagree, a lamina tier 3 names at check 4.
 fn refused_at_the_door(body: &topo::Body<f64>) {
-    let door = topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
-        Tol::witness(),
-    );
+    // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+    let door = topo::test_support::measure_unvalidated(body, Tol::witness());
     assert!(
         matches!(
             door,

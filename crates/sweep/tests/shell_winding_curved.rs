@@ -38,9 +38,11 @@ fn merged(body: &Body<f64>, other: &Body<f64>) -> Body<f64> {
 fn a_ball_inside_a_ball_of_its_own_solid_refuses() {
     let big = ball_poled_z(2.0, Vec3::new(0.0, 0.0, 0.0), tol());
     let small = ball_poled_z(0.5, Vec3::new(0.25, -0.125, 0.375), tol());
-    let body = topo::test_support::finished("body", merged(&big, &small), tol());
+    // Raw door: `body` is a solid filed with two outer shells, which tier 3 refuses (SolidOuterShells).
+    let body = merged(&big, &small);
     let solid = only_solid(&body);
-    let classes = topo::classify_shells(&body, tol()).expect("both balls classify");
+    let classes =
+        topo::test_support::classify_unvalidated(&body, tol()).expect("both balls classify");
     assert!(
         classes.iter().all(|c| c.role == ShellRole::Outer),
         "two Outer shells, no Void: {classes:?}"
@@ -60,9 +62,11 @@ fn a_ball_cavity_outside_its_solids_ball_refuses() {
     let cavity = ball_poled_z(0.5, Vec3::new(5.0, -0.125, 0.375), tol())
         .revert()
         .unwrap();
-    let body = topo::test_support::finished("body", merged(&big, &cavity), tol());
+    // Raw door: `body` is a shell wound against its role, which tier 3 refuses (ShellWinding).
+    let body = merged(&big, &cavity);
     let solid = only_solid(&body);
-    let classes = topo::classify_shells(&body, tol()).expect("both balls classify");
+    let classes =
+        topo::test_support::classify_unvalidated(&body, tol()).expect("both balls classify");
     let void: ShellKey = classes
         .iter()
         .find(|c| c.role == ShellRole::Void)

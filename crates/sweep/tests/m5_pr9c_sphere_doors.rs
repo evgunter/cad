@@ -217,7 +217,8 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
     let before: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
     let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
 
-    let rev = topo::test_support::finished("rev", body.revert().unwrap(), Tol::witness());
+    // Raw door: `rev` is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let rev = body.revert().unwrap();
     let after: Vec<bool> = rev.faces().map(|(_, f)| f.sense).collect();
     assert_eq!(after, before.iter().map(|s| !s).collect::<Vec<_>>());
     // The sphere CHART is untouched — no negative radius anywhere near
@@ -243,13 +244,16 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
         }])
     );
     assert_eq!(
-        topo::mass_properties(&rev, Tol::witness())
+        topo::test_support::measure_unvalidated(&rev, Tol::witness())
             .unwrap()
             .volume
             .to_bits(),
         (-v).to_bits()
     );
-    assert_eq!(format!("{:?}", rev.revert().unwrap()), format!("{body:?}"));
+    assert_eq!(
+        format!("{:?}", rev.revert().unwrap()),
+        format!("{:?}", *body)
+    );
 }
 
 /// **PR 9c's own smoke shape** — the unit ball at the origin bitten

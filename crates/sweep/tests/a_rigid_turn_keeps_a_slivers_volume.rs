@@ -24,8 +24,8 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use test_utils::vacuity::Exposure;
+use topo::AtRestBody;
 use topo::splitting::split;
-use topo::{AtRestBody, Body};
 
 use crate::common::oracles::volume_slack;
 

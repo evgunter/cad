@@ -970,11 +970,8 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
 
 /// `body`'s volume is `want` to the exact-volume pad.
 fn assert_volume(body: &Body<f64>, want: f64, what: &str) {
-    let props = topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
-        tol(),
-    )
-    .unwrap();
+    // Raw door: the measured body is a solid filed with two outer shells, which tier 3 refuses (SolidOuterShells).
+    let props = topo::test_support::measure_unvalidated(body, tol()).unwrap();
     assert!(
         (props.volume - want).abs() <= 1e-9 + props.volume_pad,
         "{what}: volume {} want {want}",

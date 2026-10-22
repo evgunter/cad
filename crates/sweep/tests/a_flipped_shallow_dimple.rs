@@ -74,13 +74,10 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(dimple.len(), 2, "the dimple is two half-faces on one seam");
-    let flipped = topo::test_support::finished(
-        "flipped",
-        dimple.iter().fold(topo::Body::clone(&body), |b, &k| {
-            b.flipped_face_sense_for_tests(k).expect("the face")
-        }),
-        tol,
-    );
+    // Raw door: `flipped` is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
+    let flipped = dimple.iter().fold(topo::Body::clone(&body), |b, &k| {
+        b.flipped_face_sense_for_tests(k).expect("the face")
+    });
     // Each flipped half claims its complement, which holds the other, so
     // the cover census refuses their region as claimed twice, named by
     // its first member, before the face reads name each flipped half.
@@ -102,7 +99,7 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
     );
     assert!(
         matches!(
-            topo::mass_properties(&flipped, tol),
+            topo::test_support::measure_unvalidated(&flipped, tol),
             Err(topo::MassPropsError::Face {
                 face,
                 source: geom_brep::props::PropsError::SenseContradicted,
