@@ -861,15 +861,6 @@ impl MintRefusal {
 pub enum AssemblyError {
     /// The gather itself refused.
     Product(Box<ProductError>),
-    /// **A loose copy's space did not gather** (D10, Spaces): the copies
-    /// pinned to it check inside its space, and the gather of that space
-    /// refused, so it is not at rest there.
-    Space {
-        /// The loose copy, by its placement.
-        root: RecipeNodeId,
-        /// The space's gather refusal.
-        refusal: Box<ProductError>,
-    },
     /// Mates of THIS document whose declarations were not minted:
     /// ONE ROW PER MATE, saying why that mate did not mint — its
     /// reference named no product face, or its class mints no record
@@ -1024,12 +1015,6 @@ impl crate::spoken::Say for AssemblyError {
     ) -> core::fmt::Result {
         match self {
             Self::Product(e) => write!(f, "{}", crate::spoken::Said(&**e, by)),
-            Self::Space { root, refusal } => write!(
-                f,
-                "the space of the loose copy {} does not gather: {}",
-                by.node(*root),
-                crate::spoken::Said(&**refusal, by)
-            ),
             Self::Mint { refusals } => {
                 write!(
                     f,
@@ -1176,24 +1161,7 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
 ) -> Result<Assembly<T>, AssemblyError> {
     match product_recorded(doc, evaluation, tol) {
         Ok(product) => assemble_gathered(product, tol),
-        // A world with no body is no verdict on the spaces beside it: a
-        // document whose copies are all loose still checks each one
-        // inside its own space before the gather's refusal is
-        // raised. A world that refused for a fault of its own is
-        // answered first, as its verdict is when it gathers.
-        Err(refusal) => {
-            if refusal.kind() == crate::ProductErrorKind::EmptyProduct {
-                gate_spaces(
-                    crate::product::loose_spaces(doc, evaluation, tol),
-                    tol,
-                    &mut Reported {
-                        interference: &mut Vec::new(),
-                        carried: Vec::new(),
-                    },
-                )?;
-            }
-            Err(AssemblyError::Product(Box::new(refusal)))
-        }
+        Err(refusal) => Err(AssemblyError::Product(Box::new(refusal))),
     }
 }
 
@@ -1255,49 +1223,9 @@ impl<F: crate::spoken::Say> crate::spoken::Say for Pinned<F> {
     }
 }
 
-/// What the gate reports over the spaces it checks, never refused: this
-/// document's own interference findings, and those its parts carried up
-/// ([`Assembly::carried_interference`]).
-struct Reported<'a> {
-    interference: &'a mut Vec<crate::checks::at_rest::InterferenceFinding>,
-    carried: Vec<CarriedInterference>,
-}
-
-/// **Each loose copy's space checks as usual inside itself**, and
-/// against nothing outside it (D10, Spaces): the gate over each
-/// [`crate::LooseSpace`] in turn, a space whose copies denote no body
-/// holding nothing to check.
-fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
-    spaces: Vec<crate::LooseSpace<T>>,
-    tol: Tol,
-    reported: &mut Reported<'_>,
-) -> Result<(), AssemblyError> {
-    for space in spaces {
-        match space.gather {
-            Ok(product) => {
-                reported.interference.extend(verdict(&product, tol)?);
-                once_per_part_row(
-                    &mut reported.carried,
-                    product.carried_interference.iter().cloned(),
-                );
-            }
-            Err(refusal) if refusal.kind().means_no_body() => {}
-            Err(refusal) => {
-                return Err(AssemblyError::Space {
-                    root: space.root,
-                    refusal: Box::new(refusal),
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
 /// **The A5 gate over a product the caller already gathered** — the
 /// canonical door, and everything [`assemble`] is once its gather is
-/// done. It gates the world, then every loose copy's own space the
-/// product carries ([`crate::Product::spaces`]), so a caller holding a
-/// product cannot check one space and skip the others.
+/// done.
 ///
 /// [`assemble`] is the wrapper for a caller with no product in hand;
 /// this is the one for a caller that has one, so a document is gathered
@@ -1324,23 +1252,16 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
     product: Product<T>,
     tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
-    let mut interference = verdict(&product, tol)?;
+    let interference = verdict(&product, tol)?;
     let Product {
         body,
         names,
         contacts,
         minted,
         carried,
-        spaces,
         carried_interference,
         ..
     } = product;
-    let mut reported = Reported {
-        interference: &mut interference,
-        carried: carried_interference,
-    };
-    gate_spaces(spaces, tol, &mut reported)?;
-    let carried_interference = reported.carried;
     Ok(Assembly {
         body: body.into_body(),
         names,
@@ -1429,9 +1350,8 @@ fn at_rest_stage<T: crate::checks::at_rest::LocalizeLane>(
     (interference, findings)
 }
 
-/// **The gate's verdict over one gathered space** — the world, or one
-/// loose copy's own ([`gate_spaces`]): the one copy of the gate's
-/// checks, their attributions and their refusal order.
+/// **The gate's verdict over the gathered world**: the one copy of the
+/// gate's checks, their attributions and their refusal order.
 fn verdict<T: crate::checks::at_rest::LocalizeLane>(
     product: &Product<T>,
     tol: Tol,
@@ -1586,7 +1506,7 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
         &dyn Fn(FaceKey) -> crate::coincide::NamedCell,
     ),
     at_rest: &mut AtRestRows,
-    space: crate::mate::Space,
+    space: crate::VarId,
     band: Result<geom_core::Band, geom_core::BandError>,
 ) -> (Vec<MintedDeclaration>, Vec<MintRefusal>) {
     let mut minted = Vec::new();
@@ -1594,7 +1514,7 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
     // The space a member lives in: its instance's.
     let space_of = |head: &Option<SitedFace>| {
         let member = crate::mate::member_of(doc, head.as_ref()?)?;
-        Some(evaluation.space(member.instance))
+        doc.node_space(member.instance)
     };
     let bundles = doc.placements().into_iter().filter_map(|placement| {
         let bundle = doc
@@ -1628,7 +1548,7 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
         // asked, so its refusal is raised once, in the world.
         let in_space = match (space_of(&head_a), space_of(&head_b)) {
             (Some(sa), Some(sb)) => sa == space && sb == space,
-            _ => space == crate::mate::Space::World,
+            _ => space == crate::VarId::WORLD,
         };
         if !in_space {
             continue;

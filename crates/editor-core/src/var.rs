@@ -26,6 +26,12 @@ use crate::expr::{Dimension, Expr};
 pub struct VarId(pub crate::MintId);
 
 impl VarId {
+    /// **The world's space** (D10 `[placement.world]`): the one output
+    /// of [`crate::Node::World`], which every document holds from its
+    /// creation. Ordinal zero, which the mint never draws, so no minted
+    /// variable can carry it.
+    pub const WORLD: Self = Self::new(0, 0);
+
     /// The variable id with mint ordinal `ordinal` and digest head
     /// `digest` ([`crate::MintId::new`]).
     #[must_use]
@@ -82,6 +88,12 @@ pub enum VarKind {
     Faces,
     /// A set of edges of one body ([`VarDef::Select`]).
     Edges,
+    /// **A space** (D10 `[variables.kinds]`, `[placement.spaces]`): a
+    /// coordinate system, holding nothing. Only minted, as an output:
+    /// the world's ([`crate::Node::World`]), a `new_space()`'s
+    /// ([`crate::Node::Space`]) or a construction's own. A placement's
+    /// target is the one slot that reads one.
+    Space,
 }
 
 impl VarKind {
@@ -106,7 +118,8 @@ impl VarKind {
             | Self::Edge
             | Self::Vertex
             | Self::Faces
-            | Self::Edges => return None,
+            | Self::Edges
+            | Self::Space => return None,
         })
     }
 
@@ -134,7 +147,8 @@ impl VarKind {
             | Self::Frame
             | Self::Body
             | Self::Bodies
-            | Self::Profile => None,
+            | Self::Profile
+            | Self::Space => None,
         }
     }
 
@@ -164,7 +178,8 @@ impl VarKind {
             | Self::Edge
             | Self::Vertex
             | Self::Faces
-            | Self::Edges => None,
+            | Self::Edges
+            | Self::Space => None,
         }
     }
 }
@@ -200,6 +215,7 @@ impl core::fmt::Display for VarKind {
                 Self::Vertex => "vertex",
                 Self::Faces => "set of faces",
                 Self::Edges => "set of edges",
+                Self::Space => "space",
                 Self::Length | Self::Angle | Self::Scalar | Self::Count => {
                     unreachable!("a scalar kind reads at a dimension")
                 }
@@ -727,6 +743,13 @@ impl Var {
             kind: def.kind(),
             def: def.into(),
         }
+    }
+
+    /// **The world's space** ([`VarId::WORLD`]): the one output of the
+    /// world, which every document holds from its creation.
+    #[must_use]
+    pub fn world() -> Self {
+        Self::output(VarKind::Space, crate::RecipeNodeId::WORLD, 0)
     }
 
     /// **Port `port` of `node`**, of the port's kind `kind`.

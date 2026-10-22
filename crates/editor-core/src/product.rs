@@ -1,7 +1,7 @@
 //! **The whole-document product** (ASSEMBLY-DESIGN A10): the
 //! deterministic gather, in the document order of the placements,
 //! of every copy a placement ([`crate::Node::Place`], or an instance)
-//! defines whose space reaches the world, into ONE aggregate [`Body`].
+//! places into the world, into ONE aggregate [`Body`].
 //!
 //! This is what A2's "an assembly's evaluation is a body" means for a
 //! part document. The product is the world: a body appears only if a
@@ -132,9 +132,6 @@ pub enum ProductError {
         /// Every live body no placement reads, in document order
         /// ([`Doc::unplaced`]): what placing would put in the world.
         unplaced: Vec<crate::VarId>,
-        /// Every loose copy, by its placement, in document order: copies
-        /// no placement relates to the world (D10, Spaces).
-        loose: Vec<RecipeNodeId>,
     },
     /// **A placement whose body is gone** (D10, A10): its read is
     /// unresolved, and the copy it defined is absent, which the gather
@@ -338,15 +335,11 @@ impl ProductError {
                  document {expected}",
             ),
             Self::Root(standing) => write!(f, "{}", Said(&standing.of_placement(), by)),
-            Self::EmptyProduct { unplaced, loose } => {
+            Self::EmptyProduct { unplaced } => {
                 f.write_str("nothing is placed in the world, so the document has no product")?;
                 if !unplaced.is_empty() {
                     let said: Vec<String> = unplaced.iter().map(|&v| by.output(v)).collect();
                     write!(f, " — unplaced: {}", said.join(", "))?;
-                }
-                if !loose.is_empty() {
-                    let said: Vec<String> = loose.iter().map(|&n| by.node(n).to_string()).collect();
-                    write!(f, " — loose, related to no world: {}", said.join(", "))?;
                 }
                 write!(
                     f,
@@ -708,11 +701,8 @@ pub fn gathers_on_this_thread() -> u64 {
 /// The document's product: every world placement's copy gathered, in
 /// the placements' document order, into one [`Body`] (module docs).
 ///
-/// A loose copy (A11 (2)) is in its own space, not the world's, so it
-/// is not part of the product, and the gather stands without it rather
-/// than refusing. Export refuses such a copy (`pncad::export`'s
-/// `ExportError::Loose`), and [`Product::spaces`] carries it to the
-/// at-rest gate, so leaving it out is never silent.
+/// A copy placed into another space is not part of the product: only
+/// a placement relates two spaces (D10 `[placement.spaces]`).
 ///
 /// The result is a pure function of (`doc.placements()`, `evaluation`)
 /// — no ambient state, so two evaluations of an edit that moves no
@@ -856,13 +846,6 @@ pub struct Product<T: Decide> {
     /// from a finding of this document's
     /// ([`crate::checks::at_rest`]'s `less_carried`).
     pub census_pairs: Vec<(topo::SolidKey, topo::SolidKey)>,
-    /// **Each loose copy's space, gathered by itself** (D10, Spaces,
-    /// A11 (2)), in document order: what the world leaves out, kept beside
-    /// it so the at-rest gate checks every space of the document from
-    /// the one product it is handed ([`crate::assemble_gathered`]).
-    /// Empty on a space's own gather, and on a document with no loose
-    /// copy.
-    pub spaces: Vec<LooseSpace<T>>,
 }
 
 /// **One copy as the gather grafted it** ([`Product::copies`]).
@@ -880,37 +863,6 @@ pub struct GatheredCopy<T: Decide> {
     pub body: Arc<Body<T>>,
     /// The bridge from `body`'s arena to the aggregate's.
     pub keys: Arc<topo::GraftKeys>,
-}
-
-/// **One loose copy's space, gathered by itself** (D10, Spaces): the
-/// copies that live in it, gathered and minted with nothing outside it.
-#[derive(Debug)]
-pub struct LooseSpace<T: Decide> {
-    /// The loose copy, by its placement.
-    pub root: RecipeNodeId,
-    /// The space's gather, kept rather than raised: a space whose
-    /// copies denote no body holds nothing to check, and any other
-    /// refusal is the gate's to raise ([`crate::AssemblyError::Space`]).
-    pub gather: Result<Box<Product<T>>, ProductError>,
-}
-
-/// **Every loose copy's space** in `evaluation`, each gathered by
-/// itself ([`LooseSpace`]), in document order: what
-/// [`product_recorded`] carries beside the world ([`Product::spaces`]).
-pub fn loose_spaces<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
-    doc: &Doc<P>,
-    evaluation: &Evaluation<T>,
-    tol: Tol,
-) -> Vec<LooseSpace<T>> {
-    evaluation
-        .loose_roots()
-        .into_iter()
-        .map(|root| LooseSpace {
-            root,
-            gather: product_in(doc, evaluation, tol, crate::mate::Space::Loose { root })
-                .map(Box::new),
-        })
-        .collect()
 }
 
 /// One gathered solid's origin: the root that contributed it, that
@@ -983,25 +935,9 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
-    product_in(doc, evaluation, tol, crate::mate::Space::World)
-}
-
-/// **The gather of one space** (A9, A11 (2)): the world's — the
-/// document's product — or a loose copy's own, which the at-rest gate
-/// checks by itself ([`crate::assemble_gathered`]). A placement
-/// gathers into the space its value lives in ([`Evaluation::space`]),
-/// and only the mates whose two members both live in this space are
-/// minted: nothing outside a loose space is compared with it.
-///
-/// # Errors
-///
-/// [`product_recorded`]'s.
-pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
-    doc: &Doc<P>,
-    evaluation: &Evaluation<T>,
-    tol: Tol,
-    space: crate::mate::Space,
-) -> Result<Product<T>, ProductError> {
+    // The gather of the world (A9, A11 (2)): the placements into it,
+    // and only the mates whose two members both lie in it are minted.
+    let space = crate::VarId::WORLD;
     #[cfg(debug_assertions)]
     GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
     // The pairing door (DI3), before the first root is read: this
@@ -1032,7 +968,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     let mut sources: Vec<Source<T>> = Vec::new();
     let mut any_placed = false;
     for &node in &placements {
-        if evaluation.space(node) != space {
+        if doc.node_space(node) != Some(space) {
             continue;
         }
         any_placed = true;
@@ -1056,7 +992,6 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     if !any_placed {
         return Err(ProductError::EmptyProduct {
             unplaced: doc.unplaced(),
-            loose: evaluation.loose_roots(),
         });
     }
 
@@ -1287,10 +1222,6 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     let census = recorded.findings;
     let gap_assertions =
         crate::checks::at_rest::gap_assertions(doc, evaluation, &aggregate, &names, &copies, tol);
-    let spaces = match space {
-        crate::mate::Space::World => loose_spaces(doc, evaluation, tol),
-        crate::mate::Space::Loose { .. } => Vec::new(),
-    };
     Ok(Product {
         document: doc.id(),
         body: aggregate,
@@ -1310,7 +1241,6 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         carried_interference,
         carried_at_rest,
         census_pairs,
-        spaces,
     })
 }
 
@@ -1554,7 +1484,6 @@ mod tests {
             ProductError::Root(NodeStanding::Poisoned { node, through }),
             ProductError::EmptyProduct {
                 unplaced: vec![crate::VarId::new(0, test_utils::refusal::tagged(1))],
-                loose: Vec::new(),
             },
             ProductError::StrandedPlacement { placement: node },
             ProductError::Graft {
@@ -1676,7 +1605,6 @@ mod tests {
                 "{:?}",
                 ProductError::EmptyProduct {
                     unplaced: vec![crate::VarId::new(0, test_utils::refusal::tagged(1))],
-                    loose: Vec::new(),
                 }
             )],
             "an empty world is the only gather refusal that is an absence \

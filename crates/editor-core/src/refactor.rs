@@ -4052,6 +4052,7 @@ pub fn inline(
                 Node::Place { .. }
                     | Node::InstantiatePart { .. }
                     | Node::World
+                    | Node::Space
                     | Node::Measure { .. }
                     | Node::Assertion { .. }
             ) {

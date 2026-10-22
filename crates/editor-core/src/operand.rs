@@ -187,6 +187,8 @@ pub enum OperandSlot {
     Of,
     /// The body a world placement places.
     Body,
+    /// The space a placement places into, its target.
+    Space,
 }
 
 impl OperandSlot {
@@ -231,6 +233,7 @@ impl OperandSlot {
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
             Self::Body => "body".to_owned(),
+            Self::Space => "target space".to_owned(),
         }
     }
 
@@ -246,6 +249,7 @@ impl OperandSlot {
                 SlotKind::Is(VarKind::Body)
             }
             Self::Members | Self::Of => SlotKind::Is(VarKind::Bodies),
+            Self::Space => SlotKind::Is(VarKind::Space),
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
             Self::Face => SlotKind::Is(VarKind::Face),

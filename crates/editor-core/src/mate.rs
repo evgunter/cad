@@ -65,7 +65,7 @@ pub use pin::{
 };
 pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach};
 pub use solve::{
-    PoseRefusal, SolveScalar, SolvedPoses, Space, mate_coset, relative_freedom_components,
+    PoseRefusal, SolveScalar, SolvedPoses, mate_coset, relative_freedom_components,
     solve_document, solve_document_at,
 };
 pub use unobservable::{Unobservable, unobservable};

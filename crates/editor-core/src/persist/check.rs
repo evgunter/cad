@@ -1180,6 +1180,7 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::AddConstraint { .. }
         | DocEdit::AddValue { .. }
         | DocEdit::AddValues { .. }
+        | DocEdit::SetConstraints { .. }
         // A constraint's id is minted, not a float.
         | DocEdit::RemoveConstraint { .. }
         | DocEdit::RemoveConstraints { .. }

@@ -766,9 +766,9 @@ pub enum SelectionRefusal {
     /// nothing in one is compared with the other.
     AcrossSpaces {
         /// One selection's space.
-        a: crate::mate::Space,
+        a: crate::VarId,
         /// The other's.
-        b: crate::mate::Space,
+        b: crate::VarId,
     },
 }
 
@@ -804,22 +804,16 @@ impl crate::spoken::Say for SelectionRefusal {
                 "{} resolves, but not to a face of the selected body",
                 by.name(name)
             ),
-            Self::AcrossSpaces { a, b } => {
-                let space = |s: &crate::mate::Space| match s.loose() {
-                    None => "the world's space".to_owned(),
-                    Some(root) => format!("the space of the loose copy {}", by.node(root)),
-                };
-                write!(
-                    f,
-                    "the two selections live in different spaces, {} and {}, and nothing in \
-                     one is compared with the other. {}",
-                    space(a),
-                    space(b),
-                    crate::sentence::Recourse(
-                        "place one copy relative to the other, or measure within one space"
-                    )
+            Self::AcrossSpaces { a, b } => write!(
+                f,
+                "the two selections live in different spaces, {} and {}, and nothing in \
+                 one is compared with the other. {}",
+                by.space(*a),
+                by.space(*b),
+                crate::sentence::Recourse(
+                    "place one body into the other's space, or measure within one space"
                 )
-            }
+            ),
         }
     }
 }
@@ -856,9 +850,9 @@ impl SelectionRefusal {
             Self::Unresolved { name } => format!("unresolved {name:?}"),
             Self::NotAFace { name } => format!("not_a_face {name:?}"),
             Self::AcrossSpaces { a, b } => {
-                let space = |s: &crate::mate::Space| match s.loose() {
-                    None => "world".to_owned(),
-                    Some(root) => format!("loose={}", root.full()),
+                let space = |s: &crate::VarId| match *s {
+                    crate::VarId::WORLD => "world".to_owned(),
+                    s => format!("space={}", s.full()),
                 };
                 format!("across_spaces {} {}", space(a), space(b))
             }
@@ -1296,7 +1290,7 @@ pub fn clearance_with(
     };
     let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, query.tol);
 
-    if let Some((a, b)) = ev.across_spaces(a.at, b.at) {
+    if let Some((a, b)) = doc.across_spaces(a.at, b.at) {
         return ClearanceReport::refused(ClearanceRefusal::Selection(
             SelectionRefusal::AcrossSpaces { a, b },
         ));

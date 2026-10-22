@@ -1438,17 +1438,7 @@ fn door_rows<P, T: Decide>(
     subject: &Subject<'_, T>,
 ) -> Vec<DoorRows> {
     let at_rest: Vec<&crate::assembly::AtRestRow> = match subject {
-        Subject::Product(gathered) => gathered
-            .coincidences
-            .iter()
-            .chain(
-                gathered
-                    .spaces
-                    .iter()
-                    .filter_map(|space| space.gather.as_ref().ok())
-                    .flat_map(|space| space.coincidences.iter()),
-            )
-            .collect(),
+        Subject::Product(gathered) => gathered.coincidences.iter().collect(),
         Subject::EmptyProduct | Subject::Unavailable { .. } => Vec::new(),
     };
     // A row of two copies is proved at the first copy's placement, which

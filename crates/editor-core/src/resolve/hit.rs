@@ -142,9 +142,9 @@ pub enum HitTestError {
     /// somewhere picks each space by itself.
     AcrossSpaces {
         /// One target's space.
-        a: crate::mate::Space,
+        a: crate::VarId,
         /// Another's.
-        b: crate::mate::Space,
+        b: crate::VarId,
     },
 }
 
@@ -235,20 +235,14 @@ impl crate::spoken::Say for HitTestError {
             Self::Unnamed(unnamed) => {
                 write!(f, "hit test: {}", crate::spoken::Said(unnamed, by))
             }
-            Self::AcrossSpaces { a, b } => {
-                let space = |s: &crate::mate::Space| match s.loose() {
-                    None => "the world's space".to_owned(),
-                    Some(root) => format!("the space of the loose copy {}", by.node(root)),
-                };
-                write!(
-                    f,
-                    "hit test: the targets live in different spaces, {} and {}, and nothing in \
-                     one is ordered against the other. {}",
-                    space(a),
-                    space(b),
-                    crate::sentence::Recourse("pick each space by itself")
-                )
-            }
+            Self::AcrossSpaces { a, b } => write!(
+                f,
+                "hit test: the targets live in different spaces, {} and {}, and nothing in \
+                 one is ordered against the other. {}",
+                by.space(*a),
+                by.space(*b),
+                crate::sentence::Recourse("pick each space by itself")
+            ),
         }
     }
 }

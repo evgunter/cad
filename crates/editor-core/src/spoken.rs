@@ -1241,6 +1241,16 @@ impl<'a> Speaker<'a> {
         }
     }
 
+    /// **A space, said** (D10 `[placement.spaces]`): `the world`, or as
+    /// the output it is (`the space of Extrude e548`).
+    #[must_use]
+    pub fn space(self, var: crate::var::VarId) -> String {
+        if var == crate::var::VarId::WORLD {
+            return "the world".to_owned();
+        }
+        self.output(var)
+    }
+
     /// **A slot's variable, said as written**: what an anonymous one
     /// holds, its readers said ([`Self::formula`]); a named one by its
     /// name; `#<16 hex>` where the speaker's document does not hold it.
@@ -1399,6 +1409,7 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
         Node::World => "World",
+        Node::Space => "Space",
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Split { .. } => "Split",

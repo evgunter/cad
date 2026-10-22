@@ -986,7 +986,7 @@ impl<P> Doc<P> {
             id,
             mint: crate::Mint::empty(),
             nodes: BTreeMap::from([(RecipeNodeId::WORLD, Node::World)]),
-            vars: BTreeMap::new(),
+            vars: BTreeMap::from([(VarId::WORLD, Var::world())]),
             var_names: BTreeMap::new(),
             epsilon: tol.eps(),
             witnesses: BTreeMap::new(),
@@ -1082,6 +1082,161 @@ impl<P> Doc<P> {
             .iter()
             .filter(|(_, node)| matches!(node, Node::Place { .. } | Node::InstantiatePart { .. }))
             .map(|(&id, _)| id)
+            .collect()
+    }
+
+    /// **The space `var` is in** (D10 `[placement.spaces]`), derived
+    /// from the recipe alone: a construction's body is in its own space,
+    /// a placed copy in its placement's target, an operator's result in
+    /// its operands' space (the first operand's, where they disagree:
+    /// [`Self::space_faults`] names that), a one-input operation's in
+    /// its input's; a selection in its body's, and a pose in the space
+    /// of what it reads. `None` for a profile, a scalar, a space itself,
+    /// or a read this document does not resolve. Nothing is evaluated.
+    pub fn space_of(&self, var: VarId) -> Option<VarId> {
+        SpaceWalk::new(self).var(var)
+    }
+
+    /// **The space a read as authored is in** ([`Self::space_of`]): a
+    /// node read through its body, an output, a variable by id or by
+    /// name, or a selection's body. `None` for a read this document
+    /// does not resolve, or one in no space.
+    pub fn operand_space(&self, read: &crate::Operand) -> Option<VarId> {
+        match read {
+            crate::Operand::Node(id) => self.node_space(*id),
+            crate::Operand::Output { node, port } => self.space_of(self.output(*node, *port)?),
+            crate::Operand::Var(var) => self.space_of(*var),
+            crate::Operand::Name(name) => self.space_of(self.var_named(name.as_str())?),
+            crate::Operand::Select { body, .. } => self.operand_space(body),
+            crate::Operand::Pose(def) => def
+                .reads()
+                .into_iter()
+                .find_map(|(_, read, _, _)| self.operand_space(read)),
+        }
+    }
+
+    /// **The space `node`'s body is in** ([`Self::space_of`] of its
+    /// body), `None` for a node that builds no body.
+    pub fn node_space(&self, id: RecipeNodeId) -> Option<VarId> {
+        SpaceWalk::new(self).node(id)
+    }
+
+    /// **Every node's space** ([`Self::node_space`]), in one walk: what
+    /// an evaluation holds of the recipe's derivation.
+    pub fn spaces(&self) -> BTreeMap<RecipeNodeId, VarId> {
+        let mut walk = SpaceWalk::new(self);
+        self.nodes
+            .keys()
+            .filter_map(|&id| Some((id, walk.node(id)?)))
+            .collect()
+    }
+
+    /// **Whether two nodes' bodies are in different spaces** — the
+    /// predicate a door comparing two nodes' geometry asks, from the
+    /// recipe: `Some` naming the two spaces, `None` when both are in one
+    /// or either builds no body.
+    pub fn across_spaces(&self, a: RecipeNodeId, b: RecipeNodeId) -> Option<(VarId, VarId)> {
+        let (sa, sb) = (self.node_space(a)?, self.node_space(b)?);
+        (sa != sb).then_some((sa, sb))
+    }
+
+    /// **Every space a read reaches**, in read order, each once: a
+    /// pose read off two bodies reaches both of theirs.
+    fn spaces_reached(&self, var: VarId, out: &mut Vec<VarId>, seen: &mut BTreeSet<VarId>) {
+        if !seen.insert(var) {
+            return;
+        }
+        let Some(held) = self.vars.get(&var) else {
+            return;
+        };
+        let space = match held.def() {
+            VarDef::Pose(def) => {
+                for (_, &read, _, _) in def.reads() {
+                    self.spaces_reached(read, out, seen);
+                }
+                return;
+            }
+            _ => self.space_of(var),
+        };
+        if let Some(space) = space
+            && !out.contains(&space)
+        {
+            out.push(space);
+        }
+    }
+
+    /// **The two spaces `id`'s reads lie in, if they lie in two** (D10
+    /// `[placement.spaces]`): an operator's operands, a measure's two
+    /// sites, a placement's shapes, or any operation's reads; and a
+    /// mate's `to`, which reads the placement's target (the world, for
+    /// a world read). Decided from the recipe, nothing evaluated: the
+    /// edit door refuses a node it would write with one
+    /// ([`crate::EditError::SpaceMismatch`]), and evaluation refuses a
+    /// node a re-target or a load left with one
+    /// ([`crate::NodeErrorKind::SpaceMismatch`]).
+    pub fn space_fault(&self, id: RecipeNodeId) -> Option<(VarId, VarId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        let node = self.nodes.get(&id)?;
+        let reached = |vars: &mut dyn Iterator<Item = VarId>| {
+            let mut out = Vec::new();
+            for var in vars {
+                self.spaces_reached(var, &mut out, &mut BTreeSet::new());
+            }
+            out
+        };
+        let two = |spaces: &[VarId]| match spaces {
+            [a, b, ..] => Some((*a, *b)),
+            _ => None,
+        };
+        match node {
+            Node::Place { target, constraints, shapes } => {
+                let shapes = reached(&mut shapes.iter().map(|shape| shape.read));
+                two(&shapes).or_else(|| self.targets_fault(*target, constraints))
+            }
+            Node::InstantiatePart {
+                target,
+                constraints,
+                ..
+            } => self.targets_fault(*target, constraints),
+            _ => two(&reached(
+                &mut node.operand_rows().into_iter().map(|(_, var)| var),
+            )),
+        }
+    }
+
+    /// The first mate of `bundle` whose `to` reads outside `target`,
+    /// as the two spaces.
+    fn targets_fault(
+        &self,
+        target: VarId,
+        bundle: &[crate::mate::Constraint],
+    ) -> Option<(VarId, VarId)> {
+        bundle.iter().filter_map(crate::mate::Constraint::mate).find_map(|mate| {
+            let mut spaces = Vec::new();
+            match &mate.to {
+                crate::mate::Target::World(_) => spaces.push(VarId::WORLD),
+                crate::mate::Target::Pose(var) => {
+                    self.spaces_reached(*var, &mut spaces, &mut BTreeSet::new());
+                }
+            }
+            spaces
+                .into_iter()
+                .find(|&space| space != target)
+                .map(|space| (target, space))
+        })
+    }
+
+    /// **Every node whose reads lie in two spaces**, in id order, with
+    /// the two ([`Self::space_fault`]).
+    pub fn space_faults(&self) -> Vec<(RecipeNodeId, VarId, VarId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.ids()
+            .into_iter()
+            .filter_map(|id| self.space_fault(id).map(|(a, b)| (id, a, b)))
             .collect()
     }
 
@@ -1859,6 +2014,10 @@ impl<P> Doc<P> {
             return;
         };
         let at = match held.def() {
+            // A space holds nothing, so reading one reaches no
+            // operation: a placement depends on its target by name
+            // alone.
+            VarDef::Output { .. } if held.kind() == crate::VarKind::Space => None,
             VarDef::Output { node, port } => Some((*node, *port)),
             VarDef::Select(select) => self.defined_by(select.body),
             VarDef::Pose(def) => {
@@ -3049,4 +3208,85 @@ pub(crate) enum ReadFault {
         /// The variable's kind.
         found: crate::VarKind,
     },
+}
+
+/// **The space derivation's walk** ([`Doc::space_of`]): each node's
+/// space memoized, and each construction's own space read off one
+/// index of the `Space` outputs, so a walk over every node reads the
+/// variable table once.
+struct SpaceWalk<'d, P> {
+    doc: &'d Doc<P>,
+    own: BTreeMap<RecipeNodeId, VarId>,
+    memo: BTreeMap<RecipeNodeId, Option<VarId>>,
+}
+
+impl<'d, P> SpaceWalk<'d, P> {
+    fn new(doc: &'d Doc<P>) -> Self {
+        let own = doc
+            .vars
+            .iter()
+            .filter_map(|(&var, held)| match held.def() {
+                VarDef::Output { node, .. } if held.kind() == crate::VarKind::Space => {
+                    Some((*node, var))
+                }
+                _ => None,
+            })
+            .collect();
+        Self {
+            doc,
+            own,
+            memo: BTreeMap::new(),
+        }
+    }
+
+    fn var(&mut self, var: VarId) -> Option<VarId> {
+        let held = self.doc.vars.get(&var)?;
+        match held.def() {
+            VarDef::Output { .. } if held.kind() == crate::VarKind::Space => None,
+            VarDef::Output { node, .. } => self.node(*node),
+            VarDef::Select(select) => self.var(select.body),
+            VarDef::Pose(def) => {
+                let reads: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
+                reads.into_iter().find_map(|read| self.var(read))
+            }
+            VarDef::Free(_) | VarDef::Defined(_) => None,
+        }
+    }
+
+    fn node(&mut self, id: RecipeNodeId) -> Option<VarId> {
+        if let Some(&held) = self.memo.get(&id) {
+            return held;
+        }
+        // A read cycle, which no door admits, answers no space rather
+        // than recursing.
+        self.memo.insert(id, None);
+        let space = match self.doc.nodes.get(&id)? {
+            Node::Place { target, .. } | Node::InstantiatePart { target, .. } => Some(*target),
+            Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. } => self.own.get(&id).copied(),
+            Node::Union { members } | Node::Intersect { members } => {
+                let first = members.rows().first().map(|(_, read)| read.read);
+                first.and_then(|read| self.var(read))
+            }
+            Node::Subtract { from, .. } => self.var(from.read),
+            Node::Split { target, .. } => self.var(target.read),
+            Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
+                self.var(*selection)
+            }
+            Node::Shell { open, .. } => self.var(*open),
+            Node::Pattern { input, .. } | Node::PlacedUnion { input, .. } => self.var(*input),
+            Node::Part { of, .. } => self.var(*of),
+            Node::Profile(_)
+            | Node::World
+            | Node::Space
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        };
+        self.memo.insert(id, space);
+        space
+    }
 }

@@ -6,8 +6,8 @@
 //! off the copied shapes in their own coordinates, `to` off the target
 //! space's geometry in that space's, or the world read inside the mate
 //! (`eval::wire`'s placement arms read them). What the fold answers is
-//! the copy's motion in its target space's coordinates, or a loose copy
-//! that roots a space of its own. The entry points:
+//! the copy's motion in its target space's coordinates. The entry
+//! points:
 //!
 //! - [`relative_freedom_components`] — A9's partition, over reads (so
 //!   a placement's constraints couple its copy to their target).
@@ -138,41 +138,9 @@ impl SolveScalar for geom_core::Probe {
     }
 }
 
-/// **Which space a value lives in** (D10, Spaces): the world's kind, or
-/// the kind of a root other than the world, the one spelling of that
-/// fact every reader of it is handed. Decided from the recipe: a
-/// construction, which reads no body, is a root of its own; a
-/// placement's copy takes its target's space once its bundle pins it;
-/// and a copy whose bundle pins less than its body needs is a root of
-/// its own.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Space {
-    /// The world's kind: the copy is pinned, transitively, against the
-    /// world.
-    World,
-    /// The kind of a root other than the world, which everything pinned
-    /// to it shares: a construction, which reads no body, or a loose
-    /// copy, whose bundle pins less than its body needs.
-    Loose {
-        /// The root: the construction, or the loose copy's placement.
-        root: RecipeNodeId,
-    },
-}
-
-impl Space {
-    /// The loose copy whose kind this is, `None` for the world's.
-    #[must_use]
-    pub fn loose(self) -> Option<RecipeNodeId> {
-        match self {
-            Self::World => None,
-            Self::Loose { root } => Some(root),
-        }
-    }
-}
-
-/// A placement's answer: its space and its motion there (`None` the
-/// identity).
-type Placed<T> = (Space, Option<Affine3<T>>);
+/// A placement's answer: the space its copy is in, its target read
+/// off the recipe, and its motion there (`None` the identity).
+type Placed<T> = (crate::VarId, Option<Affine3<T>>);
 
 /// **Every placement's answer, read off an evaluation** — for a caller
 /// outside one: where each copy sits, which space it lives in, or why
@@ -199,14 +167,14 @@ pub struct SolvedPoses<T: Decide = f64> {
 pub enum PoseRefusal {
     /// The placement refused, in its own words.
     Mate(Box<MateFault>),
-    /// The copy is loose, or pinned to a loose copy, so it has no world
-    /// pose — only its pose in the loose copy's space
+    /// The copy is placed into a space other than the world's, so it
+    /// has no world pose: only its pose in that space
     /// ([`SolvedPoses::relative`]).
-    Loose {
+    OtherSpace {
         /// The copy asked about.
         placement: RecipeNodeId,
-        /// The loose copy whose space it lives in.
-        root: RecipeNodeId,
+        /// The space it is placed into.
+        space: crate::VarId,
     },
     /// The placement did not evaluate to a value: it failed for a
     /// reason not its bundle's, or was poisoned through an input.
@@ -224,17 +192,11 @@ impl crate::spoken::Say for PoseRefusal {
     ) -> core::fmt::Result {
         match self {
             Self::Mate(fault) => fault.say(f, by),
-            Self::Loose { placement, root } if placement == root => write!(
+            Self::OtherSpace { placement, space } => write!(
                 f,
-                "{} is a loose copy: nothing pins it against the world, so it has no world pose",
-                by.node(*placement)
-            ),
-            Self::Loose { placement, root } => write!(
-                f,
-                "{} is pinned to the loose copy {}, which nothing pins against the world, so it \
-                 has no world pose",
+                "{} places its copy into {}, not the world, so it has no world pose",
                 by.node(*placement),
-                by.node(*root)
+                by.space(*space)
             ),
             Self::Unevaluated { placement } => {
                 write!(
@@ -266,9 +228,9 @@ impl<T: SolveScalar> SolvedPoses<T> {
         self.placed.get(&node)?.as_ref().err()
     }
 
-    /// **The space a placement's copy lives in**, `None` if the node is
-    /// not a placement that evaluated.
-    pub fn space(&self, placement: RecipeNodeId) -> Option<Space> {
+    /// **The space a placement's copy is in**, its target, `None` if
+    /// the node is not a placement that evaluated.
+    pub fn space(&self, placement: RecipeNodeId) -> Option<crate::VarId> {
         Some(self.placed.get(&placement)?.as_ref().ok()?.0)
     }
 
@@ -285,18 +247,18 @@ impl<T: SolveScalar> SolvedPoses<T> {
 /// stores.
 impl SolvedPoses {
     /// **Whether `placement`'s copy stands at the identity of the
-    /// world's coordinates**, read off its recipe: its bundle is the
-    /// identity bundle ([`identity_bundle`]), the one placement the fold
-    /// places by no map. A copy that is loose, refused or unplaced does
-    /// not stand there, and neither does one whose map comes out as the
-    /// identity: that is a value, not the recipe.
+    /// world's coordinates**, read off its recipe: it is placed into the
+    /// world by the identity bundle ([`identity_bundle`]), the one
+    /// placement the fold places by no map. A copy in another space,
+    /// refused or unplaced does not stand there, and neither does one
+    /// whose map comes out as the identity: that is a value, not the
+    /// recipe.
     pub fn at_identity(&self, placement: RecipeNodeId) -> bool {
-        matches!(self.placed.get(&placement), Some(Ok((Space::World, None))))
+        matches!(self.placed.get(&placement), Some(Ok((crate::VarId::WORLD, None))))
     }
 
-    /// **A copy's pose in its space**: where it sits in the world's
-    /// coordinates for a copy pinned against the world, in a loose
-    /// copy's own for one pinned to it.
+    /// **A copy's pose in its space**: where it sits in its target's
+    /// coordinates.
     pub fn relative(&self, placement: RecipeNodeId) -> Option<Frame> {
         self.relative_map(placement).map(Frame::from_affine)
     }
@@ -310,8 +272,8 @@ impl SolvedPoses {
     ///
     /// [`PoseRefusal::Mate`] holding [`MateFault::PosesOfAnotherDocument`]
     /// when `doc` is not the document this solve is of, or the
-    /// placement's own refusal; [`PoseRefusal::Loose`] when the copy is
-    /// loose or pinned to one; [`PoseRefusal::Unevaluated`] when it has
+    /// placement's own refusal; [`PoseRefusal::OtherSpace`] when the
+    /// copy is in another space; [`PoseRefusal::Unevaluated`] when it has
     /// no value.
     pub fn placement<P>(
         &self,
@@ -324,13 +286,13 @@ impl SolvedPoses {
         match self.placed.get(&placement) {
             None => Err(PoseRefusal::Unevaluated { placement }),
             Some(Err(fault)) => Err(PoseRefusal::Mate(Box::new(fault.clone()))),
-            Some(Ok((Space::Loose { root }, _))) => Err(PoseRefusal::Loose {
-                placement,
-                root: *root,
-            }),
-            Some(Ok((Space::World, motion))) => {
+            Some(Ok((crate::VarId::WORLD, motion))) => {
                 Ok(motion.map_or(Frame::IDENTITY, Frame::from_affine))
             }
+            Some(Ok((space, _))) => Err(PoseRefusal::OtherSpace {
+                placement,
+                space: *space,
+            }),
         }
     }
 }
@@ -979,10 +941,10 @@ pub(crate) fn pins(bundle: &[(crate::node::ConstraintId, Equations)]) -> bool {
     codimension(bundle) == 6
 }
 
-/// **A bundle with no mate writes every freedom** (D10
-/// `[placement.values]`): with no mate its values state the copy's
-/// whole motion, so the door refuses one that leaves a freedom
-/// unwritten. An empty bundle is a loose copy, not this rule's.
+/// **Every bundle pins its copy** (D10 `[placement.placement]`): its
+/// mates and values together set every freedom, so the door refuses a
+/// bundle that leaves one unwritten, with mates or without, an empty
+/// one included, and an unwritten freedom cannot be represented.
 ///
 /// # Errors
 ///
@@ -991,7 +953,7 @@ pub(crate) fn unpinned(
     placement: RecipeNodeId,
     bundle: &[(crate::node::ConstraintId, Equations)],
 ) -> Result<(), Box<MateFault>> {
-    if bundle.is_empty() || !mates_of(bundle).is_empty() || pins(bundle) {
+    if pins(bundle) {
         return Ok(());
     }
     Err(Box::new(MateFault::Unpinned {
@@ -1107,17 +1069,14 @@ pub(crate) fn fold_bundle<T: SolveScalar>(
     Ok(held)
 }
 
-/// What one bundle's fold placed its copy at.
+/// What one bundle's fold placed its copy at, in its target space.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Folded<T: Real> {
-    /// Nothing pins it: a loose copy, the root of its own space.
-    Loose,
-    /// Pinned in its target space, at this map from its own
-    /// coordinates, and the map as the rigid motion its composition
-    /// made, where the lane composes one.
+    /// At this map from its own coordinates, and the map as the rigid
+    /// motion its composition made, where the lane composes one.
     Pinned(Affine3<T>, Option<super::value::Composed<T>>),
     /// A bundle with no mate, its values writing every freedom: placed
-    /// in the world by the motion its values state
+    /// by the motion its values state
     /// ([`super::value::unmated_motion`]).
     Unmated,
 }
@@ -1129,10 +1088,9 @@ pub(crate) enum Folded<T: Real> {
 /// freedom the kind leaves, with a chart), then the bundle rule
 /// ([`overconstrained`]) refuses a constraint any of whose equations
 /// the rest already fix. The mates fold, and the values place the copy
-/// inside what they leave ([`super::value::settle`]). A bundle with
-/// mates that pins less than its copy needs ([`pins`]) makes a loose
-/// copy, never a refusal; one with no mate writes every freedom
-/// ([`unpinned`]) and is answered [`Folded::Unmated`].
+/// inside what they leave ([`super::value::settle`]). Every bundle
+/// pins its copy ([`unpinned`]); one with no mate is answered
+/// [`Folded::Unmated`].
 ///
 /// # Errors
 ///
@@ -1169,19 +1127,11 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
     overconstrained(placement, equations).map_err(|f| fault(*f))?;
     unpinned(placement, equations).map_err(|f| fault(*f))?;
     if mates.is_empty() {
-        return Ok(if values.is_empty() {
-            Folded::Loose
-        } else {
-            Folded::Unmated
-        });
+        return Ok(Folded::Unmated);
     }
     let coset = fold_bundle(placement, mates).map_err(|f| fault(*f))?;
     let (at, rigid) = super::value::settle(coset, values, charts)?;
-    Ok(if pins(equations) {
-        Folded::Pinned(at, rigid)
-    } else {
-        Folded::Loose
-    })
+    Ok(Folded::Pinned(at, rigid))
 }
 
 /// A value's freedom its mate's kind does not leave, as the fault
@@ -1575,7 +1525,7 @@ mod tests {
     /// two count apart, so both are named.
     #[test]
     fn the_four_value_availability_rows() {
-        // A lone Plane with Slide(X): admitted, loose.
+        // A lone Plane with Slide(X): admitted by the rule, unpinned.
         assert_eq!(
             verdict(&[
                 (id(1), Equations::Mate(F::Planar)),
@@ -1750,6 +1700,6 @@ mod tests {
         let short = chain(&[Z, X]);
         assert_eq!(verdict(&short), Ok(false), "two spins fix no freedom twice");
         assert_eq!(unwritten(&short), Some(1), "and leave one unwritten");
-        assert_eq!(unwritten(&[]), None, "an empty bundle is a loose copy");
+        assert_eq!(unwritten(&[]), Some(6), "an empty bundle pins nothing");
     }
 }
