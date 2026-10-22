@@ -378,10 +378,11 @@ fn a_corrupt_body_is_refused_typed_at_the_door() {
 }
 
 /// **A whole sphere shell flipped in a body of two shells**: the unit
-/// ball less a smaller ball inside it, every face of the inner shell
-/// flipped. Tier 3 refuses it, so the typed door never reads it; read
-/// through the raw door it measures a positive, wrong volume with no
-/// refusal, the shell's sign flipping under a total that stays positive
+/// ball less a smaller ball inside it, every face of one shell flipped.
+/// Tier 3 refuses either flip, so the typed door never reads one; read
+/// through the raw door, the inner shell's flip measures a positive,
+/// wrong volume with no refusal, the shell's sign flipping under a total
+/// that stays positive
 /// (`work/flux/a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door.md`).
 #[test]
 fn a_whole_flipped_shell_of_two_does_not_finish_and_the_raw_door_measures_it_wrong() {
@@ -398,22 +399,28 @@ fn a_whole_flipped_shell_of_two_does_not_finish_and_the_raw_door_measures_it_wro
     );
     let hollow = g(topo::boolean::subtract(&unit, &small_in, tol)).expect("the hollow ball");
     let measured = topo::mass_properties(&hollow, tol).unwrap().volume;
-    let (_, inner) = hollow
-        .shells()
-        .min_by_key(|(_, s)| s.faces.len())
-        .expect("two shells");
     assert_eq!(hollow.shells().count(), 2, "the hollow ball has two shells");
-    let fl = flipped(&hollow, &inner.faces);
-    assert!(
-        topo::AtRestBody::validate(fl.clone(), tol).is_err(),
-        "the flipped inner shell does not finish"
-    );
-    // Raw door: the subject is a flipped shell tier 3 refuses, and what the door reads of it.
-    let raw = topo::test_support::measure_unvalidated(&fl, tol).map(|m| m.volume);
-    assert!(
-        matches!(raw, Ok(v) if v > measured),
-        "the raw door measures the flipped hollow ball's volume as the solid ball's, \
-         past the hollow's {measured}: {raw:?}"
+    let mut wrong = 0;
+    for (shell, s) in hollow.shells() {
+        let fl = flipped(&hollow, &s.faces);
+        assert!(
+            topo::AtRestBody::validate(fl.clone(), tol).is_err(),
+            "{shell:?} flipped does not finish"
+        );
+        // Raw door: the subject is a flipped shell tier 3 refuses, and what the door reads of it.
+        match topo::test_support::measure_unvalidated(&fl, tol).map(|m| m.volume) {
+            // The inner shell's sign flips and the total stays positive:
+            // the solid ball's volume, not the hollow's.
+            Ok(v) if v > measured => wrong += 1,
+            // The outer shell's flip reads the whole body inside out.
+            Ok(v) if v <= 0.0 => {}
+            other => panic!("{shell:?} flipped: the raw door reads {other:?}"),
+        }
+    }
+    assert_eq!(
+        wrong, 1,
+        "the raw door measures the flipped inner shell positive and wrong, past the \
+         hollow's {measured}"
     );
 }
 
