@@ -5,7 +5,7 @@ title: A ctrl+wheel reaches no zoom: the toolkit routes it into zoom_factor_delt
 status: closed
 opened: 2026-09-15
 priority: P0
-cost: E
+cost: M
 closed: 2026-10-22
 pr: 5596
 ---
