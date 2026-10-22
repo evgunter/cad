@@ -3952,13 +3952,13 @@ pub(crate) mod tests {
         // span's constant, whose second partial is zero; a
         // discontinuous one is a broken premise, said loudly.
         fn second(
-            derived: Derived<'_, TensorCoeffs<'_>>,
+            derived: Derived<TensorCoeffs<'_>>,
             diff: impl FnOnce(&TensorCoeffs<'_>) -> TensorNet,
         ) -> Interval {
             match derived {
                 Derived::Vector(t) => diff(&t).hull(),
                 Derived::SpanConstant(_) => Interval::zero(),
-                Derived::Discontinuous { .. } => {
+                Derived::Discontinuous(_) => {
                     panic!("a discontinuous derivative past check_direction")
                 }
             }
