@@ -60,14 +60,20 @@ pub enum SessionOp {
         /// The node to delete, with its dependents.
         node: RecipeNodeId,
     },
-    /// Remove one constraint from its placement's bundle: one
-    /// `DocEdit::RemoveConstraint`, preceded, for a mate, by one per
-    /// value naming it — a value sets a freedom of its mate, so it goes
-    /// with it, in the same action. A constraint is no node, so it has
-    /// no cone to delete: the copy it pinned is recomputed from what
-    /// remains. Every bundle pins its copy (D10 `[placement.values]`),
-    /// so a removal that leaves the bundle short of a pin is refused
-    /// `Unpinned`, in the kernel's words.
+    /// Remove one constraint from its placement's bundle: the bundle
+    /// written whole without it (`DocEdit::SetConstraints`), as the mate
+    /// tool writes one, and without, for a mate, each value naming it —
+    /// a value sets a freedom of its mate, so it goes with it, in the
+    /// same action. A constraint is no node, so it has no cone to
+    /// delete: the copy it pinned is recomputed from what remains.
+    /// Every bundle pins its copy (D10 `[placement.values]`) and the
+    /// door admits none beyond the pin (`Overconstrained`), so every
+    /// stored bundle is minimal and any removal leaves a freedom
+    /// unwritten: the door refuses it `Unpinned`, in the kernel's words,
+    /// and nothing changes
+    /// (`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`).
+    /// A constraint the bundle does not hold is refused as
+    /// `DocEdit::RemoveConstraint` refuses it.
     RemoveConstraint {
         /// The constraint: its placement and minted id.
         mate: MateRef,
@@ -472,11 +478,14 @@ pub enum SessionOp {
     /// naming it (`DocEdit::SetConstraints`), each freedom the mate
     /// leaves unset written as the constant `0` — in place of a bundle
     /// with no mate, beside the mates of one that has them, which the
-    /// door then refuses overconstrained — and the placement first
-    /// re-targeted into the space the mate's `to` reads where that is
-    /// not its target — the mate tool's one committed action, so one
-    /// history state and one undo. A bundle the door refuses ends the
-    /// action and nothing of it is recorded.
+    /// door then refuses overconstrained. A mate whose `to` reads
+    /// outside the placement's target space is refused by the door,
+    /// naming both spaces, unless the author asked to move the copy
+    /// there (`into_target_space`): the gesture never moves a copy into
+    /// another space as a side effect. The mate
+    /// tool's one committed action, so one history state and one undo.
+    /// A bundle the door refuses ends the action and nothing of it is
+    /// recorded.
     /// Everything before it (the two picks, the choice) is tool state.
     AddMate {
         /// The placement whose copy the mate places.
@@ -485,6 +494,12 @@ pub enum SessionOp {
         mate: Box<Mate<Formula>>,
         /// The freedoms it leaves that are set, each to its number.
         values: Vec<(Coord, Formula)>,
+        /// Whether the author asked, by name, to move the copy into the
+        /// space the mate's `to` reads where that is not its target:
+        /// the placement is first stood by the identity bundle, then
+        /// re-targeted there, in the same action. `false` refuses such a
+        /// mate at the door, naming both spaces.
+        into_target_space: bool,
     },
     /// Replace the session's document with a fresh empty one (GAUTH-1's
     /// creation door zero) — the ONE creation op that is a

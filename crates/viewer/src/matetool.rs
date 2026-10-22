@@ -481,12 +481,26 @@ pub struct MateProposal {
 
 impl MateProposal {
     /// **The one committed action**: the session op that writes the
-    /// mate and its values through the ordinary commit door.
+    /// mate and its values through the ordinary commit door. A mate
+    /// whose `to` reads outside the copy's target space is refused there,
+    /// naming both spaces ([`Self::op_into_target_space`] moves it).
     pub fn op(&self) -> SessionOp {
+        self.committed(false)
+    }
+
+    /// [`Self::op`], the copy moved by name into the space the mate's
+    /// `to` reads where that is not its target — the chrome's explicit
+    /// "move the copy" choice, never a side effect of the mate.
+    pub fn op_into_target_space(&self) -> SessionOp {
+        self.committed(true)
+    }
+
+    fn committed(&self, into_target_space: bool) -> SessionOp {
         SessionOp::AddMate {
             placement: self.placement,
             mate: Box::new(self.mate.clone()),
             values: self.values.clone(),
+            into_target_space,
         }
     }
 }

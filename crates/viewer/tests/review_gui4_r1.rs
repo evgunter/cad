@@ -158,7 +158,7 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
     // The edit lands once, into the post's bundle once its world mate
     // is off, and the document stays green.
     asm::unpin(&mut session, rot_post);
-    common::commit_mate(&mut session, proposal.op());
+    common::commit_mate(&mut session, proposal.op_into_target_space());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after the mate: {row:?}");
     }

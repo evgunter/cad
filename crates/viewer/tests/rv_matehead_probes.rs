@@ -115,7 +115,7 @@ fn a_face_name_at_an_instance_with_no_part_wrapper_refuses_where_it_evaluates() 
     let proposal = tool
         .proposal(doc, asm::seat_choice())
         .expect("no pose is read before the commit");
-    let outcome = session.perform(proposal.op());
+    let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let (_, eval) = session.landed_pair().expect("landed");

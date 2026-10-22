@@ -452,6 +452,7 @@ pub fn seat_op_under(
         placement: post,
         mate: Box::new(crate::fixture::rest(post_top, shelf_bottom, class)),
         values,
+        into_target_space: true,
     }
 }
 
@@ -478,6 +479,7 @@ pub fn shelf_rest_op(bench: &Bench, post: RecipeNodeId, offset: f64) -> SessionO
             pncad::select::ContactClass::Rest,
         )),
         values: Vec::new(),
+        into_target_space: true,
     }
 }
 
@@ -497,6 +499,7 @@ pub fn no_centre_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
             pncad::select::ContactClass::Rest,
         )),
         values: Vec::new(),
+        into_target_space: true,
     }
 }
 

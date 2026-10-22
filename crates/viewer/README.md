@@ -1999,13 +1999,20 @@ against each other (a plain plane mate equates outward normals). So
 the mate tool's one committed action writes the `on` pick's placement's
 bundle whole (`DocEdit::SetConstraints`): the mate, and a value naming
 it on each freedom the kind leaves (`matetool::MateFreedom`), the
-person's number where they set one and the constant `0` otherwise. On
+person's number where they set one and the constant `0` otherwise, which
+the panel states beside the freedoms (every bundle pins its copy). On
 a bundle with no mate (the identity the place gestures write) the mate
 and its values replace the values; beside a bundle's mates they are
 added, and the door refuses what overconstrains. Where `to` is read in another
-space than the one the copy is placed into, the same action first
-re-targets the placement into `to`'s space (`SetParam` of its
-`target`). A pick on a `Place`'s copy reads `on` off the
+space than the one the copy is placed into, the door refuses the mate,
+`EditError::SpaceMismatch` naming both spaces: the gesture never moves
+a copy as a side effect. The panel's "move the copy into the target's
+space" choice asks for the move by name
+(`MateProposal::op_into_target_space`, `SessionOp::AddMate`'s
+`into_target_space`): the same action then stands the copy by the
+identity bundle where its bundle holds a mate and re-targets the
+placement into `to`'s space (`SetParam` of its `target`) before writing
+the bundle. A pick on a `Place`'s copy reads `on` off the
 shape it copies; a pick elsewhere is read through the member walk to
 the instance it places.
 
@@ -2026,9 +2033,12 @@ that already fixes any of its equations — pinned or not — is refused
 where it is authored (`EditError::MateRefused` carrying
 `MateFault::Overconstrained`), whether it agrees with the pin or not;
 the document stays as it was, and the mate is never dropped silently. Taking a mate off is
-`SessionOp::RemoveConstraint`, which removes the values naming it in
-the same action; a removal that leaves the bundle short of a pin is
-refused `Unpinned`, in the kernel's words. `SessionOp::IntoOwnSpace`
+`SessionOp::RemoveConstraint`, which writes the bundle whole without it
+and the values naming it, in one action. The door admits no bundle
+beyond the pin, so every stored bundle is minimal and a removal leaves
+a freedom unwritten: it is refused `Unpinned`, in the kernel's words,
+and nothing changes
+(`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`). `SessionOp::IntoOwnSpace`
 gives a copy a space of its own — a `new_space()`, the placement
 re-targeted into it at the identity — which the Properties pane offers
 beside the free-move probe's refusal for a copy in the world.

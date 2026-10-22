@@ -189,7 +189,7 @@ fn the_exit_demo_walk() {
     let proposal = tool
         .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
-    let outcome = session.perform(proposal.op());
+    let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),

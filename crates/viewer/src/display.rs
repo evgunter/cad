@@ -256,6 +256,8 @@ pub enum AdmissionFault {
     /// The space a frame was drawn for is gone from the document — the
     /// `new_space()` or the construction minting it was deleted, or an
     /// undo stepped back past it. Raised by the prune's tests alone.
+    /// Nothing cascades from a deleted space to the placements into it
+    /// (an interim: `work/intent/deleting-a-space-strands-the-placements-into-it.md`).
     NoSuchSpace {
         /// The instance whose probe moved the space, as the document
         /// held it.
@@ -741,7 +743,7 @@ pub fn free_move_check(
     let eval = eval.ok_or_else(|| AdmissionFault::NotEvaluated {
         instance: doc.spoken(instance),
     })?;
-    match space_of(doc, Some(eval), instance) {
+    match probe_space_of(doc, Some(eval), instance) {
         // A space no picture shows has nothing to move.
         Ok(space) => space_check(doc, space, instance).map(|()| space),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
@@ -801,7 +803,7 @@ fn gesture_check(
         });
     }
     space_check(doc, space, instance)?;
-    match space_of(doc, eval, instance) {
+    match probe_space_of(doc, eval, instance) {
         Ok(found) if found == space => Ok(()),
         Ok(found) => Err(AdmissionFault::MovedSpace {
             instance: doc.spoken(instance),
@@ -847,7 +849,7 @@ enum Unplaced {
 /// **The space `node`'s copy is placed into**, read off the recipe
 /// ([`Doc::node_space`]), the world's refused, and, with `eval`, a copy
 /// the evaluation gave no value refused.
-fn space_of(
+fn probe_space_of(
     doc: &Doc<ProfileProgram>,
     eval: Option<&Evaluation<f64>>,
     node: RecipeNodeId,

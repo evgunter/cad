@@ -1152,9 +1152,10 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
 /// **A placement's row carries its constraints as children**, in bundle
 /// order, each by its address — a mate and each value naming it; the
 /// world, which every document holds and nothing deletes, has no row;
-/// and removing the mate through its child row's op is refused
-/// `Unpinned`, since every bundle pins its copy, leaving the row as it
-/// was.
+/// and removing the mate, or one of its values, through its child row's
+/// op writes the bundle whole without it and is refused `Unpinned`,
+/// since every bundle pins its copy and the door admits none beyond the
+/// pin, leaving the row as it was.
 #[test]
 fn a_placement_row_carries_its_constraints_as_children() {
     use viewer::tree::ConstraintRow;
@@ -1224,6 +1225,26 @@ fn a_placement_row_carries_its_constraints_as_children() {
         "every bundle pins its copy: {:?}",
         outcome.refusal
     );
+    // A value alone is refused the same: the bundle the door admitted
+    // is minimal, so it leaves the freedom the value set unwritten.
+    let value = crate::fixture::bundle(session.committed_doc(), bench.post_b)[1].id;
+    let outcome = session.perform(SessionOp::RemoveConstraint {
+        mate: pncad::document::MateRef::new(bench.post_b, value),
+    });
+    assert!(
+        matches!(
+            outcome.refusal.as_ref(),
+            Some(viewer::session::Refusal::Edit(error))
+                if matches!(
+                    error.as_ref(),
+                    pncad::document::EditError::MateRefused { fault, .. }
+                        if matches!(**fault, pncad::document::MateFault::Unpinned { .. })
+                )
+        ),
+        "a value's removal leaves its freedom unwritten: {:?}",
+        outcome.refusal
+    );
+    assert!(outcome.committed.is_empty(), "nothing is recorded");
     session.pump();
     let rows = session.tree_rows();
     assert_eq!(
