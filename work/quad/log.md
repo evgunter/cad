@@ -182,3 +182,10 @@ Filed off-question:
 `PastTarget::refine` reading `LAST_ROUND_EVERY_LANE_RUNS` while
 `sign_walk` reads `rounds_remain` (two readings of one schedule) goes to
 PR 5568's fix pass.
+
+## 2026-10-22 — PR 5568 merged; the face-extent row re-banded
+
+- **PR 5568 merged** (`a6bab62c71`, head `1d644699d4`). It took two base merges, one through FRAME's frame-spelling conflicts in `lily.rs` and `klein.rs`. The `viewer gui montage` render job is red on main's own drift: INTENT's datum retirement renamed `datum-extrude-place-profile-*`, and the old cells were never removed with `git rm`. FRAME's log already carries it as a seam to INTENT. A comment on PR 5568 says so.
+- **`quad-face-extent-trusts-caller-perimeter` P0 → P3, moved to QUADTAIL.** Its own body measures zero production violations; the bad perimeters are test probes. QUAD now has no P0.
+- **Next (sequencing):** `D30` (re-check first: it predates `Knots<T>` and NURBS's span-locator unit) and `an-undecided-ring-at-the-first-converged-round-refuses-instead-of-refining` in parallel. They work different regions of `quad.rs`.
+  - The dial-dependent P1s wait for Ev's ruling on `[ev]` PR 5574, because that PR's stop-rule unit rewrites the same loops: `quad-last-round-margin-has-no-sign-premise`, `quadrature-budget-conflates-its-lanes-and-budgets`, the reporting half of `a-swept-circle-section-loop-…`, and `C3`'s split.
