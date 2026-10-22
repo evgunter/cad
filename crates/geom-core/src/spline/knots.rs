@@ -1666,6 +1666,20 @@ impl LooseKnots {
         })
     }
 
+    /// The derivative's knots of a clamped vector — [`KnotVector::derivative_knot_slice`]
+    /// at degree `p − 1` — the loose shape a derivative takes where it is no
+    /// clamped vector ([`super::Derived`]). Unchecked, as
+    /// [`LooseKnots::derivative`] is: `kv`'s knots are finite and
+    /// non-decreasing, its end runs are exactly `p + 1` with `p ≥ 1`, and
+    /// dropping one knot at each end leaves end runs of `p` at degree `p − 1`
+    /// in `len − 2 ≥ 2p` knots.
+    pub(crate) fn derivative_of(kv: &KnotVector) -> Self {
+        Self {
+            knots: kv.derivative_knot_slice().to_vec(),
+            degree: kv.degree() - 1,
+        }
+    }
+
     /// The index of the span `t` lies in, with [`KnotVector::span_of`]'s
     /// clamping and tie-break: below the domain the first span, at or
     /// above its end the last, and at a knot value the span starting

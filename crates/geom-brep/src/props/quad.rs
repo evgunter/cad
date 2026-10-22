@@ -1574,15 +1574,11 @@ enum Loose {
 impl Loose {
     /// A [`Derived`]'s clamped payload, or the structure no clamped
     /// vector spells.
-    fn from_derived<V>(derived: Derived<'_, V>) -> Result<V, Self> {
-        let (knots, degree) = match derived {
-            Derived::Vector(v) => return Ok(v),
-            Derived::SpanConstant(breaks) => (breaks, 0),
-            Derived::Discontinuous { knots, degree } => (knots, degree),
-        };
-        match LooseKnots::new(knots.to_vec(), degree) {
-            Ok(knots) => Err(Self::of(knots)),
-            Err(e) => unreachable!("a clamped vector's derivative knots refused as {e:?}"),
+    fn from_derived<V>(derived: Derived<V>) -> Result<V, Self> {
+        match derived {
+            Derived::Vector(v) => Ok(v),
+            Derived::SpanConstant(knots) => Err(Self::Const(knots)),
+            Derived::Discontinuous(knots) => Err(Self::Raw(knots)),
         }
     }
 
