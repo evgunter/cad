@@ -313,9 +313,14 @@ fn map_stream_agrees_with_folding_its_own_output() {
         };
         let events: Vec<ViewportEvent> = (0..fuzz::scaled(12))
             .map(|_| {
-                if rng.below(4) == 0 {
+                let kind = rng.below(8);
+                if kind < 2 {
                     ViewportEvent::Scroll {
                         units: rng.range(-4.0, 4.0),
+                    }
+                } else if kind == 2 {
+                    ViewportEvent::Pinch {
+                        factor: rng.range(0.5, 2.0),
                     }
                 } else {
                     ViewportEvent::Drag {

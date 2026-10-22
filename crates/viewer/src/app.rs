@@ -837,6 +837,10 @@ impl ViewerApp {
         // a default rather than a check.
         crate::widgets::install_number_formatter(egui_ctx);
 
+        // And the toolkit's input options: a wheel is a scroll whatever
+        // modifier is held (`configure_input`'s doc says why).
+        crate::pane::viewport::configure_input(egui_ctx);
+
         let mut session = DocSession::new(document, tol, evaluator()?).with_door(prover()?);
         session.set_notation(notation);
 
