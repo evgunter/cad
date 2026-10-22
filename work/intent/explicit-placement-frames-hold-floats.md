@@ -2,11 +2,12 @@
 id: explicit-placement-frames-hold-floats
 kind: issue
 title: A pattern's or placed union's Explicit placement list holds raw f64 frames, not variables
-status: open
+status: parked
 opened: 2026-10-07
 rides_with: patterns-are-index-variables
 priority: P0
 cost: E
+blocked_on: [patterns-are-index-variables]
 ---
 
 **Spec:** `docs/INTENT-STAGE3-SPEC.md` §8 ("Explicit frames"). Built by G: each frame becomes one placement of the master, a `Plane` mate against the face plus its slides and spin, written by the generators as exact turns and lengths (D's exact-turn lane already writes `die_tool`'s frames by `rotate_by_turns_then_translate`), and the document is regenerated, not converted from its stored floats. Six frames, not twenty-one.
