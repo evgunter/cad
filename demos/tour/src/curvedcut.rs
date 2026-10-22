@@ -284,12 +284,8 @@ fn section_narration(label: &str, body: &Body<f64>, exact: f64, tol: Tol) -> Str
     }
     assert!(arcs > 0, "{label}: the tilted cut must mint ellipse arcs");
 
-    let m = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the quadrature lane computes");
+    let m = pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
+        .expect("the quadrature lane computes");
     let (v, pad) = (m.volume, m.volume_pad);
     assert!(
         v - pad <= exact && exact <= v + pad,
@@ -311,12 +307,8 @@ fn section_narration(label: &str, body: &Body<f64>, exact: f64, tol: Tol) -> Str
 /// [`DEPTH`]. Returns the pockets' closed-form total and the narration.
 fn pocket_narration(stages: &[AtRestBody<f64>], tol: Tol) -> (f64, String) {
     let volume = |b: &Body<f64>| {
-        let m = pncad::topo::mass_properties(
-            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), tol)
-                .expect("the measured body passes tier 3"),
-            tol,
-        )
-        .expect("the engraved cylinder measures");
+        let m = pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
+            .expect("the engraved cylinder measures");
         assert_eq!(
             m.volume_pad, 0.0,
             "the engraved cylinder is lines, circles and planes: its volume is closed-form"

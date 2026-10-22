@@ -221,12 +221,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let area = PI * (OUTER * OUTER - INNER * INNER);
     let v_elbow = theta * R * area;
     let a_elbow = theta * R * 2.0 * PI * (OUTER + INNER) + 2.0 * area;
-    let props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&elbow.body), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("mass properties");
+    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&elbow.body, tol), tol)
+        .expect("mass properties");
     assert!(
         ((props.volume - v_elbow) / v_elbow).abs() < 1e-12,
         "elbow V = {} vs the Pappus form {v_elbow}",
@@ -256,12 +252,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     )
     .expect("the solid elbow builds")
     .body;
-    let solid_props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&solid), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("mass properties");
+    let solid_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&solid, tol), tol)
+        .expect("mass properties");
     let bore = theta * R * PI * INNER * INNER;
     assert!(
         ((solid_props.volume - props.volume - bore) / bore).abs() < 1e-12,
@@ -378,12 +370,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // The torus closed forms — outer minus bore, and an area that
     // counts the inner wall.
-    let props_t = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&torus.body), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("mass properties");
+    // Finished once: the props and the shell roles below both read it.
+    let torus_at_rest = crate::booleans::at_rest(&torus.body, tol);
+    let props_t = pncad::topo::mass_properties(&torus_at_rest, tol).expect("mass properties");
     let v_solid_t = 2.0 * PI * PI * R * OUTER * OUTER;
     let v_want = 2.0 * PI * PI * R * (OUTER * OUTER - INNER * INNER);
     let a_want = 4.0 * PI * PI * R * (OUTER + INNER);
@@ -403,12 +392,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // finding 2, on this door's shape): the `Void`-role shell IS the
     // named cavity, and its signed volume is the bore's closed form
     // negated by the orientation convention.
-    let classes = pncad::topo::classify_shells(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&torus.body), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("per-shell classification");
+    let classes =
+        pncad::topo::classify_shells(&torus_at_rest, tol).expect("per-shell classification");
     let voids: Vec<_> = classes
         .iter()
         .filter(|c| c.role == pncad::topo::ShellRole::Void)

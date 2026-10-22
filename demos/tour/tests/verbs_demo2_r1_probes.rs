@@ -48,6 +48,16 @@ use pncad::sweep::{
 };
 use pncad::topo::{AtRestBody, Body, EdgeKey};
 
+/// A copy of `body` finished for the measurement doors, which read a
+/// finished body (Ev's decision on PR 4822).
+fn at_rest(
+    body: &pncad::topo::Body<f64>,
+    tol: pncad::geom_core::Tol,
+) -> pncad::topo::AtRestBody<f64> {
+    pncad::topo::AtRestBody::validate(body.clone(), tol)
+        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
+}
+
 /// P1 — TEETH of the cross-scene mesh pin. The scene asserts the
 /// hollow elbow's outer-wall triangle counts equal the solid tube's at
 /// one shared δ. This probe shows the compared quantity is actually
@@ -292,13 +302,9 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
     )
     .expect("the lip on the result");
     let volume = |b: &pncad::topo::Body<f64>| {
-        pncad::topo::mass_properties(
-            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), tol)
-                .expect("the measured body passes tier 3"),
-            tol,
-        )
-        .expect("mass properties")
-        .volume
+        pncad::topo::mass_properties(&at_rest(b, tol), tol)
+            .expect("mass properties")
+            .volume
     };
     let (v1, v2) = (volume(&one.body), volume(&second.body));
     assert!(

@@ -4681,7 +4681,18 @@ class Body:
     one body and pairing it with another is the mistake the tier-3′
     contract exists to refuse."""
 
-    def mass_properties(self) -> MassProperties: ...
+    def mass_properties(self) -> MassProperties:
+        """Volume, area and their certified pads, of a FINISHED body.
+
+        The measurement reads a body that passes tier 3, so this IS
+        `validate_geometric_measured()`: the gate runs, and its own
+        certified quadrature, continued to the reporting target, is the
+        answer — one quadrature. A body tier 3 refuses raises
+        `ValidationError` (`door == "validate_geometric"`, its findings
+        as that door reports them) instead of being measured; a body
+        it admits whose number this eps cannot reach raises
+        `ValidationError` with `reason == "mass_properties_failed"` and
+        the bracket the quadrature held."""
     def validate(self) -> None: ...
     def validate_closed(self) -> None: ...
     def validate_geometric(self) -> None: ...
@@ -4689,12 +4700,12 @@ class Body:
         """Tier 3 and the number its own +V check computed, in ONE
         certified quadrature.
 
-        `validate_geometric()` then `mass_properties()` measures the
-        same body twice — check 7 IS a certified quadrature and the
-        reporting door starts another from round 0. This door keeps
-        the certificate the gate decided the sign on and continues
-        that quadrature to the reporting target, so it answers the
-        pair's second call bit for bit at one quadrature's cost.
+        Check 7 IS a certified quadrature, and a measurement after it
+        would start another from round 0. This door keeps the
+        certificate the gate decided the sign on and continues that
+        quadrature to the reporting target, so it answers the typed
+        measurement of the finished body bit for bit at one
+        quadrature's cost. `mass_properties()` is this door.
 
         It can refuse where `validate_geometric()` alone passes: the
         reporting target scales with eps while the refinement

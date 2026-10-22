@@ -580,13 +580,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     let blank = body_at(&ev, die.blank);
-    let vol = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&blank), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .unwrap()
-    .volume;
+    let vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&blank, tol), tol)
+        .unwrap()
+        .volume;
     let want = crate::oracles::rounded_box_volume([L; 3], R);
     assert!(
         (vol - want).abs() < 1e-9 * want,
@@ -599,20 +595,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     assert_eq!((f, e, v), (26, 48, 24));
     let pipped = body_at(&ev, die.pipped);
-    let pip_vol = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&pipped), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .unwrap()
-    .volume;
+    let pip_vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&pipped, tol), tol)
+        .unwrap()
+        .volume;
     let composed = body_at(&ev, die.composed);
-    let comp = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&composed), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .unwrap();
+    let comp =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&composed, tol), tol).unwrap();
     assert_eq!(
         pncad::topo::validate_geometric(&composed, tol),
         Ok(()),

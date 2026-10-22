@@ -720,15 +720,17 @@ telling you how much its quadrature does not know, and a program that
 cares about a tolerance should read it rather than assume it.
 
 **Gating and then measuring pays for one quadrature, not two — if you
-ask for it that way.** Tier 3's orientation check *is* a certified
-quadrature over the same body at the same band, so
-`validate_geometric` followed by `mass_properties` runs the expensive
-part twice. `validate_geometric_certificate` hands back the
-certificate the gate decided on, and
-`SignCertificate::refine_to_target` continues that same quadrature to
-the reporting target, reusing every round already paid for; the
-result is `mass_properties`' own answer, bit for bit. Python spells
-the pair as one call, `body.validate_geometric_measured()`.
+ask for it that way.** `mass_properties` reads a finished body, and
+tier 3's orientation check *is* a certified quadrature over the same
+body at the same band, so `AtRestBody::validate` followed by
+`mass_properties` runs the expensive part twice.
+`validate_geometric_certificate` hands back the certificate the gate
+decided on, and `SignCertificate::refine_to_target` continues that
+same quadrature to the reporting target, reusing every round already
+paid for; the result is `mass_properties`' own answer, bit for bit.
+Python's `body.mass_properties()` is that one call (so is
+`body.validate_geometric_measured()`): a body tier 3 refuses raises
+the gate's `ValidationError` there instead of being measured.
 
 The continuation can refuse where the gate passed, and that is the
 honest answer rather than a wrinkle. The reporting target is `1024·ε`,

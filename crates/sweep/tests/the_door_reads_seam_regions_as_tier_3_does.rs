@@ -314,15 +314,17 @@ fn an_over_cover_whose_region_encodes_its_side_is_refused_by_the_census() {
     }
 }
 
-/// **A body the seam walk cannot follow is refused typed, never by a
-/// panic**: a two-ball union with one entity removed at a time (a face, a
-/// loop, an edge or a half-edge). The seam pass refuses what it cannot
-/// follow `MassPropsError::Corrupt`. Six removals panic in the door's
-/// own face resolution (`live.rs`, a shell's or a face's record naming a
-/// removed key) before any seam is read; they panic the same with the
-/// seam pass off, as on main, so the row admits them and no other.
+/// **A corrupt body never finishes, and the raw door panics on it only
+/// where it always did**: a two-ball union with one entity removed at a
+/// time (a face, a loop, an edge or a half-edge). No removal passes
+/// `AtRestBody::validate`, so the typed door never reads one. Read
+/// through the raw door, the seam pass refuses what it cannot follow
+/// `MassPropsError::Corrupt`, and six removals panic in the walk's own
+/// face resolution (`live.rs`, a shell's or a face's record naming a
+/// removed key) before any seam is read — as they did before the seam
+/// pass — so the row admits those six and no other.
 #[test]
-fn a_corrupt_body_is_refused_typed_at_the_door() {
+fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     use topo::EntityId;
     let tol = Tol::witness();
     let unit = finished(

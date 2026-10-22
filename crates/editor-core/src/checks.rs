@@ -650,12 +650,22 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 f,
                 "the component count cannot be computed for this body: {source}"
             ),
-            CheckEvidence::NotAtRest { errors } => write!(
-                f,
-                "the component count is not read: the body does not pass validation \
-                 ({} finding(s))",
-                errors.len()
-            ),
+            CheckEvidence::NotAtRest { errors } => match errors.as_slice() {
+                [] => write!(
+                    f,
+                    "the component count is not read: the body does not pass validation"
+                ),
+                [first] => write!(
+                    f,
+                    "the component count is not read: the body does not pass validation: {first}"
+                ),
+                [first, rest @ ..] => write!(
+                    f,
+                    "the component count is not read: the body does not pass validation: {first} \
+                     (and {} more)",
+                    rest.len()
+                ),
+            },
             CheckEvidence::StaleExpectation { expected } => write!(
                 f,
                 "an expectation of {expected} component(s) has no subject: the body \
@@ -790,10 +800,9 @@ impl crate::finding::Finding for SaidFinding<'_> {
                  off rather than reading its silence as a clean body"
             }
             CheckEvidence::UnprovenCoincidence { recourse, .. } => recourse.words(),
-            CheckEvidence::NotAtRest { .. } => {
-                "Recourse: validate the body (validate_geometric) and fix what it reports"
-            }
-            CheckEvidence::Escalated { .. }
+            // The first finding's own sentence carries its recourse.
+            CheckEvidence::NotAtRest { .. }
+            | CheckEvidence::Escalated { .. }
             | CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. }
             | CheckEvidence::SeparationUnavailable { .. } => "",

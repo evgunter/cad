@@ -1696,12 +1696,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let v_cav = pot_volume(WALL);
     let v_want = v_out - v_cav;
     let a_want = pot_area(0.0) + pot_area(WALL);
-    let props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&pot), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the pot's props");
+    // Finished once: the props and the shell roles below both read it.
+    let pot_at_rest = crate::booleans::at_rest(&pot, tol);
+    let props = pncad::topo::mass_properties(&pot_at_rest, tol).expect("the pot's props");
     assert!(
         ((props.volume - v_want) / v_want).abs() < 1e-12,
         "pot V = {} vs the wall's own closed form {v_want}",
@@ -1713,12 +1710,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         props.surface_area
     );
     assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
-    let classes = pncad::topo::classify_shells(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&pot), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("per-shell classification");
+    let classes =
+        pncad::topo::classify_shells(&pot_at_rest, tol).expect("per-shell classification");
     let voids: Vec<_> = classes
         .iter()
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
@@ -1953,12 +1946,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the note narrates V = 5369π/3·256⁻³ = {v_note} and A = (453 + 52√10)π·256⁻² = \
          {a_note}; the stations now give {v_lid} and {a_lid}"
     );
-    let sharp_lid_props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&plain_lid), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the lid's props");
+    let sharp_lid_props =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&plain_lid, tol), tol)
+            .expect("the lid's props");
     assert!(
         ((sharp_lid_props.volume - v_lid) / v_lid).abs() < 1e-12,
         "lid V = {} vs the closed form {v_lid}",
@@ -1969,12 +1959,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "lid A = {} vs the closed form {a_lid}",
         sharp_lid_props.surface_area
     );
-    let lid_props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&rolled), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the rolled lid");
+    let lid_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&rolled, tol), tol)
+        .expect("the rolled lid");
     let dv_lid = sharp_lid_props.volume - lid_props.volume;
     // Three convex rims now, so the bound is the three corner squares
     // swept round their own rims.
@@ -2302,12 +2288,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let handle = body_at(&ev, r.handle);
     let v_handle = sweep * HANDLE_R * PI * HANDLE_TUBE * HANDLE_TUBE;
     let a_handle = sweep * HANDLE_R * 2.0 * PI * HANDLE_TUBE + 2.0 * PI * HANDLE_TUBE * HANDLE_TUBE;
-    let handle_props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&handle), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the handle's props");
+    let handle_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&handle, tol), tol)
+        .expect("the handle's props");
     assert!(
         ((handle_props.volume - v_handle) / v_handle).abs() < 1e-12,
         "handle V = {} vs Pappus on the disc {v_handle}",
@@ -2386,12 +2368,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         1,
         "the mouth disc comes back as ONE rim face"
     );
-    let cup_props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&cup), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the cup's props");
+    let cup_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol)
+        .expect("the cup's props");
     // The cup is the sealed wall LESS the disc of wall the mouth cap
     // was: opening lifts the cavity's cap from the mouth plane's own
     // station minus a wall, up to the plane.
