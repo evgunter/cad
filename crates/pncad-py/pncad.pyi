@@ -3837,7 +3837,7 @@ class Doc:
 
         The vocabulary, in full: `profile`, `extrude`, `revolve`,
         `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`, `chamfer`,
-        `shell`, `split`, `union`, `intersect`, `subtract`, `place`,
+        `shell`, `split`, `mirror`, `union`, `intersect`, `subtract`, `place`,
         `world`, `pattern`, `part`, `placed_union`, `instantiate_part`,
         `measure`, `assertion`.
 

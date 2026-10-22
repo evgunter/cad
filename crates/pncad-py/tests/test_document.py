@@ -1211,7 +1211,6 @@ EDIT_ATTRS = (
     "again",
     "value",
     "offered",
-    "determinant",
     "index",
     "mate",
     "path",

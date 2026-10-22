@@ -3987,7 +3987,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             [
                 "assertion", "chamfer",
                 "extrude", "fillet", "hollow_tube", "instantiate_part",
-                "intersect", "loft", "measure", "part", "pattern",
+                "intersect", "loft", "measure", "mirror", "part", "pattern",
                 "place", "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell",
                 "split", "subtract", "tube", "union",

@@ -877,7 +877,6 @@ except EditError as edit_refusal:
     again_at: int | None = edit_refusal.again
     refused_eps: float | None = edit_refusal.value
     refused_value: float | int | None = edit_refusal.offered
-    det: float | None = edit_refusal.determinant
     address: tuple[int, ...] | None = edit_refusal.path
     inside_meta: str | None = edit_refusal.value_path
     already: ContentPin | None = edit_refusal.pin
