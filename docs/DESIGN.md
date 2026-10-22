@@ -1050,7 +1050,7 @@ suits the slot.
 
 - *Scalars:* `Length`, `Angle`, `Scalar`, `Count`.
 - *Discrete kinds:* a side, a half, a sense.
-- *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Flag`, `Frame`
+- *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Pivot`, `Flag`, `Frame`
   ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
   is a `Count`; and `Profile`. Only an operation defines a shape. A
@@ -1095,7 +1095,11 @@ rigid motions and the same `Subgroup` the mates fold (A11 (1)): a
 plane forgets in-plane motion, a flag (a plane, a line in it, and the
 side of the line its face lies on, read off a face and one of its
 bounding edges, or built as a plane cut by a plane) slide along its
-line, an axis slide and spin along itself.
+line, a pivot (an axis with a point on it, read off a circular edge, a
+cone, a torus, or a face with a vertex) spin about its axis, an axis
+slide and spin along itself. There is a kind for each subgroup that is
+the symmetry of something a cell determines, alone or with one cell
+incident to it, and only for those.
 The kinds are ordered by which determines which. A slot holds its own
 kind; a finer value is read through its projection, and the role it is
 read through (a frame's x, y or z axis, origin or coordinate plane; a
