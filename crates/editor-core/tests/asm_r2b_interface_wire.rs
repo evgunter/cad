@@ -90,7 +90,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     // start cap rests on the world's xy plane.
     let host = push(
         &host,
-        Box::new(Node::instantiate_part_with(doc_ref, record)),
+        Box::new(Node::instantiate_part_with(doc_ref, record, editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle())),
     );
     let instance = *host.ids().last().expect("the record's instance is live");
     fixture::constrain_at(
@@ -135,7 +135,7 @@ fn an_empty_record_stays_absent_from_the_wire() {
     let doc = apply(
         &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema-empty"), Tol::witness()),
         &DocEdit::InsertNode {
-            node: Box::new(Node::instantiate_part(doc_ref)),
+            node: Box::new(crate::fixture::mated_instance(doc_ref)),
             fresh: Vec::new(),
         },
         Tol::witness(),

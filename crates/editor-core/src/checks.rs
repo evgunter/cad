@@ -2079,7 +2079,6 @@ mod tests {
         for refusal in [
             crate::ProductError::EmptyProduct {
                 unplaced: Vec::new(),
-                loose: Vec::new(),
             },
             crate::ProductError::Root(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId::new(0, 7),

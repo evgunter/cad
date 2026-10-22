@@ -144,7 +144,7 @@ fn instances(
     let mut ids = Vec::new();
     for i in 0..n {
         let (next, id) = if i == 0 {
-            fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &opts)
+            fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &opts)
         } else {
             insert(doc, fixture::mated_instance(doc_ref))
         };
@@ -424,7 +424,7 @@ fn seated(
         node: Box::new(node),
         fresh: Vec::new(),
     };
-    let a = push(&mut doc, insert_node(Node::instantiate_part(part_ref)))
+    let a = push(&mut doc, insert_node(crate::fixture::mated_instance(part_ref)))
         .0
         .unwrap();
     let pin = editor_core::pin_at(
@@ -1092,7 +1092,7 @@ fn a5_two_mated_parts_evaluate_once_each() {
     let rb = store.insert(pb, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p8"), Tol::witness());
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(ra), &opts);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(ra), &opts);
     let (doc, b) = insert(doc, fixture::mated_instance(rb));
     let (doc, c) = insert(doc, fixture::mated_instance(ra));
     assert_eq!(run(&doc, &opts).part_evaluations, 2);

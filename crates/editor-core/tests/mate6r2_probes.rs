@@ -172,7 +172,7 @@ fn stand_with(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, lower) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(part),
+        crate::fixture::mated_instance(part),
         &with_resolver(store.clone()),
     );
     let (doc, upper) = insert(doc, mated_instance(part));
@@ -385,7 +385,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
     let doc = ProfileDoc::empty(DocumentId::derive("m6r2-p5"), Tol::witness());
     let (doc, base) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(part),
+        crate::fixture::mated_instance(part),
         &with_resolver(store.clone()),
     );
     let (doc, far) = insert(doc, mated_instance(part));
@@ -482,7 +482,7 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
     let inner = ProfileDoc::empty(DocumentId::derive("m6r2-p8-stand"), Tol::witness());
     let (inner, lower) = fixture::insert_pinned(
         inner,
-        Node::instantiate_part(part),
+        crate::fixture::mated_instance(part),
         &with_resolver(store.clone()),
     );
     let (inner, upper) = insert(inner, mated_instance(part));

@@ -527,7 +527,7 @@ fn a4_every_refusal_is_typed() {
     });
     // The empty side offers no geometry to place by: its reader is a
     // placement with no mate yet.
-    let above = r.insert(Node::place(vec![editor_core::BodyRead::plain(port(
+    let above = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(port(
         split,
         SplitHalf::Above,
     ))]));

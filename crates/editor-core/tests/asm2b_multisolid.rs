@@ -74,7 +74,7 @@ fn repinned(
     translation: [f64; 3],
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let doc = fixture::emptied(doc, placement);
+    let doc = fixture::stand_again(doc, placement);
     fixture::pin(doc, placement, &Frame::translation(translation), o)
 }
 

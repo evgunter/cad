@@ -789,7 +789,10 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::InsertNode { node, .. } => {
                 crate::mate::solve::bundle_of(&**node).is_some_and(|bundle| !bundle.is_empty())
             }
-            Self::AddConstraint { .. } | Self::AddValue { .. } | Self::AddValues { .. } => true,
+            Self::AddConstraint { .. }
+            | Self::AddValue { .. }
+            | Self::AddValues { .. }
+            | Self::SetConstraints { .. } => true,
             Self::SetParam { slot, .. } => {
                 matches!(slot, SlotId::Operand(crate::OperandSlot::Side { .. }))
             }
@@ -4539,7 +4542,7 @@ impl EditError {
                 if matches!(
                     **fault,
                     crate::mate::MateFault::Overconstrained { .. }
-                        | crate::mate::MateFault::TargetsDiffer { .. }
+                        | crate::mate::MateFault::Unpinned { .. }
                 ) {
                     write!(f, "the constraint is refused at {node}'s door: {said}")
                 } else {
@@ -8406,7 +8409,11 @@ mod tests {
         let writing: [DocEdit<ProfileProgram>; 4] = [
             DocEdit::place(
                 vec![crate::BodyRead::plain(crate::node::RecipeNodeId::new(0, 3))],
-                vec![mate.clone()],
+                crate::Operand::Var(crate::VarId::WORLD),
+                vec![crate::mate::Constraint::of_mate(
+                    crate::node::ConstraintId::placeholder(1),
+                    mate.clone(),
+                )],
             ),
             DocEdit::AddConstraint {
                 placement: id,

@@ -126,7 +126,7 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
 /// descent refuses is asked of it, and nothing of its place.
 fn instantiating(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    insert(doc, Node::instantiate_part(below))
+    insert(doc, crate::fixture::mated_instance(below))
 }
 
 /// `instance` standing in the world where its body stands
@@ -297,7 +297,7 @@ fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNo
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for b in below {
-        let (d, id) = insert(doc, Node::instantiate_part(*b));
+        let (d, id) = insert(doc, crate::fixture::mated_instance(*b));
         doc = d;
         ids.push(id);
     }

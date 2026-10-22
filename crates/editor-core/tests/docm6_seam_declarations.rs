@@ -146,7 +146,7 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, Mate
 fn pinned_instance(doc: ProfileDoc, store: &PartStore, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert_pinned(
         doc,
-        Node::instantiate_part(part),
+        crate::fixture::mated_instance(part),
         &with_resolver(store.clone()),
     )
 }
@@ -158,7 +158,7 @@ fn pinned_instance(doc: ProfileDoc, store: &PartStore, part: DocRef) -> (Profile
 /// are never resolved; the mate is the shape of a pin, so the copy is
 /// the world's by its recipe.
 fn nominally_pinned_instance(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, instance) = insert(doc, Node::instantiate_part(part));
+    let (doc, instance) = insert(doc, crate::fixture::mated_instance(part));
     let copy = Operand::Var(
         doc.output(instance, 0)
             .expect("an instance defines its copies"),
@@ -188,7 +188,7 @@ fn nominally_pinned_instance(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, Reci
 /// the store resolving its part. The values go first, since a value
 /// names its mate.
 fn place(doc: ProfileDoc, store: &PartStore, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {
-    let doc = fixture::emptied(doc, node);
+    let doc = fixture::stand_again(doc, node);
     fixture::pin(
         doc,
         node,
@@ -267,7 +267,7 @@ fn row_of(
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for i in 0..count {
-        let (next, id) = insert(doc, Node::instantiate_part(part));
+        let (next, id) = insert(doc, crate::fixture::mated_instance(part));
         #[allow(clippy::cast_precision_loss)]
         let dx = spacing * i as f64;
         doc = place(next, store, id, [dx, 0.0, 0.0]);
@@ -462,9 +462,9 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     // second cube on the first.
     let mid = ProfileDoc::empty(DocumentId::derive("docm6-deep-mid"), Tol::witness());
     let (mid, m_s1a) = pinned_instance(mid, &store, s1_ref);
-    let (mid, m_s1b) = insert(mid, Node::instantiate_part(s1_ref));
+    let (mid, m_s1b) = insert(mid, crate::fixture::mated_instance(s1_ref));
     let mid = place(mid, &store, m_s1b, [10.0, 0.0, 0.0]);
-    let (mid, m_c0) = insert(mid, Node::instantiate_part(cube));
+    let (mid, m_c0) = insert(mid, crate::fixture::mated_instance(cube));
     let mid = place(mid, &store, m_c0, [30.0, 0.0, 0.0]);
     let (mid, m_c1) = insert(mid, crate::fixture::mated_instance(cube));
     let (mid, mid_mate) = seated(
@@ -483,10 +483,10 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     // The OUTER: a bare cube first, so the mid instances' ids do not
     // coincide with the mid's own sub-instance ids, then the mid twice.
     let outer = ProfileDoc::empty(DocumentId::derive("docm6-deep-outer"), Tol::witness());
-    let (outer, o_cube) = insert(outer, Node::instantiate_part(cube));
+    let (outer, o_cube) = insert(outer, crate::fixture::mated_instance(cube));
     let outer = place(outer, &store, o_cube, [0.0, -50.0, 0.0]);
     let (outer, o_m1) = pinned_instance(outer, &store, mid_ref);
-    let (outer, o_m2) = insert(outer, Node::instantiate_part(mid_ref));
+    let (outer, o_m2) = insert(outer, crate::fixture::mated_instance(mid_ref));
     let outer = place(outer, &store, o_m2, [0.0, 100.0, 0.0]);
     let outer_id = outer.id();
 
@@ -1237,7 +1237,7 @@ fn refuses_as_product(
     cube: DocRef,
     what: &str,
 ) {
-    let (doc, far) = insert(doc.clone(), Node::instantiate_part(cube));
+    let (doc, far) = insert(doc.clone(), crate::fixture::mated_instance(cube));
     let doc = place(doc, store, far, [50.0, 0.0, 0.0]);
     let refused = fixture::insert_refused(
         &doc,
@@ -1283,7 +1283,7 @@ fn a_placed_product_still_refuses() {
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
     let (doc, moved) = insert(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::from(instance),
         )]),
     );
@@ -1447,7 +1447,7 @@ fn outer_over_twin(
     let inner_ref = store.insert(inner.clone(), Tol::witness());
     let (outer, outer_mate) = stand_over(&store, cube, "speak-outer", class, shift, "outer seat");
     assert_eq!(outer_mate, mate, "both stands mint from the zero chain");
-    let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
+    let (outer, instance) = insert(outer, crate::fixture::mated_instance(inner_ref));
     let outer = place(outer, &store, instance, [10.0, 0.0, 0.0]);
     let (outer, _) = step(
         outer,

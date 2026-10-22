@@ -261,7 +261,7 @@ fn instances_and_ref_of_a_stored_part(
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..n {
-        let (next, id) = insert_pinned(doc, Node::instantiate_part(doc_ref), &opts);
+        let (next, id) = insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &opts);
         doc = next;
         ids.push(id);
     }
@@ -451,7 +451,7 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
             inner: face(part_face(body)),
         }],
     };
-    let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record, editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle()));
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-referenced crossing round trips");
     (text, id)

@@ -416,13 +416,13 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
         ),
         (
             HitTestError::AcrossSpaces {
-                a: editor_core::Space::World,
-                b: editor_core::Space::Loose { root: node },
+                a: editor_core::VarId::WORLD,
+                b: editor_core::VarId::new(0, tagged(7)),
             },
             vec![
                 "different spaces",
-                "the world's space",
-                "the space of the loose copy node 000000000007",
+                "the world",
+                "the space #",
                 "Recourse:",
             ],
         ),

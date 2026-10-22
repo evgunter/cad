@@ -77,7 +77,7 @@ pub(crate) fn pinned_block(
     let mut store = PartStore::new();
     let (part, body) = store.insert_part(block(label), Tol::witness());
     let (doc, id) =
-        fixture::insert_pinned(doc, Node::instantiate_part(part), &with_resolver(store));
+        fixture::insert_pinned(doc, crate::fixture::mated_instance(part), &with_resolver(store));
     (doc, id, body)
 }
 
@@ -146,7 +146,7 @@ fn four_legs(
     let o = legs_reach();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (leg_ref, leg_body) = block_ref("fix-xs-leg");
-    let (doc, leg) = fixture::insert_pinned(doc, Node::instantiate_part(leg_ref), &o);
+    let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(leg_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -203,7 +203,7 @@ pub(crate) fn place_copies(
         );
         fixture::insert_pinned(
             doc,
-            Node::place(vec![editor_core::BodyRead::plain(copy)]),
+            crate::fixture::stood(vec![editor_core::BodyRead::plain(copy)]),
             o,
         )
         .0

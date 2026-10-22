@@ -476,7 +476,7 @@ fn inline_rehosts_a_selection_downstream_of_the_instance() {
     );
     let (doc, fillet) = insert(doc, Node::fillet(union, len(0.05), vec![p.edge.clone()]));
     // A world copy of the fillet; nothing here evaluates it.
-    let (doc, _) = insert(doc, Node::place(vec![fillet.into()]));
+    let (doc, _) = insert(doc, crate::fixture::stood(vec![fillet.into()]));
     let out = editor_core::split(
         &doc,
         &p.nodes,

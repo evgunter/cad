@@ -798,7 +798,7 @@ fn split_and_inline_carry_readers_by_id() {
     let host = ProfileDoc::empty(DocumentId::derive("intent-vars-3-host"), Tol::witness());
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &crate::fixture::resolver::with_resolver(store.clone()),
     );
     let inlined = inline(
@@ -1264,7 +1264,7 @@ fn inline_repoints_readers_at_the_hosts_ids() {
     let host = declare(&host, "pad", 1.0);
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &editor_core::EvalOptions {
             resolver: Some(store.clone()),
             ..editor_core::EvalOptions::default()
@@ -1310,7 +1310,7 @@ fn an_equal_valued_name_the_host_holds_refuses() {
     );
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &editor_core::EvalOptions {
             resolver: Some(store.clone()),
             ..editor_core::EvalOptions::default()
@@ -1363,7 +1363,7 @@ fn inline_carries_an_anonymous_variable_whole() {
     );
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &editor_core::EvalOptions {
             resolver: Some(store.clone()),
             ..editor_core::EvalOptions::default()
@@ -1454,7 +1454,7 @@ fn split_and_inline_declare_in_declaration_order() {
     );
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &crate::fixture::resolver::with_resolver(store.clone()),
     );
     let inlined = inline(
@@ -1514,7 +1514,7 @@ fn a_reader_of_a_deleted_variable_does_not_cross_a_cut() {
     );
     // The instance stands nowhere: its part does not evaluate, and the
     // inline refuses before it reads a placement.
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref_dead));
+    let (host, instance) = insert(host, crate::fixture::mated_instance(doc_ref_dead));
     match inline(
         &host,
         instance,

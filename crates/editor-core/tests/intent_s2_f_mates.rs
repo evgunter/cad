@@ -89,7 +89,7 @@ fn pair(label: &str) -> (ProfileDoc, [RecipeNodeId; 2], PartStore, RecipeNodeId)
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, a) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &with_resolver(store.clone()),
     );
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
@@ -226,7 +226,7 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
             ]),
         },
     );
-    let (doc, placed) = insert(doc, Node::place(vec![fused.into()]));
+    let (doc, placed) = insert(doc, crate::fixture::stood(vec![fused.into()]));
     let doc = fixture::pinned(doc, placed, &with_resolver(store.clone()));
     let ev = run(&doc, &with_resolver(store.clone()));
     fixture::assert_mints_nothing(&doc, &ev, mate);
@@ -285,7 +285,7 @@ fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
     )
     .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
     let (doc, mate) = seated(doc, seat(body, (b, b), (a, a)));
-    let (doc, again) = insert(doc, Node::place(vec![b.into()]));
+    let (doc, again) = insert(doc, crate::fixture::stood(vec![b.into()]));
     let (doc, _) = fixture::constrain_at(doc, again, pin);
     let ev = run(&doc, &opts);
     let (_, unminted) = fixture::mate_mints(&doc, &ev);
@@ -426,7 +426,7 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
     let (top_ref, top_body) = store.insert_part(cube_part("f-shared-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("f-shared"), Tol::witness());
     let (doc, instance) =
-        fixture::insert_pinned(doc, Node::instantiate_part(leg_ref), &with_resolver(store));
+        fixture::insert_pinned(doc, crate::fixture::mated_instance(leg_ref), &with_resolver(store));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -504,7 +504,7 @@ fn a_selection_crossing_a_posed_placement_refuses() {
     let (doc, [x, t, px]) = lifted_cube_measured("f-posed");
     // Re-place `x` posed, in place of its world placement at the identity.
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: px });
-    let (doc, posed) = insert(doc, Node::place(vec![x.into()]));
+    let (doc, posed) = insert(doc, crate::fixture::stood(vec![x.into()]));
     let doc = fixture::pin(
         doc,
         posed,

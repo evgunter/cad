@@ -3,9 +3,9 @@
 //!
 //! A copy is made by a placement — a `Place` of the shapes it reads, or
 //! an instance of a part — and pinned by its bundle of constraints, each
-//! addressed by the placement and the id minted with it. A copy pinned,
-//! transitively, against the world is in the product; one its bundle
-//! pins less is a loose copy, a space of its own. The rows here pin the
+//! addressed by the placement and the id minted with it, and placed into
+//! the space it names. A copy placed into the world is in the product;
+//! one placed into another space is in that space. The rows here pin the
 //! representation; the solve's arithmetic is the mate suites'.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -19,7 +19,7 @@ use editor_core::pose::{PoseDef, PoseRole};
 use editor_core::{
     BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions, Formula,
     Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
-    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName, Target, WorldRead,
+    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, StableName, Target, VarId, WorldRead,
 };
 use geom_core::Tol;
 use geom_core::UnitVec3;
@@ -95,51 +95,40 @@ fn stack(
     a: RecipeNodeId,
     b: RecipeNodeId,
 ) -> (ProfileDoc, MateRef) {
-    let (doc, rest) = fixture::constrain_at(doc, b, rest_on(body, a, b));
-    (zero_values(doc, rest), rest)
+    let (doc, minted) = fixture::write_bundle(doc, b, zeroed(rest_on(body, a, b)));
+    (doc, minted[0])
 }
 
 /// **One copy of `body` in the world at `pose`**: a placement of it,
 /// pinned there over its own geometry.
 fn place_at(doc: ProfileDoc, body: RecipeNodeId, pose: &Frame) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, placement) = insert(doc, Node::place(vec![body.into()]));
+    let (doc, placement) = insert(doc, crate::fixture::stood(vec![body.into()]));
     (
         fixture::pin(doc, placement, pose, &EvalOptions::default()),
         placement,
     )
 }
 
-/// **A zero value on each freedom a plane mate leaves**: both slides
-/// and the spin, so the copy's own coordinates agree with its target's
-/// as far as the mate allows.
-fn zero_values(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
-    [
-        (
-            editor_core::Coord::Slide(editor_core::TargetAxis::X),
-            len(0.0),
-        ),
-        (
-            editor_core::Coord::Slide(editor_core::TargetAxis::Y),
-            len(0.0),
-        ),
-        (editor_core::Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        step(
-            doc,
-            DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(editor_core::Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    })
+/// **A plane mate and a zero value on each freedom it leaves**: both
+/// slides and the spin, so the copy's own coordinates agree with its
+/// target's as far as the mate allows. The whole bundle.
+fn zeroed(mate: editor_core::Mate<Formula>) -> Vec<editor_core::Constraint<Formula>> {
+    editor_core::Placed {
+        mate: Some(mate),
+        values: vec![
+            (
+                editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                len(0.0),
+            ),
+            (
+                editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                len(0.0),
+            ),
+            (editor_core::Coord::Spin, fixture::ang(0.0)),
+        ],
+        by: editor_core::PlacedBy::PlanarFace,
+    }
+    .bundle()
 }
 
 /// The fault the evaluation refused `placement` with.
@@ -203,51 +192,71 @@ fn two_placements_of_one_body_are_two_copies() {
 fn a_copy_pinned_against_a_pinned_copy_is_in_the_product() {
     let (doc, store, doc_ref, body) = host("s3b-chain");
     let o = with_resolver(store);
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let (doc, _) = stack(doc, body, a, b);
+    assert_eq!(doc.node_space(b), Some(VarId::WORLD));
     let ev = run(&doc, &o);
-    assert_eq!(ev.space(b), Space::World);
     assert_eq!(product_solids(&doc, &ev), 2);
 }
 
-/// **Two copies pinned only against each other are one loose space**:
-/// not in the product, which `EmptyProduct` refuses naming the loose
-/// copy, and gathered by itself for the at-rest census.
+/// **Two copies placed into a `new_space()` are in that space**: the
+/// first at the identity there, the second stacked on it, so both are
+/// in the new space, derived from the recipe, and neither is in the
+/// product, which `EmptyProduct` refuses.
 #[test]
-fn copies_pinned_only_against_each_other_are_one_loose_space() {
-    let (doc, store, doc_ref, body) = host("s3b-loose-pair");
-    let (doc, a) = insert(doc, mated_instance(doc_ref));
+fn copies_placed_into_a_new_space_are_in_it_not_the_world() {
+    let (doc, store, doc_ref, body) = host("s3b-new-space-pair");
+    let (doc, space) = insert(doc, Node::Space);
+    let (doc, a) = insert(
+        doc,
+        Node::instantiate_part(doc_ref, Operand::Node(space), editor_core::stand().bundle()),
+    );
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let o = with_resolver(store);
     let (doc, _) = stack(doc, body, a, b);
+    let space = doc.output(space, 0).expect("a new space defines its space");
+    assert_eq!(doc.node_space(a), Some(space));
+    assert_eq!(doc.node_space(b), Some(space), "joins the space it mates into");
     let ev = run(&doc, &o);
-    assert_eq!(ev.space(a), Space::Loose { root: a });
-    assert_eq!(ev.space(b), Space::Loose { root: a });
-    match editor_core::product_recorded(&doc, &ev, Tol::witness()) {
-        Err(ProductError::EmptyProduct { loose, .. }) => assert_eq!(loose, vec![a]),
-        other => panic!("an empty world naming the loose copy, not {other:?}"),
+    for copy in [a, b] {
+        assert!(
+            matches!(ev.result(copy), Some(NodeResult::Ok(_))),
+            "{:?}",
+            ev.result(copy)
+        );
     }
-    let spaces = editor_core::loose_spaces(&doc, &ev, Tol::witness());
-    assert_eq!(spaces.len(), 1, "one loose space");
-    assert_eq!(spaces[0].root, a);
-    let gathered = spaces[0].gather.as_ref().expect("the loose space gathers");
-    assert_eq!(gathered.solid_copies.len(), 2, "both copies, by themselves");
+    assert!(
+        matches!(
+            editor_core::product_recorded(&doc, &ev, Tol::witness()),
+            Err(ProductError::EmptyProduct { .. })
+        ),
+        "an empty world"
+    );
 }
 
-/// **A copy pinned against a construction lives in the construction's
-/// space**: a subtract of two copies of one loose space is in that
-/// space, so a copy pinned against one of its faces joins the space too.
-/// It is neither in the world nor in the product, which refuses
-/// `EmptyProduct` naming the space's root.
+/// **A copy pinned against a body of another space joins that space**:
+/// `L` places a block into a `new_space()`, a subtract of two copies in
+/// that space is in it, and a copy pinned against one of its faces joins
+/// it too. None is in the world, and the product refuses
+/// `EmptyProduct`.
 #[test]
-fn a_copy_pinned_against_a_construction_of_a_loose_space_is_in_that_space() {
-    let doc = ProfileDoc::empty(DocumentId::derive("s3b-loose-construction"), Tol::witness());
+fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
+    let doc = ProfileDoc::empty(DocumentId::derive("s3b-space-construction"), Tol::witness());
     let (doc, a) = block_at(doc, 0.5);
     let (doc, b) = block_at(doc, 0.2);
     let (doc, c) = block_at(doc, 0.1);
-    let (doc, l) = step(doc, DocEdit::place(vec![a.into()], vec![]));
-    let l = l.expect("the loose placement mints");
+    let (doc, space) = insert(doc, Node::Space);
+    let (doc, l) = step(
+        doc,
+        DocEdit::place(
+            vec![a.into()],
+            Operand::Node(space),
+            editor_core::stand().bundle(),
+        ),
+    );
+    let l = l.expect("the placement mints");
+    let space = doc.output(space, 0).expect("a new space defines its space");
     let cap = fixture::fname(a, RoleSeg::Cap(CapEnd::Start));
     let placed_cap = StableName {
         kind: cap.kind,
@@ -259,21 +268,17 @@ fn a_copy_pinned_against_a_construction_of_a_loose_space_is_in_that_space() {
     // A copy's bottom on a face, square to its target's coordinates:
     // the plane mate and a zero value on each freedom it leaves.
     let pin_on = |doc: ProfileDoc, at: RecipeNodeId, body: RecipeNodeId, target: Operand| {
-        let (doc, mate) = fixture::constrain_at(
-            doc,
-            at,
-            fixture::mate(
-                fixture::plane(fixture::head(fixture::fname(
-                    body,
-                    RoleSeg::Cap(CapEnd::Start),
-                ))),
-                fixture::plane(target),
-                ContactClass::Rest,
-            ),
+        let mate = fixture::mate(
+            fixture::plane(fixture::head(fixture::fname(
+                body,
+                RoleSeg::Cap(CapEnd::Start),
+            ))),
+            fixture::plane(target),
+            ContactClass::Rest,
         );
-        zero_values(doc, mate)
+        fixture::write_bundle(doc, at, zeroed(mate)).0
     };
-    let (doc, l2) = insert(doc, Node::place(vec![b.into()]));
+    let (doc, l2) = insert(doc, crate::fixture::stood(vec![b.into()]));
     let doc = pin_on(
         doc,
         l2,
@@ -287,39 +292,34 @@ fn a_copy_pinned_against_a_construction_of_a_loose_space_is_in_that_space() {
             tool: Operand::output(l2, 0).into(),
         },
     );
+    assert_eq!(doc.node_space(s), Some(space), "the subtract is in L's space");
     let ev = run(&doc, &EvalOptions::default());
-    assert_eq!(
-        ev.space(s),
-        Space::Loose { root: l },
-        "the subtract is in L's space"
-    );
     let face = crate::fixture::table(&ev, s)
         .iter()
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("the subtract names a face");
-    let (doc, p) = insert(doc, Node::place(vec![c.into()]));
+    let (doc, p) = insert(doc, crate::fixture::stood(vec![c.into()]));
     let doc = pin_on(
         doc,
         p,
         c,
         Operand::select(Operand::output(s, 0), vec![face]),
     );
+    assert_eq!(doc.node_space(p), Some(space), "in L's space, not the world");
     let ev = run(&doc, &EvalOptions::default());
     assert!(
         matches!(ev.result(p), Some(NodeResult::Ok(_))),
         "{:?}",
         ev.result(p)
     );
-    assert_eq!(
-        ev.space(p),
-        Space::Loose { root: l },
-        "pinned in L's space, not the world"
+    assert!(
+        matches!(
+            editor_core::product_recorded(&doc, &ev, Tol::witness()),
+            Err(ProductError::EmptyProduct { .. })
+        ),
+        "an empty world"
     );
-    match editor_core::product_recorded(&doc, &ev, Tol::witness()) {
-        Err(ProductError::EmptyProduct { loose, .. }) => assert_eq!(loose, vec![l]),
-        other => panic!("an empty world naming L's space, not {other:?}"),
-    }
 }
 
 /// A square block of half-width `half` and unit height, its profile on
@@ -344,7 +344,7 @@ fn block_at(doc: ProfileDoc, half: f64) -> (ProfileDoc, RecipeNodeId) {
 /// **A copy of no instance forms no lever its constraints do not ask
 /// for**: a `Place` copy resting on the world's xy plane decides nothing
 /// over a lever, so its bundle never asks the parts' reach, which has no
-/// part to answer for it. The copy stands, loose in the rest's plane.
+/// part to answer for it. The copy stands in the world.
 #[test]
 fn a_place_copy_resting_on_the_world_asks_no_lever() {
     let (doc, body) = block("s3b-world-rest");
@@ -358,7 +358,10 @@ fn a_place_copy_resting_on_the_world_asks_no_lever() {
         }),
         class: ContactClass::Rest,
     };
-    let (doc, place) = step(doc, DocEdit::place(vec![body.into()], vec![rest]));
+    let (doc, place) = step(
+        doc,
+        DocEdit::place(vec![body.into()], Operand::Var(VarId::WORLD), zeroed(rest)),
+    );
     let place = place.expect("the placement mints");
     let ev = run(&doc, &EvalOptions::default());
     assert!(
@@ -366,33 +369,54 @@ fn a_place_copy_resting_on_the_world_asks_no_lever() {
         "{:?}",
         ev.result(place)
     );
-    assert_eq!(ev.space(place), Space::Loose { root: place });
+    assert_eq!(doc.node_space(place), Some(VarId::WORLD));
 }
 
-/// **A copy its bundle pins less than its body needs is a loose copy,
-/// not a refusal**: a rest alone leaves the plane.
+/// **A bundle that pins less than its copy needs refuses at the door**
+/// (D10 `[placement.placement]`; spec §10 row 18): a rest alone leaves
+/// the plane, so writing it refuses `Unpinned` with the three freedoms
+/// it leaves, and an empty bundle refuses with all six.
 #[test]
-fn an_under_pinned_copy_is_loose_not_refused() {
+fn an_under_pinned_bundle_refuses_at_the_door() {
     let (doc, store, doc_ref, body) = host("s3b-under");
     let o = with_resolver(store);
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
-    let (doc, _) = fixture::constrain(doc, rest_on(body, a, b));
-    let ev = run(&doc, &o);
-    assert!(
-        matches!(ev.result(b), Some(NodeResult::Ok(_))),
-        "{:?}",
-        ev.result(b)
-    );
-    assert_eq!(ev.space(b), Space::Loose { root: b });
-    assert_eq!(product_solids(&doc, &ev), 1, "the pinned copy alone");
+    let free = |edit: &DocEdit<editor_core::ProfileProgram>| {
+        match editor_core::apply(&doc, edit, Tol::witness()) {
+            Err(EditError::MateRefused { fault, .. }) => match *fault {
+                MateFault::Unpinned { placement, free } => {
+                    assert_eq!(placement, b);
+                    free
+                }
+                other => panic!("Unpinned, not {other:?}"),
+            },
+            other => panic!("a refusal at the door, not {other:?}"),
+        }
+    };
+    let rest = DocEdit::SetConstraints {
+        placement: b,
+        constraints: vec![editor_core::Constraint::of_mate(
+            editor_core::ConstraintId::placeholder(1),
+            rest_on(body, a, b),
+        )],
+        fresh: Vec::new(),
+    };
+    assert_eq!(free(&rest), 3, "a rest leaves two slides and a spin");
+    let empty = DocEdit::SetConstraints {
+        placement: b,
+        constraints: Vec::new(),
+        fresh: Vec::new(),
+    };
+    assert_eq!(free(&empty), 6, "an empty bundle pins nothing");
 }
 
 // ---- Row 12: the world ----
 
 /// **The world is undeletable, minted with every document, and read by
 /// placements alone**: deleting it refuses, a second one refuses, and a
-/// construction cannot name it, since it defines no variable.
+/// construction cannot name it, since it defines only its space, which no
+/// body seat reads.
 #[test]
 fn the_world_is_undeletable_and_defines_nothing() {
     let doc = ProfileDoc::empty(DocumentId::derive("s3b-world"), Tol::witness());
@@ -439,7 +463,7 @@ fn the_world_is_undeletable_and_defines_nothing() {
 fn an_instance_reads_its_own_copy_on_the_copy_side_alone() {
     let (doc, store, doc_ref, body) = host("s3b-own-copy");
     let o = with_resolver(store);
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     // `b`'s own start cap on `on`, `a`'s top on the target.
     let admitted = at_the_door_of(&doc, b, rest_on(body, a, b));
@@ -475,7 +499,7 @@ fn an_instance_reads_its_own_copy_on_the_copy_side_alone() {
 fn a_mate_beyond_the_pin_refuses_at_the_door() {
     let (doc, store, doc_ref, body) = host("s3b-beyond");
     let o = with_resolver(store);
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let (doc, rest) = stack(doc, body, a, b);
     match fixture::door_refusal(&doc, rest_on(body, a, b)) {
@@ -510,7 +534,7 @@ fn a_mate_beyond_the_pin_refuses_at_the_door() {
 fn the_solve_names_every_redundant_constraint() {
     let (doc, store, doc_ref, body) = host("s3b-redundant");
     let o = with_resolver(store);
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let (doc, first) = fixture::constrain_at(doc, b, rest_on(body, a, b));
     let (doc, second) = editor_core::test_support::beside_past_the_bundle_rule(
@@ -535,11 +559,11 @@ fn the_solve_names_every_redundant_constraint() {
 
 // ---- The interims ----
 
-/// **One bundle targets one space** (the stage's named interim,
-/// `work/intent/a-bundle-folds-in-the-joined-space.md`): a bundle with
-/// a ball on a copy in the world and a direction on a loose copy — the
-/// one pair of mates the bundle rule admits beside each other — refuses
-/// `TargetsDiffer` naming the bundle where it evaluates.
+/// **One bundle targets one space** (D10 `[placement.spaces]`): a
+/// bundle with a ball on a copy in the world and a direction on a copy
+/// in another space — the one pair of mates the bundle rule admits
+/// beside each other — reads two spaces, and the door refuses it
+/// `SpaceMismatch` naming both, before any evaluation.
 #[test]
 fn a_bundle_of_two_targets_refuses() {
     let label = "s3b-two-targets";
@@ -547,8 +571,9 @@ fn a_bundle_of_two_targets_refuses() {
     let (part, part_body) = block(&format!("{label}-part"));
     let corner = fixture::vpiece(&part, part_body, 0, 0);
     let o = with_resolver(store);
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
+    let (doc, space) = fixture::into_new_space(doc, b);
     let (doc, c) = insert(doc, mated_instance(doc_ref));
     let point = |at| {
         fixture::point_of(fixture::read_minted(fixture::resolver::in_part_of(
@@ -566,26 +591,28 @@ fn a_bundle_of_two_targets_refuses() {
             ),
         }))
     };
-    let (doc, held) = fixture::constrain_at(
-        doc,
-        c,
+    let bundle = [
         fixture::mate(point(c), point(a), ContactClass::Rest),
-    );
-    let (doc, _) = fixture::constrain_at(
-        doc,
-        c,
         fixture::mate(normal(c), normal(b), ContactClass::Rest),
-    );
-    let ev = run(&doc, &o);
-    match mate_fault(&ev, c) {
-        MateFault::TargetsDiffer {
-            placement,
-            constraints,
-        } => {
-            assert_eq!(placement, c);
-            assert_eq!(constraints.first(), Some(&held.id));
+    ]
+    .into_iter()
+    .zip(1..)
+    .map(|(mate, i)| editor_core::Constraint::of_mate(editor_core::ConstraintId::placeholder(i), mate))
+    .collect();
+    match editor_core::apply(
+        &doc,
+        &DocEdit::SetConstraints {
+            placement: c,
+            constraints: bundle,
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::SpaceMismatch { node, a, b }) => {
+            assert_eq!(node.id(), c);
+            assert_eq!((a.id(), b.id()), (VarId::WORLD, space));
         }
-        other => panic!("two targets refuse, not {other:?}"),
+        other => panic!("two targets refuse at the door, not {other:?}"),
     }
 }
 
@@ -603,7 +630,7 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
     let (part, part_body) = block(&format!("{label}-part"));
     let corner = fixture::vpiece(&part, part_body, 0, 0);
     let o = with_resolver(store);
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     let (doc, c) = insert(doc, mated_instance(doc_ref));
     let point = |at| {
         fixture::point_of(fixture::read_minted(fixture::resolver::in_part_of(
@@ -665,9 +692,9 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
 fn a_mate_on_a_pinned_copy_is_overconstrained() {
     let (doc, store, doc_ref, body) = host("s3b-pin-first");
     let o = with_resolver(store);
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     // `b` pinned where the rest puts it, on `a`'s top.
-    let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, b) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let doc = fixture::pin(doc, b, &Frame::translation([0.0, 0.0, 1.0]), &o);
     let pin = fixture::bundle(&doc, b)[0].id;
     match fixture::door_refusal(&doc, rest_on(body, a, b)) {
@@ -693,7 +720,7 @@ fn a_mate_on_a_pinned_copy_is_overconstrained() {
 fn a_constraint_off_its_copy_refuses() {
     let (doc, store, doc_ref, body) = host("s3b-off-copy");
     let o = with_resolver(store);
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let (doc, c) = insert(doc, mated_instance(doc_ref));
     match at_the_door_of(&doc, c, rest_on(body, a, b)) {
@@ -714,7 +741,7 @@ fn a_constraint_off_its_copy_refuses() {
 fn a_union_of_an_instances_copy_and_a_block_evaluates() {
     let (doc, store, doc_ref, part_body) = host("s3b-union");
     let o = with_resolver(store);
-    let (doc, instance) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, instance) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     let (doc, profile) = on_frame(
         doc,
         [0.0, 0.0, 0.0],
@@ -758,7 +785,7 @@ fn a_union_of_an_instances_copy_and_a_block_evaluates() {
 fn an_instances_copies_are_read_one_by_key() {
     let (doc, store, doc_ref, part_body) = host("s3b-keyed");
     let o = with_resolver(store);
-    let (doc, instance) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, instance) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     let whole = fixture::insert_refused(
         &doc,
         Node::Union {
@@ -803,7 +830,7 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
     let mid = ProfileDoc::empty(DocumentId::derive("s3b-nested-mid"), Tol::witness());
     let (mid, inner) = insert(
         mid,
-        Node::instantiate_part_with(leaf, editor_core::InterfaceRecord::default()),
+        Node::instantiate_part_with(leaf, editor_core::InterfaceRecord::default(), editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle()),
     );
     let mid = fixture::pin(
         mid,
@@ -815,7 +842,7 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
     let top = ProfileDoc::empty(DocumentId::derive("s3b-nested-top"), Tol::witness());
     let (top, outer) = insert(
         top,
-        Node::instantiate_part_with(mid_ref, editor_core::InterfaceRecord::default()),
+        Node::instantiate_part_with(mid_ref, editor_core::InterfaceRecord::default(), editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle()),
     );
     let quarter_turn = Frame {
         columns: [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
@@ -839,7 +866,7 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
     let key = CopyKey::part(inner, copy_key(leaf_body));
     let (top, reader) = insert(
         top,
-        Node::place(vec![BodyRead::keyed(Operand::Node(outer), key)]),
+        crate::fixture::stood(vec![BodyRead::keyed(Operand::Node(outer), key)]),
     );
     let (top, _) = fixture::constrain_at(top, reader, at_turn);
     let ev = run(&top, &with_resolver(store));
@@ -886,7 +913,7 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
     );
     // Both shapes in `first`'s space, so one pin stands them both.
     let (doc, second) = fixture::slid(doc, first, second, [0.0; 3]);
-    let (doc, place) = insert(doc, Node::place(vec![first.into(), second.into()]));
+    let (doc, place) = insert(doc, crate::fixture::stood(vec![first.into(), second.into()]));
     let doc = fixture::pinned(doc, place, &EvalOptions::default());
     assert_eq!(
         doc.outputs(place).len(),
@@ -925,7 +952,7 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
     );
     let (doc, twice) = insert(
         doc,
-        Node::place(vec![
+        crate::fixture::stood(vec![
             BodyRead::indexed(Operand::Node(pattern), vec![Formula::count(0)]),
             BodyRead::indexed(Operand::Node(pattern), vec![Formula::count(1)]),
         ]),

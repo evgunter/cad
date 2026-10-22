@@ -195,7 +195,7 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         )
         .0;
     }
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (mut doc, rest) = fixture::constrain_at(
         doc,

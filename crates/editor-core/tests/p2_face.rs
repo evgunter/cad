@@ -285,7 +285,7 @@ fn a_mate_reading_a_pattern_copy_crosses_split_and_inline_unmoved() {
     // The kept copy first: split appends its instance and inline what it
     // splices, so the round trip keeps the placements' order (A4).
     let (doc, k) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, leg) = fixture::insert_pinned(doc, Node::instantiate_part(p.top), &o);
+    let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.top), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -359,14 +359,15 @@ fn a_mate_reading_a_loose_copy_refuses_at_split() {
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &o);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
     let (doc, loose) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, space) = fixture::into_new_space(doc, loose);
     let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = face_mate(doc, k, head(p.top_cap(k)), head(p.top_upper_cap(loose)));
     assert_eq!(
         solve(&doc, &o, Tol::witness()).space(loose),
-        Some(editor_core::Space::Loose { root: loose }),
-        "the loose top lives in its own space"
+        Some(space),
+        "the top lives in its own space"
     );
     let err = split_err(&doc, &[base, loose], label, &o);
     assert!(
@@ -381,13 +382,13 @@ fn a_mate_reading_a_loose_copy_refuses_at_split() {
     // The same two as a part, and a host mate reading the loose top.
     let part_doc = ProfileDoc::empty(DocumentId::derive(&format!("{label}-sub")), Tol::witness());
     let (part_doc, _sub_base) =
-        fixture::insert_pinned(part_doc, Node::instantiate_part(p.base), &o);
+        fixture::insert_pinned(part_doc, crate::fixture::mated_instance(p.base), &o);
     let (part_doc, sub_loose) = insert(part_doc, fixture::mated_instance(p.top));
     let mut store = p.store.clone();
     let sub = store.insert(part_doc, Tol::witness());
     let with_sub = with_resolver(store);
     let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
-    let (host, i) = fixture::insert_pinned(host, Node::instantiate_part(sub), &with_sub);
+    let (host, i) = fixture::insert_pinned(host, crate::fixture::mated_instance(sub), &with_sub);
     let (host, k) = insert(host, fixture::mated_instance(p.top));
     let through = FaceName::new(p.top_upper_cap(sub_loose))
         .expect("a face")
@@ -428,7 +429,7 @@ fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, leg) = fixture::insert_pinned(doc, Node::instantiate_part(p.top), &o);
+    let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.top), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -601,7 +602,7 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
         store.insert_part(block(&format!("{label}-top"), 1.0, 3.0), Tol::witness());
     let o = with_resolver(store.clone());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &o);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let old_head = in_part(base, base_body, CapEnd::End);
     let (doc, m) = face_mate(
@@ -684,7 +685,7 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
         store.insert_part(block(&format!("{label}-top"), 1.0, 3.0), Tol::witness());
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, low) = fixture::insert_pinned(doc, Node::instantiate_part(low_ref), &o);
+    let (doc, low) = fixture::insert_pinned(doc, crate::fixture::mated_instance(low_ref), &o);
     let (doc, high) = pinned_at(doc, high_ref, [10.0, 0.0, 0.0], &o);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, m) = face_mate(

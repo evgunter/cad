@@ -208,7 +208,7 @@ fn place_at(
     pose: &editor_core::Frame,
 ) -> (ProfileDoc, RecipeNodeId) {
     let read = crate::fixture::body_read(&doc, body.into());
-    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+    let (doc, placement) = insert(doc, crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]));
     (
         crate::fixture::pin(doc, placement, pose, &editor_core::EvalOptions::default()),
         placement,
@@ -357,9 +357,8 @@ fn an_empty_world_names_the_unplaced_and_a_stranded_placement_refuses() {
     let (doc, b) = block(doc, 3.0);
     let bodies = vec![doc.output(a, 0).unwrap(), doc.output(b, 0).unwrap()];
     match product(&doc, &ev(&doc), Tol::witness()) {
-        Err(ProductError::EmptyProduct { unplaced, loose }) => {
+        Err(ProductError::EmptyProduct { unplaced }) => {
             assert_eq!(unplaced, bodies, "every unplaced body, in document order");
-            assert!(loose.is_empty(), "and no loose copy: {loose:?}");
         }
         other => panic!("an empty world refuses EmptyProduct: {other:?}"),
     }
@@ -530,7 +529,7 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
     let part_ref = store.insert(part, Tol::witness());
     let opts = crate::fixture::resolver::with_resolver(store.clone());
     let host = ProfileDoc::empty(DocumentId::derive("intent-c-inline"), Tol::witness());
-    let (host, instance) = insert_pinned(host, Node::instantiate_part(part_ref), &opts);
+    let (host, instance) = insert_pinned(host, crate::fixture::mated_instance(part_ref), &opts);
     let (host, other) = block(host, 0.75);
     let (host, other) = place(host, other);
     let (host, fused) = insert(
@@ -752,7 +751,7 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
     let part_ref = store.insert(part, Tol::witness());
     let opts = crate::fixture::resolver::with_resolver(store.clone());
     let host = ProfileDoc::empty(DocumentId::derive("intent-c-posed-inline"), Tol::witness());
-    let (host, instance) = insert_pinned(host, Node::instantiate_part(part_ref), &opts);
+    let (host, instance) = insert_pinned(host, crate::fixture::mated_instance(part_ref), &opts);
     let (host, other) = block(host, 0.75);
     let (host, other) = place(host, other);
     // Both members stand in the world, so the union does.
@@ -831,7 +830,7 @@ fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
     );
     let refused = product(&doc, &ev(&doc), Tol::witness()).expect_err("nothing is placed");
     assert!(
-        matches!(&refused, ProductError::EmptyProduct { unplaced, loose } if *unplaced == want && loose.is_empty()),
+        matches!(&refused, ProductError::EmptyProduct { unplaced } if *unplaced == want),
         "{refused:?}"
     );
     let said = refused.to_string();
@@ -944,13 +943,13 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
             let mut store = PartStore::default();
             let part_ref = store.insert(part, Tol::witness());
             let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-            let (host, instance) = insert(host, Node::instantiate_part(part_ref));
+            let (host, instance) = insert(host, crate::fixture::mated_instance(part_ref));
             // Both placements stand at the identity: the identity
             // bundle, which reads nothing of the copy.
             let stood = |host: ProfileDoc, at: RecipeNodeId| {
                 crate::fixture::written(host, at, editor_core::Placed::identity())
             };
-            let (host, second) = insert(host, Node::place(vec![second(instance)]));
+            let (host, second) = insert(host, crate::fixture::stood(vec![second(instance)]));
             let host = stood(host, instance);
             let host = stood(host, second);
             (host, instance, [instance, second], store)

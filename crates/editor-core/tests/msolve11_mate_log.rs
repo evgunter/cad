@@ -120,8 +120,8 @@ fn scene(label: &str) -> Scene {
     let (block_ref, block_body) = store.insert_part((block_doc, block_part_body), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
-    let (doc, block) = fixture::insert_pinned(doc, Node::instantiate_part(block_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
+    let (doc, block) = fixture::insert_pinned(doc, crate::fixture::mated_instance(block_ref), &opts);
     let (doc, other) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, cap) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, pattern) = insert(

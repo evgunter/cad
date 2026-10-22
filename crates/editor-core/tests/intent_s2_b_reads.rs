@@ -998,7 +998,7 @@ pub(crate) fn families_document() -> ProfileDoc {
     let (doc, rounded) = insert(doc, Node::fillet(body, len(0.1), Vec::new()));
     let (doc, instance) = insert(
         doc,
-        Node::instantiate_part(editor_core::DocRef {
+        crate::fixture::mated_instance(editor_core::DocRef {
             id: editor_core::DocumentId::derive("s2b-families-part"),
             pin: editor_core::ContentPin::of_bytes(b"s2b-families-part"),
         }),

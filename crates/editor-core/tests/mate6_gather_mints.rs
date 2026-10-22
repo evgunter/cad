@@ -221,7 +221,7 @@ fn seated_row(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (mut doc, first) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(part),
+        crate::fixture::mated_instance(part),
         &with_resolver(store.clone()),
     );
     let mut ids = vec![first];

@@ -4273,7 +4273,10 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v17: a scalar writes the fraction of a turn its
+            /// v18: a placement reads the space it places into, which
+            /// it does not key (its copy is one value in any space),
+            /// beside a bundle that pins it, and a construction defines
+            /// its space beside its body. v17: a scalar writes the fraction of a turn its
             /// definition is (`slot`'s `TURNS`), and a value whether
             /// its number is written as the constant zero
             /// (`value_form`). v16: a value writes whether it names a mate before the
@@ -4297,7 +4300,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 17,
+            VERSION = 18,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.

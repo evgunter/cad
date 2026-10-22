@@ -312,7 +312,7 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     // this evaluation has no resolver to fetch.
     let (doc, placement) = insert(
         ProfileDoc::empty_derived("node_standing_checks", Tol::witness()),
-        Node::instantiate_part(editor_core::DocRef {
+        crate::fixture::mated_instance(editor_core::DocRef {
             id: editor_core::DocumentId::derive("node_standing_checks_part"),
             pin: editor_core::ContentPin([7; 32]),
         }),

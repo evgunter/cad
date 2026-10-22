@@ -785,7 +785,9 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 def,
             });
         }
-        if !snapshot.mint.has_var(id) {
+        // The world's space is every document's from its creation, as
+        // the world is: no edit mints it.
+        if id != crate::VarId::WORLD && !snapshot.mint.has_var(id) {
             return Some(SnapshotError::VarNotMinted {
                 var: snapshot.spoken_var(id),
             });

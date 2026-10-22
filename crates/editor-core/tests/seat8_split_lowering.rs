@@ -534,7 +534,7 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
     // A copy of each half, loose: a reader of the half's value.
     let still = |half: SplitHalf| {
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::output(split, half.port()),
         )])
     };

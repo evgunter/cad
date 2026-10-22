@@ -123,7 +123,7 @@ pub(crate) fn at_identity(doc: &ProfileDoc, placement: RecipeNodeId, o: &EvalOpt
 /// **An instance of `part`, pinned to `doc`'s world at the identity**
 /// (A10): each instance here is in the product.
 fn instance(doc: ProfileDoc, part: DocRef, o: &EvalOptions) -> (ProfileDoc, RecipeNodeId) {
-    fixture::insert_pinned(doc, Node::instantiate_part(part), o)
+    fixture::insert_pinned(doc, crate::fixture::mated_instance(part), o)
 }
 
 fn split(

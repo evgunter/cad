@@ -16,9 +16,8 @@ use crate::fixture;
 use editor_core::Formula;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, MateFault, MateRef, Node,
-    NodeErrorClass, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, Space, StableName,
-    TargetAxis, Value,
+    CapEnd, ContactClass, Coord, DocumentId, EvalOptions, MateFault, Node, NodeErrorClass,
+    Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, run, solve};
@@ -62,7 +61,7 @@ fn rig(label: &str) -> Rig {
     let (doc, t) = unit_box(doc, 3.0);
     let (doc, copy) = insert(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(Operand::Node(b))]),
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(Operand::Node(b))]),
     );
     Rig { doc, b, t, copy }
 }
@@ -95,38 +94,18 @@ impl Rig {
         ))
     }
 
-    /// Adds `on ≡ to` to the copy's bundle.
-    fn add(&mut self, on: Operand, to: Operand) -> MateRef {
-        let (doc, m) = fixture::constrain_at(
+    /// Writes `on ≡ to` and `values` naming it as the copy's bundle.
+    fn place(&mut self, on: Operand, to: Operand, values: Vec<(Coord, Formula)>) {
+        self.doc = fixture::with_values(
             self.doc.clone(),
             self.copy,
             fixture::mate(on, to, ContactClass::Rest),
+            values,
         );
-        self.doc = doc;
-        m
     }
 }
 
 // ---- C4: the mate-less arm, measured ----
-
-/// `doc` with the freedom `coord` of `mate` set to `by`.
-fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> ProfileDoc {
-    editor_core::apply(
-        &doc,
-        &DocEdit::AddValue {
-            placement: mate.placement,
-            value: Box::new(Value {
-                mate: Some(mate.id),
-                coord,
-                by,
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
-    .doc
-}
 
 /// **`PosesOfAnotherDocument` reaches no row.** A document of five
 /// instances — three pinned to the world, two seated on two of them —
@@ -153,7 +132,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
     let mut ids = Vec::new();
     for i in 0..5 {
         let (next, id) = if i % 2 == 0 {
-            fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o)
+            fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o)
         } else {
             insert(doc, fixture::mated_instance(doc_ref))
         };
@@ -161,7 +140,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
         ids.push(id);
     }
     for (lower, upper) in [(ids[0], ids[1]), (ids[2], ids[3])] {
-        let (next, rest) = fixture::constrain_at(
+        doc = fixture::with_values(
             doc,
             upper,
             fixture::rest(
@@ -169,14 +148,12 @@ fn c4_poses_of_another_document_reaches_no_row() {
                 fixture::head(in_part(lower, body, CapEnd::End)),
                 ContactClass::Rest,
             ),
+            vec![
+                (Coord::Slide(TargetAxis::X), len(0.0)),
+                (Coord::Slide(TargetAxis::Y), len(0.0)),
+                (Coord::Spin, ang(0.0)),
+            ],
         );
-        doc = [
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin, ang(0.0)),
-        ]
-        .into_iter()
-        .fold(next, |doc, (coord, by)| with_value(doc, rest, coord, by));
     }
     let tol = Tol::witness();
     let poses = solve(&doc, &o, tol);
@@ -235,12 +212,17 @@ fn c4_poses_of_another_document_reaches_no_row() {
 #[test]
 fn a_determined_bundle_and_a_v_block_keep_their_verdicts_under_the_witness() {
     let mut r = rig("msolve8-determined");
-    let coaxial = r.add(r.lateral(r.b, 0), r.lateral(r.t, 0));
-    r.doc = with_value(r.doc, coaxial, Coord::Slide(TargetAxis::Z), len(1.0));
-    r.doc = with_value(r.doc, coaxial, Coord::Spin, ang(0.0));
+    r.place(
+        r.lateral(r.b, 0),
+        r.lateral(r.t, 0),
+        vec![
+            (Coord::Slide(TargetAxis::Z), len(1.0)),
+            (Coord::Spin, ang(0.0)),
+        ],
+    );
     let poses = solve(&r.doc, &EvalOptions::default(), Tol::witness());
     assert!(
-        poses.fault(r.copy).is_none() && poses.space(r.copy) == Some(Space::Loose { root: r.t }),
+        poses.fault(r.copy).is_none() && poses.space(r.copy) == r.doc.node_space(r.t),
         "the exemplar is DETERMINED: {:?}",
         poses.fault(r.copy)
     );
@@ -257,17 +239,19 @@ fn a_determined_bundle_and_a_v_block_keep_their_verdicts_under_the_witness() {
         "the copy stands on `T`, flush: {seated:?}"
     );
 
-    let mut r = rig("msolve8-v-block");
-    let first = r.add(r.side(r.b, 0), r.side(r.t, 0));
-    let fault = fixture::door_refusal(
-        &r.doc,
-        fixture::mate(r.side(r.b, 1), r.side(r.t, 1), ContactClass::Rest),
-    );
+    let r = rig("msolve8-v-block");
+    let walls = [0, 1].map(|k| {
+        editor_core::Constraint::of_mate(
+            editor_core::ConstraintId::placeholder(k + 1),
+            fixture::mate(r.side(r.b, k as usize), r.side(r.t, k as usize), ContactClass::Rest),
+        )
+    });
+    let fault = fixture::bundle_refusal(&r.doc, r.copy, walls.to_vec());
     assert!(
         matches!(
             &fault,
             MateFault::Overconstrained { placement, constraints, free: 1 }
-                if *placement == r.copy && constraints.len() == 2 && constraints.contains(&first.id)
+                if *placement == r.copy && constraints.len() == 2
         ),
         "the V-block's second wall fixes a normal the first fixes: {fault:?}"
     );

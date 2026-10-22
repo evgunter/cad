@@ -52,6 +52,7 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
             }
             Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
+            | Maintenance::StrandedSpace { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
@@ -75,6 +76,7 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
             Maintenance::Strand { .. }
             | Maintenance::StrandedSelection { .. }
             | Maintenance::StrandedRead { .. }
+            | Maintenance::StrandedSpace { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
@@ -378,7 +380,7 @@ fn a_mates_side_strands_as_a_read() {
     let doc_ref = store.insert(part, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_mate"), Tol::witness());
-    let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, ia) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let (doc, ib) = insert(doc, fixture::mated_instance(doc_ref));
     let head_a = instance_face(ia, part_body);
     let (doc, mate) = fixture::constrain(doc, rest(head_a.clone(), instance_face(ib, part_body)));
@@ -592,7 +594,7 @@ fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
     let doc_ref = store.insert(part, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_app_order"), Tol::witness());
-    let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, ia) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let (doc, ib) = insert(doc, fixture::mated_instance(doc_ref));
     let head_a = instance_face(ia, part_body);
     let mated = apply(

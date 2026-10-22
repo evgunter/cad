@@ -87,6 +87,7 @@ test_utils::f6_variants! {
         Union,
         Place,
         World,
+        Space,
         Pattern,
         Part,
         PlacedUnion,
@@ -134,7 +135,7 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let (top, top_body) = store.insert_part(block("vedge-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("vedge-stack"), Tol::witness());
     let opts = with_resolver(store);
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top));
     let (doc, mate) = fixture::constrain(
         doc,

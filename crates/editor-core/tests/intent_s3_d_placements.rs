@@ -76,7 +76,7 @@ fn placed(
     values: Vec<(Coord, Formula)>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let read = fixture::body_read(&doc, body.into());
-    let (doc, placement) = insert(doc, Node::place(vec![BodyRead::plain(read)]));
+    let (doc, placement) = insert(doc, crate::fixture::stood(vec![BodyRead::plain(read)]));
     (
         fixture::with_values(doc, placement, mate, values),
         placement,
@@ -244,7 +244,7 @@ fn every_copy_stands_by_the_identity_bundle() {
             "{body}: each the constant zero: {:?}",
             stood.values
         );
-        let (next, placement) = insert(doc, Node::place(vec![BodyRead::plain(read)]));
+        let (next, placement) = insert(doc, crate::fixture::stood(vec![BodyRead::plain(read)]));
         doc = fixture::written(next, placement, stood);
         assert_eq!(
             vertices(&doc, placement),
@@ -262,7 +262,7 @@ fn every_copy_stands_by_the_identity_bundle() {
 fn unmated(values: Vec<(Coord, Formula)>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("d", Tol::witness());
     let (doc, b) = unit_box(doc);
-    let (doc, placement) = insert(doc, Node::place(vec![BodyRead::plain(Operand::from(b))]));
+    let (doc, placement) = insert(doc, crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]));
     let applied = doc
         .apply(
             &editor_core::DocEdit::unmated(placement, values),
@@ -382,7 +382,7 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     };
     let doc = ProfileDoc::empty_derived("d", Tol::witness());
     let (doc, b) = unit_box(doc);
-    let (doc, p) = insert(doc, Node::place(vec![BodyRead::plain(Operand::from(b))]));
+    let (doc, p) = insert(doc, crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]));
     let tol = Tol::witness();
     let one = DocEdit::AddValue {
         placement: p,
@@ -587,23 +587,18 @@ fn a_boolean_copy_stands_over_its_bodys_reach() {
 }
 
 /// **A construction is the root of its own space, and no loose copy**:
-/// the loose copies an evaluation lists are placements whose bundle pins
-/// less than their body needs, never a construction.
+/// a construction's body is in its own space, the one its `space`
+/// output defines, and a copy of it placed into the world is in the
+/// world: each derived from the recipe.
 #[test]
-fn a_construction_is_no_loose_copy() {
+fn a_construction_is_in_its_own_space() {
     let doc = ProfileDoc::empty_derived("d", Tol::witness());
     let (doc, b) = unit_box(doc);
-    let (doc, _) = fixture::place(doc, b);
-    let (doc, loose) = insert(doc, Node::place(vec![BodyRead::plain(Operand::from(b))]));
-    let ev = editor_core::evaluate::<f64>(
-        &doc,
-        None,
-        &editor_core::CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
-    assert_eq!(ev.space(b), editor_core::Space::Loose { root: b });
-    assert_eq!(ev.loose_roots(), vec![loose]);
+    let (doc, copy) = fixture::place(doc, b);
+    let own = doc.output(b, 1).expect("a construction defines its space");
+    assert_eq!(doc.var(own).map(editor_core::Var::kind), Some(editor_core::VarKind::Space));
+    assert_eq!(doc.node_space(b), Some(own));
+    assert_eq!(doc.node_space(copy), Some(editor_core::VarId::WORLD));
 }
 
 /// **"Sketch on this face" is one action** (spec §5, DM1): a boss drawn
@@ -727,7 +722,7 @@ fn an_instance_stands_by_the_identity_bundle() {
     let (post_ref, _) = store.insert_part((part, post), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(editor_core::DocumentId::derive("d-host"), Tol::witness());
-    let (doc, instance) = insert(doc, Node::instantiate_part(post_ref));
+    let (doc, instance) = insert(doc, crate::fixture::mated_instance(post_ref));
     let stood = editor_core::stand();
     assert_eq!(stood.by, editor_core::PlacedBy::Identity);
     assert_eq!(stood.mate, None, "nothing of the part is read");
@@ -862,7 +857,7 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
     unmated.push((Coord::SpinAbout(Z), zero(editor_core::Dimension::Angle)));
     let (by_values, p_values) = insert(
         doc.clone(),
-        Node::place(vec![BodyRead::plain(Operand::from(b))]),
+        crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
     );
     let by_values = by_values
         .apply(
@@ -1101,7 +1096,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     values.push((Coord::SpinAbout(Z), zero(editor_core::Dimension::Angle)));
     let (before, p) = insert(
         doc.clone(),
-        Node::place(vec![BodyRead::plain(Operand::from(b))]),
+        crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
     );
     let before = before
         .apply(&editor_core::DocEdit::unmated(p, values), Tol::witness())
@@ -1194,7 +1189,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     // it apart).
     let read = fixture::body_read(&doc, b.into());
     let stood = editor_core::stand();
-    let (next, p) = insert(doc.clone(), Node::place(vec![BodyRead::plain(read)]));
+    let (next, p) = insert(doc.clone(), crate::fixture::stood(vec![BodyRead::plain(read)]));
     let before = fixture::written(next, p, stood);
     let slot = value_slot(&before, p, Coord::SpinAbout(Z));
     let after = retyped(&before, p, slot, SlotValue::Formula(ang(0.0)));

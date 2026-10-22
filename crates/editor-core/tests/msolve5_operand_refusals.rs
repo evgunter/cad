@@ -116,7 +116,7 @@ fn scene(label: &str, top_part: (ProfileDoc, RecipeNodeId)) -> Scene {
     let (top_ref, _) = store.insert_part(top_part, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     Scene {
         doc,
@@ -300,13 +300,13 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     );
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve5-poisoned"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // A copy of the top's copy, lifted: it reads a copy that does not
     // evaluate, so it is pinned nominally ([`fixture::pin_mate`]).
     let (doc, xf) = insert(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::Node(top),
         )]),
     );
@@ -344,7 +344,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         );
         let (next, placed) = insert(
             next,
-            Node::place(vec![editor_core::BodyRead::plain(
+            crate::fixture::stood(vec![editor_core::BodyRead::plain(
                 editor_core::Operand::Node(part),
             )]),
         );

@@ -426,8 +426,10 @@ pub(crate) const SOLVE_MAP_REWITNESS: &str = "solve_map_rewitness";
 /// Two copies are relatively unconstrained exactly when they land in
 /// different components — decidable from recipe structure alone, which
 /// is the whole content of A9. A constraint couples its copy to its
-/// target because the placement holding it reads the target, and two
-/// copies pinned against the world share the world.
+/// target because the placement holding it reads the target, and a
+/// placement's values chart on its target space's axes, so it is
+/// coupled to the node defining that space: two copies placed into the
+/// world share the world.
 pub fn relative_freedom_components<P: crate::ProfilePayload>(
     doc: &Doc<P>,
 ) -> Vec<Vec<RecipeNodeId>> {
@@ -441,14 +443,12 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
         for input in doc.upstream_of(id, node) {
             couple(id, input);
         }
-        // A world read is inside the mate and reads no variable, and a
-        // bundle with no mate places its copy in the world by its values
-        // alone, so the world is coupled here.
-        let pinned = bundle_of(node).is_some_and(|bundle| {
-            bundle.iter().any(super::Constraint::reads_world) || unmated_bundle(bundle)
-        });
-        if pinned {
-            couple(id, RecipeNodeId::WORLD);
+        // A space holds nothing, so a target is no upstream read: the
+        // placement is coupled here to what defines its space.
+        if bundle_of(node).is_some()
+            && let Some(at) = doc.node_space(id).and_then(|space| doc.operation_of(space))
+        {
+            couple(id, at);
         }
     }
     // The world seeds first and couples, but is no member: no edit

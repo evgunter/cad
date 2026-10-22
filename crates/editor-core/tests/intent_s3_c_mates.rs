@@ -287,7 +287,7 @@ fn spun(pose_: Operand, about: Operand, turn: f64) -> Operand {
 fn placed(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
-        Node::place(vec![BodyRead::plain(Operand::output(body, 0))]),
+        crate::fixture::stood(vec![BodyRead::plain(Operand::output(body, 0))]),
     )
 }
 
@@ -993,7 +993,7 @@ fn inline_moves_a_landing_under_a_world_value_with_its_instance() {
     let o = fixture::resolver::with_resolver(store.clone());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
     let host = ProfileDoc::empty_derived("s3c_inline_host", Tol::witness());
-    let (host, instance) = fixture::insert(host, Node::instantiate_part(part_ref));
+    let (host, instance) = fixture::insert(host, crate::fixture::mated_instance(part_ref));
     // The world's vertices, sorted: a re-pin re-composes the pose, so
     // the copy stands where it stood to the rounding of that one step.
     let world = |doc: &ProfileDoc, o: &EvalOptions| {
@@ -1475,12 +1475,11 @@ fn a_copy_stands_where_its_body_stands_at_every_value() {
         let (doc, placement) = a_box_of_height_standing(nominal);
         let ev = evaluated::<f64>(&doc, &EvalOptions::default());
         assert!(motion_of(&ev, placement).is_none(), "at h = {nominal}");
-        match ev.result(placement) {
-            Some(NodeResult::Ok(value)) => {
-                assert_eq!(value.space, Some(editor_core::Space::World));
-            }
-            other => panic!("the placement evaluates: {other:?}"),
-        }
+        assert!(
+            matches!(ev.result(placement), Some(NodeResult::Ok(_))),
+            "the placement evaluates"
+        );
+        assert_eq!(doc.node_space(placement), Some(editor_core::VarId::WORLD));
     }
     let (doc, placement) = a_box_of_height_standing(1.0);
     let h = doc.var_named("h").expect("declared");
@@ -1519,7 +1518,7 @@ fn inline_carries_a_standing_copy_at_the_identity_and_at_a_moved_landing() {
     let o = fixture::resolver::with_resolver(store.clone());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
     let host = ProfileDoc::empty_derived("s3c_world_pin_host", Tol::witness());
-    let (host, instance) = fixture::insert(host, Node::instantiate_part(part_ref));
+    let (host, instance) = fixture::insert(host, crate::fixture::mated_instance(part_ref));
     let still = fixture::pinned(host.clone(), instance, &o);
     let inlined = editor_core::inline(&still, instance, &resolver, Tol::witness())
         .expect("at the identity the part's world is the host's");
@@ -1600,7 +1599,7 @@ fn a_part_inlined_twice_lands_at_the_composed_pose_at_its_pins_depth() {
         let resolver: std::sync::Arc<dyn editor_core::PartResolver> =
             std::sync::Arc::new(store.clone());
         let host = ProfileDoc::empty_derived(&format!("s3c_inline_twice_{level}"), Tol::witness());
-        let (host, instance) = fixture::insert(host, Node::instantiate_part(doc_ref));
+        let (host, instance) = fixture::insert(host, crate::fixture::mated_instance(doc_ref));
         let host = fixture::pin(host, instance, &editor_core::Frame::from_affine(at), &o);
         doc = editor_core::inline(&host, instance, &resolver, Tol::witness())
             .unwrap_or_else(|e| panic!("inline {level} lands: {e}"))

@@ -62,8 +62,8 @@ fn assembly_of(
     o: &EvalOptions,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty(id, Tol::witness());
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(part_ref), o);
-    let (doc, b) = insert(doc, Node::instantiate_part(part_ref));
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(part_ref), o);
+    let (doc, b) = insert(doc, crate::fixture::mated_instance(part_ref));
     let doc = fixture::pin(doc, b, &Frame::translation([4.0, 0.0, 0.0]), o);
     (doc, vec![a, b])
 }
@@ -76,7 +76,7 @@ fn pinned_at(
     pose: &Frame,
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let doc = fixture::emptied(doc, placement);
+    let doc = fixture::stand_again(doc, placement);
     fixture::pin(doc, placement, pose, o)
 }
 

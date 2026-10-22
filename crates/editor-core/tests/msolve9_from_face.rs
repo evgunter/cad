@@ -170,7 +170,7 @@ fn seat(label: &str, post_height: f64) -> Seat {
         store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
     let opts = with_resolver(store.clone());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, post_i) = insert(doc, Node::instantiate_part(post_ref));
+    let (doc, post_i) = insert(doc, crate::fixture::mated_instance(post_ref));
     let doc = stood_on_its_base(doc, post_i, post_body);
     let (doc, block_i) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, mate) = seated_on(
@@ -416,7 +416,7 @@ fn rest_on_the_face(
         store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(part_ref), &opts);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(part_ref), &opts);
     let (doc, b) = insert(doc, fixture::mated_instance(block_ref));
     // The door decides nothing that needs a pose: the rest enters
     // whatever the face is.

@@ -939,10 +939,10 @@ pub const OVERCONSTRAINED_RECOURSE: &str = "delete one of the named constraints,
      the two copies also meet, an assertion says so";
 
 /// **The recourse a [`MateFault::Unpinned`] ends on**: what an author
-/// writes for a bundle with no mate.
-pub const UNPINNED_RECOURSE: &str = "write every freedom as a value: a slide along each of the \
-     target's x, y and z, and a chain of three spins about its axes, no two in a row about one \
-     axis, the constant 0 where the two spaces agree; or mate the copy";
+/// writes for a bundle that leaves a freedom unwritten.
+pub const UNPINNED_RECOURSE: &str = "write each freedom the mates leave as a value, the constant 0 \
+     where the two spaces agree — with no mate, a slide along each of the target's x, y and z and \
+     a chain of three spins about its axes, no two in a row about one axis — or mate the copy";
 
 /// **The v1 class restriction, named.** `Fit` is specified and not
 /// built; a mate cannot declare a designed clearance until the kernel
@@ -1181,26 +1181,16 @@ pub enum MateFault {
         /// How many of the copy's six freedoms the whole bundle leaves.
         free: u8,
     },
-    /// **A bundle with no mate leaves a freedom unwritten** (D10
-    /// `[placement.values]`): with no mate its values state the copy's
-    /// whole motion, so each of the six freedoms is written — a slide
-    /// along each of the target space's axes and a chain of three spins
-    /// about them — or the bundle pins nothing it can name.
+    /// **A bundle leaves a freedom unwritten** (D10
+    /// `[placement.placement]`): its mates and values together set every
+    /// freedom of the copy, so a bundle that leaves one unset, an empty
+    /// one included, is refused at the door, and an unwritten freedom
+    /// cannot be represented.
     Unpinned {
         /// The placement.
         placement: RecipeNodeId,
         /// How many of the copy's six freedoms the bundle leaves.
         free: u8,
-    },
-    /// **A bundle relates its copy to two spaces**: its mates' targets
-    /// read geometry of two different spaces, or one the world and one
-    /// a space that does not reach it. A copy joins one space, so its
-    /// mates fold in that space's coordinates.
-    TargetsDiffer {
-        /// The placement.
-        placement: RecipeNodeId,
-        /// Its constraints, in bundle order.
-        constraints: Vec<crate::node::ConstraintId>,
     },
     /// **A mate's `on` does not read the copy** (D10): its pose reads
     /// geometry other than the placement's shapes (or, for an instance,
@@ -1311,7 +1301,6 @@ impl MateFault {
             | Self::ClassNotAdmitted { .. }
             | Self::Overconstrained { .. }
             | Self::Unpinned { .. }
-            | Self::TargetsDiffer { .. }
             | Self::NotOnTheCopy { .. }
             | Self::Unleverable { .. }
             | Self::KindsDiffer { .. }
@@ -1451,22 +1440,11 @@ impl crate::spoken::Say for MateFault {
                 };
                 write!(
                     f,
-                    "{}'s bundle has no mate, so its values state the copy's whole motion, and \
-                     it leaves {left} unwritten. Recourse: {UNPINNED_RECOURSE}",
+                    "{}'s bundle leaves {left} of its copy unwritten, and every bundle pins its \
+                     copy. Recourse: {UNPINNED_RECOURSE}",
                     by.node(*placement),
                 )
             }
-            Self::TargetsDiffer {
-                placement,
-                constraints,
-            } => write!(
-                f,
-                "{}'s constraints {} read targets in more than one space; a copy joins one \
-                 space, so its mates fold in that space's coordinates. Recourse: mate the copy \
-                 against poses of one space",
-                by.node(*placement),
-                ids(*placement, constraints)
-            ),
             Self::NotOnTheCopy { mate } => write!(
                 f,
                 "{}'s `on` pose reads geometry other than the copy its placement defines, so \

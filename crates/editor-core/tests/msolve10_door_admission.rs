@@ -72,7 +72,7 @@ fn instances(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptio
     let mut ids = Vec::new();
     for i in 0..n {
         let (next, id) = if i == 0 {
-            insert_pinned(doc, Node::instantiate_part(doc_ref), &opts)
+            insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &opts)
         } else {
             insert(doc, fixture::mated_instance(doc_ref))
         };

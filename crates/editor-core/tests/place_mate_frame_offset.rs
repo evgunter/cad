@@ -21,7 +21,7 @@ use crate::p2_gauges::{Parts, block, body_of, cut, min_corner, parts};
 use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    FreeValue, FreeVar, Mate, MateRef, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
+    FreeValue, FreeVar, Mate, MateRef, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
     SplitError, Target, TargetAxis, Value, VarName, WorldRead, apply,
 };
 use fixture::resolver::with_resolver;
@@ -377,7 +377,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         1.5,
     );
-    let (doc, base) = insert_pinned(doc, Node::instantiate_part(p.base), &o);
+    let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
     let seat_on = |doc: ProfileDoc, base: RecipeNodeId, x: Formula| {
         let (doc, top) = insert(doc, fixture::mated_instance(p.top));
         let (doc, m) = constrain_at(

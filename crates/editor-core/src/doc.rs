@@ -2235,9 +2235,14 @@ impl<P> Doc<P> {
     }
 
     /// **The variable ids, in id order**: the order they were declared
-    /// in ([`Self::free_vars`]'s base).
+    /// in ([`Self::free_vars`]'s base). The world's space aside, as
+    /// [`Self::ids`] leaves the world: every document holds it.
     pub fn var_ids(&self) -> Vec<VarId> {
-        self.vars.keys().copied().collect()
+        self.vars
+            .keys()
+            .copied()
+            .filter(|&id| id != VarId::WORLD)
+            .collect()
     }
 
     /// The name the document holds for `id`, if any.
@@ -2998,6 +3003,7 @@ mod tests {
                             .expect("the fixture spells a face"),
                     }],
                 },
+                target: crate::VarId::WORLD,
                 constraints: Vec::new(),
             },
         );

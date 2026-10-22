@@ -1673,7 +1673,7 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
     .expect("a half-turn about z");
     let (doc, q) = crate::fixture::insert(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(the_box)]),
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(the_box)]),
     );
     let doc = crate::fixture::pin(doc, q, &turned, &EvalOptions::default());
     let ev = run(&doc);

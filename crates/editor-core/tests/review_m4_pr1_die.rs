@@ -133,9 +133,9 @@ fn place_pip(
         doc,
         log,
         TEdit::InsertNode {
-            node: Box::new(Node::place(vec![editor_core::BodyRead::plain(
+            node: Box::new(editor_core::Node::place(vec![editor_core::BodyRead::plain(
                 Operand::Node(pip),
-            )])),
+            )], editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle())),
             fresh: Vec::new(),
         },
     );

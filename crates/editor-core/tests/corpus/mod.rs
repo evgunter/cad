@@ -676,6 +676,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Split { .. }
         | Node::Place { .. }
         | Node::World
+        | Node::Space
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Measure { .. }
@@ -704,6 +705,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
         Node::World => "World",
+        Node::Space => "Space",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
@@ -745,6 +747,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::RemoveConstraints { .. } => "RemoveConstraints",
         DocEdit::AddValue { .. } => "AddValue",
         DocEdit::AddValues { .. } => "AddValues",
+        DocEdit::SetConstraints { .. } => "SetConstraints",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
     }

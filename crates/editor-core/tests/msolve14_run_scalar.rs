@@ -342,7 +342,7 @@ fn slab_and_bolts(
     n: usize,
 ) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (mut doc, slab) = fixture::insert_pinned(doc, Node::instantiate_part(p.slab), &p.opts());
+    let (mut doc, slab) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.slab), &p.opts());
     let mut bolts = Vec::new();
     for _ in 0..n {
         let (next, bolt) = insert(doc, fixture::mated_instance(p.bolt));
@@ -1781,7 +1781,7 @@ fn structure<T: editor_core::EvalScalar>(
         .map(|id| {
             let said = match ev.result(id) {
                 Some(NodeResult::Ok(v)) => {
-                    format!("{} in {:?}", v.payload.kind_name(), ev.space(id))
+                    format!("{} in {:?}", v.payload.kind_name(), doc.node_space(id))
                 }
                 Some(other) => format!("failed: {}", fault_class(other)),
                 None => "absent".to_string(),
