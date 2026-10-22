@@ -129,3 +129,43 @@ is the constant budget. **Deleted**; the other designer's ceil argument
 becomes the documented reason for the band. The guard is the drawn
 count, held to a band on every bound corpus row. Review: style.
 (FIT orchestrator)
+
+## 2026-10-22 — the occlusion slack weighed (pickindex row §3)
+
+One pair weighed it, and both corrected the premise. There is no
+certified second operand: the probe's edge depth is
+`ray_segment_closest`'s raw `t` along an un-projected pixel ray, so
+`front.span.precedes(&span)` has nothing on its right-hand side. The
+`1e-6` has been absorbing a geometric offset (spatial rounding over
+the cosine to the incident face, which is unbounded at grazing), not
+rounding alone. The question is a z-fight that `[verdicts]` says is
+posed so the choice does not arise. The pair converged:
+
+- The chord's depth is its OWN crossing: the hull of the kernel's
+  `ray_triangle` spans over the chord's incident triangles (exact by
+  mesh index).
+- It is hidden iff something in the front set certainly precedes it,
+  which is the kernel's `survivors` rule.
+- `OCCLUSION_SLACK_REL` is deleted.
+- `front_of` answers the survivor set: `nearest` by rounded `t` goes,
+  and the edge seed searches every body the tie names. That is an
+  unfiled cross-body defect: today a two-part tie offers one part's
+  edges by rounded `t` and list order.
+
+They differed on one gap, which the orchestrator settled. On a
+silhouette edge the ray passes just outside both incident triangles,
+so the hull is empty. One designer adds a kernel door for a certified
+point span (beside `ray_triangle`, counting units as `t_span` does);
+the other had no operand there. **Taken: the door.** `edge_pick.rs`'s
+own `1e-6` fixture classifier stays as an independent oracle.
+Review: full. Dispatch waits for disk (the lane builds editor-core
+and the viewer).
+
+**Friction (2026-10-22).** Three lane findings on this box:
+- the disk filled while four lanes held build directories (6–8 GB
+  each), and one reviewer could not check out;
+- a CI job that died on infrastructure could not be re-run (403),
+  and a lane pushed empty commits instead;
+- the isolation hook refused `setsid` launches, the very detach the
+  standing rules require.
+(FIT orchestrator)
