@@ -145,28 +145,14 @@ fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f
 /// `seat`'s mate added to `placement`'s bundle with its three freedoms
 /// set — the two slides and no spin — so it pins the copy.
 fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
-    let (doc, mate) = fixture::constrain_at(doc, placement, seat.mate);
-    let doc = [
+    let (doc, mate) = crate::fixture::mated(
+        doc, placement, seat.mate,
+        &[
         (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
         (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
         (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        step(
-            doc,
-            DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
+    ],
+    );
     (doc, mate)
 }
 

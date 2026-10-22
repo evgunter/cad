@@ -2120,8 +2120,18 @@ impl<P> Doc<P> {
     /// node that is not live, defines nothing, or defines several
     /// outputs (a revolve's body and axis, a split's two halves), whose
     /// read names its port; the edit door refuses each typed.
+    /// A construction's space, its last port, is no part of what it
+    /// holds: the read is its one other output.
     pub fn read_of_node(&self, node: RecipeNodeId) -> Option<VarId> {
-        match self.outputs(node).as_slice() {
+        let held: Vec<VarId> = self
+            .outputs(node)
+            .into_iter()
+            .filter(|&var| {
+                self.nodes.get(&node).is_some_and(Node::is_space)
+                    || self.var(var).map(|v| v.kind()) != Some(crate::VarKind::Space)
+            })
+            .collect();
+        match held.as_slice() {
             [one] => Some(*one),
             _ => None,
         }
@@ -2330,10 +2340,11 @@ impl<P> Doc<P> {
         }
     }
 
-    /// Whether this document minted `id` as a variable's.
+    /// Whether this document minted `id` as a variable's. The world's
+    /// space is every document's without a mint.
     #[must_use]
     pub fn has_minted_var(&self, id: VarId) -> bool {
-        self.mint.has_var(id)
+        id == VarId::WORLD || self.mint.has_var(id)
     }
 
     /// The recorded modeling tolerance ε (spec D2; edited by PR 6's

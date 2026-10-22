@@ -98,35 +98,20 @@ fn seat(
 ) -> (ProfileDoc, MateRef) {
     let to = fixture::plane(fixture::head(target));
     let to = if facing { fixture::flip(to) } else { to };
-    let (doc, mate) = constrain(
+    let (doc, mate) = crate::fixture::constrain_with(
+        
         doc,
         fixture::mate(
             fixture::plane(fixture::head(placed)),
             to,
             ContactClass::Rest,
         ),
-    );
-    let doc = [
+        &[
         (Coord::Slide(TargetAxis::X), len(slide[0])),
         (Coord::Slide(TargetAxis::Y), len(slide[1])),
         (Coord::Spin, ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        step(
-            doc,
-            DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
+    ],
+    );
     (doc, mate)
 }
 

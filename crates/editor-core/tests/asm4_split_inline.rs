@@ -704,6 +704,8 @@ fn row3_further_typed_refusals() {
             distance: len(1.0),
         },
     );
+    // The block joins the instance's copy in the world.
+    let (host, block) = fixture::place(host, block);
     let (host, consumer) = insert(
         host,
         Node::Union {

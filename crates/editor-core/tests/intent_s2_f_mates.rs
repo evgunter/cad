@@ -56,28 +56,14 @@ fn seat(
 /// slides in its plane and the spin — so its copy stands square on the
 /// target, pinned against it.
 fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
-    let (doc, mate) = fixture::constrain(doc, mate);
-    let doc = [
+    let (doc, mate) = crate::fixture::constrain_with(
+        doc, mate,
+        &[
         (Coord::Slide(TargetAxis::X), len(0.0)),
         (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        step(
-            doc,
-            DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
+    ],
+    );
     (doc, mate)
 }
 

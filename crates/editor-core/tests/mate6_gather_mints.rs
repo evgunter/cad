@@ -120,28 +120,14 @@ struct Seat {
 /// a plane mate leaves set: a slide of `apart` along x, none along y,
 /// and no spin, so it pins the copy.
 fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
-    let (doc, m) = fixture::constrain_at(doc, placement, seat.mate);
-    let doc = [
+    let (doc, m) = crate::fixture::mated(
+        doc, placement, seat.mate,
+        &[
         (Coord::Slide(TargetAxis::X), len(seat.apart)),
         (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        fixture::step(
-            doc,
-            DocEdit::AddValue {
-                placement: m.placement,
-                value: Box::new(Value {
-                    mate: Some(m.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
+    ],
+    );
     (doc, m)
 }
 

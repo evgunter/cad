@@ -301,22 +301,26 @@ pub fn constrain(
     constrain_at(doc, placement, mate)
 }
 
+/// [`constrain`] with `values` on the freedoms `mate` leaves, the rest
+/// written 0 ([`mated`]).
+pub fn constrain_with(
+    doc: ProfileDoc,
+    mate: editor_core::Mate<Formula>,
+    values: &[(editor_core::Coord, Formula)],
+) -> (ProfileDoc, editor_core::MateRef) {
+    let placement = placed_by(&doc, &mate);
+    mated(doc, placement, mate, values)
+}
+
 /// [`constrain`] onto `placement` as named: `mate` its whole bundle,
-/// so a mate that pins by itself ([`write_bundle`]).
+/// each freedom it leaves written 0 ([`mated`]) — every bundle pins
+/// its copy.
 pub fn constrain_at(
     doc: ProfileDoc,
     placement: RecipeNodeId,
     mate: editor_core::Mate<Formula>,
 ) -> (ProfileDoc, editor_core::MateRef) {
-    let (doc, minted) = write_bundle(
-        doc,
-        placement,
-        vec![editor_core::Constraint::of_mate(
-            editor_core::ConstraintId::placeholder(1),
-            mate,
-        )],
-    );
-    (doc, minted[0])
+    mated(doc, placement, mate, &[])
 }
 
 /// **The space a bundle's mates read their targets in**: the world for
