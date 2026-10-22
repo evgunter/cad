@@ -81,7 +81,10 @@ fn dump(label: &str, body: &Body<f64>) {
             p
         );
     }
-    match topo::test_support::unmigrated_measure(body, tol()) {
+    match topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    ) {
         Ok(p) => println!(
             "[dump] {label}: volume={:?} pad={:?} area={:?}",
             p.volume, p.volume_pad, p.surface_area

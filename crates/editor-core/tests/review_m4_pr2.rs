@@ -30,7 +30,11 @@ fn run(
 
 fn fingerprint(b: &Body<f64>) -> String {
     let mut s = String::new();
-    let m = topo::test_support::unmigrated_measure(b, Tol::witness()).unwrap();
+    let m = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let _ = writeln!(
         s,
         "V {:016x} A {:016x}",
@@ -532,9 +536,16 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
     let ev = run(&doc, None, false);
     match ev.nodes.get(&rev) {
         Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Body(b) => Ok(topo::test_support::unmigrated_measure(b, Tol::witness())
-                .unwrap()
-                .volume),
+            ValuePayload::Body(b) => Ok(topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&**b),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume),
             other => Err(format!("non-body: {}", other.kind_name())),
         },
         Some(NodeResult::Failed(e)) => Err(format!("{:?}", e.kind)),
@@ -674,14 +685,22 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     };
     let (d_exact, s_exact) = build(false);
     let (d_rot, s_rot) = build(true);
-    let v_exact = topo::test_support::unmigrated_measure(
-        boolean_body(&run(&d_exact, None, false), s_exact),
+    let v_exact = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(boolean_body(&run(&d_exact, None, false), s_exact)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
     .volume;
-    let v_rot = topo::test_support::unmigrated_measure(
-        boolean_body(&run(&d_rot, None, false), s_rot),
+    let v_rot = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(boolean_body(&run(&d_rot, None, false), s_rot)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
@@ -792,17 +811,28 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
     assert_eq!(e2.reused, e1.recomputed + e1.reused);
     // The reused body is the SAME value (Merkle key match), and its
     // volume enclosure brackets the f64 volume.
-    let vf = topo::test_support::unmigrated_measure(
-        boolean_body(&run(&doc, None, false), s),
+    let vf = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(boolean_body(&run(&doc, None, false), s)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
     .volume;
     let vi = match &e2.value(s).unwrap().payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            topo::test_support::unmigrated_measure(body.as_ref(), Tol::witness())
-                .unwrap()
-                .volume
+            topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(body.as_ref()),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume
         }
         other => panic!("expected boolean body, got {}", other.kind_name()),
     };

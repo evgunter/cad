@@ -252,9 +252,12 @@ pub fn assert_body_is(
 ) -> f64 {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    let got_v = topo::test_support::unmigrated_measure(body, tol)
-        .unwrap_or_else(|e| panic!("{label}: the volume refused {e:?}"))
-        .volume;
+    let got_v = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("{label}: the volume refused {e:?}"))
+    .volume;
     assert!(
         (got_v - v).abs() <= tolerance,
         "{label}: volume {got_v} against {v} (± {tolerance})"

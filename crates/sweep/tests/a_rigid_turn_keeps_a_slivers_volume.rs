@@ -90,9 +90,12 @@ fn a_turned_sliver_validates_and_measures_its_own_volume() {
         let axis = Vec3::new(x, y, z);
         let turn =
             Affine3::rotation_about_axis(Point3::new(0.3, -0.2, 0.5), axis / axis.norm(), angle);
-        let turned: Body<f64> =
+        let turned = topo::test_support::finished(
+            "turned",
             topo::transform_rigid(&sliver, &geom_core::test_support::rigid(&turn, tol), tol)
-                .unwrap();
+                .unwrap(),
+            tol,
+        );
         assert_eq!(
             topo::validate_geometric(&turned, tol),
             Ok(()),
@@ -100,7 +103,7 @@ fn a_turned_sliver_validates_and_measures_its_own_volume() {
         );
         let truth = sliver_volume(psi);
         let before = topo::mass_properties(&sliver, tol).unwrap();
-        let after = topo::test_support::unmigrated_measure(&turned, tol).unwrap();
+        let after = topo::mass_properties(&turned, tol).unwrap();
         assert!(
             (after.volume - truth).abs() <= after.volume_pad,
             "{pose}: the turned sliver's enclosure {:e} ± {:e} misses its volume {truth:e}",

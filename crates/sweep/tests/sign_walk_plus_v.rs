@@ -221,8 +221,12 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         let refine = quad_verdicts(|| continued = Some(gated.refine_to_target()));
         let continued = continued.expect("the closure ran");
         let mut measured = None;
-        let one =
-            quad_verdicts(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+        let one = quad_verdicts(|| {
+            measured = Some(topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
+                tol,
+            ))
+        });
         let measured = measured.expect("the closure ran");
 
         // REUSE: no round run twice, none skipped — on EVERY roster

@@ -61,8 +61,11 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: validate_geometric"
     );
-    let p = topo::test_support::unmigrated_measure(body, Tol::witness())
-        .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
     assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
     assert!(
         (p.volume - expected).abs() <= 1e-9 * expected.max(1.0),
@@ -323,7 +326,11 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             if on_b_only && !on_b {
                 continue;
             }
-            let inverted = body.flipped_face_sense_for_tests(k).expect("the face");
+            let inverted = topo::test_support::finished(
+                "inverted",
+                body.flipped_face_sense_for_tests(k).expect("the face"),
+                Tol::witness(),
+            );
             assert_eq!(
                 topo::validate_geometric(&inverted, Tol::witness()),
                 Err(vec![topo::ValidationError::CurvedSenseInverted { face: k }]),
@@ -331,7 +338,7 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             );
             assert!(
                 matches!(
-                    topo::test_support::unmigrated_measure(&inverted, Tol::witness()),
+                    topo::mass_properties(&inverted, Tol::witness()),
                     Err(topo::MassPropsError::Face {
                         face,
                         source: geom_brep::props::PropsError::SenseContradicted,
@@ -382,7 +389,11 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
             continue;
         }
         encoded += 1;
-        let inverted = body.flipped_face_sense_for_tests(k).expect("the face");
+        let inverted = topo::test_support::finished(
+            "inverted",
+            body.flipped_face_sense_for_tests(k).expect("the face"),
+            tol,
+        );
         let errors = topo::validate_geometric(&inverted, tol).expect_err("tier 3 refuses");
         assert!(
             errors.contains(&topo::ValidationError::CurvedSenseInverted { face: k }),
@@ -390,7 +401,7 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
         );
         assert!(
             matches!(
-                topo::test_support::unmigrated_measure(&inverted, tol),
+                topo::mass_properties(&inverted, tol),
                 Err(topo::MassPropsError::Face {
                     face,
                     source: geom_brep::props::PropsError::SenseContradicted,

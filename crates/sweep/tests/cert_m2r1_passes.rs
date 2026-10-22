@@ -43,7 +43,8 @@ fn certified<T: geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Doors<T> {
     Doors {
         pseudomanifold: topo::validate_pseudomanifold::<T>,
         marks: |body, tol| topo::contact_marks(body, tol).map(|m| sorted_marks(m.iter())),
-        mass: topo::test_support::unmigrated_measure::<T>,
+        // Raw door: the corpus holds corrupt bodies tier 3 refuses, and the dump is of what each door says of them.
+        mass: topo::test_support::measure_unvalidated::<T>,
     }
 }
 
@@ -163,8 +164,11 @@ fn m2r1_structural_at_dual64_is_the_f64_closed_form_and_refuses_where_the_lane_w
     let mut refused = Vec::new();
     for ((name, b), (dname, d)) in base.iter().zip(&dual) {
         assert_eq!(name, dname);
-        let certified = topo::test_support::unmigrated_measure(b, tol)
-            .unwrap_or_else(|e| panic!("{name}: the certified door refused a corpus body: {e:?}"));
+        let certified = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{name}: the certified door refused a corpus body: {e:?}"));
         match topo::mass_properties_structural(d, tol) {
             Ok(s) => {
                 assert_eq!(

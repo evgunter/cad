@@ -106,15 +106,20 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> SplitPlane<f64> {
 /// One side holds the volume wanted and passes every tier.
 fn holds(label: &str, side: &str, part: &SplitPart<f64>, want: f64) {
     let tol = Tol::witness();
-    let b: &Body<f64> = part
-        .body()
-        .unwrap_or_else(|| panic!("{label}: no {side} side, want {want}"));
-    topo::validate(b).unwrap_or_else(|e| panic!("{label}: {side}: tier 1: {e:?}"));
-    topo::validate_closed(b).unwrap_or_else(|e| panic!("{label}: {side}: tier 2: {e:?}"));
-    topo::validate_geometric(b, tol).unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
-    topo::validate_pseudomanifold(b, &ContactRecords::default(), tol)
+    let b = topo::test_support::finished(
+        "b",
+        topo::Body::clone(
+            part.body()
+                .unwrap_or_else(|| panic!("{label}: no {side} side, want {want}")),
+        ),
+        tol,
+    );
+    topo::validate(&b).unwrap_or_else(|e| panic!("{label}: {side}: tier 1: {e:?}"));
+    topo::validate_closed(&b).unwrap_or_else(|e| panic!("{label}: {side}: tier 2: {e:?}"));
+    topo::validate_geometric(&b, tol).unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
+    topo::validate_pseudomanifold(&b, &ContactRecords::default(), tol)
         .unwrap_or_else(|e| panic!("{label}: {side}: tier 3′: {e:?}"));
-    let v = topo::test_support::unmigrated_measure(b, tol)
+    let v = topo::mass_properties(&b, tol)
         .unwrap_or_else(|e| panic!("{label}: {side}: mass properties: {e:?}"))
         .volume;
     assert!(

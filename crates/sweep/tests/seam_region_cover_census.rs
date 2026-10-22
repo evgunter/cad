@@ -57,7 +57,14 @@ fn one_flipped_sibling_is_check_4s_lamina_and_not_the_census() {
             matches!(errs.as_slice(), [ValidationError::LaminaWedge { .. }]),
             "{f:?} flipped alone is check 4's lamina, and only that: {errs:?}"
         );
-        let door = topo::test_support::unmigrated_measure(&flipped(&body, &[f]), tol);
+        let door = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&flipped(&body, &[f])),
+                tol,
+            ),
+            tol,
+        );
         assert!(
             matches!(
                 door,
@@ -129,7 +136,14 @@ fn a_flipped_ringed_member_is_named_by_its_own_read_and_not_the_census() {
         !errs.iter().any(census),
         "the census reads the region once: {errs:?}"
     );
-    let door = topo::test_support::unmigrated_measure(&flipped(&body, &faces), tol);
+    let door = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&flipped(&body, &faces)),
+            tol,
+        ),
+        tol,
+    );
     assert!(
         matches!(
             door,

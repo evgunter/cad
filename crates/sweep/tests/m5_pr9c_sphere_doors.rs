@@ -213,13 +213,11 @@ fn a_trimmed_sphere_face_is_classified_through_its_chart_rectangle() {
 /// overclaim.
 #[test]
 fn curved_revert_reverts_the_ball_instead_of_refusing() {
-    let body = ball();
+    let body = topo::test_support::finished("body", ball(), Tol::witness());
     let before: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
-    let v = topo::test_support::unmigrated_measure(&body, Tol::witness())
-        .unwrap()
-        .volume;
+    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
 
-    let rev = body.revert().unwrap();
+    let rev = topo::test_support::finished("rev", body.revert().unwrap(), Tol::witness());
     let after: Vec<bool> = rev.faces().map(|(_, f)| f.sense).collect();
     assert_eq!(after, before.iter().map(|s| !s).collect::<Vec<_>>());
     // The sphere CHART is untouched — no negative radius anywhere near
@@ -245,7 +243,7 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
         }])
     );
     assert_eq!(
-        topo::test_support::unmigrated_measure(&rev, Tol::witness())
+        topo::mass_properties(&rev, Tol::witness())
             .unwrap()
             .volume
             .to_bits(),

@@ -56,7 +56,15 @@ fn report(label: &str, r: f64, w: f64, angle: f64) -> Option<Result<f64, topo::M
     let solid = r * w * w + 2.0 / 3.0 * w * w;
     let exact = angle * (solid - 2.0 / 3.0 * r * r * r);
     let blind = angle * solid - 2.0 / 3.0 * r * r * r * PI;
-    let mp = topo::test_support::unmigrated_measure(&t.body, Tol::witness()).map(|m| m.volume);
+    let mp = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .map(|m| m.volume);
     println!(
         "[bool5r1 {label}] angle = 2pi - {:e}: tiers = {tiers:?}; volume = {mp:?}; exact = {exact:.15e}; \
          with the lune at pi = {blind:.15e}",

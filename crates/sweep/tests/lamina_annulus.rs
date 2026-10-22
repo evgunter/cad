@@ -40,9 +40,12 @@ fn reading(m: &sweep::blend::ClassifiedMargin) -> f64 {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// Every plane face: no edge with both halves in it (no slit).

@@ -295,7 +295,10 @@ fn check(
     if !volume {
         return Ok(());
     }
-    let m = match topo::test_support::unmigrated_measure(body, tol()) {
+    let m = match topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    ) {
         Ok(m) => m,
         Err(e) if near && in_band(&e) => return Ok(()),
         Err(e) => return Err(format!("the volume: {e:?}")),

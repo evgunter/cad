@@ -438,7 +438,10 @@ fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
         Tol::witness(),
     )
     .expect("the body moves");
-    let read = |b: &Body<f64>| match topo::test_support::unmigrated_measure(b, Tol::witness()) {
+    let read = |b: &Body<f64>| match topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    ) {
         Ok(m) => Ok((m.volume, m.surface_area, m.volume_pad, m.area_pad)),
         Err(e) => Err(format!("{e}")),
     };
@@ -923,17 +926,27 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
 #[test]
 fn the_walls_a_placed_approx_capped_part_still_meets() {
     let (body, _) = box_with_approx_cap(0.05, MINT_TARGET);
-    let placed = topo::transform_rigid(
-        &body,
-        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+    let placed = topo::test_support::finished(
+        "placed",
+        topo::transform_rigid(
+            &body,
+            &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("the part places"),
+        Tol::witness(),
+    );
+
+    let here = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&body),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
-    .expect("the part places");
-
-    let here =
-        topo::test_support::unmigrated_measure(&body, Tol::witness()).expect("the operand weighs");
-    let props = topo::test_support::unmigrated_measure(&placed, Tol::witness())
-        .expect("the placed part weighs");
+    .expect("the operand weighs");
+    let props = topo::mass_properties(&placed, Tol::witness()).expect("the placed part weighs");
     assert!(
         (props.volume - here.volume).abs() <= props.volume_pad + here.volume_pad
             && (props.surface_area - here.surface_area).abs() <= props.area_pad + here.area_pad,

@@ -5975,10 +5975,14 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             tol,
         ));
         let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
-        let body: &topo::Body<f64> = &cut.body().expect("a body").body;
+        let body = topo::test_support::finished(
+            "body",
+            topo::Body::clone(&cut.body().expect("a body").body),
+            tol,
+        );
         // The door names the first ray set aside at a corner or a wedge
         // beside the volume's refusal; the refusal is the volume's.
-        let source = match topo::classify_shells_structural(body, tol)
+        let source = match topo::classify_shells_structural(&body, tol)
             .expect_err("the lane-free door reads no role for the needle cavity")
         {
             topo::ShellClassifyError::Corner { volume, .. } => *volume,
@@ -6007,7 +6011,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             !text.contains("tolerance") && !text.contains("defect"),
             "{text}"
         );
-        let roles: Vec<topo::ShellRole> = topo::test_support::unmigrated_classify(body, tol)
+        let roles: Vec<topo::ShellRole> = topo::classify_shells(&body, tol)
             .expect("the certifying door reads the cavity")
             .iter()
             .map(|c| c.role)

@@ -113,7 +113,15 @@ fn closed_forms_at_varied_geometry() {
     for (major, outer, wall, window) in CASES {
         let inner = outer - wall;
         let t = hollow(major, outer, wall, window);
-        let props = topo::test_support::unmigrated_measure(&t.body, Tol::witness()).expect("props");
+        let props = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&t.body),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("props");
         let ring = outer * outer - inner * inner;
         let (v, a) = match window {
             Some((t0, t1)) => {
@@ -155,8 +163,24 @@ fn the_bore_differences_out_against_the_solid_door() {
             Tol::witness(),
         )
         .expect("the solid tube builds");
-        let hp = topo::test_support::unmigrated_measure(&h.body, Tol::witness()).expect("props");
-        let sp = topo::test_support::unmigrated_measure(&s.body, Tol::witness()).expect("props");
+        let hp = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&h.body),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("props");
+        let sp = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&s.body),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("props");
         rel_close(
             sp.volume - hp.volume,
             (t1 - t0) * major * PI * inner * inner,
@@ -402,7 +426,15 @@ mod certified {
                 }
                 Err(e) => panic!("unexpected refusal at Interval for R={major}: {e}"),
             };
-            let m = topo::test_support::unmigrated_measure(&t.body, Tol::witness()).expect("props");
+            let m = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&t.body),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .expect("props");
             let inner = outer - wall;
             let ring = outer * outer - inner * inner;
             let v = match window {

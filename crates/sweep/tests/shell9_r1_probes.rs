@@ -263,10 +263,18 @@ fn check_result(what: &str, body: &Body<f64>, want: f64, tol_abs: f64) {
         Ok(()),
         "{what}: tier 3"
     );
-    let roles = topo::test_support::unmigrated_classify(body, tol()).expect("classifies");
+    let roles = topo::classify_shells(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("classifies");
     let outers = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
     let voids = roles.iter().filter(|c| c.role == ShellRole::Void).count();
-    let props = topo::test_support::unmigrated_measure(body, tol()).expect("props");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("props");
     let rows = body.pcurves().count();
     println!(
         "[r1e2e] {what}: solids {} shells {} (outer {outers}, void {voids}) faces {} rows {rows} volume {} pad {} want {want} diff {:e}",

@@ -33,8 +33,11 @@ fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
         Ok(()),
         "{what}: tier 3 (+V)"
     );
-    let props = topo::test_support::unmigrated_measure(body, Tol::witness())
-        .expect("mass properties must compute");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties must compute");
     let rel = |got: f64, want: f64| (got - want).abs() / want.abs().max(1.0);
     assert!(
         rel(props.volume, volume) <= 1e-12,
@@ -345,7 +348,14 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
             Tol::witness(),
         )
         .expect("diagonal chord split through the public operator");
-    match topo::test_support::unmigrated_measure(&body, Tol::witness()) {
+    match topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    ) {
         Err(MassPropsError::Face { source, .. }) => {
             // A diagonal chord across the wall sags inside the
             // cylinder between its ends: an incidence premise, and so
@@ -464,9 +474,16 @@ fn pappus_cross_checks_review_revolves() {
         Tol::witness(),
     )
     .unwrap();
-    let v = topo::test_support::unmigrated_measure(&frustum.body, Tol::witness())
-        .unwrap()
-        .volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&frustum.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     let pappus = full_pappus_y(&frustum);
     assert!(
         (v - pappus).abs() < 1e-3 * v,

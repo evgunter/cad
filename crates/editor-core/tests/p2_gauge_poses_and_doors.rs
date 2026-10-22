@@ -464,9 +464,16 @@ fn a_loose_copy_below_stays_out_of_the_outer_product() {
     );
     let ev = run(&outer, &with_resolver(store));
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, Tol::witness())
-            .expect("mass")
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(b),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("mass")
+        .volume
     };
     let gathered = editor_core::product(&outer, &ev, Tol::witness()).expect("the world gathers");
     assert!(

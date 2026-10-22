@@ -23,9 +23,12 @@ fn close(got: f64, want: f64) -> bool {
 fn measure(label: &str, body: &Body<f64>, tol: Tol) -> f64 {
     topo::validate_geometric(body, tol)
         .unwrap_or_else(|e| panic!("{label}: tier 3 refuses: {e:?}"));
-    topo::test_support::unmigrated_measure(body, tol)
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
+        tol,
+    )
+    .unwrap()
+    .volume
 }
 
 /// Tier 3 refuses `body` as a region claimed twice over, and nothing
@@ -39,7 +42,10 @@ fn overcovered(label: &str, body: &Body<f64>, tol: Tol) {
         ),
         "{label}: refused as covered twice: {errs:?}"
     );
-    let door = topo::test_support::unmigrated_measure(body, tol);
+    let door = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
+        tol,
+    );
     assert!(
         matches!(
             door,

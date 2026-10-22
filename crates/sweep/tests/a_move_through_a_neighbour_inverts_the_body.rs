@@ -52,9 +52,12 @@ fn face_where(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -> FaceKey
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness())
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 /// Every error is `RingOutsideOuter`, and there are `n` of them.

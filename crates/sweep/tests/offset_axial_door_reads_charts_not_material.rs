@@ -39,9 +39,12 @@ fn drum(ccw: bool) -> Body<f64> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness())
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 /// `body` finishes when `right_way`, and refuses on check 7 alone when

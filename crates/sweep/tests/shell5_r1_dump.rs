@@ -54,7 +54,7 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
     match out {
         Err(e) => println!("[dump] {label}: Err {e}"),
         Ok(s) => {
-            let b = &s.body;
+            let b = topo::test_support::finished("b", topo::Body::clone(&s.body), Tol::witness());
             println!(
                 "[dump] {label}: solids={} shells={} faces={} edges={} vertices={}",
                 b.solids().count(),
@@ -92,7 +92,7 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
                 "[dump] {label}: naming outer={:?} inner={:?} inner_edges={:?} inner_vertices={:?} rims={:?} dead={:?}",
                 n.outer, n.inner, n.inner_edges, n.inner_vertices, n.rims, n.dead
             );
-            match topo::test_support::unmigrated_measure(b, Tol::witness()) {
+            match topo::mass_properties(&b, Tol::witness()) {
                 Ok(p) => println!(
                     "[dump] {label}: volume={:?} area={:?}",
                     p.volume, p.surface_area
@@ -101,9 +101,9 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
             }
             println!(
                 "[dump] {label}: tier3={:?}",
-                topo::validate_geometric(b, Tol::witness())
+                topo::validate_geometric(&b, Tol::witness())
             );
-            crate::common::pcurve_rows::print_rows(label, b);
+            crate::common::pcurve_rows::print_rows(label, &b);
         }
     }
 }

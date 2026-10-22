@@ -37,7 +37,11 @@ const RHO: f64 = 0.1;
 const L: f64 = 2.0;
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("mass properties");
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("mass properties");
     assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
     p.volume
 }

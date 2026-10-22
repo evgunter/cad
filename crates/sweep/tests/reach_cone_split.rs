@@ -94,9 +94,12 @@ fn plane(phi: f64, qy: f64) -> SplitPlane<f64> {
 }
 
 fn vol(b: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(b, Tol::witness())
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 /// The volume of the solid of revolution `r(y)`, `y ∈ [0, 1]`, on the
@@ -322,8 +325,17 @@ fn a_plane_missing_the_cone_splits_the_body() {
         let result = split(&tower, &plane(phi, 0.5), Tol::witness())
             .unwrap_or_else(|e| panic!("{what}: {e}"));
         let (above, below) = halves(&result, &what);
-        let props =
-            |b: &Body<f64>| topo::test_support::unmigrated_measure(b, Tol::witness()).unwrap();
+        let props = |b: &Body<f64>| {
+            topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(b),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+        };
         let (pa, pb) = (props(&above), props(&below));
         let slack = pa.volume_pad + pb.volume_pad + 1e-12;
         assert!(
@@ -535,7 +547,13 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
             assert_eq!(validate_closed(part), Ok(()), "{what}: tier 2");
         }
         halves(&result, &what);
-        let props = |b: &Body<f64>| topo::test_support::unmigrated_measure(b, tol).unwrap();
+        let props = |b: &Body<f64>| {
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
+                tol,
+            )
+            .unwrap()
+        };
         let (pw, pa, pb) = (props(&operand), props(above), props(below));
         let whole = PI * h / 3.0 * (r0 * r0 + r0 * r1 + r1 * r1);
         let slack = 1e-12 * whole;

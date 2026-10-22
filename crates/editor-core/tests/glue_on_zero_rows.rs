@@ -45,9 +45,13 @@ fn a_flush_rest_glues_and_records_its_unproven_rows() {
     let (doc, _, _, union) = plate_on_a_block(0.0);
     let ev = run(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let body = body_of(&ev, union);
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, union)),
+        Tol::witness(),
+    );
     assert_eq!(body.solids().count(), 1, "one solid");
-    let volume = topo::test_support::unmigrated_measure(body, Tol::witness())
+    let volume = topo::mass_properties(&body, Tol::witness())
         .expect("the union measures")
         .volume;
     assert!((volume - 4.5).abs() < 1e-12, "the summed volume: {volume}");

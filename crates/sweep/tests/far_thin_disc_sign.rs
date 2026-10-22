@@ -99,11 +99,14 @@ fn far_thin_discs_are_read_by_their_exact_volume() {
                 check7,
                 "{what}, {name}: check 7"
             );
-            let roles: Vec<ShellRole> = topo::test_support::unmigrated_classify(body, tol)
-                .unwrap_or_else(|e| panic!("{what}, {name}: the shell classifies: {e}"))
-                .iter()
-                .map(|c| c.role)
-                .collect();
+            let roles: Vec<ShellRole> = topo::classify_shells(
+                &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("{what}, {name}: the shell classifies: {e}"))
+            .iter()
+            .map(|c| c.role)
+            .collect();
             assert_eq!(roles, vec![role], "{what}, {name}: the shell's role");
             let got = [inside, beside].map(|p| {
                 point_in_solid(body, p, band, tol)
@@ -287,7 +290,14 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
                             check7,
                             "{what}, {name}: check 7"
                         );
-                        let classified = topo::test_support::unmigrated_classify(body, tol);
+                        let classified = topo::classify_shells(
+                            &topo::test_support::finished(
+                                "the measured body",
+                                topo::Body::clone(body),
+                                tol,
+                            ),
+                            tol,
+                        );
                         if runs_out_of_budget(h, tilt, d, angle, tol) {
                             assert_runs_out_of_budget(&classified, &format!("{what}, {name}"));
                             continue;

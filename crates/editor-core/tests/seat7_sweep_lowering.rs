@@ -998,9 +998,16 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         "one declared parameter's two walls must decide equal radii: {:?}",
         value.coincidences
     );
-    let from_document = topo::test_support::unmigrated_measure(body_of(&ev, union), tol())
-        .unwrap()
-        .volume;
+    let from_document = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(body_of(&ev, union)),
+            tol(),
+        ),
+        tol(),
+    )
+    .unwrap()
+    .volume;
 
     let raw_a = raw_spin(&raw_cylinder(R, H), Vec3::new(0.0, 0.0, 1.0), PHI);
     let raw_b = raw_spin(
