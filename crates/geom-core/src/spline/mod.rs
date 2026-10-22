@@ -79,7 +79,7 @@ pub use hull::{
 };
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
-    KnotMirrorError, KnotStructure, KnotVector, KnotVectorIssue, Span, SplineError,
+    KnotMirrorError, KnotStructure, KnotVector, KnotVectorIssue, LooseKnots, Span, SplineError,
     check_weight_value, check_weight_values, derivative_knot_slice, knot_difference,
     weight_in_regime,
 };
