@@ -5,7 +5,8 @@ title: pickindex merges parts on a rounded t it never converts, and slacks it by
 status: open
 opened: 2026-09-16
 priority: P1
-cost: H
+cost: M
+design: true
 ---
 
 
@@ -135,3 +136,14 @@ with: 18 of the 66 segment-midpoint cursors on the shipped plate
 `a_cursor_the_face_pick_ties_on_still_picks_the_edge`). This does not
 touch §3's number, and reading the occlusion question with
 `precedes` instead would now be a decision about both readers.
+
+## §1 split out, §3 is what is left (2026-10-22, FIT orchestrator)
+
+§1 is now its own row, `a-moved-copys-pick-span-crosses-its-frame-unconverted`,
+parked on stage 3 D′ because D′ rewrites the moved-copy frames it reads.
+§2 is closed (above). **This row is §3 alone**: `OCCLUSION_SLACK_REL`,
+the tuned relative `1e-6` on `t` in the occlusion probe, which reads
+`PickIndex::front_of`, whose second reader is `PickIndex::seed`. The
+open question is whether the occlusion probe takes the certified
+answer (`precedes` over the spans) or a deliberately looser one, and
+what that does to `seed`'s readers. It does not touch D10's ground.

@@ -2,12 +2,13 @@
 id: placed-union-places-and-fuses-in-one-node
 kind: issue
 title: PlacedUnion both places copies and fuses them; it retires into a placement of the copies and a union reading them
-status: open
+status: parked
 opened: 2026-10-08
 priority: P0
 refs: [transform-retires-into-a-placement, declared-pairs-retire]
 rides_with: patterns-are-index-variables
 cost: M
+blocked_on: [patterns-are-index-variables]
 ---
 
 **Spec:** `docs/INTENT-STAGE3-SPEC.md` §8 ("`PlacedUnion` retires"). Built by G, no design question of its own: a placement of the copies, a `Union` reading their pick family, the `Separation` certificate as the union's fast path where the union reads one pick family of one placement. FORK-DM4 is ruled and built (PRs 4527, 4674).

@@ -3092,7 +3092,7 @@ fn span_cells(kv: &KnotVector, cuts: &[f64]) -> Result<Vec<SpanCell>, PropsError
         .collect()
 }
 
-/// The midpoint of the cell `[lo, hi]` as the rational flux rule reads
+/// The midpoint of the cell `[lo, hi]` as the composite flux rules read
 /// it: a locator in `[lo, hi)`, which names the cell's span, and the
 /// enclosure of the exact midpoint, at which the span is evaluated.
 ///
@@ -4275,9 +4275,16 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             for iv in 0..cuts_v.len() - 1 {
                 let (c_vlo, c_vhi) = (cuts_v[iv], cuts_v[iv + 1]);
                 let hv = pt(c_vhi) - pt(c_vlo);
+                let (um, vm) = (cell_midpoint(c_ulo, c_uhi), cell_midpoint(c_vlo, c_vhi));
                 let m = (
-                    Collapse::At(c_ulo.midpoint(c_uhi)),
-                    Collapse::At(c_vlo.midpoint(c_vhi)),
+                    Collapse::AtSpan {
+                        mid: um.0,
+                        t: &um.1,
+                    },
+                    Collapse::AtSpan {
+                        mid: vm.0,
+                        t: &vm.1,
+                    },
                 );
                 let fm = dot(
                     &s.vec(m.0, m.1),

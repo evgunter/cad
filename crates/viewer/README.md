@@ -26,6 +26,15 @@ it rather than using it. The ratified plan that record answers to is
 | ALT + LEFT drag | orbit — the trackpad binding (plain left never moves the camera) |
 | RIGHT drag | pan |
 | scroll | zoom |
+| ctrl/⌘ + scroll | zoom (as scroll) |
+
+**A pinch is not a mouse binding, and it zooms too**, with the model's
+apparent size following the fingers: a trackpad pinch where the
+platform reports one as a gesture (macOS and iOS through winit, and a
+browser through the web backend), and a touchscreen pinch. A platform
+that turns a pinch into a ctrl+wheel instead hands the viewer a scroll,
+which zooms at the scroll rate — by that mechanism, what a Windows
+precision touchpad's pinch would be.
 
 Left-drag in the viewport is inert **by design** — primary is reserved
 for selection; hold ALT to orbit with it on a trackpad. Moving an
@@ -210,12 +219,14 @@ Three things are known-absent by design:
   with no portal and no zenity gets. It opens on the built-in startup
   document and stays there. Document I/O in a browser needs the
   download/upload or OPFS story GUI-5 owns.
-- **No touch bindings.** `InputMap` binds orbit to a middle drag, pan to
-  a secondary drag, and zoom to a wheel; a phone has none of the three.
-  egui delivers the touch events and `Context::multi_touch` is there,
-  but nothing consumes them, so navigation is unusable on a phone until
-  a touch vocabulary lands. `InputMap::map` is a pure `ViewportEvent →
-  CameraOp` function, so that work is headless-testable.
+- **No touch orbit or pan.** A pinch zooms — a touchscreen's, and a
+  trackpad's the browser reports as a gesture, through
+  `ViewportEvent::Pinch` — but `InputMap` binds orbit to a middle drag
+  and pan to a secondary drag, and a phone has neither. egui delivers the touch events and `Context::multi_touch`
+  is there, but only its zoom is consumed, so orbiting and panning are
+  unreachable on a phone until a touch vocabulary for them lands.
+  `InputMap::map` is a pure `ViewportEvent → CameraOp` function, so
+  that work is headless-testable.
 - **No phone layout.** `initial_layout` splits viewport-beside-panels
   horizontally at a 1280×800 design size. On a ~390 px viewport the
   four-pane dock is unusable; the panes scroll, which is not the same as
