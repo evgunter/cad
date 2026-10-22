@@ -213,3 +213,21 @@ and the viewer).
 - the isolation hook refused `setsid` launches, the very detach the
   standing rules require.
 (FIT orchestrator)
+
+## 2026-10-22 — a failed id readback is a device fault, and name_of is typed (PR 5601)
+
+Closes:
+- `id-readback-failure-reads-as-nothing-under-the-cursor`
+- `name-of-answers-none-for-both-nothing-and-an-unassigned-id`
+- `a-failed-id-readback-wait-leaves-the-buffer-mapping`, moved here from VGEOM
+
+The changes:
+- `read_id_at` answers `Result<u32, ReadbackFault>` (`Wait`, `Map`, `Short`).
+- The answer channel is `IdChannel` (`Option<IdReply>`).
+- A fault reaches the reader as cursor news (`IdNews::NoReadback`) and never as a disagreement.
+- `name_of` answers `PatchNameFault` (`Nothing`, `Unassigned`, `Unnamed`), and `IdAnswer` holds the door's answer instead of copying it.
+
+Review was full. It found no MAJOR. Its MINOR-1 was a latent crash that predates this change: a faulted readback left the buffer mapped. The next submit then hit `BufferStillMapped`, which wgpu's default handler panics on, and no error handler is installed. The fix pass confirmed this in the wgpu source. It also found that unmapping a buffer whose mapping was refused panics the same way. So every fault now rebuilds the buffer, a read unmaps it, and the map callback's error is carried into the fault. The orchestrator read that hunk.
+
+What still needs a device: whether a real fault is followed by a clean next query.
+(FIT orchestrator)

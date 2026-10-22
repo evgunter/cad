@@ -41,7 +41,7 @@ use viewer::generation::Generation;
 use viewer::idpass::{self, IdQueryLog, IdStep, IdSubject};
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, IndexSeam, PickCache};
-use viewer::pickindex::{self, IdMap, PictureKey};
+use viewer::pickindex::{self, IdMap, PatchNameFault, PictureKey};
 use viewer::platform;
 use viewer::prefs::{Absent, Prefs, PrefsStore};
 use viewer::props::SlotValue;
@@ -655,7 +655,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
     let disagreement = idpass::Disagreement {
-        from_gpu: idpass::IdAnswer::Nothing,
+        from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Nothing),
         from_ray: Vec::new(),
     };
     assert_eq!(
@@ -1940,9 +1940,12 @@ fn leaving_the_pane_voids_the_outstanding_answer() {
 
 // --- the two paths' agreement, by name ------------------------------
 
-/// The channel word the GPU side writes.
-fn answer(serial: u32, id: u32) -> u64 {
-    u64::from(serial) << 32 | u64::from(id)
+/// The reply the GPU side posts when its readback succeeds.
+fn answer(serial: u32, id: u32) -> idpass::IdReply {
+    idpass::IdReply {
+        serial,
+        read: Ok(id),
+    }
 }
 
 /// **The status line tells two tied faces apart.**
@@ -1964,7 +1967,7 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     let names: Vec<StableName> = index
         .ids()
         .ids()
-        .filter_map(|id| index.name_of(id).and_then(|name| name.as_ref().ok()))
+        .filter_map(|id| index.name_of(id).ok())
         .cloned()
         .collect();
     let first = names.first().expect("the plate draws a face").clone();
@@ -2050,7 +2053,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(7, id),
+            Some(&answer(7, id)),
             Some(7),
             Ok(std::slice::from_ref(&hit.name))
         ),
@@ -2062,14 +2065,20 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(6, id),
+            Some(&answer(6, id)),
             Some(7),
             Ok(&[])
         ),
         None
     );
     assert_eq!(
-        idpass::compare(&index, &DisplayView::none(), answer(7, id), None, Ok(&[])),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            Some(&answer(7, id)),
+            None,
+            Ok(&[])
+        ),
         None
     );
     // Nothing under the cursor on both sides is agreement.
@@ -2077,7 +2086,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(7, IdMap::NOTHING),
+            Some(&answer(7, IdMap::NOTHING)),
             Some(7),
             Ok(&[])
         ),
@@ -2087,13 +2096,16 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let Some(idpass::IdNews::Disagreement(report)) = idpass::compare(
         &index,
         &DisplayView::none(),
-        answer(7, IdMap::NOTHING),
+        Some(&answer(7, IdMap::NOTHING)),
         Some(7),
         Ok(std::slice::from_ref(&hit.name)),
     ) else {
         panic!("nothing vs a face is a disagreement");
     };
-    assert_eq!(report.from_gpu, idpass::IdAnswer::Nothing);
+    assert_eq!(
+        report.from_gpu,
+        idpass::IdAnswer::Refused(PatchNameFault::Nothing)
+    );
     assert_eq!(report.from_ray, vec![hit.name.clone()]);
     assert!(report.to_string().contains("disagree"));
 
@@ -2105,7 +2117,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let others: Vec<_> = index
         .ids()
         .ids()
-        .filter_map(|any| index.name_of(any).and_then(|n| n.as_ref().ok()))
+        .filter_map(|any| index.name_of(any).ok())
         .filter(|name| **name != hit.name)
         .cloned()
         .collect();
@@ -2123,7 +2135,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(7, id),
+            Some(&answer(7, id)),
             Some(7),
             Ok(&tied)
         ),
@@ -2134,7 +2146,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let Some(idpass::IdNews::Disagreement(report)) = idpass::compare(
         &index,
         &DisplayView::none(),
-        answer(7, outside_id),
+        Some(&answer(7, outside_id)),
         Some(7),
         Ok(&tied),
     ) else {
@@ -2164,7 +2176,7 @@ fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
         },
     };
     let report = idpass::Disagreement {
-        from_gpu: idpass::IdAnswer::Unnamed { id: 9, error },
+        from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Unnamed { id: 9, error }),
         from_ray: Vec::new(),
     };
     let sentence = report.to_string();
@@ -2247,7 +2259,7 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(7, id),
+            Some(&answer(7, id)),
             Some(7),
             Ok(std::slice::from_ref(&edge.name))
         )
@@ -2259,7 +2271,7 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(7, id),
+            Some(&answer(7, id)),
             Some(7),
             Ok(&named)
         ),
@@ -2302,7 +2314,7 @@ fn a_twin_copys_face_is_a_disagreement() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(3, *other),
+            Some(&answer(3, *other)),
             Some(3),
             Ok(std::slice::from_ref(&hit.name))
         )
@@ -3664,7 +3676,7 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
         (
             "the picking paths disagreeing",
             idpass::Disagreement {
-                from_gpu: idpass::IdAnswer::Nothing,
+                from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Nothing),
                 from_ray: Vec::new(),
             }
             .notice((&cursor.0, &cursor.1)),
