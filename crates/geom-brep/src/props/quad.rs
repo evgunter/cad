@@ -5953,7 +5953,14 @@ mod tests {
                     if cause.predicate == Some("props_ring_winding")
             )
         };
-        for (r, level) in [(1e-5, 0.2), (2e-6, 0.2), (3e-7, 0.95), (3e-8, 0.2)] {
+        // Rings from 30·ε up, clear of the band (`2·A/P = r`), and small
+        // enough that round 0's enclosure, about ±3e-5 at these levels,
+        // straddles it: at least the first at every ε row.
+        let rings = [(30.0, 0.2), (300.0, 0.95), (3000.0, 0.2)]
+            .map(|(k, level)| (k * eps, level))
+            .into_iter()
+            .filter(|&(r, _)| r <= 3e-5);
+        for (r, level) in rings {
             let [outer, ring] = rectangle_with_circle(true, 0.0, (r, level));
             let loops: [&[TrimEdgeQ]; 2] = [&outer, &ring];
             let at0 = cylinder_cut_face_rounds::<f64>(
@@ -5979,7 +5986,7 @@ mod tests {
         }
         // A ring in the band at every round refines through the window
         // and escalates at its last round.
-        let [outer, ring] = rectangle_with_circle(true, 0.0, (1.2e-8, 0.5));
+        let [outer, ring] = rectangle_with_circle(true, 0.0, (12.0 * eps, 0.5));
         let got = cylinder_cut_face_rounds::<f64>(
             pt(1.0),
             Interval::zero(),
@@ -6001,7 +6008,7 @@ mod tests {
     fn a_ring_in_the_band_at_every_round_escalates_at_the_schedules_end() {
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
-        let [outer, ring] = rectangle_with_circle(true, 0.0, (1.2e-8, 0.5));
+        let [outer, ring] = rectangle_with_circle(true, 0.0, (12.0 * eps, 0.5));
         let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band);
         assert!(
             matches!(

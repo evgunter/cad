@@ -1954,7 +1954,7 @@ mod tests {
             // refines through the window and escalates at its end.
             let got = within(
                 scalar,
-                &wall_face(&[outer.clone(), closed(1.5e-7, false)]),
+                &wall_face(&[outer.clone(), closed(100.0 * tol.eps(), false)]),
                 RoundWindow { first: 0, last: 2 },
             );
             assert!(
