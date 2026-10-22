@@ -200,10 +200,16 @@ fn n2r2_class9_validate_geometric_and_pseudomanifold() {
 #[test]
 fn n2r2_props_mass_properties() {
     let (body, _, _) = masqueraded(poison_x);
-    let mp = topo::mass_properties(&body, tol());
+    let mp = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), tol()),
+        tol(),
+    );
     eprintln!("[props.rs:1349 x-poison] mass_properties -> {mp:?}");
     let (body, _, _) = masqueraded(poison_y);
-    let mp = topo::mass_properties(&body, tol());
+    let mp = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), tol()),
+        tol(),
+    );
     eprintln!("[props.rs:1349 y-poison] mass_properties -> {mp:?}");
 }
 

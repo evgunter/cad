@@ -239,7 +239,7 @@ fn the_door_names_the_flipped_face_tier_3_names() {
                 |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face } if *face == f),
             );
             if let Err(topo::MassPropsError::Face { face, source }) =
-                topo::mass_properties(&fl, tol)
+                topo::test_support::unmigrated_measure(&fl, tol)
                 && named
                 && face != f
             {
@@ -293,7 +293,7 @@ fn an_over_cover_whose_region_encodes_its_side_is_refused_by_the_census() {
                         .any(|e| matches!(e, topo::ValidationError::SeamRegionOvercovered { .. })),
                     "{name} {d:?}: tier 3 refuses the over-cover by the census: {errs:?}"
                 );
-                let door = topo::mass_properties(&c, tol);
+                let door = topo::test_support::unmigrated_measure(&c, tol);
                 assert!(
                     matches!(
                         door,
@@ -345,7 +345,7 @@ fn a_corrupt_body_is_refused_typed_at_the_door() {
     for id in ids {
         let c = b.with_entity_removed_for_tests(id).unwrap();
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            topo::mass_properties(&c, tol)
+            topo::test_support::unmigrated_measure(&c, tol)
         })) {
             Ok(_) => {}
             Err(_) => panicked.push(format!("{id:?}")),
@@ -391,7 +391,7 @@ fn a_members_own_contradicted_read_is_named_over_the_over_cover() {
     split_faces_at_equator(&mut body, tol);
     let faces = sphere_faces(&body);
     assert_eq!(faces.len(), 6, "each lune split at the equator");
-    let door = topo::mass_properties(&flipped(&body, &faces), tol);
+    let door = topo::test_support::unmigrated_measure(&flipped(&body, &faces), tol);
     assert!(
         matches!(
             door,

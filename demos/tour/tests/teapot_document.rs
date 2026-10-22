@@ -404,8 +404,18 @@ fn one_request_builds_the_kernels_body() {
         bands(&doc_body),
         "the three bands' STORED (station, major, minor) must be identical bits"
     );
-    let p1 = pncad::topo::mass_properties(&kernel, tol).expect("kernel props");
-    let p2 = pncad::topo::mass_properties(&doc_body, tol).expect("document props");
+    let p1 = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&kernel), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("kernel props");
+    let p2 = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&doc_body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("document props");
     assert!(
         ((p1.volume - p2.volume) / p1.volume).abs() < 1e-14
             && ((p1.surface_area - p2.surface_area) / p1.surface_area).abs() < 1e-14,

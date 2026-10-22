@@ -31,7 +31,7 @@ use sweep::test_support::{
 };
 use sweep::{Extrusion, Revolution, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, EdgeKey, FaceKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, FaceKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -134,7 +134,9 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
             convex, !up,
             "{name}: the boss's dome rim is concave, the dimple's convex"
         );
-        let before = mass_properties(&body, tol()).unwrap().volume;
+        let before = topo::test_support::unmigrated_measure(&body, tol())
+            .unwrap()
+            .volume;
         let out = fillet_edges(
             &sweep::test_support::at_rest(&body, tol()),
             &arcs,
@@ -149,7 +151,10 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
             convex,
             "{name}: the band's stored sense bit is the chain's convexity"
         );
-        let delta = mass_properties(&out.body, tol()).unwrap().volume - before;
+        let delta = topo::test_support::unmigrated_measure(&out.body, tol())
+            .unwrap()
+            .volume
+            - before;
         assert_eq!(
             delta > 0.0,
             !convex,
@@ -211,7 +216,9 @@ fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
     let body = dimpled_plate(0.3, 0.15, 0.3, 0.0);
     validate_geometric(&body, tol()).expect("the dimpled plate is tier-3 valid");
     let arcs = z_rim(&body, 0.15, 0.4, true);
-    let before = mass_properties(&body, tol()).unwrap().volume;
+    let before = topo::test_support::unmigrated_measure(&body, tol())
+        .unwrap()
+        .volume;
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &arcs,
@@ -221,7 +228,7 @@ fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
     .unwrap_or_else(|e| panic!("the ladder rim beside a convex corner arc carves, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1);
-    let after = mass_properties(&out.body, tol()).unwrap();
+    let after = topo::test_support::unmigrated_measure(&out.body, tol()).unwrap();
     assert_eq!(after.volume_pad, 0.0);
     assert!(
         after.volume < before,
@@ -276,7 +283,12 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
     )
     .expect("a contained off-axis ring carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
-    assert_eq!(mass_properties(&out.body, tol()).unwrap().volume_pad, 0.0);
+    assert_eq!(
+        topo::test_support::unmigrated_measure(&out.body, tol())
+            .unwrap()
+            .volume_pad,
+        0.0
+    );
 }
 
 /// **The LADDER rim's outer-boundary containment backstop, reached at
@@ -317,7 +329,12 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
     let out = fillet_edges(&sweep::test_support::at_rest(&wide, tol()), &arcs, r, tol())
         .expect("a contained trim circle carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
-    assert_eq!(mass_properties(&out.body, tol()).unwrap().volume_pad, 0.0);
+    assert_eq!(
+        topo::test_support::unmigrated_measure(&out.body, tol())
+            .unwrap()
+            .volume_pad,
+        0.0
+    );
 }
 
 /// **Why the boolean door is not the way to that ring.** A cylinder

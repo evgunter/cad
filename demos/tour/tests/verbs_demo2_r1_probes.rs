@@ -292,9 +292,13 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
     )
     .expect("the lip on the result");
     let volume = |b: &pncad::topo::Body<f64>| {
-        pncad::topo::mass_properties(b, tol)
-            .expect("mass properties")
-            .volume
+        pncad::topo::mass_properties(
+            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), tol)
+                .expect("the measured body passes tier 3"),
+            tol,
+        )
+        .expect("mass properties")
+        .volume
     };
     let (v1, v2) = (volume(&one.body), volume(&second.body));
     assert!(

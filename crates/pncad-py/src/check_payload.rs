@@ -237,6 +237,13 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
                 ..none
             }
         }
+        // The validator's first finding crosses as its own word and
+        // sentence, the way the shell door's refusal does.
+        CheckEvidence::NotAtRest { errors } => CheckEvidencePayload {
+            reason: errors.first().map(|e| Cow::Owned(e.to_string())),
+            inner_variant: errors.first().map(crate::tags::validation_error_tag),
+            ..none
+        },
         // The boolean refusal crosses the way the shell door's does:
         // the class is the word a consumer MATCHES on, the kernel's
         // own sentence rides beside it, and neither half is a

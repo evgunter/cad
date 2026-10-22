@@ -410,8 +410,12 @@ fn wall_probes(tol: Tol) {
     let sectioned = pncad::topo::shell(&quarter, WALL, tol)
         .expect("the sectioned vessel hollows through tier 3")
         .body;
-    let props =
-        pncad::topo::mass_properties(&sectioned, tol).expect("the sectioned hollow's props");
+    let props = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&sectioned), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("the sectioned hollow's props");
     println!(
         "   the sectioned vessel's hollow measures {} ± {} m³ (its spiric faces by quadrature)",
         props.volume, props.volume_pad
@@ -517,7 +521,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The wall and the capacity, both against the same closed form at
     // two thicknesses.
     let (v_cav, a_cav) = boundary(R_BELLIED, WALL);
-    let props_s = pncad::topo::mass_properties(&sealed, tol).expect("the sealed vessel's props");
+    let props_s = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&sealed), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("the sealed vessel's props");
     let v_wall = v_out - v_cav;
     assert!(
         ((props_s.volume - v_wall) / v_wall).abs() < 1e-12,
@@ -535,7 +544,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The capacity, asked for DIRECTLY of the body rather than
     // inferred from a difference: the cavity is the `Void`-role shell
     // and its signed volume is that closed form negated.
-    let classes = pncad::topo::classify_shells(&sealed, tol).expect("per-shell classification");
+    let classes = pncad::topo::classify_shells(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&sealed), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("per-shell classification");
     let voids: Vec<_> = classes
         .iter()
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
@@ -577,8 +591,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (twin_v_out, _) = boundary(R_WAISTED, 0.0);
     let (twin_v_cav, _) = boundary(R_WAISTED, WALL);
     let twin_wall = twin_v_out - twin_v_cav;
-    let twin_props =
-        pncad::topo::mass_properties(&twin_hollow, tol).expect("the waisted twin's props");
+    let twin_props = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&twin_hollow), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("the waisted twin's props");
     assert!(
         ((twin_props.volume - twin_wall) / twin_wall).abs() < 1e-12,
         "the twin's wall V = {} vs the same closed form at the other sense {twin_wall}",
@@ -641,7 +659,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     let cup_census = census(&cup);
     assert_eq!(cup_census, (24, 36, 19), "the cup's census");
-    let props_c = pncad::topo::mass_properties(&cup, tol).expect("the cup's props");
+    let props_c = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&cup), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("the cup's props");
     // Opening lifts the cavity's mouth cap from its own station up to
     // the mouth plane, so the cup is the WALL less that plug — a
     // cylinder of the cavity's neck radius, one wall tall.

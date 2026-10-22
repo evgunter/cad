@@ -284,10 +284,14 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pn
         panic!("fillet payload: {:?}", value.payload);
     };
     let want = volume(n);
-    let got = pncad::topo::mass_properties(body, tol)
-        .expect("mass properties")
-        .volume
-        .f();
+    let got = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("mass properties")
+    .volume
+    .f();
     assert!(
         (got - want).abs() <= 1e-9,
         "the {n}-fin solid measures {got}, and the rounded base + {n} fins is {want}"

@@ -231,7 +231,7 @@ fn p2_ring_touch_trio_through_the_front_door() {
             "tier 3"
         );
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
-        let v = topo::mass_properties(&out.body, Tol::witness())
+        let v = topo::test_support::unmigrated_measure(&out.body, Tol::witness())
             .unwrap()
             .volume;
         assert!((v - want).abs() <= 1e-9 * want, "volume {v} vs {want}");
@@ -361,7 +361,9 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         }
         assert_eq!(doubled, 1, "exactly one double-traversed edge (the slit)");
         let want = blank_volume() - per_pip;
-        let v = topo::mass_properties(die, Tol::witness()).unwrap().volume;
+        let v = topo::test_support::unmigrated_measure(die, Tol::witness())
+            .unwrap()
+            .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,
             "one-pip volume {v} vs {want}"
@@ -422,7 +424,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             "tier 3"
         );
         let want = blank_volume() - 2.0 * per_pip;
-        let v = topo::mass_properties(&out.body, Tol::witness())
+        let v = topo::test_support::unmigrated_measure(&out.body, Tol::witness())
             .unwrap()
             .volume;
         assert!(
@@ -565,7 +567,7 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
             Ok(()),
             "tier 3 at theta {theta}"
         );
-        let v = topo::mass_properties(&out.body, Tol::witness())
+        let v = topo::test_support::unmigrated_measure(&out.body, Tol::witness())
             .unwrap()
             .volume;
         assert!(

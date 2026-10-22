@@ -464,7 +464,7 @@ fn a_loose_copy_below_stays_out_of_the_outer_product() {
     );
     let ev = run(&outer, &with_resolver(store));
     let vol = |b: &Body<f64>| {
-        topo::mass_properties(b, Tol::witness())
+        topo::test_support::unmigrated_measure(b, Tol::witness())
             .expect("mass")
             .volume
     };

@@ -238,9 +238,13 @@ fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
 }
 
 fn volume(body: &Body<f64>, tol: Tol) -> f64 {
-    mass_properties(body, tol)
-        .expect("certified mass properties")
-        .volume
+    mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("certified mass properties")
+    .volume
 }
 
 fn assert_volume(what: &str, got: f64, want: f64) {

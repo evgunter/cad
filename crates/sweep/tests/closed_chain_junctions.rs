@@ -61,7 +61,7 @@ use sweep::test_support::{
     bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube, disc_of_arcs, dome, one_edge_rim_at,
     pocket_of_arcs, resolved_links, walked_chains, walked_links, wedge_fill,
 };
-use topo::{Body, EdgeKey, VertexKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, VertexKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -96,7 +96,8 @@ fn census(b: &Body<f64>) -> (usize, usize, usize) {
 /// these bodies is a plane, a cylinder or the band's torus, so the pad
 /// is exactly zero.
 fn volume(body: &Body<f64>, what: &str) -> f64 {
-    let props = mass_properties(body, tol()).expect("mass properties compute");
+    let props =
+        topo::test_support::unmigrated_measure(body, tol()).expect("mass properties compute");
     assert_eq!(props.volume_pad, 0.0, "{what}: closed-form faces only");
     props.volume
 }

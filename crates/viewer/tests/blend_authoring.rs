@@ -130,9 +130,13 @@ fn plain_body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> 
     else {
         panic!("a blend evaluates to a body");
     };
-    pncad::topo::mass_properties(body, tol)
-        .expect("mass properties")
-        .volume
+    pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// The blend tool with every edge of `node` held, accumulated by

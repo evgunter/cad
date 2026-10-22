@@ -6729,7 +6729,7 @@ mod shell_reference_rows {
             })
             .unwrap();
             let about_first = fold_runs(&runs).0;
-            // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+            // Raw door: this row walks bodies with and without construction scaffolding alike, and tier 3 refuses the scaffolded ones (ScaffoldAtRest).
             let walked = crate::test_support::measure_unvalidated(body, tol).unwrap();
             assert_eq!(
                 (walked.volume.to_bits(), walked.surface_area.to_bits()),

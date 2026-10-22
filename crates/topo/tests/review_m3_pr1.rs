@@ -972,12 +972,10 @@ fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
     let original = dump(&cube.body);
     let reverted = cube.body.revert().unwrap();
     assert_eq!(validate_closed(&reverted), Ok(()));
-    let rvol = topo::mass_properties(
-        &topo::test_support::finished("the measured body", reverted.clone(), Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap()
-    .volume;
+    // Raw door: the measured body is the reverted copy of a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+    let rvol = topo::test_support::measure_unvalidated(&reverted, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(rvol.to_bits(), (-vol1).to_bits());
     assert_eq!(dump(&reverted.revert().unwrap()), original);
 }

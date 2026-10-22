@@ -349,6 +349,38 @@ pub mod test_support {
         crate::props::classify_body(body, tol)
     }
 
+    /// **The transitional measurement alias** (FLUX unit F1): the raw
+    /// walk under the name a NOT-YET-MIGRATED test site reads it by,
+    /// until F2 moves sweep's and editor-core's sites onto the typed
+    /// door ([`crate::mass_properties`], `&AtRestBody`) or, with a
+    /// reason, onto [`measure_unvalidated`]. It means "not yet
+    /// migrated", never "measures an invalid body on purpose". Its sites
+    /// may only fall: `scripts/gates/unmigrated-measure-sites.sh` pins
+    /// them, and F2 deletes the alias
+    /// (`work/flux/the-measurement-doors-test-sites-still-read-through-the-transitional-alias.md`).
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::mass_properties`].
+    pub fn unmigrated_measure<T: geom_core::Decide + geom_core::CertifiedBounds>(
+        body: &Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<crate::MassProperties<T>, crate::MassPropsError> {
+        crate::props::measure_body(body, tol)
+    }
+
+    /// [`unmigrated_measure`] for [`crate::classify_shells`].
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::classify_shells`].
+    pub fn unmigrated_classify<T: geom_core::Decide + geom_core::CertifiedBounds>(
+        body: &Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<Vec<crate::ShellClassification<T>>, crate::ShellClassifyError> {
+        crate::props::classify_body(body, tol)
+    }
+
     /// Every shell's stored face list rotated left by `k` (modulo its
     /// length): the same solid stored in another face order, which the
     /// tiers do not read. Each shell's face count, in arena order.
@@ -449,13 +481,16 @@ pub mod test_support {
     /// refuses it — a fixture that is not a finished body.
     #[must_use]
     #[allow(clippy::panic)]
+    #[track_caller]
     pub fn finished<T: crate::AtRestPolicy>(
         what: &str,
         body: Body<T>,
         tol: geom_core::Tol,
     ) -> crate::AtRestBody<T> {
-        T::gate_at_rest_kept(body, tol)
-            .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+        match T::gate_at_rest_kept(body, tol) {
+            Ok(body) => body,
+            Err(e) => panic!("{what} is not a finished body: {e:?}"),
+        }
     }
 
     /// Which bridge a graft ran ([`take_graft_bridges`]).

@@ -391,7 +391,7 @@ fn a_cut_clear_of_the_faces_window_splits() {
     for f in fixtures() {
         let body = build(&f, s);
         let sigma = sense(&body, f.theta);
-        let whole = topo::props::mass_properties(&body, Tol::witness())
+        let whole = topo::test_support::unmigrated_measure(&body, Tol::witness())
             .unwrap()
             .volume;
         let grid = half_volume(&f, s, sigma, Vec3::new(0.0, 1.0, 0.0), -10.0 * s);

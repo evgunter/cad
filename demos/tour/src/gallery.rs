@@ -441,7 +441,12 @@ mod tests {
     /// A key-free digest of a body's value: its census, its mass
     /// properties and its points, by bits.
     fn digest(body: &Body<f64>, tol: Tol) -> (usize, usize, usize, u64, u64, Vec<[u64; 3]>) {
-        let mass = mass_properties(body, tol).expect("the body has mass properties");
+        let mass = mass_properties(
+            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+                .expect("the measured body passes tier 3"),
+            tol,
+        )
+        .expect("the body has mass properties");
         let mut points: Vec<[u64; 3]> = body
             .points()
             .map(|(_, p)| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()])
@@ -482,9 +487,13 @@ mod tests {
             26 + 21 * 3,
             "the product is the composed die's own face count, not it plus a blank"
         );
-        let volume = mass_properties(&product, tol)
-            .expect("the product has mass properties")
-            .volume;
+        let volume = mass_properties(
+            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&product), tol)
+                .expect("the measured body passes tier 3"),
+            tol,
+        )
+        .expect("the product has mass properties")
+        .volume;
         // MEASURED, not a closed form: the scene closes the BLANK's
         // volume in `diefillet::blank_volume` (core + slabs + quarter
         // cylinders + octants), and the composed die — 21 spherical

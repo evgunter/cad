@@ -27,7 +27,7 @@ use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
     assert_naming_totality, block, cube, pocket_die, prism, prism_on, realized,
 };
-use topo::{Body, EdgeKey, mass_properties, query, validate_geometric};
+use topo::{Body, EdgeKey, query, validate_geometric};
 
 /// The band size every row asks for, meters.
 pub(crate) const D: f64 = 0.1;
@@ -37,7 +37,7 @@ pub(crate) fn tol() -> Tol {
 }
 
 pub(crate) fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("closed-form props");
+    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
 }
@@ -119,7 +119,7 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
 pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds>(body: &Body<T>) -> (f64, f64) {
-    let p = mass_properties(body, tol()).expect("certified props");
+    let p = topo::test_support::unmigrated_measure(body, tol()).expect("certified props");
     let (lo, hi) = (p.volume.lo(), p.volume.hi());
     (0.5 * (lo + hi), 0.5 * (hi - lo) + p.volume_pad)
 }

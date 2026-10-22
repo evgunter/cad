@@ -99,7 +99,7 @@ fn one_call_hollow_ring() {
     //   outer walls: 2π(1.5 + 2 + 1.5 + 1)  = 2π·6
     //   hole walls:  2π·0.5·(1.5+1.75+1.5+1.25) = 2π·3
     let pi = core::f64::consts::PI;
-    let props = topo::mass_properties(&t.body, Tol::witness()).unwrap();
+    let props = topo::test_support::unmigrated_measure(&t.body, Tol::witness()).unwrap();
     let v_expect = 2.0 * pi * (1.5 - 0.375);
     let a_expect = 2.0 * pi * 9.0;
     assert!(((props.volume - v_expect) / v_expect).abs() < 1e-12);
@@ -147,7 +147,7 @@ fn hollow_torus_runs_no_crossing_machinery() {
     // Torus closed forms (independent): V = 2π²·Rc·(ro² − ri²),
     // A = 4π²·Rc·(ro + ri).
     let pi = core::f64::consts::PI;
-    let props = topo::mass_properties(&t.body, tol).unwrap();
+    let props = topo::test_support::unmigrated_measure(&t.body, tol).unwrap();
     let v_expect = 2.0 * pi * pi * rc * (ro * ro - ri * ri);
     let a_expect = 4.0 * pi * pi * rc * (ro + ri);
     assert!(((props.volume - v_expect) / v_expect).abs() < 1e-12);
@@ -187,7 +187,7 @@ fn two_holes_two_cavities() {
     // Pappus, hole by hole: outer 2·3 at r̄ 2; h1 1·0.5 at r̄ 2;
     // h2 0.5·1 at r̄ 1.75.
     let pi = core::f64::consts::PI;
-    let props = topo::mass_properties(&t.body, Tol::witness()).unwrap();
+    let props = topo::test_support::unmigrated_measure(&t.body, Tol::witness()).unwrap();
     let v_expect = 2.0 * pi * (6.0 * 2.0 - 0.5 * 2.0 - 0.5 * 1.75);
     assert!(((props.volume - v_expect) / v_expect).abs() < 1e-12);
 }
@@ -230,7 +230,7 @@ fn wire_outer_with_hole_cavity() {
 
     // Pappus: outer cylinder solid 2·3 at r̄ 1 minus hole 1·1 at r̄ 1.
     let pi = core::f64::consts::PI;
-    let props = topo::mass_properties(&t.body, Tol::witness()).unwrap();
+    let props = topo::test_support::unmigrated_measure(&t.body, Tol::witness()).unwrap();
     let v_expect = 2.0 * pi * (6.0 * 1.0 - 1.0 * 1.0);
     assert!(((props.volume - v_expect) / v_expect).abs() < 1e-12);
 }
@@ -252,8 +252,8 @@ fn holed_full_revolve_replays() {
     };
     let (a, b) = (build(), build());
     assert_eq!(counts(&a.body), counts(&b.body));
-    let pa = topo::mass_properties(&a.body, Tol::witness()).unwrap();
-    let pb = topo::mass_properties(&b.body, Tol::witness()).unwrap();
+    let pa = topo::test_support::unmigrated_measure(&a.body, Tol::witness()).unwrap();
+    let pb = topo::test_support::unmigrated_measure(&b.body, Tol::witness()).unwrap();
     assert_eq!(pa.volume.to_bits(), pb.volume.to_bits());
     assert_eq!(pa.surface_area.to_bits(), pb.surface_area.to_bits());
 }

@@ -170,10 +170,14 @@ pub fn sheave<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     //   V = 2*pi*(1997/1200) - (189/1000)*pi^2.
     let pi = core::f64::consts::PI;
     let oracle = 2.0 * (1997.0 / 1200.0) * pi - 0.189 * pi * pi;
-    let v = pncad::topo::mass_properties(&body, tol)
-        .expect("sheave mass properties")
-        .volume
-        .f();
+    let v = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("sheave mass properties")
+    .volume
+    .f();
     let rel = ((v - oracle) / oracle).abs();
     assert!(
         rel < 1e-12,
@@ -234,10 +238,14 @@ pub fn chute<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     // Pappus for the partial sweep (independent derivation, exact):
     // profile first moment 429/1024, angle 3pi/2 => V = (1287/2048)pi.
     let oracle = (1287.0 / 2048.0) * core::f64::consts::PI;
-    let v = pncad::topo::mass_properties(&body, tol)
-        .expect("chute mass properties")
-        .volume
-        .f();
+    let v = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("chute mass properties")
+    .volume
+    .f();
     let rel = ((v - oracle) / oracle).abs();
     assert!(
         rel < 1e-12,

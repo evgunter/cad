@@ -342,9 +342,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let vols: Vec<f64> = evs
         .iter()
         .map(|(_, ev, _)| {
-            pncad::topo::mass_properties(&body_of(ev, r.solid), tol)
-                .expect("the impeller has a volume")
-                .volume
+            pncad::topo::mass_properties(
+                &pncad::topo::AtRestBody::validate(
+                    pncad::topo::Body::clone(&body_of(ev, r.solid)),
+                    tol,
+                )
+                .expect("the measured body passes tier 3"),
+                tol,
+            )
+            .expect("the impeller has a volume")
+            .volume
         })
         .collect();
     #[allow(clippy::cast_precision_loss)]
@@ -382,9 +389,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     evs.iter()
         .map(|(n, ev, caption)| {
             let body = body_of(ev, r.solid);
-            let vol = pncad::topo::mass_properties(&body, tol)
-                .expect("volume")
-                .volume;
+            let vol = pncad::topo::mass_properties(
+                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), tol)
+                    .expect("the measured body passes tier 3"),
+                tol,
+            )
+            .expect("volume")
+            .volume;
             // Literal, not `format!` into a leaked `&'static str`:
             // the roster scan in `crates/pncad/tests/all.rs` reads
             // every tour stop's NAME out of this source, and a name it

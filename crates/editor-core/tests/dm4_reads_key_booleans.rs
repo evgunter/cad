@@ -64,7 +64,7 @@ fn unit_block(name: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 fn volume(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
-    topo::mass_properties(crate::corpus::body_of(ev, id), Tol::witness())
+    topo::test_support::unmigrated_measure(crate::corpus::body_of(ev, id), Tol::witness())
         .expect("mass properties")
         .volume
 }

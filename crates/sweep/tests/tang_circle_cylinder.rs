@@ -150,7 +150,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: validate_geometric"
     );
-    let v = topo::mass_properties(body, tol)
+    let v = topo::test_support::unmigrated_measure(body, tol)
         .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"))
         .volume;
     assert!(

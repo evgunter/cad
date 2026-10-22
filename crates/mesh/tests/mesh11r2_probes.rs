@@ -189,7 +189,11 @@ fn r2_both_witnesses_through_tessellate_printed() {
         ("half-cap", pole_crossing_half_cap()),
         ("bow-tie", apex_crossing_bowtie()),
     ] {
-        let mp = topo::mass_properties(&body, tol).map(|m| m.volume);
+        let mp = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body.clone(), tol),
+            tol,
+        )
+        .map(|m| m.volume);
         println!("R2-WITNESS {name} mass_properties volume = {mp:?}");
         for d in [0.5_f64, 0.3, 0.2, 0.1, 0.05, 0.02] {
             println!("R2-WITNESS {name} delta={d}: {}", outcome(&body, d, tol));

@@ -72,7 +72,7 @@ fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: validate_geometric"
     );
-    let p = topo::mass_properties(body, Tol::witness())
+    let p = topo::test_support::unmigrated_measure(body, Tol::witness())
         .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
     assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
     assert!(

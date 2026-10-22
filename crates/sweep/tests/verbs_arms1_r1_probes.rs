@@ -46,7 +46,7 @@ use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{one_edge_rim_at, revolved_about_y};
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, FaceSurface, ValidationError, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -176,7 +176,8 @@ fn the_bored_dome_equator_fillets_at_three_radii() {
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("tier 3 at r = {r}, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1);
-        let props = mass_properties(&out.body, tol()).expect("mass properties");
+        let props =
+            topo::test_support::unmigrated_measure(&out.body, tol()).expect("mass properties");
         assert_eq!(props.volume_pad, 0.0, "closed-form faces only at r = {r}");
         let expect = washer(1.0, 0.3, 0.0, 0.8) - corner_cut(1.0, r, 0.0, 1.0);
         assert!(
@@ -228,7 +229,8 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
         (6, 10, 6),
         "each annulus band adds one vertex, two edges, one face"
     );
-    let props = mass_properties(&second.body, tol()).expect("mass properties");
+    let props =
+        topo::test_support::unmigrated_measure(&second.body, tol()).expect("mass properties");
     assert_eq!(props.volume_pad, 0.0);
     let expect =
         washer(2.0, 0.6, -0.5, 1.0) - corner_cut(2.0, r, -0.5, 1.0) - corner_cut(2.0, r, 1.0, -1.0);
@@ -268,7 +270,7 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
         .unwrap_or_else(|e| panic!("the one-call shared-wall pair builds (#935), got {e:?}"));
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
-    let props = mass_properties(&one.body, tol()).expect("mass properties");
+    let props = topo::test_support::unmigrated_measure(&one.body, tol()).expect("mass properties");
     assert_eq!(props.volume_pad, 0.0);
 
     let seq = |first: f64, second: f64| {
@@ -281,7 +283,7 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
             tol(),
         )
         .expect("the second sequential call");
-        mass_properties(&b.body, tol())
+        topo::test_support::unmigrated_measure(&b.body, tol())
             .expect("mass properties")
             .volume
     };

@@ -482,9 +482,13 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
 /// kernel refuses, pinned live. Returns the narration line.
 fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> String {
     let volume = |b: &Body<f64>| {
-        mass_properties(b, tol)
-            .expect("the rocker's mass properties are closed-form")
-            .volume
+        mass_properties(
+            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), tol)
+                .expect("the measured body passes tier 3"),
+            tol,
+        )
+        .expect("the rocker's mass properties are closed-form")
+        .volume
     };
 
     // The kind-pair description alone also matches the six vertical

@@ -102,7 +102,12 @@ fn ball(x: f64, y: f64, rad: f64) -> AtRestBody<f64> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("mass properties");
+    let p = mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol())
+            .expect("the measured body passes tier 3"),
+        tol(),
+    )
+    .expect("mass properties");
     assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
     p.volume
 }

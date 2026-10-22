@@ -96,7 +96,9 @@ fn p1b_order_on_distinct_charts_moves_the_key_but_nothing_else() {
     assert_eq!(body.shells().count(), 1);
     let inner = cup::L - 2.0 * cup::T;
     assert_eq!(
-        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        topo::test_support::unmigrated_measure(body, Tol::witness())
+            .unwrap()
+            .volume,
         cup::L * cup::L * cup::H - inner * inner * cup::H
     );
 }
@@ -374,7 +376,7 @@ fn p6_rebinding_the_designation_moves_the_rim() {
     assert!(matches!(t.lookup(&rim_bottom), Some(Entry::Unique(_))));
     assert!(t.lookup(&rim_top).is_none());
     assert!(matches!(t.lookup(&inner_top), Some(Entry::Unique(_))));
-    let m = topo::mass_properties(body_of(&ev, shell), Tol::witness()).unwrap();
+    let m = topo::test_support::unmigrated_measure(body_of(&ev, shell), Tol::witness()).unwrap();
     assert_eq!(m.volume, cup::closed_forms(cup::L, cup::H, cup::T).volume);
 }
 

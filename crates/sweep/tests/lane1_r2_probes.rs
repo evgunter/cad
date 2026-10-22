@@ -26,7 +26,7 @@ fn classify_shells_structural_is_the_closed_form_and_refuses_where_the_lane_woul
     let tol = Tol::witness();
     let mut refused = Vec::new();
     for (name, body) in corpus::<f64>() {
-        let certified = topo::classify_shells(&body, tol);
+        let certified = topo::test_support::unmigrated_classify(&body, tol);
         let structural = topo::classify_shells_structural(&body, tol);
         match (&certified, &structural) {
             (Ok(c), Ok(s)) => {
@@ -86,8 +86,8 @@ fn the_certified_doors_form_at_the_symbolic_tier_and_answer_the_base_bits() {
             topo::contact_marks(s, tol).is_ok(),
             "{name}: marks verdict"
         );
-        let mp_base = topo::mass_properties(b, tol);
-        let mp_sym = topo::mass_properties(s, tol);
+        let mp_base = topo::test_support::unmigrated_measure(b, tol);
+        let mp_sym = topo::test_support::unmigrated_measure(s, tol);
         match (mp_base, mp_sym) {
             (Ok(x), Ok(y)) => assert_eq!(
                 x.volume.to_bits(),
@@ -101,8 +101,8 @@ fn the_certified_doors_form_at_the_symbolic_tier_and_answer_the_base_bits() {
                 y.is_ok()
             ),
         }
-        let cs_base = topo::classify_shells(b, tol);
-        let cs_sym = topo::classify_shells(s, tol);
+        let cs_base = topo::test_support::unmigrated_classify(b, tol);
+        let cs_sym = topo::test_support::unmigrated_classify(s, tol);
         assert_eq!(cs_base.is_ok(), cs_sym.is_ok(), "{name}: shell verdict");
     }
     let _: Option<&Body<Sym<f64>>> = sym.first().map(|(_, b)| b);

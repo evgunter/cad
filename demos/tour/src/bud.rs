@@ -344,12 +344,20 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  TOGETHER on the mouth's result; got {e:?}"
         )
     });
-    let one_call_volume = pncad::topo::mass_properties(&rolled.body, tol)
-        .expect("the one-call bud's props")
-        .volume;
-    let sequential_volume = pncad::topo::mass_properties(&sequential.body, tol)
-        .expect("the sequential bud's props")
-        .volume;
+    let one_call_volume = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&rolled.body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("the one-call bud's props")
+    .volume;
+    let sequential_volume = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&sequential.body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("the sequential bud's props")
+    .volume;
     // MEASURED at one ulp, and the ulp is the integrator's, not the
     // carve's: the two paths mint the same closed-form faces under
     // different arena keys, so `mass_properties` sums the same
@@ -454,8 +462,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // ---- proof 4: mass properties move, against the twin ----
     let sharp_props = pncad::topo::mass_properties(&sharp, tol).expect("the sharp bud's props");
-    let rolled_props =
-        pncad::topo::mass_properties(&rolled.body, tol).expect("the rolled bud's props");
+    let rolled_props = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&rolled.body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("the rolled bud's props");
     let dv = sharp_props.volume - rolled_props.volume;
     let da = sharp_props.surface_area - rolled_props.surface_area;
     assert!(

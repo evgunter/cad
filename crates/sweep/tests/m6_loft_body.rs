@@ -106,7 +106,8 @@ fn face_outer_cycle(body: &topo::Body<f64>, face: &topo::Face) -> Option<Vec<top
 fn shape_iii_volume_matches_the_derived_closed_form() {
     let (sections, places) = shape_iii_sections();
     let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("loft builds");
-    let m = topo::props::mass_properties(&lofted.body, Tol::witness()).expect("mass properties");
+    let m = topo::test_support::unmigrated_measure(&lofted.body, Tol::witness())
+        .expect("mass properties");
     let exact = 9.0;
     assert!(
         (m.volume - exact).abs() <= m.volume_pad + 1e-9,
@@ -240,8 +241,8 @@ mod certified {
             Ok(()),
             "tier 3"
         );
-        let m =
-            topo::props::mass_properties(&lofted.body, Tol::witness()).expect("mass properties");
+        let m = topo::test_support::unmigrated_measure(&lofted.body, Tol::witness())
+            .expect("mass properties");
         let (lo, hi) = (
             geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),
             geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),

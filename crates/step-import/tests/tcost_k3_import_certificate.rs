@@ -138,7 +138,12 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     };
 
     let mut measured = None;
-    let one = quad_verdicts(|| measured = Some(topo::mass_properties(&body, tol)));
+    let one = quad_verdicts(|| {
+        measured = Some(topo::mass_properties(
+            &topo::test_support::finished("the measured body", body.clone(), tol),
+            tol,
+        ))
+    });
     let measured = measured.expect("the closure ran").expect(
         "IDENTITY: the body the reader shipped passed the reader's own tier-3′ gate, so \
          its enclosure certifies by construction",

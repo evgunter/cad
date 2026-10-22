@@ -39,7 +39,7 @@ use sweep::test_support::{
     waisted,
 };
 use topo::boolean::BooleanOp;
-use topo::{Body, EdgeKey, FaceKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, FaceKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -55,7 +55,8 @@ fn census(b: &Body<f64>) -> (usize, usize, usize) {
 /// torus — so the pad is exactly zero, not merely small (the revolve's
 /// iso-rectangle argument, `verbs_arms1_annulus.rs`).
 fn volume(body: &Body<f64>) -> f64 {
-    let props = mass_properties(body, tol()).expect("mass properties compute");
+    let props =
+        topo::test_support::unmigrated_measure(body, tol()).expect("mass properties compute");
     assert_eq!(
         props.volume_pad, 0.0,
         "closed-form inventory: the volume pad is exactly zero"

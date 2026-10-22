@@ -203,7 +203,11 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
             .into(),
     ];
     let round = spring::<f64>(&round, PER_TURN, tol).expect("the round-wire coil builds");
-    let round_props = pncad::topo::mass_properties(&round, tol);
+    let round_props = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&round), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    );
     if tol.eps() > pncad::tolerance::DEFAULT_EPS {
         let props = round_props.unwrap_or_else(|e| {
             panic!(
@@ -249,7 +253,12 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
     }
 
     let body = spring::<f64>(&[square_wire(tol)], PER_TURN, tol).expect("the coil builds");
-    let props = pncad::topo::mass_properties(&body, tol).expect("the coil's volume");
+    let props = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("the coil's volume");
     let want = coil_volume(4.0 * WIRE_H * WIRE_H);
     let gap = (props.volume - want) / want;
     assert!(
@@ -513,9 +522,13 @@ mod tests {
         let want = coil_volume(4.0 * WIRE_H * WIRE_H);
         let gap = |per_turn| {
             let body = spring::<f64>(&[square_wire(tol)], per_turn, tol).expect("the coil");
-            let v = pncad::topo::mass_properties(&body, tol)
-                .expect("the coil's volume")
-                .volume;
+            let v = pncad::topo::mass_properties(
+                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), tol)
+                    .expect("the measured body passes tier 3"),
+                tol,
+            )
+            .expect("the coil's volume")
+            .volume;
             (v - want) / want
         };
         let (coarse, fine) = (gap(PER_TURN), gap(2 * PER_TURN));

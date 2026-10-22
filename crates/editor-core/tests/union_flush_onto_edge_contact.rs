@@ -36,7 +36,7 @@ fn blocks(span: (f64, f64)) -> (ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
-    topo::mass_properties(body_of(ev, id), Tol::witness())
+    topo::test_support::unmigrated_measure(body_of(ev, id), Tol::witness())
         .expect("the union has mass")
         .volume
 }

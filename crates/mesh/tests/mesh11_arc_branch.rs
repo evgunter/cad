@@ -116,7 +116,10 @@ fn the_apex_crossing_bowtie_refuses_at_the_shape_door() {
 #[test]
 fn mass_properties_reports_the_side_refusal_on_the_half_cap() {
     let (body, cap, rest) = pole_crossing_half_cap();
-    let got = topo::mass_properties(&body, Tol::witness());
+    let got = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        Tol::witness(),
+    );
     let Err(topo::MassPropsError::Face { face, source }) = got else {
         panic!("issue 1598: the closed sphere must refuse, not measure; got {got:?}");
     };

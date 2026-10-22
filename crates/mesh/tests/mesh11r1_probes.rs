@@ -74,6 +74,10 @@ fn r1_both_witnesses_at_every_delta() {
     // 1598 asserts 0.0 at head; the same number is the "before").
     println!(
         "R1 half-cap mass_properties volume = {:?}",
-        topo::mass_properties(&sphere_body, Tol::witness()).map(|m| m.volume)
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", sphere_body.clone(), Tol::witness()),
+            Tol::witness()
+        )
+        .map(|m| m.volume)
     );
 }

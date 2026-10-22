@@ -198,7 +198,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     let src_props = pncad::topo::mass_properties(&pipped, tol).expect("source props");
-    let props = pncad::topo::mass_properties(&die, tol).expect("die props");
+    let props = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&die), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("die props");
     let want = src_props.volume - edge_material(L, D);
     let slack = 1e-9 * want + src_props.volume_pad + props.volume_pad;
     assert!(

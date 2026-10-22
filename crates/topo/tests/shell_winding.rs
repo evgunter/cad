@@ -66,7 +66,7 @@ fn only_solid(body: &Body<f64>) -> SolidKey {
 /// `body`'s shells of `role` under `solid`, read off their own signed
 /// volumes — the premise each row asserts before it asserts a verdict.
 fn shells_of(body: &Body<f64>, solid: SolidKey, role: ShellRole) -> Vec<ShellKey> {
-    // Raw door: the measured body is a solid filed with two outer shells, which tier 3 refuses (SolidOuterShells).
+    // Raw door: this helper reads every row's body, and tier 3 refuses most of them (SolidOuterShells, ShellWinding).
     topo::test_support::classify_unvalidated(body, tol())
         .expect("every shell classifies")
         .into_iter()

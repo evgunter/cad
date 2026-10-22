@@ -58,7 +58,7 @@ fn halves_of(r: f64) -> (Body<f64>, Body<f64>) {
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
-    (above.clone(), below.clone())
+    (Body::clone(above), Body::clone(below))
 }
 
 /// Watertight at every δ of the standard schedule, positive signed

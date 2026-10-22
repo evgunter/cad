@@ -72,7 +72,7 @@ fn voided_rod() -> Body<f64> {
 fn voided_rods_verdicts_as_a_sorted_multiset() {
     let body = voided_rod();
     let bracket = Bracket::open();
-    let _ = topo::classify_shells(&body, Tol::witness());
+    let _ = topo::test_support::unmigrated_classify(&body, Tol::witness());
     let log = bracket.finish();
     let mut got: Vec<(String, usize)> = Vec::new();
     for v in &log.verdicts {

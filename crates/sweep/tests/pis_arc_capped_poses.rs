@@ -63,7 +63,9 @@ fn revolved(verts: Vec<(Point2<f64>, f64)>) -> Body<f64> {
 /// region the probes are judged by is the body that was built.
 fn prism_of(verts: Vec<(Point2<f64>, f64)>, volume: f64) -> Body<f64> {
     let body = prism(verts, 1.0, tol());
-    let v = topo::mass_properties(&body, tol()).unwrap().volume;
+    let v = topo::test_support::unmigrated_measure(&body, tol())
+        .unwrap()
+        .volume;
     assert!(
         (v - volume).abs() < 1e-9,
         "the fixture is the region its truth describes: {v} vs {volume}"
@@ -1042,7 +1044,7 @@ fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
         let SplitPart::Body(kept) = result.below else {
             panic!("material below every cut");
         };
-        body = kept;
+        body = kept.into_body();
     }
     body
 }

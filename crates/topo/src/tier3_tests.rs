@@ -3582,7 +3582,7 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     // A solid's only shell is outer by arity, however it is wound: its
     // orientation is check 7's.
     for body in [&upright, &inverted] {
-        // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+        // Raw door: the upright slab and its inside-out twin are read alike, and tier 3 refuses the twin (NegativeVolume).
         assert_eq!(
             crate::test_support::classify_unvalidated(body, tol).expect("the shell classifies")[0]
                 .role,
@@ -3638,7 +3638,7 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
     );
     let inverted = upright.revert().unwrap();
     for (body, want) in [(&upright, Outer), (&inverted, Outer)] {
-        // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+        // Raw door: the upright slab and its inside-out twin are read alike, and tier 3 refuses the twin (NegativeVolume).
         let classified = crate::test_support::classify_unvalidated(body, tol)
             .expect("the shell classifies")[0]
             .role;

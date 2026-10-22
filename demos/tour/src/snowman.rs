@@ -196,8 +196,12 @@ fn band_delta_v() -> f64 {
 /// The body's volume against `expected`, read off closed-form faces
 /// only; returns the relative residual.
 fn assert_volume(what: &str, body: &Body<f64>, expected: f64, tol: Tol) -> f64 {
-    let p = pncad::topo::mass_properties(body, tol)
-        .unwrap_or_else(|e| panic!("{what}: mass properties, got {e:?}"));
+    let p = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("{what}: mass properties, got {e:?}"));
     assert_eq!(p.volume_pad, 0.0, "{what}: closed-form faces only");
     let v = p.volume;
     let residual = (v - expected).abs() / expected;

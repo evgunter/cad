@@ -64,7 +64,7 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
         // shell flipped inside a body of several measures a positive wrong
         // total at the door, which this does not read
         // (`work/flux/a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door.md`).
-        let door = topo::mass_properties(&flipped, tol).map(|m| m.volume);
+        let door = topo::test_support::unmigrated_measure(&flipped, tol).map(|m| m.volume);
         let tier3 = topo::validate_geometric(&flipped, tol);
         match (&tier3, &door) {
             (Ok(()), Err(e)) => failures.push(format!(
@@ -78,8 +78,8 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
         match tier3 {
             Ok(()) => failures.push(format!(
                 "{label}: flipping {set:?} passes tier 3 (measures {:?}, unflipped {:?})",
-                topo::mass_properties(&flipped, tol).map(|m| m.volume),
-                topo::mass_properties(body, tol).map(|m| m.volume),
+                topo::test_support::unmigrated_measure(&flipped, tol).map(|m| m.volume),
+                topo::test_support::unmigrated_measure(body, tol).map(|m| m.volume),
             )),
             Err(errs) => {
                 for &face in &set {
@@ -166,7 +166,7 @@ fn every_sphere_face_flip_is_refused_and_named() {
         for (name, body) in [("split ball", &control), ("split double cover", &cover)] {
             total += flips(name, body, &mut failures) + 1;
             let tier3 = topo::validate_geometric(body, tol).is_ok();
-            let door = topo::mass_properties(body, tol).is_ok();
+            let door = topo::test_support::unmigrated_measure(body, tol).is_ok();
             if tier3 != door {
                 failures.push(format!(
                     "{name}: tier 3 passes = {tier3}, the door measures = {door}"

@@ -40,7 +40,11 @@ fn ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent() {
     for k in bands {
         let flipped = body.flipped_face_sense_for_tests(k).unwrap();
         let v = validate_geometric(&flipped, Tol::witness());
-        let vol = topo::mass_properties(&flipped, Tol::witness()).map(|p| p.volume);
+        let vol = topo::mass_properties(
+            &topo::test_support::finished("the measured body", flipped.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .map(|p| p.volume);
         println!("BALL flip {k:?}: verdict={v:?} vol={vol:?}");
         let errs = v.expect_err("a half-flipped ball is a lamina at the shared edges");
         assert!(
@@ -169,7 +173,11 @@ fn conic_trimmed_wall_flip_probe() {
     for (k, sense) in walls {
         let flipped = body.flipped_face_sense_for_tests(k).unwrap();
         let v = validate_geometric(&flipped, Tol::witness());
-        let vol = topo::mass_properties(&flipped, Tol::witness()).map(|p| p.volume);
+        let vol = topo::mass_properties(
+            &topo::test_support::finished("the measured body", flipped.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .map(|p| p.volume);
         println!("CONIC cut_cylinder wall sense={sense} flip -> {v:?} vol={vol:?}");
     }
 }

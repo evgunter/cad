@@ -6007,7 +6007,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             !text.contains("tolerance") && !text.contains("defect"),
             "{text}"
         );
-        let roles: Vec<topo::ShellRole> = topo::classify_shells(body, tol)
+        let roles: Vec<topo::ShellRole> = topo::test_support::unmigrated_classify(body, tol)
             .expect("the certifying door reads the cavity")
             .iter()
             .map(|c| c.role)

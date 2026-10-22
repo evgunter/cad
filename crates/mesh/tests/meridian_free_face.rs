@@ -125,7 +125,12 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
             "z = {z}"
         );
         let exact = PI * (1.0 - z).powi(2) * (2.0 + z) / 3.0;
-        let volume = topo::mass_properties(&above, tol).unwrap().volume;
+        let volume = topo::mass_properties(
+            &topo::test_support::finished("the measured body", above.clone(), tol),
+            tol,
+        )
+        .unwrap()
+        .volume;
         assert!(
             (volume - exact).abs() <= 1e-12 * exact,
             "cap above z = {z}: volume {volume} vs {exact}"
@@ -145,7 +150,12 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
             "z = {z}"
         );
         let exact = PI * (1.0 + z).powi(2) * (2.0 - z) / 3.0;
-        let volume = topo::mass_properties(&below, tol).unwrap().volume;
+        let volume = topo::mass_properties(
+            &topo::test_support::finished("the measured body", below.clone(), tol),
+            tol,
+        )
+        .unwrap()
+        .volume;
         assert!(
             (volume - exact).abs() <= 1e-10 * exact,
             "ball below z = {z}: volume {volume} vs {exact}"
@@ -288,8 +298,18 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
         ),
     ] {
         let (a, b) = (
-            topo::mass_properties(seamed, tol).unwrap().volume,
-            topo::mass_properties(&rim_only, tol).unwrap().volume,
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", (seamed).clone(), tol),
+                tol,
+            )
+            .unwrap()
+            .volume,
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", rim_only.clone(), tol),
+                tol,
+            )
+            .unwrap()
+            .volume,
         );
         assert!(
             (a - b).abs() <= 1e-12 * exact.0 && (a - exact.0).abs() <= 1e-12 * exact.0,
