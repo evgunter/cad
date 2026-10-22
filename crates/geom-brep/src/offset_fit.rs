@@ -2225,7 +2225,7 @@ impl Composite {
                     let diff = g.diff_u();
                     dec(&TensorCoeffs::from_fn(ku, kv, |_, j| diff.get(0, j)))
                 }
-                Derived::Discontinuous { .. } => unreachable!(
+                Derived::Discontinuous(_) => unreachable!(
                     "the base's u vector passed `check_direction` above, which refuses a \
                      discontinuous first derivative as a crease: {:?}",
                     ku.knots()
@@ -2240,7 +2240,7 @@ impl Composite {
                     let diff = g.diff_v();
                     dec(&TensorCoeffs::from_fn(ku, kv, |i, _| diff.get(i, 0)))
                 }
-                Derived::Discontinuous { .. } => unreachable!(
+                Derived::Discontinuous(_) => unreachable!(
                     "the base's v vector passed `check_direction` above, which refuses a \
                      discontinuous first derivative as a crease: {:?}",
                     kv.knots()
