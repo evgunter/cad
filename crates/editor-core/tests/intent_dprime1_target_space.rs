@@ -305,3 +305,90 @@ fn a_re_point_across_two_spaces_refuses_at_the_door() {
         joined,
     );
 }
+
+/// **A whole bundle names its mate in any order, and a rewrite keeps
+/// what it writes again.** A value written before the mate it names is
+/// admitted, re-pointed at the mate's minted id; and writing the bundle
+/// a placement holds back over it, as held, keeps every constraint's id
+/// and the copy's content key.
+///
+/// *Breaks if* a value must follow its mate, or an identical rewrite
+/// re-mints the ids a [`editor_core::MateRef`] holds.
+#[test]
+fn a_bundle_names_its_mate_in_any_order_and_a_rewrite_keeps_its_ids() {
+    let doc = ProfileDoc::empty(DocumentId::derive("dprime1-bundle-order"), Tol::witness());
+    let (doc, a) = block(doc, 0.0);
+    let (doc, b) = block(doc, 3.0);
+    let (doc, under) = fixture::place(doc, a);
+    let (doc, target) = fixture::place(doc, b);
+    // The target's top, read in its world copy.
+    let top = editor_core::StableName {
+        kind: editor_core::EntityKind::Face,
+        node: target,
+        path: vec![RoleSeg::Placed {
+            of: editor_core::NameRef::new(fixture::fname(b, RoleSeg::Cap(CapEnd::End))),
+        }],
+    };
+    let mate = fixture::mate(
+        fixture::plane(fixture::head(fixture::fname(
+            a,
+            RoleSeg::Cap(CapEnd::Start),
+        ))),
+        fixture::flip(fixture::plane(fixture::head(top))),
+        ContactClass::Rest,
+    );
+    // The values first, the mate last.
+    let mut bundle = fixture::squared(&doc, mate, &[]).bundle();
+    bundle.rotate_left(1);
+    let doc = step(
+        doc,
+        DocEdit::SetConstraints {
+            placement: under,
+            constraints: bundle,
+            fresh: Vec::new(),
+        },
+    )
+    .0;
+    let held = fixture::bundle(&doc, under);
+    assert_eq!(held.len(), 4, "the mate and its three values");
+    let mate_id = held
+        .iter()
+        .find(|c| c.mate().is_some())
+        .expect("the mate")
+        .id;
+    assert!(
+        held.iter()
+            .filter_map(editor_core::Constraint::value)
+            .all(|v| v.mate == Some(mate_id)),
+        "each value names the mate's minted id"
+    );
+
+    let o = EvalOptions::default();
+    let key = |doc: &ProfileDoc| {
+        let ev = run(doc, &o);
+        ev.value(under)
+            .unwrap_or_else(|| panic!("the copy evaluates: {:?}", ev.node_error(under)))
+            .content_key
+    };
+    let before = key(&doc);
+    let Some(Node::Place { constraints, .. }) = doc.node(under).map(|n| n.authored(&doc)) else {
+        panic!("a placement")
+    };
+    let again = step(
+        doc.clone(),
+        DocEdit::SetConstraints {
+            placement: under,
+            constraints,
+            fresh: Vec::new(),
+        },
+    )
+    .0;
+    let ids = |doc: &ProfileDoc| {
+        fixture::bundle(doc, under)
+            .iter()
+            .map(|c| c.id)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(ids(&again), ids(&doc), "every id is kept");
+    assert_eq!(key(&again), before, "and so is the copy's content key");
+}

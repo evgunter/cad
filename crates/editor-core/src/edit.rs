@@ -6915,7 +6915,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     // held were placeholders.
     let placement = bundle_of_mut(&mut node).is_some();
     let minted = bundle_of_mut(&mut node)
-        .map(|bundle| mint_bundle(&mut new.mint, id, bundle))
+        .map(|bundle| mint_bundle(&mut new.mint, id, bundle, &[]))
         .unwrap_or_default();
     new.nodes.insert(id, node);
     let fresh = lowering.finish(new)?;
@@ -6933,33 +6933,66 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     Ok((id, fresh, outputs, minted))
 }
 
-/// **A bundle as written, minted** onto `placement`, in order: each
-/// constraint's id drawn from `mint`, and a value naming a mate written
-/// before it in the same bundle by that mate's id as written
-/// ([`crate::node::ConstraintId::placeholder`]) re-pointed at the mate's
-/// minted id before its own is drawn. Answers the minted ids, in order.
+/// **A bundle as written, minted** onto `placement`: each constraint's
+/// id drawn from `mint`, in bundle order, but for one whose id as
+/// written the placement already holds (`held`), which keeps it — a
+/// whole-bundle rewrite moves no id of a constraint it writes again,
+/// so the [`crate::MateRef`]s that name it still do. A value names a mate
+/// of the same bundle by that mate's id as written
+/// ([`crate::node::ConstraintId::placeholder`], or the held id), in
+/// any order: it is re-pointed at the mate's id before its own is
+/// drawn, a value written before its mate waiting for it. Answers the
+/// ids, in bundle order.
 fn mint_bundle(
     mint: &mut crate::Mint,
     placement: RecipeNodeId,
     bundle: &mut [crate::mate::Constraint],
+    held: &[crate::node::ConstraintId],
 ) -> Vec<crate::node::ConstraintId> {
+    use crate::mate::ConstraintKind;
+    // The mates of the bundle, by their ids as written.
+    let mates: Vec<crate::node::ConstraintId> = bundle
+        .iter()
+        .filter(|c| matches!(c.kind, ConstraintKind::Mate(_)))
+        .map(|c| c.id)
+        .collect();
     let mut written: Vec<(crate::node::ConstraintId, crate::node::ConstraintId)> = Vec::new();
-    bundle
-        .iter_mut()
-        .map(|c| {
-            if let crate::mate::ConstraintKind::Value(value) = &mut c.kind
+    let mut ids: Vec<Option<crate::node::ConstraintId>> = vec![None; bundle.len()];
+    // In bundle order, a value naming a mate not yet given its id waits
+    // for it: each pass gives an id to every constraint that can have
+    // one, and a value naming no mate of the bundle never waits.
+    while ids.iter().any(Option::is_none) {
+        let mut moved = false;
+        for (k, c) in bundle.iter_mut().enumerate() {
+            if ids[k].is_some() {
+                continue;
+            }
+            if let ConstraintKind::Value(value) = &mut c.kind
                 && let Some(named) = value.mate
-                && let Some(&(_, minted)) =
-                    written.iter().find(|&&(as_written, _)| as_written == named)
+                && mates.contains(&named)
             {
+                let Some(&(_, minted)) =
+                    written.iter().find(|&&(as_written, _)| as_written == named)
+                else {
+                    continue;
+                };
                 value.mate = Some(minted);
             }
-            let id = mint.add_constraint(placement, &c.kind);
+            let id = if held.contains(&c.id) {
+                c.id
+            } else {
+                mint.add_constraint(placement, &c.kind)
+            };
             written.push((c.id, id));
             c.id = id;
-            id
-        })
-        .collect()
+            ids[k] = Some(id);
+            moved = true;
+        }
+        if !moved {
+            unreachable!("a value waits only for a mate of its own bundle")
+        }
+    }
+    ids.into_iter().flatten().collect()
 }
 
 /// **A placement's bundle as a whole, at the edit door**, asked by
@@ -7104,7 +7137,17 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
     else {
         unreachable!("a placement lowers to a placement")
     };
-    let ids = mint_bundle(&mut new.mint, placement, &mut constraints);
+    // A whole rewrite keeps the id of a constraint it writes again.
+    let held: Vec<crate::node::ConstraintId> = if replace {
+        new.nodes
+            .get(&placement)
+            .and_then(crate::mate::solve::bundle_of)
+            .map(|bundle| bundle.iter().map(|c| c.id).collect())
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let ids = mint_bundle(&mut new.mint, placement, &mut constraints, &held);
     let Some(bundle) = new.nodes.get_mut(&placement).and_then(bundle_of_mut) else {
         unreachable!("the placement was checked above")
     };
