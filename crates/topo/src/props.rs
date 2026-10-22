@@ -35,7 +35,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::props::quad::{self, RoundOutcome, RoundWindow};
+use geom_brep::props::quad::RoundWindow;
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_loops, planar_face,
 };
@@ -43,6 +43,7 @@ use geom_brep::recourse::{Classified, Reading, RefusedArm, RefusedSide, SizedDec
 use geom_core::interval::{self, Interval};
 use geom_core::k_stats::Detached;
 use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Tol};
+use quad_lane::RoundOutcome;
 use slotmap::Key;
 
 use crate::body::Body;
@@ -433,7 +434,7 @@ fn reporting_hook<T: Decide>(
             RoundWindow::SCHEDULE,
             about,
         )?
-        .map(|outcome| outcome.into_target().map(RoundOutcome::Converged))
+        .map(RoundOutcome::at_target)
         .transpose()
     }
 }
@@ -824,10 +825,11 @@ impl<T: Decide> PastTarget<'_, T> {
     }
 
     /// **One round further** on every face that met the target at a
-    /// round below [`quad::LAST_ROUND_EVERY_LANE_RUNS`]. A face's
-    /// rounds are independent recomputations, so each later round's
-    /// enclosure is as sound as the reporting one and, until interval
-    /// rounding floors it, narrower. Answers whether any face moved:
+    /// round its lane can refine past ([`FaceRun::refinable`]): to its
+    /// own floor or work wall. A face's rounds are independent
+    /// recomputations, so each later round's enclosure is as sound as
+    /// the reporting one, and the face keeps the narrower of the two
+    /// ([`FaceRun::advance`]). Answers whether any face moved:
     /// `false` is the end of the refinement. A round that refuses
     /// leaves every face as it was and ends the refinement — the
     /// enclosures held are sound either way.
@@ -839,7 +841,7 @@ impl<T: Decide> PastTarget<'_, T> {
             .enumerate()
             .filter_map(|(slot, run)| {
                 run.converged_at
-                    .filter(|&round| round < quad::LAST_ROUND_EVERY_LANE_RUNS)
+                    .filter(|_| run.refinable)
                     .map(|round| (slot, run.face, round + 1))
             })
             .collect();
@@ -856,7 +858,7 @@ impl<T: Decide> PastTarget<'_, T> {
         }) {
             Ok(runs) => {
                 for ((slot, _, _), run) in next.iter().zip(runs) {
-                    walk.runs[*slot] = run;
+                    walk.runs[*slot].advance(run);
                 }
                 true
             }
@@ -1520,9 +1522,10 @@ fn rederive_faces<T: Decide>(
                 };
                 quadrature = true;
                 match rerun {
-                    Ok(RoundOutcome::Converged(b) | RoundOutcome::Open { bounds: b, .. }) => {
-                        (b.flux, b.area)
-                    }
+                    Ok(
+                        RoundOutcome::Converged { bounds: b, .. }
+                        | RoundOutcome::Open { bounds: b, .. },
+                    ) => (b.flux, b.area),
                     Err(_) => enclosure,
                 }
             }
@@ -2461,6 +2464,7 @@ mod face_walk_composition_tests {
             },
             open_at: None,
             converged_at: None,
+            refinable: false,
             taken_at: None,
             refusal: None,
         }
@@ -2619,6 +2623,7 @@ mod fold_pad_rows {
             },
             open_at: None,
             converged_at: None,
+            refinable: false,
             taken_at: None,
             refusal: None,
         }
@@ -2727,6 +2732,7 @@ mod continuation_refusal_order_tests {
             },
             open_at,
             converged_at: None,
+            refinable: false,
             taken_at: None,
             refusal,
         }
@@ -3140,17 +3146,17 @@ struct FaceRun<T> {
     contribution: FaceFlux<T>,
     /// The round its quadrature reached, when rounds remain. `None`
     /// for a closed-form face, for one that met the reporting target,
-    /// and for one whose schedule has nothing further to offer — in
-    /// every case there is no round to resume at. A face can be open
-    /// and carry a [`Self::refusal`]: its schedule cannot meet the
-    /// reporting target, and its later rounds still narrow the
-    /// enclosure a sign walk sums.
+    /// and for one whose lane stopped (its floor or its work wall) — in
+    /// every case there is no round to resume at.
     open_at: Option<usize>,
     /// The round a single-round window met the reporting target at —
-    /// where [`PastTarget::refine`] resumes. `None`
-    /// for a closed-form face, for one that has not met the target, and
-    /// for one read through the whole schedule at once.
+    /// where [`PastTarget::refine`] resumes, when [`Self::refinable`].
+    /// `None` for a closed-form face, for one that has not met the
+    /// target, and for one read through the whole schedule at once.
     converged_at: Option<usize>,
+    /// Whether the lane can refine past the round the face met the
+    /// target at: a later round is narrower and fits in its work wall.
+    refinable: bool,
     /// The round its quadrature enclosure was taken at, where a window
     /// names it — the round [`rederive`] reads again. `None` for a
     /// closed-form face and for one read through the whole schedule
@@ -3163,17 +3169,24 @@ struct FaceRun<T> {
 }
 
 impl<T> FaceRun<T> {
-    /// This face's next round, `run`, in place — keeping the refusal
-    /// this run already carries. The lane answers the reporting
-    /// question once, at round 0 ([`RoundWindow::first`]), so a later
-    /// round comes back without it; the refusal a target-level reading
-    /// earns is still the one round 0 raised, the reporting walk's
-    /// verbatim.
+    /// This face's next round, `run`, in place — keeping the narrower
+    /// enclosure. A round that met the target is the face's answer; one
+    /// that did not keeps the enclosure this run holds where that is
+    /// narrower by its flux width, as the lane keeps it within one call,
+    /// so a face walked one round at a time ends where a whole-schedule
+    /// call does. Where the run goes next is the new round's.
     fn advance(&mut self, run: Self) {
-        let carried = self.refusal.take();
-        *self = run;
-        if carried.is_some() {
-            self.refusal = carried;
+        let held = core::mem::replace(self, run);
+        let narrower = match (held.contribution.enclosure, self.contribution.enclosure) {
+            (Some((was, _)), Some((now, _))) => {
+                use geom_core::interval::certification::Certification;
+                self.converged_at.is_none() && was.width() < now.width()
+            }
+            _ => false,
+        };
+        if narrower {
+            self.contribution = held.contribution;
+            self.taken_at = held.taken_at;
         }
     }
 
@@ -3772,6 +3785,7 @@ fn face_flux_about<T: Decide>(
     let mut open_at = None;
     let mut converged_at = None;
     let mut taken_at = None;
+    let mut refinable = false;
     let mut refusal = None;
     let plane_loops = match surface {
         Surface::Plane { .. } => Some(face_loops(body, face)?),
@@ -3831,12 +3845,16 @@ fn face_flux_about<T: Decide>(
             match quad_out {
                 Some(outcome) => {
                     let bounds = match outcome {
-                        RoundOutcome::Converged(bounds) => {
+                        RoundOutcome::Converged {
+                            bounds,
+                            refinable: further,
+                        } => {
                             // A window of one round returns at that
-                            // round: the lane tests convergence before
+                            // round: the lane asks the target before
                             // it would end the window.
                             converged_at = (window.first == window.last).then_some(window.first);
                             taken_at = converged_at;
+                            refinable = further;
                             bounds
                         }
                         RoundOutcome::Open { bounds, round, end } => {
@@ -3877,6 +3895,7 @@ fn face_flux_about<T: Decide>(
         },
         open_at,
         converged_at,
+        refinable,
         taken_at,
         refusal,
     })

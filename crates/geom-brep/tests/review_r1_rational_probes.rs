@@ -23,13 +23,14 @@
     clippy::useless_vec
 )]
 
+use crate::shared::patch::{Unmet, at_target, to_target};
 use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
-use geom_brep::props::quad::nurbs_patch_face;
+use geom_brep::props::quad::{LaneEnd, LaneRun, mean_boundary_displacement, nurbs_patch_face};
 use geom_core::Bounds;
+use geom_core::Interval;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{ErrorTextReading, Interval};
 
 use crate::shared::patch::{dbasis_over, dense_over};
 use crate::shared::ring::p3 as p;
@@ -61,13 +62,13 @@ const CORPUS_EPS: f64 = 1e-9;
 // ---------------------------------------------------------------
 // The measured refusal floors, one per carrier.
 //
-// Each is the mean boundary displacement (m) the fixed schedule (D9)
-// bottoms out at for that carrier — the number a
-// `PropsError::QuadratureBudget` carries when the run's `1024·ε`
-// target sits below it. The SCHEDULE is fixed and only the target
-// moves with ε, so these are ε-independent: measured identical on the
-// 1e-9 and 1e-12 rows. A carrier whose floor is under the run's
-// target certifies instead, and the pin stands down (see `pin_floor`).
+// Each is the mean boundary displacement (m) of the narrowest
+// enclosure the lane reaches for that carrier before it stops, at its
+// floor or its work wall — the width it hands back when the run's
+// `1024·ε` target sits below it. Neither stop moves with ε, only the
+// target does, so these are ε-independent. A carrier whose floor is
+// under the run's target certifies instead, and the pin stands down
+// (see `pin_floor`).
 //
 // They are pinned because "it refused, typed" is a contract a broken
 // engine also satisfies: without a number, a refusal that got 10×
@@ -104,29 +105,20 @@ const HUGE_CYLINDER_FLOOR: f64 = 3.352_413_123_990e-6;
 /// but is a capability gap and so is pinned per carrier.
 ///
 /// This is `quad.rs`'s own `eps_posture` contract, ported: the target
-/// is `1024·ε` while the refinement schedule is FIXED (D9), so the
-/// same patch that certifies at ε = 1e-6 genuinely cannot at
-/// ε = 1e-12. A probe that merely PRINTS its refusal asserts nothing
-/// about it — that is how an `inf` width and a mis-typed escalation
-/// rode along under this suite for two ε rows.
+/// is `1024·ε` while the lane's floor and work wall do not move with
+/// ε, so the same patch that certifies at ε = 1e-6 genuinely cannot at
+/// ε = 1e-12. A probe that merely PRINTS its non-answer asserts
+/// nothing about it — that is how an `inf` width and a mis-typed
+/// escalation rode along under this suite for two ε rows.
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Posture {
     /// The enclosure certified — and contains every truth in hand
     /// (checked in the `Ok` arm of [`probe`]).
     Certified,
-    /// [`PropsError::QuadratureBudget`]: the fixed schedule's floor is
-    /// DEFINITELY above the run's target. Carries the width the
-    /// schedule's LAST round reaches: measured, when the schedule ran
-    /// out, or its lower bound, when the loop proved after round 0
-    /// that the last round could not certify and refused without
-    /// running it. The two differ by the midpoint sum's own rounding
-    /// width — at most 4e-4 relative on every carrier below, inside
-    /// the pins' 1e-3 window — so a pin reads either the same way.
-    Budget(f64),
-    /// The same shortfall, in-band for the run's `Band{ε, Kε}` — so
-    /// `props_quad_converged` escalates through the funnel before the
-    /// budget can run out.
-    Escalated,
+    /// The lane stopped (its floor or its work wall) with its
+    /// narrowest enclosure DEFINITELY wider than the run's target.
+    /// Carries that enclosure's width.
+    Stopped(f64),
     /// [`PropsError::DegenerateFace`]: the area enclosure does not
     /// certify positive extent, so the convergence meter has no lever
     /// and the face-extent gate would refuse the same way one step
@@ -138,26 +130,23 @@ enum Posture {
 
 /// Pin one carrier's measured refusal floor.
 ///
-/// The refinement schedule is fixed by D9 and only the target moves
-/// with ε, so a carrier that refuses at the budget refuses with the
+/// The lane's floor and work wall do not move with ε, only the target
+/// does, so a carrier that stops short of the target stops with the
 /// SAME width on every ε row; the pinned number is that width, as
-/// measured by this suite. The refusal's payload is that width or its
-/// lower bound ([`Posture::Budget`]) — every pin below was re-read
-/// against the bound, none moved past its window, and no pinned
-/// number changed. A carrier whose floor sits under the run's
+/// measured by this suite. A carrier whose floor sits under the run's
 /// target certifies instead (the ε row working as designed), so only
-/// the budget arm is pinned — the anti-vacuity test below is what
-/// keeps "everything refuses" from being green.
+/// the stopped arm is pinned — the anti-vacuity test below is what
+/// keeps "everything stops short" from being green.
 #[track_caller]
 fn pin_floor(name: &str, posture: Posture, floor: f64) {
     match posture {
-        Posture::Budget(width_len) => assert!(
+        Posture::Stopped(width_len) => assert!(
             (width_len - floor).abs() <= 1e-3 * floor,
-            "{name}: the refusal floor MOVED: {width_len:e} against the pinned \
-             {floor:e}. The schedule is fixed (D9), so a moved floor is a changed \
-             enclosure — re-measure and re-pin deliberately, never widen this bound"
+            "{name}: the stopping width MOVED: {width_len:e} against the pinned \
+             {floor:e}. The floor and the work wall are fixed, so a moved width is a \
+             changed enclosure — re-measure and re-pin deliberately, never widen this bound"
         ),
-        Posture::Certified | Posture::Escalated => {}
+        Posture::Certified => {}
         Posture::Degenerate => panic!(
             "{name}: the engine now refuses this carrier as DEGENERATE — its area \
              enclosure stopped certifying positive extent. That is a capability \
@@ -394,11 +383,15 @@ fn probe(
         },
         perimeter,
         0.0,
-        Tol::witness().get().eps,
         band(),
+        &mut to_target(Tol::witness().get().eps),
     );
     match out {
-        Ok(fb) => {
+        Ok(LaneRun {
+            bounds: fb,
+            end: LaneEnd::Accepted(_),
+            ..
+        }) => {
             println!(
                 "{name}: flux [{:.12e}, {:.12e}] oracle {:.12e}; area [{:.12e}, {:.12e}] oracle {:.12e}",
                 fb.flux.lo(),
@@ -468,47 +461,46 @@ fn probe(
             }
             Posture::Certified
         }
-        // The refusal arm asserts the SAME contract as the crate's own
-        // `eps_posture` (quad.rs): a budget refusal carries a finite
-        // width that really missed the run's own `1024·ε` target, an
-        // escalation is the convergence predicate with a finite in-band
-        // margin, and anything else is an unsound outcome.
+        // A lane that stopped short asserts the SAME contract as the
+        // crate's own `eps_posture` (quad.rs): its narrowest enclosure
+        // still holds every truth in hand, and its width really missed
+        // the run's own `1024·ε` target.
+        Ok(run) => {
+            let target = TARGET_LEN_FACTOR * Tol::witness().get().eps;
+            let fb = run.bounds;
+            let width_len = mean_boundary_displacement(fb.flux, fb.area).unwrap();
+            println!("{name}: stopped short (sound): {run:?}");
+            if let Some(cf) = closed_flux {
+                assert!(
+                    fb.flux.lo() <= cf && cf <= fb.flux.hi(),
+                    "{name}: FLUX EXCLUSION of closed form {cf} at the stop: [{}, {}]",
+                    fb.flux.lo(),
+                    fb.flux.hi()
+                );
+            }
+            if let Some(ca) = closed_area {
+                assert!(
+                    fb.area.lo() <= ca && ca <= fb.area.hi(),
+                    "{name}: AREA EXCLUSION of closed form {ca} at the stop: [{}, {}]",
+                    fb.area.lo(),
+                    fb.area.hi()
+                );
+            }
+            assert!(
+                matches!(run.end, LaneEnd::Floor | LaneEnd::Wall),
+                "{name}: a whole-schedule call ends at the lane's own stop: {run:?}"
+            );
+            assert!(
+                width_len.is_finite() && width_len > target,
+                "{name}: a lane stopped short must carry a width that really \
+                 missed: {width_len:e} vs {target:e}"
+            );
+            println!("FLOOR {name} {width_len:.12e} target {target:.6e} {run:?}");
+            Posture::Stopped(width_len)
+        }
         Err(e) => {
             println!("{name}: typed refusal (sound): {e}");
-            let target = TARGET_LEN_FACTOR * Tol::witness().get().eps;
             match e {
-                PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    ..
-                } => {
-                    assert!(
-                        width_len.is_finite() && width_len > target_len,
-                        "{name}: a budget refusal must carry a width that really \
-                         missed: {width_len:e} vs {target_len:e}"
-                    );
-                    assert!(
-                        (target_len - target).abs() <= target * 1e-12,
-                        "{name}: the refused target must BE 1024·ε for this run: \
-                         {target_len:e} vs {target:e}"
-                    );
-                    println!("FLOOR {name} {width_len:.12e} target {target_len:.6e}");
-                    Posture::Budget(width_len)
-                }
-                PropsError::Escalated { cause, .. } => {
-                    assert_eq!(
-                        cause.predicate,
-                        Some("props_quad_converged"),
-                        "{name}: only the convergence predicate may escalate here: \
-                         {cause:?}"
-                    );
-                    assert!(
-                        matches!(cause.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(m) if m.is_finite()),
-                        "{name}: the escalation must carry a finite in-band margin: \
-                         {cause:?}"
-                    );
-                    Posture::Escalated
-                }
                 // A face whose AREA enclosure does not certify positive
                 // extent: the convergence meter has no lever, and the
                 // face-extent gate would read the same `area.lo()` the
@@ -965,7 +957,7 @@ fn diag_uniform_weight_twins() {
         p(-1.0, 0.0, h),
     ];
     let run = |ws: &[f64]| {
-        nurbs_patch_face::<f64>(
+        at_target(nurbs_patch_face::<f64>(
             &ku,
             &kv,
             &net,
@@ -973,9 +965,9 @@ fn diag_uniform_weight_twins() {
             (0.0, 1.0, 0.0, 1.0),
             2.0 * h + 2.0 * PI,
             0.0,
-            Tol::witness().get().eps,
             band(),
-        )
+            &mut to_target(Tol::witness().get().eps),
+        ))
     };
     let poly = run(&[1.0; 10]).expect("integral lane");
     println!(
@@ -998,8 +990,9 @@ fn diag_uniform_weight_twins() {
     let pa = patch(&ku, &kv, &net, &[0.5; 10]);
     let (of, _) = pa.dense(48);
     println!("oracle flux {of:.12}");
-    // The RATIONAL twin's target is ε-coupled against a FIXED schedule,
-    // so below the corpus ε its honest outcome is a typed refusal. Both
+    // The RATIONAL twin's target is ε-coupled against a lane whose stop
+    // is not, so below the corpus ε its honest outcome may be to stop
+    // short. Both
     // arms are pinned; a wide or wrong answer is what is ruled out.
     match run(&[0.5; 10]) {
         Ok(rat) => {
@@ -1028,9 +1021,12 @@ fn diag_uniform_weight_twins() {
             assert!(
                 matches!(
                     e,
-                    PropsError::QuadratureBudget { .. } | PropsError::Escalated { .. }
+                    Unmet::Stopped(LaneRun {
+                        end: LaneEnd::Floor | LaneEnd::Wall,
+                        ..
+                    })
                 ),
-                "the rational twin must refuse TYPED: {e:?}"
+                "the rational twin must stop at the lane's own stop: {e:?}"
             );
         }
     }
@@ -1057,9 +1053,28 @@ fn probe_interval_scalar_agrees() {
     let weights = [1.0, 1.0, W2, W2, 1.0, 1.0];
     let rect = (0.0, 1.0, 0.0, 1.0);
     let eps = Tol::witness().get().eps;
-    let a = nurbs_patch_face::<f64>(&ku, &kv, &net, &weights, rect, 4.0 + PI, 0.0, eps, band());
-    let b =
-        nurbs_patch_face::<Interval>(&ku, &kv, &net, &weights, rect, 4.0 + PI, 0.0, eps, band());
+    let a = at_target(nurbs_patch_face::<f64>(
+        &ku,
+        &kv,
+        &net,
+        &weights,
+        rect,
+        4.0 + PI,
+        0.0,
+        band(),
+        &mut to_target(eps),
+    ));
+    let b = at_target(nurbs_patch_face::<Interval>(
+        &ku,
+        &kv,
+        &net,
+        &weights,
+        rect,
+        4.0 + PI,
+        0.0,
+        band(),
+        &mut to_target(eps),
+    ));
     // The agreement claim is ε-independent and covers the refusals too:
     // below the corpus ε the ε-coupled target is out of the fixed
     // schedule's reach and BOTH scalars must refuse, identically.
@@ -1076,9 +1091,12 @@ fn probe_interval_scalar_agrees() {
             assert!(
                 matches!(
                     a,
-                    PropsError::QuadratureBudget { .. } | PropsError::Escalated { .. }
+                    Unmet::Stopped(LaneRun {
+                        end: LaneEnd::Floor | LaneEnd::Wall,
+                        ..
+                    })
                 ),
-                "an ε row must refuse TYPED: {a:?}"
+                "an ε row must stop at the lane's own stop: {a:?}"
             );
             assert_eq!(
                 format!("{a:?}"),

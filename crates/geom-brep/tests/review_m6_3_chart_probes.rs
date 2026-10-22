@@ -11,6 +11,7 @@
     clippy::unreachable
 )]
 
+use crate::shared::patch::{met, to_target};
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use core::num::NonZeroUsize;
 use geom_core::Bounds;
@@ -264,7 +265,7 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
             control.push(p(iu as f64 / 3.0, iv as f64 / 3.0, *zz));
         }
     }
-    let out = nurbs_patch_face::<f64>(
+    let out = met(nurbs_patch_face::<f64>(
         &kv,
         &kv,
         &control,
@@ -272,9 +273,9 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
         (0.0, 1.0, 0.0, 1.0),
         4.0,
         0.0,
-        eps,
         band,
-    );
+        &mut to_target(eps),
+    ));
     // The flux side may refuse at the budget on such a patch; the
     // AREA question is only posed when the call answers.
     let Ok(out) = out else {

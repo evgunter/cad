@@ -1,8 +1,9 @@
 use geom_brep::props::quad::{
-    self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
+    self, Accept, FaceCutBounds, HarmChan, LaneEnd, LaneRun, LaneStop, QUAD_TARGET_LEN_FACTOR,
+    RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
 };
 use geom_brep::props::spiric;
-use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
+use geom_brep::props::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use geom_brep::{Pcurve, SpiricImage, WallTorus};
 use geom_core::Tol;
 use geom_core::interval::Interval;
@@ -18,7 +19,7 @@ use geom_core::interval::certification::Certification;
 // same bound. So the module stays uninstantiable at a dual.
 use geom::Curve3;
 use geom::Surface;
-use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point3};
+use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Margin, Point3, Sign};
 
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
@@ -521,12 +522,12 @@ pub(super) fn exact_polygon_volume(polygons: &[Vec<Vec<Point3<Interval>>>]) -> O
 }
 
 /// The certified flux/area enclosures of one curved-cut face
-/// (module docs of `geom_brep::props::quad`) over a [`RoundWindow`]
-/// — the cylinder chart's closed-form lane plus the described-NURBS
-/// patch lane (M6-3), entered and left where the window says (the
-/// quadrature module's two levels); [`super::QuadLane`] holds this
-/// and reads it at either level. A cone face never arrives: the face
-/// walk routes it to its closed form
+/// (module docs of `geom_brep::props::quad`) over a [`RoundWindow`],
+/// read at the reporting target ([`to_target`], [`reported`]) — the
+/// cylinder chart's closed-form lane plus the described-NURBS patch lane
+/// (M6-3), entered and left where the window says; [`super::QuadLane`]
+/// holds this and reads it at either level. A cone face never arrives:
+/// the face walk routes it to its closed form
 /// ([`geom_brep::props::cone_face_closed_form`]). A plane or torus face
 /// reaches this lane only with a spiric on its boundary
 /// ([`spiric_face`]); a sphere chart mints stored pcurves but has no
@@ -541,6 +542,197 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     window: RoundWindow,
     centre: Option<Point3<Interval>>,
 ) -> Result<RoundOutcome, PropsError> {
+    let eps = tol.eps();
+    let mut accept = to_target::<T>(eps, band);
+    let run = cut_face_lane(body, surface, loops, band, tol, window, centre, &mut accept)?;
+    reported(run, eps)
+}
+
+/// **INTERIM: the reporting target, asked of every round a lane runs.**
+/// The lanes know no target (`geom_brep::props::quad`'s module docs);
+/// this is the question the face walks ask today, at
+/// `QUAD_TARGET_LEN_FACTOR·ε` of mean boundary displacement, through the
+/// funnel predicate `props_quad_converged`. It stands in for the caller's
+/// own predicate until the measurement door carries one
+/// (`docs/QUAD-MEASURE-SPEC.md`, unit B), and goes with it.
+///
+/// Only a definite `Positive` converges, and a definite `Negative` does
+/// not. A margin within the band — `Zero` or the ambiguity band — is no
+/// answer either way: at a round the lane can refine past it refines,
+/// since the next round's enclosure, about 4× narrower, decides it; at a
+/// round the lane stops on it escalates, since there the width may be
+/// under the target and a budget refusal would misstate it. A `Zero`
+/// reading carries no diagnostic, so there the same margin is re-asked
+/// through the funnel's positive gate, which rejects it with one; that
+/// path alone records the predicate twice. The margin is finite by
+/// [`quad::mean_boundary_displacement`]'s invariant, so the band is the
+/// only escalation the reading carries.
+fn to_target<T: Decide>(
+    eps: f64,
+    band: Band,
+) -> impl FnMut(&FaceCutBounds, LaneStop) -> Result<bool, PropsError> {
+    let target_len = QUAD_TARGET_LEN_FACTOR * eps;
+    move |bounds, stop| {
+        let width_len = quad::mean_boundary_displacement(bounds.flux, bounds.area)?;
+        let last = stop != LaneStop::Refinable;
+        match quad::classify_len::<T>(
+            "props_quad_converged",
+            Margin::of(target_len - width_len),
+            band,
+            PropsCheck::Converged,
+        ) {
+            Ok(Sign::Positive) => Ok(true),
+            Ok(Sign::Negative) => Ok(false),
+            Ok(Sign::Zero) if !last => Ok(false),
+            Ok(Sign::Zero) => match geom_core::k_stats::decide_positive(
+                "props_quad_converged",
+                Margin::of(target_len - width_len).lift::<T>(),
+                band,
+            ) {
+                Ok(()) => Ok(true),
+                Err(cause) => Err(PropsError::Escalated {
+                    cause,
+                    check: PropsCheck::Converged,
+                }),
+            },
+            Err(PropsError::Escalated { .. }) if !last => Ok(false),
+            Err(other) => Err(other),
+        }
+    }
+}
+
+/// **INTERIM: where a face's window ended, read at the reporting
+/// target** ([`reported`]): [`Self::Converged`] met the target, and
+/// [`Self::Open`] is an enclosure at a named round, sound and wider
+/// than the target, which is all a caller deciding a SIGN needs. Goes
+/// with [`to_target`].
+#[derive(Clone, Debug)]
+pub(crate) enum RoundOutcome {
+    /// A round's enclosure met the reporting target.
+    Converged {
+        /// The enclosure.
+        bounds: FaceCutBounds,
+        /// Whether the lane can refine past it: a later round is
+        /// narrower, and fits in the work wall.
+        refinable: bool,
+    },
+    /// The window ended without meeting the target.
+    Open {
+        /// The narrowest enclosure the window reached — sound, and
+        /// wider than the reporting target asks for.
+        bounds: FaceCutBounds,
+        /// The round `bounds` was taken at.
+        round: usize,
+        /// Why the window ended.
+        end: OpenEnd,
+    },
+}
+
+/// **INTERIM: why an [`RoundOutcome::Open`] window ended** — whether
+/// rounds remain, and the refusal a caller wanting a NUMBER from the
+/// face earns.
+#[derive(Clone, Debug)]
+pub(crate) enum OpenEnd {
+    /// The window's own last round: rounds remain, and a later one may
+    /// still meet the reporting target.
+    Window,
+    /// The lane stopped (its floor or its work wall) short of the target.
+    Exhausted(PropsError),
+}
+
+impl OpenEnd {
+    /// The refusal a caller wanting the number earns, if any.
+    pub(crate) fn refusal(&self) -> Option<&PropsError> {
+        match self {
+            Self::Window => None,
+            Self::Exhausted(refusal) => Some(refusal),
+        }
+    }
+
+    /// Whether a later round exists to resume at.
+    pub(crate) fn rounds_remain(&self) -> bool {
+        matches!(self, Self::Window)
+    }
+}
+
+impl RoundOutcome {
+    /// **The reporting level's reading of this outcome**: the converged
+    /// outcome, or the refusal the lane stopped with.
+    ///
+    /// INVARIANT: a [`RoundWindow::SCHEDULE`] window ends converged or
+    /// at the lane's own stop, which carries its refusal, so
+    /// [`OpenEnd::Window`] is reachable only from a window a caller
+    /// deliberately cut short, which is a caller that wanted the
+    /// enclosure rather than the number.
+    ///
+    /// # Errors
+    ///
+    /// The lane's own refusal, unchanged.
+    pub(crate) fn at_target(self) -> Result<Self, PropsError> {
+        match self {
+            converged @ Self::Converged { .. } => Ok(converged),
+            Self::Open {
+                end: OpenEnd::Exhausted(refusal),
+                ..
+            } => Err(refusal),
+            Self::Open {
+                round,
+                end: OpenEnd::Window,
+                ..
+            } => unreachable!(
+                "a target-level reading of a window cut short at round {round}: the \
+                 reporting door runs the whole schedule, which ends converged or refused"
+            ),
+        }
+    }
+}
+
+/// **INTERIM: a lane's run read at the reporting target** — the
+/// accepted round converged, a window cut short open, and a lane that
+/// stopped short of the target ([`LaneEnd::Floor`], [`LaneEnd::Wall`])
+/// refused [`PropsError::QuadratureBudget`] with its narrowest enclosure,
+/// which a sign walk may still read. Goes with [`to_target`].
+fn reported(run: LaneRun, eps: f64) -> Result<RoundOutcome, PropsError> {
+    let LaneRun {
+        bounds,
+        round,
+        rounds,
+        end,
+    } = run;
+    Ok(match end {
+        LaneEnd::Accepted(stop) => RoundOutcome::Converged {
+            bounds,
+            refinable: stop == LaneStop::Refinable,
+        },
+        LaneEnd::Window => RoundOutcome::Open {
+            bounds,
+            round,
+            end: OpenEnd::Window,
+        },
+        LaneEnd::Floor | LaneEnd::Wall => RoundOutcome::Open {
+            bounds,
+            round,
+            end: OpenEnd::Exhausted(PropsError::QuadratureBudget {
+                width_len: quad::mean_boundary_displacement(bounds.flux, bounds.area)?,
+                target_len: QUAD_TARGET_LEN_FACTOR * eps,
+                rounds,
+            }),
+        },
+    })
+}
+
+/// [`cut_face_rounds`]' lanes, asking `accept` of every round.
+#[allow(clippy::too_many_arguments)]
+fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
+    body: &Body<T>,
+    surface: &Surface<T>,
+    loops: &[super::FlatLoop<T>],
+    band: Band,
+    tol: Tol,
+    window: RoundWindow,
+    centre: Option<Point3<Interval>>,
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
     // The NURBS-patch lane (M6-3): a described NURBS face routes
     // to the patch engine over its stored iso-line pcurves.
     // The spline-patch lane (M6-3): a described spline face routes
@@ -558,7 +750,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
                 what: "a ring on a described spline face — the patch lanes read one loop",
             });
         };
-        return nurbs_face(body, payload, outer, hes, band, tol, window, centre);
+        return nurbs_face(body, payload, outer, hes, band, window, centre, accept);
     }
     // A spiric bounds a plane cap or a torus wall and nothing else
     // (`Pcurve::Spiric` certifies on those two chart kinds only); the face
@@ -572,7 +764,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
                 .flat_map(|(edges, _)| edges)
                 .any(|e| matches!(e.carrier, Curve3::Spiric { .. })))
     {
-        return spiric_face(body, surface, loops, band, tol, window, centre);
+        return spiric_face(body, surface, loops, band, window, centre, accept);
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
@@ -660,9 +852,9 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         Interval::from_certified(*radius),
         o_dot_va,
         &trims,
-        eps,
         band,
         window,
+        accept,
     )
 }
 
@@ -767,10 +959,10 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
     surface: &Surface<T>,
     loops: &[super::FlatLoop<T>],
     band: Band,
-    tol: Tol,
     window: RoundWindow,
     centre: Option<Point3<Interval>>,
-) -> Result<RoundOutcome, PropsError> {
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
     let centre = centre.unwrap_or_else(Point3::origin);
     let lift = |e: &LoopEdge<T>| LoopEdge {
         carrier: e.carrier.map_scalar(Interval::from_certified),
@@ -855,7 +1047,7 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
             });
         }
     };
-    spiric::spiric_face_rounds::<T>(&face, tol.eps(), band, window)
+    spiric::spiric_face_rounds::<T>(&face, band, window, accept)
 }
 
 /// A loop set's anchor: the first carrier's start point — the convention
@@ -1081,10 +1273,10 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     outer: &[LoopEdge<T>],
     hes: &[HalfEdgeKey],
     band: Band,
-    tol: Tol,
     window: RoundWindow,
     centre: Option<Point3<Interval>>,
-) -> Result<RoundOutcome, PropsError> {
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
     if payload.is_placeholder() {
         return Err(PropsError::QuadratureUnsupported {
             what: "the mvfs Nurbs placeholder reached the quadrature lane — a \
@@ -1103,9 +1295,8 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         .filter_map(|he| body.pcurve(*he))
         .any(|c| matches!(c.pcurve(), Pcurve::General(_)))
     {
-        return trimmed_face(body, payload, outer, hes, band, tol, window, centre);
+        return trimmed_face(body, payload, outer, hes, band, window, centre, accept);
     }
-    let eps = tol.eps();
     // Exact-structure read of a T scalar (point bracket required).
     let exact = |x: Interval| -> Result<f64, PropsError> {
         // The refusal first: a refused crossing carries the
@@ -1236,9 +1427,9 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         (u0, u1, v0, v1),
         perimeter,
         boundary_defect,
-        eps,
         band,
         window,
+        accept,
     )?;
     // The winding sign carries the S10 orientation into the flux;
     // the area is unsigned. It applies at whichever round the
@@ -1307,10 +1498,10 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
     outer: &[LoopEdge<T>],
     hes: &[HalfEdgeKey],
     band: Band,
-    tol: Tol,
     window: RoundWindow,
     centre: Option<Point3<Interval>>,
-) -> Result<RoundOutcome, PropsError> {
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
     let ring = |x: T| Interval::from_certified(x);
     let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
     let lifted = crate::pcurves::lifted_images(body, hes);
@@ -1462,9 +1653,9 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
         &control,
         payload.weights_f64_interim(),
         &chords,
-        tol.eps(),
         band,
         window,
+        accept,
     )
 }
 
