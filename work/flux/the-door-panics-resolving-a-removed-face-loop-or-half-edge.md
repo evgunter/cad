@@ -2,10 +2,11 @@
 id: the-door-panics-resolving-a-removed-face-loop-or-half-edge
 kind: issue
 title: mass_properties panics resolving a removed face, loop or half-edge of a corrupt body, where its contract is a typed Corrupt
-status: open
+status: closed
 opened: 2026-10-21
 priority: P3
 cost: E
+closed: 2026-10-22
 ---
 
 
@@ -35,3 +36,14 @@ other.
 The walk resolves each face it reads through a typed lookup, and
 refuses a record naming a removed key `MassPropsError::Corrupt`. Then
 the row's admitted list empties.
+
+## Closed
+
+By F1 (Ev's PR 4822 decision): `topo::mass_properties` takes
+`&AtRestBody`, and a body with an entity removed fails tier 1, so the
+typed door never reads one. The witness,
+`a_corrupt_body_is_refused_typed_at_the_door`, now reads the raw door
+(`test_support::measure_unvalidated`) and still admits the six panics.
+It also asserts that none of the removals passes `AtRestBody::validate`.
+The door's own face resolution still panics on such a body, but only
+behind the raw door.

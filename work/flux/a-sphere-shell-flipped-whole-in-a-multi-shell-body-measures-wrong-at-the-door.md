@@ -2,11 +2,12 @@
 id: a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door
 kind: issue
 title: Flipping a whole sphere shell of a body with several shells measures a positive wrong volume at the door, with no refusal
-status: open
+status: closed
 opened: 2026-10-21
 priority: P2
 cost: M
 refs: [mass-properties-measures-a-flipped-seam-region-without-tier-3]
+closed: 2026-10-22
 ---
 
 
@@ -39,3 +40,15 @@ A door reading of each shell's own orientation, where a shell's volume
 sign contradicts its role, as check 7 and check 10 read them. Or the
 door typed `&AtRestBody` (Ev's PR 4822 decision), so that no unvalidated
 body reaches it.
+
+## Closed
+
+By F1 (Ev's PR 4822 decision): `topo::mass_properties` takes
+`&AtRestBody`, and a body with a flipped shell does not finish, so the
+typed door never reads one. The witness is kept as a raw-door row,
+`a_whole_flipped_shell_of_two_does_not_finish_and_the_raw_door_measures_it_wrong`
+(`crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs`).
+That row flips each shell of the hollow ball in turn and asserts:
+- neither flip passes `AtRestBody::validate`;
+- `test_support::measure_unvalidated` still measures the inner shell's
+  flip at the solid ball's volume.
