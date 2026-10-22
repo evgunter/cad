@@ -328,12 +328,7 @@ pub mod test_support {
     /// # Errors
     ///
     /// As [`crate::mass_properties`].
-    pub fn measure_unvalidated<T: geom_core::Decide + geom_core::CertifiedBounds>(
-        body: &Body<T>,
-        tol: geom_core::Tol,
-    ) -> Result<crate::MassProperties<T>, crate::MassPropsError> {
-        crate::props::measure_body(body, tol)
-    }
+    pub use crate::props::raw_door::measure_body as measure_unvalidated;
 
     /// **The raw classification door**: [`crate::classify_shells`] over a
     /// body that has not passed tier 3, as [`measure_unvalidated`] is to
@@ -342,12 +337,7 @@ pub mod test_support {
     /// # Errors
     ///
     /// As [`crate::classify_shells`].
-    pub fn classify_unvalidated<T: geom_core::Decide + geom_core::CertifiedBounds>(
-        body: &Body<T>,
-        tol: geom_core::Tol,
-    ) -> Result<Vec<crate::ShellClassification<T>>, crate::ShellClassifyError> {
-        crate::props::classify_body(body, tol)
-    }
+    pub use crate::props::raw_door::classify_body as classify_unvalidated;
 
     /// **The transitional measurement alias** (FLUX unit F1): the raw
     /// walk under the name a NOT-YET-MIGRATED test site reads it by,
@@ -362,24 +352,14 @@ pub mod test_support {
     /// # Errors
     ///
     /// As [`crate::mass_properties`].
-    pub fn unmigrated_measure<T: geom_core::Decide + geom_core::CertifiedBounds>(
-        body: &Body<T>,
-        tol: geom_core::Tol,
-    ) -> Result<crate::MassProperties<T>, crate::MassPropsError> {
-        crate::props::measure_body(body, tol)
-    }
+    pub use crate::props::raw_door::measure_body as unmigrated_measure;
 
     /// [`unmigrated_measure`] for [`crate::classify_shells`].
     ///
     /// # Errors
     ///
     /// As [`crate::classify_shells`].
-    pub fn unmigrated_classify<T: geom_core::Decide + geom_core::CertifiedBounds>(
-        body: &Body<T>,
-        tol: geom_core::Tol,
-    ) -> Result<Vec<crate::ShellClassification<T>>, crate::ShellClassifyError> {
-        crate::props::classify_body(body, tol)
-    }
+    pub use crate::props::raw_door::classify_body as unmigrated_classify;
 
     /// Every shell's stored face list rotated left by `k` (modulo its
     /// length): the same solid stored in another face order, which the

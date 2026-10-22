@@ -368,16 +368,48 @@ pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
     measure_body(body, tol)
 }
 
-/// [`mass_properties`]' walk over any body, finished or not: the door's
-/// own measurement, and the raw door
-/// (`topo::test_support::measure_unvalidated`) a test measures a body
-/// tier 3 refuses through.
-pub(crate) fn measure_body<T: Decide + geom_core::CertifiedBounds>(
-    body: &Body<T>,
-    tol: Tol,
-) -> Result<MassProperties<T>, MassPropsError> {
-    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
-    mass_properties_with(body, band, tol, Some(QuadLane::certified()))
+pub(crate) use raw_door::{classify_body, measure_body};
+
+/// The doors' walks over any body, finished or not. The module is
+/// private, so its items leave the crate only through
+/// `topo::test_support`'s re-exports (the raw door and the transitional
+/// alias), and carry this seam's bound there unrestated.
+pub(crate) mod raw_door {
+    use super::*;
+
+    /// [`mass_properties`]' walk over any body, finished or not: the
+    /// door's own measurement, and the raw door
+    /// (`topo::test_support::measure_unvalidated`) a test measures a body
+    /// tier 3 refuses through.
+    ///
+    /// # Errors
+    ///
+    /// As [`mass_properties`].
+    // Reachable from outside the crate only with test-support on.
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
+    pub fn measure_body<T: Decide + geom_core::CertifiedBounds>(
+        body: &Body<T>,
+        tol: Tol,
+    ) -> Result<MassProperties<T>, MassPropsError> {
+        let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+        mass_properties_with(body, band, tol, Some(QuadLane::certified()))
+    }
+
+    /// [`classify_shells`] over any body, finished or not: the door's own
+    /// classification, and the raw door
+    /// (`topo::test_support::classify_unvalidated`).
+    ///
+    /// # Errors
+    ///
+    /// As [`classify_shells`].
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
+    pub fn classify_body<T: Decide + geom_core::CertifiedBounds>(
+        body: &Body<T>,
+        tol: Tol,
+    ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+        let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
+        classify_shells_of(body, &every, tol)
+    }
 }
 
 /// [`mass_properties`] holding NO quadrature lane — the closed-form
@@ -4217,17 +4249,6 @@ pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
     classify_body(body, tol)
-}
-
-/// [`classify_shells`] over any body, finished or not: the door's own
-/// classification, and the raw door
-/// (`topo::test_support::classify_unvalidated`).
-pub(crate) fn classify_body<T: Decide + geom_core::CertifiedBounds>(
-    body: &Body<T>,
-    tol: Tol,
-) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
-    let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
-    classify_shells_of(body, &every, tol)
 }
 
 /// [`classify_shells`] holding NO quadrature lane — the same
