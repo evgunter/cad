@@ -493,8 +493,8 @@ pub struct Assembly<T: Decide> {
     /// declarations too, and without these rows a certified assembly
     /// could not say which inner mates its verdict answered for.
     pub carried: Vec<CarriedDeclaration>,
-    /// Every overlap between two copies' material, in the world and in
-    /// each loose copy's own space, in the census's order (D10):
+    /// Every overlap between two copies' material in the world, in the
+    /// census's order (D10):
     /// reported, quiet or loud, and never a refusal
     /// ([`crate::checks::at_rest`]).
     pub interference: Vec<crate::checks::at_rest::InterferenceFinding>,
@@ -1169,7 +1169,7 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
 /// own census findings*): `rows` appended to `held`, but for a row an
 /// earlier list already holds, the same finding of the same pinned
 /// document arriving by another route (a part placed twice, or in the world and
-/// in a loose space). Only an earlier list's row is the same row: one
+/// in another space). Only an earlier list's row is the same row: one
 /// list is its part's, and two equal findings in it (escalations, which
 /// name no entity) are two findings.
 pub(crate) fn once_per_part_row<R: CarriedRow + Clone>(

@@ -3028,7 +3028,8 @@ impl DocSession {
     /// world placements re-pointed to it (A10, Ev's residue 1). The
     /// numbers are taken at their nominal values; the placement's
     /// values carry them afterwards. A copy the door cannot place
-    /// stands loose, and the outcome says so ([`OpOutcome::placed`]).
+    /// stands where its body stands, by the identity bundle, and the
+    /// outcome says so ([`OpOutcome::placed`]).
     fn add_transform(
         &mut self,
         input: Operand,

@@ -11,8 +11,8 @@
 //! id whose carrier has an axis (a line, a circle, an ellipse), and the
 //! first vertex by id off that edge's line, decided at the run's band
 //! — a frame `Through` the edge's axis and the vertex. A copy that
-//! offers no such pair refuses ([`PinRefusal::NoFrame`]), never a loose
-//! copy in silence.
+//! offers no such pair refuses ([`PinRefusal::NoFrame`]), never a copy
+//! left unpinned in silence.
 //!
 //! A copy standing where its body stands is placed by [`stand`]: the
 //! identity bundle, no mate and the constant `0` on every freedom.
