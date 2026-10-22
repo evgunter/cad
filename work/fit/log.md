@@ -231,3 +231,25 @@ Review was full. It found no MAJOR. Its MINOR-1 was a latent crash that predates
 
 What still needs a device: whether a real fault is followed by a clean next query.
 (FIT orchestrator)
+
+## 2026-10-22 — zoom to fit frames what is drawn (PR 5597)
+
+Closes `zoom-to-fit-frames-no-committed-profile` (P0) and its passenger `a-degenerate-frame-refusal-prints-an-aspect-nobody-can-act-on`.
+
+**What the fit frames.** `pane::viewport::frame_camera` frames the drawn extent:
+- the scene's corners, plus the committed and preview loop lanes;
+- never the step marks, which are sized after the fit against the camera it produced.
+
+Every extent is one rule, `narrowing::drawn_box`: the box of the f32 corners that crossed the display seam. `SceneMesh::bounds` answers `Option<Aabb>`, and `None` means nothing is drawn, including when every part is hidden.
+
+**When there is nothing to frame.** `CameraOp::Frame` takes `Option<Aabb>`. No extent, or a point, frames at `DEFAULT_FRAME_RADIUS` (0.05 m) with the orientation kept. `Camera::default()` is the startup camera, so `StartupError::Camera` is gone.
+
+**What a refusal says.** `Frame` reads "zoom to fit". `Unfittable` says either the lens or the shape, and never prints a raw number.
+
+**Review** (full, mergeable, no MAJOR). Three MINORs fixed:
+- the frame order now has a test that goes red;
+- `bounds` is taken over the narrowed corners, not in f64;
+- the `Unfittable` sentence is right through `Camera::new`'s narrow lens.
+
+**Filed:** `a-refused-camera-op-prints-its-finite-fields-at-full-precision` (FIT, P4) and `the-readmes-display-population-census-drifted-again` (VDOC, P4).
+(FIT orchestrator)
