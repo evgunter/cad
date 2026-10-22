@@ -158,7 +158,7 @@ def prism(seed, width, depth, height):
     return doc
 
 
-def on_floor(doc, placement, at, base, resolver=None):
+def on_floor(doc, placement, at, base):
     """`placement`'s copy standing on the world's floor by its face
     `base`, read at `at`: a plane mate to the world's `xy` plane
     flipped, so the face's outward normal points down, and three zero
@@ -167,7 +167,6 @@ def on_floor(doc, placement, at, base, resolver=None):
     mate = doc.constrain(
         placement,
         Mate(PoseDef.plane(at, base), WorldRead.through("xy").flip(), ContactClass.Rest),
-        resolver=resolver,
     )
     for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin()):
         doc.add_value(mate, coord, 0)
@@ -245,7 +244,7 @@ def face_facing(store, doc, node, normal):
     return one([name for name in ev.all_faces(node) if outward(name) == normal])
 
 
-def rest(doc, placement, on, to, at, class_=ContactClass.Rest, resolver=None):
+def rest(doc, placement, on, to, at, class_=ContactClass.Rest):
     """`placement`'s copy seated by its face `on` resting on the face
     `to`: a plane mate, the target flipped so the two faces face each
     other, and the two slides and the spin that set where on `to` the
@@ -258,7 +257,6 @@ def rest(doc, placement, on, to, at, class_=ContactClass.Rest, resolver=None):
     mate = doc.constrain(
         placement,
         Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), class_),
-        resolver=resolver,
     )
     values = [
         doc.add_value(mate, Coord.slide("x"), at[0] * m),
@@ -392,7 +390,6 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
         (post_a, a_top),
         SHELF_ON_POST,
         class_,
-        resolver=store,
     )
     mate_2, _ = rest(
         doc,
@@ -401,7 +398,6 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
         (shelf_i, s_bottom),
         POST_UNDER_SHELF,
         class_,
-        resolver=store,
     )
     return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)
 

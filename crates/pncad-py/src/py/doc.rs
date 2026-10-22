@@ -1109,9 +1109,8 @@ impl Doc {
         &mut self,
         node: d::AuthoredNode,
         label: Option<d::Label>,
-        resolver: Option<&super::store::Workspace>,
     ) -> Result<NodeId, d::EditError> {
-        self.minting(label, resolver, |action| action.insert(node))
+        self.minting(label, |action| action.insert(node))
     }
 
     /// `insert_node` for an insert spelled as its [`d::DocEdit`] — the
@@ -1121,7 +1120,7 @@ impl Doc {
         edit: d::DocEdit<d::ProfileProgram>,
         label: Option<d::Label>,
     ) -> Result<NodeId, d::EditError> {
-        self.minting(label, None, |action| {
+        self.minting(label, |action| {
             let minted = action.apply(edit)?;
             Ok(minted.unwrap_or_else(|| unreachable!("an accepted insert mints a node")))
         })
@@ -1131,14 +1130,11 @@ impl Doc {
     fn minting(
         &mut self,
         label: Option<d::Label>,
-        resolver: Option<&super::store::Workspace>,
         insert: impl FnOnce(
             &mut d::Recording<'_, d::ProfileProgram>,
         ) -> Result<d::RecipeNodeId, d::EditError>,
     ) -> Result<NodeId, d::EditError> {
         let tol = Tol::witness();
-        // Unread: work/intent/the-python-edit-doors-take-a-resolver-they-never-read.md
-        let _ = resolver;
         let mut action = d::Recording::start(&self.inner, tol);
         let id = insert(&mut action)?;
         if let Some(label) = label {
@@ -1224,16 +1220,8 @@ impl Doc {
     /// instead of returned here: the common case is an empty list, and
     /// widening every caller's return type for it would be paying for
     /// strands in documents that have none.
-    #[pyo3(signature = (edit, *, resolver=None))]
-    fn apply(
-        &mut self,
-        py: Python<'_>,
-        edit: &DocEdit,
-        resolver: Option<&super::store::Workspace>,
-    ) -> PyResult<Option<NodeId>> {
+    fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
-        // Unread: work/intent/the-python-edit-doors-take-a-resolver-they-never-read.md
-        let _ = resolver;
         let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
         Ok(self.accept(applied).minted.map(NodeId))
     }
@@ -1445,17 +1433,13 @@ impl Doc {
     /// `mate_refused` (the solve's own admission of the datum, with
     /// the fault — `mate_overconstrained` where the bundle already
     /// pins the copy), and the slot doors' refusals.
-    #[pyo3(signature = (placement, mate, *, resolver=None))]
     fn constrain(
         &mut self,
         py: Python<'_>,
         placement: &NodeId,
         mate: &super::mate::Mate,
-        resolver: Option<&super::store::Workspace>,
     ) -> PyResult<super::mate::MateRef> {
         let tol = Tol::witness();
-        // Unread: work/intent/the-python-edit-doors-take-a-resolver-they-never-read.md
-        let _ = resolver;
         let edit = d::DocEdit::AddConstraint {
             placement: placement.0,
             mate: Box::new(mate.0.clone()),
@@ -1548,16 +1532,10 @@ impl Doc {
     /// a label refuses before anything is applied (`label_blank`,
     /// `label_line_break`, `label_control_character`,
     /// `label_direction_control`).
-    #[pyo3(signature = (node, *, label=None, resolver=None))]
-    fn insert(
-        &mut self,
-        py: Python<'_>,
-        node: &Node,
-        label: Option<&str>,
-        resolver: Option<&super::store::Workspace>,
-    ) -> PyResult<NodeId> {
+    #[pyo3(signature = (node, *, label=None))]
+    fn insert(&mut self, py: Python<'_>, node: &Node, label: Option<&str>) -> PyResult<NodeId> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
-        self.insert_node(node.inner.clone(), label, resolver)
+        self.insert_node(node.inner.clone(), label)
             .map_err(|err| edit_err(py, &err))
     }
 
@@ -1571,17 +1549,13 @@ impl Doc {
     ///
     /// Exactly `insert(Node.measure(p))` per primitive, recorded as one
     /// action and answered with the outputs.
-    #[pyo3(signature = (primitives, *, resolver=None))]
     fn measure(
         &mut self,
         py: Python<'_>,
         primitives: Vec<super::measure::MeasurePrimitive>,
-        resolver: Option<&super::store::Workspace>,
     ) -> PyResult<Measured> {
         let primitives: Vec<d::MeasurePrimitive> = primitives.into_iter().map(|p| p.0).collect();
         let tol = Tol::witness();
-        // Unread: work/intent/the-python-edit-doors-take-a-resolver-they-never-read.md
-        let _ = resolver;
         let mut action = d::Recording::start(&self.inner, tol);
         let measured = action
             .measure(&primitives)
