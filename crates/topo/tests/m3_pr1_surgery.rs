@@ -197,8 +197,15 @@ fn revert_involution_and_tiers() {
 fn revert_negates_volume() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
     describe_as_intersections(&mut cube.body, Tol::witness());
-    let props = topo::mass_properties(&topo::test_support::finished("the measured body", cube.body.clone(), Tol::witness()), Tol::witness()).unwrap();
-    let rev_props = topo::mass_properties(&topo::test_support::finished("the measured body", cube.body.revert().unwrap().clone(), Tol::witness()), Tol::witness()).unwrap();
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the cube", cube.body.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let rev_props =
+        topo::test_support::measure_unvalidated(&cube.body.revert().unwrap(), Tol::witness())
+            .unwrap();
     assert_eq!(rev_props.volume.to_bits(), (-props.volume).to_bits());
     assert_eq!(
         rev_props.surface_area.to_bits(),

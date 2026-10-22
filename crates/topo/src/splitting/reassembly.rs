@@ -33,7 +33,6 @@ use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
-use crate::props::mass_properties;
 use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 use crate::validate::{validate, validate_closed};
 use geom_brep::EdgeCurveSpec;
@@ -206,8 +205,10 @@ fn reassembly_oracle_generic_cube() {
         reference.arena_counts(),
         "census equality"
     );
-    let m1 = mass_properties(&crate::test_support::finished("the measured body", body.clone(), tol), tol).unwrap();
-    let m0 = mass_properties(&crate::test_support::finished("the measured body", operand.clone(), tol), tol).unwrap();
+    // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+    let m1 = crate::test_support::measure_unvalidated(&body, tol).unwrap();
+    // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+    let m0 = crate::test_support::measure_unvalidated(&operand, tol).unwrap();
     let close = |a: f64, b: f64| (a - b).abs() <= 1e-12 * b.abs().max(1.0);
     assert!(
         close(m1.volume, m0.volume),

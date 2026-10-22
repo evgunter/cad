@@ -357,7 +357,7 @@ fn the_split_and_the_boolean_build_one_body() {
                     b.solids().count(),
                 )
             };
-            let split_volume = topo::mass_properties(&topo::test_support::finished("the measured body", walls.clone(), tol), tol).unwrap().volume;
+            let split_volume = topo::mass_properties(&walls, tol).unwrap().volume;
             for (what, r) in doors(row, &pose) {
                 assert_eq!(
                     count(&r.body),
@@ -453,10 +453,7 @@ fn slit_operands(row: &Row, pose: &Pose) -> [(&'static str, AtRestBody<f64>); 2]
     };
     [
         ("the Boolean's slit", cut(0.0)),
-        (
-            "the split's slit",
-            topo::test_support::finished("the split's walls", walls, tol),
-        ),
+        ("the split's slit", walls),
     ]
 }
 

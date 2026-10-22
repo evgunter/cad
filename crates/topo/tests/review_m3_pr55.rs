@@ -107,7 +107,12 @@ fn body_of<T: Decide>(r: &BooleanResult<T>) -> &BooleanBody<T> {
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    mass_properties(&topo::test_support::finished("the measured body", (body).clone(), Tol::witness()), Tol::witness()).unwrap().volume
+    mass_properties(
+        &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 /// Subtract with the exact volume oracle AND the partition cross-oracle

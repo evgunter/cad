@@ -8364,9 +8364,11 @@ mod tests {
             quad_prism(&turned, 0.7, Tol::witness()),
             quad_prism(&profile, 0.7, Tol::witness()),
         );
+        // Raw door: the measured prisms still carry construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
         let volume = |body: &crate::Body<f64>| {
-            let body = crate::test_support::finished("a prism", body.clone(), Tol::witness());
-            crate::mass_properties(&body, Tol::witness()).unwrap().volume
+            crate::test_support::measure_unvalidated(body, Tol::witness())
+                .unwrap()
+                .volume
         };
         assert!(
             volume(&low) < volume(&high),

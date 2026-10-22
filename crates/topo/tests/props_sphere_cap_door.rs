@@ -161,7 +161,9 @@ fn tier_checked_volume(name: &str, body: &Body<f64>) -> f64 {
             .collect()),
         "{name}: tier 3 refuses the rim's two vertices and nothing else"
     );
-    let props = topo::mass_properties(&topo::test_support::finished("the measured body", (body).clone(), tol), tol).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+    // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+    let props = topo::test_support::measure_unvalidated(body, tol)
+        .unwrap_or_else(|e| panic!("{name}: {e:?}"));
     assert_eq!(props.volume_pad, 0.0, "{name}: a closed form needs no pad");
     assert_eq!(props.area_pad, 0.0, "{name}: nor does its area");
     props.volume

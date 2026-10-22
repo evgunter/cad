@@ -6183,7 +6183,8 @@ mod face_list_door_tests {
                 SignCertificate::assembled(&body, band, tol, Some(QuadLane::certified()), parts)
                     .refine_to_target()
                     .unwrap();
-            let whole = crate::mass_properties(&crate::test_support::finished("the measured body", body.clone(), tol), tol).unwrap();
+            // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+            let whole = crate::test_support::measure_unvalidated(&body, tol).unwrap();
             assert_eq!(
                 (
                     assembled.volume.to_bits(),
@@ -6728,7 +6729,8 @@ mod shell_reference_rows {
             })
             .unwrap();
             let about_first = fold_runs(&runs).0;
-            let walked = crate::mass_properties(&crate::test_support::finished("the measured body", (body).clone(), tol), tol).unwrap();
+            // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+            let walked = crate::test_support::measure_unvalidated(body, tol).unwrap();
             assert_eq!(
                 (walked.volume.to_bits(), walked.surface_area.to_bits()),
                 (

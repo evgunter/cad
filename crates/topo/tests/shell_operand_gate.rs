@@ -82,7 +82,12 @@ fn the_counterclockwise_wedge_shells_to_its_closed_form_wall() {
 
     let operand = AtRestBody::validate(wedge(true), tol).expect("the wedge is a finished body");
     let shelled = shell(&operand, t, tol).expect("the counterclockwise wedge shells");
-    let volume = mass_properties(&topo::test_support::finished("the measured body", shelled.body.clone(), tol), tol).unwrap().volume;
+    let volume = mass_properties(
+        &topo::test_support::finished("the measured body", shelled.body.clone(), tol),
+        tol,
+    )
+    .unwrap()
+    .volume;
     assert!(
         ((volume - wall) / wall).abs() < 1e-12,
         "the wall is {volume} against the closed form {wall}"

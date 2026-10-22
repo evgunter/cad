@@ -56,7 +56,11 @@ fn door_inserts_a_certified_cavity() {
     assert_eq!(dst.get_shell(cavity_shell).unwrap().solid, solid);
     // Volume: 27 − 1 (the reversed interior shell subtracts); area:
     // both boundaries count, 54 + 6.
-    let props = mass_properties(&topo::test_support::finished("the measured body", dst.clone(), Tol::witness()), Tol::witness()).unwrap();
+    let props = mass_properties(
+        &topo::test_support::finished("the measured body", dst.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!((props.volume - 26.0).abs() < 1e-12);
     assert!((props.surface_area - 60.0).abs() < 1e-12);
 }
@@ -107,7 +111,11 @@ fn door_agrees_with_the_subtract_fallback() {
     assert_eq!(bb.kind, BooleanResultKind::Voided);
     assert_eq!(bb.body.shells().count(), dst.shells().count());
     assert_eq!(bb.body.faces().count(), dst.faces().count());
-    let pd = mass_properties(&topo::test_support::finished("the measured body", dst.clone(), Tol::witness()), Tol::witness()).unwrap();
+    let pd = mass_properties(
+        &topo::test_support::finished("the measured body", dst.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let pb = mass_properties(&bb.body, Tol::witness()).unwrap();
     assert_eq!(pd.volume.to_bits(), pb.volume.to_bits());
     assert_eq!(pd.surface_area.to_bits(), pb.surface_area.to_bits());
@@ -351,7 +359,11 @@ fn two_destinations_each_take_their_own_cavity() {
         assert_eq!(dst.shells_of_solid(solid).unwrap().len(), 2);
     }
     // 27 + 27 − 1 − (1.5 × 1 × 1).
-    let props = mass_properties(&topo::test_support::finished("the measured body", dst.clone(), Tol::witness()), Tol::witness()).unwrap();
+    let props = mass_properties(
+        &topo::test_support::finished("the measured body", dst.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(
         (props.volume - (54.0 - 1.0 - 1.5)).abs() < 1e-12,
         "{}",

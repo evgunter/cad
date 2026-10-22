@@ -196,8 +196,16 @@ fn long_thin_feature_transform_is_honest_either_way() {
     ) {
         Ok(t) => {
             tiers_ok(&t);
-            let m0 = mass_properties(&topo::test_support::finished("the measured body", b.clone(), Tol::witness()), Tol::witness()).unwrap();
-            let m1 = mass_properties(&topo::test_support::finished("the measured body", t.clone(), Tol::witness()), Tol::witness()).unwrap();
+            let m0 = mass_properties(
+                &topo::test_support::finished("the measured body", b.clone(), Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap();
+            let m1 = mass_properties(
+                &topo::test_support::finished("the measured body", t.clone(), Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap();
             let rel = ((m1.volume - m0.volume) / m0.volume).abs();
             eprintln!("long-thin took the Ok path; rel volume drift {rel:e}");
             assert!(rel < 1e-9, "volume drifted rel {rel:e} under a rigid map");

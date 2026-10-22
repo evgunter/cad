@@ -281,7 +281,7 @@ fn a_keel_wrapped_at_both_ends_splits_with_its_keel_a_ring() {
                         Ok(()),
                         "{what}: tier 3′"
                     );
-                    let v = topo::mass_properties(&topo::test_support::finished("the measured body", (b).clone(), tol), tol).unwrap().volume;
+                    let v = topo::mass_properties(b, tol).unwrap().volume;
                     assert!(
                         (v - volume).abs() < 1e-9 * volume,
                         "{what}: volume {v}, closed form {volume}"
@@ -361,7 +361,6 @@ fn a_later_cut_across_the_ring_builds_and_one_through_its_tip_refuses() {
     let SplitPart::Body(walls) = r.above else {
         panic!("nothing above the plane");
     };
-    let walls = AtRestBody::validate(walls, tol).unwrap();
     let plane = |o: [f64; 3], n: [f64; 3]| {
         split_plane(
             Point3::new(o[0], o[1], o[2]),
@@ -375,7 +374,7 @@ fn a_later_cut_across_the_ring_builds_and_one_through_its_tip_refuses() {
         let SplitPart::Body(b) = part else {
             panic!("the cut across the ring: nothing on the {side}");
         };
-        let v = topo::mass_properties(&topo::test_support::finished("the measured body", (b).clone(), tol), tol).unwrap().volume;
+        let v = topo::mass_properties(b, tol).unwrap().volume;
         let half = row.walls / 2.0;
         assert!(
             (v - half).abs() < 1e-9 * half,
