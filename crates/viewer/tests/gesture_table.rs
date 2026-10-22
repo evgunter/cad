@@ -246,6 +246,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             placement: node,
             mate: Box::new(seat(node)),
             values: Vec::new(),
+            into_target_space: true,
         },
         SessionOp::NewDocument {
             name: "view1b-fresh".to_owned(),

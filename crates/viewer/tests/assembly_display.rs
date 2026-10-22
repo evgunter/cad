@@ -785,6 +785,7 @@ fn two_copies_in_one_space_free_move_as_one() {
         placement: bench.shelf_i,
         mate: Box::new(pin),
         values: Vec::new(),
+        into_target_space: true,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(outcome.withdrawn.superseded.is_empty());

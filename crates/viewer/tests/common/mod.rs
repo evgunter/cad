@@ -837,6 +837,7 @@ pub fn repin_stranded(session: &mut DocSession, before: &editor_core::ProfileDoc
             placement,
             mate: Box::new(pin),
             values: Vec::new(),
+            into_target_space: true,
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         session.pump();

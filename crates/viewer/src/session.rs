@@ -1755,8 +1755,22 @@ impl DocSession {
                 placement,
                 mate,
                 values,
+                into_target_space,
             } => self.commit_run(|run| {
-                let bundle = mate_bundle(held_bundle(run.doc(), placement, &mate), *mate, values);
+                let space = mate_space(run.doc(), &mate);
+                let moves = into_target_space
+                    && space.is_some()
+                    && space != run.doc().node_space(placement);
+                let held = if moves {
+                    // The bundle it held reads the space it leaves.
+                    Vec::new()
+                } else {
+                    held_bundle(run.doc(), placement)
+                };
+                let bundle = mate_bundle(held, *mate, values);
+                if let (true, Some(space)) = (moves, space) {
+                    into_space(run, placement, space)?;
+                }
                 write_bundle(run, placement, bundle)
             }),
             SessionOp::RemoveConstraint { mate } => self.remove_constraint(mate),
@@ -1765,16 +1779,7 @@ impl DocSession {
                 let Some(&space) = run.doc().outputs(node).first() else {
                     unreachable!("a `new_space()` defines its one output")
                 };
-                // The identity first: it reads nothing, so the re-target
-                // strands no mate of the bundle's own.
-                write_bundle(run, placement, editor_core::stand().bundle())?;
-                run.apply(DocEdit::SetParam {
-                    node: placement,
-                    slot: SlotId::Operand(OperandSlot::Space),
-                    value: pncad::document::SlotValue::Read(Operand::Var(space)),
-                    fresh: Vec::new(),
-                })?;
-                Ok(())
+                into_space(run, placement, space)
             }),
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::AddProfile { loops } => self.add_profile(loops),
@@ -3569,20 +3574,25 @@ impl DocSession {
     /// for a mate, each value naming it first, then the mate, as one
     /// action.
     fn remove_constraint(&mut self, mate: pncad::document::MateRef) -> OpOutcome {
-        let mut edits = DocEdit::removing(self.committed_doc(), mate);
-        if edits.is_empty() {
-            // No such constraint: the raw edit refuses it in its words.
-            edits.push(DocEdit::RemoveConstraint {
-                placement: mate.placement,
-                constraint: mate.id,
+        let held = held_bundle(self.committed_doc(), mate.placement);
+        if !held.iter().any(|c| c.id == mate.id) {
+            // No such constraint (or no placement): the raw edit refuses
+            // it in its words.
+            return self.commit_run(|run| {
+                run.apply(DocEdit::RemoveConstraint {
+                    placement: mate.placement,
+                    constraint: mate.id,
+                })
+                .map(|_| ())
             });
         }
-        self.commit_run(|run| {
-            for edit in edits {
-                run.apply(edit)?;
-            }
-            Ok(())
-        })
+        // The bundle whole without the constraint and, for a mate, the
+        // values naming it.
+        let kept: Vec<_> = held
+            .into_iter()
+            .filter(|c| c.id != mate.id && c.value().is_none_or(|v| v.mate != Some(mate.id)))
+            .collect();
+        self.commit_run(|run| write_bundle(run, mate.placement, kept))
     }
 
     /// **An action's edits, applied and not yet recorded**, beside what
@@ -3941,20 +3951,13 @@ pub(crate) fn mate_bundle(
         .collect()
 }
 
-/// **What of `placement`'s bundle a new `mate` writes beside**: the
+/// **What of `placement`'s bundle a new mate writes beside**: the
 /// bundle as authored (each constraint re-authored, so a value keeps
-/// reading its variable by id) where `mate`'s `to` reads the space the
-/// copy is placed into, and nothing where it reads another — the
-/// placement is re-targeted there, and the mates it held read the space
-/// it leaves. Empty for a node that is no placement.
+/// reading its variable by id). Empty for a node that is no placement.
 pub(crate) fn held_bundle(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
-    mate: &pncad::document::Mate<Formula>,
 ) -> Vec<pncad::document::Constraint<Formula>> {
-    if mate_space(doc, mate) != doc.node_space(placement) {
-        return Vec::new();
-    }
     match doc.node(placement).map(|node| node.authored(doc)) {
         Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
             constraints
@@ -3964,47 +3967,44 @@ pub(crate) fn held_bundle(
 }
 
 /// **`constraints` written onto `placement` whole**
-/// ([`DocEdit::SetConstraints`]), the placement first re-targeted into
-/// the space its first mate's `to` reads where that is not its target:
-/// a mate reads a pose in the space its copy is placed into (D10
-/// `[placement.spaces]`). A bundle whose mate reads the old target
-/// would refuse the re-target, so it is first written as the identity,
-/// which reads nothing.
+/// ([`DocEdit::SetConstraints`]). A mate reads a pose in the space its
+/// copy is placed into (D10 `[placement.spaces]`), and the gesture never
+/// moves the copy into another space as a side effect: a mate whose `to`
+/// is outside the placement's target is refused by the door,
+/// [`EditError::SpaceMismatch`] naming both spaces. Moving the copy is a
+/// gesture of its own ([`SessionOp::IntoOwnSpace`]).
 fn write_bundle(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
     constraints: Vec<pncad::document::Constraint<Formula>>,
 ) -> Result<(), EditError> {
-    let space = constraints
-        .iter()
-        .find_map(|c| c.mate())
-        .and_then(|mate| mate_space(run.doc(), mate));
-    if let Some(space) = space
-        && run.doc().node_space(placement) != Some(space)
-    {
-        let mated = match run.doc().node(placement) {
-            Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
-                constraints.iter().any(|c| c.mate().is_some())
-            }
-            _ => false,
-        };
-        if mated {
-            run.apply(DocEdit::SetConstraints {
-                placement,
-                constraints: editor_core::stand().bundle(),
-                fresh: Vec::new(),
-            })?;
-        }
-        run.apply(DocEdit::SetParam {
-            node: placement,
-            slot: SlotId::Operand(pncad::document::OperandSlot::Space),
-            value: pncad::document::SlotValue::Read(Operand::Var(space)),
-            fresh: Vec::new(),
-        })?;
-    }
     run.apply(DocEdit::SetConstraints {
         placement,
         constraints,
+        fresh: Vec::new(),
+    })?;
+    Ok(())
+}
+
+/// **`placement` moved into `space` by name**: a bundle holding a mate
+/// first stood by the identity bundle, which reads nothing, so the
+/// re-target strands no mate of the bundle's own, then its `target`
+/// re-pointed there.
+fn into_space(
+    run: &mut Recording<'_, ProfileProgram>,
+    placement: RecipeNodeId,
+    space: VarId,
+) -> Result<(), EditError> {
+    if held_bundle(run.doc(), placement)
+        .iter()
+        .any(|c| c.mate().is_some())
+    {
+        write_bundle(run, placement, editor_core::stand().bundle())?;
+    }
+    run.apply(DocEdit::SetParam {
+        node: placement,
+        slot: SlotId::Operand(OperandSlot::Space),
+        value: pncad::document::SlotValue::Read(Operand::Var(space)),
         fresh: Vec::new(),
     })?;
     Ok(())

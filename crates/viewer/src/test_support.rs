@@ -319,11 +319,16 @@ pub fn mated(
     values: Vec<(pncad::document::Coord, Formula)>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, pncad::document::MateRef) {
-    let constraints = crate::session::mate_bundle(
-        crate::session::held_bundle(doc, placement, &mate),
-        mate,
-        values,
-    );
+    // A mate into another space re-targets the copy here ([`written`],
+    // an explicit fixture move, never the gesture's), and the bundle it
+    // held, read in the space it leaves, goes.
+    let joins = mate_space(doc, &mate) == doc.node_space(placement);
+    let held = if joins {
+        crate::session::held_bundle(doc, placement)
+    } else {
+        Vec::new()
+    };
+    let constraints = crate::session::mate_bundle(held, mate, values);
     let doc = written(doc, placement, constraints, tol);
     let mate = match doc.node(placement) {
         Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
@@ -352,6 +357,17 @@ fn constrained(
 
 /// `constraints` written onto `placement` whole, re-targeted first as
 /// [`constrained`] says.
+/// **The space `mate`'s `to` reads**: the world for a world read.
+fn mate_space(
+    doc: &Doc<ProfileProgram>,
+    mate: &pncad::document::Mate<Formula>,
+) -> Option<pncad::document::VarId> {
+    match &mate.to {
+        pncad::document::Target::World(_) => Some(pncad::document::VarId::WORLD),
+        pncad::document::Target::Pose(to) => doc.operand_space(to),
+    }
+}
+
 fn written(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
@@ -361,10 +377,7 @@ fn written(
     let space = constraints
         .iter()
         .find_map(|c| c.mate())
-        .and_then(|mate| match &mate.to {
-            pncad::document::Target::World(_) => Some(pncad::document::VarId::WORLD),
-            pncad::document::Target::Pose(to) => doc.operand_space(to),
-        });
+        .and_then(|mate| mate_space(doc, mate));
     let mut edits = Vec::new();
     if let Some(space) = space
         && doc.node_space(placement) != Some(space)

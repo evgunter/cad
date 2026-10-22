@@ -294,6 +294,12 @@ pub(crate) const PICK_A_FACE: &str = "pick a face in the viewport to draw on";
 const PROFILE_NOUN: &str = "Profile";
 const EXTRUDE_NOUN: &str = "Extrude";
 const MATE_NOUN: &str = "Mate";
+
+/// What the mate tool writes for a freedom left unticked: every bundle
+/// pins its copy, so an unset freedom is the constant 0 in the mate's
+/// chart, never left free.
+pub(crate) const MATE_UNSET_IS_ZERO: &str =
+    "Every bundle pins its copy: a freedom left unticked is written as 0.";
 pub(crate) const INSTANCE_NOUN: &str = "InstantiatePart";
 
 /// The heading of the section that makes a body out of nothing.
@@ -522,8 +528,15 @@ impl ViewerBehavior<'_> {
             .get(self.drafts.mate_kind)
             .map_or(VarKind::Plane, |(kind, _)| *kind);
         ui.checkbox(&mut self.drafts.mate_flip, "faces rest against each other");
-        // The freedoms this kind leaves, each set only when ticked: an
-        // unset freedom is free.
+        ui.checkbox(
+            &mut self.drafts.mate_into_target_space,
+            "move the copy into the target's space",
+        );
+        // The freedoms this kind leaves, each set to its number when
+        // ticked. Every bundle pins its copy, so a freedom left unticked
+        // is written as the constant 0 (`session::mate_bundle`), and the
+        // panel says so rather than leaving it to be found out.
+        ui.label(MATE_UNSET_IS_ZERO);
         for (freedom, (set, value)) in MateFreedom::ALL.iter().zip(&mut self.drafts.mate_values) {
             let coord = freedom.coord();
             if coord.admitted_by(kind).is_err() {
@@ -577,7 +590,12 @@ impl ViewerBehavior<'_> {
                             Ok(proposal) => {
                                 // One committed action (and its
                                 // label); the tool closes with it.
-                                self.push_labelled(MATE_NOUN, proposal.op());
+                                let op = if self.drafts.mate_into_target_space {
+                                    proposal.op_into_target_space()
+                                } else {
+                                    proposal.op()
+                                };
+                                self.push_labelled(MATE_NOUN, op);
                                 close = true;
                             }
                             // Said from the document the panel's

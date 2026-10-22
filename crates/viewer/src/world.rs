@@ -59,7 +59,10 @@ fn placed_vars(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Vec<VarId>
 /// A construction's own space is not shown on its own: the picture
 /// draws placements' copies, and a construction is no placement, so a
 /// copy placed against it would be drawn without the body it stands
-/// on. It is drawn through the placement that copies the construction.
+/// on. It is drawn through the placement that copies the construction
+/// (an interim: `work/intent/the-viewer-does-not-show-a-constructions-own-space.md`,
+/// which also holds the author's show and hide the spec adds to this
+/// default set).
 pub fn shown_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
     let placements = doc.placements();
     let read: BTreeSet<VarId> = placements
@@ -203,7 +206,11 @@ pub fn seat_read(
         Some((operation, port)) => (operation, Some(port)),
         None => (node, body.and_then(|b| u8::try_from(b).ok())),
     };
-    let several = doc.outputs(node).len() > 1;
+    // A port is named only where the node holds several outputs: the
+    // document's own rule for a read naming a node alone
+    // (`Doc::read_of_node`), under which a construction's space is no
+    // second output.
+    let several = doc.read_of_node(node).is_none() && !doc.outputs(node).is_empty();
     (node, port.filter(|_| several))
 }
 
