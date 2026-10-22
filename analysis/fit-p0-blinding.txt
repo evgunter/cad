@@ -1,3 +1,4 @@
 FIT P0 designer pairs, dispatched 2026-10-22.
 ctrl-wheel-reaches-no-zoom: byte 54 (even): A = Opus, B = Fable
 zoom-to-fit-frames-no-committed-profile: byte 206 (even): A = Opus, B = Fable
+budget-cap (the-budgets-predicted-count + a-flat-rung-pair): byte 106 (even): A = Opus, B = Fable)
