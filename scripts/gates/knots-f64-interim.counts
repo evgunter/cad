@@ -14,5 +14,5 @@ demos/tour 2
 # the copies an interim read leaves behind. A ratchet too; S5 states where
 # it ends.
 holders:crates/geom 2
-holders:crates/geom-brep 15
-holders:crates/geom-core 27
+holders:crates/geom-brep 13
+holders:crates/geom-core 28
