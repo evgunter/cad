@@ -10,9 +10,9 @@
 //! reference a part (an instance IS a placement, and its bundle of
 //! constraints says where it sits), `place_at` to place one in the
 //! world at a pose and `pin_at` to pin one there over its own
-//! geometry, `Node::Pattern` to replicate one, `AddConstraint` to seat
-//! one part on another by a mate in the mover's bundle and `AddValue`
-//! to set the freedoms the mate leaves, `SetVarValue` to turn the
+//! geometry, `Node::Pattern` to replicate one, `SetConstraints` to seat
+//! one part on another by a mate in the mover's bundle with the values
+//! that set the freedoms the mate leaves, `SetVarValue` to turn the
 //! turntable, `assemble` for the at-rest
 //! gate, `split`/`inline` to refactor, `update_to_store` to accept a
 //! new version of a part, and `save` / `load` to round-trip. What
@@ -107,9 +107,9 @@ use pncad::document::{
     Assembly, AssemblyError, CancelToken, Constraint, Coord, Dimension, DocEdit, DocRef,
     DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, InlineError,
     LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node,
-    OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedFace, Space, Target, TargetAxis, Value, ValuePayload,
-    VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
+    OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, Placed, PlacedBy,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, Target, TargetAxis, UNPINNED_RECOURSE,
+    ValuePayload, VarId, VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
     parse_formula, pin_at, place_at, product_named, save, solve_document, split, stand,
 };
 use pncad::geom_core::{Band, Tol};
@@ -275,10 +275,10 @@ fn length(metres: f64) -> Formula {
 
 /// Inserts a node and returns its minted id.
 ///
-/// Every node the scenes insert through here — an instance (a loose
-/// copy until its bundle places it), a pattern, a sketch — is admitted
-/// on its own datum and reads no part's faces. A mate goes through
-/// [`constrain`].
+/// Every node the scenes insert through here — an instance (standing
+/// where its part's world stands until its bundle is written), a
+/// pattern, a sketch — is admitted on its own datum and reads no part's
+/// faces. A mate goes through [`constrain`].
 fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
@@ -293,57 +293,36 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     applied.record.minted.expect("an insert mints an id")
 }
 
-/// Adds `mate` to `placement`'s bundle and returns the constraint's
-/// address.
+/// Writes `mate` and the `values` naming it as `placement`'s bundle,
+/// the whole of it in one edit (every bundle pins its copy), and returns
+/// the mate's address.
 fn constrain(
     doc: &mut ProfileDoc,
     placement: RecipeNodeId,
     mate: Mate<Formula>,
+    values: impl IntoIterator<Item = (Coord, Formula)>,
     tol: Tol,
 ) -> MateRef {
-    let applied = apply(doc, &add_constraint(placement, mate), tol)
-        .unwrap_or_else(|err| panic!("the bundle admits the mate: {err:?}"));
+    let placed = Placed {
+        mate: Some(mate),
+        values: values.into_iter().collect(),
+        by: PlacedBy::PlanarFace,
+    };
+    let applied = apply(doc, &placed.write(placement), tol)
+        .unwrap_or_else(|err| panic!("the bundle is admitted: {err:?}"));
     *doc = applied.doc;
-    let [id] = applied.record.minted_constraints[..] else {
-        panic!(
-            "adding a constraint mints one id: {:?}",
-            applied.record.minted_constraints
-        )
+    let Some(&id) = applied.record.minted_constraints.first() else {
+        panic!("writing a bundle mints its ids")
     };
     MateRef::new(placement, id)
 }
 
-/// The edit adding `mate` to `placement`'s bundle.
+/// The edit adding `mate` to `placement`'s bundle beside what it holds.
 fn add_constraint(placement: RecipeNodeId, mate: Mate<Formula>) -> DocEdit<ProfileProgram> {
     DocEdit::AddConstraint {
         placement,
         mate: Box::new(mate),
         fresh: Vec::new(),
-    }
-}
-
-/// Sets each of `values` — a freedom `mate` leaves and its number — in
-/// `mate`'s bundle.
-fn set_values(
-    doc: &mut ProfileDoc,
-    mate: MateRef,
-    values: impl IntoIterator<Item = (Coord, Formula)>,
-    tol: Tol,
-) {
-    for (coord, by) in values {
-        edit(
-            doc,
-            &DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            tol,
-        );
     }
 }
 
@@ -382,29 +361,24 @@ fn place_in_world(
 ) {
     let placed = place_at(doc, &copy_read(doc, placement), pose, opts, tol)
         .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
-    let mate = constrain(
-        doc,
-        placement,
-        placed.mate.expect("the gesture places by a mate"),
-        tol,
-    );
-    set_values(doc, mate, placed.values, tol);
+    edit(doc, &placed.write(placement), tol);
 }
 
 /// Places one copy of `body` in the world where it stands
 /// ([`stand`]: the identity bundle, no mate and the constant `0` on
 /// every freedom) and returns the placement's id.
 fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
-    let placed = stand();
-    let placement = insert(doc, Node::place(vec![body.into()]), tol);
-    placed
-        .write(placement, |e| {
-            let applied = apply(doc, &e, tol)?;
-            *doc = applied.doc;
-            Ok::<_, pncad::document::EditError>(applied.record.minted_constraints)
-        })
-        .unwrap_or_else(|err| panic!("the identity bundle is admitted: {err:?}"));
-    placement
+    insert(
+        doc,
+        Node::place(vec![body.into()], Operand::Var(VarId::WORLD), stand().bundle()),
+        tol,
+    )
+}
+
+/// An instance of `part` standing where its part's world stands, in
+/// `space`: the identity bundle, which a gesture then writes over.
+fn instance(doc: &mut ProfileDoc, part: DocRef, space: Operand, tol: Tol) -> RecipeNodeId {
+    insert(doc, Node::instantiate_part(part, space, stand().bundle()), tol)
 }
 
 /// Applies an edit that mints nothing.
@@ -678,9 +652,9 @@ fn instance_body(ev: &Evaluation<f64>, instance: RecipeNodeId, what: &str) -> Ar
 /// The flat-pack: two posts on their side (ONE instance, patterned)
 /// and the shelf laid beside them. Nothing touches.
 ///
-/// The post instance's bundle is empty: it is a loose copy, its part's
-/// own coordinates and no part of the product, which is what a pattern
-/// master is here. Each patterned copy is placed in the world by its
+/// The post instance is placed into a `new_space()` of its own: its
+/// part's own coordinates, and no part of the product, which is what a
+/// pattern master is here. Each patterned copy is placed in the world by its
 /// own `Place`, at the post laid on its side; the shelf instance is
 /// placed in the world itself. Each goes in by the "place part"
 /// gesture (`place_at`): a plane mate to the world and the values that
@@ -704,7 +678,8 @@ fn layout_doc(
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-layout"), tol);
     let scope = BTreeMap::new();
-    let post_i = insert(&mut doc, Node::instantiate_part(post), tol);
+    let master = insert(&mut doc, Node::Space, tol);
+    let post_i = instance(&mut doc, post, Operand::Node(master), tol);
     // The post laid on its side. The pattern steps along +y, which this
     // turn about +y leaves where it was, so each copy is placed at the
     // same pose.
@@ -737,12 +712,16 @@ fn layout_doc(
             },
             tol,
         );
-        let placement = insert(&mut doc, Node::place(vec![post.into()]), tol);
+        let placement = insert(
+            &mut doc,
+            Node::place(vec![post.into()], Operand::Var(VarId::WORLD), stand().bundle()),
+            tol,
+        );
         place_in_world(&mut doc, placement, &lying, opts, tol);
     }
     // The shelf, placed in the world beside them: the last placement,
     // as the instance a split of it leaves behind is.
-    let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
+    let shelf_i = instance(&mut doc, shelf, Operand::Var(VarId::WORLD), tol);
     place_in_world(
         &mut doc,
         shelf_i,
@@ -777,22 +756,18 @@ fn swing() -> VarName {
     VarName::from_static("swing")
 }
 
-/// How the stand's two seats are authored.
+/// How the stand's two seats are authored: each a rest with its three
+/// freedoms — the two slides in the seating plane and the spin about it
+/// — set by values.
 #[derive(Clone, Copy)]
 struct Seating {
     /// The class the shelf's seat on the near post declares.
     class: ContactClass,
-    /// Whether each seat's three freedoms — the two slides in the
-    /// seating plane and the spin about it — are set by values. A
-    /// planar rest without them fixes the seating plane and nothing
-    /// else.
-    set: bool,
 }
 
 /// The stand as it is built: two rests, each with its freedoms set.
 const SEATED: Seating = Seating {
     class: ContactClass::Rest,
-    set: true,
 };
 
 /// The turntable's axis: the world's vertical, slid to [`PIVOT`].
@@ -860,17 +835,19 @@ fn stand_doc(parts: &Parts, seating: Seating, opts: &EvalOptions, tol: Tol) -> S
     );
     let scope = BTreeMap::from([(swing(), Dimension::Angle)]);
     let spot = [0.0, (SHELF_DEPTH - POST_SECTION) / 2.0, 0.0];
-    let post_a = insert(&mut doc, Node::instantiate_part(post), tol);
+    let world = || Operand::Var(VarId::WORLD);
+    let post_a = instance(&mut doc, post, world(), tol);
     let pin = on_the_turntable(&doc, post_a, spot, &scope, opts, tol);
-    constrain(&mut doc, post_a, pin, tol);
-    let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
-    let post_b = insert(&mut doc, Node::instantiate_part(post), tol);
+    constrain(&mut doc, post_a, pin, [], tol);
+    let shelf_i = instance(&mut doc, shelf, world(), tol);
+    let post_b = instance(&mut doc, post, world(), tol);
 
     // Each mate names the part it moves first and goes in that part's
     // bundle: "mate the shelf to the post" places the shelf on the
     // pinned post, and the far post under the placed shelf. Each side
     // is its head face's plane, read off the part's own evaluation, so
     // no number here can disagree with the model.
+    let half = POST_SECTION / 2.0;
     let mate_1 = constrain(
         &mut doc,
         shelf_i,
@@ -879,6 +856,7 @@ fn stand_doc(parts: &Parts, seating: Seating, opts: &EvalOptions, tol: Tol) -> S
             plane(post_a, post_top),
             seating.class,
         ),
+        seated_at(half - SEAT_A[0], half - SEAT_A[1]),
         tol,
     );
     let mate_2 = constrain(
@@ -889,23 +867,9 @@ fn stand_doc(parts: &Parts, seating: Seating, opts: &EvalOptions, tol: Tol) -> S
             plane(shelf_i, shelf_bottom),
             ContactClass::Rest,
         ),
+        seated_at(SEAT_B[0] - half, half - SEAT_B[1]),
         tol,
     );
-    if seating.set {
-        let half = POST_SECTION / 2.0;
-        set_values(
-            &mut doc,
-            mate_1,
-            seated_at(half - SEAT_A[0], half - SEAT_A[1]),
-            tol,
-        );
-        set_values(
-            &mut doc,
-            mate_2,
-            seated_at(SEAT_B[0] - half, half - SEAT_B[1]),
-            tol,
-        );
-    }
     Stand {
         doc,
         post_a,
@@ -930,8 +894,8 @@ struct Bench {
 /// that set where on the top it stands: [`CRATE_SLIDE`] along the
 /// shelf from its centre, squared to it, in the chart of the shelf's
 /// upward top, which is the bodies' own coordinates. The crate is
-/// an instance with an empty bundle and the mate is what places it, so
-/// it is placed on the shelf: it swings with the stand and follows any
+/// an instance whose bundle is that mate and its values, so it is
+/// placed on the shelf: it swings with the stand and follows any
 /// edit of the shelf or the posts under it. The bench's `run_checks`
 /// reports three `unproven-coincidence` findings, one against each
 /// mate (the stand's two and the crate's), and the viewer's status line
@@ -942,7 +906,7 @@ struct Bench {
 /// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`).
 fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
     let mut doc = stand.doc.clone();
-    let crate_i = insert(&mut doc, Node::instantiate_part(parts.crate_ref), tol);
+    let crate_i = instance(&mut doc, parts.crate_ref, Operand::Var(VarId::WORLD), tol);
     let crate_mate = constrain(
         &mut doc,
         crate_i,
@@ -951,11 +915,6 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
             plane(stand.shelf_i, &parts.shelf_top),
             ContactClass::Rest,
         ),
-        tol,
-    );
-    set_values(
-        &mut doc,
-        crate_mate,
         seated_at(
             (SHELF_LENGTH - CRATE_WIDTH) / 2.0 + CRATE_SLIDE,
             (SHELF_DEPTH - CRATE_DEPTH) / 2.0,
@@ -1157,7 +1116,7 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
         );
         assert_eq!(
             poses.space(copy),
-            Some(Space::World),
+            Some(VarId::WORLD),
             "{what} is in the world's space"
         );
     }
@@ -1574,35 +1533,38 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let (post, shelf) = (parts.post, parts.shelf);
     let opts = with_store(ws);
     println!(
-        "\n-- the v1 boundary, walked: a loose copy, then three refusals an author actually hits --"
+        "\n-- the v1 boundary, walked: four refusals an author actually hits --"
     );
 
     // (1) UNDER-DETERMINED. One planar rest between two parts fixes
-    // the seating plane and nothing else — the shelf may still slide
-    // and spin in it. A bundle that pins its copy less than fully is no
-    // refusal: the shelf is a LOOSE copy, in a space of its own and no
-    // part of the product, and the solve picks no pose for it.
-    let under = stand_doc(
-        parts,
-        Seating {
-            set: false,
-            ..SEATED
-        },
-        &opts,
-        tol,
-    );
-    let poses = solve_document(&under.doc, &opts, tol);
+    // the seating plane and nothing else — the shelf could still slide
+    // and spin in it. Every bundle pins its copy, so a bundle that pins
+    // less is refused at the door, naming the freedoms it leaves, and
+    // the recourse is the values that set them.
+    let under = stand_doc(parts, SEATED, &opts, tol);
+    let alone = Placed {
+        mate: Some(rest(
+            plane(under.shelf_i, &parts.shelf_bottom),
+            plane(under.post_a, &parts.post_top),
+            ContactClass::Rest,
+        )),
+        values: Vec::new(),
+        by: PlacedBy::PlanarFace,
+    };
+    let fault = match apply(&under.doc, &alone.write(under.shelf_i), tol) {
+        Err(pncad::document::EditError::MateRefused { fault, .. }) => *fault,
+        Err(other) => panic!("a lone rest refuses as the bundle's own fault, got {other:?}"),
+        Ok(_) => panic!("the door admitted a rest that leaves the shelf free in its plane"),
+    };
     assert!(
-        poses.fault(under.shelf_i).is_none(),
-        "a planar rest alone is no refusal: {:?}",
-        poses.fault(under.shelf_i)
+        matches!(fault, MateFault::Unpinned { free: 3, .. }),
+        "a planar rest alone is the UNPINNED refusal, got {fault:?}"
     );
-    let space = poses.space(under.shelf_i);
     assert!(
-        matches!(space, Some(Space::Loose { .. })),
-        "a planar rest alone leaves the shelf loose, got {space:?}"
+        fault.to_string().contains(UNPINNED_RECOURSE),
+        "the refusal carries its recourse verbatim"
     );
-    println!("   (1) under-determined: the shelf is a loose copy, not a refusal — {space:?}");
+    println!("   (1) under-determined, at the door: {fault}");
 
     // (2) OVERCONSTRAINED. A second rest in ONE bundle fixes the
     // seating plane the first already fixes, whatever its standoff: the
@@ -2364,11 +2326,11 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
     // are its subject. The other two swings render on their own.
     let bench_ops = "post.pncad + shelf.pncad + crate.pncad -> \
                      InstantiatePart (pin_at, its world frame spun about the turntable's \
-                     axis by swing) + InstantiatePart x2 (empty bundle) -> Mate x2 (Rest, \
-                     plane on flipped plane, each in the bundle of the copy it places) + \
-                     AddValue x6 (slide x, slide y, spin) -> constructive solve; \
-                     InstantiatePart (crate) -> Mate (Rest, crate's bottom on the shelf's top \
-                     face, in the crate's bundle) + AddValue x3 -> A10 product gather -> \
+                     axis by swing) + InstantiatePart x2 -> SetConstraints x2 (a Rest, plane on \
+                     flipped plane, and its slide x, slide y and spin, the whole bundle of the \
+                     copy it places) -> constructive solve; InstantiatePart (crate) -> \
+                     SetConstraints (a Rest, crate's bottom on the shelf's top face, and its \
+                     three values) -> A10 product gather -> \
                      SetVarValue(swing)";
     let bench_story = "an ASSEMBLY document: two instances of a post document and one of a \
                        shelf document, the shelf SEATED on both by mates — only the near post \
@@ -2418,13 +2380,13 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
                      and placed on the shelf",
                     "post.pncad + shelf.pncad + crate.pncad -> \
                      InstantiatePart (pin_at, its world frame spun about the turntable's \
-                     axis by swing) + InstantiatePart x2 (empty bundle) -> Mate x2 (Rest, \
-                     plane on flipped plane, each in the bundle of the copy it places) + \
-                     AddValue x6 (slide x, slide y, spin) -> constructive solve; \
-                     InstantiatePart (crate) -> Mate (Rest, crate's bottom on the shelf's top \
-                     face, in the crate's bundle) + AddValue x3 -> A10 product gather -> \
+                     axis by swing) + InstantiatePart x2 -> SetConstraints x2 (a Rest, plane on \
+                     flipped plane, and its slide x, slide y and spin, the whole bundle of the \
+                     copy it places) -> constructive solve; InstantiatePart (crate) -> \
+                     SetConstraints (a Rest, crate's bottom on the shelf's top face, and its \
+                     three values) -> A10 product gather -> \
                      SetVarValue(swing); and \
-                     InstantiatePart (empty bundle) -> LinearPattern(2) -> Part x2 -> Place x2 \
+                     InstantiatePart (into a new space) -> LinearPattern(2) -> Part x2 -> Place x2 \
                      (place_at, a rotated pose) + InstantiatePart (place_at, a translated \
                      pose) -> A10 product gather -> assemble",
                     format!(

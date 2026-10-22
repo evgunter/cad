@@ -124,7 +124,8 @@ pub use editor_core::{
 // beside a refusal it carries whole, and the full-width id a machine
 // channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
+    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
+    SpokenVar, held_by,
     node_kind_noun, spoken_by, spoken_within,
 };
 
@@ -230,7 +231,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // `FreshEntry` is an entry of an edit's fresh table: a variable the
 // edit mints for its formulas, under a name when two readers share it
 // (an unnamed variable has one reader, VR2).
-// `SpokenVar` is a variable as a refusal speaks it.
+// `SpokenVar` is a variable as a refusal speaks it, and `SpokenSpace` a
+// space.
 // `FreeValue` is the value half of a free variable, and the reason it is
 // curated is the door it opens: `DocEdit::SetVarValue` writes a new
 // number into a standing variable and carries the whole definition —
@@ -367,14 +369,13 @@ pub use editor_core::ContentBits;
 // the placements' document order, read through `Doc::placements` and
 // authored by `DocEdit::place` —
 // the one door that places, and the one Python's `Doc.place` is.
-// `product` is the whole-document gather of those copies. `LooseSpace`
-// is one loose copy's space, gathered by itself for the at-rest gate to
-// check, and `loose_spaces` gathers every one. `AtRestRow` is one of the product's at-rest decisions,
+// `product` is the whole-document gather of those copies.
+// `AtRestRow` is one of the product's at-rest decisions,
 // beside whose pair it is (`AtRestBy`): a mate's, or two copies' the
 // census found touching.
 pub use editor_core::{
-    AtRestBy, AtRestRow, LooseSpace, Product, ProductError, ProductErrorKind, ProductRefusal,
-    Refusal, SourceFinding, loose_spaces, product, product_recorded,
+    AtRestBy, AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
+    SourceFinding, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -399,17 +400,18 @@ pub use editor_core::{
 
 // Mates: a placement's constraints (`Constraint`, addressed by a
 // `MateRef`), each a `Mate` of two poses of one kind — `on` read off
-// the copy's geometry, `to` a `Target`: a pose of the space the copy
-// joins, or the world read inside the mate (`WorldRead`) — or a
+// the copy's geometry, `to` a `Target`: a pose of the space the
+// placement places into, or the world read inside the mate
+// (`WorldRead`) — or a
 // `Value` setting one freedom (`Coord`: a slide along a `TargetAxis`,
 // the spin about the mated direction, or a spin about a `TargetAxis`)
 // its mate leaves, or, naming no mate, one of the target space's own
-// axes. The solve's outcome (`SolvedPoses`, each copy's
-// `Space`; a pose kind's symmetry `Subgroup` and its `SubgroupFamily`,
+// axes. The solve's outcome (`SolvedPoses`, each copy's target
+// space and motion; a pose kind's symmetry `Subgroup` and its `SubgroupFamily`,
 // whose meeting decides a bundle), and `MateFault` — the typed refusal
 // every door carries. A gesture's answer is a `Placed` — its mate, if
 // any, its values and how it placed the copy (`PlacedBy`) — which
-// `Placed::write` writes onto a placement. `stand` writes the identity
+// `Placed::bundle` writes whole. `stand` writes the identity
 // bundle, no mate and the constant `0` on every freedom; `pin_at` pins a copy to the world
 // at a pose over its own geometry; `place_at` is the "place part" gesture's
 // constraints (`PlacedBy` saying whether the copy had a planar face to
@@ -443,7 +445,7 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Constraint, ConstraintKind, Coord, FrameMove, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate,
     MateFault, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed,
-    PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup,
+    PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Subgroup,
     SubgroupFamily, Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead,
     WorldReadFault, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
     member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,

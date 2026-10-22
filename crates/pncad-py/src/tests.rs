@@ -84,26 +84,18 @@ fn insert(
     (applied.doc, minted)
 }
 
-/// `placement`'s one copy standing where its body stands
-/// ([`pncad::document::stand`]): the identity bundle, written whole.
+/// **One copy of `body` standing in the world where it stands**: a
+/// placement into the world holding the identity bundle
+/// ([`pncad::document::stand`]), written whole.
 fn stood(
-    doc: pncad::document::ProfileDoc,
-    placement: pncad::document::RecipeNodeId,
-) -> pncad::document::ProfileDoc {
-    use pncad::document::Node;
-    let Some(Node::Place { .. }) = doc.node(placement) else {
-        panic!("{placement} is a placement");
-    };
-    let placed = pncad::document::stand();
-    let mut doc = doc;
-    placed
-        .write(placement, |edit| {
-            let added = applied(&doc, edit);
-            doc = added.doc;
-            Ok::<_, std::convert::Infallible>(added.record.minted_constraints)
-        })
-        .unwrap_or_else(|never| match never {});
-    doc
+    body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
+) -> pncad::document::AuthoredNode {
+    use pncad::document::{Node, Operand, VarId};
+    Node::place(
+        vec![body.into()],
+        Operand::Var(VarId::WORLD),
+        pncad::document::stand().bundle(),
+    )
 }
 
 /// A one-box document under the id `label` derives: square(2)
@@ -127,11 +119,8 @@ fn box_doc(
             distance: len(1.5),
         },
     );
-    let (doc, placement) = insert(
-        doc,
-        Node::place(vec![pncad::document::BodyRead::plain(body)]),
-    );
-    (stood(doc, placement), profile, body)
+    let (doc, _) = insert(doc, stood(body));
+    (doc, profile, body)
 }
 // END box-document fixture twin
 
