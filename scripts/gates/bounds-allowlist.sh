@@ -626,7 +626,15 @@ BOUNDS_ALLOWLIST=(
   # `cut_face_rounds`, under `QuadLane::certified`'s first field, so it
   # is the same plumbing at the same door and is never formed at a
   # dual; it reads no bracket of `T` itself.
-  'crates/topo/src/props/quad_lane.rs 16 M5 PR 11, the certified-quadrature plumbing'
+  # 16 -> 18: `cut_face_lane` (`Decide + Bounds + CertifiedEnclosure`,
+  # two occurrences) is `cut_face_rounds`' body with the caller's
+  # per-round question handed in: the lanes no longer read the
+  # reporting target, so `cut_face_rounds` is now the interim adapter
+  # that asks it and `cut_face_lane` the dispatch it wraps. It is
+  # reached only from `cut_face_rounds`, under `QuadLane::certified`'s
+  # first field, so it is the same plumbing at the same door and is
+  # never formed at a dual.
+  'crates/topo/src/props/quad_lane.rs 18 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,

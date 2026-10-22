@@ -189,8 +189,7 @@ const fn square_cells_through(last: usize) -> usize {
     let mut sum = 0;
     let mut round = 0;
     while round <= last {
-        let pieces = QUAD2_INIT_PIECES << round;
-        sum += pieces * pieces;
+        sum += (QUAD2_INIT_PIECES << round).pow(2);
         round += 1;
     }
     sum
@@ -207,6 +206,14 @@ const W_RATIONAL_COMPOSITE: usize = 10;
 const W_RATIONAL_EXACT_V: usize = 58;
 /// Weight of one chord cell of the trimmed lane.
 const W_TRIMMED: usize = 5300;
+
+/// **Whether flux enclosure `a` is narrower than `b`** — the one rule
+/// a face keeps its narrowest round by, within a lane's call
+/// ([`Run`]) and across the windows a caller runs it in.
+#[must_use]
+pub fn narrower(a: Interval, b: Interval) -> bool {
+    a.width() < b.width()
+}
 
 /// **The rounds one call of a face lane runs.**
 ///
@@ -707,7 +714,7 @@ impl<'c> Run<'c> {
         let width = bounds.flux.width();
         if self
             .narrowest
-            .is_none_or(|(_, held)| width < held.flux.width())
+            .is_none_or(|(_, held)| narrower(bounds.flux, held.flux))
         {
             self.narrowest = Some((round, bounds));
         }

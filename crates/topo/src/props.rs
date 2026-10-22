@@ -401,7 +401,7 @@ pub(crate) fn mass_properties_with<T: Decide>(
 
 /// **The hook at the REPORTING level**: [`round_hook`] entered once
 /// over the whole schedule and read at the target
-/// ([`RoundOutcome::into_target`]), so its answer is always `Converged`
+/// ([`RoundOutcome::at_target`]), so its answer is always `Converged`
 /// — a reporting read has no window to stop in — or `Ok(None)` when
 /// the caller holds no lane. The whole-body walk
 /// ([`mass_properties_with`]) and the per-shell walk
@@ -3175,8 +3175,7 @@ impl<T> FaceRun<T> {
         let held = core::mem::replace(self, run);
         let narrower = match (held.contribution.enclosure, self.contribution.enclosure) {
             (Some((was, _)), Some((now, _))) => {
-                use geom_core::interval::certification::Certification;
-                self.converged_at.is_none() && was.width() < now.width()
+                self.converged_at.is_none() && geom_brep::props::quad::narrower(was, now)
             }
             _ => false,
         };
