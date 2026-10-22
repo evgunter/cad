@@ -48,7 +48,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::AuthoredNode;
-use editor_core::Formula;
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -56,8 +55,8 @@ use crate::fixture;
 
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId,
-    StableName, TargetAxis, Value,
+    CapEnd, ContactClass, Coord, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId,
+    StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame};
