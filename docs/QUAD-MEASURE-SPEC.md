@@ -121,14 +121,28 @@ Each lands green. None lands half a representation change.
 - **A (lanes; geom-brep).**
   - R1–R5 in all five lanes, through one shared `Run`/stop home.
   - An **interim adapter** in topo maps the new lane outcome back to
-    today's target semantics: a topo-side comparison of the width against
-    `QUAD_TARGET_LEN_FACTOR·ε`, outside the funnel. With it, every public
-    signature, refusal and test stays put, and A can merge.
+    today's target semantics. The target reaches the lane as a per-round
+    closure from topo, and the adapter's closure mints `props_quad_converged`
+    through today's funnel call, so bits and the k-stream are unchanged.
+    With it, every public signature, refusal kind and test outcome stays
+    put, except where the moved caps flip an outcome, which is named.
+  - geom-brep's whole-schedule doors (`nurbs_patch_face`,
+    `cylinder_cut_face`) take the target closure now, and their tests move.
+    There is no second adapter and no second `QuadratureBudget` mint.
+  - The narrowest round also survives across one-round windows:
+    `FaceRun::advance` keeps the narrower enclosure.
+  - `budget_exit` goes, so a face that cannot reach the target runs to
+    the wall before it refuses. That cost is accepted: a target-free early
+    exit would hand back round 0's bracket where the wall buys a far
+    narrower one, which is the paradox the design rejected. Rows that cross
+    0.5 s go to the slow set. Report if the PR gate passes its 15-minute
+    bar.
   - Moved numbers are re-pinned, with their cause named. They should be
     narrower or equal; any wider number is a finding.
   - k-lint's `predicate_roster` and `EPS_COUPLED_*` lose
-    `props_quad_converged` and `props_quad_last_round`, and the K-REPORT
-    rows note the retirement.
+    `props_quad_last_round`, with a K-REPORT note.
+    `props_quad_converged` stays until B, because A's adapter still mints
+    it.
   - Review: **DUAL** (H): it changes when every certified walk stops.
 - **B (the door and the deciders; topo).**
   - R6–R8 and R11. The adapter's comparison becomes `Settle::Resolution`
