@@ -63,12 +63,21 @@ fn camera_error_names_the_offending_value() {
     assert!(not_finite.contains("NaN"), "{not_finite}");
     prose(&not_finite, "NotFinite");
 
-    let degenerate = CameraError::DegenerateScene { radius: 0.0 }.to_string();
-    assert!(degenerate.contains('0'), "{degenerate}");
+    // A finite refused field is spelled to be read: plain `Display`
+    // writes this radius as three hundred and one characters, and this
+    // field of view as `3.3000000000000003`.
+    let degenerate = CameraError::DegenerateScene { radius: -1.0e300 }.to_string();
+    assert_eq!(
+        degenerate,
+        "a scene radius of -1e300 is not a positive extent to frame against"
+    );
     prose(&degenerate, "DegenerateScene");
 
-    let fov = CameraError::FieldOfViewOutOfRange { fov_y: 4.5 }.to_string();
-    assert!(fov.contains("4.5"), "{fov}");
+    let fov = CameraError::FieldOfViewOutOfRange { fov_y: 3.0 * 1.1 }.to_string();
+    assert_eq!(
+        fov,
+        "a vertical field of view of 3.3 rad is not strictly inside (0, pi)"
+    );
     prose(&fov, "FieldOfViewOutOfRange");
 
     prose(&CameraError::UnusableBounds.to_string(), "UnusableBounds");
@@ -134,8 +143,14 @@ fn camera_op_error_forwards_its_framing_arm() {
     let outer = CameraOpError::Unframeable(inner).to_string();
     assert_eq!(outer, inner.to_string());
 
-    let dolly = CameraOpError::NonPositiveDolly { factor: -2.0 }.to_string();
-    assert!(dolly.contains("-2"), "{dolly}");
+    let dolly = CameraOpError::NonPositiveDolly {
+        factor: -(0.1 + 0.2),
+    }
+    .to_string();
+    assert_eq!(
+        dolly,
+        "a dolly factor of -0.3 is not a positive scale for a viewing distance"
+    );
     prose(&dolly, "NonPositiveDolly");
 
     let not_finite = CameraOpError::NotFinite {
@@ -150,24 +165,30 @@ fn camera_op_error_forwards_its_framing_arm() {
 
 #[test]
 fn camera_op_renders_as_the_move_it_is() {
+    // Each move as `apply` refuses it: the field it refuses for, and a
+    // finite sibling whose plain `Display` is float noise
+    // (`0.30000000000000004`, `1.2100000000000002`) spelled to be read.
     let orbit = CameraOp::Orbit {
-        yaw: 0.5,
-        pitch: -0.25,
+        yaw: f64::NAN,
+        pitch: 0.1 + 0.2,
     }
     .to_string();
-    assert!(orbit.contains("0.5") && orbit.contains("-0.25"), "{orbit}");
+    assert_eq!(orbit, "orbit by yaw NaN rad, pitch 0.3 rad");
     prose(&orbit, "Orbit");
 
     let pan = CameraOp::Pan {
-        right: 1.5,
-        up: 2.5,
+        right: f64::INFINITY,
+        up: 1.1 * 1.1,
     }
     .to_string();
-    assert!(pan.contains("1.5") && pan.contains("2.5"), "{pan}");
+    assert_eq!(pan, "pan by right inf, up 1.21");
     prose(&pan, "Pan");
 
-    let dolly = CameraOp::Dolly { factor: 0.75 }.to_string();
-    assert!(dolly.contains("0.75"), "{dolly}");
+    let dolly = CameraOp::Dolly {
+        factor: -(0.1 + 0.2),
+    }
+    .to_string();
+    assert_eq!(dolly, "dolly by a factor of -0.3");
     prose(&dolly, "Dolly");
 
     // The button's name, whatever the fit was handed: the error beside

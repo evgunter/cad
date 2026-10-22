@@ -253,3 +253,12 @@ Every extent is one rule, `narrowing::drawn_box`: the box of the f32 corners tha
 
 **Filed:** `a-refused-camera-op-prints-its-finite-fields-at-full-precision` (FIT, P4) and `the-readmes-display-population-census-drifted-again` (VDOC, P4).
 (FIT orchestrator)
+
+## 2026-10-22 — two easy tail rows (PR 5604)
+
+Closes `a-flat-rung-row-uses-an-absolute-epsilon-on-a-scaled-value`. The row's test now binds its request once, and compares the last rung with `==`, because the multiply is the rung's definition.
+
+Closes `a-refused-camera-op-prints-its-finite-fields-at-full-precision`. Every number in `camera.rs`'s refusal sentences now goes through `readout::number`. That includes `DegenerateScene`, `FieldOfViewOutOfRange` and `NonPositiveDolly`, which have the same shape. Each sentence is pinned by an exact `error_display` row.
+
+Review: the orchestrator's own read. These were two cheap follow-ups to PRs 5600 and 5597, taken before handing back.
+(FIT orchestrator)
