@@ -44,6 +44,10 @@ The spec's §5′.2 rows, and tests 20, 21 and 24. Geometry moves only
 where a mated target body stands off its space's identity or a
 helper's rounded turn is replaced by the turn its caller meant, each
 reported by document and node.
+`p2_face::a_valued_mate_reading_a_mate_placed_copy_refuses_to_cross_split`
+crosses split once a value charts on the target space: today it pins
+split refusing the reader `Posed`, because the value is charted on the
+mate's target body's frame.
 
 **Absorbs:**
 `a-value-charted-on-the-target-reads-frame-carries-the-datum-chain`,

@@ -203,6 +203,35 @@ class WorldPins(unittest.TestCase):
         self.assertEqual(doc.space(shelf), doc.output(aside))
         self.assertEqual(doc.space(post), doc.output(doc.world))
 
+    def test_the_gate_checks_each_new_space_by_itself(self):
+        """`pncad.assemble` reaches the kernel's one gate, which checks
+        a new space's copies by themselves: two posts seated at one spot
+        under a shelf placed into a space of its own interpenetrate
+        there, and the gate refuses though the world beside them
+        certifies."""
+        doc = Doc("py-pin-gate")
+        self.pinned(doc, self.post_ref, Frame.translation((1 * m, 0 * m, 0 * m)))
+        aside = doc.new_space()
+        shelf = doc.insert(Node.instantiate_part(self.shelf_ref, aside))
+        posts = []
+        for _ in range(2):
+            post = doc.insert(Node.instantiate_part(self.post_ref, aside))
+            bench_scene.rest(
+                doc,
+                post,
+                (post, self.face(doc, post, CapEnd.End)),
+                (shelf, self.face(doc, shelf, CapEnd.Start)),
+                bench_scene.post_under_shelf(bench_scene.SEAT_A),
+            )
+            posts.append(post)
+            if len(posts) == 1:
+                # One post under the shelf: nothing clashes anywhere.
+                pncad.assemble(doc, evaluate(doc, resolver=self.ws))
+        self.assertEqual({doc.space(p) for p in posts}, {doc.output(aside)})
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            pncad.assemble(doc, evaluate(doc, resolver=self.ws))
+        self.assertEqual(caught.exception.variant, "at_rest")
+
     def test_a_world_pose_is_the_pin_onto_the_solve(self):
         """`P ∘ B` through Python, against an independent 4x4
         composition: a post pinned to the world at a turned pose, and

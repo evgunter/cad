@@ -1136,8 +1136,7 @@ impl<P> Doc<P> {
     /// recipe: `Some` naming the two spaces, `None` when both are in one
     /// or either builds no body.
     pub fn across_spaces(&self, a: RecipeNodeId, b: RecipeNodeId) -> Option<(VarId, VarId)> {
-        let (sa, sb) = (self.node_space(a)?, self.node_space(b)?);
-        (sa != sb).then_some((sa, sb))
+        two_spaces(self.node_space(a), self.node_space(b))
     }
 
     /// **The two spaces `id`'s reads lie in, if they lie in two** (D10
@@ -2123,18 +2122,24 @@ impl<P> Doc<P> {
     /// A construction's space, its last port, is no part of what it
     /// holds: the read is its one other output.
     pub fn read_of_node(&self, node: RecipeNodeId) -> Option<VarId> {
-        let held: Vec<VarId> = self
-            .outputs(node)
-            .into_iter()
-            .filter(|&var| {
-                self.nodes.get(&node).is_some_and(Node::is_space)
-                    || self.var(var).map(|v| v.kind()) != Some(crate::VarKind::Space)
-            })
-            .collect();
-        match held.as_slice() {
+        let space_seat = self.nodes.get(&node).is_some_and(Node::is_space);
+        match self.seat_outputs(node, space_seat).as_slice() {
             [one] => Some(*one),
             _ => None,
         }
+    }
+
+    /// **The outputs a read of `node` whole may name at a seat**: at a
+    /// space seat, its space (the world's, a `new_space()`'s or a
+    /// construction's own); at any other, every output but a space, so
+    /// a construction read whole is its body.
+    pub(crate) fn seat_outputs(&self, node: RecipeNodeId, space_seat: bool) -> Vec<VarId> {
+        self.outputs(node)
+            .into_iter()
+            .filter(|&var| {
+                (self.var(var).map(Var::kind) == Some(crate::VarKind::Space)) == space_seat
+            })
+            .collect()
     }
 
     /// **Whether `var` is a live output holding a body** — a body, a
@@ -3200,13 +3205,8 @@ impl<'d, P> SpaceWalk<'d, P> {
             VarDef::Output { .. } if held.kind() == crate::VarKind::Space => None,
             VarDef::Output { node, .. } => self.node(*node),
             VarDef::Select(select) => self.var(select.body),
-            // A carried pose is in its copy's space, whatever it was
-            // read off.
-            VarDef::Pose(crate::pose::PoseDef::Carried { copy, .. }) => self.var(*copy),
-            VarDef::Pose(def) => {
-                let reads: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
-                reads.into_iter().find_map(|read| self.var(read))
-            }
+            // A pose is in the first space it reaches.
+            VarDef::Pose(_) => self.reached_all([var]).first().copied(),
             VarDef::Free(_) | VarDef::Defined(_) => None,
         }
     }
@@ -3220,12 +3220,8 @@ impl<'d, P> SpaceWalk<'d, P> {
         self.memo.insert(id, None);
         let space = match self.doc.nodes.get(&id)? {
             Node::Place { target, .. } | Node::InstantiatePart { target, .. } => Some(*target),
-            Node::Extrude { .. }
-            | Node::Revolve { .. }
-            | Node::Tube { .. }
-            | Node::HollowTube { .. }
-            | Node::Loft { .. }
-            | Node::Sweep { .. } => self.own.get(&id).copied(),
+            // A `new_space()` defines a space and builds no body.
+            Node::Space => None,
             Node::Union { members } | Node::Intersect { members } => {
                 let first = members.rows().first().map(|(_, read)| read.read);
                 first.and_then(|read| self.var(read))
@@ -3238,11 +3234,9 @@ impl<'d, P> SpaceWalk<'d, P> {
             Node::Shell { open, .. } => self.var(*open),
             Node::Pattern { input, .. } | Node::PlacedUnion { input, .. } => self.var(*input),
             Node::Part { of, .. } => self.var(*of),
-            Node::Profile(_)
-            | Node::World
-            | Node::Space
-            | Node::Measure { .. }
-            | Node::Assertion { .. } => None,
+            // A construction is in the space it defines; nothing else
+            // reads a body or defines a space.
+            _ => self.own.get(&id).copied(),
         };
         self.memo.insert(id, space);
         space
@@ -3258,6 +3252,8 @@ impl<'d, P> SpaceWalk<'d, P> {
             return;
         };
         let space = match held.def() {
+            // A carried pose is in its copy's space, whatever it was
+            // read off.
             VarDef::Pose(crate::pose::PoseDef::Carried { copy, .. }) => self.var(*copy),
             VarDef::Pose(def) => {
                 let reads: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
@@ -3331,4 +3327,13 @@ impl<'d, P> SpaceWalk<'d, P> {
         }
         None
     }
+}
+
+/// **The one cross-space predicate** under [`Doc::across_spaces`] and
+/// [`crate::Evaluation::across_spaces`], over two bodies' derived
+/// spaces: `Some` naming the two when they differ, `None` when both
+/// are in one or either builds no body.
+pub(crate) fn two_spaces(a: Option<VarId>, b: Option<VarId>) -> Option<(VarId, VarId)> {
+    let (a, b) = (a?, b?);
+    (a != b).then_some((a, b))
 }

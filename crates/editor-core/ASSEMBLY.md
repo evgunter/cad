@@ -29,7 +29,7 @@ where they disagree with DESIGN, DESIGN is the design.
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9 partitions | `relative_freedom_components` in `src/mate/solve.rs` |
-| A11 (2) bundles, spaces | `solve_bundle`, `fold_bundle`, `overconstrained`, `pins`, `Space` in `src/mate/solve.rs`; the space derivation (`Doc::space_of`, `node_space`, `space_fault`) in `src/doc.rs`; the one cross-space predicate `Doc::across_spaces`; an instance's copies (`ValuePayload::Copies`, `CopyKey`) in `src/eval/wire.rs` and `src/eval/parts.rs` |
+| A11 (2) bundles, spaces | `solve_bundle`, `fold_bundle`, `overconstrained`, `pins` in `src/mate/solve.rs`; the space derivation (`Doc::space_of`, `node_space`, `space_fault`) in `src/doc.rs`; the one cross-space predicate `Doc::across_spaces`; an instance's copies (`ValuePayload::Copies`, `CopyKey`) in `src/eval/wire.rs` and `src/eval/parts.rs` |
 | A10 the world and the gather | `Node::Place`, `Node::World` in `src/node.rs`, `Doc::placements`/`Doc::unplaced` in `src/doc.rs`, `src/product.rs`, `DocEdit::place` in `src/edit.rs`, `mate::place_at` and `mate::pin_at` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 

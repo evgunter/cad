@@ -1030,7 +1030,7 @@ impl PickIndex {
         // where its frame puts it. A placement into a space whose bodies
         // another placement copies is drawn through that copy
         // ([`crate::world::shown_spaces`]).
-        for node in crate::world::world_copies(doc) {
+        for node in crate::world::drawn_copies(doc) {
             if let Some(space) = doc.node_space(node) {
                 spaces.insert(node, space);
             }

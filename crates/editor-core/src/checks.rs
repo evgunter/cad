@@ -1456,7 +1456,8 @@ type DoorRows = (
 /// **The rows the `unproven-coincidence` resident asks the door
 /// about** (D10): every evaluated node's rows, in evaluation order then
 /// decision order, then the at-rest census's rows on the gathered
-/// product, in their order; each
+/// product and on each `new_space()` it carries
+/// ([`crate::Product::spaces`]), in their order; each
 /// under the subject it is reported against — the node that decided it,
 /// the mate whose pair the census decided, or the two copies it found
 /// in contact.
@@ -1466,7 +1467,17 @@ fn door_rows<P, T: Decide>(
     subject: &Subject<'_, T>,
 ) -> Vec<DoorRows> {
     let at_rest: Vec<&crate::assembly::AtRestRow> = match subject {
-        Subject::Product(gathered) => gathered.coincidences.iter().collect(),
+        Subject::Product(gathered) => gathered
+            .coincidences
+            .iter()
+            .chain(
+                gathered
+                    .spaces
+                    .iter()
+                    .filter_map(|space| space.gather.as_ref().ok())
+                    .flat_map(|space| space.coincidences.iter()),
+            )
+            .collect(),
         Subject::EmptyProduct | Subject::Unavailable { .. } => Vec::new(),
     };
     // A row of two copies is proved at the first copy's placement, which
@@ -2121,6 +2132,7 @@ mod tests {
         for refusal in [
             crate::ProductError::EmptyProduct {
                 unplaced: Vec::new(),
+                elsewhere: Vec::new(),
             },
             crate::ProductError::Root(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId::new(0, 7),

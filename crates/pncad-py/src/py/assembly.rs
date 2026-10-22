@@ -131,7 +131,7 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         E::StrandedPlacement { placement } => (id(placement), none(), none()),
         // The bodies to place, in document order, each its output
         // variable — the handle `Doc.place` takes.
-        E::EmptyProduct { unplaced } => (
+        E::EmptyProduct { unplaced, .. } => (
             none(),
             none(),
             unplaced
@@ -1063,6 +1063,9 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
                 .map(|v| v.unbind().into_any())),
             none(),
         ),
+        // The space is a variable, not a node: it and its own gather
+        // refusal are in the message.
+        E::Space { .. } => (none(), none()),
         E::AtRest { findings } | E::Uncertified { findings, .. } => (
             none(),
             obj(findings

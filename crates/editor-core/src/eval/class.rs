@@ -796,6 +796,7 @@ mod tests {
                 held: Default::default(),
                 refusal: crate::ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    elsewhere: Vec::new(),
                 }
                 .into(),
             }),

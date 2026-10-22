@@ -326,8 +326,7 @@ impl<T: Decide> Evaluation<T> {
         a: RecipeNodeId,
         b: RecipeNodeId,
     ) -> Option<(crate::VarId, crate::VarId)> {
-        let (sa, sb) = (*self.spaces.get(&a)?, *self.spaces.get(&b)?);
-        (sa != sb).then_some((sa, sb))
+        crate::doc::two_spaces(self.spaces.get(&a).copied(), self.spaces.get(&b).copied())
     }
 
     /// The node's successful value, if it has one — [`Evaluation::usable`]
@@ -2093,12 +2092,11 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
             Self::SpaceMismatch { a, b } => write!(
                 f,
-                "this reads {} and {}, and only a placement relates two spaces. {}",
+                "this reads {} and {}, and {}. {}",
                 by.space(*a),
                 by.space(*b),
-                crate::sentence::Recourse(
-                    "place one body into the other's space, or read only one space"
-                )
+                crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
+                crate::sentence::Recourse(crate::sentence::place_into_one_space("read only"))
             ),
             Self::CrossingUnverified {
                 instance,
@@ -4274,9 +4272,10 @@ mod tag {
         /// costs one whole-memo invalidation and no migration.
         format {
             /// v18: a placement reads the space it places into, which
-            /// it does not key (its copy is one value in any space),
-            /// beside a bundle that pins it, and a construction defines
-            /// its space beside its body. v17: a scalar writes the fraction of a turn its
+            /// it does not key (its copy's value is its source moved by
+            /// its bundle, whichever space names it), beside a bundle
+            /// that pins it, and a construction defines its space
+            /// beside its body. v17: a scalar writes the fraction of a turn its
             /// definition is (`slot`'s `TURNS`), and a value whether
             /// its number is written as the constant zero
             /// (`value_form`). v16: a value writes whether it names a mate before the

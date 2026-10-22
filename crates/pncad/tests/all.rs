@@ -2581,7 +2581,7 @@ fn the_document_export_door_refuses_an_empty_world_naming_the_unplaced() {
         let ev = doors_evaluate(doc);
         match pncad::export::export_document_step(&ev, doc, &StepOptions::default(), Tol::witness())
         {
-            Err(ExportError::Product(ProductError::EmptyProduct { unplaced })) => unplaced,
+            Err(ExportError::Product(ProductError::EmptyProduct { unplaced, .. })) => unplaced,
             other => panic!("an empty world must refuse EmptyProduct, got {other:?}"),
         }
     };

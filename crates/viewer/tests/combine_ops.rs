@@ -243,8 +243,8 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     session.pump();
     let before = session.committed_doc().clone();
     assert_eq!(common::world(&before), [a, b], "both operands are placed");
-    let [a_placement, b_placement] = viewer::world::world_copies(&before)[..] else {
-        panic!("two copies: {:?}", viewer::world::world_copies(&before));
+    let [a_placement, b_placement] = viewer::world::drawn_copies(&before)[..] else {
+        panic!("two copies: {:?}", viewer::world::drawn_copies(&before));
     };
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![a.into(), b.into()]),
@@ -279,7 +279,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     );
     let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::world_copies(doc),
+        viewer::world::drawn_copies(doc),
         [a_placement],
         "a's placement stands"
     );

@@ -560,7 +560,7 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
     let (doc, space) = fixture::into_new_space(doc, x);
     let ev = run(&doc, &o);
     match editor_core::product(&doc, &ev, Tol::witness()) {
-        Err(editor_core::ProductError::EmptyProduct { unplaced }) => {
+        Err(editor_core::ProductError::EmptyProduct { unplaced, .. }) => {
             assert!(unplaced.is_empty(), "{unplaced:?}");
         }
         other => panic!("the world gather refuses empty: {other:?}"),
@@ -847,5 +847,110 @@ fn two_instances_pinned_to_the_world_are_one_component_with_no_mate() {
         of(&components, c),
         of(&components, b),
         "a constraint couples its copy to its target"
+    );
+}
+
+/// **A touch between two copies inside a `new_space()` is reported like
+/// one in the world** (D1 (iii), D10; A11 (2)). Two tops seated side by
+/// side on a base standing in a `new_space()`, flush along x = 1.5 with
+/// no mate between them: the space's gather records the touch as rows
+/// of the two copies, and the `unproven-coincidence` check reports them
+/// against the copies, read off `Product::spaces` beside the world's
+/// (empty) rows. Red if the check reads the world's rows alone.
+#[test]
+fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
+    let p = crate::p2_gauges::parts("r1-space-copies");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-space-copies"), Tol::witness());
+    let (doc, x) = insert(doc, fixture::mated_instance(p.base));
+    let (doc, space) = fixture::into_new_space(doc, x);
+    let (doc, a) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, b) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = seat_on(doc, a, head(p.top_cap(a)), head(p.base_cap(x)), [0.5, 1.0]);
+    let (doc, _) = seat_on(doc, b, head(p.top_cap(b)), head(p.base_cap(x)), [1.5, 1.0]);
+    // Pinned material far off, so the world gathers and the check runs.
+    let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
+    for id in [x, a, b] {
+        assert_eq!(doc.node_space(id), Some(space));
+    }
+    let ev = run(&doc, &o);
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the world gathers");
+    assert!(
+        product.coincidences.is_empty(),
+        "{:?}",
+        product.coincidences
+    );
+    let [gathered] = product.spaces.as_slice() else {
+        panic!("one space beside the world: {:?}", product.spaces.len())
+    };
+    assert_eq!(gathered.space, space);
+    let copies = gathered
+        .gather
+        .as_ref()
+        .expect("the space gathers")
+        .coincidences
+        .iter()
+        .filter(|r| matches!(r.by, editor_core::AtRestBy::Copies(..)))
+        .count();
+    assert!(copies > 0, "the tops' touch is the space's rows");
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("checks run");
+    let reported = report
+        .findings
+        .iter()
+        .filter(|f| {
+            f.check == editor_core::CheckId::UnprovenCoincidence
+                && matches!(f.subject, editor_core::FindingSubject::Copies { .. })
+        })
+        .count();
+    assert_eq!(reported, copies, "{:?}", report.findings);
+}
+
+/// **The at-rest gate checks each `new_space()` whatever the world
+/// holds** (D10, Spaces): two tops seated at one spot on a base standing
+/// in a `new_space()` interpenetrate there, and the gate refuses though
+/// the world beside them certifies; with the world emptied the space is
+/// still checked before the gather's `EmptyProduct`, which names where
+/// the copies went.
+#[test]
+fn the_gate_checks_each_new_space_whatever_the_world_holds() {
+    let p = crate::p2_gauges::parts("r2-space-gate");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r2-space-gate"), Tol::witness());
+    let (doc, x) = insert(doc, fixture::mated_instance(p.base));
+    let (doc, space) = fixture::into_new_space(doc, x);
+    let (doc, a) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = seat_on(doc, a, head(p.top_cap(a)), head(p.base_cap(x)), [0.5, 1.0]);
+    // The space alone, nothing in the world: the gather names where the
+    // copies went, and the space, holding no clash, is no refusal.
+    let ev = run(&doc, &o);
+    match editor_core::assemble(&doc, &ev, Tol::witness()) {
+        Err(editor_core::AssemblyError::Product(e)) => match *e {
+            editor_core::ProductError::EmptyProduct { ref elsewhere, .. } => {
+                assert_eq!(elsewhere, &vec![(x, space), (a, space)]);
+                assert!(e.to_string().contains("placed into another space"), "{e}");
+            }
+            ref other => panic!("the gather names where the copies went: {other:?}"),
+        },
+        other => panic!("an empty world refuses at the gather: {other:?}"),
+    }
+    // A second top at the first's seat clashes inside the space; the
+    // world beside it certifies, and the gate refuses all the same.
+    let (doc, b) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = seat_on(doc, b, head(p.top_cap(b)), head(p.base_cap(x)), [0.5, 1.0]);
+    let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
+    let ev = run(&doc, &o);
+    let refusal = editor_core::assemble(&doc, &ev, Tol::witness())
+        .err()
+        .expect("two tops at one seat do not certify inside their space");
+    assert!(
+        !matches!(refusal, editor_core::AssemblyError::Product(_)),
+        "the world gathers; the space refuses: {refusal}"
     );
 }

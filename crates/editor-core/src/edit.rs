@@ -548,6 +548,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// mate added to a bundle that already pins its copy
     /// ([`crate::MateFault::Overconstrained`]): a mate places and never
     /// checks, so none beyond the pin is kept.
+    ///
+    /// Every bundle pins its copy, so this door has no success left on a
+    /// stored bundle
+    /// (`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`).
     AddConstraint {
         /// The placement.
         placement: RecipeNodeId,
@@ -567,6 +571,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// kind does not leave ([`crate::MateFault::NotAFreedom`]) or leaves
     /// with no chart ([`crate::MateFault::NoChart`]), and a number of
     /// another dimension.
+    ///
+    /// Every bundle pins its copy, so this door has no success left on a
+    /// stored bundle
+    /// (`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`).
     AddValue {
         /// The placement.
         placement: RecipeNodeId,
@@ -585,6 +593,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     ///
     /// Refuses what [`DocEdit::AddValue`] refuses of each value, and a
     /// bundle the values leave with no mate and a freedom unwritten.
+    ///
+    /// Every bundle pins its copy, so this door has no success left on a
+    /// stored bundle
+    /// (`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`).
     AddValues {
         /// The placement.
         placement: RecipeNodeId,
@@ -625,6 +637,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// does not hold ([`EditError::UnknownConstraint`]), and a value of
     /// a bundle with no mate, which states the copy's whole motion
     /// ([`crate::MateFault::Unpinned`]).
+    ///
+    /// Every bundle pins its copy, so this door has no success left on a
+    /// stored bundle
+    /// (`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`).
     RemoveConstraint {
         /// The placement.
         placement: RecipeNodeId,
@@ -639,6 +655,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// Refuses what [`DocEdit::RemoveConstraint`] refuses of each, a mate
     /// a value left behind names, and a bundle with no mate left with a
     /// freedom unwritten.
+    ///
+    /// Every bundle pins its copy, so this door has no success left on a
+    /// stored bundle
+    /// (`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`).
     RemoveConstraints {
         /// The placement.
         placement: RecipeNodeId,
@@ -1350,17 +1370,8 @@ fn lower_read<P: crate::ProfilePayload>(
                     input: SpokenNode::absent(*id),
                 });
             }
-            // A space seat reads a node's space (the world's, a
-            // `new_space()`'s or a construction's own); any other seat
-            // reads past it, so a construction read whole is its body.
             let space_seat = expected == crate::SlotKind::Is(crate::VarKind::Space);
-            let outputs: Vec<VarId> = doc
-                .outputs(*id)
-                .into_iter()
-                .filter(|var| {
-                    (doc.var(*var).map(Var::kind) == Some(crate::VarKind::Space)) == space_seat
-                })
-                .collect();
+            let outputs = doc.seat_outputs(*id, space_seat);
             match outputs.as_slice() {
                 [] => {
                     return Err(EditError::DefinesNothing {
@@ -4449,11 +4460,12 @@ impl EditError {
             Self::SpaceMismatch { node, a, b } => {
                 write!(
                     f,
-                    "{node} would read {a} and {b}, and only a placement relates two spaces"
+                    "{node} would read {a} and {b}, and {}",
+                    crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES
                 )?;
                 tail.recourse(
                     f,
-                    format_args!("place one body into the other's space, or read only one space"),
+                    format_args!("{}", crate::sentence::place_into_one_space("read only")),
                 )
             }
             Self::ConstraintOnNonPlacement { node } => {
@@ -5514,19 +5526,28 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         // between edits (a split or an inline re-points a node's reads
         // one at a time) but not end there. A node a re-target or a
         // delete left in two spaces is reported, as [`apply`] reports it.
+        // Each document is walked only when the one after it could
+        // refuse: an action that re-points nothing walks neither.
         let repointed: std::collections::BTreeSet<RecipeNodeId> =
             self.edits.iter().filter_map(repointed).collect();
-        let before: std::collections::BTreeSet<RecipeNodeId> = self
-            .start
-            .space_faults()
-            .into_iter()
-            .map(|(id, _, _)| id)
-            .collect();
-        if let Some((node, a, b)) = doc
-            .space_faults()
-            .into_iter()
-            .find(|(id, _, _)| repointed.contains(id) && !before.contains(id))
-        {
+        let faults: Vec<_> = if repointed.is_empty() {
+            Vec::new()
+        } else {
+            doc.space_faults()
+                .into_iter()
+                .filter(|(id, _, _)| repointed.contains(id))
+                .collect()
+        };
+        let before: std::collections::BTreeSet<RecipeNodeId> = if faults.is_empty() {
+            std::collections::BTreeSet::new()
+        } else {
+            self.start
+                .space_faults()
+                .into_iter()
+                .map(|(id, _, _)| id)
+                .collect()
+        };
+        if let Some((node, a, b)) = faults.into_iter().find(|(id, _, _)| !before.contains(id)) {
             return Err(EditError::SpaceMismatch {
                 node: doc.spoken(node),
                 a: Box::new(doc.spoken_space(a)),
@@ -6558,12 +6579,14 @@ pub fn measure<P: Clone + crate::ProfilePayload, R: Clone + Into<crate::Operand>
 ///
 /// The set is `id` plus everything that reads it, directly or through
 /// other readers: the closure of [`Doc::upstream`] in the consumer
-/// direction, so no node it leaves standing reads one it removes. A
-/// [`DocEdit::DeleteNode`] of a read node is accepted on its own and
-/// leaves its readers unresolved (D10); this is the convenience that
-/// removes them with it. The order is the reverse of the evaluation
-/// schedule's, so each delete in turn removes a node nothing left
-/// standing reads.
+/// direction, and of the spaces a node reads by name (a placement's
+/// `target`, which is no input to its evaluation), so no node it leaves
+/// standing reads one it removes. A [`DocEdit::DeleteNode`] of a read
+/// node is accepted on its own and leaves its readers unresolved (D10);
+/// this is the convenience that removes them with it. The order is the
+/// reverse of the evaluation schedule's, so each delete in turn removes
+/// a node nothing left standing reads; a `new_space()`, scheduled
+/// nowhere, is last.
 ///
 /// The answer is empty for an id the document does not hold.
 pub fn cascade_delete_order<P: crate::ProfilePayload>(
@@ -6571,20 +6594,37 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
     id: RecipeNodeId,
 ) -> Vec<RecipeNodeId> {
     use std::collections::BTreeSet;
-    if doc.node(id).is_none() {
+    let Some(root) = doc.node(id) else {
         return Vec::new();
-    }
+    };
+    let spaces_read = |n: RecipeNodeId| -> Vec<RecipeNodeId> {
+        doc.node(n)
+            .into_iter()
+            .flat_map(Node::operand_rows)
+            .filter_map(|(_, var)| match doc.var(var).map(|v| (v.kind(), v.def())) {
+                Some((VarKind::Space, VarDef::Output { node, .. })) => Some(*node),
+                _ => None,
+            })
+            .collect()
+    };
     let order = crate::eval::schedule::schedule(doc).order;
     let mut doomed: BTreeSet<RecipeNodeId> = BTreeSet::from([id]);
     for &n in &order {
-        if doc.upstream(n).iter().any(|input| doomed.contains(input)) {
+        if doc
+            .upstream(n)
+            .into_iter()
+            .chain(spaces_read(n))
+            .any(|input| doomed.contains(&input))
+        {
             doomed.insert(n);
         }
     }
+    let unscheduled = root.is_space().then_some(id);
     order
         .into_iter()
         .rev()
         .filter(|n| doomed.contains(n))
+        .chain(unscheduled)
         .collect()
 }
 
@@ -6714,12 +6754,18 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // re-points (`held`) is refused reading two spaces, as one written
     // whole is at its own door; any other node an edit left reading two
     // spaces — downstream of a re-target, or of a delete — is reported.
-    let before: std::collections::BTreeSet<RecipeNodeId> = doc
-        .space_faults()
-        .into_iter()
-        .map(|(id, _, _)| id)
-        .collect();
-    for (node, a, b) in new.space_faults() {
+    // The document before is walked only when the one after has a
+    // fault, so an edit that leaves none walks the recipe once.
+    let faults = new.space_faults();
+    let before: std::collections::BTreeSet<RecipeNodeId> = if faults.is_empty() {
+        std::collections::BTreeSet::new()
+    } else {
+        doc.space_faults()
+            .into_iter()
+            .map(|(id, _, _)| id)
+            .collect()
+    };
+    for (node, a, b) in faults {
         if held == Some(node) {
             return Err(EditError::SpaceMismatch {
                 node: spoken_before_else_after(doc, &new, node),

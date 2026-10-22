@@ -3476,6 +3476,7 @@ mod tests {
             (
                 ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    elsewhere: Vec::new(),
                 },
                 BadgeSite::NotAFault,
             ),
@@ -4039,6 +4040,7 @@ mod tests {
                 held: Default::default(),
                 refusal: ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    elsewhere: Vec::new(),
                 }
                 .into(),
             },

@@ -360,7 +360,7 @@ fn an_empty_world_names_the_unplaced_and_a_stranded_placement_refuses() {
     let (doc, b) = block(doc, 3.0);
     let bodies = vec![doc.output(a, 0).unwrap(), doc.output(b, 0).unwrap()];
     match product(&doc, &ev(&doc), Tol::witness()) {
-        Err(ProductError::EmptyProduct { unplaced }) => {
+        Err(ProductError::EmptyProduct { unplaced, .. }) => {
             assert_eq!(unplaced, bodies, "every unplaced body, in document order");
         }
         other => panic!("an empty world refuses EmptyProduct: {other:?}"),
@@ -836,7 +836,7 @@ fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
     );
     let refused = product(&doc, &ev(&doc), Tol::witness()).expect_err("nothing is placed");
     assert!(
-        matches!(&refused, ProductError::EmptyProduct { unplaced } if *unplaced == want),
+        matches!(&refused, ProductError::EmptyProduct { unplaced, .. } if *unplaced == want),
         "{refused:?}"
     );
     let said = refused.to_string();

@@ -57,17 +57,15 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
     );
 }
 
-/// **The at-rest badge answers as the kernel does** — the one gate the
+/// **The at-rest badge checks a space of its own** — the one gate the
 /// kernel's `assemble` runs, reached through `assemble_gathered`. Two
 /// posts seated at one spot under the shelf interpenetrate in the world,
 /// and the kernel refuses. With the shelf placed into a space of its
-/// own, the three live in that space beside one world instance, and the
-/// product — the world's copies — holds the lone instance alone: the
-/// kernel's census reads the product (a space other than the world has
-/// no census until its bodies combine into one, D′3), so it accepts,
-/// and the badge refuses nothing the kernel does not.
+/// own, the three live in that space beside one world instance; the
+/// world certifies, the gate checks the space by itself and refuses,
+/// and the badge refuses with it rather than certify the world alone.
 #[test]
-fn the_at_rest_badge_answers_as_the_kernel_over_a_space_of_its_own() {
+fn the_at_rest_badge_checks_a_space_of_its_own() {
     use pncad::document::{CancelToken, EvalOptions, assemble, evaluate, load, save};
     let tol = Tol::witness();
     let bench = asm::bench("r2badge", tol);
@@ -112,15 +110,15 @@ fn the_at_rest_badge_answers_as_the_kernel_over_a_space_of_its_own() {
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
     let kernel = assemble(&doc, &ev, tol);
     assert!(
-        kernel.is_ok(),
-        "the product is the world's copies: {:?}",
+        matches!(kernel, Err(pncad::document::AssemblyError::AtRest { .. })),
+        "the gate checks the shelf's space by itself: {:?}",
         kernel.err()
     );
     std::fs::write(&bench.asm_path, save(&doc, &[], tol).unwrap()).unwrap();
     let session = asm::open_bench(&bench, tol);
     let badge = session.at_rest().cloned();
     assert!(
-        !matches!(badge, Some(viewer::session::AtRestBadge::Refused { .. })),
-        "the badge refuses nothing the kernel accepts: {badge:?}"
+        matches!(badge, Some(viewer::session::AtRestBadge::Refused { .. })),
+        "the badge refuses with the kernel: {badge:?}"
     );
 }

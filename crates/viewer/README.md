@@ -1973,7 +1973,7 @@ recipe. A construction's own space is drawn through the placement that
 copies the construction, not on its own: the picture draws placements'
 copies, and a construction is no placement.
 The drawn copies are the placements into those spaces
-(`world::world_copies`); a placement into a space whose bodies another
+(`world::drawn_copies`); a placement into a space whose bodies another
 placement copies — a body moved against its own geometry, an operand
 placed against a combine's first — is drawn through that copy. A
 free-move frame is display state keyed by a shown space's `Space`

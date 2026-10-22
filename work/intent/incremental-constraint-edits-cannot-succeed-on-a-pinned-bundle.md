@@ -4,6 +4,8 @@ kind: issue
 title: AddConstraint, AddValue, AddValues and RemoveConstraint(s) can no longer succeed: every bundle pins its copy, so an increment over- or under-pins
 status: open
 opened: 2026-10-22
+priority: P1
+parent: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
 ---
 
 
@@ -23,9 +25,15 @@ bundle pins its copy. An increment then has nowhere to land:
 
 Every caller that changes a bundle now writes it whole
 (`DocEdit::SetConstraints`, `Placed::write`); the viewer's mate tool
-and the façades do. The incremental doors are kept, wire and all, and
-still answer their refusals typed, and the Python binding still binds
-them (`Doc.constrain`, `remove_mate`, `add_value`, `add_values`,
+and the façades do. The viewer's remove-mate button
+(`crates/viewer/src/pane/features.rs:400`,
+`SessionOp::RemoveConstraint`) lands in `Session::remove_constraint`
+(`crates/viewer/src/session.rs:3576`), which writes the bundle whole
+without the mate and its values, and so refuses `Unpinned` whenever
+the mate fixed a freedom, until D′2 says what a removed mate leaves.
+The incremental doors are kept, wire and all, and still answer their
+refusals typed, and the Python binding still binds them
+(`Doc.constrain`, `remove_mate`, `add_value`, `add_values`,
 `crates/pncad-py/src/py/doc.rs:1527`, `:1958`, `:2012`, `:2048`;
 `DocEdit.add_value`, `add_values`, `remove_constraint`, `:4739`,
 `:4757`, `:4777`).

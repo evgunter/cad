@@ -237,10 +237,10 @@ impl crate::spoken::Say for HitTestError {
             }
             Self::AcrossSpaces { a, b } => write!(
                 f,
-                "hit test: the targets live in different spaces, {} and {}, and nothing in \
-                 one is ordered against the other. {}",
+                "hit test: the targets live in different spaces, {} and {}, and {}. {}",
                 by.space(*a),
                 by.space(*b),
+                crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
                 crate::sentence::Recourse("pick each space by itself")
             ),
         }

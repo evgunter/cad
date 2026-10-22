@@ -23,13 +23,13 @@ use std::collections::BTreeSet;
 use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, VarId};
 use pncad::prelude::StableName;
 
-/// **The body the world copy `placement` places**, or `None` for a node
-/// that is not a live world copy ([`is_world_copy`]) of one shape. An
+/// **The body the drawn copy `placement` places**, or `None` for a node
+/// that is not a live drawn copy ([`is_drawn_copy`]) of one shape. An
 /// instance places its part's world and reads no body of this
 /// document, so it answers `None` too; so does a placement that joins
 /// a body's space, which is itself the body a seat reads.
 pub fn placed_var(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Option<VarId> {
-    if !is_world_copy(doc, placement) {
+    if !is_drawn_copy(doc, placement) {
         return None;
     }
     match doc.node(placement)? {
@@ -103,14 +103,14 @@ pub fn construction_of_space(
 /// or one no placement reads on. A placement into a construction's
 /// space that another placement then copies is a relation between two
 /// bodies, drawn through that copy.
-pub fn is_world_copy(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> bool {
+pub fn is_drawn_copy(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> bool {
     doc.node_space(placement)
         .is_some_and(|space| shown_spaces(doc).contains(&space))
 }
 
-/// **The drawn copies**, in document order: [`is_world_copy`] over
+/// **The drawn copies**, in document order: [`is_drawn_copy`] over
 /// the document's placements, the shown spaces read once.
-pub fn world_copies(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
+pub fn drawn_copies(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     let shown = shown_spaces(doc);
     doc.placements()
         .into_iter()
@@ -121,19 +121,19 @@ pub fn world_copies(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
         .collect()
 }
 
-/// **The world copies of `var`**, in document order: the copies of
-/// that body the world holds.
+/// **The drawn copies of `var`**, in document order: the copies of
+/// that body the shown spaces hold.
 pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
-    world_copies(doc)
+    drawn_copies(doc)
         .into_iter()
         .filter(|&placement| placed_vars(doc, placement).contains(&var))
         .collect()
 }
 
-/// **The world copies of any output of `node`**, in document order.
+/// **The drawn copies of any output of `node`**, in document order.
 pub fn placements_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<RecipeNodeId> {
     let outputs = doc.outputs(node);
-    world_copies(doc)
+    drawn_copies(doc)
         .into_iter()
         .filter(|&placement| {
             placed_vars(doc, placement)

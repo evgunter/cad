@@ -324,7 +324,7 @@ fn a_document_with_no_body_lands_a_clean_report() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::EmptyProduct { unplaced }) if unplaced.is_empty()
+            Some(ProductError::EmptyProduct { unplaced, .. }) if unplaced.is_empty()
         ),
         "the gather's own answer: {:?}",
         session.product_fault()
@@ -381,7 +381,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::EmptyProduct { unplaced }) if unplaced.is_empty()
+            Some(ProductError::EmptyProduct { unplaced, .. }) if unplaced.is_empty()
         ),
         "the premise: nothing is placed into the world: {:?}",
         session.product_fault()

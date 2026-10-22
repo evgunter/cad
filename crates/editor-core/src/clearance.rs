@@ -806,13 +806,11 @@ impl crate::spoken::Say for SelectionRefusal {
             ),
             Self::AcrossSpaces { a, b } => write!(
                 f,
-                "the two selections live in different spaces, {} and {}, and nothing in \
-                 one is compared with the other. {}",
+                "the two selections live in different spaces, {} and {}, and {}. {}",
                 by.space(*a),
                 by.space(*b),
-                crate::sentence::Recourse(
-                    "place one body into the other's space, or measure within one space"
-                )
+                crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
+                crate::sentence::Recourse(crate::sentence::place_into_one_space("measure within"))
             ),
         }
     }

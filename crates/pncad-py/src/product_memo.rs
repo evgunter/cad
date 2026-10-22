@@ -178,9 +178,12 @@ pub fn assembly(
     evaluation: &d::Evaluation<f64>,
     tol: Tol,
 ) -> Result<d::Assembly<f64>, d::AssemblyError> {
-    match memo.with(doc, evaluation, tol, clone_product) {
+    match memo.with(doc, evaluation, tol, |product| {
+        clone_product(product, doc, evaluation, tol)
+    }) {
         Ok(product) => d::assemble_gathered(product, tol),
-        // The kernel's own wrapper over a refused gather: it raises the
+        // The kernel's own wrapper over a refused gather: it still
+        // checks each new space's copies by themselves, then raises the
         // gather's refusal.
         Err(_) => d::assemble(doc, evaluation, tol),
     }
@@ -214,13 +217,20 @@ pub fn body_and_names(
     })
 }
 
-/// A product copied field for field.
+/// A product copied field for field, its new spaces gathered again.
 ///
 /// Spelled out rather than derived: [`d::Product`] is the kernel's
 /// type and a `Clone` on it is the kernel's decision, while a struct
 /// literal here fails to compile the day the gather grows a field —
-/// which is the loud version of the same guarantee.
-fn clone_product(product: &d::Product<f64>) -> d::Product<f64> {
+/// which is the loud version of the same guarantee. The spaces are
+/// the kernel's own gather of them ([`d::space_gathers`]) rather than a
+/// copy: a refused space holds a gather refusal, which is not `Clone`.
+fn clone_product(
+    product: &d::Product<f64>,
+    doc: &d::ProfileDoc,
+    evaluation: &d::Evaluation<f64>,
+    tol: Tol,
+) -> d::Product<f64> {
     d::Product {
         document: product.document,
         body: product.body.clone(),
@@ -240,5 +250,6 @@ fn clone_product(product: &d::Product<f64>) -> d::Product<f64> {
         carried_interference: product.carried_interference.clone(),
         carried_at_rest: product.carried_at_rest.clone(),
         census_pairs: product.census_pairs.clone(),
+        spaces: d::space_gathers(doc, evaluation, tol),
     }
 }

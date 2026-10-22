@@ -257,7 +257,7 @@ pub enum AdmissionFault {
     /// `new_space()` or the construction minting it was deleted, or an
     /// undo stepped back past it. Raised by the prune's tests alone.
     /// Nothing cascades from a deleted space to the placements into it
-    /// (an interim: `work/intent/deleting-a-space-strands-the-placements-into-it.md`).
+    /// (D10): they strand.
     NoSuchSpace {
         /// The instance whose probe moved the space, as the document
         /// held it.
@@ -556,7 +556,7 @@ pub fn instance_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(
 fn instances_by_placement(
     doc: &Doc<ProfileProgram>,
 ) -> Vec<(RecipeNodeId, BTreeSet<RecipeNodeId>)> {
-    crate::world::world_copies(doc)
+    crate::world::drawn_copies(doc)
         .into_iter()
         .map(|placement| {
             let instances = ancestry(doc, placement)
@@ -648,7 +648,7 @@ pub fn placements_deriving_from(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
 ) -> BTreeSet<RecipeNodeId> {
-    crate::world::world_copies(doc)
+    crate::world::drawn_copies(doc)
         .into_iter()
         .filter(|&placement| ancestry(doc, placement).contains(&node))
         .collect()

@@ -368,13 +368,14 @@ pub use editor_core::ContentBits;
 // the placements' document order, read through `Doc::placements` and
 // authored by `DocEdit::place` —
 // the one door that places, and the one Python's `Doc.place` is.
-// `product` is the whole-document gather of those copies.
-// `AtRestRow` is one of the product's at-rest decisions,
+// `product` is the whole-document gather of those copies. `SpaceGather`
+// is one `new_space()`'s copies gathered by themselves for the at-rest
+// check, and `space_gathers` gathers every one. `AtRestRow` is one of the product's at-rest decisions,
 // beside whose pair it is (`AtRestBy`): a mate's, or two copies' the
 // census found touching.
 pub use editor_core::{
     AtRestBy, AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
-    SourceFinding, product, product_recorded,
+    SourceFinding, SpaceGather, product, product_recorded, space_gathers,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:

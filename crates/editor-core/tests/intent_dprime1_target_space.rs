@@ -14,8 +14,8 @@
 use crate::fixture;
 use editor_core::{
     Bodies, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, Maintenance,
-    MateFault, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, ProfileDoc, RecipeNodeId,
-    RoleSeg, SlotId, SlotValue, TargetAxis, VarId, VarKind, apply, load, save,
+    MateFault, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SlotId, SlotValue, TargetAxis, VarId, VarKind, apply, load, save,
 };
 use fixture::{insert, len, on_frame, run, square, step};
 use geom_core::Tol;
@@ -391,4 +391,80 @@ fn a_bundle_names_its_mate_in_any_order_and_a_rewrite_keeps_its_ids() {
     };
     assert_eq!(ids(&again), ids(&doc), "every id is kept");
     assert_eq!(key(&again), before, "and so is the copy's content key");
+}
+
+/// **A file written before a placement named its target refuses typed**:
+/// the format carries no schema version (`persist` module docs), so a
+/// placement with no `target` is vocabulary this build cannot place,
+/// and the load door refuses [`PersistError::Unreadable`] naming the
+/// field, with the regenerate recourse.
+///
+/// *Breaks if* such a file loads with a guessed target, or refuses
+/// untyped.
+#[test]
+fn a_placement_saved_without_a_target_refuses_unreadable() {
+    let doc = ProfileDoc::empty(DocumentId::derive("dprime1-old-file"), Tol::witness());
+    let (doc, a) = block(doc, 0.0);
+    let (doc, _) = fixture::place(doc, a);
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let old: String = text
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("\"target\""))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_ne!(old, text, "the placement wrote its target");
+    match load(&old, Tol::witness()) {
+        Err(e @ PersistError::Unreadable { .. }) => {
+            assert!(e.to_string().contains("`target`"), "{e}");
+        }
+        other => panic!("an old file refuses Unreadable: {:?}", other.err()),
+    }
+}
+
+/// **Deleting a `new_space()` is a delete like any other** (D10): the
+/// door admits it and reports each placement into it stranded, nothing
+/// cascades, and the placement refuses at evaluation; the cascading
+/// delete takes the placement with the space.
+///
+/// *Breaks if* deleting a space cascades on its own, re-targets its
+/// placements, or is refused, or if the cascade leaves a placement
+/// reading a space it removes.
+#[test]
+fn deleting_a_space_strands_the_placements_into_it() {
+    let doc = ProfileDoc::empty(DocumentId::derive("dprime1-delete-space"), Tol::witness());
+    let (doc, a) = block(doc, 0.0);
+    let (doc, space_node) = insert(doc, Node::Space);
+    let space = doc
+        .output(space_node, 0)
+        .expect("a new space defines its space");
+    let (doc, inner) = step(
+        doc,
+        DocEdit::place(
+            vec![a.into()],
+            Operand::Var(space),
+            editor_core::stand().bundle(),
+        ),
+    );
+    let inner = inner.expect("the placement mints");
+    assert_eq!(
+        editor_core::cascade_delete_order(&doc, space_node),
+        vec![inner, space_node],
+        "the cascade takes the placement first"
+    );
+    let applied = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: space_node },
+        Tol::witness(),
+    )
+    .expect("a delete of a read node is admitted");
+    assert!(applied.doc.node(inner).is_some(), "nothing cascades");
+    assert!(
+        !applied.maintenance.is_empty(),
+        "the placement into the space is reported stranded"
+    );
+    let ev = run(&applied.doc, &EvalOptions::default());
+    assert!(
+        matches!(ev.result(inner), Some(NodeResult::Failed(_))),
+        "the placement refuses at evaluation"
+    );
 }

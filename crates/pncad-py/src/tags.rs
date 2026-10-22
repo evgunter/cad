@@ -2502,6 +2502,7 @@ pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
         AssemblyError::CarriedAtRest { .. } => "carried_at_rest",
         AssemblyError::AtRest { .. } => "at_rest",
         AssemblyError::Uncertified { .. } => "uncertified",
+        AssemblyError::Space { .. } => "own_space",
     }
 }
 

@@ -132,6 +132,10 @@ pub enum ProductError {
         /// Every live body no placement reads, in document order
         /// ([`Doc::unplaced`]): what placing would put in the world.
         unplaced: Vec<crate::VarId>,
+        /// Every placement whose copy is in a space other than the
+        /// world, with that space, in document order: where a placed
+        /// body went instead.
+        elsewhere: Vec<(RecipeNodeId, crate::VarId)>,
     },
     /// **A placement whose body is gone** (D10, A10): its read is
     /// unresolved, and the copy it defined is absent, which the gather
@@ -335,11 +339,21 @@ impl ProductError {
                  document {expected}",
             ),
             Self::Root(standing) => write!(f, "{}", Said(&standing.of_placement(), by)),
-            Self::EmptyProduct { unplaced } => {
+            Self::EmptyProduct {
+                unplaced,
+                elsewhere,
+            } => {
                 f.write_str("nothing is placed in the world, so the document has no product")?;
                 if !unplaced.is_empty() {
                     let said: Vec<String> = unplaced.iter().map(|&v| by.output(v)).collect();
                     write!(f, " — unplaced: {}", said.join(", "))?;
+                }
+                if !elsewhere.is_empty() {
+                    let said: Vec<String> = elsewhere
+                        .iter()
+                        .map(|&(p, space)| format!("{} into {}", by.node(p), by.space(space)))
+                        .collect();
+                    write!(f, "; placed into another space: {}", said.join(", "))?;
                 }
                 write!(
                     f,
@@ -846,6 +860,12 @@ pub struct Product<T: Decide> {
     /// from a finding of this document's
     /// ([`crate::checks::at_rest`]'s `less_carried`).
     pub census_pairs: Vec<(topo::SolidKey, topo::SolidKey)>,
+    /// **Each `new_space()` holding a placed copy, gathered by itself**
+    /// ([`space_gathers`]), in document order: what the world leaves
+    /// out, kept beside it so the at-rest gate checks every such space
+    /// from the one product it is handed ([`crate::assemble_gathered`]).
+    /// Empty on a space's own gather.
+    pub spaces: Vec<SpaceGather<T>>,
 }
 
 /// **One copy as the gather grafted it** ([`Product::copies`]).
@@ -935,9 +955,59 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
-    // The gather of the world (A9, A11 (2)): the placements into it,
-    // and only the mates whose two members both lie in it are minted.
-    let space = crate::VarId::WORLD;
+    let mut product = product_in(doc, evaluation, tol, crate::VarId::WORLD)?;
+    product.spaces = space_gathers(doc, evaluation, tol);
+    Ok(product)
+}
+
+/// **Every `new_space()` that holds a placed copy**, each gathered by
+/// itself ([`SpaceGather`]), in document order: what
+/// [`product_recorded`] carries beside the world ([`Product::spaces`]),
+/// so the at-rest gate checks the copies placed into each as it checks
+/// the world's, and against nothing outside it. A construction's own
+/// space is not gathered: its body is no placed copy, and the copies
+/// placed into it are operands of what reads them there, checked by
+/// nothing here until the `⊔` operator carries the census to its door
+/// (`work/intent/a-space-other-than-the-world-is-census-checked-only-if-a-new-space.md`).
+pub fn space_gathers<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    tol: Tol,
+) -> Vec<SpaceGather<T>> {
+    let placements = doc.placements();
+    doc.ids()
+        .into_iter()
+        .filter(|&id| matches!(doc.node(id), Some(crate::node::Node::Space)))
+        .filter_map(|id| doc.output(id, 0))
+        .filter(|&space| placements.iter().any(|&p| doc.node_space(p) == Some(space)))
+        .map(|space| SpaceGather {
+            space,
+            gather: product_in(doc, evaluation, tol, space).map(Box::new),
+        })
+        .collect()
+}
+
+/// **One `new_space()`, gathered by itself** (D10, Spaces): the copies
+/// placed into it, gathered and minted with nothing outside it.
+#[derive(Debug)]
+pub struct SpaceGather<T: Decide> {
+    /// The space.
+    pub space: crate::VarId,
+    /// The space's gather, kept rather than raised: a space whose
+    /// copies denote no body holds nothing to check, and any other
+    /// refusal is the gate's to raise ([`crate::AssemblyError::Space`]).
+    pub gather: Result<Box<Product<T>>, ProductError>,
+}
+
+/// [`product_recorded`]'s gather of the one space `space`: the
+/// placements into it, and only the mates whose two members both lie
+/// in it are minted.
+fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    tol: Tol,
+    space: crate::VarId,
+) -> Result<Product<T>, ProductError> {
     #[cfg(debug_assertions)]
     GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
     // The pairing door (DI3), before the first root is read: this
@@ -992,6 +1062,10 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     if !any_placed {
         return Err(ProductError::EmptyProduct {
             unplaced: doc.unplaced(),
+            elsewhere: placements
+                .iter()
+                .filter_map(|&p| Some((p, doc.node_space(p).filter(|&s| s != space)?)))
+                .collect(),
         });
     }
 
@@ -1241,6 +1315,7 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         carried_interference,
         carried_at_rest,
         census_pairs,
+        spaces: Vec::new(),
     })
 }
 
@@ -1484,6 +1559,7 @@ mod tests {
             ProductError::Root(NodeStanding::Poisoned { node, through }),
             ProductError::EmptyProduct {
                 unplaced: vec![crate::VarId::new(0, test_utils::refusal::tagged(1))],
+                elsewhere: Vec::new(),
             },
             ProductError::StrandedPlacement { placement: node },
             ProductError::Graft {
@@ -1605,6 +1681,7 @@ mod tests {
                 "{:?}",
                 ProductError::EmptyProduct {
                     unplaced: vec![crate::VarId::new(0, test_utils::refusal::tagged(1))],
+                    elsewhere: Vec::new(),
                 }
             )],
             "an empty world is the only gather refusal that is an absence \

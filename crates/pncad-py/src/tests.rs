@@ -3395,6 +3395,7 @@ fn check_registry_tags_are_stable() {
             refusal: Some(
                 pncad::document::ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    elsewhere: Vec::new(),
                 }
                 .into()
             )
@@ -10571,7 +10572,7 @@ mod product_memo_rows {
                 let refusal = product_memo::body(&memo, &doc, &ev, tol)
                     .expect_err("a document with nothing placed has no product");
                 assert!(
-                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced } if unplaced.is_empty()),
+                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced, .. } if unplaced.is_empty()),
                     "a sketch places nothing and defines no body: {refusal:?}"
                 );
             }

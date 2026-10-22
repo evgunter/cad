@@ -305,12 +305,12 @@ fn a_mate_reading_a_pattern_copy_crosses_split_and_inline_unmoved() {
 /// **A mate whose target reads a copy in a space of its own refuses at split**: a copy
 /// in its own space has no place in the part's world for its face to
 /// keep, so the face would mean another place. The cut holds a top in a
-/// space of its own beside a pinned base, and `k` is placed against the loose top:
-/// the kept mate's read of the cut is severed.
+/// space of its own beside a pinned base, and `k` is placed against that
+/// top: the kept mate's read of the cut is severed.
 ///
 /// Inline's mirror — a host mate reading a copy in a space of its own of the part — is
 /// not a document inline is asked about: the part's product table
-/// carries no row for a body in a loose space, so the door admits the
+/// carries no row for a body in a space of its own, so the door admits the
 /// mate as written and its target does not evaluate, which is `k`'s own
 /// refusal. The row pins that, so the day the product carries such rows
 /// the inline half is owed.
@@ -318,44 +318,44 @@ fn a_mate_reading_a_pattern_copy_crosses_split_and_inline_unmoved() {
 /// *Breaks if* a face of a copy in a space of its own crosses the seam, or a host mate
 /// reading one evaluates.
 #[test]
-fn a_mate_reading_a_loose_copy_refuses_at_split() {
+fn a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split() {
     let label = "p2-face-unplaced";
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
-    let (doc, loose) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, space) = fixture::into_new_space(doc, loose);
+    let (doc, aside) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, space) = fixture::into_new_space(doc, aside);
     let (doc, k) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, _) = face_mate(doc, k, head(p.top_cap(k)), head(p.top_upper_cap(loose)));
+    let (doc, _) = face_mate(doc, k, head(p.top_cap(k)), head(p.top_upper_cap(aside)));
     assert_eq!(
-        solve(&doc, &o, Tol::witness()).space(loose),
+        solve(&doc, &o, Tol::witness()).space(aside),
         Some(space),
         "the top lives in its own space"
     );
-    let err = split_err(&doc, &[base, loose], label, &o);
+    let err = split_err(&doc, &[base, aside], label, &o);
     assert!(
         matches!(
             &err,
             SplitError::SeveredEdge { consumer, input, .. }
-                if consumer.id() == k && input.id() == loose
+                if consumer.id() == k && input.id() == aside
         ),
         "{err:?}"
     );
 
-    // The same two as a part, and a host mate reading the loose top.
+    // The same two as a part, and a host mate reading the top aside.
     let part_doc = ProfileDoc::empty(DocumentId::derive(&format!("{label}-sub")), Tol::witness());
     let (part_doc, _sub_base) =
         fixture::insert_pinned(part_doc, crate::fixture::mated_instance(p.base), &o);
-    let (part_doc, sub_loose) = insert(part_doc, fixture::mated_instance(p.top));
-    let (part_doc, _) = fixture::into_new_space(part_doc, sub_loose);
+    let (part_doc, sub_aside) = insert(part_doc, fixture::mated_instance(p.top));
+    let (part_doc, _) = fixture::into_new_space(part_doc, sub_aside);
     let mut store = p.store.clone();
     let sub = store.insert(part_doc, Tol::witness());
     let with_sub = with_resolver(store);
     let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
     let (host, i) = fixture::insert_pinned(host, crate::fixture::mated_instance(sub), &with_sub);
     let (host, k) = insert(host, fixture::mated_instance(p.top));
-    let through = FaceName::new(p.top_upper_cap(sub_loose))
+    let through = FaceName::new(p.top_upper_cap(sub_aside))
         .expect("a face")
         .in_part(i)
         .into_name();

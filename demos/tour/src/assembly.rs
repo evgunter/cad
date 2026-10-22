@@ -1858,7 +1858,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     // for every legal cut, and the shape most likely to break it is
     // this one: `inline` refuses an instance whose part's placements it
     // cannot carry into the host (`UnplaceablePart`), and these place a
-    // pattern's copies of a loose instance. The cut moves as selected
+    // pattern's copies of an instance. The cut moves as selected
     // and leaves the instance pinned at the identity, so the pattern
     // lands back verbatim; the arms below say which answer
     // this tree gave rather than asserting one, so a change in either

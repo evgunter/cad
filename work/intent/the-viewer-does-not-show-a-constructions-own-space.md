@@ -4,6 +4,8 @@ kind: issue
 title: viewer: a construction's own space is not shown (DI5's default set) because the viewer draws placements alone
 status: open
 opened: 2026-10-22
+priority: P1
+parent: an-operation-computes-in-a-frame-of-its-reads
 ---
 
 
@@ -23,3 +25,17 @@ construction's space is drawn through the copy of that construction.
 Showing a construction's own space needs the picture to draw a body
 that no placement copies, in its space's coordinates: the composing
 door of stage E (§6).
+
+The author's show and hide is not built either. The same §5′.1
+paragraph shows "by default the world and every space no placement
+reads a source body of, then the author's show and hide": a space the
+author hides leaves the picture and its free-move frame, and a space
+the default leaves out (one a placement copies) can be shown on its
+own. The viewer has a per-instance hide
+(`SessionOp::SetInstanceHidden`), which is not a space's. Both halves
+are display state (DI5) and both need the same composing door to draw
+a space nothing places.
+
+Done when: a new construction is drawn at once as its own shown space,
+tinted as outside the product, and goes once placed; and the author can
+show and hide any space, the choice kept as display state.

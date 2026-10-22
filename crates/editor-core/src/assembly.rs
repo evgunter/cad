@@ -861,6 +861,15 @@ impl MintRefusal {
 pub enum AssemblyError {
     /// The gather itself refused.
     Product(Box<ProductError>),
+    /// **A `new_space()`'s copies did not gather** (D10, Spaces): the
+    /// copies placed into it check inside it, and its gather refused,
+    /// so it is not at rest there.
+    Space {
+        /// The space.
+        space: crate::VarId,
+        /// The space's gather refusal.
+        refusal: Box<ProductError>,
+    },
     /// Mates of THIS document whose declarations were not minted:
     /// ONE ROW PER MATE, saying why that mate did not mint — its
     /// reference named no product face, or its class mints no record
@@ -1015,6 +1024,12 @@ impl crate::spoken::Say for AssemblyError {
     ) -> core::fmt::Result {
         match self {
             Self::Product(e) => write!(f, "{}", crate::spoken::Said(&**e, by)),
+            Self::Space { space, refusal } => write!(
+                f,
+                "the copies placed into {} do not gather: {}",
+                by.space(*space),
+                crate::spoken::Said(&**refusal, by)
+            ),
             Self::Mint { refusals } => {
                 write!(
                     f,
@@ -1161,8 +1176,63 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
 ) -> Result<Assembly<T>, AssemblyError> {
     match product_recorded(doc, evaluation, tol) {
         Ok(product) => assemble_gathered(product, tol),
-        Err(refusal) => Err(AssemblyError::Product(Box::new(refusal))),
+        // A world with no body is no verdict on the spaces beside it: a
+        // document whose copies are all in `new_space()`s still checks
+        // each inside itself before the gather's refusal is raised. A
+        // world that refused for a fault of its own is answered first,
+        // as its verdict is when it gathers.
+        Err(refusal) => {
+            if refusal.kind() == crate::ProductErrorKind::EmptyProduct {
+                gate_spaces(
+                    crate::product::space_gathers(doc, evaluation, tol),
+                    tol,
+                    &mut Reported {
+                        interference: &mut Vec::new(),
+                        carried: Vec::new(),
+                    },
+                )?;
+            }
+            Err(AssemblyError::Product(Box::new(refusal)))
+        }
     }
+}
+
+/// What the gate reports beside its verdict, gathered across the world
+/// and every space it checks: the interference it finds, and each part
+/// row's carried findings once ([`Assembly::carried_interference`]).
+struct Reported<'a> {
+    interference: &'a mut Vec<crate::checks::at_rest::InterferenceFinding>,
+    carried: Vec<CarriedInterference>,
+}
+
+/// **Each `new_space()`'s copies check as usual inside it**, and
+/// against nothing outside it (D10, Spaces): the gate over each
+/// [`crate::SpaceGather`] in turn, a space whose copies denote no body
+/// holding nothing to check.
+fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
+    spaces: Vec<crate::SpaceGather<T>>,
+    tol: Tol,
+    reported: &mut Reported<'_>,
+) -> Result<(), AssemblyError> {
+    for space in spaces {
+        match space.gather {
+            Ok(product) => {
+                reported.interference.extend(verdict(&product, tol)?);
+                once_per_part_row(
+                    &mut reported.carried,
+                    product.carried_interference.iter().cloned(),
+                );
+            }
+            Err(refusal) if refusal.kind().means_no_body() => {}
+            Err(refusal) => {
+                return Err(AssemblyError::Space {
+                    space: space.space,
+                    refusal: Box::new(refusal),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// **A part's carried findings, each once per part row** (A5, *A part's
@@ -1252,16 +1322,23 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
     product: Product<T>,
     tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
-    let interference = verdict(&product, tol)?;
+    let mut interference = verdict(&product, tol)?;
     let Product {
         body,
         names,
         contacts,
         minted,
         carried,
+        spaces,
         carried_interference,
         ..
     } = product;
+    let mut reported = Reported {
+        interference: &mut interference,
+        carried: carried_interference,
+    };
+    gate_spaces(spaces, tol, &mut reported)?;
+    let carried_interference = reported.carried;
     Ok(Assembly {
         body: body.into_body(),
         names,
