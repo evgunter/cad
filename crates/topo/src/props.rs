@@ -337,8 +337,8 @@ impl std::error::Error for MassPropsError {}
 ///
 /// ```
 /// use geom_core::{Dual64, Tol};
-/// use topo::{Body, mass_properties_structural};
-/// fn measure(b: &Body<Dual64>, tol: Tol) {
+/// use topo::{AtRestBody, mass_properties_structural};
+/// fn measure(b: &AtRestBody<Dual64>, tol: Tol) {
 ///     let _ = mass_properties_structural(b, tol);
 /// }
 /// ```
