@@ -200,3 +200,13 @@ PR 5568's fix pass.
   - `face-run-is-a-state-machine-kept-by-convention` (P3, M; a class finding: state held by filtering, not by type, sequenced with PR 5574's stop-rule unit).
 - The precedence call (a budget refusal wins over a later round's hard error on the same face) is the lane's, adjudicated as sound: every reachable kind is "cannot refine".
 - Render moves in `lofts`, `projectbox`, `teapot`, `twisted_duct` and `twisted_tube` are main's drift. The reviewer showed it by elimination: main has merged mesher PRs since the Oct 20 cells.
+
+## 2026-10-22 — D30 in review (PR 5579); a disk-full is a friction finding
+
+- **D30 (PR 5579), single review.** No MAJOR. Bit identity is confirmed against the deleted `raw_span` / `const_index` over 2.7M ladder probes, 1.67M probes on any accepted list, and a 604-probe adversarial table. In the fix pass:
+  - a contract property test for `LooseKnots::span_of` (MINOR-1: the PR deleted the only check tying quad's search to `span_at`);
+  - a named length check on the Loose arms (MINOR-2);
+  - doc fixes, and the `KnotStructure::clamped` third spelling (class sweep).
+  - Filed by the lane: `Derived` still hands raw knot lists to five consumers (P1), and the new f64 holder must be carried into the lane scalar (P2).
+  - **The ratchet rise is accepted**: `knots-f64-interim` geom-core 27→28, geom-brep 15→13, total −1. One holder moved to the crate that owns knot types. `LooseKnots<T>` would have no consumer today (its only source is f64 `KnotVector::derived()`).
+- **Friction: the box's disk filled mid-review** (`No space left on device`, 0.7 GB free of the session allowance). The target dirs of four finished lanes held about 20 GB, check 7's alone 17 GB. Orchestrator practice from here: delete a lane's target dir and worktree when the lane finishes, not at the end of the sitting.
