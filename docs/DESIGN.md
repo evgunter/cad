@@ -1295,7 +1295,9 @@ contains nothing, and which space a body is in is derived from the
 recipe alone: a construction is in its own space, a placed copy in its
 placement's target, an operator's result in the space its operands
 share, and a one-input operation's result in its input's, so every
-body is in exactly one space. **Only a placement relates two spaces**:
+body is in exactly one space. Each placement is a copy of its own, so
+one source placed twice into one space under two bundles is two bodies
+there, at two places. **Only a placement relates two spaces**:
 without one, two spaces' coordinates say nothing of each other.
 
 An operator's operands share one space. The recipe decides it, with no
