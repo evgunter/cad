@@ -3568,9 +3568,11 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     carries(&not_at_rest, &["reason", "inner_variant"]);
     assert_eq!(
         check_payload(&not_at_rest).inner_variant,
-        Some(crate::tags::validation_error_tag(&pncad::topo::ValidationError::NegativeVolume {
-            solid: pncad::topo::SolidKey::default(),
-        }))
+        Some(crate::tags::validation_error_tag(
+            &pncad::topo::ValidationError::NegativeVolume {
+                solid: pncad::topo::SolidKey::default(),
+            }
+        ))
     );
     // The boolean class beside the sentence, and the two words are
     // read off the same evidence: a consumer branching on this one
