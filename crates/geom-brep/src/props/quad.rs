@@ -5993,11 +5993,43 @@ mod tests {
     /// the `2·π·r²` between the two answers at every ε; and their mean
     /// width, `r/2` (the length is the chart metric's `4·π·r` bound), is
     /// clear of the band's escalate edge `K·ε` wherever the row runs.
+    ///
+    /// The face's flux must converge at round 0, or the row would read
+    /// the open branch's ring check instead, and that is asserted
+    /// first, from round 0's own convergence reading. To a reporting
+    /// target of ε `1e-9` at least: at ε `1e-12` the face first
+    /// converges at round 1, where these rings are already decided.
     #[test]
     fn a_ring_undecided_at_the_first_converged_round_refines_on() {
         let tol = Tol::witness();
         let band = geom_core::Band::linear(tol).unwrap();
         let eps = tol.get().eps;
+        let target = eps.max(1e-9);
+        // Round 0's convergence reading, as the lane takes it.
+        let converges_at_round_0 = |loops: &[&[TrimEdgeQ]]| {
+            let anchor = level_anchor(loops).unwrap();
+            let a_s = loops
+                .iter()
+                .flat_map(|edges| edges.iter())
+                .fold(Interval::zero(), |a, e| {
+                    a + harmonic_edge_integral(e, anchor, QUAD_INIT_PIECES, pt(1.0))
+                });
+            let width_len = mean_boundary_displacement(a_s, a_s.abs_enclosure()).unwrap();
+            let target_len = QUAD_TARGET_LEN_FACTOR * target;
+            Schedule::to(QUAD_MAX_ROUNDS)
+                .converged::<f64>(
+                    0,
+                    classify_len::<f64>(
+                        "props_quad_converged",
+                        Margin::of(target_len - width_len),
+                        band,
+                        PropsCheck::Converged,
+                    ),
+                    (target_len, width_len),
+                    band,
+                )
+                .unwrap()
+        };
         let rings = [(3e-5, 0.2), (3e-5, 0.95), (2e-5, 0.95)]
             .into_iter()
             .filter(|&(r, _)| r / 2.0 >= 1.5 * tol.k() * eps)
@@ -6006,11 +6038,15 @@ mod tests {
         for (r, level) in rings {
             let [outer, ring] = rectangle_with_circle(true, 0.0, (r, level));
             let loops: [&[TrimEdgeQ]; 2] = [&outer, &ring];
+            assert!(
+                converges_at_round_0(&loops),
+                "ring {r} at {level}: the face's flux converges at round 0"
+            );
             let at0 = cylinder_cut_face_rounds::<f64>(
                 pt(1.0),
                 Interval::zero(),
                 &loops,
-                eps,
+                target,
                 band,
                 RoundWindow::at(0),
             );
@@ -6023,7 +6059,7 @@ mod tests {
                 ),
                 "ring {r} at {level}: round 0's enclosure must straddle the band: {at0:?}"
             );
-            let whole = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, eps, band)
+            let whole = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, target, band)
                 .unwrap_or_else(|e| panic!("ring {r} at {level}: the schedule refused: {e}"));
             let pir2 = core::f64::consts::PI * r * r;
             let (hole, island) = (2.0 - pir2, 2.0 + pir2);

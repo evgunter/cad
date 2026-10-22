@@ -1989,20 +1989,22 @@ mod tests {
                 "scalar {scalar}, the loop's copy run backwards: {got:?}"
             );
             // A ring whose mean width is wholly in the band escalates at
-            // once, at any window: no round decides it.
-            for window in [RoundWindow::at(0), RoundWindow::SCHEDULE] {
-                let got = within(
-                    scalar,
-                    &wall_face(&[outer.clone(), ring_at(10.0 * tol.k() * tol.eps())]),
-                    window,
-                );
-                assert!(
-                    matches!(&got, Err(PropsError::Escalated { cause, .. })
-                        if cause.predicate == Some("props_ring_winding")
-                            && cause.terminal_sliver),
-                    "scalar {scalar}, {window:?}, a ring in the band: {got:?}"
-                );
-            }
+            // once, at any window: no round decides it, and every
+            // window's escalation carries round 0's own enclosure.
+            let in_band = wall_face(&[outer.clone(), ring_at(10.0 * tol.k() * tol.eps())]);
+            let read = |window| match within(scalar, &in_band, window) {
+                Err(PropsError::Escalated { cause, .. })
+                    if cause.predicate == Some("props_ring_winding") && cause.terminal_sliver =>
+                {
+                    cause.margin
+                }
+                got => panic!("scalar {scalar}, {window:?}, a ring in the band: {got:?}"),
+            };
+            assert_eq!(
+                read(RoundWindow::SCHEDULE),
+                read(RoundWindow::at(0)),
+                "scalar {scalar}: the escalation is round 0's"
+            );
             // The straddling ring escalates at a window ending at round
             // 0, and the whole schedule refines on past the face's
             // convergence until round 1 decides it a hole.
