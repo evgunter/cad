@@ -5496,8 +5496,6 @@ pub(crate) enum Undecided {
     TouchDegenerate,
     /// Arm 2: a touch at a corner whose edge length is not a number.
     TouchChordScale,
-    /// Arm 2: a face-pair contact record backing sideless events.
-    RecordedFacePair,
     /// Arm 2: every vertex of the contained instance on the boundary.
     AllOn,
     /// Arm 2: the contained instance has no vertex.
@@ -5667,10 +5665,6 @@ impl Undecided {
                 "they touch at a corner with an edge too long or too short to measure. \
                  Recourse: rescale the model so every edge length is an ordinary number, \
                  or move them until their bounding boxes no longer overlap"
-            }
-            Self::RecordedFacePair => {
-                "a contact record between their faces touches only at corners the check \
-                 cannot yet place. There is no way through yet for this record"
             }
             Self::AllOn => {
                 "every corner of one lies on the other's boundary, so the corners cannot \
@@ -5848,12 +5842,11 @@ impl Named {
 enum Recorded {
     /// A v-on-f or v-v record: a touch site the analysis reads.
     Site(TouchSite),
-    /// A curve or patch face-pair record: it backs events without a
-    /// side. A confirmed one is a rest ([`Said::FacePair`]).
-    FacePair {
-        /// Whether the pair is confirmed ([`Declared::confirmed`]).
-        confirmed: bool,
-    },
+    /// A curve or patch face-pair record. It answers for the events on
+    /// its boundary only once confirmed, and a confirmed pair is a rest
+    /// ([`Said::FacePair`]); an unconfirmed one answers for nothing, so
+    /// every event it touches stands as a finding the analysis reads.
+    FacePair,
 }
 
 // ---- The touch analysis: arm 2's clear, condition 3.
@@ -8485,9 +8478,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .faces
             .iter()
             .filter(|&&(a, b)| a < b && straddles(sa, sb, EntityId::Face(a), EntityId::Face(b)))
-            .map(|pair| Recorded::FacePair {
-                confirmed: declared.confirmed.contains(pair),
-            });
+            .map(|_| Recorded::FacePair);
         sites.chain(pairs).collect()
     };
     // ---- The clear's condition: every finding about the pair is a
@@ -8504,8 +8495,10 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     //
     // `records_on_their_word` is the declared-only pair's reading (the
     // loop's argument says why): its records are read only for a
-    // decided crossing, and a record the analysis cannot read or a face
-    // pair is taken on its word.
+    // decided crossing, and a record the analysis cannot read is taken
+    // on its word. A face-pair record is read by no analysis here: it
+    // answers for its boundary's events only once confirmed, a rest,
+    // and otherwise leaves them standing as findings.
     let blocks = |standing_errors: &[ValidationError],
                   sa: SolidKey,
                   sb: SolidKey,
@@ -8559,7 +8552,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .iter()
             .filter_map(|r| match *r {
                 Recorded::Site(site) => Some((site, !records_on_their_word)),
-                Recorded::FacePair { .. } => None,
+                Recorded::FacePair => None,
             })
             .chain(shared(sa, sb).into_iter().map(|site| (site, true)));
         for (site, strict) in sites {
@@ -8568,13 +8561,6 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 what if strict => undecided_touch = undecided_touch.or(what),
                 _ => {}
             }
-        }
-        if !records_on_their_word
-            && records
-                .iter()
-                .any(|r| matches!(r, Recorded::FacePair { confirmed: false }))
-        {
-            return Some(Undecided::RecordedFacePair);
         }
         undecided_touch
     };

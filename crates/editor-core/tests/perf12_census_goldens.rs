@@ -51,6 +51,14 @@ use geom_core::Tol;
 /// reach of a block face again, one more `CensusUndecidable` (28 -> 29
 /// findings), as it was on datum frames before D. Its rows' mint
 /// digests moved with its re-spelled placements.
+///
+/// Re-blessed at every ε row when the census began deciding a planar
+/// area contact between arrivals as one face pair and recording flush
+/// pairs (`[assertions]`): no finding moved, only rows. `heat_sink`
+/// (each of 10, 40 and 160 fins and the corpus's own) gained 20 flush
+/// rows, the fins' side walls on one plane with the base's, facing the
+/// same way. `kitchen_sink`'s 16 edge and vertex rows became 11: its two
+/// seats each one face pair, and nine flush pairs.
 const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     (
         "1e-6",
