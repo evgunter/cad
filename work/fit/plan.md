@@ -7,7 +7,7 @@ Opened 2026-09-20 by VGEOM's priority-seam cut
 
 ## The slate
 
-**12 budget points** of dispatchable work, all at P3.
+**6 budget points** of dispatchable work, all at P3.
 
 | pri | item | cost | title |
 |---|---|---|---|

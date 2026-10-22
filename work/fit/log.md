@@ -298,7 +298,7 @@ FIT's P0 and P1 rows are done, so the track is handed back
 - 5604: two easy tail rows;
 - tracker: 5593, 5602.
 
-**Left:** three P3 rows (12 points) and two rows parked on D′. The
+**Left:** three P3 rows (6 points) and two rows parked on D′. The
 plan names them.
 
 **For a successor:**
