@@ -2,12 +2,11 @@
 id: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
 kind: unit
 title: D′2: WorldRead retires into values; a value names no mate and charts on the target space's axes; a point mate's spin chain; the placement helpers become one pure constructor; inline is one rule; the flatten edit
-status: parked
+status: spec
 opened: 2026-10-22
 priority: P0
 cost: H
 parent: a-placement-pins-by-written-values-without-a-mate
-blocked_on: [a-placement-names-its-target-space]
 ---
 
 
