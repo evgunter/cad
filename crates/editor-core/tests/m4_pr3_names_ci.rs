@@ -113,7 +113,12 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// written `atan2`'s rounded turns: the die's world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
 /// placements, their ids and the names under them are new.
-const DIE_TABLE_DIGEST: u64 = 0xc3d310092d777823;
+///
+/// Re-pinned for D′1: the cube and the pip each define their space
+/// beside their body, and each pip's bundle is written whole, so the
+/// ids after them and the names spelled with them moved; no point moved
+/// (`m10_p_fence`'s ids-masked row).
+const DIE_TABLE_DIGEST: u64 = 0x7b0a_a5df_c0d7_bd88;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).

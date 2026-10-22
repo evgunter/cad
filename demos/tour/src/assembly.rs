@@ -1614,7 +1614,6 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         parts,
         Seating {
             class: ContactClass::Tangent,
-            ..SEATED
         },
         &opts,
         tol,
