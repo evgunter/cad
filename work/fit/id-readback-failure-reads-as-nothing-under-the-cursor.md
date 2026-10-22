@@ -81,7 +81,7 @@ headlessly is the door's vocabulary, not the readback.
 `Ok(IdMap::NOTHING)`, an answer that is true of the picture on screen.
 A refused wait is `ReadbackFault::Wait` and a failed mapping is
 `ReadbackFault::Map`, each in the device's own words. A mapping shorter
-than one id is also `Map`: the pure `gpu::id_in` reads the texel, and
+than one id is `ReadbackFault::Short`: the pure `gpu::id_in` reads the texel, and
 `a_readback_is_its_first_four_bytes_and_a_short_one_is_a_fault` pins it.
 
 **The call site.** `ViewportCallback::prepare` posts
@@ -98,5 +98,6 @@ puts each of its three rows beside the row the old fold produced. The
 fold gave a disagreement over a named face, silence over empty space and
 no verdict beside a refusal. The fault gives `NoReadback` in all three.
 
-**Residue.** After a failed wait, the readback buffer's map may still
-be pending: `work/vgeom/a-failed-id-readback-wait-leaves-the-buffer-mapping.md`.
+**Residue, closed in the same PR.** A fault left the readback buffer
+mapped or pending, and the next query's submit panicked:
+`work/fit/a-failed-id-readback-wait-leaves-the-buffer-mapping.md`.

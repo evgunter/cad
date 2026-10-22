@@ -41,7 +41,7 @@ use viewer::generation::Generation;
 use viewer::idpass::{self, IdQueryLog, IdStep, IdSubject};
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, IndexSeam, PickCache};
-use viewer::pickindex::{self, IdMap, PictureKey};
+use viewer::pickindex::{self, IdMap, PatchNameFault, PictureKey};
 use viewer::platform;
 use viewer::prefs::{Absent, Prefs, PrefsStore};
 use viewer::props::SlotValue;
@@ -655,7 +655,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
     let disagreement = idpass::Disagreement {
-        from_gpu: idpass::IdAnswer::Nothing,
+        from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Nothing),
         from_ray: Vec::new(),
     };
     assert_eq!(
@@ -2104,7 +2104,10 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     ) else {
         panic!("nothing vs a face is a disagreement");
     };
-    assert_eq!(report.from_gpu, idpass::IdAnswer::Nothing);
+    assert_eq!(
+        report.from_gpu,
+        idpass::IdAnswer::Refused(PatchNameFault::Nothing)
+    );
     assert_eq!(report.from_ray, vec![hit.name.clone()]);
     assert!(report.to_string().contains("disagree"));
 
@@ -2175,7 +2178,7 @@ fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
         },
     };
     let report = idpass::Disagreement {
-        from_gpu: idpass::IdAnswer::Unnamed { id: 9, error },
+        from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Unnamed { id: 9, error }),
         from_ray: Vec::new(),
     };
     let sentence = report.to_string();
@@ -3675,7 +3678,7 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
         (
             "the picking paths disagreeing",
             idpass::Disagreement {
-                from_gpu: idpass::IdAnswer::Nothing,
+                from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Nothing),
                 from_ray: Vec::new(),
             }
             .notice((&cursor.0, &cursor.1)),

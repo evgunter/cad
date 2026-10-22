@@ -406,8 +406,9 @@ struct RayQuestion<'a> {
 /// **What the cursor comparison says this frame**, in the order it
 /// happened: the ray path's refusal when nobody else said it, then
 /// what the id answer amounts to ([`idpass::IdNews`]) — the two
-/// picking paths' disagreement, or, beside a refusal, an id the
-/// picture has no name for. Empty when there is nothing to say.
+/// picking paths' disagreement, an id the picture does not draw said
+/// beside a refusal, or a readback that answered nothing, said beside
+/// whatever the ray answered. Empty when there is nothing to say.
 ///
 /// The ray answer travels to [`idpass::compare`] typed, because a
 /// refusal is not a miss: that function compares nothing against a
@@ -1555,7 +1556,7 @@ mod tests {
                 Ok(std::slice::from_ref(&named)),
             ),
             Some(idpass::IdNews::Disagreement(idpass::Disagreement {
-                from_gpu: idpass::IdAnswer::Nothing,
+                from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Nothing),
                 from_ray: vec![named],
             })),
             "nothing-under-the-cursor against a named face is a disagreement"
@@ -1704,7 +1705,7 @@ mod tests {
                 "a ray that names a face",
                 Ok(named),
                 Some(idpass::IdNews::Disagreement(idpass::Disagreement {
-                    from_gpu: idpass::IdAnswer::Nothing,
+                    from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Nothing),
                     from_ray: named.to_vec(),
                 })),
             ),
@@ -1723,11 +1724,16 @@ mod tests {
                 "beside {ray}, the same fault read as the clear value says something else"
             );
         }
-        assert_eq!(
-            idpass::compare(index, &display, Some(&failed), Some(serial + 1), Ok(named)),
-            None,
-            "a fault answering another query is stale like any reply"
-        );
+        for (ray, from_ray) in [
+            ("a ray that names a face", Ok(named)),
+            ("a refusal", Err(&refusal)),
+        ] {
+            assert_eq!(
+                idpass::compare(index, &display, Some(&failed), Some(serial + 1), from_ray),
+                None,
+                "beside {ray}, a fault answering another query is stale like any reply"
+            );
+        }
         let said = idpass::IdNews::NoReadback(fault).to_string();
         assert!(
             said.contains("no answer") && said.contains("Timeout") && !said.contains("disagree"),
@@ -1931,7 +1937,7 @@ mod tests {
                 frame::Subject::Cursor,
                 format!(
                     "picking paths disagree at the cursor: id buffer id {id}, \
-                     which no patch of this picture draws, ray nothing"
+                     which this index never assigned, ray nothing"
                 ),
                 frame::Retold::Again,
             )],
@@ -1956,7 +1962,7 @@ mod tests {
             texts,
             [format!(
                 "picking paths disagree at the cursor: id buffer id {id}, \
-                 which no patch of this picture draws, ray {said}"
+                 which this index never assigned, ray {said}"
             )],
             "an unassigned id against a named face is a disagreement, said once"
         );

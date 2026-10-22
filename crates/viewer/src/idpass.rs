@@ -13,13 +13,21 @@
 //!
 //! That is the whole difference from [`crate::frame`], whose policies
 //! are pure functions of one frame and are values precisely so they
-//! can be replayed. Everything here exists because it REMEMBERS.
+//! can be replayed. Everything here exists because it REMEMBERS, or
+//! carries what is remembered between the two frames.
 //! [`IdQueryLog`] holds the question, [`IdSubject`] decides what
 //! counts as the same question, [`IdStep`] is the verdict about this
 //! frame, and [`IdNews`] is what an answer amounts to once it has been
 //! matched to the question it answers: the two picking paths'
-//! [`Disagreement`], or an id the picture does not draw beside a ray
-//! path that refused.
+//! [`Disagreement`], an id the picture does not draw beside a ray
+//! path that refused, or a readback that answered nothing.
+//!
+//! The reply crosses from the paint callback to the frame through an
+//! [`IdChannel`], as an [`IdReply`]: the serial and the id read, or the
+//! [`ReadbackFault`] that read none. The fault is named here and not in
+//! the driver module because the frame reads it (`gpu` is `app`-only,
+//! and this module is not): it carries the device's words as text and
+//! no driver type, so the vocabulary below stays driver-free.
 //!
 //! **The failure mode the memory exists for is an answer outliving its
 //! question**, and it does not look like a fault: a matched-but-stale
@@ -33,7 +41,6 @@
 
 use pncad::document::{Doc, Evaluation, ProfileProgram, Said, Say, Speaker};
 use pncad::prelude::StableName;
-use pncad::select::UnnamedEntity;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::display::DisplayView;
@@ -163,16 +170,26 @@ pub enum ReadbackFault {
     /// The device refused to wait for the pass to finish, in its own
     /// words.
     Wait(String),
-    /// The readback buffer did not map, or mapped shorter than one id,
-    /// in the words of whichever it was.
+    /// The device did not map the readback buffer, in its own words:
+    /// the map callback's error, or the mapped-range refusal.
     Map(String),
+    /// The device mapped the readback, `len` bytes long, which is
+    /// shorter than one id.
+    Short {
+        /// How many bytes the mapping held.
+        len: usize,
+    },
 }
 
 impl core::fmt::Display for ReadbackFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Wait(why) => write!(f, "the device refused the wait ({why})"),
-            Self::Map(why) => write!(f, "the readback did not map ({why})"),
+            Self::Wait(why) => write!(f, "the device refused to wait for the id pass ({why})"),
+            Self::Map(why) => write!(f, "the device did not map the id readback ({why})"),
+            Self::Short { len } => write!(
+                f,
+                "the device mapped the id readback {len} bytes long, shorter than one 4-byte id"
+            ),
         }
     }
 }
@@ -224,42 +241,34 @@ impl IdChannel {
 /// **What the id buffer said at the cursor**, read through the index
 /// that drew the picture and the display view it drew it under.
 ///
-/// Four answers, because the channel word is an id and not a name:
-/// the index turns it into a name, or says it has none for a patch it
-/// draws, or the picture draws no patch under it at all. The last two
-/// are not the clear value, and reading either as *nothing* publishes
-/// a claim the id buffer did not make.
+/// Three answers, because the channel word is an id and not a name:
+/// the index names the patch, or its door refuses the id
+/// ([`PatchNameFault`]: the clear value, an id it never assigned, or a
+/// patch it cannot name), or the id belongs to a part the picture
+/// hides. Only the door's `Nothing` is the clear value, and reading any
+/// other arm as *nothing* publishes a claim the id buffer did not make.
 #[derive(Clone, Debug, PartialEq)]
 pub enum IdAnswer {
-    /// [`crate::pickindex::IdMap::NOTHING`], the id buffer's clear value: no geometry
-    /// under the cursor. A readback that failed is no answer at all
-    /// ([`ReadbackFault`]) and never reaches this type.
-    Nothing,
     /// A drawn patch, by the name the index has for it.
     Named(StableName),
-    /// A drawn patch the index has no name for: the naming layer's
-    /// loud bug report ([`PatchNameFault::Unnamed`]), with its own
-    /// refusal — a lookup's, since the index was built by one.
-    Unnamed {
-        /// The patch id the id buffer read back.
-        id: u32,
-        /// Why the patch has no name.
-        error: UnnamedEntity,
-    },
-    /// An id no patch of this picture is drawn under: one the index
-    /// never assigned ([`PatchNameFault::Unassigned`]), or one it
-    /// assigned to a part whose placement the
-    /// display view hides. [`PickIndex::scene_for`] keeps a hidden
-    /// part's ids and draws none of them, so the index NAMES such an
-    /// id and the picture does not show it, and reading it as that
-    /// name would say the id buffer saw a face that is not on screen.
-    /// The picture is the one this index drew under this view (the
-    /// viewport compares against no other), so the word itself is
-    /// wrong: the symptom of a corrupt readback. The view half of that
-    /// holds only while the view in hand is the one the picture was
-    /// drawn under, which a refused rebuild breaks
+    /// The index names no patch for the id, in its door's words
+    /// ([`PickIndex::name_of`]). [`PatchNameFault::Nothing`] is the id
+    /// buffer's clear value: no geometry under the cursor. A readback
+    /// that failed is no answer at all ([`ReadbackFault`]) and never
+    /// reaches this type.
+    Refused(PatchNameFault),
+    /// An id the index assigned to a part whose placement the display
+    /// view hides. [`PickIndex::scene_for`] keeps a hidden part's ids
+    /// and draws none of them, so the index NAMES such an id and the
+    /// picture does not show it, and reading it as that name would say
+    /// the id buffer saw a face that is not on screen. The picture is
+    /// the one this index drew under this view (the viewport compares
+    /// against no other), so the word itself is wrong: the symptom of
+    /// a corrupt readback. That holds only while the view in hand is
+    /// the one the picture was drawn under, which a refused rebuild
+    /// breaks
     /// (`work/vnews/the-cursor-reads-the-display-view-in-hand-not-the-one-the-picture-was-drawn-under.md`).
-    Undrawn {
+    Hidden {
         /// The id the id buffer read back.
         id: u32,
     },
@@ -267,22 +276,16 @@ pub enum IdAnswer {
 
 impl Say for IdAnswer {
     /// Each arm in the words of the layer that raised it: a name in
-    /// its words ([`Speaker::name`]), nothing and an unnamed patch in
-    /// the index's ([`PatchNameFault`]), and an undrawn id as the
-    /// picture's own fact, since it covers a hidden part's id the index
-    /// does name. The id is `id N` in every arm that carries one,
-    /// because it is one `u32` read out of the id buffer, whatever it
-    /// turns out to denote.
+    /// its words ([`Speaker::name`]), a refused id in the index's
+    /// ([`PatchNameFault`]), and a hidden part's id as the picture's own
+    /// fact, since the index does name it. The id is `id N` in every
+    /// arm that carries one, because it is one `u32` read out of the id
+    /// buffer, whatever it turns out to denote.
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Nothing => PatchNameFault::Nothing.say(f, by),
             Self::Named(name) => write!(f, "{}", by.name(name)),
-            Self::Unnamed { id, error } => PatchNameFault::Unnamed {
-                id: *id,
-                error: *error,
-            }
-            .say(f, by),
-            Self::Undrawn { id } => write!(f, "id {id}, which no patch of this picture draws"),
+            Self::Refused(fault) => fault.say(f, by),
+            Self::Hidden { id } => write!(f, "id {id}, which no patch of this picture draws"),
         }
     }
 }
@@ -301,7 +304,7 @@ impl IdAnswer {
     /// **Whether the id is drawn is asked before what it is named**:
     /// the index names every part's ids, hidden or not, so a name is
     /// no evidence the picture shows the patch. A hidden part's id is
-    /// [`IdAnswer::Undrawn`] whatever its name, including a name the
+    /// [`IdAnswer::Hidden`] whatever its name, including a name the
     /// naming layer refused, because the picture drawing no patch
     /// under it is the fact about the id buffer's word.
     pub fn of(index: &PickIndex, display: &DisplayView, id: u32) -> Self {
@@ -313,11 +316,20 @@ impl IdAnswer {
             .key_of(id)
             .is_some_and(|patch| display.hidden_placements.contains(&patch.node));
         match index.name_of(id) {
-            Err(PatchNameFault::Nothing) => Self::Nothing,
-            Err(PatchNameFault::Unassigned { id }) => Self::Undrawn { id },
-            Ok(_) | Err(PatchNameFault::Unnamed { .. }) if hidden => Self::Undrawn { id },
+            Ok(_) | Err(PatchNameFault::Unnamed { .. }) if hidden => Self::Hidden { id },
             Ok(name) => Self::Named(name.clone()),
-            Err(PatchNameFault::Unnamed { id, error }) => Self::Unnamed { id, error },
+            Err(fault) => Self::Refused(fault),
+        }
+    }
+
+    /// The id, when the picture draws no patch under it: one the index
+    /// never assigned, or a hidden part's. Such an id is wrong without
+    /// a ray to contradict it ([`IdNews::BesideRefusal`]).
+    fn undrawn(&self) -> Option<u32> {
+        match *self {
+            Self::Refused(PatchNameFault::Unassigned { id }) | Self::Hidden { id } => Some(id),
+            Self::Named(_)
+            | Self::Refused(PatchNameFault::Nothing | PatchNameFault::Unnamed { .. }) => None,
         }
     }
 }
@@ -419,9 +431,10 @@ pub enum IdNews {
     /// The two paths both answered, and the answers differ.
     Disagreement(Disagreement),
     /// The ray path refused, so there is no ray answer to compare, and
-    /// the id buffer answered an id no patch of this picture draws
-    /// ([`IdAnswer::Undrawn`]). Such an id is wrong without a ray to
-    /// contradict it, so a refusal beside it does not excuse it.
+    /// the id buffer answered an id no patch of this picture draws (one
+    /// the index never assigned, or a hidden part's: [`IdAnswer`]).
+    /// Such an id is wrong without a ray to contradict it, so a refusal
+    /// beside it does not excuse it.
     BesideRefusal {
         /// The id the id buffer read back.
         id: u32,
@@ -445,7 +458,7 @@ impl Say for IdNews {
             Self::BesideRefusal { id } => write!(
                 f,
                 "id buffer at the cursor: {}",
-                Said(&IdAnswer::Undrawn { id: *id }, by)
+                Said(&IdAnswer::Hidden { id: *id }, by)
             ),
             Self::NoReadback(fault) => {
                 write!(f, "id buffer: no answer at the cursor, {fault}")
@@ -468,15 +481,17 @@ impl IdNews {
     /// about this query, so it is retired with the query, as a
     /// disagreement is.
     ///
-    /// **A [`IdNews::BesideRefusal`] is never retired as cursor news**,
-    /// nor is a [`IdNews::NoReadback`] said beside a refusal.
-    /// It is raised only beside a ray refusal, which is said on the
-    /// same frame as a [`Subject::Document`] notice
-    /// ([`crate::frame::pick_refusal`]), and a frame joins its notices
-    /// into one line under one subject. So the line wears `Document`,
-    /// and [`crate::frame::cursor_status`]'s expiry of the cursor's
-    /// subject does not reach it
+    /// **News said beside a ray refusal is never retired as cursor
+    /// news**: every [`IdNews::BesideRefusal`], and a
+    /// [`IdNews::NoReadback`] on a frame whose ray refused. The
+    /// refusal is said on the same frame as a [`Subject::Document`]
+    /// notice ([`crate::frame::pick_refusal`]), and a frame joins its
+    /// notices into one line under one subject. So the line wears
+    /// `Document`, and [`crate::frame::cursor_status`]'s expiry of the
+    /// cursor's subject does not reach it
     /// (`work/vnews/one-line-one-subject-loses-a-mixed-frames-expiry.md`).
+    /// A [`IdNews::NoReadback`] beside a ray answer is retired with its
+    /// query.
     pub fn notice(&self, landed: (&Doc<ProfileProgram>, &Evaluation<f64>)) -> Message {
         cursor_notice(self, landed)
     }
@@ -512,7 +527,8 @@ impl IdNews {
 /// names a face outside the set, nothing where the ray named
 /// something, or something where the ray named nothing — and
 /// whenever it answers an id the index cannot name
-/// ([`IdAnswer::Unnamed`], [`IdAnswer::Undrawn`]; below).
+/// ([`IdAnswer::Refused`] but for `Nothing`, [`IdAnswer::Hidden`];
+/// below).
 ///
 /// # A refused ray path is no comparison
 ///
@@ -526,8 +542,8 @@ impl IdNews {
 /// cursors the kernel declines, which are the ones the id pass is
 /// likeliest to answer with a face.
 ///
-/// **Except an id the picture does not draw** ([`IdAnswer::Undrawn`]),
-/// which needs no ray to be wrong: it is said on its own beside the
+/// **Except an id the picture does not draw** (never assigned, or a
+/// hidden part's), which needs no ray to be wrong: it is said on its own beside the
 /// refusal ([`IdNews::BesideRefusal`]). *Nothing* and a name are
 /// claims about the cursor that only a ray answer could contradict, and
 /// a refused ray gives them no verdict — the same answer this function
@@ -537,8 +553,8 @@ impl IdNews {
 /// refusal a ray meets over a drawn patch is the hit test's
 /// unnamed-entity arm, and there the id buffer's patch carries the same
 /// naming error, so
-/// saying [`IdAnswer::Unnamed`] beside that refusal would say one fact
-/// twice.
+/// saying [`PatchNameFault::Unnamed`] beside that refusal would say one
+/// fact twice.
 ///
 /// Declining to compare is not dropping the refusal: it is the ray
 /// path's news, not the comparison's, and it is said in the ray path's
@@ -552,10 +568,10 @@ impl IdNews {
 ///
 /// The id side is read as an [`IdAnswer`], not as a name, because the
 /// id buffer can answer an id the picture has no name for: a patch
-/// whose name the naming layer refused ([`IdAnswer::Unnamed`]), or an
-/// id no patch of this picture is drawn under ([`IdAnswer::Undrawn`]:
-/// never assigned, or assigned to a hidden placement's part, which the
-/// index would otherwise name). `display` is the view the picture and
+/// whose name the naming layer refused ([`PatchNameFault::Unnamed`]),
+/// or an id no patch of this picture is drawn under (never assigned,
+/// [`PatchNameFault::Unassigned`], or assigned to a hidden placement's
+/// part, [`IdAnswer::Hidden`], which the index would otherwise name). `display` is the view the picture and
 /// the ray were both drawn and asked under, while the view in hand is
 /// the one the picture was drawn under
 /// (`work/vnews/the-cursor-reads-the-display-view-in-hand-not-the-one-the-picture-was-drawn-under.md`
@@ -601,9 +617,10 @@ pub fn compare(
         return beside_refusal(&from_gpu);
     };
     let agrees = match &from_gpu {
-        IdAnswer::Nothing => from_ray.is_empty(),
+        IdAnswer::Refused(PatchNameFault::Nothing) => from_ray.is_empty(),
         IdAnswer::Named(name) => from_ray.contains(name),
-        IdAnswer::Unnamed { .. } | IdAnswer::Undrawn { .. } => false,
+        IdAnswer::Refused(PatchNameFault::Unassigned { .. } | PatchNameFault::Unnamed { .. })
+        | IdAnswer::Hidden { .. } => false,
     };
     (!agrees).then(|| {
         IdNews::Disagreement(Disagreement {
@@ -616,10 +633,7 @@ pub fn compare(
 /// What an id answer amounts to beside a ray path that refused: only
 /// an undrawn id is news ([`compare`] says why each arm is what it is).
 fn beside_refusal(from_gpu: &IdAnswer) -> Option<IdNews> {
-    match *from_gpu {
-        IdAnswer::Undrawn { id } => Some(IdNews::BesideRefusal { id }),
-        IdAnswer::Nothing | IdAnswer::Named(_) | IdAnswer::Unnamed { .. } => None,
-    }
+    from_gpu.undrawn().map(|id| IdNews::BesideRefusal { id })
 }
 
 #[cfg(test)]
@@ -629,6 +643,7 @@ mod tests {
     use super::*;
     use pncad::document::VarId;
     use pncad::prelude::{CapEnd, EntityKind, NameRef, RecipeNodeId, RoleSeg};
+    use pncad::select::UnnamedEntity;
 
     /// A disagreement says each name in its words, and no role path, on
     /// the wasm32 build's stack however deep the name nests: a name's
@@ -667,7 +682,7 @@ mod tests {
     /// arms through a real index.
     #[test]
     fn beside_a_refusal_an_unnamed_patch_is_no_verdict_and_an_undrawn_id_is_news() {
-        let unnamed = IdAnswer::Unnamed {
+        let unnamed = IdAnswer::Refused(PatchNameFault::Unnamed {
             id: 9,
             error: UnnamedEntity {
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
@@ -676,15 +691,48 @@ mod tests {
                     key: editor_core::names::EntityKey::Body,
                 },
             },
-        };
+        });
         assert_eq!(
             beside_refusal(&unnamed),
             None,
             "the refusal already carries the naming error"
         );
         assert_eq!(
-            beside_refusal(&IdAnswer::Undrawn { id: 9 }),
+            beside_refusal(&IdAnswer::Hidden { id: 9 }),
             Some(IdNews::BesideRefusal { id: 9 }),
+        );
+        assert_eq!(
+            beside_refusal(&IdAnswer::Refused(PatchNameFault::Unassigned { id: 9 })),
+            Some(IdNews::BesideRefusal { id: 9 }),
+            "an id the index never assigned is undrawn too"
+        );
+        for no_verdict in [
+            IdAnswer::Refused(PatchNameFault::Nothing),
+            IdAnswer::Named(StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            }),
+        ] {
+            assert_eq!(beside_refusal(&no_verdict), None, "{no_verdict}");
+        }
+    }
+
+    /// **The readback's faults each name the device and say what it
+    /// did**, and none says the readback mapped and did not map.
+    #[test]
+    fn each_readback_fault_says_what_the_device_did() {
+        assert_eq!(
+            ReadbackFault::Wait("lost".to_owned()).to_string(),
+            "the device refused to wait for the id pass (lost)"
+        );
+        assert_eq!(
+            ReadbackFault::Map("refused".to_owned()).to_string(),
+            "the device did not map the id readback (refused)"
+        );
+        assert_eq!(
+            ReadbackFault::Short { len: 3 }.to_string(),
+            "the device mapped the id readback 3 bytes long, shorter than one 4-byte id"
         );
     }
 }

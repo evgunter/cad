@@ -832,6 +832,11 @@ impl ViewportRenderer {
     /// is told the cursor is over no geometry, which is true of the
     /// picture on screen. A device that refuses the wait or a mapping
     /// that fails is NO answer, and is the [`ReadbackFault`] it is.
+    ///
+    /// **Every exit leaves the readback buffer clean**
+    /// ([`release_after`]): unmapped after a read, rebuilt after a
+    /// fault. So a fault is this query's outcome only, and the next
+    /// query's copy does not meet a buffer still mapped.
     fn read_id_at(
         &mut self,
         device: &wgpu::Device,
@@ -934,24 +939,86 @@ impl ViewportRenderer {
             },
         );
         queue.submit(std::iter::once(encoder.finish()));
+        let read = self.map_and_read(device);
+        // Every exit leaves the readback Idle, or the next query's copy
+        // into it fails `queue.submit` (`BufferStillMapped`), which with
+        // no uncaptured-error handler installed panics the UI thread.
+        match release_after(&read) {
+            Release::Unmap => self.id.readback.unmap(),
+            Release::Rebuild => self.id.readback = IdPass::readback(device),
+        }
+        read
+    }
+
+    /// Map the id readback after the pass's copy and read its id,
+    /// leaving the buffer as the outcome left it: mapped on `Ok`, in
+    /// whatever state the device left it on a fault ([`release_after`]
+    /// says what is done with it).
+    fn map_and_read(&self, device: &wgpu::Device) -> Result<u32, ReadbackFault> {
+        let (sent, mapped) = std::sync::mpsc::channel();
         self.id
             .readback
             .slice(..)
-            .map_async(wgpu::MapMode::Read, |_| {});
+            .map_async(wgpu::MapMode::Read, move |outcome| {
+                // The receiver outlives the wait below, so a send can
+                // only fail once nobody is left to read the outcome.
+                let _ = sent.send(outcome);
+            });
         device
             .poll(wgpu::PollType::wait_indefinitely())
             .map_err(|error| ReadbackFault::Wait(error.to_string()))?;
-        let id = {
-            let view = self
-                .id
-                .readback
-                .slice(..)
-                .get_mapped_range()
-                .map_err(|error| ReadbackFault::Map(error.to_string()))?;
-            id_in(&view)
-        };
-        self.id.readback.unmap();
-        id
+        map_outcome(mapped.try_recv())?;
+        let view = self
+            .id
+            .readback
+            .slice(..)
+            .get_mapped_range()
+            .map_err(|error| ReadbackFault::Map(error.to_string()))?;
+        id_in(&view)
+    }
+}
+
+/// **What the map callback said**, as the readback's fault when it
+/// said anything but success. The callback's own error is the device's
+/// word for a mapping it refused, so it is carried, not discarded: a
+/// later `get_mapped_range` refusal would only say the buffer is not
+/// mapped, which is the consequence and not the reason.
+fn map_outcome(
+    outcome: Result<Result<(), wgpu::BufferAsyncError>, std::sync::mpsc::TryRecvError>,
+) -> Result<(), ReadbackFault> {
+    match outcome {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => Err(ReadbackFault::Map(error.to_string())),
+        Err(std::sync::mpsc::TryRecvError::Empty) => Err(ReadbackFault::Map(
+            "the mapping had not completed when the wait returned".to_owned(),
+        )),
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(ReadbackFault::Map(
+            "the mapping was dropped without an outcome".to_owned(),
+        )),
+    }
+}
+
+/// **What a readback leaves to be done with its buffer.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Release {
+    /// The buffer mapped and was read: unmap it.
+    Unmap,
+    /// The readback failed somewhere between the wait and the read,
+    /// so the buffer's state is the device's: still pending a map (a
+    /// refused wait), mapped (a short mapping), or idle (a refused
+    /// mapping). Unmapping is wrong for an idle buffer (its unmap is
+    /// itself a validation error, which panics as the copy would), so
+    /// the buffer is replaced instead; dropping a buffer is allowed in
+    /// any state.
+    Rebuild,
+}
+
+/// The [`Release`] a readback's outcome calls for: a fault never
+/// leaves the buffer to the next query.
+fn release_after(read: &Result<u32, ReadbackFault>) -> Release {
+    match read {
+        Ok(_) => Release::Unmap,
+        Err(_) => Release::Rebuild,
     }
 }
 
@@ -963,12 +1030,7 @@ fn id_in(mapped: &[u8]) -> Result<u32, ReadbackFault> {
     mapped
         .first_chunk::<4>()
         .map(|bytes| u32::from_le_bytes(*bytes))
-        .ok_or_else(|| {
-            ReadbackFault::Map(format!(
-                "{} bytes mapped, fewer than one id's 4",
-                mapped.len()
-            ))
-        })
+        .ok_or(ReadbackFault::Short { len: mapped.len() })
 }
 
 impl IdPass {
@@ -1074,20 +1136,26 @@ impl IdPass {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
-        let readback = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("viewer_id_readback"),
-            size: COPY_ROW_ALIGNMENT,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
         Self {
             pipeline,
             uniforms,
             bind_group,
             target,
             depth,
-            readback,
+            readback: Self::readback(device),
         }
+    }
+
+    /// The staging buffer the id is copied into: one copy row, read
+    /// back by the host. Built again whenever a readback fails
+    /// ([`Release::Rebuild`]).
+    fn readback(device: &wgpu::Device) -> wgpu::Buffer {
+        device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("viewer_id_readback"),
+            size: COPY_ROW_ALIGNMENT,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        })
     }
 }
 
@@ -1352,6 +1420,18 @@ pub(crate) struct IdQuery {
     pub(crate) answer: IdChannel,
 }
 
+impl IdQuery {
+    /// Post `read` as this query's reply, as it is: an id, or the
+    /// readback's fault. This is the one place the pass's outcome
+    /// meets the channel, so no fault is folded into an id on the way.
+    fn reply(&self, read: Result<u32, ReadbackFault>) {
+        self.answer.post(IdReply {
+            serial: self.serial,
+            read,
+        });
+    }
+}
+
 impl ViewportCallback {
     /// The uniform block: the matrix, the light direction, the base
     /// colour with the ambient term in its fourth lane, the highlight
@@ -1425,17 +1505,13 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
             // it cannot ride in the command buffer egui submits after
             // this call returns.
             if let Some(query) = &self.id_query {
-                let read = renderer.read_id_at(
+                query.reply(renderer.read_id_at(
                     device,
                     queue,
                     query.cursor_ndc,
                     query.viewport_px,
                     &self.view_projection,
-                );
-                query.answer.post(IdReply {
-                    serial: query.serial,
-                    read,
-                });
+                ));
             }
         }
         Vec::new()
@@ -2221,8 +2297,8 @@ mod tests {
             );
         }
 
-        // The empty picture draws nothing: `read_id_at` reads this as
-        // "there is no answer" rather than submitting an empty pass.
+        // The empty picture draws nothing: `read_id_at` answers it
+        // `Ok(IdMap::NOTHING)` without submitting an empty pass.
         assert_eq!(
             corner_count(&SceneMesh::empty(mesh.bounds(), delta)),
             Some(0)
@@ -2282,13 +2358,88 @@ mod tests {
             "a cleared texel is the pass's answer over empty space"
         );
         for short in [&[][..], &[9, 9, 9][..]] {
-            let read = id_in(short);
-            assert!(
-                matches!(&read, Err(ReadbackFault::Map(why)) if why.contains(&short.len().to_string())),
-                "{} mapped bytes hold no id, and the fault says how many: {read:?}",
+            assert_eq!(
+                id_in(short),
+                Err(ReadbackFault::Short { len: short.len() }),
+                "{} mapped bytes hold no id, and the fault says how many",
                 short.len()
             );
         }
+    }
+
+    /// **A mapping the device refused is a fault in its words**, and
+    /// one it never finished is a fault too: only the callback's
+    /// success lets the read go on.
+    #[test]
+    fn a_map_callback_that_did_not_succeed_is_the_readbacks_fault() {
+        use std::sync::mpsc::TryRecvError;
+        assert_eq!(map_outcome(Ok(Ok(()))), Ok(()));
+        assert_eq!(
+            map_outcome(Ok(Err(wgpu::BufferAsyncError))),
+            Err(ReadbackFault::Map(wgpu::BufferAsyncError.to_string())),
+            "the callback's error is carried, not discarded"
+        );
+        for pending in [TryRecvError::Empty, TryRecvError::Disconnected] {
+            assert!(
+                matches!(map_outcome(Err(pending)), Err(ReadbackFault::Map(_))),
+                "a mapping with no outcome after the wait is no answer: {pending:?}"
+            );
+        }
+    }
+
+    /// **A fault never leaves the readback to the next query.** A
+    /// buffer left pending a map, or mapped, fails the next query's
+    /// `queue.submit` (`BufferStillMapped`), and with no
+    /// uncaptured-error handler that is a panic; so every fault
+    /// rebuilds the buffer, and only a read that succeeded unmaps it.
+    /// Which faults a device produces cannot be driven without one.
+    #[test]
+    fn every_readback_fault_rebuilds_the_buffer_and_only_a_read_unmaps_it() {
+        assert_eq!(release_after(&Ok(IdMap::NOTHING)), Release::Unmap);
+        assert_eq!(release_after(&Ok(7)), Release::Unmap);
+        for fault in [
+            ReadbackFault::Wait("lost".to_owned()),
+            ReadbackFault::Map("refused".to_owned()),
+            ReadbackFault::Short { len: 3 },
+        ] {
+            assert_eq!(
+                release_after(&Err(fault.clone())),
+                Release::Rebuild,
+                "{fault}"
+            );
+        }
+    }
+
+    /// **A query's reply is the pass's outcome as it is**: its serial,
+    /// and a fault posted as the fault. A `prepare` that folded the
+    /// fault into [`IdMap::NOTHING`] would post `Ok(0)` here.
+    #[test]
+    fn a_query_posts_its_fault_as_the_fault_under_its_serial() {
+        let answer = IdChannel::new();
+        let query = IdQuery {
+            cursor_ndc: [0.0; 2],
+            viewport_px: [1.0; 2],
+            serial: 7,
+            answer: answer.clone(),
+        };
+        let fault = ReadbackFault::Wait("the device was lost".to_owned());
+        query.reply(Err(fault.clone()));
+        assert_eq!(
+            answer.latest(),
+            Some(IdReply {
+                serial: 7,
+                read: Err(fault)
+            })
+        );
+        query.reply(Ok(IdMap::NOTHING));
+        assert_eq!(
+            answer.latest(),
+            Some(IdReply {
+                serial: 7,
+                read: Ok(IdMap::NOTHING)
+            }),
+            "an empty picture is an answer, posted as one"
+        );
     }
 
     /// **Both scene passes hand [`corner_count`]'s answer to `draw`,
@@ -2620,7 +2771,9 @@ mod tests {
                     answer: answer.clone(),
                 }))
                 .prepare(&device, &queue, &screen, &mut encoder, &mut resources);
-                let answer = answer.latest().expect("{view}: the id pass ran");
+                let answer = answer
+                    .latest()
+                    .unwrap_or_else(|| panic!("{view}: the id pass ran"));
                 assert_eq!(
                     answer.serial, serial,
                     "{view}: the id pass answered this query"

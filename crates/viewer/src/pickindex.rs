@@ -2567,6 +2567,30 @@ mod tests {
         }
     }
 
+    /// **Each patch-name refusal says the id and what it is**: the
+    /// clear value as nothing, an id the index never assigned as that,
+    /// and an unnamed patch as a drawn one with the naming layer's own
+    /// sentence. The id arms are the words the cursor line reads.
+    #[test]
+    fn each_patch_name_fault_says_its_id_and_what_it_is() {
+        let error = UnnamedEntity {
+            node: RecipeNodeId::new(0, 2),
+            entity: editor_core::names::EntityRef {
+                body: 0,
+                key: editor_core::names::EntityKey::Body,
+            },
+        };
+        assert_eq!(PatchNameFault::Nothing.to_string(), "nothing");
+        assert_eq!(
+            PatchNameFault::Unassigned { id: 9 }.to_string(),
+            "id 9, which this index never assigned"
+        );
+        assert_eq!(
+            PatchNameFault::Unnamed { id: 9, error }.to_string(),
+            format!("id 9, a drawn patch: {error}")
+        );
+    }
+
     /// `count` names, `tag`-distinct, as one part's run.
     fn run(tag: u64, count: u64) -> Vec<Result<StableName, UnnamedEntity>> {
         (0..count).map(|i| Ok(name(tag * 100 + i))).collect()
