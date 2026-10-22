@@ -157,6 +157,38 @@ Measured on main `258dc6c7c2`, with `ec32861499` (just before FLUX's #5442) as t
 - **area pads: stands, first measurement.** The bracket width varies 1.13× under rotation, and the flux width 2.8×. Stays P3.
 - **Class finding, sent to FLUX's log:** #5442 reads a shell about its first quadrature face's start, which costs bodies at the origin. That is evidence for FLUX's `a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first`.
 
+## 2026-10-21 — the dial weighed; `[ev]` PR 5574
+
+Designer pair on `quad2-rational-max-rounds-dial-decision`, on PR 5568's
+head, with the August numbers re-measured (unchanged: torus 1.146e-6,
+half cylinder 1.3035e-6, against 1.024e-6). The labels and blinding byte
+are on `analysis/design-fork/quad-rounds-dial`; fork-log row 187.
+- Round 1 split on whether a width wider than the target refuses.
+- Round 2 converged on a measurement that returns the bracket it reached,
+  at a per-call requested resolution, under one weighted work bound with a
+  stop on the narrowest round.
+- The change rewords `crates/geom-brep/README.md` C12(7) (agent-written,
+  `b54f9af64d`) and adds DESIGN.md `[tolerance.measure]`, so it is `[ev]`
+  PR 5574. If approved, the dial row closes into a unit that also
+  dissolves `quadrature-budget-conflates-its-lanes-and-budgets`,
+  `a-sign-walk-escalates-on-the-last-rounds-in-band-reporting-reading`
+  and QUADTAIL's stop-rule row, and finishes `C3`'s constant family.
+
+Filed off-question:
+- `the-area-pass-never-refines-beside-a-converged-volume` (P2);
+- `a-quadrature-loop-returns-its-last-round-not-its-narrowest` (P2);
+- QUADTAIL's `a-face-runs-rounds-it-never-intersects` (P4).
+
+`PastTarget::refine` reading `LAST_ROUND_EVERY_LANE_RUNS` while
+`sign_walk` reads `rounds_remain` (two readings of one schedule) goes to
+PR 5568's fix pass.
+
+## 2026-10-22 — PR 5568 merged; the face-extent row re-banded
+
+- **PR 5568 merged** (`a6bab62c71`, head `1d644699d4`). It took two base merges, one through FRAME's frame-spelling conflicts in `lily.rs` and `klein.rs`. The `viewer gui montage` render job is red on main's own drift: INTENT's datum retirement renamed `datum-extrude-place-profile-*`, and the old cells were never removed with `git rm`. FRAME's log already carries it as a seam to INTENT. A comment on PR 5568 says so.
+- **`quad-face-extent-trusts-caller-perimeter` P0 → P3, moved to QUADTAIL.** Its own body measures zero production violations; the bad perimeters are test probes. QUAD now has no P0.
+- **Next (sequencing):** `D30` (re-check first: it predates `Knots<T>` and NURBS's span-locator unit) and `an-undecided-ring-at-the-first-converged-round-refuses-instead-of-refining` in parallel. They work different regions of `quad.rs`.
+  - The dial-dependent P1s wait for Ev's ruling on `[ev]` PR 5574, because that PR's stop-rule unit rewrites the same loops: `quad-last-round-margin-has-no-sign-premise`, `quadrature-budget-conflates-its-lanes-and-budgets`, the reporting half of `a-swept-circle-section-loop-…`, and `C3`'s split.
 ## 2026-10-21 — check 7's sign walk merged (PR 5568)
 
 - **Single FULL review** found no MAJOR. Four MINORs went to the fix pass, two of them regressions this PR introduced:
