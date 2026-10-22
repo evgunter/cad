@@ -2114,7 +2114,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     let mirrored = pncad::topo::mirror_body(leaf_a, &across, tol)
         .expect("a leaf mirrors across the plant's plane");
     finished("lily_leaf_a mirrored", mirrored, tol);
-    println!("  wall 5 retired: a leaf mirrored across the plant's plane builds at rest");
+    println!("   wall 5 — RETIRED: a leaf mirrored across the plant's plane builds at rest");
 
     // 6. The lantern's mouth is a hard circle where the sphere zone
     //    meets the conical pucker. A rolling ball would soften it —
