@@ -28,41 +28,35 @@ use topo::{
     Body, FaceContainment, FaceKey, SolidContainment, curved_face_containment, point_in_solid,
 };
 
-/// The sketch frame a bead is revolved in: origin `o`, sketch axes
-/// `u` (radial at azimuth 0) and `v` (the revolve axis), and `w = u × v`.
-struct Pose {
-    o: Point3<f64>,
-    u: Vec3<f64>,
-    v: Vec3<f64>,
-    w: Vec3<f64>,
-}
+/// The sketch frame a bead is revolved in: sketch axes `u` (radial at
+/// azimuth 0) and `v` (the revolve axis), and `w = u × v`.
+struct Pose(RigidMotion<f64>);
 
 impl Pose {
     /// The world frame at `o`, or a frame tilted off every world axis.
     fn new(tilted: bool, o: Point3<f64>) -> Self {
-        let (u, v) = if tilted {
-            (Vec3::new(0.7, 0.3, -0.2), Vec3::new(-0.1, 0.8, 0.55))
+        Self(if tilted {
+            RigidMotion::gram_schmidt(
+                o,
+                Vec3::new(0.7, 0.3, -0.2),
+                Vec3::new(-0.1, 0.8, 0.55),
+                "full_turn_wall",
+                band(),
+            )
+            .unwrap()
         } else {
-            (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
-        };
-        let f = RigidMotion::gram_schmidt(o, u, v, "full_turn_wall", band()).unwrap();
-        Self {
-            o,
-            u: f.u().get(),
-            v: f.v().get(),
-            w: f.w().get(),
-        }
+            RigidMotion::axes_xy(o)
+        })
     }
 
     /// The point at radius `rho` from the axis, height `y`, azimuth `a`.
     fn at(&self, rho: f64, y: f64, a: f64) -> Point3<f64> {
-        self.o + self.u * (rho * a.cos()) + self.v * y + self.w * (rho * a.sin())
+        let f = self.0;
+        f.origin() + f.u().get() * (rho * a.cos()) + f.v().get() * y + f.w().get() * (rho * a.sin())
     }
 
     fn plane(&self) -> SketchPlane<f64> {
-        SketchPlane::from_frame(
-            RigidMotion::gram_schmidt(self.o, self.u, self.v, "full_turn_wall", band()).unwrap(),
-        )
+        SketchPlane::from_frame(self.0)
     }
 }
 

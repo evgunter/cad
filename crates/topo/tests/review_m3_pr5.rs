@@ -209,6 +209,9 @@ fn pocket_orientation_matrix() {
             Ok(BooleanResult::Body(body)) => {
                 assert_eq!(validate_closed(&body.body), Ok(()), "{name}");
                 let m = mass_properties(&body.body, Tol::witness()).unwrap();
+                // Exact on purpose: every coordinate is dyadic and small, so each closed-form
+                // term and their sum are exact in f64 (a zero pad states no rounding; here
+                // there is none).
                 assert_eq!(m.volume, 7.875, "{name}: SILENT WRONG VOLUME");
                 assert_eq!(m.surface_area, 25.0, "{name}: SILENT WRONG AREA");
             }
@@ -290,6 +293,9 @@ fn corner_flush_pillar_union_honest() {
         Ok(BooleanResult::Body(body)) => {
             assert_eq!(validate_closed(&body.body), Ok(()));
             let m = mass_properties(&body.body, Tol::witness()).unwrap();
+            // Exact on purpose: every coordinate is dyadic and small, so each closed-form term
+            // and their sum are exact in f64 (a zero pad states no rounding; here there is
+            // none).
             assert_eq!(m.volume, 8.25, "corner-flush union volume");
         }
         Ok(BooleanResult::Empty) => panic!("cannot be empty"),
