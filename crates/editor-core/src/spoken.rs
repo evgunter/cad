@@ -751,9 +751,18 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf> {
         let (node, port) = self.var(var)?.def().output()?;
         let ports = self.node(node)?.outputs();
-        let port = match ports.len() {
-            0 | 1 => None,
-            _ => Some(ports.get(usize::from(port))?.name),
+        // A construction's space is no part of what it holds: a read of
+        // its one other output is said by the node alone, and a read of
+        // the space by its port.
+        let space = |p: &crate::node::OutputPort| {
+            p.kind == crate::node::PortKind::Of(crate::VarKind::Space)
+        };
+        let at = ports.get(usize::from(port))?;
+        let held = ports.iter().filter(|p| !space(p)).count();
+        let port = if space(at) {
+            (held > 0).then_some(at.name)
+        } else {
+            (held > 1).then_some(at.name)
         };
         Some(OutputOf { node, port })
     }
