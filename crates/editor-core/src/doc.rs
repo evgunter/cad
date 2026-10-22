@@ -1140,31 +1140,6 @@ impl<P> Doc<P> {
         (sa != sb).then_some((sa, sb))
     }
 
-    /// **Every space a read reaches**, in read order, each once: a
-    /// pose read off two bodies reaches both of theirs.
-    fn spaces_reached(&self, var: VarId, out: &mut Vec<VarId>, seen: &mut BTreeSet<VarId>) {
-        if !seen.insert(var) {
-            return;
-        }
-        let Some(held) = self.vars.get(&var) else {
-            return;
-        };
-        let space = match held.def() {
-            VarDef::Pose(def) => {
-                for (_, &read, _, _) in def.reads() {
-                    self.spaces_reached(read, out, seen);
-                }
-                return;
-            }
-            _ => self.space_of(var),
-        };
-        if let Some(space) = space
-            && !out.contains(&space)
-        {
-            out.push(space);
-        }
-    }
-
     /// **The two spaces `id`'s reads lie in, if they lie in two** (D10
     /// `[placement.spaces]`): an operator's operands, a measure's two
     /// sites, a placement's shapes, or any operation's reads; and a
@@ -1178,54 +1153,16 @@ impl<P> Doc<P> {
     where
         P: crate::ProfilePayload,
     {
-        let node = self.nodes.get(&id)?;
-        let reached = |vars: &mut dyn Iterator<Item = VarId>| {
-            let mut out = Vec::new();
-            for var in vars {
-                self.spaces_reached(var, &mut out, &mut BTreeSet::new());
-            }
-            out
-        };
-        let two = |spaces: &[VarId]| match spaces {
-            [a, b, ..] => Some((*a, *b)),
-            _ => None,
-        };
-        match node {
-            Node::Place { target, constraints, shapes } => {
-                let shapes = reached(&mut shapes.iter().map(|shape| shape.read));
-                two(&shapes).or_else(|| self.targets_fault(*target, constraints))
-            }
-            Node::InstantiatePart {
-                target,
-                constraints,
-                ..
-            } => self.targets_fault(*target, constraints),
-            _ => two(&reached(
-                &mut node.operand_rows().into_iter().map(|(_, var)| var),
-            )),
-        }
+        SpaceWalk::new(self).fault(self.nodes.get(&id)?)
     }
 
-    /// The first mate of `bundle` whose `to` reads outside `target`,
-    /// as the two spaces.
-    fn targets_fault(
-        &self,
-        target: VarId,
-        bundle: &[crate::mate::Constraint],
-    ) -> Option<(VarId, VarId)> {
-        bundle.iter().filter_map(crate::mate::Constraint::mate).find_map(|mate| {
-            let mut spaces = Vec::new();
-            match &mate.to {
-                crate::mate::Target::World(_) => spaces.push(VarId::WORLD),
-                crate::mate::Target::Pose(var) => {
-                    self.spaces_reached(*var, &mut spaces, &mut BTreeSet::new());
-                }
-            }
-            spaces
-                .into_iter()
-                .find(|&space| space != target)
-                .map(|space| (target, space))
-        })
+    /// [`Self::space_fault`] of `node` as it would stand in this
+    /// document: what the edit door asks of a node before it writes it.
+    pub(crate) fn space_fault_of(&self, node: &Node<P>) -> Option<(VarId, VarId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        SpaceWalk::new(self).fault(node)
     }
 
     /// **Every node whose reads lie in two spaces**, in id order, with
@@ -1234,9 +1171,10 @@ impl<P> Doc<P> {
     where
         P: crate::ProfilePayload,
     {
-        self.ids()
-            .into_iter()
-            .filter_map(|id| self.space_fault(id).map(|(a, b)| (id, a, b)))
+        let mut walk = SpaceWalk::new(self);
+        self.nodes
+            .iter()
+            .filter_map(|(&id, node)| walk.fault(node).map(|(a, b)| (id, a, b)))
             .collect()
     }
 
@@ -3288,5 +3226,88 @@ impl<'d, P> SpaceWalk<'d, P> {
         };
         self.memo.insert(id, space);
         space
+    }
+
+    /// Every space `var` reaches, into `out`, each once: a pose read
+    /// off two bodies reaches both of theirs.
+    fn reached(&mut self, var: VarId, out: &mut Vec<VarId>, seen: &mut BTreeSet<VarId>) {
+        if !seen.insert(var) {
+            return;
+        }
+        let Some(held) = self.doc.vars.get(&var) else {
+            return;
+        };
+        let space = match held.def() {
+            VarDef::Pose(def) => {
+                let reads: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
+                for read in reads {
+                    self.reached(read, out, seen);
+                }
+                return;
+            }
+            _ => self.var(var),
+        };
+        if let Some(space) = space
+            && !out.contains(&space)
+        {
+            out.push(space);
+        }
+    }
+
+    fn reached_all(&mut self, vars: impl IntoIterator<Item = VarId>) -> Vec<VarId> {
+        let mut out = Vec::new();
+        for var in vars {
+            self.reached(var, &mut out, &mut BTreeSet::new());
+        }
+        out
+    }
+
+    /// [`Doc::space_fault`] of `node`.
+    fn fault(&mut self, node: &Node<P>) -> Option<(VarId, VarId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        let two = |spaces: &[VarId]| match spaces {
+            [a, b, ..] => Some((*a, *b)),
+            _ => None,
+        };
+        match node {
+            Node::Place {
+                target,
+                constraints,
+                shapes,
+            } => {
+                let shapes = self.reached_all(shapes.iter().map(|shape| shape.read));
+                two(&shapes).or_else(|| self.targets_fault(*target, constraints))
+            }
+            Node::InstantiatePart {
+                target,
+                constraints,
+                ..
+            } => self.targets_fault(*target, constraints),
+            _ => {
+                let reads = self.reached_all(node.operand_rows().into_iter().map(|(_, var)| var));
+                two(&reads)
+            }
+        }
+    }
+
+    /// The first mate of `bundle` whose `to` reads outside `target`,
+    /// as the two spaces.
+    fn targets_fault(
+        &mut self,
+        target: VarId,
+        bundle: &[crate::mate::Constraint],
+    ) -> Option<(VarId, VarId)> {
+        for mate in bundle.iter().filter_map(crate::mate::Constraint::mate) {
+            let spaces = match &mate.to {
+                crate::mate::Target::World(_) => vec![VarId::WORLD],
+                crate::mate::Target::Pose(var) => self.reached_all([*var]),
+            };
+            if let Some(space) = spaces.into_iter().find(|&space| space != target) {
+                return Some((target, space));
+            }
+        }
+        None
     }
 }

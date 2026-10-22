@@ -232,40 +232,22 @@ pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> Loop
 
 // --- placing a construction ------------------------------------------
 
-/// **`doc` with `placed`'s mate and values added to `placement`**.
+/// **A placement of `body` into `target` under `placed`**, its whole
+/// bundle written by the insert.
 ///
 /// # Panics
 ///
-/// If a door refuses one.
-fn constrained(
-    doc: ProfileDoc,
-    placement: RecipeNodeId,
-    placed: crate::Placed,
-    tol: geom_core::Tol,
-) -> ProfileDoc {
-    let mut doc = doc;
-    placed
-        .write(placement, |edit| {
-            let applied = crate::apply(&doc, &edit, tol)?;
-            doc = applied.doc;
-            Ok::<_, crate::EditError>(applied.record.minted_constraints)
-        })
-        .expect("a placement's constraint applies");
-    doc
-}
-
-/// **A placement of `body`**, inserted with no constraint yet.
+/// If the insert door refuses it.
 fn place_of(
     doc: ProfileDoc,
     body: crate::Operand,
+    target: crate::Operand,
+    placed: crate::Placed,
     tol: geom_core::Tol,
 ) -> (ProfileDoc, RecipeNodeId) {
     let applied = crate::apply(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::place(vec![crate::BodyRead::plain(body)])),
-            fresh: Vec::new(),
-        },
+        &DocEdit::place(vec![crate::BodyRead::plain(body)], target, placed.bundle()),
         tol,
     )
     .expect("a placement inserts");
@@ -305,8 +287,7 @@ pub fn in_world(
     } else {
         crate::place_at(&doc, &body, at, &opts, tol).expect("the copy places over its geometry")
     };
-    let (doc, placement) = place_of(doc, body, tol);
-    (constrained(doc, placement, placed, tol), placement)
+    place_of(doc, body, crate::Operand::Var(crate::VarId::WORLD), placed, tol)
 }
 
 /// **A copy of `body` placed against `target`'s geometry at `at`** —
@@ -335,8 +316,10 @@ pub fn against(
         tol,
     )
     .expect("the copy places against its target's geometry");
-    let (doc, placement) = place_of(doc, body, tol);
-    (constrained(doc, placement, placed, tol), placement)
+    let space = doc
+        .operand_space(&target)
+        .expect("the target is a body in a space");
+    place_of(doc, body, crate::Operand::Var(space), placed, tol)
 }
 
 /// **The frame at `origin` with axes `u` and `v`** (`v` made orthogonal

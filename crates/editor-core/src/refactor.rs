@@ -374,18 +374,20 @@ fn in_id_order(old: &[Vec<StepId>], minted: &[Vec<StepId>]) -> Vec<Vec<StepId>> 
 /// insert, so a refusal raised while a later node is
 /// carried speaks the carried ones with their labels.
 ///
-/// **A placement is carried bare, and its bundle constraint by
-/// constraint once every node is in** ([`DocEdit::AddConstraint`],
-/// placements in document order, each bundle in its order): a
+/// **A placement is carried under the identity bundle, and its own
+/// bundle written whole once every node is in**
+/// ([`DocEdit::SetConstraints`], placements in document order): a
 /// constraint reads the copy's side through the placement's own output
 /// (`Doc::upstream`'s one exemption), and may read a copy inserted after
-/// its placement, so it waits for both. A constraint changes no output,
+/// its placement, so it waits for both, and every bundle pins its copy,
+/// so the placement is inserted pinned. A constraint changes no output,
 /// so no node inserted meanwhile reads it. Each constraint, authored,
-/// passes `settle` with its
-/// placement's old id, which may rewrite it or drop it (`false`): the
-/// one rewrite inline makes, a mate to the world moved by the
-/// instance's pose, or the part's root taking the instance's bundle in
-/// place of its own.
+/// passes `settle` with its placement's old id, which may rewrite it or
+/// drop it (`false`), a value going with the mate it names: the one
+/// rewrite inline makes, a mate to the world moved by the instance's
+/// pose, or the part's root taking the instance's bundle in place of
+/// its own. A bundle `settle` drops whole leaves the identity bundle,
+/// for the caller to write over.
 ///
 /// A name the maps lack whose missing id belongs to a node still to
 /// come is a FORWARD reference (a blend selection or a frame's face rebound
@@ -412,6 +414,9 @@ fn carry<E>(
     // Each carried operation's outputs, onto the ones its insert
     // minted at the same ports: what a carried read reads.
     let mut out_map = ReadMap::new();
+    // The world's space is every document's: a target reading it reads
+    // the target's.
+    out_map.insert(VarId::WORLD, VarId::WORLD);
     let mut step_map = StepMap::new();
     let mut bundles: Vec<(RecipeNodeId, RecipeNodeId, Vec<crate::mate::Constraint>)> = Vec::new();
     for (k, &old) in olds.iter().enumerate() {
@@ -452,7 +457,12 @@ fn carry<E>(
         let (carried, selects) =
             remap_with_selects(source, &bare, vars, (&node_map, &step_map, &out_map))
                 .map_err(&refuse)?;
-        let (authored, fresh) = vars.author(&carried, &selects);
+        let (mut authored, fresh) = vars.author(&carried, &selects);
+        if let Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } =
+            &mut authored
+        {
+            *constraints = crate::mate::pin::Placed::identity().bundle();
+        }
         let record = target
             .apply_recorded(DocEdit::InsertNode {
                 node: Box::new(authored),
@@ -537,111 +547,96 @@ fn carry<E>(
             bundles.push((old, new, bundle));
         }
     }
-    // The bundles, now every node is in. A value names its mate by the
-    // id the mate's add minted here; a value of a mate `settle` dropped
+    // The bundles, now every node is in, each as one write. A value
+    // names its mate by the mate's id as written, which the write mints
+    // ([`DocEdit::SetConstraints`]); a value of a mate `settle` dropped
     // goes with it.
     for (old, new, bundle) in bundles {
-        // A bundle with no mate is admitted only whole: its values are
-        // carried as one write.
-        if crate::mate::solve::unmated_bundle(&bundle) {
-            if !settle(old, None, None) {
-                continue;
-            }
-            let whole = Node::Place {
-                shapes: Vec::new(),
-                constraints: bundle,
-            };
-            let (carried, selects) =
-                remap_with_selects(source, &whole, vars, (&node_map, &step_map, &out_map))
-                    .map_err(|error| miss(old, error))?;
-            let (authored, fresh) = vars.author(&carried, &selects);
-            let record = target
-                .apply_recorded(DocEdit::AddValues {
-                    placement: new,
-                    values: values_of(authored),
-                    fresh: fresh.fresh.clone(),
-                })
-                .map_err(&edit)?;
-            vars.minted(fresh, &record.fresh);
+        if crate::mate::solve::unmated_bundle(&bundle) && !settle(old, None, None) {
             continue;
         }
-        let mut ids: BTreeMap<crate::node::ConstraintId, crate::node::ConstraintId> =
-            BTreeMap::new();
-        for mut constraint in bundle {
-            // A world read's run of written moves, folded off the
-            // source mate before it is carried (`fold`): its numbers
-            // are not carried, and `settle` moves the read by them.
-            let run = fold
-                .then(|| fold_world_run(source, &mut constraint))
-                .flatten();
-            let one = Node::Place {
-                shapes: Vec::new(),
-                constraints: vec![constraint.clone()],
-            };
-            let (carried, selects) =
-                remap_with_selects(source, &one, vars, (&node_map, &step_map, &out_map))
-                    .map_err(|error| miss(old, error))?;
-            let (authored, fresh) = vars.author(&carried, &selects);
-            let Node::Place {
-                constraints: mut authored,
-                ..
-            } = authored
-            else {
-                unreachable!("a carried placement carrier stays one")
-            };
-            let Some(authored) = authored.pop() else {
-                unreachable!("the carrier holds the one constraint")
-            };
-            let mut mate = match authored.kind {
-                crate::mate::ConstraintKind::Mate(mate) => mate,
-                crate::mate::ConstraintKind::Value(mut value) => {
-                    let Some(&mate) = value.mate.and_then(|mate| ids.get(&mate)) else {
-                        continue;
-                    };
-                    value.mate = Some(mate);
-                    let record = target
-                        .apply_recorded(DocEdit::AddValue {
-                            placement: new,
-                            value: Box::new(value),
-                            fresh: fresh.fresh.clone(),
-                        })
-                        .map_err(&edit)?;
-                    vars.minted(fresh, &record.fresh);
-                    continue;
+        // A world read's run of written moves, folded off each source
+        // mate before it is carried (`fold`): its numbers are not
+        // carried, and `settle` moves the read by them.
+        let mut runs = BTreeMap::new();
+        let bundle: Vec<crate::mate::Constraint> = bundle
+            .into_iter()
+            .map(|mut constraint| {
+                if let Some(run) = fold.then(|| fold_world_run(source, &mut constraint)).flatten() {
+                    runs.insert(constraint.id, run);
                 }
-            };
-            if !settle(old, Some(&mut mate), run.as_ref()) {
-                continue;
+                constraint
+            })
+            .collect();
+        let whole = Node::Place {
+            shapes: Vec::new(),
+            target: VarId::WORLD,
+            constraints: bundle.clone(),
+        };
+        let (carried, selects) =
+            remap_with_selects(source, &whole, vars, (&node_map, &step_map, &out_map))
+                .map_err(|error| miss(old, error))?;
+        let (authored, fresh) = vars.author(&carried, &selects);
+        let Node::Place {
+            constraints: authored,
+            ..
+        } = authored
+        else {
+            unreachable!("a carried placement carrier stays one")
+        };
+        let mut dropped = Vec::new();
+        let mut kept = Vec::new();
+        let mut kept_sources = Vec::new();
+        for (source_constraint, mut constraint) in bundle.iter().zip(authored) {
+            match &mut constraint.kind {
+                crate::mate::ConstraintKind::Mate(mate) => {
+                    if !settle(old, Some(mate), runs.get(&constraint.id)) {
+                        dropped.push(constraint.id);
+                        continue;
+                    }
+                    kept_sources.push(source_constraint);
+                }
+                crate::mate::ConstraintKind::Value(value) => {
+                    if value.mate.is_some_and(|mate| dropped.contains(&mate)) {
+                        continue;
+                    }
+                }
             }
-            let record = target
-                .apply_recorded(DocEdit::AddConstraint {
-                    placement: new,
-                    mate: Box::new(mate),
-                    fresh: fresh.fresh.clone(),
-                })
-                .map_err(&edit)?;
-            vars.minted(fresh, &record.fresh);
-            let minted = record.minted_constraints.first().and_then(|id| {
-                ids.insert(constraint.id, *id);
-                target
-                    .doc()
-                    .node(new)
-                    .and_then(crate::mate::solve::bundle_of)
-                    .and_then(|bundle| bundle.iter().find(|c| c.id == *id))
-                    .and_then(|c| c.mate().cloned())
-            });
-            let Some(minted) = minted else {
-                unreachable!("an accepted constraint is in its bundle")
+            kept.push(constraint);
+        }
+        if kept.is_empty() {
+            continue;
+        }
+        let record = target
+            .apply_recorded(DocEdit::SetConstraints {
+                placement: new,
+                constraints: kept,
+                fresh: fresh.fresh.clone(),
+            })
+            .map_err(&edit)?;
+        vars.minted(fresh, &record.fresh);
+        let minted: Vec<crate::mate::Mate> = target
+            .doc()
+            .node(new)
+            .and_then(crate::mate::solve::bundle_of)
+            .map(|bundle| {
+                bundle
+                    .iter()
+                    .filter_map(crate::mate::Constraint::mate)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default();
+        let reads = |mate: &crate::mate::Mate| {
+            std::iter::once(mate.on)
+                .chain(mate.to.pose().copied())
+                .collect::<Vec<_>>()
+        };
+        for (source_constraint, minted) in kept_sources.into_iter().zip(&minted) {
+            let Some(source_mate) = source_constraint.mate() else {
+                unreachable!("only a mate is kept as one")
             };
-            let Some(source_mate) = constraint.mate() else {
-                unreachable!("a value continued above")
-            };
-            let reads = |mate: &crate::mate::Mate| {
-                std::iter::once(mate.on)
-                    .chain(mate.to.pose().copied())
-                    .collect::<Vec<_>>()
-            };
-            name_selections(source, target, vars, reads(source_mate), reads(&minted))
+            name_selections(source, target, vars, reads(source_mate), reads(minted))
                 .map_err(&edit)?;
         }
     }
@@ -662,23 +657,6 @@ fn places_in_the_world(bundle: &[crate::mate::Constraint]) -> bool {
         None => crate::mate::solve::unmated_bundle(bundle),
         Some(_) => mates.all(|mate| matches!(mate.to, crate::mate::Target::World(_))),
     }
-}
-
-/// The values an authored carrier of a bundle with no mate holds, in
-/// order.
-fn values_of(carrier: AuthoredNode) -> Vec<crate::mate::Value<Formula>> {
-    let Node::Place { constraints, .. } = carrier else {
-        unreachable!("a placement carrier stays one")
-    };
-    constraints
-        .into_iter()
-        .map(|c| match c.kind {
-            crate::mate::ConstraintKind::Value(value) => value,
-            crate::mate::ConstraintKind::Mate(_) => {
-                unreachable!("a bundle with no mate holds values alone")
-            }
-        })
-        .collect()
 }
 
 /// **`node` remapped for the target, with each selection it reads
@@ -1879,6 +1857,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::MetaNonFinite { .. }
             | EditError::MetaNotSet { .. }
             | EditError::WorldIsUndeletable { .. }
+            | EditError::SpaceMismatch { .. }
             | EditError::ConstraintOnNonPlacement { .. }
             | EditError::UnknownConstraint { .. }
             | EditError::MateNamedByValue { .. }
@@ -2295,17 +2274,20 @@ fn remap_node(
         },
         Node::Place {
             shapes,
+            target,
             constraints,
         } => Node::Place {
             shapes: (0u32..)
                 .zip(shapes)
                 .map(|(i, shape)| br(crate::OperandSlot::Shape(i), shape))
                 .collect::<Result<_, _>>()?,
+            target: rd(crate::OperandSlot::Space, *target)?,
             constraints: bundle(constraints)?,
         },
         // The world is every document's own, never carried; a
         // constraint reading it names no id.
         Node::World => Node::World,
+        Node::Space => Node::Space,
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: rd(crate::OperandSlot::Input, *input)?,
             count: *count,
@@ -2327,10 +2309,12 @@ fn remap_node(
         Node::InstantiatePart {
             doc_ref,
             interface,
+            target,
             constraints,
         } => Node::InstantiatePart {
             doc_ref: *doc_ref,
             interface: interface.clone(),
+            target: rd(crate::OperandSlot::Space, *target)?,
             constraints: bundle(constraints)?,
         },
         Node::Measure { primitive } => {
@@ -2794,15 +2778,13 @@ pub fn split(
         }
     }
     // Which copies are the world's: a part delivers only its world
-    // (A10), so a cut copy in a loose space crosses nowhere.
+    // (A10), so a cut copy in another space crosses nowhere.
     let opts = crate::eval::EvalOptions {
         resolver: resolver.cloned(),
         ..crate::eval::EvalOptions::default()
     };
-    // A placement's space is the evaluation's: its value's where it
-    // built, its recipe's where it did not (D10: kinds are decided from
-    // the recipe, never from a value), so a world mate the solve cannot
-    // reach still places its copy in the world.
+    // A placement's space is its target, read off the recipe (D10:
+    // spaces are decided from the recipe, never from a value).
     let evaluation =
         crate::eval::evaluate::<f64>(doc, None, &crate::CancelToken::new(), &opts, tol);
     let poses = crate::mate::SolvedPoses::of(doc, &evaluation);
@@ -2810,7 +2792,7 @@ pub fn split(
         doc.node(placement)
             .and_then(crate::mate::solve::bundle_of)
             .is_some()
-            && evaluation.space(placement) == crate::mate::Space::World
+            && doc.node_space(placement) == Some(VarId::WORLD)
     };
     // Whether a copy stands where its body did: its bundle is the
     // identity bundle, read off the recipe.
@@ -3515,12 +3497,10 @@ pub fn split(
         .insert(Node::instantiate_part_with(
             doc_ref,
             InterfaceRecord { crossings },
+            crate::Operand::Var(VarId::WORLD),
+            crate::mate::stand().bundle(),
         ))
         .map_err(rem_refused)?;
-    rem_apply(
-        &mut remainder,
-        DocEdit::unmated(instance, crate::mate::stand().values),
-    )?;
     let copies = remainder
         .doc()
         .output(instance, 0)
@@ -3866,6 +3846,7 @@ pub fn inline(
     let Node::InstantiatePart {
         doc_ref,
         interface,
+        target: _,
         constraints: bundle,
     } = node
     else {
@@ -3910,23 +3891,24 @@ pub fn inline(
     // Whether a part copy stands where its body did: its bundle is the
     // identity bundle, read off the recipe.
     let places_at_identity = |placement: RecipeNodeId| part_poses.at_identity(placement);
+    let in_world = |p: RecipeNodeId| part.node_space(p) == Some(VarId::WORLD);
     let part_world: Vec<RecipeNodeId> = part
         .placements()
         .into_iter()
-        .filter(|&p| part_poses.space(p) == Some(crate::mate::Space::World))
+        .filter(|&p| in_world(p))
         .collect();
-    // A placement whose mates read a construction's pose is in that
-    // construction's space, which a move of the part's world leaves
-    // where it is.
-    let in_loose_space =
-        |p: RecipeNodeId| matches!(part_poses.space(p), Some(crate::mate::Space::Loose { .. }));
+    // A placement into the world whose values chart on the world's axes
+    // or whose mates read the world: what a move of the part's world
+    // moves.
     let reads_world = |p: RecipeNodeId| {
-        part.node(p)
-            .and_then(crate::mate::solve::bundle_of)
-            .is_some_and(|bundle| {
-                crate::mate::solve::unmated_bundle(bundle)
-                    || bundle.iter().any(crate::mate::Constraint::reads_world)
-            })
+        in_world(p)
+            && part
+                .node(p)
+                .and_then(crate::mate::solve::bundle_of)
+                .is_some_and(|bundle| {
+                    crate::mate::solve::unmated_bundle(bundle)
+                        || bundle.iter().any(crate::mate::Constraint::reads_world)
+                })
     };
     // Where the part's placements land (A4). A pin's numbers are the
     // motion it solved to: one that reads a variable would lose it once
@@ -3949,7 +3931,7 @@ pub fn inline(
             let host = crate::mate::solve_document(doc, &opts, tol);
             if host.at_identity(instance) {
                 Landing::Pinned(None)
-            } else if host.space(instance) == Some(crate::mate::Space::World)
+            } else if host.space(instance) == Some(VarId::WORLD)
                 && let Some(motion) = host.relative_map(instance)
             {
                 Landing::Pinned(Some(motion))
@@ -4041,10 +4023,10 @@ pub fn inline(
                 }
             }
         }
-        // The part's world moves and its constructions, each the root of
-        // its own space, do not: an operation reading a world copy would
-        // read it moved against them. A copy in a construction's space
-        // is not moved, so reading it is not refused.
+        // The part's world moves and its constructions, each in a space
+        // of its own, do not: an operation reading a world copy would
+        // read it moved against them. A copy in another space is not
+        // moved, so reading it is not refused.
         for id in part.ids() {
             let Some(node) = part.node(id) else { continue };
             if matches!(
@@ -4062,7 +4044,7 @@ pub fn inline(
                 matches!(
                     part.node(input),
                     Some(Node::Place { .. } | Node::InstantiatePart { .. })
-                ) && !in_loose_space(input)
+                ) && in_world(input)
             }) {
                 return Err(InlineError::ConstructionReadsCopy {
                     node: part.spoken(id),
@@ -4327,9 +4309,12 @@ pub fn inline(
             refusal,
         })?;
         current
-            .apply_recorded(DocEdit::AddConstraint {
+            .apply_recorded(DocEdit::SetConstraints {
                 placement,
-                mate: Box::new(mate),
+                constraints: vec![crate::mate::Constraint::of_mate(
+                    crate::node::ConstraintId::placeholder(1),
+                    mate,
+                )],
                 fresh: Vec::new(),
             })
             .map_err(|error| InlineError::Edit {
@@ -4535,89 +4520,47 @@ pub fn inline(
             unreachable!("the root is carried")
         };
         let host_vars = VarCarry::new(doc);
-        let mut ids: BTreeMap<crate::node::ConstraintId, crate::node::ConstraintId> =
-            BTreeMap::new();
-        let unmated = crate::mate::solve::unmated_bundle(bundle);
-        if unmated {
-            let whole = Node::Place {
-                shapes: Vec::new(),
-                constraints: bundle.clone(),
-            };
-            let (authored, fresh) = host_vars.author(&whole, &BTreeMap::new());
-            current
-                .apply_recorded(DocEdit::AddValues {
-                    placement: carried_root,
-                    values: values_of(authored),
-                    fresh: fresh.fresh,
-                })
-                .map_err(refused)?;
-        }
-        // A bundle with a mate is carried one constraint at a time; one
-        // with no mate went whole above.
-        let one_by_one = if unmated { &bundle[..0] } else { &bundle[..] };
-        for constraint in one_by_one {
-            let one = Node::Place {
-                shapes: Vec::new(),
-                constraints: vec![constraint.clone()],
-            };
-            // A side on the instance's copies is reselected on the
-            // root's; an anonymous selection of another copy is authored
-            // afresh, since it has one reader and the instance still
-            // reads it until it goes; a named one is read by its name.
-            let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
-            let sides = constraint
-                .mate()
-                .map(|mate| std::iter::once(mate.on).chain(mate.to.pose().copied()))
-                .into_iter()
-                .flatten();
-            for side in sides {
-                if doc.var_name(side).is_some() || pose_leaves(doc, side).is_none() {
-                    continue;
-                }
-                let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, InlineError> {
-                    match doc.selection(leaf) {
-                        Some(select) if select.body == copies => {
-                            reselect(current.doc(), leaf).map(Some)
-                        }
-                        _ => Ok(None),
-                    }
-                };
-                selects.insert(side, rewritten_pose(doc, side, &mut leaf)?);
+        // A side on the instance's copies is reselected on the root's;
+        // an anonymous selection of another copy is authored afresh,
+        // since it has one reader and the instance still reads it until
+        // it goes; a named one is read by its name.
+        let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
+        let sides = bundle
+            .iter()
+            .filter_map(crate::mate::Constraint::mate)
+            .flat_map(|mate| std::iter::once(mate.on).chain(mate.to.pose().copied()));
+        for side in sides {
+            if doc.var_name(side).is_some() || pose_leaves(doc, side).is_none() {
+                continue;
             }
-            let (authored, fresh) = host_vars.author(&one, &selects);
-            let Node::Place {
-                constraints: mut authored,
-                ..
-            } = authored
-            else {
-                unreachable!("a placement carrier stays one")
-            };
-            let Some(authored) = authored.pop() else {
-                unreachable!("the carrier holds the one constraint")
-            };
-            let edit = match authored.kind {
-                crate::mate::ConstraintKind::Mate(mate) => DocEdit::AddConstraint {
-                    placement: carried_root,
-                    mate: Box::new(mate),
-                    fresh: fresh.fresh,
-                },
-                crate::mate::ConstraintKind::Value(mut value) => {
-                    let Some(&mate) = value.mate.and_then(|mate| ids.get(&mate)) else {
-                        unreachable!("a value's mate is in its bundle, ahead of it or not")
-                    };
-                    value.mate = Some(mate);
-                    DocEdit::AddValue {
-                        placement: carried_root,
-                        value: Box::new(value),
-                        fresh: fresh.fresh,
+            let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, InlineError> {
+                match doc.selection(leaf) {
+                    Some(select) if select.body == copies => {
+                        reselect(current.doc(), leaf).map(Some)
                     }
+                    _ => Ok(None),
                 }
             };
-            let record = current.apply_recorded(edit).map_err(refused)?;
-            if let Some(&id) = record.minted_constraints.first() {
-                ids.insert(constraint.id, id);
-            }
+            selects.insert(side, rewritten_pose(doc, side, &mut leaf)?);
         }
+        // The bundle as one write, each value naming its mate by the
+        // instance's id for it, which the write mints afresh.
+        let whole = Node::Place {
+            shapes: Vec::new(),
+            target: VarId::WORLD,
+            constraints: bundle.clone(),
+        };
+        let (authored, fresh) = host_vars.author(&whole, &selects);
+        let Node::Place { constraints, .. } = authored else {
+            unreachable!("a placement carrier stays one")
+        };
+        current
+            .apply_recorded(DocEdit::SetConstraints {
+                placement: carried_root,
+                constraints,
+                fresh: fresh.fresh,
+            })
+            .map_err(refused)?;
     }
     {
         // Once per selection, as split authors them: a named one keeps

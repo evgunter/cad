@@ -1344,7 +1344,18 @@ fn lower_read<P: crate::ProfilePayload>(
                     input: SpokenNode::absent(*id),
                 });
             }
-            match doc.outputs(*id).as_slice() {
+            // A space seat reads a node's space (the world's, a
+            // `new_space()`'s or a construction's own); any other seat
+            // reads past it, so a construction read whole is its body.
+            let space_seat = expected == crate::SlotKind::Is(crate::VarKind::Space);
+            let outputs: Vec<VarId> = doc
+                .outputs(*id)
+                .into_iter()
+                .filter(|var| {
+                    (doc.var(*var).map(Var::kind) == Some(crate::VarKind::Space)) == space_seat
+                })
+                .collect();
+            match outputs.as_slice() {
                 [] => {
                     return Err(EditError::DefinesNothing {
                         input: doc.spoken(*id),
@@ -2976,6 +2987,20 @@ pub enum EditError {
         /// The world.
         node: SpokenNode,
     },
+    /// **A node whose reads lie in two spaces** (D10
+    /// `[placement.spaces]`): an operator's operands, a measure's two
+    /// sites, a placement's shapes, or a mate's `to` outside its
+    /// placement's target. Decided from the recipe, before any
+    /// evaluation ([`crate::Doc::space_fault`]); only a placement
+    /// relates two spaces.
+    SpaceMismatch {
+        /// The node the edit would write.
+        node: SpokenNode,
+        /// One space it reads.
+        a: crate::spoken::SpokenSpace,
+        /// Another.
+        b: crate::spoken::SpokenSpace,
+    },
     /// A constraint edit aimed at a node that is no placement (D10:
     /// only a `Place` and an instance hold a bundle).
     ConstraintOnNonPlacement {
@@ -3392,6 +3417,7 @@ impl EditError {
             | Self::WitnessOnNonSketch { node }
             | Self::DuplicateWitnessEntry { node }
             | Self::WorldIsUndeletable { node }
+            | Self::SpaceMismatch { node, a: _, b: _ }
             | Self::ConstraintOnNonPlacement { node }
             | Self::UnknownConstraint {
                 node,
@@ -4415,6 +4441,16 @@ impl EditError {
                     format_args!("relate copies to the world; it is not deleted or written"),
                 )
             }
+            Self::SpaceMismatch { node, a, b } => {
+                write!(
+                    f,
+                    "{node} would read {a} and {b}, and only a placement relates two spaces"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("place one body into the other's space, or read only one space"),
+                )
+            }
             Self::ConstraintOnNonPlacement { node } => {
                 write!(f, "{node} is no placement, so it holds no constraint")?;
                 tail.recourse(
@@ -4695,6 +4731,21 @@ pub enum Maintenance {
         /// entered.
         var: SpokenVar,
     },
+    /// **A node this edit left reading two spaces** (D10
+    /// `[placement.spaces]`): `node` survives, and the edit — a
+    /// re-target of a placement, or a re-point that moved a body into
+    /// another space — left its reads in two. It is admitted, as
+    /// deleting a variable is, and never re-pointed: evaluation refuses
+    /// `node` as [`crate::NodeErrorKind::SpaceMismatch`] until an edit
+    /// puts its reads back in one space.
+    StrandedSpace {
+        /// The surviving reader.
+        node: SpokenNode,
+        /// One space it reads.
+        a: crate::spoken::SpokenSpace,
+        /// Another.
+        b: crate::spoken::SpokenSpace,
+    },
     /// **An anonymous variable this edit removed** (VR7): the edit
     /// detached the one expression reading it, and a variable with no
     /// name goes with its reader. The mint log keeps its id, so it is
@@ -4835,6 +4886,11 @@ impl core::fmt::Display for Maintenance {
                 name,
                 body,
                 took.said(name)
+            ),
+            Self::StrandedSpace { node, a, b } => write!(
+                f,
+                "{node} reads {a} and {b}, which this edit left in two spaces, so {node} \
+                 refuses until its reads are in one space"
             ),
             Self::AnonymousVarRemoved { var, distribution } => {
                 write!(
@@ -5268,6 +5324,7 @@ impl MaintenanceNet {
                         })
                     })
                 }
+                Maintenance::StrandedSpace { node, .. } => end.space_fault(node.id()).is_some(),
                 Maintenance::AnonymousVarRemoved { .. } => true,
             })
             .collect()
@@ -5921,6 +5978,15 @@ fn check_written_node<P: crate::ProfilePayload>(
         return Err(EditError::WorldIsUndeletable { node: spoken() });
     }
     check_node_slots(new, doc, id, node)?;
+    // D10 `[placement.spaces]`: the node's own reads lie in one space,
+    // decided from the recipe.
+    if let Some((a, b)) = new.space_fault_of(node) {
+        return Err(EditError::SpaceMismatch {
+            node: spoken(),
+            a: new.spoken_space(a),
+            b: new.spoken_space(b),
+        });
+    }
     // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
     // program resolves + replays + validates under the CURRENT param
     // env, refusing typed here rather than at first evaluation.
@@ -6569,6 +6635,20 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             var: doc.spoken_var(var),
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
+    }
+    // D10 `[placement.spaces]`, on EVERY arm: a node this edit did not
+    // write that it left reading two spaces is reported, never refused
+    // (the node an edit writes is refused at its own door).
+    let before: std::collections::BTreeSet<RecipeNodeId> =
+        doc.space_faults().into_iter().map(|(id, _, _)| id).collect();
+    for (node, a, b) in new.space_faults() {
+        if !before.contains(&node) {
+            reported.push(Maintenance::StrandedSpace {
+                node: new.spoken(node),
+                a: new.spoken_space(a),
+                b: new.spoken_space(b),
+            });
+        }
     }
     // VR2, on EVERY arm: an anonymous variable has one reader, so the
     // edit that gave it a second, or cleared the name two share, refuses
