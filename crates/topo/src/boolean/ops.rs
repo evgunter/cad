@@ -2279,17 +2279,8 @@ pub(crate) fn volume_backstop<T: Decide>(
     // the reporting enclosures leave open can be refined past it.
     let measure = |body, operand| {
         let faces = crate::query::all_faces(body);
-        let (refused, certificate) = crate::props::sign_walk(
-            body,
-            &faces,
-            band,
-            tol,
-            Some(lane),
-            Some(lane),
-            |_| None,
-            |refused| refused,
-        )
-        .map_err(|source| props_refusal(operand, source))?;
+        let (refused, certificate) = crate::props::target_walk(body, &faces, band, tol, Some(lane))
+            .map_err(|source| props_refusal(operand, source))?;
         match refused {
             Some(source) => Err(props_refusal(operand, source)),
             None => Ok(certificate.past_target()),

@@ -199,15 +199,15 @@ pub(super) const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 #[derive(Clone, Copy, Debug)]
 pub struct RoundWindow {
     /// The first round to run. `0` starts the schedule; a higher value
-    /// RESUMES it, and the after-round-0 budget exit
-    /// ([`last_round_refuses`]) is then not re-asked — the run that
-    /// reached round 0 already asked it, and asking twice would meter
-    /// one face's one decision twice.
+    /// RESUMES it, and the budget exit ([`budget_exit`]) is then not
+    /// re-asked — the run that reached round 0 already asked it, and
+    /// asking twice would meter one face's one decision twice.
     pub first: usize,
     /// The last round to run. A value at or past the lane's own last
     /// round asks for the whole schedule, so the lane ends in its
-    /// convergence or in its typed budget refusal exactly as it always
-    /// did; a lower one stops with the enclosure that round reached.
+    /// convergence or in its typed budget refusal; a lower one stops
+    /// with the enclosure that round reached. The budget exit ends any
+    /// window at round 0 ([`OpenEnd::Unreachable`]).
     pub last: usize,
 }
 
@@ -250,13 +250,44 @@ pub enum RoundOutcome {
         bounds: FaceCutBounds,
         /// The round `bounds` was taken at.
         round: usize,
-        /// The refusal a caller wanting a NUMBER from this face earns,
-        /// when the schedule has nothing further to offer it: the
-        /// budget refusal an uninterrupted run would have returned.
-        /// `None` means the window simply ended early and rounds
-        /// `round + 1 ..` remain.
-        refusal: Option<PropsError>,
+        /// Why the window ended there.
+        end: OpenEnd,
     },
+}
+
+/// **Why an [`RoundOutcome::Open`] window ended** — whether rounds
+/// remain, and the refusal a caller wanting a NUMBER from the face
+/// earns.
+#[derive(Clone, Debug)]
+pub enum OpenEnd {
+    /// The window's own last round: rounds remain, and the schedule may
+    /// still meet the reporting target.
+    Window,
+    /// The budget exit ([`budget_exit`]): no round meets the reporting
+    /// target, and rounds remain. The refusal answers a caller wanting
+    /// the number; a caller deciding a sign may still resume, since each
+    /// later round's enclosure is narrower.
+    Unreachable(PropsError),
+    /// The schedule has nothing further to offer: its last round, or a
+    /// lane with no rounds to refine.
+    Exhausted(PropsError),
+}
+
+impl OpenEnd {
+    /// The refusal a caller wanting the number earns, if any.
+    #[must_use]
+    pub fn refusal(&self) -> Option<&PropsError> {
+        match self {
+            Self::Window => None,
+            Self::Unreachable(refusal) | Self::Exhausted(refusal) => Some(refusal),
+        }
+    }
+
+    /// Whether a later round exists to resume at.
+    #[must_use]
+    pub fn rounds_remain(&self) -> bool {
+        !matches!(self, Self::Exhausted(_))
+    }
 }
 
 impl RoundOutcome {
@@ -267,14 +298,10 @@ impl RoundOutcome {
     pub fn map_bounds(self, f: impl FnOnce(FaceCutBounds) -> FaceCutBounds) -> Self {
         match self {
             Self::Converged(bounds) => Self::Converged(f(bounds)),
-            Self::Open {
-                bounds,
-                round,
-                refusal,
-            } => Self::Open {
+            Self::Open { bounds, round, end } => Self::Open {
                 bounds: f(bounds),
                 round,
-                refusal,
+                end,
             },
         }
     }
@@ -286,7 +313,7 @@ impl RoundOutcome {
     /// converged or with a refusal in hand — every lane's last round
     /// falls through to its own [`PropsError::QuadratureBudget`], and
     /// the exact per-span arm hands its enclosure back beside one — so
-    /// the `None` arm is reachable only from a window a caller
+    /// [`OpenEnd::Window`] is reachable only from a window a caller
     /// deliberately cut short, which is a caller that wanted the
     /// enclosure rather than the number.
     ///
@@ -297,12 +324,12 @@ impl RoundOutcome {
         match self {
             Self::Converged(bounds) => Ok(bounds),
             Self::Open {
-                refusal: Some(refusal),
+                end: OpenEnd::Unreachable(refusal) | OpenEnd::Exhausted(refusal),
                 ..
             } => Err(refusal),
             Self::Open {
                 round,
-                refusal: None,
+                end: OpenEnd::Window,
                 ..
             } => unreachable!(
                 "a target-level reading of a window cut short at round {round}: the \
@@ -826,9 +853,9 @@ fn displacement_len(width: f64, area: Interval) -> Result<f64, PropsError> {
 ///
 /// One home because the ladder is one decision written three times
 /// otherwise, and the three lanes differ in it only by their own
-/// last-round constant. What each lane keeps is what is genuinely
-/// its own: the after-round-0 budget exit, which reads a bound only
-/// that lane can compute.
+/// last-round constant. What each lane keeps is the bound it hands the
+/// budget exit ([`budget_exit`]), which only that lane can compute; the
+/// exit itself is shared too.
 pub(super) fn round_exit(
     round: usize,
     max_rounds: usize,
@@ -840,7 +867,7 @@ pub(super) fn round_exit(
         return Some(RoundOutcome::Open {
             bounds,
             round,
-            refusal: Some(PropsError::QuadratureBudget {
+            end: OpenEnd::Exhausted(PropsError::QuadratureBudget {
                 width_len,
                 target_len,
                 rounds: max_rounds + 1,
@@ -850,7 +877,7 @@ pub(super) fn round_exit(
     (round == window.last).then_some(RoundOutcome::Open {
         bounds,
         round,
-        refusal: None,
+        end: OpenEnd::Window,
     })
 }
 
@@ -1431,9 +1458,9 @@ const QUAD2_INIT_PIECES: usize = 8;
 /// per axis per round: ≤ `8·2⁶ = 512` per axis). Fewer rounds than the
 /// 1-D lane because cells grow quadratically; the rule's error is
 /// O(h²), so real patches converge in the first rounds or not at all.
-/// A face the last round provably cannot certify is refused after
-/// round 0 ([`last_round_refuses`]), so the count bounds the rounds
-/// a face PAYS for, not the rounds every refusal runs.
+/// A face the last round provably cannot certify is refused to a
+/// number-wanting caller after round 0 ([`budget_exit`]); a caller
+/// deciding a sign may still run its remaining rounds.
 const QUAD2_MAX_ROUNDS: usize = 6;
 /// Blocks per axis for the RATIONAL lane's Taylor-remainder hulls
 /// (fixed, D9 — never data-dependent). `QUAD2_INIT_PIECES` is a
@@ -1445,9 +1472,9 @@ const QUAD2_HULL_BLOCKS: usize = 8;
 /// integral composite because the rational lane has no exact per-span
 /// shortcut to fall back on — the midpoint rule's O(h²) IS the whole
 /// convergence story there ([`rational_patch_face`]). As for
-/// [`QUAD2_MAX_ROUNDS`], the count bounds the rounds a face PAYS for:
-/// a face the last round provably cannot certify is refused after
-/// round 0 ([`last_round_refuses`]).
+/// [`QUAD2_MAX_ROUNDS`], a face the last round provably cannot
+/// certify is refused to a number-wanting caller after round 0
+/// ([`budget_exit`]).
 const QUAD2_RATIONAL_MAX_ROUNDS: usize = 7;
 
 /// **The last round every lane's schedule reaches** — the round a
@@ -3321,6 +3348,47 @@ fn last_round_refuses<T: Decide>(last_round_len: f64, target_len: f64, band: Ban
     )
 }
 
+/// **The budget exit, one home for the three patch lanes**: after
+/// round 0, and only then, [`last_round_refuses`] on the lane's own
+/// lower bound for its last round's width, `last_round_width_lo`. A
+/// refusal ends the window as [`OpenEnd::Unreachable`]; its payload is
+/// the bound — the last round's width to within the midpoint sum's
+/// width, never above it — and it paid for one round.
+///
+/// # Errors
+///
+/// [`displacement_len`]'s, on round 0's area lever.
+fn budget_exit<T: Decide>(
+    round: usize,
+    schedule: Schedule,
+    last_round_width_lo: f64,
+    bounds: FaceCutBounds,
+    target_len: f64,
+    band: Band,
+) -> Result<Option<RoundOutcome>, PropsError> {
+    if round != 0 {
+        return Ok(None);
+    }
+    let last_round_len = displacement_len(last_round_width_lo, bounds.area)?;
+    if !last_round_refuses::<T>(last_round_len, target_len, band) {
+        return Ok(None);
+    }
+    let refusal = PropsError::QuadratureBudget {
+        width_len: last_round_len,
+        target_len,
+        rounds: 1,
+    };
+    Ok(Some(RoundOutcome::Open {
+        bounds,
+        round,
+        end: if round < schedule.last() {
+            OpenEnd::Unreachable(refusal)
+        } else {
+            OpenEnd::Exhausted(refusal)
+        },
+    }))
+}
+
 /// **Certified RATIONAL patch contributions** (M8-3) — the same two
 /// numbers [`nurbs_patch_face`] certifies, for a patch whose weights
 /// are not all 1.
@@ -3814,27 +3882,19 @@ fn rational_patch_face<T: Decide>(
         }
         // This round did not certify. The last-round bound is loop-
         // invariant, so it is asked ONCE, after round 0
-        // ([`last_round_refuses`]): after, not before, so that every
-        // refusal round 0 raises (a refused enclosure, a degenerate lever, an
-        // in-band escalation) is raised first, in the order it always
-        // was, and so the ledger meters the bound's margin once per
-        // face. A refusal here is the schedule's own ending, reached
-        // without running it; its payload is the bound — the last
-        // round's width to within the midpoint sum's width, never
-        // above it — and it paid for one round.
-        if round == 0 {
-            let last_round_len = displacement_len(last_round_width_lo, area)?;
-            if last_round_refuses::<T>(last_round_len, target_len, band) {
-                return Ok(RoundOutcome::Open {
-                    bounds: FaceCutBounds { flux, area },
-                    round,
-                    refusal: Some(PropsError::QuadratureBudget {
-                        width_len: last_round_len,
-                        target_len,
-                        rounds: 1,
-                    }),
-                });
-            }
+        // ([`budget_exit`]): after, not before, so that every refusal
+        // round 0 raises (a refused enclosure, a degenerate lever, an
+        // in-band escalation) is raised first, and so the ledger
+        // meters the bound's margin once per face.
+        if let Some(out) = budget_exit::<T>(
+            round,
+            schedule,
+            last_round_width_lo,
+            FaceCutBounds { flux, area },
+            target_len,
+            band,
+        )? {
+            return Ok(out);
         }
         debug_assert!(
             round < schedule.last() || pieces == last_pieces,
@@ -4150,7 +4210,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         return Ok(RoundOutcome::Open {
             bounds: FaceCutBounds { flux, area },
             round: 0,
-            refusal: Some(PropsError::QuadratureBudget {
+            end: OpenEnd::Exhausted(PropsError::QuadratureBudget {
                 width_len,
                 target_len,
                 rounds: 0,
@@ -4230,21 +4290,15 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
             return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
-        // The budget exit, as in the rational lane: asked once, after
-        // round 0 ([`last_round_refuses`]).
-        if round == 0 {
-            let last_round_len = displacement_len(last_round_width_lo, area)?;
-            if last_round_refuses::<T>(last_round_len, target_len, band) {
-                return Ok(RoundOutcome::Open {
-                    bounds: FaceCutBounds { flux, area },
-                    round,
-                    refusal: Some(PropsError::QuadratureBudget {
-                        width_len: last_round_len,
-                        target_len,
-                        rounds: 1,
-                    }),
-                });
-            }
+        if let Some(out) = budget_exit::<T>(
+            round,
+            schedule,
+            last_round_width_lo,
+            FaceCutBounds { flux, area },
+            target_len,
+            band,
+        )? {
+            return Ok(out);
         }
         debug_assert!(
             round < schedule.last() || pieces == last_pieces,
@@ -5474,22 +5528,17 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             }
             return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
-        if round == 0 {
-            // The pads no refinement removes — the endpoint brackets'
-            // and the envelope's — are a floor on every round's width.
-            let floor = 2.0 * (vertex_pad * sup_f + boundary_defect * p_bound);
-            let last_round_len = displacement_len(floor, area)?;
-            if last_round_refuses::<T>(last_round_len, target_len, band) {
-                return Ok(RoundOutcome::Open {
-                    bounds: FaceCutBounds { flux, area },
-                    round,
-                    refusal: Some(PropsError::QuadratureBudget {
-                        width_len: last_round_len,
-                        target_len,
-                        rounds: 1,
-                    }),
-                });
-            }
+        // The pads no refinement removes — the endpoint brackets' and
+        // the envelope's — are a floor on every round's width.
+        if let Some(out) = budget_exit::<T>(
+            round,
+            schedule,
+            2.0 * (vertex_pad * sup_f + boundary_defect * p_bound),
+            FaceCutBounds { flux, area },
+            target_len,
+            band,
+        )? {
+            return Ok(out);
         }
         if let Some(out) = round_exit(
             round,
@@ -6353,7 +6402,13 @@ mod tests {
                 );
                 if round < QUAD_MAX_ROUNDS {
                     assert!(
-                        matches!(got, Ok(RoundOutcome::Open { refusal: None, .. })),
+                        matches!(
+                            got,
+                            Ok(RoundOutcome::Open {
+                                end: OpenEnd::Window,
+                                ..
+                            })
+                        ),
                         "round {round}, {what}: an in-band margin refines: {got:?}"
                     );
                 } else {
@@ -7359,6 +7414,41 @@ mod tests {
             "Q1: width {:e} is not inside the reporting target's own bound",
             b.flux.width()
         );
+    }
+
+    /// **The trimmed lane's budget exit ends the window, not the
+    /// schedule.** A wide envelope on the arc chord puts a floor under
+    /// every round's width far above the reporting target, so round 0
+    /// refuses with rounds remaining ([`OpenEnd::Unreachable`], one
+    /// round paid), and round 1, resumed past the exit, runs and ends
+    /// with its window.
+    #[test]
+    fn the_trimmed_lanes_exit_keeps_the_schedule_open() {
+        let (ku, kvv, control, w) = flat_chart(1.0);
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            general(&[(1.0, 0.0), (0.7, 0.7), (0.0, 1.0)], 1e-2),
+            iso((0.0, 1.0), (0.0, 0.0)),
+        ];
+        match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(0)) {
+            Ok(RoundOutcome::Open {
+                round: 0,
+                end: OpenEnd::Unreachable(PropsError::QuadratureBudget { rounds: 1, .. }),
+                ..
+            }) => {}
+            other => panic!(
+                "the trimmed lane's budget exit must end round 0's window with rounds \
+                 remaining: {other:?}"
+            ),
+        }
+        match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(1)) {
+            Ok(RoundOutcome::Open {
+                round: 1,
+                end: OpenEnd::Window,
+                ..
+            }) => {}
+            other => panic!("round 1 must run past the exit and end with its window: {other:?}"),
+        }
     }
 
     /// **Q2 — a flat patch with an ARC trim, and its lune pad.**

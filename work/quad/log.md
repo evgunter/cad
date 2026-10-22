@@ -189,3 +189,14 @@ PR 5568's fix pass.
 - **`quad-face-extent-trusts-caller-perimeter` P0 → P3, moved to QUADTAIL.** Its own body measures zero production violations; the bad perimeters are test probes. QUAD now has no P0.
 - **Next (sequencing):** `D30` (re-check first: it predates `Knots<T>` and NURBS's span-locator unit) and `an-undecided-ring-at-the-first-converged-round-refuses-instead-of-refining` in parallel. They work different regions of `quad.rs`.
   - The dial-dependent P1s wait for Ev's ruling on `[ev]` PR 5574, because that PR's stop-rule unit rewrites the same loops: `quad-last-round-margin-has-no-sign-premise`, `quadrature-budget-conflates-its-lanes-and-budgets`, the reporting half of `a-swept-circle-section-loop-…`, and `C3`'s split.
+## 2026-10-21 — check 7's sign walk merged (PR 5568)
+
+- **Single FULL review** found no MAJOR. Four MINORs went to the fix pass, two of them regressions this PR introduced:
+  - `volume_backstop` went from 3.1 s to 53.4 s on a budget-refused face; fixed by `target_walk`, which runs 4 quadrature verdicts instead of 18;
+  - the tight re-derive of a fully-walked face read it at round 0; fixed by `taken_at`, without a witness.
+- **Lane coverage:** each lane and the carried refusal now have a row that goes red under its own revert.
+- **Focused re-review of the fix pass:** mergeable. Its notes are filed:
+  - `a-refused-faces-later-hard-error-is-swallowed-whatever-its-kind` (P3, E);
+  - `face-run-is-a-state-machine-kept-by-convention` (P3, M; a class finding: state held by filtering, not by type, sequenced with PR 5574's stop-rule unit).
+- The precedence call (a budget refusal wins over a later round's hard error on the same face) is the lane's, adjudicated as sound: every reachable kind is "cannot refine".
+- Render moves in `lofts`, `projectbox`, `teapot`, `twisted_duct` and `twisted_tube` are main's drift. The reviewer showed it by elimination: main has merged mesher PRs since the Oct 20 cells.
