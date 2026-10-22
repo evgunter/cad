@@ -109,3 +109,23 @@ orchestrator adopted each:
   Correction: no `datums.rs` exists on main; the row's datum paragraph
   is stale.
 (FIT orchestrator)
+
+## 2026-10-22 — the budget pair weighed and dispatched
+
+`the-budgets-predicted-count-is-not-always-an-over-count` and
+`a-flat-rung-pair-is-read-as-flat-below-it` were weighed by one pair
+(blinding byte on `analysis/design-fork/fit-p0`). The pair converged:
+the budget is a **target with a stated, guarded precision**, not a cap.
+Every "not a cap" in the tree means that a typed δ overrides the
+budget, while finding 1 is about precision. The over-run is a
+per-face `ceil` term that grows with curved-face count, so no margin
+makes it a cap. A verifying tessellation buys a promise no reader
+holds. Flat never changes the committed δ (a Flat stop holds under
+budget/8 at 8× the request), so finding 2 concerns a reported number,
+not the budget, and the row's ~15 000 threshold was not derived.
+They split on one point, keeping or deleting `FittedDelta::predicted`.
+The orchestrator checked: only tests read it, and in the bound case it
+is the constant budget. **Deleted**; the other designer's ceil argument
+becomes the documented reason for the band. The guard is the drawn
+count, held to a band on every bound corpus row. Review: style.
+(FIT orchestrator)
