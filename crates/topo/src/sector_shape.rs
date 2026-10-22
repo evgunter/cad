@@ -293,9 +293,9 @@ pub(crate) struct SectorShape<T: Real> {
 /// `min` and [`Real::min`] propagates `NaN` but not infinity — so
 /// `min` hides an OVERFLOWED chord behind a finite one (`min(3, ∞) =
 /// 3`) while a poisoned one stops rung 1 on its own. A chord past
-/// [`Vec3::normalize`]'s ~1e154 overflow band has an infinite norm;
-/// hidden under the `min`, rung 1 sees a healthy arm, passes, and the
-/// chord normalizes to the ZERO vector.
+/// [`Vec3::norm`]'s ~1e154 overflow band has an infinite norm;
+/// hidden under the `min`, rung 1 sees a healthy arm and passes on a
+/// length that is not a number.
 ///
 /// Measured on this body before the question went first, over all
 /// eight shapes (four chord pairs × `full_circle`): **two** of them
@@ -310,7 +310,7 @@ pub(crate) struct SectorShape<T: Real> {
 /// SPIKES. The tests carry the full table.
 ///
 /// **Rung 0 asks the other end of the format too**, per chord for the
-/// same reason: a chord below `Vec3::normalize`'s ~1e-162 underflow
+/// same reason: a chord below `Vec3::norm`'s ~1e-162 underflow
 /// band squares to zero, so `norm` is EXACTLY zero, and `min` puts that
 /// zero straight into the arm — an underflowed chord hides behind a
 /// good one exactly as an overflowed one did, and it hides HARDER,
@@ -685,9 +685,8 @@ mod tests {
     }
 
     /// **Rung 0: a chord whose length is not a NUMBER.** A chord past
-    /// `Vec3::normalize`'s ~1e154 overflow band has an infinite norm,
-    /// which is maximally definite to the arm rung, and then
-    /// normalizes to the zero vector.
+    /// `Vec3::norm`'s ~1e154 overflow band has an infinite norm,
+    /// which is maximally definite to the arm rung.
     ///
     /// **Measured on this body at the merge base (`5fbdda206`), all
     /// EIGHT shapes** — four chord pairs × `full_circle`. Every line

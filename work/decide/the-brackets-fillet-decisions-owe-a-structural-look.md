@@ -27,7 +27,7 @@ bracket, `fillet_r` a parameter), as totals 1104/7/150/760 →
 The read costs +39% on the bracket's leaf.
 
 The `line_span` and `contact_at_shared_vertex` may be the adjacent pair's
-shared vertex again (`work/paths/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root.md`,
+shared vertex again (`work/profile/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root.md`,
 at the tangent arm). The rest (`crates/geom-brep/src/certify.rs`'s
 `tangent_on_surface_*` and `tangent_hull_sup`) have not been read.
 

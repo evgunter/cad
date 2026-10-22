@@ -47,6 +47,12 @@ fn loop_with(c: Interval) -> [Point3<Interval>; 3] {
     ]
 }
 
+/// The loop's in-plane reference: its second edge, which no decorated
+/// coordinate touches.
+fn reference() -> geom_core::Vec3<Interval> {
+    geom_core::Vec3::new(iv(-2.0), iv(3.0), iv(0.0))
+}
+
 /// The control: the same loop with a certified coordinate mints a plane,
 /// so the refusal below is the decoration's doing and not the fixture's
 /// geometry.
@@ -54,7 +60,8 @@ fn loop_with(c: Interval) -> [Point3<Interval>; 3] {
 fn a_certified_loop_mints_its_plane() {
     let healthy = Interval::from_bounds(1.0, 1.0).sqrt();
     assert_eq!(healthy.certified_bracket(), Some((1.0, 1.0)));
-    newell_plane(&loop_with(healthy), band()).expect("a certified planar loop must mint");
+    newell_plane(&loop_with(healthy), reference(), band())
+        .expect("a certified planar loop must mint");
 }
 
 #[test]
@@ -63,7 +70,7 @@ fn a_violated_vertex_cannot_mint_a_plane() {
         trv_pos().certified_bracket().is_none(),
         "fixture drifted: it certifies"
     );
-    match newell_plane(&loop_with(trv_pos()), band()) {
+    match newell_plane(&loop_with(trv_pos()), reference(), band()) {
         Err(NewellError::Escalated { .. }) => {}
         Err(other) => panic!("refused, but not by the residual pass: {other}"),
         Ok(_) => panic!(

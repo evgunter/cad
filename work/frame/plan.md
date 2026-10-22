@@ -33,10 +33,8 @@ reach it.
 
 ## Review posture
 
-Not yet set. The parent program ran full v6 duals on kernel units
-with E riders single-reviewed; whether that is right here is the
-orchestrator's call at its first dispatch, and Ev took S-TCOST off
-the protocol entirely on 2026-09-12, so the question is live.
+The repo-wide tiers (`memories/orchestration-model.md`): each unit's
+tier and its reason are named in `log.md` at dispatch.
 
 ## Exit shape
 

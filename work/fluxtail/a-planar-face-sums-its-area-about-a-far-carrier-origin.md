@@ -4,7 +4,7 @@ kind: issue
 title: A planar face's closed form sums its vector area about the carrier plane's stored origin, so a small face far from that origin loses its area to cancellation
 status: open
 opened: 2026-10-03
-priority: P3
+priority: P1
 cost: M
 refs: [3977]
 ---

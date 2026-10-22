@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 priority: P3
 cost: E
-refs: [decided-tangent-point-is-the-radical-foot, an-internal-tangency-reads-its-spans-at-the-radical-foot-off-both-arcs]
+refs: [decided-tangent-point-is-the-radical-foot]
 ---
 
 

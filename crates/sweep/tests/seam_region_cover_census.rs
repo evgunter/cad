@@ -3,12 +3,14 @@
 //! Each is refused by another check of tier 3, on the very body, and
 //! the census adds nothing to it.
 //!
-//! `mass_properties` runs neither check, so the door must settle both
-//! itself once it reads the census
-//! (`work/flux/mass-properties-measures-a-flipped-seam-region-without-tier-3.md`).
+//! `mass_properties` runs neither check, and settles both itself: the
+//! lamina off the seam region (`PropsError::SeamRegionSensesDisagree`),
+//! and the ringed member's flip off that member's own boundary, as its
+//! flux arm reads it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::seam_region_common::{flipped, seam_region, sphere_faces, split_at_meridian, v};
+use geom_brep::props::PropsError;
 use geom_core::Tol;
 use sweep::test_support::{ball_poled, brick, finished};
 use topo::{Body, ValidationError};
@@ -54,6 +56,17 @@ fn one_flipped_sibling_is_check_4s_lamina_and_not_the_census() {
         assert!(
             matches!(errs.as_slice(), [ValidationError::LaminaWedge { .. }]),
             "{f:?} flipped alone is check 4's lamina, and only that: {errs:?}"
+        );
+        let door = topo::mass_properties(&flipped(&body, &[f]), tol);
+        assert!(
+            matches!(
+                door,
+                Err(topo::MassPropsError::Face {
+                    source: PropsError::SeamRegionSensesDisagree,
+                    ..
+                })
+            ),
+            "{f:?} flipped alone: the door refuses the lamina off the region: {door:?}"
         );
     }
 }
@@ -115,5 +128,16 @@ fn a_flipped_ringed_member_is_named_by_its_own_read_and_not_the_census() {
     assert!(
         !errs.iter().any(census),
         "the census reads the region once: {errs:?}"
+    );
+    let door = topo::mass_properties(&flipped(&body, &faces), tol);
+    assert!(
+        matches!(
+            door,
+            Err(topo::MassPropsError::Face {
+                face,
+                source: PropsError::SenseInverted | PropsError::SenseContradicted,
+            }) if faces.contains(&face)
+        ),
+        "the door refuses the flip by a member's own side: {door:?}"
     );
 }

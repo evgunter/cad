@@ -12,6 +12,7 @@ use crate::common::interval::iv;
 use core::f64::consts::PI;
 use geom::Curve3;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
+use profile::SketchPlane;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
@@ -43,12 +44,7 @@ fn parallelogram<T: geom_core::Decide + topo::AtRestPolicy>() -> Body<T> {
 /// under the end curve — an elliptic arc under the fillet.
 #[test]
 fn a_pocket_floor_edge_at_slanted_walls_adds_its_section_on_both_verbs() {
-    let plane = sketch_from_axes(
-        Point3::new(0.0, 0.0, 0.5),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        tol(),
-    );
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.5));
     let pocket = prism_on(
         plane,
         vec![

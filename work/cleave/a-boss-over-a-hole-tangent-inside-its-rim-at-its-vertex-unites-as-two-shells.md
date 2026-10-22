@@ -74,7 +74,7 @@ gather runs the census across copies only, and keeps rather than raises
 what it finds (`editor-core/src/product.rs` module docs). So this body
 ships silently from `topo::union`.
 
-Once PATHS unit 4 (`work/paths/circle-lowers-to-one-segment.md`) lowers
+Once PATHS unit 4 (`work/profile/circle-lowers-to-one-segment.md`) lowers
 `circle` to one segment, every `circle()` puts its vertex at azimuth 0,
 so a boss over a pocket tangent inside its rim on the `+x` side builds
 this body.

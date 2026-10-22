@@ -761,6 +761,9 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::HolesExceedFace,
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
+        PropsError::SeamRegionOvercovered { times: 2 },
+        PropsError::SeamRegionCoverUnresolved,
+        PropsError::SeamRegionSensesDisagree,
         PropsError::RingWoundWithFace,
         PropsError::ChartLoopOpen,
         PropsError::LoopsWindChart,
@@ -1836,6 +1839,30 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
 mod tests {
     use geom_brep::recourse::Reading;
     use geom_core::FileCoincidence;
+
+    /// **No sample renders a run of spaces or a line break**: the marks
+    /// of a string literal continued onto its next line without its `\`,
+    /// which keeps the line break and the next line's indentation, one
+    /// space or many, in the text. Read over every tier-3 finding and
+    /// every measurement refusal, so over every `PropsError`
+    /// (`MassPropsError::Face`'s own words), whose words tier 3 does not
+    /// render.
+    #[test]
+    fn no_sample_renders_a_run_of_spaces() {
+        let rendered = super::validation_error_samples()
+            .into_iter()
+            .map(|(label, e)| (label, e.to_string()))
+            .chain(
+                super::mass_props_errors()
+                    .into_iter()
+                    .map(|e| (format!("{e:?}"), e.to_string())),
+            );
+        let problems: Vec<_> = rendered
+            .filter(|(_, text)| text.contains("  ") || text.contains('\n'))
+            .map(|(label, text)| format!("{label}: {text:?}"))
+            .collect();
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
+    }
 
     /// **Every certification refusal ends alike at rest and at the import
     /// door but for the file's ε_in and its culprit** (D4 ¶1: one

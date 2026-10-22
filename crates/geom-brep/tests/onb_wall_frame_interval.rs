@@ -1,23 +1,16 @@
-//! **The stored wall frame at `Interval`, on M10-5's 12-gon prism** —
-//! the acceptance row for the orthonormal basis's world-axis choice.
+//! **The stored wall frame at `Interval`, on M10-5's 12-gon prism.**
 //!
-//! `Vec3::orthonormal_basis` crosses the normal with `e_z` when
-//! `|n.z| ≤ max(|n.x|, |n.y|)/2` and with `e_y` otherwise, and divides
-//! by the candidate's own length. A vertical
-//! wall (`n.z = 0`, the whole equator) is therefore as far from the
-//! comparison's seam as a direction can be: the choice DECIDES over any
-//! enclosure a wall's normal comes in, no sign is transferred anywhere,
-//! and the stored `u_ref` is the exact in-plane horizontal
-//! `(−n.y, n.x, 0)`.
+//! A wall's plane is minted through `newell_plane` charted along its
+//! swept segment, as the extrude charts it: a horizontal direction
+//! `(dx, dy, 0)` for a vertical wall, so the stored `u_ref` is as exact
+//! as the segment and `n × u_ref` is `e_z` up to the normal's width.
 //!
 //! This replays the dumbbell prism at `Interval` over the ε-scaled
-//! parameter box, mints each wall's plane through `newell_plane`, and
-//! asserts, per wall:
+//! parameter box, mints each wall's plane, and asserts, per wall:
 //!
 //! * every `u_ref` component is as tight as the wall's own normal —
 //!   including the two walls whose `n.x` and `n.z` come back as
-//!   `±4.4e-16` and `±2.2e-16` rather than exact zeros, which an order
-//!   over the three components could not have decided between;
+//!   `±4.4e-16` and `±2.2e-16` rather than exact zeros;
 //! * the enclosure contains the `f64` frame (the containment the
 //!   `Interval` lane exists to provide);
 //! * the cell `Surface::eval` encloses over the window has the window's
@@ -78,6 +71,12 @@ fn wall<T: Real>(i: usize) -> [Point3<T>; 4] {
     ]
 }
 
+/// Wall `i`'s swept segment, the direction its plane is charted along.
+fn segment<T: Real>(i: usize) -> geom_core::Vec3<T> {
+    let w = wall::<T>(i);
+    w[1] - w[0]
+}
+
 /// `editor_core::clearance::refines`, copied: BOTH axes must move a
 /// bound of the cell's enclosure when the window is halved.
 fn refines(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> bool {
@@ -109,19 +108,9 @@ fn cell_z_width(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> f6
 /// The prism's walls, at both windows.
 ///
 /// **Why the `z`-extent is the window's own span**: the chart is
-/// `origin + u·u_ref + v·(n × u_ref)`; a wall takes the `e_z` arm and
-/// therefore `u_ref = (−n.y, n.x, 0)` — horizontal in the plane — so
-/// `n × u_ref` is `e_z` and the cell's `z` extent is exactly the `v`
-/// span. The old sign-transferred frame carried
-/// `u_ref.z ∈ [−|n.x|, |n.x|]` on every wall of the equator and added
-/// `|u|·|n.x|` to it.
-///
-/// **All twelve walls decide**, including the two whose `n.x` and `n.z`
-/// are noise around zero: the comparison is
-/// `|n.z| ≤ max(|n.x|, |n.y|)/2`, and a wall has one component at 1
-/// while the noise is at `1e-16`. An order over all three components would
-/// have been undecided on exactly those two, because which of two
-/// enclosures that both contain zero is the smaller has no answer.
+/// `origin + u·u_ref + v·(n × u_ref)`; a wall's `u_ref` is its swept
+/// segment, horizontal in the plane, so `n × u_ref` is `e_z` and the
+/// cell's `z` extent is exactly the `v` span.
 #[test]
 fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
     for window in [WINDOW, EPS_WINDOW] {
@@ -131,11 +120,12 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
                 origin,
                 normal,
                 u_ref,
-            }) = newell_plane::<Interval>(&wall::<Interval>(i), band())
+            }) = newell_plane::<Interval>(&wall::<Interval>(i), segment::<Interval>(i), band())
             else {
                 panic!("wall {i}: newell_plane refused at Interval");
             };
-            let Ok(Surface::Plane { u_ref: uf, .. }) = newell_plane::<f64>(&wall::<f64>(i), band())
+            let Ok(Surface::Plane { u_ref: uf, .. }) =
+                newell_plane::<f64>(&wall::<f64>(i), segment::<f64>(i), band())
             else {
                 panic!("wall {i}: newell_plane refused at f64");
             };
@@ -172,28 +162,6 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
                     normal.z.hi()
                 );
             }
-            // The comparison decides on every wall, and the census
-            // records that two of them have normals an order over the
-            // three components could not have decided between.
-            let straddles = |e: Interval| e.lo() <= 0.0 && 0.0 <= e.hi();
-            let noisy = straddles(normal.x) && straddles(normal.z) && width(normal.x) > 0.0;
-            let d = normal.z.abs() - normal.x.abs().max(normal.y.abs()) * Interval::from_f64(0.5);
-            let decided = d.hi() <= 0.0 || d.lo() > 0.0;
-            assert!(
-                decided,
-                "wall {i}: the axis comparison did not decide — n.z = [{}, {}]",
-                normal.z.lo(),
-                normal.z.hi()
-            );
-            assert_eq!(
-                noisy,
-                i == 2 || i == 8,
-                "wall {i}: the noisy-normal census is stale — n.x = [{}, {}], n.z = [{}, {}]",
-                normal.x.lo(),
-                normal.x.hi(),
-                normal.z.lo(),
-                normal.z.hi()
-            );
             let surface = Surface::Plane {
                 origin,
                 normal,
