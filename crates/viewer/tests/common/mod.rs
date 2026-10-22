@@ -206,9 +206,13 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
     );
     let (doc, moved) = inserted(
         &doc,
-        Node::place(vec![pncad::document::BodyRead::plain(
-            pncad::document::Operand::from(extrude),
-        )]),
+        Node::place(
+            vec![pncad::document::BodyRead::plain(
+                pncad::document::Operand::from(extrude),
+            )],
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
         tol,
     );
     let at = pncad::document::Frame {
@@ -237,9 +241,13 @@ pub fn placed_at(
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, placement) = inserted(
         doc,
-        Node::place(vec![pncad::document::BodyRead::plain(
-            pncad::document::Operand::from(body),
-        )]),
+        Node::place(
+            vec![pncad::document::BodyRead::plain(
+                pncad::document::Operand::from(body),
+            )],
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
         tol,
     );
     let pose = pncad::document::Frame {
@@ -369,7 +377,11 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
                 DocEdit::SetParam {
                     slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Shape(_)),
                     ..
+                } | DocEdit::SetParam {
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Space),
+                    ..
                 } | DocEdit::DeleteNode { .. }
+                    | DocEdit::SetConstraints { .. }
                     | DocEdit::AddConstraint { .. }
                     | DocEdit::AddValue { .. }
                     | DocEdit::AddValues { .. }
@@ -413,9 +425,10 @@ pub fn mates_in(doc: &Doc<ProfileProgram>) -> Vec<pncad::document::MateRef> {
 }
 
 /// **A mate and its values written into `doc`** through the edit door:
-/// `mate` added to `placement`'s bundle, then each of `values` naming
-/// the id it minted — what the mate tool's op commits, for a row that
-/// authors its document before a session opens it. Answers the mate.
+/// `placement`'s bundle written whole as `mate` and `values` naming it
+/// (`viewer::test_support::mated`) — what the mate tool's op commits,
+/// for a row that authors its document before a session opens it.
+/// Answers the mate.
 pub fn mate_into(
     doc: &mut Doc<ProfileProgram>,
     placement: RecipeNodeId,
@@ -423,36 +436,9 @@ pub fn mate_into(
     values: Vec<(pncad::document::Coord, Formula)>,
     tol: Tol,
 ) -> pncad::document::MateRef {
-    let applied = pncad::document::apply(
-        doc,
-        &DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(mate),
-            fresh: Vec::new(),
-        },
-        tol,
-    )
-    .expect("the mate is admitted");
-    let [id] = applied.record.minted_constraints[..] else {
-        panic!("a mate mints one id")
-    };
-    *doc = applied.doc;
-    for (coord, by) in values {
-        edit_into(
-            doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(pncad::document::Value {
-                    mate: Some(id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            tol,
-        );
-    }
-    pncad::document::MateRef::new(placement, id)
+    let (next, mate) = viewer::test_support::mated(doc, placement, mate, values, tol);
+    *doc = next;
+    mate
 }
 
 /// **Commit a mate through the session**, pump, and answer the mate it
@@ -476,33 +462,20 @@ pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::
 
 /// [`commit_mate`] without the pump.
 pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
-    let before = session.committed_doc().clone();
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [DocEdit::AddConstraint { placement, .. }, values @ ..] = outcome.committed.as_slice()
-    else {
-        panic!("the op adds one mate: {:?}", outcome.committed)
+    // The bundle written whole, after a re-target where the mate reads
+    // another space.
+    let Some(DocEdit::SetConstraints { placement, .. }) = outcome.committed.last() else {
+        panic!("the op writes one bundle: {:?}", outcome.committed)
     };
-    assert!(
-        values
-            .iter()
-            .all(|edit| matches!(edit, DocEdit::AddValue { .. })),
-        "the rest are its values: {values:?}"
-    );
-    let held = |doc: &Doc<ProfileProgram>| {
-        crate::fixture::bundle(doc, *placement)
-            .into_iter()
-            .filter(|constraint| constraint.mate().is_some())
-            .map(|constraint| constraint.id)
-            .collect::<Vec<_>>()
-    };
-    let was = held(&before);
-    let [id] = held(session.committed_doc())
+    let mates: Vec<_> = crate::fixture::bundle(session.committed_doc(), *placement)
         .into_iter()
-        .filter(|id| !was.contains(id))
-        .collect::<Vec<_>>()[..]
-    else {
-        panic!("the op minted one mate on {placement:?}")
+        .filter(|constraint| constraint.mate().is_some())
+        .map(|constraint| constraint.id)
+        .collect();
+    let [id] = mates[..] else {
+        panic!("the op wrote one mate on {placement:?}: {mates:?}")
     };
     pncad::document::MateRef::new(*placement, id)
 }
@@ -815,11 +788,11 @@ pub fn inline_without_door(
 /// seam goes when the revolve stops short of a turn): each `Place`
 /// whose mate no longer evaluates (`SideUnevaluated`) is pinned again,
 /// over its copy's geometry as the edit left it, at the pose it held in
-/// `before`, through the session's own doors (`RemoveConstraint`, then
-/// the mate tool's `AddMate`). A copy `before` did not pose stays as
-/// it is.
+/// `before`, through the session's own doors (`IntoOwnSpace`, which
+/// takes the stranded mate off, then the mate tool's `AddMate`). A copy
+/// `before` did not pose stays as it is.
 pub fn repin_stranded(session: &mut DocSession, before: &editor_core::ProfileDoc, tol: Tol) {
-    use editor_core::{EvalOptions, MateFault, MateRef, Node, NodeErrorKind, Operand};
+    use editor_core::{EvalOptions, MateFault, Node, NodeErrorKind, Operand};
     let opts = EvalOptions::default();
     let poses = solve_document(before, &opts, tol);
     let (doc, eval) = session.landed_pair().expect("a landed pair");
@@ -837,6 +810,7 @@ pub fn repin_stranded(session: &mut DocSession, before: &editor_core::ProfileDoc
             Some(Node::Place {
                 shapes,
                 constraints,
+                ..
             }) => Some((
                 id,
                 Operand::Var(shapes.first().expect("a placement copies a shape").read),
@@ -849,18 +823,16 @@ pub fn repin_stranded(session: &mut DocSession, before: &editor_core::ProfileDoc
             _ => None,
         })
         .collect();
-    for (placement, copy, mates) in stranded {
+    for (placement, copy, _) in stranded {
         let Ok(frame) = poses.placement(before, placement) else {
             continue;
         };
         let pin = editor_core::pin_at(session.committed_doc(), &copy, &frame, &opts, tol)
             .expect("the copy as the edit left it has a frame to pin");
-        for id in mates {
-            let outcome = session.perform(SessionOp::RemoveConstraint {
-                mate: MateRef::new(placement, id),
-            });
-            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        }
+        // Its stranded mate off first, by a space of its own at the
+        // identity: a mate beside one the bundle holds is refused.
+        let outcome = session.perform(SessionOp::IntoOwnSpace { placement });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         let outcome = session.perform(SessionOp::AddMate {
             placement,
             mate: Box::new(pin),

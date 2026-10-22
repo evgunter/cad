@@ -2190,10 +2190,14 @@ mod creation_nouns {
     /// inserts, so its proposal counts the document's instances.
     #[test]
     fn the_part_choosers_noun_is_the_instances_kind() {
-        let instance = Node::<ProfileProgram>::instantiate_part(DocRef {
-            id: DocumentId(7),
-            pin: ContentPin([0; 32]),
-        });
+        let instance = Node::<ProfileProgram>::instantiate_part(
+            DocRef {
+                id: DocumentId(7),
+                pin: ContentPin([0; 32]),
+            },
+            pncad::document::VarId::WORLD,
+            Vec::new(),
+        );
         assert_eq!(node_kind_noun(&instance), INSTANCE_NOUN);
     }
 }

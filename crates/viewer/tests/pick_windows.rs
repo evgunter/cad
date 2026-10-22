@@ -98,7 +98,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let placed = |doc: &pncad::document::Doc<pncad::document::ProfileProgram>, at: f64| {
         let (doc, placement) = common::inserted(
             doc,
-            Node::place(vec![pncad::document::BodyRead::plain(
+            crate::fixture::stood(vec![pncad::document::BodyRead::plain(
                 pncad::document::Operand::from(twinned),
             )]),
             tol,

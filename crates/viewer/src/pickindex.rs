@@ -71,7 +71,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use pncad::document::{
-    Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker,
+    Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker, VarId,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
@@ -954,12 +954,16 @@ pub struct PickIndex {
     /// The drawn edge polylines, part by part — the same layout over
     /// the same parts, in the same order, built in the same walk.
     edges: PartWindows<Edges>,
+    /// Each drawn placement's space, the one its copy is placed into
+    /// ([`Doc::node_space`]): the pick orders faces within one space
+    /// only.
+    spaces: BTreeMap<RecipeNodeId, VarId>,
 }
 
 impl PickIndex {
     /// Build the index for `generation` from the document's drawn
-    /// placements — the world's and each loose copy's — one drawn part
-    /// per copy (A10).
+    /// placements — those into each shown space — one drawn part per
+    /// copy (A10).
     ///
     /// Every refusal is returned — a placement that failed or
     /// would not tessellate is a picture the viewport cannot draw
@@ -1020,19 +1024,16 @@ impl PickIndex {
         mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
-        // The drawn copies: the placements the world's space holds, as
-        // the product gathers them, and those of each loose copy's space,
-        // which the display draws where its frame puts it. A placement
-        // joining a construction's space is read through the copy that
-        // places the construction.
-        let drawn = doc
-            .placements()
-            .into_iter()
-            .filter(|&node| match eval.space(node) {
-                pncad::document::Space::World => true,
-                pncad::document::Space::Loose { root } => eval.loose_copies.contains(&root),
-            });
-        for node in drawn {
+        let mut spaces = BTreeMap::new();
+        // The drawn copies: the placements into each shown space (DI5),
+        // the world's as the product gathers them and every other one's
+        // where its frame puts it. A placement into a space whose bodies
+        // another placement copies is drawn through that copy
+        // ([`crate::world::shown_spaces`]).
+        for node in crate::world::world_copies(doc) {
+            if let Some(space) = doc.node_space(node) {
+                spaces.insert(node, space);
+            }
             match build_parts(node) {
                 Ok(built) => parts.extend(built),
                 Err(error) => return Err(PickIndexError::Node { node, error }),
@@ -1055,6 +1056,7 @@ impl PickIndex {
             ids,
             patches,
             edges,
+            spaces,
         })
     }
 
@@ -1311,17 +1313,17 @@ impl PickIndex {
         let visible = |part: &&NodePick| !display.hidden_placements.contains(&part.node());
         // The unmoved parts, one batch per space: the kernel orders
         // faces within one space only (A9, A11 (2)), and each space is
-        // drawn where the display puts it — today a loose copy's own
-        // space at the world's origin — so the merge below orders
-        // the batches as drawn, which is display, not logic.
-        let mut unmoved: BTreeMap<Option<RecipeNodeId>, Vec<PickTarget<'_>>> = BTreeMap::new();
+        // drawn where the display puts it — today a shown space's
+        // origin at the world's — so the merge below orders the batches
+        // as drawn, which is display, not logic.
+        let mut unmoved: BTreeMap<Option<VarId>, Vec<PickTarget<'_>>> = BTreeMap::new();
         for part in self
             .parts
             .iter()
             .filter(visible)
             .filter(|part| !display.moved_placements.contains_key(&part.node()))
         {
-            let space = eval.space(part.node()).loose();
+            let space = self.spaces.get(&part.node()).copied();
             unmoved.entry(space).or_default().push(part.target());
         }
         // Every group's whole answer, in group order: the unmoved

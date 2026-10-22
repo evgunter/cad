@@ -265,9 +265,8 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
                 && *id == b_placement
                 && replaced.iter().all(|edit| matches!(
                     edit,
-                    DocEdit::RemoveConstraint { placement, .. }
-                        | DocEdit::AddConstraint { placement, .. }
-                        | DocEdit::AddValue { placement, .. } if *placement == b
+                    DocEdit::SetConstraints { placement, .. }
+                        | DocEdit::SetParam { node: placement, .. } if *placement == b
                 ))
         ),
         "b, moved, placed against a where it stands; the boolean; a's \
@@ -367,18 +366,9 @@ fn a_feature_re_points_each_placement_of_its_target() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        matches!(
-            &outcome.committed[..],
-            [
-                DocEdit::InsertNode { .. },
-                DocEdit::AddConstraint { .. },
-                DocEdit::AddValue { .. },
-                DocEdit::AddValue { .. },
-                DocEdit::AddValue { .. },
-            ]
-        ),
+        matches!(&outcome.committed[..], [DocEdit::InsertNode { .. }]),
         "the body is no longer placed, so its second transform re-points nothing: \
-         its placement, its mate and its values: {:?}",
+         its placement, inserted with its bundle: {:?}",
         outcome.committed
     );
     assert_eq!(common::world(session.committed_doc()), world);
@@ -2141,7 +2131,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         ),
         (
             "placement",
-            Node::place(vec![pncad::document::BodyRead::plain(Operand::from(body))]),
+            crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(body))]),
         ),
         (
             "split",
@@ -2481,9 +2471,9 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        4,
-        "a pattern of two, its copy's projection, and that projection's placement with its \
-         identity bundle, written as one edit"
+        3,
+        "a pattern of two, its copy's projection, and that projection's placement, inserted \
+         with its identity bundle"
     );
     let minted = outcome.minted.clone();
     let [pattern, copy, placement] = minted[..] else {
@@ -2652,7 +2642,7 @@ fn the_part_seats_track_the_part_door() {
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
-        Node::place(vec![pncad::document::BodyRead::plain(Operand::from(
+        crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(
             pattern,
         ))]),
         tol,
@@ -3062,7 +3052,7 @@ fn duplicating_a_several_body_value_is_refused() {
     let mut doc = session.committed_doc().clone();
     let placed = common::insert_into(
         &mut doc,
-        Node::place(vec![pncad::document::BodyRead::plain(Operand::from(
+        crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(
             pattern,
         ))]),
         tol,

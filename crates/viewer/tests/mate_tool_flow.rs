@@ -523,7 +523,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     // pins: its copy is pinned `UNION_SHIFT` along y, clear of them.
     let (doc, union_copy) = common::inserted(
         &doc,
-        pncad::document::Node::place(vec![pncad::document::BodyRead::plain(
+        crate::fixture::stood(vec![pncad::document::BodyRead::plain(
             pncad::document::Operand::from(union),
         )]),
         tol,

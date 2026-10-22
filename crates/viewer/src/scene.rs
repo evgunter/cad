@@ -847,21 +847,16 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         tol,
     )?;
     // The plate is the product because it is placed (A10): a placement
-    // of it, standing where its body stands.
-    let (doc, placement) = insert(
+    // of it into the world, standing where its body stands.
+    let (doc, _) = insert(
         doc,
-        Node::place(vec![pncad::document::BodyRead::plain(Operand::from(
-            extrude,
-        ))]),
+        Node::place(
+            vec![pncad::document::BodyRead::plain(Operand::from(extrude))],
+            Operand::Var(pncad::document::VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
         tol,
     )?;
-    let placed = editor_core::stand();
-    let mut doc = doc;
-    placed.write(placement, |e| {
-        let (next, record) = edit(doc.clone(), e, tol)?;
-        doc = next;
-        Ok::<_, SceneDocError>(record.minted_constraints)
-    })?;
     Ok((doc, extrude))
 }
 

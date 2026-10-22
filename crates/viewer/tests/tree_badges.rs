@@ -274,8 +274,9 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
 
 /// **A refused bundle blames its placement though it evaluated before.**
 ///
-/// A rest leaves the shelf loose and EVALUATES — the memo now holds an
-/// `Ok` for the shelf — and then the rest is taken off and a mate the
+/// A rest places the shelf and EVALUATES — the memo now holds an
+/// `Ok` for the shelf — and then the rest is taken off (the shelf given
+/// a space of its own at the identity) and a mate the
 /// evaluation refuses put in its place. The shelf's row reports the
 /// refusal: a placement's content key carries its bundle, so the memo
 /// cannot serve last evaluation's `Ok` into the run whose fault names
@@ -294,9 +295,12 @@ fn a_refused_bundle_badges_the_placement_that_evaluated_before_it() {
     assert_eq!(
         common::status_of(&session.tree_rows(), bench.shelf_i),
         RowStatus::Ok,
-        "the premise: one rest leaves the shelf loose, which is no refusal"
+        "the premise: one rest places the shelf, which is no refusal"
     );
-    let removed = session.perform(SessionOp::RemoveConstraint { mate: held });
+    // The rest off, by a space of the shelf's own at the identity.
+    let removed = session.perform(SessionOp::IntoOwnSpace {
+        placement: bench.shelf_i,
+    });
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     let added = common::commit_mate(
         &mut session,
@@ -328,9 +332,10 @@ fn a_refused_bundle_badges_the_placement_that_evaluated_before_it() {
 /// a stale one, and the repair re-runs on the faulted run as prior.**
 ///
 /// The shelf's bundle refuses one mate where it evaluates, then, that
-/// mate removed, another against the other post. The memo serves only
-/// `Ok` priors, so the second fault is the second mate's and never the
-/// first's again; removing it returns the shelf to `Ok`, re-run.
+/// mate taken off (the shelf given a space of its own at the identity),
+/// another against the other post. The memo serves only `Ok` priors, so
+/// the second fault is the second mate's and never the first's again;
+/// taking it off returns the shelf to `Ok`, re-run.
 #[test]
 fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
     let tol = Tol::witness();
@@ -351,7 +356,9 @@ fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
         common::asm::no_centre_op(&bench, bench.post_a),
     );
     let f1 = fault(&session);
-    let removed = session.perform(SessionOp::RemoveConstraint { mate: first });
+    let removed = session.perform(SessionOp::IntoOwnSpace {
+        placement: bench.shelf_i,
+    });
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     let second = common::commit_mate(
         &mut session,
@@ -368,7 +375,9 @@ fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
         RowStatus::Failed { .. }
     ));
 
-    let removed = session.perform(SessionOp::RemoveConstraint { mate: second });
+    let removed = session.perform(SessionOp::IntoOwnSpace {
+        placement: bench.shelf_i,
+    });
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     session.pump();
     let ev = session.evaluation_arc().expect("a result landed");
@@ -1143,8 +1152,9 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
 /// **A placement's row carries its constraints as children**, in bundle
 /// order, each by its address — a mate and each value naming it; the
 /// world, which every document holds and nothing deletes, has no row;
-/// and removing a mate through its child row's op takes it, and the
-/// values naming it, off the row.
+/// and removing the mate through its child row's op is refused
+/// `Unpinned`, since every bundle pins its copy, leaving the row as it
+/// was.
 #[test]
 fn a_placement_row_carries_its_constraints_as_children() {
     use viewer::tree::ConstraintRow;
@@ -1201,19 +1211,27 @@ fn a_placement_row_carries_its_constraints_as_children() {
     );
 
     let outcome = session.perform(SessionOp::RemoveConstraint { mate: seat });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        matches!(
+            outcome.refusal.as_ref(),
+            Some(viewer::session::Refusal::Edit(error))
+                if matches!(
+                    error.as_ref(),
+                    pncad::document::EditError::MateRefused { fault, .. }
+                        if matches!(**fault, pncad::document::MateFault::Unpinned { .. })
+                )
+        ),
+        "every bundle pins its copy: {:?}",
+        outcome.refusal
+    );
     session.pump();
     let rows = session.tree_rows();
     assert_eq!(
-        common::row_of(&rows, bench.post_b).constraints,
-        Vec::new(),
-        "the removed mate leaves the row, its values with it"
+        common::row_of(&rows, bench.post_b).constraints.len(),
+        4,
+        "the refused removal leaves the row as it was"
     );
-    assert_eq!(
-        common::status_of(&rows, bench.post_b),
-        RowStatus::Ok,
-        "a copy no constraint pins is loose, which is no refusal"
-    );
+    assert_eq!(common::status_of(&rows, bench.post_b), RowStatus::Ok);
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 

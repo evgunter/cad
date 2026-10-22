@@ -65,11 +65,22 @@ pub enum SessionOp {
     /// value naming it — a value sets a freedom of its mate, so it goes
     /// with it, in the same action. A constraint is no node, so it has
     /// no cone to delete: the copy it pinned is recomputed from what
-    /// remains, and a bundle that no longer pins its copy leaves a loose
-    /// copy, never a refusal.
+    /// remains. Every bundle pins its copy (D10 `[placement.values]`),
+    /// so a removal that leaves the bundle short of a pin is refused
+    /// `Unpinned`, in the kernel's words.
     RemoveConstraint {
         /// The constraint: its placement and minted id.
         mate: MateRef,
+    },
+    /// Give `placement`'s copy a space of its own: a `new_space()`
+    /// inserted, the placement re-targeted into it and its bundle
+    /// written as the identity (`editor_core::stand`), as one action.
+    /// The copy leaves the space it was placed into — the world's, the
+    /// product's — and is drawn as a shown space of its own (DI5), which
+    /// free-move moves and a mate places again.
+    IntoOwnSpace {
+        /// The placement: a `Place` or an instance.
+        placement: RecipeNodeId,
     },
     /// Write a value into a node's slot. Refused if the slot is
     /// driven by an expression.
@@ -398,11 +409,11 @@ pub enum SessionOp {
         /// Hidden, or shown again.
         hidden: bool,
     },
-    /// Open a free-move probe gesture on the loose space `instance`'s
-    /// copy lives in (G3's fit probe, DI5). Refused typed for a copy
-    /// in the world's space, and while no evaluation that answers the
-    /// document has landed — which space a copy lives in is the
-    /// solve's answer ([`crate::display::free_move_check`]).
+    /// Open a free-move probe gesture on the space `instance`'s copy is
+    /// placed into (G3's fit probe, DI5). Refused typed for a copy
+    /// placed into the world, and while no evaluation that answers the
+    /// document has landed — a copy with no value has no picture to move
+    /// ([`crate::display::free_move_check`]).
     BeginFreeMove {
         /// The instance to probe.
         instance: RecipeNodeId,
@@ -457,11 +468,15 @@ pub enum SessionOp {
     /// reason: it is the other cancel door, and the other thing an
     /// Escape on the field emits.
     CancelFreeMove,
-    /// Add a mate to `placement`'s bundle and then each of its values
-    /// naming the id the mate minted (`DocEdit::AddConstraint`, then one
-    /// `DocEdit::AddValue` per value) — the mate tool's one committed
-    /// action, so one history state and one undo. A mate or a value the
-    /// door refuses ends the action and nothing of it is recorded.
+    /// Write `placement`'s bundle whole with the mate and its values
+    /// naming it (`DocEdit::SetConstraints`), each freedom the mate
+    /// leaves unset written as the constant `0` — in place of a bundle
+    /// with no mate, beside the mates of one that has them, which the
+    /// door then refuses overconstrained — and the placement first
+    /// re-targeted into the space the mate's `to` reads where that is
+    /// not its target — the mate tool's one committed action, so one
+    /// history state and one undo. A bundle the door refuses ends the
+    /// action and nothing of it is recorded.
     /// Everything before it (the two picks, the choice) is tool state.
     AddMate {
         /// The placement whose copy the mate places.
@@ -692,7 +707,8 @@ pub enum SessionOp {
     /// evaluate, and an axis that names no direction refuse
     /// [`Refusal::Frame`]; an input that is no placeable body refuses
     /// as a body seat does. A copy the placing door cannot place stands
-    /// loose, and [`OpOutcome::placed`] says so.
+    /// where its body stands (the identity bundle), and
+    /// [`OpOutcome::placed`] says so.
     AddTransform {
         /// The body placed.
         input: Operand,
@@ -1144,6 +1160,7 @@ impl SessionOp {
             | Self::Hover(_)
             | Self::DeleteNode { .. }
             | Self::RemoveConstraint { .. }
+            | Self::IntoOwnSpace { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1217,6 +1234,7 @@ impl SessionOp {
             | Self::Hover(_)
             | Self::DeleteNode { .. }
             | Self::RemoveConstraint { .. }
+            | Self::IntoOwnSpace { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1279,7 +1297,7 @@ impl SessionOp {
     /// DI5 (`crates/editor-core/IDENTITY.md`) keeps all four
     /// `*FreeMove` rows display-only: releasing a free-move writes
     /// nothing to the document, and the frame stays display state keyed
-    /// by the loose space it was drawn for. So
+    /// by the space it was drawn for. So
     /// [`SessionOp::CommitFreeMove`] commits nothing to the history, and
     /// the argument below covers it as it covers the other three.
     ///
@@ -1294,7 +1312,7 @@ impl SessionOp {
     /// document, and they do not all ask about the SAME document:
     ///
     /// - the operation admits against the COMMITTED document and the
-    ///   spaces a landing read off it or off the scratch
+    ///   landing that answers it or the scratch
     ///   ([`crate::display::free_move_check`], via
     ///   [`crate::display::DisplayState::begin_free_move`] and
     ///   [`super::DocSession::space_evaluation`]);
@@ -1309,7 +1327,7 @@ impl SessionOp {
     /// - every committed edit prunes the display state against the new
     ///   document, and again when its evaluation lands — a prune that
     ///   DISCARDS committed frames and kills an in-flight free-move
-    ///   whose space stopped being loose,
+    ///   whose space stopped being shown,
     ///   reporting the first in [`PruneReport::superseded`] and the
     ///   second in [`PruneReport::killed_gesture`], each with the
     ///   fault that decided it, on [`OpOutcome::withdrawn`].
@@ -1443,6 +1461,7 @@ impl SessionOp {
             | Self::DeclineOffer { .. } => true,
             Self::DeleteNode { .. }
             | Self::RemoveConstraint { .. }
+            | Self::IntoOwnSpace { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::ProbeBounds { .. }
@@ -1567,6 +1586,7 @@ impl SessionOp {
             | Self::CancelFreeMove
             | Self::DeleteNode { .. }
             | Self::RemoveConstraint { .. }
+            | Self::IntoOwnSpace { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1707,7 +1727,8 @@ pub struct OpOutcome {
     /// **How each copy a place gesture made was placed**
     /// ([`editor_core::place_at`]), in the order the action placed
     /// them: on a planar face and its values, pinned where the copy has
-    /// none, or left loose with the reason. Empty for every other
+    /// none, or standing where its body stands, with the reason the
+    /// door could not place it. Empty for every other
     /// operation.
     pub placed: Vec<PlaceReport>,
     /// **The picked names this operation moved** ([`Renamed`]): what
@@ -1722,7 +1743,7 @@ pub struct OpOutcome {
 pub struct PlaceReport {
     /// The placement the gesture made.
     pub placement: RecipeNodeId,
-    /// How its copy was placed, or why it stands loose.
+    /// How its copy was placed, or why the door could not place it.
     pub by: Result<editor_core::PlacedBy, PinRefusal>,
 }
 
