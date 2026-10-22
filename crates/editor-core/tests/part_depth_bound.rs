@@ -27,9 +27,9 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, Coord, DocEdit, DocRef, DocumentId, EvalOptions, Node,
-    NodeErrorKind, NodeResult, PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, TargetAxis, Value, product,
+    CapEnd, ContactClass, ContentPin, Coord, DocRef, DocumentId, EvalOptions, Node, NodeErrorKind,
+    NodeResult, PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault,
+    TargetAxis, product,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, run, square};
@@ -486,13 +486,15 @@ fn mated(
         ),
         ContactClass::Rest,
     );
-    let (doc, mate) = crate::fixture::mated(
-        doc, ids[1], mate,
+    let (doc, _mate) = crate::fixture::mated(
+        doc,
+        ids[1],
+        mate,
         &[
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, fixture::ang(0.0)),
-    ],
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, fixture::ang(0.0)),
+        ],
     );
     (doc, ids)
 }

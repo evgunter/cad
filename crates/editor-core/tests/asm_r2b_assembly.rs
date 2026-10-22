@@ -35,7 +35,7 @@ use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKey, EntityKind,
     EntityRef, Entry, EvalOptions, FaceName, InterfaceCrossing, Mate, MateFault, MateRef, MateSide,
     MintRefusal, Node, NodeErrorClass, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName, TargetAxis, Value, assemble, content_pin, inline, product_recorded,
+    StableName, TargetAxis, assemble, content_pin, inline, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, relations, run, solve, split_world as split, step};
@@ -146,12 +146,14 @@ fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f
 /// set — the two slides and no spin — so it pins the copy.
 fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
     let (doc, mate) = crate::fixture::mated(
-        doc, placement, seat.mate,
+        doc,
+        placement,
+        seat.mate,
         &[
-        (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
-        (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
-        (Coord::Spin, fixture::ang(0.0)),
-    ],
+            (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
+            (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
+            (Coord::Spin, fixture::ang(0.0)),
+        ],
     );
     (doc, mate)
 }
@@ -260,7 +262,12 @@ fn pinned_with(
 ) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert_pinned(
         doc,
-        Node::instantiate_part_with(doc_ref, record, editor_core::Operand::Var(editor_core::VarId::WORLD), editor_core::stand().bundle()),
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            editor_core::Operand::Var(editor_core::VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
         &with_resolver(store.clone()),
     )
 }

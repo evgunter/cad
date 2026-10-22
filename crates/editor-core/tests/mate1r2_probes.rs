@@ -19,11 +19,11 @@ use crate::fixture;
 
 use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame,
-    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, VarId,
-    StableName, TargetAxis, Value, assemble,
+    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, StableName,
+    TargetAxis, VarId, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, constrain, in_copy, insert, len, on_frame, run, scl, solve, step};
+use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -99,7 +99,6 @@ fn seat(
     let to = fixture::plane(fixture::head(target));
     let to = if facing { fixture::flip(to) } else { to };
     let (doc, mate) = crate::fixture::constrain_with(
-        
         doc,
         fixture::mate(
             fixture::plane(fixture::head(placed)),
@@ -107,10 +106,10 @@ fn seat(
             ContactClass::Rest,
         ),
         &[
-        (Coord::Slide(TargetAxis::X), len(slide[0])),
-        (Coord::Slide(TargetAxis::Y), len(slide[1])),
-        (Coord::Spin, ang(0.0)),
-    ],
+            (Coord::Slide(TargetAxis::X), len(slide[0])),
+            (Coord::Slide(TargetAxis::Y), len(slide[1])),
+            (Coord::Spin, ang(0.0)),
+        ],
     );
     (doc, mate)
 }

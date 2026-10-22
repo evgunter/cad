@@ -258,16 +258,30 @@ fn every_copy_stands_by_the_identity_bundle() {
     }
 }
 
+/// **`values` written onto `placement` as its whole bundle, with no
+/// mate** ([`editor_core::DocEdit::SetConstraints`]).
+fn unmated_whole(
+    placement: RecipeNodeId,
+    values: Vec<(Coord, Formula)>,
+) -> editor_core::DocEdit<editor_core::ProfileProgram> {
+    editor_core::Placed {
+        mate: None,
+        values,
+        by: editor_core::PlacedBy::Identity,
+    }
+    .write(placement)
+}
+
 /// The unit box's copy placed by `values` and no mate, in the world.
 fn unmated(values: Vec<(Coord, Formula)>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("d", Tol::witness());
     let (doc, b) = unit_box(doc);
-    let (doc, placement) = insert(doc, crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]));
+    let (doc, placement) = insert(
+        doc,
+        crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
+    );
     let applied = doc
-        .apply(
-            &editor_core::DocEdit::unmated(placement, values),
-            Tol::witness(),
-        )
+        .apply(&unmated_whole(placement, values), Tol::witness())
         .unwrap_or_else(|refusal| panic!("the values are admitted: {refusal}"));
     (applied.doc, b, placement)
 }
@@ -382,9 +396,13 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     };
     let doc = ProfileDoc::empty_derived("d", Tol::witness());
     let (doc, b) = unit_box(doc);
-    let (doc, p) = insert(doc, crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]));
+    let (doc, p) = insert(
+        doc,
+        crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
+    );
     let tol = Tol::witness();
-    let one = DocEdit::AddValue {
+    let one = unmated_whole(p, vec![(Coord::Slide(X), len(1.0))]);
+    let one_added = DocEdit::AddValue {
         placement: p,
         value: Box::new(editor_core::Value {
             mate: None,
@@ -402,14 +420,14 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     );
     assert!(
         matches!(
-            fault(doc.apply(&DocEdit::unmated(p, six(&[X, X, Y])), tol)),
+            fault(doc.apply(&unmated_whole(p, six(&[X, X, Y])), tol)),
             MateFault::Overconstrained { ref constraints, free: 1, .. } if constraints.len() == 2
         ),
         "two spins in a row about x"
     );
     assert!(
         matches!(
-            fault(doc.apply(&DocEdit::unmated(p, six(&[X, Y, Z, X])), tol)),
+            fault(doc.apply(&unmated_whole(p, six(&[X, Y, Z, X])), tol)),
             MateFault::Overconstrained { ref constraints, .. } if constraints.len() == 4
         ),
         "a fourth spin"
@@ -418,7 +436,7 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     spun[3] = (Coord::Spin, Formula::zero(editor_core::Dimension::Angle));
     assert!(
         matches!(
-            fault(doc.apply(&DocEdit::unmated(p, spun), tol)),
+            fault(doc.apply(&unmated_whole(p, spun), tol)),
             MateFault::NoChart {
                 why: NoChartWhy::NoMatedDirection,
                 ..
@@ -427,7 +445,7 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
         "a spin about a mated direction, with no mate"
     );
     let stood = doc
-        .apply(&DocEdit::unmated(p, six(&[Z, X, Z])), tol)
+        .apply(&unmated_whole(p, six(&[Z, X, Z])), tol)
         .expect("a ZXZ chain writes every freedom");
     let first = stood.record.minted_constraints[0];
     assert!(
@@ -465,7 +483,7 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     let (mated, _) = fixture::constrain_at(doc, p, mate);
     assert!(
         matches!(
-            fault(mated.apply(&one, tol)),
+            fault(mated.apply(&one_added, tol)),
             MateFault::NoChart {
                 why: NoChartWhy::BesideAMate,
                 ..
@@ -596,7 +614,10 @@ fn a_construction_is_in_its_own_space() {
     let (doc, b) = unit_box(doc);
     let (doc, copy) = fixture::place(doc, b);
     let own = doc.output(b, 1).expect("a construction defines its space");
-    assert_eq!(doc.var(own).map(editor_core::Var::kind), Some(editor_core::VarKind::Space));
+    assert_eq!(
+        doc.var(own).map(editor_core::Var::kind),
+        Some(editor_core::VarKind::Space)
+    );
     assert_eq!(doc.node_space(b), Some(own));
     assert_eq!(doc.node_space(copy), Some(editor_core::VarId::WORLD));
 }
@@ -860,10 +881,7 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
         crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
     );
     let by_values = by_values
-        .apply(
-            &editor_core::DocEdit::unmated(p_values, unmated),
-            Tol::witness(),
-        )
+        .apply(&unmated_whole(p_values, unmated), Tol::witness())
         .unwrap_or_else(|refusal| panic!("the values are admitted: {refusal}"))
         .doc;
 
@@ -1099,7 +1117,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
         crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
     );
     let before = before
-        .apply(&editor_core::DocEdit::unmated(p, values), Tol::witness())
+        .apply(&unmated_whole(p, values), Tol::witness())
         .expect("the values are admitted")
         .doc;
     let slot = value_slot(&before, p, Coord::SpinAbout(X));
@@ -1189,7 +1207,10 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     // it apart).
     let read = fixture::body_read(&doc, b.into());
     let stood = editor_core::stand();
-    let (next, p) = insert(doc.clone(), crate::fixture::stood(vec![BodyRead::plain(read)]));
+    let (next, p) = insert(
+        doc.clone(),
+        crate::fixture::stood(vec![BodyRead::plain(read)]),
+    );
     let before = fixture::written(next, p, stood);
     let slot = value_slot(&before, p, Coord::SpinAbout(Z));
     let after = retyped(&before, p, slot, SlotValue::Formula(ang(0.0)));

@@ -34,7 +34,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     Assembly, AssemblyError, Attribution, CapEnd, CarriedRefusal, ContactClass, Coord, DocEdit,
     DocRef, DocumentId, EntityKey, EntityKind, Entry, Frame, Mate, MateRef, Node, Operand,
-    ProfileDoc, RecipeNodeId, Relation, RoleSeg, StableName, TargetAxis, Value, assemble,
+    ProfileDoc, RecipeNodeId, Relation, RoleSeg, StableName, TargetAxis, assemble,
     product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -117,12 +117,13 @@ fn seat(on: StableName, to: StableName, class: ContactClass, standoff: f64) -> M
 /// with the target's but for the shift.
 fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, MateRef) {
     let (doc, mate) = crate::fixture::constrain_with(
-        doc, mate,
+        doc,
+        mate,
         &[
-        (Coord::Slide(TargetAxis::X), len(shift)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, fixture::ang(0.0)),
-    ],
+            (Coord::Slide(TargetAxis::X), len(shift)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, fixture::ang(0.0)),
+        ],
     );
     (doc, mate)
 }

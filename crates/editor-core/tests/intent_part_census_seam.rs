@@ -314,10 +314,12 @@ fn an_escalation_two_documents_down_is_reported_once_as_the_parts() {
     );
 }
 
-/// **A part in the world and in a loose space reports its overlap
-/// once.** One instance is pinned to the world and another is loose, a
-/// space of its own; the gate checks both, each finds the part's
-/// overlap inside its copy, and it is one finding of one part row.
+/// **A part in the world and in a space of its own reports its overlap
+/// once.** One instance is pinned to the world and another placed into
+/// a `new_space()`; the part's overlap inside its copies is one finding
+/// of one part row, by the world instance's route. (The census reads
+/// the world's copies alone until D′3 gathers a space's; either way the
+/// row is one.)
 ///
 /// *Breaks if* the world's and a space's carried rows are not read as
 /// one list.
@@ -328,7 +330,8 @@ fn a_part_in_the_world_and_a_loose_space_reports_its_overlap_once() {
     let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(ids[0]) else {
         panic!("an instance")
     };
-    let (doc, _) = insert(doc.clone(), crate::fixture::mated_instance(*doc_ref));
+    let (doc, second) = insert(doc.clone(), crate::fixture::mated_instance(*doc_ref));
+    let (doc, _) = crate::fixture::into_new_space(doc, second);
     let outer = gate(&doc, &opts).unwrap_or_else(|e| panic!("the outer gate refused: {e}"));
     assert!(outer.interference.is_empty(), "{:?}", outer.interference);
     let [carried] = outer.carried_interference.as_slice() else {

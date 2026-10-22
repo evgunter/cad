@@ -15,7 +15,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef,
-    MateSide, NameRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, VarId, StableName,
+    MateSide, NameRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -516,27 +516,26 @@ fn r1_pattern_free_solves_are_bit_identical() {
         let doc = if chain {
             // `c` rests on `b`, its three freedoms set by values: a
             // quarter along `b`'s x, none along its y, no turn.
-            let (doc, m1) = constrain(
-                doc,
-                rest(
+            let placed = editor_core::Placed {
+                mate: Some(rest(
                     head(c_part.cap(c, CapEnd::Start)),
                     head(b_part.cap(b, CapEnd::End)),
                     ContactClass::Rest,
-                ),
-            );
-            [
-                (editor_core::Coord::Spin, ang(0.0)),
-                (
-                    editor_core::Coord::Slide(editor_core::TargetAxis::X),
-                    len(0.25),
-                ),
-                (
-                    editor_core::Coord::Slide(editor_core::TargetAxis::Y),
-                    len(0.0),
-                ),
-            ]
-            .into_iter()
-            .fold(doc, |doc, (coord, by)| add_value(doc, m1, coord, by))
+                )),
+                values: vec![
+                    (editor_core::Coord::Spin, ang(0.0)),
+                    (
+                        editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                        len(0.25),
+                    ),
+                    (
+                        editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                        len(0.0),
+                    ),
+                ],
+                by: editor_core::PlacedBy::PlanarFace,
+            };
+            fixture::write_bundle(doc, c, placed.bundle()).0
         } else {
             doc
         };
@@ -573,23 +572,6 @@ fn r1_pattern_free_solves_are_bit_identical() {
     if let Ok(path) = std::env::var("R1_BITS_OUT") {
         std::fs::write(&path, &dump).expect("the dump writes");
     }
-}
-
-/// **`by` set on freedom `coord` of `mate`**, through the edit door.
-fn add_value(doc: ProfileDoc, mate: MateRef, coord: editor_core::Coord, by: Formula) -> ProfileDoc {
-    step(
-        doc,
-        DocEdit::AddValue {
-            placement: mate.placement,
-            value: Box::new(editor_core::Value {
-                mate: Some(mate.id),
-                coord,
-                by,
-            }),
-            fresh: Vec::new(),
-        },
-    )
-    .0
 }
 
 // ---------------------------------------------------------------

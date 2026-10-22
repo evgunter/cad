@@ -599,11 +599,14 @@ fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
     let head_a = instance_face(ia, part_body);
     let mated = apply(
         &doc,
-        &DocEdit::AddConstraint {
-            placement: ib,
-            mate: Box::new(rest(head_a.clone(), instance_face(ib, part_body))),
-            fresh: Vec::new(),
-        },
+        // The mate written with a zero on each freedom it leaves, whole:
+        // every bundle pins its copy.
+        &crate::fixture::squared(
+            &doc,
+            rest(head_a.clone(), instance_face(ib, part_body)),
+            &[],
+        )
+        .write(ib),
         Tol::witness(),
     )
     .expect("the mate is added");

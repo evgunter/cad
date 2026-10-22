@@ -754,13 +754,11 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 
     // An unrelated edit keeps moving the pin exactly as it did — the
     // update arm smuggles no path into the canonical bytes.
-    let unrelated = DocEdit::RemoveConstraints {
-        placement: ids[0],
-        constraints: fixture::bundle(&before, ids[0])
-            .iter()
-            .map(|c| c.id)
-            .collect(),
-    };
+    // The instance's bundle rewritten whole: the identity bundle slid a
+    // unit along x.
+    let mut slid = editor_core::stand();
+    slid.values[0].1 = fixture::len(1.0);
+    let unrelated = slid.write(ids[0]);
     let update = DocEdit::UpdateReference {
         node: ids[0],
         new_pin: v2,

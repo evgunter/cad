@@ -26,9 +26,9 @@ use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
     Formula, Frame, FreeValue, FreeVar, Maintenance, MateFault, MateRef, MeasurePrimitive, Node,
-    NodeErrorKind, Operand, PartResolver, PersistError, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SitedFace, SitedRef, StableName, Target, TargetAxis, ValuePayload,
-    VarId, VarName, WorldRead, apply, apply_replayed, evaluate, load, product, save,
+    Operand, PartResolver, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace,
+    SitedRef, StableName, Target, TargetAxis, ValuePayload, VarId, VarName, WorldRead, apply,
+    apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, offset_of, on_frame, run, solve, step};
@@ -214,7 +214,10 @@ pub(crate) fn seat_edits(
         let applied = apply(&doc, edit, Tol::witness())
             .unwrap_or_else(|e| panic!("the seat is admitted: {e}"));
         if let DocEdit::SetConstraints { .. } = edit {
-            mate = Some(MateRef::new(placement, applied.record.minted_constraints[0]));
+            mate = Some(MateRef::new(
+                placement,
+                applied.record.minted_constraints[0],
+            ));
         }
         doc = applied.doc;
     }
@@ -428,9 +431,9 @@ fn a_world_pin_at_a_composed_parametric_pose_places_its_instance_and_a_parameter
 
 // ---- Row 2: insert loose; pin; the constraint door ----
 
-/// **An inserted instance is loose until a constraint pins it, and a
-/// constraint added to it places it in an edit that replays without
-/// solving.** Pinned at the identity it sits at the world's origin. The
+/// **An inserted instance stands in the world by the identity bundle
+/// until its bundle is written, and the seat written to it places it in
+/// an edit that replays without solving.** Pinned at the identity it sits at the world's origin. The
 /// seat's edits record no frame, a replay with no reach produces the
 /// same document and report, and the whole log saved from empty loads
 /// with no store; the seat then places the top in the world.
@@ -463,7 +466,12 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
     let doc = step(doc, pin.clone()).0;
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     assert!(offset_of(&doc, base).is_some(), "the base is pinned");
-    assert_eq!(offset_of(&doc, top), None);
+    assert!(
+        fixture::bundle(&doc, top)
+            .iter()
+            .all(|c| c.mate().is_none()),
+        "the top stands by the identity bundle"
+    );
     let poses = solve(&doc, &o, Tol::witness());
     let at = poses.relative(base).expect("the base is placed");
     let off = at
@@ -593,9 +601,9 @@ fn removing_what_pins_a_copy_refuses_unpinned() {
 /// **Nothing outside a space is compared with it.** A world base and a
 /// top: pinned to the world, a measure between their caps answers.
 /// With the top moved into a space of its own, the product gathers the
-/// world alone, the at-rest gate certifies, and the measure refuses
-/// typed naming both spaces, with the recourse — never a number across
-/// spaces.
+/// world alone, the at-rest gate certifies, and the edit door refuses
+/// the measure typed naming both spaces, with the recourse — never a
+/// number across spaces.
 #[test]
 fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
     let p = parts("p2-space");
@@ -632,15 +640,19 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
     );
     editor_core::assemble(&doc, &ev, Tol::witness())
         .expect("the gate certifies the world and the top's own space");
-    let (doc, measure) = insert(doc, measure());
-    let ev = run(&doc, &o);
-    let error = ev.node_error(measure).expect("the measure refuses");
-    let spaces = [VarId::WORLD, doc.node_space(top).expect("the top is in a space")];
+    // The measure across the two spaces is refused at the edit door,
+    // before any evaluation (D′1).
+    let error = fixture::insert_refused(&doc, measure());
+    let spaces = [
+        VarId::WORLD,
+        doc.node_space(top).expect("the top is in a space"),
+    ];
     assert!(
         matches!(
-            error.kind,
-            NodeErrorKind::SpaceMismatch { a, b }
-                if (a, b) == (spaces[0], spaces[1]) || (b, a) == (spaces[0], spaces[1])
+            &error,
+            editor_core::EditError::SpaceMismatch { a, b, .. }
+                if (a.id(), b.id()) == (spaces[0], spaces[1])
+                    || (b.id(), a.id()) == (spaces[0], spaces[1])
         ),
         "{error:?}"
     );
@@ -947,10 +959,11 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose(
         "and the top still seats on it"
     );
 
-    // The refusal: a loose instance over a pair.
+    // The refusal: an instance over a pair in a space of its own, whose
+    // bundle moves its part's world by no motion of the world.
     let loose = set_pin(out.remainder.clone(), out.instance, None, &store_opts);
     let err = editor_core::inline(&loose, out.instance, &r, Tol::witness())
-        .expect_err("a loose instance over a pair");
+        .expect_err("an instance in a space of its own over a pair");
     assert!(
         matches!(&err, editor_core::InlineError::UnplaceablePart { instance, .. } if instance.id() == out.instance),
         "{err:?}"
