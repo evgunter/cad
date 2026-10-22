@@ -537,13 +537,13 @@ impl Second {
     /// [`PatchBoundError::DerivedKnots`] at [`Derived::Discontinuous`]
     /// ([`NARROW_SPAN`](crate::recourse::NARROW_SPAN)).
     fn of(
-        derived: Derived<'_, TensorCoeffs<'_>>,
+        derived: Derived<TensorCoeffs<'_>>,
         diff: impl FnOnce(&TensorCoeffs<'_>) -> Net,
     ) -> Result<Self, PatchBoundError> {
         match derived {
             Derived::Vector(t) => Ok(Self::Net(diff(&t))),
             Derived::SpanConstant(_) => Ok(Self::Zero),
-            Derived::Discontinuous { .. } => Err(PatchBoundError::DerivedKnots),
+            Derived::Discontinuous(_) => Err(PatchBoundError::DerivedKnots),
         }
     }
 

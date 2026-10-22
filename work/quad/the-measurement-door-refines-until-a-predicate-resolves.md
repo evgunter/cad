@@ -10,7 +10,7 @@ cost: H
 
 
 Ratified on `[ev]` PR 5574 (2026-10-22). DESIGN.md `[tolerance.measure]`
-and `crates/geom-brep/README.md` C12(7) state the target; fork-log row 187
+and `crates/geom-brep/README.md` C12(7) state the target; fork-log row 188
 records how it was weighed. The build:
 
 - **One door.** It refines each face until the caller's predicate over

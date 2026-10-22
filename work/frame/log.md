@@ -72,3 +72,29 @@ New FRAME orchestrator (session 014jgsWQiGQD6AZDRDeqc7uu); status `active`. The 
 **Review posture (set at first dispatch):** the repo-wide tiers. `normalize-overflow` draws a single FULL review: the change is small, but it moves a total function's output at an extreme of its range and every rotation constructor reads it.
 
 **Sequencing:** once `normalize-overflow` lands, FRAME has no dispatchable P0 or P1 row except the exact-mints design question; the sitting weighs that and hands the track back.
+
+## 2026-10-21 — normalize-overflow lands (PR 5572)
+
+Full single review (tier as logged at dispatch). Round 1: mergeable with fixes, no MAJOR. It falsified two of the PR's own claims: a fixed 2⁻⁶⁰⁰ scale-down dropped bits the plain spelling had right for a witness in [2⁵⁰⁰, 2⁵¹¹), and the documented low cut was really 2⁻⁴⁴⁹. It also found seven stale prose sites and the STEP and `unit_from_components` doors. Orchestrator rulings: the branch on `is_bounded` reads stands, because every arm denotes the same real, the Sym ‖v̂‖ = 1 theorem still fires and the branch-free spellings are worse. The new f64/interval disagreement on a `(1e200, 0, 0)` pattern rides the door row; DL6 points at the f64 door's refusal as the suspect side. The fix pass redesigned the scale into four sharp arms and shared one `geom_core::pow2` with `spline/weight_scale.rs`. The re-review (delta only) found nothing falsified: 800k cut probes, 28M mixed-binade vectors, and `pow2` agreeing with `powi` over every reached exponent. A class finding with no durable home before this: generic code over `T` cannot read an exponent, so an exact rescale is spelled as fixed arms cut by `is_bounded` reads. `Real::is_bounded`'s doc now states when that is sound.
+
+Seam (INTENT, noted by the exact-frames lane): the render workflow's GUI montage is red on main. Three committed `demos/renders-gui/datum-extrude-place-profile-*.png` cells now render under a new name with no re-baseline. This matches the "gui montage" red in INTENT's handoff of nightly 65.
+
+## 2026-10-21 — exact frames are written turns (designer pair, converged)
+
+`exact-frame-mints-cover-three-of-the-world-frames` weighed by a designer pair (labels on `analysis/design-fork/frame-exact-mints`). Both, in round 1: no new frame vocabulary. Every axis-aligned frame is already reachable with no decision as an exact axis turned by a written fraction of a turn, the vocabulary D10 gives a placement's values; the receipts were written in a different one. Decided by the orchestrator (no ratified text moves; not Ev's fork): the row's decision section says what is owed. Dispatched as `frame/exact-frames-are-turns`, review tier **single STYLE**: a new constructor plus caller rewrites, believable by reading; the bits claim (a quarter turn about x̂ equals Gram–Schmidt's frame from `(x̂, ẑ)`) is pinned by the unit's own tests. Filed from the pair's off-question findings: `rigid-motion-radian-rotation-doors-twin-their-angle-doors` (P3 M) and `python-sketch-plane-from-frame-decides-exact-axes` (P3 M, parked on D′). `Angle::of_turns`'s fate is left to INTENT's expression evaluator (`expr.rs`), its only document caller.
+
+## 2026-10-21 — exact frames land (PR 5573); FRAME handed back
+
+The style review found no correctness MAJOR. Its main finding: the fix minted the defect it closes. One turn helper existed three times (tour, sweep fixtures, a geom-core test), and the new `sketch_xz_at`/`xz_plane` named the same plane as `axes_zx` with the opposite normal under a letter-swapped name. The fix pass:
+- put one infallible library door in their place, `RigidMotion::turned`;
+- removed the xz names, and filed `SketchPlane`'s missing `yz_at`/`zx_at` on PROFILE rather than filling the gap in a consumer;
+- added `Turns::quarters`, because a literal quarter turn carried an `expect` that could never fire, and `join2_r2_probes` denies `expect`;
+- fixed the docs and tightened two tests.
+
+Orchestrator's read on the fix pass: `turned` takes an origin, as `axes_*` do, and that deviation from the brief is accepted. No frame moved relative to the earlier render. If the nightly k-lint fires on `tour_frame_axis`'s smaller sample, re-derive its baseline.
+
+**Handed back, status `ready`.** The sitting's P0 and P1 rows are done (`memories/orchestration-model.md`). What remains:
+- dispatchable at P2 and P3: `direction-doors-refuse-finite-directions-normalize-now-answers` (P2, a fork per door, touches INTENT's `mate/coset.rs`), `project-and-reject-collapse-past-the-squares-range`, `frame-degenerate-escalation-ends-a-poisoned-gauge-without-the-note`, and the exact-frames residue rows;
+- parked on INTENT's stage 3: the widened derived placement (on E), the two `path_start_frame` rows (on D′) and the Python `SketchPlane.from_frame` row (on D′).
+
+A successor should run `work.py incoming --program frame` first: E and D′ are the triggers.

@@ -1145,11 +1145,14 @@ suite owns, reaching no corpus by construction. The aim decision
 side — as before; the mate frame's axis is read off the ladder's
 witness rather than decided again.
 
-`tour_frame_axis` is a demo minting a roster name because the type's
-decision-free mints are the three cyclic world frames and the tour's
-planes are not all among them; that friction is filed at
-`work/props/exact-frame-mints-cover-three-of-the-world-frames.md`, with
-the two shapes a fix could take. The two names the sweep's corpus does
+`tour_frame_axis` is a demo minting a roster name for the frames it
+computes: the lily's bud, blade and loft sections, and its tube
+scenes' spine frames. The tour's axis-aligned sketch planes are written
+turns (`RigidMotion::turned`), which decide nothing, so the Klein
+bottle's and the lily's exact planes no longer sample it. The tube
+scenes' `axis_frame` still decides an exact (axis, reference) pair
+under it (`work/frame/exact-axis-and-reference-frames-still-decide.md`).
+The two names the sweep's corpus does
 NOT reach — `sketch_plane_frame_norm`, which is production code, and
 `fixture_frame_axis` — are filed at
 `work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`.

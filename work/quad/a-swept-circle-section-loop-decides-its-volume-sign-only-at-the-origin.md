@@ -174,3 +174,20 @@ So the loft's tier-3 sign still decides by the section's knot structure
 (two semicircles refuse at every station count) and by the skin's
 degree (v-degree 3 doubles the `circle` width and turns on the 9-station
 quartered refusal). It no longer decides by the body's position.
+
+## 2026-10-21 — the sign lane's `rounds: 1` refusals were the budget exit (PR 5568)
+
+Every tier-3 refusal in the first table carried `rounds: 1`. That was
+the lanes' after-round-0 budget exit, answering the reporting question
+inside the sign walk: `check-7-refuses-the-reporting-budget-on-a-definite-sign`.
+PR 5568 lets the sign walk refine past it. The Klein bottle's
+`circle` loop (13 stations, v-degree 2, at the scene's position) now
+passes tier 3 at ε = 1e-6, 1e-9 and 1e-12, so wall 5 is retired and
+the scene's loop is spelled with `circle` (findings entry 5 rewritten).
+The tess crease row it waited on had already closed (#5499).
+
+What this does not touch is the REPORTING half, which still stands:
+the widths themselves, and their dependence on knot structure, degree
+and position; the quartered bodies' bracket-less continuation at 1e-6;
+and the helix (`projectbox` wall 1), which refuses at
+`mass_properties`, a number caller.
