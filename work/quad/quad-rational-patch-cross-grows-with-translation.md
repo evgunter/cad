@@ -100,3 +100,28 @@ read the same refusal widths to four digits at the origin and at
 circle loop's v-degree-3 widths grew 2.8–4× from the origin to 100 m.
 What is left open is the door's own frame: a caller that hands it a
 net far from the origin still gets these widths.
+
+## Re-measured on `quad/rational-quotient-statement` (QUAD, 2026-10-22)
+
+The lane's Taylor hulls and area pads now read the quotient statement
+in the frame of each span cell's first point
+(`geom_core::spline::cell_measure_quotients`, unit
+`quad-rational-integrand-second-derivative-reads-the-quotient-rule-by-hand`).
+`rational_wall` translated by `(t, t, t)`, `nurbs_patch_face::<f64>`
+over the whole rectangle, default ε:
+
+| t | main | this branch |
+|---|---|---|
+| 0 | area width 0.124; certifies at round 7 | area width 0.0504; certifies at round 4 |
+| 1 m | refuses, width_len 8.33e-6 | certifies |
+| 10 m | refuses, 4.56e-4 | refuses, 2.17e-6 |
+| 100 m | refuses, 1.12e-2 (area width 7.49) | refuses, 2.17e-5 (area width 0.0504) |
+| 1 km | refuses, 0.125 | refuses, 2.17e-4 |
+| 100 km | refuses, 12.7 | refuses, 2.17e-2 |
+
+The area bracket no longer moves with `t` (0.0504 at 0 and at 100 m).
+The flux floor still grows linearly with `t`: `N = A·(A_u×A_v) + c·M̃`
+carries the frame's `c`, so `f_uu` itself scales with the distance
+from the origin. That is the flux's own magnitude, which this row asks
+to judge it against; the per-point midpoint reads in the absolute frame
+are unchanged.
