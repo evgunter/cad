@@ -2611,8 +2611,7 @@ fn wire_mirror<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let body = finished_operand(results, source, tol)?;
     let PoseValue::Plane { origin, normal } = plane else {
         unreachable!(
-            "the door admits {} alone at a mirror's plane, not {}",
-            super::phrase::PLANE_POSE,
+            "the door admits a plane alone at a mirror's plane, not {}",
             plane.kind()
         )
     };

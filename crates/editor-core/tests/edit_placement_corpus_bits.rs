@@ -205,6 +205,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("face_sketch", 53, 0xd5e58b4c5b896c38),
     ("part_select", 42, 0x82790a172f72402b),
     ("part_select", 56, 0xd6c1e39940b5f496),
+    ("symmetric_plate", 37, 0x0dac8a77b9cc409f),
     ("loft_prism", 51, 0x7b39a360638cd8a1),
     ("die_composed", 36, 0x9799e9408a965673),
     ("die_composed", 89, 0x9e11aafa0ce9cf70),

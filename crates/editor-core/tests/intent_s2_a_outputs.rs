@@ -500,6 +500,7 @@ fn every_node_shape_states_its_signature() {
         "Chamfer -> [body:Body]",
         "Shell -> [body:Body]",
         "Split -> [above:Body, below:Body]",
+        "Mirror -> [body:Body]",
         "Subtract -> [body:Body]",
         "Union -> [body:Body]",
         "Intersect -> [body:Body]",

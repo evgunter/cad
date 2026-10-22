@@ -645,6 +645,10 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             target: nid(1).into(),
             tool: nid(2).into(),
         },
+        Node::Mirror {
+            body: nid(1).into(),
+            plane: nid(2).into(),
+        },
         Node::Subtract {
             from: nid(1).into(),
             tool: nid(2).into(),

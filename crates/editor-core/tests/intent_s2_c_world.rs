@@ -67,7 +67,7 @@ const FILES: [&str; 5] = [
 /// from the cube's corner by exact turns: its world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its digest,
 /// which reads the carriers and the arena's order too, is new.
-const PRE_C: [(&str, &str); 34] = [
+const PRE_C: [(&str, &str); 35] = [
     ("die", "18a00a4411472694/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
     ("heat_sink", "986dd0b900fe3d32/268"),
@@ -87,6 +87,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("die_tool", "e426662d8439569d/82"),
     ("face_sketch", "7809b39224c44527/52"),
     ("part_select", "e54d217adfa64523/52"),
+    ("symmetric_plate", "4988a8ebeaf80d66/52"),
     ("loft_prism", "36c0de6a313e3a66/28"),
     ("die_composed", "182b02846757307e/88"),
     ("die_composed_tour", "ca0b8371cb38e973/328"),
