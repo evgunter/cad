@@ -3876,9 +3876,7 @@ fn asm_r2a_mated_assembly(
     pncad::document::ProfileDoc,
     Vec<pncad::document::RecipeNodeId>,
 ) {
-    use pncad::document::{
-        Coord, DocEdit, Formula, Mate, Node, Operand, Target, TargetAxis, Value, pose::PoseDef,
-    };
+    use pncad::document::{Coord, Formula, Mate, Operand, Target, TargetAxis, pose::PoseDef};
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
     let doc = pncad::document::ProfileDoc::empty(
@@ -4032,7 +4030,6 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 /// question that may move.
 #[test]
 fn asm_r2b_child_crossing_probe() {
-    use pncad::document::Node;
     use pncad::prelude::FaceName;
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
