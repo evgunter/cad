@@ -549,8 +549,9 @@ fn a_cut_of_a_pinned_instance_and_plain_geometry_moves_nothing() {
 /// gather refuses `ProductError::EmptyProduct` with the recourse, and
 /// the gate raises that refusal. Copies seated in that space evaluate
 /// there; the world's product holds only the copies placed into the
-/// world, so with pinned material in the world the gate certifies it,
-/// whatever the other space holds.
+/// world, and the other space is gathered beside it by itself, so with
+/// pinned material in the world the world certifies and the gate still
+/// refuses the two tops clashing in their space.
 #[test]
 fn a_document_of_copies_in_another_space_has_an_empty_world() {
     let p = parts("r1-alone");
@@ -596,7 +597,18 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
     let product =
         editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the world gathers");
     assert_eq!(product.solid_copies.len(), 1, "the world's copy alone");
-    editor_core::assemble_gathered(product, Tol::witness()).expect("the world certifies");
+    assert_eq!(
+        product.spaces.iter().map(|g| g.space).collect::<Vec<_>>(),
+        vec![space],
+        "the other space is gathered by itself"
+    );
+    assert!(
+        matches!(
+            editor_core::assemble_gathered(product, Tol::witness()),
+            Err(editor_core::AssemblyError::AtRest { .. })
+        ),
+        "the two tops clash in their space"
+    );
 }
 
 /// **A parametric world mate moves with the cut** (A4): the base's pin

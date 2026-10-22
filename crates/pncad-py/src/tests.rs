@@ -4491,6 +4491,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "at_rest",
             "carried_at_rest",
             "carried_mint_refusal",
+            "own_space",
             "uncertified",
             "unminted_mates",
         ],
