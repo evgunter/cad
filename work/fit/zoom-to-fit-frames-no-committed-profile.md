@@ -5,7 +5,8 @@ title: Zoom to fit frames bodies only, so a document holding only profiles, comm
 status: open
 opened: 2026-09-18
 priority: P0
-cost: D
+cost: M
+design: true
 ---
 
 
