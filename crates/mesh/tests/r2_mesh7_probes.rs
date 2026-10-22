@@ -102,7 +102,7 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
                 body.split_edge(ek, t0 + f * (t1 - t0), tol).unwrap();
             }
             let got = mesh::tessellate(&body, 0.1, tol).map(|m| m.positions.len());
-            // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+            // Raw door: these witness bodies are read alike, and tier 3 refuses the ones whose joinable vertices are still at rest (JoinableVertexAtRest).
             let vol = topo::test_support::measure_unvalidated(&body, tol).map(|m| m.volume);
             println!("edge {i} (r = {radius}), pattern {pi}: {got:?}, V = {vol:?}");
             if got.is_err() || vol.as_ref().map(|v| v.to_bits()) != Ok(v0) {

@@ -104,7 +104,7 @@ fn r1_every_donut_split_is_the_donut_bitwise() {
         for fracs in [&[0.5][..], &[0.3129, 0.15645][..]] {
             let body = split_donut(i, fracs);
             let r = receipts(&body);
-            // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+            // Raw door: these split donuts are read alike, and tier 3 refuses the ones whose joinable vertices are still at rest (JoinableVertexAtRest).
             let mp = topo::test_support::measure_unvalidated(&body, tol);
             let vol_ok = mp
                 .as_ref()
@@ -378,7 +378,7 @@ fn r1_the_class_sweep_measured_over_the_curved_corpus() {
                     continue;
                 }
                 let r = receipts(&body);
-                // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+                // Raw door: these split donuts are read alike, and tier 3 refuses the ones whose joinable vertices are still at rest (JoinableVertexAtRest).
                 let mp = topo::test_support::measure_unvalidated(&body, tol)
                     .map(|m| (m.volume.to_bits(), m.surface_area.to_bits()))
                     .map_err(|e| format!("{e:?}"));

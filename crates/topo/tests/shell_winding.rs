@@ -88,7 +88,7 @@ fn graft_onto(dst: &mut Body<f64>, target: SolidKey, src: &Body<f64>) {
 }
 
 fn positive_total(body: &Body<f64>) {
-    // Raw door: the measured body is a shell wound against its role, which tier 3 refuses (ShellWinding).
+    // Raw door: the measured body is wound or filed against its roles, which tier 3 refuses (ShellWinding, NegativeVolume, SolidOuterShells).
     assert!(
         topo::test_support::measure_unvalidated(body, tol())
             .expect("the body measures")
