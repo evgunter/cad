@@ -8,6 +8,7 @@ closed: 2026-10-22
 priority: P0
 cost: M
 branch: intent/door-reads-a-mated-seat
+pr: 5587
 ---
 
 
