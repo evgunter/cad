@@ -570,25 +570,33 @@ smoothness δ already buys. A display-mesh lane, when built, gets its
 own separately-honest criterion and is never promoted into the
 certified export promise.
 
-**A measurement's resolution is the model's unless the caller asks for less.**
+**A measurement refines until a predicate over its enclosure resolves.**
 `[tolerance.measure]`
 A certified measurement (volume, area, moments) is an enclosure, never a
-number alone, and its width is part of the value. Refinement aims at a
-resolution, metered as the mean boundary displacement the enclosure's
-width corresponds to. The model defines its solids only to ε of boundary
-displacement ([intrinsic.epsilon]), so no resolution finer than ε is
-offered. The default is `K_m·ε`, where `K_m` is a cost dial as K is and
-never a correctness parameter. A caller whose purpose needs less passes a
-coarser resolution per call, as an export chooses δ. A face stops when its
-enclosure meets the resolution, when refinement stops paying (a floor no
-round removes), or at the per-face work bound (one bound, in one unit,
-for every lane). It returns the narrowest enclosure reached, with the
-resolution asked for, the resolution reached and the reason it stopped.
-A width wider than the resolution is never a refusal: only a face with no
-enclosure refuses. The stop is a sizing, not a verdict: no predicate is
-asked, and no validity decision reads it. Decisions that read a volume
-(tier 3's sign, the boolean volume backstop, shell roles) read the
-enclosure's ends against the band.
+number alone, and its width is part of the value. There is one door. It
+refines a face until a predicate over the enclosure resolves, until
+refinement stops paying (a floor no round removes), or until the per-face
+work bound (one bound, in one unit, for every lane). It returns the
+narrowest enclosure reached and why it stopped.
+
+A consumer that decides something passes its predicate: a sign, a
+relation against a bound as an assertion states it, or a containment. At
+the public doors the predicate is closed data, not a callable. A deciding
+predicate is a named predicate ([verdicts]). It settles when definite,
+refines while its enclosure straddles the threshold, stops when the
+enclosure lies wholly in the band, and is recorded at every round it is
+asked.
+
+A consumer that hands the number on passes a resolution, the width
+predicate: the mean boundary displacement it needs. That is a sizing,
+decides nothing against ε ([intrinsic.epsilon]), and is not recorded.
+The model defines its measures only to ε of boundary displacement, so no
+finer resolution is offered. The default resolution is `K_m·ε`, where
+`K_m` is a cost dial as K is and never a correctness parameter.
+
+A deciding predicate still undecided at the work bound is the one
+quadrature refusal, and it carries the enclosure. A resolution unmet
+there is the bracket, with the resolution it reached.
 
 **The margin dimensional convention.** `[tolerance.margins]`
 ε is a length: the maximum
