@@ -54,3 +54,11 @@ its refusal needs a surface on that seam, not the viewport's per-frame
 read. The door is also the flat patch lookup (`name_of`), not the
 edge window. Its selection-mark sibling is filed beside it:
 `a-selected-edge-whose-drawn-edge-lost-its-name-marks-as-vanished`.
+
+## Left here by FIT (fit/id-answer-split, 2026-10-22)
+
+`PickIndex::name_of` now answers `Result<&StableName, PatchNameFault>`,
+so the site reads `attribute(index.name_of(id).ok()?)`. It walks only
+assigned ids, so `PatchNameFault::Unnamed` is the one arm it drops, and
+the type now names it. What this row asks for is unchanged: a count or
+badge on the `sync_scene` seam, which is more than a one-line change.

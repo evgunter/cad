@@ -242,9 +242,7 @@ pub enum SceneError {
     NoProduct(Box<ProductError>, HeldNodes),
     /// The body did not tessellate at this δ.
     NotTessellated(TessellateError),
-    /// The tessellation was empty, or its positions gave no usable
-    /// bounding box — nothing to look at, and nothing to frame a
-    /// camera against.
+    /// The tessellation was empty — nothing to look at.
     EmptyMesh,
     /// A part offered its patches' ids, but not one per patch.
     ///
@@ -325,10 +323,9 @@ impl core::fmt::Display for SceneError {
                     "the body did not tessellate at this display tolerance: {error}"
                 )
             }
-            Self::EmptyMesh => f.write_str(
-                "the tessellation drew nothing — there is no picture to show and no \
-                 bounds to frame a camera against",
-            ),
+            Self::EmptyMesh => {
+                f.write_str("the tessellation drew nothing — there is no picture to show")
+            }
             Self::MispairedIds { ids, patches } => write!(
                 f,
                 "a part offered {ids} patch ids for {patches} patches; a part carries \
@@ -397,7 +394,6 @@ pub struct SceneMesh {
     /// headless row can assert its presence, rather than decided at
     /// paint time where nothing can.
     flags: Vec<u32>,
-    bounds: Aabb,
     stats: SceneStats,
 }
 
@@ -468,21 +464,22 @@ impl SceneMesh {
     /// flags word already travels to the shader.
     pub const FLAG_FOCUS: u32 = 2;
 
-    /// The empty picture: what a scene where EVERYTHING is hidden
-    /// draws. Zero triangles, legally — an honest blank viewport, not
-    /// an error — with `bounds` carried from the geometry that exists
-    /// but is not drawn, so a camera still has something real to frame
-    /// against. Distinct from [`SceneMesh::nothing`], the picture of a
-    /// document with no geometry to carry a box from, and from
-    /// [`SceneError::EmptyMesh`], the refusal for parts that exist and
-    /// tessellated to nothing.
-    pub fn empty(bounds: Aabb, delta: DisplayTolerance) -> Self {
+    /// **The picture with no parts in it**: what a document that
+    /// denotes no geometry draws (which documents those are is
+    /// `ProductErrorKind::means_no_body`'s), and what one whose every
+    /// part is hidden draws. Zero triangles and no
+    /// [`SceneMesh::bounds`], legally — an honest blank viewport, not
+    /// an error.
+    ///
+    /// [`SceneError::EmptyMesh`] stays a refusal: parts that are drawn
+    /// and tessellated to nothing are a fault in the tessellation,
+    /// not a picture with nothing in it.
+    pub fn nothing(delta: DisplayTolerance) -> Self {
         Self {
             positions: Vec::new(),
             normals: Vec::new(),
             ids: Vec::new(),
             flags: Vec::new(),
-            bounds,
             stats: SceneStats {
                 faces: 0,
                 triangles: 0,
@@ -491,36 +488,6 @@ impl SceneMesh {
                 focus_patches: 0,
             },
         }
-    }
-
-    /// **The picture of a document that denotes no geometry at all**
-    /// (which documents those are is `ProductErrorKind::means_no_body`'s).
-    ///
-    /// [`SceneMesh::empty`]'s sibling, and the distinction between
-    /// them is where the extent comes from: that one is drawn from
-    /// geometry that EXISTS and is hidden, so it carries that
-    /// geometry's box; this one has no geometry to take a box from,
-    /// and says so with a degenerate one at the world origin. A
-    /// camera asked to frame it refuses with
-    /// [`crate::camera::CameraError::DegenerateScene`], which is the
-    /// honest answer — inventing a scale for a document with no
-    /// extent would put the user somewhere no fact chose.
-    ///
-    /// This is a legal outcome, not a refusal.
-    /// [`SceneError::EmptyMesh`] stays what it always was: parts that
-    /// exist and tessellated to nothing, which is a fault in the
-    /// tessellation rather than a document with nothing in it.
-    pub fn nothing(delta: DisplayTolerance) -> Self {
-        // `from_points` answers `None` only for an EMPTY iterator, and
-        // this one holds a point — but the absence is handled rather
-        // than asserted away, because a panic in the picture of an
-        // empty document would be the loudest possible answer to the
-        // quietest possible state. The poison box is the fallback with
-        // the same meaning the degenerate one has here: nothing a
-        // camera can frame.
-        let nowhere =
-            Aabb::from_points([Point3::new(0.0_f64, 0.0, 0.0)]).unwrap_or_else(Aabb::poison);
-        Self::empty(nowhere, delta)
     }
 
     /// Build a drawable scene from a tessellated body.
@@ -534,7 +501,7 @@ impl SceneMesh {
     /// # Errors
     ///
     /// [`SceneError::EmptyMesh`] when the tessellation carries no
-    /// triangle, or no finite bounding box;
+    /// triangle;
     /// [`SceneError::BrokenPatchIndex`] when a patch names a vertex
     /// the shared position table does not have.
     pub fn build(mesh: &Mesh, delta: DisplayTolerance) -> Result<Self, SceneError> {
@@ -687,20 +654,11 @@ impl SceneMesh {
                 }
             }
         }
-        let bounds = Aabb::from_points(parts.iter().flat_map(|part| {
-            let map: Option<Affine3<f64>> = part.probe.map(|frame| frame.affine());
-            part.mesh
-                .positions
-                .iter()
-                .map(move |p| map.as_ref().map_or(*p, |m| m.transform_point(*p)))
-        }))
-        .ok_or(SceneError::EmptyMesh)?;
         Ok(Self {
             positions,
             normals,
             ids,
             flags,
-            bounds,
             stats: SceneStats {
                 faces,
                 triangles,
@@ -737,18 +695,11 @@ impl SceneMesh {
         &self.flags
     }
 
-    /// A bounding box of the scene, in world units — what a camera
-    /// frames against.
-    ///
-    /// Taken over the tessellation's whole shared position table, not
-    /// over the corners actually emitted into
-    /// [`SceneMesh::positions`]. The two coincide whenever every mesh
-    /// vertex is used by some patch, which is the tessellator's normal
-    /// output; when they do not, this is the **superset**, so a camera
-    /// framed on it still contains everything drawn. That is the safe
-    /// direction, and it is stated rather than claimed as identity.
-    pub fn bounds(&self) -> Aabb {
-        self.bounds
+    /// The box around the corners this scene draws
+    /// ([`SceneMesh::positions`]), in world units — the scene's share
+    /// of what a fit frames. `None` when nothing is drawn.
+    pub fn bounds(&self) -> Option<Aabb> {
+        crate::narrowing::drawn_box(&self.positions)
     }
 
     /// What this scene cost.
@@ -1657,7 +1608,8 @@ mod tests {
     fn a_count_that_does_not_move_keeps_the_request() {
         let mut rungs: Vec<f64> = Vec::new();
         let flat = 62_500;
-        let fitted = fit_from_probes(delta(1.0e-4), |d| {
+        let requested = 1.0e-4;
+        let fitted = fit_from_probes(delta(requested), |d| {
             rungs.push(d);
             Ok(Probe {
                 triangles: flat,
@@ -1677,9 +1629,12 @@ mod tests {
             "the scale probe, the one step that discovers the count did not move, and the \
              request's own rung: {rungs:?}"
         );
-        let last = rungs.last().copied().expect("a rung");
-        assert!(
-            (last - 1.0e-4 * PROBE_FACTOR).abs() < f64::EPSILON,
+        // Exact: the request's rung is DEFINED as this one multiply
+        // (`DisplayTolerance::scaled`), and a ladder that reached it
+        // some other way would be pricing a different δ.
+        assert_eq!(
+            rungs.last().copied(),
+            Some(requested * PROBE_FACTOR),
             "the last rung prices the request: {rungs:?}"
         );
     }
