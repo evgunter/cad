@@ -2,10 +2,12 @@
 id: derived-hands-raw-knot-lists-a-loose-knots-could-carry
 kind: issue
 title: Derived's SpanConstant and Discontinuous arms hand out raw knot slices, which props re-validates into a LooseKnots behind an unreachable!
-status: open
+status: closed
 opened: 2026-10-22
 priority: P1
 cost: M
+closed: 2026-10-22
+pr: 5581
 ---
 
 
@@ -38,3 +40,7 @@ still does not produce one, so:
 re-checking. Either way, `from_derived`'s `unreachable!` goes. This
 touches geom-core (knot and nurbs territory) plus the matching sites
 above.
+
+## Closed
+
+PR 5581. `Derived<V>` is now `Vector(V)`, `SpanConstant(LooseKnots)` and `Discontinuous(LooseKnots)`, built by `LooseKnots::derivative_of`. It keeps two arms, because every consumer treats the two causes differently. quad's `Loose::from_derived` maps each arm directly, so its re-validation and `unreachable!` are gone. `Derived` loses its lifetime. Bits are unchanged. `knots-f64-interim` geom-core went from 28 to 27: the borrowed `&[f64]` field is gone. The review tier was the orchestrator's read: a type change the compiler checks, with no number moved.
