@@ -45,3 +45,13 @@ point at `9d680e33`, the pad reads identical to 17 digits.
 **Fix:** re-pin both to 2.2106e-6 and update the ceiling comments'
 "1.95 times the target" to 2.16. Drop the origin-lever figures, which
 were taken under the old hulls.
+
+**The third pin of the family**, found by the sweep at 1e-6:
+`crates/sweep/tests/m5_s11_concave_sense.rs`
+`loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below`
+(`LOFTED_CONCAVE_PAD_AT_1E6`) read 8.9566e-4 against 1.3816e-3. Same
+cause, opposite sign. The prism's two rational walls converged at
+rounds 2 and 1 and now both converge at round 0 (width_len 5.52e-4
+and 2.55e-4 against a 1.024e-3 target). The ~14× tighter hull more
+than pays for the coarser grid, so the pad narrows 0.648× and lands
+at 0.87× target. Re-pinned with it.

@@ -611,7 +611,7 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             // `shell_reference`), so a quadrature face's lever is the
             // extent of the shell's quadrature faces
             // (`m8_3_rational_volume`'s ceiling). The lofted concave
-            // prism measured 1.38e-3 at 1e-6, 1.35 times the target: the
+            // prism measured 8.96e-4 at 1e-6, 0.87 times the target: the
             // ceiling is the measure with headroom, not a bound the rule
             // guarantees.
             let ceiling = 4.0 * target;
@@ -1108,4 +1108,4 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
 
 /// The lofted concave prism's volume pad at ε 1e-6, the measure the
 /// rational-volume ceiling's comment cites.
-const LOFTED_CONCAVE_PAD_AT_1E6: f64 = 1.381_6e-3;
+const LOFTED_CONCAVE_PAD_AT_1E6: f64 = 8.956_6e-4;
