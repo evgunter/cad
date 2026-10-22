@@ -20,7 +20,7 @@ use sweep::test_support::{finished, prism_at, prism_on, realized, revolved_about
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::BooleanOp;
 use topo::readback::euler_counts;
-use topo::{Body, EdgeKey, mass_properties, validate, validate_geometric};
+use topo::{Body, EdgeKey, validate, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -40,7 +40,7 @@ fn reading(m: &sweep::blend::ClassifiedMargin) -> f64 {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, tol())
+    topo::test_support::unmigrated_measure(body, tol())
         .expect("mass properties")
         .volume
 }

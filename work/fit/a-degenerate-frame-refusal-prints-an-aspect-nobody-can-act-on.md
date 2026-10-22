@@ -2,12 +2,14 @@
 id: a-degenerate-frame-refusal-prints-an-aspect-nobody-can-act-on
 kind: issue
 title: A degenerate-scene frame refusal prints the viewport aspect to seventeen digits and calls it the half a reader can act on
-status: open
+status: closed
 opened: 2026-09-24
 refs: [zoom-to-fit-frames-no-committed-profile]
 priority: P3
 cost: E
 rides_with: zoom-to-fit-frames-no-committed-profile
+closed: 2026-10-22
+pr: 5597
 ---
 
 
@@ -70,3 +72,13 @@ row's question.
 `crates/viewer/src/camera.rs` is this program's. The sentence a reader
 sees is VNEWS's subject by charter, so a VNEWS lane may reasonably take
 it — announce the crossing either way.
+
+## Closed
+
+PR 5597. An empty scene no longer reaches a refusal: it frames the
+default. `CameraOp::Frame` now displays as "zoom to fit", the button's
+name, and renders neither of its fields. The only error that depends on
+the aspect, `CameraError::Unfittable`, says the shape and the remedy
+("the viewport is about N times taller than it is wide, too narrow to
+fit the picture; widen it"), with N rounded to a whole number.
+`DegenerateScene` is left only for `Camera::new`.

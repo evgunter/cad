@@ -316,6 +316,79 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// **The raw measurement door**: [`crate::mass_properties`]' walk over
+    /// a body that has not passed tier 3. The public door takes a
+    /// finished body (`&AtRestBody`, Ev's decision on PR 4822); a test
+    /// whose subject is the walk on a body tier 3 refuses (a flipped
+    /// seam region, a corrupt arena, a shell wound against its role)
+    /// measures it here, and says so in one line at the call. No
+    /// production caller has a reason to: a body it built is finished
+    /// through `AtRestBody::validate`.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::mass_properties`].
+    pub use crate::props::raw_door::measure_body as measure_unvalidated;
+
+    /// **The raw classification door**: [`crate::classify_shells`] over a
+    /// body that has not passed tier 3, as [`measure_unvalidated`] is to
+    /// the measurement.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::classify_shells`].
+    pub use crate::props::raw_door::classify_body as classify_unvalidated;
+
+    /// **The raw closed-form measurement door**:
+    /// [`crate::mass_properties_structural`] over a body that has not
+    /// passed tier 3, as [`measure_unvalidated`] is to
+    /// [`crate::mass_properties`].
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::mass_properties_structural`].
+    pub use crate::props::raw_door::measure_body_structural as measure_unvalidated_structural;
+
+    /// **The raw closed-form classification door**:
+    /// [`crate::classify_shells_structural`] over a body that has not
+    /// passed tier 3.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::classify_shells_structural`].
+    pub use crate::props::raw_door::classify_body_structural as classify_unvalidated_structural;
+
+    /// **The raw restricted classification door**:
+    /// [`crate::classify_shells_of`] over a body that has not passed
+    /// tier 3.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::classify_shells_of`].
+    pub use crate::props::raw_door::classify_body_of as classify_unvalidated_of;
+
+    /// **The transitional measurement alias** (FLUX unit F1): the raw
+    /// walk under the name a NOT-YET-MIGRATED test site reads it by,
+    /// until F2 moves sweep's and editor-core's sites onto the typed
+    /// door ([`crate::mass_properties`], `&AtRestBody`) or, with a
+    /// reason, onto [`measure_unvalidated`]. It means "not yet
+    /// migrated", never "measures an invalid body on purpose". Its sites
+    /// may only fall: `scripts/gates/unmigrated-measure-sites.sh` pins
+    /// them, and F2 deletes the alias
+    /// (`work/flux/the-measurement-doors-test-sites-still-read-through-the-transitional-alias.md`).
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::mass_properties`].
+    pub use crate::props::raw_door::measure_body as unmigrated_measure;
+
+    /// [`unmigrated_measure`] for [`crate::classify_shells`].
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::classify_shells`].
+    pub use crate::props::raw_door::classify_body as unmigrated_classify;
+
     /// Every shell's stored face list rotated left by `k` (modulo its
     /// length): the same solid stored in another face order, which the
     /// tiers do not read. Each shell's face count, in arena order.
@@ -416,13 +489,16 @@ pub mod test_support {
     /// refuses it — a fixture that is not a finished body.
     #[must_use]
     #[allow(clippy::panic)]
+    #[track_caller]
     pub fn finished<T: crate::AtRestPolicy>(
         what: &str,
         body: Body<T>,
         tol: geom_core::Tol,
     ) -> crate::AtRestBody<T> {
-        T::gate_at_rest_kept(body, tol)
-            .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+        match T::gate_at_rest_kept(body, tol) {
+            Ok(body) => body,
+            Err(e) => panic!("{what} is not a finished body: {e:?}"),
+        }
     }
 
     /// Which bridge a graft ran ([`take_graft_bridges`]).

@@ -4,6 +4,7 @@ kind: issue
 title: The committed tour die document is stale against the tour's die-corpus mode, and regenerating it drops the corpus's only AddConstraint and AddValue edits
 status: open
 opened: 2026-10-20
+refs: [a-placement-names-its-target-space]
 ---
 
 
@@ -33,3 +34,14 @@ regenerating moves the corpus's edit coverage onto placement ground
 file.
 
 Signed (WIRE lane `wire-seamorder`).
+
+## Skipped by the hygiene batch (2026-10-22)
+
+This is D′1's ground, and D′1 does the fix on its branch
+(`intent/dprime1-placement-target-space`, commit `345feb23`). It
+re-saves `die_composed_tour.pncad` by the tour's own door, and the
+corpus edit roster (`tests/corpus/mod.rs`) drops `AddConstraint`,
+`AddValue` and `AddValues` for `SetConstraints`, because every bundle
+is written whole. That is the ruling this row asked for, made by the
+design. D′1 should close this row when it lands. If it lands without
+closing it, check the regenerability step first and then close it.

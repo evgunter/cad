@@ -12,8 +12,8 @@
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, cylinder_of_arcs_at, finished};
 use topo::{
-    Body, ShellRole, SolidContainment, ValidationError, classify_shells, intersect, point_in_solid,
-    subtract, transform_rigid, validate_geometric,
+    Body, ShellRole, SolidContainment, ValidationError, intersect, point_in_solid, subtract,
+    transform_rigid, validate_geometric,
 };
 
 /// The discs these rows read: `(h, d)`, every height thin enough that
@@ -99,7 +99,7 @@ fn far_thin_discs_are_read_by_their_exact_volume() {
                 check7,
                 "{what}, {name}: check 7"
             );
-            let roles: Vec<ShellRole> = classify_shells(body, tol)
+            let roles: Vec<ShellRole> = topo::test_support::unmigrated_classify(body, tol)
                 .unwrap_or_else(|e| panic!("{what}, {name}: the shell classifies: {e}"))
                 .iter()
                 .map(|c| c.role)
@@ -287,7 +287,7 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
                             check7,
                             "{what}, {name}: check 7"
                         );
-                        let classified = classify_shells(body, tol);
+                        let classified = topo::test_support::unmigrated_classify(body, tol);
                         if runs_out_of_budget(h, tilt, d, angle, tol) {
                             assert_runs_out_of_budget(&classified, &format!("{what}, {name}"));
                             continue;

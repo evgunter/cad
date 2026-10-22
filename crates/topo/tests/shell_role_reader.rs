@@ -64,11 +64,14 @@ fn shells_per_solid(body: &Body<f64>) -> Vec<usize> {
 }
 
 fn roles(what: &str, body: &Body<f64>, tol: Tol) -> Vec<ShellRole> {
-    classify_shells(body, tol)
-        .unwrap_or_else(|e| panic!("{what}: every shell classifies, got {e:?}"))
-        .iter()
-        .map(|c| c.role)
-        .collect()
+    classify_shells(
+        &topo::test_support::finished("the measured body", (body).clone(), tol),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("{what}: every shell classifies, got {e:?}"))
+    .iter()
+    .map(|c| c.role)
+    .collect()
 }
 
 /// `refusal` is the near-coincidence of a pair of cells `t` apart.

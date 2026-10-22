@@ -184,7 +184,11 @@ fn peg_in_socket_union_holds(s: &AtRestBody<f64>, p: &AtRestBody<f64>) {
         topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
         "the at-rest certificate"
     );
-    let vol = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &Body<f64>| {
+        topo::test_support::unmigrated_measure(b, Tol::witness())
+            .unwrap()
+            .volume
+    };
     let (v, want) = (vol(&bb.body), vol(s) + vol(p));
     assert!(
         (v - want).abs() < 1e-9 * want.max(1.0),

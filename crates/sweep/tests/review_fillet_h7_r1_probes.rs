@@ -40,7 +40,7 @@ use sweep::test_support::{
     rod_creases, rod_section_cut, rod_with_flat,
 };
 use sweep::{Extrusion, extrude};
-use topo::{AtRestBody, Body, EdgeKey, mass_properties, validate_geometric};
+use topo::{AtRestBody, Body, EdgeKey, validate_geometric};
 
 const R: f64 = ROD_FILLET;
 /// The block's length along the ruling.
@@ -59,7 +59,7 @@ fn census(body: &Body<f64>) -> (usize, usize, usize) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("closed-form props");
+    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
 }
@@ -256,7 +256,11 @@ fn the_boolean_builds_the_groove_and_a_short_sunk_rod() {
 #[test]
 fn the_short_sunk_rod_agrees_with_its_intersection_and_difference() {
     let cyl = cylinder(0.2, 0.6);
-    let v = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
+    let v = |b: &Body<f64>| {
+        topo::test_support::unmigrated_measure(b, tol())
+            .unwrap()
+            .volume
+    };
     let body = |r: Result<topo::BooleanResult<f64>, topo::BooleanError>| {
         r.unwrap().body().unwrap().body.clone()
     };

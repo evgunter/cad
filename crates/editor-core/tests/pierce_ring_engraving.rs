@@ -143,8 +143,8 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
             Ok(()),
             "{label}: tier 3"
         );
-        let volume = |b| {
-            topo::mass_properties(b, tol)
+        let volume = |b: &topo::Body<f64>| {
+            topo::test_support::unmigrated_measure(b, tol)
                 .expect("mass properties")
                 .volume
         };
@@ -193,7 +193,7 @@ fn a_pocket_across_the_rim_cuts_to_the_closed_form() {
     let d = 0.035;
     let segment = R * R * (d / R).acos() - d * (R * R - d * d).sqrt();
     let truth = PI * R * R * HEIGHT - segment * DEPTH;
-    let got = topo::mass_properties(body, tol)
+    let got = topo::test_support::unmigrated_measure(body, tol)
         .expect("mass properties")
         .volume;
     assert!(

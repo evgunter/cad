@@ -65,11 +65,7 @@ fn lower_piece(tol: Tol) -> (AtRestBody<f64>, f64, Point3<f64>) {
         "the lower piece holds half the cylinder: {volume}, want {want}"
     );
     let apex = Point3::new(RADIUS, 0.0, DEPTH / 2.0 + RADIUS * theta.tan());
-    (
-        topo::test_support::finished("the lower piece", lower, tol),
-        volume,
-        apex,
-    )
+    (lower, volume, apex)
 }
 
 /// Splits `piece` by the plane through `apex` along `normal`, and holds

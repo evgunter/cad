@@ -278,7 +278,7 @@ fn a_large_d_away_from_the_apex_is_not_an_apex_crossing() {
         twice_area_moment += (xa * yb - xb * ya) * (xa + xb);
     }
     let pappus = (core::f64::consts::PI * twice_area_moment / 3.0).abs();
-    let volume = topo::mass_properties(&body, Tol::witness())
+    let volume = topo::test_support::unmigrated_measure(&body, Tol::witness())
         .expect("the moved body has properties")
         .volume;
     assert!(

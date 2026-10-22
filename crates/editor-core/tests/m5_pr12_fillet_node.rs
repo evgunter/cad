@@ -65,7 +65,7 @@ fn die_fillet_evaluates_green_and_meters_the_closed_form() {
         "6 supports + 12 blends + 8 corners"
     );
 
-    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let m = topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
     let (v, a) = rounded_box(die_fillet::L, die_fillet::R);
     assert!(
         (m.volume - v).abs() <= 1e-9 * v,
@@ -115,7 +115,7 @@ fn the_extrude_bump_recomputes_the_cone_and_the_fillet_needs_no_reselection() {
     // The stretched blank is still a rounded box, metered the same way.
     let body = body_of(&after, d.result.expect("head"));
     assert_eq!(topo::validate_closed(body), Ok(()), "closed after the bump");
-    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let m = topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
     // L × L × L_BUMPED with radius R: the general rounded-box form
     // specialises to the cube one only when the box is a cube, so the
     // pin here is the cheap invariant — the bump grew the solid.

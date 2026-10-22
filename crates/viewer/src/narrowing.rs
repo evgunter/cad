@@ -55,6 +55,20 @@
 
 use pncad::geom_core::Point3;
 
+/// **The world box around positions that crossed the seam**, widened
+/// back to `f64` exactly: the box of what a picture draws, `None` when
+/// it draws nothing. The crate's one spelling of a drawn extent — the
+/// scene's ([`crate::scene::SceneMesh::bounds`]), an overlay lane's
+/// ([`crate::marks::LegLane::extent`]) and their join, which a fit
+/// frames, are each this over their corners.
+pub fn drawn_box<'a>(corners: impl IntoIterator<Item = &'a [f32; 3]>) -> Option<bvh::Aabb> {
+    bvh::Aabb::from_points(
+        corners
+            .into_iter()
+            .map(|&[x, y, z]| Point3::new(f64::from(x), f64::from(y), f64::from(z))),
+    )
+}
+
 /// **The display seam's narrowing**, for one shape of `f64` value.
 ///
 /// Implemented for `f64` itself, for an array of anything that narrows

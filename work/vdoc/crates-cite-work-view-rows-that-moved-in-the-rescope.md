@@ -37,7 +37,6 @@ recorded in a dated section at the end. VIEW's re-scope of 2026-09-17 moved rows
 | `crates/viewer/src/pane/viewport.rs:390`, `:597` | the same | `work/vseam/` |
 | `crates/viewer/README.md:378` | `adjacent-same-typed-arguments-are-the-same-swap` | `work/vseam/` |
 | `crates/viewer/src/camera.rs:41` | `cursor-projection-is-f32-in-a-module-whose-matrices-are-f64` | `work/vgeom/` |
-| `crates/viewer/src/pane/viewport.rs:297`, `:1591` | `ctrl-wheel-reaches-no-zoom` | `work/vgeom/` |
 | `crates/viewer/src/scene.rs:966` | `the-budgets-predicted-count-is-not-always-an-over-count` | `work/vgeom/` |
 | `crates/viewer/src/scene.rs:1098` | `a-flat-rung-pair-is-read-as-flat-below-it` | `work/vgeom/` |
 | `crates/pncad-py/src/py/pick.rs:393` | `pickindex-merges-parts-on-a-rounded-t-it-never-converts` | `work/vgeom/` |
@@ -117,3 +116,11 @@ listed above as still resolving in `work/view/`, has since moved to
 news, ranked"* section) was repointed by the same pass; its
 `crates/viewer/README.md` citation (the status-line section, ~`:859`)
 is this row's and is not fixed.
+
+## Crossing from FIT, 2026-10-22 (`fit/ctrl-wheel-zoom`)
+
+FIT's `ctrl-wheel-reaches-no-zoom` built the binding its two
+`pane/viewport.rs` citations described as missing (`scroll_event`'s
+doc and the ctrl-wheel test row's). Both sentences were rewritten to
+state the binding and neither cites a row any more, so the
+`ctrl-wheel-reaches-no-zoom` line is struck from the table above.

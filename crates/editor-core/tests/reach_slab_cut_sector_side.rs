@@ -51,7 +51,7 @@ fn volume(ev: &Evaluation<f64>, n: RecipeNodeId, what: &str) -> f64 {
     if let Some(e) = failure(ev, n) {
         panic!("{what}: refused {e:?}");
     }
-    topo::mass_properties(body_of(ev, n), Tol::witness())
+    topo::test_support::unmigrated_measure(body_of(ev, n), Tol::witness())
         .expect("the volume integrates")
         .volume
 }

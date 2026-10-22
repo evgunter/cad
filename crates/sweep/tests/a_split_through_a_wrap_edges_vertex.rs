@@ -295,7 +295,7 @@ fn check(
     if !volume {
         return Ok(());
     }
-    let m = match topo::mass_properties(body, tol()) {
+    let m = match topo::test_support::unmigrated_measure(body, tol()) {
         Ok(m) => m,
         Err(e) if near && in_band(&e) => return Ok(()),
         Err(e) => return Err(format!("the volume: {e:?}")),
@@ -391,12 +391,19 @@ fn split_family(
                         };
                         runs += 1;
                         let got = match topo::split(&body, &split, tol()) {
-                            Ok(out) => check(out.above.body(), side(true), volume, near)
-                                .map_err(|e| format!("above: {e}"))
-                                .and_then(|()| {
-                                    check(out.below.body(), side(false), volume, near)
+                            Ok(out) => {
+                                check(out.above.body().map(|b| &**b), side(true), volume, near)
+                                    .map_err(|e| format!("above: {e}"))
+                                    .and_then(|()| {
+                                        check(
+                                            out.below.body().map(|b| &**b),
+                                            side(false),
+                                            volume,
+                                            near,
+                                        )
                                         .map_err(|e| format!("below: {e}"))
-                                }),
+                                    })
+                            }
                             Err(e) if near && in_band(&e) => Ok(()),
                             Err(e) => Err(format!("the split: {e:?}")),
                         };

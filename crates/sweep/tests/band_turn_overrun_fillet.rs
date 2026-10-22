@@ -709,7 +709,7 @@ fn the_overrun_carves_at_the_certified_scalar() {
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         assert_naming_totality(&ibody, &out, &iedges, &what);
         let v0 = mass_properties(&ibody, tol()).expect("props");
-        let p = mass_properties(&out.body, tol()).expect("props");
+        let p = topo::test_support::unmigrated_measure(&out.body, tol()).expect("props");
         let removed = v0.volume - p.volume;
         let pad = v0.volume_pad.hi() + p.volume_pad.hi();
         assert!(

@@ -19,9 +19,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitJoinError, split};
-use topo::{
-    AtRestBody, Body, BooleanDecision, BooleanError, Coincide, SplitReduceError, mass_properties,
-};
+use topo::{AtRestBody, Body, BooleanDecision, BooleanError, Coincide, SplitReduceError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -47,7 +45,9 @@ fn pad_ceiling() -> f64 {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, tol()).unwrap().volume
+    topo::test_support::unmigrated_measure(body, tol())
+        .unwrap()
+        .volume
 }
 
 /// The ladder, as `(label, ψ)`.
@@ -161,11 +161,14 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                 // integrated by quadrature.
                 let vol = |b: Option<&Body<f64>>| {
                     b.map_or((0.0, 0.0), |b| {
-                        let m = mass_properties(b, tol()).unwrap();
+                        let m = topo::test_support::unmigrated_measure(b, tol()).unwrap();
                         (m.volume, m.volume_pad)
                     })
                 };
-                let ((a, pa), (b, pb)) = (vol(r.above.body()), vol(r.below.body()));
+                let ((a, pa), (b, pb)) = (
+                    vol(r.above.body().map(|b| &**b)),
+                    vol(r.below.body().map(|b| &**b)),
+                );
                 eprintln!("{label}: volume pads {pa:e} above, {pb:e} below");
                 assert!(
                     pa + pb <= pad_ceiling(),
@@ -297,7 +300,7 @@ fn the_boolean_reads_a_grazing_vertex_against_its_section() {
         let below = {
             let plane = topo::test_support::split_plane(v, n, tol());
             let halves = split(&cyl, &plane, tol()).unwrap();
-            halves.below.body().map_or(0.0, volume)
+            halves.below.body().map_or(0.0, |b| volume(b))
         };
         let base = kept(0.0, &format!("ψ {name} on the plane"));
         assert!(

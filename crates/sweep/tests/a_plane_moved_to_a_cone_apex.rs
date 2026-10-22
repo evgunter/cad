@@ -71,7 +71,7 @@ fn cut_frustum() -> Body<f64> {
     let topo::splitting::SplitPart::Body(above) = split.above else {
         panic!("the part away from the apex carries material");
     };
-    above
+    above.into_body()
 }
 
 fn surface_of(body: &Body<f64>, face: FaceKey) -> Surface<f64> {

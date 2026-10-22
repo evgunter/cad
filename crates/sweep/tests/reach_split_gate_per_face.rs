@@ -78,7 +78,7 @@ fn halves(result: &SplitResult<f64>, what: &str) -> (Body<f64>, Body<f64>) {
             panic!("{what}: tier 3: {errs:?}");
         }
     }
-    (above.clone(), below.clone())
+    (topo::Body::clone(above), topo::Body::clone(below))
 }
 
 /// The unit cylinder `y ∈ [0, 1]` with its top rim rounded: the quarter
@@ -113,7 +113,7 @@ fn rounding_volume() -> f64 {
 const LOFT_PRISM_VOLUME: f64 = 9.0;
 
 fn props(b: &Body<f64>) -> topo::props::MassProperties<f64> {
-    topo::props::mass_properties(b, Tol::witness()).unwrap()
+    topo::test_support::unmigrated_measure(b, Tol::witness()).unwrap()
 }
 
 /// `v` lies within the kernel's certified bracket of `oracle`.
@@ -341,7 +341,7 @@ fn tilted_cut_rim() -> (Body<f64>, Rim) {
             })
         })
         .expect("the tilted section has a half-ellipse on z < 0");
-    (body, rim)
+    (body.into_body(), rim)
 }
 
 /// [`tilted_cut_rim`]'s half-ellipse: its edge, carrier, interval and

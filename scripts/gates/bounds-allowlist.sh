@@ -610,7 +610,20 @@ BOUNDS_ALLOWLIST=(
   # `props/quad_lane.rs`, and its fourteen occurrences are there under
   # the same ruling; `props.rs` keeps the assemblers, `QuadLane`,
   # `ShellDoor` and the wiring rows.
-  'crates/topo/src/props.rs 9 M5 PR 11, the certified-quadrature plumbing'
+  # 9 -> 11 (FLUX F1, Ev's decision on PR 4822): `mass_properties` and
+  # `classify_shells` take a finished body (`&AtRestBody`), and the
+  # walks they ran move beneath them, unchanged, as `raw_door`'s
+  # `measure_body` and `classify_body` (`Decide + CertifiedBounds`, one
+  # each). They are the same door at the same scalars: the typed door
+  # calls each, and the only other way out of the crate is
+  # `topo::test_support`'s re-exports (the raw door and the transitional
+  # alias), which carry this seam's bound unrestated.
+  # 11 -> 12 (FLUX F1's review, PR 5590): `classify_shells_of`, the
+  # restricted door, takes a finished body too, and its walk moves
+  # beneath it as `raw_door::classify_body_of` (`Decide +
+  # CertifiedBounds`), the same certified lane `classify_shells_through`
+  # reads; the `_structural` twins it moved with are plain `Decide`.
+  'crates/topo/src/props.rs 12 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and

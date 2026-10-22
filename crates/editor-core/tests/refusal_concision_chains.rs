@@ -5975,7 +5975,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             tol,
         ));
         let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
-        let body: &topo::Body<f64> = &cut.body().expect("a body").body;
+        let body = &cut.body().expect("a body").body;
         // The door names the first ray set aside at a corner or a wedge
         // beside the volume's refusal; the refusal is the volume's.
         let source = match topo::classify_shells_structural(body, tol)
@@ -6007,7 +6007,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             !text.contains("tolerance") && !text.contains("defect"),
             "{text}"
         );
-        let roles: Vec<topo::ShellRole> = topo::classify_shells(body, tol)
+        let roles: Vec<topo::ShellRole> = topo::test_support::unmigrated_classify(body, tol)
             .expect("the certifying door reads the cavity")
             .iter()
             .map(|c| c.role)
@@ -6073,6 +6073,17 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 E::Connectedness {
                     actual: 2,
                     expected: 1,
+                },
+            ),
+        ),
+        (
+            "NotAtRest",
+            finding(
+                CheckId::Connectedness,
+                E::NotAtRest {
+                    errors: vec![topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    }],
                 },
             ),
         ),

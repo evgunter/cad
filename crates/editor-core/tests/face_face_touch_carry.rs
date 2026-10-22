@@ -10,9 +10,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, block_on, failure, run};
-use crate::fixture::{ang, insert, len, len2, slid};
+use crate::fixture::{insert, len, len2, slid};
 use editor_core::{
-    Bodies, BooleanValue, LoopProgram, Node, ProfileDoc, ProfileProgram, ValuePayload,
+    Bodies, BooleanValue, Dimension, Formula, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    ValuePayload,
 };
 use geom_core::Tol;
 use topo::ContactKind;
@@ -28,7 +29,7 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
                 centre: len2([0.0, 2.5]),
                 radius: len(0.5),
                 n: 2,
-                phase: ang(0.0),
+                phase: Formula::zero(Dimension::Angle),
             }],
             ids: Vec::new(),
         }),

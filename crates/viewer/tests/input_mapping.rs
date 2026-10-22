@@ -8,7 +8,7 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
-use viewer::camera::{self, Camera, CameraOp};
+use viewer::camera::{self, Camera, CameraOp, CameraOpError};
 use viewer::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 
 use crate::common;
@@ -237,6 +237,57 @@ fn scrolling_up_and_back_returns_the_same_distance() {
         "scroll was not reversible: {} vs {}",
         back.distance(),
         camera.distance()
+    );
+}
+
+/// **A pinch is a ratio and maps to its reciprocal dolly**, with no
+/// rate in between: spreading the fingers by `f` brings the eye `f`
+/// times closer. A factor of exactly 1 is no pinch, the way a zero
+/// scroll is no scroll.
+#[test]
+fn a_pinch_dollies_by_the_reciprocal_of_its_factor() {
+    let map = round_map();
+    let camera = framed();
+    for (factor, dolly) in [(2.0, 0.5), (0.8, 1.25)] {
+        assert_eq!(
+            map.map(&ViewportEvent::Pinch { factor }, viewport(), &camera),
+            Some(CameraOp::Dolly { factor: dolly }),
+            "a pinch of {factor}"
+        );
+    }
+    assert_eq!(
+        map.map(&ViewportEvent::Pinch { factor: 1.0 }, viewport(), &camera),
+        None,
+        "a pinch of exactly 1 moves nothing"
+    );
+}
+
+/// **A pinch factor that is not a positive number is refused loudly**:
+/// the mapping does not filter it, and `camera::apply` names it.
+#[test]
+fn a_non_positive_or_non_finite_pinch_is_refused_at_apply() {
+    let map = round_map();
+    let camera = framed();
+    let refused = |factor: f64| {
+        let op = map
+            .map(&ViewportEvent::Pinch { factor }, viewport(), &camera)
+            .expect("the mapping passes every pinch but 1 on");
+        camera::apply(&camera, &op).map(|_| ())
+    };
+    let zero = refused(0.0);
+    assert!(
+        matches!(zero, Err(CameraOpError::NotFinite { what: "factor", value }) if value == f64::INFINITY),
+        "a pinch of 0 is an infinite dolly, refused: {zero:?}"
+    );
+    assert_eq!(
+        refused(-2.0),
+        Err(CameraOpError::NonPositiveDolly { factor: -0.5 }),
+        "a negative pinch is a negative dolly, refused"
+    );
+    let nan = refused(f64::NAN);
+    assert!(
+        matches!(nan, Err(CameraOpError::NotFinite { what: "factor", value }) if value.is_nan()),
+        "a NaN pinch is refused: {nan:?}"
     );
 }
 

@@ -284,7 +284,7 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pn
         panic!("fillet payload: {:?}", value.payload);
     };
     let want = volume(n);
-    let got = pncad::topo::mass_properties(body, tol)
+    let got = pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
         .expect("mass properties")
         .volume
         .f();

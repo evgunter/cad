@@ -26,7 +26,7 @@ use sweep::test_support::{
     realized, wedge_fill,
 };
 use topo::boolean::BooleanOp;
-use topo::{Body, EdgeKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -37,7 +37,7 @@ const RHO: f64 = 0.1;
 const L: f64 = 2.0;
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("mass properties");
+    let p = topo::test_support::unmigrated_measure(body, tol()).expect("mass properties");
     assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
     p.volume
 }

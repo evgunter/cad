@@ -2,7 +2,10 @@
 id: name-of-answers-none-for-both-nothing-and-an-unassigned-id
 kind: issue
 title: PickIndex::name_of answers None for both the clear value and an id it never assigned, so every reader rebuilds the split
-status: open
+status: closed
+closed: 2026-10-22
+branch: fit/id-answer-split
+pr: 5601
 opened: 2026-09-25
 priority: P3
 cost: M
@@ -45,3 +48,23 @@ re-derive it, and its `Display` would move beside the type, as
 
 `crates/viewer/src/pickindex.rs` (FIT), with the callers in
 `idpass.rs` and `marks.rs` following.
+
+## Closed — `name_of` answers `Result<&StableName, PatchNameFault>` (fit/id-answer-split)
+
+`PickIndex::name_of` refuses with `pickindex::PatchNameFault`, which has
+three arms: `Nothing` (the clear value), `Unassigned { id }` (what a
+corrupt readback looks like) and `Unnamed { id, error }` (the naming
+layer's bug arm). It follows the `EdgeNameFault` shape, and its `Say`
+and `Display` sit beside the type. `idpass::IdAnswer::of` now matches
+on the door's arms. It no longer tests `IdMap::NOTHING` first, and
+`IdAnswer` says nothing and an unnamed patch in the fault's words.
+`IdAnswer::Undrawn` still covers the view half: a hidden part's id,
+which the index does name. `tests/pick_windows.rs`'s hand-walked model
+now spells the three arms, so the differential over `0..=len + 2`
+covers `Nothing` and `Unassigned` separately.
+
+`marks::focus` reads `name_of(id).ok()`. It iterates only assigned ids,
+so the one arm it drops is `Unnamed`. That drop is still the VGEOM row
+`work/vgeom/marks-focus-drops-an-unnamed-patch-from-attribution.md`,
+which stays open: a count needs a surface on the `sync_scene` seam, so
+the new type does not make it a one-liner.

@@ -14,7 +14,7 @@ use editor_core::{
 };
 use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
-use topo::{mass_properties, validate, validate_closed};
+use topo::{validate, validate_closed};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -74,7 +74,9 @@ fn revolve_wires_its_axis_through_the_sketch_plane() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = mass_properties(body, Tol::witness()).unwrap().volume;
+    let vol = topo::test_support::unmigrated_measure(body, Tol::witness())
+        .unwrap()
+        .volume;
     assert!((vol - PI).abs() < 1e-9, "cylinder volume π, got {vol}");
 }
 
@@ -89,7 +91,7 @@ fn rotational_placement_wires_and_preserves_volume() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let m = mass_properties(body, Tol::witness()).unwrap();
+    let m = topo::test_support::unmigrated_measure(body, Tol::witness()).unwrap();
     assert!((m.volume - 1.0).abs() < 1e-12);
     assert!((m.surface_area - 6.0).abs() < 1e-12);
 }
@@ -116,7 +118,12 @@ fn linear_pattern_evaluates_instances_as_data() {
     assert_eq!(instances.len(), 3);
     for (i, inst) in instances.iter().enumerate() {
         assert_eq!(validate(inst), Ok(()));
-        assert_eq!(mass_properties(inst, Tol::witness()).unwrap().volume, 1.0); // dyadic exact
+        assert_eq!(
+            topo::test_support::unmigrated_measure(inst, Tol::witness())
+                .unwrap()
+                .volume,
+            1.0
+        ); // dyadic exact
         // Instance i sits at x offset 2i exactly (translation-only).
         let min_x = inst
             .points()
@@ -171,7 +178,14 @@ fn circular_pattern_rotates_about_an_axis_read_off_the_body() {
     assert_eq!(instances.len(), 4);
     for inst in instances {
         assert_eq!(validate(inst), Ok(()));
-        assert!((mass_properties(inst, Tol::witness()).unwrap().volume - 1.0).abs() < 1e-12);
+        assert!(
+            (topo::test_support::unmigrated_measure(inst, Tol::witness())
+                .unwrap()
+                .volume
+                - 1.0)
+                .abs()
+                < 1e-12
+        );
     }
 }
 

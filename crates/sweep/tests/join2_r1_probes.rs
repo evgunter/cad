@@ -65,7 +65,9 @@ fn slab(outline: ProfileLoop<f64>, z0: f64) -> Body<f64> {
 }
 
 fn vol(b: &Body<f64>) -> f64 {
-    topo::mass_properties(b, tol()).unwrap().volume
+    topo::test_support::unmigrated_measure(b, tol())
+        .unwrap()
+        .volume
 }
 
 /// Every op in both orders; returns the lines.

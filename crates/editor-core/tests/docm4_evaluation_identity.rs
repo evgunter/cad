@@ -93,7 +93,7 @@ fn plain(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Eval
 }
 
 fn volume_bits(body: &topo::Body<f64>) -> u64 {
-    topo::mass_properties(body, Tol::witness())
+    topo::test_support::unmigrated_measure(body, Tol::witness())
         .expect("mass properties")
         .volume
         .to_bits()

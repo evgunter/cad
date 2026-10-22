@@ -176,7 +176,7 @@ fn top_box() -> AtRestBody<f64> {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::mass_properties(b, Tol::witness())
+    topo::test_support::unmigrated_measure(b, Tol::witness())
         .expect("the volume integrates")
         .volume
 }

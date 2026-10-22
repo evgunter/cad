@@ -457,7 +457,7 @@ impl PickHit {
     /// answers, which is always on the triangle. The parameter is the
     /// caller's own ray's: a hit carried across a transform converts
     /// all three or none, which is the viewer's own row
-    /// (`work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`)
+    /// (`work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`)
     /// where a display frame moves an instance.
     #[getter]
     fn t_lo(&self) -> f64 {

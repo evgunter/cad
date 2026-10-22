@@ -120,7 +120,9 @@ fn segment(d: f64) -> f64 {
 fn assert_sound(body: &Body<f64>, expect: f64, what: &str) {
     topo::validate_geometric_certificate(body, tol())
         .unwrap_or_else(|e| panic!("{what}: the result does not certify at rest: {e:?}"));
-    let v = topo::mass_properties(body, tol()).unwrap().volume;
+    let v = topo::test_support::unmigrated_measure(body, tol())
+        .unwrap()
+        .volume;
     assert!(
         (v - expect).abs() < 1e-9,
         "{what}: volume {v} against the analytic {expect}"
@@ -239,7 +241,7 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
         let topo::SplitPart::Body(kept) = (if above { split.above } else { split.below }) else {
             panic!("the rod has material on the kept side of z0 = {z0}");
         };
-        kept
+        kept.into_body()
     };
     let capped = finished(
         "the oblique-capped rod",

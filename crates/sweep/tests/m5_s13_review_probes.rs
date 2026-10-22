@@ -29,7 +29,9 @@ fn slack() -> f64 {
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness()).unwrap().volume
+    topo::test_support::unmigrated_measure(body, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 /// Rotate `body` about `pivot` by `theta` around the world x-axis.

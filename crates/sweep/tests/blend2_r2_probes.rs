@@ -17,7 +17,7 @@ use geom_core::{Point2, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::build::{Filleted, fillet_edges};
 use sweep::test_support::{finished, one_edge_rim_at, revolved_about_y, rim_arcs_at};
-use topo::{Body, EdgeKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -47,7 +47,7 @@ const ZONE_BORE_LO: (f64, f64) = (0.6, -0.5);
 const ZONE_BORE_HI: (f64, f64) = (0.6, 1.0);
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("mass properties");
+    let p = topo::test_support::unmigrated_measure(body, tol()).expect("mass properties");
     assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
     p.volume
 }

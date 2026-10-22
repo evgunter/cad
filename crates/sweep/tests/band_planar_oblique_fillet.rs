@@ -19,7 +19,7 @@ use sweep::test_support::{
     assert_naming_totality, block, brick, finished, prism, prism_on, realized, sketch_from_axes,
 };
 use topo::boolean::BooleanOp;
-use topo::{Body, EdgeKey, mass_properties, query, validate_geometric};
+use topo::{Body, EdgeKey, query, validate_geometric};
 
 use crate::band_one_cycle_members::{assert_taken, cup_faces};
 use crate::band_planar_cut_off::{
@@ -309,8 +309,8 @@ fn the_oblique_fillet_carves_at_the_certified_scalar() {
         );
     }
     let (p0, p1) = (
-        mass_properties(&body, tol()).expect("interval props"),
-        mass_properties(&out.body, tol()).expect("interval props"),
+        topo::test_support::unmigrated_measure(&body, tol()).expect("interval props"),
+        topo::test_support::unmigrated_measure(&out.body, tol()).expect("interval props"),
     );
     let removed = p0.volume - p1.volume;
     let pad = p0.volume_pad + p1.volume_pad;
