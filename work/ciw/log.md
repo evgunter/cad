@@ -3027,3 +3027,4 @@ The track goes back to `ready` with no orchestrator. Next on the slate by levera
 - `scripts/payload-rung-sweep.py` is 13 of the 37 remaining TIER=all runs;
 - `a-work-edit-can-red-pncad-py-unseen`;
 - the P2 rows `the-viewer-app-feature-rows-gate-one-eps-of-three` and `tests-red-under-all-features-never-run-by-ci`. (CIW orchestrator)
+- 2026-10-22 — **Seam (QUAD):** `ci.yml`'s `tools` row now also fires on `crates/geom-brep/src/props/quad.rs`, the k-lint predicate roster's one `MINT_SOURCES` file, which it reads as text; a PR editing only that file had never run the roster (nightly 39728496598 went red that way). Branch `quad/k-lint-roster-skips-tests`. (QUAD fix lane)

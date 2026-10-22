@@ -47,3 +47,169 @@ Signed (S-DUP orchestrator).
 - 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), review fixes; supersedes the shapes in the note above. `pickindex.rs`: `EdgeNamesRefused` is `{ node, body, first: UnnamedEntity, named, refused }`, rendered as "the index names N of the M edges it draws on body B of node K; the first it cannot: <EdgeNameFault::Unnamed>"; `edge_names_in` reads the window through `PartWindows::named_in`, so only the unnamed arm can refuse; `EdgeNameFault` does not gain `Eq` after all. `blend.rs`: `BlendEvent::EdgesUnnamed { refused }` (no separate `target`). `frame.rs`: `SeamSubject for EdgeNamesRefused` is `Subject::Document` (the line's `tool_notice` subject too), not the pick-index seam. `test_support.rs`: `unnamed_edge(node, body)`. Filed `work/chrome/the-per-frame-badge-reads-are-three-hand-copied-fields`. (AUTH-14 implementer)
 
 - 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), third pass. `pickindex.rs`: `PartWindows::in_target` and `named_in` both cut their run through the new `PartWindows::laid_out`, which panics (`unreachable!`, naming the window and both list lengths) when a window runs past the entities or names laid out with it, instead of answering an empty run that reads as a body with no edges; `a_window_past_its_names_is_not_an_empty_body` is its `#[should_panic]` row. (AUTH-14 implementer)
+
+## 2026-10-22 — the budget is a target (PR 5600)
+
+Closes `the-budgets-predicted-count-is-not-always-an-over-count` and
+`a-flat-rung-pair-is-read-as-flat-below-it`.
+
+- `TRIANGLE_BUDGET` is documented as a target with a stated
+  precision, and `FittedDelta::predicted` is deleted.
+- `answer`'s Flat early return is gone, because the law already
+  commits the request there.
+- `display_budget.rs` holds the drawn count to 0.9–1.05× on every
+  bound corpus row. Measured: 0.927–1.0025.
+
+Review was a style lane. All five claims held, including the ~8.1×
+Flat bound, re-derived. Its two contradiction findings were fixed in
+place: S1, "a factor of at least two", which was false; and S2, the
+direction of the probe's error. A second error direction, the
+sagitta-sized excess of up to ~1.1%, is now stated beside the
+other.
+
+Filed: `a-dense-floor-is-priced-off-the-law-from-the-scale-probe`
+(threshold 62 500, the halving break) and
+`flat-harmlessness-is-unproven-on-the-nurbs-refinement-lane`.
+## 2026-10-22 — taken up; the slate against the D10 hold
+
+An orchestrator (session 01QgNokkLTQtNJ3sdoLiqtf6) takes the track; status `active`.
+
+**The hold.** Other programs hold off starting units that meaningfully
+touch dependency, placement or intent (`docs/DESIGN.md`, State of the
+build). No FIT row changes how any of those is said, but stage 3 D′
+(`work/intent/a-placement-pins-by-written-values-without-a-mate.md`,
+`[ev]` PR 5494, open) retires loose spaces and decides what the viewer
+shows: a set of spaces drawn through one composing door shared with
+export. Two rows stand on that ground and are parked on the D′ row:
+`one-failed-root-refuses-the-whole-pick-index` (its walk is
+`PickIndex::assemble`'s world-plus-loose-spaces filter, and its question
+is the shown set), and the pickindex row's §1, split into
+`a-moved-copys-pick-span-crosses-its-frame-unconverted` (it reads
+`DisplayView::moved_placements`, free-move over loose spaces). Every
+other row was checked live on main at `85136071`.
+
+**Re-priced.** Legacy `D` read and priced `M`. `ctrl-wheel-reaches-no-zoom`
+`E` → `M` with `design`: its body names three open questions. The
+pickindex row is `M` with `design` (§3 alone). The aspect-sentence row
+had no band: `P3`, `E`, riding with zoom-to-fit. Load 30.5 → 25.5.
+
+**Overlap.** No open PR touches FIT's files, and every sibling on the
+viewer ground (VGEOM, VSEAM, VNEWS, CHROME, POLISH) is `ready` with no
+orchestrator, so no lane is live beside this one. The neighbouring rows
+on `pick_for` are named in the plan.
+
+**Next.** The two P0s, each weighed by a designer pair first.
+(FIT orchestrator)
+
+## 2026-10-22 — the two P0s weighed and dispatched
+
+Both P0 rows were weighed by a designer pair (blinding on
+`analysis/design-fork/fit-p0`). Both pairs converged in their first
+reports, and no ratified text moves, so neither is a fork for Ev. The
+orchestrator adopted each:
+
+- **`ctrl-wheel-reaches-no-zoom`.** egui's `zoom_modifier` is set to
+  `NONE` once, so a ctrl/⌘+wheel is an ordinary `Scroll` at the one
+  wheel rate. A pinch (`zoom_delta()`, i.e. every pinch on every
+  backend, which the row undercounted) is `ViewportEvent::Pinch
+  { factor }` → `Dolly(1/factor)`, with no rate. The pair named the
+  variant `Magnify` and `Pinch`; `Pinch` was taken, naming the gesture
+  as `Scroll` does. Rejected: routing ctrl+wheel through egui's factor
+  with a synced `scroll_zoom_speed` (a second copy of the rate), and
+  converting the factor to notches. Review: style.
+- **`zoom-to-fit-frames-no-committed-profile`**, with the aspect
+  sentence riding along. The fit frames the drawn extent (the mesh,
+  committed loops and preview loops; never pixel-sized marks or
+  display aids). Absence is `None`, not `SceneMesh::nothing`'s
+  origin point. Hidden parts do not frame. An empty or point extent
+  frames at a named `DEFAULT_FRAME_RADIUS` with the orientation kept.
+  The fit moves after the geometry lanes and before the marks.
+  `CameraOp::Frame` reads "zoom to fit", and only `Unfittable` prints
+  the aspect. The refuse-not-default argument lived only in
+  agent-written comments. The design reads only drawn positions, so it
+  holds under D′. Review: full (moves the frame order and a type).
+  Correction: no `datums.rs` exists on main; the row's datum paragraph
+  is stale.
+(FIT orchestrator)
+
+## 2026-10-22 — the budget pair weighed and dispatched
+
+`the-budgets-predicted-count-is-not-always-an-over-count` and
+`a-flat-rung-pair-is-read-as-flat-below-it` were weighed by one pair
+(blinding byte on `analysis/design-fork/fit-p0`). The pair converged:
+the budget is a **target with a stated, guarded precision**, not a cap.
+Every "not a cap" in the tree means that a typed δ overrides the
+budget, while finding 1 is about precision. The over-run is a
+per-face `ceil` term that grows with curved-face count, so no margin
+makes it a cap. A verifying tessellation buys a promise no reader
+holds. Flat never changes the committed δ (a Flat stop holds under
+budget/8 at 8× the request), so finding 2 concerns a reported number,
+not the budget, and the row's ~15 000 threshold was not derived.
+They split on one point, keeping or deleting `FittedDelta::predicted`.
+The orchestrator checked: only tests read it, and in the bound case it
+is the constant budget. **Deleted**; the other designer's ceil argument
+becomes the documented reason for the band. The guard is the drawn
+count, held to a band on every bound corpus row. Review: style.
+(FIT orchestrator)
+
+## 2026-10-22 — a ctrl/⌘+wheel is a wheel, and a pinch zooms by its ratio (PR 5596)
+
+Closes `ctrl-wheel-reaches-no-zoom`.
+
+- `configure_input` sets egui's `zoom_modifier` to `NONE` once, and
+  both `assemble` and the test probe call it.
+- `ViewportEvent::Pinch { factor }` maps to `Dolly(1/factor)`.
+- `pointer_events` is the one composition of the adapter's reads,
+  shared with the probe.
+
+Review: a style lane, mergeable. Its two findings that could let the
+shipped wiring regress silently were fixed: a startup row now reads
+`zoom_modifier` off `started()`, and the probe no longer copies the
+composition. The docs' claims about native pinch were narrowed to
+winit's macOS/iOS `PinchGesture`. The hand-written variant lists went
+onto VDOC's covering row
+(`viewer-suites-hold-hand-written-complete-variant-lists`).
+
+Process: the branch carries two empty commits a lane pushed to
+re-trigger CI after the lavapipe install hung. They are disclosed on
+the PR, and the hang is filed as CIW's
+`the-lavapipe-apt-install-hangs-and-a-lane-cannot-re-run-it`.
+## 2026-10-22 — the occlusion slack weighed (pickindex row §3)
+
+One pair weighed it, and both corrected the premise. There is no
+certified second operand: the probe's edge depth is
+`ray_segment_closest`'s raw `t` along an un-projected pixel ray, so
+`front.span.precedes(&span)` has nothing on its right-hand side. The
+`1e-6` has been absorbing a geometric offset (spatial rounding over
+the cosine to the incident face, which is unbounded at grazing), not
+rounding alone. The question is a z-fight that `[verdicts]` says is
+posed so the choice does not arise. The pair converged:
+
+- The chord's depth is its OWN crossing: the hull of the kernel's
+  `ray_triangle` spans over the chord's incident triangles (exact by
+  mesh index).
+- It is hidden iff something in the front set certainly precedes it,
+  which is the kernel's `survivors` rule.
+- `OCCLUSION_SLACK_REL` is deleted.
+- `front_of` answers the survivor set: `nearest` by rounded `t` goes,
+  and the edge seed searches every body the tie names. That is an
+  unfiled cross-body defect: today a two-part tie offers one part's
+  edges by rounded `t` and list order.
+
+They differed on one gap, which the orchestrator settled. On a
+silhouette edge the ray passes just outside both incident triangles,
+so the hull is empty. One designer adds a kernel door for a certified
+point span (beside `ray_triangle`, counting units as `t_span` does);
+the other had no operand there. **Taken: the door.** `edge_pick.rs`'s
+own `1e-6` fixture classifier stays as an independent oracle.
+Review: full. Dispatch waits for disk (the lane builds editor-core
+and the viewer).
+
+**Friction (2026-10-22).** Three lane findings on this box:
+- the disk filled while four lanes held build directories (6–8 GB
+  each), and one reviewer could not check out;
+- a CI job that died on infrastructure could not be re-run (403),
+  and a lane pushed empty commits instead;
+- the isolation hook refused `setsid` launches, the very detach the
+  standing rules require.
+(FIT orchestrator)

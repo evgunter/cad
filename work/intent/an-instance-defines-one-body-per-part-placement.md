@@ -5,6 +5,7 @@ title: An instance defines one Body port holding its part's whole world; FORK-1'
 status: open
 opened: 2026-10-08
 refs: [a-placement-is-the-bundle-of-mates]
+parent: assemble-is-an-operator-and-the-product-is-a-slot
 ---
 
 

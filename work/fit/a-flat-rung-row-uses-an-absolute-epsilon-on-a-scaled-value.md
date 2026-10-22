@@ -13,7 +13,7 @@ cost: E
 ## Finding
 
 `crates/viewer/src/scene.rs`'s `#[cfg(test)]` module,
-`a_count_that_does_not_move_is_the_prediction`, closes with
+`a_count_that_does_not_move_keeps_the_request`, closes with
 
 ```rust
 let last = rungs.last().copied().expect("a rung");

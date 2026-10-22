@@ -73,3 +73,30 @@ list built with `vec!`, an iterator chain or a `matches!` ladder; a
 list written after `use Enum::*` so the type prefix is absent; a list
 containing a nested bracket; and an enumeration spelled as match arms
 rather than as an array.
+
+## Two more, from FIT's ctrl-wheel review (2026-10-22, PR 5596)
+
+The style review of `fit/ctrl-wheel-zoom` (which added
+`ViewportEvent::Pinch`) found two `ViewportEvent` enumerations in this
+class, each inside the blind spot above. Adding `Pinch` meant finding
+both by grep, and nothing would have gone red had either been missed.
+
+- `crates/viewer/tests/review_gui0_r2.rs`,
+  `map_stream_agrees_with_folding_its_own_output`: the fuzz generator
+  is an `if`/`else` ladder over `rng.below(8)` that builds `Scroll`,
+  `Pinch` and `Drag`. It is a list spelled as branches rather than as
+  an array, so the structural scan cannot see it. It omits the cursor
+  variants on purpose, since the property is about the camera fold, so
+  the completeness it rests on is "every camera-moving variant".
+- `crates/viewer/tests/review_gui2_r2.rs`,
+  `the_two_mappings_partition_the_event_stream`: an array of
+  `ViewportEvent` VALUES with fields (`Drag { .. }`, `Scroll { .. }`),
+  which the scan's nested-bracket and struct-literal gaps miss. Its
+  claim, "an event is read by at most one mapping", is about every
+  variant.
+
+`ViewportEvent` carries data, so a projected `ALL` does not fit it.
+What fits is an exhaustive `match` in each suite that maps every
+variant to its witness, so a new variant stops the build there.
+`fit/ctrl-wheel-zoom` left this alone because a one-line match does not
+do it cleanly: the witness values have to be chosen per variant.

@@ -104,13 +104,13 @@ use std::sync::Arc;
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, AssemblyError, CancelToken, Constraint, Coord, Dimension, DocEdit, DocRef,
-    DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, InlineError,
-    LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node,
-    OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, ProfileDoc,
+    Assembly, AssemblyError, CancelToken, CheckId, ChecksConfig, Constraint, Coord, Dimension,
+    DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
+    InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE,
+    Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, ProfileDoc,
     ProfileProgram, RecipeNodeId, SitedFace, Space, Target, TargetAxis, Value, ValuePayload,
     VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
-    parse_formula, pin_at, place_at, product_named, save, solve_document, split, stand,
+    parse_formula, pin_at, place_at, product_named, run_checks, save, solve_document, split, stand,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -932,14 +932,7 @@ struct Bench {
 /// upward top, which is the bodies' own coordinates. The crate is
 /// an instance with an empty bundle and the mate is what places it, so
 /// it is placed on the shelf: it swings with the stand and follows any
-/// edit of the shelf or the posts under it. The bench's `run_checks`
-/// reports three `unproven-coincidence` findings, one against each
-/// mate (the stand's two and the crate's), and the viewer's status line
-/// shows them as `checks: 3 finding(s)`. They are expected: each is the
-/// at-rest census's row for its mate's own seat, which D10 makes
-/// structural ("a mate-placed face is"), but the door does not prove a
-/// mated seat yet
-/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`).
+/// edit of the shelf or the posts under it.
 fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
     let mut doc = stand.doc.clone();
     let crate_i = insert(&mut doc, Node::instantiate_part(parts.crate_ref), tol);
@@ -1236,6 +1229,20 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
         "the flush-seated bench CERTIFIES at the A5 gate: {}",
         gate.verdict.describe()
     );
+    // Each seat is the at-rest census's row of its mate's two faces,
+    // which the mate states are one construction: the coincidence door
+    // proves all three, so the lint has nothing to report.
+    let report = run_checks(doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
+    let unproven = report
+        .findings
+        .iter()
+        .filter(|finding| finding.check == CheckId::UnprovenCoincidence)
+        .count();
+    println!(
+        "   [stand] unproven-coincidence: {unproven} finding(s); each seat is its mate's \
+         statement"
+    );
+    assert_eq!(unproven, 0, "every mated seat is proven: {report}");
     ev
 }
 

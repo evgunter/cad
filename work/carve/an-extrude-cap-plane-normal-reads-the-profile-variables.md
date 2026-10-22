@@ -4,9 +4,9 @@ kind: issue
 title: an extrude's cap plane takes its normal from a Newell sum over the profile's points, so at Sym the normal is A/sqrt(A²) in the profile's variables, where the sketch plane states it
 status: open
 opened: 2026-10-21
-priority: P1
+priority: P2
 cost: M
-refs: [a-mate-placed-seat-is-unproven-at-the-doors-budget]
+refs: [a-mate-placed-seat-is-unproven-at-the-doors-budget, the-door-reads-a-mated-seat-by-its-mate]
 ---
 
 ## What
@@ -31,12 +31,25 @@ D10 says it is none. Every identity a cap's normal enters then has to
 see `sqrt(A²)·sqrt(A²) = A²` through the forms built on it, and those
 forms freeze past the door's budget.
 
+## Why it matters now
+
+A mated seat no longer needs this: the door reads it by the mate that
+states it (`[coincidence.structural]`, `crates/editor-core/src/coincide.rs`
+`stated_by_a_mate`), with no replay. What still pays for the cap's
+normal is the replay of the rows no mate states
+(`crates/editor-core/src/coincide/replay.rs`): an at-rest row between
+two copies' caps, such as two flush copies of a pattern standing by
+the identity bundle, which the replay reads by the carrier verdict on
+the two caps at `Sym`, and a node's row on a cap, such as a flush
+union's. Each such cap carries `A / sqrt(A²)` into the forms the door
+has to discharge.
+
 ## Measured (INTENT seat re-measure, 2026-10-21)
 
-The measurement was local, in debug, on main at `eb6894fe`, with
-`coincide::REPLAYS_PLACED_COPIES` switched on. A scratch change in
-`cap_plane` returned the sketch plane's outward normal with Newell's
-origin, once the orientation was decided. Under it:
+Measured on the mated seat, before the door read it by its mate: local,
+debug, on main at `eb6894fe`, with the replay of placed copies switched
+on. A scratch change in `cap_plane` returned the sketch plane's outward
+normal with Newell's origin, once the orientation was decided. Under it:
 
 - mate6's mated seat
   (`mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_reports`'s
@@ -49,6 +62,15 @@ origin, once the orientation was decided. Under it:
 The full numbers are in
 `work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`
 § "Measured after D (2026-10-21)".
+
+## Priority
+
+P1 rested on the mated seat, which the door now proves without a
+replay. No unmated row has been measured to need this change, so it is
+P2 until one is: the rows that freeze on the door's budget today
+(`glue_on_zero_rows::a_flush_rest_glues_and_records_its_unproven_rows`,
+`coincidence_door::a_filleted_box_records_one_unproven_turn_per_corner`)
+are the first to measure with the scratch change above.
 
 ## Owed
 

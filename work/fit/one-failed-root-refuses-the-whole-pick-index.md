@@ -2,11 +2,13 @@
 id: one-failed-root-refuses-the-whole-pick-index
 kind: issue
 title: one failed root refuses the whole pick index, so every healthy body loses picking and the picture stops following the document
-status: open
+status: parked
 opened: 2026-09-25
 priority: P2
-cost: D
+cost: M
 refs: [a-derived-pick-index-failure-outshouts-its-cause]
+design: true
+blocked_on: [a-placement-pins-by-written-values-without-a-mate]
 ---
 
 
@@ -57,3 +59,18 @@ alone is a picture of a document that does not exist (the product the
 recipe denotes does not gather), and the scene currently shows either
 the whole product or the last one that was whole. That is a decision
 about what the viewport promises, not a bug fix, so it may want Ev.
+
+## Parked on the D10 hold (2026-10-22, FIT orchestrator)
+
+The walk this row is about has changed since it was filed and is about
+to change again. `PickIndex::assemble` no longer walks `doc.roots()`:
+it walks `doc.placements()` filtered to the world's space and to each
+loose copy's space (`Space::World`, `Space::Loose`, `eval.loose_copies`),
+and still returns `PickIndexError::Node` on the first placement whose
+build refuses. Stage 3 D′ (`work/intent/a-placement-pins-by-written-values-without-a-mate.md`,
+`[ev]` PR 5494) retires loose spaces and decides what the viewer shows:
+a set of spaces, the world and the sinks by default, drawn through one
+composing door shared with export. This row's question (does the
+picture cover what evaluated when the product does not gather?) is a
+question about that shown set, so it is asked again once D′ lands,
+against the walk D′ leaves, and not before.

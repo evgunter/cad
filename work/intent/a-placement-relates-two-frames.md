@@ -2,11 +2,13 @@
 id: a-placement-relates-two-frames
 kind: issue
 title: A placement relates two frames: mates fix what they fix, values set the rest (all six when unmated); a construction's coordinates are its space; an instance places another document's space
-status: open
+status: parked
 opened: 2026-10-18
 priority: P0
 cost: M
 refs: [transform-retires-into-a-placement, intent-stage3-is-built]
+parent: a-placement-names-its-target-space
+blocked_on: [a-placement-names-its-target-space, a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space]
 ---
 
 
