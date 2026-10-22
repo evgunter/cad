@@ -2,9 +2,9 @@
 id: m-tier-miss-at-dr-321-the-backstop-passes-a-violated-bound-on-rounding
 kind: ruling
 title: Short readout: M-tier miss at DR-321 (PR 5576), a holdout pair's tallied MAJOR: the volume backstop passes a violated bound when its f64 margin rounds to holding, which the other review did not raise
-status: open
-needs_ev: true
+status: closed
 opened: 2026-10-21
+closed: 2026-10-22
 ---
 
 **FYI, no options** (dual-review protocol rule 9: a short readout at every M-tier miss). Acknowledging it closes this item.
@@ -19,3 +19,6 @@ opened: 2026-10-21
 - **What happened next.** The fix pass replaced the type doc's census with the rule. It filed the held read, the backstop's operand gate (seen by both reviews: it can switch every arm off) and its +V posture as a second CLEAVE P1, `work/cleave/the-backstop-reads-an-unpadded-f64-volume-as-exact-where-it-passes-or-switches-off-a-bound`, with witnesses and fix shapes. The backstop itself is CLEAVE's to fix.
 - **The count.** The foot of `docs/DUAL-REVIEW-LOG.md` gives the running tally and the M-tier misses since the last full readout.
 
+## Closed (2026-10-22, PR 5577)
+
+Ev acknowledged the readout ("thanks for letting me know!"). Nothing further is owed.
