@@ -1534,7 +1534,7 @@ fn a_tie_across_two_parts_offers_both_parts_edges() {
         max_y: side,
         max_z: h,
     };
-    let camera = Camera::framing(&bounds, aspect).expect("the pair frames");
+    let camera = Camera::framing(Some(bounds), aspect).expect("the pair frames");
     let near = |a: f64, b: f64| (a - b).abs() < 1.0e-9;
     // The right block's left top edge lies on the left block's top, and
     // the left block's right top edge on the right block's.
@@ -1569,4 +1569,113 @@ fn a_tie_across_two_parts_offers_both_parts_edges() {
             "{name} edge, 3 px from the cursor on a two-part tie, was not offered"
         );
     }
+}
+
+/// **A cursor on a chord's END, over a grazed face, picks an edge
+/// through that end.**
+///
+/// The plate, with each of its five visible faces grazed in turn — the
+/// top from a hair above it, each side from a hair outside it — at
+/// three angles. Every drawn chord point on the grazed face is aimed at
+/// its own pixel, the pixel the edge walk clamps any cursor past a
+/// chord's end onto, so the candidate there is a chord at `s → 1` (the
+/// one ending at the point: a curved edge keeps its earlier segment at
+/// a shared point) or `s → 0` (an edge starting at a vertex). The ray
+/// through a chord point misses it by its own rounding, and on the
+/// material side of the grazed face that miss is a crossing of a
+/// triangle around the point well in front of it — a triangle of the
+/// END's fan, which is not always one of the chord's own pair. Every
+/// chord point this row's own `1e-6` band calls visible is picked, by
+/// an edge whose polyline holds it.
+#[test]
+fn a_cursor_on_a_chord_end_over_a_grazed_face_picks_an_edge_through_it() {
+    let tol = Tol::witness();
+    let (session, copy) = plate_session(tol);
+    let index = plate_index(&session);
+    let eval = eval_of(&session);
+    let [width, depth, thickness] = PLATE_EXTENT;
+    let edges = drawn_edges(&index, copy);
+    let same = |q: Point3<f64>, p: Point3<f64>| {
+        [q.x, q.y, q.z].map(f64::to_bits) == [p.x, p.y, p.z].map(f64::to_bits)
+    };
+    let mut points: Vec<Point3<f64>> = Vec::new();
+    for (_, polyline) in &edges {
+        for &p in polyline {
+            if !points.iter().any(|&q| same(q, p)) {
+                points.push(p);
+            }
+        }
+    }
+    use std::f64::consts::{FRAC_PI_2, FRAC_PI_3, PI};
+    // (yaw, pitch, the grazed face) for an angle `g` off that face.
+    type OnFace = fn(Point3<f64>, [f64; 3]) -> bool;
+    type View = fn(f64) -> (f64, f64);
+    let faces: [(View, OnFace); 10] = [
+        (
+            |g| (-FRAC_PI_3, g),
+            |p, [_, _, t]| (p.z - t).abs() < 1.0e-12,
+        ),
+        (|g| (-FRAC_PI_3, -g), |p, _| p.z.abs() < 1.0e-12),
+        (|g| (-g, 0.5), |p, _| p.y.abs() < 1.0e-12),
+        (|g| (-g, -0.5), |p, _| p.y.abs() < 1.0e-12),
+        (|g| (g, 0.5), |p, [_, d, _]| (p.y - d).abs() < 1.0e-12),
+        (|g| (g, -0.5), |p, [_, d, _]| (p.y - d).abs() < 1.0e-12),
+        (|g| (FRAC_PI_2 + g, 0.5), |p, _| p.x.abs() < 1.0e-12),
+        (|g| (FRAC_PI_2 + g, -0.5), |p, _| p.x.abs() < 1.0e-12),
+        (
+            |g| (FRAC_PI_2 - g + PI, 0.5),
+            |p, [w, _, _]| (p.x - w).abs() < 1.0e-12,
+        ),
+        (
+            |g| (FRAC_PI_2 - g + PI, -0.5),
+            |p, [w, _, _]| (p.x - w).abs() < 1.0e-12,
+        ),
+    ];
+    let mut subjects = 0usize;
+    for (view, on_face) in faces {
+        for grazing in (3..=10).map(|k| 10f64.powi(-k)) {
+            let (yaw, pitch) = view(grazing);
+            let camera = Camera::new(
+                Point3::new(width * 0.5, depth * 0.5, thickness),
+                0.2,
+                yaw,
+                pitch,
+                std::f64::consts::FRAC_PI_4,
+                width,
+            )
+            .expect("a camera");
+            for &p in points.iter().filter(|&&p| on_face(p, PLATE_EXTENT)) {
+                let cursor = pixel_of(&camera, p);
+                let ray = camera.ray_through(cursor, pane()).expect("un-projects");
+                let Some(front) = nearest_surface(&index, eval, &ray) else {
+                    continue;
+                };
+                let along = ray.dir.dot(p - ray.origin) / ray.dir.dot(ray.dir);
+                if front < along * (1.0 - 1.0e-6) {
+                    continue; // hidden at its own pixel — not this row's subject
+                }
+                subjects += 1;
+                let picked = index
+                    .edge_at(eval, &camera, pane(), cursor)
+                    .expect("un-projects")
+                    .map(|pick| pick.id());
+                let through: Vec<EdgeId> = edges
+                    .iter()
+                    .filter(|(_, polyline)| polyline.iter().any(|&q| same(q, p)))
+                    .map(|(id, _)| *id)
+                    .collect();
+                assert!(
+                    picked.is_some_and(|id| through.contains(&id)),
+                    "the chord point {p:?}, visible {grazing:e} rad off a grazed face (yaw \
+                     {yaw}, pitch {pitch}), picked {picked:?} rather than one of the edges \
+                     through it {through:?}"
+                );
+            }
+        }
+    }
+    assert!(
+        subjects > 0,
+        "no chord point on a grazed face is visible at its own pixel, so this row measured \
+         nothing"
+    );
 }

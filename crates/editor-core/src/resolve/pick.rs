@@ -792,6 +792,7 @@ pub struct NodePick {
     body: u32,
     mesh: Arc<Mesh>,
     pick: Arc<MeshPick>,
+    chords: Arc<ChordFaces>,
 }
 
 /// One memoised (node, body): what it was built for, and the pick.
@@ -1128,6 +1129,7 @@ impl NodePick {
             document: eval.document,
             node,
             body,
+            chords: Arc::new(ChordFaces::of(&mesh)),
             mesh: Arc::new(mesh),
             pick: Arc::new(pick),
         })
@@ -1184,6 +1186,7 @@ impl NodePick {
             document: eval.document,
             node,
             body,
+            chords: Arc::new(ChordFaces::of(&tessellation.mesh)),
             mesh: Arc::new(tessellation.mesh),
             pick: Arc::new(pick),
         };
@@ -1293,6 +1296,14 @@ impl NodePick {
     /// display so that what is drawn is what is picked.
     pub fn mesh(&self) -> &Mesh {
         &self.mesh
+    }
+
+    /// [`NodePick::mesh`]'s drawn chords and the triangles incident to
+    /// them ([`ChordFaces`]) — built with the part, so it is reused
+    /// wherever the part is ([`PickMemo`]) and cannot be paired with
+    /// another part's mesh.
+    pub fn chords(&self) -> &ChordFaces {
+        &self.chords
     }
 
     /// The stable name of every face patch of [`NodePick::mesh`], in
@@ -1472,6 +1483,18 @@ pub struct PickHit {
     pub t_hi: f64,
     /// The hit point, `origin + t · dir`.
     pub point: Point3<f64>,
+}
+
+impl PickHit {
+    /// The hit's [`TSpan`] — the three parameter fields as the one
+    /// value the certified order reads.
+    pub fn span(&self) -> TSpan {
+        TSpan {
+            t: self.t,
+            t_lo: self.t_lo,
+            t_hi: self.t_hi,
+        }
+    }
 }
 
 /// **Field-wise equality, floats included** — written out because
@@ -1837,17 +1860,12 @@ pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<TSpan> {
 /// is the rounded parameter of the rounded point. `s` is not clamped
 /// or checked: the enclosure holds for any finite one.
 ///
-/// **The width is [`t_span`]'s, counted the same way**, with no
-/// barycentric term (the segment parameter is an operand, not a
-/// quotient) and with the one rounding the point carries that a
-/// triangle's does not: `fl(b − a)`. It takes the slot of the sum
-/// with `e2·v`, which is exact here because `e2 = 0`, so the point's
-/// `e·s` term goes through three roundings (the subtraction, the
-/// product, the sum with `a`) — the `γ_3` budget
-/// [`PROJECTION_ERROR_UNITS`] already counts that term at. The
-/// magnitude sum reads `|fl(b − a)_i·s|` where the bound wants
-/// `|(b − a)_i·s|`, at most one ulp apart, which the constant's
-/// stated margin carries as it carries the sum's own evaluation.
+/// **The width is [`t_span`]'s**, with no barycentric term (the
+/// segment parameter is an operand, not a quotient). Its rounding
+/// term counts the point's own `fl(b − a)`: that rounding takes the
+/// slot of the sum with `e2·v`, which is exact here because `e2 = 0`,
+/// and [`PROJECTION_ERROR_UNITS`] counts this caller beside
+/// [`ray_triangle`].
 ///
 /// No sign test, unlike [`ray_triangle`]: this is the parameter of a
 /// point, and a point behind the origin has one. `None` exactly when
@@ -1858,6 +1876,75 @@ pub fn ray_segment_point(ray: &Ray, [a, b]: [Point3<f64>; 2], s: f64) -> Option<
     let span = t_span(ray, a, b - a, zero, (s, 0.0), (0.0, 0.0));
     let finite = span.t.is_finite() && span.t_lo.is_finite() && span.t_hi.is_finite();
     finite.then_some(span)
+}
+
+/// **A mesh's drawn chords and the triangles incident to them**, by
+/// exact mesh index: a boundary polyline and the face patches share
+/// [`Mesh::positions`], so a chord's two indices are an edge of every
+/// triangle on either side of it and a chord point's index is a corner
+/// of every triangle around it.
+///
+/// Keyed only on what a boundary draws: what it answers is which
+/// triangles a point of a drawn chord lies on — the chord's own for a
+/// point inside it ([`ChordFaces::on_chord`]), the whole fan for a
+/// chord point ([`ChordFaces::at_point`]) — which is what a caller
+/// asking for the crossing a drawn chord makes with a ray hulls
+/// ([`ray_triangle`], [`ray_segment_point`]). Built with its
+/// [`NodePick`] ([`NodePick::chords`]).
+#[derive(Debug, Default)]
+pub struct ChordFaces {
+    on_chord: HashMap<[u32; 2], Vec<[u32; 3]>>,
+    at_point: HashMap<u32, Vec<[u32; 3]>>,
+}
+
+impl ChordFaces {
+    /// The adjacency of `mesh`'s drawn chords.
+    pub fn of(mesh: &Mesh) -> Self {
+        let mut on_chord: HashMap<[u32; 2], Vec<[u32; 3]>> = HashMap::new();
+        let mut at_point: HashMap<u32, Vec<[u32; 3]>> = HashMap::new();
+        for boundary in &mesh.boundaries {
+            for &point in &boundary.points {
+                at_point.entry(point).or_default();
+            }
+            for pair in boundary.points.windows(2) {
+                on_chord.entry(chord_key(pair[0], pair[1])).or_default();
+            }
+        }
+        for patch in &mesh.patches {
+            for &tri in &patch.triangles {
+                for corner in tri {
+                    if let Some(around) = at_point.get_mut(&corner) {
+                        around.push(tri);
+                    }
+                }
+                for (from, to) in [(tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])] {
+                    if let Some(beside) = on_chord.get_mut(&chord_key(from, to)) {
+                        beside.push(tri);
+                    }
+                }
+            }
+        }
+        Self { on_chord, at_point }
+    }
+
+    /// The triangles that have the drawn chord `from`–`to` as an edge,
+    /// in either direction; empty for a pair no boundary draws.
+    pub fn on_chord(&self, [from, to]: [u32; 2]) -> &[[u32; 3]] {
+        self.on_chord
+            .get(&chord_key(from, to))
+            .map_or(&[], Vec::as_slice)
+    }
+
+    /// The triangles that have the drawn chord point `point` as a
+    /// corner; empty for an index no boundary draws.
+    pub fn at_point(&self, point: u32) -> &[[u32; 3]] {
+        self.at_point.get(&point).map_or(&[], Vec::as_slice)
+    }
+}
+
+/// A chord's key in [`ChordFaces`]: its two indices, ascending.
+fn chord_key(a: u32, b: u32) -> [u32; 2] {
+    if a <= b { [a, b] } else { [b, a] }
 }
 
 /// **The clamp**: the per-coordinate RETRACTION onto the simplex —
@@ -1925,6 +2012,20 @@ impl TSpan {
     /// translating the document change a pick's answer.
     pub fn width(&self) -> f64 {
         self.t_hi - self.t_lo
+    }
+
+    /// **The hull of two intervals**, keeping THIS span's rounded `t`:
+    /// each encloses its own crossing, so the hull encloses both. The
+    /// one spelling of the rule — [`answer_of`] grows a face's span by
+    /// it, and so does every caller that gathers several crossings
+    /// into one interval.
+    #[must_use]
+    pub fn hull(&self, other: &Self) -> Self {
+        Self {
+            t: self.t,
+            t_lo: self.t_lo.min(other.t_lo),
+            t_hi: self.t_hi.max(other.t_hi),
+        }
     }
 
     /// **The certified order**: this hit is in front of `other` only
@@ -2050,8 +2151,7 @@ pub fn answer_of<K: Clone + PartialEq>(candidates: &[(TSpan, K)]) -> Answer<K> {
                     group.span.t = span.t;
                     group.member = i;
                 }
-                group.span.t_lo = group.span.t_lo.min(span.t_lo);
-                group.span.t_hi = group.span.t_hi.max(span.t_hi);
+                group.span = group.span.hull(span);
                 group.members += 1;
             }
             None => groups.push(FaceAnswer {
@@ -2073,6 +2173,11 @@ pub fn answer_of<K: Clone + PartialEq>(candidates: &[(TSpan, K)]) -> Answer<K> {
 /// The hit point's parameter along the ray WITH the width the
 /// arithmetic certifies for it: **the one site where that width is
 /// derived**, as [`crossing`] is the one site for the barycentrics'.
+/// Two doors call it: [`ray_triangle`] for a crossing, and
+/// [`ray_segment_point`] for a segment point, which passes `e2 = 0`
+/// and no barycentric error and reads only the rounding term; the
+/// constant that term is stated in counts both callers'
+/// ([`PROJECTION_ERROR_UNITS`]).
 ///
 /// # What the interval encloses
 ///
@@ -2386,29 +2491,38 @@ const SUM_ERROR_UNITS: f64 = 0.5;
 /// from the operation count the way its siblings are (`u = EPSILON / 2`
 /// the unit roundoff, `γ_n = n·u / (1 − n·u)`). It bounds the rounding
 /// of `t = fl(fl(p̃ − o)·d) / fl(d·d)` relative to
-/// `M = Σ_i (|a_i| + |e1_i·u| + |e2_i·v| + |o_i|)·|d_i|` over `d·d`:
+/// `M = Σ_i (|a_i| + |e1_i·u| + |e2_i·v| + |o_i|)·|d_i|` over `d·d`,
+/// for EVERY caller of [`t_span`], counted from the exact corners (or
+/// segment ends) the enclosure is stated for:
 ///
-/// - each component of `p̃ = fl(a + fl(e1·u) + fl(e2·v))` costs two
-///   products and two sums, `≤ γ_3·(|a_i| + |e1_i u| + |e2_i v|)`;
+/// - **[`ray_triangle`]**: `e1 = fl(c1 − c0)` and `e2 = fl(c2 − c0)`
+///   are one rounding each, and `p̃ = fl(fl(a + fl(e1·u)) + fl(e2·v))`
+///   costs the `e1·u` term four roundings (the difference, the
+///   product, two sums), the `e2·v` term three and `a` two, so each
+///   component is `≤ γ_4·(|a_i| + |e1_i u| + |e2_i v|)`;
+/// - **[`ray_segment_point`]**: `e1 = fl(b − a)`, `e2 = 0`, and the sum
+///   with `e2·v = 0` is exact, so the `e1·u` term costs three roundings
+///   and `a` one: `≤ γ_3·(…)`, inside the triangle's count;
 /// - the subtraction `fl(p̃_i − o_i)` is one more rounding, relative to
-///   `|p_i| + |o_i|`, so that component carries
-///   `≤ γ_4·(|a_i| + |e1_i u| + |e2_i v| + |o_i|)`;
+///   `|p_i| + |o_i|`, so that component carries `≤ γ_5·(… + |o_i|)`;
 /// - the dot with `d` (three products, two sums) carries `γ_3` of its
-///   own and propagates the above: `≤ (γ_3 + γ_4 + γ_3γ_4)·M < γ_7·M`;
+///   own and propagates the above: `≤ (γ_3 + γ_5 + γ_3γ_5)·M < γ_8·M`;
 /// - `fl(d·d)` carries `≤ γ_3·(d·d)`, which enters the quotient scaled
 ///   by `|t|`, and `|t|·(d·d) = |(p − o)·d| ≤ M`;
 /// - the division is one rounding more, `≤ u·|t| ≤ u·M / (d·d)`.
 ///
-/// So the whole is `≤ (γ_7 + γ_3 + u)/(1 − γ_3) · M/(d·d) < 11.2·u`
-/// of `M/(d·d)`, and `8 · EPSILON = 16·u` clears it with a `1.4×`
-/// margin — which also covers `M`'s own evaluation (≤ 8 roundings per
-/// term). The cross term `γ_3γ_4` dropped from the third bullet is
-/// below `u²·13`, immaterial beside the `4.8·u` the margin leaves
-/// spare. The barycentrics' own roundings are NOT here: `err_u` and
-/// `err_v` are forward bounds on `ũ` and `ṽ` themselves
-/// ([`quotient`]), and [`t_span`] carries them through `|e1|` and
-/// `|e2|` as a separate term. Not a tuned number: change the
-/// arithmetic and re-count.
+/// So the whole is `≤ (γ_8 + γ_3 + u)/(1 − γ_3) · M/(d·d) < 12.2·u` of
+/// `M/(d·d)` at the worse caller, and `8 · EPSILON = 16·u` clears it
+/// with a `1.3×` margin. The margin also carries what the count leaves
+/// out: `M` is evaluated from the ROUNDED differences, each within one
+/// ulp of the exact one, and in floating point (≤ 8 roundings per
+/// term), and the cross term `γ_3γ_5` is below `u²·16` — together far
+/// below the `3.8·u` spare. The barycentrics' own roundings are NOT
+/// here: `err_u` and `err_v` are forward bounds on `ũ` and `ṽ`
+/// themselves ([`quotient`]), and [`t_span`] carries them through
+/// `|e1|` and `|e2|` as a separate term (zero for a segment point,
+/// whose `s` is an operand). Not a tuned number: change the arithmetic
+/// of any caller and re-count.
 const PROJECTION_ERROR_UNITS: f64 = 8.0;
 
 /// The quotient's constant, same units and same style: `fl(1/D̃)` and
@@ -3411,7 +3525,7 @@ mod tests {
 
     /// Every `f64` the rows below read, as an exact integer over
     /// `2^POINT_SHIFT`.
-    const POINT_SHIFT: i64 = 600;
+    const POINT_SHIFT: i64 = 1100;
 
     fn exact(x: f64) -> num_bigint::BigInt {
         assert!(
@@ -3564,6 +3678,80 @@ mod tests {
             width_needed,
             "the far-origin row's exact parameter is within one ulp of t, so this table \
              cannot tell the rounding term from its absence"
+        );
+    }
+
+    /// **The enclosure under stress** — a counterexample search over
+    /// the inputs that make the arithmetic round hardest: coordinates
+    /// up to `1e15`, `b − a` down to `1e-12` of them, `s` at `1e-15`,
+    /// `1 − 1e-15` and `1e-150` as well as anywhere, and directions
+    /// that are general, anisotropic across sixteen decades, or grazing
+    /// the segment. Each draw is checked against the exact rational
+    /// parameter ([`bounds_the_exact_parameter`]).
+    ///
+    /// Shape: counterexample search — a varying seed and the effort
+    /// dial; the table above holds the pinned cases. A door whose
+    /// rounding term under-counts by `8×` fails here.
+    #[test]
+    fn a_segment_points_span_encloses_its_exact_parameter_under_stress() {
+        let mut rng = fuzz::start("pick: segment point spans under stress");
+        let signed = |r: &mut fuzz::Rng, lo: f64, hi: f64| {
+            let x = r.log_uniform(lo, hi);
+            if r.below(2) == 0 { x } else { -x }
+        };
+        let point = |r: &mut fuzz::Rng, scale: f64| {
+            Point3::new(
+                signed(r, scale * 1.0e-3, scale),
+                signed(r, scale * 1.0e-3, scale),
+                signed(r, scale * 1.0e-3, scale),
+            )
+        };
+        let unit = |r: &mut fuzz::Rng| {
+            let v = Vec3::new(r.range(-1.0, 1.0), r.range(-1.0, 1.0), r.range(-1.0, 1.0));
+            v * (1.0 / v.norm())
+        };
+        let mut checked = 0usize;
+        for draw in 0..fuzz::scaled(2_000) {
+            let scale = rng.log_uniform(1.0e-3, 1.0e15);
+            let a = point(&mut rng, scale);
+            let e = unit(&mut rng) * (scale * rng.log_uniform(1.0e-12, 1.0));
+            let b = a + e;
+            let s = match rng.below(5) {
+                0 => 1.0e-15,
+                1 => 1.0 - 1.0e-15,
+                2 => 1.0e-150,
+                _ => rng.unit(),
+            };
+            let dir = match rng.below(3) {
+                0 => unit(&mut rng),
+                1 => Vec3::new(
+                    signed(&mut rng, 1.0e-8, 1.0e8),
+                    signed(&mut rng, 1.0e-8, 1.0e8),
+                    signed(&mut rng, 1.0e-8, 1.0e8),
+                ),
+                _ => e * (1.0 / e.norm()) + unit(&mut rng) * rng.log_uniform(1.0e-12, 1.0e-3),
+            };
+            let reach = scale * rng.log_uniform(1.0e-6, 1.0e3);
+            let origin = a + e * s - dir * (reach / dir.norm()) + unit(&mut rng) * (reach * 1.0e-3);
+            let ray = Ray { origin, dir };
+            let Some(span) = super::ray_segment_point(&ray, [a, b], s) else {
+                continue;
+            };
+            checked += 1;
+            for (end, below) in [(span.t_lo, true), (span.t_hi, false)] {
+                assert!(
+                    bounds_the_exact_parameter(&ray, [a, b], s, end, below),
+                    "draw {draw}: the {} end {end:e} of {span:?} is on the wrong side of the \
+                     exact parameter for ray {ray:?}, segment {a:?}–{b:?}, s = {s:e}; {}",
+                    if below { "lower" } else { "upper" },
+                    fuzz::replay()
+                );
+            }
+        }
+        assert!(
+            checked * 10 >= fuzz::scaled(2_000) * 9,
+            "only {checked} draws had a finite span; {}",
+            fuzz::replay()
         );
     }
 

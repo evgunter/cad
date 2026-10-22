@@ -954,10 +954,6 @@ pub struct PickIndex {
     /// The drawn edge polylines, part by part — the same layout over
     /// the same parts, in the same order, built in the same walk.
     edges: PartWindows<Edges>,
-    /// Each part's drawn chords and the triangles incident to them,
-    /// parallel to `parts`: what the occlusion probe reads a chord's
-    /// own crossing from ([`ChordFaces`]).
-    chords: Vec<ChordFaces>,
 }
 
 impl PickIndex {
@@ -1053,17 +1049,12 @@ impl PickIndex {
             edges.push(part, eval)?;
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
-        let chords = parts
-            .iter()
-            .map(|part| ChordFaces::of(part.mesh()))
-            .collect();
         Ok(Self {
             key,
             parts,
             ids,
             patches,
             edges,
-            chords,
         })
     }
 
@@ -1364,16 +1355,7 @@ impl PickIndex {
         // grouped by face, then one answer or the refusal.
         let pairs: Vec<(TSpan, (RecipeNodeId, u32, StableName))> = candidates
             .iter()
-            .map(|hit| {
-                (
-                    TSpan {
-                        t: hit.t,
-                        t_lo: hit.t_lo,
-                        t_hi: hit.t_hi,
-                    },
-                    (hit.node, hit.body, hit.name.clone()),
-                )
-            })
+            .map(|hit| (hit.span(), (hit.node, hit.body, hit.name.clone())))
             .collect();
         let at = |face: &FaceAnswer<(RecipeNodeId, u32, StableName)>| PickHit {
             t: face.span.t,
@@ -1524,16 +1506,9 @@ impl PickIndex {
 
     /// The tessellated part drawing one (node, body).
     fn part_of(&self, node: RecipeNodeId, body: u32) -> Option<&NodePick> {
-        self.part_at(node, body).map(|(part, _)| part)
-    }
-
-    /// [`PickIndex::part_of`] with the part's [`ChordFaces`] beside it.
-    fn part_at(&self, node: RecipeNodeId, body: u32) -> Option<(&NodePick, &ChordFaces)> {
-        let at = self
-            .parts
+        self.parts
             .iter()
-            .position(|part| part.node() == node && part.body() == body)?;
-        Some((self.parts.get(at)?, self.chords.get(at)?))
+            .find(|part| part.node() == node && part.body() == body)
     }
 
     /// The world polyline a drawn edge is drawn as, under a display
@@ -1860,11 +1835,15 @@ impl PickIndex {
         let Some(aspect) = viewport.aspect() else {
             return Ok(None);
         };
-        // Every body the front set names, once each, in the set's order.
-        let mut bodies: Vec<(RecipeNodeId, u32)> = Vec::new();
+        // Every part the front set names, once each, in the set's order.
+        let mut bodies: Vec<&NodePick> = Vec::new();
         for hit in front {
-            if !bodies.contains(&(hit.node, hit.body)) {
-                bodies.push((hit.node, hit.body));
+            if bodies
+                .iter()
+                .all(|part| (part.node(), part.body()) != (hit.node, hit.body))
+                && let Some(part) = self.part_of(hit.node, hit.body)
+            {
+                bodies.push(part);
             }
         }
         // One candidate per drawn edge — its own nearest segment —
@@ -1873,10 +1852,8 @@ impl PickIndex {
         // which EDGE the cursor means. Each carries its body's place
         // in `bodies`.
         let mut candidates: Vec<(usize, Candidate)> = Vec::new();
-        for (rank, &(node, body)) in bodies.iter().enumerate() {
-            let Some((part, _)) = self.part_at(node, body) else {
-                continue;
-            };
+        for (rank, part) in bodies.iter().enumerate() {
+            let (node, body) = (part.node(), part.body());
             let mesh = part.mesh();
             let place = placement(display, node);
             for id in self.edges_in(node, body) {
@@ -1918,7 +1895,8 @@ impl PickIndex {
         // earlier in the seed, then the earlier boundary, then the
         // earlier segment — all integers after the first, and the
         // first is a distance [`best_segment`] admitted, so it is
-        // finite.
+        // finite. Two parts' coincident edges are at one distance, so
+        // the one whose body the seed met first answers.
         candidates.sort_by(|(left_rank, left), (right_rank, right)| {
             left.distance
                 .partial_cmp(&right.distance)
@@ -1930,7 +1908,8 @@ impl PickIndex {
                 )))
         });
         for (rank, candidate) in candidates {
-            let (node, body) = bodies[rank];
+            let part = bodies[rank];
+            let (node, body) = (part.node(), part.body());
             // Occlusion: the ray through this candidate's own pixel,
             // picked against everything drawn. A candidate the solid
             // hides is not what the cursor is aiming at however near
@@ -1943,26 +1922,24 @@ impl PickIndex {
                 .map_err(PickError::Camera)?;
             let [a, b] = candidate.ends;
             let (s, point) = ray_segment_closest(&ray, a, b);
-            let Some(own) = self.own_crossing(&ray, node, body, &candidate, s, display) else {
+            let Some(own) = own_crossing(&ray, part, &candidate, s, display) else {
                 // A chord point the kernel cannot give a parameter has
                 // nothing to be ordered by, and is not offered — as a
                 // chord point with no pixel is not.
                 continue;
             };
-            // A moved copy's front spans are its LOCAL ray's
-            // parameters, carried across unconverted, while `own` is
-            // the world ray's: comparable because the display admits
-            // only rigid probe frames, which is
+            // Each front span is one face's: the hull of that face's
+            // tied crossings, as the door answers it. A moved copy's
+            // are its LOCAL ray's parameters, carried across
+            // unconverted, while `own` is the world ray's: comparable
+            // because the display admits only rigid probe frames,
+            // which is
             // `work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
             let mut spans: Vec<TSpan> = self
                 .front_of(eval, &ray, display)
                 .map_err(PickError::HitTest)?
                 .iter()
-                .map(|hit| TSpan {
-                    t: hit.t,
-                    t_lo: hit.t_lo,
-                    t_hi: hit.t_hi,
-                })
+                .map(PickHit::span)
                 .collect();
             let own_at = spans.len();
             spans.push(own);
@@ -1989,59 +1966,6 @@ impl PickIndex {
             }));
         }
         Ok(None)
-    }
-
-    /// **The chord's own crossing of `ray`**, as an interval: the hull
-    /// of the span of the chord point at segment parameter `s`
-    /// ([`ray_segment_point`]) and the certified spans of every
-    /// crossing `ray` makes with the triangles incident to that point
-    /// ([`ray_triangle`]) — the chord's triangles when `s` is inside
-    /// it, and every triangle at the endpoint when the closest point
-    /// clamped to one ([`ChordFaces::incident`]).
-    ///
-    /// The triangles are placed through the same [`placement`] the
-    /// chord's points were, so a moved copy's chord and faces are
-    /// measured where they are drawn. `None` when the chord point has
-    /// no finite parameter.
-    fn own_crossing(
-        &self,
-        ray: &Ray,
-        node: RecipeNodeId,
-        body: u32,
-        candidate: &Candidate,
-        s: f64,
-        display: &DisplayView,
-    ) -> Option<TSpan> {
-        let own = ray_segment_point(ray, candidate.ends, s)?;
-        let Some((part, chords)) = self.part_at(node, body) else {
-            return Some(own);
-        };
-        let mesh = part.mesh();
-        let Some(&[from, to]) = mesh
-            .boundaries
-            .get(candidate.boundary)
-            .and_then(|boundary| {
-                boundary
-                    .points
-                    .get(candidate.segment..candidate.segment + 2)
-            })
-        else {
-            return Some(own);
-        };
-        let place = placement(display, node);
-        let corner = |index: u32| mesh.positions.get(index as usize).copied().map(&place);
-        Some(
-            chords
-                .incident([from, to], s)
-                .iter()
-                .filter_map(|&[i, j, k]| Some([corner(i)?, corner(j)?, corner(k)?]))
-                .filter_map(|tri| ray_triangle(ray, &tri))
-                .fold(own, |hull, span| TSpan {
-                    t: hull.t,
-                    t_lo: hull.t_lo.min(span.t_lo),
-                    t_hi: hull.t_hi.max(span.t_hi),
-                }),
-        )
     }
 
     /// **The whole cursor path, as one function**: a cursor action
@@ -2195,84 +2119,89 @@ fn group_answer(
     }
 }
 
-/// **A part's drawn chords and the triangles incident to them**, by
-/// exact mesh index: a boundary polyline and the face patches share
-/// [`pncad::mesh::Mesh::positions`], so a chord's two indices are an
-/// edge of every triangle on either side of it and a chord point's
-/// index is a corner of every triangle around it.
+/// **The chord's own crossing of `ray`**, as an interval: the hull of
+/// the span of the chord point `a + (b − a)·s`
+/// ([`ray_segment_point`]) and the certified spans of every crossing
+/// `ray` makes with the triangles that point may lie on
+/// ([`ray_triangle`]), placed through the same [`placement`] the
+/// chord's points were.
 ///
-/// Built once per [`PickIndex`], from the same meshes its parts hold,
-/// and keyed only on what a boundary draws — the occlusion probe asks
-/// about a drawn chord and nothing else.
-#[derive(Debug)]
-struct ChordFaces {
-    /// Each drawn chord, its indices in ascending order, with the
-    /// triangles that have it as an edge.
-    on_chord: BTreeMap<[u32; 2], Vec<[u32; 3]>>,
-    /// Each drawn chord point with the triangles that have it as a
-    /// corner.
-    at_point: BTreeMap<u32, Vec<[u32; 3]>>,
-}
-
-impl ChordFaces {
-    fn of(mesh: &pncad::mesh::Mesh) -> Self {
-        let mut on_chord: BTreeMap<[u32; 2], Vec<[u32; 3]>> = BTreeMap::new();
-        let mut at_point: BTreeMap<u32, Vec<[u32; 3]>> = BTreeMap::new();
-        for boundary in &mesh.boundaries {
-            for &point in &boundary.points {
-                at_point.entry(point).or_default();
-            }
-            for pair in boundary.points.windows(2) {
-                on_chord.entry(chord_key(pair[0], pair[1])).or_default();
-            }
-        }
-        for patch in &mesh.patches {
-            for &tri in &patch.triangles {
-                for corner in tri {
-                    if let Some(around) = at_point.get_mut(&corner) {
-                        around.push(tri);
-                    }
-                }
-                for (from, to) in [(tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])] {
-                    if let Some(beside) = on_chord.get_mut(&chord_key(from, to)) {
-                        beside.push(tri);
-                    }
-                }
-            }
-        }
-        Self { on_chord, at_point }
-    }
-
-    /// The triangles the point at parameter `s` of the chord
-    /// `from`–`to` lies on: the chord's own when `s` is inside it, and
-    /// every triangle at the endpoint when `s` is one —
-    /// [`ray_segment_closest`] clamps to exactly `0` or `1`.
-    fn incident(&self, [from, to]: [u32; 2], s: f64) -> &[[u32; 3]] {
-        let found = if s == 0.0 {
-            self.at_point.get(&from)
-        } else if s == 1.0 {
-            self.at_point.get(&to)
-        } else {
-            self.on_chord.get(&chord_key(from, to))
-        };
-        found.map_or(&[], Vec::as_slice)
-    }
-}
-
-/// A chord's key in [`ChordFaces`]: its two indices, ascending.
-fn chord_key(a: u32, b: u32) -> [u32; 2] {
-    if a <= b { [a, b] } else { [b, a] }
+/// **Which triangles.** A point inside the chord lies on the chord's
+/// own triangles
+/// ([`ChordFaces::on_chord`](editor_core::resolve::ChordFaces::on_chord));
+/// a chord END lies on its whole fan
+/// ([`ChordFaces::at_point`](editor_core::resolve::ChordFaces::at_point)).
+/// The fan of an end is taken when the probe pixel IS that end's own
+/// pixel — the pixel walk clamps a cursor past the end onto it exactly
+/// ([`Candidate::along`]) — or when the chord point is the end itself
+/// (`s` clamped there). The pixel is the decision because it holds at
+/// the end whatever `s`'s rounding did: a ray through a vertex's pixel
+/// misses the vertex by its own rounding, `s` is then `0` or `1` give
+/// or take that rounding, and an exact test on `s` alone sends that ray
+/// to the chord's own triangles while the triangle it crosses is
+/// another of the fan's. Away from both ends the fan is not taken, so
+/// the interval does not reach crossings of faces the chord does not
+/// bound.
+///
+/// `None` when the chord point has no finite parameter.
+fn own_crossing(
+    ray: &Ray,
+    part: &NodePick,
+    candidate: &Candidate,
+    s: f64,
+    display: &DisplayView,
+) -> Option<TSpan> {
+    let own = ray_segment_point(ray, candidate.ends, s)?;
+    let mesh = part.mesh();
+    let Some(&[from, to]) = mesh
+        .boundaries
+        .get(candidate.boundary)
+        .and_then(|boundary| {
+            boundary
+                .points
+                .get(candidate.segment..candidate.segment + 2)
+        })
+    else {
+        return Some(own);
+    };
+    let at_start = candidate.along == 0.0 || s == 0.0;
+    let at_end = candidate.along == 1.0 || s == 1.0;
+    let chords = part.chords();
+    let triangles: Vec<&[[u32; 3]]> = if at_start || at_end {
+        [(at_start, from), (at_end, to)]
+            .into_iter()
+            .filter(|&(near, _)| near)
+            .map(|(_, end)| chords.at_point(end))
+            .collect()
+    } else {
+        vec![chords.on_chord([from, to])]
+    };
+    let place = placement(display, part.node());
+    let corner = |index: u32| mesh.positions.get(index as usize).copied().map(&place);
+    Some(
+        triangles
+            .into_iter()
+            .flatten()
+            .filter_map(|&[i, j, k]| Some([corner(i)?, corner(j)?, corner(k)?]))
+            .filter_map(|tri| ray_triangle(ray, &tri))
+            .fold(own, |hull, span| hull.hull(&span)),
+    )
 }
 
 /// The best drawn edge segment a cursor found so far: how near it
 /// came in pixels, which segment it was (the tie-break's coordinates),
-/// the pixel to re-pick through for the occlusion check, and the
-/// segment's world endpoints.
+/// the pixel to re-pick through for the occlusion check, where along
+/// the projected segment that pixel is, and the segment's world
+/// endpoints.
 struct Candidate {
     distance: f64,
     boundary: usize,
     segment: usize,
     pixel: [f64; 2],
+    /// The pixel's parameter along the projected segment, clamped to
+    /// `[0, 1]`: exactly `0` or `1` when the cursor is past an end, so
+    /// [`own_crossing`] knows the probe ray is through that end.
+    along: f64,
     ends: [Point3<f64>; 2],
 }
 
@@ -2341,7 +2270,7 @@ fn best_segment(
         let (Some((a, pixel_a)), Some((b, pixel_b))) = (pair[0], pair[1]) else {
             continue;
         };
-        let (distance, closest) = segment_distance_px(cursor, pixel_a, pixel_b);
+        let (distance, closest, along) = segment_distance_px(cursor, pixel_a, pixel_b);
         if distance > EDGE_PICK_RADIUS_PX || distance.is_nan() {
             continue;
         }
@@ -2353,6 +2282,7 @@ fn best_segment(
                 boundary,
                 segment,
                 pixel: closest,
+                along,
                 ends: [a, b],
             });
         }
@@ -2360,8 +2290,9 @@ fn best_segment(
     best
 }
 
-/// How far `cursor` is from the segment `a`–`b` in pixels, and the
-/// point of the segment it is that far from.
+/// How far `cursor` is from the segment `a`–`b` in pixels, the point
+/// of the segment it is that far from, and that point's parameter
+/// along the segment.
 ///
 /// **The answer is not always a measurement, and no input has to be
 /// one for that to happen.** `length2` is a sum of squares, so it
@@ -2372,7 +2303,7 @@ fn best_segment(
 /// scaled by `ViewportSize`, which nothing bounds above. The caller
 /// admits on the answer rather than on the inputs for exactly that
 /// reason ([`best_segment`]).
-fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64; 2]) {
+fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64; 2], f64) {
     let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
     let length2 = dx.powi(2) + dy.powi(2);
     // A segment whose endpoints project to one pixel is a point.
@@ -2383,16 +2314,16 @@ fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64
     };
     let closest = [a[0] + dx * t, a[1] + dy * t];
     let distance = ((cursor[0] - closest[0]).powi(2) + (cursor[1] - closest[1]).powi(2)).sqrt();
-    (distance, closest)
+    (distance, closest, t)
 }
 
 /// The point of the segment `a`–`b` nearest `ray`, as its parameter
 /// `s` along the segment and as the point `a + (b − a)·s` itself.
 ///
 /// What it answers is a POSITION ([`EdgePick::point`]) and the `s` the
-/// occlusion probe hands to [`ray_segment_point`] and
-/// [`ChordFaces::incident`]; the depth that decides occlusion is the
-/// kernel's, not a parameter computed here.
+/// occlusion probe hands to [`ray_segment_point`] ([`own_crossing`]);
+/// the depth that decides occlusion is the kernel's, not a parameter
+/// computed here.
 ///
 /// The ray comes from the pixel the segment's own projection is
 /// nearest, so the two very nearly meet; what this answers is where.
@@ -3004,5 +2935,92 @@ mod tests {
                 "the window's id is the map's id"
             );
         }
+    }
+
+    /// **A probe through a chord's END reaches that end's whole fan**,
+    /// at both ends, whatever `s` came to.
+    ///
+    /// For every drawn chord of the plate that starts or ends at a point
+    /// carrying a triangle the chord does not bound, a ray is built to
+    /// cross that triangle just before the end and then pass the chord
+    /// a millionth of its length inside it — so `s` is strictly inside
+    /// `(0, 1)` and only the pixel clause ([`Candidate::along`] at `0`
+    /// or `1`, the clamp a cursor past that end gets) can say the probe
+    /// is at the end. The chord's own crossing must reach that fan
+    /// crossing: it is the face the ray met at the end's pixel, and an
+    /// interval that stopped at the chord's own pair would be preceded
+    /// by it and call the edge hidden.
+    #[test]
+    fn a_probe_through_a_chord_end_reaches_the_ends_whole_fan() {
+        let (_, index, copy) = crate::test_support::plate_indexed(pncad::geom_core::Tol::witness());
+        let part = index
+            .parts()
+            .iter()
+            .find(|part| part.node() == copy)
+            .expect("the plate is drawn");
+        let (mesh, chords) = (part.mesh(), part.chords());
+        let at = |index: u32| mesh.positions[index as usize];
+        let mut reached = [0usize; 2];
+        for (boundary, polyline) in mesh.boundaries.iter().enumerate() {
+            let last = polyline.points.len() - 2;
+            for (end, segment, along) in [(0, 0, 0.0), (1, last, 1.0)] {
+                let pair = [polyline.points[segment], polyline.points[segment + 1]];
+                let ends = pair.map(at);
+                let own_pair = chords.on_chord(pair);
+                let Some(fan) = chords
+                    .at_point(pair[end])
+                    .iter()
+                    .find(|tri| !own_pair.contains(tri))
+                else {
+                    continue;
+                };
+                let tri = fan.map(at);
+                let normal = (tri[1] - tri[0]).cross(tri[2] - tri[0]);
+                let normal = normal * (1.0 / normal.norm());
+                let vertex = ends[end];
+                let centroid = Point3::new(
+                    (tri[0].x + tri[1].x + tri[2].x) / 3.0,
+                    (tri[0].y + tri[1].y + tri[2].y) / 3.0,
+                    (tri[0].z + tri[1].z + tri[2].z) / 3.0,
+                );
+                let on_fan = vertex + (centroid - vertex) * 1.0e-6;
+                let inside = vertex + (ends[1 - end] - vertex) * 1.0e-6 + normal * 1.0e-9;
+                let dir = inside - on_fan;
+                let ray = Ray {
+                    origin: on_fan - dir * 1.0e3,
+                    dir,
+                };
+                let Some(fan_span) = ray_triangle(&ray, &tri) else {
+                    continue;
+                };
+                let (s, _) = ray_segment_closest(&ray, ends[0], ends[1]);
+                assert!(
+                    s > 0.0 && s < 1.0,
+                    "the premise: the chord point is inside chord {segment} of boundary \
+                     {boundary}, s = {s:e}"
+                );
+                let candidate = Candidate {
+                    distance: 0.0,
+                    boundary,
+                    segment,
+                    pixel: [0.0, 0.0],
+                    along,
+                    ends,
+                };
+                let own = own_crossing(&ray, part, &candidate, s, &DisplayView::none())
+                    .expect("a finite chord point");
+                assert!(
+                    !fan_span.precedes(&own),
+                    "boundary {boundary}'s chord {segment}, {}: the fan crossing {fan_span:?} \
+                     precedes the chord's own {own:?}",
+                    ["at its start (s -> 0)", "at its end (s -> 1)"][end]
+                );
+                reached[end] += 1;
+            }
+        }
+        assert!(
+            reached[0] > 0 && reached[1] > 0,
+            "the rows reached {reached:?} (start, end) fans: a side with none measured nothing"
+        );
     }
 }
