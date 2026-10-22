@@ -782,14 +782,10 @@ fn corners_by_wall<S: Scalar>(sharp: &Body<S>, corners: &[EdgeKey]) -> (EdgeKey,
 
 /// A body's exact volume, read out at `f64`.
 fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
-    pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the volume integrates")
-    .volume
-    .f()
+    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
+        .expect("the volume integrates")
+        .volume
+        .f()
 }
 
 /// The lever arm every angular fillet predicate is metered against —

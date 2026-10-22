@@ -118,7 +118,13 @@ fn the_counterclockwise_wedge_blends_outward_at_both_doors() {
             "{verb}: the blended wedge encloses {}, got {volume}",
             measured(verb)
         );
-        let dual_volume = mass_properties_structural(&d, tol).unwrap().volume.value;
+        let dual_volume = mass_properties_structural(
+            &topo::test_support::finished("the dual result", d.clone(), tol),
+            tol,
+        )
+        .unwrap()
+        .volume
+        .value;
         assert!(
             (dual_volume - volume).abs() < 1e-9,
             "{verb}: the dual's value channel {dual_volume} is f64's {volume}"

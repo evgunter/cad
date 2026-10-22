@@ -160,10 +160,13 @@ fn brick_beside_inside_out_wedge() -> Body<Dual64> {
     }
     common::describe_as_intersections(&mut parts, tol);
     assert!(
-        mass_properties_structural(&parts, tol)
-            .unwrap()
-            .volume
-            .value
+        mass_properties_structural(
+            &topo::test_support::finished("the parts", parts.clone(), tol),
+            tol
+        )
+        .unwrap()
+        .volume
+        .value
             > 0.0,
         "the body's total is positive, so it hides the part's sign"
     );

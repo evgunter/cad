@@ -38,8 +38,9 @@ fn plate_on_a_block(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
 /// **Row 15: a flush rest glues and records.** One solid,
 /// the summed volume, and one `SameOpposite` row the plane ladder
 /// decided — unproven, since the two caps are two constructions, the
-/// plate a copy placed on the block — beside the plate's four corners,
-/// each decided on the block's top.
+/// plate a copy placed on the block by a slide off the block's top (a
+/// standoff), which states no seat
+/// — beside the plate's four corners, each decided on the block's top.
 #[test]
 fn a_flush_rest_glues_and_records_its_unproven_rows() {
     let (doc, _, _, union) = plate_on_a_block(0.0);
@@ -84,13 +85,13 @@ fn a_flush_rest_glues_and_records_its_unproven_rows() {
                 proof,
                 Proof::Unproven {
                     residual,
-                    recourse: coincide::Recourse::OneConstruction,
+                    recourse: coincide::Recourse::Budget,
                 } if residual.replay == coincide::Unreplayed::Numeric
             ),
             "{row:?}: two constructions, no proof; the offset's form freezes at the door's \
              budget (declared-rest-rows-are-two-values-or-too-big-to-close), which is no \
-             value computed apart from the variables, so the recourse is to build one \
-             construction: {proof:?}"
+             value computed apart from the variables, so the recourse names the budget: \
+             {proof:?}"
         );
     }
     assert_eq!(proofs.len(), rows.len(), "the door answers every row");

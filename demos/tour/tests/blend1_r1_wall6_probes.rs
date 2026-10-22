@@ -33,6 +33,16 @@ use pncad::topo::{AtRestBody, Body, EdgeKey};
 mod rim_select;
 use rim_select::{Seeds, rim_at};
 
+/// A copy of `body` finished for the measurement doors, which read a
+/// finished body (Ev's decision on PR 4822).
+fn at_rest(
+    body: &pncad::topo::Body<f64>,
+    tol: pncad::geom_core::Tol,
+) -> pncad::topo::AtRestBody<f64> {
+    pncad::topo::AtRestBody::validate(body.clone(), tol)
+        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
+}
+
 const GLOBE: f64 = 0.44;
 const TOP: f64 = 0.40;
 const MOUTH: f64 = 0.36;
@@ -172,24 +182,16 @@ fn t3_the_mouth_rim_carves_and_adds_material() {
         (stored - 0.253).abs() < 5e-4,
         "the mouth arc's stored radius is the PR's fourth radius, got {stored}"
     );
-    let v0 = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&lant), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("mass properties")
-    .volume;
+    let v0 = pncad::topo::mass_properties(&at_rest(&lant, tol), tol)
+        .expect("mass properties")
+        .volume;
     let out = fillet_edges(&finished("lant", lant.clone(), tol), &arcs, 0.02, tol)
         .unwrap_or_else(|e| panic!("the concave mouth rim carves whole at r = 0.02, got {e:?}"));
     pncad::topo::validate_geometric(&out.body, tol)
         .unwrap_or_else(|e| panic!("the mouth carves tier-3 valid, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "the mouth leaves one band");
-    let props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&out.body), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("mass properties");
+    let props =
+        pncad::topo::mass_properties(&at_rest(&out.body, tol), tol).expect("mass properties");
     assert_eq!(props.volume_pad, 0.0, "closed-form inventory");
     assert!(
         props.volume > v0,

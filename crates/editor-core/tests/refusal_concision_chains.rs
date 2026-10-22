@@ -5975,11 +5975,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             tol,
         ));
         let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
-        let body = topo::test_support::finished(
-            "body",
-            topo::Body::clone(&cut.body().expect("a body").body),
-            tol,
-        );
+        let body = &cut.body().expect("a body").body;
         // The door names the first ray set aside at a corner or a wedge
         // beside the volume's refusal; the refusal is the volume's.
         let source = match topo::classify_shells_structural(&body, tol)

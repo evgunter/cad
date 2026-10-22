@@ -88,7 +88,7 @@ fn graft_onto(dst: &mut Body<f64>, target: SolidKey, src: &Body<f64>) {
 }
 
 fn positive_total(body: &Body<f64>) {
-    // Raw door: the measured body is a shell wound against its role, which tier 3 refuses (ShellWinding).
+    // Raw door: the measured body is wound or filed against its roles, which tier 3 refuses (ShellWinding, NegativeVolume, SolidOuterShells).
     assert!(
         topo::test_support::measure_unvalidated(body, tol())
             .expect("the body measures")
@@ -274,7 +274,9 @@ fn a_void_in_a_void_touching_at_every_edge_refuses() {
 
 /// The shell of `candidates` with the smaller enclosed volume.
 fn small(body: &Body<f64>, candidates: &[ShellKey]) -> ShellKey {
-    let classes = topo::classify_shells_of(body, candidates, tol()).expect("classifies");
+    // Raw door: the rows' bodies are wound or filed against their roles, which tier 3 refuses (ShellWinding, SolidOuterShells, NegativeVolume).
+    let classes =
+        topo::test_support::classify_unvalidated_of(body, candidates, tol()).expect("classifies");
     assert_eq!(classes.len(), 2, "two candidates");
     classes
         .iter()

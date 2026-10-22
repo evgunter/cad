@@ -356,14 +356,10 @@ pub(crate) fn build<S: Scalar>(
     // fillets' π-terms make no part's volume dyadic, so the sum and the
     // union's own flux total associate the same terms differently.
     let vol = |b: &Body<S>| {
-        pncad::topo::mass_properties(
-            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), tol)
-                .expect("the measured body passes tier 3"),
-            tol,
-        )
-        .expect("mass properties")
-        .volume
-        .f()
+        pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
+            .expect("mass properties")
+            .volume
+            .f()
     };
     let (vp, vq, v) = (vol(&p), vol(&q), vol(&mated.body));
     let additive = vp + vq;

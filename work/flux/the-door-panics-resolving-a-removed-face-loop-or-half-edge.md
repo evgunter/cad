@@ -43,7 +43,9 @@ the row's admitted list empties.
 By F1 (Ev's PR 4822 decision): `topo::mass_properties` takes
 `&AtRestBody`, and a body with an entity removed fails tier 1, so the
 typed door never reads one. The witness,
-`a_corrupt_body_is_refused_typed_at_the_door`, now reads the raw door
+`a_corrupt_body_is_refused_typed_at_the_door` (renamed
+`a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did`),
+now reads the raw door
 (`test_support::measure_unvalidated`) and still admits the six panics.
 It also asserts that none of the removals passes `AtRestBody::validate`.
 The door's own face resolution still panics on such a body, but only

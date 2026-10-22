@@ -618,7 +618,12 @@ BOUNDS_ALLOWLIST=(
   # calls each, and the only other way out of the crate is
   # `topo::test_support`'s re-exports (the raw door and the transitional
   # alias), which carry this seam's bound unrestated.
-  'crates/topo/src/props.rs 11 M5 PR 11, the certified-quadrature plumbing'
+  # 11 -> 12 (FLUX F1's review, PR 5590): `classify_shells_of`, the
+  # restricted door, takes a finished body too, and its walk moves
+  # beneath it as `raw_door::classify_body_of` (`Decide +
+  # CertifiedBounds`), the same certified lane `classify_shells_through`
+  # reads; the `_structural` twins it moved with are plain `Decide`.
+  'crates/topo/src/props.rs 12 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and

@@ -2,12 +2,13 @@
 id: a-mate-placed-seat-is-unproven-at-the-doors-budget
 kind: issue
 title: a mate-placed seat replays at Sym but stays unproven within the door's budget: the fold's frames hold component symbols renormalised at every hop
-status: open
+status: closed
 opened: 2026-10-18
+closed: 2026-10-22
 priority: P0
 cost: H
 design: true
-refs: [placed-carriers-compare-through-their-frames, mates-declare-no-contact, a-pose-is-moved-by-lengths-and-angles]
+refs: [placed-carriers-compare-through-their-frames, mates-declare-no-contact, a-pose-is-moved-by-lengths-and-angles, the-door-reads-a-mated-seat-by-its-mate, the-census-records-a-planar-area-contact-as-one-face-pair]
 ---
 
 ## What
@@ -311,3 +312,49 @@ designers, not a recommendation):
 4. **The cost** of the switch at 256 is now about 2–4 s on the viewer
    rows and 2.8 s on the bench, with no seat proven there. At the 512
    that mate6 needs it is 3.7–9 s.
+
+## Closed (2026-10-22, for mated rows)
+
+The ruling on PR 5555 answered the design question: a mate is the first
+rung's statement, so a mated seat is read by its mate and never by the
+replay (fork log row 187; routes 0–3 do not apply to it). It is built
+by `the-door-reads-a-mated-seat-by-its-mate`, and the switch is gone.
+mate6's stand, the tour bench's three seats and a seat on a pattern copy
+are proven by the first rung, and the viewer rows run at main's times.
+Rows no mate states (unmated contacts between copies, recorded as edge
+and vertex rows) are `the-census-records-a-planar-area-contact-as-one-face-pair`'s.
+
+The owed list, bullet by bullet:
+
+- **A positive row:** `mate6_gather_mints::a_row_at_rest_no_mate_states_is_read_off_the_replays_copies`.
+  An at-rest row between the tops of two copies of one version, each
+  stood by the identity bundle, is `Structural(CarrierVerdict)`.
+- **The pin's threading:** the same row over copies of two versions of
+  one document (the second relabelled) is `Numeric`: each version's
+  variables are symbols under its own pin through the resolved part's
+  evaluation. Passing no pin there makes the two heights one symbol,
+  and the row would prove.
+- **The relation guard:** `mate6_gather_mints::a_mate_states_its_own_seat_and_no_other_row`
+  hands the door the seat's caps decided `SameOriented`. The first rung
+  leaves it (the mate's flip is odd), and the replay's verdict decides
+  `SameOpposite`, so the row is `OtherDecisions`. Without the guard the
+  margin would be read, and at the door's budget it is `Numeric`.
+- **`at_rest_unread`** is now `at_rest_unbuilt`, asked only of a face
+  pair the replay reads. A copy the replay did not build says
+  `ThroughAPart` or `Refused` (the positive row's door handed no
+  resolver says `ThroughAPart`). A verdict that decides the pair
+  otherwise says `OtherDecisions`, and a row of other cells says
+  `NotReplayed` without replaying.
+- **Cancellation:** `prove_row` checks the token once before either arm,
+  so the census arm has no check of its own to drop.
+- **The band:** no longer applies. A run whose tolerance makes no band
+  refuses every node before an operation runs, so the replay builds no
+  copy, and the row says why through `at_rest_unbuilt`. Past that, the
+  band is built; a run that reaches the arm without one says `Refused`.
+- **The recourse:** a mated seat is never over the budget now. Any row
+  whose form freezes on the budget names it: `Recourse::Budget`, read
+  off `Undischarged::OverTheBudget`, which only a term or degree bound
+  answers (a node the ring's guards froze reads `Otherwise`). This moves
+  the filleted box's eight mitres, the ring's fusion and the flush
+  plate's rows from `OneConstruction` to `Budget`.
+

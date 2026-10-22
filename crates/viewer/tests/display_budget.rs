@@ -6,8 +6,8 @@
 //! typed door works, the resolver rebinds, the log replays, the round
 //! trip is byte-stable. What went untested was what opening a document
 //! COSTS: a request the budget does not bind must be drawn as asked,
-//! and one it binds must be coarsened to a picture inside the budget
-//! rather than left to freeze the window on millions of triangles.
+//! and one it binds must be coarsened to a picture near the budget
+//! rather than left to make Open wait on millions of triangles.
 //! The tour's gallery ring is the fixture for both: ~1.6·10⁵
 //! triangles at the starting 0.1 mm (inside the budget, drawn as
 //! asked) and ~1.6·10⁶ at 0.01 mm (bound, and coarsened).
@@ -15,7 +15,7 @@
 //! These rows are that gap. Triangle counts are deterministic (D9:
 //! byte-identical mesh for identical `(body, chordal)`), so the cost
 //! is a fact a test can hold, and `scene::fit_delta` is the policy
-//! that keeps it under `scene::TRIANGLE_BUDGET`.
+//! that aims it at `scene::TRIANGLE_BUDGET`.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -89,60 +89,6 @@ fn gallery_ring_doc(tol: Tol) -> ProfileDoc {
 
 fn delta(value: f64) -> DisplayTolerance {
     DisplayTolerance::new(value).expect("a positive δ")
-}
-
-/// **The row the defect would have failed.**
-///
-/// At a δ the ring asks for far more than the budget at, the fit must
-/// move δ; and what it moves to must be inside the budget, which is
-/// the whole claim. Both halves matter: a fit that never coarsened
-/// would leave the freeze, and a fit that coarsened without bound
-/// would answer a cube.
-#[test]
-fn the_gallery_ring_is_drawn_inside_the_budget() {
-    let tol = Tol::witness();
-    let session = gallery_ring(tol);
-    // The body the LANDING gathered — the same one the application
-    // fits on, asked for the same way (`DocSession::landed_body`), so
-    // this row costs the gather the landing already paid and no other.
-    let body = session.landed_body().expect("the ring gathers");
-    let requested = delta(OVER_BUDGET_DELTA);
-    let fitted = scene::fit_delta(body, requested, tol).expect("the ring fits");
-
-    let over = fitted.requested_cost.expect(
-        "the ring at a decade under the startup δ is over budget — that is this row's premise",
-    );
-    assert!(
-        over > TRIANGLE_BUDGET,
-        "the requested δ was reported as costing {over}, which is not over the \
-         {TRIANGLE_BUDGET} budget: then nothing needed fitting and this row is vacuous"
-    );
-    assert!(
-        fitted.delta.get() > requested.get(),
-        "δ must have been coarsened: asked {}, drawn {}",
-        requested.get(),
-        fitted.delta.get()
-    );
-    assert!(
-        fitted.predicted <= TRIANGLE_BUDGET,
-        "the drawn δ is predicted at {} triangles, over the {TRIANGLE_BUDGET} budget",
-        fitted.predicted
-    );
-
-    // And the prediction is about the picture that actually gets
-    // built: tessellate at the drawn δ and count. A few percent of
-    // slack is the stated contract (`fit_delta` does not verify), so
-    // the assertion is a bound with a margin, not an equality.
-    let mesh =
-        scene::scene_of_body(body, fitted.delta, tol).expect("the ring draws at the fitted δ");
-    let triangles = mesh.stats().triangles;
-    #[allow(clippy::cast_precision_loss)]
-    let ratio = triangles as f64 / TRIANGLE_BUDGET as f64;
-    assert!(
-        ratio < 1.1,
-        "the drawn picture is {triangles} triangles, {ratio:.3}× the budget — \
-         the 1/δ prediction has drifted further than its measured few percent"
-    );
 }
 
 /// **The ring at the δ the application starts on is INSIDE the
@@ -508,7 +454,6 @@ struct Answer {
     document: &'static str,
     requested: f64,
     delta: f64,
-    predicted: usize,
     requested_cost: Option<usize>,
     largest_probe: usize,
     probe_triangles: usize,
@@ -520,11 +465,11 @@ struct Answer {
 /// δ the application starts on and at the decade finer where the
 /// budget binds on the curved ones.
 ///
-/// Twenty-eight documents, two requests each, and seven rows where
+/// Twenty-nine documents, two requests each, and seven rows where
 /// the budget binds. **The δ is the answer to a question about the
 /// body and the budget**, so the work of finding it may change and
 /// these may not: a row that moves is a change to what the viewer
-/// opens documents at, and has to be argued as one. The forty-nine
+/// opens documents at, and has to be argued as one. The fifty-one
 /// rows the budget does not bind hold the tighter half of that — the
 /// δ asked for, drawn as asked, priced off the very mesh a single
 /// probe at [`scene::fit_delta`]'s probe factor reads.
@@ -533,31 +478,11 @@ struct Answer {
 /// what the fit costs is as much a behaviour as what it answers, and
 /// a rung count that grows — or a body that stops being read as flat
 /// — moves a number in this table rather than going unnoticed.
-///
-/// `declared_tangency`'s two rows moved when a chord's director came to
-/// be its components (PR 5370): its tangent arc's stored sweep is now
-/// `1.5707963267948968`, an ulp above `FRAC_PI_2` where it was
-/// `1.5707963267948961` below it, so at the coarse rungs, where the
-/// step is capped at `π/4`, `ceil(sweep / step)` reads three chords
-/// where it read two — one more chord on one arc, four more triangles
-/// (`probe_triangles` 388 → 392 and 732 → 736). The δ, the prediction
-/// and the largest rung hold.
-///
-/// Under INTENT stage 3 D `face_sketch`'s product is its box and the
-/// boss sketched on it, one body (the gesture writes the union), so its
-/// two rows price the boss too (12 → 28 predicted). `die_composed_tour`
-/// is the tour's regenerated document. Its pips were first placed
-/// against the die by frames whose quarter turns rounded, which cost 14
-/// more probe triangles at `1e-4` and settled a δ 0.1% coarser at
-/// `1e-5`. They now stand on lines stated from the cube's corner by
-/// exact turns, and both rows read what they read before D again
-/// (`29740` probe triangles; δ `1.9336e-5`, `178038`).
 const ANSWERS: &[Answer] = &[
     Answer {
         document: "die",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 348,
         requested_cost: None,
         largest_probe: 348,
         probe_triangles: 1044,
@@ -567,7 +492,6 @@ const ANSWERS: &[Answer] = &[
         document: "die",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 348,
         requested_cost: None,
         largest_probe: 348,
         probe_triangles: 1044,
@@ -577,7 +501,6 @@ const ANSWERS: &[Answer] = &[
         document: "corner_table",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 60,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -587,7 +510,6 @@ const ANSWERS: &[Answer] = &[
         document: "corner_table",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 60,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -597,7 +519,6 @@ const ANSWERS: &[Answer] = &[
         document: "heat_sink",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 152,
         requested_cost: None,
         largest_probe: 152,
         probe_triangles: 456,
@@ -607,7 +528,6 @@ const ANSWERS: &[Answer] = &[
         document: "heat_sink",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 152,
         requested_cost: None,
         largest_probe: 152,
         probe_triangles: 456,
@@ -617,7 +537,6 @@ const ANSWERS: &[Answer] = &[
         document: "crossing_slots",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 60,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -627,7 +546,6 @@ const ANSWERS: &[Answer] = &[
         document: "crossing_slots",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 60,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -637,7 +555,6 @@ const ANSWERS: &[Answer] = &[
         document: "nested_islands_105",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 60,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -647,7 +564,6 @@ const ANSWERS: &[Answer] = &[
         document: "nested_islands_105",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 60,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -657,7 +573,6 @@ const ANSWERS: &[Answer] = &[
         document: "nested_islands_106_depth1",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 32,
         requested_cost: None,
         largest_probe: 32,
         probe_triangles: 64,
@@ -667,7 +582,6 @@ const ANSWERS: &[Answer] = &[
         document: "nested_islands_106_depth1",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 32,
         requested_cost: None,
         largest_probe: 32,
         probe_triangles: 96,
@@ -677,7 +591,6 @@ const ANSWERS: &[Answer] = &[
         document: "nested_islands_106_depth2",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 44,
         requested_cost: None,
         largest_probe: 44,
         probe_triangles: 132,
@@ -687,7 +600,6 @@ const ANSWERS: &[Answer] = &[
         document: "nested_islands_106_depth2",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 44,
         requested_cost: None,
         largest_probe: 44,
         probe_triangles: 132,
@@ -697,7 +609,6 @@ const ANSWERS: &[Answer] = &[
         document: "declared_tangency",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 1600,
         requested_cost: None,
         largest_probe: 200,
         probe_triangles: 392,
@@ -707,7 +618,6 @@ const ANSWERS: &[Answer] = &[
         document: "declared_tangency",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 4352,
         requested_cost: None,
         largest_probe: 544,
         probe_triangles: 736,
@@ -717,7 +627,6 @@ const ANSWERS: &[Answer] = &[
         document: "kitchen_sink",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 2880,
         requested_cost: None,
         largest_probe: 360,
         probe_triangles: 628,
@@ -727,7 +636,6 @@ const ANSWERS: &[Answer] = &[
         document: "kitchen_sink",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 7520,
         requested_cost: None,
         largest_probe: 940,
         probe_triangles: 1208,
@@ -737,7 +645,6 @@ const ANSWERS: &[Answer] = &[
         document: "cut_cylinder",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 36352,
         requested_cost: None,
         largest_probe: 4544,
         probe_triangles: 7848,
@@ -747,7 +654,6 @@ const ANSWERS: &[Answer] = &[
         document: "cut_cylinder",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 327488,
         requested_cost: None,
         largest_probe: 40936,
         probe_triangles: 44240,
@@ -757,7 +663,6 @@ const ANSWERS: &[Answer] = &[
         document: "measured_web",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 12,
         requested_cost: None,
         largest_probe: 12,
         probe_triangles: 24,
@@ -767,7 +672,6 @@ const ANSWERS: &[Answer] = &[
         document: "measured_web",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 12,
         requested_cost: None,
         largest_probe: 12,
         probe_triangles: 36,
@@ -777,7 +681,6 @@ const ANSWERS: &[Answer] = &[
         document: "boss_union",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 2208,
         requested_cost: None,
         largest_probe: 276,
         probe_triangles: 528,
@@ -787,7 +690,6 @@ const ANSWERS: &[Answer] = &[
         document: "boss_union",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 6816,
         requested_cost: None,
         largest_probe: 852,
         probe_triangles: 1104,
@@ -797,7 +699,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_fillet",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 16608,
         requested_cost: None,
         largest_probe: 2076,
         probe_triangles: 3316,
@@ -807,7 +708,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_fillet",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 160224,
         requested_cost: None,
         largest_probe: 20028,
         probe_triangles: 21268,
@@ -817,7 +717,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_chamfer",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 44,
         requested_cost: None,
         largest_probe: 44,
         probe_triangles: 88,
@@ -827,7 +726,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_chamfer",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 44,
         requested_cost: None,
         largest_probe: 44,
         probe_triangles: 132,
@@ -837,7 +735,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_pips",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 4240,
         requested_cost: None,
         largest_probe: 530,
         probe_triangles: 576,
@@ -847,7 +744,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_pips",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 39408,
         requested_cost: None,
         largest_probe: 4926,
         probe_triangles: 5642,
@@ -857,7 +753,6 @@ const ANSWERS: &[Answer] = &[
         document: "heat_sink_fins",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 60,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -867,7 +762,6 @@ const ANSWERS: &[Answer] = &[
         document: "heat_sink_fins",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 60,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -877,7 +771,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_tool",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 24960,
         requested_cost: None,
         largest_probe: 3120,
         probe_triangles: 4296,
@@ -887,7 +780,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_tool",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 235967,
         requested_cost: None,
         largest_probe: 29496,
         probe_triangles: 30672,
@@ -897,7 +789,6 @@ const ANSWERS: &[Answer] = &[
         document: "face_sketch",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 28,
         requested_cost: None,
         largest_probe: 28,
         probe_triangles: 56,
@@ -907,7 +798,6 @@ const ANSWERS: &[Answer] = &[
         document: "face_sketch",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 28,
         requested_cost: None,
         largest_probe: 28,
         probe_triangles: 84,
@@ -917,7 +807,6 @@ const ANSWERS: &[Answer] = &[
         document: "part_select",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 24,
         requested_cost: None,
         largest_probe: 24,
         probe_triangles: 72,
@@ -927,7 +816,6 @@ const ANSWERS: &[Answer] = &[
         document: "part_select",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 24,
         requested_cost: None,
         largest_probe: 24,
         probe_triangles: 72,
@@ -937,7 +825,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_composed",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 20272,
         requested_cost: None,
         largest_probe: 2534,
         probe_triangles: 3578,
@@ -947,7 +834,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_composed",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 177264,
         requested_cost: None,
         largest_probe: 22158,
         probe_triangles: 23202,
@@ -957,7 +843,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_composed_tour",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 208127,
         requested_cost: None,
         largest_probe: 26016,
         probe_triangles: 29740,
@@ -967,7 +852,6 @@ const ANSWERS: &[Answer] = &[
         document: "die_composed_tour",
         requested: 1e-5,
         delta: 1.9336001620400844e-5,
-        predicted: 1000000,
         requested_cost: Some(1933600),
         largest_probe: 119934,
         probe_triangles: 178038,
@@ -977,7 +861,6 @@ const ANSWERS: &[Answer] = &[
         document: "plate_param",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 3936,
         requested_cost: None,
         largest_probe: 492,
         probe_triangles: 836,
@@ -987,7 +870,6 @@ const ANSWERS: &[Answer] = &[
         document: "plate_param",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 11616,
         requested_cost: None,
         largest_probe: 1452,
         probe_triangles: 1796,
@@ -997,7 +879,6 @@ const ANSWERS: &[Answer] = &[
         document: "kiss_carry",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 48,
         requested_cost: None,
         largest_probe: 48,
         probe_triangles: 144,
@@ -1007,7 +888,6 @@ const ANSWERS: &[Answer] = &[
         document: "kiss_carry",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 48,
         requested_cost: None,
         largest_probe: 48,
         probe_triangles: 144,
@@ -1017,7 +897,6 @@ const ANSWERS: &[Answer] = &[
         document: "tube_ring",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 641056,
         requested_cost: None,
         largest_probe: 80132,
         probe_triangles: 89368,
@@ -1027,7 +906,6 @@ const ANSWERS: &[Answer] = &[
         document: "tube_ring",
         requested: 1e-5,
         delta: 6.414133008947617e-5,
-        predicted: 1000000,
         requested_cost: Some(6414133),
         largest_probe: 120376,
         probe_triangles: 129612,
@@ -1037,7 +915,6 @@ const ANSWERS: &[Answer] = &[
         document: "tube_arc",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 105023,
         requested_cost: None,
         largest_probe: 13128,
         probe_triangles: 23728,
@@ -1047,7 +924,6 @@ const ANSWERS: &[Answer] = &[
         document: "tube_arc",
         requested: 1e-5,
         delta: 1.0310142490965582e-5,
-        predicted: 1000000,
         requested_cost: Some(1031014),
         largest_probe: 120536,
         probe_triangles: 131136,
@@ -1057,7 +933,6 @@ const ANSWERS: &[Answer] = &[
         document: "hollow_tube_elbow",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 284192,
         requested_cost: None,
         largest_probe: 35524,
         probe_triangles: 46092,
@@ -1067,7 +942,6 @@ const ANSWERS: &[Answer] = &[
         document: "hollow_tube_elbow",
         requested: 1e-5,
         delta: 2.8078062883669132e-5,
-        predicted: 1000000,
         requested_cost: Some(2807806),
         largest_probe: 121272,
         probe_triangles: 131840,
@@ -1077,7 +951,6 @@ const ANSWERS: &[Answer] = &[
         document: "hollow_tube_ring",
         requested: 0.0001,
         delta: 0.0001164492484410271,
-        predicted: 1000000,
         requested_cost: Some(1164492),
         largest_probe: 120900,
         probe_triangles: 129388,
@@ -1087,7 +960,6 @@ const ANSWERS: &[Answer] = &[
         document: "hollow_tube_ring",
         requested: 1e-5,
         delta: 0.0001164492484410271,
-        predicted: 1000000,
         requested_cost: Some(11644924),
         largest_probe: 120900,
         probe_triangles: 129388,
@@ -1097,7 +969,6 @@ const ANSWERS: &[Answer] = &[
         document: "reshaped_rod",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 1056,
         requested_cost: None,
         largest_probe: 132,
         probe_triangles: 300,
@@ -1107,7 +978,6 @@ const ANSWERS: &[Answer] = &[
         document: "reshaped_rod",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 2880,
         requested_cost: None,
         largest_probe: 360,
         probe_triangles: 528,
@@ -1117,7 +987,6 @@ const ANSWERS: &[Answer] = &[
         document: "gallery_ring",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 165920,
         requested_cost: None,
         largest_probe: 20740,
         probe_triangles: 28960,
@@ -1127,7 +996,6 @@ const ANSWERS: &[Answer] = &[
         document: "gallery_ring",
         requested: 1e-5,
         delta: 1.6372398767083734e-5,
-        predicted: 1000000,
         requested_cost: Some(1637239),
         largest_probe: 118840,
         probe_triangles: 127060,
@@ -1175,7 +1043,6 @@ fn the_budget_commits_the_delta_it_always_has() {
                 document,
                 requested,
                 delta: fitted.delta.get(),
-                predicted: fitted.predicted,
                 requested_cost: fitted.requested_cost,
                 largest_probe: fitted.largest_probe,
                 probe_triangles: fitted.probe_triangles,
@@ -1198,18 +1065,33 @@ fn the_budget_commits_the_delta_it_always_has() {
 /// the table to paste.
 fn source_of(a: &Answer) -> String {
     format!(
-        "    Answer {{ document: {:?}, requested: {:?}, delta: {:?}, predicted: {}, \
+        "    Answer {{ document: {:?}, requested: {:?}, delta: {:?}, \
          requested_cost: {:?}, largest_probe: {}, probe_triangles: {}, stop: ProbeStop::{:?} }},",
         a.document,
         a.requested,
         a.delta,
-        a.predicted,
         a.requested_cost,
         a.largest_probe,
         a.probe_triangles,
         a.stop
     )
 }
+
+/// The most a drawn picture may carry, as a multiple of the budget.
+/// The corpus's worst is `hollow_tube_ring` at 1.0025. The terms that
+/// put a picture over are stated in `scene::TRIANGLE_BUDGET`'s "A
+/// target, not a cap"; the ceil one grows with the count of curved
+/// faces, and the headroom is for a document with more of them.
+const BAND_UPPER: f64 = 1.05;
+
+/// The least a picture the budget binds may carry, as a multiple of the
+/// budget. Not derived: the shortfall is the bound body's planar share
+/// (`scene::TRIANGLE_BUDGET` again), and the corpus's lowest is
+/// `die_composed_tour` at 0.927; the tube documents land at 0.99–1.003.
+/// A δ 10% coarser than the fit's answer would red two of the seven
+/// bound rows (`die_composed_tour`, `tube_arc`), and 15% coarser all
+/// of them.
+const BAND_LOWER: f64 = 0.9;
 
 /// **No PROBE is larger than the picture it sizes**, on every document
 /// the budget is asked about and at both requests.
@@ -1228,19 +1110,24 @@ fn source_of(a: &Answer) -> String {
 /// `PROBE_FACTOR`. `hollow_tube_ring` at 0.01 mm tessellated 1_452_960
 /// triangles to size a 1_002_536-triangle picture.
 ///
-/// **And a flat reading is exact.** Where the ladder answers
-/// [`ProbeStop::Flat`] it has ruled the 1/δ law out and taken the
-/// measured count as the prediction — a claim about a δ it never
-/// probed, so this row checks it against the picture that gets drawn,
-/// for every flat document in the corpus.
+/// **And the picture lands near the budget wherever the budget
+/// binds** — the guard `scene::TRIANGLE_BUDGET` states its precision
+/// against, in a band read off this corpus ([`BAND_UPPER`],
+/// [`BAND_LOWER`]). The rows it binds on are exactly the table's
+/// bound rows, so the band cannot quietly shrink to fewer of them.
 ///
-/// The picture is the tessellation at the committed δ, counted through
-/// `mesh::tessellate` so the row weighs triangles rather than GPU
-/// vertices.
+/// Every row the budget does not bind is held under the same upper
+/// bound. On this corpus that is no check on a [`ProbeStop::Flat`]
+/// row: every Flat document draws a few hundred triangles, so a flat
+/// body growing below its last rung is `scene.rs`'s fake-probe row's
+/// to show, not this one's.
+///
+/// The picture is [`scene::scene_of_body`] at the committed δ, counted
+/// by its own `stats().triangles`.
 #[test]
 fn no_probe_out_tessellates_the_picture_it_sizes() {
     let tol = Tol::witness();
-    let mut flat_rows = 0_usize;
+    let mut bound_rows: Vec<(&'static str, f64)> = Vec::new();
     for (document, doc) in budgeted_documents(tol) {
         let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
@@ -1250,27 +1137,44 @@ fn no_probe_out_tessellates_the_picture_it_sizes() {
         for requested in [INITIAL_DELTA, OVER_BUDGET_DELTA] {
             let fitted = scene::fit_delta(body, delta(requested), tol)
                 .unwrap_or_else(|error| panic!("{document} fits at {requested}: {error}"));
-            let picture = triangles_at(body, fitted.delta.get(), tol);
+            let picture = scene::scene_of_body(body, fitted.delta, tol)
+                .unwrap_or_else(|error| {
+                    panic!("{document} draws at {}: {error}", fitted.delta.get())
+                })
+                .stats()
+                .triangles;
             assert!(
                 fitted.largest_probe <= picture,
                 "{document} at δ = {requested}: a rung tessellated {} triangles to size a \
                  picture of {picture}",
                 fitted.largest_probe
             );
-            if fitted.stop == ProbeStop::Flat {
-                flat_rows += 1;
-                assert_eq!(
-                    fitted.predicted, picture,
-                    "{document} at δ = {requested} was read as flat, so its prediction is the \
-                     count it measured — and the picture is what it actually draws"
+            #[allow(clippy::cast_precision_loss)]
+            let ratio = picture as f64 / TRIANGLE_BUDGET as f64;
+            assert!(
+                ratio <= BAND_UPPER,
+                "{document} at δ = {requested} draws {picture} triangles, {ratio:.4}× the \
+                 budget: past the {BAND_UPPER}× its ceil terms account for"
+            );
+            if fitted.requested_cost.is_some() {
+                bound_rows.push((document, requested));
+                assert!(
+                    ratio >= BAND_LOWER,
+                    "{document} at δ = {requested} is bound and draws {picture} triangles, \
+                     {ratio:.4}× the budget: under the {BAND_LOWER}× the corpus's planar \
+                     share accounts for"
                 );
             }
         }
     }
-    assert!(
-        flat_rows >= 8,
-        "only {flat_rows} rows were read as flat; the corpus carries a dozen all-planar \
-         documents and the exactness half of this row is measuring nothing"
+    let table: Vec<(&'static str, f64)> = ANSWERS
+        .iter()
+        .filter(|a| a.requested_cost.is_some())
+        .map(|a| (a.document, a.requested))
+        .collect();
+    assert_eq!(
+        bound_rows, table,
+        "the band's lower side checked these bound rows, and the table binds on these"
     );
 }
 

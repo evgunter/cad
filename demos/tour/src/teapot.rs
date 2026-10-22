@@ -238,14 +238,15 @@
 //!    the SIGN of the volume enclosure — the tier's own docs say
 //!    deciding that sign "is an act of certification rather than a
 //!    measurement" — and this body's enclosure excludes zero at the
-//!    very round the chase stops on, its lower end about ten of its
+//!    very round the chase stops on, its lower end some 270 of its
 //!    own half-widths clear at ε = 1e-12.
 //!    So the scene certifies at every ε, and where it has no number
 //!    to print the tour's ribbon prints the certified bracket
 //!    instead. The spout's own probe measures through the same door —
 //!    the certificate tier 3 hands back, continued by `measure` — so
-//!    on that refusal it reports the bracket it was refused on, and
-//!    holds the closed form to it.
+//!    on that refusal it reports the narrowest bracket the
+//!    certificate or its continuation held, and holds the closed form
+//!    to it.
 //!
 //!    More budget is not the fix, and that is measured: at
 //!    `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early exit stops firing, so
@@ -426,7 +427,7 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// of the volume enclosure — the tier's own docs say deciding that
 /// sign "is an act of certification rather than a measurement" — and
 /// this body's enclosure excludes zero at the round the chase stops
-/// on, its lower end about ten of its own half-widths clear at
+/// on, its lower end some 270 of its own half-widths clear at
 /// ε = 1e-12. So the solid is certified at every ε and what it lacks
 /// at 1e-12 is a number, which the tour's ribbon reports as the
 /// certified bracket rather than dying on.
@@ -1696,12 +1697,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let v_cav = pot_volume(WALL);
     let v_want = v_out - v_cav;
     let a_want = pot_area(0.0) + pot_area(WALL);
-    let props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&pot), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the pot's props");
+    // Finished once: the props and the shell roles below both read it.
+    let pot_at_rest = crate::booleans::at_rest(&pot, tol);
+    let props = pncad::topo::mass_properties(&pot_at_rest, tol).expect("the pot's props");
     assert!(
         ((props.volume - v_want) / v_want).abs() < 1e-12,
         "pot V = {} vs the wall's own closed form {v_want}",
@@ -1713,12 +1711,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         props.surface_area
     );
     assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
-    let classes = pncad::topo::classify_shells(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&pot), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("per-shell classification");
+    let classes =
+        pncad::topo::classify_shells(&pot_at_rest, tol).expect("per-shell classification");
     let voids: Vec<_> = classes
         .iter()
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
@@ -1953,12 +1947,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the note narrates V = 5369π/3·256⁻³ = {v_note} and A = (453 + 52√10)π·256⁻² = \
          {a_note}; the stations now give {v_lid} and {a_lid}"
     );
-    let sharp_lid_props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&plain_lid), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the lid's props");
+    let sharp_lid_props =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&plain_lid, tol), tol)
+            .expect("the lid's props");
     assert!(
         ((sharp_lid_props.volume - v_lid) / v_lid).abs() < 1e-12,
         "lid V = {} vs the closed form {v_lid}",
@@ -1969,12 +1960,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "lid A = {} vs the closed form {a_lid}",
         sharp_lid_props.surface_area
     );
-    let lid_props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&rolled), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the rolled lid");
+    let lid_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&rolled, tol), tol)
+        .expect("the rolled lid");
     let dv_lid = sharp_lid_props.volume - lid_props.volume;
     // Three convex rims now, so the bound is the three corner squares
     // swept round their own rims.
@@ -2186,7 +2173,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     //
     // Tier 3 admits the body regardless — its +V check consumes only
     // the SIGN of this enclosure, decided at the very round the chase
-    // stops on, with the lower end about ten half-widths clear of zero
+    // stops on, with the lower end some 270 half-widths clear of zero
     // at 1e-12 — so the refusal here is a missing NUMBER and not a
     // missing certificate.
     //
@@ -2249,20 +2236,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket: Some(b),
             refusal,
         }) => {
-            // The bracket is the certificate's own — at 1e-12, ±9 % on
-            // this body: the gate's walk left no spout face open (each
-            // converged or refused at round 0), so the continuation
-            // resumes nothing and holds nothing narrower. Asserted bit
-            // for bit, so a spout that starts leaving a face open says
-            // so here.
-            assert_eq!(
-                [b.volume_lo.to_bits(), b.volume_hi.to_bits()],
-                [
-                    spout_gated.volume_lo.to_bits(),
-                    spout_gated.volume_hi.to_bits()
-                ],
-                "the spout's refusal bracket [{}, {}] is not the gate's [{}, {}]: the \
-                 continuation resumed a face the gate left open",
+            // The gate settles the sign with the faces
+            // whose schedule can still meet the target left open; the
+            // continuation refines those in arena order up to the first
+            // face carrying its budget refusal, so the bracket is the
+            // gate's or a narrower one, and never wider.
+            assert!(
+                b.volume_hi - b.volume_lo <= spout_gated.volume_hi - spout_gated.volume_lo,
+                "the spout's refusal bracket [{}, {}] is wider than the gate's [{}, {}]",
                 b.volume_lo,
                 b.volume_hi,
                 spout_gated.volume_lo,
@@ -2283,7 +2264,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  at a tight enough eps that chase is proven unreachable after round 0. What \
                  is missing is a number and not a certificate: tier 3 admitted this body at \
                  this same eps on the SIGN of the enclosure, and the certificate it handed \
-                 back keeps that bracket through the refusal — V in [{:.9}, {:.9}] m^3, whose \
+                 back, continued as far as the schedule reaches, keeps a bracket through the \
+                 refusal — V in [{:.9}, {:.9}] m^3, whose \
                  lower end clears zero by {:.1e} half-widths, and which holds the \
                  straightened frustum's V = {v_spout:.9}. The frustum's A = {a_spout:.9} m^2 \
                  has no bracket to sit in here: the certificate's area is the +V check's \
@@ -2302,12 +2284,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let handle = body_at(&ev, r.handle);
     let v_handle = sweep * HANDLE_R * PI * HANDLE_TUBE * HANDLE_TUBE;
     let a_handle = sweep * HANDLE_R * 2.0 * PI * HANDLE_TUBE + 2.0 * PI * HANDLE_TUBE * HANDLE_TUBE;
-    let handle_props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&handle), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the handle's props");
+    let handle_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&handle, tol), tol)
+        .expect("the handle's props");
     assert!(
         ((handle_props.volume - v_handle) / v_handle).abs() < 1e-12,
         "handle V = {} vs Pappus on the disc {v_handle}",
@@ -2386,12 +2364,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         1,
         "the mouth disc comes back as ONE rim face"
     );
-    let cup_props = pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&cup), tol)
-            .expect("the measured body passes tier 3"),
-        tol,
-    )
-    .expect("the cup's props");
+    let cup_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol)
+        .expect("the cup's props");
     // The cup is the sealed wall LESS the disc of wall the mouth cap
     // was: opening lifts the cavity's cap from the mouth plane's own
     // station minus a wall, up to the plane.

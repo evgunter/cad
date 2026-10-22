@@ -15969,7 +15969,7 @@ mod tests {
         // not touch — the two bodies meter the SAME volume, so check 7
         // could not refuse the flipped one even if it ran.
         let volume = |b: &Body<f64>| {
-            // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+            // Raw door: the measured body still carries construction scaffolding, or a loop flipped against its role, which tier 3 refuses (ScaffoldAtRest, LoopRoleInverted).
             crate::test_support::measure_unvalidated(b, Tol::witness())
                 .unwrap()
                 .volume

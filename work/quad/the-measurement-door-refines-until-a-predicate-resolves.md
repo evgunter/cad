@@ -2,7 +2,7 @@
 id: the-measurement-door-refines-until-a-predicate-resolves
 kind: unit
 title: Build [tolerance.measure]: one measurement door refines until the caller's predicate over the enclosure resolves, refinement stops paying, or one weighted work wall; no default; the round caps and QuadratureBudget go
-status: open
+status: spec
 opened: 2026-10-22
 priority: P1
 cost: H
@@ -53,3 +53,12 @@ family lands here.
 Design-first: slice it with a spec before dispatch. It is broad (topo
 props, geom-brep quad, pncad, pncad-py, step-import, the tour), and its
 review is DUAL.
+
+## Spec (2026-10-22)
+
+`docs/QUAD-MEASURE-SPEC.md`. It sets three units, each landing green:
+- **A (lanes):** the stop rule, the weighted wall, the narrowest round. DUAL, letter H.
+- **B (topo):** the `Settle` door and the deciders. DUAL, letter H.
+- **C (public doors):** no default, and every consumer states its predicate. Single FULL.
+
+It also carries the orchestrator's rulings R1–R11.

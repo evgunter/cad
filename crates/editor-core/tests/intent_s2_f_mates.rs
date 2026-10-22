@@ -57,7 +57,12 @@ fn seat(
 /// target, pinned against it.
 fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
     let (doc, mate) = fixture::constrain(doc, mate);
-    let doc = [
+    (squared(doc, mate), mate)
+}
+
+/// `mate`'s placement with a zero value on each freedom the mate leaves.
+fn squared(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
+    [
         (Coord::Slide(TargetAxis::X), len(0.0)),
         (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, fixture::ang(0.0)),
@@ -77,8 +82,7 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
             },
         )
         .0
-    });
-    (doc, mate)
+    })
 }
 
 /// Two cube instances, the first pinned to the world and the second
@@ -266,15 +270,19 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
     }
 }
 
-/// **An instance copied twice has two world copies**: its own, and a
-/// placement copying its copies, pinned where they stand. A face read
-/// in it answers two faces, and a declaration names one pair: the gate
-/// refuses `Ambiguous` rather than pick a copy.
+/// **An instance copied twice has two world copies holding its face**:
+/// its own, and a placement copying its copies by the identity bundle.
+/// A face read in it answers two faces where the mate reads it, and a
+/// declaration names one pair: the gate refuses `Ambiguous` rather than
+/// pick a copy. A copy another bundle moves (one up, where the seat
+/// puts it, pinned against the world) holds the face where the mate
+/// does not read it, so it is no second candidate: the mate mints on
+/// its own copy.
 #[test]
 fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
     let (doc, [a, b], store, body) = pair("f-twice");
     let opts = with_resolver(store);
-    // The second copy's pin, read off `b`'s own copy while it is loose:
+    // The moved copy's pin, read off `b`'s own copy while it is loose:
     // where the seat puts it, one up.
     let pin = editor_core::pin_at(
         &doc,
@@ -286,9 +294,15 @@ fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
     .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
     let (doc, mate) = seated(doc, seat(body, (b, b), (a, a)));
     let (doc, again) = insert(doc, Node::place(vec![b.into()]));
-    let (doc, _) = fixture::constrain_at(doc, again, pin);
-    let ev = run(&doc, &opts);
-    let (_, unminted) = fixture::mate_mints(&doc, &ev);
+    let (moved, _) = fixture::constrain_at(doc.clone(), again, pin);
+    let (minted, unminted) = fixture::mate_mints(&moved, &run(&moved, &opts));
+    assert!(
+        unminted.is_empty() && minted.iter().any(|m| m.mate == mate),
+        "a moved copy is no second candidate: {minted:?} {unminted:?}"
+    );
+    let stood = fixture::pinned(doc, again, &opts);
+    let ev = run(&stood, &opts);
+    let (_, unminted) = fixture::mate_mints(&stood, &ev);
     assert_eq!(
         unminted,
         vec![MintRefusal::Reference {
@@ -297,6 +311,83 @@ fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
             name: Box::new(in_part(b, body, CapEnd::Start)),
             why: RefusedRef::Ambiguous { width: 2 },
         }]
+    );
+}
+
+/// **A mate's `on` side is read in its own placement's copy alone.**
+/// A cube instance `b`, pinned off to one side, is copied by a `Place`
+/// `p` whose mate rests `b`'s bottom, read in `b`'s own copy, on the top
+/// of the instance `a`. The face is read in `b`'s copy, but `p`'s fold
+/// moves it: the mate's statement holds in `p`'s copy, and says nothing
+/// of `b`'s own, which still stands where `b`'s pin puts it. The census's
+/// seat row is the first rung's; the same row with its `on` cell read in
+/// `b`'s own copy is not.
+///
+/// *Breaks if* the `on` side is read in any copy holding its face where
+/// its body stands, as the `to` side is.
+#[test]
+fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
+    use editor_core::coincide::NamedCell;
+    use editor_core::{Proof, RoleSeg, Rung};
+    let (doc, [a, b], store, body) = pair("f-on-own");
+    let opts = with_resolver(store);
+    let doc = fixture::pin(
+        doc,
+        b,
+        &editor_core::Frame::translation([5.0, 0.0, 0.0]),
+        &opts,
+    );
+    let (doc, p) = insert(doc, Node::place(vec![b.into()]));
+    let (doc, mate) = fixture::constrain_at(doc, p, seat(body, (b, b), (a, a)));
+    let doc = squared(doc, mate);
+    let ev = run(&doc, &opts);
+    let product = product_recorded(&doc, &ev, Tol::witness()).expect("the cubes gather");
+    let Some(seat) = product
+        .coincidences
+        .iter()
+        .find(|row| row.by == editor_core::AtRestBy::Mate(mate))
+    else {
+        panic!(
+            "the premise: the census decided the seat: {:?} {:?}",
+            product.coincidences, product.unminted
+        )
+    };
+    let door = |row: &editor_core::coincide::NamedCoincidence| {
+        editor_core::coincide::prove(
+            &doc,
+            &[(mate.placement, std::slice::from_ref(row))],
+            ev.resolver(),
+            Tol::witness(),
+            &editor_core::CancelToken::new(),
+        )
+        .expect("an uncanceled door")
+        .remove(0)
+        .remove(0)
+    };
+    assert_eq!(
+        door(&seat.row),
+        Proof::Structural(Rung::SameConstruction),
+        "the seat, read in `p`'s copy"
+    );
+    let own = doc.output(b, 0).expect("an instance defines its copies");
+    let mut other = seat.row.clone();
+    for cell in &mut other.cells {
+        if let NamedCell::Entity { input, name } = cell
+            && doc.operation_of(*input) == Some(p)
+            && let [RoleSeg::Placed { of }] = name.path.as_slice()
+        {
+            *name = (**of).clone();
+            *input = own;
+        }
+    }
+    assert_ne!(
+        other, seat.row,
+        "the premise: the row names `b` in `p`'s copy"
+    );
+    let proof = door(&other);
+    assert!(
+        !matches!(proof, Proof::Structural(Rung::SameConstruction)),
+        "the same row read in `b`'s own copy is not the mate's: {proof:?}"
     );
 }
 

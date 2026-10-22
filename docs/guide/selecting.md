@@ -441,7 +441,8 @@ let value = ev.value(uni).expect("the union evaluates");
 let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
     panic!("expected a body");
 };
-assert_eq!(mass_properties(body, tol).expect("mass").volume, 1.125);
+let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
+assert_eq!(mass_properties(&body, tol).expect("mass").volume, 1.125);
 assert_eq!(
     value.coincidences.len(),
     5,

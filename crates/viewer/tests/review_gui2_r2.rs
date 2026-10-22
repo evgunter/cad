@@ -1113,6 +1113,7 @@ fn the_two_mappings_partition_the_event_stream() {
             delta_px: [4.0, 4.0],
         },
         ViewportEvent::Scroll { units: 1.0 },
+        ViewportEvent::Pinch { factor: 1.1 },
     ];
     for event in &events {
         let camera_op = map.map(event, pane, &camera);
