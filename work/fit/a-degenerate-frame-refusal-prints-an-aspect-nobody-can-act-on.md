@@ -5,6 +5,9 @@ title: A degenerate-scene frame refusal prints the viewport aspect to seventeen 
 status: open
 opened: 2026-09-24
 refs: [zoom-to-fit-frames-no-committed-profile]
+priority: P3
+cost: E
+rides_with: zoom-to-fit-frames-no-committed-profile
 ---
 
 
