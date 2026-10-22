@@ -87,7 +87,7 @@ fn the_certified_doors_form_at_the_symbolic_tier_and_answer_the_base_bits() {
             topo::contact_marks(s, tol).is_ok(),
             "{name}: marks verdict"
         );
-        // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+        // Raw door: the corpus holds valid and inside-out bodies alike, and tier 3 refuses the inside-out ones (NegativeVolume); both scalars read each.
         let mp_base = topo::test_support::measure_unvalidated(b, tol);
         let mp_sym = topo::test_support::measure_unvalidated(s, tol);
         match (mp_base, mp_sym) {
@@ -103,14 +103,9 @@ fn the_certified_doors_form_at_the_symbolic_tier_and_answer_the_base_bits() {
                 y.is_ok()
             ),
         }
-        let cs_base = topo::classify_shells(
-            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
-            tol,
-        );
-        let cs_sym = topo::classify_shells(
-            &topo::test_support::finished("the measured body", topo::Body::clone(s), tol),
-            tol,
-        );
+        // Raw door: as the measurement above, over the same mixed corpus.
+        let cs_base = topo::test_support::classify_unvalidated(b, tol);
+        let cs_sym = topo::test_support::classify_unvalidated(s, tol);
         assert_eq!(cs_base.is_ok(), cs_sym.is_ok(), "{name}: shell verdict");
     }
     let _: Option<&Body<Sym<f64>>> = sym.first().map(|(_, b)| b);
