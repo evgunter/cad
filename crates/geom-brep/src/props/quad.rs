@@ -2835,14 +2835,13 @@ type CellCuts = (Option<AxisCut>, Option<AxisCut>);
 /// window's first point, and read on a quadrature cell or hull block by
 /// restricting it there. Every cell and block the lane reads lies
 /// inside one span cell, because its cut lists hold every interior knot
-/// ([`knot_aligned_cuts`]).
-struct MeasureCells<'k> {
-    kv_u: &'k KnotVector,
-    kv_v: &'k KnotVector,
+/// ([`knot_aligned_cuts`]). Its readers pass the knot vectors it was
+/// built on.
+struct MeasureCells {
     cells: Vec<((usize, usize), CellMeasureQuotients<Interval>)>,
 }
 
-impl<'k> MeasureCells<'k> {
+impl MeasureCells {
     /// A restriction or a ratio that does not certify, or is not finite.
     const REFUSED_CUT: PropsError = PropsError::QuadratureUnsupported {
         what: "a rational patch cell whose quotient-statement reading does not certify \
@@ -2851,9 +2850,9 @@ impl<'k> MeasureCells<'k> {
                no finite bound there",
     };
 
-    fn build(
-        kv_u: &'k KnotVector,
-        kv_v: &'k KnotVector,
+    fn build<'a>(
+        kv_u: &'a KnotVector,
+        kv_v: &'a KnotVector,
         control: &[RVec3],
         weights: &[f64],
         rect: PatchRect,
@@ -2862,7 +2861,7 @@ impl<'k> MeasureCells<'k> {
         let held =
             |kv: &KnotVector| -> Vec<Interval> { kv.knots().iter().map(|k| pt(*k)).collect() };
         let (held_u, held_v) = (held(kv_u), held(kv_v));
-        let meeting = |kv: &'k KnotVector, lo: f64, hi: f64| {
+        let meeting = |kv: &'a KnotVector, lo: f64, hi: f64| {
             let k = kv.knots();
             (kv.first_span()..=kv.last_span())
                 .filter_map(|i| kv.span(i))
@@ -2899,13 +2898,14 @@ impl<'k> MeasureCells<'k> {
                 cells.push(((su.index(), sv.index()), q));
             }
         }
-        Ok(Self { kv_u, kv_v, cells })
+        Ok(Self { cells })
     }
 
     /// The span cell holding the cell `u × v`, and the cut that keeps
     /// the cell's part of it: `None` along an axis the cell covers whole.
     fn on(
         &self,
+        kvs: (&KnotVector, &KnotVector),
         u: (f64, f64),
         v: (f64, f64),
     ) -> Result<(&CellMeasureQuotients<Interval>, CellCuts), PropsError> {
@@ -2915,8 +2915,8 @@ impl<'k> MeasureCells<'k> {
             debug_assert!(s0 <= lo && hi <= s1, "a quadrature cell straddles a knot");
             Some((s, (lo > s0 || hi < s1).then_some(((s0, s1), (lo, hi)))))
         };
-        let ((su, cu), (sv, cv)) = axis(self.kv_u, u)
-            .zip(axis(self.kv_v, v))
+        let ((su, cu), (sv, cv)) = axis(kvs.0, u)
+            .zip(axis(kvs.1, v))
             .ok_or(Self::REFUSED_CUT)?;
         self.cells
             .iter()
@@ -2926,18 +2926,19 @@ impl<'k> MeasureCells<'k> {
     }
 }
 
-impl MeasureCells<'_> {
+impl MeasureCells {
     /// The `(f_uu, f_vv)` hull of every block between consecutive
     /// `edges`, row-major in `u` then `v`.
     fn block_hulls(
         &self,
+        kvs: (&KnotVector, &KnotVector),
         edges_u: &[f64],
         edges_v: &[f64],
     ) -> Result<Vec<(Interval, Interval)>, PropsError> {
         let mut out = Vec::with_capacity((edges_u.len() - 1) * (edges_v.len() - 1));
         for u in edges_u.windows(2) {
             for v in edges_v.windows(2) {
-                let (q, cuts) = self.on((u[0], u[1]), (v[0], v[1]))?;
+                let (q, cuts) = self.on(kvs, (u[0], u[1]), (v[0], v[1]))?;
                 let (uu, vv) = q.flux_second_on(cuts).ok_or(Self::REFUSED_CUT)?;
                 out.push((ratio_hull(&uu)?, ratio_hull(&vv)?));
             }
@@ -2949,10 +2950,11 @@ impl MeasureCells<'_> {
     /// `|∂_d(S_u×S_v)|` and the range of `|S_u×S_v|` over `u × v`.
     fn area_bounds(
         &self,
+        kvs: (&KnotVector, &KnotVector),
         u: ParamRange,
         v: ParamRange,
     ) -> Result<(f64, f64, Interval), PropsError> {
-        let (q, cuts) = self.on((u.start(), u.end()), (v.start(), v.end()))?;
+        let (q, cuts) = self.on(kvs, (u.start(), u.end()), (v.start(), v.end()))?;
         let on = q.area_on(cuts).ok_or(Self::REFUSED_CUT)?;
         // The norm's floor along the piece's own direction is signed,
         // and poison where that direction is: a magnitude's floor is
@@ -3588,7 +3590,7 @@ fn rational_patch_face<T: Decide>(
     let edges_u = knot_aligned_cuts(u0, u1, QUAD2_HULL_BLOCKS, &knots_u);
     let edges_v = knot_aligned_cuts(v0, v1, QUAD2_HULL_BLOCKS, &knots_v);
     let nbv = edges_v.len() - 1;
-    let blocks = measure.block_hulls(&edges_u, &edges_v)?;
+    let blocks = measure.block_hulls((kv_u, kv_v), &edges_u, &edges_v)?;
 
     // AREA: the shared [`area_midpoint_taylor`] rule with this lane's
     // quotient integrand `g = |S_u×S_v|`, its hull the area element's
@@ -3604,9 +3606,9 @@ fn rational_patch_face<T: Decide>(
     let area_blocks = edges_u
         .windows(2)
         .flat_map(|u| {
-            edges_v
-                .windows(2)
-                .map(|v| measure.area_bounds(cut_window(u[0], u[1]), cut_window(v[0], v[1])))
+            edges_v.windows(2).map(|v| {
+                measure.area_bounds((kv_u, kv_v), cut_window(u[0], u[1]), cut_window(v[0], v[1]))
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let area = area_midpoint_taylor(
@@ -6945,7 +6947,7 @@ mod tests {
             };
             let edges_u = knot_aligned_cuts(0.0, 1.0, QUAD2_HULL_BLOCKS, &knots_u);
             let edges_v = knot_aligned_cuts(0.0, 1.0, QUAD2_HULL_BLOCKS, &knots_v);
-            let hulls = measure.block_hulls(&edges_u, &edges_v).unwrap();
+            let hulls = measure.block_hulls((&ku, &kv), &edges_u, &edges_v).unwrap();
             let mut k = 0;
             for bu in edges_u.windows(2) {
                 for bv in edges_v.windows(2) {
@@ -6968,7 +6970,11 @@ mod tests {
             for cu in edges_u.windows(2) {
                 for cv in edges_v.windows(2) {
                     let (g_u, g_v, g_hull) = measure
-                        .area_bounds(cut_window(cu[0], cu[1]), cut_window(cv[0], cv[1]))
+                        .area_bounds(
+                            (&ku, &kv),
+                            cut_window(cu[0], cu[1]),
+                            cut_window(cv[0], cv[1]),
+                        )
                         .unwrap();
                     let (hu, hv) = (1e-4 * (cu[1] - cu[0]), 1e-4 * (cv[1] - cv[0]));
                     for u in samples(cu[0], cu[1]) {
