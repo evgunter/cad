@@ -1,13 +1,14 @@
 //! The demo K sweep (`demo-tour k-probe`) at each tolerance row: it
 //! exits 0, every volume it reads is an honest enclosure, the lily's
-//! swept leaves' enclosures contain their closed-form volume, and the
-//! bodies it reads as a BRACKET are exactly the ones listed per ε.
+//! swept leaves' enclosures hold their closed-form volume to within the
+//! leaves' own fit ([`FIT_REL`]), and the bodies it reads as a BRACKET
+//! are exactly the ones listed per ε.
 //!
 //! A body comes back as a bracket when its gate certified the sign and
 //! a face's quadrature lane stops (its floor or its work wall) short of
-//! the reporting target `1024·ε`. The lily's swept leaves are rational
-//! walls along a cubic spine, so whether they bracket at a row is the
-//! width their lane reaches at its wall against that row's target.
+//! the reporting target `1024·ε`. At 1e-12 those are the long lofted
+//! leaf and the three sepals; the swept leaves `b` and `c` certify a
+//! number there.
 //!
 //! The sweep writes one stderr record per body (`probe.rs`'s module
 //! doc): `k_probe(demo)\tvolume\t<scene>\t<label>\t<kind>\t<lo>\t<hi>`.
@@ -75,6 +76,17 @@ fn sweep(eps: &str) -> Vec<Reading> {
     readings
 }
 
+/// How far a swept leaf's volume sits from its Pappus volume, relative:
+/// the leaf is a FIT (a cubic spine through nine exact points of the
+/// arc, a degree-3 skin through nine stations), so its volume is the
+/// Pappus volume only to the fit's order. Measured at 1e-12, where both
+/// leaves certify a number: the fitted volume sits ABOVE Pappus by
+/// 9.8e-8 (`b`) and 7.9e-8 (`c`) relative, and the same leaves on five
+/// stations sit 14× and 12× further off, the fourth order of a cubic
+/// fit (2⁴ = 16) — a fit's offset, not an enclosure's miss. Twice the
+/// larger is the slack.
+const FIT_REL: f64 = 2e-7;
+
 /// The swept leaves' Pappus volumes: a rigid lens carried along the
 /// spine's normal frame sweeps `A·(len + |curl|·rise)`, the lens being
 /// two circular segments on one chord (`lily.rs`'s `Lance::area` and
@@ -100,7 +112,7 @@ fn pappus() -> [(&'static str, f64); 2] {
 }
 
 /// Every reading is an enclosure (`lo ≤ hi`, strictly for a bracket),
-/// both leaves are read and contain their Pappus volume, and the
+/// both leaves are read and hold their Pappus volume to [`FIT_REL`], and the
 /// bracketed set is `expect`.
 fn check(eps: &str, readings: &[Reading], expect: &[&str]) {
     for r in readings {
@@ -117,9 +129,10 @@ fn check(eps: &str, readings: &[Reading], expect: &[&str]) {
             .iter()
             .find(|r| r.label == name)
             .unwrap_or_else(|| panic!("eps {eps}: no volume record for {name}"));
+        let slack = FIT_REL * v;
         assert!(
-            r.lo <= v && v <= r.hi,
-            "eps {eps}: {name}: Pappus {v:e} outside [{:e}, {:e}]",
+            r.lo - slack <= v && v <= r.hi + slack,
+            "eps {eps}: {name}: Pappus {v:e} outside [{:e}, {:e}] by more than the fit's {slack:e}",
             r.lo,
             r.hi
         );
@@ -137,9 +150,18 @@ fn check(eps: &str, readings: &[Reading], expect: &[&str]) {
 }
 
 #[test]
-fn k_probe_brackets_the_swept_leaves_at_eps_1e_12() {
+fn k_probe_brackets_the_lofted_leaf_and_the_sepals_at_eps_1e_12() {
     let readings = sweep("1e-12");
-    check("1e-12", &readings, &["lily_leaf_b", "lily_leaf_c"]);
+    check(
+        "1e-12",
+        &readings,
+        &[
+            "lily_leaf_a",
+            "lily_sepal_a",
+            "lily_sepal_b",
+            "lily_sepal_c",
+        ],
+    );
 }
 
 #[test]
