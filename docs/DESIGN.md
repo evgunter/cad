@@ -804,9 +804,7 @@ tiers".
   records each such touch as an `unproven-coincidence` finding and
   leaves on the result a contact record citing it, which every reader
   and every placement of that body carries, so the touch is never
-  decided again. A record may pair cells of two outputs of one
-  operation (a split's ON), so the door's first rung finds it when
-  those cells meet again ([coincidence.booleans]). Inside one op's
+  decided again. Inside one op's
   result it is that op's defect, refused typed. Every op, the boolean
   and every surgery verb alike, carries records through one lineage
   stating what it made of each cell (kept, substituted by a cell
@@ -1540,14 +1538,15 @@ operators ([operations.operators]), and a boolean's operands must
 already be in one space ([placement.spaces]). Each operator decides
 every meeting between its operands at the coincidence door; a meeting
 inside one operand is that operand's decision, carried. Cells that
-descend from one decision carry one description, so the door proves
-their meeting by its first rung, citing that decision (a split's ON, a
-construction read twice), and measures nothing. Nothing is decided
-twice because nothing could come out otherwise. So `A ∪ A` and `A ∩ A`
-are `A`, `A − A` is the typed empty result, and `A ⊔ A` is an
-interference finding; the halves of a split, `h1 ⊔ h2`, keep their cut
-as a record citing the split; and in `(A ∩ B) ∪ (A ∩ C)` the cells of
-`A` both operands carry are glued structurally.
+are one construction read twice carry one description, so the door
+proves their meeting by its first rung, as it proves any such pair
+(two poses a mate equates among them), and measures nothing. Nothing
+is decided twice because nothing could come out otherwise. So `A ∪ A`
+and `A ∩ A` are `A`, `A − A` is the typed empty result, and `A ⊔ A` is
+an interference finding; the halves of a split, whose cut faces both
+lie on the split's one plane, meet structurally, so `h1 ⊔ h2` records
+the cut and `h1 ∪ h2` glues it; and in `(A ∩ B) ∪ (A ∩ C)` the cells
+of `A` both operands carry are glued structurally.
 
 Where its verdicts decide Zero, a union, a cut or a meet glues where
 an arm exists for the carrier pair ([topology]'s frontier), keeping
