@@ -1052,7 +1052,9 @@ use of a face's normal in the coincidence sweeps is sense-invariant.
 `vf_face_backed`, `ve_face_backed`, `sides_face_backed`, and the
 face-pair arms of `ee_bound_backed` and `ef_bound_backed`) reads the
 confirmed pairs: each face–face record that passes Door 1 and reaches
-`PositiveArea` at Door 2 (`pair_verified`), and each planar pair of two
+`PositiveArea` at Door 2 (`pair_verified`), or that the confirm pass's
+own reading confirms (a point touch, or the tangent line two carriers
+derive), and each planar pair of two
 solids the census finds meeting over an area (`planar_face_pairs`),
 recorded or not. A confirmed pair is decided once, and the census asks
 nothing of a cell bounding one of its faces against a cell bounding the

@@ -171,7 +171,9 @@
 //!
 //! **A confirmed face pair is decided once** (`[assertions]`). The
 //! confirmed pairs ([`Declared::confirmed`]) are each face–face record
-//! that passes both doors ([`pair_verified`]) and each planar pair of
+//! that confirms ([`Declared::confirm`]: both patch doors, or the
+//! confirm pass's own reading of a point touch or a tangent line) and
+//! each planar pair of
 //! two solids the face-pair arm finds meeting over an area
 //! ([`planar_face_pairs`]), recorded or not. The census asks nothing of
 //! a cell bounding one face of a confirmed pair against a cell bounding
@@ -926,7 +928,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     let mut declared = Declared::index(&geo, contacts);
     let cands = Candidates::build(body, &geo, band, strategy, plant);
     let found = planar_face_pairs(body, &geo, band, region, &cands);
-    declared.confirm(body, band, region, &found);
+    declared.confirm(body, &geo, band, region, &found);
     sweep_vertex_vertex(
         &geo,
         &declared,
@@ -1013,8 +1015,8 @@ struct Declared {
     /// pass's.
     faces: BTreeSet<(FaceKey, FaceKey)>,
     /// **The confirmed face pairs**, both orientations: each recorded
-    /// pair that passes both doors ([`pair_verified`]), and each planar
-    /// pair the face-pair arm found ([`planar_face_pairs`]). A confirmed
+    /// pair that confirms ([`Declared::confirm`]), and each planar pair
+    /// the face-pair arm found ([`planar_face_pairs`]). A confirmed
     /// pair is the census's one decision about its area contact, so the
     /// census asks nothing of a cell bounding one of its faces against a
     /// cell bounding the other (`[assertions]`): wherever such cells
@@ -1071,21 +1073,33 @@ impl Declared {
         out
     }
 
-    /// Confirms the recorded face pairs through both doors
-    /// ([`pair_verified`]), once per unordered pair, and adds the pairs
-    /// the face-pair arm `found`, which its own two doors confirmed.
+    /// Confirms the recorded face pairs, once per unordered pair, and
+    /// adds the pairs the face-pair arm `found`, which its own two doors
+    /// confirmed. A record confirms where both patch doors answer in
+    /// either frame order ([`pair_verified`]), or where the confirm
+    /// pass's own reading of it ([`confirm_face_pair`]: the patch, a
+    /// point touch, or the tangent line two carriers derive) finds
+    /// nothing; each is the pair's verified interface.
     fn confirm<T: Decide>(
         &mut self,
         body: &Body<T>,
+        geo: &Geo<T>,
         band: Band,
         region: Option<RegionLane<T>>,
         found: &[FoundPair],
     ) {
+        let confirms = |fa, fb| {
+            pair_verified(body, fa, fb, band, region) || {
+                let mut read = Vec::new();
+                confirm_face_pair(body, geo, fa, fb, band, region, &mut read);
+                read.is_empty()
+            }
+        };
         let recorded = self
             .faces
             .iter()
             .filter(|(fa, fb)| fa < fb)
-            .filter(|&&(fa, fb)| pair_verified(body, fa, fb, band, region))
+            .filter(|&&(fa, fb)| confirms(fa, fb))
             .copied();
         let found = found.iter().map(|p| (p.a, p.b));
         let both: Vec<_> = recorded.chain(found).collect();
@@ -3778,8 +3792,8 @@ enum CrossingBacking {
 ///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
 ///    same arm the parallel gate meters). No new numerics; and
 /// 3. the pair itself is CONFIRMED ([`Declared::confirmed`]): a record
-///    that passes the confirm pass's two doors ([`pair_verified`]), or
-///    a pair the planar face-pair arm found. The side test reads every
+///    that confirms ([`Declared::confirm`]), or a pair the planar
+///    face-pair arm found. The side test reads every
 ///    recorded pair too, so a declared pair that holds the crossing
 ///    with the materials on one side names that verdict.
 ///
@@ -10930,7 +10944,7 @@ mod tests {
         ));
         let geo = snapshot(&seat.body);
         let mut declared = Declared::index(&geo, &records);
-        declared.confirm(&seat.body, band(), Some(RegionLane::certified()), &[]);
+        declared.confirm(&seat.body, &geo, band(), Some(RegionLane::certified()), &[]);
         let on = |e: &&EdgeGeo<f64>, pick: fn(Point3<f64>) -> bool| {
             [e.p0, e.p1].into_iter().all(|p| p.z == 0.5 && pick(p))
         };
@@ -11012,7 +11026,7 @@ mod tests {
                 crate::Cites::decided(0),
             ));
             let mut declared = Declared::index(&geo, &records);
-            declared.confirm(&body, band(), Some(RegionLane::certified()), &[]);
+            declared.confirm(&body, &geo, band(), Some(RegionLane::certified()), &[]);
             assert!(
                 declared.confirmed.contains(&pair),
                 "the pair confirms: {pair:?}"
@@ -11139,7 +11153,7 @@ mod tests {
             let eb = edge(turn(-1.0, phi, 0.0), turn(1.0, -phi, 0.0));
             let mut errors = Vec::new();
             let mut declared = Declared::index(&geo, &records);
-            declared.confirm(&body, band, Some(RegionLane::certified()), &[]);
+            declared.confirm(&body, &geo, band, Some(RegionLane::certified()), &[]);
             let backing = ee_cross_backed(
                 &body,
                 &geo,
