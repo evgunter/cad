@@ -59,9 +59,31 @@ pub(crate) struct Chart<T: geom_core::Real> {
     copy_x: Vec3<T>,
     /// The copy's mated direction, in the copy's own coordinates.
     copy_d: Vec3<T>,
-    /// A point of the mate's own line, for an axis mate: the line its
-    /// spin turns about.
-    line: Option<Point3<T>>,
+    /// Where the mate seats the copy, read off its two values' own
+    /// invariants ([`Seat`]).
+    seat: Seat<T>,
+}
+
+/// **What a mate's two values fix of the copy's translation**, in
+/// closed form: `t` the translation of a placed map whose linear part
+/// `R` carries the copy's mated direction onto `d`.
+#[derive(Debug, Clone, Copy)]
+enum Seat<T: geom_core::Real> {
+    /// A plane mate: `d · t`, the target's offset along `d` less the
+    /// copy's along its own mated direction.
+    Depth(T),
+    /// An axis mate: `t` across `d` is `foot − R · copy_foot`, the two
+    /// lines' points nearest their spaces' origins (each across its
+    /// line, so the difference is across `d`).
+    Line {
+        /// The target line's foot: a point of the line the mate's spin
+        /// turns about.
+        foot: Point3<T>,
+        /// The copy's line's foot, in its own coordinates.
+        copy_foot: Point3<T>,
+    },
+    /// A direction mate fixes no translation.
+    Free,
 }
 
 impl<T: SolveScalar> Chart<T> {
@@ -84,12 +106,36 @@ impl<T: SolveScalar> Chart<T> {
         arm: Arm,
         band: Band,
     ) -> Result<Option<Self>, NodeErrorKind> {
-        let (to_dir, on_dir, line) = match (on, to) {
-            (PoseValue::Plane { normal: o, .. }, PoseValue::Plane { normal: t, .. })
-            | (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => (*t, *o, None),
-            (PoseValue::Axis { dir: o, .. }, PoseValue::Axis { foot, dir: t, .. }) => {
-                (*t, *o, Some(*foot))
+        let sense = |c: T| if flipped { T::zero() - c } else { c };
+        let (to_dir, on_dir, seat) = match (on, to) {
+            (
+                PoseValue::Plane {
+                    normal: o,
+                    offset: c_on,
+                },
+                PoseValue::Plane {
+                    normal: t,
+                    offset: c_to,
+                },
+            ) => (*t, *o, Seat::Depth(sense(*c_to - *c_on))),
+            (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => {
+                (*t, *o, Seat::Free)
             }
+            (
+                PoseValue::Axis {
+                    foot: copy_foot,
+                    dir: o,
+                    ..
+                },
+                PoseValue::Axis { foot, dir: t, .. },
+            ) => (
+                *t,
+                *o,
+                Seat::Line {
+                    foot: *foot,
+                    copy_foot: *copy_foot,
+                },
+            ),
             _ => return Ok(None),
         };
         let (d, copy_d) = if flipped {
@@ -125,8 +171,31 @@ impl<T: SolveScalar> Chart<T> {
             y,
             copy_x: super::reference_about(copy_d, arm.get(), band)?,
             copy_d: copy_d.get(),
-            line,
+            seat,
         }))
+    }
+
+    /// A point of the mate's own line, for an axis mate: the line its
+    /// spin turns about.
+    fn line(&self) -> Option<Point3<T>> {
+        match self.seat {
+            Seat::Line { foot, .. } => Some(foot),
+            Seat::Depth(_) | Seat::Free => None,
+        }
+    }
+
+    /// **The copy's translation along `along` that the mate fixes**, in
+    /// closed form from its two values ([`Seat`]) and the placed map's
+    /// linear part `r`: `None` along a freedom the mate leaves.
+    fn seated(&self, r: &Mat3<T>, along: TargetAxis) -> Option<T> {
+        match (self.seat, along) {
+            (Seat::Depth(depth), TargetAxis::Z) => Some(depth),
+            (Seat::Line { foot, copy_foot }, TargetAxis::X | TargetAxis::Y) => {
+                let across = (foot - Point3::origin()) - *r * (copy_foot - Point3::origin());
+                Some(across.dot(self.axis(along)))
+            }
+            (Seat::Depth(_), _) | (Seat::Line { .. }, TargetAxis::Z) | (Seat::Free, _) => None,
+        }
     }
 
     /// The spin of the copy at relative pose `m`: the angle about `d`
@@ -389,7 +458,7 @@ pub(crate) fn settle<T: SolveScalar>(
         // is: composed as a turn about that point, a box lane would
         // widen it by the turn's own width levered over the origin's
         // distance, twice.
-        let turned = match residual_turn_point(left).or(chart.line) {
+        let turned = match residual_turn_point(left).or(chart.line()) {
             Some(at) => turn_to(at, chart.d, v, measured) * m,
             None => {
                 let turn = turn_to(Point3::origin(), chart.d, v, measured);
@@ -404,20 +473,27 @@ pub(crate) fn settle<T: SolveScalar>(
         left = after_turn(left).unwrap_or(left);
     }
     // On a frame lane the translation is set from the chart, as the turn
-    // is: its component along each slide's axis is the value, and along
-    // the others it is the copy's measure there, so no difference of the
-    // translation with itself widens it. Only on a chart whose mated
-    // direction is an axis exactly: re-reading a component along a
-    // direction the box widens would spread the translation's width
-    // across the others, which the differences below leave in place.
-    if T::spins_by_frames() && chart.on_axes() && !slides.is_empty() {
-        let along = |a: TargetAxis| {
-            slides
-                .iter()
-                .rev()
-                .find(|v| v.coord == Coord::Slide(a))
-                .map_or_else(|| Chart::slide(&m, chart.axis(a)), |v| v.by)
-        };
+    // is: its component along each slide's axis is the value, along an
+    // axis the mate fixes it is the mate's closed form ([`Chart::seated`]),
+    // and along any other it is the copy's measure there, so no
+    // difference of the translation with itself widens it. A measure is
+    // re-read only on a chart whose mated direction is an axis exactly:
+    // re-reading a component along a direction the box widens would
+    // spread the translation's width across the others, which the
+    // differences below leave in place.
+    let set = |a: TargetAxis| {
+        slides
+            .iter()
+            .rev()
+            .find(|v| v.coord == Coord::Slide(a))
+            .map(|v| v.by)
+            .or_else(|| chart.seated(&m.linear, a))
+    };
+    if T::spins_by_frames()
+        && !slides.is_empty()
+        && (chart.on_axes() || TargetAxis::ALL.into_iter().all(|a| set(a).is_some()))
+    {
+        let along = |a: TargetAxis| set(a).unwrap_or_else(|| Chart::slide(&m, chart.axis(a)));
         let shift = TargetAxis::ALL
             .into_iter()
             .fold(Vec3::zero(), |t, a| t + chart.axis(a) * along(a));

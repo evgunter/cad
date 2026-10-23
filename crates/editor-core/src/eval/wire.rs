@@ -2521,7 +2521,8 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
             plane.kind()
         )
     };
-    let reflection = topo::Reflection::across_unit(PoseValue::plane_foot(*normal, *offset), *normal);
+    let reflection =
+        topo::Reflection::across_unit(PoseValue::plane_foot(*normal, *offset), *normal);
     let image = topo::mirror_body(&body, &reflection, tol).map_err(NodeErrorKind::Mirror)?;
     let value = value_of(results, source)?;
     let table = read_table(value)
@@ -4349,7 +4350,7 @@ struct RuleEnv<'a, T: Decide> {
     unprojected: &'a Results<T>,
 }
 
-fn stepped_map<T: Decide>(
+fn stepped_map<T: crate::mate::SolveScalar>(
     kind: &PatternKind,
     rule: &RuleEnv<'_, T>,
     listed: crate::node::CountMismatch,
@@ -4405,7 +4406,7 @@ fn stepped_map<T: Decide>(
 /// Placement 0 is the master's own bodies verbatim; every master name
 /// wraps `Instance(j)` per placement (A8/N1).
 #[allow(clippy::too_many_arguments)] // the doc resolves the rule's axis
-fn wire_pattern<T: Decide + topo::AtRestPolicy>(
+fn wire_pattern<T: crate::mate::SolveScalar + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -4474,7 +4475,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
 /// Every placement is MAPPED, including index 0: an explicit rule need
 /// not make it the identity.
 #[allow(clippy::too_many_arguments)] // the doc resolves the rule's axis
-fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn wire_placed_union<T: crate::mate::SolveScalar + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,

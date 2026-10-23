@@ -448,7 +448,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x8b96_6524_3ea2_7841, 0xf145_1e5e_60b3_1b0d),
+        (0x8d12_a48d_bf6f_83dd, 0x9046_de8b_cba0_c9e9),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

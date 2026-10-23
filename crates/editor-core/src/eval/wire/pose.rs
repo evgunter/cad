@@ -90,7 +90,7 @@ fn carried<T: Decide>(
 /// finds none ([`NodeErrorKind::PoseRead`]); a construction's
 /// degenerate case ([`NodeErrorKind::PoseDegenerate`]); a direction the
 /// direction door refuses; a scalar that does not evaluate.
-pub(crate) fn eval_pose<T: Decide>(
+pub(crate) fn eval_pose<T: crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: OperandSlot,
@@ -107,7 +107,7 @@ pub(crate) fn eval_pose<T: Decide>(
 /// reader seat: what a report over the document's pose variables reads
 /// ([`crate::mate::unobservable()`]). Its refusals name no seat a reader
 /// holds, so it is for reports, never for an op.
-pub(crate) fn read_pose<T: Decide>(
+pub(crate) fn read_pose<T: crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     read: RoleRead<VarId>,
@@ -149,7 +149,7 @@ fn through<T: Decide>(value: PoseValue<T>, role: Option<crate::pose::PoseRole>) 
 /// [`eval_pose`] for a read admitting `admits`: the reader's seat's
 /// kind at the top, a read's own kind inside a definition, where the
 /// door checked it against what the definition admits there.
-fn eval_pose_as<T: Decide>(
+fn eval_pose_as<T: crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: OperandSlot,
@@ -177,7 +177,7 @@ fn eval_pose_as<T: Decide>(
 }
 
 /// **An operation's pose output**: a revolve's axis, the lift of its 2-D axis line through its profile's plane.
-fn output<T: Decide>(
+fn output<T: crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     admits: crate::SlotKind,
@@ -229,7 +229,7 @@ fn output<T: Decide>(
 }
 
 /// **A pose definition, bound** at the lane scalar.
-fn definition<T: Decide>(
+fn definition<T: crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: OperandSlot,
@@ -262,7 +262,20 @@ fn definition<T: Decide>(
                 unreachable!("the door admits a direction or an axis alone at a slide's direction")
             };
             let by = scalar(*by, crate::expr::Dimension::Length)?;
-            slide(pose(read)?, dir, by)?
+            match pose(read)? {
+                // Along its own normal, `along · normal` is one: the
+                // offset moves by `by`.
+                PoseValue::Plane { normal, offset }
+                    if along.read == read.read
+                        && along.role == Some(crate::pose::PoseRole::Normal) =>
+                {
+                    PoseValue::Plane {
+                        normal,
+                        offset: offset + by,
+                    }
+                }
+                value => slide(value, dir, by)?,
+            }
         }
         // The pose turned about the line by the right-hand rule: a rigid
         // motion, so each direction is the motion's turn of a unit one.
@@ -455,7 +468,7 @@ fn degenerate(error: UnitVec3Error, construction: PoseConstruction) -> NodeError
 /// (its outward normal, DM1a), a carrier's axis or an edge's line, a
 /// carrier's centre or a vertex's point. Stored facts copied out; a
 /// carrier without the pose refuses typed.
-fn read_off<T: Decide>(
+fn read_off<T: crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: OperandSlot,
@@ -474,8 +487,14 @@ fn read_off<T: Decide>(
     let fault = |fault| NodeErrorKind::PoseRead { pose, fault };
     let readback = |error| fault(PoseReadFault::Readback { error });
     // A carrier's stored direction is unit up to its rounding, and is
-    // decided as any pose direction is.
-    let unit = |v: Vec3<T>, role| pose_unit(v, role, band).map_err(DirectionRefusal::node_error);
+    // decided as any pose direction is; one on an axis exactly is that
+    // axis, so the offset or foot read against it is no wider than the
+    // stored point.
+    let unit = |v: Vec3<T>, role| {
+        pose_unit(v, role, band)
+            .map(crate::mate::solve::on_its_axis)
+            .map_err(DirectionRefusal::node_error)
+    };
     if let Some(vertex) = names::EntityKey::vertex(key) {
         return match pose {
             K::Point => Ok(PoseValue::Point {

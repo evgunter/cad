@@ -393,7 +393,7 @@ pub(crate) fn admitted<T: SolveScalar>(
 /// third axis**, its sign the third coordinate's: the unit it is, read
 /// exactly, where a box lane's normalisation of a length it cannot
 /// cancel against itself leaves the third coordinate wider than one.
-fn on_its_axis<T: SolveScalar>(d: geom_core::UnitVec3<T>) -> geom_core::UnitVec3<T> {
+pub(crate) fn on_its_axis<T: SolveScalar>(d: geom_core::UnitVec3<T>) -> geom_core::UnitVec3<T> {
     on_an_axis(d.get()).unwrap_or(d)
 }
 
