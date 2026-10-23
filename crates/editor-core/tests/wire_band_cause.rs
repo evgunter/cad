@@ -168,14 +168,21 @@ fn child_band_row() {
     );
 }
 
-/// A bare placement, copying nothing — a node whose authoring builds
-/// no band, so a document holding it exists where no band does, and
-/// the seat from which `select_where` can be asked anything at all.
+/// A bare placement, copying a `⊔` of nothing — nodes whose authoring
+/// builds no band, so a document holding them exists where no band
+/// does, and the seat from which `select_where` can be asked anything
+/// at all. The placement's fold builds the band.
 fn bare_placement() -> (ProfileDoc, RecipeNodeId) {
-    insert(
+    let (doc, nothing) = insert(
         ProfileDoc::empty_derived("wire_band_cause", Tol::witness()),
-        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Var(
-            editor_core::VarId::WORLD,
+        Node::Assemble {
+            members: editor_core::Bodies::Spelled(Vec::new()),
+        },
+    );
+    insert(
+        doc,
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Node(
+            nothing,
         ))),
     )
 }

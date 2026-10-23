@@ -474,13 +474,13 @@ fn mated(
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, ids) = first_pinned(label, first, second, authoring);
     let mate = fixture::rest(
-        fixture::head(
-            leaf_cap(&second_doc, second_block, CapEnd::Start)
-                .into_name(),
+        fixture::head_at(
+            ids[1],
+            leaf_cap(&second_doc, second_block, CapEnd::Start).into_name(),
         ),
-        fixture::head(
-            leaf_cap(&first_doc, first_block, CapEnd::End)
-                .into_name(),
+        fixture::head_at(
+            ids[0],
+            leaf_cap(&first_doc, first_block, CapEnd::End).into_name(),
         ),
         ContactClass::Rest,
     );
@@ -509,13 +509,13 @@ fn rested_on_first(
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, ids) = first_pinned(label, first, second, authoring);
     let mate = fixture::rest(
-        fixture::head(
-            leaf_cap(&second_doc, second_block, CapEnd::Start)
-                .into_name(),
+        fixture::head_at(
+            ids[1],
+            leaf_cap(&second_doc, second_block, CapEnd::Start).into_name(),
         ),
-        fixture::head(
-            leaf_cap(&first_doc, first_block, CapEnd::End)
-                .into_name(),
+        fixture::head_at(
+            ids[0],
+            leaf_cap(&first_doc, first_block, CapEnd::End).into_name(),
         ),
         ContactClass::Rest,
     );

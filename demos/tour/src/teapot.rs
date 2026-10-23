@@ -1987,14 +1987,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         face_frame(&ev, r.spout_body, &tip_name).expect("the tip annulus, before the placement");
     let unplaced =
         face_frame(&ev, r.spout_body, &root_name).expect("the root annulus, before the placement");
-    // A copy's face is named under its placement.
-    let copied = |name: &StableName| StableName {
-        kind: name.kind,
-        node: r.spout,
-        path: vec![pncad::prelude::RoleSeg::Placed {
-            of: pncad::prelude::NameRef::new(name.clone()),
-        }],
-    };
+    // A copy carries its source's names as they are.
+    let copied = |name: &StableName| name.clone();
     let tip_placed =
         face_frame(&ev, r.spout, &copied(&tip_name)).expect("the tip annulus, after it");
     let placed = face_frame(&ev, r.spout, &copied(&root_name)).expect("the root annulus, after it");

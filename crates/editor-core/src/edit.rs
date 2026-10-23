@@ -5965,7 +5965,22 @@ fn check_payload_refs<P: crate::ProfilePayload>(
     new: &Doc<P>,
     node: &Node<P>,
 ) -> Result<(), EditError> {
+    // A copy carries its source's names, so a face of an instance's
+    // copy is spelled in its part's ids, which this document never
+    // minted: such a name is the part's, held where an instance is,
+    // and its life is the part's (`work/intent/a-part-name-in-the-host-
+    // is-spelled-in-the-parts-ids.md`).
+    let parted = |name: &StableName| {
+        !new.has_minted(name.node)
+            && new
+                .nodes
+                .values()
+                .any(|n| matches!(n, Node::InstantiatePart { .. }))
+    };
     for name in node.payload_names() {
+        if parted(name) {
+            continue;
+        }
         if !new.nodes.contains_key(&name.node) {
             return Err(EditError::DeclareNamesMissingNode {
                 name: doc.spoken_name(name),

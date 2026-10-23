@@ -2072,6 +2072,14 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         if read_in.is_some_and(|body| doc.reaches_instance(body)) {
             continue;
         }
+        // An instance record's outer may be a face of another
+        // instance's copy, so its part's name: the edit door's rule.
+        if let NameCarrier::Payload { node, name } = carrier
+            && matches!(doc.node(node), Some(Node::InstantiatePart { .. }))
+            && !doc.mint.has_node(name.node)
+        {
+            continue;
+        }
         for n in derivation_nodes(carrier.name()) {
             check_id(n)?;
         }

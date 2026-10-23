@@ -92,7 +92,7 @@ fn stood(
 ) -> pncad::document::AuthoredNode {
     use pncad::document::{Node, Operand, VarId};
     Node::place(
-        vec![body.into()],
+        body.into(),
         Operand::Var(VarId::WORLD),
         pncad::document::stand().bundle(),
     )
@@ -100,7 +100,7 @@ fn stood(
 
 /// A one-box document under the id `label` derives: square(2)
 /// extruded 1.5, volume exactly 6.0, the box placed once in the world
-/// standing where it stands. Returns (doc, profile id, body id) — the
+/// standing where it stands, and that copy the product. Returns (doc, profile id, body id) — the
 /// MINTED ids, so no caller couples to mint order.
 fn box_doc(
     label: &str,
@@ -119,7 +119,15 @@ fn box_doc(
             distance: len(1.5),
         },
     );
-    let (doc, _) = insert(doc, stood(body));
+    let (doc, placement) = insert(doc, stood(body));
+    // The copy is what the document makes.
+    let doc = applied(
+        &doc,
+        pncad::document::DocEdit::SetProduct {
+            product: Some(pncad::document::Operand::Node(placement)),
+        },
+    )
+    .doc;
     (doc, profile, body)
 }
 // END box-document fixture twin

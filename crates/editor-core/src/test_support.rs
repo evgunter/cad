@@ -1338,18 +1338,33 @@ pub fn world_product_edits(
                 })
             })
         });
-    doc = apply(&mut log, &doc, crate::DocEdit::SetProduct { product: None });
-    if let Some(at) = held {
-        doc = apply(&mut log, &doc, crate::DocEdit::DeleteNode { id: at });
-    }
-    let copies: Vec<crate::VarId> = doc
+    // A product already the world's copies is kept as it is, so a
+    // document written twice is the one document.
+    let world: Vec<crate::VarId> = doc
         .placements()
         .into_iter()
         .filter(|&p| doc.node_space(p) == Some(crate::VarId::WORLD))
         .filter_map(|p| doc.output(p, 0))
         .filter(|&copy| doc.var(copy).is_some_and(|v| v.kind() == crate::VarKind::Body))
         .collect();
-    let product = match copies.as_slice() {
+    let spelled = |copies: &[crate::VarId]| {
+        crate::Bodies::Spelled(copies.iter().map(|&copy| crate::BodyRead::plain(copy)).collect())
+    };
+    let kept = match world.as_slice() {
+        [] => doc.product().is_none(),
+        [one] => doc.product() == Some(*one),
+        several => held.is_some_and(|at| {
+            matches!(doc.node(at), Some(Node::Assemble { members }) if *members == spelled(several))
+        }),
+    };
+    if kept {
+        return (doc, log);
+    }
+    doc = apply(&mut log, &doc, crate::DocEdit::SetProduct { product: None });
+    if let Some(at) = held {
+        doc = apply(&mut log, &doc, crate::DocEdit::DeleteNode { id: at });
+    }
+    let product = match world.as_slice() {
         [] => return (doc, log),
         [one] => crate::Operand::Var(*one),
         several => {

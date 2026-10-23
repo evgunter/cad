@@ -102,6 +102,7 @@ use std::sync::Arc;
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
+    BodyRead,
     Assembly, AssemblyError, CancelToken, CheckId, ChecksConfig, Constraint, Coord, Dimension,
     DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
     InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE,
@@ -222,13 +223,12 @@ fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Formula {
 /// for a mesh report; this one is a `StableName` whose kind is
 /// `Face`.
 ///
-/// The head is the part-local face as the instance names it — the
-/// kernel's own wrapper (`FaceName::in_part`), the inverse of the
-/// unwrap a face frame reads its face through.
+/// The head is the part's own face, read at the instance whose copy
+/// carries it: a copy carries its source's names as they are.
 fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
     let name = pncad::document::FaceName::new(local.clone())
         .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
-    SitedFace::at_mint(name.in_part(instance))
+    SitedFace::new(instance, name)
 }
 
 /// The plane of the face `local` of `instance`'s part, outward normal
@@ -351,7 +351,7 @@ fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     insert(
         doc,
         Node::place(
-            body.into(),
+            BodyRead::plain(body),
             Operand::Var(VarId::WORLD),
             stand().bundle(),
         ),
@@ -373,15 +373,6 @@ fn instance(doc: &mut ProfileDoc, part: DocRef, space: Operand, tol: Tol) -> Rec
 fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
     let applied = apply(doc, e, tol).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
     *doc = applied.doc;
-}
-
-/// A part-local name of ANY kind, wrapped at the instance that placed
-/// it — the instance-qualified form every cross-document reference
-/// takes (the GQ4 wrapper × N1–N7). A face goes through the kernel's
-/// own `FaceName::in_part` ([`head`]); this spells the wrapper for the
-/// edges and vertices a whole-table walk meets too.
-fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
-    local.clone()
 }
 
 /// The evaluation options that carry the store: an evaluation with no
@@ -532,9 +523,9 @@ fn crate_part(tol: Tol) -> ProfileDoc {
 }
 
 /// A part's own cap-face name at `end`, as its PRODUCT answers to it —
-/// the name a mate on that face refers to, before the instance
-/// qualifier wraps it: the cap selected on the placed body, wrapped
-/// in the part's one placement.
+/// the name a mate on that face refers to, read at the instance: the
+/// cap selected on the placed body, which the part's one placement
+/// carries as it is.
 ///
 /// Selected structurally (`Cap`, side `end`) rather than hand-built:
 /// the naming vocabulary is what a user reaches for, and a selector
@@ -542,7 +533,7 @@ fn crate_part(tol: Tol) -> ProfileDoc {
 /// moved.
 fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
     let ev = run(doc, &EvalOptions::default(), tol);
-    let (placement, body) = placed_body(doc);
+    let (_, body) = placed_body(doc);
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let found = pncad::select::select(&ev, body, &sel);
@@ -560,10 +551,7 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
 /// The node a `Place` over one shape copies.
 fn placed_shape(doc: &ProfileDoc, placement: RecipeNodeId) -> Option<RecipeNodeId> {
     match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => match &shapes[..] {
-            [shape] => doc.operation_of(shape.read),
-            _ => None,
-        },
+        Some(Node::Place { source, .. }) => doc.operation_of(source.read),
         _ => None,
     }
 }
@@ -602,21 +590,12 @@ fn on_the_world(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
 }
 
 /// **`name`, a part's name, as the inline's host spells it**: its
-/// minting node and each copy it wraps mapped through `map`.
+/// minting node mapped through `map`.
 fn hosted(name: &StableName, map: &pncad::document::NodeMap) -> StableName {
     StableName {
         kind: name.kind,
         node: map.get(&name.node).copied().unwrap_or(name.node),
-        path: name
-            .path
-            .iter()
-            .map(|seg| match seg {
-                RoleSeg::Placed { of } => RoleSeg::Placed {
-                    of: hosted(of, map).into(),
-                },
-                other => other.clone(),
-            })
-            .collect(),
+        path: name.path.clone(),
     }
 }
 
@@ -704,7 +683,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         let placement = insert(
             &mut doc,
             Node::place(
-                post.into(),
+                BodyRead::plain(post),
                 Operand::Var(VarId::WORLD),
                 stand().bundle(),
             ),
@@ -1042,24 +1021,17 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     // name away — the pattern's `Instance(i)` segment wrapping the
     // part's own cap name (N1 x the GQ4 wrapper).
     // The name NESTS rather than concatenating: `Instance(i)` carries
-    // the instance's own name as its argument, which carries the
-    // part's product name as ITS argument, and that is the part's cap
-    // in the copy its placement puts in the part's world. So the
-    // pattern reads as four wrappers deep — pattern index, then
-    // instance, then the part's placement, then the part's own cap.
+    // the instance's own name as its argument, and a copy carries its
+    // source's names as they are, so the instance's name is the part's
+    // product name, which is the part's cap in the one copy its
+    // placement puts in the part's world. So the pattern reads as one
+    // wrapper deep — pattern index, then the part's own cap.
     let face = || NamePat::of_kind(EntityKind::Face);
     let cap_of_part = face().seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let caps = pncad::select::select(
         &ev,
         pattern,
-        &Selector::of(
-            face().seg(
-                SegPat::tag(SegTag::Instance).of([face().seg(
-                    SegPat::tag(SegTag::InPart)
-                        .of([face().seg(SegPat::tag(SegTag::Placed).of([cap_of_part]))]),
-                )]),
-            ),
-        ),
+        &Selector::of(face().seg(SegPat::tag(SegTag::Instance).of([cap_of_part]))),
     );
     let indexed: Vec<&StableName> = caps
         .iter()
@@ -1737,14 +1709,11 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     for (name, _) in before_names.iter() {
         let expected = if name.node == shelf_i {
             crossed += 1;
-            in_part(
-                out.instance,
-                &StableName {
-                    kind: name.kind,
-                    node: mapped,
-                    path: name.path.clone(),
-                },
-            )
+            StableName {
+                kind: name.kind,
+                node: mapped,
+                path: name.path.clone(),
+            }
         } else {
             name.clone()
         };

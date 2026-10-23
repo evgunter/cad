@@ -336,10 +336,11 @@ impl ProductError {
                 "the product slot reads nothing, so the document has no product. {}",
                 crate::sentence::Recourse("set the product to a body in the world")
             ),
-            Self::StrandedProduct { read } => write!(
+            // The read is of an output whose operation is gone, so it
+            // has nothing to be spoken by.
+            Self::StrandedProduct { .. } => write!(
                 f,
-                "the product reads {}, whose body is gone. {}",
-                by.output(*read),
+                "the product reads a body that is gone. {}",
                 crate::sentence::Recourse("set the product to a live body")
             ),
             Self::Graft { node, source } => write!(
