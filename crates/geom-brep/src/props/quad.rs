@@ -226,8 +226,8 @@ const W_RATIONAL_COMPOSITE: usize = 10;
 /// Weight of one cell of the rational lane's exact-v arm (a u cell
 /// against one v span, integrated exactly).
 const W_RATIONAL_EXACT_V: usize = 58;
-/// Weight of one chord cell of the trimmed lane, by the chart's
-/// bidegree `(p_u, p_v)`, read at face entry. A cell is one nested
+/// Weight of one chord cell of the trimmed lane's exact arm, by the
+/// chart's bidegree `(p_u, p_v)`, read at face entry. A cell is one nested
 /// Newton–Cotes pass of `(3p_u + 3p_v)·(3p_v)` chart evaluations, so its
 /// cost follows the bidegree and not the chart's shape: a flat and a
 /// curved bilinear chart cost the same (0.20 ms a cell, measured), a
@@ -235,9 +235,8 @@ const W_RATIONAL_EXACT_V: usize = 58;
 /// (a timing probe, reverted), rounds 5 and 6 of one arc trim, twice:
 /// the dearest of the four readings, over a rational composite cell's
 /// 9.1 µs (the unit's ten). The readings vary by up to 1.6× run to run,
-/// so the dearest is taken, as for every other lane. Bidegrees past the
-/// Newton–Cotes window (`p_u + p_v > 4` or `p_v > 4`) never reach a
-/// round; they take the dearest weight.
+/// so the dearest is taken, as for every other lane. The exact arm
+/// runs only inside its window, `p_u + p_v ≤ 4`.
 ///
 /// | `(p_u, p_v)` | ms / cell | weight |
 /// |---|---|---|
@@ -255,6 +254,49 @@ const fn w_trimmed(p_u: usize, p_v: usize) -> usize {
         (1, 2) => 4_300,
         (2, 2) => 6_700,
         _ => 11_700,
+    }
+}
+
+/// Weight of one piece of the trimmed lane's composite arm, by the
+/// chart's bidegree: a piece is one inner Newton–Cotes column of `f`
+/// at its midpoint, one of `f_uu` over it, and one read of `f_u` and
+/// `f_v`. Measured as [`w_trimmed`] was, in release on this box (a
+/// timing probe, reverted), rounds 5 and 6 of the iso triangle on the
+/// curved chart of each bidegree (one interior knot each way), twice:
+/// the dearest of the four readings. The same probe re-read the exact
+/// arm's cells at 0.56–0.94 of that table's times, so a reading here is
+/// taken to that table's scale by the factor 1.5, a little above the
+/// readings' median ratio `1/0.70`, at 1 104 weight a millisecond. A
+/// bidegree the table does not list takes `64·(p_u + 1)·(p_v + 1)²`,
+/// which is above every listed one.
+///
+/// | `(p_u, p_v)` | ms / piece | weight |
+/// |---|---|---|
+/// | (4, 1) | 0.424 | 700 |
+/// | (5, 1) | 0.427 | 710 |
+/// | (3, 2) | 0.616 | 1 020 |
+/// | (4, 2) | 0.982 | 1 630 |
+/// | (2, 3) | 1.070 | 1 780 |
+/// | (3, 3) | 1.580 | 2 620 |
+/// | (4, 3) | 2.295 | 3 810 |
+/// | (1, 4) | 1.833 | 3 040 |
+/// | (2, 4) | 2.351 | 3 900 |
+/// | (3, 4) | 3.378 | 5 610 |
+/// | (4, 4) | 4.207 | 6 980 |
+const fn w_trimmed_composite(p_u: usize, p_v: usize) -> usize {
+    match (p_u, p_v) {
+        (4, 1) => 700,
+        (5, 1) => 710,
+        (3, 2) => 1_020,
+        (4, 2) => 1_630,
+        (2, 3) => 1_780,
+        (3, 3) => 2_620,
+        (4, 3) => 3_810,
+        (1, 4) => 3_040,
+        (2, 4) => 3_900,
+        (3, 4) => 5_610,
+        (4, 4) => 6_980,
+        _ => 64 * (p_u + 1) * (p_v + 1) * (p_v + 1),
     }
 }
 
@@ -4316,15 +4358,13 @@ const TRIM_OPEN_WALK: &str = "the trim loop's chord walk does not close — some
                               loop assembled from one face's half-edges always closes, so \
                               this is a caller handing the door a walk it did not walk";
 
-/// The typed refusal a chart outside the exact rule's node window
-/// earns: the composite fallback is
-/// `work/trim/trimmed-quadrature-composite-rounds.md`.
-const TRIM_NC_WINDOW: &str = "trimmed exact lane's Newton–Cotes window — the chord integrand \
-                              has u-degree 3·p_u + 3·p_v − 1 and the exact closed rule's \
-                              INTERVAL count tops out at 12 (13 nodes), so this lane \
-                              certifies p_u + p_v ≤ 4; a \
-                              richer chart needs the composite trapezoid fallback, which is \
-                              not built (no fixture reaches it)";
+/// The typed refusal a chart outside the INNER rule's node window
+/// earns. The outer rule has a composite arm past its own window; the
+/// inner one has none.
+const TRIM_NC_WINDOW: &str = "trimmed lane's inner Newton–Cotes window — the chord integrand \
+                              has v-degree 3·p_v − 1 and the exact closed rule's INTERVAL \
+                              count tops out at 12 (13 nodes), so the inner rule certifies \
+                              p_v ≤ 4; the composite arm is the OUTER rule's only";
 
 /// **`sign` of the chart-space monotonicity of one piece over its own
 /// chord**, decided under `props_trim_piece_monotone`.
@@ -4664,6 +4704,51 @@ fn chord_cuts(
     (cuts, sliver)
 }
 
+/// The `v` cells one sub-chord's column crosses: the complete spans
+/// `below` the located cell `[v_k, ·)`, each `(lo, hi, locator)`, and
+/// the located cell's own start and locator.
+struct Column<'b> {
+    below: &'b [(f64, f64, f64)],
+    vk: f64,
+    mid_v: f64,
+}
+
+/// `∫_{v₀}^{top} g(s) ds` for an integrand read through a `v` collapse,
+/// by the inner closed Newton–Cotes rule `wv`: the column's complete
+/// spans, then `[v_k, top]` on the located cell's polynomial. Exact per
+/// span for a polynomial of degree `≤ m_v` there (`f` and its
+/// `u`-partials have `v`-degree `3p_v − 1`), so at a point parameter the
+/// enclosure's width is the ring's, and at an enclosed one it holds the
+/// integral for every parameter and top in their brackets.
+fn column_integral(
+    wv: &[Interval],
+    column: &Column<'_>,
+    top: Interval,
+    integrand: &dyn Fn(Collapse<'_>) -> Interval,
+) -> Interval {
+    let mv = wv.len() - 1;
+    let mut inner = Interval::zero();
+    let mut leg = |lo: Interval, hi: Interval, locator: f64| {
+        let sc = hi - lo;
+        let mut row = Interval::zero();
+        for (k, wv_k) in wv.iter().enumerate() {
+            #[allow(clippy::cast_precision_loss)]
+            let v_k = lo + sc * (pt(k as f64) / pt(mv as f64));
+            let cv = Collapse::AtSpan {
+                mid: locator,
+                t: &v_k,
+            };
+            row = row + *wv_k * integrand(cv);
+        }
+        inner = inner + sc * row;
+    };
+    for (c0, c1, cm) in column.below {
+        leg(pt(*c0), pt(*c1), *cm);
+    }
+    leg(pt(column.vk), top, column.mid_v);
+    inner
+}
+
 /// **The chord polygon's flux, exactly** — `∫∫ f·w_chord` by Green's
 /// theorem on `G_f(u, v) = ∫_{v₀}^{v} f(u, s) ds`, one chord at a time
 /// (`∫∫ f·w = −∮ G_f du`).
@@ -4689,7 +4774,7 @@ fn chord_polygon_flux(
     wu: &[Interval],
     wv: &[Interval],
 ) -> (Interval, f64) {
-    let (mu, mv) = (wu.len() - 1, wv.len() - 1);
+    let mu = wu.len() - 1;
     let vbreaks = breakpoints(kv_v);
     let mut total = Interval::zero();
     let mut sliver = 0.0f64;
@@ -4716,6 +4801,11 @@ fn chord_polygon_flux(
                 .filter(|b| b[1] > b[0] && b[1] <= vk)
                 .map(|b| (b[0], b[1], b[0].midpoint(b[1])))
                 .collect();
+            let column = Column {
+                below: &below,
+                vk,
+                mid_v,
+            };
             let mut acc = Interval::zero();
             for (j, wu_j) in wu.iter().enumerate() {
                 #[allow(clippy::cast_precision_loss)]
@@ -4724,26 +4814,9 @@ fn chord_polygon_flux(
                     mid: mid_u,
                     t: &u_j,
                 };
-                let mut inner = Interval::zero();
-                let mut leg = |lo: Interval, hi: Interval, locator: f64| {
-                    let sc = hi - lo;
-                    let mut row = Interval::zero();
-                    for (k, wv_k) in wv.iter().enumerate() {
-                        #[allow(clippy::cast_precision_loss)]
-                        let v_k = lo + sc * (pt(k as f64) / pt(mv as f64));
-                        let cv = Collapse::AtSpan {
-                            mid: locator,
-                            t: &v_k,
-                        };
-                        row = row + *wv_k * flux_at(s, su, sv, cu, cv);
-                    }
-                    inner = inner + sc * row;
-                };
-                for (c0, c1, cm) in &below {
-                    leg(pt(*c0), pt(*c1), *cm);
-                }
-                leg(pt(vk), ell(u_j), mid_v);
-                acc = acc + *wu_j * inner;
+                acc = acc
+                    + *wu_j
+                        * column_integral(wv, &column, ell(u_j), &|cv| flux_at(s, su, sv, cu, cv));
             }
             chord = chord + scale_u * acc;
         }
@@ -4752,6 +4825,211 @@ fn chord_polygon_flux(
         total = total + if ub > ua { chord } else { -chord };
     }
     (-total, sliver)
+}
+
+/// The grids the composite arm's remainder reads beyond the integrand's:
+/// the chart's second partials and the two third partials `f_uu` needs.
+struct Curvature<'g> {
+    suu: Option<&'g PatchGrid>,
+    suv: Option<&'g PatchGrid>,
+    svv: Option<&'g PatchGrid>,
+    suuu: Option<&'g PatchGrid>,
+    suuv: Option<&'g PatchGrid>,
+}
+
+/// Enclosures of the chord integrand's first partials at one collapse
+/// pair:
+/// `f_u = ⟨S, S_uu×S_v + S_u×S_uv⟩` and `f_v = ⟨S, S_uv×S_v + S_u×S_vv⟩`
+/// (the `⟨S_u, S_u×S_v⟩` and `⟨S_v, S_u×S_v⟩` terms vanish).
+fn flux_slopes(
+    s: &PatchGrid,
+    su: Option<&PatchGrid>,
+    sv: Option<&PatchGrid>,
+    k: &Curvature<'_>,
+    u: Collapse<'_>,
+    v: Collapse<'_>,
+) -> (Interval, Interval) {
+    let (hs, hu, hv) = (s.vec(u, v), grid_vec(su, u, v), grid_vec(sv, u, v));
+    let huv = grid_vec(k.suv, u, v);
+    let fu = dot(
+        &hs,
+        &rv_add(cross(&grid_vec(k.suu, u, v), &hv), cross(&hu, &huv)),
+    );
+    let fv = dot(
+        &hs,
+        &rv_add(cross(&huv, &hv), cross(&hu, &grid_vec(k.svv, u, v))),
+    );
+    (fu, fv)
+}
+
+/// Enclosure of `f_uu = ⟨S_u, S_uu×S_v⟩ + ⟨S, S_uuu×S_v + 2·S_uu×S_uv +
+/// S_u×S_uuv⟩` at one collapse pair (`⟨S_u, S_u×S_uv⟩` vanishes).
+fn flux_uu(
+    s: &PatchGrid,
+    su: Option<&PatchGrid>,
+    sv: Option<&PatchGrid>,
+    k: &Curvature<'_>,
+    u: Collapse<'_>,
+    v: Collapse<'_>,
+) -> Interval {
+    let (hs, hu, hv) = (s.vec(u, v), grid_vec(su, u, v), grid_vec(sv, u, v));
+    let huu = grid_vec(k.suu, u, v);
+    let twice = cross(&huu, &grid_vec(k.suv, u, v)).map(|c| c + c);
+    dot(&hu, &cross(&huu, &hv))
+        + dot(
+            &hs,
+            &rv_add(
+                rv_add(cross(&grid_vec(k.suuu, u, v), &hv), twice),
+                cross(&hu, &grid_vec(k.suuv, u, v)),
+            ),
+        )
+}
+
+/// **The chord polygon's flux by the composite midpoint rule** — the
+/// outer rule of [`chord_polygon_flux`] for a chart past the exact
+/// rule's window, on the same Green decomposition and the same inner
+/// rule ([`column_integral`]).
+///
+/// Each chord `v = ℓ(u)` is cut at the chart's `u`-knots, at
+/// `uniform(cell) − 1` evenly spaced points, and at both ends of the
+/// certified bracket of every `u` where it crosses a `v`-knot. Outside
+/// those brackets a piece `[p, q]` lies in one `u` cell and, by the
+/// brackets, `ℓ` stays in one `v` span over it, so
+/// `φ(u) = G_f(u, ℓ(u))` is one polynomial there and
+///
+/// ```text
+/// ∫_p^q φ = h·φ(m) + (h³/24)·φ''(η),   φ'' = G_uu + 2ℓ′·f_u + ℓ′²·f_v,
+/// ```
+///
+/// for some `η` in the piece: the midpoint rule's Peano kernel is
+/// non-negative. The remainder is that formula over enclosures of its
+/// terms on the box `[p, q] × ℓ([p, q])`, each read on the located
+/// cells' polynomials at the piece's brackets — `G_uu = ∫_{v₀}^{ℓ} f_uu`
+/// by the same exact inner rule — so `φ''`'s enclosure narrows with the
+/// piece, and the remainder's width with it, at `O(h⁴)` a piece.
+///
+/// A piece inside a crossing bracket, or one too narrow to locate its
+/// span, takes the first-order bound `h·|ℓ − v₀|·sup|f|` on its column
+/// instead.
+///
+/// Returns the enclosure and the summed width of the remainders, the
+/// part of it a finer round removes.
+#[allow(clippy::too_many_arguments)]
+fn chord_polygon_flux_composite(
+    s: &PatchGrid,
+    su: Option<&PatchGrid>,
+    sv: Option<&PatchGrid>,
+    k: &Curvature<'_>,
+    kv_u: &KnotVector,
+    kv_v: &KnotVector,
+    cells: &[TrimCell],
+    uniform: &dyn Fn(&TrimCell) -> usize,
+    wv: &[Interval],
+) -> (Interval, f64) {
+    let ubreaks = breakpoints(kv_u);
+    let vbreaks = breakpoints(kv_v);
+    let v0 = pt(vbreaks[0]);
+    let mut total = Interval::zero();
+    let mut removable = 0.0f64;
+    let mut pad = 0.0f64;
+    for c in cells {
+        let ((ua, va), (ub, vb)) = (c.a, c.b);
+        if ua == ub {
+            continue;
+        }
+        let (lo, hi) = (ua.min(ub), ua.max(ub));
+        let slope = (pt(vb) - pt(va)) / (pt(ub) - pt(ua));
+        let ell = |u: Interval| -> Interval { pt(va) + (u - pt(ua)) * slope };
+        let mut cuts = vec![lo, hi];
+        cuts.extend(ubreaks.iter().copied().filter(|t| *t > lo && *t < hi));
+        let n = uniform(c).max(1);
+        for j in 1..n {
+            #[allow(clippy::cast_precision_loss)]
+            let t = lo + (hi - lo) * (j as f64 / n as f64);
+            if t > lo && t < hi {
+                cuts.push(t);
+            }
+        }
+        let mut gaps: Vec<(f64, f64)> = Vec::new();
+        if vb != va {
+            let (du, dv) = (pt(ub) - pt(ua), pt(vb) - pt(va));
+            for kv in vbreaks.iter().copied() {
+                if kv <= va.min(vb) || kv >= va.max(vb) {
+                    continue;
+                }
+                let us = pt(ua) + (pt(kv) - pt(va)) * du / dv;
+                if !us.is_certified() {
+                    return (Interval::refused(), 0.0);
+                }
+                let (g0, g1) = (us.lo().max(lo), us.hi().min(hi));
+                if g0 <= g1 {
+                    cuts.extend([g0, g1]);
+                    gaps.push((g0, g1));
+                }
+            }
+        }
+        cuts.sort_by(f64::total_cmp);
+        cuts.dedup();
+        let mut chord = Interval::zero();
+        for w in cuts.windows(2) {
+            let (p, q) = (w[0], w[1]);
+            let (pi, qi) = (pt(p), pt(q));
+            let h = qi - pi;
+            let band = Interval::hull(ell(pi), ell(qi));
+            let (Some(over_u), Some(over_col)) = (
+                ParamRange::certified(Interval::hull(pi, qi)),
+                ParamRange::certified(Interval::hull(v0, band)),
+            ) else {
+                return (Interval::refused(), 0.0);
+            };
+            let (cu_over, col) = (Collapse::Over(over_u), Collapse::Over(over_col));
+            let m = p.midpoint(q);
+            let in_gap = gaps.iter().any(|&(g0, g1)| p >= g0 && q <= g1);
+            let located = (p < m && m < q && !in_gap)
+                .then(|| {
+                    let lm = ell(pt(m));
+                    let (vk, vk1) = cell_of(&vbreaks, mid(lm));
+                    (lm.lo() >= vk && lm.hi() <= vk1).then_some((vk, vk1))
+                })
+                .flatten();
+            let Some((vk, vk1)) = located else {
+                let f = flux_at(s, su, sv, cu_over, col);
+                pad += h.hi() * ((band - v0) * f).mag();
+                continue;
+            };
+            let below: Vec<(f64, f64, f64)> = vbreaks
+                .windows(2)
+                .filter(|b| b[1] > b[0] && b[1] <= vk)
+                .map(|b| (b[0], b[1], b[0].midpoint(b[1])))
+                .collect();
+            let column = Column {
+                below: &below,
+                vk,
+                mid_v: vk.midpoint(vk1),
+            };
+            let mi = (pi + qi) * pt(0.5);
+            let cu = Collapse::AtSpan { mid: m, t: &mi };
+            let value = h * column_integral(wv, &column, ell(mi), &|cv| flux_at(s, su, sv, cu, cv));
+            // `φ''` over the piece, every term read on the located
+            // cells' polynomials at the piece's own brackets, so its
+            // enclosure narrows with the piece.
+            let piece = Interval::hull(pi, qi);
+            let cu_piece = Collapse::AtSpan { mid: m, t: &piece };
+            let g_uu =
+                column_integral(wv, &column, band, &|cv| flux_uu(s, su, sv, k, cu_piece, cv));
+            let cv_band = Collapse::AtSpan {
+                mid: column.mid_v,
+                t: &band,
+            };
+            let (fu, fv) = flux_slopes(s, su, sv, k, cu_piece, cv_band);
+            let phi2 = g_uu + pt(2.0) * slope * fu + slope.sqr() * fv;
+            let rem = h * h * h / pt(24.0) * phi2;
+            removable += rem.width();
+            chord = chord + value + rem;
+        }
+        total = total + if ub > ua { chord } else { -chord };
+    }
+    (widen(-total, pad), removable)
 }
 
 /// **The chord polygon's area**, the same Green decomposition with
@@ -4944,9 +5222,16 @@ fn polygon_winding(cells: &[TrimCell]) -> f64 {
 /// Three certified steps, each a widening: the image's CHORDS (its own
 /// knots, then uniform at the round's lever), the LUNES between arc
 /// and chord (`A(B_k)·sup|f|` on the piece box, under the
-/// `props_trim_piece_monotone` row), and the chord polygon EXACTLY
-/// (nested closed Newton–Cotes on Green's `G_f`). The envelope pad is
-/// the rectangle lane's, unchanged in kind.
+/// `props_trim_piece_monotone` row), and the chord polygon by Green's
+/// `G_f`: its inner `v` rule exact, its outer `u` rule exact while
+/// `p_u + p_v ≤ 4` ([`chord_polygon_flux`]) and the composite midpoint
+/// rule with its certified remainder past that
+/// ([`chord_polygon_flux_composite`]), the round's lever cutting an iso
+/// chord into as many pieces as a `General` image has blocks. Both arms
+/// are one engine: the cells, lunes, pads, area and stop are shared,
+/// and the composite arm's remainders join the lunes as the width a
+/// later round removes. The envelope pad is the rectangle lane's,
+/// unchanged in kind.
 ///
 /// Direction of every rounding: boxes are outer enclosures, sups are
 /// hulls, the monotone rate is bounded BELOW, a definite verdict short
@@ -4970,7 +5255,7 @@ fn polygon_winding(cells: &[TrimCell]) -> f64 {
 ///
 /// [`PropsError`] — `accept`'s own refusal, an escalated funnel
 /// decision, a degenerate face, and the typed refusals of the rational
-/// chart, the rational image, the non-monotone piece and the
+/// chart, the rational image, the non-monotone piece and the inner
 /// Newton–Cotes window.
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)] // one engine, kept whole like the cylinder lane
@@ -4999,17 +5284,15 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         });
     }
     let (p_u, p_v) = (kv_u.degree(), kv_v.degree());
-    let (Some(mu), Some(mv)) = ((3 * p_u + 3 * p_v).checked_sub(1), (3 * p_v).checked_sub(1))
-    else {
+    let Some(wv) = (3 * p_v).checked_sub(1).and_then(newton_cotes_weights) else {
         return Err(PropsError::QuadratureUnsupported {
             what: TRIM_NC_WINDOW,
         });
     };
-    let (Some(wu), Some(wv)) = (newton_cotes_weights(mu), newton_cotes_weights(mv)) else {
-        return Err(PropsError::QuadratureUnsupported {
-            what: TRIM_NC_WINDOW,
-        });
-    };
+    // `None`: past the exact outer rule's window, the composite arm.
+    let wu = (3 * p_u + 3 * p_v)
+        .checked_sub(1)
+        .and_then(newton_cotes_weights);
     let s = PatchGrid::base(&TensorChannels::from_fn(
         kv_u,
         kv_v,
@@ -5020,6 +5303,21 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     let suu = su.as_ref().and_then(PatchGrid::deriv_u);
     let suv = su.as_ref().and_then(PatchGrid::deriv_v);
     let svv = sv.as_ref().and_then(PatchGrid::deriv_v);
+    let (suuu, suuv) = if wu.is_none() {
+        (
+            suu.as_ref().and_then(PatchGrid::deriv_u),
+            suu.as_ref().and_then(PatchGrid::deriv_v),
+        )
+    } else {
+        (None, None)
+    };
+    let curvature = Curvature {
+        suu: suu.as_ref(),
+        suv: suv.as_ref(),
+        svv: svv.as_ref(),
+        suuu: suuu.as_ref(),
+        suuv: suuv.as_ref(),
+    };
     let (tb_u, tb_v) = trim_box(chords);
     let (s_hull, h_su, h_sv) = match certified_box(tb_u, tb_v) {
         Some(over) => (
@@ -5033,11 +5331,11 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     let normal = cross(&h_su, &h_sv);
     let sup_f = dot(&s_hull, &normal).mag();
     // Whole-box `sup|f|` and `sup g` are the PADS' levers only — the
-    // gap, the vertex connectors, the sliver. The area RULE reads its
-    // own per-cell hulls ([`area_cell`]): a whole-box hull inside a
-    // fixed-resolution midpoint rule is a pad that does not shrink with
-    // the cell, which is how an ordinary curved chart came out
-    // `DegenerateFace`.
+    // vertex connectors and the sliver; the gap's is the column's,
+    // below. The area RULE reads its own per-cell hulls ([`area_cell`]):
+    // a whole-box hull inside a fixed-resolution midpoint rule is a pad
+    // that does not shrink with the cell, which is how an ordinary
+    // curved chart came out `DegenerateFace`.
     let sup_g = (normal[0].sqr() + normal[1].sqr() + normal[2].sqr()).sqrt();
     // The chart's own metric RATE, bounded above over the trim box:
     // the door crosses each cell's chart variation to metres with it
@@ -5048,23 +5346,41 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     let (rate_u, rate_v) = (norm_hi(h_su), norm_hi(h_sv));
     // `|G_f| ≤ sup|f|·(v extent)` and `|G_g| ≤ sup g·(v extent)`: the
     // lever the closure gap is paid at, `G` being what Green integrates
-    // along `du`.
+    // along `du`. The sups are over the COLUMN `G` integrates, the trim
+    // box's `u` extent from the domain's `v₀` up, not over the trim box.
     let v_reach = (kv_v.domain().1 - kv_v.domain().0).abs();
+    let (col_s, col_su, col_sv) =
+        match certified_box(tb_u, Interval::hull(pt(kv_v.domain().0), tb_v)) {
+            Some(over) => (
+                s.vec(over.0, over.1),
+                grid_vec(su.as_ref(), over.0, over.1),
+                grid_vec(sv.as_ref(), over.0, over.1),
+            ),
+            None => (refused_vec(), refused_vec(), refused_vec()),
+        };
+    let col_normal = cross(&col_su, &col_sv);
+    let col_f = dot(&col_s, &col_normal).mag();
+    let col_g = (col_normal[0].sqr() + col_normal[1].sqr() + col_normal[2].sqr())
+        .sqrt()
+        .mag();
     // A round's cells are its iso chords and, per `General` image, the
     // round's blocks: the schedule's count, before a monotone bisection
-    // adds any.
+    // adds any. The composite arm cuts an iso chord into as many pieces
+    // as a `General` image has blocks, so its every edge counts so.
     let cost = |round: usize| {
-        w_trimmed(p_u, p_v)
-            * chords
-                .iter()
-                .map(|c| {
-                    if c.piece.is_some() {
-                        TRIM_INIT_PIECES << round
-                    } else {
-                        1
-                    }
-                })
-                .sum::<usize>()
+        let per_edge = |c: &TrimChord| {
+            if c.piece.is_some() || wu.is_none() {
+                TRIM_INIT_PIECES << round
+            } else {
+                1
+            }
+        };
+        let weight = if wu.is_some() {
+            w_trimmed(p_u, p_v)
+        } else {
+            w_trimmed_composite(p_u, p_v)
+        };
+        weight * chords.iter().map(per_edge).sum::<usize>()
     };
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
@@ -5147,8 +5463,34 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             lune_g += a * (hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).sqrt().mag();
         }
         let winding = polygon_winding(&cells);
-        let (flux_raw, sliver) =
-            chord_polygon_flux(&s, su.as_ref(), sv.as_ref(), kv_u, kv_v, &cells, &wu, &wv);
+        let (flux_raw, sliver, remainder) = match &wu {
+            Some(wu) => {
+                let (flux, sliver) =
+                    chord_polygon_flux(&s, su.as_ref(), sv.as_ref(), kv_u, kv_v, &cells, wu, &wv);
+                (flux, sliver, 0.0)
+            }
+            None => {
+                let uniform = |c: &TrimCell| {
+                    if chords[c.edge].piece.is_none() {
+                        pieces
+                    } else {
+                        1
+                    }
+                };
+                let (flux, remainder) = chord_polygon_flux_composite(
+                    &s,
+                    su.as_ref(),
+                    sv.as_ref(),
+                    &curvature,
+                    kv_u,
+                    kv_v,
+                    &cells,
+                    &uniform,
+                    &wv,
+                );
+                (flux, 0.0, remainder)
+            }
+        };
         // **Two of the terms below are not independently guarded, and
         // saying so is cheaper than implying they are.** Dropping the
         // GAP term reds no row: inside the closure check's admitted
@@ -5173,7 +5515,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         // the triangle it bounds, but not the ratified letter.
         let pad_f = lune_f
             + (vertex_pad + sliver) * sup_f
-            + gap_u * sup_f * v_reach
+            + gap_u * col_f * v_reach
             + boundary_defect * p_bound;
         let flux = widen(flux_raw, pad_f);
         let area = *area_at_first.get_or_insert_with(|| {
@@ -5192,15 +5534,15 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                 signed,
                 lune_g
                     + (vertex_pad + sliver) * sup_g.mag()
-                    + gap_u * sup_g.mag() * v_reach
+                    + gap_u * col_g * v_reach
                     + boundary_defect,
             )
         });
         let bounds = FaceCutBounds { flux, area };
-        // The lunes, widening the flux both ways, are the part of its
-        // width a later round removes; the vertex, sliver, gap and
-        // envelope pads are not.
-        let stop = run.stop(round, bounds, 2.0 * lune_f);
+        // The lunes, widening the flux both ways, and the composite
+        // arm's remainders are the part of its width a later round
+        // removes; the vertex, sliver, gap and envelope pads are not.
+        let stop = run.stop(round, bounds, 2.0 * lune_f + remainder);
         let accepted = accept(&bounds, stop)?;
         if accepted {
             // The perimeter this gate levers by is the DOOR's, derived
@@ -7973,14 +8315,15 @@ mod tests {
         }
     }
 
-    /// **Q6 — a chart outside the Newton–Cotes window refuses typed.**
+    /// **Q6 — past the exact outer rule's window the composite arm
+    /// answers; past the inner rule's window the lane refuses typed.**
     ///
-    /// The chord integrand's `u`-degree is `3p_u + 3p_v − 1`, and the
-    /// exact closed rule's node count tops out at 12, so a
-    /// degree-`(3, 2)` chart is past the window. The composite
-    /// fallback is `work/trim/trimmed-quadrature-composite-rounds.md`;
-    /// a silent composite here would be a wide answer wearing an exact
-    /// rule's name.
+    /// The chord integrand's `u`-degree is `3p_u + 3p_v − 1` and the
+    /// exact closed rule's interval count tops out at 12, so a
+    /// degree-`(3, 2)` chart takes the composite outer rule. On the
+    /// flat chart `(u, v, 1)` (`f = 1`) over half the square it holds
+    /// `1/2`. The inner rule stays exact and needs `3p_v − 1 ≤ 12`, so a
+    /// degree-`(1, 5)` chart refuses at the window it names.
     #[test]
     fn q6_a_chart_past_the_newton_cotes_window_refuses_typed() {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
@@ -7997,14 +8340,37 @@ mod tests {
             iso((1.0, 0.0), (1.0, 1.0)),
             general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
         ];
+        let b = met(trimmed(
+            &ku,
+            &kvv,
+            &control,
+            &w,
+            &chords,
+            RoundWindow::SCHEDULE,
+        ))
+        .expect("Q6: degree (3, 2) takes the composite arm");
+        encloses(b.flux, 0.5, "Q6 (3, 2) flux");
+        encloses(b.area, 0.5, "Q6 (3, 2) area");
+
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut knots = vec![0.0; 6];
+        knots.extend([1.0; 6]);
+        let kvv = KnotVector::clamped(knots, 5).unwrap();
+        let mut control = Vec::new();
+        for u in [0.0, 1.0] {
+            for j in 0..6 {
+                control.push([pt(u), pt(f64::from(j) / 5.0), pt(1.0)]);
+            }
+        }
+        let w = vec![1.0; 12];
         match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE) {
             Err(PropsError::QuadratureUnsupported { what }) => {
                 assert!(
-                    what.contains("Newton–Cotes window"),
+                    what == TRIM_NC_WINDOW,
                     "Q6: the refusal names its own window: {what}"
                 );
             }
-            other => panic!("Q6: degree (3, 2) is past the exact rule, got {other:?}"),
+            other => panic!("Q6: degree (1, 5) is past the inner rule, got {other:?}"),
         }
     }
 
@@ -8087,7 +8453,7 @@ mod tests {
     /// P5/P11, whose curved chart this is.
     #[test]
     fn q8_a_curved_chart_area_agrees_with_the_rectangle_lane() {
-        for (pu, pv) in [(1usize, 2usize), (2, 2)] {
+        for (pu, pv) in [(1usize, 2usize), (2, 2), (3, 2), (3, 3)] {
             let (ku, kvv, control, w) = curved_chart(pu, pv);
             let rect = rectangle(&ku, &kvv, &control, &w);
             // Both triangles of the diagonal, the General walked each
@@ -8372,6 +8738,141 @@ mod tests {
         // (1,1) — and the gap pad `|Δu|·sup|G_f|` is what reaches it
         // from the walk that was actually handed over.
         encloses(b.flux, c * 0.5, "Q11 in-bracket flux");
+    }
+
+    /// The bidegree-`(3, 2)` Bézier chart `S = (3u, 2v, z(u, v))` on the
+    /// unit square, `z` the Bernstein patch of the height net `zs` (rows
+    /// in `u`), and the closed form of its flux over the triangle
+    /// `(0,0) → (1,0) → (1,1)`. The chord integrand is
+    /// `f = 6(z − u·z_u − v·z_v)`, so `z`'s monomial `u^a v^b` integrates
+    /// to `6(1 − a − b)/((b + 1)(a + b + 2))`.
+    fn cubic_by_quadratic(
+        zs: [[f64; 3]; 4],
+    ) -> (KnotVector, KnotVector, Vec<RVec3>, Vec<f64>, f64) {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kvv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let mut control = Vec::new();
+        for (i, row) in zs.iter().enumerate() {
+            for (j, z) in row.iter().enumerate() {
+                #[allow(clippy::cast_precision_loss)]
+                control.push([pt(i as f64), pt(j as f64), pt(*z)]);
+            }
+        }
+        let binom = |n: usize, k: usize| -> f64 {
+            (0..k).fold(1.0, |acc, m| {
+                #[allow(clippy::cast_precision_loss)]
+                let r = acc * (n - m) as f64 / (m + 1) as f64;
+                r
+            })
+        };
+        // The coefficient of `t^k` in `B_i^n(t)`.
+        let mono = |n: usize, i: usize, k: usize| -> f64 {
+            if k < i {
+                return 0.0;
+            }
+            let sign = if (k - i) % 2 == 0 { 1.0 } else { -1.0 };
+            sign * binom(n, i) * binom(n - i, k - i)
+        };
+        let mut truth = 0.0;
+        for a in 0..=3 {
+            for b in 0..=2 {
+                let mut c = 0.0;
+                for (i, row) in zs.iter().enumerate() {
+                    for (j, z) in row.iter().enumerate() {
+                        c += z * mono(3, i, a) * mono(2, j, b);
+                    }
+                }
+                #[allow(clippy::cast_precision_loss)]
+                let (af, bf) = (a as f64, b as f64);
+                truth += 6.0 * c * (1.0 - af - bf) / ((bf + 1.0) * (af + bf + 2.0));
+            }
+        }
+        (ku, kvv, control, vec![1.0; 12], truth)
+    }
+
+    /// The height net of the composite rows: curved enough that the
+    /// midpoint rule's own error is far above the enclosure's other
+    /// widths at the first rounds.
+    const CUBIC_HEIGHTS: [[f64; 3]; 4] = [
+        [0.0, 0.5, 0.25],
+        [1.0, -0.5, 0.75],
+        [-0.25, 1.0, 0.5],
+        [0.5, 0.0, -0.5],
+    ];
+
+    fn the_triangle() -> Vec<TrimChord> {
+        vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            iso((1.0, 1.0), (0.0, 0.0)),
+        ]
+    }
+
+    /// **Q14 — the composite arm holds a closed form at every round,
+    /// and narrows at second order.**
+    ///
+    /// The degree-`(3, 2)` chart [`cubic_by_quadratic`] is past the
+    /// exact outer rule's window. Its diagonal chord is the one the rule
+    /// integrates (`G_f = 0` along `v = 0`, and the vertical chord has
+    /// no `du`), cut into `8·2^r` pieces at round `r`. Each round's
+    /// enclosure holds the closed form, and each narrows the last by
+    /// about eight: the remainder `h³/24·φ''` is a correction whose own
+    /// width is `O(h⁴)` a piece, over `1/h` pieces.
+    #[test]
+    fn q14_the_composite_arm_holds_a_closed_form_at_every_round() {
+        let (ku, kvv, control, w, truth) = cubic_by_quadratic(CUBIC_HEIGHTS);
+        let chords = the_triangle();
+        let mut widths = Vec::new();
+        for round in 0..3 {
+            let run = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(round))
+                .expect("Q14: the composite arm answers");
+            encloses(run.bounds.flux, truth, &format!("Q14 round {round} flux"));
+            widths.push(run.bounds.flux.width());
+        }
+        for pair in widths.windows(2) {
+            assert!(
+                pair[1] < 0.15 * pair[0] && pair[1] > 0.1 * pair[0],
+                "Q14: a round narrows the last by about eight (third order): {widths:?}"
+            );
+        }
+        let b = met(trimmed(
+            &ku,
+            &kvv,
+            &control,
+            &w,
+            &chords,
+            RoundWindow::SCHEDULE,
+        ))
+        .expect("Q14: the composite arm reaches the target");
+        encloses(b.flux, truth, "Q14 converged flux");
+    }
+
+    /// **Q15 — a composite face that never meets its caller stops at the
+    /// work wall, holding its closed form.** A caller that accepts no
+    /// round runs the composite arm until the next round would pass
+    /// `FACE_WORK_WALL`; the round it hands back is the narrowest, still
+    /// an enclosure (the reporting adapter refuses it as
+    /// `QuadratureBudget`).
+    #[test]
+    fn q15_a_composite_face_short_of_its_caller_stops_at_the_wall() {
+        let (ku, kvv, control, w, truth) = cubic_by_quadratic(CUBIC_HEIGHTS);
+        let run = trimmed_patch_face_rounds::<f64>(
+            &ku,
+            &kvv,
+            &control,
+            &w,
+            &the_triangle(),
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::SCHEDULE,
+            &mut |_, _| Ok(false),
+        )
+        .expect("Q15: the composite arm answers");
+        assert_eq!(
+            run.end,
+            LaneEnd::Wall,
+            "Q15: the wall ends the run: {run:?}"
+        );
+        encloses(run.bounds.flux, truth, "Q15 flux at the wall");
     }
 
     /// **Q13 — an in-band monotone verdict ESCALATES.**
