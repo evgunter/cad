@@ -749,7 +749,9 @@ fn a_lofted_one_segment_wall_measures_as_the_two_arc_wall() {
             // read 3.6651914291769425 ± 4.415e-9). Both refused at
             // round 0 while a lane refused on a predicted last round.
             // The form that measures is still held to the closed form.
-            (None, Some(two)) if tol().eps() < 1e-9 => {
+            // `None` is only ever a `QuadratureBudget` refusal: `measure`
+            // maps that refusal to it and panics on every other.
+            (None, Some(two)) if tol().eps() == 1e-12 => {
                 if let Some(want) = want {
                     close(two, want, &format!("{what}, two arcs"));
                 }

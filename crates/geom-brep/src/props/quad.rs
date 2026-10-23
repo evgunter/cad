@@ -97,8 +97,10 @@
 //!
 //! The rounds are independent recomputations, and a round's stop reads
 //! that round alone, so the windows of one face compose: running
-//! `0..=k` and then `k+1..=…` ([`RoundWindow`]) evaluates the pieces the
-//! uninterrupted run evaluates, once each, and ends in the same place.
+//! `0..=k` and then `k+1..=…` ([`RoundWindow`]) runs each round the
+//! uninterrupted run runs, once, and ends in the same place. Each entry
+//! re-derives the face's setup (its hull blocks, its spans), which the
+//! uninterrupted run derives once.
 //! A caller deciding a SIGN can stop between rounds and resume.
 //!
 //! **One arm has no rounds to address and ignores the window's
@@ -179,18 +181,24 @@ pub const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 /// cumulatively ([`crate::descent::Work`]): a round runs only if every
 /// round before it and it fit.
 ///
-/// It sits at the costliest face the per-lane round caps it replaces
-/// admitted, MEASURED rather than derived: the cumulative work every
-/// face spent to its accepting round, under those caps, over the
-/// geom-brep, topo and sweep suites (slow set included), the tour and
-/// the python suite at ε = 1e-9, 1e-12 and 1e-6. The maximum is
-/// 14,243,680: `demos/tour`'s `lily_leaf_a`, the 17-station lofted long
-/// leaf, whose knot-cut composite wall certifies at round 7 at ε = 1e-9.
-/// A knot adds a cell to every round, so a knot-cut face spends more
-/// per round than a rectangle no knot cuts (that rectangle through
-/// round 7 is 13,980,800, and stopped this leaf at round 6). Rounded
-/// up to 14,250,000, so no face that converged under the caps stops
-/// short of its round.
+/// **Where it sits: calibrated, not derived.** It is the cumulative
+/// work of the costliest face in the measured corpus that converges
+/// under the per-lane round caps it replaces. The corpus is the
+/// geom-brep, topo and sweep suites with the slow set, the tour and the
+/// python suite, at ε = 1e-9, 1e-12 and 1e-6. That face is `demos/tour`'s
+/// `lily_leaf_a`, the 17-station lofted long leaf: its knot-cut
+/// composite wall certifies at round 7 at ε = 1e-9 after 14,243,680.
+/// The wall is that figure rounded up.
+///
+/// **It bounds work, not rounds**, so it gives a face fewer rounds the
+/// more each of its rounds costs. A face costlier per round than the
+/// calibrating one — more knots, chords, edges or spirics — stops at
+/// [`LaneStop::Wall`] a round or more before the round cap it replaces
+/// would have, and hands back that round's sound bracket rather than
+/// its number. The review of PR 5589 executed two: a quarter torus at
+/// 12× rebuilt on 9×9 conic spans (its cap certified it at round 7; it
+/// stops at round 6) and a flat chart trimmed by a hexagon of curved
+/// arcs (round 4).
 pub const FACE_WORK_WALL: usize = 14_250_000;
 
 /// **The floor's share**, `2⁻¹⁰`: a lane is at its floor once the part
@@ -199,6 +207,12 @@ pub const FACE_WORK_WALL: usize = 14_250_000;
 /// target lies within that share above its floor, about `1·ε` against
 /// the band's `K·ε` at the reporting target `1024·ε`, so such a face
 /// reads in-band, never certified.
+///
+/// The stop reads that round alone, and it assumes the irremovable
+/// part does not shrink in a later round (the pads are fixed per face
+/// and the arithmetic grows with the cell count). Nothing asserts that:
+/// a lane whose irremovable part did shrink would floor a round early,
+/// with a sound but wider bracket.
 pub const FLOOR_SHARE: f64 = 1.0 / FLOOR_SHARE_INV;
 /// `1 /` [`FLOOR_SHARE`], exact: the floor test is `removable · 1024 ≤ width`.
 const FLOOR_SHARE_INV: f64 = 1024.0;
@@ -212,8 +226,37 @@ const W_RATIONAL_COMPOSITE: usize = 10;
 /// Weight of one cell of the rational lane's exact-v arm (a u cell
 /// against one v span, integrated exactly).
 const W_RATIONAL_EXACT_V: usize = 58;
-/// Weight of one chord cell of the trimmed lane.
-const W_TRIMMED: usize = 5300;
+/// Weight of one chord cell of the trimmed lane, by the chart's
+/// bidegree `(p_u, p_v)`, read at face entry. A cell is one nested
+/// Newton–Cotes pass of `(3p_u + 3p_v)·(3p_v)` chart evaluations, so its
+/// cost follows the bidegree and not the chart's shape: a flat and a
+/// curved bilinear chart cost the same (0.20 ms a cell, measured), a
+/// bicubic-in-v one fifty times that. Measured on this box in release
+/// (a timing probe, reverted), rounds 5 and 6 of one arc trim, twice:
+/// the dearest of the four readings, over a rational composite cell's
+/// 9.1 µs (the unit's ten). The readings vary by up to 1.6× run to run,
+/// so the dearest is taken, as for every other lane. Bidegrees past the
+/// Newton–Cotes window (`p_u + p_v > 4` or `p_v > 4`) never reach a
+/// round; they take the dearest weight.
+///
+/// | `(p_u, p_v)` | ms / cell | weight |
+/// |---|---|---|
+/// | (1, 1) | 0.471 | 520 |
+/// | (2, 1) | 1.100 | 1 210 |
+/// | (3, 1) | 2.971 | 3 300 |
+/// | (1, 2) | 3.905 | 4 300 |
+/// | (2, 2) | 6.064 | 6 700 |
+/// | (1, 3) | 10.59 | 11 700 |
+const fn w_trimmed(p_u: usize, p_v: usize) -> usize {
+    match (p_u, p_v) {
+        (1, 1) => 520,
+        (2, 1) => 1_210,
+        (3, 1) => 3_300,
+        (1, 2) => 4_300,
+        (2, 2) => 6_700,
+        _ => 11_700,
+    }
+}
 
 /// **Whether flux enclosure `a` is narrower than `b`** — the one rule
 /// a face keeps its narrowest round by, within a lane's call
@@ -230,8 +273,9 @@ pub fn narrower(a: Interval, b: Interval) -> bool {
 /// carries over but the piece count. So a window is exactly a sub-range
 /// of the one schedule, its enclosures are the enclosures that round
 /// would have produced inside an uninterrupted run, and a face run as
-/// `0..=k` then `k+1..=…` evaluates every piece the uninterrupted run
-/// evaluates, once each. What a round's stop reads is a function of the
+/// `0..=k` then `k+1..=…` runs every round the uninterrupted run runs,
+/// once each; each entry re-derives the face's setup, which the
+/// uninterrupted run derives once. What a round's stop reads is a function of the
 /// round alone (its own split of the width, and the work through it), so
 /// a window stops where the uninterrupted run would.
 #[derive(Clone, Copy, Debug)]
@@ -5010,7 +5054,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     // round's blocks: the schedule's count, before a monotone bisection
     // adds any.
     let cost = |round: usize| {
-        W_TRIMMED
+        w_trimmed(p_u, p_v)
             * chords
                 .iter()
                 .map(|c| {
@@ -5336,7 +5380,7 @@ mod tests {
     fn the_work_wall_buys_each_lane_its_measured_rounds() {
         type Cost<'a> = &'a dyn Fn(usize) -> usize;
         let square = |w: usize| move |r: usize| w * (QUAD2_INIT_PIECES << r).pow(2);
-        let rows: [(&str, Cost<'_>, usize); 6] = [
+        let rows: [(&str, Cost<'_>, usize); 7] = [
             ("rational composite", &square(W_RATIONAL_COMPOSITE), 7),
             ("integral composite", &square(W_INTEGRAL_COMPOSITE), 6),
             (
@@ -5355,8 +5399,13 @@ mod tests {
                 13,
             ),
             (
-                "trimmed, 1 image and 2 iso chords",
-                &|r| W_TRIMMED * ((TRIM_INIT_PIECES << r) + 2),
+                "trimmed bilinear chart, 1 image and 2 iso chords",
+                &|r| w_trimmed(1, 1) * ((TRIM_INIT_PIECES << r) + 2),
+                10,
+            ),
+            (
+                "trimmed biquadratic chart, 1 image and 2 iso chords",
+                &|r| w_trimmed(2, 2) * ((TRIM_INIT_PIECES << r) + 2),
                 7,
             ),
         ];
@@ -7511,6 +7560,86 @@ mod tests {
         );
     }
 
+    /// A flat chart (`z = 1`) trimmed by a regular `n`-gon of curved
+    /// degree-2 `General` arcs about `(0.5, 0.5)`, radius 0.35, each
+    /// arc's control point `b` off its chord's midpoint, outward (PR
+    /// 5589's second reviewer's probe), and its closed-form area: the
+    /// polygon plus `n` parabolic segments of `chord·b/3` each. On the
+    /// flat chart at height 1 the flux is the area.
+    fn n_gon_of_arcs(n: usize, b: f64) -> (Vec<TrimChord>, f64) {
+        let pts: Vec<(f64, f64)> = (0..n)
+            .map(|k| {
+                #[allow(clippy::cast_precision_loss)]
+                let t = core::f64::consts::TAU * k as f64 / n as f64;
+                (0.5 + 0.35 * t.cos(), 0.5 + 0.35 * t.sin())
+            })
+            .collect();
+        let chords = (0..n)
+            .map(|k| {
+                let (a, c) = (pts[k], pts[(k + 1) % n]);
+                let m = ((a.0 + c.0) / 2.0, (a.1 + c.1) / 2.0);
+                let (dx, dy) = (m.0 - 0.5, m.1 - 0.5);
+                let l = dx.hypot(dy);
+                general(&[a, (m.0 + b * dx / l, m.1 + b * dy / l), c], 0.0)
+            })
+            .collect();
+        #[allow(clippy::cast_precision_loss)]
+        let nf = n as f64;
+        let polygon = 0.5 * nf * 0.35 * 0.35 * (core::f64::consts::TAU / nf).sin();
+        let chord = 2.0 * 0.35 * (core::f64::consts::PI / nf).sin();
+        (chords, polygon + nf * chord * b / 3.0)
+    }
+
+    /// The trimmed lane on `chords` over the flat chart at height 1,
+    /// against the default ε's target whatever the run's ε.
+    fn n_gon_run(chords: &[TrimChord]) -> LaneRun {
+        let (ku, kvv, control, w) = flat_chart(1.0);
+        trimmed_patch_face_rounds::<f64>(
+            &ku,
+            &kvv,
+            &control,
+            &w,
+            chords,
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::SCHEDULE,
+            &mut to_target(1e-9),
+        )
+        .expect("the n-gon of arcs has an enclosure")
+    }
+
+    /// **A trimmed cell is priced by its chart's bidegree.** A flat
+    /// bilinear chart's cell costs about a fourteenth of a biquadratic
+    /// one's, so the triangle, square and hexagon of curved arcs on it
+    /// (PR 5589's second reviewer's witnesses, which a single
+    /// biquadratic weight stopped at rounds 5, 5 and 4) certify at
+    /// round 6, where the round caps certified them, holding their
+    /// closed forms.
+    #[test]
+    fn n_gons_of_arcs_on_a_flat_chart_certify_at_their_round() {
+        for n in [3, 4, 6] {
+            let (chords, truth) = n_gon_of_arcs(n, 0.016);
+            let run = n_gon_run(&chords);
+            assert!(
+                matches!(run.end, LaneEnd::Accepted(_)) && run.round == 6,
+                "the {n}-gon certifies at round 6: {run:?}"
+            );
+            encloses(run.bounds.flux, truth, &format!("{n}-gon flux"));
+        }
+    }
+
+    /// **The wall bounds work, not rounds** (`FACE_WORK_WALL`'s doc): a
+    /// face costlier per round than the calibrating one gets fewer
+    /// rounds, and stops at the wall with a sound bracket. Thirty-two
+    /// curved arcs at `b = 0.03` spend round 6's work by round 5, and
+    /// the bracket round 5 hands back holds the closed form.
+    #[test]
+    fn a_32_gon_of_arcs_stops_at_the_wall_holding_its_closed_form() {
+        let (chords, truth) = n_gon_of_arcs(32, 0.03);
+        let run = n_gon_run(&chords);
+        assert_eq!((run.end, run.rounds), (LaneEnd::Wall, 6), "{run:?}");
+        encloses(run.bounds.flux, truth, "32-gon flux");
+    }
+
     /// **The trimmed lane's envelope is a floor.** A wide envelope on
     /// the arc chord puts a pad under every round's width that no round
     /// removes and that the lunes fall under, so the lane stops at its
@@ -8355,6 +8484,51 @@ mod tests {
         );
         assert_eq!(count, 19);
         assert_eq!(rnet.len(), 19);
+    }
+
+    /// The quarter cylinder `x² + y² = 1`, `0 ≤ z ≤ 2` as ONE rational
+    /// Bézier span by one linear span: the exact-v arm, one v span.
+    fn one_span_quarter_cylinder() -> (KnotVector, KnotVector, Vec<RVec3>, Vec<f64>) {
+        let kv_u = KnotVector::unit_segment(const { core::num::NonZeroUsize::new(2).unwrap() });
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let mut net = Vec::new();
+        let mut weights = Vec::new();
+        for ([x, y], h) in [([1.0, 0.0], 1.0), ([1.0, 1.0], w), ([0.0, 1.0], 1.0)] {
+            for z in [0.0, 2.0] {
+                net.push([pt(x), pt(y), pt(z)]);
+                weights.push(h);
+            }
+        }
+        (kv_u, kv_v, net, weights)
+    }
+
+    /// **The wall is cumulative, at the lane.** Never accepted, the
+    /// one-span quarter cylinder's exact-v arm runs to its wall: rounds
+    /// 0 to 10 spend 7.6e6 of the 1.425e7, and round 11 alone (7.6e6)
+    /// would take it past, so it stops after 11 rounds. A wall read
+    /// per round would admit round 11 and stop after 12.
+    #[test]
+    fn a_never_accepted_face_stops_at_its_cumulative_wall() {
+        let (ku, kv, net, w) = one_span_quarter_cylinder();
+        let run = nurbs_patch_face_rounds::<f64>(
+            &ku,
+            &kv,
+            &net,
+            &w,
+            (0.0, 1.0, 0.0, 1.0),
+            2.0f64.mul_add(2.0, core::f64::consts::PI),
+            0.0,
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::SCHEDULE,
+            &mut |_, _| Ok(false),
+        )
+        .expect("the quarter cylinder has an enclosure");
+        assert_eq!(
+            (run.end, run.round, run.rounds),
+            (LaneEnd::Wall, 10, 11),
+            "{run:?}"
+        );
     }
 
     /// The rational lane's round-0 enclosure of the quarter cylinder

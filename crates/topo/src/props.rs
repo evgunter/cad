@@ -926,8 +926,12 @@ impl<T: Decide> PastTarget<'_, T> {
     /// recomputations, so each later round's enclosure is as sound as
     /// the reporting one, and the face keeps the narrower of the two
     /// ([`FaceRun::advance`]). Answers whether any face moved:
-    /// `false` is the end of the refinement. A round that refuses
-    /// leaves every face as it was and ends the refinement — the
+    /// `false` is the end of the refinement. A face whose next round
+    /// stops short of the target (its floor or its work wall) keeps its
+    /// narrower held enclosure and the number it met the target with,
+    /// and refines no further (`converged_at` is the new round's,
+    /// `None`). A round that fails outright (an error from the walk)
+    /// leaves every face as it was and ends the refinement. The
     /// enclosures held are sound either way.
     pub(crate) fn refine(&mut self) -> bool {
         let walk = &mut self.walk;
@@ -2587,6 +2591,115 @@ mod face_walk_composition_tests {
 
     const NAMES: [&str; 4] = ["walk_slot_a", "walk_slot_b", "walk_slot_c", "walk_slot_d"];
 
+    /// A face's round `round` with flux enclosure `[-w/2, w/2] + 10`
+    /// and a unit-ish area, carrying `refusal` and `met` (whether the
+    /// round met the reporting target).
+    fn round_run(round: usize, w: f64, refusal: Option<PropsError>, met: bool) -> FaceRun<f64> {
+        let flux = Interval::from_bounds(10.0 - 0.5 * w, 10.0 + 0.5 * w);
+        let area = Interval::from_bounds(3.0, 3.0);
+        FaceRun {
+            face: FaceKey::null(),
+            contribution: FaceFlux {
+                flux: 10.0,
+                area: 3.0,
+                flux_pad: 0.5 * w,
+                area_pad: 0.0,
+                enclosure: Some((flux, area)),
+            },
+            open_at: (refusal.is_none() && !met).then_some(round),
+            converged_at: met.then_some(round),
+            refinable: met,
+            taken_at: Some(round),
+            refusal,
+        }
+    }
+
+    fn budget(width_len: f64, rounds: usize) -> Option<PropsError> {
+        Some(PropsError::QuadratureBudget {
+            width_len,
+            target_len: 1e-9,
+            rounds,
+        })
+    }
+
+    fn width(run: &FaceRun<f64>) -> f64 {
+        use geom_core::interval::certification::Certification;
+        run.contribution
+            .enclosure
+            .expect("a quadrature face")
+            .0
+            .width()
+    }
+
+    /// **A face walked one round at a time ends where the whole-schedule
+    /// call does**: the lane answers its narrowest round, so the walk
+    /// keeps the narrowest enclosure it has held, including when a later
+    /// round is wider. Rounds of widths 4, 1, 3 and 2 end on the round of
+    /// width 1, with the last round's place to resume.
+    #[test]
+    fn a_face_walked_round_by_round_keeps_its_narrowest_enclosure() {
+        let mut run = round_run(0, 4.0, None, false);
+        for (round, w) in [(1, 1.0), (2, 3.0), (3, 2.0)] {
+            run.advance(round_run(round, w, None, false));
+        }
+        assert!(
+            (width(&run) - 1.0).abs() < 1e-12,
+            "the walk dropped its narrowest round: width {}",
+            width(&run)
+        );
+        assert_eq!(run.taken_at, Some(1), "the kept round is named");
+        assert_eq!(
+            run.open_at,
+            Some(3),
+            "where it goes next is the last round's"
+        );
+    }
+
+    /// **The refusal is the kept enclosure's.** A wider round that stops
+    /// short carries its budget refusal, but its width is rewritten to
+    /// the narrower held enclosure's, so the reporting door's payload is
+    /// that enclosure's.
+    #[test]
+    fn a_kept_enclosures_refusal_carries_its_own_width() {
+        let mut run = round_run(4, 1.0, None, false);
+        run.advance(round_run(5, 2.0, budget(9.0, 6), false));
+        let want = geom_brep::props::quad::mean_boundary_displacement(
+            Interval::from_bounds(9.5, 10.5),
+            Interval::from_bounds(3.0, 3.0),
+        )
+        .expect("a lever");
+        match run.refusal {
+            Some(PropsError::QuadratureBudget {
+                width_len, rounds, ..
+            }) => {
+                assert_eq!(width_len, want, "the payload is the held round's width");
+                assert_eq!(rounds, 6, "the receipt is the rounds run");
+            }
+            other => panic!("the stopped face refuses on budget: {other:?}"),
+        }
+        assert_eq!(run.taken_at, Some(4));
+    }
+
+    /// **A round that met the target keeps its number** when the next,
+    /// wider round stops short: the face refuses nothing, and refines
+    /// no further (`PastTarget::refine`'s case).
+    #[test]
+    fn a_met_round_keeps_its_number_past_a_round_that_stops_short() {
+        let mut run = round_run(3, 1.0, None, true);
+        run.advance(round_run(4, 2.0, budget(9.0, 5), false));
+        assert!(
+            run.refusal.is_none(),
+            "the met round's number stands: {:?}",
+            run.refusal
+        );
+        assert_eq!(run.converged_at, None, "and the face refines no further");
+        assert_eq!(run.taken_at, Some(3));
+        // A narrower round that met the target replaces a wider held one.
+        let mut run = round_run(3, 2.0, None, true);
+        run.advance(round_run(4, 1.0, None, true));
+        assert_eq!((run.taken_at, run.converged_at), (Some(4), Some(4)));
+    }
+
     #[test]
     fn every_recording_splices_in_arena_order_when_no_face_refuses() {
         let decided = slots(&NAMES, None);
@@ -3265,22 +3378,41 @@ struct FaceRun<T> {
 
 impl<T> FaceRun<T> {
     /// This face's next round, `run`, in place — keeping the narrower
-    /// enclosure. A round that met the target is the face's answer; one
-    /// that did not keeps the enclosure this run holds where that is
-    /// narrower by its flux width, as the lane keeps it within one call,
-    /// so a face walked one round at a time ends where a whole-schedule
-    /// call does. Where the run goes next is the new round's.
+    /// enclosure, always, by its flux width, as the lane keeps it within
+    /// one call: a face walked one round at a time ends where a
+    /// whole-schedule call does.
+    ///
+    /// Two kinds of field, and they come from different rounds:
+    ///
+    /// - **Where the run goes next** (`open_at`, `converged_at`,
+    ///   `refinable`) is always the new round's: it is the round the
+    ///   lane just ran, and a resumption follows it.
+    /// - **The answer** (`contribution`, `taken_at`, `refusal`) is the
+    ///   kept enclosure's. When the held round is narrower it stays,
+    ///   and the refusal is made to match it: a held round that met the
+    ///   reporting target keeps its number, so a later round that
+    ///   stopped short refuses nothing; otherwise the new round's
+    ///   budget refusal carries the held enclosure's width, so the
+    ///   reporting door's payload is the kept enclosure's.
     fn advance(&mut self, run: Self) {
         let held = core::mem::replace(self, run);
-        let narrower = match (held.contribution.enclosure, self.contribution.enclosure) {
-            (Some((was, _)), Some((now, _))) => {
-                self.converged_at.is_none() && geom_brep::props::quad::narrower(was, now)
-            }
-            _ => false,
+        let (Some((was, was_area)), Some((now, _))) =
+            (held.contribution.enclosure, self.contribution.enclosure)
+        else {
+            return;
         };
-        if narrower {
-            self.contribution = held.contribution;
-            self.taken_at = held.taken_at;
+        if !geom_brep::props::quad::narrower(was, now) {
+            return;
+        }
+        let held_met = held.refusal.is_none() && held.converged_at.is_some();
+        self.contribution = held.contribution;
+        self.taken_at = held.taken_at;
+        if held_met {
+            self.refusal = None;
+        } else if let Some(PropsError::QuadratureBudget { width_len, .. }) = &mut self.refusal
+            && let Ok(w) = geom_brep::props::quad::mean_boundary_displacement(was, was_area)
+        {
+            *width_len = w;
         }
     }
 

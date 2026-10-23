@@ -128,6 +128,8 @@ not (
   (binary_id(geom-brep) & (test(=props::quad::tests::the_statements_hulls_and_pads_hold_the_sampled_integrand_on_every_rational_carrier))) |
   (binary_id(geom-brep::all) & (test(=cert5_r1_patch_probes::knots_one_ulp_apart_at_an_odd_mantissa_stay_sound))) |
   (binary_id(geom-brep::all) & (test(=cert5_r1_patch_probes::integral_composite_midpoints_far_from_the_origin_stay_sound))) |
+  (binary_id(geom-brep) & (test(=props::quad::tests::n_gons_of_arcs_on_a_flat_chart_certify_at_their_round) | test(=props::quad::tests::a_32_gon_of_arcs_stops_at_the_wall_holding_its_closed_form) | test(=props::quad::tests::a_never_accepted_face_stops_at_its_cumulative_wall))) |
+  (binary_id(geom-brep::all) & (test(=review_r1_rational_probes::a_conic_torus_costlier_per_round_stops_at_the_wall_holding_its_closed_form))) |
   (binary_id(mesh::all) & (test(=lofted_circle::a_loft_of_two_circles_tessellates)))
 )
 """
