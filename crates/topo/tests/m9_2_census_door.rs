@@ -101,72 +101,35 @@ fn disjoint_instances_validate_at_three_prime_with_no_records() {
 // ---------------------------------------------------------------------
 
 /// The touching pair: cube on cube, stacked exactly (B's bottom on
-/// A's top), corners coincident — every census finding is a corner
-/// v-v coincidence plus the face-interior rests it implies.
+/// A's top), corners coincident: one area contact, recorded as its
+/// one face pair ([`interface_record`]).
 fn stacked() -> (Body<f64>, ContactRecords) {
     let a = cube_at(0.0, 0.0, 0.0);
     let b = cube_at(0.0, 0.0, 1.0);
     let body = assembly(&a, &b);
-    // The interface's records: the four coincident corner pairs and
-    // the four rim-edge pairs between them.
-    let mut records = ContactRecords::default();
-    let mut at = |x: f64, y: f64| {
-        let mut hits = Vec::new();
-        for (vk, p) in body.vertex_points() {
-            if (p.x - x).abs() < 1e-9 && (p.y - y).abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9 {
-                hits.push(vk);
-            }
-        }
-        let [va, vb] = hits[..] else {
-            panic!("exactly two corners at ({x}, {y}, 1)");
-        };
-        records.extend([topo::Cited::new(
-            topo::Contact::new(&body, topo::Cell::Vertex(va), topo::Cell::Vertex(vb)).unwrap(),
-            topo::Cites::decided(0),
-        )]);
-    };
-    at(0.0, 0.0);
-    at(1.0, 0.0);
-    at(1.0, 1.0);
-    at(0.0, 1.0);
-    records.extend(rim_records(&body));
+    let records = ContactRecords::from_iter(vec![interface_record(&body)]);
     (body, records)
 }
 
-/// The edge-edge records of two unit cubes stacked at z = 1, each in
-/// `body`'s arena: along each side of the interface the two cubes' rim
-/// edges lie on one another, a pair whose interiors meet (D1), which
-/// the corner records at its two ends confirm.
-pub(crate) fn rim_records(body: &Body<f64>) -> Vec<topo::Cited<topo::Contact>> {
-    let at = |v: topo::VertexKey| {
-        let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-        (p.x, p.y, p.z)
-    };
-    let on = |c: (f64, f64), (x, y, z): (f64, f64, f64)| {
-        (x - c.0).abs() < 1e-12 && (y - c.1).abs() < 1e-12 && (z - 1.0).abs() < 1e-12
-    };
-    let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-    (0..4)
-        .map(|i| {
-            let (p, q) = (corners[i], corners[(i + 1) % 4]);
-            let rims: Vec<topo::EdgeKey> = body
-                .edges()
-                .filter(|(_, e)| {
-                    let [s, t] =
-                        [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
-                    (on(p, s) && on(q, t)) || (on(q, s) && on(p, t))
-                })
-                .map(|(k, _)| k)
-                .collect();
-            let [a, b] = rims[..] else {
-                panic!("exactly two rim edges from {p:?} to {q:?}: {rims:?}");
-            };
-            topo::Cited::new(
-                topo::Contact::new(body, topo::Cell::Edge(a), topo::Cell::Edge(b)).unwrap(),
-                topo::Cites::decided(0),
-            )
+/// The face–face record of two unit cubes stacked at z = 1, in `body`'s
+/// arena: A's top on B's bottom, the area contact's one pair, which
+/// answers for the touches of the corners and rim edges bounding it.
+pub(crate) fn interface_record(body: &Body<f64>) -> topo::Cited<topo::Contact> {
+    let mut faces: Vec<_> = body
+        .faces()
+        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+            Some(Surface::Plane { origin, .. }) if (origin.z - 1.0).abs() < 1e-9 => Some(k),
+            _ => None,
         })
-        .collect()
+        .collect();
+    faces.sort();
+    let [fa, fb] = faces[..] else {
+        panic!("exactly two z = 1 faces, got {faces:?}");
+    };
+    topo::Cited::new(
+        topo::Contact::new(body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
+        topo::Cites::decided(0),
+    )
 }
 
 #[test]

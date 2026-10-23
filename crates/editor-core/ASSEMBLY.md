@@ -531,7 +531,13 @@ A touch between two copies that no record backs refuses nothing (D1
 each copy its own group) as a `CensusAtRest` row of the product
 (`AtRestBy::Copies`) and a record citing it, which the census's next
 pass confirms, and the `unproven-coincidence` check reports each row
-the coincidence door does not prove. Such a record backs no mate, so it
+the coincidence door does not prove. Two copies' planar faces meeting
+over an area are one such row, the face pair, and the census asks
+nothing of the edges and corners bounding it. Two faces of two copies
+on one plane, facing the same way, whose boundaries share a segment and
+whose interiors do not meet, are a flush pair: a row of its own
+(`topo::AtRestPolicy::flush_at_rest`) that no record cites, reported
+unless the door proves it. Such a record backs no mate, so it
 quiets no `Separation` finding. A touch inside one copy that no record
 backs is that copy's defect, and refuses, unless it is a part's own
 finding found again (*A part's own census findings*, below).

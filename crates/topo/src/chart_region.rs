@@ -828,17 +828,47 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     door_one: crate::contact::ContactVerdict,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
+    // INVARIANT: a shared trim boundary is what a FLUSH seat is made of,
+    // and it is not by itself an undecidable area. The region walk cannot
+    // build intersection pieces across a collinear boundary overlap and
+    // refuses honestly, and a boundary in band of the other's (a
+    // NEAR-flush seat) escalates there; a point certified strictly
+    // interior to BOTH trims proves the intersection contains a disc of
+    // definitely-positive radius, which IS the positive claim. The rung
+    // runs on whichever chart the pair was read in, and only ever turns a
+    // REFUSAL into a proof — it can neither contradict a decided answer
+    // nor manufacture an `Empty`: its decline carries the walk's refusal,
+    // which no reader takes for an empty overlap.
+    let rescued = |read: Result<ChartOverlap, ChartRegionError>,
+                   carrier: &Surface<T>,
+                   uv_a: &FaceUv<T>,
+                   uv_b: &FaceUv<T>| match read {
+        Err(refusal @ (ChartRegionError::TouchingBoundary | ChartRegionError::Escalated(_))) => {
+            match interior_witness(
+                body_a, face_a, body_b, face_b, carrier, uv_a, uv_b, door_one, band,
+            ) {
+                WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
+                // The rung's schedule stopped short. That is a fact about
+                // the work, not about the geometry, so it does NOT leave
+                // the carried refusal standing under a name that says the
+                // overlap is undecidably thin.
+                WitnessOutcome::SegmentCapExceeded { segments } => {
+                    Err(ChartRegionError::WitnessSegmentCapExceeded { segments })
+                }
+                WitnessOutcome::CellCapExceeded { segments, cells } => {
+                    Err(ChartRegionError::WitnessCellCapExceeded { segments, cells })
+                }
+                WitnessOutcome::Declined => Err(refusal),
+            }
+        }
+        other => other,
+    };
     let divergence = match declared_chart(body_a, face_a, body_b, face_b) {
         Ok(surface) => {
-            return overlap_on(
-                body_a,
-                face_a,
-                body_b,
-                face_b,
-                &surface,
-                ChartRead::Minted,
-                band,
-            );
+            let uv_a = extract_face_uv(body_a, face_a, &surface, ChartRead::Minted, band)?;
+            let uv_b = extract_face_uv(body_b, face_b, &surface, ChartRead::Minted, band)?;
+            let read = overlap_of_uv(body_a, face_a, body_b, face_b, &surface, &uv_a, &uv_b, band);
+            return rescued(read, &surface, &uv_a, &uv_b);
         }
         Err(divergence) => divergence,
     };
@@ -856,34 +886,8 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     carrier_agreement(body_a, face_a, body_b, face_b, band)?;
     let uv_a = extract_face_uv(body_a, face_a, &carrier, ChartRead::WorldCarrier, band)?;
     let uv_b = extract_face_uv(body_b, face_b, &carrier, ChartRead::WorldCarrier, band)?;
-    match overlap_of_uv(body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, band) {
-        // INVARIANT: a shared trim boundary is what a FLUSH seat is
-        // made of, and it is not by itself an undecidable area. The
-        // region walk cannot build intersection pieces across a
-        // collinear boundary overlap and refuses honestly; a point
-        // certified strictly interior to BOTH trims proves the
-        // intersection contains a disc of definitely-positive radius,
-        // which IS the positive claim. The rung only ever turns a
-        // REFUSAL into a proof — it can neither contradict a decided
-        // answer nor manufacture an `Empty`.
-        Err(ChartRegionError::TouchingBoundary) => match interior_witness(
-            body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, door_one, band,
-        ) {
-            WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
-            // The rung's schedule stopped short. That is a fact about
-            // the work, not about the geometry, so it does NOT leave
-            // the carried refusal standing under a name that says the
-            // overlap is undecidably thin.
-            WitnessOutcome::SegmentCapExceeded { segments } => {
-                Err(ChartRegionError::WitnessSegmentCapExceeded { segments })
-            }
-            WitnessOutcome::CellCapExceeded { segments, cells } => {
-                Err(ChartRegionError::WitnessCellCapExceeded { segments, cells })
-            }
-            WitnessOutcome::Declined => Err(ChartRegionError::TouchingBoundary),
-        },
-        other => other,
-    }
+    let read = overlap_of_uv(body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, band);
+    rescued(read, &carrier, &uv_a, &uv_b)
 }
 
 /// Which description a loop walk's chart polygon is a picture OF.

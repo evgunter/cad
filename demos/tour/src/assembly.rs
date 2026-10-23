@@ -100,15 +100,17 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::Arc;
 
+use pncad::document::coincidence::Relation;
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, AssemblyError, CancelToken, CheckId, ChecksConfig, Constraint, Coord, Dimension,
-    DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
-    InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE,
-    Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, Placed,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis, UNPINNED_RECOURSE,
-    ValuePayload, VarId, VarName, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
-    parse_formula, product_named, run_checks, save, solve_document, split, stand,
+    Assembly, AssemblyError, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord,
+    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
+    FreeVar, InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal,
+    NO_AT_REST_RECORD_RECOURSE, Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect,
+    PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis,
+    UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble, content_pin, evaluate,
+    inline, load, mixed_pins, parse_formula, product_named, run_checks, save, solve_document,
+    split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -1226,18 +1228,33 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
     );
     // Each seat is the at-rest census's row of its mate's two faces,
     // which the mate states are one construction: the coincidence door
-    // proves all three, so the lint has nothing to report.
+    // proves all three. Each post's outer face is in the plane of the
+    // shelf's end, facing the same way: two flush pairs, each a row of its
+    // own, which no mate states, so the lint reports those two and only
+    // those (flush by number is reported; a flag mate is what states one).
     let report = run_checks(doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
-    let unproven = report
+    let unproven: Vec<Relation> = report
         .findings
         .iter()
-        .filter(|finding| finding.check == CheckId::UnprovenCoincidence)
-        .count();
+        .filter_map(|finding| match &finding.evidence {
+            CheckEvidence::UnprovenCoincidence { row, .. }
+                if finding.check == CheckId::UnprovenCoincidence =>
+            {
+                Some(row.relation)
+            }
+            _ => None,
+        })
+        .collect();
     println!(
-        "   [stand] unproven-coincidence: {unproven} finding(s); each seat is its mate's \
-         statement"
+        "   [stand] unproven-coincidence: {} finding(s), the posts' ends flush with the \
+         shelf's; each seat is its mate's statement",
+        unproven.len()
     );
-    assert_eq!(unproven, 0, "every mated seat is proven: {report}");
+    assert_eq!(
+        unproven,
+        [Relation::SameOriented; 2],
+        "every mated seat is proven, and the two flush ends are reported: {report}"
+    );
     ev
 }
 
