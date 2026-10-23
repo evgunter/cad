@@ -14,6 +14,14 @@
 //! of the values is chosen, and nothing about the body the target
 //! pose is read off enters the chart.
 //!
+//! The shortest turn has no limit at its antipode: it swings `z` onto
+//! `d` about `z × d`, which turns as fast as `d` nears `−z`, so there a
+//! tilt of `d` by `δ` turns the swung `x` by an angle of order
+//! `δ / |d + z|`, up to a half turn, and every slide measured along it
+//! with it — a copy hung under a face whose normal is near `−z` can
+//! move far for a tilt of its target by a sliver. Inside the band about
+//! the pole the chart refuses.
+//!
 //! [`settle`] places a folded bundle's copy at its values: each spin
 //! turns the copy about `d` inside the bundle's residual, then each
 //! slide moves it along its own axis until its measure there is the
@@ -215,7 +223,8 @@ impl<T: geom_core::Real> ReadValue<T> {
 /// only there.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Composed<T: geom_core::Real> {
-    /// The target body's frame, the shift and the spin.
+    /// The shift, then the spin about the mated direction
+    /// ([`Chart::head_at`]).
     head: RigidMotion<T>,
     /// The constant turn.
     onto: Affine3<T>,

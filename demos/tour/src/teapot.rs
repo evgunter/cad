@@ -283,9 +283,10 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    Axis3, Bodies, CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula, Frame,
+    Axis3, Bodies, CancelToken, Coord, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoftSection, LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, StationMove, TubeWindow, ValuePayload, apply, evaluate,
+    ProgramTarget, RecipeNodeId, StationMove, TargetAxis, TubeWindow, ValuePayload, apply,
+    evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -666,7 +667,7 @@ const LID_RIMS: [(u32, f64, f64, &str); 3] = [
 /// `a`'s plane stands at `(r(1 − cos a), r sin a, 0)` with axes
 /// `u = +z` and `v = (cos a, −sin a, 0)`, whose normal `u × v` is
 /// `(sin a, cos a, 0)` — the tangent at station `a`. The first section
-/// is drawn on the spout's own `xy` ([`SPOUT_ROOT_FRAME`] is where the
+/// is drawn on the spout's own `xy` ([`spout_values`] turns it to where the
 /// first plane stands); a later one's station is that plane in the
 /// first's own axes — a spin of `−a` about its `x`, then slides of
 /// `r(1 − cos a)` along its `y` and `r sin a` along its `z` — so a
@@ -704,14 +705,6 @@ fn spout_stations() -> Vec<(Vec<StationMove<Formula>>, f64)> {
         })
         .collect()
 }
-
-/// **Where the spout's first section stands in the bent frame the
-/// spine is described in**: `u = +z`, `v = +x`, normal `+y` — the
-/// tangent at station 0.
-const SPOUT_ROOT_FRAME: Frame = Frame {
-    columns: [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
-    translation: [0.0; 3],
-};
 
 /// **The spout, as one `Node::Loft` through those sections.**
 ///
@@ -770,25 +763,29 @@ fn spout_loft(
     )
 }
 
-/// **The spout's own frame in the pot's coordinates**: the bent frame
-/// turned by [`spout_turn`] about `+z` and slid to [`SPOUT_ROOT`], with
-/// the first section standing at [`SPOUT_ROOT_FRAME`] in it.
-fn spout_pose(tol: Tol) -> Frame {
-    let band = pncad::geom_core::Band::linear(tol).expect("the witnessed band");
-    Frame::rotate_then_translate(
-        [0.0, 0.0, 1.0],
-        spout_turn(),
-        [SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z],
-        band,
-    )
-    .expect("+z has a direction")
-    .compose(&SPOUT_ROOT_FRAME)
+/// **The spout's values on the pot's axes**: the spout's own axes
+/// turned into the bent frame its spine is described in (`x` onto `+z`,
+/// `y` onto `+x`, `z` onto `+y`: a quarter turn back about `x`, then
+/// one back about `y`), that frame turned by [`spout_turn`] about `+z`,
+/// and slid to [`SPOUT_ROOT`].
+fn spout_values() -> Vec<(Coord, Formula)> {
+    let mut values = vec![
+        (Coord::Spin(TargetAxis::X), crate::world::turn(4, true)),
+        (Coord::Spin(TargetAxis::Y), crate::world::turn(4, true)),
+        (Coord::Spin(TargetAxis::Z), ang(spout_turn())),
+    ];
+    values.extend(crate::world::slides([
+        SPOUT_ROOT.x,
+        SPOUT_ROOT.y,
+        SPOUT_ROOT.z,
+    ]));
+    values
 }
 
-/// **The handle's own frame in the pot's coordinates**: its spine
-/// centre on the belly wall, its axes the pot's.
-fn handle_pose() -> Frame {
-    Frame::translation([HANDLE_C.x, HANDLE_C.y, HANDLE_C.z])
+/// **The handle's values on the pot's axes**: its spine centre slid onto
+/// the belly wall, its axes the pot's.
+fn handle_values() -> Vec<(Coord, Formula)> {
+    crate::world::slides([HANDLE_C.x, HANDLE_C.y, HANDLE_C.z])
 }
 
 /// **The turn that takes the spout's own `+y` axis onto
@@ -981,7 +978,7 @@ fn build_doc(tol: Tol) -> Recipe {
         &doc,
         pncad::document::Operand::output(bellied, 0),
         spout_body,
-        &spout_pose(tol),
+        spout_values(),
         tol,
     );
     doc = placed.doc;
@@ -1009,7 +1006,7 @@ fn build_doc(tol: Tol) -> Recipe {
         &doc,
         pncad::document::Operand::output(bellied, 0),
         handle_body,
-        &handle_pose(),
+        handle_values(),
         tol,
     );
     doc = placed.doc;
@@ -1102,14 +1099,14 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
                 .doc
         });
     [
-        (r.handle_body, handle_pose()),
-        (r.lid, Frame::IDENTITY),
-        (r.cup, Frame::IDENTITY),
-        (r.spout_body, spout_pose(tol)),
+        (r.handle_body, handle_values()),
+        (r.lid, Vec::new()),
+        (r.cup, Vec::new()),
+        (r.spout_body, spout_values()),
     ]
     .into_iter()
-    .fold(tidied, |doc, (body, at)| {
-        crate::world::in_world(&doc, body, &at, tol).doc
+    .fold(tidied, |doc, (body, values)| {
+        crate::world::in_world_by(&doc, body, values, tol).doc
     })
 }
 
@@ -2017,7 +2014,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // this scene used to hand `transform_rigid` and is independent of
     // the angle the document stores.
     // The spout's own point `p` in the bent frame its spine is
-    // described in ([`SPOUT_ROOT_FRAME`]), turned.
+    // described in ([`spout_values`]), turned.
     let turn = |p: Vec3<f64>| {
         Vec3::new(SPOUT_DIR.y, -SPOUT_DIR.x, 0.0) * p.x + SPOUT_DIR * p.y + Vec3::unit_z() * p.z
     };

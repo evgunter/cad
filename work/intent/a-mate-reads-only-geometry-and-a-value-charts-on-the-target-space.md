@@ -93,3 +93,11 @@ with no PR and no CI run). State found at `31b979f5`:
 - State at hand-off to review: hosted CI `gate ok` green; the gui
   render lane failed twice installing apt packages before rendering
   (as on main's nightly), so its cells are not re-baselined.
+- Fix pass after the dual review (frozen head `ca29c814`): a removed
+  value is `0` in its place and every dropped value is reported
+  (`Maintenance::ValueDropped`); the tour writes the values it means
+  and reads a split's plane and a pattern's axis off named corners;
+  msolve14's seats sit on what they are seated on; spec row 20, test
+  21's commuting slide and test 20's unbreakable claim corrected; the
+  stale prose; one `residual`; the combine's coordinates rule pinned
+  (`combine_ops::a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates`).

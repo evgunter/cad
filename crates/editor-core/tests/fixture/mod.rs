@@ -2113,16 +2113,7 @@ pub fn in_world_square(
 ///
 /// If a turn of `at` is not a whole number of quarter turns.
 pub fn square_turns(at: &editor_core::Frame) -> Vec<(editor_core::TargetAxis, Formula)> {
-    use editor_core::TargetAxis;
     use std::f64::consts::FRAC_PI_2;
-    let r = |i: usize, j: usize| at.columns[j][i];
-    let cos_beta = r(0, 0).hypot(r(1, 0));
-    let beta = (-r(2, 0)).atan2(cos_beta);
-    let (alpha, gamma) = if cos_beta > 0.5 {
-        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
-    } else {
-        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
-    };
     let quarter = |a: f64| {
         let k = (a / FRAC_PI_2).round();
         assert!(
@@ -2138,14 +2129,10 @@ pub fn square_turns(at: &editor_core::Frame) -> Vec<(editor_core::TargetAxis, Fo
             _ => Some(Formula::neg(turn(4)).expect("an angle negates")),
         }
     };
-    [
-        (TargetAxis::X, alpha),
-        (TargetAxis::Y, beta),
-        (TargetAxis::Z, gamma),
-    ]
-    .into_iter()
-    .filter_map(|(axis, a)| quarter(a).map(|by| (axis, by)))
-    .collect()
+    editor_core::test_support::euler_turns(&at.columns)
+        .into_iter()
+        .filter_map(|(axis, a)| quarter(a).map(|by| (axis, by)))
+        .collect()
 }
 
 /// **`own`, a frame read off a body at that body's own identity, moved

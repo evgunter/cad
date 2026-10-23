@@ -11,7 +11,7 @@
 //! identity, back into its target.
 //!
 //! Test 20 (a lone point mate's chain) is
-//! `asm_r2a_mate_solve::a_lone_point_mates_chain_turns_its_copy_about_the_mated_point`;
+//! `asm_r2a_mate_solve::a_lone_point_mates_chain_turns_its_copy_in_the_order_written`;
 //! inline then flatten of a split is the R1 rows of `p2_split` and
 //! `asm4_split_inline`.
 
@@ -175,16 +175,19 @@ fn lift() -> VarName {
 }
 
 /// **Test 21 (D′2): inline keeps a variable driving.** A part whose one
-/// placement slides its block up by the named variable `lift`, under an
-/// instance whose bundle turns it a quarter turn (`turn/4`) about the
-/// world's `z`, inlines: the part's placement lands in a `new_space()`
+/// placement slides its block 3 along `x` and up by the named variable
+/// `lift`, under an instance whose bundle turns it a quarter turn
+/// (`turn/4`) about the world's `z`, inlines: the part's placement lands in a `new_space()`
 /// verbatim, still reading `lift`, and the instance becomes a placement
 /// of its copy into the world under the instance's own bundle. Nothing
-/// moves; and moving `lift` then moves the spliced copy up as it moved
-/// the part's copy before the splice.
+/// moves — the part's slide along `x` is turned by the instance, which
+/// a composition in the other order would not do; and moving `lift`
+/// then moves the spliced copy up as it moved the part's copy before
+/// the splice.
 ///
 /// *Breaks if* inline refuses, composes a motion into the part's
-/// placement, or writes the variable's current value as a number.
+/// placement or composes the two in the other order, or writes the
+/// variable's current value as a number.
 #[test]
 fn inline_keeps_a_variable_driving() {
     let part = ProfileDoc::empty(DocumentId::derive("dprime2-t21-part"), Tol::witness());
@@ -199,10 +202,13 @@ fn inline_keeps_a_variable_driving() {
     let (part, lifted) = fixture::in_world_by(
         part,
         body,
-        Placed::unmated(vec![(
-            Coord::Slide(TargetAxis::Z),
-            editor_core::Formula::named(lift(), Dimension::Length),
-        )])
+        Placed::unmated(vec![
+            (Coord::Slide(TargetAxis::X), len(3.0)),
+            (
+                Coord::Slide(TargetAxis::Z),
+                editor_core::Formula::named(lift(), Dimension::Length),
+            ),
+        ])
         .values,
     );
     let mut store = PartStore::default();
@@ -267,7 +273,13 @@ fn inline_keeps_a_variable_driving() {
         before,
         "nothing moves"
     );
-    assert_eq!(before.0[2], 2.0, "the part's copy stands `lift` up");
+    // The part's slide `x = 3` turned by the instance's quarter turn
+    // about `z`: the block spans `x ∈ [−1, 0]`, `y ∈ [3, 4]`.
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-12;
+    assert!(
+        near(before.0[0], -1.0) && near(before.0[1], 3.0) && before.0[2] == 2.0,
+        "the part's copy stands `lift` up, its slide turned by the instance: {before:?}"
+    );
     let (moved, _) = step(
         out.doc,
         DocEdit::SetVarValue {
@@ -489,5 +501,186 @@ fn a_slide_value_sets_its_translation_with_no_width() {
         [(t.x.lo(), t.x.hi()), (t.y.lo(), t.y.hi())],
         [(3.0, 3.0), (2.0, 2.0)],
         "each slid component is the value's own point, with no width"
+    );
+}
+
+/// A unit block in the world turned by the chain `Z(0.1), X(0.2),
+/// Z(0.3)` and slid `(3, 0, 7)`: the document, the floor's placement
+/// and the block's.
+fn chained_block(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, floor) = block(doc, 20.0, 20.0, 1.0);
+    let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
+    let (doc, f) = fixture::in_world_by(doc, floor, Placed::unmated(vec![]).values);
+    let (doc, copy) = fixture::in_world_by(doc, boss, Placed::unmated(chain(None)).values);
+    (doc, boss, f, copy)
+}
+
+/// The chain `Z(0.1), X(0.2), Z(0.3)` and the slides `(3, 0, 7)`, the
+/// link at `zero` written `0`.
+fn chain(zero: Option<usize>) -> Vec<(Coord, editor_core::Formula)> {
+    let links = [
+        (TargetAxis::Z, 0.1),
+        (TargetAxis::X, 0.2),
+        (TargetAxis::Z, 0.3),
+    ];
+    let mut out: Vec<_> = links
+        .into_iter()
+        .enumerate()
+        .map(|(k, (axis, a))| {
+            let a = if zero == Some(k) { 0.0 } else { a };
+            (Coord::Spin(axis), fixture::ang(a))
+        })
+        .collect();
+    out.push((Coord::Slide(TargetAxis::X), len(3.0)));
+    out.push((Coord::Slide(TargetAxis::Z), len(7.0)));
+    out
+}
+
+/// **Removing a link of a written chain writes `0` in its place**: the
+/// first, middle or last spin of `Z, X, Z` removed places the copy as
+/// the same chain written with that link `0` does, bit for bit, and no
+/// value is dropped. The middle link's removal turns the copy by the
+/// two `z` links' sum.
+///
+/// *Breaks if* the removal drops the link and the chain's rule then
+/// drops the second `z` as a repeat (the copy turns `0.1`, not `0.4`),
+/// or appends the `0` at the chain's end (another order).
+#[test]
+fn removing_a_chain_link_writes_zero_in_its_place() {
+    let opts = EvalOptions::default();
+    for k in 0..3 {
+        let (doc, boss, _, copy) = chained_block(&format!("dprime2-unlink-{k}"));
+        let link = fixture::bundle(&doc, copy)[k].id;
+        let applied = doc
+            .apply(
+                &DocEdit::RemoveConstraint {
+                    placement: copy,
+                    constraint: link,
+                },
+                Tol::witness(),
+            )
+            .unwrap_or_else(|e| panic!("link {k}: the removal is admitted: {e}"));
+        assert!(
+            !applied
+                .maintenance
+                .iter()
+                .any(|m| matches!(m, editor_core::Maintenance::ValueDropped { .. })),
+            "link {k}: a removal drops no other value: {:?}",
+            applied.maintenance
+        );
+        let got = solve(&applied.doc, &opts, Tol::witness())
+            .placement(&applied.doc, copy)
+            .expect("the unlinked copy places");
+        let written = ProfileDoc::empty(
+            DocumentId::derive(&format!("dprime2-unlink-{k}")),
+            Tol::witness(),
+        );
+        let (written, _) = block(written, 20.0, 20.0, 1.0);
+        let (written, again) = block(written, 1.0, 1.0, 1.0);
+        assert_eq!(again, boss);
+        let (written, want) =
+            fixture::in_world_by(written, again, Placed::unmated(chain(Some(k))).values);
+        let want = solve(&written, &opts, Tol::witness())
+            .placement(&written, want)
+            .expect("the written chain places");
+        assert_eq!(
+            got, want,
+            "link {k}: the removal is the chain with that link written 0"
+        );
+        if k == 1 {
+            let turned = got.columns[0][1].atan2(got.columns[0][0]);
+            assert!(
+                (turned - 0.4).abs() < 1e-12,
+                "the middle link removed, the copy turns 0.1 + 0.3 about z: {turned}"
+            );
+        }
+    }
+}
+
+/// **A mate added over written values reports each value it drops.**
+/// A rest on the floor's top fixes the block's `z` slide and its turns
+/// off the floor's normal. Of the chain `Z(0.1), X(tilt), Z(0.3)` the
+/// door keeps the first `z` link, now the spin about the mated normal,
+/// and drops the `x` link (which read the named `tilt`, still declared)
+/// and the second `z` link, a repeat of the kept spin; and the `z`
+/// slide. Each drop is a `ValueDropped` row naming its freedom and the
+/// variable it read.
+///
+/// *Breaks if* a value goes with no row, or a row names a value the
+/// bundle kept.
+#[test]
+fn a_mate_reports_each_value_it_drops() {
+    let doc = ProfileDoc::empty(DocumentId::derive("dprime2-drops"), Tol::witness());
+    let (doc, _) = step(
+        doc,
+        DocEdit::DeclareVar {
+            name: VarName::from_static("tilt"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.2)),
+        },
+    );
+    let (doc, floor) = block(doc, 20.0, 20.0, 1.0);
+    let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
+    let (doc, f) = fixture::in_world_by(doc, floor, Placed::unmated(vec![]).values);
+    let mut moves = chain(None);
+    moves[1].1 = editor_core::Formula::named(VarName::from_static("tilt"), Dimension::Angle);
+    let (doc, copy) = fixture::in_world_by(doc, boss, Placed::unmated(moves).values);
+    let tilt = doc.var_named("tilt").expect("declared");
+    let top = fixture::fname(floor, RoleSeg::Cap(CapEnd::End));
+    let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
+    let mate = fixture::rest(head(start), head_at(f, top.in_copy(f)), ContactClass::Rest);
+    let applied = doc
+        .apply(
+            &DocEdit::AddConstraint {
+                placement: copy,
+                mate: Box::new(mate),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("the rest is admitted");
+    let dropped: Vec<(Coord, editor_core::VarId)> = applied
+        .maintenance
+        .iter()
+        .filter_map(|m| match m {
+            editor_core::Maintenance::ValueDropped {
+                placement,
+                coord,
+                by,
+            } => {
+                assert_eq!(placement.id(), copy, "the row names the copy's placement");
+                Some((*coord, by.id()))
+            }
+            _ => None,
+        })
+        .collect();
+    let coords: Vec<Coord> = dropped.iter().map(|&(c, _)| c).collect();
+    assert_eq!(
+        coords,
+        [
+            Coord::Spin(TargetAxis::X),
+            Coord::Spin(TargetAxis::Z),
+            Coord::Slide(TargetAxis::Z),
+        ],
+        "the x link, the repeated z link and the z slide go, each reported"
+    );
+    assert_eq!(dropped[0].1, tilt, "the x link's row names `tilt`");
+    assert!(
+        applied.doc.var_named("tilt").is_some(),
+        "the named variable stays declared"
+    );
+    let kept: Vec<Coord> = fixture::bundle(&applied.doc, copy)
+        .iter()
+        .filter_map(|c| c.value().map(|v| v.coord))
+        .collect();
+    assert_eq!(
+        kept,
+        [
+            Coord::Spin(TargetAxis::Z),
+            Coord::Slide(TargetAxis::X),
+            Coord::Slide(TargetAxis::Y),
+        ],
+        "the first z link is kept as the spin about the normal, then the x slide, \
+         then the 0 on the y slide"
     );
 }

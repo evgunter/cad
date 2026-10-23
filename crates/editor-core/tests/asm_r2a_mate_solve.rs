@@ -1181,26 +1181,20 @@ fn times(a: [[f64; 3]; 3], b: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
     std::array::from_fn(|i| std::array::from_fn(|j| (0..3).map(|k| a[i][k] * b[k][j]).sum()))
 }
 
-/// **Test 20 (D′2): a lone point mate's rotation is a chain, turned
-/// about the mated point in the order written** (D10
-/// `[placement.values]`). The second copy's start corner 0 is mated to
-/// the first's end corner 2, and its rotation written `Spin(Z)`,
-/// `Spin(X)`, `Spin(Y)` about the world's axes: its placement carries
-/// the mated corner onto its target and turns by `R_y · R_x · R_z` —
-/// the last written outermost — about it. A second `Spin(X)` right
-/// after the first refuses `Overconstrained` naming both, and a slide
-/// beside the ball refuses naming the slide and the ball, which fixes
-/// every translation.
+/// **Test 20 (D′2): a lone point mate's rotation is a chain in the
+/// order written** (D10 `[placement.values]`). The second copy's start
+/// corner 0 is mated to the first's end corner 2, and its rotation
+/// written `Spin(Z)`, `Spin(X)`, `Spin(Y)` about the world's axes: its
+/// placement turns by `R_y · R_x · R_z` — the last written outermost —
+/// and carries the mated corner onto its target. A second `Spin(X)`
+/// right after the first refuses `Overconstrained` naming both, and a
+/// slide beside the ball refuses naming the slide and the ball, which
+/// fixes every translation.
 ///
-/// The spec's row 20 writes `Spin(Z)`, `Spin(X)` "and three slides";
-/// a ball fixes the three translations (DESIGN D10: a lone point mate
-/// leaves only its rotation), so the chain here is completed by a third
-/// spin and the slides are the refusal's row.
-///
-/// *Breaks if* the chain turns about the copy's origin rather than the
-/// mated point, or the order is the kernel's.
+/// *Breaks if* the order is the kernel's, or the mated corner misses
+/// its target.
 #[test]
-fn a_lone_point_mates_chain_turns_its_copy_about_the_mated_point() {
+fn a_lone_point_mates_chain_turns_its_copy_in_the_order_written() {
     use TargetAxis::{X, Y, Z};
     let (doc, ids, kit) = assembly("asm-r2a-point-chain", 2);
     let o = kit.opts();

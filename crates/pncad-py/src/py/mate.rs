@@ -1024,7 +1024,10 @@ impl Maintenance {
         match &self.0 {
             d::Maintenance::Strand { node, .. }
             | d::Maintenance::StrandedRead { node, .. }
-            | d::Maintenance::StrandedSpace { node, .. } => Some(NodeId(node.id())),
+            | d::Maintenance::StrandedSpace { node, .. }
+            | d::Maintenance::ValueDropped {
+                placement: node, ..
+            } => Some(NodeId(node.id())),
             d::Maintenance::StrandedSelection { readers, .. } => {
                 readers.first().map(|reader| NodeId(reader.id()))
             }
@@ -1052,6 +1055,7 @@ impl Maintenance {
             }
             d::Maintenance::StrandedRead { .. }
             | d::Maintenance::StrandedSpace { .. }
+            | d::Maintenance::ValueDropped { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
         }
     }

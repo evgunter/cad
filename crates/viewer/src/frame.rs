@@ -1539,6 +1539,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // evaluation, naming both spaces.
         Maintenance::StrandedSpace { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
+        // Nothing evaluates differently in a way that names it: the
+        // copy simply stops reading the value.
+        Maintenance::ValueDropped { .. } => Retold::Never,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
         // one on almost every edit: one that carried no tolerance took

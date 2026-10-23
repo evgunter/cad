@@ -79,7 +79,7 @@ impl Placed {
         families: &[SubgroupFamily],
         moves: Vec<(Coord, Formula)>,
     ) -> Self {
-        let left = residual(families);
+        let left = residual(families.iter().copied());
         let written: Vec<Coord> = moves.iter().map(|(c, _)| *c).collect();
         let mut values = moves;
         values.extend(
@@ -123,11 +123,12 @@ impl Placed {
     }
 }
 
-/// The family a set of mates leaves, met in general position.
-pub(crate) fn residual(families: &[SubgroupFamily]) -> SubgroupFamily {
+/// **The family a set of mates leaves**: their families met in
+/// general position ([`SubgroupFamily::meet`]).
+pub(crate) fn residual(families: impl IntoIterator<Item = SubgroupFamily>) -> SubgroupFamily {
     families
-        .iter()
-        .fold(SubgroupFamily::Se3, |held, &f| held.meet(f))
+        .into_iter()
+        .fold(SubgroupFamily::Se3, SubgroupFamily::meet)
 }
 
 /// **The freedoms of `left` that `written` leaves unnamed**, in

@@ -659,12 +659,9 @@ fn values_of(
         .collect()
 }
 
-/// The family a set of mates leaves: their families met in general
-/// position ([`SubgroupFamily::meet`]).
+/// The family a set of mates leaves ([`super::pin::residual`]).
 fn residual(mates: &[(crate::node::ConstraintId, SubgroupFamily)]) -> SubgroupFamily {
-    mates
-        .iter()
-        .fold(SubgroupFamily::Se3, |held, &(_, family)| held.meet(family))
+    super::pin::residual(mates.iter().map(|&(_, family)| family))
 }
 
 /// How many equations a set of mates fixes.

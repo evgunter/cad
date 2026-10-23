@@ -4603,6 +4603,20 @@ pub enum Maintenance {
         /// Another.
         b: crate::spoken::SpokenSpace,
     },
+    /// **A value this edit dropped from a bundle written whole**
+    /// ([`DocEdit::AddConstraint`], [`DocEdit::RemoveConstraint`]): its
+    /// freedom is one the bundle's new mates fix, or a turn the chain
+    /// already makes. `by` keeps its id and, if named, its value; the
+    /// copy no longer reads it there.
+    ValueDropped {
+        /// The placement whose bundle held it.
+        placement: SpokenNode,
+        /// The freedom it set.
+        coord: crate::mate::Coord,
+        /// The variable it read, spoken from the document the edit
+        /// entered.
+        by: SpokenVar,
+    },
     /// **An anonymous variable this edit removed** (VR7): the edit
     /// detached the one expression reading it, and a variable with no
     /// name goes with its reader. The mint log keeps its id, so it is
@@ -4748,6 +4762,16 @@ impl core::fmt::Display for Maintenance {
                 f,
                 "{node} reads {a} and {b}, which this edit left in two spaces, so {node} \
                  refuses until its reads are in one space"
+            ),
+            Self::ValueDropped {
+                placement,
+                coord,
+                by,
+            } => write!(
+                f,
+                "{placement}'s {} read {by}; the bundle written whole does not leave that \
+                 freedom, so this edit dropped the value",
+                coord.name()
             ),
             Self::AnonymousVarRemoved { var, distribution } => {
                 write!(
@@ -5080,8 +5104,10 @@ pub struct Applied<P> {
     /// [`Maintenance::StrandedAppearance`], in the appearance store's
     /// key order. The strands are read at the door, out of the
     /// document the edit had just produced. A delete and a
-    /// `SetProgram` report strands; no other edit reports anything
-    /// but the anonymous variables it retired.
+    /// `SetProgram` report strands; a bundle written whole
+    /// (`AddConstraint`, `RemoveConstraint(s)`) reports each value it
+    /// dropped ([`Maintenance::ValueDropped`]); no other edit reports
+    /// anything but the anonymous variables it retired.
     ///
     /// The paragraph above is the contract — it is stated here in
     /// full because a consumer outside this crate cannot read
@@ -5182,7 +5208,7 @@ impl MaintenanceNet {
                     })
                 }
                 Maintenance::StrandedSpace { node, .. } => end.space_fault(node.id()).is_some(),
-                Maintenance::AnonymousVarRemoved { .. } => true,
+                Maintenance::ValueDropped { .. } | Maintenance::AnonymousVarRemoved { .. } => true,
             })
             .collect()
     }
@@ -6865,16 +6891,20 @@ fn admit_bundle_make_up<P: crate::ProfilePayload>(
 /// [`DocEdit::RemoveConstraint`] and [`DocEdit::RemoveConstraints`]**:
 /// `placement`'s bundle written whole again ([`add_constraints`]) with
 /// `added` joining its mates and the constraints `removed` taken out.
-/// Each mate it keeps is read by its own poses and keeps its id; each
-/// value the new mates' residual leaves is kept by
-/// [`crate::mate::pin::kept`]'s rule, its number read by its own
-/// variable; and the constant `0` is written on each freedom left
-/// unnamed ([`crate::mate::pin::unnamed`]). Answers the ids it minted,
-/// the added mate's first, and the fresh table's variables.
+/// Each mate it keeps is read by its own poses and keeps its id. A
+/// removed value is the constant `0` in its own place, so a removal
+/// re-means no other value. Each value the new mates' residual leaves
+/// is kept by [`crate::mate::pin::kept`]'s rule, its number read by its
+/// own variable, and each it does not is reported dropped
+/// ([`Maintenance::ValueDropped`]); the constant `0` is written on each
+/// freedom left unnamed ([`crate::mate::pin::unnamed`]). Answers the
+/// ids it minted, the added mate's first, and the fresh table's
+/// variables.
 #[allow(clippy::too_many_arguments)]
 fn rebundle<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &mut Doc<P>,
+    reported: &mut Vec<Maintenance>,
     placement: RecipeNodeId,
     added: Option<crate::mate::Mate<Formula>>,
     removed: &[crate::node::ConstraintId],
@@ -6920,7 +6950,7 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
     {
         families.push(family);
     }
-    let residual = crate::mate::pin::residual(&families);
+    let residual = crate::mate::pin::residual(families);
     let mates = left.iter().filter_map(|c| {
         c.mate().map(|m| Constraint {
             id: c.id,
@@ -6931,18 +6961,38 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
             }),
         })
     });
-    let values: Vec<(crate::node::ConstraintId, crate::mate::Coord, VarId)> = left
+    // The values in the order written, a removed value standing as the
+    // constant `0` in its own place: a removal sets its freedom back to
+    // the identity and re-means no other value (a chain keeps its order).
+    let values: Vec<(
+        Option<(crate::node::ConstraintId, VarId)>,
+        crate::mate::Coord,
+    )> = bundle
         .iter()
-        .filter_map(|c| c.value().map(|v| (c.id, v.coord, v.by)))
+        .filter_map(|c| {
+            let v = c.value()?;
+            Some(if removed.contains(&c.id) {
+                (None, v.coord)
+            } else {
+                (Some((c.id, v.by)), v.coord)
+            })
+        })
         .collect();
-    let written: Vec<crate::mate::Coord> = values.iter().map(|&(_, c, _)| c).collect();
+    let written: Vec<crate::mate::Coord> = values.iter().map(|&(_, c)| c).collect();
     let keep = crate::mate::pin::kept(residual, &written);
-    let kept: Vec<_> = values
-        .into_iter()
-        .zip(keep)
-        .filter_map(|(v, keep)| keep.then_some(v))
-        .collect();
-    let named: Vec<crate::mate::Coord> = kept.iter().map(|&(_, c, _)| c).collect();
+    let mut kept = Vec::new();
+    for ((held, coord), keep) in values.into_iter().zip(keep) {
+        match (held, keep) {
+            (held, true) => kept.push((held, coord)),
+            (Some((_, by)), false) => reported.push(Maintenance::ValueDropped {
+                placement: doc.spoken(placement),
+                coord,
+                by: doc.spoken_var(by),
+            }),
+            (None, false) => {}
+        }
+    }
+    let named: Vec<crate::mate::Coord> = kept.iter().map(|&(_, c)| c).collect();
     let zeros = crate::mate::pin::unnamed(residual, &named);
     let mut placeholder = (1..).map(crate::node::ConstraintId::placeholder);
     let mut next = || {
@@ -6954,15 +7004,13 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
     if let Some(mate) = added {
         whole.push(Constraint::of_mate(next(), mate));
     }
-    whole.extend(kept.into_iter().map(|(id, coord, by)| {
-        Constraint::of_value(
-            id,
-            Value {
-                coord,
-                by: Formula::var(by, coord.dimension()),
-            },
-        )
-    }));
+    for (held, coord) in kept {
+        let (id, by) = match held {
+            Some((id, by)) => (id, Formula::var(by, coord.dimension())),
+            None => (next(), Formula::zero(coord.dimension())),
+        };
+        whole.push(Constraint::of_value(id, Value { coord, by }));
+    }
     for coord in zeros {
         whole.push(Constraint::of_value(
             next(),
@@ -7953,6 +8001,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let (ids, fresh) = rebundle(
                 doc,
                 new,
+                reported,
                 *placement,
                 Some((**mate).clone()),
                 &[],
@@ -7990,6 +8039,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
         } => removed(rebundle(
             doc,
             new,
+            reported,
             *placement,
             None,
             &[*constraint],
@@ -7999,7 +8049,16 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
         DocEdit::RemoveConstraints {
             placement,
             constraints,
-        } => removed(rebundle(doc, new, *placement, None, constraints, &[], tol)?),
+        } => removed(rebundle(
+            doc,
+            new,
+            reported,
+            *placement,
+            None,
+            constraints,
+            &[],
+            tol,
+        )?),
         DocEdit::SetLabel { node, label } => {
             if !new.nodes.contains_key(node) {
                 return Err(EditError::UnknownNode {

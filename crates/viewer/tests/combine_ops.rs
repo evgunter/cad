@@ -299,6 +299,66 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     );
 }
 
+/// **A combine reads its operands in their spaces, not in the world's
+/// picture of them.** `a`'s world placement is slid 0.1 m along `x`,
+/// so `a`'s space stands off `b`'s in the world and the two drawn
+/// copies no longer overlap. The union still takes `b` into `a`'s
+/// space with its values as written — it stands on `a`'s axes as it
+/// stood on its own body's — so the union overlaps as the two bodies
+/// do in their own coordinates, and the result is drawn where `a`'s
+/// placement puts it: `b`'s world position moves with `a`'s. Keeping
+/// `b`'s world position instead would compose the two world bundles
+/// into numbers, a frame read back.
+///
+/// *Breaks if* the combine composes `a`'s world placement into `b`'s
+/// values (the union would be disjoint).
+#[test]
+fn a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates() {
+    let tol = Tol::witness();
+    let (mut session, a, b) = two_boxes(tol);
+    session.pump();
+    let [a_placement, _] = viewer::world::drawn_copies(session.committed_doc())[..] else {
+        panic!("two copies");
+    };
+    let slide_x = pncad::document::Coord::Slide(pncad::document::TargetAxis::X);
+    let moved = session.perform(SessionOp::SetSlot {
+        node: a_placement,
+        slot: SlotId::ValueSlide {
+            constraint: session
+                .committed_doc()
+                .node(a_placement)
+                .and_then(|node| match node {
+                    Node::Place { constraints, .. } => constraints
+                        .iter()
+                        .find(|c| c.value().is_some_and(|v| v.coord == slide_x))
+                        .map(|c| c.id),
+                    _ => None,
+                })
+                .expect("a's placement writes a slide along x"),
+        },
+        value: viewer::props::SlotValue::of(Dimension::Length, 0.1)
+            .expect("a finite length is a value"),
+    });
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    session.pump();
+    let va = A[0] * A[1] * A[2];
+    let vb = B[0] * B[1] * B[2];
+    let drawn = drawn_volume(&mut session, tol);
+    assert!(
+        near(drawn, va + vb),
+        "drawn apart, the copies are disjoint: {drawn}"
+    );
+    let outcome = session.perform(SessionOp::AddBoolean {
+        spec: BooleanSpec::Union(vec![a.into(), b.into()]),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let drawn = drawn_volume(&mut session, tol);
+    assert!(
+        near(drawn, va + vb - OVERLAP),
+        "the union overlaps as the bodies do in their own coordinates: {drawn}"
+    );
+}
+
 /// **A combine of an operand nothing places places nothing of it**:
 /// the first placed operand's placements take the result, and an
 /// unplaced one has none to give.

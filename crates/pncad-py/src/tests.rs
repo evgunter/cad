@@ -5146,6 +5146,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stranded_read",
             "stranded_selection",
             "stranded_space",
+            "value_dropped",
         ],
         delegates: &[],
     },

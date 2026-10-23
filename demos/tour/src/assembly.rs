@@ -97,7 +97,6 @@
 
 use pncad::prelude::AuthoredNode;
 use std::collections::{BTreeMap, BTreeSet};
-use std::f64::consts::PI;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -111,7 +110,7 @@ use pncad::document::{
     ValuePayload, VarId, VarName, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
     parse_formula, product_named, run_checks, save, solve_document, split, stand,
 };
-use pncad::geom_core::{Band, Tol};
+use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{
     CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
@@ -334,12 +333,15 @@ fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord, Formula); 3] {
     ]
 }
 
-/// `placement`'s copy placed in the world at `pose`: its bundle the
-/// values on the world's axes that move its own frame there
-/// ([`crate::world::moves`]), which read nothing of the copy.
-fn place_in_world(doc: &mut ProfileDoc, placement: RecipeNodeId, pose: &Frame, tol: Tol) {
-    let placed = Placed::unmated(crate::world::moves(pose));
-    edit(doc, &placed.write(placement), tol);
+/// `placement`'s copy placed in the world by `values` on the world's
+/// axes, as written, which read nothing of the copy.
+fn place_in_world(
+    doc: &mut ProfileDoc,
+    placement: RecipeNodeId,
+    values: Vec<(Coord, Formula)>,
+    tol: Tol,
+) {
+    edit(doc, &Placed::unmated(values).write(placement), tol);
 }
 
 /// Places one copy of `body` in the world where it stands
@@ -681,13 +683,15 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
     // The post laid on its side. The pattern steps along +y, which this
     // turn about +y leaves where it was, so each copy is placed at the
     // same pose.
-    let lying = Frame::rotate_then_translate(
-        [0.0, 1.0, 0.0],
-        -PI / 2.0,
-        [FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0],
-        Band::linear(tol).expect("the demo's tolerance forms a band"),
-    )
-    .expect("the post lies down about +y");
+    let lying = || {
+        let mut values = vec![(Coord::Spin(TargetAxis::Y), crate::world::turn(4, true))];
+        values.extend(crate::world::slides([
+            FLAT_PACK_GAP + POST_HEIGHT,
+            0.0,
+            0.0,
+        ]));
+        values
+    };
     let pattern = insert(
         &mut doc,
         Node::Pattern {
@@ -719,7 +723,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
             ),
             tol,
         );
-        place_in_world(&mut doc, placement, &lying, tol);
+        place_in_world(&mut doc, placement, lying(), tol);
     }
     // The shelf, placed in the world beside them: the last placement,
     // as the instance a split of it leaves behind is.
@@ -727,7 +731,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
     place_in_world(
         &mut doc,
         shelf_i,
-        &Frame::translation([FLAT_PACK_GAP, 0.9, 0.0]),
+        crate::world::slides([FLAT_PACK_GAP, 0.9, 0.0]),
         tol,
     );
     (doc, pattern, shelf_i)

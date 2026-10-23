@@ -331,28 +331,36 @@ pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
             .filter(|&(_, k)| k != 0)
             .map(|(axis, k)| (Coord::Spin(axis), turn(k)))
             .collect(),
-        None => {
-            // Entry `r(i, j)`: row `i` of column `j`.
-            let r = |i: usize, j: usize| at.columns[j][i];
-            let cos_beta = r(0, 0).hypot(r(1, 0));
-            let beta = (-r(2, 0)).atan2(cos_beta);
-            let (alpha, gamma) = if cos_beta > f64::EPSILON.sqrt() {
-                (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
-            } else {
-                ((-r(1, 2)).atan2(r(1, 1)), 0.0)
-            };
-            [
-                (TargetAxis::X, alpha),
-                (TargetAxis::Y, beta),
-                (TargetAxis::Z, gamma),
-            ]
+        None => euler_turns(&at.columns)
             .into_iter()
             .filter(|&(_, angle)| angle != 0.0)
             .map(|(axis, angle)| (Coord::Spin(axis), ang(angle)))
-            .collect()
-        }
+            .collect(),
     };
     slides.chain(spins).collect()
+}
+
+/// **The turns about `x`, then `y`, then `z` that the rotation
+/// `columns` makes** (`linear = Rz(γ)·Ry(β)·Rx(α)`), each angle taken
+/// by `atan2` — the fixtures' one reading of a frame's turns as a
+/// chain, for a test that states a pose as a matrix.
+#[must_use]
+pub fn euler_turns(columns: &[[f64; 3]; 3]) -> [(crate::TargetAxis, f64); 3] {
+    use crate::TargetAxis;
+    // Entry `r(i, j)`: row `i` of column `j`.
+    let r = |i: usize, j: usize| columns[j][i];
+    let cos_beta = r(0, 0).hypot(r(1, 0));
+    let beta = (-r(2, 0)).atan2(cos_beta);
+    let (alpha, gamma) = if cos_beta > f64::EPSILON.sqrt() {
+        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
+    } else {
+        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
+    };
+    [
+        (TargetAxis::X, alpha),
+        (TargetAxis::Y, beta),
+        (TargetAxis::Z, gamma),
+    ]
 }
 
 /// **A copy of `body` standing in the world at `at`** (D10: a body has
@@ -781,25 +789,11 @@ pub fn frame_on_in(
         }),
     }));
     let rel = frame.to_affine().inverse() * at;
-    let r = |i: usize, j: usize| {
-        let c = [rel.linear.c0, rel.linear.c1, rel.linear.c2][j];
-        [c.x, c.y, c.z][i]
-    };
-    let cos_beta = r(0, 0).hypot(r(1, 0));
-    let beta = (-r(2, 0)).atan2(cos_beta);
-    let (alpha, gamma) = if cos_beta > f64::EPSILON.sqrt() {
-        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
-    } else {
-        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
-    };
-    let spins = [
-        (TargetAxis::X, alpha),
-        (TargetAxis::Y, beta),
-        (TargetAxis::Z, gamma),
-    ]
-    .into_iter()
-    .filter(|(_, angle)| *angle != 0.0)
-    .map(|(axis, angle)| FrameMove::Spin(axis, ang(angle)));
+    let columns = [rel.linear.c0, rel.linear.c1, rel.linear.c2].map(|c| [c.x, c.y, c.z]);
+    let spins = euler_turns(&columns)
+        .into_iter()
+        .filter(|(_, angle)| *angle != 0.0)
+        .map(|(axis, angle)| FrameMove::Spin(axis, ang(angle)));
     let t = rel.translation;
     let slides = [
         (TargetAxis::X, t.x),

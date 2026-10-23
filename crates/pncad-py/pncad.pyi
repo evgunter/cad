@@ -6040,12 +6040,17 @@ class Maintenance:
     two spaces — a re-target of a placement that moved a body it reads
     into another space. The edit is legal, and the node refuses
     `space_mismatch` at evaluation until an edit puts its reads back in
-    one space."""
+    one space.
+
+    A `value_dropped` names, on `node`, a placement whose bundle an edit
+    wrote whole (`add_constraint`, `remove_constraint`) without one of
+    its values: a freedom the new mates fix, or a turn its chain already
+    makes. The variable it read stays; the copy no longer reads it."""
 
     @property
     def variant(self) -> str:
         """`strand`, `stranded_read`, `stranded_selection`,
-        `stranded_space`, `stranded_appearance`, or
+        `stranded_space`, `stranded_appearance`, `value_dropped`, or
         `anonymous_var_removed`."""
 
     @property
