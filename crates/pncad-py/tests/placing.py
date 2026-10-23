@@ -196,3 +196,21 @@ def own_frame(doc, body, origin=(0.0, 0.0, 0.0), x=(1.0, 0.0, 0.0)):
     if not edge[1]:
         axis = PoseDef.flip(axis)
     return PoseDef.through(axis, PoseDef.point(body, vertex[0]))
+
+
+def world_product(doc):
+    """The document's product made the world's copies, as a test that
+    places bodies into the world means it: the one copy, or the `⊔` of
+    them in document order. Nothing joins a product by being placed
+    (`Doc.set_product`), so a document says what it delivers; this is
+    the saying, for a scene whose product is every copy it stands in the
+    world. Call it once the scene is placed. Answers the product's node,
+    or `None` for a world that holds no copy."""
+    world = doc.output(doc.world)
+    copies = [p for p in doc.placements() if doc.space(p) == world]
+    if not copies:
+        doc.set_product(None)
+        return None
+    product = copies[0] if len(copies) == 1 else doc.assemble(copies)
+    doc.set_product(product)
+    return product

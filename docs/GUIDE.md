@@ -182,8 +182,9 @@ cross-check is not optional decoration**: the exact B-rep measure and
 the tessellated mesh are computed by independent code paths, and
 comparing them is how you find out that one of them is wrong.
 
-An **assembly** runs this same ladder — on its gathered *product*,
-the bodies its world places — with two rungs of its own in front:
+An **assembly** runs this same ladder — on its *product*, the body
+its product slot reads (`Doc.set_product`) — with two rungs of its own
+in front:
 solving the mates for where each instance sits, and the at-rest gate
 that certifies the parts really meet as the mates declare.
 `docs/guide/assembly.md` is those two rungs, and the workspace store
@@ -1891,7 +1892,7 @@ let placed = Placed::unmated(vec![(Coord::Slide(TargetAxis::Z), lit(0.125))]);
 let in_plate = Operand::Var(doc.node_space(plate).expect("a construction is in its own space"));
 let (next, tab_on_plate) = insert(
     &doc,
-    Node::place(vec![BodyRead::plain(Operand::from(tab))], in_plate, placed.bundle()),
+    Node::place(BodyRead::plain(Operand::from(tab)), in_plate, placed.bundle()),
 );
 doc = next;
 let (next, solid) = insert(&doc, Node::Union {

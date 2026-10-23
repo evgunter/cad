@@ -171,19 +171,21 @@ directions into a new document with a caller-supplied id, leaving one
 identity bundle, no mate and the constant `0` on every freedom); a severed
 edge refuses. A cut takes whole placements: a placement's constraints are
 its own, so a cut placement whose bundle reads a kept copy severs that
-read. The part's world is the cut's world placements, so the instance's
-copies stand where the cut's did. A remainder read of the cut crosses
-only where the instance carries what it reads: a selection each of whose
+read. The part's product is the cut's one world copy, or the `⊔` of
+its world copies in document order, so the instance's copy stands
+where the cut's copies did. A remainder read of the cut crosses only
+where the instance carries what it reads: a selection each of whose
 names one cut world placement's copy holds, re-authored on the
-instance's copies; a read of one copy of a cut world placement, or of a
-body one cut world `Place` copies at the identity, re-pointed to that
-copy of the instance by its key in the part. A kept mate whose pose reads
-a cut copy's geometry crosses with its pose written afresh over the
-instance's copies, each selection in it re-authored as a crossing
-selection is; a body's face read through a cut placement crosses only
-where that copy stands at the identity, decided by evaluation.
-Remainder-side names re-anchor through the instance qualifier by
-recorded `Rebind`s. A variable moves with its readers: its side is the
+instance's copy; a read of a cut world placement's copy, or of a body
+one cut world `Place` copies at the identity, re-pointed to a pick of
+the instance's copy (the member of the part's `⊔` that copy is, or the
+copy whole). A kept mate whose pose reads a cut copy's geometry crosses
+with its pose written afresh over the instance's copy, each selection
+in it re-authored as a crossing selection is; a body's face read
+through a cut placement crosses only where that copy stands at the
+identity, decided by evaluation. A remainder-side name re-anchors to
+the name the part's product spells it by, which the instance's copy
+carries verbatim, by a recorded `Rebind`. A variable moves with its readers: its side is the
 union of its readers' — a node slot, or another variable's definition —
 and one with no reader follows what it reads. One whose side is the
 cut's is declared in the part and deleted from the remainder.
@@ -191,14 +193,14 @@ cut's is declared in the part and deleted from the remainder.
 *Inline.* `refactor::inline` is the inverse, by one rule. It mints a
 `new_space()`, copies the other document's nodes into the host
 verbatim with that document's world read as the new space, and
-rewrites the instance as one placement of the spliced copies of that
-document's world placements, as a list, into the instance's target
-under the instance's own bundle, verbatim (`InlineOutcome::placement`,
-its new space `InlineOutcome::space`). No motion is composed, every
-variable keeps driving its copy, and no landing refuses for its
-numbers. A host mate reading the instance's copy reads that
-placement's copy. It refuses a document whose world places nothing,
-and one whose world placements cannot be listed one copy each.
+rewrites the instance as one placement of the spliced product body
+into the instance's target under the instance's own bundle, verbatim
+(`InlineOutcome::placement`, its new space `InlineOutcome::space`). No
+motion is composed, every variable keeps driving its copy, and no
+landing refuses for its numbers. A host read of the instance's copy
+reads that placement's copy, and a pick of it a pick of that copy; a
+host mate reading it is written afresh over the spliced copy its names
+land on. It refuses a document with no product.
 
 *Flatten.* Flattening an identity placement into its target is an edit
 of its own, not a case of inline's: `refactor::flatten` takes a `Place`
@@ -215,8 +217,8 @@ values plus edit lists.
 
 *Acceptance.* Split-then-evaluate equals unsplit evaluation at
 structural and name-resolution identity, not bit identity, up to the
-order of copies: the cut's world placements become the part's, and the
-remainder holds one instance of it. Inline-of-split, with the identity
+order of copies: the cut's world placements become the part's, its
+product their `⊔`, and the remainder holds one instance of it. Inline-of-split, with the identity
 placement it lands flattened into its target, returns the document
 split was given, up to minted ids and order.
 

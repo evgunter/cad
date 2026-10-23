@@ -3788,9 +3788,9 @@ class Doc:
     def placements(self) -> list[NodeId]:
         """The placements, in document order: every `Place` and
         `InstantiatePart` node, the nodes whose copies a bundle of
-        constraints places. Those placed into the world are the product
-        (`product` and `assemble` gather them in this order); the rest
-        place into other spaces (`Doc.space`). Written through `place` and
+        constraints places, into the world or another space
+        (`Doc.space`). Which body is the product is the product slot's
+        (`Doc.set_product`), never derived from these. Written through `place` and
         `Node.instantiate_part`, and nothing else: no edit places as a
         side effect."""
 

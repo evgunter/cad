@@ -1122,7 +1122,7 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
             for cap in evaluation.select(
                 placed,
                 bench_scene.cap_selector(
-                    CapEnd.End, [SegTag.Placed, SegTag.Instance, *bench_scene.PART_FACE]
+                    CapEnd.End, [SegTag.Instance]
                 ),
             )
         )

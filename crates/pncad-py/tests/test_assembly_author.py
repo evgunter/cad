@@ -222,7 +222,7 @@ class TestBenchLayout(BenchWorkspace):
                 doc, family, _, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])
+                    family, cap_selector(CapEnd.End, [SegTag.Instance])
                 )
                 # One per placement, and the name NESTS rather than
                 # concatenating: pattern index, then instance, then
@@ -310,7 +310,7 @@ class TestBenchLayout(BenchWorkspace):
         first = doc.insert(Node.part(family, pncad.PartSelect.instance(Formula.count(0))))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, doc.world))
         ev = evaluate(doc, resolver=self.ws)
-        cap = one(ev.select(first, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])))
+        cap = one(ev.select(first, cap_selector(CapEnd.End, [SegTag.Instance])))
         bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE)))
         joint, values = rest(
             doc, shelf_i, (shelf_i, bottom), (first, cap), SHELF_ON_POST
@@ -346,7 +346,7 @@ class TestBenchLayout(BenchWorkspace):
         # on the copy its one placement puts in its world.
         part_ev = evaluate(self.post)
         (placed,) = self.post.placements()
-        part_cap = one(part_ev.select(placed, cap_selector(CapEnd.End, [SegTag.Placed])))
+        part_cap = one(part_ev.select(placed, cap_selector(CapEnd.End)))
         local = part_ev.face_frame(placed, part_cap).origin
 
         for name, posts in SPELLINGS.items():
@@ -383,7 +383,7 @@ class TestBenchLayout(BenchWorkspace):
                 ]
 
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])
+                    family, cap_selector(CapEnd.End, [SegTag.Instance])
                 )
                 read = sorted(
                     tuple(c.meters for c in ev.face_frame(family, cap).origin)
@@ -415,7 +415,7 @@ class TestBenchLayout(BenchWorkspace):
                 doc, family, _, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])
+                    family, cap_selector(CapEnd.End, [SegTag.Instance])
                 )
                 for cap in caps:
                     denotation = ev.denotation(family, cap)

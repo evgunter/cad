@@ -38,22 +38,24 @@
 //! pinned to the world at the identity: each instance materializes the
 //! ENTIRE new document's product, so per-placement instances of one
 //! pinned document would duplicate every other copy's material N times.
-//! The cut's world placements are the part's world, so the instance's
-//! copies stand where the cut's did, and every pose is the one the cut
-//! solved to. A kept constraint reading a cut copy reads it in the
-//! instance (FORK-S3M: a constraint reads its target across the cut):
-//! its pose is written afresh over the instance's copies, each selection
-//! in it re-authored as a crossing selection is. The instance stands
-//! where its part's world stands ([`crate::mate::stand`]). Neither
-//! door computes a frame.
+//! The part's product is its one world copy, or the `⊔` of its world
+//! copies in document order, so the instance's copy stands where the
+//! cut's copies did, and every pose is the one the cut solved to. A
+//! kept constraint reading a cut copy reads it in the instance
+//! (FORK-S3M: a constraint reads its target across the cut): its pose
+//! is written afresh over the instance's copy, each selection in it
+//! re-authored as a crossing selection is. The instance stands where
+//! its part's product stands ([`crate::mate::stand`]). Neither door
+//! computes a frame.
 //!
 //! [`inline`] is the inverse, by one rule: the part's nodes land in a
 //! `new_space()` verbatim, and the instance becomes a placement of the
-//! spliced copies of the part's world placements into its target under
-//! its own bundle, verbatim. A part whose world places no list of
-//! copies refuses ([`InlineError::UnplaceablePart`]). A host mate
-//! reading the instance's copies is written afresh over the spliced
-//! copy its names land on. [`flatten`] folds such a placement, at the
+//! spliced product body into its target under its own bundle,
+//! verbatim. A part with no product refuses
+//! ([`InlineError::UnplaceablePart`]). A host read of the instance's
+//! copy reads the new placement's, a pick of it a pick of that copy,
+//! and a host mate reading it is written afresh over the spliced copy
+//! its names land on. [`flatten`] folds such a placement, at the
 //! identity, back into its target.
 //!
 //! # Variables go where their readers go
@@ -1270,10 +1272,8 @@ pub enum InlineError {
         /// The non-instance target.
         node: SpokenNode,
     },
-    /// **The part's world places no list of copies** (A4): it places
-    /// none, or one of several world placements copies several bodies,
-    /// which a list of copies cannot hold as one entry until the part's
-    /// product is one body.
+    /// **The part has no product** (A4): its product slot reads
+    /// nothing, so there is no body for the new placement to copy.
     UnplaceablePart {
         /// The instance.
         instance: SpokenNode,
@@ -1403,10 +1403,10 @@ impl core::fmt::Display for InlineError {
             ),
             Self::UnplaceablePart { instance, why } => write!(
                 f,
-                "inline: {instance}'s part places no list of copies in its world: {why}. {}",
+                "inline: {instance}'s part has no product: {why}. {}",
                 Recourse(&format!(
-                    "point {instance} (UpdateReference) at a version whose world places its \
-                     bodies one placement each"
+                    "point {instance} (UpdateReference) at a version whose product slot reads \
+                     a body"
                 ))
             ),
             Self::InstanceReadUncarried { reader, why } => write!(
