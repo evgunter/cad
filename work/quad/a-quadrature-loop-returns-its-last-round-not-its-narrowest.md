@@ -2,10 +2,12 @@
 id: a-quadrature-loop-returns-its-last-round-not-its-narrowest
 kind: issue
 title: Past the arithmetic floor a later round can be wider than an earlier one, and the loops return the last round's bracket
-status: open
+status: closed
 opened: 2026-10-21
 priority: P2
 cost: E
+closed: 2026-10-23
+pr: 5628
 ---
 
 
@@ -22,3 +24,7 @@ but it becomes reachable the day a cap or a work bound admits about round
 14 on the v-exact arm. Whatever lands the stop rule (`[ev]` PR on the
 dial row) returns the narrowest round and pins this half cylinder past
 round 14.
+
+## Closed
+
+PR 5589 made every lane answer its narrowest round and `FaceRun::advance` keep the narrower across windows. PR 5628 routes the last remaining replacement, the certificate's continuation (`continue_to_target`, which overwrote a face with its resumed window), through `advance` too. So no walk hands back a wider round than one it held.

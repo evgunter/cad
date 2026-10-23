@@ -2,11 +2,13 @@
 id: a-sign-walk-escalates-on-the-last-rounds-in-band-reporting-reading
 kind: issue
 title: a sign walk escalates on the last round's in-band reporting-target reading, though its enclosure is sound
-status: open
+status: closed
 opened: 2026-10-21
 priority: P2
 cost: E
 parent: the-measurement-door-refines-until-a-predicate-resolves
+closed: 2026-10-23
+pr: 5628
 ---
 
 
@@ -41,3 +43,7 @@ reporting caller (`RoundOutcome::into_target`) turns it into the error
 it is today. Needs a witness first: a face whose last-round width lands
 within the band of `1024·ε` (choose ε against a measured last-round
 width, as `tcost_k1_budget_exit`'s `early_then_exhausted` does).
+
+## Closed
+
+PR 5628 (measure door unit B). Nothing asks a face the reporting target inside a sign walk any more. The lane is asked a resolution only by a number walk, and a resolution is compared, not decided, so there is no in-band reading to escalate on. A sign walk refines every refinable face until its sign settles or every face is at its floor or work wall.
