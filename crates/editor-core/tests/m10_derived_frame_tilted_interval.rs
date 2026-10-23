@@ -143,7 +143,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
         placement,
         editor_core::Mate {
             on: fixture::plane(start),
-            to: to,
+            to,
             class: editor_core::ContactClass::Rest,
         },
         vec![

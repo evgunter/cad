@@ -702,7 +702,7 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
                 assert_eq!(value.placement, c);
                 assert_eq!(why, editor_core::NoChartWhy::SlideTurnsABall);
                 let said = MateFault::NoChart { value, why }.to_string();
-                assert!(said.contains("spin about the mated direction"), "{said}");
+                assert!(said.contains("set the turn as a"), "{said}");
             }
             other => panic!("a slide beside a ball has no chart, not {other:?}"),
         },

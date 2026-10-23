@@ -274,14 +274,8 @@ pub fn on_axis(
         to,
         class: ContactClass::Rest,
     };
-    // The two freedoms an axis mate leaves, each written.
-    let placed = Answer {
-        mates: vec![mate],
-        values: vec![
-            (Coord::Slide(TargetAxis::Z), along),
-            (Coord::Spin(TargetAxis::Z), Formula::zero(Dimension::Angle)),
-        ],
-    };
+    // The slide an axis mate leaves, written; its spin is the constant 0.
+    let placed = Answer::of(doc, vec![mate], vec![(Coord::Slide(TargetAxis::Z), along)]);
     written(doc, Operand::output(revolve, 0), space, placed, tol)
 }
 

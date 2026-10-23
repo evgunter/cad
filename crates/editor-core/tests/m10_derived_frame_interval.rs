@@ -173,7 +173,7 @@ fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> Rec
         placement,
         editor_core::Mate {
             on: cap_plane(body, body, CapEnd::Start),
-            to: to,
+            to,
             class: editor_core::ContactClass::Rest,
         },
         at_rest(),

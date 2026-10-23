@@ -1114,9 +1114,8 @@ impl crate::spoken::Say for MateFault {
             } => write!(
                 f,
                 "{} sets a slide beside a ball mate, which fixes every translation, so the \
-                 slide could only turn the copy about the ball, and the solve does not settle \
-                 a turn from a slide. Recourse: set the turn as the spin about the mated direction, or \
-                 pin the copy by a frame mate and its values",
+                 slide could only turn the copy about the ball. Recourse: set the turn as a \
+                 spin value, or pin it by a frame mate and its values",
                 mate_(*value)
             ),
             // The refusal is the pose's own, drawn on the carried line.

@@ -87,7 +87,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     };
     // Related to the world by a mate, as a split's instance is: its
     // start cap rests on the world's xy plane.
-    let host = push(
+    push(
         &host,
         Box::new(Node::instantiate_part_with(
             doc_ref,
@@ -95,8 +95,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
             editor_core::Operand::Var(editor_core::VarId::WORLD),
             editor_core::stand().bundle(),
         )),
-    );
-    host
+    )
 }
 
 /// The record is ON THE WIRE (it was unspellable while the enum was

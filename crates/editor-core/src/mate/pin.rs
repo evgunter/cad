@@ -209,15 +209,19 @@ pub(crate) fn kept(left: SubgroupFamily, written: &[Coord]) -> Vec<bool> {
 }
 
 /// **The kind a pose operand reads**, off the recipe: a variable's
-/// kind, a definition's own, or, for a move, a flip or a carried pose,
-/// the kind of the read it keeps through its role. `None` where it
-/// reads nothing live.
+/// kind, a node output's (a revolve's axis port), a definition's own,
+/// or, for a move, a flip or a carried pose, the kind of the read it
+/// keeps through its role. `None` where it reads nothing live.
 pub(crate) fn operand_kind<P>(
     doc: &crate::doc::Doc<P>,
     operand: &Operand,
 ) -> Option<crate::VarKind> {
     match operand {
         Operand::Var(var) => doc.var(*var).map(crate::Var::kind),
+        Operand::Output { node, port } => doc
+            .output(*node, *port)
+            .and_then(|var| doc.var(var))
+            .map(crate::Var::kind),
         Operand::Pose(def) => def.kind().or_else(|| {
             let kept = def.kept()?;
             match kept.role {

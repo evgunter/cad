@@ -2036,7 +2036,7 @@ impl Recorder {
                         node: revolve,
                         port: 1,
                     },
-                    to: to,
+                    to,
                     class: editor_core::ContactClass::Rest,
                 }],
                 values: vec![

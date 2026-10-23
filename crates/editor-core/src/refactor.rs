@@ -4475,7 +4475,6 @@ pub fn flatten(
     let mut carried: Vec<StableName> = current
         .doc()
         .name_carriers()
-        .into_iter()
         .map(|carrier| carrier.name().clone())
         .filter(|name| shape_of(name).is_some())
         .collect();

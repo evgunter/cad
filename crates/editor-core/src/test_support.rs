@@ -452,7 +452,7 @@ pub fn placed_against_in(
     // its outward normal's z there.
     let own_plane = |shape: &crate::Operand| {
         let (_, solid, table, motion) =
-            crate::mate::corner::read_of(&doc, &ev, shape).expect("the body has a value");
+            crate::mate::corner::read_of(doc, &ev, shape).expect("the body has a value");
         let motion = motion.map(|m| m.to_affine());
         solid.faces().find_map(|(face, _)| {
             let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
