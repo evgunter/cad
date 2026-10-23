@@ -565,7 +565,10 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
 /// whose `newell_plane_residual` was a clause-1 `Invalid` while the
 /// placement's map widened its cross-sum to zero, is decided under D's
 /// placement solve. With every rule off, the plain
-/// tier freezes twelve forms and refuses earlier, at the boss extrude's
+/// tier freezes twenty-one forms (twelve before D′2 charted the boss's
+/// seat on the target space's axes swung onto the mated direction, whose
+/// swing the plain tier reads over the box's unknowns) and refuses
+/// earlier, at the boss extrude's
 /// start-endpoint certification over an enclosure of [0, 0.32]; whether
 /// those freezes are what widens it is
 /// `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`. The ten forms that used to freeze at A0's rung sat
@@ -585,7 +588,7 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let n = SymRules::none();
 
     // With the profile elaborated at the lane the plain tier no longer
-    // reaches the side plane: it freezes twelve
+    // reaches the side plane: it freezes twenty-one
     // forms on the way and refuses earlier, at the boss extrude's
     // start-endpoint certification, over an enclosure of [0, 0.32] —
     // filed as a kernel defect reachable by input, with whether the
@@ -603,8 +606,8 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
         "with no rule, the guided boss refuses its start-endpoint certification: {plain_fails:?}"
     );
     assert_eq!(
-        plain_counts.frozen, 12,
-        "and freezes twelve forms getting there: {plain_counts:?}"
+        plain_counts.frozen, 21,
+        "and freezes twenty-one forms getting there: {plain_counts:?}"
     );
 
     let a0 = SymRules {
