@@ -97,9 +97,6 @@ pub(crate) enum CarriedAs {
     /// Passed through whole from the input the op read through `read`:
     /// a member, a seat or a target.
     From(crate::VarId),
-    /// Copied by a placement ([`crate::Node::Place`]), the same entity
-    /// at another pose.
-    Placed,
     /// Shortened to the part of it a split's half holds.
     Split,
     /// Copied into a split's half, where the tool plane passed through
@@ -123,7 +120,6 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // Carried through: the argument is the entity's own name one
         // level down.
         RoleSeg::From { read, of } => SegOrigin::Carried(of, CarriedAs::From(*read)),
-        RoleSeg::Placed { of } => SegOrigin::Carried(of, CarriedAs::Placed),
         RoleSeg::SplitFragment { parent } => SegOrigin::Carried(parent, CarriedAs::Split),
         RoleSeg::OnToolVertex { of } => SegOrigin::Carried(of, CarriedAs::ToolCopy),
         RoleSeg::Instance { of, i } => SegOrigin::Carried(of, CarriedAs::Instance(*i)),
@@ -164,13 +160,6 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // of the reading, stated: a merged face answers the boolean
         // rather than either operand it retired.
         RoleSeg::Merged(_) => SegOrigin::Minted,
-
-        // The instantiate node is where a referenced part's entity
-        // enters THIS document, and the walk stops there on purpose:
-        // the inner name's node is an id in the OTHER document, and a
-        // chain mixing the two would name a local node by coincidence
-        // of numbering.
-        RoleSeg::InPart { .. } => SegOrigin::Minted,
 
         // A qualifier, which composes AFTER the parent-bearing segment
         // and never leads a path. Leading one is a name this walk

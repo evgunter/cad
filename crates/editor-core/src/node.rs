@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use crate::expr::{Dimension, Slot};
 use crate::mate::BundleRows as _;
-use crate::operand::{Bodies, ShapeRows as _};
+use crate::operand::Bodies;
 use crate::var::VarId;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
 // PR-1). Imported, never redefined: the boolean's own refusals must
@@ -47,6 +47,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Subtract { .. }
             | $crate::node::Node::Union { .. }
             | $crate::node::Node::Intersect { .. }
+            | $crate::node::Node::Assemble { .. }
             | $crate::node::Node::Place { .. }
             | $crate::node::Node::World
             | $crate::node::Node::Space
@@ -1215,6 +1216,7 @@ macro_rules! expr_table {
             | Node::Subtract { .. }
             | Node::Union { .. }
             | Node::Intersect { .. }
+            | Node::Assemble { .. }
             | Node::Place { .. }
             | Node::World
             | Node::Space
@@ -1973,21 +1975,30 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// The body cut away.
         tool: crate::BodyRead<S>,
     },
-    /// **A placement** (D10, FORK-S3M): one copy of each of `shapes`
-    /// under the one rigid motion its constraints pin. It reads its
-    /// shapes as a union reads its operands, and defines one `Body`
-    /// output per shape, its copy, whose names are the shape's, each
-    /// qualified by the copy ([`crate::names::RoleSeg::Placed`]). Two
+    /// **The assemble** (`⊔`, D10 `[operations.operators]`): its
+    /// members side by side as the pieces of one body, each a separate
+    /// solid set, none re-decided against another. Its door runs the
+    /// at-rest census over the pieces, one arrival per member, and
+    /// carries every member's own records unchanged, so a meeting inside
+    /// a member is that member's. Its result is an ordinary operand: a
+    /// boolean reading it cuts or joins every piece.
+    Assemble {
+        /// The members, in graft order.
+        members: Bodies<crate::BodyRead<S>>,
+    },
+    /// **A placement** (D10 `[placement.placement]`): one copy of its
+    /// `source` under the one rigid motion its constraints pin, defining
+    /// one output, the copy, whose names are the source's. Two
     /// placements of one body are two copies.
     ///
-    /// Its copies are in its `target`, the space it places into, and
-    /// its bundle pins them there: its constraints set every freedom
-    /// (D10 `[placement.placement]`). They are addressed by their
-    /// minted ids, never by position. Which copy a constraint pins is
-    /// which placement holds it, so a constraint has no role.
+    /// Its copy is in its `target`, the space it places into, and its
+    /// bundle pins it there: its constraints set every freedom. They
+    /// are addressed by their minted ids, never by position. Which copy
+    /// a constraint pins is which placement holds it, so a constraint
+    /// has no role.
     Place {
-        /// The shapes copied, in the order written.
-        shapes: Vec<crate::BodyRead<S>>,
+        /// The body copied.
+        source: crate::BodyRead<S>,
         /// The space the copies are placed into: a `Space` read.
         target: S::Read,
         /// The bundle, in the order written.
@@ -2367,13 +2378,11 @@ macro_rules! node_rows {
             // constraint's: a world read's scalars and a value's number,
             // addressed by the constraint.
             Node::Place {
-                shapes,
+                source,
                 target: _,
                 constraints,
             } => {
-                for (seat, shape) in shapes.$rows() {
-                    index_rows!(seat, shape, $rows, $out);
-                }
+                index_rows!(O::Source, source, $rows, $out);
                 $out.extend(constraints.$rows());
             }
             // The reference itself takes no arguments (AQ4 — the
@@ -2411,7 +2420,7 @@ macro_rules! node_rows {
                 index_rows!(O::From, from, $rows, $out);
                 index_rows!(O::Cut, tool, $rows, $out);
             }
-            Node::Union { members } | Node::Intersect { members } => {
+            Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
                 for (seat, member) in members.$rows() {
                     index_rows!(seat, member, $rows, $out);
                 }
@@ -2516,12 +2525,11 @@ impl<P> Node<P> {
                 v
             }
             Node::Place {
-                shapes,
+                source,
                 target,
                 constraints,
             } => {
-                let mut v: Vec<(O, VarId)> =
-                    shapes.rows().into_iter().map(|(o, r)| (o, r.read)).collect();
+                let mut v: Vec<(O, VarId)> = vec![(O::Source, source.read)];
                 v.push((O::Space, *target));
                 v.extend(side_rows(constraints));
                 v
@@ -2588,6 +2596,9 @@ impl<P> Node<P> {
             }
             | Node::Intersect {
                 members,
+            }
+            | Node::Assemble {
+                members,
             } => members.rows().into_iter().map(|(o, r)| (o, r.read)).collect(),
             Node::Part { of, select: _ } => vec![(O::Of, *of)],
             Node::Pattern {
@@ -2631,15 +2642,11 @@ impl<P> Node<P> {
                 v
             }
             Node::Place {
-                shapes,
+                source,
                 target,
                 constraints,
             } => {
-                let mut v: Vec<(O, &mut VarId)> = shapes
-                    .rows_mut()
-                    .into_iter()
-                    .map(|(o, r)| (o, &mut r.read))
-                    .collect();
+                let mut v: Vec<(O, &mut VarId)> = vec![(O::Source, &mut source.read)];
                 v.push((O::Space, target));
                 v.extend(side_rows_mut(constraints));
                 v
@@ -2701,11 +2708,13 @@ impl<P> Node<P> {
             Node::Subtract { from, tool } => {
                 vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)]
             }
-            Node::Union { members } | Node::Intersect { members } => members
-                .rows_mut()
-                .into_iter()
-                .map(|(o, r)| (o, &mut r.read))
-                .collect(),
+            Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
+                members
+                    .rows_mut()
+                    .into_iter()
+                    .map(|(o, r)| (o, &mut r.read))
+                    .collect()
+            }
             Node::Part { of, select: _ } => vec![(O::Of, of)],
             Node::Pattern {
                 input,
@@ -3031,12 +3040,13 @@ impl<P, S: Slot> Node<P, S> {
             ],
             Self::Pattern { .. } => vec![OutputPort::of("bodies", VarKind::Bodies)],
             // One port of its reads' shape, however many it copies.
+            // One copy, of its source's shape.
             Self::Place { .. } => vec![OutputPort {
-                name: "copies",
+                name: "copy",
                 kind: PortKind::Placed,
             }],
-            // The part's world copies, keyed by their identity there.
-            Self::InstantiatePart { .. } => vec![OutputPort::of("copies", VarKind::Bodies)],
+            // One copy of the part's product.
+            Self::InstantiatePart { .. } => vec![OutputPort::of("copy", VarKind::Body)],
             Self::Measure { primitive } => {
                 vec![OutputPort::of("value", VarKind::from(primitive.dim()))]
             }
@@ -3047,6 +3057,7 @@ impl<P, S: Slot> Node<P, S> {
             | Self::Subtract { .. }
             | Self::Union { .. }
             | Self::Intersect { .. }
+            | Self::Assemble { .. }
             | Self::Part { .. }
             | Self::PlacedUnion { .. } => vec![BODY],
             Self::Assertion { .. } => Vec::new(),
@@ -3173,18 +3184,15 @@ impl<P, S: Slot> Node<P, S> {
             Node::Intersect { members } => Node::Intersect {
                 members: members.try_map(|o, r| r.try_map(o, f, read))?,
             },
+            Node::Assemble { members } => Node::Assemble {
+                members: members.try_map(|o, r| r.try_map(o, f, read))?,
+            },
             Node::Place {
-                shapes,
+                source,
                 target,
                 constraints,
             } => Node::Place {
-                shapes: shapes
-                    .iter()
-                    .enumerate()
-                    .map(|(i, shape)| {
-                        shape.try_map(O::Shape(u32::try_from(i).unwrap_or(u32::MAX)), f, read)
-                    })
-                    .collect::<Result<_, _>>()?,
+                source: source.try_map(O::Source, f, read)?,
                 target: read(O::Space, target)?,
                 constraints: map_constraints(constraints, f, read)?,
             },
@@ -3249,8 +3257,10 @@ impl<P, S: Slot> Node<P, S> {
             Node::Split { target, .. } => vec![(O::Target, target)],
             Node::Mirror { body, .. } => vec![(O::Body, body)],
             Node::Subtract { from, tool, .. } => vec![(O::From, from), (O::Cut, tool)],
-            Node::Union { members, .. } | Node::Intersect { members, .. } => members.rows(),
-            Node::Place { shapes, .. } => shapes.rows(),
+            Node::Union { members, .. }
+            | Node::Intersect { members, .. }
+            | Node::Assemble { members, .. } => members.rows(),
+            Node::Place { source, .. } => vec![(O::Source, source)],
             Node::Profile(_)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
@@ -3286,14 +3296,16 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Mirror { body, .. }, O::Body) => Some(body),
             (Node::Subtract { from, .. }, O::From) => Some(from),
             (Node::Subtract { tool, .. }, O::Cut) => Some(tool),
-            (Node::Union { members, .. } | Node::Intersect { members, .. }, _) => members
+            (
+                Node::Union { members, .. }
+                | Node::Intersect { members, .. }
+                | Node::Assemble { members, .. },
+                _,
+            ) => members
                 .rows_mut()
                 .into_iter()
                 .find_map(|(at, read)| (at == seat).then_some(read)),
-            (Node::Place { shapes, .. }, _) => shapes
-                .rows_mut()
-                .into_iter()
-                .find_map(|(at, read)| (at == seat).then_some(read)),
+            (Node::Place { source, .. }, O::Source) => Some(source),
             _ => None,
         }
     }
@@ -3584,6 +3596,7 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Subtract { .. }
             | Node::Union { .. }
             | Node::Intersect { .. }
+            | Node::Assemble { .. }
             | Node::Place { .. }
             | Node::World
             | Node::Space
@@ -3751,17 +3764,17 @@ impl<P, S: Slot> Node<P, S> {
         }
     }
 
-    /// Builds a [`Node::Place`] copying `shapes` into `target` under
+    /// Builds a [`Node::Place`] copying `source` into `target` under
     /// `constraints`, the whole bundle: a value naming a mate of it
     /// names the mate's id as written, which the insert mints
     /// ([`crate::mate::pin::Placed::bundle`]).
     pub fn place(
-        shapes: Vec<crate::BodyRead<S>>,
+        source: impl Into<crate::BodyRead<S>>,
         target: impl Into<S::Read>,
         constraints: Vec<crate::mate::Constraint<S>>,
     ) -> Self {
         Node::Place {
-            shapes,
+            source: source.into(),
             target: target.into(),
             constraints,
         }
@@ -3830,6 +3843,7 @@ impl<P> Node<P, crate::Formula> {
             | Node::Subtract { .. }
             | Node::Union { .. }
             | Node::Intersect { .. }
+            | Node::Assemble { .. }
             | Node::World
             | Node::Space
             | Node::Pattern { .. }

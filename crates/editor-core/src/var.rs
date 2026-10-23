@@ -259,6 +259,31 @@ pub enum VarDef {
     /// ([`crate::pose::PoseDef`]). The kind is the definition's, or for
     /// a flip its read's.
     Pose(crate::pose::PoseDef),
+    /// **A pick** (D10 `[placement.placement]`): one piece of a copy,
+    /// a `Body`.
+    Pick(Pick),
+}
+
+/// **What a pick names** ([`VarDef::Pick`]): one piece of a placement's
+/// copy, by the piece's variable in the source, through the
+/// placements inside the source down to the first variable it reaches.
+///
+/// `placement` is the copy read (a placement's or an instance's one
+/// output). `of` walks the copy's source: each step is one operand of
+/// the `⊔` the walk reaches through the placements before it, so a
+/// pick of the bolt in a copy of `bolt ⊔ plate` is `of: [bolt]`, and
+/// in a copy of a copy of `(bolt ⊔ plate) ⊔ frame` is `of: [s, bolt]`,
+/// `s` the inner `⊔`'s output. The variables are the source's, which
+/// for an instance are its part's. Like a selection, a pick authored
+/// at two sites is two variables, and a pick whose piece the source no
+/// longer has is unresolved at evaluation, never re-pointed.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Pick {
+    /// The copy read.
+    pub placement: VarId,
+    /// The path to the piece, outermost first; never empty.
+    pub of: Vec<VarId>,
 }
 
 /// **What a selection names** ([`VarDef::Select`]): one body read, and
@@ -522,6 +547,7 @@ impl VarDef {
             Self::Defined(expr) => Some(VarKind::from(expr.dim())),
             Self::Pose(def) => def.kind(),
             Self::Output { .. } | Self::Select(_) => None,
+            Self::Pick(_) => Some(VarKind::Body),
         }
     }
 
@@ -530,7 +556,7 @@ impl VarDef {
     pub fn free(&self) -> Option<&FreeVar> {
         match self {
             Self::Free(free) => Some(free),
-            Self::Defined(_) | Self::Output { .. } | Self::Select(_) | Self::Pose(_) => None,
+            Self::Defined(_) | Self::Output { .. } | Self::Select(_) | Self::Pose(_) | Self::Pick(_) => None,
         }
     }
 
@@ -539,7 +565,7 @@ impl VarDef {
     pub fn defined(&self) -> Option<&Expr> {
         match self {
             Self::Defined(expr) => Some(expr),
-            Self::Free(_) | Self::Output { .. } | Self::Select(_) | Self::Pose(_) => None,
+            Self::Free(_) | Self::Output { .. } | Self::Select(_) | Self::Pose(_) | Self::Pick(_) => None,
         }
     }
 
@@ -548,7 +574,7 @@ impl VarDef {
     pub fn select(&self) -> Option<&Select> {
         match self {
             Self::Select(select) => Some(select),
-            Self::Free(_) | Self::Defined(_) | Self::Output { .. } | Self::Pose(_) => None,
+            Self::Free(_) | Self::Defined(_) | Self::Output { .. } | Self::Pose(_) | Self::Pick(_) => None,
         }
     }
 
@@ -557,7 +583,20 @@ impl VarDef {
     pub fn pose(&self) -> Option<&crate::pose::PoseDef> {
         match self {
             Self::Pose(def) => Some(def),
-            Self::Free(_) | Self::Defined(_) | Self::Output { .. } | Self::Select(_) => None,
+            Self::Free(_)
+            | Self::Defined(_)
+            | Self::Output { .. }
+            | Self::Select(_)
+            | Self::Pick(_) => None,
+        }
+    }
+
+    /// The pick, when the definition is one.
+    #[must_use]
+    pub fn pick(&self) -> Option<&Pick> {
+        match self {
+            Self::Pick(pick) => Some(pick),
+            _ => None,
         }
     }
 
@@ -566,7 +605,7 @@ impl VarDef {
     pub fn output(&self) -> Option<(crate::RecipeNodeId, u8)> {
         match *self {
             Self::Output { node, port } => Some((node, port)),
-            Self::Free(_) | Self::Defined(_) | Self::Select(_) | Self::Pose(_) => None,
+            Self::Free(_) | Self::Defined(_) | Self::Select(_) | Self::Pose(_) | Self::Pick(_) => None,
         }
     }
 
@@ -578,13 +617,15 @@ impl VarDef {
             (Self::Defined(a), Self::Defined(b)) => a.bit_eq(b),
             (Self::Output { .. }, Self::Output { .. })
             | (Self::Select(_), Self::Select(_))
-            | (Self::Pose(_), Self::Pose(_)) => self == other,
+            | (Self::Pose(_), Self::Pose(_))
+            | (Self::Pick(_), Self::Pick(_)) => self == other,
             (
                 Self::Free(_)
                 | Self::Defined(_)
                 | Self::Output { .. }
                 | Self::Select(_)
-                | Self::Pose(_),
+                | Self::Pose(_)
+                | Self::Pick(_),
                 _,
             ) => false,
         }
@@ -605,6 +646,8 @@ pub enum WrittenDef {
     Select(VarKind, Select),
     /// A pose definition of the stated kind (a flip's is its read's).
     Pose(VarKind, crate::pose::PoseDef),
+    /// A pick, a `Body`.
+    Pick(Pick),
 }
 
 impl WrittenDef {
@@ -615,6 +658,7 @@ impl WrittenDef {
             Self::Free(free) => VarKind::from(free.dim()),
             Self::Defined(expr) => VarKind::from(expr.dim()),
             Self::Select(kind, _) | Self::Pose(kind, _) => *kind,
+            Self::Pick(_) => VarKind::Body,
         }
     }
 }
@@ -626,6 +670,7 @@ impl From<WrittenDef> for VarDef {
             WrittenDef::Defined(expr) => Self::Defined(expr),
             WrittenDef::Select(_, select) => Self::Select(select),
             WrittenDef::Pose(_, def) => Self::Pose(def),
+            WrittenDef::Pick(pick) => Self::Pick(pick),
         }
     }
 }
@@ -718,7 +763,7 @@ impl VarDecl {
         match def {
             VarDef::Free(free) => Some(Self::Free(free)),
             VarDef::Defined(expr) => Some(Self::Defined(crate::Formula::from(expr))),
-            VarDef::Output { .. } | VarDef::Select(_) | VarDef::Pose(_) => None,
+            VarDef::Output { .. } | VarDef::Select(_) | VarDef::Pose(_) | VarDef::Pick(_) => None,
         }
     }
 }
@@ -784,7 +829,11 @@ impl Var {
     pub(crate) fn select_mut(&mut self) -> Option<&mut Select> {
         match &mut self.def {
             VarDef::Select(select) => Some(select),
-            VarDef::Free(_) | VarDef::Defined(_) | VarDef::Output { .. } | VarDef::Pose(_) => None,
+            VarDef::Free(_)
+            | VarDef::Defined(_)
+            | VarDef::Output { .. }
+            | VarDef::Pose(_)
+            | VarDef::Pick(_) => None,
         }
     }
 

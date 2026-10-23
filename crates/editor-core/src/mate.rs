@@ -218,18 +218,13 @@ pub(crate) fn copies_of<P>(
             out.push((p, Copying::Own));
             continue;
         }
-        let Some(crate::Node::Place { shapes, .. }) = doc.node(p) else {
+        let Some(crate::Node::Place { source, .. }) = doc.node(p) else {
             continue;
         };
-        if shapes.iter().any(|shape| shape.read == body) {
+        if source.read == body {
             out.push((p, Copying::Whole));
         } else {
-            out.extend(
-                shapes
-                    .iter()
-                    .filter_map(|shape| pick(shape.read))
-                    .map(|how| (p, how)),
-            );
+            out.extend(pick(source.read).map(|how| (p, how)));
         }
     }
     out

@@ -150,17 +150,14 @@ pub(super) struct Walk {
 }
 
 impl Walk {
-    /// **The face of the member's PART the reference names** — the
-    /// one `InPart` the member's instance puts round its part's names,
-    /// taken off the name the walk reached there
-    /// ([`crate::FaceName::part_local`]), in the part's own
-    /// coordinates; a copy reads its master's face.
+    /// **The face of the member's source the reference names** — the
+    /// name the walk reached at the member, which a copy carries
+    /// verbatim from its source, in the source's own coordinates; a
+    /// pattern's copy reads its master's face.
     ///
-    /// `None` when the name at the instance is not one `InPart` round
-    /// a face: a name an instance mints always is, so only a document
-    /// written some other way answers `None`.
+    /// `None` when that name is no face's.
     pub(super) fn part_face(&self) -> Option<crate::FaceName> {
-        crate::FaceName::part_local(&self.placed, self.member.instance)
+        crate::FaceName::new(self.placed.clone()).ok()
     }
 }
 
@@ -183,6 +180,21 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
     let mut name: &crate::names::StableName = &r.name;
     let mut chain: Vec<Placer> = Vec::new();
     loop {
+        // A placement's copy, an instance's or a `Place`'s, carries its
+        // source's names verbatim: the member the solve poses, whoever
+        // minted the name.
+        if matches!(
+            doc.node(at),
+            Some(Node::InstantiatePart { .. } | Node::Place { .. })
+        ) {
+            return Ok(Walk {
+                member: Member {
+                    instance: at,
+                    chain: chain.iter().copied().map(Placing::from).collect(),
+                },
+                placed: name.clone(),
+            });
+        }
         if at != name.node {
             // Not the head yet: only a name-carrying edge
             // ([`crate::names::verbatim_edge`]) that projects this body
@@ -210,17 +222,6 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
             continue;
         }
         match doc.node(at) {
-            // A placement's copy, an instance's or a `Place`'s: the
-            // member the solve poses.
-            Some(Node::InstantiatePart { .. } | Node::Place { .. }) => {
-                return Ok(Walk {
-                    member: Member {
-                        instance: at,
-                        chain: chain.iter().copied().map(Placing::from).collect(),
-                    },
-                    placed: name.clone(),
-                });
-            }
             // A pattern's copy: the name must SAY which copy, and the
             // walk continues at the pattern's input under the name
             // inside the qualifier. Any number of levels, because a
@@ -238,7 +239,7 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
             // qualifier. A union moves nothing, so it is no placer: a
             // reference read here and one read at the member it names
             // stand on one member.
-            Some(Node::Union { members, .. }) => {
+            Some(Node::Union { members, .. } | Node::Assemble { members, .. }) => {
                 let [RoleSeg::From { read, of }] = name.path.as_slice() else {
                     return Err(at);
                 };
@@ -328,15 +329,13 @@ pub fn member_reading<P>(
     walk(doc, head).ok().map(|w| (w.member, w.placed))
 }
 
-/// **The face of the member's PART a side names** — the side walked
-/// to its member, then the instance's `InPart` taken off the name the
-/// walk reached there ([`crate::FaceName::part_local`]), in the part's
-/// own coordinates; a copy reads its MASTER's face.
+/// **The face of the member's source a side names** — the side walked
+/// to its member, and the name the walk reached there, which a copy
+/// carries verbatim, in the source's own coordinates; a copy reads its
+/// MASTER's face.
 ///
 /// `None` when the side is outside A11's member vocabulary
-/// ([`member_of`] answers `None`), or when the name at the member's
-/// instance is not one `InPart` round a face, which a name an
-/// instance mints always is.
+/// ([`member_of`] answers `None`), or when that name is no face's.
 pub fn head_face<P>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<crate::FaceName> {
     walk(doc, head).ok()?.part_face()
 }

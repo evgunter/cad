@@ -1186,6 +1186,7 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::RemoveConstraints { .. }
         // A label is text.
         | DocEdit::SetLabel { .. }
+        | DocEdit::SetProduct { .. }
         | DocEdit::UpdateReference { .. } => None,
     }
 }

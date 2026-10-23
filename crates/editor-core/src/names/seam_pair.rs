@@ -52,9 +52,7 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         // pair re-reads a rank along it as it would below.
         RoleSeg::From { of: n, .. }
         | RoleSeg::SplitFragment { parent: n, .. }
-        | RoleSeg::Instance { of: n, .. }
-        | RoleSeg::InPart { of: n }
-        | RoleSeg::Placed { of: n } => Head::Through(n),
+        | RoleSeg::Instance { of: n, .. } => Head::Through(n),
         RoleSeg::Merged(set) => Head::Merged(set),
         // New entities an op minted FROM a source — a blend face, a
         // shell's cavity twin (an offset line, not the source's), a

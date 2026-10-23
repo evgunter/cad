@@ -1456,8 +1456,8 @@ type DoorRows = (
 /// **The rows the `unproven-coincidence` resident asks the door
 /// about** (D10): every evaluated node's rows, in evaluation order then
 /// decision order, then the at-rest census's rows on the gathered
-/// product and on each `new_space()` it carries
-/// ([`crate::Product::spaces`]), in their order; each
+/// product and on each other `⊔` it carries
+/// ([`crate::Product::assembles`]), in their order; each
 /// under the subject it is reported against — the node that decided it,
 /// the mate whose pair the census decided, or the two copies it found
 /// in contact.
@@ -1472,10 +1472,10 @@ fn door_rows<P, T: Decide>(
             .iter()
             .chain(
                 gathered
-                    .spaces
+                    .assembles
                     .iter()
-                    .filter_map(|space| space.gather.as_ref().ok())
-                    .flat_map(|space| space.coincidences.iter()),
+                    .filter_map(|assemble| assemble.gather.as_ref().ok())
+                    .flat_map(|assemble| assemble.coincidences.iter()),
             )
             .collect(),
         Subject::EmptyProduct | Subject::Unavailable { .. } => Vec::new(),

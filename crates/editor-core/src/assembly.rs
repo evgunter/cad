@@ -861,13 +861,13 @@ impl MintRefusal {
 pub enum AssemblyError {
     /// The gather itself refused.
     Product(Box<ProductError>),
-    /// **A `new_space()`'s copies did not gather** (D10, Spaces): the
-    /// copies placed into it check inside it, and its gather refused,
-    /// so it is not at rest there.
-    Space {
-        /// The space.
-        space: crate::VarId,
-        /// The space's gather refusal.
+    /// **A `⊔` the product does not read did not gather** (D10
+    /// `[operations.operators]`): its operands check at its door, and
+    /// its gather refused, so they are not at rest there.
+    Assemble {
+        /// The `⊔`'s output.
+        assemble: crate::VarId,
+        /// Its gather refusal.
         refusal: Box<ProductError>,
     },
     /// Mates of THIS document whose declarations were not minted:
@@ -1024,10 +1024,10 @@ impl crate::spoken::Say for AssemblyError {
     ) -> core::fmt::Result {
         match self {
             Self::Product(e) => write!(f, "{}", crate::spoken::Said(&**e, by)),
-            Self::Space { space, refusal } => write!(
+            Self::Assemble { assemble, refusal } => write!(
                 f,
-                "the copies placed into {} do not gather: {}",
-                by.space(*space),
+                "the operands of {} do not gather: {}",
+                by.output(*assemble),
                 crate::spoken::Said(&**refusal, by)
             ),
             Self::Mint { refusals } => {
@@ -1183,8 +1183,8 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
         // as its verdict is when it gathers.
         Err(refusal) => {
             if refusal.kind() == crate::ProductErrorKind::EmptyProduct {
-                gate_spaces(
-                    crate::product::space_gathers(doc, evaluation, tol),
+                gate_assembles(
+                    crate::product::assemble_gathers(doc, evaluation, tol, None),
                     tol,
                     &mut Reported {
                         interference: &mut Vec::new(),
@@ -1209,13 +1209,13 @@ struct Reported<'a> {
 /// against nothing outside it (D10, Spaces): the gate over each
 /// [`crate::SpaceGather`] in turn, a space whose copies denote no body
 /// holding nothing to check.
-fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
-    spaces: Vec<crate::SpaceGather<T>>,
+fn gate_assembles<T: crate::checks::at_rest::LocalizeLane>(
+    assembles: Vec<crate::AssembleGather<T>>,
     tol: Tol,
     reported: &mut Reported<'_>,
 ) -> Result<(), AssemblyError> {
-    for space in spaces {
-        match space.gather {
+    for assemble in assembles {
+        match assemble.gather {
             Ok(product) => {
                 reported.interference.extend(verdict(&product, tol)?);
                 once_per_part_row(
@@ -1225,8 +1225,8 @@ fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
             }
             Err(refusal) if refusal.kind().means_no_body() => {}
             Err(refusal) => {
-                return Err(AssemblyError::Space {
-                    space: space.space,
+                return Err(AssemblyError::Assemble {
+                    assemble: assemble.var,
                     refusal: Box::new(refusal),
                 });
             }
@@ -1329,7 +1329,7 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
         contacts,
         minted,
         carried,
-        spaces,
+        assembles,
         carried_interference,
         ..
     } = product;
@@ -1337,7 +1337,7 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
         interference: &mut interference,
         carried: carried_interference,
     };
-    gate_spaces(spaces, tol, &mut reported)?;
+    gate_assembles(assembles, tol, &mut reported)?;
     let carried_interference = reported.carried;
     Ok(Assembly {
         body: body.into_body(),
@@ -1584,7 +1584,7 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
         &dyn Fn(FaceKey) -> crate::coincide::NamedCell,
     ),
     at_rest: &mut AtRestRows,
-    space: crate::VarId,
+    (space, raises): (crate::VarId, bool),
     band: Result<geom_core::Band, geom_core::BandError>,
 ) -> (Vec<MintedDeclaration>, Vec<MintRefusal>) {
     let mut minted = Vec::new();
@@ -1623,10 +1623,10 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
         // states anything about it (A9): a mate across spaces compares
         // nothing, and one in another space is that space's gather's. A
         // side that resolves to no member is asked about wherever it is
-        // asked, so its refusal is raised once, in the world.
+        // asked, so its refusal is raised once, by the product's gather.
         let in_space = match (space_of(&head_a), space_of(&head_b)) {
             (Some(sa), Some(sb)) => sa == space && sb == space,
-            _ => space == crate::VarId::WORLD,
+            _ => raises,
         };
         if !in_space {
             continue;

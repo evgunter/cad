@@ -765,11 +765,6 @@ fn on_its_cap(cell: &Construction) -> Option<Construction> {
         };
         let seg = match seg {
             RoleSeg::RimEdge(end, _) | RoleSeg::CapVertex(end, _) => RoleSeg::Cap(*end),
-            // A part's entity enters at its instance, where the walk
-            // stops: the part's own name is lifted inside it.
-            RoleSeg::InPart { of } => RoleSeg::InPart {
-                of: lift(of)?.into(),
-            },
             carried => {
                 let SegOrigin::Carried(of, _) = origin(carried) else {
                     return None;
@@ -872,10 +867,31 @@ pub fn construction<P>(
     let (mut read, mut name) = (read, name.clone());
     let mut at = doc.operation_of(read).ok_or(Unwalked::Unread(read))?;
     loop {
+        // A pick is its piece of the copy, placed there.
+        if let Some(pick) = doc.pick(read) {
+            placed.push(Placed::World(at));
+            read = *pick.of.last().ok_or(Unwalked::Unread(read))?;
+            at = operation(doc, at, read)?;
+            continue;
+        }
         while at != name.node {
             read = match node(at)? {
                 Node::Part { of, .. } => *of,
                 Node::Split { target, .. } => target.read,
+                // A copy carries its source's names verbatim.
+                Node::Place { source, .. } => {
+                    placed.push(Placed::World(at));
+                    source.read
+                }
+                // A part's entity enters at its instance, where the
+                // walk stops: its name is the part's, in the part's ids.
+                Node::InstantiatePart { .. } => {
+                    placed.push(Placed::World(at));
+                    return Ok(Construction {
+                        origin: Origin::Minted(name),
+                        placed,
+                    });
+                }
                 _ => return Err(Unwalked::Through(at)),
             };
             at = operation(doc, at, read)?;
@@ -904,7 +920,7 @@ pub fn construction<P>(
             SegOrigin::Unclassified => return Err(Unwalked::Unclassified(at)),
             SegOrigin::Carried(of, _) => of.clone(),
         };
-        read = carried_read(doc, seg, node(at)?, at, &mut placed)?;
+        read = carried_read(seg, node(at)?, at, &mut placed)?;
         at = operation(doc, at, read)?;
         name = of;
     }
@@ -924,14 +940,13 @@ fn operation<P>(
 }
 
 /// **The read a carried segment at `at` names its entity in**, by the
-/// segment and the node together: a `From`'s own read; a placing
-/// segment (`Instance`, `Placed`) adds its placement.
+/// segment and the node together: a `From`'s own read; a pattern's
+/// `Instance` adds its placement.
 ///
 /// # Errors
 ///
 /// [`Unwalked::Misplaced`] for a segment `at`'s kind does not carry.
 fn carried_read<P>(
-    doc: &crate::doc::Doc<P>,
     seg: &RoleSeg,
     node: &Node<P>,
     at: RecipeNodeId,
@@ -948,16 +963,6 @@ fn carried_read<P>(
             Ok(*input)
         }
         (RoleSeg::Instance { .. }, _) => Err(misplaced),
-        (RoleSeg::Placed { of }, Node::Place { shapes, .. }) => {
-            placed.push(Placed::World(at));
-            // The copy of the shape whose name the segment carries.
-            let shape = shapes
-                .iter()
-                .find(|shape| doc.operation_of(shape.read) == Some(of.node))
-                .or_else(|| shapes.first())
-                .ok_or(misplaced)?;
-            Ok(shape.read)
-        }
         // Every other carried segment is a split's, carried from its
         // target.
         (_, Node::Split { target, .. }) => Ok(target.read),

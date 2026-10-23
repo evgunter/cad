@@ -2672,6 +2672,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::RemoveConstraint { .. }
         | DocEdit::RemoveConstraints { .. }
         | DocEdit::SetLabel { .. }
+        | DocEdit::SetProduct { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
     for name in names {
@@ -2817,7 +2818,6 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
             | RoleSeg::Instance { of: n, .. }
-            | RoleSeg::Placed { of: n }
             // The fillet vocabulary (M6-5): every argument is the
             // SOURCE entity the blend was born for — derivation, not
             // discrimination.
@@ -2835,17 +2835,6 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::Inner(n)
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. } => visit(n, partners, f),
-            // ASM-2A: the DOCUMENT SEAM. An `InPart` argument is a name
-            // in ANOTHER document's id space — its `RecipeNodeId`s name
-            // that document's nodes, not this one's — so no local walk
-            // may descend into it. Every consumer of this walk reads
-            // `.node` as a local id: the persistence id check, the
-            // Rebind rewrite sites, the N7 suggestion machinery. Which
-            // document those ids belong to is the instantiate node's
-            // `doc_ref`, and a part-document edit that breaks a local
-            // name surfaces at the PART's own diagnosis, carried across
-            // as this node's typed refusal.
-            RoleSeg::InPart { .. } => {}
             RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
