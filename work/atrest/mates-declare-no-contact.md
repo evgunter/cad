@@ -23,3 +23,39 @@ At rest an unmated area contact between copies is now one face-pair row
 and a flush pair a row of its own, so recording a mated contact at the
 door records the same shape.
 
+
+## Handoff
+
+Built on `atrest/mates-declare-no-contact`. A mate is `{on, to}`: the
+class, `ContactClass`, `class_admission`/`ClassAdmission`,
+`MateFault::ClassNotAdmitted`, the solve gate, `MintedDeclaration` and
+the whole mint and attribution machinery (`Mint`, `MintRefusal`,
+`Attribution`, `Relation`, `CarriedDeclaration`, `CarriedRefusal`,
+`AssemblyError::Uncertified`/`UnmintedMates`/`CarriedMintRefusal`,
+`AtRestBy`), `NO_AT_REST_RECORD_RECOURSE`, `FIT_DEFERRAL` and its steer,
+and `kernel_wire::contact_class` are gone. `DeclaredContact.class` is a
+`GlueClass`; Door 1 is `topo::rest_pair_verdict`.
+
+The gather calls `topo::record_at_rest` from row 0: every touch between
+copies, mated or not, is a `CensusAtRest` row (`AtRestRow { copies, row
+}`) and a record citing it; a pierce or same-side crossing stays
+interference. The coincidence door proves a mated seat's row by its
+first rung (`stated_by_a_mate`). `Separation` quiets a pair only on a
+record citing a row that rung proves (deviation, filed:
+`separation-quiets-only-first-rung-rows`).
+
+Content-key `VERSION` 20. Mate wire `{on, to}`; ids after a mate move.
+Re-blessed: perf12 census ×3 (the die tour's ids and the `(..)`
+spelling only), `mint_node_ids`, `slot_tables`, `m10_6_certifying_keys`,
+the die corpora; msolve14/m4_pr4/seat4 digests re-pinned.
+
+Surfaces: Python (`Mate(on, to)`, no `ContactClass`, no mint classes,
+`AssemblyError` arms `at_rest`/`carried_at_rest`/gather tags), viewer
+(no class choice, no tree note, the badge certifies without a count),
+tour. Docs: ASSEMBLY A3/A5, topo README C4/C6, the assembly guide.
+
+Closed: `stage4-i-deletes-the-mate-mint-and-must-keep-the-records`,
+`the-census-reads-each-mated-patchs-decision-twice`. Filed:
+`the-contact-recourse-names-a-class-nobody-can-declare`,
+`separation-quiets-only-first-rung-rows`. `the-at-rest-census-is-a-check`
+stays stage 5 C.
