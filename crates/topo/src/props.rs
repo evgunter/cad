@@ -337,16 +337,16 @@ impl std::error::Error for MassPropsError {}
 ///
 /// ```
 /// use geom_core::{Dual64, Tol};
-/// use topo::{Body, mass_properties_structural};
-/// fn measure(b: &Body<Dual64>, tol: Tol) {
+/// use topo::{AtRestBody, mass_properties_structural};
+/// fn measure(b: &AtRestBody<Dual64>, tol: Tol) {
 ///     let _ = mass_properties_structural(b, tol);
 /// }
 /// ```
 ///
 /// ```compile_fail,E0277
 /// use geom_core::{Dual64, Tol};
-/// use topo::{Body, mass_properties};
-/// fn measure(b: &Body<Dual64>, tol: Tol) {
+/// use topo::{AtRestBody, mass_properties};
+/// fn measure(b: &AtRestBody<Dual64>, tol: Tol) {
 ///     let _ = mass_properties(b, tol);
 /// }
 /// ```
@@ -354,12 +354,112 @@ impl std::error::Error for MassPropsError {}
 /// The two rows differ in one identifier and every path either names
 /// resolves, so the second fails on the bound alone — `E0277`,
 /// `CertifiedEnclosure` not implemented for `Dual<f64>`.
+///
+/// **It measures a finished body** (`&AtRestBody`, Ev's decision on
+/// PR 4822): one tier 3 has passed, so the lanes read loops that bound
+/// one region, shells wound as their roles say and structure that
+/// resolves. A test whose subject is the walk on a body tier 3 refuses
+/// measures through `topo::test_support::measure_unvalidated`, and says
+/// why.
 pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
-    body: &Body<T>,
+    body: &crate::AtRestBody<T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
-    mass_properties_with(body, band, tol, Some(QuadLane::certified()))
+    measure_body(body, tol)
+}
+
+pub(crate) use raw_door::{
+    classify_body, classify_body_of, classify_body_structural, measure_body,
+    measure_body_structural,
+};
+
+/// The doors' walks over any body, finished or not: each typed door
+/// ([`mass_properties`], [`mass_properties_structural`],
+/// [`classify_shells`], [`classify_shells_structural`],
+/// [`classify_shells_of`]) is one of these over a finished body. The
+/// module is private, so its items leave the crate only through
+/// `topo::test_support`'s re-exports (the raw doors and the transitional
+/// alias), and carry this seam's bounds there unrestated; each is
+/// `pub` for those re-exports, so without test-support it is reachable
+/// only inside the crate (the `allow(unreachable_pub)` on each).
+pub(crate) mod raw_door {
+    use super::*;
+
+    /// [`mass_properties`]' walk over any body, finished or not: the
+    /// raw door (`topo::test_support::measure_unvalidated`) a test
+    /// measures a body tier 3 refuses through.
+    ///
+    /// # Errors
+    ///
+    /// As [`mass_properties`].
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
+    pub fn measure_body<T: Decide + geom_core::CertifiedBounds>(
+        body: &Body<T>,
+        tol: Tol,
+    ) -> Result<MassProperties<T>, MassPropsError> {
+        let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+        mass_properties_with(body, band, tol, Some(QuadLane::certified()))
+    }
+
+    /// [`mass_properties_structural`]'s closed-form walk over any body
+    /// (`topo::test_support::measure_unvalidated_structural`).
+    ///
+    /// # Errors
+    ///
+    /// As [`mass_properties_structural`].
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
+    pub fn measure_body_structural<T: Decide>(
+        body: &Body<T>,
+        tol: Tol,
+    ) -> Result<MassProperties<T>, MassPropsError> {
+        let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+        mass_properties_closed_form(body, band, tol)
+    }
+
+    /// [`classify_shells`] over any body, finished or not
+    /// (`topo::test_support::classify_unvalidated`).
+    ///
+    /// # Errors
+    ///
+    /// As [`classify_shells`].
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
+    pub fn classify_body<T: Decide + geom_core::CertifiedBounds>(
+        body: &Body<T>,
+        tol: Tol,
+    ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+        let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
+        classify_body_of(body, &every, tol)
+    }
+
+    /// [`classify_shells_of`] over any body, finished or not
+    /// (`topo::test_support::classify_unvalidated_of`).
+    ///
+    /// # Errors
+    ///
+    /// As [`classify_shells_of`].
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
+    pub fn classify_body_of<T: Decide + geom_core::CertifiedBounds>(
+        body: &Body<T>,
+        shells: &[ShellKey],
+        tol: Tol,
+    ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+        classify_shells_through(body, shells, tol, Some(QuadLane::certified()))
+    }
+
+    /// [`classify_shells_structural`] over any body, finished or not
+    /// (`topo::test_support::classify_unvalidated_structural`).
+    ///
+    /// # Errors
+    ///
+    /// As [`classify_shells_structural`].
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
+    pub fn classify_body_structural<T: Decide>(
+        body: &Body<T>,
+        tol: Tol,
+    ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+        let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
+        classify_shells_through(body, &every, tol, None)
+    }
 }
 
 /// [`mass_properties`] holding NO quadrature lane — the closed-form
@@ -379,11 +479,10 @@ pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
 /// As [`mass_properties`], plus the closed form's typed refusal on
 /// every face the quadrature lane would have enclosed.
 pub fn mass_properties_structural<T: Decide>(
-    body: &Body<T>,
+    body: &crate::AtRestBody<T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
-    mass_properties_closed_form(body, band, tol)
+    measure_body_structural(body, tol)
 }
 
 /// [`mass_properties`] against a caller-built band and the caller's
@@ -4368,12 +4467,15 @@ impl std::error::Error for ShellClassifyError {}
 /// this tolerance, or a bracket straddling zero. (A component count over
 /// a partial classification would be a guess; the caller gets the
 /// refusal instead.)
+///
+/// It classifies a finished body (`&AtRestBody`, Ev's decision on PR
+/// 4822), as [`mass_properties`] measures one;
+/// `topo::test_support::classify_unvalidated` is the raw door.
 pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
-    body: &Body<T>,
+    body: &crate::AtRestBody<T>,
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
-    let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
-    classify_shells_of(body, &every, tol)
+    classify_body(body, tol)
 }
 
 /// [`classify_shells`] holding NO quadrature lane — the same
@@ -4393,11 +4495,10 @@ pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
 /// form's typed refusal on every face the quadrature lane would have
 /// enclosed.
 pub fn classify_shells_structural<T: Decide>(
-    body: &Body<T>,
+    body: &crate::AtRestBody<T>,
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
-    let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
-    classify_shells_through(body, &every, tol, None)
+    classify_body_structural(body, tol)
 }
 
 /// [`classify_shells`] restricted to `shells` — the same classification,
@@ -4422,11 +4523,11 @@ pub fn classify_shells_structural<T: Decide>(
 /// [`ShellClassifyError`] — [`classify_shells`]'s, raised by the first
 /// NAMED shell that cannot be classified.
 pub fn classify_shells_of<T: Decide + geom_core::CertifiedBounds>(
-    body: &Body<T>,
+    body: &crate::AtRestBody<T>,
     shells: &[ShellKey],
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
-    classify_shells_through(body, shells, tol, Some(QuadLane::certified()))
+    classify_body_of(body, shells, tol)
 }
 
 /// The per-shell classification through `quad` — the shared body of
@@ -6379,7 +6480,8 @@ mod face_list_door_tests {
                 SignCertificate::assembled(&body, band, tol, Some(QuadLane::certified()), parts)
                     .refine_to_target()
                     .unwrap();
-            let whole = crate::mass_properties(&body, tol).unwrap();
+            // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+            let whole = crate::test_support::measure_unvalidated(&body, tol).unwrap();
             assert_eq!(
                 (
                     assembled.volume.to_bits(),
@@ -6924,7 +7026,8 @@ mod shell_reference_rows {
             })
             .unwrap();
             let about_first = fold_runs(&runs).0;
-            let walked = crate::mass_properties(body, tol).unwrap();
+            // Raw door: this row walks bodies with and without construction scaffolding alike, and tier 3 refuses the scaffolded ones and those with a loop flipped against its role (ScaffoldAtRest, LoopRoleInverted).
+            let walked = crate::test_support::measure_unvalidated(body, tol).unwrap();
             assert_eq!(
                 (walked.volume.to_bits(), walked.surface_area.to_bits()),
                 (

@@ -906,7 +906,7 @@ pub(crate) fn keyed_copies<T: Decide>(
     use crate::CopyKey;
     let mut out = Vec::new();
     for node in doc.placements() {
-        if evaluation.space(node) != crate::mate::Space::World {
+        if doc.node_space(node) != Some(crate::VarId::WORLD) {
             continue;
         }
         let Some(value) = evaluation.value(node) else {

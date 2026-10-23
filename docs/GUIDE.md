@@ -68,6 +68,8 @@ let rect: ClosedLoop<f64> = Open
 let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?;
 let plate = extrude(&profile, Extrusion::Distance { depth: real(mm(8.0)), side: ExtrudeSide::Along }, tol)?.body;
 validate_closed(&plate).expect("a closed solid");
+// The measurement reads a finished body: tier 3, once, at rest.
+let plate = AtRestBody::validate(plate, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
 let props = mass_properties(&plate, tol)?;
 assert!((props.volume - 2.56e-5).abs() < 1e-18);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -425,7 +427,7 @@ assert blended.vertex_count == 4
 **A profile is 2-D, and a body has no location.** A profile is drawn
 on its own xy plane and an extrude runs up its own +z, so a
 construction lies in its own coordinates and reads no frame. Where it
-stands is a placement's: `doc.place(body, pose=frame)` stands it in the
+stands is a placement's: `doc.place(body, doc.world, pose=frame)` stands it in the
 world at a `Frame`, and `doc.place_against(target, body, frame)` stands
 it at a frame in `target`'s own coordinates — which is how a body
 joins a boolean with another construction.
@@ -459,7 +461,7 @@ slab = doc.insert(
         Formula.length_in(0.25, m),
     )
 )
-wall = doc.place(slab, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+wall = doc.place(slab, doc.world, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
 ev = evaluate(doc)
 assert abs(ev.value(wall).body().mass_properties().volume - 1.5) < 1e-12
 corners = [ev.vertex_position(wall, v) for v in ev.all_vertices(wall)]
@@ -663,7 +665,10 @@ validate_pseudomanifold(&base, &ContactRecords::default(), tol)
 ### 2.4 Measure — mass properties and their pads
 
 `mass_properties` integrates over the exact B-rep — the divergence
-theorem on the real surfaces, not on a mesh:
+theorem on the real surfaces, not on a mesh. It reads a finished body
+(`&AtRestBody`): a Boolean's result is one already (`BooleanBody::body`
+holds the verdict its door kept, as a split's sides do), and a sweep's
+body is finished once with `AtRestBody::validate`, as `slab` does:
 
 ```
 use pncad::prelude::*;
@@ -715,15 +720,17 @@ telling you how much its quadrature does not know, and a program that
 cares about a tolerance should read it rather than assume it.
 
 **Gating and then measuring pays for one quadrature, not two — if you
-ask for it that way.** Tier 3's orientation check *is* a certified
-quadrature over the same body at the same band, so
-`validate_geometric` followed by `mass_properties` runs the expensive
-part twice. `validate_geometric_certificate` hands back the
-certificate the gate decided on, and
-`SignCertificate::refine_to_target` continues that same quadrature to
-the reporting target, reusing every round already paid for; the
-result is `mass_properties`' own answer, bit for bit. Python spells
-the pair as one call, `body.validate_geometric_measured()`.
+ask for it that way.** `mass_properties` reads a finished body, and
+tier 3's orientation check *is* a certified quadrature over the same
+body at the same band, so `AtRestBody::validate` followed by
+`mass_properties` runs the expensive part twice.
+`validate_geometric_certificate` hands back the certificate the gate
+decided on, and `SignCertificate::refine_to_target` continues that
+same quadrature to the reporting target, reusing every round already
+paid for; the result is `mass_properties`' own answer, bit for bit.
+Python's `body.mass_properties()` is that one call (so is
+`body.validate_geometric_measured()`): a body tier 3 refuses raises
+the gate's `ValidationError` there instead of being measured.
 
 The continuation can refuse where the gate passed, and that is the
 honest answer rather than a wrinkle. The reporting target is `1024·ε`,
@@ -887,6 +894,7 @@ let StepImport::Solid { body: reimported, .. } =
 else {
     panic!("the bracket re-imports as a solid, not a wireframe");
 };
+let reimported = AtRestBody::validate(reimported, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
 let back = mass_properties(&reimported, tol)?;
 assert!((back.volume - props.volume).abs() < 1e-15);
 # Ok::<(), E>(())
@@ -1710,7 +1718,9 @@ let NodeResult::Ok(value) = ev.result(plate).expect("the node is live") else {
 let ValuePayload::Body(body) = &value.payload else {
     panic!("an extrude yields a body");
 };
-let props = mass_properties(body.as_ref(), tol)?;
+// An evaluated value holds the body as built; the measurement reads it finished.
+let body = AtRestBody::validate(Body::clone(body), tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
+let props = mass_properties(&body, tol)?;
 let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
 assert!((props.volume - expected).abs() < 1e-9);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -1866,13 +1876,13 @@ let placed = place_against(
     &EvalOptions::default(),
     tol,
 )?;
-let (next, tab_on_plate) = insert(&doc, Node::place(vec![BodyRead::plain(Operand::from(tab))]));
+// The tab's copy is placed into the plate's space, which the mate reads.
+let in_plate = Operand::Var(doc.node_space(plate).expect("a construction is in its own space"));
+let (next, tab_on_plate) = insert(
+    &doc,
+    Node::place(vec![BodyRead::plain(Operand::from(tab))], in_plate, placed.bundle()),
+);
 doc = next;
-placed.write(tab_on_plate, |edit| {
-    let applied = apply(&doc, &edit, tol)?;
-    doc = applied.doc;
-    Ok::<_, EditError>(applied.record.minted_constraints)
-})?;
 let (next, solid) = insert(&doc, Node::Union {
     members: Bodies::Spelled(vec![plate.into(), tab_on_plate.into()]),
 });
@@ -1885,7 +1895,8 @@ let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("a union yields a body");
     };
-    mass_properties(body.as_ref(), tol).expect("mass properties").volume
+    let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
+    mass_properties(&body, tol).expect("mass properties").volume
 };
 
 // The analytic oracle: plate + tab − their overlap − two cylinders of

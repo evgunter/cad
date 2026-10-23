@@ -422,14 +422,13 @@ let placed = place_against(
     tol,
 )
 .expect("the block places against the box");
-let (mut doc, resting) = insert(&doc, Node::place(vec![BodyRead::plain(Operand::from(block))]));
-placed
-    .write(resting, |edit| {
-        let applied = apply(&doc, &edit, tol)?;
-        doc = applied.doc;
-        Ok::<_, pncad::document::EditError>(applied.record.minted_constraints)
-    })
-    .expect("the placement's constraints apply");
+// The copy is placed into the box's space, which its mate reads, and
+// its bundle written whole.
+let in_base = Operand::Var(doc.node_space(base).expect("a construction is in its own space"));
+let (doc, resting) = insert(
+    &doc,
+    Node::place(vec![BodyRead::plain(Operand::from(block))], in_base, placed.bundle()),
+);
 
 // The union glues the rest its margin decides, and records it.
 let (doc, uni) = insert(
@@ -441,7 +440,8 @@ let value = ev.value(uni).expect("the union evaluates");
 let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
     panic!("expected a body");
 };
-assert_eq!(mass_properties(body, tol).expect("mass").volume, 1.125);
+let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
+assert_eq!(mass_properties(&body, tol).expect("mass").volume, 1.125);
 assert_eq!(
     value.coincidences.len(),
     5,

@@ -54,7 +54,7 @@ use sweep::blend::build::{Filleted, fillet_edges};
 use sweep::test_support::{
     assert_naming_totality, lantern as test_support_lantern, rim_arcs_at, sphere_zone,
 };
-use topo::{Body, EdgeKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -94,7 +94,7 @@ fn one_rim(body: &Body<f64>, sel: (f64, f64)) -> EdgeKey {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("mass properties");
+    let p = topo::test_support::unmigrated_measure(body, tol()).expect("mass properties");
     assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
     p.volume
 }

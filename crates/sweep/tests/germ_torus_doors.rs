@@ -1025,7 +1025,7 @@ fn a_cube_in_the_donuts_hole_answers_the_disjoint_union() {
     let r = topo::union(&d, &cube, Tol::witness()).expect("the cube stands clear of the donut");
     let b = &r.body().expect("non-empty").body;
     let vol = |x: &Body<f64>| {
-        topo::mass_properties(x, Tol::witness())
+        topo::test_support::unmigrated_measure(x, Tol::witness())
             .expect("the volume integrates")
             .volume
     };
@@ -1064,7 +1064,7 @@ fn a_cube_in_the_donuts_hole_answers_the_disjoint_union() {
 fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
     let (d, cube) = (donut(), bar((-0.5, 0.5), (-0.25, 0.25), (-0.5, 0.5)));
     let vol = |x: &Body<f64>| {
-        topo::mass_properties(x, Tol::witness())
+        topo::test_support::unmigrated_measure(x, Tol::witness())
             .expect("the volume integrates")
             .volume
     };

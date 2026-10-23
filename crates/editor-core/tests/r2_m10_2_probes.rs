@@ -832,7 +832,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             ),
             (
                 "place",
-                Node::place(vec![editor_core::BodyRead::plain(
+                crate::fixture::stood(vec![editor_core::BodyRead::plain(
                     editor_core::Operand::Node(victim),
                 )]),
             ),

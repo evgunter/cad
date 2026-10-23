@@ -21,9 +21,9 @@ use editor_core::Formula;
 
 use editor_core::coincide::{NamedCell, NamedCoincidence, Proof, Rung};
 use editor_core::{
-    AssemblyError, Attribution, CapEnd, ContactClass, Coord, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, MateRef, MintRefusal, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis, Value, assemble, product_recorded,
+    AssemblyError, Attribution, CapEnd, ContactClass, Coord, DocRef, DocumentId, EntityKind, Frame,
+    MateRef, MintRefusal, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis,
+    assemble, product_recorded,
 };
 use editor_core::{Evaluation, Unreplayed};
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -122,28 +122,16 @@ struct Seat {
 /// a plane mate leaves set: a slide of `apart` along x, none along y,
 /// and no spin, so it pins the copy.
 fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
-    let (doc, m) = fixture::constrain_at(doc, placement, seat.mate);
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(seat.apart)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        fixture::step(
-            doc,
-            DocEdit::AddValue {
-                placement: m.placement,
-                value: Box::new(Value {
-                    mate: Some(m.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
+    let (doc, m) = crate::fixture::mated(
+        doc,
+        placement,
+        seat.mate,
+        &[
+            (Coord::Slide(TargetAxis::X), len(seat.apart)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, fixture::ang(0.0)),
+        ],
+    );
     (doc, m)
 }
 
@@ -213,7 +201,7 @@ fn classed_stand(
 }
 
 /// `count` instances of `part`: the first pinned to the world, the rest
-/// with empty bundles, each a loose copy until a mate places it.
+/// standing in the world by the identity bundle until a mate places it.
 fn seated_row(
     label: &str,
     part: DocRef,
@@ -223,7 +211,7 @@ fn seated_row(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (mut doc, first) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(part),
+        crate::fixture::mated_instance(part),
         &with_resolver(store.clone()),
     );
     let mut ids = vec![first];
@@ -619,10 +607,11 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
 // of the product, where its failure stops nothing), and the unmintable
 // class, which mints a row and continues.
 
-/// GUARD (`mint`'s reference arm, restated over a loose copy): a
-/// constraint whose side resolves to no face fails its placement, and a
-/// failed placement in the product refuses the gather. Its placement is
-/// put out of the product here — its target is a copy no bundle pins —
+/// GUARD (`mint`'s reference arm, restated over a copy in a space of
+/// its own): a constraint whose side resolves to no face fails its
+/// placement, and a failed placement in the product refuses the gather.
+/// Its placement is put out of the product here — its target is a copy
+/// in a `new_space()` —
 /// so its failure stops nothing: the mate authored after it still
 /// mints, and the bad one's refusal is its placement's, at evaluation.
 #[test]
@@ -630,8 +619,9 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-tot-ref-cube"), Tol::witness());
     let (doc, ids) = seated_row("mate6-tot-ref-row", part, 4, &store);
-    // `ids[3]` stays loose: the copy the bad constraint places is in its
-    // space, not the world.
+    // `ids[3]` is moved into a space of its own: the copy the bad
+    // constraint places joins its space, not the world.
+    let (doc, _) = fixture::into_new_space(doc, ids[3]);
     let (doc, bad) = seated_at(
         doc,
         ids[1],
@@ -754,8 +744,9 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
             0.0,
         ),
     );
-    // `ids[5]` stays loose, so the copy this bad reference places is out
-    // of the product.
+    // `ids[5]` is in a space of its own, so the copy this bad reference
+    // places is out of the product.
+    let (doc, _) = fixture::into_new_space(doc, ids[5]);
     let (doc, dangling_mate) = seated_at(
         doc,
         ids[4],
@@ -1027,26 +1018,20 @@ fn at_rest_row(cells: Vec<NamedCell>, relation: topo::Relation) -> NamedCoincide
     }
 }
 
-/// [`stand`] with the stand's mate as `mate` writes it, and its values
-/// as `values` says: the plane mate's three, or none.
+/// [`stand`] with the stand's mate as `mate` writes it, and the plane
+/// mate's three values.
 fn stand_by(
     label: &str,
     part: DocRef,
     store: &PartStore,
     mate: impl FnOnce(&[RecipeNodeId]) -> editor_core::Mate<Formula>,
-    values: bool,
 ) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef) {
     let (doc, ids) = seated_row(label, part, 2, store);
     let seat = Seat {
         mate: mate(&ids),
         apart: 0.0,
     };
-    let (doc, mate) = if values {
-        seated(doc, seat)
-    } else {
-        let placement = fixture::placed_by(&doc, &seat.mate);
-        fixture::constrain_at(doc, placement, seat.mate)
-    };
+    let (doc, mate) = seated(doc, seat);
     (doc, ids, mate)
 }
 
@@ -1074,8 +1059,9 @@ fn stand_by(
 ///   flipped plane slid along its normal by a length, here `0`. The mate
 ///   equates no face's plane; the gap is a variable, so the replay reads
 ///   the seat as a coincidence of values (`Numeric`).
-/// - **a mate whose bundle does not pin**: the rest with no values, a
-///   loose copy the mate does not place.
+///
+/// A mate whose bundle does not pin is no row here: every bundle pins
+/// its copy, and one that does not refuses at the door (`Unpinned`).
 ///
 /// Red if the first rung reads any row a mate does not state as one, or
 /// stops reading the mate's own seat.
@@ -1173,8 +1159,8 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
         "a vertex of the other cap is no cell of the mate's faces"
     );
 
-    // A stand whose mate states the other sense, a standoff, and a loose
-    // copy: each read against the census row of its own two caps.
+    // A stand whose mate states the other sense, and a standoff: each
+    // read against the census row of its own two caps.
     let plain = |on: StableName, to: StableName| editor_core::Mate {
         on: fixture::plane(fixture::head(on)),
         to: editor_core::Target::Pose(fixture::plane(fixture::head(to))),
@@ -1193,43 +1179,18 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
             class: ContactClass::Rest,
         }
     };
-    let rest = |on: StableName, to: StableName| {
-        fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
-    };
     type Writes<'a> = &'a dyn Fn(StableName, StableName) -> editor_core::Mate<Formula>;
-    let cases: [(&str, Writes<'_>, bool, Unreplayed); 3] = [
-        (
-            "mate6-states-unflipped",
-            &plain,
-            true,
-            Unreplayed::OtherDecisions,
-        ),
-        (
-            "mate6-states-standoff",
-            &standoff,
-            true,
-            Unreplayed::Numeric,
-        ),
-        (
-            "mate6-states-loose",
-            &rest,
-            false,
-            Unreplayed::OtherDecisions,
-        ),
+    let cases: [(&str, Writes<'_>, Unreplayed); 2] = [
+        ("mate6-states-unflipped", &plain, Unreplayed::OtherDecisions),
+        ("mate6-states-standoff", &standoff, Unreplayed::Numeric),
     ];
-    for (label, writes, values, want) in cases {
-        let (doc, ids, mate) = stand_by(
-            label,
-            part,
-            &store,
-            |ids| {
-                writes(
-                    in_part(ids[1], body, CapEnd::Start),
-                    in_part(ids[0], body, CapEnd::End),
-                )
-            },
-            values,
-        );
+    for (label, writes, want) in cases {
+        let (doc, ids, mate) = stand_by(label, part, &store, |ids| {
+            writes(
+                in_part(ids[1], body, CapEnd::Start),
+                in_part(ids[0], body, CapEnd::End),
+            )
+        });
         let ev = run(&doc, &with_resolver(store.clone()));
         let row = at_rest_row(
             vec![
@@ -1272,7 +1233,7 @@ fn a_row_at_rest_no_mate_states_is_read_off_the_replays_copies() {
     let (v1, body) = store.insert_part(cube_part("mate6-copies-cube"), Tol::witness());
     let relabelled = fixture::step(
         store.doc(v1.id),
-        DocEdit::SetLabel {
+        editor_core::DocEdit::SetLabel {
             node: body,
             label: Some(editor_core::Label::new("cube").expect("a label")),
         },
@@ -1405,8 +1366,8 @@ fn an_instances_record_cites_the_parts_record() {
 
 /// **The gather mints only the mates of the space it gathers** (F's Q8
 /// rule, landing with the world): a placed pair — a base pinned to the
-/// world and a cube seated on it — and a loose pair, a cube no bundle
-/// pins and a second seated on it. The world's gather mints exactly the
+/// world and a cube seated on it — and a loose pair, a cube standing in
+/// a `new_space()` and a second seated on it. The world's gather mints exactly the
 /// placed pair's mate, and the loose pair's mate states nothing (no
 /// record, no refusal), because its copies are in no product.
 ///
@@ -1419,6 +1380,7 @@ fn the_gate_skips_a_mate_on_a_loose_copy_and_mints_the_placed_ones() {
     let (part, body) = store.insert_part(cube_part("mate6-world-skip-cube"), Tol::witness());
     let (doc, ids) = seated_row("mate6-world-skip-row", part, 2, &store);
     let (doc, loose) = insert(doc, mated_instance(part));
+    let (doc, _) = fixture::into_new_space(doc, loose);
     let (doc, on_loose) = insert(doc, mated_instance(part));
     let (doc, placed_mate) = seated(
         doc,

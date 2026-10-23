@@ -205,6 +205,58 @@ impl fmt::Display for SpokenVar {
     }
 }
 
+/// **A space as a person reads it** (D10 `[placement.spaces]`): `the
+/// world`, a named space by its name, a `new_space()` as its node, and a
+/// construction's space as `the space of` its construction. Built by
+/// [`Doc::spoken_space`] from the document that holds the space.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpokenSpace {
+    id: crate::var::VarId,
+    name: Option<crate::doc::VarName>,
+    /// The node minting it, and whether it is a `new_space()` (said as
+    /// itself) rather than a construction (said as its space's owner).
+    of: Option<(SpokenNode, bool)>,
+}
+
+impl SpokenSpace {
+    /// The space this sentence names.
+    #[must_use]
+    pub fn id(&self) -> crate::var::VarId {
+        self.id
+    }
+}
+
+impl fmt::Display for SpokenSpace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.id == crate::var::VarId::WORLD {
+            return f.write_str("the world");
+        }
+        match (&self.name, &self.of) {
+            (Some(name), _) => write!(f, "`{name}`"),
+            (None, Some((node, true))) => write!(f, "{node}"),
+            (None, Some((node, false))) => write!(f, "the space of {node}"),
+            (None, None) => write!(f, "the space {}", self.id),
+        }
+    }
+}
+
+impl<P> Doc<P> {
+    /// `id`, a space, as a sentence names it ([`SpokenSpace`]).
+    pub fn spoken_space(&self, id: crate::var::VarId) -> SpokenSpace {
+        let of = self.defined_by(id).map(|(node, _)| {
+            (
+                self.spoken(node),
+                matches!(self.node(node), Some(Node::Space)),
+            )
+        });
+        SpokenSpace {
+            id,
+            name: self.var_name(id).cloned(),
+            of,
+        }
+    }
+}
+
 /// **A recipe node as a person reads it**: its kind noun, its label
 /// and its tag (`Extrude "base plate" (3fa9c1d2a0b1)`, with a `"` or
 /// `\` in the label escaped by a `\`), its kind and
@@ -699,9 +751,18 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf> {
         let (node, port) = self.var(var)?.def().output()?;
         let ports = self.node(node)?.outputs();
-        let port = match ports.len() {
-            0 | 1 => None,
-            _ => Some(ports.get(usize::from(port))?.name),
+        // A construction's space is no part of what it holds: a read of
+        // its one other output is said by the node alone, and a read of
+        // the space by its port.
+        let space = |p: &crate::node::OutputPort| {
+            p.kind == crate::node::PortKind::Of(crate::VarKind::Space)
+        };
+        let at = ports.get(usize::from(port))?;
+        let held = ports.iter().filter(|p| !space(p)).count();
+        let port = if space(at) {
+            (held > 0).then_some(at.name)
+        } else {
+            (held > 1).then_some(at.name)
         };
         Some(OutputOf { node, port })
     }
@@ -1241,6 +1302,25 @@ impl<'a> Speaker<'a> {
         }
     }
 
+    /// **A space, said** (D10 `[placement.spaces]`): `the world`, or as
+    /// the output it is (`the space of Extrude e548`).
+    #[must_use]
+    pub fn space(self, var: crate::var::VarId) -> String {
+        if var == crate::var::VarId::WORLD {
+            return "the world".to_owned();
+        }
+        let Some(doc) = self.doc else {
+            return format!("the space {var}");
+        };
+        if let Some(name) = doc.speak_var(var) {
+            return format!("`{name}`");
+        }
+        match doc.output_port(var) {
+            Some((node, _)) => format!("the space of {}", self.node(node)),
+            None => format!("the space {var}"),
+        }
+    }
+
     /// **A slot's variable, said as written**: what an anonymous one
     /// holds, its readers said ([`Self::formula`]); a named one by its
     /// name; `#<16 hex>` where the speaker's document does not hold it.
@@ -1399,9 +1479,11 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
         Node::World => "World",
+        Node::Space => "Space",
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Split { .. } => "Split",
+        Node::Mirror { .. } => "Mirror",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",

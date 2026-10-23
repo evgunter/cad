@@ -584,8 +584,9 @@ pub fn rows(
     let mut depths: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let mut rows = Vec::with_capacity(order.len());
     for id in order {
-        // The world is no feature: it is in every document, defines no
-        // variable, and is never deleted, so it has no row.
+        // The world is no feature: it is in every document, is never
+        // deleted, and only a placement's target reads it, so it has no
+        // row.
         let Some(node) = doc.node(id).filter(|node| !matches!(node, Node::World)) else {
             continue;
         };
@@ -659,6 +660,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
+        | Node::Mirror { .. }
         | Node::Subtract { .. }
         | Node::Union { .. }
         | Node::Intersect { .. }
@@ -666,6 +668,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
         | Node::World
+        | Node::Space
         | Node::Measure { .. }
         | Node::Assertion { .. } => return None,
     };
@@ -1080,9 +1083,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
         // Names the two spaces the operands live in, as evidence: the
-        // repair is the reading node's own operands, or a constraint
-        // that pins the loose copy, and one link would pick for the
-        // reader.
+        // repair is the reading node's own operands, or a placement's
+        // target, and one link would pick for the reader.
         NodeErrorKind::SpaceMismatch { .. } => None,
         // A copy read the placement does not hold, a copy of the wrong
         // shape, or two copies under one key: the reading node's own
@@ -1117,6 +1119,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Blend { .. }
         | NodeErrorKind::Boolean(_)
         | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Mirror(_)
         | NodeErrorKind::Motion(_)
         | NodeErrorKind::Skin(_)
         | NodeErrorKind::Loft(_)
@@ -1198,9 +1201,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::NotAFreedom { value, .. }
         | MateFault::NoChart { value, .. } => vec![value.placement],
         // A claim about one bundle: its placement is the row.
-        MateFault::Overconstrained { placement, .. }
-        | MateFault::Unpinned { placement, .. }
-        | MateFault::TargetsDiffer { placement, .. } => {
+        MateFault::Overconstrained { placement, .. } | MateFault::Unpinned { placement, .. } => {
             vec![*placement]
         }
         // Names no mate and reaches NO row (`MateFault`'s doc says

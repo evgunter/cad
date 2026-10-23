@@ -261,7 +261,7 @@ fn instances_and_ref_of_a_stored_part(
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..n {
-        let (next, id) = insert_pinned(doc, Node::instantiate_part(doc_ref), &opts);
+        let (next, id) = insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &opts);
         doc = next;
         ids.push(id);
     }
@@ -451,7 +451,15 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
             inner: face(part_face(body)),
         }],
     };
-    let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, id) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            editor_core::Operand::Var(editor_core::VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+    );
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-referenced crossing round trips");
     (text, id)
@@ -662,22 +670,24 @@ fn frame_cell(wire: &mut serde_json::Value, transform: RecipeNodeId) -> &mut ser
         [0][0]
 }
 
-/// **An IMPROPER placement frame — both doors.** A mirror is authored
-/// data this build declines to admit (A6, gated on R4's equivariance
-/// audit), and the load door says so in its own arm rather than folding
-/// it in with a coordinate no predicate can read.
+/// **A mirrored placement frame — both doors.** Every pose is proper:
+/// a mirror is a construction (`Node::Mirror`), so a frame that
+/// reflects is one that is not a rigid motion, refused by the
+/// predicate the evaluation moves a body by, on its determinant.
 #[test]
-fn an_improper_placement_is_refused_at_both_doors() {
+fn a_mirrored_placement_is_refused_at_both_doors() {
     let mirror = Frame {
         columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
     };
-    assert!(mirror.determinant() < 0.0, "the fixture really mirrors");
     match transformed("onepred-improper", mirror) {
-        Err(EditError::ImproperPlacement { determinant, .. }) => {
-            assert!(determinant < 0.0, "the refusal carries the determinant");
+        Err(EditError::NonRigidPlacement { check, .. }) => {
+            assert_eq!(
+                check, "transform_rigid_det_plus_one",
+                "refused on its determinant"
+            );
         }
-        other => panic!("an improper placement must refuse typed, got {other:?}"),
+        other => panic!("a mirrored placement must refuse typed, got {other:?}"),
     }
 
     // The load door's half: a proper frame on the wire, mirrored by
@@ -691,13 +701,16 @@ fn an_improper_placement_is_refused_at_both_doors() {
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PlacementRule {
             node,
-            fault: editor_core::PlacementRuleFault::ImproperFrame { index, determinant },
+            fault: editor_core::PlacementRuleFault::NonRigidFrame { index, check },
             ..
         })) => {
             assert_eq!((node.id(), index), (transform, 0));
-            assert!(determinant < 0.0, "the refusal carries the determinant");
+            assert_eq!(
+                check, "transform_rigid_det_plus_one",
+                "refused on its determinant"
+            );
         }
-        other => panic!("an improper frame must refuse typed at load, got {other:?}"),
+        other => panic!("a mirrored frame must refuse typed at load, got {other:?}"),
     }
 }
 

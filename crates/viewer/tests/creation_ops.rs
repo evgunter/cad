@@ -244,6 +244,7 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
     let Some(Node::Place {
         shapes,
         constraints,
+        ..
     }) = doc.node(placement)
     else {
         panic!("the extrude's placement: {:?}", doc.node(placement))
@@ -358,14 +359,8 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
 
     // Undo walks back across the reopened log one edit at a time (the
     // file records edits, not actions: `history`'s module docs) — the
-    // extrude's world placement, its identity bundle written as one
-    // edit, then its insert — then the extrude; redo restores the whole
-    // document.
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    assert!(
-        !session.committed_doc().placements().is_empty(),
-        "the placement's bundle goes before it"
-    );
+    // extrude's world placement, inserted with its identity bundle as
+    // one edit — then the extrude; redo restores the whole document.
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert!(
         session.committed_doc().placements().is_empty(),
@@ -384,9 +379,9 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
             direction: Step::Undo
         })
     ));
-    // Four edits: the profile, the extrude, its placement, and the
-    // placement's identity bundle.
-    for _ in 0..4 {
+    // Three edits: the profile, the extrude, and its placement with its
+    // identity bundle.
+    for _ in 0..3 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }
     assert!(session.committed_doc().bit_eq(&authored), "redo restores");

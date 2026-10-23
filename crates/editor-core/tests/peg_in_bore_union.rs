@@ -97,7 +97,7 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
     let ev = eval(&doc);
     let want = [peg, block]
         .map(|n| {
-            topo::mass_properties(body_of(&ev, n), Tol::witness())
+            topo::test_support::unmigrated_measure(body_of(&ev, n), Tol::witness())
                 .unwrap()
                 .volume
         })
@@ -125,7 +125,9 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
         Ok(()),
         "tier 3"
     );
-    let v = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+    let v = topo::test_support::unmigrated_measure(body, Tol::witness())
+        .unwrap()
+        .volume;
     assert!(
         (v - want).abs() <= 1e-9 * want,
         "the peg and the block only touch: {v} against {want}"

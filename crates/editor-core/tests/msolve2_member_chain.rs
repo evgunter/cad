@@ -35,7 +35,7 @@ use editor_core::{
     CapEnd, ContactClass, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
     FreeValue, FreeVar, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
     NodeResult, Operand, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
-    Space, StableName, VarName, product,
+    StableName, VarId, VarName, product,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
@@ -111,7 +111,10 @@ fn world(
 ) -> ProfileDoc {
     let place = |doc: ProfileDoc, body: RecipeNodeId| {
         let read = fixture::body_read(&doc, body.into());
-        let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+        let (doc, placement) = insert(
+            doc,
+            crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+        );
         fixture::pinned(doc, placement, opts)
     };
     let doc = bodies.iter().fold(doc, |doc, &body| place(doc, body));
@@ -345,7 +348,7 @@ fn scene(label: &str) -> Scene {
     let (top_ref, top_body) = store.insert_part((part, body), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, top) = fixture::insert_pinned(doc, Node::instantiate_part(top_ref), &opts);
+    let (doc, top) = fixture::insert_pinned(doc, crate::fixture::mated_instance(top_ref), &opts);
     let (doc, cap) = insert(doc, fixture::mated_instance(top_ref));
     Scene {
         doc,
@@ -383,8 +386,8 @@ fn assert_placed(doc: &ProfileDoc, opts: &EvalOptions, cap: RecipeNodeId, what: 
     );
     let ev = run(doc, opts);
     assert_eq!(
-        ev.space(cap),
-        Space::World,
+        doc.node_space(cap),
+        Some(VarId::WORLD),
         "{what}: the cap is in the world"
     );
     assert!(

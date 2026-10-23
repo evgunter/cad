@@ -55,7 +55,7 @@ pub(crate) fn drum_lower() -> AtRestBody<f64> {
         2,
         "the rim is two ellipse arcs"
     );
-    finished("the drum's lower part", below, tol)
+    below
 }
 
 fn drum_volume() -> f64 {
@@ -185,7 +185,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: a closed manifold mesh"
     );
-    let p = topo::mass_properties(body, tol)
+    let p = topo::test_support::unmigrated_measure(body, tol)
         .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
     assert!(
         (p.volume - expected).abs() <= p.volume_pad + 1e-12,

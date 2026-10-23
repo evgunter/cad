@@ -481,7 +481,7 @@ class TestCrossCheckOnATiltedPlacement(unittest.TestCase):
             )
         )
         prism = doc.place(
-            doc.insert(Node.extrude(sketch, Formula.length_in(3, m))),
+            doc.insert(Node.extrude(sketch, Formula.length_in(3, m))), doc.world,
             pose=frame_at((0.0, 0.0, 0.0), (s, s, 0.0), (0.0, 0.0, 1.0)),
         )
         body = body_of(doc, prism)

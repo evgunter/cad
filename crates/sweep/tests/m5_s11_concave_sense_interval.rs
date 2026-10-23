@@ -100,7 +100,9 @@ fn interval_washer_props_and_bore_door() {
         dir: v2(0.0, 1.0),
     };
     let t = revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness()).unwrap();
-    let vol = mass_properties(&t.body, Tol::witness()).unwrap().volume;
+    let vol = topo::test_support::unmigrated_measure(&t.body, Tol::witness())
+        .unwrap()
+        .volume;
     let analytic = 3.0 * PI;
     assert!(
         vol.lo() <= analytic && analytic <= vol.hi(),

@@ -130,7 +130,7 @@ fn round(plane: SketchPlane<f64>, c: Point2<f64>, h: f64) -> Body<f64> {
 /// owes: material on both sides, each half valid at tiers 1 and 3,
 /// and the halves partitioning the volume. Returns the halves.
 fn halves(what: &str, body: &Body<f64>) -> [Body<f64>; 2] {
-    let v = topo::mass_properties(body, tol())
+    let v = topo::test_support::unmigrated_measure(body, tol())
         .expect("the body's volume")
         .volume;
     let cut = split(
@@ -167,7 +167,7 @@ fn halves(what: &str, body: &Body<f64>) -> [Body<f64>; 2] {
         (sum - v).abs() < 1e-9 + pad,
         "{what}: the halves partition the volume ({sum} against {v})"
     );
-    out
+    out.map(topo::AtRestBody::into_body)
 }
 
 /// The `(major, minor)` of every ellipse edge carrier in `half`.

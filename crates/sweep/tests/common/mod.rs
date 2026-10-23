@@ -583,7 +583,7 @@ pub fn tilted_cut_upper() -> Body<f64> {
     let topo::splitting::SplitPart::Body(above) = result.above else {
         panic!("both sides of the tilted cut carry material");
     };
-    above
+    above.into_body()
 }
 
 /// The tilted cut's plane normal: `0.3` rad about `y` from `+z`. The
@@ -640,7 +640,7 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
             .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))),
         "the cut face is bounded by ellipse arcs"
     );
-    half
+    half.into_body()
 }
 
 /// **A bore tilted 0.4 rad about `x`**: a radius-0.1 disc prism of

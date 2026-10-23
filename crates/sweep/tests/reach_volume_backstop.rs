@@ -273,7 +273,11 @@ fn a_curved_closed_form_tie_passes_on_the_faces_own_enclosures() {
     use crate::common::operands::three_arc_cylinder;
     let rod = |first: f64| three_arc_cylinder(Point2::new(0.1, 0.2), 0.7, 0.0, 0.9, first);
     let (low, high) = (rod(45.0), rod(60.0));
-    let volume = |b: &Body<f64>| topo::mass_properties(b, tol()).unwrap().volume;
+    let volume = |b: &Body<f64>| {
+        topo::test_support::unmigrated_measure(b, tol())
+            .unwrap()
+            .volume
+    };
     assert!(
         volume(&low) < volume(&high),
         "the two starts' sums round apart: {} vs {}",

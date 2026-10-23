@@ -213,3 +213,98 @@ and the viewer).
 - the isolation hook refused `setsid` launches, the very detach the
   standing rules require.
 (FIT orchestrator)
+
+## 2026-10-22 — a failed id readback is a device fault, and name_of is typed (PR 5601)
+
+Closes:
+- `id-readback-failure-reads-as-nothing-under-the-cursor`
+- `name-of-answers-none-for-both-nothing-and-an-unassigned-id`
+- `a-failed-id-readback-wait-leaves-the-buffer-mapping`, moved here from VGEOM
+
+The changes:
+- `read_id_at` answers `Result<u32, ReadbackFault>` (`Wait`, `Map`, `Short`).
+- The answer channel is `IdChannel` (`Option<IdReply>`).
+- A fault reaches the reader as cursor news (`IdNews::NoReadback`) and never as a disagreement.
+- `name_of` answers `PatchNameFault` (`Nothing`, `Unassigned`, `Unnamed`), and `IdAnswer` holds the door's answer instead of copying it.
+
+Review was full. It found no MAJOR. Its MINOR-1 was a latent crash that predates this change: a faulted readback left the buffer mapped. The next submit then hit `BufferStillMapped`, which wgpu's default handler panics on, and no error handler is installed. The fix pass confirmed this in the wgpu source. It also found that unmapping a buffer whose mapping was refused panics the same way. So every fault now rebuilds the buffer, a read unmaps it, and the map callback's error is carried into the fault. The orchestrator read that hunk.
+
+What still needs a device: whether a real fault is followed by a clean next query.
+(FIT orchestrator)
+
+## 2026-10-22 — zoom to fit frames what is drawn (PR 5597)
+
+Closes `zoom-to-fit-frames-no-committed-profile` (P0) and its passenger `a-degenerate-frame-refusal-prints-an-aspect-nobody-can-act-on`.
+
+**What the fit frames.** `pane::viewport::frame_camera` frames the drawn extent:
+- the scene's corners, plus the committed and preview loop lanes;
+- never the step marks, which are sized after the fit against the camera it produced.
+
+Every extent is one rule, `narrowing::drawn_box`: the box of the f32 corners that crossed the display seam. `SceneMesh::bounds` answers `Option<Aabb>`, and `None` means nothing is drawn, including when every part is hidden.
+
+**When there is nothing to frame.** `CameraOp::Frame` takes `Option<Aabb>`. No extent, or a point, frames at `DEFAULT_FRAME_RADIUS` (0.05 m) with the orientation kept. `Camera::default()` is the startup camera, so `StartupError::Camera` is gone.
+
+**What a refusal says.** `Frame` reads "zoom to fit". `Unfittable` says either the lens or the shape, and never prints a raw number.
+
+**Review** (full, mergeable, no MAJOR). Three MINORs fixed:
+- the frame order now has a test that goes red;
+- `bounds` is taken over the narrowed corners, not in f64;
+- the `Unfittable` sentence is right through `Camera::new`'s narrow lens.
+
+**Filed:** `a-refused-camera-op-prints-its-finite-fields-at-full-precision` (FIT, P4) and `the-readmes-display-population-census-drifted-again` (VDOC, P4).
+(FIT orchestrator)
+
+## 2026-10-22 — two easy tail rows (PR 5604)
+
+Closes `a-flat-rung-row-uses-an-absolute-epsilon-on-a-scaled-value`. The row's test now binds its request once, and compares the last rung with `==`, because the multiply is the rung's definition.
+
+Closes `a-refused-camera-op-prints-its-finite-fields-at-full-precision`. Every number in `camera.rs`'s refusal sentences now goes through `readout::number`. That includes `DegenerateScene`, `FieldOfViewOutOfRange` and `NonPositiveDolly`, which have the same shape. Each sentence is pinned by an exact `error_display` row.
+
+Review: the orchestrator's own read. These were two cheap follow-ups to PRs 5600 and 5597, taken before handing back.
+(FIT orchestrator)
+
+## 2026-10-22 — the occlusion probe asks the kernel (PR 5603)
+
+Closes `pickindex-merges-parts-on-a-rounded-t-it-never-converts`, the last part of that row (§3). The P1s are done.
+
+**What replaced the slack.**
+- `OCCLUSION_SLACK_REL` is deleted.
+- A chord's depth is now its own crossing: the hull of a certified point span (the new editor-core door `ray_segment_point`) and the `ray_triangle` spans over its incident triangles.
+- At a chord end, the end's whole vertex fan is used. An end is a probe pixel clamped to it, or an `s` of exactly 0 or 1.
+- The chord is hidden iff `TSpan::survivors` drops its own crossing.
+
+**The seed.**
+- `front_of` answers the survivor set.
+- The edge search covers every body in a tie, which fixes a cross-part order dependence nobody had filed.
+- `ChordFaces` is a field of `NodePick`, so it is reused through `PickMemo`.
+
+**Review** (full, mergeable, no MAJOR). The door was stressed over 200k adversarial exact-rational cases, and the worst used 23% of its half-width.
+- MINOR-1: the door's table could not see an under-count. Fixed with a seeded counterexample search that goes red at k = 1/8.
+- MINOR-2: the endpoint arms were untested and their premise was fragile. Fixed with a pixel-clamp rule, a unit row and an end-to-end row.
+- `PROJECTION_ERROR_UNITS`' derivation now counts every caller's roundings, including `ray_triangle`'s `e1`/`e2` differences, which had never been counted: under 12.2u against 16u.
+(FIT orchestrator)
+
+## 2026-10-22 — handed back
+
+FIT's P0 and P1 rows are done, so the track is handed back
+(`ready`), per the sitting rule (`memories/orchestration-model.md`).
+
+**Merged this sitting:**
+- 5596: ctrl+wheel and pinch;
+- 5597: zoom to fit frames the drawn extent;
+- 5600: the budget is a target;
+- 5601: a failed readback is a device fault, plus the latent readback panic it exposed;
+- 5603: certified occlusion, and the cross-part tie;
+- 5604: two easy tail rows;
+- tracker: 5593, 5602.
+
+**Left:** three P3 rows (6 points) and two rows parked on D′. The
+plan names them.
+
+**For a successor:**
+- Run `python3 scripts/work.py territory` before any `pick_for` lane;
+  VGEOM's `pick-ambiguity-lists-groups-in-id-order` sits on it.
+- The parked rows wake when INTENT's D′ row closes.
+- Three friction findings from today stand: disk, infra re-runs and
+  `setsid`. See the 2026-10-22 log entry. CIW holds the re-run row.
+(FIT orchestrator)

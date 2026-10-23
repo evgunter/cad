@@ -662,14 +662,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "ImproperPlacement",
-            EditError::ImproperPlacement {
-                node: s(5, "InstantiatePart"),
-                at: FrameSite::Listed { index: 1 },
-                determinant: -1.0,
-            },
-        ),
-        (
             "NonFinitePlacement",
             EditError::NonFinitePlacement {
                 node: s(5, "InstantiatePart"),
@@ -865,13 +857,6 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
                 placement: n(7),
                 constraints: vec![c(8), c(9)],
                 free: 0,
-            },
-        ),
-        (
-            "TargetsDiffer",
-            MateFault::TargetsDiffer {
-                placement: n(7),
-                constraints: vec![c(8), c(9)],
             },
         ),
         ("NotOnTheCopy", MateFault::NotOnTheCopy { mate: r(9) }),

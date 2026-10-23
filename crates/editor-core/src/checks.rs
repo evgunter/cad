@@ -436,6 +436,14 @@ pub enum CheckEvidence {
         /// The typed refusal from the shell door.
         source: ShellClassifyError,
     },
+    /// The subject is not a finished body: tier 3 refuses it, so its
+    /// shells are not classified (the shell door reads finished bodies,
+    /// `&AtRestBody`) and the component count is not read. A finding,
+    /// never a silent skip (F6).
+    NotAtRest {
+        /// The validator's findings on the subject, verbatim.
+        errors: Vec<topo::ValidationError>,
+    },
     /// An expectation with no subject: `expected_components` carries
     /// an entry at this `(root, output_ix)` and no evaluated subject
     /// consumed it — the body vanished (a boolean may have consumed
@@ -642,6 +650,22 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 f,
                 "the component count cannot be computed for this body: {source}"
             ),
+            CheckEvidence::NotAtRest { errors } => match errors.as_slice() {
+                [] => write!(
+                    f,
+                    "the component count is not read: the body does not pass validation"
+                ),
+                [first] => write!(
+                    f,
+                    "the component count is not read: the body does not pass validation: {first}"
+                ),
+                [first, rest @ ..] => write!(
+                    f,
+                    "the component count is not read: the body does not pass validation: {first} \
+                     (and {} more)",
+                    rest.len()
+                ),
+            },
             CheckEvidence::StaleExpectation { expected } => write!(
                 f,
                 "an expectation of {expected} component(s) has no subject: the body \
@@ -776,7 +800,9 @@ impl crate::finding::Finding for SaidFinding<'_> {
                  off rather than reading its silence as a clean body"
             }
             CheckEvidence::UnprovenCoincidence { recourse, .. } => recourse.words(),
-            CheckEvidence::Escalated { .. }
+            // The first finding's own sentence carries its recourse.
+            CheckEvidence::NotAtRest { .. }
+            | CheckEvidence::Escalated { .. }
             | CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. }
             | CheckEvidence::SeparationUnavailable { .. } => "",
@@ -1188,9 +1214,11 @@ impl<T: Decide> Subject<'_, T> {
 /// component count of a subject is its number of definitely-`Outer`
 /// shells ([`topo::classify_shells`]) — an internal void is boundary,
 /// not a component, at every tolerance row — compared EXACTLY (`!=`)
-/// against the expectation. A shell the door cannot classify surfaces
-/// as its own typed finding ([`CheckEvidence::Escalated`] /
-/// [`CheckEvidence::Unsupported`]), never as a silent skip.
+/// against the expectation. A subject tier 3 refuses is not classified
+/// and surfaces as [`CheckEvidence::NotAtRest`]; a shell the door cannot
+/// classify surfaces as its own typed finding
+/// ([`CheckEvidence::Escalated`] / [`CheckEvidence::Unsupported`]). Neither
+/// is a silent skip.
 ///
 /// Expectations are TWO-DIRECTIONAL: every
 /// [`ChecksConfig::expected_components`] entry must be consumed by a
@@ -1428,7 +1456,8 @@ type DoorRows = (
 /// **The rows the `unproven-coincidence` resident asks the door
 /// about** (D10): every evaluated node's rows, in evaluation order then
 /// decision order, then the at-rest census's rows on the gathered
-/// product and on each loose copy's own space, in their order; each
+/// product and on each `new_space()` it carries
+/// ([`crate::Product::spaces`]), in their order; each
 /// under the subject it is reported against — the node that decided it,
 /// the mate whose pair the census decided, or the two copies it found
 /// in contact.
@@ -1572,7 +1601,7 @@ fn door_findings<P: crate::ProfilePayload>(
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
 /// body before the registry grew a second resident, moved out
 /// unchanged so each resident is independently `Off`-able.
-fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
+fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestPolicy>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -1589,7 +1618,21 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
         };
         for (output_ix, body, _contacts, _rows) in sources {
             unconsumed.remove(&(root, output_ix));
-            match classify_shells(body.as_ref(), tol) {
+            // The shell door reads a finished body. Nothing upstream keeps a
+            // root's verdict in its value yet (F2 carries it), so the root is
+            // gated here, once.
+            let body = match T::gate_at_rest_kept(Body::clone(&body), tol) {
+                Ok(body) => body,
+                Err(errors) => {
+                    report.findings.push(CheckFinding {
+                        check: CheckId::Connectedness,
+                        subject: FindingSubject::Output { root, output_ix },
+                        evidence: CheckEvidence::NotAtRest { errors },
+                    });
+                    continue;
+                }
+            };
+            match classify_shells(&body, tol) {
                 Ok(classes) => {
                     let outer = classes
                         .iter()
@@ -2089,7 +2132,7 @@ mod tests {
         for refusal in [
             crate::ProductError::EmptyProduct {
                 unplaced: Vec::new(),
-                loose: Vec::new(),
+                elsewhere: Vec::new(),
             },
             crate::ProductError::Root(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId::new(0, 7),

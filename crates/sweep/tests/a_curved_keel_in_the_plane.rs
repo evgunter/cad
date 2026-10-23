@@ -17,7 +17,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y};
 use topo::splitting::plane_section;
-use topo::{Body, BooleanResult, mass_properties, subtract, transform_rigid};
+use topo::{Body, BooleanResult, subtract, transform_rigid};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -59,7 +59,9 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
         for s in [0.0, 0.6, -0.6, 0.9, -0.9] {
             let what = format!("the V turned {turn}°, its tip {s} ε off the plane");
             let body = keeled(s, turn);
-            let whole = mass_properties(&body, tol()).unwrap().volume;
+            let whole = topo::test_support::unmigrated_measure(&body, tol())
+                .unwrap()
+                .volume;
             for up in [1.0, -1.0] {
                 let what = format!("{what}, the plane's normal {up} y");
                 let plane = topo::test_support::split_plane(
@@ -70,7 +72,11 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
                 let halves = halves_at_rest(&what, &body, &plane);
                 let sum: f64 = halves
                     .iter()
-                    .map(|h| mass_properties(h, tol()).unwrap().volume)
+                    .map(|h| {
+                        topo::test_support::unmigrated_measure(h, tol())
+                            .unwrap()
+                            .volume
+                    })
                     .sum();
                 assert!(
                     (sum - whole).abs() < 1e-9 * whole,

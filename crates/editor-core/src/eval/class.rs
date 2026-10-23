@@ -65,6 +65,8 @@ pub enum NodeErrorClass {
     Boolean,
     /// [`NodeErrorKind::Transform`].
     Transform,
+    /// [`NodeErrorKind::Mirror`].
+    Mirror,
     /// [`NodeErrorKind::Motion`].
     Motion,
     /// [`NodeErrorKind::Skin`].
@@ -143,9 +145,6 @@ pub enum NodeErrorClass {
     /// [`PlacementRuleFault::NonFiniteFrame`].
     PlacementRuleNonFiniteFrame,
     /// [`NodeErrorKind::PlacementRule`] carrying
-    /// [`PlacementRuleFault::ImproperFrame`].
-    PlacementRuleImproperFrame,
-    /// [`NodeErrorKind::PlacementRule`] carrying
     /// [`PlacementRuleFault::NonRigidFrame`].
     PlacementRuleNonRigidFrame,
     /// [`NodeErrorKind::UnschedulableCycle`].
@@ -195,8 +194,6 @@ pub enum NodeErrorClass {
     MateOverconstrained,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unpinned`].
     MateUnpinned,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::TargetsDiffer`].
-    MateTargetsDiffer,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotOnTheCopy`].
     MateNotOnTheCopy,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unleverable`].
@@ -254,6 +251,7 @@ impl NodeErrorKind {
             Self::Blend { verb, .. } => by_verb(*verb, C::Fillet, C::Chamfer),
             Self::Boolean(_) => C::Boolean,
             Self::Transform(_) => C::Transform,
+            Self::Mirror(_) => C::Mirror,
             Self::Motion(_) => C::Motion,
             Self::Skin(_) => C::Skin,
             Self::Loft(_) => C::Loft,
@@ -337,7 +335,6 @@ impl NodeErrorClass {
             PlacementRuleFault::CountSpelling { .. } => Self::PlacementRuleCountSpelling,
             PlacementRuleFault::NoPlacements => Self::PlacementRuleNoPlacements,
             PlacementRuleFault::NonFiniteFrame { .. } => Self::PlacementRuleNonFiniteFrame,
-            PlacementRuleFault::ImproperFrame { .. } => Self::PlacementRuleImproperFrame,
             PlacementRuleFault::NonRigidFrame { .. } => Self::PlacementRuleNonRigidFrame,
         }
     }
@@ -352,7 +349,6 @@ impl NodeErrorClass {
             MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::Unpinned { .. } => Self::MateUnpinned,
-            MateFault::TargetsDiffer { .. } => Self::MateTargetsDiffer,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
             MateFault::KindsDiffer { .. } => Self::MateKindsDiffer,
@@ -413,6 +409,7 @@ mod tests {
         Chamfer,
         Boolean,
         Transform,
+        Mirror,
         Motion,
         Skin,
         Loft,
@@ -450,7 +447,6 @@ mod tests {
         PlacementRuleCountSpelling,
         PlacementRuleNoPlacements,
         PlacementRuleNonFiniteFrame,
-        PlacementRuleImproperFrame,
         PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
@@ -473,7 +469,6 @@ mod tests {
         MateClassNotAdmitted,
         MateOverconstrained,
         MateUnpinned,
-        MateTargetsDiffer,
         MateNotOnTheCopy,
         MateUnleverable,
         MateKindsDiffer,
@@ -597,6 +592,7 @@ mod tests {
             },
             C::Boolean => K::Boolean(topo::BooleanError::UnrepresentableResult),
             C::Transform => K::Transform(topo::TransformError::NurbsPlaceholder),
+            C::Mirror => K::Mirror(topo::TransformError::NurbsPlaceholder),
             C::Motion => K::Motion(geom_core::RigidMotionError::NonFinite(
                 geom_core::MotionPart::Angle,
             )),
@@ -734,12 +730,6 @@ mod tests {
             C::PlacementRuleNonFiniteFrame => {
                 K::PlacementRule(crate::PlacementRuleFault::NonFiniteFrame { index: 2 })
             }
-            C::PlacementRuleImproperFrame => {
-                K::PlacementRule(crate::PlacementRuleFault::ImproperFrame {
-                    index: 2,
-                    determinant: -1.0,
-                })
-            }
             C::PlacementRuleNonRigidFrame => {
                 K::PlacementRule(crate::PlacementRuleFault::NonRigidFrame {
                     index: 2,
@@ -800,7 +790,7 @@ mod tests {
                 held: Default::default(),
                 refusal: crate::ProductError::EmptyProduct {
                     unplaced: Vec::new(),
-                    loose: Vec::new(),
+                    elsewhere: Vec::new(),
                 }
                 .into(),
             }),
@@ -822,10 +812,6 @@ mod tests {
             C::MateUnpinned => mate(crate::MateFault::Unpinned {
                 placement: n(6),
                 free: 2,
-            }),
-            C::MateTargetsDiffer => mate(crate::MateFault::TargetsDiffer {
-                placement: n(6),
-                constraints: vec![c(1), c(2)],
             }),
             C::MateNotOnTheCopy => mate(crate::MateFault::NotOnTheCopy { mate: m(9) }),
             C::MateUnleverable => mate(crate::MateFault::Unleverable {
@@ -864,8 +850,8 @@ mod tests {
                 why: crate::mate::NoChartWhy::PointRotation,
             }),
             C::SpaceMismatch => K::SpaceMismatch {
-                a: crate::Space::World,
-                b: crate::Space::Loose { root: n(6) },
+                a: crate::VarId::WORLD,
+                b: crate::VarId::new(0, test_utils::refusal::tagged(6)),
             },
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),

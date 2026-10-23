@@ -21,7 +21,7 @@ use topo::Body;
 const A: f64 = 0.006;
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, tol())
+    topo::test_support::unmigrated_measure(body, tol())
         .expect("closed-form mass properties")
         .volume
 }

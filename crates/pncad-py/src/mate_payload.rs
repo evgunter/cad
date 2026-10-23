@@ -66,11 +66,10 @@ pub struct MateFaultPayload<'a> {
     /// The node whose copied body a lever's reach was asked of.
     pub shape: Option<RecipeNodeId>,
     /// The placement a bundle's fault is about: the one a constraint
-    /// over-constrains, or whose constraints target different spaces.
+    /// over-constrains, or whose bundle leaves a freedom unwritten.
     pub placement: Option<RecipeNodeId>,
     /// The constraints of [`Self::placement`] the fault names: each an
-    /// equation of which the rest of the bundle already fixes, or the
-    /// bundle's constraints whose targets differ.
+    /// equation of which the rest of the bundle already fixes.
     pub constraints: Option<&'a [ConstraintId]>,
     /// How many of the copy's six freedoms an over-constrained bundle
     /// leaves.
@@ -257,14 +256,6 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
         MateFault::Unpinned { placement, free } => MateFaultPayload {
             placement: Some(*placement),
             free: Some(*free),
-            ..none
-        },
-        MateFault::TargetsDiffer {
-            placement,
-            constraints,
-        } => MateFaultPayload {
-            placement: Some(*placement),
-            constraints: Some(constraints),
             ..none
         },
         MateFault::KindsDiffer { mate, on, to } => MateFaultPayload {

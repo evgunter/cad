@@ -67,9 +67,9 @@ pub use hit::{
     HitTestError, UnnamedEntity, body_name, edge_name, entity_name, face_name, vertex_name,
 };
 pub use pick::{
-    Answer, Crossing, FaceAnswer, MeshPick, MeshPickError, NameLookupError, NodePick,
+    Answer, ChordFaces, Crossing, FaceAnswer, MeshPick, MeshPickError, NameLookupError, NodePick,
     NodePickError, PickHit, PickMemo, PickTarget, TSpan, answer_of, crossing, pick_face,
-    ray_triangle,
+    ray_segment_point, ray_triangle,
 };
 pub use vdiff::{
     FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,
@@ -2633,6 +2633,14 @@ pub fn apply_with_names<T: Decide>(
             names.extend(mate.on.selected_names());
             if let Some(to) = mate.to.pose() {
                 names.extend(to.selected_names());
+            }
+        }
+        DocEdit::SetConstraints { constraints, .. } => {
+            for mate in constraints.iter().filter_map(crate::mate::Constraint::mate) {
+                names.extend(mate.on.selected_names());
+                if let Some(to) = mate.to.pose() {
+                    names.extend(to.selected_names());
+                }
             }
         }
         // Name-carrying and deliberately unchecked here: an appearance

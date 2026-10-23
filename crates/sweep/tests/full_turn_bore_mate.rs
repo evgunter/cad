@@ -38,7 +38,7 @@ use crate::mate2_common::{full_turn_collar, onto_y, peg_at, walls_at};
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point3, Tol};
 use sweep::test_support::finished;
-use topo::{AtRestBody, Body, BooleanOp, BooleanResult, mass_properties};
+use topo::{AtRestBody, Body, BooleanOp, BooleanResult};
 
 /// The collar's bore and outer radii and its span in `y`.
 const BORE: f64 = 0.5;
@@ -67,7 +67,9 @@ fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> AtRestBody<f64> {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    mass_properties(b, Tol::witness()).unwrap().volume
+    topo::test_support::unmigrated_measure(b, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 /// The collar's closed-form volume, `π(R² − r²)·h`.

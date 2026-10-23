@@ -63,8 +63,9 @@ fn blended<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 }
 
 /// The volume through the closed-form door, the one a dual can take.
-fn volume<T: Decide>(body: &Body<T>) -> T {
-    topo::mass_properties_structural(body, Tol::witness())
+fn volume<T: Decide + topo::AtRestPolicy>(body: &Body<T>) -> T {
+    let body = topo::test_support::finished("the blended cube", body.clone(), Tol::witness());
+    topo::mass_properties_structural(&body, Tol::witness())
         .expect("a planar/cylindrical/spherical blended cube measures in closed form")
         .volume
 }

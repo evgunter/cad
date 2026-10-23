@@ -162,7 +162,7 @@ fn down_at(x: f64, y: f64) -> Ray {
 
 /// A camera looking at a box, at `aspect`.
 fn camera_on(doc_bounds: &bvh::Aabb, aspect: f64) -> Camera {
-    Camera::framing(doc_bounds, aspect).expect("a non-degenerate box frames")
+    Camera::framing(Some(*doc_bounds), aspect).expect("a non-degenerate box frames")
 }
 
 fn box_of(min: [f64; 3], max: [f64; 3]) -> bvh::Aabb {
@@ -762,11 +762,7 @@ fn cursors_across_the_pane_never_disagree_with_the_id_map() {
             test_utils::fuzz::replay()
         );
         for id in ids {
-            let name = index
-                .name_of(*id)
-                .expect("a drawn id has a name slot")
-                .as_ref()
-                .expect("the patch is named");
+            let name = index.name_of(*id).expect("the patch is named");
             assert_eq!(
                 name,
                 &hit.name,
@@ -801,7 +797,7 @@ fn two_copies_of_one_body_draw_its_names_apart() {
         index
             .ids_of_node(copy)
             .into_iter()
-            .filter_map(|id| index.name_of(id).and_then(|name| name.as_ref().ok()))
+            .filter_map(|id| index.name_of(id).ok())
             .map(|name| {
                 let (placement, own) = name.copy_of().expect("a copy's name is wrapped");
                 assert_eq!(placement, copy, "headed at the copy that draws it");
@@ -810,7 +806,7 @@ fn two_copies_of_one_body_draw_its_names_apart() {
             .collect()
     };
     for id in index.ids().ids() {
-        if let Some(Ok(name)) = index.name_of(id) {
+        if let Ok(name) = index.name_of(id) {
             assert_eq!(index.ids_of(name).len(), 1, "{name:?} is drawn once");
         }
     }
@@ -1512,7 +1508,7 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
         height_px: 800.0,
     };
     let aspect = pane.aspect().expect("a positive aspect");
-    let camera = camera_on(&scene.bounds(), aspect);
+    let camera = camera_on(&scene.bounds().expect("the scene draws"), aspect);
     // A cursor aimed at the centroid of a drawn triangle, taken from the
     // scene's OWN position buffer. The pane centre would not do: the
     // gallery body is a ring, and the middle of the pane looks through

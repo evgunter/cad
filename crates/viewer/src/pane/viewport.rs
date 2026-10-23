@@ -4,7 +4,6 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 use eframe::egui;
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
@@ -56,7 +55,9 @@ fn push_segment(
 /// by being closed by construction. One that does not must not: the
 /// leg back to the start is the provisional close `sketch::preview`
 /// walked the chain under and nobody authored, so the wrap is dropped
-/// and what is drawn is the authored legs exactly.
+/// and what is drawn is the authored legs exactly. A loop of one
+/// vertex has no leg and is held as its point ([`marks::LegLane::point`]),
+/// so a fit still frames it.
 fn push_loop(
     lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
@@ -76,11 +77,122 @@ fn push_loop(
             points[(index + 1) % points.len()],
         );
     }
+    if let (0, Some(&[x, y])) = (segments, points.first()) {
+        lane.point(plane.to_world(pncad::geom_core::Point2::new(x, y)));
+    }
 }
 
-/// **One drawn preview, placed on its plane and appended to a lane**:
-/// every loop's legs ([`push_loop`]) and the directed point at each of
-/// its steps, sized against `view` — or no marks at all without one.
+/// **The world box around what the viewport hands the GPU as
+/// geometry** ([`crate::narrowing::drawn_box`]): the scene's drawn
+/// corners, and the loops of the committed profiles and the previews.
+/// `None` when none of them draws anything.
+///
+/// A preview's step marks are not in either lane, and must not be:
+/// they are sized against the view, so a fit that framed them would
+/// depend on the camera it is choosing.
+fn drawn_extent(
+    scene: &[[f32; 3]],
+    profiles: &marks::LegLane,
+    preview: &marks::LegLane,
+) -> Option<bvh::Aabb> {
+    crate::narrowing::drawn_box(
+        scene
+            .iter()
+            .chain(profiles.corners())
+            .chain(preview.corners()),
+    )
+}
+
+/// What a frame's camera half takes: the camera it starts from, what
+/// it draws, whether a fit is owed, and the events it folds.
+pub(crate) struct CameraFrame<'a> {
+    /// The camera the frame starts from.
+    pub(crate) camera: &'a Camera,
+    /// The scene's drawn corners ([`crate::scene::SceneMesh::positions`]).
+    pub(crate) scene: &'a [[f32; 3]],
+    /// The committed profiles' lane ([`push_committed`]).
+    pub(crate) profiles: marks::LegLane,
+    /// The doors' previews.
+    pub(crate) previews: &'a Previews,
+    /// Whether a fit is owed this frame.
+    pub(crate) fit: bool,
+    /// The bindings the events fold through.
+    pub(crate) input: &'a input::InputMap,
+    /// The pane, in physical pixels.
+    pub(crate) viewport: ViewportSize,
+    /// This frame's pointer events.
+    pub(crate) events: &'a [ViewportEvent],
+}
+
+/// What [`frame_camera`] settles: the owed fit's fold, the events'
+/// fold over the camera the fit left, and the two overlay lanes drawn
+/// from the camera both left.
+pub(crate) struct FramedCamera {
+    /// The fit's fold, when one was owed.
+    pub(crate) fit: Option<camera::Folded>,
+    /// The events' fold, started from the fit's camera.
+    pub(crate) events: camera::Folded,
+    /// The committed profiles' segments.
+    pub(crate) profiles: Vec<[f32; 3]>,
+    /// The previews' loops, then their step marks.
+    pub(crate) preview: Vec<[f32; 3]>,
+}
+
+/// **The one order a frame's camera and its overlays are made in**:
+/// the geometry lanes, then the extent they and the scene draw, then
+/// the owed fit on that extent, then the events' fold, and only then
+/// the previews' step marks, sized against the camera all of that
+/// settled on. Pure, so the order is a row rather than a reading of
+/// `viewport_ui`.
+pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
+    let CameraFrame {
+        camera,
+        scene,
+        profiles,
+        previews,
+        fit,
+        input: map,
+        viewport,
+        events,
+    } = frame;
+    let mut preview = marks::LegLane::default();
+    push_previews(&mut preview, previews);
+    let fit = viewport.aspect().filter(|_| fit).map(|aspect| {
+        let op = CameraOp::Frame {
+            extent: drawn_extent(scene, &profiles, &preview),
+            aspect,
+        };
+        camera::fold_recorded(camera, std::slice::from_ref(&op))
+    });
+    let start = fit.as_ref().map_or(*camera, |fit| fit.camera);
+    let events = input::fold_events(map, &start, viewport, events);
+    // In pixels, read at each vertex's own depth
+    // ([`screen::View::screen_metres_at`]). A window this camera has no
+    // view of draws the chains and no marks; the projection refusal is
+    // what says why.
+    let view = view_of(&events.camera, viewport).ok();
+    let mut steps = marks::LegLane::default();
+    push_previews_marks(&mut steps, previews, view);
+    FramedCamera {
+        fit,
+        events,
+        profiles: profiles.into_segments(),
+        preview: [preview.into_segments(), steps.into_segments()].concat(),
+    }
+}
+
+/// **One drawn preview's loops, placed on its plane and appended to a
+/// lane** ([`push_loop`]) — its geometry, which a fit frames.
+fn push_preview(lane: &mut marks::LegLane, drawn: &sketch::ProfilePreview) {
+    for polyline in &drawn.loops {
+        push_loop(lane, &drawn.plane, polyline);
+    }
+}
+
+/// **One drawn preview's step marks, appended to a lane**: the
+/// directed point at each of its steps, sized against `view` — or no
+/// marks at all without one. Kept out of [`push_preview`]'s lane
+/// because a mark's size is the view's, not the profile's.
 ///
 /// **The directed point at each step.** A tip is a position and, once
 /// a verb has bound one, a direction — the pair the lattice calls a
@@ -102,7 +214,7 @@ fn push_loop(
 /// start where the drawn steps close. An unfinished chain's tip keeps
 /// its arrowhead — it goes on from there as soon as the next step is
 /// written — so the two ends a reader must tell apart are drawn apart.
-fn push_preview(
+fn push_step_marks(
     lane: &mut marks::LegLane,
     drawn: &sketch::ProfilePreview,
     view: Option<screen::View>,
@@ -110,7 +222,6 @@ fn push_preview(
     let plane = drawn.plane;
     for polyline in &drawn.loops {
         let points = &polyline.points;
-        push_loop(lane, &plane, polyline);
         let refused_tip = match &polyline.end {
             sketch::LoopEnd::Refused(cut) if cut.closes => polyline.vertices.first().copied(),
             sketch::LoopEnd::Refused(_) => polyline.vertices.last().copied(),
@@ -169,21 +280,48 @@ pub(crate) fn push_committed(
     committed.undrawn.len()
 }
 
-/// **Each door's preview that drew, appended to a lane**
-/// ([`push_preview`]). A door with no preview taken, or whose preview
-/// has nothing to draw, adds nothing; the form says why.
-pub(crate) fn push_previews(
-    lane: &mut marks::LegLane,
-    previews: &ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>,
-    view: Option<screen::View>,
-) {
-    let drawn = previews
+/// The doors' profile previews, as each door holds one.
+type Previews = ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>;
+
+/// Each door's preview that drew. A door with no preview taken, or
+/// whose preview failed to replay, draws nothing; the form says why.
+fn drawn_previews(previews: &Previews) -> impl Iterator<Item = &sketch::ProfilePreview> {
+    previews
         .as_ref()
         .into_array()
         .into_iter()
-        .filter_map(|preview| preview.as_ref()?.as_ref().ok());
-    for drawn in drawn {
-        push_preview(lane, drawn, view);
+        .filter_map(|preview| preview.as_ref()?.as_ref().ok())
+}
+
+/// **Each drawn preview's loops, appended to a lane**
+/// ([`push_preview`]): the profile being authored, drawn where it
+/// would land.
+///
+/// The form's loops are on a sketch plane, so they HAVE a place: the
+/// wireframe goes in the viewport, at that place, rather than into a
+/// pane of its own — a preview beside the model cannot show whether
+/// the shape is the right size and in the right spot relative to what
+/// is already there. Both doors of the one profile editor draw the same
+/// way, in the probe mark, never the selection mark, because a preview
+/// is not in the document (`EdgeOverlay::preview`). A loop whose replay
+/// refused a step draws the prefix before it, and one that replayed
+/// but does not VALIDATE draws whole: both are cases where looking at
+/// it is the whole point.
+pub(crate) fn push_previews(lane: &mut marks::LegLane, previews: &Previews) {
+    for drawn in drawn_previews(previews) {
+        push_preview(lane, drawn);
+    }
+}
+
+/// **Each drawn preview's step marks, appended to a lane**
+/// ([`push_step_marks`]).
+pub(crate) fn push_previews_marks(
+    lane: &mut marks::LegLane,
+    previews: &Previews,
+    view: Option<screen::View>,
+) {
+    for drawn in drawn_previews(previews) {
+        push_step_marks(lane, drawn, view);
     }
 }
 
@@ -407,8 +545,9 @@ struct RayQuestion<'a> {
 /// **What the cursor comparison says this frame**, in the order it
 /// happened: the ray path's refusal when nobody else said it, then
 /// what the id answer amounts to ([`idpass::IdNews`]) — the two
-/// picking paths' disagreement, or, beside a refusal, an id the
-/// picture has no name for. Empty when there is nothing to say.
+/// picking paths' disagreement, an id the picture does not draw said
+/// beside a refusal, or a readback that answered nothing, said beside
+/// whatever the ray answered. Empty when there is nothing to say.
 ///
 /// The ray answer travels to [`idpass::compare`] typed, because a
 /// refusal is not a miss: that function compares nothing against a
@@ -433,7 +572,7 @@ struct RayQuestion<'a> {
 fn cursor_news(
     index: &PickIndex,
     question: RayQuestion<'_>,
-    answer: u64,
+    answer: Option<&idpass::IdReply>,
     outstanding: Option<u32>,
     ray_asked: bool,
 ) -> Vec<frame::Message> {
@@ -771,18 +910,24 @@ impl ViewerBehavior<'_> {
             None if self.session.hover().is_some() => events.push(ViewportEvent::Leave),
             None => {}
         }
-        // An owed fit is taken here and nowhere else: this is the only
-        // place with a real aspect to fit against.
-        if *self.pending_fit {
-            *self.pending_fit = false;
-            let fit = CameraOp::Frame {
-                bounds: self.scene.bounds(),
-                aspect,
-            };
-            let folded = camera::fold_recorded(self.camera, std::slice::from_ref(&fit));
-            land(self.camera, self.notices, self.status, &folded);
+        // The geometry, the owed fit on what it draws, the events' fold
+        // and the step marks, in that order (`frame_camera`). An owed
+        // fit is taken here and nowhere else: this is the only place
+        // with a real aspect to fit against.
+        let profiles = self.committed_lane();
+        let framed = frame_camera(CameraFrame {
+            camera: self.camera,
+            scene: self.scene.positions(),
+            profiles,
+            previews: self.profile_previews,
+            fit: std::mem::take(self.pending_fit),
+            input: &self.input,
+            viewport,
+            events: &events,
+        });
+        if let Some(fit) = &framed.fit {
+            land(self.camera, self.notices, self.status, fit);
         }
-
         // ONE fold, the same one `map_stream` gives the tests.
         //
         // Landed only when the fold is a camera event — it applied a
@@ -794,9 +939,8 @@ impl ViewerBehavior<'_> {
         // `frame::folded_is_a_camera_event`, which owns the rule and
         // states what it does and does not buy now that a clean fold
         // clears nothing.
-        let folded = input::fold_events(&self.input, self.camera, viewport, &events);
-        if frame::folded_is_a_camera_event(&folded) {
-            land(self.camera, self.notices, self.status, &folded);
+        if frame::folded_is_a_camera_event(&framed.events) {
+            land(self.camera, self.notices, self.status, &framed.events);
         }
 
         // **One movement verdict for both picking paths.** The id
@@ -900,65 +1044,7 @@ impl ViewerBehavior<'_> {
             .held_refused
             .clone()
             .map(|refused| frame::Spelled::in_landed(refused, landed));
-        // **The two lanes this pane composes itself**, each as the
-        // value that owns the display seam's rule
-        // ([`marks::LegLane`]) rather than as a bare `Vec` each block
-        // narrows into on its own. What they carry beyond the
-        // segments is `undrawn()` — how many legs the seam refused —
-        // which is the state a reader would have to be told to know
-        // that an outline is missing a leg rather than ending where
-        // it appears to. Nothing here holds it: the badge that would
-        // say so and the field that would carry it between frames are
-        // `crate::frame`'s and `crate::app`'s. That half is the VNEWS
-        // row `an-overlay-leg-past-the-display-seam-is-not-badged`.
-        let mut profiles = marks::LegLane::default();
-        let mut preview = marks::LegLane::default();
-        // **The profiles the document holds**, from the landed
-        // evaluation, every frame, because a profile node has no body
-        // until something extrudes it and so nothing else would draw
-        // it.
-        //
-        // Left out: the profile the edit door is previewing, if any
-        // ([`ViewerBehavior::profile_edited`]) — drawn by its live
-        // preview below, or by nothing while that preview has nothing
-        // to draw, and never also as it was committed. The create door's
-        // profile is not a node while it is composed, and comes to
-        // rest when its add is accepted (`Drafts::accepted`), so it
-        // has nothing to leave out.
-        if let Some((doc, evaluation)) = self.session.landed_pair() {
-            *self.profiles_undrawn = push_committed(
-                &mut profiles,
-                doc,
-                evaluation,
-                self.delta.get(),
-                self.profile_edited,
-            );
-        }
-        // **The profile being authored, drawn where it would land.**
-        //
-        // The form's loops are on a sketch plane, so they HAVE a
-        // place: the wireframe goes in the viewport, at that place,
-        // rather than into a pane of its own — a preview beside the
-        // model cannot show what a preview is mostly for, which is
-        // whether the shape is the right size and in the right spot
-        // relative to what is already there.
-        //
-        // Drawn in the probe mark, never the selection mark, because
-        // it is not in the document (`EdgeOverlay::preview`). A loop
-        // whose replay refused a step draws the prefix before it, and
-        // one that replayed but does not VALIDATE draws whole: both
-        // are cases where looking at it is the whole point. A preview
-        // with nothing to draw says why in the form.
-        // Both doors of the one profile editor draw the same way: the
-        // add-profile form's loops and an edit's, each where it lands.
-        // The marks are sized in pixels, read at each vertex's own
-        // depth ([`screen::View::screen_metres_at`]). A window this
-        // camera has no view of draws the chain and no marks; the
-        // projection refusal below is what says why.
-        let view = view_of(self.camera, viewport).ok();
-        push_previews(&mut preview, self.profile_previews, view);
-
-        let marks = composed.with_lanes(profiles.into_segments(), preview.into_segments());
+        let marks = composed.with_lanes(framed.profiles, framed.preview);
 
         // **Held, not said.** A view matrix that cannot be formed is
         // true of this camera on every frame until it moves somewhere
@@ -1016,7 +1102,7 @@ impl ViewerBehavior<'_> {
             Some(cursor_news(
                 on_screen?,
                 question,
-                self.id_answer.load(Ordering::Relaxed),
+                self.id_answer.latest().as_ref(),
                 outstanding,
                 ray_asked,
             ))
@@ -1060,7 +1146,7 @@ impl ViewerBehavior<'_> {
                     cursor_ndc,
                     viewport_px,
                     serial,
-                    answer: Arc::clone(self.id_answer),
+                    answer: self.id_answer.clone(),
                 }),
             _ => None,
         };
@@ -1088,6 +1174,36 @@ impl ViewerBehavior<'_> {
             },
         ));
     }
+
+    /// **The committed profiles' lane** — the value that owns the
+    /// display seam's rule ([`marks::LegLane`]) rather than a bare
+    /// `Vec`. What it carries beyond the segments is `undrawn()` — how
+    /// many legs the seam refused — and `extent()`, what a fit frames.
+    /// Nothing here holds `undrawn()`: the badge that would say so is
+    /// the VNEWS row `an-overlay-leg-past-the-display-seam-is-not-badged`.
+    ///
+    /// From the landed evaluation, every frame, because a profile node
+    /// has no body until something extrudes it and so nothing else
+    /// would draw it. Left out: the profile the edit door is
+    /// previewing, if any ([`ViewerBehavior::profile_edited`]) — drawn
+    /// by its live preview, or by nothing while that preview has
+    /// nothing to draw, and never also as it was committed. The create
+    /// door's profile is not a node while it is composed, and comes to
+    /// rest when its add is accepted (`Drafts::accepted`), so it has
+    /// nothing to leave out.
+    fn committed_lane(&mut self) -> marks::LegLane {
+        let mut profiles = marks::LegLane::default();
+        if let Some((doc, evaluation)) = self.session.landed_pair() {
+            *self.profiles_undrawn = push_committed(
+                &mut profiles,
+                doc,
+                evaluation,
+                self.delta.get(),
+                self.profile_edited,
+            );
+        }
+        profiles
+    }
 }
 
 /// **Where a real fold meets a real landing.**
@@ -1107,9 +1223,9 @@ mod tests {
     use eframe::egui;
 
     use super::{
-        RayQuestion, configure_input, cursor_news, drawn_index, egui_buttons, land, pointer_events,
-        push_committed, push_loop, push_preview, push_previews, push_segment, ray_asked_at,
-        viewer_button,
+        RayQuestion, configure_input, cursor_news, drawn_extent, drawn_index, egui_buttons,
+        frame_camera, land, pointer_events, push_committed, push_loop, push_preview, push_previews,
+        push_segment, push_step_marks, ray_asked_at, viewer_button,
     };
     use crate::camera::{self, Camera, CameraOp, fold_recorded};
     use crate::display::DisplayView;
@@ -1118,7 +1234,7 @@ mod tests {
     use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
     use crate::marks;
     use crate::pickcache::{self, NotIndexed};
-    use crate::pickindex::{IdMap, PickError, PickIndex, PictureKey};
+    use crate::pickindex::{IdMap, PatchNameFault, PickError, PickIndex, PictureKey};
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
@@ -1129,14 +1245,14 @@ mod tests {
     use pncad::select::HitTestError;
 
     fn framed() -> Camera {
-        Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("the plate frames")
+        Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("the plate frames")
     }
 
     /// The re-frame `fit_on_scene` books when a document lands — the
     /// operation the viewport folds and lands on that very frame.
     fn the_re_frame_an_open_books() -> CameraOp {
         CameraOp::Frame {
-            bounds: scene::plate_bounds(),
+            extent: Some(scene::plate_bounds()),
             aspect: 16.0 / 9.0,
         }
     }
@@ -1577,23 +1693,24 @@ mod tests {
         let id = index.ids().ids().next().expect("the plate draws patches");
         let named = index
             .name_of(id)
-            .expect("an id of this index has an entry")
-            .as_ref()
-            .expect("and the plate's patches name cleanly")
+            .expect("an id of this index names its patch cleanly")
             .clone();
 
         let serial = 7u32;
-        let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
+        let nothing = idpass::IdReply {
+            serial,
+            read: Ok(IdMap::NOTHING),
+        };
         assert_eq!(
             idpass::compare(
                 &index,
                 &DisplayView::none(),
-                nothing,
+                Some(&nothing),
                 Some(serial),
                 Ok(std::slice::from_ref(&named)),
             ),
             Some(idpass::IdNews::Disagreement(idpass::Disagreement {
-                from_gpu: idpass::IdAnswer::Nothing,
+                from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Nothing),
                 from_ray: vec![named],
             })),
             "nothing-under-the-cursor against a named face is a disagreement"
@@ -1608,8 +1725,8 @@ mod tests {
     /// **A refused ray beside an id-pass face**: the plate's index, an
     /// evaluation of ANOTHER document its hit test refuses before
     /// reading a table (a distinct identity; a twin recipe derives the
-    /// same one), a framed cursor, and the channel word of an id-pass
-    /// answer naming a face the plate really draws.
+    /// same one), a framed cursor, and an id-pass reply naming a face
+    /// the plate really draws.
     struct RefusedRay {
         index: PickIndex,
         foreign: DocSession,
@@ -1620,7 +1737,7 @@ mod tests {
         /// The id the named face is drawn under.
         id: u32,
         serial: u32,
-        answer: u64,
+        answer: idpass::IdReply,
     }
 
     fn refused_ray() -> RefusedRay {
@@ -1635,9 +1752,7 @@ mod tests {
         let id = index.ids().ids().next().expect("the plate draws patches");
         let named = index
             .name_of(id)
-            .expect("an id of this index has an entry")
-            .as_ref()
-            .expect("and the plate's patches name cleanly")
+            .expect("an id of this index names its patch cleanly")
             .clone();
         let serial = 7u32;
         RefusedRay {
@@ -1652,7 +1767,10 @@ mod tests {
             named,
             id,
             serial,
-            answer: (u64::from(serial) << 32) | u64::from(id),
+            answer: idpass::IdReply {
+                serial,
+                read: Ok(id),
+            },
         }
     }
 
@@ -1684,7 +1802,7 @@ mod tests {
             ),
             "the planted refusal is the kernel declining: {refusal:?}"
         );
-        let (index, answer, serial) = (&fixture.index, fixture.answer, Some(fixture.serial));
+        let (index, answer, serial) = (&fixture.index, Some(&fixture.answer), Some(fixture.serial));
         let view = &DisplayView::none();
         assert_eq!(
             idpass::compare(index, view, answer, serial, Err(&refusal)),
@@ -1698,6 +1816,82 @@ mod tests {
                 from_ray: Vec::new(),
             })),
             "while a ray path that answered nothing is contradicted by the face"
+        );
+    }
+
+    /// **A failed readback is said as the device's fault, beside every
+    /// ray answer, and never as the two paths disagreeing.** The rows
+    /// the fault would have produced folded into [`IdMap::NOTHING`] sit
+    /// beside it: a disagreement over a named face, silence over empty
+    /// space, and no verdict beside a refusal.
+    #[test]
+    fn a_failed_readback_is_the_devices_fault_beside_any_ray_answer() {
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let display = DisplayView::none();
+        let refusal = fixture
+            .index
+            .faces_under_cursor(
+                foreign,
+                &fixture.camera,
+                fixture.pane,
+                fixture.cursor,
+                &display,
+            )
+            .expect_err("an evaluation of another document is refused");
+        let (index, serial) = (&fixture.index, fixture.serial);
+        let named = std::slice::from_ref(&fixture.named);
+        let fault = idpass::ReadbackFault::Wait("Timeout".to_owned());
+        let failed = idpass::IdReply {
+            serial,
+            read: Err(fault.clone()),
+        };
+        let folded = idpass::IdReply {
+            serial,
+            read: Ok(IdMap::NOTHING),
+        };
+        let none: &[StableName] = &[];
+        let rays = [
+            (
+                "a ray that names a face",
+                Ok(named),
+                Some(idpass::IdNews::Disagreement(idpass::Disagreement {
+                    from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Nothing),
+                    from_ray: named.to_vec(),
+                })),
+            ),
+            ("a ray that names nothing", Ok(none), None),
+            ("a ray that refused", Err(&refusal), None),
+        ];
+        for (ray, from_ray, as_nothing) in rays {
+            assert_eq!(
+                idpass::compare(index, &display, Some(&failed), Some(serial), from_ray),
+                Some(idpass::IdNews::NoReadback(fault.clone())),
+                "beside {ray}, a failed readback is the device's fault"
+            );
+            assert_eq!(
+                idpass::compare(index, &display, Some(&folded), Some(serial), from_ray),
+                as_nothing,
+                "beside {ray}, the same fault read as the clear value says something else"
+            );
+        }
+        for (ray, from_ray) in [
+            ("a ray that names a face", Ok(named)),
+            ("a refusal", Err(&refusal)),
+        ] {
+            assert_eq!(
+                idpass::compare(index, &display, Some(&failed), Some(serial + 1), from_ray),
+                None,
+                "beside {ray}, a fault answering another query is stale like any reply"
+            );
+        }
+        let said = idpass::IdNews::NoReadback(fault).to_string();
+        assert!(
+            said.contains("no answer") && said.contains("Timeout") && !said.contains("disagree"),
+            "the sentence names the device's fault and no disagreement: {said}"
         );
     }
 
@@ -1742,7 +1936,10 @@ mod tests {
         .expect("a cursor arriving is a new question");
         // The id pass's answer to THIS question, naming a face: fresh,
         // so a ray answer read as empty would be a disagreement.
-        let answer = (u64::from(serial) << 32) | u64::from(fixture.id);
+        let answer = idpass::IdReply {
+            serial,
+            read: Ok(fixture.id),
+        };
         assert!(
             ray_asked_at(&actions, arrived, at),
             "the hover asks the ray"
@@ -1756,7 +1953,13 @@ mod tests {
             display: &display,
         };
         assert_eq!(
-            cursor_news(&fixture.index, asked, answer, log.outstanding(), true),
+            cursor_news(
+                &fixture.index,
+                asked,
+                Some(&answer),
+                log.outstanding(),
+                true
+            ),
             Vec::new(),
             "the pick path said this refusal; the comparison adds nothing"
         );
@@ -1785,7 +1988,13 @@ mod tests {
             .faces_under_cursor(foreign, &moved, fixture.pane, at, &display)
             .expect_err("the moved ray is refused");
         assert_eq!(
-            cursor_news(&fixture.index, unasked, answer, log.outstanding(), false),
+            cursor_news(
+                &fixture.index,
+                unasked,
+                Some(&answer),
+                log.outstanding(),
+                false
+            ),
             vec![frame::pick_refusal(&refusal, (foreign_doc, foreign))],
             "the comparison says the refusal in the pick path's own words"
         );
@@ -1813,7 +2022,7 @@ mod tests {
         let (landed, eval) = session.landed_pair().expect("the plate lands");
         let unassigned = index.ids().ids().max().expect("the plate draws patches") + 1;
         assert!(
-            index.name_of(unassigned).is_none(),
+            index.name_of(unassigned) == Err(PatchNameFault::Unassigned { id: unassigned }),
             "an id past the last assigned one is no entry of this index"
         );
         let camera = framed();
@@ -1856,8 +2065,11 @@ mod tests {
             cursor,
             display: &display,
         };
-        let answer = (u64::from(serial) << 32) | u64::from(unassigned);
-        let news = cursor_news(&index, question, answer, log.outstanding(), true);
+        let answer = idpass::IdReply {
+            serial,
+            read: Ok(unassigned),
+        };
+        let news = cursor_news(&index, question, Some(&answer), log.outstanding(), true);
         let spoken = from_ray
             .iter()
             .map(|name| {
@@ -1879,7 +2091,7 @@ mod tests {
                 frame::Subject::Cursor,
                 format!(
                     "picking paths disagree at the cursor: id buffer id {id}, \
-                     which no patch of this picture draws, ray nothing"
+                     which this index never assigned, ray nothing"
                 ),
                 frame::Retold::Again,
             )],
@@ -1904,7 +2116,7 @@ mod tests {
             texts,
             [format!(
                 "picking paths disagree at the cursor: id buffer id {id}, \
-                 which no patch of this picture draws, ray {said}"
+                 which this index never assigned, ray {said}"
             )],
             "an unassigned id against a named face is a disagreement, said once"
         );
@@ -1932,7 +2144,7 @@ mod tests {
             .expect("the plate draws patches")
             + 1;
         assert!(
-            fixture.index.name_of(unassigned).is_none(),
+            fixture.index.name_of(unassigned) == Err(PatchNameFault::Unassigned { id: unassigned }),
             "an id past the last assigned one is no entry of this index"
         );
         let refusal = fixture
@@ -1955,7 +2167,10 @@ mod tests {
             IdStep::Hold | IdStep::Void => None,
         }
         .expect("a cursor arriving is a new question");
-        let answer = (u64::from(serial) << 32) | u64::from(unassigned);
+        let answer = idpass::IdReply {
+            serial,
+            read: Ok(unassigned),
+        };
         let question = RayQuestion {
             doc: foreign_doc,
             eval: foreign,
@@ -1972,12 +2187,24 @@ mod tests {
             frame::Retold::Again,
         );
         assert_eq!(
-            cursor_news(&fixture.index, question, answer, log.outstanding(), true),
+            cursor_news(
+                &fixture.index,
+                question,
+                Some(&answer),
+                log.outstanding(),
+                true
+            ),
             vec![said.clone()],
             "the pick path said the refusal; the comparison says the id"
         );
         assert_eq!(
-            cursor_news(&fixture.index, question, answer, log.outstanding(), false),
+            cursor_news(
+                &fixture.index,
+                question,
+                Some(&answer),
+                log.outstanding(),
+                false
+            ),
             vec![frame::pick_refusal(&refusal, (foreign_doc, foreign)), said],
             "nobody else said the refusal, so the comparison says it, and the id after it"
         );
@@ -2006,7 +2233,10 @@ mod tests {
                 &display,
             )
             .expect_err("an evaluation of another document is refused");
-        let answer = (u64::from(fixture.serial) << 32) | u64::from(IdMap::NOTHING);
+        let answer = idpass::IdReply {
+            serial: fixture.serial,
+            read: Ok(IdMap::NOTHING),
+        };
         let question = RayQuestion {
             doc: foreign_doc,
             eval: foreign,
@@ -2017,12 +2247,12 @@ mod tests {
         };
         let serial = Some(fixture.serial);
         assert_eq!(
-            cursor_news(&fixture.index, question, answer, serial, true),
+            cursor_news(&fixture.index, question, Some(&answer), serial, true),
             Vec::new(),
             "the pick path said the refusal, and nothing beside it is no news"
         );
         assert_eq!(
-            cursor_news(&fixture.index, question, answer, serial, false),
+            cursor_news(&fixture.index, question, Some(&answer), serial, false),
             vec![frame::pick_refusal(&refusal, (foreign_doc, foreign))],
             "the comparison says the refusal alone"
         );
@@ -2051,9 +2281,7 @@ mod tests {
             .expect("the plate's placement draws patches");
         let named = index
             .name_of(id)
-            .expect("an id of this index has an entry")
-            .as_ref()
-            .expect("and the plate's patches name cleanly")
+            .expect("an id of this index names its patch cleanly")
             .clone();
         let hidden = DisplayView {
             hidden_placements: std::collections::BTreeSet::from([copy]),
@@ -2074,9 +2302,18 @@ mod tests {
         );
 
         let serial = 7u32;
-        let answer = (u64::from(serial) << 32) | u64::from(id);
+        let answer = idpass::IdReply {
+            serial,
+            read: Ok(id),
+        };
         assert_eq!(
-            idpass::compare(&index, &DisplayView::none(), answer, Some(serial), Ok(&[])),
+            idpass::compare(
+                &index,
+                &DisplayView::none(),
+                Some(&answer),
+                Some(serial),
+                Ok(&[])
+            ),
             Some(idpass::IdNews::Disagreement(idpass::Disagreement {
                 from_gpu: idpass::IdAnswer::Named(named),
                 from_ray: Vec::new(),
@@ -2093,7 +2330,7 @@ mod tests {
             display: &hidden,
         };
         assert_eq!(
-            cursor_news(&index, question, answer, Some(serial), true),
+            cursor_news(&index, question, Some(&answer), Some(serial), true),
             vec![frame::Message::new(
                 frame::Subject::Cursor,
                 format!(
@@ -2117,7 +2354,7 @@ mod tests {
             .faces_under_cursor(foreign, &camera, pane, cursor, &DisplayView::none())
             .expect_err("an evaluation of another document is refused");
         assert_eq!(
-            idpass::compare(&index, &hidden, answer, Some(serial), Err(&refusal)),
+            idpass::compare(&index, &hidden, Some(&answer), Some(serial), Err(&refusal)),
             Some(idpass::IdNews::BesideRefusal { id }),
             "and beside a refused ray it is still said"
         );
@@ -2527,6 +2764,153 @@ mod tests {
             4,
             "the two legs between ordinary corners are drawn"
         );
+        let extent = lane.extent().expect("the drawn legs frame");
+        assert_eq!(
+            (extent.max_x, extent.max_y),
+            (1.0, 1.0),
+            "a corner no drawn leg reaches frames nothing"
+        );
+    }
+
+    /// **The fit frames the loops, the scene and nothing sized by the
+    /// view.** A preview's step marks are drawn beside its loops and
+    /// reach past them; the extent is the loops' alone, joined to the
+    /// scene's box, and `None` when nothing draws. A loop of one vertex
+    /// has no leg and still frames its point.
+    #[test]
+    fn the_drawn_extent_is_the_loops_and_the_scene_and_not_the_step_marks() {
+        let nothing = marks::LegLane::default();
+        assert_eq!(drawn_extent(&[], &nothing, &nothing), None);
+
+        let drawn = chain(Vec::new());
+        let mut loops = marks::LegLane::default();
+        push_preview(&mut loops, &drawn);
+        let mut steps = marks::LegLane::default();
+        push_step_marks(&mut steps, &drawn, Some(a_view()));
+        let extent = drawn_extent(&[], &nothing, &loops).expect("the chain draws");
+        let (mut lo, mut hi) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+        for [x, y] in drawn.loops.iter().flat_map(|l| l.points.iter().copied()) {
+            lo = [lo[0].min(x), lo[1].min(y)];
+            hi = [hi[0].max(x), hi[1].max(y)];
+        }
+        let near = |a: f64, b: f64| (a - b).abs() < 1.0e-9;
+        assert!(
+            near(extent.min_x, lo[0])
+                && near(extent.min_y, lo[1])
+                && near(extent.max_x, hi[0])
+                && near(extent.max_y, hi[1]),
+            "the extent {extent:?} is the loops' box {lo:?}..{hi:?}"
+        );
+        let marked = steps.extent().expect("the fixture has marks");
+        assert!(
+            marked.max_x > extent.max_x + 1.0e-6 || marked.max_y > extent.max_y + 1.0e-6,
+            "the marks reach past the loops ({marked:?} vs {extent:?}), so leaving them \
+             out is what keeps the fit off the view"
+        );
+
+        let scene = [[0.5, 0.5, 0.5], [2.0, 2.0, 2.0], [1.0, 1.0, 1.0]];
+        let joined = drawn_extent(&scene, &nothing, &loops).expect("both draw");
+        assert!(
+            near(joined.min_x, lo[0]) && joined.max_x == 2.0 && joined.max_z == 2.0,
+            "the scene's box joins the loops': {joined:?}"
+        );
+
+        let lone = PreviewLoop {
+            points: vec![[0.02, -0.03]],
+            vertices: vec![0],
+            end: sketch::LoopEnd::Unfinished(None),
+        };
+        let mut point = marks::LegLane::default();
+        push_loop(&mut point, &pncad::profile::SketchPlane::xy(), &lone);
+        assert!(point.segments().is_empty(), "one vertex is no leg");
+        let at = drawn_extent(&[], &point, &nothing).expect("the vertex frames");
+        assert!(
+            near(at.min_x, 0.02) && near(at.max_y, -0.03) && at.min_x == at.max_x,
+            "a lone vertex frames its point: {at:?}"
+        );
+    }
+
+    /// **The frame's order, held as a row**: geometry, extent, fit,
+    /// marks. From a camera far from a centimetre preview, an owed fit
+    /// must frame the preview's loops alone — red if its marks join the
+    /// geometry lane or the extent, since marks sized from out here are
+    /// metres long — must centre on them — red if the geometry is built
+    /// after the fit, which would then frame nothing and centre on the
+    /// origin — and the marks drawn must be the ones the FITTED camera
+    /// sizes — red if they are sized before the fit.
+    #[test]
+    fn a_fit_frames_the_loops_and_the_marks_are_sized_after_it() {
+        let drawn = chain(Vec::new());
+        let previews = crate::drafts::ProfileDoors {
+            create: Some(Ok(drawn.clone())),
+            edit: None,
+        };
+        let far = Camera::new(
+            pncad::geom_core::Point3::new(5.0, -4.0, 3.0),
+            40.0,
+            0.3,
+            0.4,
+            0.8,
+            10.0,
+        )
+        .expect("a camera");
+        let viewport = ViewportSize {
+            width_px: 800.0,
+            height_px: 600.0,
+        };
+        let map = crate::input::InputMap::default();
+        let framed = frame_camera(super::CameraFrame {
+            camera: &far,
+            scene: &[],
+            profiles: marks::LegLane::default(),
+            previews: &previews,
+            fit: true,
+            input: &map,
+            viewport,
+            events: &[],
+        });
+        let fit = framed.fit.expect("the owed fit was taken");
+        let extent = fit
+            .applied
+            .first()
+            .and_then(|op| match op {
+                CameraOp::Frame { extent, .. } => *extent,
+                _ => None,
+            })
+            .expect("the fit framed an extent");
+        let (mut lo, mut hi) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+        for [x, y] in drawn.loops.iter().flat_map(|l| l.points.iter().copied()) {
+            lo = [lo[0].min(x), lo[1].min(y)];
+            hi = [hi[0].max(x), hi[1].max(y)];
+        }
+        let near = |a: f64, b: f64| (a - b).abs() < 1.0e-9;
+        assert!(
+            near(extent.min_x, lo[0])
+                && near(extent.min_y, lo[1])
+                && near(extent.max_x, hi[0])
+                && near(extent.max_y, hi[1]),
+            "the fit framed {extent:?}, not the loops' box {lo:?}..{hi:?}"
+        );
+        let target = fit.camera.target();
+        assert!(
+            near(target.x, 0.5 * (lo[0] + hi[0])) && near(target.y, 0.5 * (lo[1] + hi[1])),
+            "the fit centred on {target:?}, not on the loops"
+        );
+        let mut expected = marks::LegLane::default();
+        push_preview(&mut expected, &drawn);
+        push_step_marks(
+            &mut expected,
+            &drawn,
+            Some(
+                crate::screen::view_of(&fit.camera, viewport)
+                    .expect("the fitted camera has a view"),
+            ),
+        );
+        assert_eq!(
+            framed.preview,
+            expected.segments(),
+            "the preview lane is its loops, then the marks the fitted camera sizes"
+        );
     }
 
     /// A view of the xy plane from a tenth of a metre, looking at the
@@ -2551,11 +2935,13 @@ mod tests {
         .expect("a view")
     }
 
-    /// Every segment [`push_preview`] put in the lane for `drawn`, as
-    /// sketch-plane pairs (the plane is xy, so world x and y).
+    /// Every segment [`push_preview`] and [`push_step_marks`] put in a
+    /// lane for `drawn`, as sketch-plane pairs (the plane is xy, so
+    /// world x and y).
     fn painted_preview(drawn: &ProfilePreview) -> Vec<[[f64; 2]; 2]> {
         let mut lane = marks::LegLane::default();
-        push_preview(&mut lane, drawn, Some(a_view()));
+        push_preview(&mut lane, drawn);
+        push_step_marks(&mut lane, drawn, Some(a_view()));
         lane.segments()
             .chunks_exact(2)
             .map(|pair| pair_2d([pair[0], pair[1]]))
@@ -2958,7 +3344,7 @@ mod tests {
             let undrawn = push_committed(&mut committed, &doc, &evaluation, chord, edited);
             assert_eq!(undrawn, 0, "the square draws when it is drawn at all");
             let mut drawn = marks::LegLane::default();
-            push_previews(&mut drawn, &previews, None);
+            push_previews(&mut drawn, &previews);
             (preview, segments(&committed), segments(&drawn))
         };
 

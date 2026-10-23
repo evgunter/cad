@@ -453,7 +453,7 @@ fn the_mitre_carves_at_the_certified_scalar() {
         );
         validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
         assert_naming_totality(&body, &out, &edges, "two adjacent top edges at Interval");
-        let p = mass_properties(&out.body, tol).expect("interval props");
+        let p = topo::test_support::unmigrated_measure(&out.body, tol).expect("interval props");
         let removed = v0 - p.volume;
         let truth = verb.section() * 3.5 - overlap(verb);
         let pad = p.volume_pad.hi();

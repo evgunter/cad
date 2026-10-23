@@ -25,7 +25,7 @@ fn ring2_r1_end_to_end_certificate_bits() {
     let tol = Tol::witness();
     let body = loft_prism(tol);
     topo::validate_geometric(&body, tol).expect("the prism is tier-3 valid");
-    let props = topo::mass_properties(&body, tol).expect("mass properties");
+    let props = topo::test_support::unmigrated_measure(&body, tol).expect("mass properties");
     println!(
         "R1E2E volume={:.17e} bits={:#018x} pad={:.17e} pad_bits={:#018x}",
         props.volume,

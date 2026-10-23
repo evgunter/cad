@@ -135,6 +135,7 @@
 use crate::linalg::{Affine3, Mat3, Point3, RigidMotion, UnitVec3, UnitVec3Error, Vec3};
 use crate::predicate::{Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate};
 
+use crate::real::Real;
 use crate::tolerance::Tol;
 
 /// Which input a [`FrameError::Degenerate`] refusal is about.
@@ -604,8 +605,15 @@ pub fn mirror_across_plane<T: Decide>(
     // The witness is read back at once: the Householder entries are
     // its components, and no door below takes the type.
     let n = UnitVec3::new(normal, "frame_mirror_normal", band)
-        .map_err(|e| refused_direction(e, FrameVector::MirrorNormal))?
-        .get();
+        .map_err(|e| refused_direction(e, FrameVector::MirrorNormal))?;
+    Ok(mirror_across_unit_plane(point, n))
+}
+
+/// [`mirror_across_plane`] across the plane through `point` whose unit
+/// normal is already decided: the Householder map, total.
+#[must_use]
+pub fn mirror_across_unit_plane<T: Real>(point: Point3<T>, normal: UnitVec3<T>) -> Affine3<T> {
+    let n = normal.get();
     let two = T::from_f64(2.0);
     let t = n * two;
     let linear = Mat3::from_cols(
@@ -614,7 +622,7 @@ pub fn mirror_across_plane<T: Decide>(
         Vec3::unit_z() - t * n.z,
     );
     let q = point - Point3::origin();
-    Ok(Affine3::from_parts(linear, n * (n.dot(q) * two)))
+    Affine3::from_parts(linear, n * (n.dot(q) * two))
 }
 
 #[cfg(test)]

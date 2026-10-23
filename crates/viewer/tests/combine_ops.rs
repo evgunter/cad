@@ -97,9 +97,13 @@ fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f6
     };
     let volume_of = |side: &SplitSide<f64>| match side {
         SplitSide::Body(body) => {
-            pncad::topo::mass_properties(body, tol)
-                .expect("mass properties")
-                .volume
+            pncad::topo::mass_properties(
+                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+                    .expect("the measured body passes tier 3"),
+                tol,
+            )
+            .expect("mass properties")
+            .volume
         }
         SplitSide::Empty => 0.0,
     };
@@ -239,8 +243,8 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     session.pump();
     let before = session.committed_doc().clone();
     assert_eq!(common::world(&before), [a, b], "both operands are placed");
-    let [a_placement, b_placement] = viewer::world::world_copies(&before)[..] else {
-        panic!("two copies: {:?}", viewer::world::world_copies(&before));
+    let [a_placement, b_placement] = viewer::world::drawn_copies(&before)[..] else {
+        panic!("two copies: {:?}", viewer::world::drawn_copies(&before));
     };
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![a.into(), b.into()]),
@@ -265,9 +269,8 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
                 && *id == b_placement
                 && replaced.iter().all(|edit| matches!(
                     edit,
-                    DocEdit::RemoveConstraint { placement, .. }
-                        | DocEdit::AddConstraint { placement, .. }
-                        | DocEdit::AddValue { placement, .. } if *placement == b
+                    DocEdit::SetConstraints { placement, .. }
+                        | DocEdit::SetParam { node: placement, .. } if *placement == b
                 ))
         ),
         "b, moved, placed against a where it stands; the boolean; a's \
@@ -276,7 +279,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     );
     let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::world_copies(doc),
+        viewer::world::drawn_copies(doc),
         [a_placement],
         "a's placement stands"
     );
@@ -367,18 +370,9 @@ fn a_feature_re_points_each_placement_of_its_target() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        matches!(
-            &outcome.committed[..],
-            [
-                DocEdit::InsertNode { .. },
-                DocEdit::AddConstraint { .. },
-                DocEdit::AddValue { .. },
-                DocEdit::AddValue { .. },
-                DocEdit::AddValue { .. },
-            ]
-        ),
+        matches!(&outcome.committed[..], [DocEdit::InsertNode { .. }]),
         "the body is no longer placed, so its second transform re-points nothing: \
-         its placement, its mate and its values: {:?}",
+         its placement, inserted with its bundle: {:?}",
         outcome.committed
     );
     assert_eq!(common::world(session.committed_doc()), world);
@@ -2141,7 +2135,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         ),
         (
             "placement",
-            Node::place(vec![pncad::document::BodyRead::plain(Operand::from(body))]),
+            crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(body))]),
         ),
         (
             "split",
@@ -2286,9 +2280,13 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
 fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
     session.pump();
     let body = session.landed_body().expect("the landing kept a product");
-    pncad::topo::mass_properties(body, tol)
-        .expect("mass properties")
-        .volume
+    pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// A box, and a pattern of two of it stepped clear along +x.
@@ -2481,9 +2479,9 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        4,
-        "a pattern of two, its copy's projection, and that projection's placement with its \
-         identity bundle, written as one edit"
+        3,
+        "a pattern of two, its copy's projection, and that projection's placement, inserted \
+         with its identity bundle"
     );
     let minted = outcome.minted.clone();
     let [pattern, copy, placement] = minted[..] else {
@@ -2652,7 +2650,7 @@ fn the_part_seats_track_the_part_door() {
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
-        Node::place(vec![pncad::document::BodyRead::plain(Operand::from(
+        crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(
             pattern,
         ))]),
         tol,
@@ -3062,7 +3060,7 @@ fn duplicating_a_several_body_value_is_refused() {
     let mut doc = session.committed_doc().clone();
     let placed = common::insert_into(
         &mut doc,
-        Node::place(vec![pncad::document::BodyRead::plain(Operand::from(
+        crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(
             pattern,
         ))]),
         tol,

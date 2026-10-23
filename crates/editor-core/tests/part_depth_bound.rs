@@ -27,9 +27,9 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, Coord, DocEdit, DocRef, DocumentId, EvalOptions, Node,
-    NodeErrorKind, NodeResult, PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, TargetAxis, Value, product,
+    CapEnd, ContactClass, ContentPin, Coord, DocRef, DocumentId, EvalOptions, Node, NodeErrorKind,
+    NodeResult, PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault,
+    TargetAxis, product,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, run, square};
@@ -126,7 +126,7 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
 /// descent refuses is asked of it, and nothing of its place.
 fn instantiating(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    insert(doc, Node::instantiate_part(below))
+    insert(doc, crate::fixture::mated_instance(below))
 }
 
 /// `instance` standing in the world where its body stands
@@ -248,7 +248,7 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
         let leaf_body = product(&leaf, &run(&leaf, &EvalOptions::default()), Tol::witness())
             .expect("the leaf's product gathers");
         let volume = |b: &topo::Body<f64>| {
-            topo::mass_properties(b, Tol::witness())
+            topo::test_support::unmigrated_measure(b, Tol::witness())
                 .expect("mass properties")
                 .volume
         };
@@ -297,7 +297,7 @@ fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNo
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for b in below {
-        let (d, id) = insert(doc, Node::instantiate_part(*b));
+        let (d, id) = insert(doc, crate::fixture::mated_instance(*b));
         doc = d;
         ids.push(id);
     }
@@ -486,28 +486,16 @@ fn mated(
         ),
         ContactClass::Rest,
     );
-    let (doc, mate) = fixture::constrain_at(doc, ids[1], mate);
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        fixture::step(
-            doc,
-            DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
+    let (doc, _mate) = crate::fixture::mated(
+        doc,
+        ids[1],
+        mate,
+        &[
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, fixture::ang(0.0)),
+        ],
+    );
     (doc, ids)
 }
 
@@ -575,7 +563,7 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
         "the mated assembly evaluates below the top"
     );
     let volume = |doc: &ProfileDoc, ev| {
-        topo::mass_properties(
+        topo::test_support::unmigrated_measure(
             &product(doc, ev, Tol::witness()).expect("the product gathers"),
             Tol::witness(),
         )

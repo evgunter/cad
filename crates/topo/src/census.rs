@@ -15402,7 +15402,7 @@ mod tests {
             tol,
         );
         let result = crate::split(&operand, &plane, tol).expect("the notched block splits");
-        let mut above = result.above.body().expect("above has material").clone();
+        let mut above = Body::clone(result.above.body().expect("above has material"));
         let tip = Point3::new(4.0, 1.0, 0.0);
         let copies: Vec<VertexKey> = above
             .vertices()

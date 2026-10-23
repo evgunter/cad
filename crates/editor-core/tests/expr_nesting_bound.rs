@@ -127,7 +127,9 @@ fn deepest_world_read_document(levels: usize) -> Recorder {
     let read = fixture::body_read(&r.doc, extrude.into());
     let placement = r
         .push(DocEdit::InsertNode {
-            node: Box::new(Node::place(vec![editor_core::BodyRead::plain(read)])),
+            node: Box::new(crate::fixture::stood(vec![editor_core::BodyRead::plain(
+                read,
+            )])),
             fresh: Vec::new(),
         })
         .expect("a placement mints its node");
@@ -167,13 +169,16 @@ fn deepest_world_read_document(levels: usize) -> Recorder {
     assert_eq!(to.depth(), editor_core::MAX_WORLD_READ_DEPTH);
     // A recorded edit applies or the recorder panics: the read at the
     // bound is admitted.
-    r.push(DocEdit::AddConstraint {
+    // The bundle is written whole, the freedoms the mate leaves 0.
+    let mate = Mate {
+        on: cap,
+        to: Target::World(to),
+        class: ContactClass::Rest,
+    };
+    let constraints = crate::fixture::squared(&r.doc, mate, &[]).bundle();
+    r.push(DocEdit::SetConstraints {
         placement,
-        mate: Box::new(Mate {
-            on: cap,
-            to: Target::World(to),
-            class: ContactClass::Rest,
-        }),
+        constraints,
         fresh: Vec::new(),
     });
     r

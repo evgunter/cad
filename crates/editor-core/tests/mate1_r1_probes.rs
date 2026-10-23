@@ -15,7 +15,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef,
-    MateSide, NameRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
+    MateSide, NameRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -205,7 +205,7 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(mate.placement, top, "the mate places the top");
     assert_eq!(poses.fault(top), None, "the mates solve — no fault");
-    assert_eq!(poses.space(top), Some(Space::World));
+    assert_eq!(poses.space(top), Some(VarId::WORLD));
 
     // Hand-derived above.
     let expected = Frame {
@@ -398,7 +398,7 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r1-freedom"), Tol::witness());
     // The leg is a loose copy: the identity of its own space.
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_part.doc_ref));
+    let (doc, leg) = insert(doc, crate::fixture::mated_instance(leg_part.doc_ref));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -510,33 +510,32 @@ fn r1_pattern_free_solves_are_bit_identical() {
         let (doc, c) = if chain {
             insert(doc, fixture::mated_instance(c_part.doc_ref))
         } else {
-            insert_pinned(doc, Node::instantiate_part(c_part.doc_ref), &o)
+            insert_pinned(doc, crate::fixture::mated_instance(c_part.doc_ref), &o)
         };
         let (doc, _m0) = seat(doc, b, &b_part, |n| n, &a_part, a);
         let doc = if chain {
             // `c` rests on `b`, its three freedoms set by values: a
             // quarter along `b`'s x, none along its y, no turn.
-            let (doc, m1) = constrain(
-                doc,
-                rest(
+            let placed = editor_core::Placed {
+                mate: Some(rest(
                     head(c_part.cap(c, CapEnd::Start)),
                     head(b_part.cap(b, CapEnd::End)),
                     ContactClass::Rest,
-                ),
-            );
-            [
-                (editor_core::Coord::Spin, ang(0.0)),
-                (
-                    editor_core::Coord::Slide(editor_core::TargetAxis::X),
-                    len(0.25),
-                ),
-                (
-                    editor_core::Coord::Slide(editor_core::TargetAxis::Y),
-                    len(0.0),
-                ),
-            ]
-            .into_iter()
-            .fold(doc, |doc, (coord, by)| add_value(doc, m1, coord, by))
+                )),
+                values: vec![
+                    (editor_core::Coord::Spin, ang(0.0)),
+                    (
+                        editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                        len(0.25),
+                    ),
+                    (
+                        editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                        len(0.0),
+                    ),
+                ],
+                by: editor_core::PlacedBy::PlanarFace,
+            };
+            fixture::write_bundle(doc, c, placed.bundle()).0
         } else {
             doc
         };
@@ -575,23 +574,6 @@ fn r1_pattern_free_solves_are_bit_identical() {
     }
 }
 
-/// **`by` set on freedom `coord` of `mate`**, through the edit door.
-fn add_value(doc: ProfileDoc, mate: MateRef, coord: editor_core::Coord, by: Formula) -> ProfileDoc {
-    step(
-        doc,
-        DocEdit::AddValue {
-            placement: mate.placement,
-            value: Box::new(editor_core::Value {
-                mate: Some(mate.id),
-                coord,
-                by,
-            }),
-            fresh: Vec::new(),
-        },
-    )
-    .0
-}
-
 // ---------------------------------------------------------------
 // PROBE 6 — the two fence cases the PR body names but the committed
 // suite does not build: a NESTED pattern and a pattern of a PLACED COPY.
@@ -619,7 +601,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_a_placed_copy_place
     let top_part = cube(&mut store, "r1-nested-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r1-nested"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
@@ -668,7 +650,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_a_placed_copy_place
     let top2 = cube(&mut store2, "r1-xform-top");
     let o2 = with_resolver(store2);
     let doc2 = ProfileDoc::empty(DocumentId::derive("r1-xform"), Tol::witness());
-    let (doc2, li) = insert_pinned(doc2, Node::instantiate_part(leg2.doc_ref), &o2);
+    let (doc2, li) = insert_pinned(doc2, crate::fixture::mated_instance(leg2.doc_ref), &o2);
     let (doc2, xf) = crate::mate1_member_vocab::slid_with(doc2, li, li, [0.0, 0.0, 0.5], &o2);
     let (doc2, pat) = insert(
         doc2,
@@ -703,7 +685,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_a_placed_copy_place
     );
     assert_eq!(
         poses2.space(ti),
-        Some(Space::World),
+        Some(VarId::WORLD),
         "and it places the top"
     );
 }
@@ -728,7 +710,7 @@ fn r1_an_out_of_range_copy_refuses_at_the_solve_too() {
     let top_part = cube(&mut store, "r1-escape-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r1-escape"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -775,7 +757,7 @@ fn r1_an_out_of_range_copy_refuses_at_the_solve_too() {
 
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(good.placement), None);
-    assert_eq!(poses.space(good.placement), Some(Space::World));
+    assert_eq!(poses.space(good.placement), Some(VarId::WORLD));
 
     let fault = poses
         .fault(bad.placement)

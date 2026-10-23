@@ -94,7 +94,12 @@ fn unslit_plane_annuli_round_trip_through_step() {
             census(&imported),
             "{what}: the census survives the round trip"
         );
-        let native = topo::mass_properties(body, tol()).unwrap().volume;
+        let native = topo::mass_properties(
+            &topo::test_support::finished("the measured body", (body).clone(), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume;
         let read = enclosure.expect("the import's enclosure").volume;
         assert!(
             (read - native).abs() < 1e-9,

@@ -45,7 +45,7 @@ use sweep::test_support::{
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::splitting::{SplitPart, split};
-use topo::{Body, EdgeKey, FaceKey, VertexKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, FaceKey, VertexKey, validate_geometric};
 
 const R: f64 = ROD_FILLET;
 
@@ -62,7 +62,7 @@ fn census(body: &Body<f64>) -> (usize, usize, usize) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("closed-form props");
+    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
 }
@@ -446,7 +446,7 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
         let (one, two) = (removes(creases[0]), removes(creases[1]));
         let what = format!("φ = {phi} about {about}");
         let enclosure = |body: &Body<f64>, which: &str| {
-            let p = mass_properties(body, tol())
+            let p = topo::test_support::unmigrated_measure(body, tol())
                 .unwrap_or_else(|e| panic!("{what}: {which}'s certified props, got {e:?}"));
             (p.volume, p.volume_pad)
         };
@@ -776,7 +776,7 @@ fn the_cap_lever_is_the_links_extent() {
         let removed = rod_section_cut(ROD_R, ROD_FLAT, R) * 0.6 * len
             - n.x * rod_section_moment(ROD_R, ROD_FLAT, R, (1.0, 0.0)) / n.z;
         let enclosure = |body: &Body<f64>| {
-            let p = mass_properties(body, tol())
+            let p = topo::test_support::unmigrated_measure(body, tol())
                 .unwrap_or_else(|e| panic!("L = {len}: certified props, got {e:?}"));
             (p.volume, p.volume_pad)
         };

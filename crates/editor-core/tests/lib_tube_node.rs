@@ -242,7 +242,8 @@ fn the_solid_ring_meters_its_closed_form() {
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, d.result.expect("a result node"));
-    let props = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let props =
+        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
     let (r, minor) = (tube_ring::R, tube_ring::MINOR);
     close(props.volume, 2.0 * PI * PI * r * minor * minor, "ring V");
     close(props.surface_area, 4.0 * PI * PI * r * minor, "ring A");
@@ -271,7 +272,8 @@ fn the_hollow_elbow_meters_its_closed_form_and_stores_both_radii() {
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, d.result.expect("a result node"));
-    let props = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let props =
+        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
 
     let (r, outer, wall) = (
         hollow_tube_elbow::R,
@@ -322,7 +324,8 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, tube);
-    let props = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let props =
+        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
     close(
         props.volume,
         2.0 * PI * PI * r * (outer * outer - inner * inner),
@@ -358,7 +361,8 @@ fn the_solid_elbow_meters_its_pappus_form() {
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, tube);
-    let props = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let props =
+        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
     let theta = t1 - t0;
     close(
         props.volume,
@@ -422,7 +426,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let vol = |id| {
-        topo::mass_properties(body_of(&ev, id), Tol::witness())
+        topo::test_support::unmigrated_measure(body_of(&ev, id), Tol::witness())
             .expect("mass properties")
             .volume
     };

@@ -69,6 +69,15 @@ constants, not two (`EDGE_PICK_RADIUS_PX:213`,
 as the warrant for a naming decision should be exhaustive and correctly
 typed.
 
+## `OCCLUSION_SLACK_REL` is gone (FIT, PR #5603, 2026-10-22)
+
+A crossing note from FIT's occlusion unit. The enumeration above names
+`OCCLUSION_SLACK_REL` among `pickindex.rs`'s constants; PR #5603
+deleted it (the edge pick's occlusion probe now orders certified
+spans), so the file holds two constants, `EDGE_PICK_RADIUS_PX` and
+`PARALLEL_REL`. The finding that the prose's enumeration is not
+exhaustive or correctly typed stands; only its count moved.
+
 ## Confidence
 
 `likely` on the rule being unfalsifiable and on the closure being a

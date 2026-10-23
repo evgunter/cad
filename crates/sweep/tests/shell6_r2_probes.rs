@@ -263,7 +263,9 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
         ("frustum ABOVE its apex (opening)", R_NARROW, R_WIDE),
     ] {
         let body = frustum(r0, r1, H);
-        let v_solid = topo::mass_properties(&body, tol).expect("props").volume;
+        let v_solid = topo::test_support::unmigrated_measure(&body, tol)
+            .expect("props")
+            .volume;
         let closed = frustum_volume(r0, r1, H);
         println!("[r2p7] {what}: solid {v_solid}, closed form {closed}");
         assert!(
@@ -280,7 +282,9 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
             Ok(()),
             "[r2p7] {what}: the hollowed body must validate"
         );
-        let v_wall = topo::mass_properties(&hollow, tol).expect("props").volume;
+        let v_wall = topo::test_support::unmigrated_measure(&hollow, tol)
+            .expect("props")
+            .volume;
         let want = frustum_wall_closed_form(r0, r1, H);
         println!(
             "[r2p7] {what}: wall {v_wall} want {want} delta {:e}, cavity {}",

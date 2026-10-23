@@ -84,26 +84,18 @@ fn insert(
     (applied.doc, minted)
 }
 
-/// `placement`'s one copy standing where its body stands
-/// ([`pncad::document::stand`]): the identity bundle, written whole.
+/// **One copy of `body` standing in the world where it stands**: a
+/// placement into the world holding the identity bundle
+/// ([`pncad::document::stand`]), written whole.
 fn stood(
-    doc: pncad::document::ProfileDoc,
-    placement: pncad::document::RecipeNodeId,
-) -> pncad::document::ProfileDoc {
-    use pncad::document::Node;
-    let Some(Node::Place { .. }) = doc.node(placement) else {
-        panic!("{placement} is a placement");
-    };
-    let placed = pncad::document::stand();
-    let mut doc = doc;
-    placed
-        .write(placement, |edit| {
-            let added = applied(&doc, edit);
-            doc = added.doc;
-            Ok::<_, std::convert::Infallible>(added.record.minted_constraints)
-        })
-        .unwrap_or_else(|never| match never {});
-    doc
+    body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
+) -> pncad::document::AuthoredNode {
+    use pncad::document::{Node, Operand, VarId};
+    Node::place(
+        vec![body.into()],
+        Operand::Var(VarId::WORLD),
+        pncad::document::stand().bundle(),
+    )
 }
 
 /// A one-box document under the id `label` derives: square(2)
@@ -127,11 +119,8 @@ fn box_doc(
             distance: len(1.5),
         },
     );
-    let (doc, placement) = insert(
-        doc,
-        Node::place(vec![pncad::document::BodyRead::plain(body)]),
-    );
-    (stood(doc, placement), profile, body)
+    let (doc, _) = insert(doc, stood(body));
+    (doc, profile, body)
 }
 // END box-document fixture twin
 
@@ -177,6 +166,7 @@ fn var_kind_tags_are_stable() {
             VarKind::Vertex,
             VarKind::Faces,
             VarKind::Edges,
+            VarKind::Space,
         ]
         .map(var_kind_tag),
         [
@@ -192,7 +182,8 @@ fn var_kind_tags_are_stable() {
             "edge",
             "vertex",
             "faces",
-            "edges"
+            "edges",
+            "space"
         ]
     );
 }
@@ -913,16 +904,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             free: 1,
         },
         &["placement", "constraints", "free"],
-    );
-    carries(
-        &F::TargetsDiffer {
-            placement: id(1),
-            constraints: vec![
-                ConstraintId(MintId::new(2, 2)),
-                ConstraintId(MintId::new(3, 3)),
-            ],
-        },
-        &["placement", "constraints"],
     );
     carries(&F::NotOnTheCopy { mate: m(1) }, &["mate"]);
     carries(
@@ -2129,6 +2110,7 @@ fn node_error_tags_are_the_published_words() {
         Chamfer => "chamfer",
         Boolean => "boolean",
         Transform => "transform",
+        Mirror => "mirror",
         Motion => "motion",
         Skin => "skin",
         Loft => "loft",
@@ -2166,7 +2148,6 @@ fn node_error_tags_are_the_published_words() {
         PlacementRuleCountSpelling => "placement_rule_mismatch",
         PlacementRuleNoPlacements => "empty_placement_list",
         PlacementRuleNonFiniteFrame => "non_finite_placement",
-        PlacementRuleImproperFrame => "improper_placement",
         PlacementRuleNonRigidFrame => "non_rigid_placement",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
@@ -2189,7 +2170,6 @@ fn node_error_tags_are_the_published_words() {
         MateClassNotAdmitted => "mate_class_not_admitted",
         MateOverconstrained => "mate_overconstrained",
         MateUnpinned => "mate_unpinned",
-        MateTargetsDiffer => "mate_targets_differ",
         MateNotOnTheCopy => "mate_not_on_the_copy",
         MateUnleverable => "mate_unleverable",
         MateKindsDiffer => "mate_kinds_differ",
@@ -2844,14 +2824,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // ---- scalars and addresses ----
     carries(&E::InvalidTolerance { value: -1.0 }, &["value"]);
     carries(
-        &E::ImproperPlacement {
-            node: sp(1),
-            at: pncad::document::FrameSite::Listed { index: 2 },
-            determinant: -1.0,
-        },
-        &["node", "determinant", "index"],
-    );
-    carries(
         &E::NonRigidPlacement {
             node: sp(1),
             at: pncad::document::FrameSite::Listed { index: 0 },
@@ -3415,7 +3387,7 @@ fn check_registry_tags_are_stable() {
             refusal: Some(
                 pncad::document::ProductError::EmptyProduct {
                     unplaced: Vec::new(),
-                    loose: Vec::new(),
+                    elsewhere: Vec::new(),
                 }
                 .into()
             )
@@ -3471,6 +3443,10 @@ fn check_registry_tags_are_stable() {
         "unsupported"
     );
     assert_eq!(shell_classify_error_tag(&refused), "zero_volume");
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::NotAtRest { errors: Vec::new() }),
+        "not_at_rest"
+    );
 }
 
 /// **Every constructible `CheckEvidence` arm's payload, built and
@@ -3481,16 +3457,16 @@ fn check_registry_tags_are_stable() {
 /// read off, and this pin says what each arm puts on the wire: the
 /// exact set it CARRIES, in publication order, with the rest `None`.
 ///
-/// **All six arms are built here.** `Escalated` and `Unsupported`
-/// hold the shell door's refusal, which `pncad::document` carries
-/// beside the evidence that rides it, so a value can be named and the
-/// table is total: each of those two carries the refusal's own word
-/// beside the sentence it renders.
+/// **Every arm is built here.** `Escalated` and `Unsupported` hold the
+/// shell door's refusal, which `pncad::document` carries beside the
+/// evidence that rides it, and `NotAtRest` the validator's findings, so
+/// a value can be named and the table is total: each of those three
+/// carries the refusal's own word beside the sentence it renders.
 ///
-/// Three of the six are unreachable from Python entirely (the shell
-/// door escalating on a gathered subject, the box builder refusing
-/// over the whole product), so this is where their projection is
-/// pinned at all: `tests/test_checks.py` reads the other three.
+/// Some are unreachable from Python entirely (the shell door
+/// escalating on a gathered subject, the box builder refusing over the
+/// whole product), so this is where their projection is pinned at all:
+/// `tests/test_checks.py` reads the rest.
 #[test]
 fn every_check_evidence_arm_projects_the_payload_it_carries() {
     use crate::check_payload::check_payload;
@@ -3553,6 +3529,22 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     assert_eq!(
         check_payload(&E::Escalated { source: refused }).inner_variant,
         Some("zero_volume")
+    );
+    // The body tier 3 refused: the first finding's sentence and its own
+    // word, as the shell door's refusal crosses.
+    let not_at_rest = E::NotAtRest {
+        errors: vec![pncad::topo::ValidationError::NegativeVolume {
+            solid: pncad::topo::SolidKey::default(),
+        }],
+    };
+    carries(&not_at_rest, &["reason", "inner_variant"]);
+    assert_eq!(
+        check_payload(&not_at_rest).inner_variant,
+        Some(crate::tags::validation_error_tag(
+            &pncad::topo::ValidationError::NegativeVolume {
+                solid: pncad::topo::SolidKey::default(),
+            }
+        ))
     );
     // The boolean class beside the sentence, and the two words are
     // read off the same evidence: a consumer branching on this one
@@ -4682,6 +4674,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_coherence_unexamined",
             "connectedness",
             "escalated",
+            "not_at_rest",
             "not_separated",
             "separation_unavailable",
             "stale_expectation",
@@ -4861,7 +4854,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fresh_kind",
             "fresh_unheld",
             "fresh_unread",
-            "improper_placement",
             "indexed_read",
             "invalid_distribution",
             "invalid_tolerance",
@@ -4907,6 +4899,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_unknown_var_name",
             "slot_unresolved_var",
             "slot_var_kind",
+            "space_mismatch",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
             "unknown_constraint",
@@ -4990,7 +4983,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "export_error_tag",
         values: &[
             "empty_boolean",
-            "loose",
             "node_failed",
             "not_a_body",
             "poisoned",
@@ -5193,6 +5185,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stranded_appearance",
             "stranded_read",
             "stranded_selection",
+            "stranded_space",
         ],
         delegates: &[],
     },
@@ -5313,7 +5306,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "extrude",
             "fillet",
             "full_range_step",
-            "improper_placement",
             "instance_out_of_range",
             "loft",
             "mate_class_not_admitted",
@@ -5324,7 +5316,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_overconstrained",
             "mate_poses_of_another_document",
             "mate_side_unevaluated",
-            "mate_targets_differ",
             "mate_unleverable",
             "mate_unpinned",
             "mate_value_names_no_mate",
@@ -5334,6 +5325,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_not_parallel",
             "measure_ref_unreadable",
             "measure_unsupported",
+            "mirror",
             "missing_input",
             "missing_slot",
             "motion",
@@ -5455,12 +5447,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "of",
             "open",
             "path",
+            "plane",
             "profile",
             "section",
             "selection",
             "shape",
             "side",
             "target",
+            "target_space",
             "tool",
         ],
         delegates: &[],
@@ -5977,7 +5971,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "operand_unminted",
             "output_signature",
             "payload_var_kind",
-            "placement_improper",
             "placement_non_finite",
             "placement_non_rigid",
             "placement_rule",
@@ -6460,7 +6453,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another kind.
     ("fresh_kind", 2),
     ("fresh_unheld", 2),
-    ("improper_placement", 2),
     // Two: a resolution lands in the ambiguity band exactly as a
     // profile's structure does — the same verdict, undecided at this ε.
     ("indeterminate", 2),
@@ -6508,6 +6500,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("pieces", 2),
     ("pin", 2),
     ("placement_rule_mismatch", 2),
+    ("plane", 2),
     ("poisoned", 2),
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
@@ -6545,6 +6538,12 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // The slot-addressed half of the two above, same pin.
     ("slot_var_kind", 2),
     ("smooth_join_refuted", 2),
+    // One fact (D10 `[placement.spaces]`): a node whose reads lie in two
+    // spaces, refused at the edit door or, a re-target having left it
+    // so, at evaluation;
+    // `a_space_mismatch_has_one_word_at_the_door_and_at_evaluation`
+    // pins it.
+    ("space_mismatch", 2),
     // One fact: one `SplitLineageCycle`, met by the Boolean
     // (`BooleanErrorKind::SplitLineage`) or by naming
     // (`NamingError::SplitLineage`);
@@ -6610,6 +6609,25 @@ fn a_split_lineage_cycle_has_one_word_wherever_it_is_met() {
     assert_eq!(
         boolean_error_tag(BooleanErrorKind::SplitLineage),
         naming_error_tag(&pncad::select::NamingError::SplitLineage(cycle))
+    );
+}
+
+/// **A read across two spaces is one word at both doors**: the edit
+/// door refuses a node it would write with one, and evaluation refuses
+/// one a re-target left so; a caller reading the tag reads one fact.
+#[test]
+fn a_space_mismatch_has_one_word_at_the_door_and_at_evaluation() {
+    use crate::tags::{edit_error_tag, node_error_tag};
+    use pncad::document::{EditError, NodeErrorClass, ProfileDoc, RecipeNodeId, VarId};
+    let doc = ProfileDoc::empty_derived("space-mismatch-word", Tol::witness());
+    let refused = EditError::SpaceMismatch {
+        node: doc.spoken(RecipeNodeId::WORLD),
+        a: Box::new(doc.spoken_space(VarId::WORLD)),
+        b: Box::new(doc.spoken_space(VarId::WORLD)),
+    };
+    assert_eq!(
+        edit_error_tag(&refused),
+        node_error_tag(NodeErrorClass::SpaceMismatch)
     );
 }
 
@@ -8229,10 +8247,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "var_kind_tag",
-        literals: 13,
+        literals: 14,
         held_by: &[Holder::Test {
             name: "var_kind_tags_are_stable",
-            holds: "the thirteen words, and the scalar kinds against `dimension_tag`",
+            holds: "the fourteen words, and the scalar kinds against `dimension_tag`",
         }],
     },
 ];
@@ -10262,6 +10280,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "intersect",
     "loft",
     "measure",
+    "mirror",
     "part",
     "pattern",
     "place",
@@ -10269,6 +10288,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "profile",
     "revolve",
     "shell",
+    "space",
     "split",
     "subtract",
     "sweep",
@@ -10545,7 +10565,7 @@ mod product_memo_rows {
                 let refusal = product_memo::body(&memo, &doc, &ev, tol)
                     .expect_err("a document with nothing placed has no product");
                 assert!(
-                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced, loose } if unplaced.is_empty() && loose.is_empty()),
+                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced, .. } if unplaced.is_empty()),
                     "a sketch places nothing and defines no body: {refusal:?}"
                 );
             }

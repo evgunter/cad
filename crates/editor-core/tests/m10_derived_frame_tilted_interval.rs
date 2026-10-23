@@ -132,7 +132,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     } else {
         fixture::flip(tilted)
     };
-    let placement = r.insert(Node::place(vec![editor_core::BodyRead::plain(
+    let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
         editor_core::Operand::from(boss),
     )]));
     let start = editor_core::Operand::select(

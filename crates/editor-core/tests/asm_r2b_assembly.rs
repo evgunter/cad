@@ -35,7 +35,7 @@ use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKey, EntityKind,
     EntityRef, Entry, EvalOptions, FaceName, InterfaceCrossing, Mate, MateFault, MateRef, MateSide,
     MintRefusal, Node, NodeErrorClass, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName, TargetAxis, Value, assemble, content_pin, inline, product_recorded,
+    StableName, TargetAxis, assemble, content_pin, inline, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, relations, run, solve, split_world as split, step};
@@ -145,28 +145,16 @@ fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f
 /// `seat`'s mate added to `placement`'s bundle with its three freedoms
 /// set — the two slides and no spin — so it pins the copy.
 fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
-    let (doc, mate) = fixture::constrain_at(doc, placement, seat.mate);
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
-        (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
-        (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        step(
-            doc,
-            DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
+    let (doc, mate) = crate::fixture::mated(
+        doc,
+        placement,
+        seat.mate,
+        &[
+            (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
+            (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
+            (Coord::Spin, fixture::ang(0.0)),
+        ],
+    );
     (doc, mate)
 }
 
@@ -220,7 +208,7 @@ fn seated_pair(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &with_resolver(store.clone()),
     );
     let (doc, seated) = insert(doc, fixture::mated_instance(doc_ref));
@@ -274,7 +262,12 @@ fn pinned_with(
 ) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert_pinned(
         doc,
-        Node::instantiate_part_with(doc_ref, record),
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            editor_core::Operand::Var(editor_core::VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
         &with_resolver(store.clone()),
     )
 }
@@ -292,7 +285,7 @@ fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
         .collect();
     let mut doc = doc;
     for (placement, frame) in placed {
-        doc = fixture::emptied(doc, placement);
+        doc = fixture::stand_again(doc, placement);
         doc = fixture::pin(doc, placement, &frame, o);
     }
     doc
@@ -401,7 +394,7 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
     let o = with_resolver(store);
     let (doc, instance) = fixture::insert_pinned(
         ProfileDoc::empty(DocumentId::derive("asm-r2b-row1"), Tol::witness()),
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &o,
     );
     let ev = run(&doc, &o);
@@ -959,7 +952,7 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
     // The base stands on its bottom, so the pin move below moves its
     // top, the contact face, and nothing else.
     let doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-row5e"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, base) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let doc = standing_on_its_bottom(doc, base, body);
     let (doc, seated) = insert(doc, fixture::mated_instance(doc_ref));
     let ids = [base, seated];
@@ -1593,7 +1586,7 @@ fn flush_seat(label: &str) -> (ProfileDoc, MateRef, PartStore) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, post_id) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(post),
+        crate::fixture::mated_instance(post),
         &with_resolver(store.clone()),
     );
     let (doc, shelf_id) = insert(doc, fixture::mated_instance(shelf));
@@ -1966,7 +1959,7 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
     let o = with_resolver(store);
     let (doc, instance) = fixture::insert_pinned(
         ProfileDoc::empty(DocumentId::derive("asm-r2b-twinned"), Tol::witness()),
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &o,
     );
     let placement = instance;

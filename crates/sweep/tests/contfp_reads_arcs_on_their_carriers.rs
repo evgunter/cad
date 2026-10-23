@@ -469,7 +469,7 @@ fn steep_cut(tilt: f64) -> Body<f64> {
     let SplitPart::Body(above) = result.above else {
         panic!("the part above the cut is a body");
     };
-    above
+    above.into_body()
 }
 
 /// The point on `curve` a CHORD distance `s` from its end at `te`,

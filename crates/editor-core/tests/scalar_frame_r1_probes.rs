@@ -130,7 +130,7 @@ fn a_tube_from_a_minted_frame_stores_the_frames_axes_verbatim() {
         }
         assert!(tori > 0, "{what}: no torus face found");
     }
-    let vol = topo::mass_properties(&solid.body, Tol::witness())
+    let vol = topo::test_support::unmigrated_measure(&solid.body, Tol::witness())
         .unwrap()
         .volume;
     let pappus = 2.0 * core::f64::consts::PI.powi(2) * 2.0 * 0.25;

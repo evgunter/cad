@@ -65,7 +65,7 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, Re
     let (part_ref, body) = store.insert_part((part, body), Tol::witness());
     let opts = fixture::resolver::with_resolver(store);
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(part_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(part_ref), &opts);
     let (doc, placed) = insert(doc, fixture::mated_instance(part_ref));
     let nowhere = StableName {
         kind: EntityKind::Face,
@@ -546,7 +546,7 @@ fn measure(body: &Body<f64>) -> String {
         body.solids().count(),
         body.faces().count(),
         body.edges().count(),
-        topo::mass_properties(body, Tol::witness())
+        topo::test_support::unmigrated_measure(body, Tol::witness())
     )
 }
 

@@ -693,22 +693,17 @@ BOUND_AS = {
     # consumer matching the class of a refusal that is neither `Clone`
     # nor `PartialEq`.
     "ProductErrorKind": "ProductError.variant",
-    # The placement vocabulary of D10: the space a node lives in is
-    # what `Evaluation.space` answers (`"world"`, or the loose copy);
-    # the pose door's refusal raises from `SolvedPoses.placement`; a
-    # constraint of a placement is a `(MateRef, Mate | MateValue)` row
-    # of `Doc.bundle` — which of the two is the kind — a mate's target
-    # is what `Mate.to` answers (a pose, or a `WorldRead`), and a loose
-    # space is the copy `Evaluation.loose` lists.
-    "Space": "Evaluation.space",
+    # The placement vocabulary of D10: the pose door's refusal raises
+    # from `SolvedPoses.placement`; a constraint of a placement is a
+    # `(MateRef, Mate | MateValue)` row of `Doc.bundle` — which of the
+    # two is the kind — and a mate's target is what `Mate.to` answers
+    # (a pose, or a `WorldRead`).
     "PoseRefusal": "SolvedPoses.placement",
     "Constraint": "Doc.bundle",
     "ConstraintKind": "Doc.bundle",
     "Target": "Mate.to",
     # An instance's value: its copies' bodies are `Value.bodies`.
     "Copies": "Value.bodies",
-    "LooseSpace": "Evaluation.loose",
-    "loose_spaces": "Evaluation.loose",
     # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
     # `StepImport::Solid::coherence` hands a Rust caller the kernel's
     # report whole and its discriminants are closed enums meant to be
@@ -1133,9 +1128,9 @@ BOUND_AS = {
     "PlacedBy": "Placed.by",
     "PinRefusal": "EditError.variant",
     # What a frame fails to be a placement: the edit door spreads it
-    # into three arms of its own, so its discriminant crosses as
+    # into arms of its own, so its discriminant crosses as
     # `EditError.variant` (`non_finite_placement`,
-    # `improper_placement`, `non_rigid_placement`).
+    # `non_rigid_placement`).
     "FrameFault": "EditError.variant",
     # Which of a node's placement frames an edit refusal is about: its
     # position crosses as `EditError.index` (a transform's step, an
@@ -1343,12 +1338,12 @@ BOUND_AS = {
     #
     # `PlacementRuleFault` crosses as `EditError.variant`
     # (`placement_rule_mismatch`, `empty_placement_list`,
-    # `non_finite_placement`, `improper_placement`). It sat in the
+    # `non_finite_placement`, `non_rigid_placement`). It sat in the
     # `gap` roster carrying the reason "a placement is set by an edit
     # Python cannot author" — MEASURED WRONG, and corrected here: the
     # fault is the GROUP BOOLEAN's placement-rule fault, not the
     # assembly registry's, and `Node.placed_union_at` has reached it
-    # since LIB-PYPU (an improper frame raises `improper_placement`
+    # since LIB-PYPU (a non-rigid frame raises `non_rigid_placement`
     # today). `DocEdit.set_offset`'s own refusals are separate
     # `EditError` arms that share the tag namespace, so binding it
     # changed nothing about this entry except who noticed.
@@ -2432,6 +2427,9 @@ NOT_BOUND = {
     # has none. Python reads a refusal's variable as the name its
     # message and payload carry.
     "SpokenVar": SHAPE,
+    # A space as a refusal speaks it: the world, its name, or the node
+    # whose space it is. Python reads a refusal's spaces in its message.
+    "SpokenSpace": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "CopyKey": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
     "KeyedCopy": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
@@ -3127,6 +3125,14 @@ NOT_BOUND = {
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
     "product_recorded": INTERIOR,
+    # One `new_space()`'s copies gathered by themselves, interior with
+    # its `Product` (`Product::spaces`): Python's `assemble` gates each,
+    # and a refusal is `AssemblyError.variant == "own_space"`. The world
+    # gather's interim: D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`,
+    # `a-space-other-than-the-world-is-census-checked-only-if-a-new-space`)
+    # retires both into the `⊔` operator's door.
+    "SpaceGather": INTERIOR,
+    "space_gathers": INTERIOR,
     "run_checks_on": INTERIOR,
     # The registry with the coincidence door split off to run at rest,
     # for a frame that redraws on every edit: Python's `run_checks` is
@@ -3622,11 +3628,11 @@ MEMBERS_BOUND_AS = {
     "Value::coord": "MateValue.coord",
     "Value::by": "MateValue.by",
     "AssemblyError::Product": "AssemblyError.variant",
-    "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
     "AssemblyError::CarriedAtRest": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
+    "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Uncertified": "AssemblyError.variant",
     # The two mint arms answer with a LIST, so the word a caller
     # branches on for ONE refused mate rides the row, not the gate.
@@ -3655,6 +3661,7 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::Connectedness": "CheckEvidence.variant",
     "CheckEvidence::Escalated": "CheckEvidence.variant",
     "CheckEvidence::Unsupported": "CheckEvidence.variant",
+    "CheckEvidence::NotAtRest": "CheckEvidence.variant",
     "CheckEvidence::StaleExpectation": "CheckEvidence.variant",
     "CheckEvidence::NotSeparated": "CheckEvidence.variant",
     "CheckEvidence::SeparationUnavailable": "CheckEvidence.variant",
@@ -3689,6 +3696,9 @@ MEMBERS_BOUND_AS = {
     "Maintenance::StrandedRead": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::StrandedSelection": "Maintenance.variant",
+    # A re-target through `DocEdit.set_param` at `target_space` makes
+    # one appear.
+    "Maintenance::StrandedSpace": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
@@ -3696,6 +3706,7 @@ MEMBERS_BOUND_AS = {
     "EditError::UnknownNode": "EditError.variant",
     "EditError::WorldIsUndeletable": "EditError.variant",
     "EditError::ConstraintOnNonPlacement": "EditError.variant",
+    "EditError::SpaceMismatch": "EditError.variant",
     "EditError::UnknownConstraint": "EditError.variant",
     "EditError::CopyReadOffBodySeat": "EditError.variant",
     "EditError::ProfileProgramRefused": "EditError.variant",
@@ -3776,7 +3787,6 @@ MEMBERS_BOUND_AS = {
     "EditError::RebindMetadataCollision": "EditError.variant",
     "EditError::PlacementRuleMismatch": "EditError.variant",
     "EditError::EmptyPlacementList": "EditError.variant",
-    "EditError::ImproperPlacement": "EditError.variant",
     "EditError::NonFinitePlacement": "EditError.variant",
     "EditError::NonRigidPlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
@@ -3828,7 +3838,6 @@ MEMBERS_BOUND_AS = {
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
-    "MateFault::TargetsDiffer": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
     "MateFault::WorldRead": "MateFault.variant",
@@ -4170,8 +4179,6 @@ MEMBERS_BOUND_AS = {
     # `class_` because `class` is a Python keyword — the `IN`/`inch`
     # shift, one level in.
     "MintedDeclaration::class": "MintedDeclaration.class_",
-    # The copies no part claims, read as the loose list the stub names.
-    "Evaluation::loose_copies": "Evaluation.loose",
     # The entity-kind filter, named for what it does at the door.
     "NamePat::kind": "NamePat.of_kind",
     # Spelled out, as the stub spells every direction.

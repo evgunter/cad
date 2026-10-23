@@ -145,7 +145,7 @@ pub fn document() -> CorpusDoc {
             .cloned()
             .expect("the middle copy carries its instance's start cap")
     };
-    let lifted = r.insert(Node::place(vec![editor_core::BodyRead::plain(
+    let lifted = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
         editor_core::Operand::from(middle),
     )]));
     r.constrain(

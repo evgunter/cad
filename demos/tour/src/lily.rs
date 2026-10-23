@@ -533,7 +533,7 @@ const FOOT_BOTTOM_Z: f64 = -0.92;
 
 /// A body's exact volume, read out at `f64`.
 fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
-    pncad::topo::mass_properties(b, tol)
+    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
         .expect("the volume integrates")
         .volume
         .f()
@@ -2104,23 +2104,17 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "model buds as spheroids",
     );
 
-    // 5. The three leaves are hand-placed because there is no mirror:
-    //    a reflection is improper, and the rigidity predicate decides
-    //    the determinant, not just the column norms.
-    let mirror = Affine3::from_parts(
-        Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, -1.0, 0.0), v3(0.0, 0.0, 1.0)),
-        v3(0.0, 0.0, 0.0),
-    );
-    wall(
-        5,
-        "mirror a leaf across the plant's plane (improper isometry)",
-        RigidMotion::check_rigid(&mirror, band)
-            .map(|mirror| pncad::topo::transform_rigid(by("lily_leaf_a"), &mirror, tol)),
-        // A reflection's columns ARE unit and orthogonal; only the
-        // determinant catches it, and that is the whole point.
-        |e| matches!(e, RigidMotionError::NotRigid { check } if *check == "transform_rigid_det_plus_one"),
-        "author leaves once and mirror them",
-    );
+    // Wall 5 — RETIRED. A mirror is a construction now
+    //    (`topo::mirror_body`): a leaf mirrored across the plant's plane
+    //    builds, and is a body at rest. The scene's three leaves are
+    //    still placed by hand; authoring one and mirroring it is the
+    //    scene's own change to make.
+    let across = pncad::topo::Reflection::across(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), tol)
+        .expect("the plant's plane has a normal");
+    let mirrored = pncad::topo::mirror_body(leaf_a, &across, tol)
+        .expect("a leaf mirrors across the plant's plane");
+    finished("lily_leaf_a mirrored", mirrored, tol);
+    println!("   wall 5 — RETIRED: a leaf mirrored across the plant's plane builds at rest");
 
     // 6. The lantern's mouth is a hard circle where the sphere zone
     //    meets the conical pucker. A rolling ball would soften it —
@@ -2883,7 +2877,11 @@ mod review_probes {
         );
         println!("lantern census (shells, faces, edges, vertices) = {census:?}");
         assert_eq!(census, (1, 8, 14, 8), "the re-authored lantern's census");
-        let props = pncad::topo::mass_properties(lant, Tol::witness()).expect("mass properties");
+        let props = pncad::topo::mass_properties(
+            &crate::booleans::at_rest(lant, Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("mass properties");
         // The literal, DELIBERATELY: this row and
         // `finding_13_tessellation_table_reproduces` must not agree by
         // sharing an expression. That row builds the closed form from

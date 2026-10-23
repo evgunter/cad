@@ -88,7 +88,7 @@ fn the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms() {
             validate_geometric(&out.body, tol)
                 .unwrap_or_else(|e| panic!("{what} (round {round}): tier 3, got {e:?}"));
             assert_naming_totality(&body, &out, &edges, what);
-            let p = mass_properties(&out.body, tol).expect("interval props");
+            let p = topo::test_support::unmigrated_measure(&out.body, tol).expect("interval props");
             assert_eq!(p.volume_pad, 0.0, "{what}: a closed-form inventory");
             let removed = v0 - p.volume;
             let truth = section * length - corner * corners as f64;
@@ -195,7 +195,7 @@ fn a_feature_across_a_requested_edges_line_is_clear_at_the_certified_scalar() {
                     .unwrap_or_else(|e| panic!("{what} (round {round}): tier 3, got {e:?}"));
                 assert_naming_totality(&body, &out, &[tip], &what);
                 let removed = v0
-                    - mass_properties(&out.body, tol)
+                    - topo::test_support::unmigrated_measure(&out.body, tol)
                         .expect("interval props")
                         .volume;
                 let truth = if convex { section } else { -section };
@@ -311,7 +311,10 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                     chamfer_edges(&fbody, &[fedge], D, tol)
                 }
                 .unwrap_or_else(|e| panic!("{what}: carves at f64, got {e:?}"));
-                let want = fv0 - mass_properties(&fout.body, tol).expect("props").volume;
+                let want = fv0
+                    - topo::test_support::unmigrated_measure(&fout.body, tol)
+                        .expect("props")
+                        .volume;
                 let out = match if round {
                     fillet_edges(&ibody, &[iedge], iv(D), tol)
                 } else {
@@ -346,7 +349,8 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                     .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
                 tier_3_prime(&out.body, tol, &what);
                 assert_naming_totality(&ibody, &out, &[iedge], &what);
-                let p = mass_properties(&out.body, tol).expect("interval props");
+                let p =
+                    topo::test_support::unmigrated_measure(&out.body, tol).expect("interval props");
                 let removed = iv0.volume - p.volume;
                 let pad = iv0.volume_pad.hi() + p.volume_pad.hi();
                 assert!(

@@ -108,7 +108,12 @@ fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRe
     ] {
         let fx = prism::<T>(profile, 1.0, Tol::witness());
         let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
-        let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
+        let v0 = mass_properties(
+            &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         let r = split(&operand, &plane_y::<T>(1.0, 1.0), Tol::witness())
             .unwrap_or_else(|e| panic!("{profile:?}: refused: {e:?}"));
         for (side, want) in [(&r.above, shells[0]), (&r.below, shells[1])] {
@@ -121,12 +126,26 @@ fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRe
             assert_eq!(b.shells().count(), want, "{profile:?}: shells");
         }
         let (va, vb) = (
-            mass_properties(body_of(&r.above), Tol::witness())
-                .unwrap()
-                .volume,
-            mass_properties(body_of(&r.below), Tol::witness())
-                .unwrap()
-                .volume,
+            mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    (body_of(&r.above)).clone(),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume,
+            mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    (body_of(&r.below)).clone(),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume,
         );
         let d = (va + vb - v0).abs();
         assert!(d.hi() <= 1e-9, "{profile:?}: volume conservation: {d:?}");
@@ -176,8 +195,18 @@ fn mirror_identity_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRes
                 y.vertices().count(),
                 "{profile:?} {side} vertices"
             );
-            let d = (mass_properties(x, Tol::witness()).unwrap().volume
-                - mass_properties(y, Tol::witness()).unwrap().volume)
+            let d = (mass_properties(
+                &topo::test_support::finished("the measured body", (x).clone(), Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume
+                - mass_properties(
+                    &topo::test_support::finished("the measured body", (y).clone(), Tol::witness()),
+                    Tol::witness(),
+                )
+                .unwrap()
+                .volume)
                 .abs();
             assert!(d.hi() <= 1e-9, "{side}: volume mismatch {d:?}");
         }

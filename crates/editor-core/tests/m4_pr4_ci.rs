@@ -64,7 +64,12 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// name's spelling with it. Every row keeps its shape (`PredicateFlip`,
 /// `Cascade`, `StructuralParam`, `NodeGone`, `Ambiguous`): a spelling
 /// change.
-const DIAGNOSIS_DIGEST: u64 = 0xa990_729c_22cf_d149;
+///
+/// **Re-pinned for D′1** (a placement names its target space): each
+/// construction defines its space beside its body, so every id drawn
+/// after one, and every diagnosed name's spelling, moved. Every row
+/// keeps its shape: a spelling change.
+const DIAGNOSIS_DIGEST: u64 = 0x2638_4fff_2c67_c264;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

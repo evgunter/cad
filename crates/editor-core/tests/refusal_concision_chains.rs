@@ -275,7 +275,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "InstanceOutOfRange",
     "PlacementsUncertified",
     "PlacementRule/CountSpelling",
-    "PlacementRule/ImproperFrame",
     "PlacementRule/NoPlacements",
     "PlacementRule/NonFiniteFrame",
     "PlacementRule/NonRigidFrame",
@@ -820,7 +819,6 @@ test_utils::f6_variants! {
         CountSpelling,
         NoPlacements,
         NonFiniteFrame,
-        ImproperFrame,
         NonRigidFrame,
     ];
 }
@@ -836,7 +834,7 @@ test_utils::f6_variants! {
     /// an arm added to the enum stops this compiling until it is here.
     const NODE_ERROR_KIND: NodeErrorKind = [
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
-        Boolean, Transform, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
+        Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
         UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
@@ -1273,9 +1271,10 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         NodeErrorKind::PoseRead { .. }
         | NodeErrorKind::Mate(_)
         | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
-        NodeErrorKind::Part { .. } | NodeErrorKind::Transform(_) | NodeErrorKind::Motion(_) => {
-            Forward::Unwelded(UNWELDED_PLACEMENT)
-        }
+        NodeErrorKind::Part { .. }
+        | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Mirror(_)
+        | NodeErrorKind::Motion(_) => Forward::Unwelded(UNWELDED_PLACEMENT),
         NodeErrorKind::CurvedSolidFrontier { .. }
         | NodeErrorKind::MissingInput { .. }
         | NodeErrorKind::UnresolvedRead { .. }
@@ -2876,6 +2875,10 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
+    .chain([row(
+        "Mirror/NurbsPlaceholder",
+        NodeErrorKind::Mirror(E::NurbsPlaceholder),
+    )])
     .chain(certify_refusal_routes())
     .chain(offset_fit_routes())
     .collect()
@@ -4522,13 +4525,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             PlacementRuleFault::NonFiniteFrame { index: 2 },
         ),
         (
-            "ImproperFrame",
-            PlacementRuleFault::ImproperFrame {
-                index: 2,
-                determinant: -1.0,
-            },
-        ),
-        (
             "NonRigidFrame",
             PlacementRuleFault::NonRigidFrame {
                 index: 2,
@@ -4947,23 +4943,17 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "SpaceMismatch/WorldAndLoose",
+            "SpaceMismatch/WorldAndAnother",
             NodeErrorKind::SpaceMismatch {
-                a: editor_core::Space::World,
-                b: editor_core::Space::Loose {
-                    root: RecipeNodeId::new(0, tagged(6)),
-                },
+                a: editor_core::VarId::WORLD,
+                b: editor_core::VarId::new(0, tagged(6)),
             },
         ),
         row(
-            "SpaceMismatch/TwoLoose",
+            "SpaceMismatch/TwoOthers",
             NodeErrorKind::SpaceMismatch {
-                a: editor_core::Space::Loose {
-                    root: RecipeNodeId::new(0, tagged(6)),
-                },
-                b: editor_core::Space::Loose {
-                    root: RecipeNodeId::new(0, tagged(7)),
-                },
+                a: editor_core::VarId::new(0, tagged(6)),
+                b: editor_core::VarId::new(0, tagged(7)),
             },
         ),
         row(
@@ -5244,7 +5234,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
         .map(|(name, part, class)| {
             let (doc, instance) = insert(
                 ProfileDoc::empty(DocumentId::derive(name), tol),
-                Node::instantiate_part(part),
+                crate::fixture::mated_instance(part),
             );
             match evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol).result(instance) {
                 Some(NodeResult::Failed(error)) => match &error.kind {
@@ -5343,13 +5333,6 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 placement: n(7),
                 constraints: vec![c(8), c(9)],
                 free: 0,
-            },
-        ),
-        (
-            "TargetsDiffer",
-            M::TargetsDiffer {
-                placement: n(7),
-                constraints: vec![c(8), c(9)],
             },
         ),
         ("NotOnTheCopy", M::NotOnTheCopy { mate: r(9) }),
@@ -5975,7 +5958,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             tol,
         ));
         let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
-        let body: &topo::Body<f64> = &cut.body().expect("a body").body;
+        let body = &cut.body().expect("a body").body;
         // The door names the first ray set aside at a corner or a wedge
         // beside the volume's refusal; the refusal is the volume's.
         let source = match topo::classify_shells_structural(body, tol)
@@ -6007,7 +5990,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             !text.contains("tolerance") && !text.contains("defect"),
             "{text}"
         );
-        let roles: Vec<topo::ShellRole> = topo::classify_shells(body, tol)
+        let roles: Vec<topo::ShellRole> = topo::test_support::unmigrated_classify(body, tol)
             .expect("the certifying door reads the cavity")
             .iter()
             .map(|c| c.role)
@@ -6073,6 +6056,17 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 E::Connectedness {
                     actual: 2,
                     expected: 1,
+                },
+            ),
+        ),
+        (
+            "NotAtRest",
+            finding(
+                CheckId::Connectedness,
+                E::NotAtRest {
+                    errors: vec![topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    }],
                 },
             ),
         ),
