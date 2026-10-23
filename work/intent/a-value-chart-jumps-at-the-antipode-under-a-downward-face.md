@@ -1,3 +1,15 @@
+---
+id: a-value-chart-jumps-at-the-antipode-under-a-downward-face
+kind: issue
+title: A value charted on the target space jumps across the antipode: a body hung under a flat downward face moves 20 units for a 1e-9 tilt of its target
+status: open
+opened: 2026-10-23
+priority: P1
+cost: M
+design: true
+refs: [a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space]
+---
+
 
 Found by both reviewers of D′2 (PR 5613, frozen head `ca29c81468`), and demonstrated by execution. The probes are `review/intent-dprime2-R1` `r1_dprime2_probe.rs` and `review/intent-dprime2-R2` `r2_dprime2_probe.rs` (`r2_antipode_sensitivity`).
 
