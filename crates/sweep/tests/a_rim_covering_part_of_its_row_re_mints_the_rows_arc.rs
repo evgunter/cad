@@ -103,7 +103,7 @@ fn arc_row(image: &Pcurve<f64>) -> test_utils::arc_row::ArcRow {
     test_utils::arc_row::ArcRow {
         p0: [p0.x, p0.y],
         pd: [pd.x, pd.y],
-        breaks: breaks.knots().to_vec(),
+        breaks: format!("{breaks:?}"),
         t0: *t0,
         angle: *angle,
     }

@@ -10,8 +10,8 @@ pub struct ArcRow {
     pub p0: [f64; 2],
     /// The chart displacement over the whole arc.
     pub pd: [f64; 2],
-    /// The sub-arc breaks' knots.
-    pub breaks: Vec<f64>,
+    /// The sub-arc breaks, as their `Debug` text: compared, never read.
+    pub breaks: String,
     /// The carrier parameter at `g = 0`.
     pub t0: f64,
     /// The arc's turn.
