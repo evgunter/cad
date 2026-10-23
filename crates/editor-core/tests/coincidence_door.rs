@@ -440,10 +440,10 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         panic!("both cells walk to the box: {residual:?}")
     };
     assert_eq!(a.origin, b.origin, "one extrude minted both tops");
-    assert_ne!(a.placed, b.placed, "placed by two instances");
+    assert_ne!(a.maps, b.maps, "placed by two instances");
     assert_eq!(
         residual.to_string(),
-        "the two cells are one construction placed apart; the replay with every variable a \
+        "the two cells are one construction placed or reflected apart; the replay with every variable a \
          symbol took other decisions there",
         "a row no node decided matches no row of the replay"
     );
@@ -801,7 +801,9 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         "both caps lie on the one tool plane"
     );
     let [Ok(a), Ok(b)] = caps.each_ref().map(|c| match c {
-        NamedCell::Entity { input, name } => coincide::construction(&doc, *input, name),
+        NamedCell::Entity { input, name } => {
+            coincide::construction(&doc, *input, name, Tol::witness())
+        }
         NamedCell::Tool { .. } | NamedCell::Piece { .. } => unreachable!(),
     }) else {
         panic!("both caps walk")
@@ -809,7 +811,7 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     let Some(Node::Split { tool, .. }) = doc.node(split) else {
         panic!("the split")
     };
-    assert_eq!(a.origin, coincide::Origin::Tool(tool.read, tool.role));
+    assert_eq!(a.origin, coincide::Origin::Pose(tool.read, tool.role));
     assert_eq!(a, b);
     for proof in proofs(&doc, union, &got) {
         assert!(
