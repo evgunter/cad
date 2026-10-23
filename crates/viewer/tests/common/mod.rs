@@ -283,7 +283,8 @@ pub fn placed_at(
 /// Regenerated for values on the target space's axes (D′2): a spin
 /// value names its axis (`spin`, where it was `spin_about`), and the
 /// tour's variables now record the display units it authors them in.
-/// No id and no number moved.
+/// The placement's id, its constraints' and the copy's moved with the
+/// content key; no number moved.
 pub const GALLERY_RING: &str = include_str!("../gallery_ring.pncad");
 
 /// **ε is a run parameter, and a saved document records the one it was
