@@ -6819,7 +6819,7 @@ mod split_carries_candidates {
     use crate::names::table::{EntityRef, Entry, NameTable};
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
-    use crate::test_support::{against, frame_at, len, plane_on};
+    use crate::test_support::{against, axes_at, len, plane_on};
     use geom_core::Tol;
 
     fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
@@ -6879,7 +6879,7 @@ mod split_carries_candidates {
             doc,
             a,
             b,
-            &frame_at([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            &axes_at([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
             Tol::witness(),
         );
         let (doc, sub) = ins(
@@ -7014,7 +7014,7 @@ mod split_edge_lineage {
         let Some(crate::Node::Split { tool, .. }) = doc.node(split) else {
             panic!("the split is a split");
         };
-        let Ok(PoseValue::Plane { origin, normal }) =
+        let Ok(PoseValue::Plane { normal, offset }) =
             crate::eval::bound_pose(&doc, &ev, crate::OperandSlot::Tool, *tool, Tol::witness())
         else {
             panic!("the tool is a plane");
@@ -7022,7 +7022,10 @@ mod split_edge_lineage {
         let table = ev.table_at(ext).expect("the extrude's table");
         let out = topo::split(
             &topo::test_support::finished("the extrude", (**body).clone(), Tol::witness()),
-            &SplitPlane { origin, normal },
+            &SplitPlane {
+                origin: PoseValue::plane_foot(normal, offset),
+                normal,
+            },
             Tol::witness(),
         )
         .expect("the plane splits the cylinder");
@@ -7156,7 +7159,7 @@ mod crossings_rank_along_the_line {
             doc,
             from,
             tool,
-            &crate::test_support::frame_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            &crate::test_support::axes_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
             Tol::witness(),
         );
         ins(
@@ -7747,7 +7750,7 @@ mod edge_pieces_of_one_line_tie {
             doc,
             from,
             tool,
-            &crate::test_support::frame_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            &crate::test_support::axes_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
             Tol::witness(),
         );
         ins(

@@ -41,7 +41,7 @@ from pncad import (
     m,
     rad,
 )
-from placing import frame_at
+from placing import against, axes_at, placed
 from spoken import tag
 
 
@@ -79,7 +79,7 @@ def slab(doc, x, y, z, on=None):
     if on is None:
         assert z0.meters == 0.0, "a box standing alone sits on its own xy"
         return body
-    return doc.place_against(on, body, Frame.translation((0 * m, 0 * m, z0)))
+    return against(doc, on, body, Frame.translation((0 * m, 0 * m, z0)))
 
 
 class TestDocumentEditing(unittest.TestCase):
@@ -183,7 +183,7 @@ class TestNodeKindReadDoor(unittest.TestCase):
     def test_it_is_the_nodes_kind_and_not_its_values(self):
         doc = Doc()
         solid = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        moved = doc.place(solid, doc.world, pose=Frame.translation((1 * m, 0 * m, 0 * m)))
+        moved = placed(doc, solid, Frame.translation((1 * m, 0 * m, 0 * m)))
         ev = evaluate(doc)
         # Two different recipes, one value kind: `Value.kind` is the
         # PAYLOAD's shape and cannot tell an extrude from a rigid
@@ -1027,7 +1027,7 @@ class TestAPoseReadOffGeometry(unittest.TestCase):
         square = doc.insert(Node.polygon(corners))
         prism = doc.insert(Node.extrude(square, Formula.length_in(1, m)))
         upright = doc.place(prism, doc.world)
-        leaning = doc.place(prism, doc.world, pose=frame_at((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 1.0)))
+        leaning = placed(doc, prism, axes_at((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 1.0)))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(leaning))
         self.assertAlmostEqual(

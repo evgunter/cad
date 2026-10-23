@@ -66,7 +66,7 @@ from pncad import (
     mm,
 )
 
-from placing import plane_on, slid
+from placing import against, placed, plane_on, slid
 
 #: The chordal budget the pick indices in this file are built at. The
 #: solids are planar-faced, so the tessellation is exact at any budget
@@ -201,7 +201,7 @@ class TestInOneRead(unittest.TestCase):
     def setUp(self):
         self.doc = Doc()
         self.cube = unit_cube(self.doc)
-        self.moved = self.doc.place(self.cube, self.doc.world, pose=slid(3, 0, 0))
+        self.moved = placed(self.doc, self.cube, slid(3, 0, 0))
         self.other = unit_cube(self.doc, at=(9.0, 9.0))
         self.ev = evaluate(self.doc)
 
@@ -414,7 +414,7 @@ def blank(radius):
             Formula.length_in(0.4, m),
         )
     )
-    lifted = doc.place_against(cube, peg, slid(0, 0, 0.3))
+    lifted = against(doc, cube, peg, slid(0, 0, 0.3))
     fused = doc.insert(Node.union([blended, lifted]))
     doc.apply(DocEdit.set_param(blended, "radius", Formula.length_in(radius, m)))
     return doc, blended, fused

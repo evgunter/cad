@@ -386,7 +386,7 @@ recourse is the geometry.
 
 ```
 use pncad::prelude::*;
-use pncad::document::{Bodies, BodyRead, BooleanValue, Frame, Operand, place_against};
+use pncad::document::{Bodies, BodyRead, BooleanValue, Coord, Operand, Placed, TargetAxis};
 
 let tol = Tol::witness();
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -405,25 +405,17 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64| ProfileProgram {
 
 // A unit box, and a smaller box RESTING on its top cap. Each is a
 // construction in its own coordinates; the block joins the box's space
-// by a placement against it, a metre up the box's own z, so the
-// resting relation is visible in the tree before anything is
-// evaluated.
+// by a placement into it, a metre up that space's z, so the resting
+// relation is visible in the tree before anything is evaluated.
 let doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0)));
 let (doc, base) = insert(&doc, Node::Extrude { profile: pf1.into(), distance: len(1.0) });
 let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75)));
 let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: len(0.5) });
-let placed = place_against(
-    &doc,
-    &base.into(),
-    &block.into(),
-    &Frame::translation([0.0, 0.0, 1.0]),
-    &EvalOptions::default(),
-    tol,
-)
-.expect("the block places against the box");
-// The copy is placed into the box's space, which its mate reads, and
-// its bundle written whole.
+// The one bundle constructor: the slide its author writes, and the
+// constant zero on every freedom left unnamed.
+let placed = Placed::unmated(vec![(Coord::Slide(TargetAxis::Z), len(1.0))]);
+// The copy is placed into the box's space, its bundle written whole.
 let in_base = Operand::Var(doc.node_space(base).expect("a construction is in its own space"));
 let (doc, resting) = insert(
     &doc,

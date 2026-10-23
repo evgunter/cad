@@ -437,7 +437,12 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// D′1 moved the digest alone: each construction defines its space
 /// beside its body, so every id and name drawn after one moved; the
 /// volume bits and the solid count held.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 4_697_067_274_058_865_583;
+///
+/// D′2 moved the digest alone: each instance is pinned by values on the
+/// world's axes rather than a mate read off its geometry, so its
+/// bundle's constraints, and every id and name drawn after them, moved;
+/// the volume bits and the solid count held.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 16_016_121_234_704_582_083;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

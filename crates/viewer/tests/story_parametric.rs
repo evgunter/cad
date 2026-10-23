@@ -89,36 +89,28 @@ fn drive(session: &mut DocSession, node: RecipeNodeId, slot: SlotId, text: &str)
 /// **Drives the lift of the moved copy `placement`** by `text`, a
 /// height up the copy's own z that today is `lift`.
 ///
-/// The lift is the slide of the mate's target: the copy's start cap on
-/// the target's, slid along the target cap's outward normal — the
-/// target's −z — so the slide's variable holds `-lift` and is defined
-/// as the expression's negation.
+/// The lift is the placement's slide along its space's `z`, a value of
+/// its bundle, so its variable holds `lift` and is defined as the
+/// expression.
 fn drive_lift(session: &mut DocSession, placement: RecipeNodeId, lift: f64, text: &str) {
-    use pncad::document::pose::PoseDef;
-    use pncad::document::{Node, Target, VarDef};
+    use pncad::document::{Coord, Node, TargetAxis};
     let doc = session.committed_doc();
     let Some(Node::Place { constraints, .. }) = doc.node(placement) else {
         panic!("{placement} is a placement");
     };
     let slid = constraints
         .iter()
-        .filter_map(|c| c.mate())
-        .find_map(|mate| match &mate.to {
-            Target::Pose(var) => match doc.var(*var).map(|v| v.def()) {
-                Some(VarDef::Pose(PoseDef::Slide { by, .. })) => Some(*by),
-                _ => None,
-            },
-            Target::World(_) => None,
-        })
-        .unwrap_or_else(|| panic!("{placement}'s mate reads a slid target"));
+        .filter_map(|c| c.value())
+        .find_map(|value| (value.coord == Coord::Slide(TargetAxis::Z)).then_some(value.by))
+        .unwrap_or_else(|| panic!("{placement} slides along its space's z"));
     assert_eq!(
         props::variable_value(doc, slid),
-        Some(SlotValue::Continuous(-lift)),
+        Some(SlotValue::Continuous(lift)),
         "the lift stands where the move put it"
     );
     let outcome = session.perform(SessionOp::SetVariableText {
         var: slid,
-        text: format!("-({text})"),
+        text: text.to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{text:?}: {:?}", outcome.refusal);
 }
@@ -341,7 +333,7 @@ fn the_parametric_living_walk() {
             spec: BooleanSpec::Union(vec![base.into(), tower_up.into()]),
         },
     );
-    // The union places the moved tower against the base where it
+    // The union places the moved tower into the base's space where it
     // stands; its lift is then driven on that placement.
     drive_lift(&mut session, tower_up, 0.025, "height - embed");
     let r1 = BASE_R * TAPER;

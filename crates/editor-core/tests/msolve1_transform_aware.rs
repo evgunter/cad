@@ -826,7 +826,7 @@ fn a8b_deleting_the_operand_leaves_the_pose_unresolved() {
             .collect()
     };
     assert!(
-        reached(*m.to.pose().expect("the seat's target is a pose")).is_empty(),
+        reached(m.to).is_empty(),
         "the stranded pose reads nothing live"
     );
     assert!(
@@ -925,7 +925,7 @@ fn a8d_a_placed_copy_operand_round_trips_through_persistence() {
         "the `on` pose's edge and corner rode the wire at the top"
     );
     assert_eq!(
-        reached(*m.to.pose().expect("the seat's target is a pose")),
+        reached(m.to),
         [s.a_at].into(),
         "the `to` pose's edge and corner rode the wire at the placed copy"
     );
@@ -1203,7 +1203,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         .expect("its bundle holds the rest, and its values");
     assert_eq!(bundle.len(), 4, "the rest and its three values");
     let on = fixture::face_reads(&out.remainder, m.on);
-    let to = fixture::face_reads(&out.remainder, *m.to.pose().expect("a pose target"));
+    let to = fixture::face_reads(&out.remainder, m.to);
     let ([on], [to]) = (on.as_slice(), to.as_slice()) else {
         panic!("the rest kept one face on each pose: {on:?} {to:?}");
     };

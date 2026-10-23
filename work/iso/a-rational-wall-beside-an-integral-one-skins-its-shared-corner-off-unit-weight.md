@@ -2,10 +2,13 @@
 id: a-rational-wall-beside-an-integral-one-skins-its-shared-corner-off-unit-weight
 kind: issue
 title: A rational loft wall skins its shared corner rows with synthesized weights an ulp off 1, so its seam refuses against the integral neighbour
-status: open
+status: closed
+closed: 2026-10-23
+pr: 5629
 opened: 2026-10-06
 priority: P2
 cost: M
+rides_with: loft-seam-carrier-exact-knot-compare
 ---
 
 
@@ -76,3 +79,12 @@ with the same `IsoUnsupported` seam error at n = 8 (v-degree 2 and 3),
 16 (degree 2) and 40 (degrees 2 and 3), on main `f581d1ae29` and on
 `nurbs/refined-scan-cost` alike; n = 3 at degree 2 builds. Found while
 timing the rational speed meter on an arc loft.
+
+## Closed
+
+PR 5629: `skin_on` chooses its lane per control row, so an arc wall's
+corner rows skin in Cartesian ℝ³ at exactly `1.0` and its seams certify
+against the line neighbours at every spacing measured. The second shape
+above (one arc whose bulge differs per section) has a different
+mechanism and is split out as
+`a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim`.

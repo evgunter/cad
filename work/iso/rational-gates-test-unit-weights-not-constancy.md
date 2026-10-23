@@ -68,3 +68,10 @@ speed through `NurbsCurve3::speed_upper_bound`, which bounds any
 positive-weight net (now the quotient bound, PR 4954), so `plane_spline_root` and
 the level-row section no longer refuse a rational or constant-weight
 carrier. That bullet above is closed by it.
+
+## `skin.rs` closed (2026-10-23, PR 5629)
+
+`skin_on` decides its lane per control row on constancy: a row whose
+weight is the same `c` in every section skins in Cartesian ℝ³ with
+every output weight exactly `c`, `1.0` included. The `sweep/src/skin.rs`
+bullet above is closed by it; the other sites remain.

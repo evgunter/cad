@@ -433,30 +433,37 @@ fn row3_a_second_rest_refuses_at_the_door_whatever_its_height() {
 
 // ---- Row 4: the constraint door, and no edit records a frame (A11 (2)) ----
 
-/// Row 4b — removing the placing constraint refuses `Unpinned` (D10
-/// `[placement.placement]`: every bundle pins its copy), and leaves the
-/// document as it was.
+/// Row 4b — removing the placing constraint rewrites the bundle whole
+/// (D10 `[placement.placement]`: every bundle pins its copy): the
+/// freedoms the mate fixed come back as the constant `0` on the target
+/// space's axes, so the copy stays pinned.
 ///
-/// *Breaks if* the removal is admitted, leaving a freedom unwritten.
+/// *Breaks if* the removal leaves a freedom unwritten, or keeps the
+/// mate.
 #[test]
-fn row4b_removing_the_placing_constraint_refuses_unpinned() {
+fn row4b_removing_the_placing_constraint_leaves_the_copy_pinned() {
     let (doc, ids, joint, kit) = stacked_pair("asm-r2a-row4b");
     let o = kit.opts();
     let doc = repin(doc, ids[0], &Frame::translation([0.0, 0.0, 4.0]), &o);
-    match apply(
+    let applied = apply(
         &doc,
         &DocEdit::RemoveConstraint {
             placement: joint.placement,
             constraint: joint.id,
         },
         Tol::witness(),
-    ) {
-        Err(editor_core::EditError::MateRefused { fault, .. }) => assert!(
-            matches!(*fault, MateFault::Unpinned { placement, .. } if placement == ids[1]),
-            "{fault:?}"
-        ),
-        other => panic!("removing the placing constraint refuses: {other:?}"),
-    }
+    )
+    .unwrap_or_else(|e| panic!("removing the placing constraint is admitted: {e}"));
+    let bundle = fixture::bundle(&applied.doc, ids[1]);
+    assert!(
+        bundle.iter().all(|c| c.mate().is_none()) && bundle.len() == 6,
+        "the mate went and six values pin the copy: {bundle:?}"
+    );
+    assert_eq!(
+        fixture::solve(&applied.doc, &o, Tol::witness()).fault(ids[1]),
+        None,
+        "the copy stays pinned"
+    );
 }
 
 /// Row 4c — deleting the instance a constraint targets is not refused
@@ -1042,7 +1049,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             "a frame's spin",
             &doc,
             frame,
-            Coord::Spin,
+            Coord::Spin(editor_core::TargetAxis::Z),
             ang(0.5),
             editor_core::VarKind::Frame,
         ),
@@ -1055,15 +1062,20 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             editor_core::VarKind::Plane,
         ),
     ] {
+        let mut bundle: Vec<editor_core::Constraint<Formula>> =
+            fixture::bundle(doc, mate.placement)
+                .iter()
+                .map(|c| fixture::authored(doc, c))
+                .collect();
+        bundle.push(editor_core::Constraint::of_value(
+            editor_core::ConstraintId::placeholder(1),
+            Value { coord, by },
+        ));
         let err = apply(
             doc,
-            &DocEdit::AddValue {
+            &DocEdit::SetConstraints {
                 placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
+                constraints: bundle,
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -1072,17 +1084,14 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
         let EditError::MateRefused { fault, .. } = &err else {
             panic!("{what}: expected MateRefused, got {err:?}");
         };
+        let _ = kind;
         assert!(
             matches!(
-                **fault,
-                MateFault::NotAFreedom { value, coord: c, kind: k }
-                    if value.placement == ids[1] && c == coord && k == kind
+                &**fault,
+                MateFault::Overconstrained { placement, constraints, .. }
+                    if *placement == ids[1] && constraints.contains(&mate.id)
             ),
             "{what}: {fault:?}"
-        );
-        assert!(
-            fault.to_string().contains("which the mate fixes"),
-            "{fault}"
         );
     }
 }
@@ -1152,4 +1161,128 @@ fn row7e_a_mate_not_on_its_copy_refuses_at_the_door() {
         "{fault:?}"
     );
     assert!(fault.to_string().contains("pins nothing"), "{fault}");
+}
+
+// ---- D′2 test 20: a lone point mate's chain ----
+
+/// The turn by `angle` about the unit `axis`, as rows.
+fn turn(axis: [f64; 3], angle: f64) -> [[f64; 3]; 3] {
+    let (s, c) = angle.sin_cos();
+    let [x, y, z] = axis;
+    let k = 1.0 - c;
+    [
+        [c + x * x * k, x * y * k - z * s, x * z * k + y * s],
+        [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
+        [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
+    ]
+}
+
+fn times(a: [[f64; 3]; 3], b: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
+    std::array::from_fn(|i| std::array::from_fn(|j| (0..3).map(|k| a[i][k] * b[k][j]).sum()))
+}
+
+/// **Test 20 (D′2): a lone point mate's rotation is a chain in the
+/// order written** (D10 `[placement.values]`). The second copy's start
+/// corner 0 is mated to the first's end corner 2, and its rotation
+/// written `Spin(Z)`, `Spin(X)`, `Spin(Y)` about the world's axes: its
+/// placement turns by `R_y · R_x · R_z` — the last written outermost —
+/// and carries the mated corner onto its target. A second `Spin(X)`
+/// right after the first refuses `Overconstrained` naming both, and a
+/// slide beside the ball refuses naming the slide and the ball, which
+/// fixes every translation.
+///
+/// *Breaks if* the order is the kernel's, or the mated corner misses
+/// its target.
+#[test]
+fn a_lone_point_mates_chain_turns_its_copy_in_the_order_written() {
+    use TargetAxis::{X, Y, Z};
+    let (doc, ids, kit) = assembly("asm-r2a-point-chain", 2);
+    let o = kit.opts();
+    let ball = fixture::mate(
+        point_of(read(kit.corner(ids[1], CapEnd::Start, 0))),
+        point_of(read(kit.corner(ids[0], CapEnd::End, 2))),
+        ContactClass::Rest,
+    );
+    let (tz, tx, ty) = (0.3, 0.2, 0.1);
+    let chain = |spins: &[(TargetAxis, f64)]| -> Vec<(Coord, Formula)> {
+        spins
+            .iter()
+            .map(|&(a, t)| (Coord::Spin(a), ang(t)))
+            .collect()
+    };
+    let placed = fixture::with_values(
+        doc.clone(),
+        ids[1],
+        ball.clone(),
+        chain(&[(Z, tz), (X, tx), (Y, ty)]),
+    );
+    let ev = run(&placed, &o);
+    let at = |end, v| {
+        let p = editor_core::vertex_position(&ev, ids[0], &kit.corner(ids[0], end, v))
+            .expect("the first copy's corner");
+        [p.x, p.y, p.z]
+    };
+    // The first copy stands at the identity, so its corners are the
+    // part's own coordinates.
+    let (on, to) = (at(CapEnd::Start, 0), at(CapEnd::End, 2));
+    let frame = solve(&placed, &o, Tol::witness())
+        .placement(&placed, ids[1])
+        .expect("the chain pins the copy");
+    let linear: [[f64; 3]; 3] =
+        std::array::from_fn(|i| std::array::from_fn(|j| frame.columns[j][i]));
+    let written = times(
+        turn([0.0, 1.0, 0.0], ty),
+        times(turn([1.0, 0.0, 0.0], tx), turn([0.0, 0.0, 1.0], tz)),
+    );
+    let reversed = times(
+        turn([0.0, 0.0, 1.0], tz),
+        times(turn([1.0, 0.0, 0.0], tx), turn([0.0, 1.0, 0.0], ty)),
+    );
+    let off = |a: [[f64; 3]; 3], b: [[f64; 3]; 3]| {
+        a.iter()
+            .flatten()
+            .zip(b.iter().flatten())
+            .map(|(x, y)| (x - y).abs())
+            .fold(0.0_f64, f64::max)
+    };
+    assert!(
+        off(linear, written) < 1e-12,
+        "turned in the order written: {frame:?}"
+    );
+    assert!(off(linear, reversed) > 1e-3, "and not in the reverse");
+    let landed: [f64; 3] = std::array::from_fn(|i| {
+        (0..3).map(|k| linear[i][k] * on[k]).sum::<f64>() + frame.translation[i]
+    });
+    let miss = landed
+        .iter()
+        .zip(&to)
+        .map(|(a, b)| (a - b).abs())
+        .fold(0.0_f64, f64::max);
+    assert!(
+        miss < 1e-12,
+        "the mated corner lands on its target, {miss:e} off"
+    );
+
+    let refused = |values: Vec<(Coord, Formula)>| -> Box<MateFault> {
+        let placed = editor_core::Placed {
+            mates: vec![ball.clone()],
+            values,
+        };
+        match apply(&doc, &placed.write(ids[1]), Tol::witness()) {
+            Err(EditError::MateRefused { fault, .. }) => fault,
+            other => panic!("the bundle refuses: {other:?}"),
+        }
+    };
+    let twice = refused(chain(&[(Z, tz), (X, tx), (X, ty)]));
+    assert!(
+        matches!(&*twice, MateFault::Overconstrained { constraints, .. } if constraints.len() == 2),
+        "a second spin about x right after the first: {twice:?}"
+    );
+    let mut slid = chain(&[(Z, tz), (X, tx), (Y, ty)]);
+    slid.push((Coord::Slide(X), len(0.0)));
+    let slid = refused(slid);
+    assert!(
+        matches!(&*slid, MateFault::Overconstrained { constraints, .. } if constraints.len() == 2),
+        "a slide beside the ball: {slid:?}"
+    );
 }

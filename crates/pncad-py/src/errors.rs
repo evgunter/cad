@@ -427,6 +427,9 @@ pub enum ErrorClass {
     /// An `inline` refactoring refused. The Python class is
     /// `InlineError`.
     Inline,
+    /// A `flatten` refactoring refused. The Python class is
+    /// `FlattenError`.
+    Flatten,
     /// A whole-document pin update produced no edit list. The Python
     /// class is `UpdateError`.
     Update,
@@ -611,6 +614,7 @@ impl ErrorClass {
             Self::Product => "ProductError",
             Self::Split => "SplitError",
             Self::Inline => "InlineError",
+            Self::Flatten => "FlattenError",
             Self::Update => "UpdateError",
             Self::Readback => "ReadbackError",
             Self::HitTest => "HitTestError",
@@ -833,10 +837,9 @@ pub enum BoundaryEdit<'a> {
     /// A placement rule spelled through the wrong constructor, worded
     /// by the document layer's own fault map.
     PlacementRule(&'a pncad::document::PlacementRuleFault),
-    /// A copy the "place part" gesture (`Doc.place_at`) could not
-    /// place over its geometry, worded by the kernel's own refusal
-    /// map: it did not evaluate, is no body, is placed already, or
-    /// offers no frame.
+    /// A body `Doc.corner_frame` could read no frame off, worded by the
+    /// kernel's own refusal map: it did not evaluate, is no body, is
+    /// placed already, or offers no such corner.
     Pin(&'a pncad::document::PinRefusal),
     /// A text that is not a parameter name. `ParamName(text)` is the
     /// boundary that turns text into a name, and the document layer's

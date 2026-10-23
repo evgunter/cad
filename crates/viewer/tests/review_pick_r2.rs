@@ -102,9 +102,9 @@ struct Tally {
 /// `(441198, 141261, 14088, 7230)`. The rays are unchanged; against the
 /// mates' tally, 453 more are answered at the aimed vertex, and 1230
 /// more candidates over 690 more rays refuse at the determinant. The
-/// gallery ring's bumped landing is re-placed after the bump, whose
-/// partial revolve drops the seam its pin read
-/// (`common::repin_stranded`).
+/// gallery ring's bumped landing was re-placed after the bump, whose
+/// partial revolve dropped the seam its pin read; its placement now
+/// reads no geometry, so it stands where it stood.
 ///
 /// No genuine crossing is refused either way.
 ///

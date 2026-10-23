@@ -21,8 +21,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
     Formula, Mate, MateRef, NameRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, Target, TargetAxis,
-    WorldRead, evaluate,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, scl};
@@ -229,7 +228,7 @@ impl Scene {
             ),
             &[
                 (Coord::Slide(TargetAxis::Z), len(BLOCK_HEIGHT)),
-                (Coord::Spin, ang(0.0)),
+                (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
             ],
         );
     }
@@ -243,7 +242,7 @@ impl Scene {
             &[
                 (Coord::Slide(TargetAxis::X), len(x)),
                 (Coord::Slide(TargetAxis::Y), len(y)),
-                (Coord::Spin, ang(0.0)),
+                (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
             ],
         )
     }
@@ -390,16 +389,18 @@ fn unleverable(fault: &editor_core::MateFault) -> &editor_core::LeverRefusal {
     }
 }
 
-/// The other block's bottom cap on a plane of the world `z = h` up,
-/// facing down: a plane mate whose target is the world.
-fn on_the_world(s: &Scene, h: f64) -> Mate<Formula> {
+/// The other block's bottom cap on a floor's top `z = h` up, facing
+/// down ([`fixture::floor`]): a plane mate whose target stands in the
+/// world.
+fn on_the_world(s: &mut Scene, h: f64) -> Mate<Formula> {
+    let (doc, top, _) = fixture::floor(
+        s.doc.clone(),
+        vec![(Coord::Slide(editor_core::TargetAxis::Z), len(h))],
+    );
+    s.doc = doc;
     Mate {
         on: fixture::plane(s.bottom(s.other)),
-        to: Target::World(
-            WorldRead::through(PoseRole::Xy)
-                .slide(WorldRead::through(PoseRole::Z), len(h))
-                .flip(),
-        ),
+        to: fixture::flip(top),
         class: ContactClass::Rest,
     }
 }
@@ -666,10 +667,11 @@ fn a_box_run_over_an_overconstrained_bundle_refuses_at_its_witness() {
         s.other,
         fixture::rest(s.bottom(s.other), s.base_top(), ContactClass::Rest),
     );
+    let beside = on_the_world(&mut s, BASE_HEIGHT);
     let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
         &s.doc,
         s.other,
-        on_the_world(&s, BASE_HEIGHT),
+        beside,
         Tol::witness(),
     );
     s.doc = doc;

@@ -20,15 +20,13 @@ use crate::p2_gauges::{Parts, block, body_of, cut, min_corner, parts};
 
 use editor_core::pose::PoseRole;
 use editor_core::{
-    CapEnd, ContactClass, Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    FreeValue, FreeVar, Mate, MateRef, ProfileDoc, RecipeNodeId, SlotId, SplitError, Target,
-    TargetAxis, Value, VarName, WorldRead, apply,
+    ContactClass, Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
+    FreeValue, FreeVar, Mate, MateRef, ProfileDoc, RecipeNodeId, SlotId, SplitError, TargetAxis,
+    Value, VarName, apply,
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{
-    ang, constrain_at, flip, gate, head, insert, insert_pinned, len, plane, rest, run, solve, step,
-};
+use fixture::{ang, flip, gate, head, insert, insert_pinned, len, plane, rest, run, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -55,14 +53,14 @@ fn plane_seated(
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), y),
-            (Coord::Spin, ang(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
         ],
     );
     let vx = fixture::bundle(&doc, placement)
         .into_iter()
         .find(|c| {
             c.value()
-                .is_some_and(|v| v.mate == Some(m.id) && v.coord == Coord::Slide(TargetAxis::X))
+                .is_some_and(|v| v.coord == Coord::Slide(TargetAxis::X))
         })
         .map(|c| MateRef::new(placement, c.id))
         .expect("the x slide is held");
@@ -70,25 +68,14 @@ fn plane_seated(
 }
 
 /// **An instance of `part` grounded in the world at the identity**:
-/// its lower cap resting on the world's xy plane, its three plane
-/// freedoms set to zero — so its own coordinates are the world's, read
-/// off its lower cap alone, whatever its height.
+/// its bundle the identity bundle, so its own coordinates are the
+/// world's.
 fn grounded(
     doc: ProfileDoc,
     part: editor_core::DocRef,
-    body: RecipeNodeId,
+    _body: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = insert(doc, fixture::mated_instance(part));
-    let (doc, _) = constrain_at(
-        doc,
-        id,
-        Mate {
-            on: plane(head(fixture::resolver::in_part(id, body, CapEnd::Start))),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
-    (doc, id)
+    insert(doc, fixture::mated_instance(part))
 }
 
 /// The two-block scene: the base grounded, the top, and the top's lower
@@ -413,7 +400,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
     )
     .unwrap_or_else(|e| panic!("inline refused: {e}"));
     let (map, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &map, &steps)
+    same_up_to_ids(&doc, &crate::fixture::round_trip::flat(&back), &map, &steps)
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
     assert_eq!(
         top_corner(&back.doc, &o, top_image(&map, top)),
@@ -483,38 +470,17 @@ fn top_image(map: &editor_core::NodeMap, top: RecipeNodeId) -> RecipeNodeId {
 // ---- Row 5: a constraint compares by bits ----
 
 /// **Two constraints differing only in a signed zero are two
-/// constraints to D7.** A world read slid by `+0.0` and by `-0.0`, and
-/// a value of `+0.0` and of `-0.0`: each pair is equal by value and
-/// different by bits, and `bit_eq` says so.
+/// constraints to D7.** A value of `+0.0` and of `-0.0` are equal by
+/// value and different by bits, and `bit_eq` says so.
 ///
 /// *Breaks if* `bit_eq` compares a scalar by value.
 #[test]
 fn a_constraint_compares_by_bits() {
-    let cap = |node, end| {
-        head(editor_core::StableName {
-            kind: editor_core::EntityKind::Face,
-            node: RecipeNodeId::new(0, node),
-            path: vec![editor_core::RoleSeg::Cap(end)],
-        })
-    };
-    let world = |by: f64| Mate {
-        on: plane(cap(1, CapEnd::Start)),
-        to: Target::World(
-            WorldRead::through(PoseRole::Xy).slide(WorldRead::through(PoseRole::Z), len(by)),
-        ),
-        class: ContactClass::Rest,
-    };
-    let (x, y) = (world(0.0), world(-0.0));
-    assert_eq!(x, y, "world read: equal by value");
-    assert!(!x.bit_eq(&y), "world read: different by bits");
-    assert!(x.bit_eq(&x.clone()), "world read: equal to itself");
-
     let id = editor_core::ConstraintId(editor_core::MintId::new(0, 1));
     let value = |by: f64| {
         editor_core::Constraint::of_value(
             id,
             Value {
-                mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 0))),
                 coord: Coord::Slide(TargetAxis::X),
                 by: len(by),
             },

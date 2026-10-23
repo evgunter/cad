@@ -395,7 +395,7 @@ fn nurbs_tighten(
                 breaks,
                 ..
             } => {
-                let spans = breaks.control_count().saturating_sub(1);
+                let spans = geom_brep::iso_arc_spans(breaks);
                 if spans == 0 {
                     return Err(TessellateError::UnsupportedCurve {
                         edge: ek,

@@ -2,8 +2,11 @@
 id: lofted-lens-blade-no-longer-reaches-the-budget-exit
 kind: issue
 title: the lofted lens blade certifies at the default eps, so its budget-exit rows test nothing
-status: open
+status: closed
+parent: the-measurement-door-refines-until-a-predicate-resolves
+pr: 5589
 opened: 2026-10-22
+closed: 2026-10-22
 refs: [5582, 5568]
 priority: P1
 cost: M
@@ -40,3 +43,16 @@ any more, re-scoped.
 The row also got slower: `a_lofted_lens_blade_certifies_its_sign_past_the_budget_exit`
 ran in 68 s at `aaef9f58` and runs in 250 s at `9d680e33` (local,
 dev profile), because the walls now refine to convergence.
+
+**Closed by PR 5589** (the measure door's unit A). The budget exit is
+gone, so the rows' premise is gone with it. Ruled: the subject stays
+"a sign that settles while the number is still open".
+- The blade's row now asserts that it certifies, number and sign, with
+  main's bits: `0.034605949150085524 ± 4.64e-7` at 1e-9. The measured
+  work wall gives the knot-cut walls their round 7, which the
+  plain-rectangle wall had cut to round 6.
+- The open number moves to an ε-scaled round tube (`round_tube`, the
+  python suite's `oversized_round_loft`). Its gate admits the sign in
+  about 6 s, and its walls stop at the work wall after 11 rounds.
+- The backstop's count row moves to the tube as well:
+  `the_volume_backstop_reads_a_refused_face_once_per_body`.
