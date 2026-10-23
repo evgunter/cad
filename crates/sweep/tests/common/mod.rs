@@ -712,11 +712,10 @@ pub fn band_midpoint(tol: Tol) -> f64 {
 }
 
 /// **The certified quadrature's rounds, counted rather than timed** —
-/// the number of `props_quad_*` classifications the kernel's one
-/// recording funnel made while `run` executed. One certificate over
-/// one body at one band contributes a fixed number of them; two
-/// contribute twice that, and a caller that stopped early contributes
-/// fewer.
+/// the face-lane rounds the kernel ran while `run` executed
+/// (`geom_brep::props::quad::rounds_run_by`). One certificate over one
+/// body at one band runs a fixed number of them; two run twice that,
+/// and a caller that stopped early runs fewer.
 ///
 /// Here rather than in a suite because three suites count the same
 /// thing (`tcost_k3_certificate`, `sign_walk_plus_v`, and
@@ -724,15 +723,8 @@ pub fn band_midpoint(tol: Tol) -> f64 {
 /// counter that drifts between them is two different instruments
 /// reporting one number. The routing rule above does not have a slot
 /// for an instrument; this is the slot.
-pub fn quad_verdicts(run: impl FnOnce()) -> usize {
-    let bracket = geom_core::k_stats::Bracket::open();
-    run();
-    bracket
-        .finish()
-        .verdicts
-        .iter()
-        .filter(|v| v.predicate.starts_with("props_quad"))
-        .count()
+pub fn quad_rounds(run: impl FnOnce()) -> usize {
+    geom_brep::props::quad::rounds_run_by(run).1
 }
 
 /// **FNV-1a over a byte stream** — an order- and element-sensitive
@@ -741,7 +733,7 @@ pub fn quad_verdicts(run: impl FnOnce()) -> usize {
 /// change when any element, sign or position changes, which is what a
 /// golden compares.
 ///
-/// Beside [`quad_verdicts`] for its reason: the thread-count goldens
+/// Beside [`quad_rounds`] for its reason: the thread-count goldens
 /// of two walks read the same channels through the same fold, and a
 /// digest that drifts between them is two instruments reporting one
 /// number.

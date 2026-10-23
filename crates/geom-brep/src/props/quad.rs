@@ -714,6 +714,24 @@ pub fn classify_len<T: Decide>(
         .map_err(|cause| PropsError::Escalated { cause, check })
 }
 
+/// **Every round a face lane has run in this process** — test
+/// vocabulary for what a measurement pays, since a resolution records
+/// no decision a test could count instead. Process-wide: a reading is
+/// one test's only where that test has its process to itself, as
+/// nextest runs every test ([`rounds_run_by`]).
+#[cfg(any(test, feature = "test-support"))]
+static ROUNDS_RUN: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+/// `run`'s answer, and the face-lane rounds it ran ([`ROUNDS_RUN`]).
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn rounds_run_by<R>(run: impl FnOnce() -> R) -> (R, usize) {
+    let before = ROUNDS_RUN.load(core::sync::atomic::Ordering::Relaxed);
+    let answer = run();
+    let after = ROUNDS_RUN.load(core::sync::atomic::Ordering::Relaxed);
+    (answer, after - before)
+}
+
 /// **One call's rounds, and the stop every lane reads** — one home for
 /// the five lanes, which differ in it only by what a round costs and by
 /// how they split a round's width.
@@ -764,6 +782,8 @@ impl<'c> Run<'c> {
     /// kept if it is the narrowest so far. `removable` is the part of
     /// `bounds.flux`'s width a later round removes.
     pub(super) fn stop(&mut self, round: usize, bounds: FaceCutBounds, removable: f64) -> LaneStop {
+        #[cfg(any(test, feature = "test-support"))]
+        ROUNDS_RUN.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
         self.work.spend((self.cost)(round));
         let width = bounds.flux.width();
         if self

@@ -223,10 +223,10 @@ fn the_volume_backstop_reads_a_refused_face_once_per_body() {
     let tol = Tol::witness();
     let body = topo::test_support::finished("the round tube", round_tube(tol), tol);
     let brick = crate::common::square_prism();
-    let reporting = crate::common::quad_verdicts(|| {
+    let reporting = crate::common::quad_rounds(|| {
         topo::mass_properties(&body, tol).expect_err("the reporting door refuses the tube");
     });
-    let backstop = crate::common::quad_verdicts(|| {
+    let backstop = crate::common::quad_rounds(|| {
         topo::test_support::volume_backstop(topo::BooleanOp::Union, &body, &brick, &body, tol)
             .expect_err("the backstop refuses a body it cannot measure");
     });

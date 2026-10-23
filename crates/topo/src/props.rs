@@ -28,7 +28,7 @@
 //! each loop into [`geom_brep::LoopEdge`]s, and sums. The tier-3
 //! validator's two check-7 derivations consume that walk without any
 //! new inter-crate dependency: every check-7 door decides through
-//! [`sign_walk`], which is the reporting walk ([`mass_properties_with`])
+//! [`role_walk_set`], the measurement door's sign walk ([`measure_to`]),
 //! stopped at the round the validator's own decision is complete, and
 //! hands back the [`SignCertificate`] a caller continues to the number.
 
@@ -2231,8 +2231,8 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         // so the first face in arena order its lane stopped short of
         // `len`. **What a refusal here HOLDS** is the fold of every face
         // at the round it was resumed to: each run's enclosure is sound at
-        // whatever round it was taken, and the fold is the sum [`sign_walk`]
-        // already takes over faces left at different rounds — so the held
+        // whatever round it was taken, and the fold is the sum a sign
+        // walk already takes over faces left at different rounds — so the held
         // fold is as sound as the certificate's own.
         if let Some((face, source)) = runs
             .iter()
@@ -2849,22 +2849,6 @@ mod face_walk_composition_tests {
     }
 }
 
-/// **The refusal rule, at the site that carries it.** [`SignCertificate`]
-/// says a reading names the FIRST refusing face in arena order,
-/// resumed or already outstanding, and
-/// [`SignCertificate::refine_to_target`]'s sequential half is where
-/// that survives a parallel resumption. The rows below put the two
-/// kinds of refusal in the order no fixture body puts them — an
-/// EARLIER face carrying an outstanding budget refusal it was never
-/// resumed for, and a LATER face whose resumption refuses OUTRIGHT —
-/// so a walk that folded refusals at the end, or that read the map's
-/// slots before the runs it did not map, answers the later one and
-/// reds here.
-///
-/// The certificate is built by hand because no body produces that
-/// order: [`sign_walk`] leaves a face open only when its window
-/// ended WITHOUT a refusal, so a real certificate's outstanding
-/// refusals and its open faces never collide in one walk this way.
 #[cfg(test)]
 mod fold_pad_rows {
     #![allow(clippy::float_cmp)]
@@ -2959,6 +2943,15 @@ mod fold_order_rows {
     }
 }
 
+/// **The refusal rule, at the site that carries it.** [`SignCertificate`]
+/// says a face refused outright outranks one left short of the number,
+/// wherever each stands, and [`SignCertificate::refine_to_target`]'s
+/// sequential half is where that survives a parallel resumption. The
+/// rows below put the two kinds in the order that would let a walk
+/// stopping at the first short face answer the wrong one: an EARLIER
+/// face its lane stopped short, and a LATER face whose resumption
+/// refuses OUTRIGHT. The certificate is built by hand, so the refusing
+/// face can be one no body would hand the walk.
 #[cfg(test)]
 mod continuation_refusal_order_tests {
     #![allow(clippy::expect_used, clippy::panic)]
@@ -3082,6 +3075,88 @@ mod continuation_refusal_order_tests {
             format!("{}", refusal_at(1)),
             "the refusal the continuation names moved with the pool width"
         );
+    }
+}
+
+/// **The measurement door's predicates on a body whose every face is
+/// closed-form**: the unit cube, volume 1, whose enclosure is one value
+/// at round 0, so each predicate answers there and the rows read what
+/// it decided.
+#[cfg(test)]
+mod measure_door_rows {
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use super::*;
+
+    fn unit_cube() -> Body<f64> {
+        crate::splitting::reassembly::quad_prism(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            1.0,
+            Tol::witness(),
+        )
+    }
+
+    fn stop(body: &Body<f64>, settle: Settle<f64>) -> Stop {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band builds");
+        let lane = Some(QuadLane::certified());
+        let faces = crate::query::all_faces(body);
+        measure_to(body, &faces, band, tol, (lane, lane), settle)
+            .expect("the cube measures")
+            .0
+    }
+
+    #[test]
+    fn each_predicate_reads_the_cube_as_its_closed_form_says() {
+        let cube = unit_cube();
+        let relation = |op, bound| Settle::Relation {
+            op,
+            bound,
+            name: "measure_door_row",
+        };
+        let len = Length::from_meters(interim_resolution(Tol::witness()));
+        assert_eq!(
+            stop(&cube, Settle::Resolution(len)),
+            Stop::Met,
+            "resolution"
+        );
+        assert_eq!(
+            stop(&cube, Settle::Sign(crate::validate::PLUS_V_SIGN)),
+            Stop::Settled(Verdict::Sign(ShellRole::Outer)),
+            "sign"
+        );
+        assert_eq!(
+            stop(&cube, relation(RelOp::Le, 2.0)),
+            Stop::Settled(Verdict::Holds(true)),
+            "V ≤ 2"
+        );
+        assert_eq!(
+            stop(&cube, relation(RelOp::Ge, 2.0)),
+            Stop::Settled(Verdict::Holds(false)),
+            "V ≥ 2"
+        );
+        assert_eq!(stop(&cube, relation(RelOp::Eq, 1.0)), Stop::Band, "V = 1");
+        assert_eq!(
+            stop(
+                &cube,
+                Settle::Contains {
+                    lo: 0.5,
+                    hi: 1.5,
+                    name: "measure_door_row"
+                }
+            ),
+            Stop::Settled(Verdict::Holds(true)),
+            "0.5 ≤ V ≤ 1.5"
+        );
+    }
+
+    /// **No resolution finer than ε is offered.**
+    #[test]
+    #[should_panic(expected = "finer than ε")]
+    fn a_resolution_finer_than_eps_is_refused() {
+        let cube = unit_cube();
+        let fine = Length::from_meters(0.5 * Tol::witness().eps());
+        let _ = stop(&cube, Settle::Resolution(fine));
     }
 }
 
@@ -3349,7 +3424,7 @@ struct FaceFlux<T> {
     /// The quadrature's flux and area enclosures as the lane returned
     /// them, before [`quad_lane::mid_pad`] rounded them to a midpoint
     /// and a half-width; `None` for a closed-form face, whose
-    /// enclosure [`PastTarget::interval_volume`] re-derives.
+    /// enclosure [`rederive`] re-derives.
     enclosure: Option<(Interval, Interval)>,
 }
 
@@ -5124,8 +5199,8 @@ pub struct QuadLane<T: Decide> {
 impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
     /// The certified quadrature — the whole inventory of this door, and
     /// the only constructor there is. Its body is
-    /// `quad_lane::cut_face_rounds`, entered by the reporting walk over
-    /// the whole schedule and by [`sign_walk`] one round window at a
+    /// `quad_lane::cut_face_rounds`, entered by the number walk over
+    /// the whole schedule and by [`walk_set`] one round window at a
     /// time, so [`mass_properties`] at a certifying scalar and the
     /// certified validator are one quadrature entered at two levels
     /// rather than two quadratures.

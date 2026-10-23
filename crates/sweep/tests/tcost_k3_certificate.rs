@@ -82,7 +82,7 @@ test_utils::gated_to![
     "crates/sweep/tests/common/",
 ];
 
-use crate::common::{arc_section, quad_verdicts, stacked};
+use crate::common::{arc_section, quad_rounds, stacked};
 use geom_core::Point3;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -288,7 +288,7 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     let tol = Tol::witness();
 
     let mut measured = None;
-    let one = quad_verdicts(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+    let one = quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
     let measured = measured.expect("the closure ran").expect(
         "IDENTITY: the fixture is scaled to 1e5·ε so that it certifies at EVERY ε row — \
          a refusal here is a moved schedule or a moved fixture, not an ε this row may \
@@ -296,20 +296,20 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     );
 
     let mut gated = None;
-    let gate = quad_verdicts(|| gated = Some(topo::validate_geometric_certificate(&body, tol)));
+    let gate = quad_rounds(|| gated = Some(topo::validate_geometric_certificate(&body, tol)));
     let gated = gated.expect("the closure ran").expect(
         "IDENTITY: the returning tier-3 door must certify the body its own measurement \
          door just certified",
     );
     let mut continued = None;
-    let refine = quad_verdicts(|| continued = Some(gated.refine_to_target()));
+    let refine = quad_rounds(|| continued = Some(gated.refine_to_target()));
     let continued = continued.expect("the closure ran").expect(
         "IDENTITY: the continuation of a certificate the measurement door certified must \
          certify too — it is the same rounds",
     );
 
     let mut gated3 = None;
-    let gate3 = quad_verdicts(|| {
+    let gate3 = quad_rounds(|| {
         gated3 = Some(topo::validate_pseudomanifold_certificate(
             &body,
             &Default::default(),
@@ -320,7 +320,7 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
         .expect("the closure ran")
         .expect("IDENTITY: and so must the tier-3′ door, which is the one the import path pays");
     let mut continued3 = None;
-    let refine3 = quad_verdicts(|| continued3 = Some(gated3.refine_to_target()));
+    let refine3 = quad_rounds(|| continued3 = Some(gated3.refine_to_target()));
     let continued3 = continued3.expect("the closure ran").expect(
         "IDENTITY: the tier-3′ certificate's continuation must certify too — it is the same \
          rounds",
@@ -397,13 +397,13 @@ fn a_multi_solid_certificate_reads_each_face_once() {
     );
 
     let mut measured = None;
-    let one = quad_verdicts(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+    let one = quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
     let measured = measured
         .expect("the closure ran")
         .expect("ONE READ PER FACE: two certifying prisms measure at every ε row");
 
     let mut gated3 = None;
-    let gate3 = quad_verdicts(|| {
+    let gate3 = quad_rounds(|| {
         gated3 = Some(topo::validate_pseudomanifold_certificate(
             &body,
             &Default::default(),
@@ -414,7 +414,7 @@ fn a_multi_solid_certificate_reads_each_face_once() {
         .expect("the closure ran")
         .expect("ONE READ PER FACE: two disjoint certifying prisms pass tier 3′");
     let mut continued = None;
-    let refine = quad_verdicts(|| continued = Some(gated3.refine_to_target()));
+    let refine = quad_rounds(|| continued = Some(gated3.refine_to_target()));
     let continued = continued
         .expect("the closure ran")
         .expect("ONE READ PER FACE: the continuation of a certifying pair certifies");
@@ -481,11 +481,11 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
         assert_eq!(body.solids().count(), 2, "ROUND SPLIT {label}: two solids");
         let mut measured = None;
         let one =
-            quad_verdicts(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+            quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
         let measured = measured.expect("the closure ran");
 
         let mut gated = None;
-        let gate = quad_verdicts(|| {
+        let gate = quad_rounds(|| {
             gated = Some(topo::validate_pseudomanifold_certificate(
                 &body,
                 &Default::default(),
@@ -503,7 +503,7 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
         // the same walk and the same verdicts, so the count below is
         // the continuation's either way.
         let mut continued = None;
-        let refine = quad_verdicts(|| continued = Some(gated.measure()));
+        let refine = quad_rounds(|| continued = Some(gated.measure()));
         let (continued, bracket) = match continued.expect("the closure ran") {
             Ok(props) => (Ok(props), None),
             Err(topo::TargetUnreached { refusal, bracket }) => (Err(refusal), bracket),

@@ -2130,10 +2130,10 @@ pub(super) fn output_substitutions(
 /// # What it measures with
 ///
 /// The three bodies are measured through `lane`, the certified
-/// quadrature, by the sign-level walk ([`crate::props::sign_walk`]) run
-/// to its reporting target: a face trimmed by an ellipse or a spline is
-/// enclosed by the quadrature, every other face takes its closed form,
-/// and the enclosures are the ones [`crate::mass_properties`] reports.
+/// quadrature, at sign level ([`crate::props::walk_set`]), each only as
+/// far as the questions asked of it need: a face trimmed by an ellipse or
+/// a spline is enclosed by the quadrature, and every other face takes its
+/// closed form.
 /// The scalar's policy decides whether the gate runs at all
 /// ([`crate::AtRestPolicy::gate_volume_backstop`]): a dual runs nothing
 /// (DL3). A body the property layer cannot measure refuses

@@ -24,7 +24,7 @@
 //! going quietly vacuous at one of them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{arc_section, quad_verdicts, stacked, strip_section};
+use crate::common::{arc_section, quad_rounds, stacked, strip_section};
 use geom_core::Tol;
 use sweep::loft_body;
 use topo::Body;
@@ -207,7 +207,7 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         // valid solids, and the only thing a tight ε can take from
         // them is the number.
         let mut gated = None;
-        let gate = quad_verdicts(|| gated = Some(topo::validate_geometric_certificate(&body, tol)));
+        let gate = quad_rounds(|| gated = Some(topo::validate_geometric_certificate(&body, tol)));
         let gated = gated
             .expect("the closure ran")
             .unwrap_or_else(|errors| panic!("LEVEL {label}: tier 3 must admit it: {errors:?}"));
@@ -230,11 +230,11 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
 
         // The continuation, and the measurement door beside it.
         let mut continued = None;
-        let refine = quad_verdicts(|| continued = Some(gated.refine_to_target()));
+        let refine = quad_rounds(|| continued = Some(gated.refine_to_target()));
         let continued = continued.expect("the closure ran");
         let mut measured = None;
         let one =
-            quad_verdicts(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+            quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
         let measured = measured.expect("the closure ran");
 
         // REUSE: no round run twice, none skipped — on EVERY roster

@@ -2640,7 +2640,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
     ("ops.rs", "bounded", "BooleanDecision::VolumeBackstop", 1),
-    ("ops.rs", "decide_left", "BooleanDecision::VolumeBackstop", 1),
+    (
+        "ops.rs",
+        "decide_left",
+        "BooleanDecision::VolumeBackstop",
+        1,
+    ),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
