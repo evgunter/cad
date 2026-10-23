@@ -840,10 +840,14 @@ fn chord_length_parameters<T: SpanLocate>(
 ///
 /// # No synthesized weight channel (#207)
 ///
-/// The homogeneous treatment above is the RATIONAL lane, and it runs
-/// only when the input is rational. When every section is **integral**
-/// — every weight bit-exactly `1.0` — the sections are interpolated in
-/// plain Cartesian ℝ³ and the result carries exactly `1.0` weights.
+/// The homogeneous treatment above is the RATIONAL lane, and it is
+/// chosen per control ROW (one `u` index, across every section). A row
+/// whose weight is bit-exactly `1.0` in every section is **integral**:
+/// it is interpolated in plain Cartesian ℝ³ and its column of the
+/// result carries exactly `1.0` weights. Only a row with a non-unit
+/// weight somewhere takes the homogeneous lane. An all-integral input
+/// is the case where every row is integral, and skins to an integral
+/// surface.
 ///
 /// The two lanes agree exactly in ℝ: with `w ≡ 1` the homogeneous data
 /// IS the Cartesian data, and the weight column's interpolant is the
@@ -856,46 +860,54 @@ fn chord_length_parameters<T: SpanLocate>(
 /// `1.0000000000000002` and `0.9999999999999998` on plain polyline
 /// sections at unevenly spaced stations.
 ///
-/// That ulp is not a small error, it is a **change of kind**: a wall
-/// with a non-unit weight is bitwise rational, so the seam carrier
+/// That ulp is not a small error, it is a **change of kind**. On an
+/// integral wall it makes the wall bitwise rational: the seam carrier
 /// `geom_brep::boundary_iso_u` reads back rational,
 /// `NurbsCurve::speed_lower_bound` returns its documented poison (the
 /// derivative of a rational B-spline is not a convex combination of
 /// any control net), the `nurbs_span_meter` margin is `Invalid`, and
-/// the whole body refuses at assembly. Before this lane existed, that
-/// was the fate of every `sweep_body` with a curved path and every
-/// `loft_body` whose sections were not evenly spaced.
+/// the body refuses at assembly. On a rational wall it lands on the
+/// wall's corner rows — an arc segment's ends, which carry weight `1.0`
+/// in every section and are the columns the wall shares with its
+/// neighbours: the integral neighbour's boundary column holds exact
+/// `1.0`, the seam certificate needs the two columns in one spline
+/// space (knots and weights compared exactly), and a corner column an
+/// ulp off `1.0` is a different space, so `topo::mint_pcurves` refuses
+/// the seam. Hence the per-row granularity: the integral-in ⇒
+/// integral-out contract has to hold for every column a seam reads,
+/// not only for whole surfaces.
 ///
-/// So the fix is a fit-contract fix, not a repair: an integral input
-/// must not be answered with a rational output, and the way to
-/// guarantee that is to never manufacture the weight channel in the
-/// first place — NOT to solve for it and then snap the answer back to
-/// the value it was supposed to have (a silent heal, which would also
-/// leave the control points divided by the pre-snap denominator).
-/// `integral` is decided by `==` on the input's own bits — its weights'
-/// value channel ([`NurbsCurve3::weights_f64_interim`]): C6 structure
-/// selection about what the caller handed in, never a predicate, never
-/// a tolerance. The integral lane's output weights are the constant
-/// `1`: every weight it read was exactly `1`, and the lane does not
-/// solve for them.
+/// So the fix is a fit-contract fix, not a repair: an integral row must
+/// not be answered with a rational column, and the way to guarantee
+/// that is to never manufacture its weight channel in the first place —
+/// NOT to solve for it and then snap the answer back to the value it
+/// was supposed to have (a silent heal, which would also leave the
+/// control points divided by the pre-snap denominator). A row's lane is
+/// decided by `==` on the input's own bits — its weights' value channel
+/// ([`NurbsCurve3::weights_f64_interim`]): C6 structure selection about
+/// what the caller handed in, never a predicate, never a tolerance. An
+/// integral row's output weights are the constant `1`: every weight it
+/// read was exactly `1`, and the lane does not solve for them.
 ///
-/// The Cartesian lane is bitwise conservative for the cases that
-/// already worked. The collocation solve factors the matrix once from
-/// the parameters alone and substitutes each right-hand-side column
-/// independently, so dropping the weight column cannot move the
-/// `x`/`y`/`z` columns; the
-/// row entries themselves are unchanged because `p.x * 1.0` is `p.x`
-/// bit-for-bit; and the final divide it removes was a division by
-/// exactly `1.0` in precisely the cases whose weights came out exact.
-/// A uniformly spaced loft therefore skins to bit-identical walls
-/// (pinned by
-/// `m7_skin_integral::the_uniform_loft_is_bitwise_unchanged`).
+/// The per-row choice moves no rational row, and no row of an input
+/// whose weights already came out exact. The collocation solve factors
+/// the matrix once from the parameters alone and substitutes each
+/// right-hand-side column independently, so how one row is laid out
+/// cannot move another row's columns; an integral row's entries are
+/// unchanged because `p.x * 1.0` is `p.x` bit-for-bit; and the divide
+/// it removes was a division by exactly `1.0` wherever its weights came
+/// out exact. A uniformly spaced loft therefore skins to bit-identical
+/// walls (pinned by
+/// `m7_skin_integral::the_uniform_loft_is_bitwise_unchanged`, and the
+/// per-row split by
+/// `m7_skin_integral::a_rational_walls_integral_rows_skin_cartesian_and_its_rational_rows_homogeneous`).
 ///
 /// # Numbered note 5 (spec §2): the solve is banded
 ///
 /// The collocation system is `k × k` in the SECTION count `k` — not in
-/// the control count — with `4·n` (integral input: `3·n`) simultaneous
-/// right-hand sides (`n` = control points per section).
+/// the control count — with `3` simultaneous right-hand sides per
+/// integral control row and `4` per rational one (`3·n` to `4·n` in all,
+/// `n` = control points per section).
 /// `interpolate_columns` factors it by the fit's fixed-order banded LU
 /// (`geom::Collocation`): `O(k·q²)` for the
 /// factorization at v-degree `q`, plus `O(k·q·n)` for the
@@ -985,26 +997,22 @@ pub fn skin_on<T: SpanLocate>(
             });
         }
     }
-    // INTEGRAL INPUT ⇒ INTEGRAL OUTPUT, by structure (see the
-    // "no synthesized weight channel" section of these docs): the
-    // integral lane takes bit-exact unit weights, a structure question
-    // about the input decided by `==` — C6 structure selection, never a
-    // predicate.
-    let integral = sections
-        .iter()
-        .all(|c| c.weights_f64_interim().iter().all(|w| *w == 1.0));
-    // Rows of data: one row per section. Homogeneous `(w·x, w·y, w·z,
-    // w)` quadruples (`4·n` wide) for a rational input; plain
-    // Cartesian triples (`3·n` wide) when the input is integral, where
-    // the weight channel carries no information the output does not
-    // already have.
-    let stride = if integral { 3 } else { 4 };
+    // INTEGRAL ROW ⇒ INTEGRAL COLUMN, by structure (see the "no
+    // synthesized weight channel" section of these docs): control row
+    // `i` takes the Cartesian lane when its weight is bit-exactly `1.0`
+    // in every section, decided by `==` — C6 structure selection, never
+    // a predicate. A Cartesian row contributes its `(x, y, z)` triples
+    // to the data; a rational row its homogeneous `(w·x, w·y, w·z, w)`
+    // quadruples.
+    let integral: Vec<bool> = (0..n)
+        .map(|i| sections.iter().all(|c| c.weights_f64_interim()[i] == 1.0))
+        .collect();
     let rows: Vec<Vec<T>> = sections
         .iter()
         .map(|c| {
-            let mut row = Vec::with_capacity(stride * n);
-            for (p, w) in c.control().iter().zip(c.weights()) {
-                if integral {
+            let mut row = Vec::new();
+            for ((p, w), &cartesian) in c.control().iter().zip(c.weights()).zip(&integral) {
+                if cartesian {
                     row.extend(p.to_array());
                 } else {
                     row.extend([p.x * *w, p.y * *w, p.z * *w, *w]);
@@ -1014,24 +1022,27 @@ pub fn skin_on<T: SpanLocate>(
         })
         .collect();
     let (knots_v, solved) = interpolate_columns_in(params, v_degree, &rows)?;
-    // Un-homogenize into the surface's row-major (u-major) layout:
-    // `idx = iu · nv + iv`, `nv = solved.len()`. The integral lane has
-    // nothing to un-homogenize: the solved columns ARE the control
-    // coordinates, and every weight is the exact `1.0` the input had.
+    // Unpack into the surface's row-major (u-major) layout:
+    // `idx = iu · nv + iv`, `nv = solved.len()`. A Cartesian row's
+    // solved columns ARE its control coordinates, at the exact `1.0`
+    // every one of its input weights had; a rational row is divided
+    // through by its solved weight.
     let nv = solved.len();
     let mut control = Vec::with_capacity(n * nv);
     let mut weights = Vec::with_capacity(n * nv);
-    for i in 0..n {
+    let mut at = 0;
+    for &cartesian in &integral {
         for row in &solved {
-            if integral {
-                control.push(Point3::new(row[3 * i], row[3 * i + 1], row[3 * i + 2]));
+            if cartesian {
+                control.push(Point3::new(row[at], row[at + 1], row[at + 2]));
                 weights.push(T::one());
             } else {
-                let (x, y, z, w) = (row[4 * i], row[4 * i + 1], row[4 * i + 2], row[4 * i + 3]);
+                let (x, y, z, w) = (row[at], row[at + 1], row[at + 2], row[at + 3]);
                 control.push(Point3::new(x / w, y / w, z / w));
                 weights.push(w);
             }
         }
+        at += if cartesian { 3 } else { 4 };
     }
     // `NurbsSurface::new` is the `w > 0` door (and the count door).
     NurbsSurface::new(knots_u, knots_v, control, weights).map_err(SkinError::Structure)

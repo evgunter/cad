@@ -140,6 +140,64 @@ fn the_homogeneous_lane_still_drifts_where_the_shipped_lane_does_not() {
     walls_are_integral(&g, "non-uniform loft");
 }
 
+/// **The lane is chosen per control row.** An arc wall is rational,
+/// but its two corner rows carry weight `1.0` in every section: they
+/// take the Cartesian lane and come out at exactly `1.0` — the same
+/// column its integral neighbour holds, so the seam between them is one
+/// spline space — while every rational row is bitwise the homogeneous
+/// lane's. At z = 0, 1, 3 the homogeneous lane lands the corner rows
+/// off `1.0`, so this reds if the whole wall goes homogeneous.
+#[test]
+fn a_rational_walls_integral_rows_skin_cartesian_and_its_rational_rows_homogeneous() {
+    let g = lofted_geometry(
+        &[common::arc_section(1.0), common::arc_section(1.0), common::arc_section(1.0)],
+        &stacked_at(&[0.0, 1.0, 3.0]),
+    );
+    let sections = &g.sections[0][1];
+    let wall = &g.walls[0][1];
+    let (old_c, old_w) = homogeneous_lane(sections, 2, &g.section_params);
+    let nv = g.section_params.len();
+    let integral_rows: Vec<bool> = (0..sections[0].control().len())
+        .map(|i| sections.iter().all(|c| c.weights()[i] == 1.0))
+        .collect();
+    assert!(
+        integral_rows.first() == Some(&true)
+            && integral_rows.last() == Some(&true)
+            && integral_rows.contains(&false),
+        "the arc wall must hold integral corner rows AND a rational row ({integral_rows:?})"
+    );
+    let corner_drifts = (0..nv).any(|iv| old_w[iv] != 1.0);
+    assert!(
+        corner_drifts,
+        "the homogeneous lane must still land the corner row off 1.0 here \
+         (weights {:?}); if it no longer does, this row tests nothing",
+        &old_w[..nv]
+    );
+    for (i, integral) in integral_rows.iter().enumerate() {
+        for iv in 0..nv {
+            let at = i * nv + iv;
+            let (got_p, got_w) = (wall.control()[at], wall.weights()[at]);
+            if *integral {
+                assert_eq!(
+                    got_w, 1.0,
+                    "integral row {i}, station {iv}: weight {got_w} is not bit-exactly 1.0"
+                );
+            } else {
+                let want = old_c[at];
+                assert!(
+                    got_w.to_bits() == old_w[at].to_bits()
+                        && got_p.x.to_bits() == want.x.to_bits()
+                        && got_p.y.to_bits() == want.y.to_bits()
+                        && got_p.z.to_bits() == want.z.to_bits(),
+                    "rational row {i}, station {iv} moved off the homogeneous lane: \
+                     {got_p:?} w {got_w} vs {want:?} w {}",
+                    old_w[at]
+                );
+            }
+        }
+    }
+}
+
 /// **Pin 3: the uniform case did not move a bit.** For every wall of
 /// the `loft_prism` corpus loft, the shipped control points are
 /// BITWISE the ones the old homogeneous lane produced. (The other half
