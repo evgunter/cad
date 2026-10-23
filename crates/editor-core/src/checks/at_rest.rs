@@ -181,10 +181,20 @@ pub(crate) fn gap_assertions<P, T: Decide>(
         let [name] = select.names.as_slice() else {
             return None;
         };
+        // The selection reads the copy, by the copy's own name; the
+        // product's `⊔` keys that name by the copy it read.
+        let entry = names.lookup(name).or_else(|| {
+            names.iter().find_map(|(held, entry)| {
+                matches!(held.path.as_slice(),
+                    [crate::names::RoleSeg::From { read, of }]
+                        if *read == select.body && **of == *name)
+                .then_some(entry)
+            })
+        });
         let Some(Entry::Unique(EntityRef {
             key: EntityKey::Face(face),
             ..
-        })) = names.lookup(name)
+        })) = entry
         else {
             return None;
         };
@@ -632,10 +642,14 @@ fn localize(
             }) else {
                 return unlocalized(Unlocalized::Unnamed);
             };
-            faces.push(FaceSite {
-                copy: copy_ref(copy),
-                face: name.clone(),
-            });
+            let copy = copy_ref(copy);
+            // The product's `⊔` keys a copy's names by the copy it read;
+            // the site's name is the copy's own.
+            let face = match name.path.as_slice() {
+                [crate::names::RoleSeg::From { read, of }] if *read == copy.var => (**of).clone(),
+                _ => name.clone(),
+            };
+            faces.push(FaceSite { copy, face });
         }
         faces.sort();
         faces.dedup();
