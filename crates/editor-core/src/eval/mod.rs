@@ -3206,14 +3206,22 @@ impl crate::mate::SolveScalar for geom_core::Interval {
     /// backend's `atan2` encloses as subnormal dust whose cosine is an
     /// ulp wide.
     fn solve_atan2(y: Self, x: Self) -> Self {
-        use geom_core::{Bounds, Real};
-        if y.lo() == 0.0 && y.hi() == 0.0 && x.lo() > 0.0 {
-            return Self::zero();
+        use geom_core::Real;
+        match Self::atan2_branch(y, x) {
+            crate::mate::Atan2Branch::Zero => Self::zero(),
+            crate::mate::Atan2Branch::AboutPi => Self::pi() + (-y).atan2(-x),
+            crate::mate::Atan2Branch::Principal => y.atan2(x),
         }
-        if x.hi() < 0.0 && y.lo() <= 0.0 && 0.0 <= y.hi() {
-            Self::pi() + (-y).atan2(-x)
+    }
+
+    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
+        use geom_core::Bounds;
+        if y.lo() == 0.0 && y.hi() == 0.0 && x.lo() > 0.0 {
+            crate::mate::Atan2Branch::Zero
+        } else if x.hi() < 0.0 && y.lo() <= 0.0 && 0.0 <= y.hi() {
+            crate::mate::Atan2Branch::AboutPi
         } else {
-            y.atan2(x)
+            crate::mate::Atan2Branch::Principal
         }
     }
 }
@@ -3250,6 +3258,10 @@ where
             deriv: angle.deriv,
         }
     }
+
+    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
+        T::atan2_branch(y.value, x.value)
+    }
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
@@ -3278,8 +3290,20 @@ where
         T::spins_by_frames()
     }
 
+    /// On the branch its lane scalar reads ([`crate::mate::SolveScalar::atan2_branch`]),
+    /// so a box tier's angle near the cut is the lane's and not the
+    /// whole circle.
     fn solve_atan2(y: Self, x: Self) -> Self {
-        geom_core::Real::atan2(y, x)
+        use geom_core::Real;
+        match T::atan2_branch(y.value, x.value) {
+            crate::mate::Atan2Branch::Zero => Self::zero(),
+            crate::mate::Atan2Branch::AboutPi => Self::pi() + (-y).atan2(-x),
+            crate::mate::Atan2Branch::Principal => y.atan2(x),
+        }
+    }
+
+    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
+        T::atan2_branch(y.value, x.value)
     }
 }
 
@@ -3379,16 +3403,6 @@ pub(crate) fn read_pose_in<T: EvalScalar>(
     tol: Tol,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     wire::pose::read_pose(doc, &ev.nodes, read, &ev.env, tol)
-}
-
-/// **A mate's world read bound at an evaluation's parameters**
-/// ([`read_pose_in`]'s twin for the world).
-pub(crate) fn world_pose_in<T: EvalScalar>(
-    world: &crate::mate::WorldRead,
-    ev: &Evaluation<T>,
-    tol: Tol,
-) -> Result<PoseValue<T>, NodeErrorKind> {
-    wire::pose::eval_world(world, &ev.env, wire::band(tol)?)
 }
 
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
@@ -4217,9 +4231,8 @@ where
 ///
 /// **Disposition of the inline matches.** A few small vocabularies are
 /// written as an exhaustive `match` that maps an enum's variants to
-/// literals at the site — a constraint's kind, a value's coordinate and
-/// a world read's arm (`tag::constraint_kind`, `tag::value_coord`,
-/// `tag::world_read`), a name's entity kind, a side verdict, a qualifier, a cap end, a meridian end and a
+/// literals at the site — a constraint's kind and a value's coordinate
+/// (`tag::constraint_kind`, `tag::value_coord`), a name's entity kind, a side verdict, a qualifier, a cap end, a meridian end and a
 /// rim support (`names/role.rs`), a tube's window (`node.rs`), an
 /// assertion's relation and a measure primitive (`measure.rs`), a
 /// dimension (`expr.rs`). Each is total by exhaustiveness — a variant
@@ -4275,7 +4288,9 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v18: a placement reads the space it places into, which
+            /// v19: a value names no mate, and a spin's word is the
+            /// axis it turns about; a mate's `to` is a pose read, with
+            /// no target word and no world read. v18: a placement reads the space it places into, which
             /// it does not key (its copy's value is its source moved by
             /// its bundle, whichever space names it), beside a bundle
             /// that pins it, and a construction defines its space
@@ -4303,7 +4318,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 18,
+            VERSION = 19,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4397,25 +4412,10 @@ mod tag {
             SLIDE_X = 1,
             SLIDE_Y = 2,
             SLIDE_Z = 3,
-            SPIN = 4,
+            // 4 was the retired spin about a named mate's direction.
             SPIN_X = 5,
             SPIN_Y = 6,
             SPIN_Z = 7,
-        }
-        /// What a mate's `to` reads: a pose variable of the target
-        /// space, or the world read inside the mate.
-        mate_target {
-            POSE = 1,
-            WORLD = 2,
-        }
-        /// A world read's arms, in pre-order ([`crate::WorldRead`]); a
-        /// role arm writes its role word after its own.
-        world_read {
-            FRAME = 1,
-            ROLE = 2,
-            SLIDE = 3,
-            SPIN = 4,
-            FLIP = 5,
         }
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
@@ -5817,22 +5817,13 @@ fn feed_bundle(
             crate::mate::ConstraintKind::Value(value) => {
                 use crate::mate::{Coord, TargetAxis};
                 h.write_tag(tag::constraint_kind::VALUE);
-                match value.mate {
-                    Some(mate) => {
-                        h.write_tag(tag::presence::PRESENT);
-                        h.write_u64(u64::from(mate.0.ordinal()));
-                        h.write_u64(mate.0.digest());
-                    }
-                    None => h.write_tag(tag::presence::ABSENT),
-                }
                 h.write_tag(match value.coord {
                     Coord::Slide(TargetAxis::X) => tag::value_coord::SLIDE_X,
                     Coord::Slide(TargetAxis::Y) => tag::value_coord::SLIDE_Y,
                     Coord::Slide(TargetAxis::Z) => tag::value_coord::SLIDE_Z,
-                    Coord::Spin => tag::value_coord::SPIN,
-                    Coord::SpinAbout(TargetAxis::X) => tag::value_coord::SPIN_X,
-                    Coord::SpinAbout(TargetAxis::Y) => tag::value_coord::SPIN_Y,
-                    Coord::SpinAbout(TargetAxis::Z) => tag::value_coord::SPIN_Z,
+                    Coord::Spin(TargetAxis::X) => tag::value_coord::SPIN_X,
+                    Coord::Spin(TargetAxis::Y) => tag::value_coord::SPIN_Y,
+                    Coord::Spin(TargetAxis::Z) => tag::value_coord::SPIN_Z,
                 });
                 h.write_tag(if crate::mate::solve::written_as_zero(defs, value.by) {
                     tag::value_form::ZERO
@@ -5846,40 +5837,6 @@ fn feed_bundle(
         // The class's word is `ContactClass::content_tag` — the one
         // spelling the crossing record and the constraint both write.
         h.write_u64(mate.class.content_tag());
-        match &mate.to {
-            crate::mate::Target::Pose(_) => h.write_tag(tag::mate_target::POSE),
-            crate::mate::Target::World(world) => {
-                h.write_tag(tag::mate_target::WORLD);
-                feed_world_read(h, world);
-            }
-        }
-    }
-}
-
-/// A world read's arms in pre-order, a role arm with its role's word.
-fn feed_world_read(h: &mut KeyHasher, world: &crate::mate::WorldRead) {
-    use crate::mate::WorldRead as W;
-    match world {
-        W::Frame => h.write_tag(tag::world_read::FRAME),
-        W::Role { pose, role } => {
-            h.write_tag(tag::world_read::ROLE);
-            h.write_tag(wire::pose::role_word(Some(*role)));
-            feed_world_read(h, pose);
-        }
-        W::Slide { pose, along, .. } => {
-            h.write_tag(tag::world_read::SLIDE);
-            feed_world_read(h, pose);
-            feed_world_read(h, along);
-        }
-        W::Spin { pose, about, .. } => {
-            h.write_tag(tag::world_read::SPIN);
-            feed_world_read(h, pose);
-            feed_world_read(h, about);
-        }
-        W::Flip { pose } => {
-            h.write_tag(tag::world_read::FLIP);
-            feed_world_read(h, pose);
-        }
     }
 }
 
@@ -6817,16 +6774,14 @@ mod tag_vocabulary_tests {
 #[cfg(test)]
 mod bundle_key {
     //! A bundle's shape reaches the content key: what each constraint
-    //! states, a mate's target word and its world read's arms, and a
-    //! value's mate and freedom. Its numbers are slots, keyed with the
+    //! states, and a value's freedom. Its numbers are slots, keyed with the
     //! slots. Dropping any of these from the feed would let two
     //! documents differing only there share a memo entry, and one be
     //! served the other's placement.
 
     use super::{KeyHasher, feed_bundle};
-    use crate::mate::{Constraint, Coord, Mate, Target, TargetAxis, Value, WorldRead};
+    use crate::mate::{Constraint, Coord, Mate, TargetAxis, Value};
     use crate::node::ConstraintId;
-    use crate::pose::PoseRole;
 
     const ON: crate::VarId = crate::VarId::new(1, 1);
     const TO: crate::VarId = crate::VarId::new(2, 2);
@@ -6836,7 +6791,7 @@ mod bundle_key {
         ConstraintId(crate::MintId::new(k, u64::from(k)))
     }
 
-    fn mate(to: Target) -> Constraint {
+    fn mate(to: crate::VarId) -> Constraint {
         Constraint::of_mate(
             id(10),
             Mate {
@@ -6847,15 +6802,8 @@ mod bundle_key {
         )
     }
 
-    fn value(mate: ConstraintId, coord: Coord) -> Constraint {
-        Constraint::of_value(
-            id(11),
-            Value {
-                mate: Some(mate),
-                coord,
-                by: BY,
-            },
-        )
+    fn value(coord: Coord) -> Constraint {
+        Constraint::of_value(id(11), Value { coord, by: BY })
     }
 
     fn key(bundle: &[Constraint]) -> crate::eval::ContentKey {
@@ -6872,29 +6820,14 @@ mod bundle_key {
     }
 
     #[test]
-    fn a_mates_target_word_and_world_arms_move_the_key() {
+    fn a_values_freedom_moves_the_key() {
+        let with = |v: Constraint| key(&[mate(TO), v]);
         let keys = [
-            key(&[mate(Target::Pose(TO))]),
-            key(&[mate(Target::World(WorldRead::Frame))]),
-            key(&[mate(Target::World(WorldRead::through(PoseRole::Xy)))]),
-            key(&[mate(Target::World(WorldRead::through(PoseRole::Xy).flip()))]),
-        ];
-        for (i, a) in keys.iter().enumerate() {
-            for b in &keys[i + 1..] {
-                assert_ne!(a, b, "each target shape keys distinctly");
-            }
-        }
-    }
-
-    #[test]
-    fn a_values_mate_and_freedom_move_the_key() {
-        let with = |v: Constraint| key(&[mate(Target::Pose(TO)), v]);
-        let keys = [
-            key(&[mate(Target::Pose(TO))]),
-            with(value(id(10), Coord::Spin)),
-            with(value(id(10), Coord::Slide(TargetAxis::X))),
-            with(value(id(10), Coord::Slide(TargetAxis::Y))),
-            with(value(id(12), Coord::Slide(TargetAxis::Y))),
+            key(&[mate(TO)]),
+            with(value(Coord::Spin(TargetAxis::Z))),
+            with(value(Coord::Spin(TargetAxis::X))),
+            with(value(Coord::Slide(TargetAxis::X))),
+            with(value(Coord::Slide(TargetAxis::Y))),
         ];
         for (i, a) in keys.iter().enumerate() {
             for b in &keys[i + 1..] {
@@ -6910,7 +6843,7 @@ mod bundle_key {
     fn a_values_constant_zero_form_moves_the_key() {
         let zero = crate::expr::Expr::zero(crate::expr::Dimension::Angle);
         let defined = |var| (var == BY).then_some(&zero);
-        let bundle = [value(id(10), Coord::Spin)];
+        let bundle = [value(Coord::Spin(TargetAxis::Z))];
         assert_ne!(
             key_over(&defined, &bundle),
             key(&bundle),

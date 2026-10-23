@@ -34,7 +34,7 @@ from pncad import (
     mm,
 )
 
-from placing import frame_at
+from placing import against, axes_at, placed
 
 
 def mesh_signed_volume(mesh):
@@ -445,7 +445,8 @@ class TestCrossCheckOnBooleanGeometry(unittest.TestCase):
                 ],
             )
         )
-        tool = doc.place_against(
+        tool = against(
+            doc,
             base,
             doc.insert(Node.extrude(tool_p, Formula.length_in(1, m))),
             Frame.translation((0 * m, 0 * m, 0.5 * m)),
@@ -480,9 +481,10 @@ class TestCrossCheckOnATiltedPlacement(unittest.TestCase):
                 ],
             )
         )
-        prism = doc.place(
-            doc.insert(Node.extrude(sketch, Formula.length_in(3, m))), doc.world,
-            pose=frame_at((0.0, 0.0, 0.0), (s, s, 0.0), (0.0, 0.0, 1.0)),
+        prism = placed(
+            doc,
+            doc.insert(Node.extrude(sketch, Formula.length_in(3, m))),
+            axes_at((0.0, 0.0, 0.0), (s, s, 0.0), (0.0, 0.0, 1.0)),
         )
         body = body_of(doc, prism)
         body.validate()

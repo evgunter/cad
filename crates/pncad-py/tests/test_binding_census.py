@@ -696,12 +696,10 @@ BOUND_AS = {
     # The placement vocabulary of D10: the pose door's refusal raises
     # from `SolvedPoses.placement`; a constraint of a placement is a
     # `(MateRef, Mate | MateValue)` row of `Doc.bundle` — which of the
-    # two is the kind — and a mate's target is what `Mate.to` answers
-    # (a pose, or a `WorldRead`).
+    # two is the kind.
     "PoseRefusal": "SolvedPoses.placement",
     "Constraint": "Doc.bundle",
     "ConstraintKind": "Doc.bundle",
-    "Target": "Mate.to",
     # An instance's value: its copies' bodies are `Value.bodies`.
     "Copies": "Value.bodies",
     # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
@@ -1094,29 +1092,16 @@ BOUND_AS = {
     # — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",
     # THE VALUE VOCABULARY: which freedom a value sets is a `Coord`, a
-    # slide's axis the word `Coord.slide` takes; why a mate's kind
-    # leaves a value no freedom crosses as the fault's own word
-    # (`mate_not_a_freedom`, `mate_no_chart`), and why one has no chart
-    # as `MateFault.why`.
+    # slide's axis the word `Coord.slide` takes; why one has no chart
+    # crosses as `MateFault.why`.
     "TargetAxis": "Coord.slide",
-    "FreedomRefusal": "MateFault.variant",
     "NoChartWhy": "MateFault.why",
-    # Why a world read is no pose: the word `mate_world_read` carries
-    # as its inner arm.
-    "WorldReadFault": "MateFault.inner_variant",
-    # THE "PLACE PART" GESTURE: `Doc.place_at` (and `Doc.pin` on a
-    # placement already in the document) writes `place_at`'s
-    # constraints and answers how in `Placed.by`; a copy it cannot
-    # place raises `EditError` under the pin refusal's own word, and a
-    # split's instance it cannot pin crosses as
-    # `SplitError.inner_variant`.
-    "place_at": "Doc.place_at",
-    # A body's own frame at a corner it has, as a pose to read.
+    # A body's own frame at a corner it has, as a pose to read; a frame
+    # it cannot read raises `EditError` under the pin refusal's own
+    # word.
     "corner_frame": "Doc.corner_frame",
-    # The other two placement gestures: a copy placed against another
-    # body's geometry, and a copy standing where its own coordinates
-    # put it — `Doc.place` with neither constraints nor a pose.
-    "place_against": "Doc.place_against",
+    # THE "PLACE PART" GESTURE: the identity bundle — `Doc.place` with
+    # no constraints.
     "stand": "Doc.place",
     # "Sketch on this face", one recorded action answering its four
     # nodes.
@@ -1125,7 +1110,6 @@ BOUND_AS = {
     # A loft's later section: `Node.loft`'s `then` entries, a profile
     # and its `StationMove`s.
     "LoftSection": "Node.loft",
-    "PlacedBy": "Placed.by",
     "PinRefusal": "EditError.variant",
     # What a frame fails to be a placement: the edit door spreads it
     # into arms of its own, so its discriminant crosses as
@@ -2301,11 +2285,6 @@ NOT_BOUND = {
     # a signature refusal crosses as `PersistError.inner_variant`
     # `output_signature` and its sentence.
     "OutputFault": SHAPE,
-    # The deepest world read a mate holds: Python meets the bound as the
-    # world read's `too_deep` refusal (`MateFault.inner_variant` of a
-    # `mate_world_read`), with the depth in its sentence, and never
-    # passes the number itself.
-    "MAX_WORLD_READ_DEPTH": SHAPE,
     # A split's half: Python reads a half by its port
     # (`Doc.output(split, 0 | 1)`), and that read is the half's own name
     # table, so the half is never a separate argument.
@@ -2956,7 +2935,7 @@ NOT_BOUND = {
     # orthonormal triple, minted where its axes were decided or by a
     # construction that keeps it rigid. Python never holds one: a
     # `Frame` is minted into one behind the door that takes it
-    # (`Doc.place(pose=...)`, `Doc.place_against`), and a placement's
+    # (`Frame.rotate_then_translate` and its siblings), and a placement's
     # motion is minted or decided at `evaluate`. What crosses is the
     # refusal when a frame's axes span no plane (`FrameError.variant`)
     # and a placement's motion refusal (`motion`) — never the witness
@@ -3033,24 +3012,6 @@ NOT_BOUND = {
     # its face name — what the member walk starts from; a Python author
     # reads a side through the mate it belongs to.
     "head_of": INTERIOR,
-    # A copy pinned to the world over a frame read off its geometry:
-    # the migration helper, and the "place part" gesture's fallback
-    # for a copy with no planar face, which Python reaches as
-    # `Doc.place_at` / `Doc.pin` answering `Placed.by == "pin"`.
-    "pin_at": INTERIOR,
-    # The gestures over an evaluation the caller already holds: each
-    # `Doc` door evaluates the document it writes into itself, so a
-    # Python caller never hands one an evaluation.
-    "pin_at_in": INTERIOR,
-    "place_at_in": INTERIOR,
-    "place_against_in": INTERIOR,
-    # A frame read off a body's geometry at a pose, as the pose operand
-    # a placement gesture's mate reads: Python spells a frame read off
-    # geometry through the `PoseDef` it names (`PoseDef.through` of an
-    # axis and a point), and the gestures that need one read it
-    # themselves.
-    "frame_at": INTERIOR,
-    "frame_at_in": INTERIOR,
     # A frame read off a body's corner over an evaluation the caller
     # holds (`Doc.corner_frame` evaluates its own), and a frame moved by
     # stated turns and slides, which Python spells through the
@@ -3624,7 +3585,6 @@ MEMBERS_BOUND_AS = {
     # A mate's value: `pncad.Value` is a node's evaluated value, so the
     # constraint's value class is `MateValue`, and its fields are
     # spelled there.
-    "Value::mate": "MateValue.mate",
     "Value::coord": "MateValue.coord",
     "Value::by": "MateValue.by",
     "AssemblyError::Product": "AssemblyError.variant",
@@ -3700,6 +3660,7 @@ MEMBERS_BOUND_AS = {
     # one appear.
     "Maintenance::StrandedSpace": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
+    "Maintenance::ValueDropped": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3790,7 +3751,6 @@ MEMBERS_BOUND_AS = {
     "EditError::NonFinitePlacement": "EditError.variant",
     "EditError::NonRigidPlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
-    "EditError::MateNamedByValue": "EditError.variant",
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
@@ -3816,18 +3776,12 @@ MEMBERS_BOUND_AS = {
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",
     "InlineError::UnplaceablePart": "InlineError.variant",
-    "InlineError::ConstructionReadsCopy": "InlineError.variant",
     "InlineError::InstanceReadUncarried": "InlineError.variant",
     "InlineError::Unresolved": "InlineError.variant",
     "InlineError::EpsilonSeam": "InlineError.variant",
     "InlineError::PartCarriesMetadata": "InlineError.variant",
     "InlineError::VarNameConflict": "InlineError.variant",
-    "InlineError::InstanceOutputUncarried": "InlineError.variant",
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
-    "InlineError::PinReadsVariable": "InlineError.variant",
-    "InlineError::ValueOnAMovedWorld": "InlineError.variant",
-    "InlineError::RepinRefused": "InlineError.variant",
-    "InlineError::InstanceUnsolved": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
@@ -3835,14 +3789,19 @@ MEMBERS_BOUND_AS = {
     "InlineError::NameOnDroppedStep": "InlineError.variant",
     "InlineError::RankedRunReordered": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
+    "FlattenError::UnknownNode": "FlattenError.variant",
+    "FlattenError::NotAPlacement": "FlattenError.variant",
+    "FlattenError::NotTheIdentity": "FlattenError.variant",
+    "FlattenError::NotANewSpace": "FlattenError.variant",
+    "FlattenError::SpaceShared": "FlattenError.variant",
+    "FlattenError::ReadUncarried": "FlattenError.variant",
+    "FlattenError::BothNamed": "FlattenError.variant",
+    "FlattenError::Edit": "FlattenError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
-    "MateFault::WorldRead": "MateFault.variant",
-    "MateFault::ValueNamesNoMate": "MateFault.variant",
-    "MateFault::NotAFreedom": "MateFault.variant",
     "MateFault::NoChart": "MateFault.variant",
     "MateFault::SideUnevaluated": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
@@ -4170,6 +4129,7 @@ MEMBERS_BOUND_AS = {
     # read off that `Doc` rather than off the outcome
     # (`crates/pncad-py/src/py/refactor.rs`).
     "InlineOutcome::maintenance": "Doc.last_maintenance",
+    "FlattenOutcome::maintenance": "Doc.last_maintenance",
     # The replayed edit LIST crosses as its length; `Applied`/
     # `EditRecord` are `different-shape` in `NOT_BOUND` and the records
     # field is below with them.

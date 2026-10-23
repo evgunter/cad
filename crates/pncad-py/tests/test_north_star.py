@@ -66,7 +66,8 @@ from pncad import (
     rad,
 )
 
-from placing import frame_at, own_frame, plane_on
+from placing import against as joined
+from placing import axes_at, own_frame, placed, plane_on
 
 
 SPINE_Z = (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0))
@@ -75,7 +76,7 @@ SPINE_Z = (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0))
 def against(doc, on, body, z0):
     """`body` placed against `on`, `z0` metres up `on`'s own z: a
     construction combined with another joins that one's coordinates."""
-    return doc.place_against(on, body, Frame.translation((0 * m, 0 * m, z0 * m)))
+    return joined(doc, on, body, Frame.translation((0 * m, 0 * m, z0 * m)))
 
 
 def slab(doc, x, y, z, on=None, base=0.0):
@@ -857,7 +858,7 @@ class TestSnowman(unittest.TestCase):
         # body. The head joins the bottom ball's coordinates on its own
         # axis, where it was drawn.
         a = doc.output(bottom, 0)
-        b = doc.place_against(a, doc.output(head, 0), Frame.translation((0 * m, 0 * m, 0 * m)))
+        b = joined(doc, bottom, doc.output(head, 0), Frame.translation((0 * m, 0 * m, 0 * m)))
         union = doc.insert(Node.union([a, b]))
         bitten = doc.insert(Node.subtract(a, b))
         lens = doc.insert(Node.intersect([a, b]))
@@ -1156,8 +1157,8 @@ V_3WAY = 11 / 4
 # The letterforms' frames: a polygon drawn on its own xy and extruded
 # up its own z stands on the yz frame extruding +x, and on the zx frame
 # extruding +y, exactly as the captions say (the cyclic x->y->z->x).
-YZ = frame_at((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
-ZX = frame_at((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
+YZ = axes_at((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+ZX = axes_at((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
 
 
 def letter(doc, poly, frame, distance, on=None):
@@ -1170,8 +1171,8 @@ def letter(doc, poly, frame, distance, on=None):
     if frame is None:
         return body
     if on is None:
-        return doc.place(body, doc.world, pose=frame)
-    return doc.place_against(on, body, frame)
+        return placed(doc, body, frame)
+    return joined(doc, on, body, frame)
 
 
 def silhouette3(doc):
@@ -1345,7 +1346,7 @@ class TestAz(unittest.TestCase):
                 Formula.length_in(2.0, m),
             )
         )
-        z = doc.place_against(a, z, YZ)
+        z = joined(doc, a, z, YZ)
         az = doc.insert(Node.intersect([a, z]))
         # demos/tour/src/az.rs::V_AZ, at the scene's own 1e-9 gate.
         self.assertAlmostEqual(volume_of(doc, az), 38627.0 / 14336.0, delta=1e-9)
@@ -1661,10 +1662,11 @@ class DieScene:
                 # is the cube's +z, then turned onto the face normal and
                 # carried to `c`.
                 placed.append(
-                    doc.place_against(
+                    joined(
+                        doc,
                         cube,
                         doc.output(origin_ball, 0),
-                        frame_at(c, turned(axis, angle, (1, 0, 0)), turned(axis, angle, (0, 0, 1))),
+                        axes_at(c, turned(axis, angle, (1, 0, 0)), turned(axis, angle, (0, 0, 1))),
                     )
                 )
         assert len(placed) == 21
@@ -2185,7 +2187,7 @@ class TestCrosslapExploded(unittest.TestCase):
     def test_the_lift_is_a_placement_and_preserves_the_beam(self):
         doc = Doc()
         beam_a, beam_b = TestCrosslapGlued.beams(self, doc)
-        lifted = doc.place(beam_b, doc.world, pose=Frame.translation((0 * m, 0 * m, 1.25 * m)))
+        lifted = placed(doc, beam_b, Frame.translation((0 * m, 0 * m, 1.25 * m)))
         expected = 4.0 * 0.5 * 0.5 - 0.5 * 0.5 * 0.25
         self.assertEqual(expected, 0.9375)
         self.assertAlmostEqual(volume_of(doc, beam_a), expected, delta=1e-12)
@@ -2956,10 +2958,11 @@ class TestTeapot(unittest.TestCase):
         spout_body = self.spout_loft(doc, self.spout_stations())
         u, v = self.SPOUT_FRAME
         ct, st = math.cos(turn), math.sin(turn)
-        spout = doc.place_against(
-            doc.output(pot, 0),
+        spout = joined(
+            doc,
+            pot,
             spout_body,
-            frame_at(self.SPOUT_ROOT, u, (v[0] * ct - v[1] * st, v[0] * st + v[1] * ct, v[2])),
+            axes_at(self.SPOUT_ROOT, u, (v[0] * ct - v[1] * st, v[0] * st + v[1] * ct, v[2])),
         )
 
         # ---- the handle ----
@@ -2971,7 +2974,7 @@ class TestTeapot(unittest.TestCase):
                 Formula.length_in(self.HANDLE_TUBE, m),
             )
         )
-        handle = doc.place_against(doc.output(pot, 0), handle, frame_at(self.HANDLE_C, (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
+        handle = joined(doc, pot, handle, axes_at(self.HANDLE_C, (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
 
         # ---- the two joins, both refused ----
         joins = [
@@ -3540,7 +3543,7 @@ class TestTwopeg(unittest.TestCase):
     def test_twopeg_apart_is_two_parts_and_a_rigid_lift(self):
         doc = Doc()
         p, q, v_p, v_q = self.parts(doc)
-        lifted = doc.place(q, doc.world, pose=Frame.translation((0 * m, 0 * m, 1.6 * m)))
+        lifted = placed(doc, q, Frame.translation((0 * m, 0 * m, 1.6 * m)))
         ev = evaluate(doc)
         for node, want in ((p, v_p), (q, v_q), (lifted, v_q)):
             body = ev.value(node).body()
@@ -4009,7 +4012,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
-                "add_constraint", "add_value", "add_values", "bind_count_param",
+                "add_constraint", "bind_count_param",
                 "bind_instance_param",
                 "bind_v_degree_param", "declare_var", "define_var",
                 "delete_node", "delete_var",
@@ -4082,7 +4085,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # INTO a document — so it is pinned below the loop with
             # the other signature gaps rather than here.
             # G18 LEFT this list at LIB-G18b, the series' second half:
-            # `Mate` (now two poses and a `WorldRead`, with `MateValue`),
+            # `Mate` (now two poses, with `MateValue`),
             # `assemble`, `Assembly`, `AssemblyError`,
             # `solve_document`, `update_references`, `mixed_pins` and
             # `Workspace.update_to_store` are all bound, and the

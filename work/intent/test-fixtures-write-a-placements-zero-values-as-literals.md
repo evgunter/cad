@@ -89,3 +89,25 @@ rewrites `Value { coord, by }`, `Coord` and the helpers (`place_at`,
 `place_against`), with its spec listing this row among its re-reads.
 So the placement half waits for D′2 to land, and then gets one pass
 over whatever fixtures still write a zero.
+
+## D′2 re-read (2026-10-23)
+
+D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`)
+has rewritten the helpers this row was waiting on. `place_at`,
+`place_against`, `pin_at` and `frame_at` are retired. A placement's
+values are now written by `Placed::of`, `Placed::unmated` or
+`Placed::identity`, and those write the constant `0` on any freedom the
+caller does not name. The viewer's `AddTransform` row has retired with
+the helpers too.
+
+The placement half therefore stays open, as one pass over the literals
+left. A sweep after D′2 for `Coord::Slide|Spin(..), len|ang|rad(0.0)`
+finds 34 hits in 17 files:
+- the largest are `intent_s3_c_mates.rs`, `p2_gauges.rs`,
+  `msolve8_levered_clash.rs` and the viewer's `tests/common/asm.rs`;
+- the rest are in `intent_s2_f_mates.rs`, `part_depth_bound.rs`,
+  `mate6_gather_mints.rs` and `names_verbatim_edge_evaluator.rs`.
+
+Some of these are written values that the test later moves, and those
+stay. The Python direction components are untouched and still a
+neighbouring question.

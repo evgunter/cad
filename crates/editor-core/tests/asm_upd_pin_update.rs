@@ -164,7 +164,7 @@ fn repinned(
 }
 
 /// The reference a node carries — the value every row reads back.
-fn pin_at(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> DocRef {
+fn pin_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> DocRef {
     match doc.node(node) {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
         other => panic!("expected an instantiate node, got {other:?}"),
@@ -207,13 +207,13 @@ fn row1a_update_moves_the_pin_and_only_the_pin() {
         )
         .expect("the update is accepted");
 
-    assert_eq!(pin_at(&applied.doc, ids[0]).pin, v2, "the version moved");
-    assert_eq!(pin_at(&applied.doc, ids[0]).id, id, "the identity did not");
+    assert_eq!(pin_of(&applied.doc, ids[0]).pin, v2, "the version moved");
+    assert_eq!(pin_of(&applied.doc, ids[0]).id, id, "the identity did not");
     assert!(applied.record.structural, "a pin move is recipe shape");
     assert_eq!(applied.record.minted, None, "an update mints no node");
     // Undo is keeping the prior value: the document held across the
     // edit still names the prior version.
-    assert_eq!(pin_at(&doc, ids[0]).pin, v1, "the pre-edit value is intact");
+    assert_eq!(pin_of(&doc, ids[0]).pin, v1, "the pre-edit value is intact");
 }
 
 /// Row 1b — the update replays: a log ending in one `UpdateReference`
@@ -234,7 +234,7 @@ fn row1b_the_update_replays_bit_identically() {
         replayed.bit_eq(&rec.doc),
         "replay reproduces the updated document bit for bit"
     );
-    assert_eq!(pin_at(&replayed, node).pin, v2);
+    assert_eq!(pin_of(&replayed, node).pin, v2);
 }
 
 /// Row 1c — the three refusals, each constructed, each typed, each
@@ -357,7 +357,7 @@ fn row2_elaboration_updates_every_matching_site_and_only_those() {
         ],
         "one edit per x site, in document order, none for y"
     );
-    assert_eq!(pin_at(&doc, ids[0]).pin, x1, "the elaboration applied none");
+    assert_eq!(pin_of(&doc, ids[0]).pin, x1, "the elaboration applied none");
 
     let mut moved = doc.clone();
     for e in &edits {
@@ -366,10 +366,10 @@ fn row2_elaboration_updates_every_matching_site_and_only_those() {
             .expect("the group applies")
             .doc;
     }
-    assert_eq!(pin_at(&moved, ids[0]).pin, x2);
-    assert_eq!(pin_at(&moved, ids[2]).pin, x2);
+    assert_eq!(pin_of(&moved, ids[0]).pin, x2);
+    assert_eq!(pin_of(&moved, ids[2]).pin, x2);
     assert_eq!(
-        pin_at(&moved, ids[1]),
+        pin_of(&moved, ids[1]),
         DocRef { id: y, pin: y1 },
         "y is untouched"
     );
@@ -592,7 +592,7 @@ fn row5b_the_nested_case_serves_the_new_content_through_two_seams() {
     let vol_after = product_volume(&updated, &opts);
     assert!((vol_after - 4.0).abs() < 1e-9, "one v2 solid: {vol_after}");
     assert_eq!(
-        pin_at(&updated, ids[0]).id,
+        pin_of(&updated, ids[0]).id,
         sub_id,
         "the top document names the sub-assembly, never the part"
     );
@@ -813,7 +813,7 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
     .expect("the document saves");
     let loaded = load(&text, Tol::witness()).expect("the document loads");
     assert_eq!(loaded.edits.len(), rec.edits.len(), "the log persisted");
-    assert_eq!(pin_at(&loaded.doc, node).pin, v2, "the replay lands on v2");
+    assert_eq!(pin_of(&loaded.doc, node).pin, v2, "the replay lands on v2");
     assert!(
         loaded.doc.bit_eq(&rec.doc),
         "the loaded document is the recorded one, bit for bit"
@@ -827,7 +827,7 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
     )
     .expect("the shortened log replays");
     assert_eq!(
-        pin_at(&undone, node).pin,
+        pin_of(&undone, node).pin,
         v1,
         "dropping the update restores the prior version"
     );

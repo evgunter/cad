@@ -2,14 +2,14 @@
 
 A copy is placed into its placement's TARGET space by its BUNDLE (D10,
 INTENT stage 3): a mate equates a pose read off the copy with a pose of
-the target space or of the world (`WorldRead`), and values set the
-freedoms it leaves. Every bundle pins its copy and is written whole
-(`Doc.set_constraints`). `Doc.pin` is the "place part" gesture on a
-placement already in the document: it writes the bundle that pins the
-copy in the world at a pose; a constraint the rest of the bundle
-already fixes, and a bundle that leaves a freedom unwritten, are
-refused at the door; and a copy placed into a space other than the
-world has no world pose.
+the target space, read off geometry there, and values on the target
+space's axes set the freedoms the mates leave. Every bundle pins its
+copy and is written whole (`Doc.set_constraints`, `Placed`). A copy is
+pinned in the world at a pose by the values that put it there; a
+constraint the rest of the bundle already fixes is refused at the
+door; a constraint taken away is written zero again, so the copy stays
+pinned; and a copy placed into a space other than the world has no
+world pose.
 
 The doors are exercised on a worker `threading.Thread` too: a caller
 that authors and solves off the main thread reads the same document
@@ -26,16 +26,18 @@ import pncad
 from pncad import (
     CapEnd,
     ContactClass,
+    Coord,
     Doc,
     DocEdit,
     EditError,
     Frame,
     Mate,
     MateRef,
+    MateValue,
     Node,
+    Placed,
     PoseDef,
     Workspace,
-    WorldRead,
     evaluate,
     m,
     rad,
@@ -43,6 +45,7 @@ from pncad import (
 )
 
 import bench_scene
+from placing import moves
 
 
 def lifted(z):
@@ -79,9 +82,11 @@ class WorldPins(unittest.TestCase):
         return Node.instantiate_part(ref, doc.world)
 
     def pinned(self, doc, ref, pose=None):
-        """An instance pinned in the world at `pose` by the gesture."""
+        """An instance pinned in the world at `pose` (the identity when
+        `None`) by the values that put it there."""
         node = doc.insert(self.stood(doc, ref))
-        doc.pin(node, pose, resolver=self.ws)
+        if pose is not None:
+            doc.set_constraints(node, Placed.unmated(moves(doc, pose)))
         return node
 
     def test_a_pin_places_the_copy_at_its_pose(self):
@@ -90,17 +95,16 @@ class WorldPins(unittest.TestCase):
         # An inserted instance with no bundle given stands by the
         # identity bundle: no mate, six values.
         self.assertEqual(len(doc.bundle(post)), 6)
-        placed = doc.pin(post, Frame.translation((5 * m, 0 * m, 2 * m)), resolver=self.ws)
-        self.assertEqual((placed.placement, placed.mate.placement), (post, post))
-        self.assertEqual(placed.by, "planar_face")
+        pin = Placed.unmated([MateValue(Coord.slide("x"), 5 * m), MateValue(Coord.slide("z"), 2 * m)])
+        written = doc.set_constraints(post, pin)
         bundle = doc.bundle(post)
-        self.assertEqual([ref for ref, _ in bundle], [placed.mate, *placed.values])
-        # The mate's target reads the world, inside the mate; each
-        # value sets one freedom it leaves.
-        self.assertIsInstance(bundle[0][1].to, WorldRead)
-        self.assertEqual(bundle[0][1].to.kind, "plane")
+        self.assertEqual([ref for ref, _ in bundle], written)
+        # No mate: the values state the copy's whole motion on the
+        # world's axes, the author's first, then a zero on each freedom
+        # left unnamed.
         self.assertEqual(
-            [held.coord.variant for _, held in bundle[1:]], ["slide_x", "slide_y", "spin"]
+            [held.coord.variant for _, held in bundle],
+            ["slide_x", "slide_z", "slide_y", "spin_x", "spin_y", "spin_z"],
         )
         self.assertEqual(doc.node_kind(doc.world), "world")
         self.assertNotIn(doc.world, doc.order(), "the world is not counted among the nodes")
@@ -118,49 +122,44 @@ class WorldPins(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.delete_node(doc.world))
         self.assertEqual(caught.exception.variant, "world_is_undeletable")
-        # A mate a value names is not removed from under it: the value
-        # goes first.
+        # Every bundle pins its copy: a value taken away is written
+        # zero again, so the copy keeps its place on the other axes.
+        doc.apply(DocEdit.remove_constraint(written[0]))
+        at = solve_document(doc, resolver=self.ws).placement(doc, post).origin
+        for got, want in zip(at, (0.0, 0.0, 2.0), strict=True):
+            self.assertAlmostEqual(got.meters, want, delta=1e-12)
+        # An id the bundle no longer holds is refused typed, naming its
+        # address.
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.remove_constraint(placed.mate))
-        self.assertEqual(caught.exception.variant, "mate_named_by_value")
-        # Every bundle pins its copy: a value removed would leave its
-        # freedom unwritten, and is refused.
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.remove_constraint(placed.values[0]))
-        self.assertEqual(caught.exception.inner_variant, "mate_unpinned")
-        # A pin written again replaces the bundle whole; an id the
-        # bundle no longer holds is refused typed, naming its address.
-        doc.pin(post, resolver=self.ws)
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.remove_constraint(placed.mate))
+            doc.apply(DocEdit.remove_constraint(written[0]))
         self.assertEqual(
             (caught.exception.variant, caught.exception.node, caught.exception.mate),
-            ("unknown_constraint", post, placed.mate),
+            ("unknown_constraint", post, written[0]),
         )
 
-    def test_remove_mate_refuses_what_would_leave_a_freedom_unwritten(self):
-        """`Doc.remove_mate` takes a mate and the values naming it as one
-        action; every bundle pins its copy, so taking them refuses and
-        touches nothing, and so does a value taken alone. An id the
-        bundle does not hold, and the world, refuse in their own
+    def test_remove_mate_keeps_the_copy_pinned(self):
+        """`Doc.remove_mate` writes the bundle whole again without the
+        mate: the values the bundle then leaves are kept, each freedom
+        no value sets is written zero, and the copy stays pinned. An id
+        the bundle does not hold, and the world, refuse in their own
         words."""
         doc = Doc("py-remove-mate")
         post = self.pinned(doc, self.post_ref, lifted(1.0))
         shelf = doc.insert(self.stood(doc, self.shelf_ref))
-        seat, values = self.seat(doc, post, shelf)
+        seat, _ = self.seat(doc, post, shelf)
         pin = doc.bundle(post)[0][0]
+        written = doc.remove_mate(seat)
         held = doc.bundle(shelf)
-        for taken in (seat, values[0]):
-            with self.assertRaises(EditError) as caught:
-                doc.remove_mate(taken)
-            self.assertEqual(caught.exception.inner_variant, "mate_unpinned")
-            self.assertEqual(doc.bundle(shelf), held)
+        self.assertFalse(any(isinstance(c, Mate) for _, c in held))
+        self.assertEqual(len(held), 6)
+        self.assertTrue(set(written) <= {ref for ref, _ in held})
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(shelf))
         # An id the bundle no longer holds is refused, and touches
         # nothing.
-        self.seat(doc, post, shelf)
         with self.assertRaises(EditError) as caught:
             doc.remove_mate(seat)
         self.assertEqual(caught.exception.variant, "unknown_constraint")
+        self.assertEqual(doc.bundle(shelf), held)
         # The world is no placement.
         with self.assertRaises(EditError) as caught:
             doc.remove_mate(MateRef(doc.world, pin.constraint))
@@ -232,10 +231,14 @@ class WorldPins(unittest.TestCase):
             pncad.assemble(doc, evaluate(doc, resolver=self.ws))
         self.assertEqual(caught.exception.variant, "at_rest")
 
-    def test_a_world_pose_is_the_pin_onto_the_solve(self):
-        """`P ∘ B` through Python, against an independent 4x4
-        composition: a post pinned to the world at a turned pose, and
-        the shelf seated on it."""
+    def test_a_seat_charts_on_the_space_not_on_the_body_it_rests_on(self):
+        """Against an independent 4x4 composition: a post pinned to the
+        world at a turned pose, and the shelf seated on its top. The
+        seat's values chart on the world's axes swung onto the mated
+        normal, never on the post's own frame, so turning and sliding
+        the post moves the shelf only along that normal — by the
+        post's rise — and the shelf's pose is the seat it has on a post
+        standing at the identity, lifted."""
 
         def mat(f):
             c = f.columns
@@ -270,30 +273,33 @@ class WorldPins(unittest.TestCase):
         self.seat(doc, post, shelf)
         poses = solve_document(doc, resolver=self.ws)
         self.assertLess(gap(mat(poses.placement(doc, post)), w_post), 1e-12)
-        self.assertLess(gap(mat(poses.placement(doc, shelf)), mul(w_post, rel)), 1e-12)
+        lifted_rel = mul(rz(0.0, (0, 0, w_post[2][3])), rel)
+        self.assertLess(gap(mat(poses.placement(doc, shelf)), lifted_rel), 1e-12)
         # A copy placed into the world is posed in the world's
         # coordinates.
-        self.assertLess(gap(mat(poses.pose(shelf)), mul(w_post, rel)), 1e-12)
+        self.assertLess(gap(mat(poses.pose(shelf)), lifted_rel), 1e-12)
 
     def test_a_constraint_the_bundle_already_fixes_is_refused(self):
-        """A post rests on the world's floor by its underside; a second
-        plane mate, a side on one of the world's walls, fixes a normal
+        """A post rests on a base's top by its underside; a second
+        plane mate, a side on one of the base's sides, fixes a normal
         the first already fixes, so the door refuses the bundle,
         measuring nothing, naming both and the freedoms the two would
         leave."""
         doc = Doc("py-pin-overconstrained")
         post = doc.insert(self.stood(doc, self.post_ref))
+        base = self.pinned(doc, self.post_ref)
 
-        def facing(normal):
-            return PoseDef.plane(post, bench_scene.face_facing(self.ws, doc, post, normal))
+        def facing(node, normal):
+            return PoseDef.plane(node, bench_scene.face_facing(self.ws, doc, node, normal))
 
-        floor, wall_x = (WorldRead.through(role).flip() for role in ("xy", "yz"))
+        floor = PoseDef.flip(facing(base, (0.0, 0.0, 1.0)))
+        wall_x = PoseDef.flip(facing(base, (1.0, 0.0, 0.0)))
         with self.assertRaises(pncad.EditError) as caught:
             doc.set_constraints(
                 post,
                 [
-                    Mate(facing((0.0, 0.0, -1.0)), floor, ContactClass.Rest),
-                    Mate(facing((-1.0, 0.0, 0.0)), wall_x, ContactClass.Rest),
+                    Mate(facing(post, (0.0, 0.0, -1.0)), floor, ContactClass.Rest),
+                    Mate(facing(post, (-1.0, 0.0, 0.0)), wall_x, ContactClass.Rest),
                 ],
             )
         fault = caught.exception.fault

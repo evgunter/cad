@@ -100,7 +100,7 @@ const SENTINEL: f64 = 0.5;
 /// **A copy of `input` slid by `d` in `target`'s own coordinates** (the
 /// world's where `target` is `None`), each component a formula: placed
 /// against `target` at a literal slide along `z`
-/// ([`editor_core::place_against`]; [`editor_core::place_at`] in the
+/// ([`editor_core::test_support::placed_against`]; three slides with no mate in the
 /// world), the mate's slide then
 /// re-spelled as `d[2]` and its `x` and `y` values as `d[0]` and `d[1]`.
 /// Returns the placement, whose output is the copy.
@@ -115,19 +115,28 @@ fn translated(
     let [dx, dy, dz] = d;
     let body = Operand::Node(input);
     let at = editor_core::Frame::translation([0.0, 0.0, SENTINEL]);
-    let opts = editor_core::EvalOptions::default();
-    let placed = match target {
-        Some(target) => editor_core::place_against(
-            &r.doc,
-            &fixture::body_read(&r.doc, target.into()),
-            &body,
-            &at,
-            &opts,
-            Tol::witness(),
-        ),
-        None => editor_core::place_at(&r.doc, &body, &at, &opts, Tol::witness()),
-    }
-    .expect("the copy places against its target");
+    // With no target, the copy stands in the world by its three slides.
+    let Some(target) = target else {
+        let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
+            body,
+        )]));
+        r.write(
+            placement,
+            editor_core::Placed::unmated(vec![
+                (Coord::Slide(TargetAxis::X), dx),
+                (Coord::Slide(TargetAxis::Y), dy),
+                (Coord::Slide(TargetAxis::Z), dz),
+            ]),
+        );
+        return placement;
+    };
+    let placed = editor_core::test_support::placed_against(
+        &r.doc,
+        &fixture::body_read(&r.doc, target.into()),
+        &body,
+        &at,
+        Tol::witness(),
+    );
     let lit = |v: f64| Formula::literal(v, Dimension::Length).expect("a literal");
     let mut replaced = 0;
     fn walk(op: &mut Operand, f: &mut dyn FnMut(&mut Formula)) {
@@ -153,29 +162,13 @@ fn translated(
             replaced += 1;
         }
     };
-    // A world target's slide up the world's own `z`.
-    fn walk_world(read: &mut editor_core::WorldRead<Formula>, f: &mut dyn FnMut(&mut Formula)) {
-        use editor_core::WorldRead as W;
-        match read {
-            W::Slide { pose, along, by } => {
-                if matches!(
-                    &**along,
-                    W::Role { pose, role: editor_core::pose::PoseRole::Z } if matches!(**pose, W::Frame)
-                ) {
-                    f(by);
-                }
-                walk_world(pose, f);
-            }
-            W::Role { pose, .. } | W::Spin { pose, .. } | W::Flip { pose } => walk_world(pose, f),
-            _ => {}
-        }
-    }
-    let mut mate = placed.mate.expect("the gesture writes a mate");
+    let mut mate = placed
+        .mates
+        .into_iter()
+        .next()
+        .expect("the copy is placed by a mate");
     walk(&mut mate.on, &mut respell);
-    match &mut mate.to {
-        editor_core::Target::Pose(to) => walk(to, &mut respell),
-        editor_core::Target::World(world) => walk_world(world, &mut respell),
-    }
+    walk(&mut mate.to, &mut respell);
     assert_eq!(replaced, 1, "the mate slides the copy once: {mate:?}");
     let values = placed
         .values

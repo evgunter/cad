@@ -113,8 +113,8 @@ fn seat(on: StableName, to: StableName, class: ContactClass, standoff: f64) -> M
 
 /// **`mate` added with a value on each freedom it leaves**: a slide of
 /// `shift` along its plane's `x`, none along its `y`, and no spin — so
-/// its copy is pinned against the target, its own coordinates agreeing
-/// with the target's but for the shift.
+/// its copy is pinned against the target, slid `shift` along the
+/// target space's `x`.
 fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, MateRef) {
     let (doc, mate) = crate::fixture::constrain_with(
         doc,
@@ -122,7 +122,7 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, Mate
         &[
             (Coord::Slide(TargetAxis::X), len(shift)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin, fixture::ang(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
         ],
     );
     (doc, mate)
@@ -138,37 +138,11 @@ fn pinned_instance(doc: ProfileDoc, store: &PartStore, part: DocRef) -> (Profile
     )
 }
 
-/// **An instance of `part`, whose part never evaluates, pinned to the
-/// world**: no frame can be read off a copy that has no geometry, and
-/// none is asked for, so the pin is a frame through an edge and a
-/// vertex the copy would name, equated with the world's own. The names
-/// are never resolved; the mate is the shape of a pin, so the copy is
-/// the world's by its recipe.
+/// **An instance of `part`, whose part never evaluates, in the world**:
+/// by the identity bundle, which reads nothing of the copy, so the copy
+/// is the world's by its recipe.
 fn nominally_pinned_instance(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, instance) = insert(doc, crate::fixture::mated_instance(part));
-    let copy = Operand::Var(
-        doc.output(instance, 0)
-            .expect("an instance defines its copies"),
-    );
-    let named = |kind| StableName {
-        kind,
-        node: instance,
-        path: vec![RoleSeg::Cap(CapEnd::Start)],
-    };
-    let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
-    let mate = Mate {
-        on: Operand::Pose(Box::new(PoseDef::Through {
-            axis: read(PoseDef::Axis {
-                of: Operand::select(copy.clone(), vec![named(EntityKind::Edge)]),
-            }),
-            point: read(PoseDef::Point {
-                of: Operand::select(copy, vec![named(EntityKind::Vertex)]),
-            }),
-        })),
-        to: editor_core::Target::World(editor_core::WorldRead::Frame),
-        class: ContactClass::Rest,
-    };
-    (fixture::constrain_at(doc, instance, mate).0, instance)
+    insert(doc, crate::fixture::mated_instance(part))
 }
 
 /// `node`'s bundle replaced by one world mate at the translation `at`,
@@ -454,6 +428,8 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let (mid, m_c0) = insert(mid, crate::fixture::mated_instance(cube));
     let mid = place(mid, &store, m_c0, [30.0, 0.0, 0.0]);
     let (mid, m_c1) = insert(mid, crate::fixture::mated_instance(cube));
+    // The seat's slide is measured on the mid's own axes, so it is the
+    // first cube's place along x (D′2: a value charts on the space).
     let (mid, mid_mate) = seated(
         mid,
         seat(
@@ -462,7 +438,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
             ContactClass::Rest,
             0.0,
         ),
-        0.0,
+        30.0,
     );
     let mid_id = mid.id();
     let mid_ref = store.insert(mid, Tol::witness());
@@ -494,7 +470,9 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
         "no row is `of` the document that merely passed it"
     );
     assert_rows_match_names(&gathered);
-    assert!(assemble(&outer, &ev, Tol::witness()).is_ok());
+    if let Err(e) = assemble(&outer, &ev, Tol::witness()) {
+        panic!("the outer assembles: {e}");
+    }
 
     // Level four: the outer instantiated once more. Every `via` gains
     // a second entry, nearest first, and `of` does not move.

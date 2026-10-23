@@ -37,12 +37,15 @@
 //!
 //! # What the mate leaves
 //!
-//! Values set the freedoms the mate's kind leaves (ruling C-2): a plane
-//! mate slides along `x` and `y` and spins, an axis mate slides along
-//! its axis and spins. A value the kind does not leave is refused here
-//! ([`MateToolError::NotAFreedom`]), in the kernel's own reading
-//! ([`Coord::admitted_by`]), before any edit exists. A freedom left
-//! unset is free.
+//! Values set the freedoms the mate's kind leaves, on the target
+//! space's axes swung onto the mated direction: a plane mate slides
+//! along `x` and `y` and spins about `z`, an axis mate slides along
+//! and spins about `z`. A value the kind does not leave is refused here
+//! ([`MateToolError::NotAFreedom`], [`MateFreedom::left_by`]), before
+//! any edit exists. The mate goes in through the bundle door, which
+//! rewrites the placement's bundle whole: the values the new mate
+//! fixes leave it, each freedom it leaves keeps its value, and a
+//! freedom left unset is written `0`.
 //!
 //! # What the class admits
 //!
@@ -79,9 +82,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    CLASS_DEFERRAL, ClassAdmission, Coord, Doc, Evaluation, Formula, FreedomRefusal, Mate,
-    MateSide, Node, NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, SpokenNode, Target,
-    TargetAxis, VarKind, class_admission, member_of, pose,
+    CLASS_DEFERRAL, ClassAdmission, Coord, Doc, Evaluation, Formula, Mate, MateSide, Node,
+    NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, SpokenNode, TargetAxis, VarKind,
+    class_admission, member_of, pose,
 };
 use pncad::select::{ContactClass, Resolution};
 
@@ -103,14 +106,15 @@ pub const MATE_KINDS: [(VarKind, &str); 2] = [(VarKind::Plane, "plane"), (VarKin
 
 vocabulary! {
     /// **A freedom a mate's value can set**, as the mate panel offers
-    /// it: a slide along the chart's `x`, `y` or `z`, or the spin. Which
-    /// of them a mate leaves is its kind's (`Coord::admitted_by`), and
-    /// the panel offers those alone. It mirrors the kernel's [`Coord`]
-    /// both ways, by two exhaustive matches ([`Self::coord`],
-    /// [`Self::of`]), so a freedom the kernel grows does not build here
-    /// until the panel offers it or says why not: a spin about the
-    /// target's own axis names no mate, and a mate's panel writes values
-    /// that name its mate.
+    /// it: a slide along the chart's `x`, `y` or `z`, or the spin about
+    /// the mated direction. Which of them a mate leaves is its kind's
+    /// ([`Self::left_by`]), and the panel offers those alone. It mirrors
+    /// the kernel's [`Coord`] both ways, by two exhaustive matches
+    /// ([`Self::coord`], [`Self::of`]), so a freedom the kernel grows
+    /// does not build here until the panel offers it or says why not: a
+    /// spin about the chart's `x` or `y` is a link of a chain of turns,
+    /// which a placement with no direction fixed writes, never a face
+    /// mate's.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum MateFreedom {
         /// A slide along the chart's `x`.
@@ -135,21 +139,34 @@ impl MateFreedom {
             Self::SlideX => Coord::Slide(TargetAxis::X),
             Self::SlideY => Coord::Slide(TargetAxis::Y),
             Self::SlideZ => Coord::Slide(TargetAxis::Z),
-            Self::Spin => Coord::Spin,
+            Self::Spin => Coord::Spin(TargetAxis::Z),
         }
     }
 
     /// The panel's freedom for the kernel's, `None` for a spin about the
-    /// target's own axis, which no mate's value sets.
+    /// chart's `x` or `y`, which no face mate leaves.
     #[must_use]
     pub fn of(coord: Coord) -> Option<Self> {
         match coord {
             Coord::Slide(TargetAxis::X) => Some(Self::SlideX),
             Coord::Slide(TargetAxis::Y) => Some(Self::SlideY),
             Coord::Slide(TargetAxis::Z) => Some(Self::SlideZ),
-            Coord::Spin => Some(Self::Spin),
-            Coord::SpinAbout(_) => None,
+            Coord::Spin(TargetAxis::Z) => Some(Self::Spin),
+            Coord::Spin(TargetAxis::X | TargetAxis::Y) => None,
         }
+    }
+
+    /// **Whether a mate of `kind` leaves this freedom**: a plane slides
+    /// along the chart's `x` and `y` and spins about `z`; an axis
+    /// slides along and spins about `z`. A kind no face pick reads
+    /// ([`MATE_KINDS`]) leaves nothing the panel offers.
+    #[must_use]
+    pub fn left_by(self, kind: VarKind) -> bool {
+        matches!(
+            (kind, self),
+            (VarKind::Plane, Self::SlideX | Self::SlideY | Self::Spin)
+                | (VarKind::Axis, Self::SlideZ | Self::Spin)
+        )
     }
 }
 
@@ -259,15 +276,13 @@ pub enum MateToolError {
         /// The refused class.
         class: ContactClass,
     },
-    /// A value sets a freedom the mate's kind does not leave, or leaves
-    /// with no chart ([`Coord::admitted_by`]).
+    /// A value sets a freedom the mate's kind does not leave
+    /// ([`MateFreedom::left_by`]).
     NotAFreedom {
         /// The freedom.
         coord: Coord,
         /// The mate's kind.
         kind: VarKind,
-        /// The kernel's reading.
-        refusal: FreedomRefusal,
     },
 }
 
@@ -304,21 +319,9 @@ impl core::fmt::Display for MateToolError {
                     class.name()
                 )
             }
-            Self::NotAFreedom {
-                coord,
-                kind,
-                refusal: FreedomRefusal::NotAFreedom,
-            } => write!(f, "a {} mate leaves no {} to set", kind, coord.name()),
-            Self::NotAFreedom {
-                coord,
-                kind,
-                refusal: FreedomRefusal::NoChart,
-            } => write!(
-                f,
-                "a {} mate's {} has no chart to set it on",
-                kind,
-                coord.name()
-            ),
+            Self::NotAFreedom { coord, kind } => {
+                write!(f, "a {} mate leaves no {} to set", kind, coord.name())
+            }
         }
     }
 }
@@ -690,13 +693,12 @@ impl MateTool {
             return Err(MateToolError::KindNotOffered { kind: choice.kind });
         }
         for (coord, _) in &choice.values {
-            coord
-                .admitted_by(choice.kind)
-                .map_err(|refusal| MateToolError::NotAFreedom {
+            if !MateFreedom::of(*coord).is_some_and(|f| f.left_by(choice.kind)) {
+                return Err(MateToolError::NotAFreedom {
                     coord: *coord,
                     kind: choice.kind,
-                    refusal,
-                })?;
+                });
+            }
         }
         let face = |side: MateSide, pick: &FaceSelection, name| {
             pncad::document::FaceName::new(name)
@@ -752,7 +754,7 @@ impl MateTool {
             placement,
             mate: Mate {
                 on: pose_of(choice.kind, &on_face),
-                to: Target::Pose(target),
+                to: target,
                 class: choice.class,
             },
             on: on_face,

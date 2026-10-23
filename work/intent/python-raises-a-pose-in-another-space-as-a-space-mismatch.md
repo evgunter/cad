@@ -33,3 +33,7 @@ it, not a string at the raise site.
 Done when: `SolvedPoses.placement` of a copy in another space raises a
 refusal whose word says the copy is placed into another space and
 names that space, and no `space_mismatch` is raised for it.
+
+## D′2 re-read (2026-10-23)
+
+This stays open. D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`) does not touch the pose door: `PoseRefusal::OtherSpace` and `pose_err` (`crates/pncad-py/src/py/mate.rs:856`) are as this row describes. The fix is a word on an `ErrorClass` of its own, and it shares nothing with D′2's chart.

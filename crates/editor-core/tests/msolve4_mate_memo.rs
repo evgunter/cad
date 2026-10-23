@@ -10,7 +10,7 @@
 //! an edit elsewhere has since changed.
 //!
 //! Every row goes through ordinary doors — `DocEdit::AddConstraint`,
-//! `DocEdit::AddValue`, `DocEdit::RemoveConstraint`, `evaluate` with the
+//! `DocEdit::SetConstraints`, `DocEdit::RemoveConstraint`, `evaluate` with the
 //! previous evaluation as the prior — and reads the answer off the
 //! evaluation and off `solve_document`, never off the key function.
 

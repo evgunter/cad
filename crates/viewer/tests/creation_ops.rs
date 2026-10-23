@@ -140,14 +140,6 @@ fn a_revolve_stands_by_the_identity_bundle_whatever_its_axis_reads() {
         panic!("the revolve and its placement: {:?}", outcome.minted)
     };
     assert_eq!(
-        outcome.placed,
-        vec![viewer::session::PlaceReport {
-            placement,
-            by: Ok(editor_core::PlacedBy::Identity),
-        }],
-        "the ring stands by the identity bundle"
-    );
-    assert_eq!(
         viewer::frame::outcome_notices(&outcome).count(),
         0,
         "the ordinary answer carries no notice"
@@ -155,21 +147,18 @@ fn a_revolve_stands_by_the_identity_bundle_whatever_its_axis_reads() {
     session.pump();
     let doc = session.committed_doc();
     let bundle = crate::fixture::bundle(doc, placement);
-    let written: Vec<_> = bundle
-        .iter()
-        .map(|c| c.value().map(|v| (v.mate, v.coord)))
-        .collect();
+    let written: Vec<_> = bundle.iter().map(|c| c.value().map(|v| v.coord)).collect();
     assert_eq!(
         written,
         [
-            Some((None, Coord::Slide(TargetAxis::X))),
-            Some((None, Coord::Slide(TargetAxis::Y))),
-            Some((None, Coord::Slide(TargetAxis::Z))),
-            Some((None, Coord::SpinAbout(TargetAxis::X))),
-            Some((None, Coord::SpinAbout(TargetAxis::Y))),
-            Some((None, Coord::SpinAbout(TargetAxis::Z))),
+            Some(Coord::Slide(TargetAxis::X)),
+            Some(Coord::Slide(TargetAxis::Y)),
+            Some(Coord::Slide(TargetAxis::Z)),
+            Some(Coord::Spin(TargetAxis::X)),
+            Some(Coord::Spin(TargetAxis::Y)),
+            Some(Coord::Spin(TargetAxis::Z)),
         ],
-        "six values naming no mate: {bundle:?}"
+        "six values and no mate: {bundle:?}"
     );
     assert!(
         common::solve(&session, doc, tol).at_identity(placement),
@@ -258,27 +247,19 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
         assert_eq!(
             constraints
                 .iter()
-                .map(|c| c.value().map(|v| (v.mate, v.coord)))
+                .map(|c| c.value().map(|v| v.coord))
                 .collect::<Vec<_>>(),
             vec![
-                Some((None, Coord::Slide(TargetAxis::X))),
-                Some((None, Coord::Slide(TargetAxis::Y))),
-                Some((None, Coord::Slide(TargetAxis::Z))),
-                Some((None, Coord::SpinAbout(TargetAxis::X))),
-                Some((None, Coord::SpinAbout(TargetAxis::Y))),
-                Some((None, Coord::SpinAbout(TargetAxis::Z))),
+                Some(Coord::Slide(TargetAxis::X)),
+                Some(Coord::Slide(TargetAxis::Y)),
+                Some(Coord::Slide(TargetAxis::Z)),
+                Some(Coord::Spin(TargetAxis::X)),
+                Some(Coord::Spin(TargetAxis::Y)),
+                Some(Coord::Spin(TargetAxis::Z)),
             ],
             "the identity bundle: every freedom, no mate"
         );
     }
-    assert_eq!(
-        outcome.placed,
-        vec![viewer::session::PlaceReport {
-            placement,
-            by: Ok(editor_core::PlacedBy::Identity),
-        }],
-        "the outcome says how the copy was placed"
-    );
     assert!(
         common::solve(&session, doc, tol).at_identity(placement),
         "the copy stands where it was made"

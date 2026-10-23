@@ -52,3 +52,18 @@ Then make the second cut split again, and re-render the gui lane with
 `[render]`, deleting whichever cell names really retire.
 
 — INTENT nightly triage, 2026-10-23
+
+## Evidence from D′2's fix pass (PR 5613)
+
+The gui render lane ran on PR 5613's branch for the first time and its
+re-baseline refused: two committed cells were no longer produced.
+- `demos/renders-gui/instantiatepart-part2-pattern-place2.png` is the
+  posts cell this refusal stops the tour writing.
+- `demos/renders-gui/instantiatepart2-part2-pattern-place2.png` is the
+  layout document, now named `instantiatepart2-part2-pattern-place2-space`
+  since D′1's `new_space()` master.
+
+PR 5613 retired both cells (`git rm`, `[render]`); the lane then
+re-baselined, the layout under its `-space` name. Once the second cut
+splits again, its posts cell comes back under whatever name its shape
+then has.

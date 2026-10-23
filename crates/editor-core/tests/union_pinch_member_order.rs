@@ -785,7 +785,7 @@ pub(crate) fn tilted_holes(doc: ProfileDoc, holes: &[Hole]) -> (ProfileDoc, Vec<
                 distance: len(h.length),
             },
         );
-        let (d, w) = crate::fixture::against(d, plate, w, &crate::fixture::frame_at(o, u, v));
+        let (d, w) = crate::fixture::against(d, plate, w, &crate::fixture::axes_at(o, u, v));
         doc = d;
         m.push(w);
     }

@@ -19,7 +19,7 @@
 use super::PlacePart;
 use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, Formula, Mate, Node, Operand, RoleSeg, SlotId,
-    Target, TargetAxis,
+    TargetAxis,
 };
 
 use crate::fixture::{ang, desc, fname, len, plane};
@@ -82,7 +82,7 @@ pub fn document() -> CorpusDoc {
         placed,
         Mate {
             on,
-            to: Target::Pose(plane(cap(cube, CapEnd::End))),
+            to: plane(cap(cube, CapEnd::End)),
             class: ContactClass::Rest,
         },
         vec![
@@ -94,7 +94,7 @@ pub fn document() -> CorpusDoc {
                 Coord::Slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
-            (Coord::Spin, ang(SPIN)),
+            (Coord::Spin(editor_core::TargetAxis::Z), ang(SPIN)),
         ],
     );
     let whole = r.insert(Node::Union {

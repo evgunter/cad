@@ -913,8 +913,13 @@ fn an_unread_definition_moves_with_what_it_reads_and_comes_back() {
     let back = inline(&out.remainder, out.instance, &store, Tol::witness())
         .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
     let (nodes, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
-        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+    same_up_to_ids(
+        &doc,
+        &crate::fixture::round_trip::flat(&back),
+        &nodes,
+        &steps,
+    )
+    .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
 }
 
 /// `k = w + j`, read by nothing, with `w` read only by the cut and `j`
@@ -983,8 +988,13 @@ fn a_chain_of_definitions_moves_whole_and_comes_back() {
     let back = inline(&out.remainder, out.instance, &store, Tol::witness())
         .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
     let (nodes, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
-        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+    same_up_to_ids(
+        &doc,
+        &crate::fixture::round_trip::flat(&back),
+        &nodes,
+        &steps,
+    )
+    .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
 }
 
 /// `k = w + u` read by nothing, with `w` read only by the cut and `u`
@@ -1013,8 +1023,13 @@ fn a_free_variable_tied_to_a_moving_definition_moves_with_it() {
     let back = inline(&out.remainder, out.instance, &store, Tol::witness())
         .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
     let (nodes, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
-        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+    same_up_to_ids(
+        &doc,
+        &crate::fixture::round_trip::flat(&back),
+        &nodes,
+        &steps,
+    )
+    .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
 }
 
 /// `k = w + z` read by nothing, `w` read only by the cut and `z`
@@ -1100,8 +1115,13 @@ fn a_named_definition_reading_the_depth_comes_back() {
     let back = inline(&out.remainder, out.instance, &store, Tol::witness())
         .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
     let (nodes, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
-        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+    same_up_to_ids(
+        &doc,
+        &crate::fixture::round_trip::flat(&back),
+        &nodes,
+        &steps,
+    )
+    .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
 }
 
 /// The round-trip comparator is not blind to variables: a document

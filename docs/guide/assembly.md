@@ -147,36 +147,35 @@ space of its own (`Doc.new_space()`), or a construction's own space.
 The bundle is what says where the copy sits, and every bundle pins its
 copy. Left out, it is the **identity** bundle — no mate, and the
 constant zero on every freedom — so the copy stands where its part's
-world stands. `Doc.pin(instance, pose)` is the "place part" gesture on
-it: it writes, in place of the bundle the instance holds, a plane mate
-on the copy's first planar face to the world plane that face lies in
-at `pose`, and the three values that put it there, so the copy stands
-at `pose` and can then be moved by its numbers. An instance placed into
-the world is in the product, because a placement is what the product
-gathers: nothing else has to place it. `Doc.place(body, target)` and
-`Doc.place_at(body, pose)` are the same gesture over a body of this
-document.
+world stands: that is the "place part" gesture. A copy is moved from
+there by the numbers of a bundle written in its place —
+`Placed.unmated(values)`, values on the target space's own axes, a
+chain of spins about them and the slides along them. An instance
+placed into the world is in the product, because a placement is what
+the product gathers: nothing else has to place it. `Doc.place(body,
+target)` is the same gesture over a body of this document.
 
 `Mate(on, to, class_)` is one value carrying both halves of "these two
 parts meet here": the placement constraint the solve folds, and the
 contact declaration the gate mints. A mate is not a node. It is a
 constraint in the bundle of the copy it places, and it equates two
 poses of one kind: `on`, read off that copy's geometry, and `to`, a
-pose of the placement's target space — another copy's face there, say
-— or a `WorldRead`, a pose of the world read inside the mate, for a
-placement whose target is the world. The kind is the
+pose of the placement's target space read off geometry there —
+another copy's face, say. A mate reads only geometry, never the
+world's frame. The kind is the
 primitive: plane to plane rests, axis to axis is coaxial, frame to
 frame coincides, point to point is a ball, direction to direction is
 parallel. A plain plane mate equates outward normals, so two faces
 resting on each other carry a flip on the target
 (`PoseDef.flip(PoseDef.plane(...))`).
 
-A mate holds no number. What it leaves free — a plane mate's two
-slides and its spin, an axis mate's slide along it and its spin — is
-set by a **value**, `MateValue(0, Coord.slide("x"), by)`, naming the
-mate by its position in the bundle. A value is charted on the two bodies' own frames, each swung onto the
-mated direction, so zero says the bodies' own coordinates agree as far
-as the mate allows. A standoff is not a value: it is the target plane
+A mate holds no number. What the bundle's mates leave free — a plane
+mate's two slides and its spin, an axis mate's slide along it and its
+spin — is set by a **value**, `MateValue(Coord.slide("x"), by)`, which
+names no mate. A value is charted on the target space's own axes,
+swung by the shortest turn onto the one direction the mates fix, so
+zero says the copy's own coordinates agree with the space's as far as
+the mates allow. A standoff is not a value: it is the target plane
 slid along its own normal (`PoseDef.slide`).
 
 A bundle is written whole. `Doc.set_constraints(placement, [mate,
@@ -185,13 +184,16 @@ answers each constraint's address, a `MateRef`: the placement and the
 id the edit minted, never a position; `Doc.place` and
 `Node.instantiate_part` take a bundle the same way, and
 `DocEdit.set_constraints` is the same edit as a recorded value. A
-bundle that leaves a freedom unwritten refuses (`mate_unpinned`), so
-an edit that takes a constraint out of a pinned bundle refuses too.
+bundle that leaves a freedom unwritten refuses (`mate_unpinned`).
+`Placed.of(doc, mates, values)` is the one constructor that writes the
+constant zero on each freedom its mates leave and no value names, so
+its bundle always pins; `Doc.constrain` and `Doc.remove_mate` write a
+bundle whole again by the same rule, so the copy stays pinned.
 `Doc.bundle(placement)` reads a bundle back.
 
 So a mated assembly is copies placed into the world, one pinned to the
-world by a world read and every other placed by the mates and values in
-its own bundle onto the copies beside it. Which space a body is in is
+world by its values alone and every other placed by the mates and
+values in its own bundle onto the copies beside it. Which space a body is in is
 read off the recipe, `Doc.space(node)`, with nothing evaluated, and the
 world's space is the product.
 
@@ -213,18 +215,17 @@ from pncad import (
     DocRef,
     EntityKind,
     Formula,
-    Frame,
     Mate,
     MateValue,
     NamePat,
     Node,
+    Placed,
     PoseDef,
     ProductError,
     SegPat,
     SegTag,
     Selector,
     Workspace,
-    WorldRead,
     content_pin,
     evaluate,
     m,
@@ -280,11 +281,11 @@ post_b = stand.insert(Node.instantiate_part(post_ref, stand.world))
 assert len(stand.bundle(post_a)) == 6
 
 # The near post is the one copy pinned to the world, at a pose: inset
-# in y so the shelf overhangs front and back. The gesture writes a
-# plane mate and its three values in place of the identity.
+# in y so the shelf overhangs front and back. Its bundle is values on
+# the world's axes, the rest written zero by the one constructor.
 inset = (SHELF_DEPTH - POST_SECTION) / 2
-pinned = stand.pin(post_a, Frame.translation((0 * m, inset * m, 0 * m)), resolver=store)
-assert pinned.by == "planar_face" and len(pinned.values) == 3
+pinned = stand.set_constraints(post_a, Placed.unmated([MateValue(Coord.slide("y"), inset * m)]))
+assert len(pinned) == 6
 
 # The faces, SELECTED rather than spelled: evaluate against the store,
 # then ask each instantiate node for its face.
@@ -298,12 +299,12 @@ def rest(placement, on, to, slides):
     """`placement`'s face `on` resting on the face `to` — the target
     flipped, so the two faces face each other — and the values that
     set where on `to` it rests: two slides, and no spin. The bundle is
-    written whole, each value naming the mate by its position, 0."""
+    written whole."""
     mate, *_ = stand.set_constraints(placement, [
         Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), ContactClass.Rest),
-        MateValue(0, Coord.slide("x"), slides[0] * m),
-        MateValue(0, Coord.slide("y"), slides[1] * m),
-        MateValue(0, Coord.spin(), 0),
+        MateValue(Coord.slide("x"), slides[0] * m),
+        MateValue(Coord.slide("y"), slides[1] * m),
+        MateValue(Coord.spin("z"), 0),
     ])
     return mate
 
@@ -313,20 +314,21 @@ def rest(placement, on, to, slides):
 # under the shelf. Each mate's poses are read off the faces at every
 # evaluation, so a post whose height changes moves the shelf with it.
 # The values put each post's top centre under its seat on the shelf,
-# flush with the shelf's ends, in the chart of the mate's target: the
-# post's own x and y for the shelf on a post, and for a post under the
-# shelf the shelf's x and its -y, the shelf's frame swung onto its
-# underside's outward normal.
+# flush with the shelf's ends. A value charts on the target space —
+# here the world — never on the body its copy rests on: the shelf's
+# slides are where its origin stands on the world's x and y, and the
+# far post's on the world's x and its -y, the world's axes swung onto
+# the mated normal.
 half = POST_SECTION / 2
-mate_a = rest(shelf_i, (shelf_i, shelf_underside), (post_a, a_top), (0.0, half - SHELF_DEPTH / 2))
+mate_a = rest(shelf_i, (shelf_i, shelf_underside), (post_a, a_top), (0.0, inset + half - SHELF_DEPTH / 2))
 mate_b = rest(post_b, (post_b, b_top), (shelf_i, shelf_underside),
               (SHELF_LENGTH - 2 * half, half - SHELF_DEPTH / 2))
 
 # A constraint is addressed by the placement that holds it. The near
-# post's bundle is its pin, which reads the world; each other bundle is
-# the mate that places it and its three values.
+# post's bundle is its values alone, no mate; each other bundle is the
+# mate that places it and its three values.
 assert (mate_a.placement, mate_b.placement) == (shelf_i, post_b)
-assert isinstance(stand.bundle(post_a)[0][1].to, WorldRead)
+assert all(isinstance(v, MateValue) for _, v in stand.bundle(post_a))
 held = stand.bundle(shelf_i)
 assert held[0][0] == mate_a
 assert [type(v) for _, v in held[1:]] == [MateValue] * 3
@@ -391,15 +393,14 @@ the document plus its mated parts' evaluations.
 
 **The constraint door is structural.** A mate whose `on` does not read
 the copy it places (`mate_not_on_the_copy`), whose two poses are of
-two kinds (`mate_kinds_differ`), whose world read's moves do not
-compose (`mate_world_read`), or whose class is outside the vocabulary
-is refused where it is added; so is a value on a freedom its mate's
-kind fixes (`mate_not_a_freedom`) or on a point mate's rotation, which
-has no chart (`mate_no_chart`), and so is a constraint any of whose
-equations the rest of its bundle already fixes, pinned or not
+two kinds (`mate_kinds_differ`), or whose class is outside the
+vocabulary is refused where it is added; so is a constraint any of
+whose equations the rest of its bundle already fixes, pinned or not
 (`mate_overconstrained`): two plane mates fix a normal twice, whatever
-their faces' angle; and so is a bundle that leaves a freedom
-unwritten (`mate_unpinned`). `Doc.set_constraints`, `Doc.place` and
+their faces' angle, and a value on a freedom the mates fix is one
+equation too many; so is a slide beside a ball and a direction, whose
+turn the solve does not choose (`mate_no_chart`); and so is a bundle
+that leaves a freedom unwritten (`mate_unpinned`). `Doc.set_constraints`, `Doc.place` and
 their `DocEdit` twins raise `EditError` with variant `mate_refused`,
 `fault` carrying the `MateFault` whole. A mate whose `to` reads a body
 outside the placement's target refuses `space_mismatch`, as does any
@@ -452,12 +453,14 @@ no single node's value is the assembly.
 import tempfile
 
 from pncad import (
+    Coord,
     Doc,
     DocRef,
     EvaluationError,
     Formula,
-    Frame,
+    MateValue,
     Node,
+    Placed,
     Workspace,
     content_pin,
     evaluate,
@@ -486,14 +489,13 @@ store.create(shelf)
 
 # The flat-pack layout: a post and the shelf beside it, nothing
 # touching. No mates between them: each instance is pinned to the
-# world by the gesture — the post at the identity, the shelf at a pose
+# world by its values — the post at the identity, the shelf slid
 # beside it — and being pinned to the world is what puts each in the
-# product. The gesture reads each copy's faces, through the store.
+# product.
 layout = Doc("bench-layout")
 post_i = layout.insert(Node.instantiate_part(DocRef(post.id, content_pin(post)), layout.world))
-layout.pin(post_i, resolver=store)
 shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf)), layout.world))
-layout.pin(shelf_i, Frame.translation((0 * m, 0.5 * m, 0 * m)), resolver=store)
+layout.set_constraints(shelf_i, Placed.unmated([MateValue(Coord.slide("y"), 0.5 * m)]))
 
 # With no resolver there is nowhere to look, and the node says so.
 # Evaluation is TOTAL — it did not raise; reading the value does.
@@ -668,11 +670,11 @@ from pncad import (
     DocRef,
     EntityKind,
     Formula,
-    Frame,
     Mate,
     MateValue,
     NamePat,
     Node,
+    Placed,
     PoseDef,
     SegPat,
     SegTag,
@@ -717,9 +719,9 @@ def rest(doc, placement, on, to, slides, class_=ContactClass.Rest):
     (node, face name) pairs."""
     mate, *_ = doc.set_constraints(placement, [
         Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), class_),
-        MateValue(0, Coord.slide("x"), slides[0] * m),
-        MateValue(0, Coord.slide("y"), slides[1] * m),
-        MateValue(0, Coord.spin(), 0),
+        MateValue(Coord.slide("x"), slides[0] * m),
+        MateValue(Coord.slide("y"), slides[1] * m),
+        MateValue(Coord.spin("z"), 0),
     ])
     return mate
 
@@ -737,7 +739,7 @@ def bench(class_=ContactClass.Rest):
     """The stand: two posts, a shelf seated on them by two mates."""
     doc = Doc("bench-stand")
     a = doc.insert(Node.instantiate_part(post_ref, doc.world))
-    doc.pin(a, Frame.translation((0 * m, INSET * m, 0 * m)), resolver=store)
+    doc.set_constraints(a, Placed.unmated([MateValue(Coord.slide("y"), INSET * m)]))
     s = doc.insert(Node.instantiate_part(shelf_ref, doc.world))
     b = doc.insert(Node.instantiate_part(post_ref, doc.world))
     ev = evaluate(doc, resolver=store)
@@ -746,7 +748,7 @@ def bench(class_=ContactClass.Rest):
     # put each post's top centre under the shelf's seat, flush with the
     # shelf's ends.
     m_a = rest(doc, s, underside, (a, instance_cap(ev, a, CapEnd.End)),
-               (0.0, HALF - SHELF_DEPTH / 2), class_)
+               (0.0, INSET + HALF - SHELF_DEPTH / 2), class_)
     m_b = rest(doc, b, (b, instance_cap(ev, b, CapEnd.End)), underside,
                (SHELF_LENGTH - 2 * HALF, HALF - SHELF_DEPTH / 2), class_)
     return doc, (a, s, b), (m_a, m_b)
@@ -826,14 +828,14 @@ from pncad import (
     NamePat,
     Node,
     OVERCONSTRAINED_RECOURSE,
+    Placed,
     PoseDef,
-    UNPINNED_RECOURSE,
     ProductError,
     SegPat,
     SegTag,
     Selector,
+    UNPINNED_RECOURSE,
     Workspace,
-    WorldRead,
     assemble,
     content_pin,
     evaluate,
@@ -881,7 +883,6 @@ def two_instances():
     doc = Doc("bench-refusals")
     a = doc.insert(Node.instantiate_part(post_ref, doc.world))
     s = doc.insert(Node.instantiate_part(shelf_ref, doc.world))
-    doc.pin(s, resolver=store)
     return doc, a, s
 
 
@@ -897,9 +898,9 @@ def post_under_shelf(doc, post_i, shelf_i, class_, values=True):
         class_,
     )]
     if values:
-        bundle += [MateValue(0, Coord.slide("x"), 0 * m),
-                   MateValue(0, Coord.slide("y"), (HALF - SHELF_DEPTH / 2) * m),
-                   MateValue(0, Coord.spin(), 0)]
+        bundle += [MateValue(Coord.slide("x"), 0 * m),
+                   MateValue(Coord.slide("y"), (HALF - SHELF_DEPTH / 2) * m),
+                   MateValue(Coord.spin("z"), 0)]
     mate, *_ = doc.set_constraints(post_i, bundle)
     return mate
 
@@ -922,32 +923,33 @@ assert (fault.placement, fault.free) == (post_i, 3)
 assert UNPINNED_RECOURSE in str(fault)
 assert doc.bundle(post_i) == held
 
-# 2. OVERCONSTRAINED. A post rests on the world's floor by its
-#    underside, and a second plane mate, a side on one of the world's
-#    walls, fixes a normal the first already fixes. The door reads the
-#    two mates' kinds, measures nothing, and refuses the bundle, naming
-#    both and ending on the recourse; the document is as it was. One
-#    mate and its values pin the post instead.
+# 2. OVERCONSTRAINED. A post rests on a base's top by its underside,
+#    and a second plane mate, a side on one of the base's sides, fixes
+#    a normal the first already fixes. The door reads the two mates'
+#    kinds, measures nothing, and refuses the bundle, naming both and
+#    ending on the recourse; the document is as it was. One mate and
+#    its values pin the post instead.
 doc = Doc("bench-overconstrained")
 post_i = doc.insert(Node.instantiate_part(post_ref, doc.world))
+base = doc.insert(Node.instantiate_part(post_ref, doc.world))
 ev = evaluate(doc, resolver=store)
 
 
-def facing(normal):
-    """The post's face whose outward normal is `normal`, as its plane."""
+def facing(node, normal):
+    """`node`'s face whose outward normal is `normal`, as its plane."""
     def outward(name):
-        pose = ev.face_frame(post_i, name)
+        pose = ev.face_frame(node, name)
         sign = 1.0 if pose.sense else -1.0
         return tuple(round(sign * c, 9) + 0.0 for c in pose.axis)
-    (name,) = [n for n in ev.all_faces(post_i) if outward(n) == normal]
-    return PoseDef.plane(post_i, name)
+    (name,) = [n for n in ev.all_faces(node) if outward(n) == normal]
+    return PoseDef.plane(node, name)
 
 
-floor = Mate(facing((0.0, 0.0, -1.0)), WorldRead.through("xy").flip(), ContactClass.Rest)
+floor = Mate(facing(post_i, (0.0, 0.0, -1.0)), PoseDef.flip(facing(base, (0.0, 0.0, 1.0))), ContactClass.Rest)
 try:
     doc.set_constraints(post_i, [
         floor,
-        Mate(facing((-1.0, 0.0, 0.0)), WorldRead.through("yz").flip(), ContactClass.Rest),
+        Mate(facing(post_i, (-1.0, 0.0, 0.0)), PoseDef.flip(facing(base, (1.0, 0.0, 0.0))), ContactClass.Rest),
     ])
     raise AssertionError("expected a typed refusal")
 except EditError as refusal:
@@ -956,10 +958,10 @@ assert fault.variant == "mate_overconstrained"
 assert fault.placement == post_i
 assert len(fault.constraints) == 2 and fault.free == 1
 assert OVERCONSTRAINED_RECOURSE in str(fault)
-# The repair the recourse names: the floor mate's three freedoms set,
-# the post stands where it is drawn, pinned.
-doc.set_constraints(post_i, [floor] + [MateValue(0, coord, 0) for coord in (
-    Coord.slide("x"), Coord.slide("y"), Coord.spin())])
+# The repair the recourse names: the floor mate alone, its three
+# freedoms written zero by the one constructor — the post stands on the
+# base, pinned.
+doc.set_constraints(post_i, Placed.of(doc, [floor], []))
 assert solve_document(doc, resolver=store).fault(post_i) is None
 
 # 3. A CLASS THE GATE CANNOT MINT. `Tangent` solves and mints nothing
@@ -1054,8 +1056,14 @@ spelled differently on purpose.
 `split(doc, cut, part_id, resolver=)` cuts a closed node set out into
 a new document and leaves **one instance** of it behind, standing where
 the part's world stands by the identity bundle, which reads nothing. `inline(doc,
-instance, resolver)` is its inverse: splice the referenced document's
-nodes back in.
+instance, resolver)` is its inverse, by one rule: the referenced
+document's recipe is copied verbatim into a new space
+(`Doc.new_space()`, the outcome's `space`), and a placement of what the
+part's world placed stands where the instance stood, under the
+instance's own bundle (the outcome's `placement`) — so nothing moves,
+and a variable that bundle reads keeps driving it. `flatten(doc,
+placement)` folds such a placement away where its bundle is the
+identity, putting what its space holds in its target.
 
 Both are **pure**. They hand back the new document *values* plus the
 ordinary recorded edits that produce them, and mutate nothing — which
@@ -1072,16 +1080,19 @@ refuses `part_pin_mismatch` rather than splicing the version on disk.
 import tempfile
 
 from pncad import (
+    Coord,
     Doc,
     DocRef,
     Formula,
-    Frame,
     InlineError,
+    MateValue,
     Node,
+    Placed,
     SplitError,
     Workspace,
     content_pin,
     evaluate,
+    flatten,
     inline,
     m,
     product,
@@ -1107,9 +1118,8 @@ store.create(shelf)
 
 layout = Doc("bench-layout")
 post_i = layout.insert(Node.instantiate_part(DocRef(post.id, content_pin(post)), layout.world))
-layout.pin(post_i, resolver=store)
 shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf)), layout.world))
-layout.pin(shelf_i, Frame.translation((0 * m, 0.5 * m, 0 * m)), resolver=store)
+layout.set_constraints(shelf_i, Placed.unmated([MateValue(Coord.slide("y"), 0.5 * m)]))
 
 
 def volume(doc):
@@ -1143,10 +1153,15 @@ assert outcome.remainder.interface(outcome.instance).crossings == []
 store.create(outcome.part)
 assert volume(outcome.remainder) == before
 
-# ...and inlining it back returns the material exactly.
+# ...and inlining it back returns the material exactly: the part's
+# recipe in a space of its own, placed where the instance stood. Its
+# bundle is the identity, so flatten folds that placement away.
 spliced = inline(outcome.remainder, outcome.instance, store)
 assert volume(spliced.doc) == before
 assert len(spliced.edits) > 0
+assert spliced.doc.space(spliced.placement) == spliced.doc.output(spliced.doc.world)
+flat = flatten(spliced.doc, spliced.placement)
+assert volume(flat.doc) == before
 
 # The refusals name what they refused.
 try:
@@ -1289,10 +1304,11 @@ along the face's reference is written along y.
 
 **A bundle's mates read its placement's target.** A mate whose `to`
 reads a body of another space refuses `space_mismatch` at the door,
-naming both spaces; a world read reads the world, so it is a mate of a
-placement into the world. And the solve reads a face only of an instance, or of a pattern's copy of one:
-a face side on a copy `Doc.place` made of a body refuses typed, while
-a world mate works on any placement.
+naming both spaces. No space has roles a mate can read: a copy placed
+in the world by numbers alone is placed by values on the world's axes,
+which work on any placement. And the solve reads a face only of an
+instance, or of a pattern's copy of one: a face side on a copy
+`Doc.place` made of a body refuses typed.
 
 **Only a placement places.** The product is the copies the
 document's placements place into the world — each instance placed

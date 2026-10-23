@@ -72,6 +72,8 @@ from pncad import (
     product,
     rad,
 )
+
+from placing import against, placed
 from test_assembly_eval import opened
 
 RUNGS = ("validate", "validate_closed", "validate_geometric", "validate_pseudomanifold")
@@ -127,7 +129,7 @@ def place_resting(doc, lower, upper):
     """Both slabs of `two_slabs_resting` placed in the world, the upper
     resting on the lower."""
     doc.place(lower, doc.world)
-    doc.place(upper, doc.world, pose=lift(RISE))
+    placed(doc, upper, lift(RISE))
 
 
 class TestTheFourthRungIsTheStrictest(unittest.TestCase):
@@ -183,7 +185,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         doc = Doc()
         base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), 1 * m)
         post = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), 1.5 * m)
-        post = doc.place_against(base, post, lift(0.5 * m))
+        post = against(doc, base, post, lift(0.5 * m))
         fused = doc.insert(Node.union([base, post]))
         evaluate(doc).value(fused).body().validate_pseudomanifold()
 
@@ -196,7 +198,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         it demonstrates the capture.
         """
         doc, lower, upper = two_slabs_resting()
-        upper = doc.place_against(lower, upper, lift(RISE))
+        upper = against(doc, lower, upper, lift(RISE))
         glued = doc.insert(Node.union([lower, upper]))
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()
@@ -447,7 +449,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), 1 * m)
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 0.5 * m)
         doc.place(seat, doc.world)
-        doc.place(post, doc.world, pose=lift(1 * m))
+        placed(doc, post, lift(1 * m))
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -519,7 +521,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), 1 * m)
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 0.5 * m)
         doc.place(seat, doc.world)
-        doc.place(post, doc.world, pose=lift(1 * m))
+        placed(doc, post, lift(1 * m))
         with self.assertRaises(ValidationError) as caught:
             product(doc, evaluate(doc)).validate_pseudomanifold()
         reached = {f.variant for f in caught.exception.findings}

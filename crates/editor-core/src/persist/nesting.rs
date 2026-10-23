@@ -62,10 +62,12 @@ use crate::expr::{DimensionError, MAX_NESTING};
 /// The most JSON brackets that enclose an expression's root anywhere a
 /// save writes one, a measurement's root counting as one of those that
 /// enclose the expression its value leaf holds. The deepest is a
-/// spin's angle at the bottom of a mate's world read nested
-/// [`crate::MAX_WORLD_READ_DEPTH`] deep, in the edit log: a world read is
-/// written inside its mate, the mate inside the bundle a
-/// `SetConstraints` writes whole, and the edit door bounds its depth.
+/// spin's angle at the bottom of a pose chain written inline in a
+/// mate's `to`, in the edit log: six slides over a spin, flipped,
+/// inside its mate, the mate inside the bundle a placement's insert
+/// writes whole. No door bounds a pose chain's depth, so a chain
+/// written deeper than this saves an edit log the load door refuses
+/// (`work/issues/a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load.md`).
 ///
 /// Not a hand count: `expr_nesting_bound`'s
 /// `the_load_doors_limit_is_the_deepest_body_a_save_writes` finds every
@@ -73,7 +75,7 @@ use crate::expr::{DimensionError, MAX_NESTING};
 /// edit kind), saved both ways, by its wire shape, and fails when the
 /// deepest disagrees with [`BODY_NESTING`]; its at-bound row saves an
 /// expression at the bound in that position and loads it back.
-pub(crate) const ENVELOPE: usize = 35;
+pub(crate) const ENVELOPE: usize = 34;
 
 /// JSON levels per level of a value that bounds its nesting, at most,
 /// for both values that do. An expression: a binary operator is a tag
