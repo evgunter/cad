@@ -255,6 +255,9 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         doc = placed.doc;
         placed.placement
     };
+    // A copy carries its hole's names as they are, so the names a cut
+    // carries in are the holes' own, minted at their extrudes.
+    let (minted_a, minted_b) = (hole_a, hole_b);
     let (hole_a, hole_b) = (on_blank(hole_a), on_blank(hole_b));
 
     // The holes run the plate's full depth, so each hole's caps lie
@@ -285,8 +288,8 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         (
             part,
             [
-                (part, from(from(face().node(hole_a)))),
-                (part, from(face().node(hole_b))),
+                (part, from(from(face().node(minted_a)))),
+                (part, from(face().node(minted_b))),
             ],
         )
     } else {

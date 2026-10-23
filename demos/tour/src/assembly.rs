@@ -104,9 +104,8 @@ use pncad::document::coincidence::Relation;
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
     Assembly, AssemblyError, BodyRead, CancelToken, CheckEvidence, CheckId, ChecksConfig,
-    Constraint, Coord,
-    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal,
+    Constraint, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula,
+    Frame, FreeValue, FreeVar, InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal,
     NO_AT_REST_RECORD_RECOURSE, Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect,
     PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis,
     UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble, content_pin, evaluate,
