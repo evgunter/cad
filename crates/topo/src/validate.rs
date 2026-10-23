@@ -9509,8 +9509,8 @@ pub fn validate_pseudomanifold<
 /// it confirms no face pair, so the planar face-pair arm finds none and
 /// every meeting of the cells bounding a seat is read and reported as
 /// [`ValidationError::UnrecordedContact`] where [`validate_pseudomanifold`]
-/// confirms the seat's pair and asks nothing of them, with the
-/// declaration in hand. The declaration is not found wrong; it is not
+/// confirms the seat's pair and lets it answer for those inside its
+/// overlap's closure, with the declaration in hand. The declaration is not found wrong; it is not
 /// read.
 ///
 /// # Errors

@@ -983,9 +983,10 @@ event to vertex-vertex before records exist; at rest nothing refines. So
 `sweep_vertex_edge`, the asymmetric arm of `ee_bound_backed` and the
 edge-on-face bounds read two backings: the event's own `(vertex, edge)`
 record (a vertex–edge pair, which a join writes from the v-v record whose
-vertex it joined away), and `Declared::ve_face_backed`, a confirmed face
-pair that holds the vertex on one boundary and names a face the edge
-bounds. With neither, the event is a defect
+vertex it joined away), and a confirmed face pair that holds the vertex
+on one boundary, names a face the edge bounds, and holds the touch in
+the closure of its overlap (`Declared::holds`). With neither, the event
+is a defect
 (`CensusContact::VertexOnEdge` as `UnrecordedContact`). Both are written
 before the census runs, never read off the geometry's agreement with
 itself.
@@ -1029,11 +1030,11 @@ all of:
   both edges lie in both carriers (`pair_holds_point`,
   `pair_holds_edges`);
 - the side test answers `OppositeSides`;
-- the pair verifies through both doors in either frame order
-  (`pair_region_verified`).
+- the pair is confirmed, and the crossing lies in the closure of its
+  overlap (`in_overlap_closure`).
 
-Confinement is by carrier, not incidence: nothing requires the crossing
-edges to bound the declared faces.
+The pair is found by carrier, not incidence: nothing requires the
+crossing edges to bound the declared faces.
 
 **Three-valued side verdict** (`CrossingSideVerdict`). `OppositeSides`
 backs. `SameSide` refuses, naming the verdict in the refusal's typed
@@ -1048,19 +1049,26 @@ of an edge lying in a face of its own solid (`edge_in_own_face`), and
 arm 2's touches between two solids (`TouchSite::verdict`). Every other
 use of a face's normal in the coincidence sweeps is sense-invariant.
 
-**Confirmed pairs.** Every face-pair rung (`vv_face_backed`,
-`vf_face_backed`, `ve_face_backed`, `sides_face_backed`, and the
-face-pair arms of `ee_bound_backed` and `ef_bound_backed`) reads the
-confirmed pairs: each face–face record that passes Door 1 and reaches
-`PositiveArea` at Door 2 (`pair_verified`), or that the confirm pass's
-own reading confirms (a point touch, or the tangent line two carriers
-derive), and each planar pair of two
-solids the census finds meeting over an area (`planar_face_pairs`),
-recorded or not. A confirmed pair is decided once, and the census asks
-nothing of a cell bounding one of its faces against a cell bounding the
-other: each lane reads the rung before the event's own margin, so an
-in-band event there does not escalate. A record whose pair does not
-confirm answers for nothing. The crossing rung's side test reads the
+**Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
+vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,
+`Declared::holds` in the face-pair arms of `ee_bound_backed` and
+`ef_bound_backed`, and the crossing rung) reads the confirmed pairs:
+each face–face record that passes Door 1 and reaches `PositiveArea` at
+Door 2 (`pair_verified`), or that the confirm pass's own reading
+confirms (a point touch, or the tangent line two carriers derive), and
+each planar pair of two solids the census finds meeting over an area
+(`planar_face_pairs`), recorded or not. A confirmed pair is decided
+once, and a touch of a cell bounding one of its faces against a cell
+bounding the other is part of it where the touch lies in the closure of
+their overlap (`in_overlap_closure`): over an area, the faces' cones at
+the touch share material; along a tangent line, the line runs from the
+touch into both faces; at a point, the touch is at it. There the pair
+answers for the touch, an in-band reading included; elsewhere the touch
+is decided as a pair of its own, and a place the census cannot read is a
+`CensusUndecidable` naming the two cells. A vertex inside the other face
+of a pair meeting over an area, and an edge's run through it, lie in the
+closure by incidence (`vf_face_backed`, `pair_edge_face`). A record
+whose pair does not confirm answers for nothing. The crossing rung's side test reads the
 recorded pairs as well as the confirmed ones, so a declared pair holding
 a crossing with the materials on one side names `SameSide`; it backs only
 through a confirmed pair.

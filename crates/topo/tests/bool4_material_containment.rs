@@ -249,8 +249,8 @@ fn the_declared_l_bracket_certifies() {
 }
 
 /// Undeclared, the L-bracket refuses on its one touch finding — the
-/// part's side lying on the wall, one face pair, whose resting corners
-/// and edges the census asks nothing of — and on NOTHING about
+/// part's side lying on the wall, one face pair, which answers for its
+/// resting corners and edges — and on NOTHING about
 /// placement: a confirmed pair is a rest, so the clear stands beside it.
 #[test]
 fn the_undeclared_l_bracket_carries_no_placement_finding() {

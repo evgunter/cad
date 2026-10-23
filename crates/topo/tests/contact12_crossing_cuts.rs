@@ -58,8 +58,8 @@ fn overlaps_on(errors: &[ValidationError], face: FaceKey) -> Vec<String> {
         .collect()
 }
 
-/// Bare, the certified census records the seat as one face pair and
-/// asks nothing of its boundary. Read where no pair can be confirmed
+/// Bare, the certified census records the seat as one face pair, which
+/// answers for its boundary's touches. Read where no pair can be confirmed
 /// (the structural twin holds no region door), the seat reports each
 /// resting stretch at a point inside the face it rests in: the shelf edge on the cap between the cap's two
 /// sides (`x = 0.2`), the cap's lower edge on the underside, and each

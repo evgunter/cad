@@ -116,8 +116,9 @@ fn refused(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
 }
 
 /// A block lying flat on the bracket, read twice. The certified census
-/// records each area contact as one face pair and asks nothing of its
-/// boundary cells, and a confirmed pair is a rest, so the pair clears.
+/// records each area contact as one face pair, which answers for its
+/// boundary cells' touches inside its overlap's closure, and a confirmed
+/// pair is a rest, so the pair clears.
 /// The structural twin holds no region door, so it confirms no pair and
 /// reads every touch on the pair's boundary through the touch analysis,
 /// which is what these rows are about: those findings come back.

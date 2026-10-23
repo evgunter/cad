@@ -57,7 +57,7 @@ form, and every overlap is a defect. At a point it is not.
    face are a boundary crossing other arms may catch (unmeasured).
 
 The same question stands for a vertex on an edge's interior (pass 2,
-`ve_face_backed`) and two vertices of one solid on one point key
+its face rung, `Declared::confine`) and two vertices of one solid on one point key
 (pass 1).
 
 ## A missing cross-solid finding beside it

@@ -107,8 +107,9 @@ fn errors(body: &Body<f64>, recs: &ContactRecords, tol: Tol) -> Vec<ValidationEr
 
 /// [`errors`] where no face pair can be confirmed (the structural twin,
 /// which holds no region door): the sweeps read every meeting on the
-/// seat's boundary, which the certified census asks nothing of once it
-/// confirms the seat's pair, so the rows about the edge-on-face bound
+/// seat's boundary, which the certified census lets the seat's confirmed
+/// pair answer for inside its overlap's closure, so the rows about the
+/// edge-on-face bound
 /// read them here.
 fn structural(body: &Body<f64>, recs: &ContactRecords, tol: Tol) -> Vec<ValidationError> {
     match topo::validate_pseudomanifold_structural(body, recs, tol) {

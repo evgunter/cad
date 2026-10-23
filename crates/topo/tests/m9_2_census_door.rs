@@ -112,8 +112,8 @@ fn stacked() -> (Body<f64>, ContactRecords) {
 }
 
 /// The face–face record of two unit cubes stacked at z = 1, in `body`'s
-/// arena: A's top on B's bottom, the area contact's one pair, which the
-/// census asks nothing of the corners and rim edges bounding.
+/// arena: A's top on B's bottom, the area contact's one pair, which
+/// answers for the touches of the corners and rim edges bounding it.
 pub(crate) fn interface_record(body: &Body<f64>) -> topo::Cited<topo::Contact> {
     let mut faces: Vec<_> = body
         .faces()

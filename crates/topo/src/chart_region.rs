@@ -830,14 +830,11 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
 ) -> Result<ChartOverlap, ChartRegionError> {
     let divergence = match declared_chart(body_a, face_a, body_b, face_b) {
         Ok(surface) => {
-            return overlap_on(
-                body_a,
-                face_a,
-                body_b,
-                face_b,
-                &surface,
-                ChartRead::Minted,
-                band,
+            let uv_a = extract_face_uv(body_a, face_a, &surface, ChartRead::Minted, band)?;
+            let uv_b = extract_face_uv(body_b, face_b, &surface, ChartRead::Minted, band)?;
+            let read = overlap_of_uv(body_a, face_a, body_b, face_b, &surface, &uv_a, &uv_b, band);
+            return rescued(
+                read, body_a, face_a, body_b, face_b, &surface, &uv_a, &uv_b, door_one, band,
             );
         }
         Err(divergence) => divergence,
@@ -856,20 +853,43 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     carrier_agreement(body_a, face_a, body_b, face_b, band)?;
     let uv_a = extract_face_uv(body_a, face_a, &carrier, ChartRead::WorldCarrier, band)?;
     let uv_b = extract_face_uv(body_b, face_b, &carrier, ChartRead::WorldCarrier, band)?;
-    match overlap_of_uv(body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, band) {
-        // INVARIANT: a shared trim boundary is what a FLUSH seat is
-        // made of, and it is not by itself an undecidable area. The
-        // region walk cannot build intersection pieces across a
-        // collinear boundary overlap and refuses honestly, and a
-        // boundary in band of the other's (a NEAR-flush seat) escalates
-        // there; a point certified strictly interior to BOTH trims
-        // proves the intersection contains a disc of definitely-positive
-        // radius, which IS the positive claim. The rung only ever turns a
-        // REFUSAL into a proof — it can neither contradict a decided
-        // answer nor manufacture an `Empty`.
+    let read = overlap_of_uv(body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, band);
+    rescued(
+        read, body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, door_one, band,
+    )
+}
+
+/// The region walk's `read` of a declared pair, with the interior-witness
+/// rung run on its refusal ([`interior_witness`]), on whichever chart the
+/// pair was read in.
+///
+/// INVARIANT: a shared trim boundary is what a FLUSH seat is made of,
+/// and it is not by itself an undecidable area. The region walk cannot
+/// build intersection pieces across a collinear boundary overlap and
+/// refuses honestly, and a boundary in band of the other's (a NEAR-flush
+/// seat) escalates there; a point certified strictly interior to BOTH
+/// trims proves the intersection contains a disc of definitely-positive
+/// radius, which IS the positive claim. The rung only ever turns a
+/// REFUSAL into a proof — it can neither contradict a decided answer nor
+/// manufacture an `Empty`: its decline carries the walk's refusal, which
+/// no reader takes for an empty overlap.
+#[allow(clippy::too_many_arguments)] // the rung's whole state, no less
+fn rescued<T: Decide + Bounds>(
+    read: Result<ChartOverlap, ChartRegionError>,
+    body_a: &Body<T>,
+    face_a: FaceKey,
+    body_b: &Body<T>,
+    face_b: FaceKey,
+    carrier: &Surface<T>,
+    uv_a: &FaceUv<T>,
+    uv_b: &FaceUv<T>,
+    door_one: crate::contact::ContactVerdict,
+    band: Band,
+) -> Result<ChartOverlap, ChartRegionError> {
+    match read {
         Err(refusal @ (ChartRegionError::TouchingBoundary | ChartRegionError::Escalated(_))) => {
             match interior_witness(
-                body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, door_one, band,
+                body_a, face_a, body_b, face_b, carrier, uv_a, uv_b, door_one, band,
             ) {
                 WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
                 // The rung's schedule stopped short. That is a fact about

@@ -96,7 +96,8 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
 /// holds no region door, so no pair is confirmed and every crossing on
 /// a seat's boundary is read through the crossing rung's screens, which
 /// the certified census does not reach once it confirms the seat's own
-/// pair and asks nothing of its boundary (`[assertions]`).
+/// pair, which answers for the touches of its boundary inside its
+/// overlap's closure (`[assertions]`).
 fn structural(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     match topo::validate_pseudomanifold_structural(body, records, Tol::witness()) {
         Ok(()) => Vec::new(),
@@ -216,7 +217,8 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
 /// answering — but whose interface does not hold the crossing points
 /// changes nothing about them. The crossings lie on the boundary of the
 /// seat's own pair, cap on underside, which the census confirms whether
-/// or not it is recorded and asks nothing of, so they are no finding
+/// or not it is recorded and which answers for them, inside its
+/// overlap's closure, so they are no finding
 /// either way; the seat's pair is the one finding, unrecorded. The
 /// rung's own confinement against a confirmed pair elsewhere is
 /// `census::tests::a_confirmed_pair_elsewhere_backs_no_crossing`.
@@ -345,7 +347,7 @@ fn a_perpendicular_pair_holding_the_point_names_nothing() {
 /// the events on the boundary segment the two share stand as they do
 /// with nothing declared. (The crossing it corner-touches lies on the
 /// boundary of the post's own seat under the shelf, which the census
-/// confirms and asks nothing of.)
+/// confirms and which answers for it, inside its overlap's closure.)
 ///
 /// GUARD CONTRACT: this row goes red under the mutation
 /// `pair_region_verified(..) → true` — the verified-interface

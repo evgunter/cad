@@ -283,7 +283,7 @@ fn outward(body: &Body<f64>, face: topo::FaceKey) -> geom_core::Vec3<f64> {
 /// (`[assertions]`). A block seated on a bigger block, flush with it on
 /// one, two and three sides: the census records the seat as ONE
 /// face-pair row (the block's bottom and the base's top, one carrier,
-/// opposed) and one record citing it, and asks nothing of the edges and
+/// opposed) and one record citing it, which answers for the edges and
 /// vertices bounding them; each flush side is one row of two faces on
 /// one carrier facing the same way, which no record cites. Red if the
 /// seat is recorded as its edge and vertex events, if a flush side is
@@ -397,8 +397,8 @@ fn coplanar_faces_meeting_only_along_a_line_are_no_face_pair() {
 /// **A near-flush side: the seat is one face pair, and the side's own
 /// pair is the flush door's finding.** A block on the base, its x = 0
 /// side standing off the base's by a distance inside the band. The seat
-/// is confirmed, one face pair, and the census asks nothing of the cells
-/// bounding it: the bottom edge along x = off, in band of the base's top
+/// is confirmed, one face pair, which answers for the cells bounding it:
+/// the bottom edge along x = off, in band of the base's top
 /// edge, no longer escalates. The x = 0 side's carrier reads in band, so
 /// it is no flush row, and the flush door's finding names that pair.
 ///

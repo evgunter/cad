@@ -33,13 +33,12 @@ decidedly cross refuses as `MixedTouch`. Two kinds of meeting are still
 taken on the records' word:
 
 - a declared touch the analysis cannot read, such as a curved corner;
-- the vertex events and collinear edge overlaps a declared face pair
-  backs by structural incidence (`Declared::vv_face_backed`,
-  `vf_face_backed`, `ve_face_backed`, `ee_face_backed`,
-  `ee_bound_backed`'s face-pair arms), and the edge-on-face bounds `ef_bound_backed`'s face-pair arms back where the
-  pair verifies (`Declared::vf_face_backed_confined`, PR 4559): confined
-  to where the pair verifies (the closed intersection of its regions),
-  but still on its word.
+- the vertex events, collinear edge overlaps and edge-on-face bounds a
+  confirmed face pair answers for (`census.rs` `Declared::confine` and
+  `Declared::holds`, PR 5605): confined to where the touch lies in the
+  closure of the pair's overlap (`in_overlap_closure`), but still on the
+  pair's word. The touch analysis (`TouchSite::verdict`) does not read
+  them.
 
 An overlap those meetings hide with no vertex strictly inside therefore
 clears. No such pose has been built. The half-overlap shape cannot be

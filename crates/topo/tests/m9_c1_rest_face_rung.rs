@@ -6,8 +6,8 @@
 //! but at rest nothing refines, so they arrive raw at the certifier.
 //! The declared FACE pair the seat's mate mints is what backs them:
 //! the rung holds the vertex on one side of the interface and the edge
-//! on the other, exactly as `vv_face_backed` holds a coincident vertex
-//! pair (census module docs, D3/D4).
+//! on the other, inside the closure of the pair's overlap, exactly as it
+//! holds a coincident vertex pair there (census module docs, D3/D4).
 //!
 //! The rows here pin both directions of that, plus the rung's
 //! STRENGTH: a pair answers only once both doors confirm it, so an
@@ -210,8 +210,8 @@ fn the_inset_seat_certifies_too() {
 /// DECLARATIONS, never the geometry's agreement with itself. The SAME
 /// configuration with nothing declared is the hard error: the seat is
 /// one area contact, the cap on the underside, so it is one face-pair
-/// finding, and the census asks nothing of the corners and edges
-/// bounding it (`[assertions]`).
+/// finding, and it answers for the touches of the corners and edges
+/// bounding it, all in its overlap's closure (`[assertions]`).
 #[test]
 fn the_same_flush_seat_undeclared_is_the_hard_error() {
     let (body, post_top, shelf_bottom) = flush_seat();

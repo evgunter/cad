@@ -102,7 +102,8 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
 /// holds no region door, so no pair is confirmed and every crossing on
 /// a seat's boundary is read through the crossing rung's screens, which
 /// the certified census does not reach once it confirms the seat's own
-/// pair and asks nothing of its boundary (`[assertions]`).
+/// pair, which answers for the touches of its boundary inside its
+/// overlap's closure (`[assertions]`).
 fn structural(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     match topo::validate_pseudomanifold_structural(body, records, Tol::witness()) {
         Ok(()) => Vec::new(),
