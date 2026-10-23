@@ -2942,9 +2942,8 @@ impl DocSession {
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
         // document like any other.
-        let (opts, tol) = (self.eval_options(), self.tol);
         let staged = self.stage_run(|run| {
-            let operands = in_one_space(run, &spec.operands(), &opts, tol)?;
+            let operands = in_one_space(run, &spec.operands())?;
             let node = run.insert(spec.with_operands(operands).node())?;
             combine_in_world(run, &spec.operands(), node)?;
             Ok(node)
@@ -3712,18 +3711,16 @@ fn body_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Operand {
 /// axes.
 ///
 /// A construction is placed into the first's space and read through
-/// that placement. A copy placed into its own body's space (the
-/// transform gesture's) is placed again in place: re-targeted into the
-/// first's space, with values on its axes standing it at the pose it
-/// held in its body's own coordinates ([`moves_of`]), so it reads where
-/// it stood relative to its body. An operand in no space, or one whose
-/// pose does not solve, is read as it is: the combine then refuses
+/// that placement. A copy placed into its own body's space by values
+/// alone (the transform gesture's) is re-targeted into the first's
+/// space with its values as written, so it stands on the first's axes
+/// as it stood on its body's and every variable keeps driving it. An
+/// operand in no space, or a copy whose bundle holds a mate (which
+/// reads its body's space), is read as it is: the combine then refuses
 /// `SpaceMismatch` at the edit door, in the kernel's words.
 fn in_one_space(
     run: &mut Recording<'_, ProfileProgram>,
     operands: &[Operand],
-    opts: &EvalOptions,
-    tol: Tol,
 ) -> Result<Vec<Operand>, EditError> {
     let Some((first, rest)) = operands.split_first() else {
         return Ok(Vec::new());
@@ -3731,7 +3728,6 @@ fn in_one_space(
     let Some(home) = run.doc().operand_space(first) else {
         return Ok(operands.to_vec());
     };
-    let poses = pncad::document::solve_document(run.doc(), opts, tol);
     let node_of = |doc: &Doc<ProfileProgram>, read: &Operand| {
         crate::world::read_output(doc, read).map(|(node, _)| node)
     };
@@ -3745,54 +3741,32 @@ fn in_one_space(
             read.push(operand.clone());
             continue;
         }
-        // A copy placed into its own body's space: re-placed in place,
-        // at the pose it holds in that space.
+        // A copy placed into its own body's space.
         let self_placed = match run.doc().node(node) {
             Some(Node::Place { shapes, .. }) => match shapes.as_slice() {
-                [shape] => {
-                    let body = Operand::Var(shape.read);
-                    (run.doc().space_of(shape.read) == run.doc().node_space(node)).then_some(body)
-                }
-                _ => None,
+                [shape] => run.doc().space_of(shape.read) == run.doc().node_space(node),
+                _ => false,
             },
-            _ => None,
+            _ => false,
         };
-        // A body never placed stands where it stands (the identity
-        // bundle); a copy re-placed keeps the pose it holds.
-        let (body, placed, replaced) = match self_placed {
-            Some(body) => match poses.relative(node) {
-                Some(at) => (body, pncad::document::Placed::unmated(moves_of(&at)), true),
-                None => {
-                    read.push(operand.clone());
-                    continue;
-                }
-            },
-            None => (operand.clone(), pncad::document::stand(), false),
-        };
-        if replaced {
-            if run.doc().node_space(node) != Some(home) {
-                // The identity first, which reads nothing: a mate of
-                // the copy's own reads its body's space, which the
-                // re-target leaves.
-                run.apply(DocEdit::SetConstraints {
-                    placement: node,
-                    constraints: editor_core::stand().bundle(),
-                    fresh: Vec::new(),
-                })?;
-                run.apply(DocEdit::SetParam {
-                    node,
-                    slot: SlotId::Operand(pncad::document::OperandSlot::Space),
-                    value: pncad::document::SlotValue::Read(Operand::Var(home)),
-                    fresh: Vec::new(),
-                })?;
+        if self_placed {
+            if held_bundle(run.doc(), node).iter().any(|c| c.mate().is_some()) {
+                read.push(operand.clone());
+                continue;
             }
-            write_bundle(run, node, placed.bundle())?;
+            run.apply(DocEdit::SetParam {
+                node,
+                slot: SlotId::Operand(pncad::document::OperandSlot::Space),
+                value: pncad::document::SlotValue::Read(Operand::Var(home)),
+                fresh: Vec::new(),
+            })?;
             read.push(operand.clone());
         } else {
+            // A body never placed stands where it stands.
             let placement = run.insert(Node::place(
-                vec![pncad::document::BodyRead::plain(body)],
+                vec![pncad::document::BodyRead::plain(operand.clone())],
                 Operand::Var(home),
-                placed.bundle(),
+                pncad::document::stand().bundle(),
             ))?;
             read.push(placement.into());
         }
