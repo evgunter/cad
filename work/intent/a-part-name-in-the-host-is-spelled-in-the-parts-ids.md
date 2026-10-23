@@ -42,3 +42,17 @@ carries for mates), and the host doors check the site, never
 `name.node`; or the copy re-keys its part's names into the host (a
 `From { read }`-style segment, which the spec retired as `InPart`).
 The spec does not settle it.
+
+**A coverage cost, measured.** `refactor::split` skips a crossing
+whose outer side is a part's name read in a kept instance's copy
+(`crates/editor-core/src/refactor.rs`, the interface record's
+`outer.name.node != outer.at` arm). Every block in
+`crates/editor-core/tests/rev_fix_xsplit_unreachable.rs` is an
+instance, so both its exhaustive sweeps now mint no crossing at all
+(`shapes`: 9 accepted cuts, 6 straddling, 0 crossings; `foreign`: 6, 2,
+0). The rows still check that split and the member walk agree, with
+the skip mirrored, but AQ8's positive side (a welding constraint
+that crosses is recorded) has no exhaustive row until this is
+settled. The foreign-master adversary is also gone as written:
+`in_part(c, …)` and `in_part(a, …)` spell one block part's ids, so
+the head resolves to `a`'s member.

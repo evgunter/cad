@@ -152,19 +152,28 @@ fn sweep_every_cut((doc, o): &(ProfileDoc, EvalOptions), label: &str) -> Sweep {
                 // A name an instance's copy carries is spelled in its
                 // part's ids, which no cut of this document holds: it
                 // is inside where the node it is read at is.
-                let inside = |(at, n): &(RecipeNodeId, StableName)| {
-                    let nodes = derivation_nodes(n);
-                    if nodes.iter().all(|&id| doc.node(id).is_some()) {
-                        nodes.is_subset(&cut)
+                let foreign = |(_, n): &(RecipeNodeId, StableName)| {
+                    derivation_nodes(n).iter().any(|&id| doc.node(id).is_none())
+                };
+                let inside = |side: &(RecipeNodeId, StableName)| {
+                    if foreign(side) {
+                        cut.contains(&side.0)
                     } else {
-                        cut.contains(at)
+                        derivation_nodes(&side.1).is_subset(&cut)
                     }
                 };
-                if inside(&on) != inside(&to) {
-                    seen.straddling_mates += 1;
-                    if edge_count(MateRef::new(placement, c.id)) == 2 {
-                        welding += 1;
-                    }
+                let outer = match (inside(&on), inside(&to)) {
+                    (false, true) => &on,
+                    (true, false) => &to,
+                    _ => continue,
+                };
+                seen.straddling_mates += 1;
+                // A crossing whose outer side is a part's name, read in a
+                // kept instance's copy, has no spelling a record can hold
+                // (issue `a-part-name-in-the-host-is-spelled-in-the-parts-ids`):
+                // it welds two members and goes unrecorded.
+                if edge_count(MateRef::new(placement, c.id)) == 2 && !foreign(outer) {
+                    welding += 1;
                 }
             }
         }
@@ -242,11 +251,13 @@ fn three_shapes() -> (ProfileDoc, EvalOptions) {
 }
 
 /// The adversary the four-cut sample cannot reach: a pattern-placed
-/// head whose MASTER names a FOREIGN instance. Its member is the
-/// pattern's INPUT (`a`), but its derivation set is `{pattern, c}` —
-/// so "the name is inside the cut" and "the member is inside the cut"
-/// are computed from different nodes, and this is where they could
-/// diverge.
+/// head whose MASTER was read in a FOREIGN instance. An instance's copy
+/// carries its part's names verbatim (D′3), and `c` is an instance of
+/// the same block part as `a`, so the master is spelled in that part's
+/// ids, as `a`'s is: the head resolves to the pattern's INPUT's member
+/// (`a`) and welds `a` to `d`. Its outer side, `d`'s face, is a part's
+/// name read in a kept instance's copy, which no crossing can record
+/// yet, so nothing crosses.
 fn foreign_master() -> (ProfileDoc, EvalOptions) {
     let o = blocks_reach(&["rev-xs-f-a", "rev-xs-f-c", "rev-xs-f-d"]);
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-foreign"), Tol::witness());
@@ -262,9 +273,8 @@ fn foreign_master() -> (ProfileDoc, EvalOptions) {
     let (doc, c, c_body) = pinned_block(doc, "rev-xs-f-c");
     let (d_ref, d_body) = block_ref("rev-xs-f-d");
     let (doc, d) = insert(doc, fixture::mated_instance(d_ref));
-    // The head resolves to no member (the walk reaches `a` under a
-    // name whose master is `c`); the door is structural, so it is
-    // admitted as written.
+    // The master is read in `c`, and spelled in the block part's ids;
+    // the door is structural, so it is admitted as written.
     let (doc, _) = seat(
         doc,
         d,
@@ -293,16 +303,17 @@ fn every_cut_mints_exactly_its_straddling_member_edges() {
     );
 }
 
-/// INVARIANT: the same, for the head whose derivation set and whose
-/// MEMBER are different nodes. The D-2 closure rule ties the pattern
-/// to its input, which is what keeps the two in step.
+/// INVARIANT: the same, for a head whose master was read in a foreign
+/// instance. The D-2 closure rule ties the pattern to its input, which
+/// is what keeps "the name is inside the cut" and "the member is inside
+/// the cut" in step.
 #[test]
 fn a_pattern_head_whose_master_names_a_foreign_instance_still_cannot_cross() {
     let seen = sweep_every_cut(&foreign_master(), "foreign");
     assert!(seen.accepted > 0, "the sweep accepted nothing: vacuous");
     assert_eq!(
         seen.crossings, 0,
-        "the dangling head welds nothing, so nothing crosses"
+        "the outer side is a part's name in a kept instance's copy, so nothing crosses"
     );
     eprintln!(
         "foreign: {} accepted, {} refused, {} straddling remainder constraints, {} crossings",
