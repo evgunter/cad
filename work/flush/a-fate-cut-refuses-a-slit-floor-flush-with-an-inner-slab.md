@@ -52,3 +52,33 @@ refusals predate PR 5505, at `df1ed8d476`:
   dropped face";
 - `x ∪ y` refuses "a fate cut's end lies in no corner of the dropped
   face".
+
+## Evidence (CLEAVE, `cleave/fate-cut-ends-at-a-slit-tip`)
+
+The cause, read: `fate::places` read the corner at a slit's or ring's
+tip, between the slit's two distinct line edges, as a cusp holding no
+direction ("…end lies in no corner…"), and `fate::border_fates` kept
+both of a slit's edges as fate edges where the kept face lies on both
+sides of the line ("…leaves a slit…"). The branch reads that corner as
+the full turn (a sliver's excepted) and drops such a pair; the
+findings are on `work/cleave/a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line.md`.
+
+Every cell below builds on the branch, at ε default, 1e-6 and 1e-12,
+both slit operands (the Boolean's and the split's), five poses:
+
+| op | branch |
+|---|---|
+| `[0,4]²×[0,½] ∪ slit` | v16 e24 f11 closed / f10 one end and wall to wall, `16 − 0.225 L`, tiers 1–3 and 3′, no records, the keel filled; back in `a_face_glued_to_the_slit_floor_merges_its_two_edges` |
+| `slit ∩ [0,4]²×[0,½]` and `[0,4]²×[0,½] ∩ slit` | v14 e22 f10 closed, v15 e23 f10 one end, v16 e24 f12 wall to wall (two solids), `8 − 0.075 L`, tiers 1–3 and 3′, the keel two edges each between the floor and a wall; one end carries one vertex–vertex contact record where the keel meets the floor's boundary |
+
+On main the other order, `[0,4]²×[0,½] ∩ slit`, refuses too:
+`SlitFaceGlued` closed (PR 5538's guard), `ClassificationInvariant`
+one end. Pinned by
+`a_keel_on_the_floor_subtracts_as_a_slit::a_slab_flush_with_the_slit_floor_intersects_it_keeping_the_keel`.
+
+The plate with the ring against the flush box `[1,2]×[0.5,1.5]×[lo,1]`,
+`lo ∈ {0, 0.3, 0.6}`, at rest and turned: `y ∩ x` and `x ∪ y` build
+(and `x ∩ y`, which refused `SlitFaceGlued`), tier 3 and 3′, at their
+closed-form volumes; pinned by
+`a_keel_on_the_floor_subtracts_as_a_slit::a_box_flush_under_a_ringed_top_builds_in_every_op`.
+The row's status is FLUSH's to change.

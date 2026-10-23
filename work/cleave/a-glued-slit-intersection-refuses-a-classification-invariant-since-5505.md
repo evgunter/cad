@@ -66,3 +66,11 @@ refuses `LineWedges` before 5505 too.
 Pinned by
 `a_keel_on_the_floor_subtracts_as_a_slit::a_box_flush_under_a_ringed_top_kept_once_refuses_typed`
 at rest and turned, CI's three ε.
+
+## Since `cleave/fate-cut-ends-at-a-slit-tip`
+
+The fate cut reads a slit's tip as its face's full turn, so the guard
+above is gone: all six ops build at every `lo`, at rest and turned,
+tier 3 and 3′ at their closed-form volumes
+(`a_box_flush_under_a_ringed_top_builds_in_every_op`). The evidence is
+on `work/cleave/a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line.md`.

@@ -4901,14 +4901,10 @@ fn cut_pair<T: Decide>(
 /// lies outside the other solid, and the flush region on the opposite
 /// side.
 ///
-/// **Only where the op keeps the sliver.** The output stage then pairs
-/// the slit's two walls across it into one edge
-/// ([`super::slit::merge_slivers`]). Where the op drops it, `side`'s
-/// face flush with the slit's keeps the flush region instead, and the
-/// slit with it: the op keeps one of the two flush faces, and the cut
-/// through the dropped one ends at the slit's tip, which the fate cut
-/// does not read (`fate::cut`). That refuses
-/// [`BooleanError::SlitFaceGlued`] here, before the fate stage.
+/// Where the op keeps the sliver, the output stage pairs the slit's two
+/// walls across it into one edge ([`super::slit::merge_slivers`]); where
+/// it keeps the flush region instead, the fate stage cuts the dropped
+/// one of the two flush faces (`fate::cut`).
 fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     side: Operand,
@@ -4940,13 +4936,7 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
             Some(slit) => Some((slit, &mut r)),
             None => sliver_along_a_slit(red, side, face, outer)?.map(|slit| (slit, &mut o)),
         };
-        if let Some(((operand, slit_face), reading)) = found {
-            if super::finish::kept_side(red.op, side) != SideCode::Out {
-                return Err(BooleanError::SlitFaceGlued {
-                    operand,
-                    face: slit_face,
-                });
-            }
+        if let Some((_, reading)) = found {
             *reading = Reading::Side(SideCode::Out);
         }
     }

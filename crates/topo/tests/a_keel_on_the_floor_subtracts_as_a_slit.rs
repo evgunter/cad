@@ -474,7 +474,7 @@ struct Glued {
     keel: bool,
 }
 
-const GLUED: [Glued; 4] = [
+const GLUED: [Glued; 5] = [
     Glued {
         what: "slit ∪ the slab under",
         slab: (-1.0, 0.0),
@@ -511,6 +511,15 @@ const GLUED: [Glued; 4] = [
         counts: [(16, 24, 11), (16, 24, 10), (16, 24, 10)],
         keel: false,
     },
+    Glued {
+        what: "the slab inside ∪ slit",
+        slab: (0.0, 0.5),
+        op: topo::BooleanOp::Union,
+        slab_first: true,
+        volume: |l| 16.0 - 0.225 * l,
+        counts: [(16, 24, 11), (16, 24, 10), (16, 24, 10)],
+        keel: false,
+    },
 ];
 
 /// **A face glued to the slit floor merges the slit's two edges into
@@ -521,8 +530,8 @@ const GLUED: [Glued; 4] = [
 /// `[0, 4]² × [0, 0.5]` inside it, which ∖ the slit leaves as the
 /// trench's foot. The floor is glued away, so the material about the
 /// keel is the two walls' alone (tier 3: the material decides the
-/// edges), and the keel is one edge between them. The slit ∪ the slab
-/// inside fills the keel. At every extent and pose: tiers 1, 2, 3 and 3′ with
+/// edges), and the keel is one edge between them. ∪ the slab inside
+/// fills the keel. At every extent and pose: tiers 1, 2, 3 and 3′ with
 /// no records, one solid, the closed-form volume, the vertex, edge and
 /// face counts, and the keel one edge between two walls.
 #[test]
@@ -587,6 +596,68 @@ fn a_face_glued_to_the_slit_floor_merges_its_two_edges() {
                         !on_floor(b, &pose, sides.0) && !on_floor(b, &pose, sides.1),
                         "{what}: the keel bounds a face on the floor"
                     );
+                }
+            }
+        }
+    }
+}
+
+/// **A slab flush with the slit floor intersects it keeping the floor
+/// and its keel**: the slit form ∩ the slab `[0, 4]² × [0, 0.5]` inside
+/// it, in either order. The two floors coincide with one sense, and ∩
+/// keeps one of them; the material about the keel is the two wedges
+/// floor | wall a and wall b | floor, so the kept floor wraps the keel,
+/// and the dropped copy is substituted on both sides of it: no cut runs
+/// along the keel in it. At every extent and pose: tiers 1, 2, 3 and 3′
+/// against its records, the solids, the closed-form volume
+/// `8 − 0.075` per unit of the keel's length, the vertex, edge and face
+/// counts, and the keel two edges, each between the floor and a wall.
+#[test]
+fn a_slab_flush_with_the_slit_floor_intersects_it_keeping_the_keel() {
+    let tol = t();
+    let counts = [(14, 22, 10), (15, 23, 10), (16, 24, 12)];
+    for (k, row) in ROWS.iter().enumerate() {
+        let length = row.ends()[1][0] - row.ends()[0][0];
+        for pose in poses() {
+            let inside = slab(&pose, (0.0, 0.5));
+            for (origin, cut) in slit_operands(row, &pose) {
+                for (order, a, b) in [
+                    ("slit ∩ the slab inside", &cut, &inside),
+                    ("the slab inside ∩ slit", &inside, &cut),
+                ] {
+                    let what = format!("{}, {}, {origin}, {order}", row.what, pose.label);
+                    let r = match intersect(a, b, tol) {
+                        Ok(BooleanResult::Body(r)) => r,
+                        other => panic!("{what}: {other:?}"),
+                    };
+                    let b = &r.body;
+                    assert_eq!(validate(b), Ok(()), "{what}: tier 1");
+                    assert_eq!(validate_closed(b), Ok(()), "{what}: tier 2");
+                    assert_eq!(validate_geometric(b, tol), Ok(()), "{what}: tier 3");
+                    assert_eq!(
+                        validate_pseudomanifold(b, &r.contacts, tol),
+                        Ok(()),
+                        "{what}: tier 3′"
+                    );
+                    assert_eq!(b.solids().count(), row.solids, "{what}: solids");
+                    let v = topo::mass_properties(b, tol).unwrap().volume;
+                    let want = 8.0 - 0.075 * length;
+                    assert!(
+                        (v - want).abs() < 1e-9 * want,
+                        "{what}: volume {v}, closed form {want}"
+                    );
+                    assert_eq!(
+                        (b.vertices().count(), b.edges().count(), b.faces().count()),
+                        counts[k],
+                        "{what}: (v, e, f)"
+                    );
+                    let keel = keel_edges(b, &pose, row.ends());
+                    let [e, f] = keel[..] else {
+                        panic!("{what}: the keel is {keel:?}, not two edges");
+                    };
+                    // Each keel edge bounds one floor face and one wall.
+                    floor_and_wall(b, &pose, e);
+                    floor_and_wall(b, &pose, f);
                 }
             }
         }
@@ -667,21 +738,22 @@ fn a_keel_glued_to_a_face_from_outside_stays_one_edge() {
     }
 }
 
-/// **A box flush under a ringed top, the top kept once, refuses typed**:
-/// the plate less a pyramid lying under its top (`below(lying(0))`)
-/// holds the pyramid's ray as a zero-area ring of the top, and the box
+/// **A box flush under a ringed top builds in every op**: the plate less
+/// a pyramid lying under its top (`below(lying(0))`) holds the pyramid's
+/// ray as a zero-area ring of the top, and the box
 /// `[1, 2] × [0.5, 1.5] × [lo, 1]` lies flush under that top round it.
-/// `x ∩ y` keeps one of the two flush tops and the ring with it, which
-/// the join does not build: it refuses `SlitFaceGlued` before the fate
-/// stage, not a `ClassificationInvariant` there
-/// (`work/cleave/a-glued-slit-intersection-refuses-a-classification-invariant-since-5505.md`).
-/// `x − y`, the pyramid's part in the box, and `y ∪ x` drop the sliver
-/// the join cuts in the box's top and merge the ring's two edges: each
-/// builds, tier 3 and 3′, the difference within the pyramid (all of it
-/// where the box holds it) and the union the plate less the rest. At
-/// rest and turned.
+/// The join cuts the box's top along the ring, the sliver between the
+/// cuts outside the plate. Where the op keeps the sliver (`x − y`,
+/// `y ∪ x`) the ring's two edges merge across it; where it keeps the
+/// flush region (`x ∩ y`, `y ∩ x`, `x ∪ y`), one of the two flush tops
+/// is dropped and cut where its fate changes, a cut ending at the ring's
+/// tip in the full turn the ring leaves there. Each builds, tier 3 and
+/// 3′, at its closed-form volume: the pyramid's part in the box `p`
+/// (all of it where the box holds it), `|x| − p` for the intersection,
+/// the plate less the pyramid and the box for `y − x`, and the plate
+/// less the pyramid's rest for the union. At rest and turned.
 #[test]
-fn a_box_flush_under_a_ringed_top_kept_once_refuses_typed() {
+fn a_box_flush_under_a_ringed_top_builds_in_every_op() {
     use common::meeting::{PLATE, apex_pyramid, lying, posed_box};
     let tol = t();
     let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
@@ -697,14 +769,7 @@ fn a_box_flush_under_a_ringed_top_kept_once_refuses_typed() {
         for (lo, holds) in [(0.0, true), (0.3, true), (0.6, false)] {
             let what = format!("{}, the box from {lo}", pose.label);
             let x = posed_box("the box", [(1.0, 2.0), (0.5, 1.5), (lo, 1.0)], pose, tol);
-            match intersect(&x, &y, tol) {
-                Err(e) => assert_eq!(
-                    e.kind(),
-                    topo::BooleanErrorKind::SlitFaceGlued,
-                    "{what}: x ∩ y: {e:?}"
-                ),
-                Ok(_) => panic!("{what}: x ∩ y builds, where it refuses typed"),
-            }
+            let boxed = 1.0 - lo;
             let built = |op: &str, r| match r {
                 Ok(BooleanResult::Body(r)) => {
                     let r: topo::BooleanBody<f64> = r;
@@ -733,12 +798,19 @@ fn a_box_flush_under_a_ringed_top_kept_once_refuses_typed() {
                     "{what}: x − y: volume {part}, the whole pyramid's {pyramid}"
                 );
             }
-            let whole = built("y ∪ x", topo::union(&y, &x, tol));
-            let want = 6.0 - pyramid + part;
-            assert!(
-                (whole - want).abs() < 1e-9,
-                "{what}: y ∪ x: volume {whole}, the plate less the pyramid's rest {want}"
-            );
+            for (op, r, want) in [
+                ("x ∩ y", intersect(&x, &y, tol), boxed - part),
+                ("y ∩ x", intersect(&y, &x, tol), boxed - part),
+                ("y − x", subtract(&y, &x, tol), 6.0 - pyramid - boxed + part),
+                ("x ∪ y", topo::union(&x, &y, tol), 6.0 - pyramid + part),
+                ("y ∪ x", topo::union(&y, &x, tol), 6.0 - pyramid + part),
+            ] {
+                let v = built(op, r);
+                assert!(
+                    (v - want).abs() < 1e-9,
+                    "{what}: {op}: volume {v}, closed form {want}"
+                );
+            }
         }
     }
 }

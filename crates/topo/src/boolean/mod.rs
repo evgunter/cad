@@ -2456,8 +2456,8 @@ pub enum RefusedRow {
 /// `topo` whole.
 ///
 /// **The falsifier is a caller that acts on the case by itself**: a
-/// driver that tilts a part off the slit's face when it reads
-/// [`SlitLineGap::Flush`], say. Then carry it and delete this paragraph
+/// driver that moves a part off the slit's line when it reads
+/// [`SlitLineGap::Closes`], say. Then carry it and delete this paragraph
 /// and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SlitLineGap {
@@ -2465,11 +2465,6 @@ pub enum SlitLineGap {
     /// sides: it closes that face across the line, which the join does
     /// not build.
     Closes,
-    /// A flank of a wedge on the line lies in a flank's plane of the
-    /// other's, flush with a face of the other solid there, and the op
-    /// keeps one of the two flush faces: the cut the germs make in the
-    /// dropped one has no corner to end in.
-    Flush,
     /// One solid's material about the line, a wedge with a face of its
     /// own folded in, crosses the other's twice at the slit's tip.
     CrossedTwice,
@@ -2482,10 +2477,6 @@ impl SlitLineGap {
             Self::Closes => {
                 "the result keeps only that face on the line, on both sides, so it closes the \
                  face across the line"
-            }
-            Self::Flush => {
-                "a face of the other solid lies flush with a face on the line, and the op keeps \
-                 one of the two"
             }
             Self::CrossedTwice => {
                 "one solid's material about the line crosses the other's twice at the tip"
