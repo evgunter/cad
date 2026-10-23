@@ -116,3 +116,13 @@ Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
   - **Unilateral R1:** the fixture's unbounded volume pad; the closure-gap fix red on no row; Q11's comment against the premise; the chord scaffold and cross products duplicated; the arm choice read thrice.
 
   The fix pass takes the whole union. Recorded also as a class: the arm's oblique-chord and knot-crossing coverage was missing from every pre-existing quadrature fixture (all slope-0/1, single span). — (ISO orchestrator)
+
+- 2026-10-23 — Rational-gates PR 5635 is up.
+  - **The change:** one home, `geom_core::spline::constant_weight`, with every site routed through it; the arc-rim pattern now reads the ratio `w₁/w₀`. Six pins moved to the new behaviour.
+  - **Not called out by the PR:** `patch_cells_across_creases` now refuses a constant-c creased net as it refuses a unit one.
+  - **CI:** red on `demos` only, at `tour_runs_green_at_eps_1e_12`, the teapot spout. At 1e-12 the spout now reaches its target, and its frustum oracle (an approximation of the cubic skin) sits 1.16e-10 m³ outside an 8e-12 pad.
+  - **Likely cause:** PR 5629, unverified. The red reproduces bit-identically with 5635's gates mutated back to unit-only. The demos job runs on PRs only when `demos/` is touched, so main has likely carried it since 5629 and the nightly will show it.
+
+  **Dispatched (cloud):**
+  - the teapot lane `session_016FRynJ8i8cezwcv4WtMZSC`, whose first question is whether the certified enclosure is SOUND against an independent true volume of the built skin. A wrong certified answer would be P0, and the lane stops there if so.
+  - **Review tier for PR 5635: single FULL**, as dispatched (`session_01Q2LdYg2aQAUcJkEjQueNJY`, frozen `a890720559`). — (ISO orchestrator)
