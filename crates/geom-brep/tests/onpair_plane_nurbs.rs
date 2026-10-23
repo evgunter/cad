@@ -464,33 +464,84 @@ fn an_arc_rim_whose_exact_image_escalates_escalates() {
     }
 }
 
-/// **A partial rim.** Half the quarter arc lies on the wall, but every
-/// candidate image runs the whole boundary row, so none holds the half
-/// rim at the pick's probe, nor certifies it; the fitted path decides
-/// the rest.
+/// **A partial rim takes the row over the arc the row measures.** Half
+/// the quarter arc lies on the wall. No closed-form image (the edge's
+/// interval onto the whole row) holds it at the pick's probe, nor
+/// certifies it; the measured step's does: the whole row over its own
+/// arc, the quarter rim's own image, in which the half rim's span lies.
+/// The pair certifies through it.
 #[test]
-fn a_partial_arc_rim_does_not_take_the_exact_image() {
+fn a_partial_arc_rim_takes_the_rows_arc() {
     let half = rim(1.0, core::f64::consts::FRAC_PI_4);
-    assert!(
-        matches!(
-            geom_brep::pick_arc_rim(&half.0, (0.0, half.1), &wall(), band()),
-            Ok(None)
-        ),
-        "no full-row image holds a partial rim at the probe"
-    );
     assert!(
         geom_brep::arc_rim_candidates(&quarter_cylinder_wall(), 0.0, half.1)
             .into_iter()
             .all(|p| {
                 geom_brep::PcurveCache::certify(p, 0.0, half.1, &half.0, &wall(), band()).is_err()
             }),
-        "no full-row image certifies a partial rim"
+        "no full-row image over the edge's interval certifies a partial rim"
     );
-    match arc_on_pair(half, None) {
-        Ok(edge) => assert_on_pair(&edge, "the partial rim, by its fitted image"),
-        Err(CertifyError::OnPairArcRim { iso: None, .. }) => {}
-        other => {
-            panic!("a partial rim certifies by its fitted image or refuses both ways: {other:?}")
+    let picked = geom_brep::pick_arc_rim(&half.0, (0.0, half.1), &wall(), band())
+        .expect("the pick decides")
+        .expect("the measured step holds the partial rim");
+    assert_same_arc(&picked, &quarter_image(), "the partial rim's image");
+    geom_brep::PcurveCache::certify(picked, 0.0, half.1, &half.0, &wall(), band())
+        .expect("the row over its own arc certifies the partial rim");
+    let edge = arc_on_pair(half, None).expect("the partial rim certifies on its pair");
+    assert_on_pair(&edge, "the partial rim, by its exact image");
+}
+
+/// `got` is `want`'s row, direction and sub-arcs bit for bit, its arc
+/// `want`'s to rounding: the measured arc is read off the geometry.
+fn assert_same_arc(got: &geom_brep::Pcurve<f64>, want: &geom_brep::Pcurve<f64>, what: &str) {
+    let (
+        geom_brep::Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            breaks,
+        },
+        geom_brep::Pcurve::IsoArc {
+            p0: w_p0,
+            pd: w_pd,
+            t0: w_t0,
+            angle: w_angle,
+            breaks: w_breaks,
+        },
+    ) = (got, want)
+    else {
+        panic!("{what}: two IsoArc images: {got:?} / {want:?}")
+    };
+    assert_eq!(
+        (p0.x, p0.y, pd.x, pd.y, format!("{breaks:?}")),
+        (w_p0.x, w_p0.y, w_pd.x, w_pd.y, format!("{w_breaks:?}")),
+        "{what}: row and sub-arcs"
+    );
+    assert!(
+        (t0 - w_t0).abs() < 1e-12 && (angle - w_angle).abs() < 1e-12,
+        "{what}: the arc ({t0}, {angle}) is the row's ({w_t0}, {w_angle})"
+    );
+}
+
+/// **An edge running past its image's arc is refused at the span**,
+/// before its samples are read. The quarter rim's image holds every
+/// sub-span of its arc, and refuses a span reaching before its start or
+/// past its end, typed: the envelope bounds nothing off the arc.
+#[test]
+fn an_iso_arc_refuses_a_span_past_its_arc() {
+    let (carrier, quarter) = rim(1.0, core::f64::consts::FRAC_PI_2);
+    let certify = |t0: f64, t1: f64| {
+        geom_brep::PcurveCache::certify(quarter_image(), t0, t1, &carrier, &wall(), band())
+    };
+    certify(0.2, 0.9).expect("a span inside the arc certifies");
+    for (t0, t1) in [(-0.01, 0.9), (0.2, quarter + 0.01)] {
+        match certify(t0, t1) {
+            Err(geom_brep::PcurveCertifyError::IsoUnsupported { what }) => assert!(
+                what.starts_with("an arc rim whose edge runs past its image's arc"),
+                "[{t0}, {t1}]: refused at the span: {what}"
+            ),
+            other => panic!("[{t0}, {t1}] runs past the arc [0, {quarter}]: {other:?}"),
         }
     }
 }
@@ -519,10 +570,10 @@ fn a_wrong_stated_image_is_not_swapped_for_the_pick() {
 
 /// **A split child certifies at rest as it did at the op.** The
 /// `[0, π/4]` half of the quarter rim, with its parent's stored image
-/// stated — whose arc covers it — certifies; the pick's own full-row
-/// image for the child cannot. Re-certification reads the stored image
-/// as the op did (`recertify_via_stated`, tier 3's), so the child the op
-/// admitted is not refused at rest through another image.
+/// stated — whose arc covers it — certifies, and so does the child
+/// alone, through the image the pick measures for it, which is the
+/// parent's. Re-certification reads the stored image as the op did
+/// (`recertify_via_stated`, tier 3's).
 #[test]
 fn a_split_child_recertifies_through_its_parents_stored_image() {
     let (carrier, _) = rim(1.0, core::f64::consts::FRAC_PI_2);
@@ -545,9 +596,13 @@ fn a_split_child_recertifies_through_its_parents_stored_image() {
         Some(&stated),
     )
     .expect("the child certifies through its parent's image");
+    let alone = EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, 1.0, band(), lane())
+        .expect("the child alone certifies through the image picked for it");
     assert!(
-        EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, 1.0, band(), lane()).is_err(),
-        "no image picked for the child alone certifies it"
+        (alone.certificate().max_residual - child.certificate().max_residual).abs() < 1e-12,
+        "the picked image and the parent's are one row: {} / {}",
+        alone.certificate().max_residual,
+        child.certificate().max_residual
     );
     child
         .recertify_via_stated(ends.0, ends.1, surfaces, 1.0, band(), lane(), Some(&stated))
