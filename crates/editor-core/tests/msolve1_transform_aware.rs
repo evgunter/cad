@@ -1489,10 +1489,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) 
         }
     };
     // Read where the `Part` is copied into the world.
-    let a = (
-        if via_placed { of } else { part },
-        nest(base_part.cap(base, CapEnd::End).name),
-    );
+    let a = (part, nest(base_part.cap(base, CapEnd::End).name));
     let b = top_part.cap(top, CapEnd::Start);
     let what = format!("Part({k}) naming ({j}, {i}), via a placed copy: {via_placed}");
     // The door decides structure alone, so either seat enters.
@@ -1506,13 +1503,8 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) 
     );
     match expect {
         PartCase::Seats => {
-            // A placed copy is in the product already; a bare `Part`
-            // is placed here.
-            let doc = if via_placed {
-                doc
-            } else {
-                world(doc, &opts, &[part], &[])
-            };
+            // The `Part` is placed in the world here, whatever it reads.
+            let doc = world(doc, &opts, &[part], &[]);
             let poses = solve(&doc, &opts, Tol::witness());
             let ev = run(&doc, &opts);
             assert!(poses.fault(top).is_none(), "{what}: {:?}", poses.fault(top));

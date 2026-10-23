@@ -71,11 +71,10 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, Re
                 kind: EntityKind::Face,
                 node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
-            }
-            ;
+            };
     let mate = fixture::rest(
         fixture::head_at(placed, fixture::resolver::in_part(placed, body, CapEnd::Start)),
-        fixture::head(nowhere),
+        fixture::head_at(base, nowhere),
         ContactClass::Rest,
     );
     let (doc, _) = fixture::constrain_at(doc, placed, mate);

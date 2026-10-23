@@ -378,8 +378,7 @@ impl Rule {
                         body,
                         editor_core::RoleSeg::LateralEdge(fixture::vpiece(&part, body, 0, 0)),
                     );
-                    let worn = edge
-                            ;
+                    let worn = edge;
                     let axis = fixture::axis(editor_core::SitedRef::new(legs, worn));
                     let (doc, pattern) = insert(
                         doc,

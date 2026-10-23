@@ -385,8 +385,7 @@ fn ghost_side(doc: ProfileDoc, mate: MateRef, instance: RecipeNodeId) -> Profile
                 kind: editor_core::EntityKind::Face,
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(77)),
                 path: vec![editor_core::RoleSeg::Cap(CapEnd::Start)],
-            }
-            ;
+            };
     step(
         doc,
         DocEdit::SetParam {

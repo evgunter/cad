@@ -88,11 +88,7 @@ fn cap(body: RecipeNodeId, end: CapEnd) -> StableName {
 /// `face`, a face of a part by the part's own name, as instance
 /// `at` wears it.
 fn worn_face(at: RecipeNodeId, face: &StableName) -> editor_core::SitedFace {
-    fixture::head(
-        FaceName::new(face.clone())
-            .expect("a face")
-            .into_name(),
-    )
+    fixture::head_at(at, face.clone())
 }
 
 /// **`block_i`'s bottom cap seated on `face` of instance `at`**, the

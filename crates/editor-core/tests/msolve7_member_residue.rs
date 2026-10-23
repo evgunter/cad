@@ -394,13 +394,16 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
         ids.push(applied.record.minted.expect("a minted id"));
         doc = applied.doc;
     }
+    // A part's cap, read at the instance whose copy carries it.
     let name = |node, end| {
-        fixture::head(StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId::new(0, 1),
-                    path: vec![RoleSeg::Cap(end)],
-                }
-                )
+        fixture::head_at(
+            node,
+            StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, 1),
+                path: vec![RoleSeg::Cap(end)],
+            },
+        )
     };
     let (doc, _) = fixture::mated(
         doc,
