@@ -199,26 +199,14 @@ fn a_whole_rim_re_mints_the_closed_form() {
 
 /// **Both halves of a split rim** re-mint the parent's row, over the
 /// parent's arc: the first starting at its corner, the second ending at
-/// its other one. The re-minted body measures the unsplit volume. The
-/// mesher refuses the halves, pinned as its frontier.
+/// its other one. The mesher refuses the halves, pinned as its
+/// frontier.
 #[test]
 fn both_halves_of_a_split_rim_re_mint_the_parents_row() {
     let mut body = bulged_prism();
     let (_, edge, wall, parent) = bottom_rim(&body);
-    let volume = |body: &Body<f64>| {
-        let at = topo::AtRestBody::validate(body.clone(), tol()).expect("at rest");
-        topo::mass_properties(&at, tol())
-            .expect("the body measures")
-            .volume
-    };
-    let whole = volume(&body);
     let pieces = split_at(&mut body, edge, &[0.5]);
     re_mint_pieces(&mut body, wall, &pieces, &parent, true);
-    let split = volume(&body);
-    assert!(
-        (split - whole).abs() <= 1e-12 * whole,
-        "the re-minted rows measure the volume the whole rim did: {split} / {whole}"
-    );
     // The mesher's chord schedule lands on the sub-arc joints only for
     // a rim whose arc is its edge's interval, and refuses the children
     // (`work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).

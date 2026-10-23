@@ -27,6 +27,7 @@ crates/geom-brep/src/curve_pair/pose.rs	4	constant	band.escalate()	the band's es
 crates/geom-brep/src/curve_pair/pose/window.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.zero()	the band's zero width, a tolerance
 crates/geom-brep/src/dihedral.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
+crates/geom-brep/src/edge_nurbs.rs	1	constant	2.0 * spans as f64	arc_rim_measured: twice the chart's sub-arc count
 crates/geom-brep/src/edge_nurbs.rs	1	constant	*w	on_carrier_domain: the interpolation's unit weights, a constant of its form
 crates/geom-brep/src/edge_nurbs.rs	1	launders(an-edges-parameter-ends-enter-a-carrier-piece-as-constants)	<fn>	edge_piece: a piece end that is no carrier breakpoint is the f64 end of the edge's parameter enclosure, a computed value entered as a constant (breakpoints keep their held values)
 crates/geom-brep/src/extent.rs	1	constant	f64::from(k)	a sample index
