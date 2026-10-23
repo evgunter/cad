@@ -6311,7 +6311,6 @@ impl Recording<'_, crate::ProfileProgram> {
             mates: vec![crate::Mate {
                 on,
                 to: plane(body.clone(), face),
-                class: crate::ContactClass::Rest,
             }],
             values: vec![
                 (
@@ -6957,7 +6956,6 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
             kind: ConstraintKind::Mate(Mate {
                 on: crate::Operand::Var(m.on),
                 to: crate::Operand::Var(m.to),
-                class: m.class,
             }),
         })
     });
@@ -8444,7 +8442,6 @@ mod tests {
         let mate = crate::mate::Mate {
             on: plane(crate::node::RecipeNodeId::new(0, 3)),
             to: plane(crate::node::RecipeNodeId::new(0, 2)),
-            class: crate::mate::ContactClass::Rest,
         };
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
         let writing: [DocEdit<ProfileProgram>; 3] = [

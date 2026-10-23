@@ -29,10 +29,7 @@
 //! **The casing is whatever the type's bytes already are — it is not a
 //! style choice.** These modules are written for types that are
 //! already persisted, so their job is to reproduce existing bytes
-//! exactly; the format may not shift under a refactor. `contact_class`
-//! writes `"rest"`/`"tangent"`, lowercase because the class vocabulary
-//! was minted straight into a `with` module at the v11 break and never
-//! had a derive to match.
+//! exactly; the format may not shift under a refactor.
 //!
 //! A module for an already-persisted type takes whatever its type's
 //! bytes are today, and pins them by test before changing anything. Only a
@@ -51,14 +48,11 @@
 //! that quotes the same table. Every module here does this.
 //!
 //! **Take the vocabulary from where the type lives, when it is there
-//! to take.** `contact_class` searches `topo::ContactClass::ALL` — the
-//! kernel's own slice, sitting inside the impl block whose exhaustive
-//! matches force a new variant through it. A `[Rest, Tangent]` literal
-//! restated here would be the shape that slice exists to retire: the
-//! enum is `#[non_exhaustive]`, so this crate cannot enumerate it
-//! correctly even in principle, and the kernel's doc records the
-//! measurement that such a literal stays GREEN under a planted third
-//! variant. A local list is kept only for an enum of this crate's own
+//! to take**: a kernel enum's own slice of its variants, sitting inside
+//! the impl block whose exhaustive matches force a new variant through
+//! it. A literal restated here stays GREEN under a planted new variant
+//! of a `#[non_exhaustive]` enum, which this crate cannot enumerate
+//! correctly even in principle. A local list is kept only for an enum of this crate's own
 //! that offers none — and there the completeness of the list genuinely
 //! is unchecked, since safe Rust cannot tie an array literal to a
 //! variant list without a proc macro and the workspace has none.
@@ -69,5 +63,6 @@
 //! belt-and-braces; where it is a local list it is the only guard the
 //! gap has. It costs a lookup, so it is not worth deciding per module:
 //! every one does it.
-
-pub(crate) mod contact_class;
+//!
+//! No kernel type is persisted today, so this module holds no
+//! description; it is where the next one goes.

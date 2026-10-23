@@ -663,6 +663,18 @@ pub fn prove<P: crate::ProfilePayload>(
         .collect())
 }
 
+/// **Whether the door's first rung proves `row`**, with no replay: its
+/// cells one construction read twice, or the two faces a mate rests on
+/// each other ([`stated_by_a_mate`]).
+pub(crate) fn first_rung_proves<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    row: &NamedCoincidence,
+    tol: geom_core::Tol,
+) -> bool {
+    let walked = constructions(doc, row, tol);
+    one_construction(&walked) || stated_by_a_mate(doc, row, &walked, tol)
+}
+
 /// Each cell of a row walked to its construction, or why it was not.
 type Walked = Vec<Result<Construction, Unwalked>>;
 

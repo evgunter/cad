@@ -550,7 +550,6 @@ pub fn placed_against_in(
         mates: vec![crate::Mate {
             on,
             to,
-            class: crate::ContactClass::Rest,
         }],
         values: vec![
             (Coord::Slide(TargetAxis::X), slide(sx)),

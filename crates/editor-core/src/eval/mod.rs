@@ -756,14 +756,11 @@ pub struct NodeValue<T: Decide> {
     /// reconcile. Rides the value, so memo reuse transfers
     /// declarations with the geometry they are keyed into.
     pub contacts: Arc<topo::ContactRecords>,
-    /// The MATE BOOKKEEPING those records travel with (`ASSEMBLY.md`
-    /// A5): which mate of which document below authored each of them,
-    /// and which mates of those documents could not be minted at all.
-    /// Keyed in the same arena as `contacts` and filled at the same
-    /// one op, so the gather re-keys both through the graft's own
-    /// descendant map. Rides the value, so memo reuse transfers mate
-    /// identity with the geometry it is keyed into.
-    pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    /// The at-rest findings of the documents below (`ASSEMBLY.md` A5),
+    /// keyed in the same arena as `contacts` and filled at the same one
+    /// op. Rides the value, so memo reuse transfers them with the
+    /// geometry they are keyed into.
+    pub carried: Arc<crate::assembly::CarriedFindings>,
     /// **The coincidences the node's op decided from values**
     /// ([`crate::coincide`]), in decision order, each cell named in the
     /// table of the input the decision read, so a row survives a later
@@ -889,7 +886,7 @@ impl NodeValue<f64> {
             payload: ValuePayload::Boolean(BooleanValue::Empty),
             outputs: vec![OutputNames::new(Arc::new(table), Arc::new(groups))].into(),
             contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
+            carried: Arc::new(crate::assembly::CarriedFindings::default()),
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
             parts: 1,
@@ -4217,8 +4214,7 @@ where
 /// - a function of a closed enum — [`verb_content_tag`] over
 ///   `VerbKind::ALL`, [`verb_tag`] over `profile::Verb::ALL`,
 ///   [`arc_mode_tag`] over `ArcMode::ALL`, [`seg_content_tag`] over
-///   `SegTag::ALL`,
-///   `ContactClass::content_tag` over `ContactClass::ALL`, and
+///   `SegTag::ALL`, and
 ///   [`winding_tag`], [`side_tag`], [`target_tag`] over a local closed
 ///   list that an exhaustive match forces to name every variant (their
 ///   enums are `crates/profile`'s and carry no `ALL`) — each with its
@@ -4288,7 +4284,8 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v19: a value names no mate, and a spin's word is the
+            /// v20: a mate writes no class, nor does an interface
+            /// crossing. v19: a value names no mate, and a spin's word is the
             /// axis it turns about; a mate's `to` is a pose read, with
             /// no target word and no world read. v18: a placement reads the space it places into, which
             /// it does not key (its copy's value is its source moved by
@@ -4318,7 +4315,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 19,
+            VERSION = 20,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5005,12 +5002,7 @@ where
             feed_bundle(&mut h, defs, constraints);
             h.write_u64(interface.crossings.len() as u64);
             for crossing in &interface.crossings {
-                let crate::node::InterfaceCrossing::Mate {
-                    class,
-                    outer,
-                    inner,
-                } = crossing;
-                h.write_u64(class.content_tag());
+                let crate::node::InterfaceCrossing::Mate { outer, inner } = crossing;
                 feed_stable_name(&mut h, outer);
                 feed_stable_name(&mut h, inner);
             }
@@ -5785,11 +5777,6 @@ fn feed_doc_ref(h: &mut KeyHasher, doc_ref: &crate::ident::DocRef) {
     }
 }
 
-/// **A bundle's key**: each constraint's id and what it says that no
-/// other channel keys — its class, and its target's word, a world read
-/// by its arms and roles. The poses it reads are reads, keyed by the
-/// node's pose words and its upstream keys, and a world read's scalars
-/// are slots, fed with every slot.
 /// A scalar's turn form, under [`tag::slot`]'s `TURNS`.
 fn feed_turns(h: &mut KeyHasher, turns: Option<crate::expr::Ratio>) {
     h.write_tag(tag::slot::TURNS);
@@ -5803,6 +5790,10 @@ fn feed_turns(h: &mut KeyHasher, turns: Option<crate::expr::Ratio>) {
     }
 }
 
+/// **A bundle's key**: each constraint's id and what it says that no
+/// other channel keys — its kind, and a value's coordinate and form.
+/// The poses it reads are reads, keyed by the node's pose words and its
+/// upstream keys.
 fn feed_bundle(
     h: &mut KeyHasher,
     defs: crate::param_source::Definitions<'_, '_>,
@@ -5812,8 +5803,8 @@ fn feed_bundle(
     for c in constraints {
         h.write_u64(u64::from(c.id.0.ordinal()));
         h.write_u64(c.id.0.digest());
-        let mate = match &c.kind {
-            crate::mate::ConstraintKind::Mate(mate) => mate,
+        match &c.kind {
+            crate::mate::ConstraintKind::Mate(_) => h.write_tag(tag::constraint_kind::MATE),
             crate::mate::ConstraintKind::Value(value) => {
                 use crate::mate::{Coord, TargetAxis};
                 h.write_tag(tag::constraint_kind::VALUE);
@@ -5830,13 +5821,8 @@ fn feed_bundle(
                 } else {
                     tag::value_form::NUMBER
                 });
-                continue;
             }
-        };
-        h.write_tag(tag::constraint_kind::MATE);
-        // The class's word is `ContactClass::content_tag` — the one
-        // spelling the crossing record and the constraint both write.
-        h.write_u64(mate.class.content_tag());
+        }
     }
 }
 
@@ -6752,23 +6738,6 @@ mod tag_vocabulary_tests {
         }
     }
 
-    /// A contact class's tag — `topo::ContactClass::content_tag`, the
-    /// one spelling the mate, the crossing record and the declaration
-    /// write — is injective and non-zero over `ContactClass::ALL`: a
-    /// class that keyed as `0` would be a class with no word.
-    #[test]
-    fn contact_class_tags_are_injective_and_nonzero() {
-        let mut seen: Vec<(topo::ContactClass, u64)> = Vec::new();
-        for class in topo::ContactClass::ALL {
-            let t = class.content_tag();
-            assert_ne!(t, 0, "{class:?} keys as 0");
-            if let Some((other, _)) = seen.iter().find(|(_, u)| *u == t) {
-                panic!("{class:?} and {other:?} share content tag {t}");
-            }
-            seen.push((*class, t));
-        }
-        assert_eq!(seen.len(), topo::ContactClass::ALL.len());
-    }
 }
 
 #[cfg(test)]
@@ -6797,7 +6766,6 @@ mod bundle_key {
             Mate {
                 on: ON,
                 to,
-                class: crate::mate::ContactClass::Rest,
             },
         )
     }

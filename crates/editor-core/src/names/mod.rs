@@ -100,7 +100,7 @@ pub use table::{
 /// The kernel's contact vocabulary, re-exported so a refusal the recipe
 /// layer renders quotes the kernel's own words.
 pub use topo::{
-    CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
+    CONTACT_RECOURSE, ContactRefusal, ContactVerdict, DeclaredContact,
 };
 pub use words::{LeafRole, leaf_role, role_leaf};
 

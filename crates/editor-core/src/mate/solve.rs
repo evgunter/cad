@@ -1218,23 +1218,11 @@ pub(crate) fn on_reads_the_copy<P>(
     reached.iter().all(|(at, _)| copied.contains(at))
 }
 
-/// **The class door of a mate's own admission**: the class inside the
-/// vocabulary ([`MateFault::ClassNotAdmitted`]). The class table is
-/// the policy (`super::class_admission`); this door enforces its own
-/// half of it and nothing more.
-fn admit_class(mate: MateRef, class: super::ContactClass) -> Result<(), Box<MateFault>> {
-    if super::class_admission(class) == super::ClassAdmission::NotAdmitted {
-        return Err(Box::new(MateFault::ClassNotAdmitted { mate }));
-    }
-    Ok(())
-}
-
 /// **One constraint's own admission** — what the recipe decides about a
 /// mate, asked by the edit door of a constraint being written and by
 /// the load door of every constraint it reads: `on` reads the copy
 /// ([`MateFault::NotOnTheCopy`]), the two poses are of one kind
-/// ([`MateFault::KindsDiffer`]), and the class is admitted. Whether it
-/// fixes an equation the rest of its bundle already fixes is the bundle
+/// ([`MateFault::KindsDiffer`]). Whether it fixes an equation the rest of its bundle already fixes is the bundle
 /// rule's ([`overconstrained`]).
 ///
 /// # Errors
@@ -1255,7 +1243,7 @@ pub(crate) fn admit_mate<P>(
     {
         return Err(Box::new(MateFault::KindsDiffer { mate, on, to }));
     }
-    admit_class(mate, data.class)
+    Ok(())
 }
 
 #[cfg(test)]

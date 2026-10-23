@@ -69,10 +69,9 @@ pub(crate) struct OpOut<T: Decide> {
     /// fragment groups beside them empty for an op that forms none.
     pub outputs: Vec<super::OutputNames>,
     pub contacts: Arc<topo::ContactRecords>,
-    /// Whose mate authored each of those records, and which mates of
-    /// the documents below could not be minted at all; same arena, same
+    /// The at-rest findings of the documents below; same arena, same
     /// one op.
-    pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    pub carried: Arc<crate::assembly::CarriedFindings>,
     /// How many parts each output body is (`NodeValue::parts`).
     pub parts: usize,
     /// The coincidences the op decided from values, named in its
@@ -86,13 +85,13 @@ pub(crate) struct OpOut<T: Decide> {
 }
 
 impl<T: Decide> OpOut<T> {
-    /// An op that declares no contact — every op but instantiate.
+    /// An op that carries no part's records — every op but instantiate.
     fn plain(payload: ValuePayload<T>, names: Arc<NameTable>) -> Self {
         Self {
             payload,
             outputs: vec![super::OutputNames::new(names, Arc::default())],
             contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
+            carried: Arc::new(crate::assembly::CarriedFindings::default()),
             parts: 1,
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
@@ -836,7 +835,7 @@ where
     // keeps it rigid.
     let placed = place(&part.body, map.as_ref(), tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
-    // ASM-R2b D-1: the part's OWN declared contacts survive
+    // ASM-R2b D-1: the part's OWN contact records survive
     // instantiation with their cells UNCHANGED, because
     // `transform_rigid` is key-stable and the identity fast path clones
     // keys verbatim. Re-deriving them from the placed geometry is the
@@ -845,32 +844,7 @@ where
     // The bookkeeping rows ride unchanged for the same reason; what is
     // added here is each row's first hop, this instance
     // ([`crate::assembly::PartRow::through`]).
-    let carried = crate::assembly::CarriedDeclarations {
-        refused: part.refused.as_ref().clone(),
-        minted: part
-            .minted
-            .iter()
-            .map(|row| {
-                let (route, declaration, held) = row.through(id);
-                crate::assembly::CarriedDeclaration {
-                    route,
-                    declaration,
-                    held,
-                }
-            })
-            .collect(),
-        unminted: part
-            .unminted
-            .iter()
-            .map(|row| {
-                let (route, refusal, held) = row.through(id);
-                crate::assembly::CarriedRefusal {
-                    route,
-                    refusal,
-                    held,
-                }
-            })
-            .collect(),
+    let carried = crate::assembly::CarriedFindings {
         interference: part
             .interference
             .iter()
