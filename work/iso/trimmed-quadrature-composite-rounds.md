@@ -2,11 +2,12 @@
 id: trimmed-quadrature-composite-rounds
 kind: issue
 title: The trimmed quadrature fences the Newton-Cotes window at p_u + p_v <= 4; the composite fallback is unbuilt
-status: dispatched
+status: review
 opened: 2026-09-13
 priority: P1
 cost: H
 branch: iso/trimmed-composite-rounds
+pr: 5634
 ---
 
 

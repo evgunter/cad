@@ -2,12 +2,13 @@
 id: a-fitted-face-trimmed-by-a-section-has-no-volume-rule
 kind: issue
 title: A fitted face trimmed by a plane x fit section is past the trimmed exact lane's Newton-Cotes window, so tier 3 refuses its volume (VolumeUncomputable)
-status: open
+status: review
 opened: 2026-10-09
 priority: P3
 refs: [a-fitted-wall-has-no-section-with-a-moved-cap, trimmed-quadrature-composite-rounds]
 cost: M
 rides_with: trimmed-quadrature-composite-rounds
+pr: 5634
 ---
 
 Found by SHELL's plane × `Approx` unit. `crates/sweep/tests/common/approx.rs`'s
