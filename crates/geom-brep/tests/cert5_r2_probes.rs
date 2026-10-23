@@ -41,8 +41,11 @@ test_utils::gated_to![
     "crates/geom-brep/tests/shared/",
 ];
 
-use geom_brep::props::PropsError;
-use geom_brep::props::quad::nurbs_patch_face;
+use crate::shared::patch::{Unmet, at_target, to_target};
+
+use geom_brep::props::quad::{
+    QUAD_TARGET_LEN_FACTOR, mean_boundary_displacement, nurbs_patch_face,
+};
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::Tol;
@@ -199,9 +202,9 @@ impl Oracle {
 ///
 /// **And why this row does not use `shared::patch::face_posture`.**
 /// That gate answers "certified, or an honest refusal"; the rows here
-/// need the budget refusal told apart from the rest, because a budget
-/// stop is a reading they assert on (a finite width above the target)
-/// rather than a pass.
+/// need the lane's own stop told apart from the rest, because a stop
+/// short of the target is a reading they assert on (a finite width
+/// above the target) rather than a pass.
 fn drive(
     name: &str,
     ku: &KnotVector,
@@ -214,7 +217,7 @@ fn drive(
     assert_eq!(control.len(), nu * nv, "{name}: net shape");
     let (ua, ub) = ku.domain();
     let (va, vb) = kv.domain();
-    let out = nurbs_patch_face::<f64>(
+    let out = at_target(nurbs_patch_face::<f64>(
         ku,
         kv,
         control,
@@ -222,9 +225,9 @@ fn drive(
         (ua, ub, va, vb),
         0.0,
         0.0,
-        Tol::witness().get().eps,
         band(),
-    );
+        &mut to_target(Tol::witness().get().eps),
+    ));
     match out {
         Ok(fb) => {
             let oracle = Oracle {
@@ -278,13 +281,12 @@ fn drive(
             );
             ("CERTIFIED".to_string(), None)
         }
-        Err(PropsError::QuadratureBudget {
-            width_len,
-            target_len,
-            ..
-        }) => {
+        Err(Unmet::Stopped(run)) => {
+            let width_len = mean_boundary_displacement(run.bounds.flux, run.bounds.area).unwrap();
+            let target_len = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
             println!(
-                "R2 {name}: BUDGET width (the last round's own or its bound) {width_len:.6e} vs target {target_len:.6e} ({:.1}x)",
+                "R2 {name}: STOPPED ({:?}) narrowest width {width_len:.6e} vs target {target_len:.6e} ({:.1}x)",
+                run.end,
                 width_len / target_len
             );
             assert!(width_len.is_finite() && width_len > target_len);

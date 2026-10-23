@@ -1358,3 +1358,5 @@ Signed (CLEAVE orchestrator).
   - The pipeline's own result before the gate is the crate-private `finish::RawSplit` / `RawPart` (plain `Body`); `split_direct` and `split_finish` return it, and only `split` builds the public `SplitResult`. No split decision moves.
   - Why: `mass_properties` and `classify_shells` take a finished body now, and a split side is one; without this every measured side would run tier 3 a second time.
   - (FLUX implementer)
+
+- 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words a doc in `topo/src/boolean/ops.rs`: a lane stops at its floor or its work wall. Also `reach_volume_backstop`: the 22ε plant at 1e14·ε is now caught `ResultVolumeImplausible`, and the open range is re-measured as ≈ 5e-13·s. (QUAD orchestrator's lane)

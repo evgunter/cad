@@ -229,16 +229,16 @@
 //!    volume NUMBER rather than a certificate.** A circle is RATIONAL,
 //!    so these lateral walls are rational patches, and a rational
 //!    patch is a QUADRATURE face whose enclosure is chased to a
-//!    reporting target derived from ε. At ε = 1e-12 the schedule's
-//!    own last-round bound proves that target unreachable, so
-//!    `mass_properties` refuses `QuadratureBudget` after round 0
-//!    (`rounds: 1`, no work spent).
+//!    reporting target derived from ε. At ε = 1e-12 the walls' lane
+//!    stops at the face work wall after 8 rounds (the composite arm's
+//!    round 7), 1.244e-9 m wide against the 1.024e-9 m target, so
+//!    `mass_properties` refuses `QuadratureBudget` there.
 //!
 //!    **Tier 3 admits the body anyway.** Its +V check consumes only
 //!    the SIGN of the volume enclosure — the tier's own docs say
 //!    deciding that sign "is an act of certification rather than a
 //!    measurement" — and this body's enclosure excludes zero at the
-//!    very round the chase stops on, its lower end some 270 of its
+//!    very round the chase stops on, its lower end some 450 of its
 //!    own half-widths clear at ε = 1e-12.
 //!    So the scene certifies at every ε, and where it has no number
 //!    to print the tour's ribbon prints the certified bracket
@@ -248,10 +248,9 @@
 //!    certificate or its continuation held, and holds the closed form
 //!    to it.
 //!
-//!    More budget is not the fix, and that is measured: at
-//!    `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early exit stops firing, so
-//!    the bound is hull-dominated rather than floor-dominated — and
-//!    the face then runs for over half an hour without finishing.
+//!    More budget is not the fix: the wall sits at the costliest face
+//!    the retired round caps admitted, and one more round would cost
+//!    this face about three times the work it has already spent.
 //!
 //!    This scene was briefly re-authored with OCTAGONAL sections,
 //!    which had a volume number at every ε: a polygon's sides are
@@ -417,26 +416,25 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// its volume NUMBER.** A circle is RATIONAL, so these lateral walls
 /// are rational patches, and a rational patch is a QUADRATURE face
 /// whose certified enclosure is chased to `QUAD_TARGET_LEN_FACTOR·ε`.
-/// At ε = 1e-12 that target is 1.024e-9, and the schedule's own
-/// last-round bound proves it unreachable, so `mass_properties`
-/// refuses `QuadratureBudget` after round 0 — `rounds: 1`, no work
-/// spent.
+/// At ε = 1e-12 that target is 1.024e-9, and the walls' lane stops
+/// at the face work wall after 8 rounds, 1.244e-9 m wide, so
+/// `mass_properties` refuses `QuadratureBudget` there.
 ///
 /// **Tier 3 certifies the body all the same, which is why this
 /// authoring is the honest one.** Its +V check consumes only the SIGN
 /// of the volume enclosure — the tier's own docs say deciding that
 /// sign "is an act of certification rather than a measurement" — and
 /// this body's enclosure excludes zero at the round the chase stops
-/// on, its lower end some 270 of its own half-widths clear at
+/// on, its lower end some 450 of its own half-widths clear at
 /// ε = 1e-12. So the solid is certified at every ε and what it lacks
 /// at 1e-12 is a number, which the tour's ribbon reports as the
 /// certified bracket rather than dying on.
 ///
-/// Raising the round cap does not fix it either, measured: at
-/// `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early-exit stops firing (so the
-/// bound is hull-dominated, not floor-dominated) and the face then
-/// runs for over half an hour without finishing. More budget is not
-/// the answer; not demanding the precision is.
+/// Raising the wall does not fix it either: the wall sits at the
+/// costliest face the retired round caps admitted, and one more round
+/// would cost this face about three times the work it has already
+/// spent. More budget is not the answer; not demanding the precision
+/// is.
 ///
 /// This scene was briefly re-authored with OCTAGONAL sections to get
 /// a number at every ε, and that worked — a polygon's sides are
@@ -2167,13 +2165,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // `mass_properties` publishes a certified ENCLOSURE rather than a
     // number, where every analytic body on this page publishes a pad
     // of exactly 0. That enclosure is chased to a REPORTING target
-    // derived from ε, and **at ε = 1e-12 it is not reachable**: the
-    // schedule's own last-round bound proves it after round 0, so this
-    // reading refuses `QuadratureBudget`.
+    // derived from ε, and **at ε = 1e-12 it is not reached**: the
+    // walls' lane stops at the face work wall after 8 rounds, 1.244e-9 m
+    // against 1.024e-9 m, so this reading refuses `QuadratureBudget`.
     //
     // Tier 3 admits the body regardless — its +V check consumes only
     // the SIGN of this enclosure, decided at the very round the chase
-    // stops on, with the lower end some 270 half-widths clear of zero
+    // stops on, with the lower end some 450 half-widths clear of zero
     // at 1e-12 — so the refusal here is a missing NUMBER and not a
     // missing certificate.
     //
@@ -2261,7 +2259,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 "mass properties REFUSED TYPED at this tolerance — {refusal} — so there is no \
                  volume NUMBER to compare. These walls are RATIONAL, so they are QUADRATURE \
                  faces whose enclosure is chased to a REPORTING width derived from eps, and \
-                 at a tight enough eps that chase is proven unreachable after round 0. What \
+                 at a tight enough eps that chase stops at its work wall short of it. What \
                  is missing is a number and not a certificate: tier 3 admitted this body at \
                  this same eps on the SIGN of the enclosure, and the certificate it handed \
                  back, continued as far as the schedule reaches, keeps a bracket through the \
@@ -2517,18 +2515,19 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              COSTS AT A TIGHT EPS IS A VOLUME NUMBER RATHER THAN A CERTIFICATE. A circle \
              is RATIONAL, so these lateral walls are rational patches, and a rational \
              patch is a QUADRATURE face whose enclosure is chased to a REPORTING target \
-             derived from eps. At eps = 1e-12 the schedule's own last-round bound proves \
-             that target unreachable, so mass_properties refuses QuadratureBudget after \
-             round 0 -- rounds: 1, no work spent. TIER 3 ADMITS THE BODY ANYWAY, which is \
+             derived from eps. At eps = 1e-12 the walls' lane stops at the face work wall \
+             after 8 rounds, 1.244e-9 m wide against the 1.024e-9 m target, so \
+             mass_properties refuses QuadratureBudget there. TIER 3 ADMITS THE BODY ANYWAY, which is \
              what makes this authoring the honest one: its +V check consumes only the \
              SIGN of that enclosure, and the enclosure excludes zero at the very round \
              the chase stops on -- at eps = 1e-12 by the margin the reading above \
              prints -- so the scene certifies at every eps and the volume ribbon prints \
              the certified bracket where it has no number to print. The reading above measures through the certificate the \
              tier hands back, so where the number is refused it reports that same \
-             bracket and holds the frustum to it. More budget would not \
-             buy the number back and that is measured: at one more round the early exit \
-             stops firing and the face then runs over half an hour without finishing. An \
+             bracket and holds the frustum to it. More budget is not \
+             the fix: the wall sits at the costliest face the retired round caps \
+             admitted, and one more round would cost this face about three times the work \
+             it has already spent. An \
              OCTAGONAL authoring had a number at every eps -- straight sides make \
              polynomial walls, which take the integral lane's exact per-span rule, the \
              same reason `twisted_tube` next door can be a loft and a solid at every eps \

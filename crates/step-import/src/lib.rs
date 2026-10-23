@@ -155,11 +155,11 @@
 //! round-trippable class today is uniformly-spaced lofts with polyline
 //! profiles (non-rational, full tier 3). Arc-bearing profiles export
 //! and read, and their rational walls now have a volume quadrature
-//! that converges through interior knots — but it is a composite on a
-//! fixed round budget, so a large or strongly curved rational wall can
-//! still exhaust that budget. The at-rest gate below decides each
-//! solid's volume SIGN and admits such a body; what the budget refuses
-//! is the NUMBER, and the import carries that refusal — with the
+//! that converges through interior knots — but it is a composite under
+//! a per-face work wall, so a large or strongly curved rational wall can
+//! still stop short of the reporting target. The at-rest gate below
+//! decides each solid's volume SIGN and admits such a body; what the
+//! wall refuses is the NUMBER, and the import carries that refusal — with the
 //! measured width and the narrowest bracket the measurement held — on
 //! the enclosure it returns rather than refusing the file.
 //!
@@ -553,7 +553,7 @@ pub enum StepImport {
         /// **An `Err` is not an import refusal.** Check 7 decides a
         /// SIGN, so the gate admits a valid body whose volume is not
         /// measurable at this ε (a rational-walled loft whose
-        /// quadrature exhausts its round budget, say) exactly as it
+        /// quadrature stops at its work wall, say) exactly as it
         /// admits that body's native twin; the reader holds no opinion
         /// of its own about which admitted bodies ship (DESIGN import
         /// step 4). What it cannot give is the number, and
