@@ -89,6 +89,17 @@ pub trait SolveScalar: Decide {
     /// enclosure on a branch its arguments do not cross.
     fn solve_atan2(y: Self, x: Self) -> Self;
 
+    /// **Which branch [`Self::solve_atan2`] reads `y` over `x` on** — the
+    /// principal branch, but for a box scalar: an exact zero `y` over a
+    /// positive `x` is the angle zero, and across the negative `x` axis
+    /// the branch about `π`, where the principal cut would widen the
+    /// enclosure to the whole circle. A scalar recording its expression
+    /// over a lane scalar reads the lane's branch, so its angle is the
+    /// lane's on the same branch.
+    fn atan2_branch(_y: Self, _x: Self) -> Atan2Branch {
+        Atan2Branch::Principal
+    }
+
     /// Whether a value's spin sets the map's turn from the two charts'
     /// frames ([`super::value`]) rather than turning the folded map by
     /// the measured difference.
@@ -105,6 +116,17 @@ pub trait SolveScalar: Decide {
     fn exactly_zero(self) -> bool {
         false
     }
+}
+
+/// **The branch an angle is read on** ([`SolveScalar::atan2_branch`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Atan2Branch {
+    /// The angle zero exactly: a zero `y` over a positive `x`.
+    Zero,
+    /// The branch about `π`: `y` spanning zero over a negative `x`.
+    AboutPi,
+    /// The principal branch.
+    Principal,
 }
 
 impl SolveScalar for f64 {
@@ -1536,5 +1558,35 @@ mod tests {
             Err((vec![id(1), id(209)], 0)),
             "a slide beside a ball is fixed by it"
         );
+    }
+
+    /// **The symbolic tier reads an angle on its lane's branch**: `y`
+    /// spanning zero over a negative `x`, at `Sym<Interval>`, is the
+    /// angle about `π` the `Interval` lane reads, an enclosure a few
+    /// ulps wide, not the whole circle the principal branch's cut gives;
+    /// and an exact zero over a positive `x` is the angle zero on both.
+    ///
+    /// *Breaks if* `Sym`'s `solve_atan2` reads the plain `atan2`.
+    #[test]
+    fn the_symbolic_tier_reads_an_angle_on_its_lanes_branch() {
+        use crate::mate::SolveScalar;
+        use geom_core::{Bounds, Interval, Sym};
+        let (y, x) = (
+            Interval::from_bounds(-1e-3, 1e-3),
+            Interval::from_bounds(-1.0, -0.9),
+        );
+        let lane = <Interval as SolveScalar>::solve_atan2(y, x);
+        let sym = <Sym<Interval> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x));
+        assert_eq!(
+            (sym.value.lo(), sym.value.hi()),
+            (lane.lo(), lane.hi()),
+            "the lane's branch"
+        );
+        assert!(sym.value.hi() - sym.value.lo() < 0.01, "{:?}", sym.value);
+        let zero = <Sym<Interval> as SolveScalar>::solve_atan2(
+            Sym::opaque(Interval::from_bounds(0.0, 0.0)),
+            Sym::opaque(Interval::from_bounds(1.0, 2.0)),
+        );
+        assert_eq!((zero.value.lo(), zero.value.hi()), (0.0, 0.0));
     }
 }

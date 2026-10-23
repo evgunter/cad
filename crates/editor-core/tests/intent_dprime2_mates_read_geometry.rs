@@ -425,3 +425,51 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
         FlattenError::BothNamed { .. }
     ));
 }
+
+// ---- A slide's width on a box lane ----
+
+/// **A slide value sets its translation, not a difference** (absorbed
+/// `a-slide-value-doubles-its-translations-width`): a unit box resting
+/// on a floor's top with `Slide(X) = 3` and `Slide(Y) = 2` is placed,
+/// at `Interval`, by a map whose translation along each slid axis is
+/// the value's own point — no width. The chart's
+/// axes are the world's, so the box lane sets each slid component from
+/// its value directly, where it once added the difference between the
+/// value and the folded map's own translation, carrying that
+/// translation's width twice.
+///
+/// *Breaks if* a slide on a frame lane is set by a difference.
+#[test]
+fn a_slide_value_sets_its_translation_with_no_width() {
+    use geom_core::{Bounds, Interval};
+    let doc = ProfileDoc::empty(DocumentId::derive("dprime2-slide-width"), Tol::witness());
+    let (doc, top, _) = fixture::floor(doc, Vec::new());
+    let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
+    let (doc, placement) = insert(doc, fixture::stood(vec![BodyRead::plain(Operand::from(boss))]));
+    let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
+    let placed = Placed {
+        mates: vec![editor_core::Mate {
+            on: fixture::plane(head(start)),
+            to: fixture::flip(top),
+            class: ContactClass::Rest,
+        }],
+        values: vec![
+            (Coord::Slide(TargetAxis::X), len(3.0)),
+            (Coord::Slide(TargetAxis::Y), len(2.0)),
+            (Coord::Spin(TargetAxis::Z), fixture::ang(0.0)),
+        ],
+    };
+    let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
+    let poses = editor_core::mate::solve_document_at::<Interval>(
+        &doc,
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let map = poses.relative_map(placement).expect("the box is placed");
+    let t = map.translation;
+    assert_eq!(
+        [(t.x.lo(), t.x.hi()), (t.y.lo(), t.y.hi())],
+        [(3.0, 3.0), (2.0, 2.0)],
+        "each slid component is the value's own point, with no width"
+    );
+}
