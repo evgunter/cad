@@ -427,16 +427,18 @@ fn vase() -> Body<f64> {
 /// The shell moves every chart at once and mints every new surface
 /// first, so it refuses at a wall's fit: the wall's net carries a C⁰
 /// crease the fit's Taylor bound cannot cross. A cap moved alone meets
-/// its rim instead. The vase's walls are rational, and the moved
-/// plane's section of one is not exact structure as a row (its skinned
-/// weights differ along the stacking by an ulp), so the door marches
-/// it, and the plane × NURBS certificate refuses the marched rim on its
-/// rational wall, by its limb-2 composite's value at a break where the
-/// marched carrier's own foot is on the wall (1.3e-14 m there at 1e-9):
-/// its pcurve misses by about 4.8e-4 m (`ImageMiss`), as the door
-/// re-charts the cap.
+/// its rims instead, and moves: the skin's weights are constant along
+/// the stacking, so the moved plane's section of each wall is the
+/// wall's row at `v = |d|/2`, exact structure, and each rim is minted as
+/// the moved cap and wall's `Intersection` on that row. The loft's
+/// radius along a seam is `1 + 1.2·v(1 − v)` at height `2v`, so the
+/// rims are circles of radius 1.02925 at `z = 0.05`. Tier 3 passes the
+/// body's edges and refuses at its volume: the moved cap is a plane
+/// bounded by rational spline rims, and the planar loop's vector area
+/// has no rational rule
+/// (`work/flux/a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area.md`).
 #[test]
-fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certificate() {
+fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row() {
     let body = vase();
     let walls = nurbs_walls(&body);
     let e = topo::shell(
@@ -475,35 +477,82 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certifica
         })
         .expect("the vase has a bottom cap");
     let mut alone = body.clone();
-    let error = topo::replace_face_offset(&mut alone, cap, d, Tol::witness())
-        .expect_err("the vase's cap does not move alone today");
-    let ReplaceFaceError::Op {
-        error:
-            topo::EulerOpError::RechartFalsifies {
-                edge,
-                error:
-                    geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                        limb: geom_brep::ssi::SsiLimb::ImageMiss,
-                        margin,
-                    }),
-                ..
-            },
-        ..
-    } = &error
-    else {
-        panic!("expected the rim certificate's limb-2 refusal, got {error}");
+    topo::replace_face_offset(&mut alone, cap, d, Tol::witness())
+        .expect("the vase's cap moves alone");
+    let z = -d;
+    let cap_surface = alone.get_face(cap).expect("the moved cap resolves").surface;
+    let Some(geom::Surface::Plane { origin, normal, .. }) = alone.get_surface(cap_surface) else {
+        panic!("the moved cap is a plane");
     };
     assert!(
-        upper(*margin) > 1e2 * Tol::witness().eps(),
-        "limb 2's value at a break is far past the band, not at its edge: {margin}"
+        (origin.z - z).abs() < 1e-12 && normal.z < -0.5,
+        "the moved cap is the plane z = {z}, facing out of the body: {origin:?} {normal:?}"
     );
-    let data = body.get_edge(*edge).expect("the rim resolves");
+    let row = z / 2.0;
+    let radius = 1.0 + 1.2 * row * (1.0 - row);
+    let mut rims = 0;
+    for (edge, data) in alone.edges() {
+        let Some(curve) = alone
+            .get_curve_geom(data.curve)
+            .and_then(topo::CurveGeom::certified)
+        else {
+            panic!("{edge:?} carries a certified curve");
+        };
+        let geom_brep::EdgeDescription::Intersection { pair, .. } = curve.description() else {
+            continue;
+        };
+        rims += 1;
+        let wall = pair
+            .other(cap_surface)
+            .unwrap_or_else(|| panic!("the rim {edge:?} is not the moved cap's: {pair:?}"));
+        assert!(
+            walls
+                .iter()
+                .any(|(k, _)| alone.get_face(*k).is_some_and(|f| f.surface == wall)),
+            "the rim {edge:?} meets a spline wall"
+        );
+        assert!(
+            !curve.authority().is_declared(),
+            "the rim {edge:?} is derived, not the sketch's record"
+        );
+        let (t0, t1) = curve.params();
+        for t in [t0, 0.5 * (t0 + t1), t1] {
+            let p = curve.carrier().eval(t);
+            assert!(
+                (p.z - z).abs() < 1e-12 && (p.x.hypot(p.y) - radius).abs() < 1e-12,
+                "the rim {edge:?} is the circle of radius {radius} at z = {z}, at {p:?}"
+            );
+        }
+    }
+    assert_eq!(rims, 2, "each wall meets the moved cap along one rim");
+    let rows = alone
+        .pcurves()
+        .filter(|(he, _)| {
+            alone
+                .face_of_half_edge(*he)
+                .is_some_and(|f| is_spline_wall(&walls, f))
+        })
+        .filter(|(_, c)| {
+            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl }
+                if pl.y == 0.0 && (p0.y - row).abs() < 1e-9)
+        })
+        .count();
+    assert_eq!(rows, 2, "each wall carries its rim on its row v = {row}");
+    let refusals = topo::validate_geometric(&alone, Tol::witness())
+        .expect_err("a plane bounded by a rational rim has no vector area");
     assert!(
-        [data.he_plus, data.he_minus]
-            .into_iter()
-            .filter_map(|he| body.face_of_half_edge(he))
-            .any(|f| is_spline_wall(&walls, f)),
-        "the refused rim bounds a spline wall"
+        matches!(
+            refusals.as_slice(),
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    face,
+                    source: geom_brep::PropsError::Unimplemented,
+                    ..
+                },
+                ..
+            }] if *face == cap
+        ),
+        "expected only the moved cap's volume refusal, got {refusals:?}"
     );
 }
 

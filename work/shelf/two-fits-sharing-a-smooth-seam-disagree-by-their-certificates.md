@@ -51,3 +51,11 @@ which is this item's, so the seam takes the section route and refuses
 `NeighborPairUnroutable` naming the pair (`Approx × Nurbs` beside an
 unmoved wall) until a NURBS × NURBS arm, and then this item's seam
 question, answer it.
+
+2026-10-23 (ISO, `iso/vase-cap-moves-alone`): since PR 5629 the vase's
+cap moved alone no longer refuses at limb 2. Its rims are rows of the
+walls and certify, and tier 3 stops at the moved cap's volume
+(`work/flux/a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area.md`).
+The pin is renamed
+`shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`.
+Its shell half still refuses at a wall's `Fit { PatchBound(Crease) }`.
