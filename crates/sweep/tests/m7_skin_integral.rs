@@ -150,7 +150,11 @@ fn the_homogeneous_lane_still_drifts_where_the_shipped_lane_does_not() {
 #[test]
 fn a_rational_walls_integral_rows_skin_cartesian_and_its_rational_rows_homogeneous() {
     let g = lofted_geometry(
-        &[common::arc_section(1.0), common::arc_section(1.0), common::arc_section(1.0)],
+        &[
+            common::arc_section(1.0),
+            common::arc_section(1.0),
+            common::arc_section(1.0),
+        ],
         &stacked_at(&[0.0, 1.0, 3.0]),
     );
     let sections = &g.sections[0][1];

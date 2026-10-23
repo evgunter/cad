@@ -50,7 +50,9 @@ fn spacing(kind: &str, n: usize) -> Vec<f64> {
 /// Lofts at `z` and v-degree `deg`, then validates through tier 3.
 fn lofts_and_validates(what: &str, z: &[f64], deg: usize) {
     let lofted = loft_body::<f64>(&sections(z.len()), &stacked(z, 1.0), deg, Tol::witness())
-        .unwrap_or_else(|e| panic!("{what}: the arc loft at z = {z:?}, degree {deg} refuses: {e:?}"));
+        .unwrap_or_else(|e| {
+            panic!("{what}: the arc loft at z = {z:?}, degree {deg} refuses: {e:?}")
+        });
     topo::validate_geometric(&lofted.body, Tol::witness())
         .unwrap_or_else(|e| panic!("{what}: tier 3 refuses the arc loft at z = {z:?}: {e:?}"));
 }
@@ -75,7 +77,11 @@ fn every_spacing_lofts_at_degree_two_and_three() {
     for deg in [2, 3] {
         for kind in ["uniform", "quadratic", "jittered"] {
             for n in (deg + 1).max(3)..=9 {
-                lofts_and_validates(&format!("{kind} n={n} degree {deg}"), &spacing(kind, n), deg);
+                lofts_and_validates(
+                    &format!("{kind} n={n} degree {deg}"),
+                    &spacing(kind, n),
+                    deg,
+                );
             }
         }
     }
