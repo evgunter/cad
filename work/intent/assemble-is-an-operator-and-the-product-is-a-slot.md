@@ -53,3 +53,32 @@ gather, each reported.
 `a-placement-copy-is-its-own-table-in-the-product`,
 `an-instance-defines-one-body-per-part-placement`,
 `the-viewer-authors-no-read-of-one-copy`.
+
+## Handoff
+
+Lane: D′3 implementer, branch `intent/dprime3-assemble-product-slot`.
+
+**Split decision: one PR.** The spec's seam (one source and picks
+first, then `⊔`) leaves no spelling for a list placement in PR 1: a
+list `Place` under a mated bundle cannot become several placements
+(the mate's copy side reads one copy), and inline of a part with
+several world placements writes exactly that list. One source needs
+`⊔` to be written at all, so the two halves land together.
+
+**Plan, in commit order** (each compile-driven):
+1. Names: `RoleSeg::Placed` and `InPart` retire; a placement's and an
+   instance's copy carry their source's names verbatim (the copy's
+   body row stays its own).
+2. `Place { source, target, constraints }`, one copy.
+3. `Node::Assemble { members }` (`⊔`): graft pieces, names keyed by
+   read as a union's members are, records carried; the census at its
+   door (`product_in`'s machinery over its members as arrivals).
+4. `Doc.product` slot, `DocEdit::SetProduct`, wire + content key;
+   `product_recorded` reads the slot; gather retires.
+5. `InstantiatePart` defines one body: its part's product.
+6. Picks (`VarDef::Pick`); `CopyKey`, `BodyRead.key`, `SlotValue::Copy`,
+   `Copies`/`KeyedCopy`, `copy_of` retire.
+7. Inline lands the copied product body; split/flatten follow.
+8. pncad, pncad-py, viewer, tour, wild; stored documents regenerated.
+
+**Progress:** (updated as commits land)
