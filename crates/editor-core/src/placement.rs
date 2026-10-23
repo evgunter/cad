@@ -50,11 +50,10 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// linear part's COLUMNS (the images of the basis vectors, matching
 /// [`Mat3::from_cols`]) plus the translation.
 ///
-/// Stored as a general linear part rather than an axis–angle triple
-/// because A6's improper frames (det = −1, the mirror case) must be
-/// REPRESENTABLE in order to be refused: an axis–angle encoding has
-/// determinant +1 identically, so the v1 refusal could never fire and
-/// the R4 equivariance prerequisite would be invisible in the format.
+/// Stored as a general linear part, so a frame that is not a rigid
+/// motion (a scale, a shear, a mirror) is representable and refused:
+/// every pose is proper, and a mirror is a construction
+/// ([`crate::Node::Mirror`]).
 ///
 /// Rigidity is not a field invariant — it is a decided predicate with
 /// one home, [`RigidMotion::check_rigid`], which a listed frame asks
@@ -216,8 +215,7 @@ impl Frame {
             .all(|x| x.is_finite())
     }
 
-    /// The linear part's determinant: a proper frame's is `+1`, an
-    /// improper (mirroring) frame's `−1`.
+    /// The linear part's determinant: a rigid frame's is `+1`.
     #[must_use]
     pub fn determinant(&self) -> f64 {
         self.linear_f64().determinant()
@@ -247,8 +245,8 @@ impl Frame {
 
     /// The motion this frame denotes in the backend scalar, with a
     /// bit-exact identity marked as such ([`Motion`]) — which only a
-    /// stored frame can know, by its bits. A general map: the frame
-    /// may be improper ([`Frame::compose`] composes any two).
+    /// stored frame can know, by its bits. A general map
+    /// ([`Frame::compose`] composes any two).
     #[must_use]
     pub(crate) fn motion<T: Real>(&self) -> Motion<T> {
         if self.is_identity_bits() {
@@ -287,8 +285,8 @@ impl Frame {
     }
 
     /// **The frame half of A11/A6's admission rule, stated once**: a
-    /// frame the document admits carries only numbers, preserves
-    /// orientation, and is a rigid motion.
+    /// frame the document admits carries only numbers and is a rigid
+    /// motion, so it preserves orientation.
     ///
     /// One predicate with one home, asked wherever a document admits a
     /// frame — a placement rule's listed frames
@@ -299,21 +297,28 @@ impl Frame {
     ///
     /// Rigidity is [`RigidMotion::check_rigid`] at `tol`'s linear band,
     /// the door a listed frame's evaluation asks, so a frame admitted
-    /// here is one the evaluation moves a body by. A tolerance that forms no band decides nothing, and
-    /// every evaluation at it refuses before it reads a frame, so the
-    /// rigidity half is left to the next door that holds a band: the
-    /// load door asks it again at the loading tolerance.
+    /// here is one the evaluation moves a body by. A determinant that is
+    /// not positive is refused first, at any tolerance: a reflection is
+    /// no pose (every pose is proper; a mirror is
+    /// [`crate::Node::Mirror`]). A tolerance that forms no band decides
+    /// nothing else, and every evaluation at it refuses before it reads
+    /// a frame, so the rest of rigidity is left to the next door that
+    /// holds a band: the load door asks it again at the loading
+    /// tolerance.
     ///
     /// It lives on [`Frame`] because the rule is about a frame and
     /// nothing else: it reads no document and no node.
     #[must_use]
-    pub(crate) fn admission_fault(&self, tol: geom_core::Tol) -> Option<FrameFault> {
+    pub fn admission_fault(&self, tol: geom_core::Tol) -> Option<FrameFault> {
         if !self.is_finite() {
             return Some(FrameFault::NonFinite);
         }
-        let determinant = self.determinant();
-        if determinant <= 0.0 {
-            return Some(FrameFault::Improper { determinant });
+        // A reflection is refused whatever the tolerance: no band reads
+        // the sign of a determinant that is not positive.
+        if self.determinant() <= 0.0 {
+            return Some(FrameFault::NotRigid {
+                check: "transform_rigid_det_plus_one",
+            });
         }
         let band = Band::linear(tol).ok()?;
         match RigidMotion::check_rigid(&self.affine_f64(), band) {
@@ -352,15 +357,8 @@ pub enum FrameFault {
     /// A coordinate that is not a number: no predicate downstream can
     /// decide anything about where this frame puts the material.
     NonFinite,
-    /// The frame is IMPROPER — determinant ≤ 0, i.e. a mirror (A6).
-    /// Admitting one is gated on the equivariance audit R4 owns.
-    Improper {
-        /// The linear part's determinant.
-        determinant: f64,
-    },
-    /// The frame is proper but not definitely a rigid motion at
-    /// tolerance: it may scale or shear an axis
-    /// ([`RigidMotion::check_rigid`]).
+    /// The frame is not definitely a rigid motion at tolerance: it may
+    /// scale, shear or mirror an axis ([`RigidMotion::check_rigid`]).
     NotRigid {
         /// The rigidity check that refused, which
         /// [`geom_core::not_rigid_reading`] puts in words; routing,
@@ -376,9 +374,6 @@ impl core::fmt::Display for FrameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NonFinite => f.write_str("carries a non-finite coordinate"),
-            Self::Improper { determinant } => {
-                write!(f, "is improper (mirroring): determinant {determinant}")
-            }
             Self::NotRigid { check } => write!(
                 f,
                 "is not definitely rigid at tolerance: {}",
@@ -396,10 +391,6 @@ impl FrameFault {
     pub fn recourse(&self) -> &'static str {
         match self {
             Self::NonFinite => "give every coordinate of that frame a finite value",
-            Self::Improper { .. } => {
-                "use a frame that does not mirror, a rotation and a translation; mirrored \
-                 placements are admitted only behind the equivariance audit"
-            }
             Self::NotRigid { .. } => "use only a rotation and a translation in that frame",
         }
     }

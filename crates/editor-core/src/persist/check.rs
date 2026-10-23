@@ -1450,19 +1450,6 @@ pub enum SnapshotError {
         /// Which of its frames.
         at: FrameSite,
     },
-    /// An IMPROPER placement frame — determinant ≤ 0, the A6 mirror
-    /// case R4 gates. Its own arm rather than
-    /// [`SnapshotError::PlacementNonFinite`]: a mirror is authored data
-    /// this build declines to admit, a non-finite coordinate is data no
-    /// predicate can read, and the repairs differ.
-    PlacementImproper {
-        /// The node holding the placement.
-        node: SpokenNode,
-        /// Which of its frames.
-        at: FrameSite,
-        /// The linear part's determinant.
-        determinant: f64,
-    },
     /// A proper placement frame that is not definitely a rigid motion
     /// at tolerance. The edit door refuses it by the predicate the
     /// evaluation moves a body by.
@@ -1490,7 +1477,7 @@ pub enum SnapshotError {
     },
     /// A placement-rule node carrying a rule the edit door would have
     /// refused (GROUP-BOOLEAN-DESIGN): the count spelled two ways, an
-    /// empty explicit list, or a non-finite / improper frame.
+    /// empty explicit list, or a non-finite or non-rigid frame.
     PlacementRule {
         /// The offending node.
         node: SpokenNode,
@@ -1649,7 +1636,7 @@ impl SnapshotError {}
 /// site and the frame rule's own clause, then what a user holding the
 /// file can do. The edit doors never admitted a non-finite or a
 /// mirrored frame, so a file holding one was not written by them; a
-/// frame that is not rigid was admitted by earlier builds at the
+/// frame that scales or shears was admitted by earlier builds at the
 /// registry and in an explicit rule, and a current build refuses it at
 /// the edit door with that frame's own recourse.
 fn frame_refusal(
@@ -1660,9 +1647,7 @@ fn frame_refusal(
 ) -> core::fmt::Result {
     write!(f, "{} {fault}. ", at.subject(node))?;
     match fault {
-        FrameFault::NonFinite | FrameFault::Improper { .. } => {
-            f.write_str(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
-        }
+        FrameFault::NonFinite => f.write_str(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
         FrameFault::NotRigid { .. } => {
             write!(
                 f,
@@ -1872,18 +1857,6 @@ impl core::fmt::Display for SnapshotError {
             Self::PlacementNonFinite { node, at } => {
                 frame_refusal(f, node, *at, FrameFault::NonFinite)
             }
-            Self::PlacementImproper {
-                node,
-                at,
-                determinant,
-            } => frame_refusal(
-                f,
-                node,
-                *at,
-                FrameFault::Improper {
-                    determinant: *determinant,
-                },
-            ),
             Self::PlacementNonRigid { node, at, check } => {
                 frame_refusal(f, node, *at, FrameFault::NotRigid { check })
             }
@@ -2387,7 +2360,6 @@ mod tests {
             EpsilonInvalid,
             ConstraintNotMinted,
             PlacementNonFinite,
-            PlacementImproper,
             PlacementNonRigid,
             MateRefused,
             PlacementRule,
@@ -2449,7 +2421,6 @@ mod tests {
             | SnapshotError::EpsilonInvalid { .. }
             | SnapshotError::ConstraintNotMinted { .. }
             | SnapshotError::PlacementNonFinite { .. }
-            | SnapshotError::PlacementImproper { .. }
             | SnapshotError::PlacementNonRigid { .. }
             | SnapshotError::MateRefused { .. }
             | SnapshotError::PlacementRule { .. }
@@ -2621,11 +2592,6 @@ mod tests {
             SnapshotError::PlacementNonFinite {
                 node: node(),
                 at: FrameSite::Listed { index: 0 },
-            },
-            SnapshotError::PlacementImproper {
-                node: node(),
-                at: FrameSite::Listed { index: 1 },
-                determinant: -1.0,
             },
             SnapshotError::PlacementNonRigid {
                 node: node(),

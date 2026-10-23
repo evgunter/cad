@@ -2084,6 +2084,7 @@ fn node_error_tags_are_the_published_words() {
         Chamfer => "chamfer",
         Boolean => "boolean",
         Transform => "transform",
+        Mirror => "mirror",
         Motion => "motion",
         Skin => "skin",
         Loft => "loft",
@@ -2121,7 +2122,6 @@ fn node_error_tags_are_the_published_words() {
         PlacementRuleCountSpelling => "placement_rule_mismatch",
         PlacementRuleNoPlacements => "empty_placement_list",
         PlacementRuleNonFiniteFrame => "non_finite_placement",
-        PlacementRuleImproperFrame => "improper_placement",
         PlacementRuleNonRigidFrame => "non_rigid_placement",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
@@ -2784,14 +2784,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // ---- scalars and addresses ----
     carries(&E::InvalidTolerance { value: -1.0 }, &["value"]);
-    carries(
-        &E::ImproperPlacement {
-            node: sp(1),
-            at: pncad::document::FrameSite::Listed { index: 2 },
-            determinant: -1.0,
-        },
-        &["node", "determinant", "index"],
-    );
     carries(
         &E::NonRigidPlacement {
             node: sp(1),
@@ -4815,7 +4807,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fresh_kind",
             "fresh_unheld",
             "fresh_unread",
-            "improper_placement",
             "indexed_read",
             "invalid_distribution",
             "invalid_tolerance",
@@ -5269,7 +5260,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "extrude",
             "fillet",
             "full_range_step",
-            "improper_placement",
             "instance_out_of_range",
             "loft",
             "mate_class_not_admitted",
@@ -5286,6 +5276,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_not_parallel",
             "measure_ref_unreadable",
             "measure_unsupported",
+            "mirror",
             "missing_input",
             "missing_slot",
             "motion",
@@ -5407,6 +5398,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "of",
             "open",
             "path",
+            "plane",
             "profile",
             "section",
             "selection",
@@ -5922,7 +5914,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "operand_unminted",
             "output_signature",
             "payload_var_kind",
-            "placement_improper",
             "placement_non_finite",
             "placement_non_rigid",
             "placement_rule",
@@ -6390,7 +6381,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another kind.
     ("fresh_kind", 2),
     ("fresh_unheld", 2),
-    ("improper_placement", 2),
     // Two: a resolution lands in the ambiguity band exactly as a
     // profile's structure does — the same verdict, undecided at this ε.
     ("indeterminate", 2),
@@ -6437,6 +6427,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // whole by each verb.
     ("pieces", 2),
     ("placement_rule_mismatch", 2),
+    ("plane", 2),
     ("poisoned", 2),
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
@@ -10213,6 +10204,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "intersect",
     "loft",
     "measure",
+    "mirror",
     "part",
     "pattern",
     "place",

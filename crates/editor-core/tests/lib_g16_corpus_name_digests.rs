@@ -302,6 +302,7 @@ const PINNED: &[(&str, u64)] = &[
     ("die_tool", 0xd8f504768e20978a),
     ("face_sketch", 0xe543d89eb08f1acd),
     ("part_select", 0xbda1a33c5b6a29b7),
+    ("symmetric_plate", 0x57332760b19770e0),
     ("loft_prism", 0x1f0fee3e463521f8),
     ("die_composed", 0x7407f992e7d4c371),
     ("die_composed_tour", 0x79928ebab17faae1),

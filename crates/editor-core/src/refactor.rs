@@ -1679,7 +1679,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::UnknownConstraint { .. }
             | EditError::PlacementRuleMismatch { .. }
             | EditError::EmptyPlacementList { .. }
-            | EditError::ImproperPlacement { .. }
             | EditError::NonFinitePlacement { .. }
             | EditError::NonRigidPlacement { .. }
             | EditError::PlacementAxis { .. }
@@ -2083,6 +2082,10 @@ fn remap_node(
         Node::Split { target, tool } => Node::Split {
             target: br(crate::OperandSlot::Target, target)?,
             tool: tool.try_map(|tool| rd(crate::OperandSlot::Tool, *tool))?,
+        },
+        Node::Mirror { body, plane } => Node::Mirror {
+            body: br(crate::OperandSlot::Body, body)?,
+            plane: plane.try_map(|plane| rd(crate::OperandSlot::Plane, *plane))?,
         },
         Node::Subtract { from, tool } => Node::Subtract {
             from: br(crate::OperandSlot::From, from)?,
@@ -2618,7 +2621,8 @@ pub fn split(
                     }
                     Some(
                         crate::names::VerbatimEdge::Selected { .. }
-                        | crate::names::VerbatimEdge::Intact,
+                        | crate::names::VerbatimEdge::Intact
+                        | crate::names::VerbatimEdge::Reflected,
                     )
                     | None => None,
                 };

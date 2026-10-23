@@ -275,7 +275,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "InstanceOutOfRange",
     "PlacementsUncertified",
     "PlacementRule/CountSpelling",
-    "PlacementRule/ImproperFrame",
     "PlacementRule/NoPlacements",
     "PlacementRule/NonFiniteFrame",
     "PlacementRule/NonRigidFrame",
@@ -820,7 +819,6 @@ test_utils::f6_variants! {
         CountSpelling,
         NoPlacements,
         NonFiniteFrame,
-        ImproperFrame,
         NonRigidFrame,
     ];
 }
@@ -836,7 +834,7 @@ test_utils::f6_variants! {
     /// an arm added to the enum stops this compiling until it is here.
     const NODE_ERROR_KIND: NodeErrorKind = [
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
-        Boolean, Transform, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
+        Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
         UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
@@ -1273,9 +1271,10 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         NodeErrorKind::PoseRead { .. }
         | NodeErrorKind::Mate(_)
         | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
-        NodeErrorKind::Part { .. } | NodeErrorKind::Transform(_) | NodeErrorKind::Motion(_) => {
-            Forward::Unwelded(UNWELDED_PLACEMENT)
-        }
+        NodeErrorKind::Part { .. }
+        | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Mirror(_)
+        | NodeErrorKind::Motion(_) => Forward::Unwelded(UNWELDED_PLACEMENT),
         NodeErrorKind::CurvedSolidFrontier { .. }
         | NodeErrorKind::MissingInput { .. }
         | NodeErrorKind::UnresolvedRead { .. }
@@ -2876,6 +2875,10 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
+    .chain([row(
+        "Mirror/NurbsPlaceholder",
+        NodeErrorKind::Mirror(E::NurbsPlaceholder),
+    )])
     .chain(certify_refusal_routes())
     .chain(offset_fit_routes())
     .collect()
@@ -4520,13 +4523,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "NonFiniteFrame",
             PlacementRuleFault::NonFiniteFrame { index: 2 },
-        ),
-        (
-            "ImproperFrame",
-            PlacementRuleFault::ImproperFrame {
-                index: 2,
-                determinant: -1.0,
-            },
         ),
         (
             "NonRigidFrame",

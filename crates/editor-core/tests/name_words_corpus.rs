@@ -170,8 +170,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// name says it at each of its ends; the growth is the same placed-copy
 /// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 59_743]),
-    ("full", [19, 135, 396, 458_233]),
+    ("scoped faces", [16, 43, 57, 60_241]),
+    ("full", [19, 135, 396, 461_129]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -322,7 +322,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// (`e605bc0e`), and [`NAME_WORDS`] held: a read of a construction's
 /// body is said by the node alone, its space being no part of what it
 /// holds.
-const SAID_DIGEST: u64 = 0x2954_4d78_a391_f39b;
+const SAID_DIGEST: u64 = 0x06c5_b4ba_2867_0bee;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

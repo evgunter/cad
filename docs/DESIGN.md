@@ -1260,10 +1260,10 @@ integers. Copies of one body are built once and mapped; a construction
 whose scalar inputs read an index is built per member, and no
 construction reads a frame. A mirror image is not a copy, because a
 reflection is not a pose: `Mirror { body, plane }`
-is a construction defining a new `Body` in its source's root, the
-plane a `Plane` pose whose reads reach that root alone (a face read as a
-plane, or a plane constructed from the body's geometry), and every pose
-is proper. A symmetric part is `union(body, Mirror { body, plane })`,
+is a construction defining a new `Body` in its source's space, the
+plane a `Plane` pose whose reads reach that space alone (a face read as
+a plane, or a plane constructed from the body's geometry), and every
+pose is proper. A symmetric part is `union(body, Mirror { body, plane })`,
 one construction whose seam is the plane's face read twice; a chiral
 twin elsewhere is a placement of the image, and there the plane carries
 no shape.
@@ -2284,7 +2284,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/CHECKS.md` | Ratified (2026-10-18) | Checks, DISCIPLINES-DESIGN DS3, DS6, DS8, DS9: no knob changes a body, certified vs heuristic, `error` only where a finding can be quieted, out-of-tree checks |
 | `docs/PCURVE-UNIFY-DESIGN.md` | Ratified (#514); executed | Pcurve unification: the conventional edge variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record. P-2 residue stays open |
 | `docs/RECIPE-DOORS-DESIGN.md` | Ratified (D2–D5) | Recipe doors for the surgery verbs, D2–D5: `Node::Chamfer` beside `Node::Fillet`, `Node::Tube`/`HollowTube`, and `Node::Shell` with its ordered open faces |
-| `docs/MIRROR-DESIGN.md` | Ratified (#909); unbuilt | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
+| `docs/MIRROR-DESIGN.md` | Ratified (#909); mirror built | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
 | `crates/editor-core/VARIABLES.md` | Ratified | How a variable is represented, VARIABLES-DESIGN VR1–VR9: minted identity and optional name, `Expr` holds no float, `Formula` lowered at the edit door, lifecycle, id-keyed tokens |
