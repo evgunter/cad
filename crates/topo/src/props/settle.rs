@@ -136,7 +136,7 @@ pub(crate) fn relation_step<T: Decide>(
         )
     };
     let poisoned = |d: &Result<Decided, Indeterminate>| match d {
-        Err(cause) if cause.margin.is_invalid() => Some(cause.clone()),
+        Err(cause) if cause.margin.is_invalid() => Some(*cause),
         _ => None,
     };
     let sign = |d: &Result<Decided, Indeterminate>| d.as_ref().ok().map(|d| d.sign);

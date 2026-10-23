@@ -2211,20 +2211,20 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         // there. A slot the map did not cover is decided here instead,
         // which is the session arm.
         let mut decided = decided.into_iter();
-        for slot in 0..runs.len() {
+        for run in &mut runs {
             let resumed = match decided.next() {
                 Some((Some(resumed), recording)) => {
                     geom_core::k_stats::splice(recording);
                     Some(resumed.map_err(hard)?)
                 }
                 Some((None, _nothing_recorded)) => None,
-                None => match runs[slot].resumes_to(len) {
-                    Some(first) => Some(resume(runs[slot].face, first).map_err(hard)?),
+                None => match run.resumes_to(len) {
+                    Some(first) => Some(resume(run.face, first).map_err(hard)?),
                     None => None,
                 },
             };
             if let Some(resumed) = resumed {
-                runs[slot].advance(resumed);
+                run.advance(resumed);
             }
         }
         // [`SignCertificate`]'s refusal rule: no face was refused outright,
@@ -4068,6 +4068,7 @@ fn trims<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
 
 /// The per-face body of the flux walk (module docs), about the face's
 /// shell's reference, as `refs` holds it.
+#[allow(clippy::too_many_arguments)]
 fn face_flux<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,

@@ -68,8 +68,9 @@ use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 
 use k_lint::{
-    AMBIENT_BAND_MIN, BASELINE_FLOOR_MARGIN, EPS_COUPLED_FLOOR_RATIO, EPS_COUPLED_PREDICATES, ERA_EPS_COUPLED_PREDICATES,
-    EPS_COUPLED_UNRULED, PROXIMITY_FACTOR, Reason, lint_csv, lint_sample, lint_sample_under, zero_arm_usage,
+    AMBIENT_BAND_MIN, BASELINE_FLOOR_MARGIN, EPS_COUPLED_FLOOR_RATIO, EPS_COUPLED_PREDICATES,
+    EPS_COUPLED_UNRULED, ERA_EPS_COUPLED_PREDICATES, PROXIMITY_FACTOR, Reason, lint_csv,
+    lint_sample_under, zero_arm_usage,
 };
 
 /// The era the shipped thresholds were cut from — the one
