@@ -3059,19 +3059,6 @@ pub enum EditError {
         /// The offending node.
         node: SpokenNode,
     },
-    /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
-    /// (A6). Admitting one is gated on the equivariance audit R4 owns:
-    /// until that lands, a mirrored placement is refused rather than
-    /// silently trusted to leave every orientation-sensitive predicate
-    /// and every outward normal intact.
-    ImproperPlacement {
-        /// The node holding the frame.
-        node: SpokenNode,
-        /// Which of its frames.
-        at: FrameSite,
-        /// The linear part's determinant.
-        determinant: f64,
-    },
     /// A placement frame carrying a non-finite coordinate.
     NonFinitePlacement {
         /// The node holding the frame.
@@ -3446,11 +3433,6 @@ impl EditError {
             }
             | Self::PlacementRuleMismatch { node, shape: _ }
             | Self::EmptyPlacementList { node }
-            | Self::ImproperPlacement {
-                node,
-                at: _,
-                determinant: _,
-            }
             | Self::NonFinitePlacement { node, at: _ }
             | Self::NonRigidPlacement {
                 node,
@@ -4519,19 +4501,6 @@ impl EditError {
                     ),
                 )
             }
-            Self::ImproperPlacement {
-                node,
-                at,
-                determinant,
-            } => frame_refusal(
-                f,
-                tail,
-                node,
-                *at,
-                FrameFault::Improper {
-                    determinant: *determinant,
-                },
-            ),
             Self::NonRigidPlacement { node, at, check } => {
                 frame_refusal(f, tail, node, *at, FrameFault::NotRigid { check })
             }
@@ -6833,13 +6802,6 @@ fn door<P: Clone + crate::ProfilePayload, T>(
                 return Err(EditError::NonFinitePlacement {
                     node: written(doc, node, n),
                     at: listed(index),
-                });
-            }
-            Some(PlacementRuleFault::ImproperFrame { index, determinant }) => {
-                return Err(EditError::ImproperPlacement {
-                    node: written(doc, node, n),
-                    at: listed(index),
-                    determinant,
                 });
             }
             Some(PlacementRuleFault::NonRigidFrame { index, check }) => {

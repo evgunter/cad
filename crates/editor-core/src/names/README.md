@@ -113,8 +113,8 @@ chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
 (`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
 was minted with, never by its position (below). Names contain no floats and no arena keys; a pass-through op (a
-split-intact entity, a read of a split's half, a `Part`'s projection of one instance) adds no
-segment, so `node` stays the original minter; a placement's copy is qualified
+split-intact entity, a read of a split's half, a `Part`'s projection of one instance, a mirror's
+image) adds no segment, so `node` stays the original minter; a placement's copy is qualified
 `Placed { of }`, once per copy. Names are document-local;
 assembly wrapping is `ASSEMBLY.md`'s.
 

@@ -665,6 +665,8 @@ pub enum VerbatimKind {
     Selected,
     /// `VerbatimEdge::Intact`: the entities a split leaves intact.
     Intact,
+    /// `VerbatimEdge::Reflected`: a mirror's image.
+    Reflected,
 }
 
 /// **The name-carrying edge the recipe walks read `node` as, if any**:
@@ -682,6 +684,7 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     Some(match crate::names::verbatim_edge(node)? {
         VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
         VerbatimEdge::Intact => VerbatimKind::Intact,
+        VerbatimEdge::Reflected => VerbatimKind::Reflected,
     })
 }
 

@@ -193,7 +193,10 @@ impl<T: Real> Body<T> {
         // half-edge no longer resolves is on no face, so it is on no
         // plane face and travels as found — the dead-key exception
         // `crate::pcurves`'s posture docs state for this door.
-        let is_plane = |surface: &Surface<T>| matches!(surface, Surface::Plane { .. });
+        let is_plane = |surface: &Surface<T>| {
+            crate::transform::OrientationClass::of(surface)
+                == crate::transform::OrientationClass::Plane
+        };
         let plane_faces: BTreeSet<FaceKey> = self
             .faces
             .iter()

@@ -120,6 +120,44 @@ fn the_quadrature_lane_refuses_a_mirror_wall_typed() {
     }
 }
 
+/// **The oval on its mirror torus mirrors.** Across each coordinate
+/// plane, at each chart axis, the image's wall images are restated for
+/// the mapped carrier (whose stand-off negates) and tier 3 reads the
+/// image as it reads the source: the same structural verdict, and every
+/// stored row clean.
+fn the_oval_on_its_mirror_torus_mirrors<T: AtRestPolicy + Bounds>() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    for sigma in [1.0, -1.0] {
+        let (mut body, _) = mirror_oval::<T>(sigma);
+        topo::mint_pcurves(&mut body, tol).unwrap();
+        for (plane, normal) in [
+            ("x", Vec3::<T>::unit_x()),
+            ("y", Vec3::<T>::unit_y()),
+            ("z", Vec3::<T>::unit_z()),
+        ] {
+            let at = format!("axis {sigma}, across {plane} = 0");
+            let reflection = topo::Reflection::across(Point3::origin(), normal, tol).unwrap();
+            let image = topo::mirror_body(&body, &reflection, tol)
+                .unwrap_or_else(|e| panic!("{at}: the mirror refuses: {e}"));
+            assert_eq!(
+                topo::validate(&image),
+                topo::validate(&body),
+                "{at}: the image's structural verdict is the source's"
+            );
+            assert!(
+                image.pcurves().next().is_some(),
+                "{at}: the image stores its wall rows"
+            );
+            let findings = topo::pcurves::validate_pcurves(&image, band);
+            assert!(
+                findings.is_empty(),
+                "{at}: tier 3 reads the image clean: {findings:?}"
+            );
+        }
+    }
+}
+
 /// One row per scalar.
 macro_rules! rows_at {
     ($module:ident, $scalar:ty) => {
@@ -127,6 +165,11 @@ macro_rules! rows_at {
             #[test]
             fn a_whole_spiric_oval_closes_one_edge_on_its_mirror_torus() {
                 super::a_whole_spiric_oval_closes_one_edge_on_its_mirror_torus::<$scalar>();
+            }
+
+            #[test]
+            fn the_oval_on_its_mirror_torus_mirrors() {
+                super::the_oval_on_its_mirror_torus_mirrors::<$scalar>();
             }
         }
     };

@@ -1736,7 +1736,7 @@ impl DocSession {
                 }
             }
             SessionOp::PreviewFreeMove { instance, frame } => {
-                match self.display.preview_free_move(instance, frame) {
+                match self.display.preview_free_move(instance, frame, self.tol()) {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
@@ -4207,6 +4207,7 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
+        | Node::Mirror { .. }
         | Node::Subtract { .. }
         | Node::Union { .. }
         | Node::Intersect { .. }

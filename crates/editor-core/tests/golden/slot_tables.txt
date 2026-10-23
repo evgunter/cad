@@ -52,6 +52,9 @@ Shell { thickness: #0, open: @0 }
 Split { target: @0, tool: @1 }
   @0 Operand(Target)
   @1 Operand(Tool)
+Mirror { body: @0, plane: @1 }
+  @0 Operand(Body)
+  @1 Operand(Plane)
 Subtract { from: @0, tool: @1 }
   @0 Operand(From)
   @1 Operand(Cut)

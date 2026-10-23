@@ -10,6 +10,7 @@ Fillet 3:0e2ded6ce073357a
 Chamfer 3:5acb8221e82f6652
 Shell 3:f5f9ee44d7ae3357
 Split 1:363b3cf61ca9b8b1
+Mirror 1:29b5f2bf9b537f33
 Subtract 1:e2323a9d9f242b03
 Union 1:9b2084c212f77e04
 Intersect 1:f70bb7a0dd0873e4

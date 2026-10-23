@@ -1128,9 +1128,9 @@ BOUND_AS = {
     "PlacedBy": "Placed.by",
     "PinRefusal": "EditError.variant",
     # What a frame fails to be a placement: the edit door spreads it
-    # into three arms of its own, so its discriminant crosses as
+    # into arms of its own, so its discriminant crosses as
     # `EditError.variant` (`non_finite_placement`,
-    # `improper_placement`, `non_rigid_placement`).
+    # `non_rigid_placement`).
     "FrameFault": "EditError.variant",
     # Which of a node's placement frames an edit refusal is about: its
     # position crosses as `EditError.index` (a transform's step, an
@@ -1338,12 +1338,12 @@ BOUND_AS = {
     #
     # `PlacementRuleFault` crosses as `EditError.variant`
     # (`placement_rule_mismatch`, `empty_placement_list`,
-    # `non_finite_placement`, `improper_placement`). It sat in the
+    # `non_finite_placement`, `non_rigid_placement`). It sat in the
     # `gap` roster carrying the reason "a placement is set by an edit
     # Python cannot author" — MEASURED WRONG, and corrected here: the
     # fault is the GROUP BOOLEAN's placement-rule fault, not the
     # assembly registry's, and `Node.placed_union_at` has reached it
-    # since LIB-PYPU (an improper frame raises `improper_placement`
+    # since LIB-PYPU (a non-rigid frame raises `non_rigid_placement`
     # today). `DocEdit.set_offset`'s own refusals are separate
     # `EditError` arms that share the tag namespace, so binding it
     # changed nothing about this entry except who noticed.
@@ -3787,7 +3787,6 @@ MEMBERS_BOUND_AS = {
     "EditError::RebindMetadataCollision": "EditError.variant",
     "EditError::PlacementRuleMismatch": "EditError.variant",
     "EditError::EmptyPlacementList": "EditError.variant",
-    "EditError::ImproperPlacement": "EditError.variant",
     "EditError::NonFinitePlacement": "EditError.variant",
     "EditError::NonRigidPlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",

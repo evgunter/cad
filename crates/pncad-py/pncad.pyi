@@ -201,7 +201,6 @@ class EditError(PncadError):
     again: Optional[int]
     value: Optional[float]
     offered: Optional[float | int]
-    determinant: Optional[float]
     index: Optional[int]
     mate: Optional[MateRef]
     path: Optional[tuple[int, ...]]
@@ -977,14 +976,13 @@ class FrameError(PncadError):
 
     `variant` is `degenerate_aim`, `degenerate_tangent`,
     `degenerate_roll_reference`, `degenerate_reference_ladder`,
-    `degenerate_mirror_normal`, `non_finite_aim`,
-    `non_finite_tangent`, `non_finite_roll_reference`,
-    `non_finite_mirror_normal`, or `band`. WHICH input was refused is
+    `non_finite_aim`, `non_finite_tangent`,
+    `non_finite_roll_reference`, or `band`. WHICH input was refused is
     that word and nothing else: the tag is minted per input, so there
     is no second attribute spelling the same fact.
 
-    **The two families are not the same length.** There are five
-    `degenerate_*` words and only four `non_finite_*` ones: the
+    **The two families are not the same length.** There are four
+    `degenerate_*` words and only three `non_finite_*` ones: the
     reference LADDER is a pair of unit constants the kernel supplies,
     not a vector you hand in, so it can be degenerate (neither rung is
     off the tangent line) but never non-finite. No
@@ -1938,12 +1936,12 @@ class Frame:
     The value `PatternKind.explicit` lists and `Node.placed_union_at`
     places a prototype at. It is authored through constructors rather
     than field by field — a linear part is a MATRIX, and that is how a
-    mirror or a shear arrives by accident. Improper frames
-    (determinant <= 0) are refused at the edit door, not admitted.
+    mirror or a shear arrives by accident. A frame that is not a rigid
+    motion is refused at the edit door, not admitted; a mirror is a
+    construction (`Node.mirror`), never a frame.
 
-    Rigidity is not claimed here: the edit door checks that the
-    coordinates are finite and the determinant positive, and the
-    kernel's placement door owns the rest.
+    Rigidity is not claimed here: the edit door asks the kernel's
+    rigidity predicate.
     """
 
     @staticmethod
@@ -1995,15 +1993,6 @@ class Frame:
         local XY plane is a swept profile's plane. The roll comes from
         a stated ladder (world +Z, then world +X); if neither is
         definitely off the tangent line it raises FrameError."""
-
-    @staticmethod
-    def mirror_across_plane(
-        point: tuple[Length, Length, Length],
-        normal: tuple[float, float, float],
-    ) -> Frame:
-        """Reflection across the plane through `point` — an IMPROPER
-        frame (determinant -1). Constructible as a value; NOT
-        placeable, since the edit door refuses a mirror placement."""
 
     @property
     def columns(self) -> tuple[
@@ -2320,6 +2309,18 @@ class Node:
         halves, read by port (`doc.output(split, 0)` is the half above
         the plane's normal); a read of a half the cut left with no
         material refuses at `evaluate` (`empty_half`)."""
+
+    @staticmethod
+    def mirror(body: _BodyArg, plane: _PoseRead) -> Node:
+        """The mirror image of `body`: `body` reflected across `plane`
+        (a plane: a `PoseDef` of kind plane, or a frame's coordinate
+        plane read through its role, `RoleRead(frame, "xy")`), a new
+        body in `body`'s own space whose cells keep `body`'s names.
+        The plane reads that space alone, as a split's tool does: one
+        read off another construction refuses at `evaluate`
+        (`space_mismatch`). A symmetric part is
+        `Node.union([body, mirror])` across one of `body`'s own
+        faces."""
 
     @staticmethod
     def place(
@@ -3889,8 +3890,8 @@ class Doc:
 
         The vocabulary, in full: `profile`, `extrude`, `revolve`,
         `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`, `chamfer`,
-        `shell`, `split`, `union`, `intersect`, `subtract`, `place`,
-        `world`, `space`, `pattern`, `part`, `placed_union`,
+        `shell`, `split`, `mirror`, `union`, `intersect`, `subtract`,
+        `place`, `world`, `space`, `pattern`, `part`, `placed_union`,
         `instantiate_part`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a

@@ -465,7 +465,6 @@ here: Frame = Frame.translation((0 * m, 0 * m, 0 * m))
 turned: Frame = Frame.rotate_then_translate((0.0, 0.0, 1.0), 90 * deg, (1 * m, 0 * m, 0 * m))
 aimed: Frame = Frame.point_at((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m), (0.0, 1.0, 0.0))
 swept: Frame = Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
-flipped: Frame = Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
 frame_origin: tuple[Length, Length, Length] = here.origin
 frame_det: float = here.determinant
 
@@ -884,7 +883,6 @@ except EditError as edit_refusal:
     again_at: int | None = edit_refusal.again
     refused_eps: float | None = edit_refusal.value
     refused_value: float | int | None = edit_refusal.offered
-    det: float | None = edit_refusal.determinant
     address: tuple[int, ...] | None = edit_refusal.path
     inside_meta: str | None = edit_refusal.value_path
     already: ContentPin | None = edit_refusal.pin

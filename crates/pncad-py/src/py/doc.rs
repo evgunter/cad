@@ -56,7 +56,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 28] {
+) -> [(&'static str, Py<PyAny>); 27] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -118,10 +118,6 @@ fn edit_fields(
                 d::FreeValue::Continuous(v) => infallible(v.into_pyobject(py)),
                 d::FreeValue::Count(n) => infallible(n.into_pyobject(py)),
             })),
-        ),
-        (
-            "determinant",
-            num(payload.determinant.map(|v| infallible(v.into_pyobject(py)))),
         ),
         (
             "index",
@@ -3165,6 +3161,22 @@ impl Node {
         }
     }
 
+    /// The mirror image of a body: `body` reflected across `plane` (a
+    /// plane, or a frame's coordinate plane read through its role), a
+    /// new body in `body`'s own space, its cells named as `body` names
+    /// them. The plane reads that space alone, as a split's tool does.
+    /// A symmetric part is `Node.union([body, mirror])` across one of
+    /// `body`'s own faces.
+    #[staticmethod]
+    fn mirror(body: BodyArg, plane: super::pose::PoseArg) -> Self {
+        Self {
+            inner: d::Node::Mirror {
+                body: body.read(),
+                plane: plane.read(),
+            },
+        }
+    }
+
     /// **One copy of `shapes` placed into `target` by `constraints`**:
     /// the operation whose output is a copy. Inserting it is
     /// `Doc.place`.
@@ -3392,8 +3404,8 @@ impl Node {
     /// There is no count argument because the list IS the count — one
     /// number, one spelling. An EMPTY list is this rule's `count < 1`
     /// and refuses typed at `Doc.insert` (`empty_placement_list`), as
-    /// does a non-finite (`non_finite_placement`) or improper
-    /// (`improper_placement`) frame.
+    /// does a non-finite (`non_finite_placement`) or non-rigid
+    /// (`non_rigid_placement`) frame.
     #[staticmethod]
     fn placed_union_at(input: OperandArg, frames: Vec<super::place::Frame>) -> Self {
         Self {

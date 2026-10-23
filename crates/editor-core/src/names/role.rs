@@ -1761,10 +1761,15 @@ pub(crate) enum VerbatimEdge<'a> {
     /// is the geometry's answer, not the recipe's, so no walk follows
     /// this edge and it carries no input.
     Intact,
+    /// Every entity of the body reflected: a
+    /// [`Node::Mirror`](crate::node::Node::Mirror). Its names are the
+    /// source's, but its material is another body's, the source's
+    /// image, so no walk that reads a pose follows this edge.
+    Reflected,
 }
 
 /// **The name-carrying edge `node` is, if any**: a part's projection,
-/// a split's intact entities (N1's pass-through ops). Every other node
+/// a split's intact entities, a mirror's image (N1's pass-through ops). Every other node
 /// is classified as re-minting what it carries.
 ///
 /// Two walks read the set here: split's test of which cut placement's
@@ -1790,6 +1795,7 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
     match node {
         Node::Part { of, select } => Some(VerbatimEdge::Selected { of: *of, select }),
         Node::Split { .. } => Some(VerbatimEdge::Intact),
+        Node::Mirror { .. } => Some(VerbatimEdge::Reflected),
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
