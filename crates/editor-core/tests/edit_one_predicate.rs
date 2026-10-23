@@ -443,7 +443,9 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             class: ContactClass::Rest,
-            outer: face(in_part(ids[0], body, CapEnd::Start)),
+            // An `outer` is a remainder name: spelled on a node this
+            // document holds.
+            outer: face(crate::fixture::resolver::in_world(ids[0], CapEnd::Start)),
             inner: face(part_face(body)),
         }],
     };

@@ -1978,7 +1978,11 @@ mod ladder {
     pub(super) fn live<'n>(
         name: &'n StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
+        read: crate::VarId,
     ) -> Result<Live<'n>, Box<ResolveError>> {
+        if ResolveError::part_name(name, read, doc) {
+            return Ok(Live(name));
+        }
         match ResolveError::node_gone(name, doc) {
             None => Ok(Live(name)),
             Some(gone) => Err(Box::new(gone)),
@@ -1998,10 +2002,11 @@ mod ladder {
     pub(super) fn resolve_key<K: Denoted>(
         name: &StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
+        read: crate::VarId,
         table: &NameTable,
         refuse: impl Fn(Box<ResolveError>) -> super::NodeErrorKind,
     ) -> Result<(u32, K), super::NodeErrorKind> {
-        let live = live(name, doc).map_err(&refuse)?;
+        let live = live(name, doc, read).map_err(&refuse)?;
         key_in::<K>(table, live.0).map_err(|refusal| match refusal {
             TableRefusal::NoSuchName => refuse(vanished(&live)),
             TableRefusal::Ambiguous { candidates } => refuse(tied(&live, candidates)),
@@ -2154,11 +2159,13 @@ fn resolve_selection<K: names::interrogate::Denoted>(
         .iter()
         .enumerate()
         .map(|(reference, name)| {
-            ladder::resolve_key(name, doc, table, |error| NodeErrorKind::SelectResolve {
-                slot,
-                var,
-                reference,
-                error,
+            ladder::resolve_key(name, doc, selection.body, table, |error| {
+                NodeErrorKind::SelectResolve {
+                    slot,
+                    var,
+                    reference,
+                    error,
+                }
             })
         })
         .collect::<Result<_, _>>()?;

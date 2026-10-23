@@ -45,12 +45,15 @@ fn a_mate_bearing_document_round_trips() {
         ids.push(applied.record.minted.expect("a minted id"));
         doc = applied.doc;
     }
-    let name = |node| StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 1),
-                path: vec![RoleSeg::Cap(CapEnd::Start)],
-            }
-            ;
+    // A part's cap, read at the instance whose copy carries it.
+    let name = |node| crate::fixture::resolver::InPart {
+        at: node,
+        name: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 1),
+            path: vec![RoleSeg::Cap(CapEnd::Start)],
+        },
+    };
     let add = |doc: &ProfileDoc, placement, mate| {
         apply(
             doc,

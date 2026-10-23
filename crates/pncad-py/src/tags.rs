@@ -136,7 +136,7 @@ use pncad::document::{
     MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
     NodeStanding, ParseError, PersistError, PinRefusal, PlacementRuleFault, ProgramFault,
     ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault,
-    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, ProductReadFault,
     TargetAxis, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
@@ -595,7 +595,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::OperandUnresolved { .. } => "operand_unresolved",
         EditError::AmbiguousOutput { .. } => "ambiguous_output",
         EditError::DefinesNothing { .. } => "defines_nothing",
-        EditError::CopyReadOffBodySeat { .. } => "copy_read_off_body_seat",
+        EditError::PickPath { .. } => "pick_path",
+        EditError::ProductRead { .. } => "product_read",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -926,12 +927,10 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // seed a free length, angle or scalar variable), not the box's.
         C::Seed => "seed",
         C::WrongOperand => "wrong_operand",
-        // A read of one copy of a placement's copies: a key naming no
-        // copy, an index at the copy's other shape, and two copies of
-        // one `Place` keyed alike.
-        C::NoSuchCopy => "no_such_copy",
-        C::CopyShape => "copy_shape",
-        C::CopiesShareAKey => "copies_share_a_key",
+        // A pick of one piece of a copy: a path naming no piece, and
+        // a read at the piece's other shape.
+        C::NoSuchPiece => "no_such_piece",
+        C::PieceShape => "piece_shape",
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
         C::UnresolvedRead => "unresolved_read",
@@ -1077,9 +1076,8 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ParamBox { source } => Some(param_box_error_tag(source)),
         NodeErrorKind::Seed { source } => Some(seed_error_tag(source)),
         NodeErrorKind::WrongOperand { .. } => None,
-        NodeErrorKind::NoSuchCopy { .. } => None,
-        NodeErrorKind::CopyShape { .. } => None,
-        NodeErrorKind::CopiesShareAKey { .. } => None,
+        NodeErrorKind::NoSuchPiece { .. } => None,
+        NodeErrorKind::PieceShape { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::EmptyOperand { .. } => None,
@@ -1180,7 +1178,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::OperandUnresolved { .. } => None,
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
-        EditError::CopyReadOffBodySeat { .. } => None,
+        EditError::PickPath { .. } => None,
+        // Why the read is no product is the arm.
+        EditError::ProductRead { fault, .. } => Some(product_read_fault_tag(fault)),
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -2238,7 +2238,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::RootFailed => "root_failed",
         K::RootPoisoned => "root_poisoned",
         K::EmptyProduct => "empty_product",
-        K::StrandedPlacement => "stranded_placement",
+        K::StrandedProduct => "stranded_product",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
@@ -2598,7 +2598,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::VarNameConflict { .. } => "var_name_conflict",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
-        InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
@@ -3422,6 +3421,17 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",
         StepIdFault::NotMinted { .. } => "not_minted",
+    }
+}
+
+/// The stable tag for why a read is no product — the fault
+/// `EditError::ProductRead` carries, published on `inner_variant`
+/// beside the edit's own word.
+pub fn product_read_fault_tag(fault: &ProductReadFault) -> &'static str {
+    match fault {
+        ProductReadFault::Unresolved => "unresolved",
+        ProductReadFault::Kind { .. } => "kind",
+        ProductReadFault::Space { .. } => "space",
     }
 }
 

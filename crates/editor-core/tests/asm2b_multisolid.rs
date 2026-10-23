@@ -64,7 +64,7 @@ fn assembly(
         doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
         ids.push(id);
     }
-    (doc, ids)
+    (fixture::world_product(doc), ids)
 }
 
 /// `placement`'s bundle replaced by one world mate at `translation`.
@@ -264,7 +264,7 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
         .find(|n| n.kind == EntityKind::Face)
         .expect("a face name");
 
-    let read = crate::fixture::painted_in(&a_doc, &name);
+    let read = a_doc.read_of_node(a_ids[0]).expect("the instance's copy");
     let (doc, _) = step(
         a_doc,
         DocEdit::SetAppearance {
@@ -413,7 +413,12 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// world's axes rather than a mate read off its geometry, so its
 /// bundle's constraints, and every id and name drawn after them, moved;
 /// the volume bits and the solid count held.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 16_016_121_234_704_582_083;
+///
+/// D′3 moved the digest alone: an instance's copy carries its part's
+/// names verbatim, with no `InPart` layer, and the document's product
+/// is a `⊔` of its two copies, a node the ids after it count; the
+/// volume bits and the solid count held.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 17_614_411_536_504_555_015;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

@@ -107,8 +107,8 @@ fn legs_reach() -> EvalOptions {
 pub(crate) fn seat(
     doc: ProfileDoc,
     placement: RecipeNodeId,
-    onto: StableName,
-    mover: StableName,
+    onto: impl crate::fixture::Sited,
+    mover: impl crate::fixture::Sited,
 ) -> (ProfileDoc, MateRef) {
     crate::p2_split::seat_at(
         doc,

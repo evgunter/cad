@@ -1573,20 +1573,19 @@ fn mint_selection<P: crate::ProfilePayload>(
             fault => shape(fault),
         });
     }
-    // A name an instance's copy carries is its part's, in the part's
-    // ids: a body that reaches an instance may hold names no node of
-    // this document minted.
-    let foreign = doc.reaches_instance(body);
+    let parted = doc.reaches_instance(body);
     for name in names {
+        if parted && !doc.nodes.contains_key(&name.node) {
+            continue;
+        }
         if !doc.nodes.contains_key(&name.node) {
-            if foreign {
-                continue;
-            }
             return Err(EditError::DeclareNamesMissingNode {
                 name: doc.spoken_name(name),
             });
         }
-        check_name_steps(doc, doc, name)?;
+        if !parted {
+            check_name_steps(doc, doc, name)?;
+        }
     }
     mint_anonymous(
         doc,
@@ -5913,6 +5912,33 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     })
 }
 
+/// **An appearance key's name, checked as this document's**: its node
+/// live and its steps minted — unless `body` reaches an instance,
+/// whose copy carries its part's names verbatim, spelled in ids this
+/// document never minted (issue
+/// `a-part-name-in-the-host-is-spelled-in-the-parts-ids`). There the
+/// node is checked only where it is one of this document's.
+fn check_appearance_name<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &Doc<P>,
+    body: VarId,
+    name: &StableName,
+) -> Result<(), EditError> {
+    let parted = new.reaches_instance(body);
+    if parted && !new.nodes.contains_key(&name.node) {
+        return Ok(());
+    }
+    if !new.nodes.contains_key(&name.node) {
+        return Err(EditError::AppearanceNamesMissingNode {
+            name: doc.spoken_name(name),
+        });
+    }
+    if !parted {
+        check_name_steps(doc, new, name)?;
+    }
+    Ok(())
+}
+
 /// Spec D3 carve-out (ruled): a payload's name refs must point at LIVE
 /// nodes at edit time — a never-existed id is a typo. They are not DAG
 /// edges: later deletes may strand them (N5), so the edits that WRITE a
@@ -7871,12 +7897,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // Node existence NOW, name-level resolution at evaluation
             // (the ruled Declare carve-out, applied to the second
             // name-referencing edit).
-            if !new.nodes.contains_key(&name.node) {
-                return Err(EditError::AppearanceNamesMissingNode {
-                    name: doc.spoken_name(name),
-                });
-            }
-            check_name_steps(doc, new, name)?;
+            check_appearance_name(doc, new, *body, name)?;
             check_appearance_body(doc, new, *body, name)?;
             new.appearance
                 .entry(crate::appearance::AppearanceKey::new(*body, name.clone()))
@@ -7980,12 +8001,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     name: doc.spoken_name(name),
                 });
             }
-            if !new.nodes.contains_key(&name.node) {
-                return Err(EditError::AppearanceNamesMissingNode {
-                    name: doc.spoken_name(name),
-                });
-            }
-            check_name_steps(doc, new, name)?;
+            check_appearance_name(doc, new, *body, name)?;
             check_appearance_body(doc, new, *body, name)?;
             // D7's producer convention, by the one predicate
             // `MetaValue::require_versioned`, which the save/load

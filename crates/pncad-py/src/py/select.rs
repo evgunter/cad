@@ -160,10 +160,6 @@ pub(crate) enum SegTag {
     HoleRim,
     // Pattern
     Instance,
-    // Instantiate part
-    InPart,
-    // World placement
-    Placed,
 }
 
 impl SegTag {
@@ -215,8 +211,6 @@ impl SegTag {
             Self::Rim => s::SegTag::Rim,
             Self::HoleRim => s::SegTag::HoleRim,
             Self::Instance => s::SegTag::Instance,
-            Self::InPart => s::SegTag::InPart,
-            Self::Placed => s::SegTag::Placed,
         }
     }
 }
@@ -236,8 +230,6 @@ pub(crate) enum OpGroup {
     Split,
     Fillet,
     Pattern,
-    InstantiatePart,
-    Place,
     Shell,
 }
 
@@ -251,8 +243,6 @@ impl OpGroup {
             Self::Split => s::OpGroup::Split,
             Self::Fillet => s::OpGroup::Fillet,
             Self::Pattern => s::OpGroup::Pattern,
-            Self::InstantiatePart => s::OpGroup::InstantiatePart,
-            Self::Place => s::OpGroup::Place,
             Self::Shell => s::OpGroup::Shell,
         }
     }
@@ -952,8 +942,6 @@ mod growth_tripwire {
             s::SegTag::Rim => SegTag::Rim,
             s::SegTag::HoleRim => SegTag::HoleRim,
             s::SegTag::Instance => SegTag::Instance,
-            s::SegTag::InPart => SegTag::InPart,
-            s::SegTag::Placed => SegTag::Placed,
         }
     }
 
@@ -966,8 +954,6 @@ mod growth_tripwire {
             s::OpGroup::Split => OpGroup::Split,
             s::OpGroup::Fillet => OpGroup::Fillet,
             s::OpGroup::Pattern => OpGroup::Pattern,
-            s::OpGroup::InstantiatePart => OpGroup::InstantiatePart,
-            s::OpGroup::Place => OpGroup::Place,
             s::OpGroup::Shell => OpGroup::Shell,
         }
     }

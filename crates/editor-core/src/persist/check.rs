@@ -2061,6 +2061,17 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // loads. A carrier added to `Carrier` is checked here without
     // being remembered into this door.
     for carrier in doc.name_carriers() {
+        // A name read in a body that reaches an instance may be its
+        // part's, spelled in ids this mint log never held: the copy
+        // carries its part's names verbatim.
+        let read_in = match carrier {
+            NameCarrier::Store { body, .. } => Some(body),
+            NameCarrier::Select { var, .. } => doc.selection(var).map(|select| select.body),
+            NameCarrier::Payload { .. } => None,
+        };
+        if read_in.is_some_and(|body| doc.reaches_instance(body)) {
+            continue;
+        }
         for n in derivation_nodes(carrier.name()) {
             check_id(n)?;
         }

@@ -67,8 +67,11 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// `inner` seen through the instance `node` placed it at — one rung of
 /// the route a name climbs at each seam.
-fn wrap(node: RecipeNodeId, inner: StableName) -> StableName {
-    inner
+fn wrap(node: RecipeNodeId, inner: impl Into<StableName>) -> crate::fixture::resolver::InPart {
+    crate::fixture::resolver::InPart {
+        at: node,
+        name: inner.into(),
+    }
 }
 
 /// Cube `k`'s `cap` as the stand `stand` names it in its product: the
@@ -80,7 +83,7 @@ fn in_stand(
     k: usize,
     body: RecipeNodeId,
     cap: CapEnd,
-) -> StableName {
+) -> crate::fixture::resolver::InPart {
     let doc = store.doc(stand.id);
     in_part(doc.placements()[k], body, cap)
 }
@@ -89,7 +92,7 @@ fn in_stand(
 /// plane equated with `to`'s slid `standoff` along its own outward
 /// normal and flipped, so the faces face each other `standoff` apart (a
 /// negative standoff passes `on` into `to`).
-fn seat(on: StableName, to: StableName, class: ContactClass, standoff: f64) -> Mate<Formula> {
+fn seat(on: impl crate::fixture::Sited, to: impl crate::fixture::Sited, class: ContactClass, standoff: f64) -> Mate<Formula> {
     let target = fixture::plane(fixture::head(to));
     let target = if standoff == 0.0 {
         target
@@ -1298,10 +1301,7 @@ fn a_measure_on_a_product_evaluates() {
     let cap = |end| {
         editor_core::Operand::select(
             instance,
-            vec![wrap(
-                instance,
-                in_stand(&store, inner_ref, 1, cube_body, end),
-            )],
+            vec![wrap(instance, in_stand(&store, inner_ref, 1, cube_body, end)).name],
         )
     };
     let (doc, datum) = fixture::measure_node(

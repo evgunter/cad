@@ -184,7 +184,7 @@ fn notch(
         .measure(
             &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
             &[
-                SitedRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
+                crate::fixture::sited_ref(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
                 SitedRef::new(
                     block_at,
                     crate::m10_5_clearance_interval::in_placement(
@@ -1110,7 +1110,7 @@ fn bracket(
                         fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
                     ),
                 ),
-                SitedRef::at_mint(fixture::fname(base, fixture::wall(&r.doc, base, 3))),
+                crate::fixture::sited_ref(fixture::fname(base, fixture::wall(&r.doc, base, 3))),
             ],
         )
         .outputs[0];
@@ -1134,7 +1134,7 @@ fn bracket(
                         },
                     ),
                 ),
-                SitedRef::at_mint(editor_core::StableName {
+                crate::fixture::sited_ref(editor_core::StableName {
                     kind: editor_core::EntityKind::Body,
                     node: base,
                     path: vec![RoleSeg::OutputBody],

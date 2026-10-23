@@ -526,7 +526,7 @@ fn a6_no_edit_asks_the_store() {
         .apply(
             &DocEdit::SetAppearance {
                 body: doc.read_of_node(a).expect("the instance's one output"),
-                name: in_part(a, body, CapEnd::End),
+                name: in_part(a, body, CapEnd::End).name,
                 attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(200, 30, 30)),
             },
             tol,

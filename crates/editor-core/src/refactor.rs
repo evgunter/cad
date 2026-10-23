@@ -631,6 +631,24 @@ fn remap_with_selects(
         None => rd_output(slot, var),
     };
     let carried = remap_node(node, &rd)?;
+    // A selection's name, remapped — or, where it is a part's name read
+    // in a body that reaches an instance (spelled in ids the source
+    // never minted), carried verbatim: the carried instance's copy
+    // carries it as the source's did.
+    let carried_name = |n: &StableName, body: VarId| -> Result<StableName, RemapMiss> {
+        match remap_name(n, node_map, step_map, out_map) {
+            Ok(name) => Ok(name),
+            Err(RemapError::Unmapped(Unmapped::Node(id)))
+                if !source.has_minted(id) && source.reaches_instance(body) =>
+            {
+                Ok(n.clone())
+            }
+            Err(missing) => Err(RemapMiss::Name {
+                name: Box::new(n.clone()),
+                missing,
+            }),
+        }
+    };
     let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
     // A selection authored afresh over its carried body, its names
     // remapped.
@@ -642,12 +660,7 @@ fn remap_with_selects(
         let names = select
             .names
             .iter()
-            .map(|n| {
-                remap_name(n, node_map, step_map, out_map).map_err(|missing| RemapMiss::Name {
-                    name: Box::new(n.clone()),
-                    missing,
-                })
-            })
+            .map(|n| carried_name(n, select.body))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(crate::Operand::select(
             crate::Operand::Var(body),
@@ -708,14 +721,7 @@ fn remap_with_selects(
                 let names = select
                     .names
                     .iter()
-                    .map(|n| {
-                        remap_name(n, node_map, step_map, out_map).map_err(|missing| {
-                            RemapMiss::Name {
-                                name: Box::new(n.clone()),
-                                missing,
-                            }
-                        })
-                    })
+                    .map(|n| carried_name(n, select.body))
                     .collect::<Result<Vec<_>, _>>()?;
                 let kind = selection_kind(source, var);
                 crate::Operand::select(
@@ -1239,8 +1245,8 @@ impl core::fmt::Display for Uncarried {
 ///
 /// **Which document a node is spoken from** ([`SpokenNode`]): the
 /// instance, its consumer, and a host name that derives from the
-/// instance ([`Self::InstanceBodyNameReferenced`],
-/// [`Self::ForeignInstanceName`]) are the host's, spoken from it. A
+/// instance ([`Self::InstanceBodyNameReferenced`]) are the host's,
+/// spoken from it. A
 /// part placement, and a name being carried out of the part
 /// ([`Self::NameOnDroppedStep`], [`Self::StrandedPartName`]), are the
 /// referenced document's, spoken from it; a stranded name's missing
@@ -1328,13 +1334,6 @@ pub enum InlineError {
     /// instance's placed product, so the reference cannot re-anchor.
     InstanceBodyNameReferenced {
         /// The instance-body name.
-        name: SpokenName,
-    },
-    /// A host reference derives from the instance but is not the
-    /// bridge's own `InPart`-wrapped form, so this door does not know
-    /// what local name corresponds to it.
-    ForeignInstanceName {
-        /// The unrecognized name.
         name: SpokenName,
     },
     /// A name the inline carries spells a piece of a profile step no
@@ -1472,15 +1471,6 @@ impl core::fmt::Display for InlineError {
                 Recourse(
                     "clear what this document sets on that name (ClearAppearance), or rebind it \
                      to another node's body (Rebind), then inline"
-                )
-            ),
-            Self::ForeignInstanceName { name } => write!(
-                f,
-                "inline: {name} derives from the instance but is not an instance-qualified \
-                 (`InPart`) name, so it cannot re-anchor. {}",
-                Recourse(
-                    "rebind that name to an `InPart` name of the instance, or to an entity that \
-                     does not derive from it (Rebind), then inline"
                 )
             ),
             Self::NameOnDroppedStep { name, step } => write!(
@@ -2866,6 +2856,32 @@ pub fn split(
         }
     }
     let moving = moving_vars(doc, &cut_refs, &kept_refs)?;
+    // The instance whose part's names `body` carries verbatim: its own
+    // copy, or a placement's copy of it (a copy's names are its
+    // source's). A name read there is spelled in the part's ids, never
+    // this document's, so the cut is decided by that instance.
+    let part_names_at = |mut at: RecipeNodeId| -> Option<RecipeNodeId> {
+        loop {
+            match doc.node(at)? {
+                Node::InstantiatePart { .. } => return Some(at),
+                Node::Place { source, .. } => at = doc.operation_of(source.read)?,
+                _ => return None,
+            }
+        }
+    };
+    let part_names = |body: VarId| part_names_at(doc.operation_of(body)?);
+    // A copy's own body row is minted at the copying node, so a name
+    // of that node is this document's.
+    let carrier_part = |carrier: NameCarrier<'_>| -> Option<RecipeNodeId> {
+        let body = match carrier {
+            NameCarrier::Store { body, .. } => body,
+            NameCarrier::Select { var, .. } => doc.selection(var)?.body,
+            NameCarrier::Payload { .. } => return None,
+        };
+        (doc.operation_of(body) != Some(carrier.name().node))
+            .then(|| part_names(body))
+            .flatten()
+    };
     // Each selection's readers, by node.
     let mut select_readers: BTreeMap<VarId, Vec<RecipeNodeId>> = BTreeMap::new();
     for id in doc.ids() {
@@ -2908,10 +2924,13 @@ pub fn split(
                 else {
                     continue;
                 };
-                let outside = derivation_nodes(name)
-                    .into_iter()
-                    .filter(|id| !cut.contains(id))
-                    .min_by_key(|id| (doc.node(*id).is_none(), *id));
+                let outside = match carrier_part(carrier) {
+                    Some(instance) => (!cut.contains(&instance)).then_some(instance),
+                    None => derivation_nodes(name)
+                        .into_iter()
+                        .filter(|id| !cut.contains(id))
+                        .min_by_key(|id| (doc.node(*id).is_none(), *id)),
+                };
                 if let Some(missing) = outside {
                     return Err(SplitError::PartNameReachesRemainder {
                         node: doc.spoken(reader),
@@ -2958,6 +2977,11 @@ pub fn split(
     // keys, which no node carries and which therefore always
     // classify.
     for carrier in doc.name_carriers() {
+        // A part's name moves with the instance whose copy carries it,
+        // re-attached below where that instance is cut.
+        if carrier_part(carrier).is_some() {
+            continue;
+        }
         match carrier {
             NameCarrier::Payload { node, name } => {
                 if cut.contains(&node) {
@@ -3149,12 +3173,20 @@ pub fn split(
     // product is a `⊔`.
     let in_world =
         |name: &StableName, body: Option<RecipeNodeId>| -> Result<StableName, SplitError> {
-            let of = remap_name(name, &node_map, &step_map, &read_map)
-                .map_err(|missing| SplitError::straddles(doc, name, missing))?;
-            let (placement, _) =
-                home(name, body).ok_or_else(|| SplitError::NameOutsidePartWorld {
-                    name: doc.spoken_name(name),
-                })?;
+            let outside = || SplitError::NameOutsidePartWorld {
+                name: doc.spoken_name(name),
+            };
+            // A cut instance's copy carries its part's names verbatim,
+            // and so does this part's copy of it.
+            let foreign = body.filter(|&at| name.node != at && part_names_at(at).is_some());
+            let (of, placement) = match foreign {
+                Some(at) => (name.clone(), world(at).then_some(at).ok_or_else(outside)?),
+                None => (
+                    remap_name(name, &node_map, &step_map, &read_map)
+                        .map_err(|missing| SplitError::straddles(doc, name, missing))?,
+                    home(name, body).ok_or_else(outside)?.0,
+                ),
+            };
             let Some(assembled) = assembled else {
                 return Ok(of);
             };
@@ -3807,9 +3839,18 @@ pub fn inline(
     for var in doc.definition_order() {
         host_reads.entry(var).or_insert(var);
     }
+    // A name the part's own copy of an instance carries is that
+    // instance's part's, spelled in ids the part never minted: it
+    // crosses verbatim, as it entered the part.
+    let parted = part.reaches_instance(product);
     let to_host = |of: &StableName| -> Result<StableName, InlineError> {
-        remap_name(of, &host_nodes, &host_steps, &host_reads)
-            .map_err(|missing| InlineError::stranded(&part, of, missing))
+        match remap_name(of, &host_nodes, &host_steps, &host_reads) {
+            Ok(name) => Ok(name),
+            Err(RemapError::Unmapped(Unmapped::Node(id))) if parted && !part.has_minted(id) => {
+                Ok(of.clone())
+            }
+            Err(missing) => Err(InlineError::stranded(&part, of, missing)),
+        }
     };
     // A pick's path lands on the spliced variables.
     let host_path = |of: &[VarId]| -> Vec<VarId> {

@@ -46,7 +46,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// `b`'s face rested on `a`'s with the three freedoms a plane mate
 /// leaves each set to zero, so the copy `b` reads is pinned: the mate
 /// and its values, by the mate's address.
-fn stacked(doc: ProfileDoc, a: StableName, b: StableName) -> (ProfileDoc, MateRef) {
+fn stacked(doc: ProfileDoc, a: impl crate::fixture::Sited, b: impl crate::fixture::Sited) -> (ProfileDoc, MateRef) {
     let (doc, joint) = crate::fixture::constrain_with(
         doc,
         fixture::rest(fixture::head(b), fixture::head(a), ContactClass::Rest),

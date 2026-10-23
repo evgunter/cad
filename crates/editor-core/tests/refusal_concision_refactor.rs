@@ -95,7 +95,7 @@ test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict,
-        UnresolvedVarCrossesCut, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
+        UnresolvedVarCrossesCut, InstanceBodyNameReferenced, NameOnDroppedStep, RankedRunReordered,
         StrandedPartName,
         StrandedPartRead, Edit,
     ];
@@ -263,7 +263,6 @@ fn inline_refusals() -> Vec<InlineError> {
             node: s(4, "Extrude"),
         },
         InlineError::InstanceBodyNameReferenced { name: name() },
-        InlineError::ForeignInstanceName { name: name() },
         InlineError::NameOnDroppedStep {
             name: name(),
             step: StepId::new(0, 4),

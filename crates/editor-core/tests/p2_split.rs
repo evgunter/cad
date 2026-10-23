@@ -32,7 +32,7 @@ use editor_core::{
     PartResolver, ProfileDoc, RecipeNodeId, SitedFace, SplitError, SplitOutcome, StableName, VarId,
     product,
 };
-use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::resolver::{InPart, PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
 use fixture::{head, insert, offset_of, run, step};
 use geom_core::Tol;
@@ -177,10 +177,11 @@ fn same_extent(a: ([f64; 3], [f64; 3], f64), b: ([f64; 3], [f64; 3], f64), what:
 /// it** (A10): an instance's own name as it is, since the instance is
 /// its own placement; a body's name under the copy of the one `Place`
 /// in `part` that copies its minting node.
-fn in_world_of(part: &ProfileDoc, name: StableName) -> StableName {
-    if matches!(part.node(name.node), Some(Node::InstantiatePart { .. })) {
-        return name;
+fn in_world_of(part: &ProfileDoc, name: impl crate::fixture::Sited) -> StableName {
+    if matches!(part.node(name.site()), Some(Node::InstantiatePart { .. })) {
+        return name.name();
     }
+    let name = name.name();
     let copies: Vec<RecipeNodeId> = part
         .placements()
         .into_iter()
@@ -197,8 +198,11 @@ fn in_world_of(part: &ProfileDoc, name: StableName) -> StableName {
 
 /// `name` as a host spells a face of its part through `instance`: the
 /// part's own name, which the instance's copy carries verbatim.
-fn wrap(_instance: RecipeNodeId, name: StableName) -> StableName {
-    name
+fn wrap(instance: RecipeNodeId, name: impl Into<StableName>) -> crate::fixture::resolver::InPart {
+    crate::fixture::resolver::InPart {
+        at: instance,
+        name: name.into(),
+    }
 }
 
 /// The document `instance` in `doc` references.
@@ -210,7 +214,7 @@ fn part_id_of(doc: &ProfileDoc, instance: RecipeNodeId) -> DocumentId {
 }
 
 /// The base block's bottom cap at `base`.
-fn base_bottom(p: &Parts, base: RecipeNodeId) -> StableName {
+fn base_bottom(p: &Parts, base: RecipeNodeId) -> crate::fixture::resolver::InPart {
     in_part(base, p.base_body, CapEnd::Start)
 }
 
@@ -311,16 +315,20 @@ fn s2_a_cut_of_pinned_instances_moves_verbatim_and_round_trips() {
     same_extent(before, after, "split-then-evaluate keeps the material");
     // Name resolution: a cut face resolves before, and through the
     // instance qualifier after.
-    let resolves = |d: &ProfileDoc, o: &EvalOptions, name: &StableName| {
+    // A part's name resolves in the copy of the instance it is read at.
+    let resolves = |d: &ProfileDoc, o: &EvalOptions, name: &InPart| {
         let eval = run(d, o);
+        let read = d.read_of_node(name.at).expect("the instance's copy");
         matches!(
-            crate::fixture::resolve_at_mint(
+            editor_core::resolve(
                 editor_core::RunCtx {
                     doc: d,
                     eval: &eval
                 },
-                name
-            ),
+                read,
+                &name.name
+            )
+            .expect("the copy holds a body"),
             editor_core::Resolution::Resolved(_)
         )
     };

@@ -163,7 +163,7 @@ fn child_band_row() {
             Tol::witness(),
         )
         .expect("select_where short-circuits before its band"),
-        Vec::new(),
+        Vec::<editor_core::StableName>::new(),
         "select_where reached its band door — the arm is live after all"
     );
 }

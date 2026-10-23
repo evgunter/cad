@@ -251,12 +251,12 @@ struct Scene {
 
 impl Scene {
     /// The cap's bottom cap, as the copy side of its rest.
-    fn cap_bottom(&self) -> StableName {
+    fn cap_bottom(&self) -> crate::fixture::resolver::InPart {
         in_part(self.cap, self.top_body, CapEnd::Start)
     }
 
     /// The top's top cap, as a nested copy's chain wears it.
-    fn top_cap(&self) -> StableName {
+    fn top_cap(&self) -> crate::fixture::resolver::InPart {
         in_part(self.top, self.top_body, CapEnd::End)
     }
 
@@ -444,7 +444,7 @@ fn a1_a_nested_copy_seats_where_its_chain_stands() {
     assert_seated(
         &doc,
         &ev,
-        &wrap(s.top_cap()),
+        &wrap(s.top_cap().name),
         &s.cap_bottom(),
         &control,
         "A1 nested copy",
@@ -475,7 +475,7 @@ fn a2d_a_rotating_outer_map_seats() {
     assert_seated(
         &doc,
         &ev,
-        &wrap(s.top_cap()),
+        &wrap(s.top_cap().name),
         &s.cap_bottom(),
         &control,
         "A2′ rotating outer map",
@@ -505,7 +505,7 @@ fn a3a_a_part_selected_copy_read_at_the_part_seats() {
     assert_seated(
         &doc,
         &ev,
-        &wrap(s.top_cap()),
+        &wrap(s.top_cap().name),
         &s.cap_bottom(),
         &control,
         "A3(a) part-selected copy",
@@ -602,7 +602,7 @@ fn a1c_three_levels_deep_seat() {
     assert_seated(
         &doc,
         &ev,
-        &wrap(s.top_cap()),
+        &wrap(s.top_cap().name),
         &s.cap_bottom(),
         &control,
         "A1′(b) three levels",
@@ -690,7 +690,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     assert_seated(
         &doc,
         &ev,
-        &wrap(s.top_cap()),
+        &wrap(s.top_cap().name),
         &s.cap_bottom(),
         &control,
         "A4′(b) at k = 1",

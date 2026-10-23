@@ -60,7 +60,13 @@ fn no_params() -> editor_core::VarEnv<f64> {
 }
 
 /// Faces of one surface kind on one node's value, canonically ordered.
-fn faces(ev: &Evaluation<f64>, body: RecipeNodeId, kind: geom::SurfaceKind) -> Vec<StableName> {
+/// `body`'s faces of `kind`, each read at `body`: a placement's copy
+/// carries its source's names for them.
+fn faces(
+    ev: &Evaluation<f64>,
+    body: RecipeNodeId,
+    kind: geom::SurfaceKind,
+) -> Vec<(RecipeNodeId, StableName)> {
     let mut f = select_where(
         ev,
         body,
@@ -71,24 +77,25 @@ fn faces(ev: &Evaluation<f64>, body: RecipeNodeId, kind: geom::SurfaceKind) -> V
     )
     .expect("the surface-kind atom is exact and never refuses");
     f.sort();
-    f
+    f.into_iter().map(|name| (body, name)).collect()
 }
 
-fn vertices(ev: &Evaluation<f64>, body: RecipeNodeId) -> Vec<StableName> {
+/// `body`'s vertices, each read at `body`.
+fn vertices(ev: &Evaluation<f64>, body: RecipeNodeId) -> Vec<(RecipeNodeId, StableName)> {
     let mut v = editor_core::select(
         ev,
         body,
         &Selector::of(NamePat::of_kind(EntityKind::Vertex)),
     );
     v.sort();
-    v
+    v.into_iter().map(|name| (body, name)).collect()
 }
 
 fn edges_of_kind(
     ev: &Evaluation<f64>,
     body: RecipeNodeId,
     kind: editor_core::CurveKind,
-) -> Vec<StableName> {
+) -> Vec<(RecipeNodeId, StableName)> {
     let mut e = select_where(
         ev,
         body,
@@ -99,7 +106,7 @@ fn edges_of_kind(
     )
     .expect("exact atom");
     e.sort();
-    e
+    e.into_iter().map(|name| (body, name)).collect()
 }
 
 /// Inserts a measure over `refs` and returns (doc, measure id).
@@ -111,14 +118,14 @@ fn edges_of_kind(
 fn with_measure(
     doc: &ProfileDoc,
     expr: MeasurePrimitive<u32>,
-    refs: Vec<StableName>,
+    refs: Vec<impl crate::fixture::Sited>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    // Read at the minting node's body port: a revolve also defines its
-    // axis.
+    // Read at the site's body port: a revolve also defines its axis.
     let refs: Vec<editor_core::Operand> = refs
         .into_iter()
         .map(|name| {
-            editor_core::Operand::select(editor_core::Operand::output(name.node, 0), vec![name])
+            let at = name.site();
+            editor_core::Operand::select(editor_core::Operand::output(at, 0), vec![name.name()])
         })
         .collect();
     crate::fixture::measure_node(doc, expr, refs)
@@ -1319,8 +1326,8 @@ fn r2_a_measured_quotient_that_is_not_finite_refuses() {
         d1.clone(),
         &[MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
-            SitedRef::at_mint(vs[0].clone()),
-            SitedRef::at_mint(vs[7].clone()),
+            crate::fixture::sited_ref(vs[0].clone()),
+            crate::fixture::sited_ref(vs[7].clone()),
         ],
     );
     let value = Formula::div(
@@ -1387,8 +1394,8 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         d1.clone(),
         &[MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
-            SitedRef::at_mint(vs[0].clone()),
-            SitedRef::at_mint(vs[7].clone()),
+            crate::fixture::sited_ref(vs[0].clone()),
+            crate::fixture::sited_ref(vs[7].clone()),
         ],
     );
     let value = Formula::div(

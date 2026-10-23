@@ -3783,7 +3783,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::VarNameConflict": "InlineError.variant",
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
-    "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",

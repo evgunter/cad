@@ -189,15 +189,15 @@ impl Parts {
         with_resolver(self.store.clone())
     }
     /// The slab's top cap, as `slab` places it.
-    fn slab_top(&self, slab: RecipeNodeId) -> StableName {
+    fn slab_top(&self, slab: RecipeNodeId) -> crate::fixture::resolver::InPart {
         in_part(slab, self.slab_body, CapEnd::End)
     }
     /// The bolt's bottom cap, as `bolt` places it.
-    fn bolt_foot(&self, bolt: RecipeNodeId) -> StableName {
+    fn bolt_foot(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::InPart {
         in_part(bolt, self.bolt_body, CapEnd::Start)
     }
     /// The bolt's top cap, as `bolt` places it.
-    fn bolt_head(&self, bolt: RecipeNodeId) -> StableName {
+    fn bolt_head(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::InPart {
         in_part(bolt, self.bolt_body, CapEnd::End)
     }
     /// The bolt's lateral edge `k`, as an axis `bolt` places.
@@ -249,8 +249,8 @@ impl Parts {
 fn seat(
     doc: ProfileDoc,
     mover: RecipeNodeId,
-    foot: StableName,
-    onto: StableName,
+    foot: impl crate::fixture::Sited,
+    onto: impl crate::fixture::Sited,
     by: Formula,
     (x, y, spin): (Formula, Formula, Formula),
 ) -> (ProfileDoc, MateRef) {

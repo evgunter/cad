@@ -897,8 +897,8 @@ fn plain_distance_doc() -> ProfileDoc {
     let measured = r.measure(
         &[MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
-            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
-            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
+            crate::fixture::sited_ref(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
+            crate::fixture::sited_ref(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
         ],
     );
     let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);

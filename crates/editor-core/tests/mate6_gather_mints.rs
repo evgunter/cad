@@ -26,7 +26,7 @@ use editor_core::{
     assemble, product_recorded,
 };
 use editor_core::{Evaluation, Unreplayed};
-use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::resolver::{InPart, PartStore, in_part, with_resolver};
 use fixture::{insert, len, mated_instance, on_frame, run};
 use geom_core::Tol;
 
@@ -79,8 +79,11 @@ fn in_part_in_part(
     sub: RecipeNodeId,
     body: RecipeNodeId,
     cap: CapEnd,
-) -> StableName {
-    in_part(sub, body, cap)
+) -> crate::fixture::resolver::InPart {
+    crate::fixture::resolver::InPart {
+        at: instance,
+        name: in_part(sub, body, cap).name,
+    }
 }
 
 /// A `Rest` mate declaring `a`'s TOP face against `b`'s BOTTOM face,
@@ -88,14 +91,14 @@ fn in_part_in_part(
 /// bottom square on `a`'s top (the unit cube is z ∈ [0,1]); `2.0`
 /// leaves the two faces coplanar with a unit of clear air between them,
 /// and the declaration is FALSE.
-fn rest_mate(a: StableName, b: StableName, apart: f64) -> Seat {
+fn rest_mate(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, apart: f64) -> Seat {
     classed_mate(a, b, apart, ContactClass::Rest)
 }
 
 /// [`rest_mate`]'s shape at an arbitrary class — the totality rows need
 /// a `Tangent` declaration, whose class mints no record at rest: `b`'s
 /// face's plane on `a`'s, facing it.
-fn classed_mate(a: StableName, b: StableName, apart: f64, class: ContactClass) -> Seat {
+fn classed_mate(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, apart: f64, class: ContactClass) -> Seat {
     Seat {
         mate: fixture::rest(fixture::head(b), fixture::head(a), class),
         apart,
@@ -139,13 +142,15 @@ fn seated(doc: ProfileDoc, seat: Seat) -> (ProfileDoc, MateRef) {
 /// caps, but node 99 does not exist in it at all. The constraint is
 /// admitted — the door reads the name, not the part's faces — and the
 /// placement it is in refuses at evaluation.
-fn dangling(instance: RecipeNodeId) -> StableName {
-    StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 99),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            }
-            
+fn dangling(instance: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    crate::fixture::resolver::InPart {
+        at: instance,
+        name: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 99),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        },
+    }
 }
 
 /// **Issue 946's inner document**: a stand whose validity DEPENDS on
@@ -927,7 +932,7 @@ fn copy_cap(
         input: doc
             .output(instance, 0)
             .expect("an instance defines its copies"),
-        name: in_part(instance, body, cap),
+        name: in_part(instance, body, cap).name,
     }
 }
 
@@ -1115,12 +1120,12 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
 
     // A stand whose mate states the other sense, and a standoff: each
     // read against the census row of its own two caps.
-    let plain = |on: StableName, to: StableName| editor_core::Mate {
+    let plain = |on: InPart, to: InPart| editor_core::Mate {
         on: fixture::plane(fixture::head(on)),
         to: fixture::plane(fixture::head(to)),
         class: ContactClass::Rest,
     };
-    let standoff = |on: StableName, to: StableName| {
+    let standoff = |on: InPart, to: InPart| {
         use editor_core::pose::{PoseDef, PoseRole, RoleRead};
         let up = || fixture::flip(fixture::plane(fixture::head(to.clone())));
         editor_core::Mate {
@@ -1133,7 +1138,7 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
             class: ContactClass::Rest,
         }
     };
-    type Writes<'a> = &'a dyn Fn(StableName, StableName) -> editor_core::Mate<Formula>;
+    type Writes<'a> = &'a dyn Fn(InPart, InPart) -> editor_core::Mate<Formula>;
     let cases: [(&str, Writes<'_>, Unreplayed); 2] = [
         ("mate6-states-unflipped", &plain, Unreplayed::OtherDecisions),
         ("mate6-states-standoff", &standoff, Unreplayed::Numeric),

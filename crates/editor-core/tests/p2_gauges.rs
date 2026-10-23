@@ -29,7 +29,7 @@ use editor_core::{
     TargetAxis, ValuePayload, VarId, VarName, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, head, insert, len, offset_of, on_frame, run, solve, step};
+use fixture::{ang, head, head_at, insert, len, offset_of, on_frame, run, solve, step};
 use geom_core::linalg::Affine3;
 use geom_core::{Bounds, Interval, Tol};
 use topo::Body;
@@ -93,15 +93,15 @@ impl Parts {
         with_resolver(self.store.clone())
     }
     /// The base's top cap.
-    pub(crate) fn base_cap(&self, base: RecipeNodeId) -> StableName {
+    pub(crate) fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::InPart {
         in_part(base, self.base_body, CapEnd::End)
     }
     /// The top block's bottom cap.
-    pub(crate) fn top_cap(&self, top: RecipeNodeId) -> StableName {
+    pub(crate) fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::InPart {
         in_part(top, self.top_body, CapEnd::Start)
     }
     /// The top block's upper cap, which a second block seats on.
-    pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> StableName {
+    pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::InPart {
         in_part(top, self.top_body, CapEnd::End)
     }
 }
@@ -670,8 +670,8 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
     let (doc, top) = pinned(doc, p.top, literal([0.0, 0.0, BASE_HEIGHT]), &o);
     let measure = || Node::Measure {
         primitive: MeasurePrimitive::Distance {
-            a: SitedRef::at_mint(p.base_cap(base)).into(),
-            b: SitedRef::at_mint(p.top_cap(top)).into(),
+            a: crate::fixture::sited_ref(p.base_cap(base)).into(),
+            b: crate::fixture::sited_ref(p.top_cap(top)).into(),
         },
     };
     // Both in the world: the measure answers.

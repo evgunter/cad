@@ -182,7 +182,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc = next;
         ids.push(id);
     }
-    (doc, ids)
+    (fixture::world_product(doc), ids)
 }
 
 /// [`assembly`] with each instance pinned to the world at the identity,
@@ -218,7 +218,7 @@ fn repinned(
 /// names are never resolved; the mate is the shape of a pin, so the
 /// copy is the world's by its recipe.
 fn nominally_pinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
-    fixture::stand_again(doc, placement)
+    fixture::world_product(fixture::stand_again(doc, placement))
 }
 
 /// **One copy of `body`, which never evaluates, in the world**: a
@@ -499,7 +499,7 @@ fn row3_instance_qualified_names_round_trip_persistence() {
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("a face name");
 
-    let read = crate::fixture::painted_in(&doc, &name);
+    let read = doc.read_of_node(ids[0]).expect("the instance's copy");
     let (doc, _) = step(
         doc,
         DocEdit::SetAppearance {
@@ -1262,7 +1262,6 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let bracket = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-deep-bracket"), tol);
     let (bracket, inner) = insert(bracket, crate::fixture::mated_instance(part_ref));
     let bracket = nominally_pinned(bracket, inner);
-    let (bracket, _) = placed_nominally(bracket, inner);
     let bracket_ref = store.insert(bracket.clone(), tol);
 
     let (doc, ids) = assembly("asm2a-poisoned-deep-asm", &[bracket_ref]);
@@ -1317,13 +1316,15 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
         ProfileDoc::empty(DocumentId::derive("asm2a-class-empty"), Tol::witness()),
         Tol::witness(),
     );
-    // A placement whose body was deleted: a refusal, and NOT the
+    // A product whose operation was deleted: a refusal, and NOT the
     // absence above.
     let twice = {
         let doc = part("asm2a-class-twice", 0.0, 1.0);
-        let ids = doc.ids();
-        let body = ids[ids.len() - 2];
-        crate::fixture::step(doc, DocEdit::DeleteNode { id: body }).0
+        let product = doc
+            .product()
+            .and_then(|var| doc.operation_of(var))
+            .expect("the part's product is its placement's copy");
+        crate::fixture::step(doc, DocEdit::DeleteNode { id: product }).0
     };
     let twice = store.insert(twice, Tol::witness());
 
@@ -1356,7 +1357,7 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
     assert!(
         empty_fault
             .to_string()
-            .contains("nothing is placed in the world"),
+            .contains("the product slot reads nothing"),
         "and the sentence says so: {empty_fault}"
     );
 
@@ -1365,7 +1366,7 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
     assert_eq!(twice_kind, ProductErrorKind::StrandedProduct);
     assert!(
         !twice_kind.means_no_body(),
-        "a stranded placement is a fault, not an absence"
+        "a stranded product is a fault, not an absence"
     );
     assert_ne!(
         empty_kind, twice_kind,
@@ -1382,7 +1383,7 @@ fn r1_part_evaluations_aggregates_through_nesting() {
     let sub = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-nest-b"), Tol::witness());
         let (doc, instance) = insert(doc, crate::fixture::mated_instance(p));
-        fixture::pinned(doc, instance, &with_resolver(store.clone()))
+        fixture::world_product(fixture::pinned(doc, instance, &with_resolver(store.clone())))
     };
     let b = store.insert(sub, Tol::witness());
     let opts = with_resolver(store);

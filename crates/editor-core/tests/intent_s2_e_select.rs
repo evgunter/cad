@@ -105,8 +105,8 @@ fn a_rebind_rewrites_exactly_its_bodys_selections_in_place() {
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            SitedRef::at_mint(p.edges[0].clone()),
-            SitedRef::at_mint(p.vertex.clone()),
+            crate::fixture::sited_ref(p.edges[0].clone()),
+            crate::fixture::sited_ref(p.vertex.clone()),
         ],
     );
     let (doc, other) = insert(
@@ -198,8 +198,8 @@ fn a_rebind_at_a_body_whose_selections_do_not_name_it_refuses() {
 #[test]
 fn a_selection_authored_twice_is_two_variables_and_a_named_one_is_shared() {
     let (doc, p) = prism(blank("s2e-shared"), 0.0);
-    let reference = || SitedRef::at_mint(p.edges[0].clone());
-    let face = || SitedRef::at_mint(p.faces[1].clone());
+    let reference = || crate::fixture::sited_ref(p.edges[0].clone());
+    let face = || crate::fixture::sited_ref(p.faces[1].clone());
     let (doc, m1) = fixture::measure_node(
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
@@ -296,8 +296,8 @@ fn each_primitive_admits_its_kinds_at_the_edit_door() {
                 &doc,
                 &[primitive(
                     verb,
-                    SitedRef::at_mint(name.clone()),
-                    SitedRef::at_mint(p.faces[1].clone()),
+                    crate::fixture::sited_ref(name.clone()),
+                    crate::fixture::sited_ref(p.faces[1].clone()),
                 )],
                 Tol::witness(),
             );
@@ -334,8 +334,8 @@ fn a_file_whose_measure_reads_an_unadmitted_kind_refuses_at_load() {
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            SitedRef::at_mint(p.vertex.clone()),
-            SitedRef::at_mint(p.faces[1].clone()),
+            crate::fixture::sited_ref(p.vertex.clone()),
+            crate::fixture::sited_ref(p.faces[1].clone()),
         ],
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
@@ -411,8 +411,8 @@ fn a_split_keeps_a_named_crossing_selection_shared() {
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            SitedRef::at_mint(p.faces[0].clone()),
-            SitedRef::at_mint(p.faces[1].clone()),
+            crate::fixture::sited_ref(p.faces[0].clone()),
+            crate::fixture::sited_ref(p.faces[1].clone()),
         ],
     );
     let first = |doc: &ProfileDoc, m| doc.node(m).expect("a measure").operand_rows()[0].1;
@@ -429,7 +429,7 @@ fn a_split_keeps_a_named_crossing_selection_shared() {
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
             Operand::Name(s.clone()),
-            Operand::from(SitedRef::at_mint(p.edge.clone())),
+            Operand::from(crate::fixture::sited_ref(p.edge.clone())),
         ],
     );
     let out = editor_core::split(
@@ -623,8 +623,8 @@ fn the_slot_door_holds_a_measure_reference_to_its_primitive_kinds() {
         &doc,
         MeasurePrimitive::MinClearance { a: 0, b: 1 },
         vec![
-            SitedRef::at_mint(p.faces[0].clone()),
-            SitedRef::at_mint(p.faces[1].clone()),
+            crate::fixture::sited_ref(p.faces[0].clone()),
+            crate::fixture::sited_ref(p.faces[1].clone()),
         ],
     );
     let (doc, fillet) = insert(
@@ -687,7 +687,7 @@ fn a_measure_reads_a_whole_body_only_under_its_own_name() {
             &doc,
             &[MeasurePrimitive::MinClearance {
                 a,
-                b: SitedRef::at_mint(p.faces[0].clone()),
+                b: crate::fixture::sited_ref(p.faces[0].clone()),
             }],
             Tol::witness(),
         )

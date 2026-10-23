@@ -523,8 +523,8 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
     // A real EDGE name — the extrude's own lateral edge at profile
     // vertex 0 — so the refusal is about its KIND rather than about a
     // name that names nothing.
-    let edge = SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2));
-    let face = SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2)));
+    let edge = crate::fixture::sited_ref(fixture::prism_edges(&r.doc, solid, 4).remove(2));
+    let face = crate::fixture::sited_ref(fixture::fname(solid, fixture::wall(&r.doc, solid, 2)));
     let refused = editor_core::measure(
         &r.doc,
         &[MeasurePrimitive::MinClearance { a: edge, b: face }],

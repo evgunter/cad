@@ -2094,9 +2094,8 @@ fn node_error_tags_are_the_published_words() {
         ParamBox => "param_box",
         Seed => "seed",
         WrongOperand => "wrong_operand",
-        NoSuchCopy => "no_such_copy",
-        CopyShape => "copy_shape",
-        CopiesShareAKey => "copies_share_a_key",
+        NoSuchPiece => "no_such_piece",
+        PieceShape => "piece_shape",
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
         EmptyOperand => "empty_operand",
@@ -3346,11 +3345,7 @@ fn check_registry_tags_are_stable() {
     assert_eq!(
         checks_error_tag(&ChecksError::Product {
             refusal: Some(
-                pncad::document::ProductError::EmptyProduct {
-                    unplaced: Vec::new(),
-                    elsewhere: Vec::new(),
-                }
-                .into()
+                pncad::document::ProductError::EmptyProduct.into()
             )
         }),
         "product_unavailable"
@@ -4790,7 +4785,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "constraint_on_non_placement",
             "construction_reads_observed",
             "continuous_var_cannot_be_count",
-            "copy_read_off_body_seat",
             "declare_names_missing_node",
             "defines_nothing",
             "definition_cycle",
@@ -4829,10 +4823,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "payload_unknown_var_name",
             "payload_unresolved_var",
             "payload_var_kind",
+            "pick_path",
             "pin_unchanged",
             "placement_axis",
             "placement_rule_mismatch",
             "pose_shape",
+            "product_read",
             "profile_program_refused",
             "read_site_missing_node",
             "rebind_appearance_collision",
@@ -4888,6 +4884,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_version_error_tag",
             "node_error_tag",
             "pose_fault_tag",
+            "product_read_fault_tag",
             "program_refusal_tag",
             "selection_fault_tag",
             "step_id_fault_tag",
@@ -5039,7 +5036,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "inline_error_tag",
         values: &[
             "epsilon_seam",
-            "foreign_instance_name",
             "inline_edit",
             "instance_body_name_referenced",
             "instance_read_uncarried",
@@ -5245,8 +5241,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "boolean",
             "chamfer",
-            "copies_share_a_key",
-            "copy_shape",
             "count_out_of_range",
             "crossing_unverified",
             "curved_solid_frontier",
@@ -5283,7 +5277,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "motion",
             "naming",
             "negative_spacing",
-            "no_such_copy",
+            "no_such_piece",
             "non_finite_direction",
             "non_finite_placement",
             "non_rigid_placement",
@@ -5297,6 +5291,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_root_failure_unrecorded",
             "part_root_poisoned",
             "payload_expr",
+            "piece_shape",
             "placement_rule_mismatch",
             "placements_uncertified",
             "pose_degenerate",
@@ -5550,9 +5545,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "root_failed",
             "root_invalid",
             "root_poisoned",
-            "stranded_placement",
+            "stranded_product",
             "unknown_node",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "product_read_fault_tag",
+        values: &["kind", "space", "unresolved"],
         delegates: &[],
     },
     TagEntry {
@@ -10488,10 +10488,10 @@ mod product_memo_rows {
         let count = gathers(|| {
             for _ in 0..2 {
                 let refusal = product_memo::body(&memo, &doc, &ev, tol)
-                    .expect_err("a document with nothing placed has no product");
+                    .expect_err("a document whose slot reads nothing has no product");
                 assert!(
-                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced, .. } if unplaced.is_empty()),
-                    "a sketch places nothing and defines no body: {refusal:?}"
+                    matches!(&refusal, d::ProductError::EmptyProduct),
+                    "a sketch's document reads no product: {refusal:?}"
                 );
             }
         });

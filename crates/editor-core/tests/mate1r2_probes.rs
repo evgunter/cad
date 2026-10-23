@@ -91,8 +91,8 @@ fn place_copies(
 /// placement `placed` reads.
 fn seat(
     doc: ProfileDoc,
-    target: StableName,
-    placed: StableName,
+    target: impl crate::fixture::Sited,
+    placed: impl crate::fixture::Sited,
     slide: [f64; 2],
     facing: bool,
 ) -> (ProfileDoc, MateRef) {

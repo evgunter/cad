@@ -20,7 +20,7 @@ use editor_core::{
     Frame, MateRef, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis,
     assemble, product_recorded, run_checks,
 };
-use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::resolver::{InPart, PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, mated_instance, on_frame, run};
 use geom_core::Tol;
 
@@ -61,18 +61,20 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// A reference that resolves to NO product face: the part's extrude
 /// has caps, but node 99 does not exist in it at all.
-fn dangling(instance: RecipeNodeId) -> StableName {
-    StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 99),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            }
-            
+fn dangling(instance: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    crate::fixture::resolver::InPart {
+        at: instance,
+        name: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 99),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        },
+    }
 }
 
 /// A rest of `b`'s face on `a`'s, declaring `class`, standing `b`
 /// `apart` beside `a` ([`Seat`]).
-fn mate_of(a: StableName, b: StableName, apart: f64, class: ContactClass) -> Seat {
+fn mate_of(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, apart: f64, class: ContactClass) -> Seat {
     Seat {
         mate: fixture::rest(fixture::head(b), fixture::head(a), class),
         apart,
@@ -82,7 +84,7 @@ fn mate_of(a: StableName, b: StableName, apart: f64, class: ContactClass) -> Sea
 /// `b` sunk `depth` into `a`: `b`'s face on `a`'s plane slid `-depth`
 /// along its own normal, facing it. A plane constructed off a face
 /// declares no contact, so the overlap is geometry nothing declares.
-fn sunk(a: StableName, b: StableName, depth: f64) -> Seat {
+fn sunk(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, depth: f64) -> Seat {
     let under = fixture::plane(fixture::head(a));
     let under = Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::plain(under.clone()),
@@ -162,7 +164,7 @@ fn stand_with(
     part: DocRef,
     body: RecipeNodeId,
     store: &PartStore,
-    seat: impl FnOnce(StableName, StableName) -> Seat,
+    seat: impl FnOnce(InPart, InPart) -> Seat,
 ) -> ProfileDoc {
     let (inner, sub) = seated_row(label, part, 2, store);
     seated(

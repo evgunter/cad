@@ -89,7 +89,7 @@ impl Part {
         end: CapEnd,
         at: &dyn Fn(StableName) -> Operand,
     ) -> Operand {
-        let name = |kind, seg| in_part_of(kind, instance, self.body, seg);
+        let name = |kind, seg| in_part_of(kind, instance, self.body, seg).name;
         fixture::corner_frame(
             at(name(
                 EntityKind::Edge,
@@ -103,7 +103,7 @@ impl Part {
     }
 
     /// The cap `end` of this part as `instance` places it.
-    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> StableName {
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::InPart {
         in_part(instance, self.body, end)
     }
 }
@@ -127,7 +127,7 @@ fn seat(
         doc,
         top,
         fixture::frame_seat(
-            top_part.frame(top, CapEnd::Start, &fixture::read_minted),
+            top_part.frame(top, CapEnd::Start, &|n| fixture::read_at(top, n)),
             base_part.frame(base, CapEnd::End, base_at),
             1.0,
             1.0,
@@ -234,8 +234,8 @@ fn copy_name(doc: &ProfileDoc, ev: &Evaluation<f64>, name: &StableName) -> Stabl
 }
 
 /// `name`, as the placement `p` names its copy of the entity.
-fn placed(p: RecipeNodeId, name: StableName) -> StableName {
-    name
+fn placed(p: RecipeNodeId, name: impl Into<StableName>) -> StableName {
+    name.into()
 }
 
 /// **A name read at `at`**: under `at`'s own layer where `at` is a
@@ -354,10 +354,10 @@ impl Scene {
     fn eval(&self) -> Evaluation<f64> {
         run(&self.doc, &self.opts)
     }
-    fn face_a(&self) -> StableName {
+    fn face_a(&self) -> crate::fixture::resolver::InPart {
         self.base_part.cap(self.base, CapEnd::End)
     }
-    fn face_b(&self) -> StableName {
+    fn face_b(&self) -> crate::fixture::resolver::InPart {
         self.top_part.cap(self.top, CapEnd::Start)
     }
     /// Every node evaluated, no mate fault, the mated faces seated in
@@ -637,7 +637,7 @@ fn two_operands(
     let (doc, m1) = seat(doc, top, &top_part, &at1, &base_part, base);
     let second = rest(
         head(top_part.cap(top, CapEnd::Start)),
-        at2(base_part.cap(base, CapEnd::End)),
+        at2(base_part.cap(base, CapEnd::End).name),
         ContactClass::Rest,
     );
     (doc, opts, m1, second, top)
@@ -712,7 +712,7 @@ fn a6_a_residual_bundle_refuses_on_the_target_or_its_copy() {
         } else {
             (doc, base)
         };
-        let to = read_at(&doc, at)(base_part.cap(base, CapEnd::End));
+        let to = read_at(&doc, at)(base_part.cap(base, CapEnd::End).name);
         let mate = rest(
             head(top_part.cap(top, CapEnd::Start)),
             to,
@@ -1004,7 +1004,7 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
         place(doc, &opts, copy)
     });
     let nest = |n: StableName| in_copy(outer, 1, in_copy(inner, 1, n));
-    let a = nest(base_part.cap(base, CapEnd::End));
+    let a = nest(base_part.cap(base, CapEnd::End).name);
     let b = top_part.cap(top, CapEnd::Start);
     let (doc, _) = seat(
         doc,
@@ -1151,7 +1151,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &o);
-    let to = read_at(&doc, xf)(base_part.cap(base, CapEnd::End));
+    let to = read_at(&doc, xf)(base_part.cap(base, CapEnd::End).name);
     let (doc, _) = constrain_at(
         doc,
         top,
@@ -1380,7 +1380,7 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     // pattern's copies `(0, i)` do.
     let doc = world(doc, &opts, &[], &[(outer, 3..6)]);
     let nest = |n: StableName| in_copy(outer, 1, placed(t, in_copy(inner, 1, n)));
-    let a = nest(base_part.cap(base, CapEnd::End));
+    let a = nest(base_part.cap(base, CapEnd::End).name);
     let b = top_part.cap(top, CapEnd::Start);
     let (doc, _) = seat(
         doc,
@@ -1498,7 +1498,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) 
             nest(n)
         }
     };
-    let a = nest(base_part.cap(base, CapEnd::End));
+    let a = nest(base_part.cap(base, CapEnd::End).name);
     let b = top_part.cap(top, CapEnd::Start);
     let what = format!("Part({k}) naming ({j}, {i}), via a placed copy: {via_placed}");
     // The door decides structure alone, so either seat enters.

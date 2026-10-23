@@ -321,6 +321,20 @@ impl ResolveError {
         })
     }
 
+    /// **Whether `name`, read in `read`, is a part's**: `read` reaches
+    /// an instance, whose copy carries its part's names verbatim, and
+    /// this document never minted the name's node. Rung 1 is the part's
+    /// own, decided there; issue
+    /// `a-part-name-in-the-host-is-spelled-in-the-parts-ids` holds what
+    /// that leaves open.
+    pub(crate) fn part_name(
+        name: &StableName,
+        read: crate::VarId,
+        doc: &Doc<ProfileProgram>,
+    ) -> bool {
+        !doc.has_minted(name.node) && doc.reaches_instance(read)
+    }
+
     /// Rung 1: the minting node must still be in the document, or the
     /// name is stranded. `None` when it is live.
     ///
@@ -1649,7 +1663,9 @@ fn resolve_rungs<T: Decide, P: PriorCtx>(
     name: &StableName,
 ) -> Resolution {
     // 1. NodeGone: the minting node is not live.
-    if let Some(error) = ResolveError::node_gone(name, new.doc) {
+    if let Some(error) = ResolveError::node_gone(name, new.doc)
+        .filter(|_| !ResolveError::part_name(name, site, new.doc))
+    {
         return Resolution::Failed(ResolutionFailure {
             error,
             offers: Vec::new(),

@@ -72,7 +72,7 @@ fn cube(store: &mut PartStore, label: &str) -> Cube {
 
 impl Cube {
     /// The cap `end` of this part as `instance` places it.
-    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> StableName {
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::InPart {
         in_part(instance, self.body, end)
     }
 
@@ -86,9 +86,12 @@ impl Cube {
         wrap: &dyn Fn(StableName) -> StableName,
     ) -> editor_core::Operand {
         let name = |kind, seg| {
-            fixture::read_minted(wrap(fixture::resolver::in_part_of(
-                kind, instance, self.body, seg,
-            )))
+            let own = fixture::resolver::in_part_of(kind, instance, self.body, seg);
+            let worn = wrap(own.name.clone());
+            // A part's own name is read at its instance; a name a
+            // pattern wraps, at the pattern that minted it.
+            let at = if worn == own.name { instance } else { worn.node };
+            fixture::read_at(at, worn)
         };
         fixture::corner_frame(
             name(EntityKind::Edge, RoleSeg::LateralEdge(self.corners[0])),

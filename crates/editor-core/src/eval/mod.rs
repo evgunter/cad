@@ -3801,6 +3801,12 @@ fn resolve_appearance<T: Decide>(
     let reads = appearance::Reads {
         ports: doc.output_ports(),
         feeds: doc.feeds(),
+        parted: doc
+            .appearance()
+            .keys()
+            .map(|key| key.at)
+            .filter(|&body| doc.reaches_instance(body))
+            .collect(),
     };
     appearance::resolve(doc.appearance(), order, &states, &reads)
 }

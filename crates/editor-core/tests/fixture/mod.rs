@@ -663,14 +663,14 @@ pub fn pinned(doc: ProfileDoc, placement: RecipeNodeId, o: &EvalOptions) -> Prof
 
 /// **`node` inserted and pinned to the world at the identity**
 /// ([`pinned`]): an instance or a placement that stands where its
-/// shapes do, in the product.
+/// source does, in the product ([`world_product`]).
 pub fn insert_pinned(
     doc: ProfileDoc,
     node: AuthoredNode,
     o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = insert(doc, node);
-    (pinned(doc, id, o), id)
+    (world_product(pinned(doc, id, o)), id)
 }
 
 /// **The at-rest gate's verdict**, as a mate row wants to read it:
@@ -714,13 +714,72 @@ pub fn assert_mints_nothing(doc: &ProfileDoc, ev: &Evaluation<f64>, mate: editor
 /// The `expect` in [`face`] is the fixture's own claim that the name it
 /// just made is a face — if it is not, the fixture is wrong and says so
 /// where it is built.
-pub fn head(name: StableName) -> editor_core::SitedFace {
-    editor_core::SitedFace::at_mint(face(name))
+pub fn head(name: impl Sited) -> editor_core::SitedFace {
+    name.sited()
 }
 
 /// The same side read at `at` rather than at its mint.
-pub fn head_at(at: RecipeNodeId, name: StableName) -> editor_core::SitedFace {
+pub fn head_at(at: RecipeNodeId, name: impl Into<StableName>) -> editor_core::SitedFace {
     editor_core::SitedFace::new(at, face(name))
+}
+
+/// **A mate's read of a name** where the name is read ([`Sited`]).
+pub fn sited_ref(name: impl Sited) -> editor_core::SitedRef {
+    let at = name.site();
+    editor_core::SitedRef::new(at, name.name())
+}
+
+/// **`doc` with its product the world's copies**, in document order:
+/// the product a document whose placements are its assembly states
+/// ([`editor_core::test_support::with_world_product`]). Called again
+/// after a placement is added, it writes the product anew.
+pub fn world_product(doc: ProfileDoc) -> ProfileDoc {
+    editor_core::test_support::with_world_product(doc)
+}
+
+/// **A name and where it is read**: a name this document minted, at
+/// its mint; a part's name ([`resolver::InPart`]), at the instance whose
+/// copy carries it.
+pub trait Sited {
+    /// The node the name is read at.
+    fn site(&self) -> RecipeNodeId;
+    /// The name.
+    fn name(self) -> StableName;
+    /// The name as a mate side, read at [`Self::site`].
+    fn sited(self) -> editor_core::SitedFace
+    where
+        Self: Sized,
+    {
+        editor_core::SitedFace::new(self.site(), face(self.name()))
+    }
+}
+
+impl Sited for StableName {
+    fn site(&self) -> RecipeNodeId {
+        self.node
+    }
+    fn name(self) -> StableName {
+        self
+    }
+}
+
+/// A name read at a node of this document's choosing: `(at, name)`.
+impl Sited for (RecipeNodeId, StableName) {
+    fn site(&self) -> RecipeNodeId {
+        self.0
+    }
+    fn name(self) -> StableName {
+        self.1
+    }
+}
+
+impl Sited for resolver::InPart {
+    fn site(&self) -> RecipeNodeId {
+        self.at
+    }
+    fn name(self) -> StableName {
+        self.name
+    }
 }
 
 /// **`name` as the union `union` carries it from its member `member`**
@@ -730,8 +789,9 @@ pub fn member_name(
     doc: &ProfileDoc,
     union: RecipeNodeId,
     member: RecipeNodeId,
-    name: StableName,
+    name: impl Into<StableName>,
 ) -> StableName {
+    let name: StableName = name.into();
     StableName {
         kind: name.kind,
         node: union,
@@ -816,14 +876,15 @@ pub fn face_reads(doc: &ProfileDoc, pose: VarId) -> Vec<VarId> {
 }
 
 /// A fixture's name as an `editor_core::FaceName`.
-pub fn face(name: StableName) -> editor_core::FaceName {
-    editor_core::FaceName::new(name).expect("the fixture names a face")
+pub fn face(name: impl Into<StableName>) -> editor_core::FaceName {
+    editor_core::FaceName::new(name.into()).expect("the fixture names a face")
 }
 
 /// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
 /// wrapper, the segment a pattern's table puts round every master
 /// name it emits. Nest the calls for a nested copy.
-pub fn in_copy(pattern: RecipeNodeId, i: u32, of: StableName) -> StableName {
+pub fn in_copy(pattern: RecipeNodeId, i: u32, of: impl Into<StableName>) -> StableName {
+    let of: StableName = of.into();
     StableName {
         kind: of.kind,
         node: pattern,
@@ -3398,10 +3459,11 @@ pub fn read_at(at: RecipeNodeId, name: StableName) -> editor_core::Operand {
     editor_core::Operand::select(at, vec![name])
 }
 
-/// [`read_at`] at the node that minted `name`.
-pub fn read_minted(name: StableName) -> editor_core::Operand {
-    let at = name.node;
-    read_at(at, name)
+/// [`read_at`] where `name` is read ([`Sited`]): at the node that
+/// minted it, or a part's name at its instance.
+pub fn read_minted(name: impl Sited) -> editor_core::Operand {
+    let at = name.site();
+    read_at(at, name.name())
 }
 
 /// **A block's corner frame** (`PoseDef::Through`): `z` along the

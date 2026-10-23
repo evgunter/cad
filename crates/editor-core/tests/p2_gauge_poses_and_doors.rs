@@ -393,8 +393,8 @@ fn the_gate_checks_the_world_whatever_another_space_holds() {
         &doc,
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            editor_core::SitedRef::at_mint(p.top_cap(top)),
-            editor_core::SitedRef::at_mint(p.top_upper_cap(top)),
+            crate::fixture::sited_ref(p.top_cap(top)),
+            crate::fixture::sited_ref(p.top_upper_cap(top)),
         ],
     );
     let ev = run(&doc_m, &o);

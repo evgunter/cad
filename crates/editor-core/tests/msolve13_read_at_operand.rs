@@ -117,7 +117,7 @@ impl Scene {
     }
 
     /// The block's bottom cap, as the instance names it.
-    fn top_cap(&self) -> StableName {
+    fn top_cap(&self) -> crate::fixture::resolver::InPart {
         in_part(self.top, self.top_body, CapEnd::Start)
     }
 

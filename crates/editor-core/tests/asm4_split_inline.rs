@@ -71,7 +71,7 @@ fn two_instance_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeI
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, first) = pinned(doc, doc_ref, &o);
     let (doc, second) = pinned_at(doc, doc_ref, [5.0, 0.0, 0.0], &o);
-    (store, doc, vec![first, second])
+    (store, fixture::world_product(doc), vec![first, second])
 }
 
 /// **An instance of `doc_ref` pinned to the world at the identity**
@@ -118,6 +118,24 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 /// pinned at the identity moves nothing.
 fn same_volume(a: &topo::Body<f64>, b: &topo::Body<f64>, what: &str) {
     assert_eq!(volume_bits(a), volume_bits(b), "{what}");
+}
+
+/// The member read a `⊔`'s name is keyed by: the copy its entity came
+/// from.
+fn member_read(name: &StableName) -> Option<editor_core::VarId> {
+    match name.path.as_slice() {
+        [RoleSeg::From { read, .. }] => Some(*read),
+        _ => None,
+    }
+}
+
+/// `name`, a `⊔`'s name, keyed by the member read `to` instead.
+fn rekeyed(name: &StableName, to: editor_core::VarId) -> StableName {
+    let mut name = name.clone();
+    if let [RoleSeg::From { read, .. }] = name.path.as_mut_slice() {
+        *read = to;
+    }
+    name
 }
 
 /// Wraps a part-local name under an instance — the bridge's own form.
@@ -224,27 +242,19 @@ fn row1_split_one_instance_preserves_structure_and_names() {
 
     // NAME-RESOLUTION identity: every product name of the unsplit
     // evaluation resolves after the split — kept names verbatim, cut
-    // names through the instance qualifier (probing the WHOLE table is
-    // the strongest form of "probe several"). An instance is its own
-    // placement, so the product names its entities as it does.
-    let cut_instance = ids[1];
-    let mapped = out.node_map[&cut_instance];
-    // The cut name, re-anchored: the part's own name of the instance's
-    // entity, under the remainder instance.
-    let across = |name: &StableName| -> StableName {
-        wrap(
-            out.instance,
-            &StableName {
-                kind: name.kind,
-                node: mapped,
-                path: name.path.clone(),
-            },
-        )
-    };
+    // names re-keyed to the remainder instance's copy (probing the
+    // WHOLE table is the strongest form of "probe several"). The
+    // product is the `⊔` of the two copies, which keys each name by
+    // the copy it came from; a copy carries its part's names verbatim.
+    let cut_copy = doc.output(ids[1], 0).expect("the cut instance's copy");
+    let new_copy = out
+        .remainder
+        .output(out.instance, 0)
+        .expect("the remainder instance's copy");
     let mut probed_cut = 0usize;
     for (name, _) in names1.iter() {
-        if name.node == cut_instance {
-            let expected = across(name);
+        if member_read(name) == Some(cut_copy) {
+            let expected = rekeyed(name, new_copy);
             assert!(
                 names2.iter().any(|(n, _)| *n == expected),
                 "cut name {name:?} re-resolves as {expected:?}"
@@ -264,13 +274,15 @@ fn row1_split_one_instance_preserves_structure_and_names() {
     // bit-identical coordinates.
     let sample = names1
         .iter()
-        .find(|(n, _)| n.node == cut_instance && n.kind == editor_core::EntityKind::Vertex)
+        .find(|(n, _)| {
+            member_read(n) == Some(cut_copy) && n.kind == editor_core::EntityKind::Vertex
+        })
         .map(|(n, _)| n.clone())
         .expect("a cut vertex name");
     let before = editor_core::vertex_position(&ev1, sample.node, &sample).expect("resolves");
-    let after_name = across(&sample);
-    let after =
-        editor_core::vertex_position(&ev2, out.instance, &after_name).expect("resolves after");
+    let after_name = rekeyed(&sample, new_copy);
+    let after = editor_core::vertex_position(&ev2, after_name.node, &after_name)
+        .expect("resolves after");
     assert_eq!(before.x.to_bits(), after.x.to_bits());
     assert_eq!(before.y.to_bits(), after.y.to_bits());
     assert_eq!(before.z.to_bits(), after.z.to_bits());
@@ -395,13 +407,11 @@ fn row2_inline_inverts_split_and_undo_restores() {
     // The cut instance came back as a fresh node; its names correspond
     // through the two maps (split's, then inline's).
     let back = inlined.node_map[&out.node_map[&ids[1]]];
+    let cut_copy = doc.output(ids[1], 0).expect("the cut instance's copy");
+    let back_copy = flat.doc.output(back, 0).expect("the returned instance's copy");
     for (name, _) in names1.iter() {
-        let expected = if name.node == ids[1] {
-            StableName {
-                kind: name.kind,
-                node: back,
-                path: name.path.clone(),
-            }
+        let expected = if member_read(name) == Some(cut_copy) {
+            rekeyed(name, back_copy)
         } else {
             name.clone()
         };
@@ -436,7 +446,7 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("a face name");
-    let read = crate::fixture::painted_in(&doc, &face);
+    let read = doc.read_of_node(ids[1]).expect("the instance's copy");
     let (doc, _) = step(
         doc,
         DocEdit::SetAppearance {
@@ -460,23 +470,26 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         opts.resolver.as_ref(),
     )
     .expect("legal");
-    // The instance's name, now the part's name of it, under the
-    // remainder's instance.
-    let expected = wrap(
-        out.instance,
-        &StableName {
-            kind: face.kind,
-            node: out.node_map[&ids[1]],
-            path: face.path.clone(),
-        },
-    );
+    // The instance's name is its part's, and the remainder instance's
+    // copy carries it verbatim: the key keeps its name and moves onto
+    // that copy.
+    let keyed = |doc: &ProfileDoc, at: editor_core::VarId| {
+        doc.appearance()
+            .keys()
+            .any(|key| key.at == at && key.name == face)
+    };
+    let held = out
+        .remainder
+        .output(out.instance, 0)
+        .expect("the remainder instance's copy");
     assert!(
-        crate::fixture::painted(&out.remainder, &face).is_none(),
-        "the local key is gone from the remainder"
+        keyed(&out.remainder, held),
+        "the record re-anchored on the instance's copy, its name verbatim"
     );
-    assert!(
-        crate::fixture::painted(&out.remainder, &expected).is_some(),
-        "the record re-anchored to the instance-qualified key"
+    assert_eq!(
+        out.remainder.appearance().len(),
+        1,
+        "and nowhere else in the remainder"
     );
     assert!(
         out.part.appearance().is_empty(),
@@ -492,16 +505,12 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         &(Arc::new(store2) as Arc<dyn editor_core::PartResolver>),
     );
     let back = node_map[&out.node_map[&ids[1]]];
-    let restored = StableName {
-        kind: face.kind,
-        node: back,
-        path: face.path.clone(),
-    };
+    let restored = flat.output(back, 0).expect("the returned instance's copy");
     assert!(
-        crate::fixture::painted(&flat, &restored).is_some(),
-        "inline and flatten restore the local (re-minted) key"
+        keyed(&flat, restored),
+        "inline and flatten restore the key on the returned instance's copy"
     );
-    assert!(crate::fixture::painted(&flat, &expected).is_none());
+    assert_eq!(flat.appearance().len(), 1, "and nowhere else");
 }
 
 // ---- Row 3: refusals ----
@@ -1440,54 +1449,6 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     let o = with_resolver(store.clone());
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
 
-    // ForeignInstanceName: a host reference DERIVES from the instance
-    // but is not the bridge's own wrapped form.
-    let host = part("asm4-min2-name-host", 5.0, 1.0);
-    let kept_e = host.ids()[BODY_POSITION];
-    let (host, inst) = pinned(host, doc_ref, &o);
-    let foreign = StableName {
-        kind: EntityKind::Face,
-        node: kept_e,
-        path: vec![RoleSeg::From {
-            read: crate::fixture::out(&host, inst),
-            of: wrap(
-                inst,
-                &StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId::new(0, 0),
-                    path: vec![RoleSeg::OutputBody],
-                },
-            )
-            .into(),
-        }],
-    };
-    let read = crate::fixture::painted_in(&host, &foreign);
-    let (host, _) = step(
-        host,
-        DocEdit::SetAppearance {
-            body: read,
-            name: foreign.clone(),
-            attr: editor_core::Attr::Visibility(false),
-        },
-    );
-    let host = labelled(host, kept_e, "host plate");
-    match inline(&host, inst, &resolver, Tol::witness()) {
-        Err(InlineError::ForeignInstanceName { name }) => {
-            assert_eq!(name.name(), &foreign);
-            assert_eq!(
-                minter_label(&name),
-                Some("host plate"),
-                "a host name is spoken from the host: {name}"
-            );
-            let msg = format!("{}", InlineError::ForeignInstanceName { name });
-            assert!(
-                msg.contains("InPart"),
-                "the message states the expected form: {msg}"
-            );
-        }
-        other => panic!("expected ForeignInstanceName, got {other:?}"),
-    }
-
     // InstanceBodyNameReferenced: the instance's own output-body name
     // has no spliced correspondent.
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-body-host"), Tol::witness());
@@ -1855,7 +1816,7 @@ fn a_split_reattaches_an_appearance_key_onto_the_instances_body() {
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("a face name");
-    let read = crate::fixture::painted_in(&doc, &face);
+    let read = doc.read_of_node(ids[1]).expect("the instance's copy");
     let (doc, _) = step(
         doc,
         DocEdit::SetAppearance {

@@ -517,7 +517,6 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
         ),
         E::InstanceBodyNameReferenced { name }
-        | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }
         | E::StrandedPartRead { name, .. }
         | E::NameOnDroppedStep { name, .. }

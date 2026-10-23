@@ -85,13 +85,14 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
 }
 
 /// Paint one face red, expecting the door to accept it: the name's
-/// node is live at the edit, which is all `SetAppearance` asks.
-fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
+/// node is live at the edit, which is all `SetAppearance` asks. The
+/// face is painted where it is read ([`crate::fixture::Sited`]).
+fn paint(doc: &editor_core::ProfileDoc, name: &(impl crate::fixture::Sited + Clone)) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetAppearance {
-            body: crate::fixture::painted_in(doc, name),
-            name: name.clone(),
+            body: doc.read_of_node(name.site()).expect("the face's body is read"),
+            name: name.clone().name(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
@@ -350,17 +351,19 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
 
 /// A rest of `on`'s face against `to`'s, `on` the face of the copy it
 /// places.
-fn rest(to: StableName, on: StableName) -> editor_core::Mate<Formula> {
+fn rest(to: impl crate::fixture::Sited, on: impl crate::fixture::Sited) -> editor_core::Mate<Formula> {
     fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
 }
 
-fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {
-    StableName {
-                kind: EntityKind::Face,
-                node: part_body,
-                path: vec![RoleSeg::Cap(CapEnd::Start)],
-            }
-            
+fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    crate::fixture::resolver::InPart {
+        at: instance,
+        name: StableName {
+            kind: EntityKind::Face,
+            node: part_body,
+            path: vec![RoleSeg::Cap(CapEnd::Start)],
+        },
+    }
 }
 
 /// **A mate's side strands as a read.**
@@ -625,7 +628,7 @@ fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
                 Maintenance::StrandedRead { node, .. },
                 Maintenance::StrandedSelection { .. },
                 Maintenance::StrandedAppearance { name, .. },
-            ] if *node == doc.spoken(mate) && *name == doc.spoken_name(&painted)
+            ] if *node == doc.spoken(mate) && *name == doc.spoken_name(&painted.name)
         ),
         "both strand kinds are read at the door, and the delete reports no placement row: \
          {rows:?}"

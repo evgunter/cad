@@ -444,8 +444,8 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     assert_eq!(
         (declared.a.clone(), declared.b.clone()),
         (
-            in_part(ids[1], body, CapEnd::Start),
-            in_part(ids[0], body, CapEnd::End)
+            in_part(ids[1], body, CapEnd::Start).name,
+            in_part(ids[0], body, CapEnd::End).name
         ),
         "and both of its references, the copy's first"
     );
@@ -635,8 +635,8 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     assert_eq!(
         (named.a, named.b),
         (
-            in_part(ids[1], body, CapEnd::Start),
-            in_part(ids[0], body, CapEnd::End)
+            in_part(ids[1], body, CapEnd::Start).name,
+            in_part(ids[0], body, CapEnd::End).name
         ),
         "both references are named"
     );
@@ -740,7 +740,9 @@ fn remainder_with_a_neighbour(
     let (doc, ids) = seated_pair(label, doc_ref, store);
     let neighbour = ids[0];
     let (doc, _) = seat(doc, ids[1], rest_mate(body, neighbour, ids[1], 1.0));
-    let outer = FaceName::new(in_part(neighbour, body, CapEnd::End))
+    // A remainder name, spelled on the live neighbour: an instance's
+    // copy carries its part's names, in the part's id space.
+    let outer = FaceName::new(fixture::resolver::in_world(neighbour, CapEnd::End))
         .expect("a crossing's references are face names");
     (doc, outer)
 }
@@ -1072,7 +1074,7 @@ fn a_crossing_record_keys_on_each_of_its_fields() {
     let (host, outer) = remainder_with_a_neighbour("asm-r2b-row6-fields", doc_ref, body, &store);
     // The SAME live node, a different face of it: only the `outer`
     // moves between the two records below.
-    let other_outer = FaceName::new(in_part(outer.node, body, CapEnd::Start))
+    let other_outer = FaceName::new(fixture::resolver::in_world(outer.node, CapEnd::Start))
         .expect("a crossing's references are face names");
     let record = |outer: FaceName, inner: FaceName, class| editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {

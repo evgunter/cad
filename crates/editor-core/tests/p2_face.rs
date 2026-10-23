@@ -27,7 +27,7 @@ use editor_core::{
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{head, in_copy, insert, len, run, scl, solve, step};
+use fixture::{head, head_at, in_copy, insert, len, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -271,7 +271,7 @@ fn a_mate_reading_a_pattern_copy_crosses_split_and_inline_unmoved() {
         .filter(|&id| matches!(doc.node(id), Some(Node::Part { .. })))
         .nth(2)
         .expect("copy 2's Part, the third `place_copies` inserts");
-    let copy_cap = fixture::head_at(part_two, in_copy(pattern, 2, p.top_upper_cap(leg)));
+    let copy_cap = head_at(part_two, in_copy(pattern, 2, p.top_upper_cap(leg)));
     let (doc, m) = face_mate(doc, k, head(p.top_cap(k)), copy_cap);
     let copy_two = [4.0, 0.0, 0.0];
     let before = target_world(&doc, &o, m, copy_two);
@@ -367,7 +367,7 @@ fn a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split() {
     let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
     let (host, i) = fixture::insert_pinned(host, crate::fixture::mated_instance(sub), &with_sub);
     let (host, k) = insert(host, fixture::mated_instance(p.top));
-    let through = FaceName::new(p.top_upper_cap(sub_aside))
+    let through = FaceName::new(p.top_upper_cap(sub_aside).name)
         .expect("a face")
         .into_name();
     let (host, _) = face_mate(host, k, head(p.top_cap(k)), head(through));
@@ -624,8 +624,8 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
         doc,
         DocEdit::Rebind {
             body: Some(base_out),
-            from: old_head,
-            to: in_part(base, new_body, CapEnd::End),
+            from: old_head.name,
+            to: in_part(base, new_body, CapEnd::End).name,
         },
     );
     let ev = run(&doc, &o);

@@ -124,8 +124,8 @@ fn a_measure_couples_as_reads_do() {
         &doc,
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            editor_core::SitedRef::new(a, in_part(a, body, CapEnd::End)),
-            editor_core::SitedRef::new(b, in_part(b, body, CapEnd::Start)),
+            crate::fixture::sited_ref(in_part(a, body, CapEnd::End)),
+            crate::fixture::sited_ref(in_part(b, body, CapEnd::Start)),
         ],
     );
     assert_eq!(
@@ -295,7 +295,7 @@ fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
         vec![MintRefusal::Reference {
             mate,
             side: editor_core::MateSide::On,
-            name: Box::new(in_part(b, body, CapEnd::Start)),
+            name: Box::new(in_part(b, body, CapEnd::Start).name),
             why: RefusedRef::Ambiguous { width: 2 },
         }]
     );
@@ -547,10 +547,11 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
         &doc,
         &[editor_core::MeasurePrimitive::Distance {
             a: editor_core::Operand::Var(side),
-            b: editor_core::Operand::from(editor_core::SitedRef::new(
+            b: editor_core::Operand::from(crate::fixture::sited_ref(in_part(
                 top,
-                in_part(top, top_body, CapEnd::Start),
-            )),
+                top_body,
+                CapEnd::Start,
+            ))),
         }],
         Tol::witness(),
     );

@@ -82,3 +82,12 @@ several world placements writes exactly that list. One source needs
 8. pncad, pncad-py, viewer, tour, wild; stored documents regenerated.
 
 **Progress:** (updated as commits land)
+- Steps 1–7 in editor-core src (commit a7522735). The census at a
+  `⊔` runs in the gather (product and check time), not in the wire.
+- Tests migrated to one source, `⊔`, picks; a part's name is read at
+  the instance whose copy carries it (`fixture::resolver::InPart`,
+  `fixture::Sited`). Interface-crossing rows spell their `outer` on a
+  host node: an instance's copy carries its part's names in the
+  part's id space (filed as the document-seam hazard).
+- pncad-py tags/payloads/value/select/product_memo migrated; Python
+  tests and stubs next.

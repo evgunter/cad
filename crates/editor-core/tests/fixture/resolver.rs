@@ -156,13 +156,54 @@ fn placed(body: RecipeNodeId) -> (RecipeNodeId, editor_core::VarId) {
         .unwrap_or_else(|| panic!("{body:?} is no body a part stored with `insert_part` placed"))
 }
 
+/// **A part's entity as an instance's copy carries it**: the part's
+/// own name, verbatim, and the instance it is read at. A host reads a
+/// part's name at the instance whose copy carries it — never at its
+/// mint, which is a node of the part's document, not the host's.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InPart {
+    /// The instance whose copy carries the name.
+    pub at: RecipeNodeId,
+    /// The part's own name.
+    pub name: StableName,
+}
+
+impl From<InPart> for StableName {
+    fn from(part: InPart) -> Self {
+        part.name
+    }
+}
+
+/// The name itself, wherever a reader wants only the name (a table
+/// lookup, a comparison with what a product says).
+impl std::ops::Deref for InPart {
+    type Target = StableName;
+    fn deref(&self) -> &StableName {
+        &self.name
+    }
+}
+
+impl PartialEq<StableName> for InPart {
+    fn eq(&self, other: &StableName) -> bool {
+        self.name == *other
+    }
+}
+
+impl PartialEq<InPart> for StableName {
+    fn eq(&self, other: &InPart) -> bool {
+        *self == other.name
+    }
+}
+
 /// **A cap face of `instance`'s part product**, as the instance's copy
 /// carries it: the part's own name for the face — a cap of `body`,
 /// which its placement's copy names as `body` does, and the part's
 /// product, that one copy, names verbatim ([`PartStore::insert_part`]).
-/// The instance names its copy's entities as its part's product does.
-pub fn in_part(_instance: RecipeNodeId, body: RecipeNodeId, cap: CapEnd) -> StableName {
-    in_world(body, cap)
+pub fn in_part(instance: RecipeNodeId, body: RecipeNodeId, cap: CapEnd) -> InPart {
+    InPart {
+        at: instance,
+        name: in_world(body, cap),
+    }
 }
 
 /// **A cap face of a part's product**, as the part names it: the body's
@@ -180,13 +221,16 @@ pub fn in_world(body: RecipeNodeId, cap: CapEnd) -> StableName {
 /// copy and the instance's.
 pub fn in_part_of(
     kind: editor_core::EntityKind,
-    _instance: RecipeNodeId,
+    instance: RecipeNodeId,
     body: RecipeNodeId,
     seg: editor_core::RoleSeg,
-) -> StableName {
-    StableName {
-        kind,
-        node: body,
-        path: vec![seg],
+) -> InPart {
+    InPart {
+        at: instance,
+        name: StableName {
+            kind,
+            node: body,
+            path: vec![seg],
+        },
     }
 }
