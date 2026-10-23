@@ -79,47 +79,33 @@
 //! `f(m)` is a *thin* enclosure (rotation to the midpoint), `F₂` a hull
 //! enclosure — the remainder is the enclosure width itself, so the
 //! bracket is sound at every refinement level and only *tightens* as
-//! pieces shrink. Refinement doubles the piece count; **acceptance and
-//! refinement go through named predicates** (`props_quad_*`, K-funnel
-//! telemetry from birth): the convergence margin is metered as a
-//! LENGTH, `width(flux)/(3·area)` — the mean boundary displacement the
-//! enclosure width corresponds to, exactly check 7's V/A metering —
-//! against `QUAD_TARGET_LEN_FACTOR·ε`. The factor is documented
-//! honestly: the width floor is set by the ε-scale endpoint/boundary
-//! slacks times the boundary length, so an ε-tight target would refuse
-//! every real face; three decades above the floor and far below
-//! display relevance is the useful band. Budget exhaustion is a typed
-//! refusal ([`PropsError::QuadratureBudget`]), never a silent wide
-//! answer.
+//! pieces shrink. Refinement doubles the piece count.
 //!
-//! # Two levels of certification
+//! # When a lane stops
 //!
-//! The schedule above is the REPORTING level: a face is answered when
-//! its enclosure's mean boundary displacement is under
-//! `QUAD_TARGET_LEN_FACTOR·ε`, and a face that cannot get there is a
-//! typed refusal. That target is a compromise cut for a caller who
-//! wants the NUMBER (the paragraph above says so, and says why an
-//! ε-tight target would refuse every real face).
+//! A lane knows no target. Each round it hands its enclosure to the
+//! caller's [`Accept`], which answers whether that is enough, and it
+//! stops short of an answer on one of two findings of its own
+//! ([`LaneStop`], read by the one [`Run`]): its FLOOR, where the part of
+//! the width a later round removes (the rule's remainder) is at most
+//! [`FLOOR_SHARE`] of it, the rest being the part none removes (the
+//! honesty pads and the arithmetic),
+//! and the work WALL, [`FACE_WORK_WALL`], one bound in one unit for every
+//! lane, on the weighted cell evaluations a face spends over all its
+//! rounds. A call that ends unaccepted answers with its narrowest round
+//! and says why it stopped ([`LaneRun`]), never silently wide.
 //!
-//! A caller who wants only the SIGN of a body's volume enclosure needs
-//! none of it: an enclosure that excludes zero decides that sign at
-//! whatever round it first does, and refining further changes no
-//! verdict. So every lane here is entered over a [`RoundWindow`] and
-//! answers with a [`RoundOutcome`]: `Converged` at the reporting
-//! level, or `Open` — a sound enclosure at a named round, with the
-//! refusal a number-wanting caller would earn from it when the
-//! schedule has nothing further to offer. The rounds are independent
-//! recomputations, so the windows of one face compose: running
-//! `0..=k` and then `k+1..=…` evaluates the pieces the uninterrupted
-//! run evaluates, once each, and ends in the same place.
+//! The rounds are independent recomputations, and a round's stop reads
+//! that round alone, so the windows of one face compose: running
+//! `0..=k` and then `k+1..=…` ([`RoundWindow`]) runs each round the
+//! uninterrupted run runs, once, and ends in the same place. Each entry
+//! re-derives the face's setup (its hull blocks, its spans), which the
+//! uninterrupted run derives once.
+//! A caller deciding a SIGN can stop between rounds and resume.
 //!
 //! **One arm has no rounds to address and ignores the window's
 //! start**: [`nurbs_patch_face`]'s exact per-span rule, which answers
-//! a whole patch in one Newton–Cotes pass. It reports `Open` at round
-//! `0` carrying its own refusal when its enclosure misses the target,
-//! so a sign-deciding caller gets the tightest enclosure the lane has
-//! and a number-wanting one gets the refusal — and because that
-//! outcome leaves no round to resume at, no window ever re-enters it.
+//! a whole patch in one Newton–Cotes pass, at its floor.
 //!
 //! # The lanes in this file
 //!
@@ -173,49 +159,138 @@ use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
 use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
 use super::{PropsCheck, PropsError};
+use crate::descent::Work;
 use crate::offset_meters::mig;
 use crate::patch_bound::{certified_inf, certified_sup};
 
 /// The initial piece count of the composite rule (round 0).
 pub(super) const QUAD_INIT_PIECES: usize = 16;
-/// Refinement rounds before the typed budget refusal (pieces double
-/// per round: ≤ `16·2¹²` = 65536 pieces).
-pub(super) const QUAD_MAX_ROUNDS: usize = 12;
-/// Convergence target as a multiple of ε, metered as the mean boundary
-/// displacement `width(flux)/(3·area)` (module docs: why not 1·ε).
-pub(super) const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
+/// The reporting target as a multiple of ε, metered as the mean
+/// boundary displacement `width(flux)/(3·area)` ([`mean_boundary_displacement`]).
+/// Not 1·ε: the width floor is set by the ε-scale endpoint and boundary
+/// slacks times the boundary length, so an ε-tight target would refuse
+/// every real face; three decades above the floor and far below display
+/// relevance is the useful band. No lane reads it: it is the caller's,
+/// and `topo`'s reporting adapter is its reader.
+pub const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
-/// **The rounds one call of a face lane runs** — the schedule's
-/// refinement made addressable, so a caller whose certification is
-/// complete before the reporting target can stop there and a later
-/// caller can pick the same schedule up where it was left.
+/// **The work a face may spend over all its rounds**, in weighted cell
+/// evaluations: the unit is a tenth of one cell of the rational lane's
+/// composite arm, and each lane weighs its own cells by a fixed factor
+/// in that unit, so a unit costs about the same in every lane. Spent
+/// cumulatively ([`crate::descent::Work`]): a round runs only if every
+/// round before it and it fit.
+///
+/// **Where it sits: calibrated, not derived.** It is the cumulative
+/// work of the costliest face in the measured corpus that converges
+/// under the per-lane round caps it replaces. The corpus is the
+/// geom-brep, topo and sweep suites with the slow set, the tour and the
+/// python suite, at ε = 1e-9, 1e-12 and 1e-6. That face is `demos/tour`'s
+/// `lily_leaf_a`, the 17-station lofted long leaf: its knot-cut
+/// composite wall certifies at round 7 at ε = 1e-9 after 14,243,680.
+/// The wall is that figure rounded up.
+///
+/// **It bounds work, not rounds**, so it gives a face fewer rounds the
+/// more each of its rounds costs. A face costlier per round than the
+/// calibrating one — more knots, chords, edges or spirics — stops at
+/// [`LaneStop::Wall`] a round or more before the round cap it replaces
+/// would have, and hands back that round's sound bracket rather than
+/// its number. The review of PR 5589 executed two: a quarter torus at
+/// 12× rebuilt on 9×9 conic spans (its cap certified it at round 7; it
+/// stops at round 6) and a flat chart trimmed by a hexagon of curved
+/// arcs (round 4).
+pub const FACE_WORK_WALL: usize = 14_250_000;
+
+/// **The floor's share**, `2⁻¹⁰`: a lane is at its floor once the part
+/// of a round's width a later round removes is at most this share of
+/// the width. A stop there can cost a convergence only for a face whose
+/// target lies within that share above its floor, about `1·ε` against
+/// the band's `K·ε` at the reporting target `1024·ε`, so such a face
+/// reads in-band, never certified.
+///
+/// The stop reads that round alone, and it assumes the irremovable
+/// part does not shrink in a later round (the pads are fixed per face
+/// and the arithmetic grows with the cell count). Nothing asserts that:
+/// a lane whose irremovable part did shrink would floor a round early,
+/// with a sound but wider bracket.
+pub const FLOOR_SHARE: f64 = 1.0 / FLOOR_SHARE_INV;
+/// `1 /` [`FLOOR_SHARE`], exact: the floor test is `removable · 1024 ≤ width`.
+const FLOOR_SHARE_INV: f64 = 1024.0;
+
+/// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`]'s unit.
+const W_CYLINDER: usize = 3;
+/// Weight of one cell of the integral patch lane's composite.
+const W_INTEGRAL_COMPOSITE: usize = 32;
+/// Weight of one cell of the rational lane's composite arm: the unit's ten.
+const W_RATIONAL_COMPOSITE: usize = 10;
+/// Weight of one cell of the rational lane's exact-v arm (a u cell
+/// against one v span, integrated exactly).
+const W_RATIONAL_EXACT_V: usize = 58;
+/// Weight of one chord cell of the trimmed lane, by the chart's
+/// bidegree `(p_u, p_v)`, read at face entry. A cell is one nested
+/// Newton–Cotes pass of `(3p_u + 3p_v)·(3p_v)` chart evaluations, so its
+/// cost follows the bidegree and not the chart's shape: a flat and a
+/// curved bilinear chart cost the same (0.20 ms a cell, measured), a
+/// bicubic-in-v one fifty times that. Measured on this box in release
+/// (a timing probe, reverted), rounds 5 and 6 of one arc trim, twice:
+/// the dearest of the four readings, over a rational composite cell's
+/// 9.1 µs (the unit's ten). The readings vary by up to 1.6× run to run,
+/// so the dearest is taken, as for every other lane. Bidegrees past the
+/// Newton–Cotes window (`p_u + p_v > 4` or `p_v > 4`) never reach a
+/// round; they take the dearest weight.
+///
+/// | `(p_u, p_v)` | ms / cell | weight |
+/// |---|---|---|
+/// | (1, 1) | 0.471 | 520 |
+/// | (2, 1) | 1.100 | 1 210 |
+/// | (3, 1) | 2.971 | 3 300 |
+/// | (1, 2) | 3.905 | 4 300 |
+/// | (2, 2) | 6.064 | 6 700 |
+/// | (1, 3) | 10.59 | 11 700 |
+const fn w_trimmed(p_u: usize, p_v: usize) -> usize {
+    match (p_u, p_v) {
+        (1, 1) => 520,
+        (2, 1) => 1_210,
+        (3, 1) => 3_300,
+        (1, 2) => 4_300,
+        (2, 2) => 6_700,
+        _ => 11_700,
+    }
+}
+
+/// **Whether flux enclosure `a` is narrower than `b`** — the one rule
+/// a face keeps its narrowest round by, within a lane's call
+/// ([`Run`]) and across the windows a caller runs it in.
+#[must_use]
+pub fn narrower(a: Interval, b: Interval) -> bool {
+    a.width() < b.width()
+}
+
+/// **The rounds one call of a face lane runs.**
 ///
 /// The rounds of a lane are INDEPENDENT: each recomputes its composite
-/// sum from scratch over `QUAD_INIT_PIECES << round` pieces, and
-/// nothing carries over but the piece count. So a window is exactly a
-/// sub-range of the one schedule, its enclosures are the enclosures
-/// that round would have produced inside an uninterrupted run, and a
-/// face run as `0..=k` then `k+1..=…` evaluates every piece the
-/// uninterrupted run evaluates, once each.
+/// sum from scratch over twice the previous round's pieces, and nothing
+/// carries over but the piece count. So a window is exactly a sub-range
+/// of the one schedule, its enclosures are the enclosures that round
+/// would have produced inside an uninterrupted run, and a face run as
+/// `0..=k` then `k+1..=…` runs every round the uninterrupted run runs,
+/// once each; each entry re-derives the face's setup, which the
+/// uninterrupted run derives once. What a round's stop reads is a function of the
+/// round alone (its own split of the width, and the work through it), so
+/// a window stops where the uninterrupted run would.
 #[derive(Clone, Copy, Debug)]
 pub struct RoundWindow {
     /// The first round to run. `0` starts the schedule; a higher value
-    /// RESUMES it, and the budget exit ([`budget_exit`]) is then not
-    /// re-asked — the run that reached round 0 already asked it, and
-    /// asking twice would meter one face's one decision twice.
+    /// resumes it.
     pub first: usize,
-    /// The last round to run. A value at or past the lane's own last
-    /// round asks for the whole schedule, so the lane ends in its
-    /// convergence or in its typed budget refusal; a lower one stops
-    /// with the enclosure that round reached. The budget exit ends any
-    /// window at round 0 ([`OpenEnd::Unreachable`]).
+    /// The last round to run. `usize::MAX` runs until the caller accepts
+    /// a round or the lane stops ([`LaneStop`]); a lower value also stops
+    /// at that round.
     pub last: usize,
 }
 
 impl RoundWindow {
-    /// The whole schedule — the reporting use, and the only window
-    /// that can reach [`PropsError::QuadratureBudget`]'s last-round
-    /// payload.
+    /// Every round, until the caller accepts one or the lane stops.
     pub const SCHEDULE: Self = Self {
         first: 0,
         last: usize::MAX,
@@ -231,111 +306,72 @@ impl RoundWindow {
     }
 }
 
-/// **Where a face lane's window ended.**
-///
-/// The two levels of certification the lane can be asked for (module
-/// docs): [`Self::Converged`] is the reporting level — the enclosure
-/// met `QUAD_TARGET_LEN_FACTOR·ε` — and [`Self::Open`] is an
-/// enclosure at a named round, sound as an enclosure and below the
-/// reporting target, which is all a caller deciding a SIGN needs.
-#[derive(Clone, Debug)]
-pub enum RoundOutcome {
-    /// A round's enclosure met the reporting target: the lane's final
-    /// answer, and the one [`FaceCutBounds`] an uninterrupted run
-    /// returns.
-    Converged(FaceCutBounds),
-    /// The window ended without meeting the target.
-    Open {
-        /// The enclosure at `round` — sound, and wider than the
-        /// reporting target asks for.
-        bounds: FaceCutBounds,
-        /// The round `bounds` was taken at.
-        round: usize,
-        /// Why the window ended there.
-        end: OpenEnd,
-    },
+/// **Why a face lane would stop after a round**, read off that round
+/// before its caller is asked about it. The lane knows no target: whether
+/// a round's enclosure is enough is the caller's question ([`Accept`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LaneStop {
+    /// The next round fits in the work wall and can narrow.
+    Refinable,
+    /// Refinement stopped paying: the part of the width a later round
+    /// removes (the rule's remainder) is at most [`FLOOR_SHARE`] of the
+    /// width, the rest being the part none removes (the honesty pads and
+    /// the arithmetic), so no later round narrows it by more than that
+    /// share. A lane with no rounds is at its floor.
+    Floor,
+    /// The next round would take the face past [`FACE_WORK_WALL`].
+    Wall,
 }
 
-/// **Why an [`RoundOutcome::Open`] window ended** — whether rounds
-/// remain, and the refusal a caller wanting a NUMBER from the face
-/// earns.
-#[derive(Clone, Debug)]
-pub enum OpenEnd {
-    /// The window's own last round: rounds remain, and the schedule may
-    /// still meet the reporting target.
+/// **The caller's question, asked of every round a lane runs**: is this
+/// enclosure enough? It is handed the round's enclosure and the lane's
+/// own stop for it, and answers `true` to end the call at that round.
+/// Its refusal ends the call.
+pub type Accept<'a> = dyn FnMut(&FaceCutBounds, LaneStop) -> Result<bool, PropsError> + 'a;
+
+/// **Where one call of a face lane ended.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LaneEnd {
+    /// The caller accepted a round, which the lane would have ended on
+    /// for this reason of its own (a later round exists only where it
+    /// is [`LaneStop::Refinable`]).
+    Accepted(LaneStop),
+    /// The window's last round, with rounds remaining.
     Window,
-    /// The budget exit ([`budget_exit`]): no round meets the reporting
-    /// target, and rounds remain. The refusal answers a caller wanting
-    /// the number; a caller deciding a sign may still resume, since each
-    /// later round's enclosure is narrower.
-    Unreachable(PropsError),
-    /// The schedule has nothing further to offer: its last round, or a
-    /// lane with no rounds to refine.
-    Exhausted(PropsError),
+    /// The lane's floor ([`LaneStop::Floor`]).
+    Floor,
+    /// The work wall ([`LaneStop::Wall`]).
+    Wall,
 }
 
-impl OpenEnd {
-    /// The refusal a caller wanting the number earns, if any.
-    #[must_use]
-    pub fn refusal(&self) -> Option<&PropsError> {
-        match self {
-            Self::Window => None,
-            Self::Unreachable(refusal) | Self::Exhausted(refusal) => Some(refusal),
-        }
-    }
-
-    /// Whether a later round exists to resume at.
-    #[must_use]
-    pub fn rounds_remain(&self) -> bool {
-        !matches!(self, Self::Exhausted(_))
-    }
+/// **One call of a face lane**: its enclosure, the round it is taken at,
+/// and why the call ended.
+///
+/// An accepted call answers with the round accepted. Any other answers
+/// with the NARROWEST round, by flux width, the call ran: the rounds are
+/// independent sound enclosures, so a later one is no truer than an
+/// earlier one, and past the floor a later round can be wider.
+#[derive(Clone, Copy, Debug)]
+pub struct LaneRun {
+    /// The enclosure.
+    pub bounds: FaceCutBounds,
+    /// The round `bounds` is taken at.
+    pub round: usize,
+    /// How many refinement rounds the lane ran to get here, the window's
+    /// first round counted from `0`: `0` for a lane with no rounds.
+    pub rounds: usize,
+    /// Why the call ended.
+    pub end: LaneEnd,
 }
 
-impl RoundOutcome {
-    /// The same outcome with its enclosures mapped — the traversal
-    /// winding a caller carries into the flux, applied at whichever
-    /// round the window ended rather than only at convergence.
+impl LaneRun {
+    /// The same run with its enclosure mapped (the traversal winding a
+    /// caller carries into the flux).
     #[must_use]
     pub fn map_bounds(self, f: impl FnOnce(FaceCutBounds) -> FaceCutBounds) -> Self {
-        match self {
-            Self::Converged(bounds) => Self::Converged(f(bounds)),
-            Self::Open { bounds, round, end } => Self::Open {
-                bounds: f(bounds),
-                round,
-                end,
-            },
-        }
-    }
-
-    /// **The reporting level's reading of this outcome**: bounds that
-    /// met the target, or the refusal the schedule ended in.
-    ///
-    /// INVARIANT: a [`RoundWindow::SCHEDULE`] window ends either
-    /// converged or with a refusal in hand — every lane's last round
-    /// falls through to its own [`PropsError::QuadratureBudget`], and
-    /// the exact per-span arm hands its enclosure back beside one — so
-    /// [`OpenEnd::Window`] is reachable only from a window a caller
-    /// deliberately cut short, which is a caller that wanted the
-    /// enclosure rather than the number.
-    ///
-    /// # Errors
-    ///
-    /// The lane's own refusal, unchanged.
-    pub fn into_target(self) -> Result<FaceCutBounds, PropsError> {
-        match self {
-            Self::Converged(bounds) => Ok(bounds),
-            Self::Open {
-                end: OpenEnd::Unreachable(refusal) | OpenEnd::Exhausted(refusal),
-                ..
-            } => Err(refusal),
-            Self::Open {
-                round,
-                end: OpenEnd::Window,
-                ..
-            } => unreachable!(
-                "a target-level reading of a window cut short at round {round}: the \
-                 reporting door runs the whole schedule, which ends converged or refused"
-            ),
+        Self {
+            bounds: f(self.bounds),
+            ..self
         }
     }
 }
@@ -571,12 +607,19 @@ impl HarmChan {
 /// `σ·∫_{a}^{b} (anchor − v(t))·u'(t) dt` for one harmonic edge at
 /// `pieces` resolution — its share of `−∮ (v − anchor) du` — plus the
 /// edge's two honesty pads (endpoint-bracket and map-residual — the
-/// latter needs `radius` for the metric length).
-fn harmonic_edge_integral(e: &TrimEdgeQ, anchor: f64, pieces: usize, radius: Interval) -> Interval {
+/// latter needs `radius` for the metric length); and the summed width
+/// of its remainder terms `F₂·h³/24`, the part of its width a later
+/// round removes.
+fn harmonic_edge_integral(
+    e: &TrimEdgeQ,
+    anchor: f64,
+    pieces: usize,
+    radius: Interval,
+) -> (Interval, f64) {
     let (a, b) = e.limits();
     let span = b - a;
     if !(span.is_finite() && span >= 0.0) || pieces == 0 {
-        return Interval::refused();
+        return (Interval::refused(), f64::INFINITY);
     }
     let p = HarmChan {
         c0: pt(anchor) - e.v.c0,
@@ -591,6 +634,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, anchor: f64, pieces: usize, radius: Int
     let ddq = dq.deriv();
     let dddq = ddq.deriv();
     let mut total = Interval::zero();
+    let mut removable = 0.0_f64;
     #[allow(clippy::cast_precision_loss)]
     let h = span / pieces as f64;
     let h3_24 = pt(h) * pt(h).sqr() / pt(24.0);
@@ -618,7 +662,9 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, anchor: f64, pieces: usize, radius: Int
         let f2 = ddp.eval(cr, sr, tr) * dq.eval(cr, sr, tr)
             + pt(2.0) * dp.eval(cr, sr, tr) * ddq.eval(cr, sr, tr)
             + p.eval(cr, sr, tr) * dddq.eval(cr, sr, tr);
-        total = total + pt(h) * fm + f2 * h3_24;
+        let remainder = f2 * h3_24;
+        removable += remainder.width();
+        total = total + pt(h) * fm + remainder;
     }
     // Endpoint-bracket pad: |f| near the ends times the t-bracket
     // widths (module docs).
@@ -632,7 +678,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, anchor: f64, pieces: usize, radius: Int
     // UV-area defect ≤ length·env/r (module docs).
     let uv_pad = (pt(edge_metric_length(e, radius)) * e.env / radius).mag();
     let total = total + Interval::from_bounds(-uv_pad, uv_pad);
-    if e.forward { total } else { -total }
+    (if e.forward { total } else { -total }, removable)
 }
 
 /// A certified upper bound on the edge's METRIC length (metres):
@@ -657,7 +703,7 @@ fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
 /// Funnel wrapper (the `props_*` idiom of [`super::curved`]): margins
 /// are certification-substrate `f64` lengths lifted to the caller's
 /// scalar so every lane (f64 / Probe / Interval) records identically.
-pub(super) fn classify_len<T: Decide>(
+pub fn classify_len<T: Decide>(
     name: &'static str,
     margin: Margin<f64>,
     band: Band,
@@ -667,189 +713,146 @@ pub(super) fn classify_len<T: Decide>(
         .map_err(|cause| PropsError::Escalated { cause, check })
 }
 
-/// **A lane's refinement schedule**: rounds `0..=last`, each an
-/// independent recomputation over twice the previous round's pieces
-/// ([`RoundWindow`]). A lane states its last round once, here, and its
-/// loop, its convergence reading ([`Schedule::converged`]) and the one
-/// call's rounds ([`Schedule::run`], whose exits end at the earlier of
-/// this last round and the window's) all take it from the one value.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Schedule {
-    last: usize,
-}
-
-impl Schedule {
-    /// The schedule whose last round is `last`.
-    pub(super) const fn to(last: usize) -> Self {
-        Self { last }
-    }
-
-    /// A lane with no rounds to refine: its one pass is its last.
-    pub(super) const ONE_PASS: Self = Self { last: 0 };
-
-    /// The schedule's last round.
-    pub(super) const fn last(self) -> usize {
-        self.last
-    }
-
-    /// The round a window enters the schedule at.
-    pub(super) fn first(self, window: RoundWindow) -> usize {
-        debug_assert!(
-            window.first <= self.last,
-            "a window resuming at round {} is past this lane's last round {}",
-            window.first,
-            self.last
-        );
-        window.first.min(self.last)
-    }
-
-    /// **Whether `round` met the reporting target**, from its
-    /// `props_quad_converged` reading of `target_len − width_len`.
-    ///
-    /// Only a definite `Positive` converges, and a definite `Negative`
-    /// does not. A margin within the band — `Zero` or the ambiguity
-    /// band — is no answer either way: at a round with a successor it
-    /// refines, since the next round's enclosure, about 8× narrower,
-    /// decides it; at the last round it escalates, since there the width
-    /// may be under the target and a budget refusal would misstate it.
-    /// A `Zero` reading carries no diagnostic, so at the last round the
-    /// same margin is re-asked through the funnel's positive gate, which
-    /// rejects it with one; that path alone records the predicate twice.
-    /// The margin is finite by [`mean_boundary_displacement`]'s
-    /// invariant, so the band is the only escalation the reading carries.
-    pub(super) fn converged<T: Decide>(
-        self,
-        round: usize,
-        reading: Result<Sign, PropsError>,
-        (target_len, width_len): (f64, f64),
-        band: Band,
-    ) -> Result<bool, PropsError> {
-        let last = round >= self.last;
-        match reading {
-            Ok(Sign::Positive) => Ok(true),
-            Ok(Sign::Negative) => Ok(false),
-            Ok(Sign::Zero) if !last => Ok(false),
-            Ok(Sign::Zero) => {
-                match geom_core::k_stats::decide_positive(
-                    "props_quad_converged",
-                    Margin::of(target_len - width_len).lift::<T>(),
-                    band,
-                ) {
-                    Ok(()) => Ok(true),
-                    Err(cause) => Err(PropsError::Escalated {
-                        cause,
-                        check: PropsCheck::Converged,
-                    }),
-                }
-            }
-            Err(PropsError::Escalated { .. }) if !last => Ok(false),
-            Err(other) => Err(other),
-        }
-    }
-
-    /// **The rounds one call runs**: this schedule, entered and left
-    /// where `window` says. Its exits end at the earlier of the two last
-    /// rounds; the convergence reading stays the schedule's own
-    /// ([`Schedule::converged`]), whose last round is the lane's.
-    pub(super) fn run(self, window: RoundWindow) -> Run {
-        Run {
-            lane_last: self.last,
-            window,
-        }
-    }
-}
-
-/// **One call's rounds**: a lane's [`Schedule`] entered through a
-/// [`RoundWindow`] ([`Schedule::run`]). It answers where the call ends
-/// and with what; it is not a schedule, and has no convergence reading
-/// of its own.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Run {
-    lane_last: usize,
+/// **One call's rounds, and the stop every lane reads** — one home for
+/// the five lanes, which differ in it only by what a round costs and by
+/// how they split a round's width.
+///
+/// Per round a lane hands [`Run::stop`] its enclosure and the part of its
+/// flux width a later round removes (the rule's remainder); everything
+/// else in the width is the part no round removes. The stop is
+/// [`LaneStop::Floor`] once the removable part is at most
+/// [`FLOOR_SHARE`] of the width, [`LaneStop::Wall`] when the next round would pass
+/// [`FACE_WORK_WALL`], and [`LaneStop::Refinable`] otherwise. Both read
+/// the round alone: the work through a round is the sum of its rounds'
+/// costs, which `cost` states without running them, so a window entered
+/// at any round stops exactly where the whole schedule would.
+pub(super) struct Run<'c> {
     window: RoundWindow,
+    work: Work,
+    cost: &'c dyn Fn(usize) -> usize,
+    narrowest: Option<(usize, FaceCutBounds)>,
 }
 
-impl Run {
-    /// **The round loop's exit ladder**, one home for every lane.
-    ///
-    /// Asked after a round that did NOT converge: is there anything to
-    /// return, or is there another round? `Some` is the lane's answer —
-    /// the SCHEDULE's last round, which carries the budget refusal a
-    /// number-wanting caller earns (its width is
-    /// [`mean_boundary_displacement`]'s, finite and non-negative by that
-    /// function's invariant, so the refusal carries a number the caller
-    /// can act on — the `eps_posture` contract the suites pin), or the
-    /// WINDOW's last, which carries no refusal because rounds remain.
-    /// `None` means refine.
-    ///
-    /// One home because the ladder is one decision written once per lane
-    /// otherwise, and the lanes differ in it only by their own
-    /// last-round constant. What each lane keeps is the bound it hands
-    /// the budget exit ([`budget_exit`]), which only that lane can
-    /// compute; the exit itself is shared too.
+impl<'c> Run<'c> {
+    /// The call over `window`, its earlier rounds' work already spent.
+    /// `cost(round)` is that round's weighted cell count.
+    pub(super) fn enter(window: RoundWindow, cost: &'c dyn Fn(usize) -> usize) -> Self {
+        let mut work = Work::new(FACE_WORK_WALL);
+        for round in 0..window.first {
+            work.spend(cost(round));
+        }
+        debug_assert!(
+            window.first == 0 || work.admits(cost(window.first)),
+            "a window resuming at round {} past the work wall",
+            window.first
+        );
+        Self {
+            window,
+            work,
+            cost,
+            narrowest: None,
+        }
+    }
+
+    /// The round the call starts at.
+    pub(super) fn first(&self) -> usize {
+        self.window.first
+    }
+
+    /// **The stop `round` ends on**, its work spent and its enclosure
+    /// kept if it is the narrowest so far. `removable` is the part of
+    /// `bounds.flux`'s width a later round removes.
+    pub(super) fn stop(&mut self, round: usize, bounds: FaceCutBounds, removable: f64) -> LaneStop {
+        self.work.spend((self.cost)(round));
+        let width = bounds.flux.width();
+        if self
+            .narrowest
+            .is_none_or(|(_, held)| narrower(bounds.flux, held.flux))
+        {
+            self.narrowest = Some((round, bounds));
+        }
+        if removable * FLOOR_SHARE_INV <= width {
+            LaneStop::Floor
+        } else if self.work.admits((self.cost)(round + 1)) {
+            LaneStop::Refinable
+        } else {
+            LaneStop::Wall
+        }
+    }
+
+    /// **The round loop's exit ladder**, asked after the caller read
+    /// `round`: the accepted round, the narrowest round where the lane
+    /// stopped or the window ends, or `None` to refine.
     pub(super) fn exit(
-        self,
+        &self,
         round: usize,
+        stop: LaneStop,
+        accepted: bool,
         bounds: FaceCutBounds,
-        (width_len, target_len): (f64, f64),
-    ) -> Option<RoundOutcome> {
-        if round == self.lane_last {
-            return Some(RoundOutcome::Open {
+    ) -> Option<LaneRun> {
+        let rounds = round + 1;
+        if accepted {
+            return Some(LaneRun {
                 bounds,
                 round,
-                end: OpenEnd::Exhausted(PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    rounds: self.lane_last + 1,
-                }),
+                rounds,
+                end: LaneEnd::Accepted(stop),
             });
         }
-        (round == self.window.last).then_some(RoundOutcome::Open {
-            bounds,
-            round,
-            end: OpenEnd::Window,
+        let end = match stop {
+            LaneStop::Floor => LaneEnd::Floor,
+            LaneStop::Wall => LaneEnd::Wall,
+            LaneStop::Refinable if round >= self.window.last => LaneEnd::Window,
+            LaneStop::Refinable => return None,
+        };
+        let (at, narrowest) = self.narrowest.unwrap_or((round, bounds));
+        Some(LaneRun {
+            bounds: narrowest,
+            round: at,
+            rounds,
+            end,
         })
     }
 
-    /// **The ringed lanes' ladder** (the cylinder's and the spiric's),
-    /// asked after a round's convergence reading and, when it
-    /// converged, the lane's own face-extent gate: `rings` is the lane's
-    /// decision that every ring winds against its face, read off this
-    /// round's per-loop enclosures.
+    /// **The ringed lanes' ladder** (the cylinder's and the spiric's):
+    /// `rings` is the lane's decision that every ring winds against its
+    /// face, read off this round's per-loop enclosures. A face's rings
+    /// are decided at the round the call ends.
     ///
-    /// - **Converged**: rings decided, the round is the answer. A ring
-    ///   reading that is [`refinable`] at a round before the call's last
-    ///   refines instead — the face's flux needs no later round, but the
-    ///   ring's own enclosure narrows. At the call's last round, or on
-    ///   any other refusal, the reading stands.
-    /// - **Not converged**: [`Run::exit`]'s ladder. An open enclosure is
-    ///   read too (a sign walk settles on one), and it encloses the
-    ///   face's flux only if its rings are holes, so the rings must be
-    ///   decided before it is returned.
+    /// - **Accepted**: rings decided, the round is the answer. A ring
+    ///   reading that is [`refinable`] at a round the lane can refine
+    ///   past, inside the window, refines instead — the face's flux
+    ///   needs no later round, but the ring's own enclosure narrows. At
+    ///   any other round, or on any other refusal, the reading stands.
+    /// - **Not accepted**: [`Run::exit`]'s ladder. The enclosure it
+    ///   returns encloses the face's flux only if its rings are holes,
+    ///   so the rings must be decided before it is returned.
     ///
-    /// The escalation stands at a window's last round even with lane
-    /// rounds left: [`RoundOutcome`] has no outcome for an enclosure
-    /// whose rings are undecided, and an `Open` one would claim them
-    /// holes (`work/quad/a-ring-undecided-at-a-windows-last-round-refuses-a-sign-walk.md`).
+    /// The escalation stands at a window's last round even with rounds
+    /// left: [`LaneRun`] has no end for an enclosure whose rings are
+    /// undecided, and one would claim them holes
+    /// (`work/quad/a-ring-undecided-at-a-windows-last-round-refuses-a-sign-walk.md`).
     pub(super) fn ringed(
-        self,
+        &self,
         round: usize,
-        converged: bool,
+        stop: LaneStop,
+        accepted: bool,
         bounds: FaceCutBounds,
-        widths: (f64, f64),
         rings: impl FnOnce() -> Result<(), PropsError>,
-    ) -> Result<Option<RoundOutcome>, PropsError> {
-        if converged {
+    ) -> Result<Option<LaneRun>, PropsError> {
+        if accepted {
             return match rings() {
                 Err(PropsError::Escalated { cause, .. })
-                    if round < self.lane_last.min(self.window.last) && refinable(&cause) =>
+                    if stop == LaneStop::Refinable
+                        && round < self.window.last
+                        && refinable(&cause) =>
                 {
                     Ok(None)
                 }
-                reading => reading.map(|()| Some(RoundOutcome::Converged(bounds))),
+                reading => reading.map(|()| self.exit(round, stop, true, bounds)),
             };
         }
-        let Some(out) = self.exit(round, bounds, widths) else {
+        let Some(out) = self.exit(round, stop, false, bounds) else {
             return Ok(None);
         };
         rings()?;
@@ -879,9 +882,9 @@ fn refinable(cause: &geom_core::Indeterminate) -> bool {
 /// The convergence meter: the flux enclosure's width expressed as the
 /// **mean boundary displacement** it corresponds to,
 /// `width(flux)/(3·area)` (module docs), with the area enclosure's
-/// midpoint as the lever arm. Every convergence decision and every
-/// [`PropsError::QuadratureBudget`] payload in this file comes from
-/// here.
+/// midpoint as the lever arm. `pub` because its readers are the
+/// callers' targets: `topo`'s reporting adapter decides convergence and
+/// sizes [`PropsError::QuadratureBudget`]'s payload from here.
 ///
 /// INVARIANT: the returned length is FINITE and non-negative — so a
 /// budget refusal carries a number the caller can act on *by
@@ -927,22 +930,13 @@ fn refinable(cause: &geom_core::Indeterminate) -> bool {
 /// metering decision (module docs) and would have to be re-measured
 /// and re-ratified as one — the defect fixed here is the *unguarded
 /// division*, and only that.
-pub(super) fn mean_boundary_displacement(
-    flux: Interval,
-    area: Interval,
-) -> Result<f64, PropsError> {
-    displacement_len(flux.width(), area)
-}
-
-/// [`mean_boundary_displacement`] on a flux WIDTH rather than a flux
-/// enclosure — the one meter, so that a width a round has not yet
-/// produced ([`last_round_width_lo`]) is metered exactly as the width
-/// it will produce.
 ///
 /// # Errors
 ///
-/// As [`mean_boundary_displacement`].
-fn displacement_len(width: f64, area: Interval) -> Result<f64, PropsError> {
+/// [`PropsError::QuadratureUnsupported`] for a refused enclosure, and
+/// [`PropsError::DegenerateFace`] for a lever that is not positive.
+pub fn mean_boundary_displacement(flux: Interval, area: Interval) -> Result<f64, PropsError> {
+    let width = flux.width();
     // Bit-for-bit the pre-guard expression: `(lo + hi)·0.5`, times 3.
     let denom = 3.0 * mid(area);
     // A refused enclosure has no midpoint, so it lands here rather
@@ -970,35 +964,32 @@ fn displacement_len(width: f64, area: Interval) -> Result<f64, PropsError> {
 }
 
 /// The flux and area enclosures of a **cylinder** face with a curved
-/// trim (module docs: the Green form, the composite rule, the
-/// refinement funnel, the honesty pads), over every loop of the face,
-/// the outer first: the Green form is a sum over edges, so a ring
-/// contributes its own `−∮ v du` with its own winding.
+/// trim (module docs: the Green form, the composite rule, the honesty
+/// pads), over every loop of the face, the outer first: the Green form
+/// is a sum over edges, so a ring contributes its own `−∮ v du` with
+/// its own winding. Rounds run until `accept` takes one or the lane
+/// stops ([`LaneStop`]).
 ///
 /// `o_dot_va` is the caller's closed-form `o·A⃗` term bracketed, `A⃗`
-/// summed over the same loops; `eps` is the run's ε (the convergence
-/// target's scale).
+/// summed over the same loops.
 ///
 /// # Errors
 ///
-/// [`PropsError`] — an escalated funnel decision, a degenerate face,
-/// a loop that winds the cylinder by no whole number of turns, or loops
-/// that wind it together ([`PropsError::LoopsWindChart`]),
-/// a ring wound with its face at any round it returns
-/// ([`PropsError::RingWoundWithFace`]), one wholly inside the band, or
-/// one still straddling it at the last round the window runs (a
-/// converged face whose ring straddles refines on, [`Run::ringed`]), or
-/// the typed [`PropsError::QuadratureBudget`] refusal when the
-/// enclosure will not tighten to target within the round budget.
+/// [`PropsError`] — `accept`'s own refusal, an escalated funnel
+/// decision, a degenerate face, a loop that winds the cylinder by no
+/// whole number of turns, or loops that wind it together
+/// ([`PropsError::LoopsWindChart`]), a ring wound with its face at the
+/// round the call ends ([`PropsError::RingWoundWithFace`]), one wholly
+/// inside the band, or one still straddling it there (an accepted round
+/// whose ring straddles refines on, [`Run::ringed`]).
 pub fn cylinder_cut_face<T: Decide>(
     radius: Interval,
     o_dot_va: Interval,
     loops: &[&[TrimEdgeQ]],
-    eps: f64,
     band: Band,
-) -> Result<FaceCutBounds, PropsError> {
-    cylinder_cut_face_rounds::<T>(radius, o_dot_va, loops, eps, band, RoundWindow::SCHEDULE)?
-        .into_target()
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
+    cylinder_cut_face_rounds::<T>(radius, o_dot_va, loops, band, RoundWindow::SCHEDULE, accept)
 }
 
 /// [`cylinder_cut_face`] over a [`RoundWindow`] — the same schedule,
@@ -1007,60 +998,48 @@ pub fn cylinder_cut_face<T: Decide>(
 ///
 /// `pub` because its consumer is `topo`'s `props::quad_lane`, across
 /// the crate boundary; there is no narrower visibility that reaches
-/// it. Its whole-schedule wrapper [`cylinder_cut_face`] keeps the
-/// signature this file's own suites drive.
+/// it.
 ///
 /// # Errors
 ///
-/// As [`cylinder_cut_face`], less the budget refusal, which a window
-/// short of the schedule's end reports as
-/// [`RoundOutcome::Open`]'s `refusal` instead.
+/// As [`cylinder_cut_face`].
 pub fn cylinder_cut_face_rounds<T: Decide>(
     radius: Interval,
     o_dot_va: Interval,
     loops: &[&[TrimEdgeQ]],
-    eps: f64,
     band: Band,
     window: RoundWindow,
-) -> Result<RoundOutcome, PropsError> {
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
     let winds = loop_windings::<T>(loops, radius, band)?;
     let anchor = level_anchor(loops)?;
-    let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let schedule = Schedule::to(QUAD_MAX_ROUNDS);
-    let first = schedule.first(window);
-    let mut pieces = QUAD_INIT_PIECES << first;
-    for round in first..=schedule.last() {
+    let edges: usize = loops.iter().map(|l| l.len()).sum();
+    let cost = |round: usize| W_CYLINDER * edges * (QUAD_INIT_PIECES << round);
+    let mut run = Run::enter(window, &cost);
+    let mut round = run.first();
+    let mut pieces = QUAD_INIT_PIECES << round;
+    loop {
         // Signed UV area at this resolution, per loop:
         // A_s = −Σ ∮ (v − anchor) du.
+        let mut removable = 0.0_f64;
         let per_loop: Vec<Interval> = loops
             .iter()
             .map(|edges| {
                 edges.iter().fold(Interval::zero(), |a, e| {
-                    a + harmonic_edge_integral(e, anchor, pieces, radius)
+                    let (term, rem) = harmonic_edge_integral(e, anchor, pieces, radius);
+                    removable += rem;
+                    a + term
                 })
             })
             .collect();
         let a_s = per_loop.iter().fold(Interval::zero(), |a, &l| a + l);
         let area = (radius * a_s).abs_enclosure();
         let flux = radius.sqr() * a_s + o_dot_va;
-        // Convergence: mean-boundary-displacement metering (module
-        // docs); the area midpoint is the lever arm, guarded — a
-        // zero-UV-area trim loop makes `area` exactly `[0, 0]` here,
-        // which is a degenerate face and not a tolerance question.
-        let width_len = mean_boundary_displacement(flux, area)?;
-        let converged = schedule.converged::<T>(
-            round,
-            classify_len::<T>(
-                "props_quad_converged",
-                Margin::of(target_len - width_len),
-                band,
-                PropsCheck::Converged,
-            ),
-            (target_len, width_len),
-            band,
-        )?;
-        if converged {
-            // Face-extent gate on the CONVERGED enclosure: the area
+        let bounds = FaceCutBounds { flux, area };
+        let stop = run.stop(round, bounds, radius.sqr().mag() * removable);
+        let accepted = accept(&bounds, stop)?;
+        if accepted {
+            // Face-extent gate on the ACCEPTED enclosure: the area
             // must be definitely positive, metered as the face's mean
             // width area/perimeter — a length (the closed-form lanes'
             // `props_face_extent` lever, quadrature-shaped).
@@ -1079,18 +1058,14 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
         }
-        if let Some(out) = schedule.run(window).ringed(
-            round,
-            converged,
-            FaceCutBounds { flux, area },
-            (width_len, target_len),
-            || require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band),
-        )? {
+        if let Some(out) = run.ringed(round, stop, accepted, bounds, || {
+            require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band)
+        })? {
             return Ok(out);
         }
+        round += 1;
         pieces *= 2;
     }
-    unreachable!("the round window is non-empty: `first` is clamped to the last round")
 }
 
 /// An edge's chart point `(u, v)` where its traversal starts (`end`
@@ -1535,43 +1510,11 @@ pub fn bspline_green_integral(
 
 /// Initial pieces PER AXIS of the 2-D composite rule (cells = p²).
 const QUAD2_INIT_PIECES: usize = 8;
-/// Refinement rounds before the typed budget refusal (pieces double
-/// per axis per round: ≤ `8·2⁶ = 512` per axis). Fewer rounds than the
-/// 1-D lane because cells grow quadratically; the rule's error is
-/// O(h²), so real patches converge in the first rounds or not at all.
-/// A face the last round provably cannot certify is refused to a
-/// number-wanting caller after round 0 ([`budget_exit`]); a caller
-/// deciding a sign may still run its remaining rounds.
-const QUAD2_MAX_ROUNDS: usize = 6;
 /// Blocks per axis for the RATIONAL lane's Taylor-remainder hulls
 /// (fixed, D9 — never data-dependent). `QUAD2_INIT_PIECES` is a
 /// multiple of it, so every block owns whole cells at every
 /// refinement level ([`rational_patch_face`]).
 const QUAD2_HULL_BLOCKS: usize = 8;
-/// Refinement rounds for the RATIONAL lane (pieces double per axis
-/// per round: ≤ `8·2⁷ = 1024` per axis). More rounds than the
-/// integral composite because the rational lane has no exact per-span
-/// shortcut to fall back on — the midpoint rule's O(h²) IS the whole
-/// convergence story there ([`rational_patch_face`]). As for
-/// [`QUAD2_MAX_ROUNDS`], a face the last round provably cannot
-/// certify is refused to a number-wanting caller after round 0
-/// ([`budget_exit`]).
-const QUAD2_RATIONAL_MAX_ROUNDS: usize = 7;
-
-/// **The last round every lane's schedule reaches** — the round a
-/// caller entering faces of several lanes one [`RoundWindow::at`] at a
-/// time may ask for without knowing which lane a face takes. Each lane
-/// asserts that a window it is handed starts inside its own schedule;
-/// this is the shortest of them, and the compile-time check below keeps
-/// it so.
-pub const LAST_ROUND_EVERY_LANE_RUNS: usize = QUAD2_MAX_ROUNDS;
-
-const _: () = assert!(
-    LAST_ROUND_EVERY_LANE_RUNS <= QUAD_MAX_ROUNDS
-        && LAST_ROUND_EVERY_LANE_RUNS <= QUAD2_MAX_ROUNDS
-        && LAST_ROUND_EVERY_LANE_RUNS <= QUAD2_RATIONAL_MAX_ROUNDS
-        && LAST_ROUND_EVERY_LANE_RUNS <= TRIM_MAX_ROUNDS
-);
 /// Cells per axis of BOTH patch lanes' area pass (fixed, D9). The
 /// shared [`area_midpoint_taylor`] rule is O(h), so the resolution sets
 /// the area's honest width directly.
@@ -3220,10 +3163,7 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
 /// CONTAINS it (a hull over a superset contains every sub-cell's
 /// own). The block edges are cut points at every refinement level
 /// ([`knot_aligned_cuts`]), so advancing while the cell starts past
-/// the current block's top lands on the block that does. ONE HOME:
-/// the round loops and [`block_cell_sums`] must assign a cell to the
-/// same block, or the bound would read a different hull from the sum
-/// it bounds.
+/// the current block's top lands on the block that does.
 fn advance_block(b: &mut usize, cell_lo: f64, edges: &[f64]) {
     while *b + 1 < edges.len() - 1 && cell_lo >= edges[*b + 1] {
         *b += 1;
@@ -3233,14 +3173,13 @@ fn advance_block(b: &mut usize, cell_lo: f64, edges: &[f64]) {
 /// Cuts per axis in v under the rational lane's exact-v arm — one,
 /// the whole v extent being integrated exactly per column — and the
 /// round's `pieces` otherwise. One home for the loop's cut list and
-/// the bound's last cut list.
+/// its cost.
 fn v_pieces(exact_v: bool, pieces: usize) -> usize {
     if exact_v { 1 } else { pieces }
 }
 
 /// The u Taylor remainder's cell factor `h_u³·h_v/24` (module docs),
-/// one spelling for both patch loops; [`block_cell_sums`]' `h·h²` is
-/// its f64 counterpart, split per axis.
+/// one spelling for both patch loops.
 fn remainder_cell_u(hu: Interval, hv: Interval) -> Interval {
     hu * hu.sqr() * hv / pt(24.0)
 }
@@ -3249,190 +3188,6 @@ fn remainder_cell_u(hu: Interval, hv: Interval) -> Interval {
 /// ([`remainder_cell_u`]'s twin).
 fn remainder_cell_v(hu: Interval, hv: Interval) -> Interval {
     hu * hv * hv.sqr() / pt(24.0)
-}
-
-/// `(Σ h³, Σ h)` over the cells of each hull block in one direction,
-/// for one cut list — the separable factors of
-/// [`last_round_width_lo`]. Cells are assigned to blocks by
-/// [`advance_block`], exactly as the round loops assign them.
-fn block_cell_sums(cuts: &[f64], edges: &[f64]) -> Vec<(f64, f64)> {
-    let mut sums = vec![(0.0_f64, 0.0_f64); edges.len() - 1];
-    let mut b = 0usize;
-    for i in 0..cuts.len() - 1 {
-        let (lo, hi) = (cuts[i], cuts[i + 1]);
-        advance_block(&mut b, lo, edges);
-        let h = hi - lo;
-        sums[b].0 += h * h.powi(2);
-        sums[b].1 += h;
-    }
-    sums
-}
-
-/// **A lower bound on the flux width the schedule's LAST round
-/// produces — computable before any round runs.** Both patch lanes
-/// use it to refuse at the budget without paying for the schedule.
-///
-/// INVARIANT: every round's flux enclosure is a ring sum of one
-/// midpoint term and one Taylor-remainder term per cell (two under
-/// the midpoint arm, one under the exact-v arm), widened by the
-/// boundary pad. Three facts bound the last round's width from
-/// below by quantities that are fixed before the loop:
-///
-/// 1. **Outward rounding.** A ring sum's width is at least the sum of
-///    its terms' widths, so the last round's width is at least the
-///    sum of its remainder terms' widths, plus twice the pad.
-/// 2. **A remainder term `hull · X`, `X = h_u³h_v/24 > 0`, has width
-///    at least `width(hull) · X_lo`** — for a hull of either sign or
-///    straddling zero (the product hull's width is `width(hull)`
-///    times an endpoint of `X`, and `X_lo` is the smaller). `X_lo` is
-///    within 16 ulps (relative) of the exact cell volume: it is five
-///    ring operations on the cut points' differences, each widening
-///    by at most one ulp per side.
-/// 3. **Separability.** The cells inside one hull block form a
-///    tensor grid, and the hull is the block's, so the block's
-///    remainder width is `width(hull_uu)·Σh_u³·Σh_v/24 +
-///    width(hull_vv)·Σh_u·Σh_v³/24` with the sums over the block's
-///    own cells. The cut list of any round is a function of the
-///    schedule ([`knot_aligned_cuts`]) — so the last round's sums are
-///    computable now, without evaluating the integrand once.
-/// 4. **Monotonicity — why the LAST round's bound is a bound on EVERY
-///    remaining round.** The cut lists nest across rounds: a grid
-///    point at `pieces` is `lo + (hi − lo)·(i/pieces)`, and at
-///    `2·pieces` the same point is `lo + (hi − lo)·(2i/(2·pieces))`
-///    — the same correctly rounded quotient, hence the same f64 —
-///    while the mandatory cuts (the knots) and the block edges are the
-///    same at every round and the clearance that drops a grid point
-///    beside a knot ([`algebra::grid_clearance`]) only shrinks, so a
-///    point kept at round `r` is kept at `r + 1`. So every cut of
-///    round `r` is a cut of round `r + 1`, every cell of round `r + 1`
-///    lies inside a cell of round `r`, and per block `Σh³` cannot grow (splitting `h` into
-///    parts gives `Σ parts³ ≤ h³`) while `Σh` is the block's extent.
-///    Facts 1–3 applied at round `r` bound round `r`'s width from
-///    below by round `r`'s separable sum, which is at least the last
-///    round's: `width_r ≥ bound_r ≥ bound_last` for every `r`.
-///
-/// The exact-arithmetic total is scaled by `1 − 2⁻³⁰`, which absorbs
-/// fact 2's 16 ulps, the `width()` reads' one ulp each and the f64
-/// sums' own rounding (at most a few thousand operations, each within
-/// half an ulp — some 10⁻¹² relative in all) with three to four
-/// orders to spare. Twice the pad is then exact. What the bound OMITS is the midpoint sum's width — the
-/// accumulated rounding of the cell evaluations, which grows with the
-/// cell count rather than shrinking — so the bound is the last
-/// round's width to within that term, and never above it. (The
-/// residual roundings the bound does not fold — the pad fold's one
-/// rounding and the width read's, both at the FLUX's magnitude
-/// rather than the width's — are below `2⁻⁵²·|flux|`; the exit that
-/// consumes this bound requires it to clear the target by the band's
-/// escalation threshold, `K·ε` of displacement, i.e. `3·area·K·ε` of
-/// width, which `2⁻⁵²·|flux| ≤ 2⁻⁵²·|S|·area` reaches only at a
-/// position magnitude `|S| ≥ 3·K·ε·2⁵²` — of order 10⁸ m at
-/// ε = 10⁻⁹ — and even there the consequence is an escalation
-/// reported as a budget refusal, never a lost certification, which
-/// sits a further `2K·ε` away.)
-///
-/// `hulls(bu, bv)` yields a block's `(hull_uu, Some(hull_vv))`, or
-/// `(hull_uu, None)` where the v integral is exact and carries no
-/// v remainder. A refused hull refuses the remainder term of every
-/// round that reads it, so round 0 refuses `QuadratureUnsupported`
-/// before the exit is consulted; the NaN this function would then
-/// return is never read (and [`displacement_len`] would refuse it
-/// typed if it were).
-fn last_round_width_lo(
-    cuts: (&[f64], &[f64]),
-    edges: (&[f64], &[f64]),
-    hulls: impl Fn(usize, usize) -> (Interval, Option<Interval>),
-    pad: f64,
-) -> f64 {
-    let su = block_cell_sums(cuts.0, edges.0);
-    let sv = block_cell_sums(cuts.1, edges.1);
-    let mut total = 0.0_f64;
-    for (bu, (s3u, s1u)) in su.iter().enumerate() {
-        for (bv, (s3v, s1v)) in sv.iter().enumerate() {
-            let (h_uu, h_vv) = hulls(bu, bv);
-            total += h_uu.width() * s3u * s1v / 24.0;
-            if let Some(h_vv) = h_vv {
-                total += h_vv.width() * s1u * s3v / 24.0;
-            }
-        }
-    }
-    total * (1.0 - 2.0_f64.powi(-30)) + 2.0 * pad
-}
-
-/// **The budget exit** — asked once, after round 0, by both patch
-/// loops: can the schedule's LAST round certify? Its width is at
-/// least [`last_round_width_lo`], and that bound's margin against the
-/// target goes through the k-funnel under its own name,
-/// `props_quad_last_round`, on the same lift of the same length the
-/// rounds use — so the ledger meters it as it meters a round's, and
-/// the decision is the funnel's, never a raw comparison.
-///
-/// Only a DEFINITE negative reading refuses. INVARIANT: every
-/// remaining round's width is at least the bound (fact 4 at
-/// [`last_round_width_lo`]), so its margin is at most the bound's,
-/// and both scalar lanes classify a smaller margin no higher (the f64
-/// reads negative iff `≤ −escalate`; a thin interval lift iff its
-/// upper end does) — a negative bound is therefore a verdict on every
-/// round: none certifies, none escalates, and this refusal is the
-/// ending the schedule would have reached. Every other reading leaves
-/// the rounds to decide: positive, the last round may certify; zero
-/// or in-band, the TRUE last-round margin is at most the bound's and
-/// may lie beyond the band — a face the schedule refuses on budget —
-/// so escalating on the bound would re-class exactly the faces whose
-/// last round lands within the midpoint sum's width of the target.
-/// The round that reaches the band escalates it, in the order it
-/// always did; the in-band reading still enters the ledger as the
-/// honest sample it is. Deterministic in (face, ε, band) alone (D9).
-fn last_round_refuses<T: Decide>(last_round_len: f64, target_len: f64, band: Band) -> bool {
-    matches!(
-        classify_len::<T>(
-            "props_quad_last_round",
-            Margin::of(target_len - last_round_len),
-            band,
-            PropsCheck::Converged
-        ),
-        Ok(Sign::Negative)
-    )
-}
-
-/// **The budget exit, one home for the three patch lanes**: after
-/// round 0, and only then, [`last_round_refuses`] on the lane's own
-/// lower bound for its last round's width, `last_round_width_lo`. A
-/// refusal ends the window as [`OpenEnd::Unreachable`]; its payload is
-/// the bound — the last round's width to within the midpoint sum's
-/// width, never above it — and it paid for one round.
-///
-/// # Errors
-///
-/// [`displacement_len`]'s, on round 0's area lever.
-fn budget_exit<T: Decide>(
-    round: usize,
-    schedule: Schedule,
-    last_round_width_lo: f64,
-    bounds: FaceCutBounds,
-    target_len: f64,
-    band: Band,
-) -> Result<Option<RoundOutcome>, PropsError> {
-    if round != 0 {
-        return Ok(None);
-    }
-    let last_round_len = displacement_len(last_round_width_lo, bounds.area)?;
-    if !last_round_refuses::<T>(last_round_len, target_len, band) {
-        return Ok(None);
-    }
-    let refusal = PropsError::QuadratureBudget {
-        width_len: last_round_len,
-        target_len,
-        rounds: 1,
-    };
-    Ok(Some(RoundOutcome::Open {
-        bounds,
-        round,
-        end: if round < schedule.last() {
-            OpenEnd::Unreachable(refusal)
-        } else {
-            OpenEnd::Exhausted(refusal)
-        },
-    }))
 }
 
 /// **Certified RATIONAL patch contributions** (M8-3) — the same two
@@ -3470,11 +3225,10 @@ fn budget_exit<T: Decide>(
 /// integral-lane's per-span Newton–Cotes shortcut has no rational
 /// counterpart and none is claimed. The honest deliverable is the
 /// composite midpoint enclosure over a FIXED cut schedule (D9: pieces
-/// double per round from [`QUAD2_INIT_PIECES`], at most
-/// [`QUAD2_RATIONAL_MAX_ROUNDS`] rounds — the cut points are never
-/// data-dependent; which round the loop stops at is decided by the
-/// convergence predicate and by the last-round bound, both functions
-/// of the face, ε and the band alone), with the two 1-D Taylor
+/// double per round from [`QUAD2_INIT_PIECES`] — the cut points are
+/// never data-dependent; which round the loop stops at is decided by the
+/// caller's acceptance and by the lane's floor and work wall ([`Run`]),
+/// functions of the face and the caller alone), with the two 1-D Taylor
 /// remainders per cell:
 ///
 /// ```text
@@ -3503,62 +3257,54 @@ fn budget_exit<T: Decide>(
 /// is in no cell's interior — and the enclosure is O(h²) throughout.
 /// (The refinement to [`QUAD2_REFINE_SPANS`] does not do this on its
 /// own: inserted knots do not change smoothness, so the ORIGINAL knot
-/// vectors are what the cuts are taken from.) Acceptance goes through
-/// named predicates with one meter — the enclosure width as a LENGTH,
-/// `width(flux)/(3·area_mid)`, against `QUAD_TARGET_LEN_FACTOR·ε`:
-/// `props_quad_converged` and `props_quad_face_extent` on each round,
-/// and `props_quad_last_round` on the last round's lower bound, the
-/// budget exit's own k-census row ([`last_round_refuses`]). Budget
-/// exhaustion is [`PropsError::QuadratureBudget`] carrying its width
-/// — the last round's own, or the bound every remaining round was
-/// proven to exceed — and the rounds it paid for; a wide answer is
-/// never returned silently.
+/// vectors are what the cuts are taken from.) Whether a round is enough
+/// is the caller's question ([`Accept`]), and the face-extent gate
+/// `props_quad_face_extent` is asked of the round it accepts. A call the
+/// caller does not accept ends at the lane's floor or its work wall and
+/// says which ([`LaneEnd`]); a wide answer is never returned silently.
 ///
 /// # The practical envelope (measured; every row re-measured)
 ///
 /// The rule is O(h²) and the meter is a **LENGTH**, so the achievable
 /// width scales roughly linearly with part size while the target does
-/// not: the frontier is a part-SIZE frontier, and metre-scale parts sit
-/// ON it rather than comfortably inside. The refinement schedule is
-/// fixed (D9), so each carrier bottoms out at the same displacement on
-/// every ε row and only the `1024·ε` target moves. A "floor" here is
-/// the width the schedule's LAST round reaches: the Taylor remainder,
-/// which quarters per round (exactly where every cell splits evenly;
-/// more slowly where a cell abuts an off-grid knot), taken through
-/// the whole schedule. It is not an arithmetic floor — the midpoint
-/// sum's own width sits under a thousandth of the remainder on the
-/// carriers TCOST-K1's rows measure — which is what lets the loop bound
-/// its last round from the schedule alone ([`last_round_width_lo`]) and
-/// refuse without running it. Measured floors
+/// not: the frontier is a part-SIZE frontier. The lane's stops do not
+/// move with ε, so each carrier stops at the same displacement on every
+/// ε row and only the `1024·ε` target moves. The width here is the one
+/// the work wall stops the lane at ([`FACE_WORK_WALL`]): the composite
+/// arm's round 7, the exact-v arm's round 10. It is the Taylor
+/// remainder's, which quarters per round (exactly where every cell
+/// splits evenly; more slowly where a cell abuts an off-grid knot); the
+/// midpoint sum's own width is a small fraction of it on these carriers
+/// (under 1% on the torus at its wall), so none of them reaches its
+/// floor first. Measured
 /// (`crates/geom-brep/tests/review_r1_rational_probes.rs`, which pins
-/// each one), against the DEFAULT target of 1.024e-6 m:
+/// each one that stops short of a row's target), against the DEFAULT
+/// target of 1.024e-6 m:
 ///
 /// ```text
-/// carrier                                      floor (m)   @ ε = 1e-9
-/// 1 µm quarter cylinder                          <1e-9     certifies*
-/// 1 m × 2 m quarter cylinder, single span       3.352e-9   certifies (305×)
-/// unit sphere octant (degenerate pole row)      2.907e-8   certifies (35×)
-/// quarter torus, R = 2 m, r = 0.5 m             4.648e-8   certifies (22×)
-/// 1 m × 2 m half cylinder, TWO spans            2.688e-8   certifies (38×)
-/// 5 m C0-kink extruded wall                     4.785e-4   REFUSES
-/// 1 km quarter cylinder                         3.352e-6   REFUSES (3.3× over)
-/// warped bilinear, weights 1e-1/1e1             1.296e-5   REFUSES
-/// Möbius quarter cylinder, weight ratio 100     2.015e-6   REFUSES (2.0× over)
-/// bilinear square, weights 1e-3/1e3             6.358e+5   REFUSES
+/// carrier                                      width (m)   arm        @ ε = 1e-9
+/// 1 µm quarter cylinder                          <1e-12    exact-v    certifies*
+/// 1 m × 2 m quarter cylinder, single span       ≈6.0e-11   exact-v    certifies
+/// unit sphere octant (degenerate pole row)      2.920e-8   composite  certifies (35×)
+/// quarter torus, R = 2 m, r = 0.5 m             4.687e-8   composite  certifies (22×)
+/// 1 m × 2 m half cylinder, TWO spans            4.272e-10  exact-v    certifies
+/// 5 m C0-kink extruded wall                     exact      exact-v    certifies
+/// 1 km quarter cylinder                         5.996e-8   exact-v    certifies (17×)
+/// warped bilinear, weights 1e-1/1e1             1.296e-5   composite  STOPS SHORT
+/// Möbius quarter cylinder, weight ratio 100     3.150e-8   exact-v    certifies (33×)
+/// bilinear square, weights 1e-3/1e3             6.358e+5   composite  STOPS SHORT
 /// ```
 ///
-/// \* Convergence is never the small end's problem — its floor scales
+/// \* Convergence is never the small end's problem — its width scales
 /// with the part. The FACE-EXTENT gate is: at ε = 1e-6 the 1 µm
 /// cylinder's 0.22 µm mean width is under the run's own tolerance and
-/// the same face is refused [`PropsError::DegenerateFace`]. That gate
-/// is older than the meter guard and behaves identically with and
-/// without it.
+/// the same face is refused [`PropsError::DegenerateFace`].
 ///
-/// Read that honestly: metre-scale parts converge at the default ε
-/// with an order or more to spare, a kilometre-scale one does not, and
-/// a weight spread of 100 is enough to refuse a metre-scale one. Callers
-/// on large or extreme-weight parts should expect refusals rather than
-/// answers.
+/// Read that honestly: metre-scale parts converge at the default ε with
+/// an order or more to spare, a kilometre-scale one only by its exact-v
+/// arm's extra rounds, and a weight spread of 10² across a warped patch
+/// is enough to stop a metre-scale one short. Callers on large or
+/// extreme-weight parts should expect a bracket rather than a number.
 ///
 /// The last row is the extreme of the weight spread: at 1e-3/1e3 the
 /// area element itself ranges over ten orders across the square, so
@@ -3567,21 +3313,15 @@ fn budget_exit<T: Decide>(
 /// refusing a plain unit square as having no extent at all — is that
 /// the rule intersects the pad with the block's hull of `g`, whose
 /// lower end is a magnitude and cannot be negative. The face therefore
-/// certifies a positive extent and refuses with a width (its last
-/// round's bound, read after round 0). The width is useless; saying
-/// so is the point.
+/// certifies a positive extent and stops at the wall with a width. The
+/// width is useless; saying so is the point.
 ///
-/// Every other refusal is a typed [`PropsError::QuadratureBudget`]
-/// carrying its width: the last round's own when the schedule ran
-/// out, or the last round's lower bound when the loop proved after a
-/// round that the last round could not certify either — the same
-/// number to within the midpoint sum's width ([`last_round_width_lo`]
-/// says what the bound omits). The next levers, in order, are a
-/// higher-order rule (Simpson needs `A` to fifth derivatives), a
-/// finer hull-block grid, and the round budget
-/// itself: with the cells knot-aligned the enclosure quarters cleanly
-/// per round, so a carrier under a factor of two over target is
-/// exactly one round short.
+/// A carrier that stops short says where ([`LaneEnd`]) and hands back
+/// its narrowest enclosure. The next levers, in order, are a
+/// higher-order rule (Simpson needs `A` to fifth derivatives) and a
+/// finer hull-block grid: with the cells knot-aligned the enclosure
+/// quarters cleanly per round, so a carrier under a factor of four over
+/// target is one round short of a wall that admits no further round.
 ///
 /// The `w`-uniform-in-v fast path is no longer a lever — it is taken,
 /// below — but what it buys is worth stating, because it is not what
@@ -3601,7 +3341,7 @@ fn budget_exit<T: Decide>(
 ///
 /// [`PropsError`] — non-positive or non-finite weights, a weight hull
 /// that does not exclude zero, an escalated funnel decision, a
-/// degenerate face, or the typed budget refusal.
+/// degenerate face, or `accept`'s own refusal.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
 #[allow(clippy::too_many_lines)] // one engine, kept whole like the integral lane
 fn rational_patch_face<T: Decide>(
@@ -3612,10 +3352,10 @@ fn rational_patch_face<T: Decide>(
     rect: PatchRect,
     perimeter: f64,
     boundary_defect: f64,
-    eps: f64,
     band: Band,
     window: RoundWindow,
-) -> Result<RoundOutcome, PropsError> {
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
     let (u0, u1, v0, v1) = rect.corners();
     if weights.len() != control.len() {
         return Err(PropsError::QuadratureUnsupported {
@@ -3791,34 +3531,37 @@ fn rational_patch_face<T: Decide>(
         )
     };
 
-    let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let schedule = Schedule::to(QUAD2_RATIONAL_MAX_ROUNDS);
-    let first = schedule.first(window);
-    let mut pieces = QUAD2_INIT_PIECES << first;
-    // The last round's flux width, bounded from below before any round
-    // runs ([`last_round_width_lo`]): its cut lists are the schedule's
-    // last, its hulls are the blocks above, and under the exact-v arm
-    // it carries no v remainder.
-    let last_pieces = QUAD2_INIT_PIECES << schedule.last();
-    let last_cuts_u = knot_aligned_cuts(u0, u1, last_pieces, &knots_u);
-    let last_cuts_v = knot_aligned_cuts(v0, v1, v_pieces(nc_v.is_some(), last_pieces), &knots_v);
+    let exact_v = nc_v.is_some();
+    // The round's cut lists, and its cost: one home for the loop and
+    // the work it spends.
+    let cuts = |round: usize| {
+        let pieces = QUAD2_INIT_PIECES << round;
+        (
+            knot_aligned_cuts(u0, u1, pieces, &knots_u),
+            knot_aligned_cuts(v0, v1, v_pieces(exact_v, pieces), &knots_v),
+        )
+    };
+    let weight = if exact_v {
+        W_RATIONAL_EXACT_V
+    } else {
+        W_RATIONAL_COMPOSITE
+    };
+    let cost = |round: usize| {
+        let (cu, cv) = cuts(round);
+        weight * (cu.len() - 1) * (cv.len() - 1)
+    };
     // The hulls a cell in block `(bu, bv)` reads: its `f_uu` hull, and
     // its `f_vv` hull unless the exact-v arm carries no v remainder.
-    // One home for the round loop and the last-round bound.
     let block_hulls = |bu: usize, bv: usize| -> (Interval, Option<Interval>) {
         let (b_uu, b_vv) = blocks[bu * nbv + bv];
-        (b_uu, if nc_v.is_some() { None } else { Some(b_vv) })
+        (b_uu, if exact_v { None } else { Some(b_vv) })
     };
-    let last_round_width_lo = last_round_width_lo(
-        (&last_cuts_u, &last_cuts_v),
-        (&edges_u, &edges_v),
-        block_hulls,
-        boundary_defect * p_bound,
-    );
-    for round in first..=schedule.last() {
+    let mut run = Run::enter(window, &cost);
+    let mut round = run.first();
+    loop {
         let mut flux = Interval::zero();
-        let cuts_u = knot_aligned_cuts(u0, u1, pieces, &knots_u);
-        let cuts_v = knot_aligned_cuts(v0, v1, v_pieces(nc_v.is_some(), pieces), &knots_v);
+        let mut removable = 0.0_f64;
+        let (cuts_u, cuts_v) = cuts(round);
         let mut bu = 0usize;
         for iu in 0..cuts_u.len() - 1 {
             let (c_ulo, c_uhi) = (cuts_u[iu], cuts_u[iu + 1]);
@@ -3855,6 +3598,7 @@ fn rational_patch_face<T: Decide>(
                     // `g'' = ∫_cell f_uu ⊆ h_v·hull(f_uu)`, which is
                     // the SAME `r_uu` the midpoint arm carries.
                     (Some(nc), Some(cube), None) => {
+                        removable += r_uu.width();
                         flux = flux
                             + hu * (a.num_v_exact(&slice, &r_v, c_vlo, c_vhi, nc) / cube)
                             + r_uu;
@@ -3869,7 +3613,9 @@ fn rational_patch_face<T: Decide>(
                                 t: &vm.1,
                             },
                         );
-                        flux = flux + hu * hv * fm + r_uu + b_vv * remainder_cell_v(hu, hv);
+                        let r_vv = b_vv * remainder_cell_v(hu, hv);
+                        removable += r_uu.width() + r_vv.width();
+                        flux = flux + hu * hv * fm + r_uu + r_vv;
                     }
                     // The exact-v arm's three witnesses — the
                     // Newton–Cotes weights, the per-column `w³`, the
@@ -3886,18 +3632,10 @@ fn rational_patch_face<T: Decide>(
                        zero, or a non-finite net) — refusing rather than answering wide",
             });
         }
-        let width_len = mean_boundary_displacement(flux, area)?;
-        if schedule.converged::<T>(
-            round,
-            classify_len::<T>(
-                "props_quad_converged",
-                Margin::of(target_len - width_len),
-                band,
-                PropsCheck::Converged,
-            ),
-            (target_len, width_len),
-            band,
-        )? {
+        let bounds = FaceCutBounds { flux, area };
+        let stop = run.stop(round, bounds, removable);
+        let accepted = accept(&bounds, stop)?;
+        if accepted {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
@@ -3908,38 +3646,12 @@ fn rational_patch_face<T: Decide>(
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
-            return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
-        // This round did not certify. The last-round bound is loop-
-        // invariant, so it is asked ONCE, after round 0
-        // ([`budget_exit`]): after, not before, so that every refusal
-        // round 0 raises (a refused enclosure, a degenerate lever, an
-        // in-band escalation) is raised first, and so the ledger
-        // meters the bound's margin once per face.
-        if let Some(out) = budget_exit::<T>(
-            round,
-            schedule,
-            last_round_width_lo,
-            FaceCutBounds { flux, area },
-            target_len,
-            band,
-        )? {
+        if let Some(out) = run.exit(round, stop, accepted, bounds) {
             return Ok(out);
         }
-        debug_assert!(
-            round < schedule.last() || pieces == last_pieces,
-            "the schedule's last round is the bound's"
-        );
-        if let Some(out) =
-            schedule
-                .run(window)
-                .exit(round, FaceCutBounds { flux, area }, (width_len, target_len))
-        {
-            return Ok(out);
-        }
-        pieces *= 2;
+        round += 1;
     }
-    unreachable!("the round window is non-empty: `first` is clamped to the last round")
 }
 
 /// **Certified NURBS-patch contributions** (M6-3 Leg C): the
@@ -3982,11 +3694,9 @@ fn rational_patch_face<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PropsError`] — an escalated funnel decision, a degenerate face,
-/// the rational lane's own refusals, or the typed
-/// [`PropsError::QuadratureBudget`] refusal.
+/// [`PropsError`] — `accept`'s own refusal, an escalated funnel
+/// decision, a degenerate face, or the rational lane's own refusals.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-#[allow(clippy::too_many_lines)] // one engine, kept whole like the cylinder lane
 pub fn nurbs_patch_face<T: Decide>(
     kv_u: &KnotVector,
     kv_v: &KnotVector,
@@ -3995,9 +3705,9 @@ pub fn nurbs_patch_face<T: Decide>(
     rect: (f64, f64, f64, f64),
     perimeter: f64,
     boundary_defect: f64,
-    eps: f64,
     band: Band,
-) -> Result<FaceCutBounds, PropsError> {
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
     nurbs_patch_face_rounds::<T>(
         kv_u,
         kv_v,
@@ -4006,34 +3716,29 @@ pub fn nurbs_patch_face<T: Decide>(
         rect,
         perimeter,
         boundary_defect,
-        eps,
         band,
         RoundWindow::SCHEDULE,
-    )?
-    .into_target()
+        accept,
+    )
 }
 
 /// [`nurbs_patch_face`] over a [`RoundWindow`] — the same schedule (and
 /// the same rational lane behind it), entered and left where the window
 /// says.
 ///
-/// The exact per-span arm has no rounds at all: it answers once, and a
-/// window can neither start after it nor ask it for a tighter
-/// enclosure. It therefore reports [`RoundOutcome::Open`] at round `0`
-/// carrying its own refusal — its enclosure is final, and a caller
-/// deciding a sign may use it while a caller wanting a number may not.
+/// The exact per-span arm has no rounds at all: it answers once, at
+/// its floor ([`LaneStop::Floor`]), and a window can neither start
+/// after it nor ask it for a tighter enclosure.
 ///
 /// `pub` for the same reason [`cylinder_cut_face_rounds`] is: its
 /// consumer is `topo`'s `props::quad_lane`, across the crate
-/// boundary. [`nurbs_patch_face`] keeps the signature this file's own
-/// suites drive.
+/// boundary.
 ///
 /// # Errors
 ///
-/// As [`nurbs_patch_face`], less the budget refusal, which a window
-/// short of the schedule's end reports as [`RoundOutcome::Open`]'s
-/// `refusal` instead.
+/// As [`nurbs_patch_face`].
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)] // one engine, kept whole like the cylinder lane
 pub fn nurbs_patch_face_rounds<T: Decide>(
     kv_u: &KnotVector,
     kv_v: &KnotVector,
@@ -4042,15 +3747,14 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     rect: (f64, f64, f64, f64),
     perimeter: f64,
     boundary_defect: f64,
-    eps: f64,
     band: Band,
     window: RoundWindow,
-) -> Result<RoundOutcome, PropsError> {
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
     let rect = PatchRect::new(rect)?;
     let (u0, u1, v0, v1) = rect.corners();
     // M8-3: the rational patch is the SAME integrand over a polynomial
     // cube (`f = N/w³`), so it takes its own lane rather than refusing.
-    // That lane checks a window against its own last round.
     if weights.iter().any(|w| *w != 1.0) {
         return rational_patch_face::<T>(
             kv_u,
@@ -4060,16 +3764,11 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             rect,
             perimeter,
             boundary_defect,
-            eps,
             band,
             window,
+            accept,
         );
     }
-    debug_assert!(
-        window.first <= QUAD2_MAX_ROUNDS,
-        "a window resuming at round {} is past this lane's last round {QUAD2_MAX_ROUNDS}",
-        window.first
-    );
     // The derivative grids, built once (mixed partials commute on
     // spline nets exactly).
     let s = PatchGrid::base(&TensorChannels::from_fn(
@@ -4103,10 +3802,6 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let s_hull = s.vec(Collapse::Over(rect.u), Collapse::Over(rect.v));
     let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
 
-    let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let schedule = Schedule::to(QUAD2_MAX_ROUNDS);
-    let first = schedule.first(window);
-    let mut pieces = QUAD2_INIT_PIECES << first;
     // GLOBAL second-derivative hulls, computed ONCE (the whole-rect
     // hull contains every cell's, so the per-cell remainder
     // `hull(f_uu)·h³/24` may use it soundly — looser by a constant,
@@ -4205,18 +3900,11 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         patch_flux_exact(&s, su.as_ref(), sv.as_ref(), kv_u, kv_v, (u0, u1, v0, v1))
     {
         let flux = widen(exact, boundary_defect * p_bound);
-        let width_len = mean_boundary_displacement(flux, area)?;
-        if Schedule::ONE_PASS.converged::<T>(
-            0,
-            classify_len::<T>(
-                "props_quad_converged",
-                Margin::of(target_len - width_len),
-                band,
-                PropsCheck::Converged,
-            ),
-            (target_len, width_len),
-            band,
-        )? {
+        let bounds = FaceCutBounds { flux, area };
+        // The exact rule leaves no remainder for a round to remove: its
+        // one pass is at its floor.
+        let accepted = accept(&bounds, LaneStop::Floor)?;
+        if accepted {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
@@ -4227,48 +3915,41 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
-            return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
-        // An exact-lane enclosure missing the target can only be pad-
-        // or degeneracy-dominated; refinement cannot do better —
-        // refuse at the budget with the honest width; no composite
-        // round ran. The enclosure itself is handed back beside the
-        // refusal: it is the tightest this face has, and a caller
-        // deciding a sign can be finished with it.
-        return Ok(RoundOutcome::Open {
-            bounds: FaceCutBounds { flux, area },
+        return Ok(LaneRun {
+            bounds,
             round: 0,
-            end: OpenEnd::Exhausted(PropsError::QuadratureBudget {
-                width_len,
-                target_len,
-                rounds: 0,
-            }),
+            rounds: 0,
+            end: if accepted {
+                LaneEnd::Accepted(LaneStop::Floor)
+            } else {
+                LaneEnd::Floor
+            },
         });
     }
 
-    // The last round's flux width, bounded from below before any round
-    // runs ([`last_round_width_lo`]): one block — the whole rectangle,
-    // whose hulls are the global ones above — and the integral
-    // schedule's last cut lists.
-    let last_pieces = QUAD2_INIT_PIECES << schedule.last();
-    let last_round_width_lo = last_round_width_lo(
+    // Knot-aligned cells, for the reason [`knot_aligned_cuts`] gives:
+    // this lane reaches the composite only where the exact rule cannot
+    // run, and a cell holding an interior knot has no rule but the
+    // smoothness-free hull — span-granular, and therefore a floor
+    // rather than a remainder. One home for the loop and its cost.
+    let cuts = |round: usize| {
+        let pieces = QUAD2_INIT_PIECES << round;
         (
-            &knot_aligned_cuts(u0, u1, last_pieces, &knots_u),
-            &knot_aligned_cuts(v0, v1, last_pieces, &knots_v),
-        ),
-        (&[u0, u1], &[v0, v1]),
-        |_, _| (g_f_uu, Some(g_f_vv)),
-        boundary_defect * p_bound,
-    );
-    for round in first..=schedule.last() {
+            knot_aligned_cuts(u0, u1, pieces, &knots_u),
+            knot_aligned_cuts(v0, v1, pieces, &knots_v),
+        )
+    };
+    let cost = |round: usize| {
+        let (cu, cv) = cuts(round);
+        W_INTEGRAL_COMPOSITE * (cu.len() - 1) * (cv.len() - 1)
+    };
+    let mut run = Run::enter(window, &cost);
+    let mut round = run.first();
+    loop {
         let mut flux = Interval::zero();
-        // Knot-aligned cells, for the reason [`knot_aligned_cuts`]
-        // gives: this lane reaches the composite only where the exact
-        // rule cannot run, and a cell holding an interior knot has no
-        // rule but the smoothness-free hull — span-granular, and
-        // therefore a floor rather than a remainder.
-        let cuts_u = knot_aligned_cuts(u0, u1, pieces, &knots_u);
-        let cuts_v = knot_aligned_cuts(v0, v1, pieces, &knots_v);
+        let mut removable = 0.0_f64;
+        let (cuts_u, cuts_v) = cuts(round);
         for iu in 0..cuts_u.len() - 1 {
             let (c_ulo, c_uhi) = (cuts_u[iu], cuts_u[iu + 1]);
             let hu = pt(c_uhi) - pt(c_ulo);
@@ -4293,26 +3974,17 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
                         &grid_vec(sv.as_ref(), m.0, m.1),
                     ),
                 );
-                flux = flux
-                    + hu * hv * fm
-                    + g_f_uu * remainder_cell_u(hu, hv)
-                    + g_f_vv * remainder_cell_v(hu, hv);
+                let r_uu = g_f_uu * remainder_cell_u(hu, hv);
+                let r_vv = g_f_vv * remainder_cell_v(hu, hv);
+                removable += r_uu.width() + r_vv.width();
+                flux = flux + hu * hv * fm + r_uu + r_vv;
             }
         }
         let flux = widen(flux, boundary_defect * p_bound);
-        // Convergence: the shared mean-boundary-displacement meter.
-        let width_len = mean_boundary_displacement(flux, area)?;
-        if schedule.converged::<T>(
-            round,
-            classify_len::<T>(
-                "props_quad_converged",
-                Margin::of(target_len - width_len),
-                band,
-                PropsCheck::Converged,
-            ),
-            (target_len, width_len),
-            band,
-        )? {
+        let bounds = FaceCutBounds { flux, area };
+        let stop = run.stop(round, bounds, removable);
+        let accepted = accept(&bounds, stop)?;
+        if accepted {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
@@ -4323,32 +3995,12 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
-            return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
-        if let Some(out) = budget_exit::<T>(
-            round,
-            schedule,
-            last_round_width_lo,
-            FaceCutBounds { flux, area },
-            target_len,
-            band,
-        )? {
+        if let Some(out) = run.exit(round, stop, accepted, bounds) {
             return Ok(out);
         }
-        debug_assert!(
-            round < schedule.last() || pieces == last_pieces,
-            "the schedule's last round is the bound's"
-        );
-        if let Some(out) =
-            schedule
-                .run(window)
-                .exit(round, FaceCutBounds { flux, area }, (width_len, target_len))
-        {
-            return Ok(out);
-        }
-        pieces *= 2;
+        round += 1;
     }
-    unreachable!("the round window is non-empty: `first` is clamped to the last round")
 }
 
 // ---------------------------------------------------------------------
@@ -4359,10 +4011,6 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
 /// Pieces per `General` image at round 0, doubling per round — the
 /// lever of the lune pad, which is `O(h²)` in the piece length.
 const TRIM_INIT_PIECES: usize = QUAD2_INIT_PIECES;
-/// Refinement rounds of the trimmed lane. The lune pad is second order
-/// in the lever, so a region the last round cannot certify is one no
-/// round can: the same argument [`QUAD2_MAX_ROUNDS`] makes.
-const TRIM_MAX_ROUNDS: usize = QUAD2_MAX_ROUNDS;
 /// Bisections a piece whose monotonicity is not definite is refined by
 /// before the lane refuses it (fixed, D9 — never data-dependent). Each
 /// bisection halves the chord, so a piece that is a graph over its
@@ -5320,22 +4968,22 @@ fn polygon_winding(cells: &[TrimCell]) -> f64 {
 ///
 /// # Errors
 ///
-/// [`PropsError`] — an escalated funnel decision, a degenerate face,
-/// the typed refusals of the rational chart, the rational image, the
-/// non-monotone piece and the Newton–Cotes window, or
-/// [`PropsError::QuadratureBudget`] when the enclosure will not
-/// tighten to target within the round budget.
+/// [`PropsError`] — `accept`'s own refusal, an escalated funnel
+/// decision, a degenerate face, and the typed refusals of the rational
+/// chart, the rational image, the non-monotone piece and the
+/// Newton–Cotes window.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)] // one engine, kept whole like the cylinder lane
 pub fn trimmed_patch_face_rounds<T: Decide>(
     kv_u: &KnotVector,
     kv_v: &KnotVector,
     control: &[RVec3],
     weights: &[f64],
     chords: &[TrimChord],
-    eps: f64,
     band: Band,
     window: RoundWindow,
-) -> Result<RoundOutcome, PropsError> {
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
     if chords.len() < 3 {
         return Err(PropsError::QuadratureUnsupported {
             what: "a trim loop of fewer than three chart images — a region with no \
@@ -5402,10 +5050,25 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     // lever the closure gap is paid at, `G` being what Green integrates
     // along `du`.
     let v_reach = (kv_v.domain().1 - kv_v.domain().0).abs();
-    let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let schedule = Schedule::to(TRIM_MAX_ROUNDS);
-    let first = schedule.first(window);
-    let mut pieces = TRIM_INIT_PIECES << first;
+    // A round's cells are its iso chords and, per `General` image, the
+    // round's blocks: the schedule's count, before a monotone bisection
+    // adds any.
+    let cost = |round: usize| {
+        w_trimmed(p_u, p_v)
+            * chords
+                .iter()
+                .map(|c| {
+                    if c.piece.is_some() {
+                        TRIM_INIT_PIECES << round
+                    } else {
+                        1
+                    }
+                })
+                .sum::<usize>()
+    };
+    let mut run = Run::enter(window, &cost);
+    let mut round = run.first();
+    let mut pieces = TRIM_INIT_PIECES << round;
     // **The AREA is taken once, at the ENTERING round's chords, and
     // that is a cost decision rather than a fact about the width.**
     // Measured: its width is first order in the CHORD COUNT — on a
@@ -5418,7 +5081,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     // "one more call" at the last round is two orders of magnitude of
     // work, not one call's worth.
     let mut area_at_first: Option<Interval> = None;
-    for round in first..=schedule.last() {
+    loop {
         let cells = trim_cells::<T>(chords, pieces, su.as_ref(), sv.as_ref(), band)?;
         if cells.len() < 3 {
             return Err(PropsError::QuadratureUnsupported {
@@ -5533,18 +5196,13 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                     + boundary_defect,
             )
         });
-        let width_len = mean_boundary_displacement(flux, area)?;
-        if schedule.converged::<T>(
-            round,
-            classify_len::<T>(
-                "props_quad_converged",
-                Margin::of(target_len - width_len),
-                band,
-                PropsCheck::Converged,
-            ),
-            (target_len, width_len),
-            band,
-        )? {
+        let bounds = FaceCutBounds { flux, area };
+        // The lunes, widening the flux both ways, are the part of its
+        // width a later round removes; the vertex, sliver, gap and
+        // envelope pads are not.
+        let stop = run.stop(round, bounds, 2.0 * lune_f);
+        let accepted = accept(&bounds, stop)?;
+        if accepted {
             // The perimeter this gate levers by is the DOOR's, derived
             // from the cells above — not a caller's field. A lane that
             // takes the caller's is
@@ -5559,35 +5217,50 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
-            return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
-        // The pads no refinement removes — the endpoint brackets' and
-        // the envelope's — are a floor on every round's width.
-        if let Some(out) = budget_exit::<T>(
-            round,
-            schedule,
-            2.0 * (vertex_pad * sup_f + boundary_defect * p_bound),
-            FaceCutBounds { flux, area },
-            target_len,
-            band,
-        )? {
+        if let Some(out) = run.exit(round, stop, accepted, bounds) {
             return Ok(out);
         }
-        if let Some(out) =
-            schedule
-                .run(window)
-                .exit(round, FaceCutBounds { flux, area }, (width_len, target_len))
-        {
-            return Ok(out);
-        }
+        round += 1;
         pieces *= 2;
     }
-    unreachable!("the round window is non-empty: `first` is clamped to the last round")
+}
+
+/// Test vocabulary for the lanes' callers in this crate.
+#[cfg(test)]
+pub(super) mod test_target {
+    use super::{
+        FaceCutBounds, LaneEnd, LaneRun, LaneStop, PropsError, QUAD_TARGET_LEN_FACTOR,
+        mean_boundary_displacement,
+    };
+
+    /// Accepts a round whose mean boundary displacement is at most
+    /// `QUAD_TARGET_LEN_FACTOR·eps`: the reporting target, read as a
+    /// plain comparison (the funnel's reading of it is `topo`'s).
+    pub(in crate::props) fn to_target(
+        eps: f64,
+    ) -> impl FnMut(&FaceCutBounds, LaneStop) -> Result<bool, PropsError> {
+        move |b, _| Ok(mean_boundary_displacement(b.flux, b.area)? <= QUAD_TARGET_LEN_FACTOR * eps)
+    }
+
+    /// The enclosure of a run the caller accepted; a run that stopped
+    /// short of it panics, naming where it stopped.
+    pub(in crate::props) fn met(
+        run: Result<LaneRun, PropsError>,
+    ) -> Result<FaceCutBounds, PropsError> {
+        let run = run?;
+        assert!(
+            matches!(run.end, LaneEnd::Accepted(_)),
+            "the lane stopped short of the target: {run:?}"
+        );
+        Ok(run.bounds)
+    }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use super::test_target::{met, to_target};
     use super::*;
     use geom_core::Tol;
 
@@ -5618,26 +5291,21 @@ mod tests {
     /// the ε-row postures below are pinned against.
     const CORPUS_EPS: f64 = 1e-9;
 
-    /// The three HONEST outcomes of an ε-coupled convergence row.
+    /// The two HONEST outcomes of an ε-coupled convergence row.
     ///
-    /// The target is `QUAD_TARGET_LEN_FACTOR·ε` while the refinement
-    /// schedule is FIXED (D9), so the same patch that certifies at
-    /// ε = 1e-6 genuinely cannot at ε = 1e-12: the target is a million
-    /// times tighter and the rounds do not grow. A row asserting `Ok`
-    /// unconditionally is ε-BLIND, not strict — it fails on the hosted
-    /// ε matrix for a reason that is the lane working correctly.
+    /// The target is `QUAD_TARGET_LEN_FACTOR·ε` while the lane's floor
+    /// and work wall do not scale with ε, so the same patch that
+    /// certifies at ε = 1e-6 genuinely cannot at ε = 1e-12: the target
+    /// is a million times tighter. A row asserting `Ok` unconditionally
+    /// is ε-BLIND, not strict — it fails on the hosted ε matrix for a
+    /// reason that is the lane working correctly.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum EpsPosture {
-        /// The enclosure certified — it must CONTAIN the truth.
+        /// The enclosure met the target — it must CONTAIN the truth.
         Certified,
-        /// [`PropsError::QuadratureBudget`]: the fixed schedule's floor
-        /// is DEFINITELY above the run's target.
-        Budget,
-        /// The same shortfall, in-band for the run's `Band{ε, Kε}` — so
-        /// `props_quad_converged` escalates through the funnel before
-        /// the budget can run out. The two-tolerance twin the
-        /// [`PropsError::QuadratureBudget`] docs name.
-        Escalated,
+        /// The lane stopped (its floor or its work wall) with an
+        /// enclosure DEFINITELY wider than the run's target.
+        Stopped,
     }
 
     /// Assert the ε-row posture of one patch outcome and return it.
@@ -5647,65 +5315,173 @@ mod tests {
     ///
     /// - certified ⇒ both enclosures contain their truths (this is the
     ///   arm that catches a tight-but-WRONG bracket, the M8-3 MAJOR);
-    /// - budget ⇒ the carried `width_len` really did exceed
-    ///   `target_len`, AND that target IS `1024·ε` for this run;
-    /// - escalated ⇒ the predicate is `props_quad_converged` and
-    ///   nothing else, with an in-band margin.
+    /// - stopped ⇒ the enclosure contains its truths too, and its width
+    ///   really did exceed `1024·ε` for this run.
     ///
-    /// Any other error is an unsound outcome and panics. Nothing here
-    /// widens a target, loosens a schedule, or special-cases ε into
+    /// Any error is an unsound outcome and panics. Nothing here widens
+    /// a target, loosens a schedule, or special-cases ε into
     /// certifying.
     fn eps_posture(
         row: &str,
-        out: &Result<FaceCutBounds, PropsError>,
+        out: &Result<LaneRun, PropsError>,
         truth_flux: f64,
         truth_area: f64,
         slack: f64,
     ) -> EpsPosture {
         let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
-        match out {
-            Ok(b) => {
-                for (what, encl, truth) in
-                    [("flux", b.flux, truth_flux), ("area", b.area, truth_area)]
-                {
-                    assert!(
-                        encl.lo() - slack <= truth && truth <= encl.hi() + slack,
-                        "{row}: {what} {encl:?} EXCLUDES the truth {truth}"
-                    );
-                }
-                EpsPosture::Certified
-            }
-            Err(PropsError::QuadratureBudget {
-                width_len,
-                target_len,
-                ..
-            }) => {
-                assert!(
-                    width_len.is_finite() && width_len > target_len,
-                    "{row}: a budget refusal must carry a width that really missed: \
-                     {width_len:e} vs {target_len:e}"
-                );
-                assert!(
-                    (target_len - target).abs() <= target * 1e-12,
-                    "{row}: the refused target must BE 1024·ε for this run: \
-                     {target_len:e} vs {target:e}"
-                );
-                EpsPosture::Budget
-            }
-            Err(PropsError::Escalated { cause, .. }) => {
-                assert_eq!(
-                    cause.predicate,
-                    Some("props_quad_converged"),
-                    "{row}: only the convergence predicate may escalate here: {cause:?}"
-                );
-                assert!(
-                    matches!(cause.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(m) if m.is_finite()),
-                    "{row}: the escalation must carry a finite in-band margin: {cause:?}"
-                );
-                EpsPosture::Escalated
-            }
+        let run = match out {
+            Ok(run) => run,
             Err(e) => panic!("{row}: unsound outcome {e:?}"),
+        };
+        let b = run.bounds;
+        for (what, encl, truth) in [("flux", b.flux, truth_flux), ("area", b.area, truth_area)] {
+            assert!(
+                encl.lo() - slack <= truth && truth <= encl.hi() + slack,
+                "{row}: {what} {encl:?} EXCLUDES the truth {truth}"
+            );
         }
+        match run.end {
+            LaneEnd::Accepted(_) => EpsPosture::Certified,
+            LaneEnd::Floor | LaneEnd::Wall => {
+                let width_len = mean_boundary_displacement(b.flux, b.area).unwrap();
+                assert!(
+                    width_len > target,
+                    "{row}: a stopped lane must carry a width that really missed: \
+                     {width_len:e} vs {target:e}"
+                );
+                EpsPosture::Stopped
+            }
+            LaneEnd::Window => panic!("{row}: a whole-schedule call ended at a window: {run:?}"),
+        }
+    }
+
+    /// A round of flux width `w` about zero over a unit area.
+    fn of_width(w: f64) -> FaceCutBounds {
+        FaceCutBounds {
+            flux: Interval::from_bounds(-0.5 * w, 0.5 * w),
+            area: pt(1.0),
+        }
+    }
+
+    /// The last round [`Run`] admits under `cost`, run from round 0 with
+    /// a width no round's remainder falls under.
+    fn last_admitted(cost: &dyn Fn(usize) -> usize) -> usize {
+        let mut run = Run::enter(RoundWindow::SCHEDULE, cost);
+        (0..64)
+            .find(|&round| run.stop(round, of_width(1.0), 1.0) == LaneStop::Wall)
+            .expect("every lane meets the wall")
+    }
+
+    /// **The work wall sits at the composite arm's round 7**, and each
+    /// lane's nominal face reaches the round its own weight buys on it.
+    /// The weights are measured per cell on one box; these rounds are
+    /// what they buy.
+    #[test]
+    fn the_work_wall_buys_each_lane_its_measured_rounds() {
+        type Cost<'a> = &'a dyn Fn(usize) -> usize;
+        let square = |w: usize| move |r: usize| w * (QUAD2_INIT_PIECES << r).pow(2);
+        let rows: [(&str, Cost<'_>, usize); 7] = [
+            ("rational composite", &square(W_RATIONAL_COMPOSITE), 7),
+            ("integral composite", &square(W_INTEGRAL_COMPOSITE), 6),
+            (
+                "rational exact-v, 8 v spans",
+                &|r| W_RATIONAL_EXACT_V * 8 * (QUAD2_INIT_PIECES << r),
+                10,
+            ),
+            (
+                "cylinder, 4 edges",
+                &|r| W_CYLINDER * 4 * (QUAD_INIT_PIECES << r),
+                15,
+            ),
+            (
+                "spiric, 1 edge",
+                &|r| super::super::spiric::W_SPIRIC * (QUAD_INIT_PIECES << r),
+                13,
+            ),
+            (
+                "trimmed bilinear chart, 1 image and 2 iso chords",
+                &|r| w_trimmed(1, 1) * ((TRIM_INIT_PIECES << r) + 2),
+                10,
+            ),
+            (
+                "trimmed biquadratic chart, 1 image and 2 iso chords",
+                &|r| w_trimmed(2, 2) * ((TRIM_INIT_PIECES << r) + 2),
+                7,
+            ),
+        ];
+        for (lane, cost, want) in rows {
+            assert_eq!(last_admitted(cost), want, "{lane}");
+        }
+    }
+
+    /// **A window stops where the whole schedule does**: the work a
+    /// round's stop reads is the sum of every round's cost through it,
+    /// which the window entering later spends before its first round.
+    #[test]
+    fn a_window_stops_where_the_whole_schedule_does() {
+        let cost = |r: usize| W_RATIONAL_COMPOSITE * (QUAD2_INIT_PIECES << r).pow(2);
+        for first in 0..=7 {
+            let mut run = Run::enter(RoundWindow::at(first), &cost);
+            let want = if first == 7 {
+                LaneStop::Wall
+            } else {
+                LaneStop::Refinable
+            };
+            assert_eq!(run.stop(first, of_width(1.0), 1.0), want, "round {first}");
+        }
+    }
+
+    /// **The floor is a removable share of at most 2⁻¹⁰**: a round
+    /// whose remainder is that share of its width or less stops there;
+    /// one whose remainder is more refines, half its width included.
+    #[test]
+    fn the_floor_is_a_removable_share_of_at_most_one_in_1024() {
+        let cost = |_: usize| 1;
+        for (removable, want) in [
+            (FLOOR_SHARE, LaneStop::Floor),
+            (0.0, LaneStop::Floor),
+            (FLOOR_SHARE * 1.000_01, LaneStop::Refinable),
+            (0.5, LaneStop::Refinable),
+        ] {
+            let mut run = Run::enter(RoundWindow::SCHEDULE, &cost);
+            assert_eq!(
+                run.stop(0, of_width(1.0), removable),
+                want,
+                "removable {removable}"
+            );
+        }
+    }
+
+    /// **An unaccepted call answers its narrowest round, never its
+    /// last**: past the floor a later round can be wider than an earlier
+    /// one, and the rounds are independent sound enclosures. An accepted
+    /// round is the answer whatever the earlier ones were.
+    #[test]
+    fn an_unaccepted_call_answers_its_narrowest_round() {
+        let cost = |_: usize| 1;
+        let mut run = Run::enter(RoundWindow::SCHEDULE, &cost);
+        let widths = [4.0, 1.0, 2.0];
+        let removable = [3.0, 0.9, 1e-3];
+        let mut out = None;
+        for round in 0..3 {
+            let stop = run.stop(round, of_width(widths[round]), removable[round]);
+            out = run.exit(round, stop, false, of_width(widths[round]));
+            if out.is_some() {
+                break;
+            }
+        }
+        let out = out.expect("round 2 is at its floor");
+        assert_eq!(
+            (out.end, out.round, out.rounds),
+            (LaneEnd::Floor, 1, 3),
+            "{out:?}"
+        );
+        assert_eq!(out.bounds.flux.hi(), 0.5, "round 1's enclosure: {out:?}");
+        let accepted = run.exit(2, LaneStop::Floor, true, of_width(2.0)).unwrap();
+        assert_eq!(
+            (accepted.end, accepted.round),
+            (LaneEnd::Accepted(LaneStop::Floor), 2)
+        );
     }
 
     fn chan(c0: f64, ca: f64, cb: f64, cl: f64) -> HarmChan {
@@ -5810,8 +5586,14 @@ mod tests {
         let edges = [rim, seam_up, top, seam_down];
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
-        let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&edges], eps, band)
-            .expect("the band face converges");
+        let out = met(cylinder_cut_face::<f64>(
+            pt(1.0),
+            Interval::zero(),
+            &[&edges],
+            band,
+            &mut to_target(eps),
+        ))
+        .expect("the band face converges");
         let exact = 2.0 * tau; // −∮ v du = 4π
         assert!(
             out.flux.lo() <= exact && exact <= out.flux.hi(),
@@ -5965,23 +5747,13 @@ mod tests {
                 .iter()
                 .flat_map(|edges| edges.iter())
                 .fold(Interval::zero(), |a, e| {
-                    a + harmonic_edge_integral(e, anchor, QUAD_INIT_PIECES, pt(1.0))
+                    a + harmonic_edge_integral(e, anchor, QUAD_INIT_PIECES, pt(1.0)).0
                 });
-            let width_len = mean_boundary_displacement(a_s, a_s.abs_enclosure()).unwrap();
-            let target_len = QUAD_TARGET_LEN_FACTOR * target;
-            Schedule::to(QUAD_MAX_ROUNDS)
-                .converged::<f64>(
-                    0,
-                    classify_len::<f64>(
-                        "props_quad_converged",
-                        Margin::of(target_len - width_len),
-                        band,
-                        PropsCheck::Converged,
-                    ),
-                    (target_len, width_len),
-                    band,
-                )
-                .unwrap()
+            let bounds = FaceCutBounds {
+                flux: a_s,
+                area: a_s.abs_enclosure(),
+            };
+            to_target(target)(&bounds, LaneStop::Refinable).unwrap()
         };
         let rings = [(3e-5, 0.2), (3e-5, 0.95), (2e-5, 0.95)]
             .into_iter()
@@ -5999,9 +5771,9 @@ mod tests {
                 pt(1.0),
                 Interval::zero(),
                 &loops,
-                target,
                 band,
                 RoundWindow::at(0),
+                &mut to_target(target),
             );
             assert!(
                 matches!(
@@ -6012,8 +5784,14 @@ mod tests {
                 ),
                 "ring {r} at {level}: round 0's enclosure must straddle the band: {at0:?}"
             );
-            let whole = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, target, band)
-                .unwrap_or_else(|e| panic!("ring {r} at {level}: the schedule refused: {e}"));
+            let whole = met(cylinder_cut_face::<f64>(
+                pt(1.0),
+                Interval::zero(),
+                &loops,
+                band,
+                &mut to_target(target),
+            ))
+            .unwrap_or_else(|e| panic!("ring {r} at {level}: the schedule refused: {e}"));
             let pir2 = core::f64::consts::PI * r * r;
             let (hole, island) = (2.0 - pir2, 2.0 + pir2);
             assert!(
@@ -6043,9 +5821,9 @@ mod tests {
             pt(1.0),
             Interval::zero(),
             &[&outer, &ring],
-            eps,
             band,
             window,
+            &mut to_target(eps),
         ) {
             Err(PropsError::Escalated { cause, .. })
                 if cause.predicate == Some("props_ring_winding") && cause.terminal_sliver =>
@@ -6072,8 +5850,14 @@ mod tests {
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
         let [outer, ring] = ringed_rectangle(true, 0.0);
-        let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band)
-            .expect("the ringed rectangle converges");
+        let out = met(cylinder_cut_face::<f64>(
+            pt(1.0),
+            Interval::zero(),
+            &[&outer, &ring],
+            band,
+            &mut to_target(eps),
+        ))
+        .expect("the ringed rectangle converges");
         let exact = 2.0 - 0.09 * core::f64::consts::PI;
         assert!(
             out.flux.lo() <= exact && exact <= out.flux.hi(),
@@ -6103,16 +5887,22 @@ mod tests {
                 pt(1.0),
                 Interval::zero(),
                 &loops,
-                eps,
                 band,
                 RoundWindow::at(round),
+                &mut to_target(eps),
             );
             assert!(
                 matches!(got, Err(PropsError::RingWoundWithFace)),
                 "round {round}: {got:?}"
             );
         }
-        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, eps, band);
+        let got = met(cylinder_cut_face::<f64>(
+            pt(1.0),
+            Interval::zero(),
+            &loops,
+            band,
+            &mut to_target(eps),
+        ));
         assert!(
             matches!(got, Err(PropsError::RingWoundWithFace)),
             "the whole schedule: {got:?}"
@@ -6130,8 +5920,14 @@ mod tests {
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
         let [outer, ring] = ringed_rectangle(true, core::f64::consts::TAU);
-        let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band)
-            .expect("the shifted ring converges");
+        let out = met(cylinder_cut_face::<f64>(
+            pt(1.0),
+            Interval::zero(),
+            &[&outer, &ring],
+            band,
+            &mut to_target(eps),
+        ))
+        .expect("the shifted ring converges");
         let exact = 2.0 - 0.09 * core::f64::consts::PI;
         assert!(
             out.area.lo() <= exact && exact <= out.area.hi(),
@@ -6175,13 +5971,13 @@ mod tests {
         let exact = 2.0 * core::f64::consts::TAU;
         for (k, lift) in [(0.0, 0.0), (0.4, 0.0), (-0.7, 0.0), (0.4, 1000.0)] {
             let [bottom, top] = ellipse_band(k, lift);
-            let out = cylinder_cut_face::<f64>(
+            let out = met(cylinder_cut_face::<f64>(
                 pt(1.0),
                 Interval::zero(),
                 &[&[bottom], &[top]],
-                eps,
                 band,
-            )
+                &mut to_target(eps),
+            ))
             .unwrap_or_else(|e| panic!("k {k}, lift {lift}: the band refuses: {e:?}"));
             for (what, x) in [("flux", out.flux), ("area", out.area)] {
                 assert!(
@@ -6202,11 +5998,23 @@ mod tests {
         [
             (
                 "f64",
-                cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), loops, eps, band),
+                met(cylinder_cut_face::<f64>(
+                    pt(1.0),
+                    Interval::zero(),
+                    loops,
+                    band,
+                    &mut to_target(eps),
+                )),
             ),
             (
                 "Interval",
-                cylinder_cut_face::<Interval>(pt(1.0), Interval::zero(), loops, eps, band),
+                met(cylinder_cut_face::<Interval>(
+                    pt(1.0),
+                    Interval::zero(),
+                    loops,
+                    band,
+                    &mut to_target(eps),
+                )),
             ),
         ]
     }
@@ -6523,130 +6331,16 @@ mod tests {
         }
     }
 
-    /// The ellipse band's convergence width at `round` alone, metered as
-    /// [`mean_boundary_displacement`]: read off an open round, the
-    /// target vanishing and the band far below the width, so the round
-    /// definitely misses, and above the junctions' own rounding, so they
-    /// close.
-    fn band_width_at(round: usize) -> f64 {
-        let [bottom, top] = ellipse_band(0.4, 0.0);
-        let band = geom_core::Band::new(1e-13, 2e-13).unwrap();
-        match cylinder_cut_face_rounds::<f64>(
-            pt(1.0),
-            Interval::zero(),
-            &[&[bottom], &[top]],
-            1e-300,
-            band,
-            RoundWindow::at(round),
-        ) {
-            Ok(RoundOutcome::Open { bounds, .. }) => {
-                mean_boundary_displacement(bounds.flux, bounds.area).unwrap()
-            }
-            other => panic!("round {round} must stay open under a vanishing target: {other:?}"),
-        }
-    }
-
-    /// **A convergence margin within the band refines at a round with a
-    /// successor and escalates at the last one** (`Schedule::converged`).
-    /// The ellipse band at round 3 and at the schedule's last, its
-    /// target set at that round's own width, under a band scaled to it:
-    /// once inside the zero band, once in the ambiguity band above it.
-    /// At round 3 neither converges and neither refuses — the window
-    /// hands back its open round; at the last round both escalate, where
-    /// a budget refusal would carry a width that did not miss.
+    /// Endpoint ignorance that no refinement narrows stops the lane at
+    /// its floor within three rounds: the endpoint pad, a whole radian of
+    /// `|f|`, already dwarfs round 0's remainder, which falls 8× a round
+    /// to under 2⁻¹⁰ of the width by round 2, so the lane never returns a
+    /// silently wide bracket and never refines toward a target it cannot
+    /// reach. The loop
+    /// is the unit circle of the chart, `(u, v) = (cos t, sin t)`,
+    /// closed; its start bracket is a whole radian wide.
     #[test]
-    fn a_margin_in_the_band_refines_until_the_last_round_and_escalates_there() {
-        let [bottom, top] = ellipse_band(0.4, 0.0);
-        let loops: [&[TrimEdgeQ]; 2] = [&[bottom], &[top]];
-        for round in [3, QUAD_MAX_ROUNDS] {
-            let width = band_width_at(round);
-            let band = geom_core::Band::new(1e-3 * width, 1e-2 * width).unwrap();
-            for (what, target) in [
-                ("zero band", width),
-                ("ambiguity band", width * (1.0 + 5e-3)),
-            ] {
-                let got = cylinder_cut_face_rounds::<f64>(
-                    pt(1.0),
-                    Interval::zero(),
-                    &loops,
-                    target / QUAD_TARGET_LEN_FACTOR,
-                    band,
-                    RoundWindow::at(round),
-                );
-                if round < QUAD_MAX_ROUNDS {
-                    assert!(
-                        matches!(
-                            got,
-                            Ok(RoundOutcome::Open {
-                                end: OpenEnd::Window,
-                                ..
-                            })
-                        ),
-                        "round {round}, {what}: an in-band margin refines: {got:?}"
-                    );
-                } else {
-                    match got {
-                        Err(PropsError::Escalated { cause, check }) => {
-                            assert_eq!(check, PropsCheck::Converged, "{what}");
-                            assert_eq!(cause.predicate, Some("props_quad_converged"), "{what}");
-                        }
-                        other => {
-                            panic!("the last round, {what}: an in-band margin escalates: {other:?}")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// **No budget refusal carries a width under its target.** The
-    /// hopeless-endpoint loop with its start bracket's half-width `w`
-    /// at, and 0.2% either side of, the value that puts the last
-    /// round's margin in the zero band at ε = 1e-9 (review R2 of PR 4839,
-    /// measured: margin 1.0e-8 at `w = 2.3891717e-6`, linear in `w`). Each
-    /// of the three escalates; read as unconverged, each refused the
-    /// budget with a width under its target. The value is measured at
-    /// the default ε only, and the row stands down loudly elsewhere.
-    #[test]
-    fn a_budget_refusal_never_carries_a_width_under_its_target() {
-        let band = geom_core::Band::linear(Tol::witness()).unwrap();
-        let eps = Tol::witness().get().eps;
-        if eps != 1e-9 {
-            test_utils::vacuity::stood_down(
-                "the last-round zero-band witness",
-                "its bracket width is measured at ε = 1e-9 only",
-            );
-            return;
-        }
-        let centre = 2.389_171_737_005_034e-6 * (1.0 + 9.998_457_735e-9 / 1.014_001_542e-6);
-        for step in [-1.0_f64, 0.0, 1.0] {
-            let w = centre * step.mul_add(2e-3, 1.0);
-            let e = TrimEdgeQ {
-                u: chan(0.0, 1.0, 0.0, 0.0),
-                v: chan(0.0, 0.0, 1.0, 0.0),
-                t0: Interval::from_bounds(-w, w),
-                t1: pt(core::f64::consts::TAU),
-                forward: true,
-                trig0: (pt(1.0), pt(0.0)),
-                trig1: None,
-                env: pt(0.0),
-            };
-            match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&[e]], eps, band) {
-                Err(PropsError::Escalated { cause, .. }) => {
-                    assert_eq!(cause.predicate, Some("props_quad_converged"), "w {w:e}");
-                }
-                other => panic!("w {w:e}: the last round's in-band margin escalates: {other:?}"),
-            }
-        }
-    }
-
-    /// Endpoint ignorance that no refinement narrows cannot converge:
-    /// the engine refuses typed at the budget, never returns a silently
-    /// wide bracket. The loop is the unit circle of the chart,
-    /// `(u, v) = (cos t, sin t)`, closed; its start bracket is a whole
-    /// radian wide.
-    #[test]
-    fn hopeless_endpoint_brackets_refuse_at_the_budget() {
+    fn hopeless_endpoint_brackets_stop_at_the_floor() {
         let e = TrimEdgeQ {
             u: chan(0.0, 1.0, 0.0, 0.0),
             v: chan(0.0, 0.0, 1.0, 0.0),
@@ -6659,10 +6353,19 @@ mod tests {
         };
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
-        match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&[e]], eps, band) {
-            Err(PropsError::QuadratureBudget { .. }) => {}
-            other => panic!("expected the typed budget refusal, got {other:?}"),
-        }
+        let run = cylinder_cut_face::<f64>(
+            pt(1.0),
+            Interval::zero(),
+            &[&[e]],
+            band,
+            &mut to_target(eps),
+        )
+        .expect("the hopeless loop has an enclosure");
+        assert_eq!(
+            (run.end, run.round, run.rounds),
+            (LaneEnd::Floor, 2, 3),
+            "the endpoint pad is a floor round 2 sits on: {run:?}"
+        );
     }
 
     /// The patch lane on the flat unit square at z = 1: `S = (u, v, 1)`
@@ -6682,7 +6385,7 @@ mod tests {
             p(1.0, 0.0, 1.0),
             p(1.0, 1.0, 1.0),
         ];
-        let out = nurbs_patch_face::<f64>(
+        let out = met(nurbs_patch_face::<f64>(
             &kv,
             &kv,
             &flat,
@@ -6690,9 +6393,9 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             4.0,
             0.0,
-            eps,
             band,
-        )
+            &mut to_target(eps),
+        ))
         .unwrap();
         assert!(out.flux.contains(1.0), "flat flux {:?}", out.flux);
         assert!(out.area.contains(1.0), "flat area {:?}", out.area);
@@ -6705,7 +6408,7 @@ mod tests {
             p(1.3, 0.0, 0.8),
             p(1.0, 1.0, 2.0),
         ];
-        let out = nurbs_patch_face::<f64>(
+        let out = met(nurbs_patch_face::<f64>(
             &kv,
             &kv,
             &warped,
@@ -6713,9 +6416,9 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             6.0,
             0.0,
-            eps,
             band,
-        )
+            &mut to_target(eps),
+        ))
         .unwrap();
         // Dense midpoint oracle on the bilinear closed form.
         let sv = |u: f64, v: f64| -> [f64; 3] {
@@ -6790,8 +6493,8 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             4.0,
             0.0,
-            Tol::witness().get().eps,
             band,
+            &mut to_target(Tol::witness().get().eps),
         );
         let posture = eps_posture("reparameterized square", &out, 1.0, 1.0, 0.0);
         eprintln!(
@@ -6838,8 +6541,8 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
-            Tol::witness().get().eps,
             band,
+            &mut to_target(Tol::witness().get().eps),
         );
         let truth = core::f64::consts::PI;
         let posture = eps_posture("two-span quarter cylinder", &out, truth, truth, 0.0);
@@ -6999,8 +6702,8 @@ mod tests {
                     (0.0, 1.0, 0.0, 1.0),
                     10.0,
                     0.0,
-                    Tol::witness().get().eps,
                     band,
+                    &mut to_target(Tol::witness().get().eps),
                 );
                 // The slack is the ORACLE's discretization error, not
                 // the lane's: on the polynomial rows the exact
@@ -7019,30 +6722,33 @@ mod tests {
         // Anti-vacuity, ε-KEYED rather than waived. The INTEGRAL rows
         // ride the exact per-span Newton–Cotes lane, whose width is
         // outward rounding only — ε-independent, so they must certify on
-        // EVERY row of the matrix. The RATIONAL rows ride the O(h²)
-        // composite against an ε-coupled target, so they certify at the
-        // corpus ε and coarser and refuse typed below it; that boundary
-        // is PINNED, not relaxed, and a posture that moves in either
+        // EVERY row of the matrix. The RATIONAL rows ride the exact-v
+        // arm's O(h²) composite in u against an ε-coupled target: at the
+        // corpus ε and coarser every one certifies, and below it the
+        // smooth ones do (multiplicity under the degree, measured at its
+        // work wall) while the C⁰ kink's stops short. That boundary is
+        // PINNED, not relaxed, and a posture that moves in either
         // direction is a finding.
         let certified: Vec<&str> = postures
             .iter()
             .filter(|(_, p)| *p == EpsPosture::Certified)
             .map(|(r, _)| r.as_str())
             .collect();
-        let expected = if Tol::witness().get().eps >= CORPUS_EPS {
-            2 * pu
-        } else {
-            pu
-        };
+        let expected: Vec<String> = (1..=pu)
+            .flat_map(|mult| {
+                let rational = Tol::witness().get().eps >= CORPUS_EPS || mult < pu;
+                [
+                    Some(format!("mult {mult} / integral")),
+                    rational.then(|| format!("mult {mult} / rational")),
+                ]
+            })
+            .flatten()
+            .collect();
         assert_eq!(
-            certified.len(),
+            certified,
             expected,
-            "the ladder's ε posture MOVED at eps={:e}: certified {certified:?}, all {postures:?}",
+            "the ladder's ε posture MOVED at eps={:e}: all {postures:?}",
             Tol::witness().get().eps
-        );
-        assert!(
-            certified.iter().all(|r| r.ends_with("integral")) || certified.len() == 2 * pu,
-            "below the corpus ε only the exact-lane (integral) rows may certify: {certified:?}"
         );
     }
 
@@ -7077,8 +6783,8 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
-            Tol::witness().get().eps,
             band,
+            &mut to_target(Tol::witness().get().eps),
         );
         let truth = core::f64::consts::PI;
         let posture = eps_posture("quarter cylinder", &out, truth, truth, 0.0);
@@ -7399,7 +7105,7 @@ mod tests {
                 trig1: None,
                 env: pt(0.0),
             };
-            let enclosure = harmonic_edge_integral(&e, 0.0, 65_536, pt(1.0));
+            let (enclosure, _) = harmonic_edge_integral(&e, 0.0, 65_536, pt(1.0));
             // Dense Kahan-summed midpoint oracle of the TRUE integral,
             // `∫ −v·u' dt`.
             let minus_v = chan(-2.0, -0.7, -0.4, -0.3);
@@ -7546,29 +7252,36 @@ mod tests {
                 let s = kahan_dense_oracle(&e.u, &e.v, e.t0.lo(), e.t1.hi(), 400_000);
                 truth += if e.forward { s } else { -s };
             }
-            // Two honest outcomes, ε-dependent: a converged enclosure
+            // Two honest outcomes, ε-dependent: an accepted enclosure
             // MUST contain the oracle; at tight ε (1e-12 drives the
             // target to ~1e-9 m while the sliver's ring-arithmetic floor
-            // sits above it) the TYPED budget refusal is the correct answer — never a
-            // silently wide bracket, never a silent skip.
-            match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&edges], eps, band) {
-                Ok(out) => {
+            // sits above it) the lane stops short at its own floor or
+            // wall — with an enclosure that still contains the oracle and
+            // really missed its target, never a silently wide bracket,
+            // never a silent skip.
+            let target = QUAD_TARGET_LEN_FACTOR * eps;
+            match cylinder_cut_face::<f64>(
+                pt(1.0),
+                Interval::zero(),
+                &[&edges],
+                band,
+                &mut to_target(eps),
+            ) {
+                Ok(run) => {
+                    let out = run.bounds;
                     assert!(
                         out.flux.lo() <= truth && truth <= out.flux.hi(),
-                        "{label}: dense oracle {truth} escapes the certified flux {:?}",
+                        "{label}: dense oracle {truth} escapes the enclosure {:?} ({run:?})",
                         out.flux
                     );
-                }
-                Err(PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    ..
-                }) => {
-                    assert!(
-                        width_len > target_len,
-                        "{label}: a budget refusal must report an ACHIEVED width above \
-                         its target, got {width_len} vs {target_len}"
-                    );
+                    if !matches!(run.end, LaneEnd::Accepted(_)) {
+                        let width_len = mean_boundary_displacement(out.flux, out.area).unwrap();
+                        assert!(
+                            width_len > target,
+                            "{label}: a lane stopped short must report an ACHIEVED width \
+                             above its target, got {width_len} vs {target} ({run:?})"
+                        );
+                    }
                 }
                 Err(other) => panic!("{label}: outside the two honest arms: {other:?}"),
             }
@@ -7761,9 +7474,9 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             4.0,
             0.0,
-            Tol::witness().get().eps,
             Band::linear(Tol::witness()).unwrap(),
             RoundWindow::SCHEDULE,
+            &mut to_target(Tol::witness().get().eps),
         )
         .map(|o| bounds_of(&o))
         .expect("the rectangle certificate answers its own fixture")
@@ -7781,24 +7494,22 @@ mod tests {
         w: &[f64],
         chords: &[TrimChord],
         window: RoundWindow,
-    ) -> Result<RoundOutcome, PropsError> {
+    ) -> Result<LaneRun, PropsError> {
         trimmed_patch_face_rounds::<f64>(
             ku,
             kvv,
             control,
             w,
             chords,
-            Tol::witness().get().eps,
             Band::linear(Tol::witness()).unwrap(),
             window,
+            &mut to_target(Tol::witness().get().eps),
         )
     }
 
-    /// The bounds of an outcome, whichever arm it took.
-    fn bounds_of(out: &RoundOutcome) -> FaceCutBounds {
-        match out {
-            RoundOutcome::Converged(b) | RoundOutcome::Open { bounds: b, .. } => *b,
-        }
+    /// The bounds of a run, however it ended.
+    fn bounds_of(out: &LaneRun) -> FaceCutBounds {
+        out.bounds
     }
 
     fn encloses(x: Interval, truth: f64, label: &str) {
@@ -7828,7 +7539,12 @@ mod tests {
         ];
         let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
             .expect("the diagonal trim certifies");
-        let RoundOutcome::Converged(b) = out else {
+        let LaneRun {
+            bounds: b,
+            end: LaneEnd::Accepted(_),
+            ..
+        } = out
+        else {
             panic!("an exactly-integrated chord polygon converges at round 0: {out:?}")
         };
         encloses(b.flux, c * 0.5, "Q1 flux");
@@ -7844,39 +7560,121 @@ mod tests {
         );
     }
 
-    /// **The trimmed lane's budget exit ends the window, not the
-    /// schedule.** A wide envelope on the arc chord puts a floor under
-    /// every round's width far above the reporting target, so round 0
-    /// refuses with rounds remaining ([`OpenEnd::Unreachable`], one
-    /// round paid), and round 1, resumed past the exit, runs and ends
-    /// with its window.
+    /// A flat chart (`z = 1`) trimmed by a regular `n`-gon of curved
+    /// degree-2 `General` arcs about `(0.5, 0.5)`, radius 0.35, each
+    /// arc's control point `b` off its chord's midpoint, outward (PR
+    /// 5589's second reviewer's probe), and its closed-form area: the
+    /// polygon plus `n` parabolic segments of `chord·b/3` each. On the
+    /// flat chart at height 1 the flux is the area.
+    fn n_gon_of_arcs(n: usize, b: f64) -> (Vec<TrimChord>, f64) {
+        let pts: Vec<(f64, f64)> = (0..n)
+            .map(|k| {
+                #[allow(clippy::cast_precision_loss)]
+                let t = core::f64::consts::TAU * k as f64 / n as f64;
+                (0.5 + 0.35 * t.cos(), 0.5 + 0.35 * t.sin())
+            })
+            .collect();
+        let chords = (0..n)
+            .map(|k| {
+                let (a, c) = (pts[k], pts[(k + 1) % n]);
+                let m = ((a.0 + c.0) / 2.0, (a.1 + c.1) / 2.0);
+                let (dx, dy) = (m.0 - 0.5, m.1 - 0.5);
+                let l = dx.hypot(dy);
+                general(&[a, (m.0 + b * dx / l, m.1 + b * dy / l), c], 0.0)
+            })
+            .collect();
+        #[allow(clippy::cast_precision_loss)]
+        let nf = n as f64;
+        let polygon = 0.5 * nf * 0.35 * 0.35 * (core::f64::consts::TAU / nf).sin();
+        let chord = 2.0 * 0.35 * (core::f64::consts::PI / nf).sin();
+        (chords, polygon + nf * chord * b / 3.0)
+    }
+
+    /// The trimmed lane on `chords` over the flat chart at height 1,
+    /// against the default ε's target whatever the run's ε.
+    fn n_gon_run(chords: &[TrimChord]) -> LaneRun {
+        let (ku, kvv, control, w) = flat_chart(1.0);
+        trimmed_patch_face_rounds::<f64>(
+            &ku,
+            &kvv,
+            &control,
+            &w,
+            chords,
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::SCHEDULE,
+            &mut to_target(1e-9),
+        )
+        .expect("the n-gon of arcs has an enclosure")
+    }
+
+    /// **A trimmed cell is priced by its chart's bidegree.** A flat
+    /// bilinear chart's cell costs about a fourteenth of a biquadratic
+    /// one's, so the triangle, square and hexagon of curved arcs on it
+    /// (PR 5589's second reviewer's witnesses, which a single
+    /// biquadratic weight stopped at rounds 5, 5 and 4) certify at
+    /// round 6, where the round caps certified them, holding their
+    /// closed forms.
     #[test]
-    fn the_trimmed_lanes_exit_keeps_the_schedule_open() {
+    fn n_gons_of_arcs_on_a_flat_chart_certify_at_their_round() {
+        for n in [3, 4, 6] {
+            let (chords, truth) = n_gon_of_arcs(n, 0.016);
+            let run = n_gon_run(&chords);
+            assert!(
+                matches!(run.end, LaneEnd::Accepted(_)) && run.round == 6,
+                "the {n}-gon certifies at round 6: {run:?}"
+            );
+            encloses(run.bounds.flux, truth, &format!("{n}-gon flux"));
+        }
+    }
+
+    /// **The wall bounds work, not rounds** (`FACE_WORK_WALL`'s doc): a
+    /// face costlier per round than the calibrating one gets fewer
+    /// rounds, and stops at the wall with a sound bracket. Thirty-two
+    /// curved arcs at `b = 0.03` spend round 6's work by round 5, and
+    /// the bracket round 5 hands back holds the closed form.
+    #[test]
+    fn a_32_gon_of_arcs_stops_at_the_wall_holding_its_closed_form() {
+        let (chords, truth) = n_gon_of_arcs(32, 0.03);
+        let run = n_gon_run(&chords);
+        assert_eq!((run.end, run.rounds), (LaneEnd::Wall, 6), "{run:?}");
+        encloses(run.bounds.flux, truth, "32-gon flux");
+    }
+
+    /// **The trimmed lane's envelope is a floor.** A wide envelope on
+    /// the arc chord puts a pad under every round's width that no round
+    /// removes and that the lunes fall under, so the lane stops at its
+    /// floor rather than refining toward a target it cannot reach — at
+    /// whichever window it is entered, since a round's stop reads that
+    /// round alone.
+    #[test]
+    fn the_trimmed_lanes_envelope_is_a_floor() {
         let (ku, kvv, control, w) = flat_chart(1.0);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             general(&[(1.0, 0.0), (0.7, 0.7), (0.0, 1.0)], 1e-2),
             iso((0.0, 1.0), (0.0, 0.0)),
         ];
-        match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(0)) {
-            Ok(RoundOutcome::Open {
-                round: 0,
-                end: OpenEnd::Unreachable(PropsError::QuadratureBudget { rounds: 1, .. }),
-                ..
-            }) => {}
-            other => panic!(
-                "the trimmed lane's budget exit must end round 0's window with rounds \
-                 remaining: {other:?}"
-            ),
-        }
-        match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(1)) {
-            Ok(RoundOutcome::Open {
-                round: 1,
-                end: OpenEnd::Window,
-                ..
-            }) => {}
-            other => panic!("round 1 must run past the exit and end with its window: {other:?}"),
-        }
+        let whole = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
+            .expect("the enveloped arc has an enclosure");
+        assert_eq!(
+            whole.end,
+            LaneEnd::Floor,
+            "the envelope is a floor: {whole:?}"
+        );
+        let at = trimmed(
+            &ku,
+            &kvv,
+            &control,
+            &w,
+            &chords,
+            RoundWindow::at(whole.rounds - 1),
+        )
+        .expect("the same round, windowed");
+        assert_eq!(
+            (at.end, at.rounds),
+            (LaneEnd::Floor, whole.rounds),
+            "a window at the floor's round stops there too: {at:?}"
+        );
     }
 
     /// **Q2 — a flat patch with an ARC trim, and its lune pad.**
@@ -7959,9 +7757,9 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             4.0,
             0.0,
-            Tol::witness().get().eps,
             Band::linear(Tol::witness()).unwrap(),
             RoundWindow::SCHEDULE,
+            &mut to_target(Tol::witness().get().eps),
         )
         .map(|o| bounds_of(&o))
         .expect("the rectangle certificate answers its own fixture");
@@ -8688,6 +8486,51 @@ mod tests {
         assert_eq!(rnet.len(), 19);
     }
 
+    /// The quarter cylinder `x² + y² = 1`, `0 ≤ z ≤ 2` as ONE rational
+    /// Bézier span by one linear span: the exact-v arm, one v span.
+    fn one_span_quarter_cylinder() -> (KnotVector, KnotVector, Vec<RVec3>, Vec<f64>) {
+        let kv_u = KnotVector::unit_segment(const { core::num::NonZeroUsize::new(2).unwrap() });
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let mut net = Vec::new();
+        let mut weights = Vec::new();
+        for ([x, y], h) in [([1.0, 0.0], 1.0), ([1.0, 1.0], w), ([0.0, 1.0], 1.0)] {
+            for z in [0.0, 2.0] {
+                net.push([pt(x), pt(y), pt(z)]);
+                weights.push(h);
+            }
+        }
+        (kv_u, kv_v, net, weights)
+    }
+
+    /// **The wall is cumulative, at the lane.** Never accepted, the
+    /// one-span quarter cylinder's exact-v arm runs to its wall: rounds
+    /// 0 to 10 spend 7.6e6 of the 1.425e7, and round 11 alone (7.6e6)
+    /// would take it past, so it stops after 11 rounds. A wall read
+    /// per round would admit round 11 and stop after 12.
+    #[test]
+    fn a_never_accepted_face_stops_at_its_cumulative_wall() {
+        let (ku, kv, net, w) = one_span_quarter_cylinder();
+        let run = nurbs_patch_face_rounds::<f64>(
+            &ku,
+            &kv,
+            &net,
+            &w,
+            (0.0, 1.0, 0.0, 1.0),
+            2.0f64.mul_add(2.0, core::f64::consts::PI),
+            0.0,
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::SCHEDULE,
+            &mut |_, _| Ok(false),
+        )
+        .expect("the quarter cylinder has an enclosure");
+        assert_eq!(
+            (run.end, run.round, run.rounds),
+            (LaneEnd::Wall, 10, 11),
+            "{run:?}"
+        );
+    }
+
     /// The rational lane's round-0 enclosure of the quarter cylinder
     /// `x² + y² = 1`, `0 ≤ z ≤ 2`, with its `u` arc split at `k` (the
     /// Bézier arc with one knot inserted, so the locus and the truth
@@ -8722,9 +8565,9 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
-            Tol::witness().get().eps,
             Band::linear(Tol::witness()).unwrap(),
             RoundWindow::at(0),
+            &mut to_target(Tol::witness().get().eps),
         )
         .unwrap_or_else(|e| panic!("the quarter cylinder split at {k}: {e:?}"));
         bounds_of(&out)
@@ -9131,7 +8974,13 @@ mod tests {
         ];
         let got = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE);
         assert!(
-            !matches!(got, Ok(RoundOutcome::Converged(_))),
+            !matches!(
+                got,
+                Ok(LaneRun {
+                    end: LaneEnd::Accepted(_),
+                    ..
+                })
+            ),
             "a Trv trim endpoint converged: {got:?}"
         );
     }

@@ -1274,7 +1274,7 @@ impl CarriedRow for CarriedAtRestFinding {
 }
 
 /// **A carried census finding with the pin of the document it is of**,
-/// the body of a part's census row ([`crate::eval`]'s `PartValue`): which
+/// the body of a part's census row ([`mod@crate::eval`]'s `PartValue`): which
 /// version of `of` found it, which a [`Route`] does not say.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Pinned<F> {
@@ -1463,7 +1463,7 @@ fn verdict<T: crate::checks::at_rest::LocalizeLane>(
 }
 
 /// **A part's own at-rest verdict, as it crosses the seam**
-/// ([`crate::eval`]'s part store): what the census over the part's
+/// ([`mod@crate::eval`]'s part store): what the census over the part's
 /// product found, judged as the part's own gate judges it, so the
 /// document instantiating the part reports each finding once, as the
 /// part's.

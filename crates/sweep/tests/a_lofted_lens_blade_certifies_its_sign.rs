@@ -1,13 +1,18 @@
-//! **Check 7 decides a sign the reporting target cannot reach.** A
-//! blade lofted through lens sections (two arcs on one chord) along an
-//! arching spine, tapering and rolling: every lateral wall is a
-//! rational skin with cubic knots along the path. Its volume is
-//! positive beyond doubt, and at the default ε no round of the
-//! quadrature's schedule can meet the reporting target `1024·ε` on its
-//! walls, so the lane's budget exit refuses after round 0. That refusal
-//! is the reporting door's. The sign walk still refines the faces until
-//! the sign settles, and the gate admits the body; the reporting door
-//! keeps its refusal.
+//! **Check 7 decides a sign while the number is still open.** Tier 3's
+//! +V check reads only the SIGN of a volume enclosure, so a body can be
+//! admitted at a run's ε while a caller asking for its volume NUMBER is
+//! refused: the faces' lanes stop (at their floor or their work wall)
+//! short of the reporting target `1024·ε`. That is this file's subject.
+//!
+//! The blade lofted through lens sections — two arcs on one chord,
+//! along an arching spine, tapering and rolling, every lateral wall a
+//! rational skin with cubic knots along the path — was its fixture
+//! while its walls could not reach the target. They reach it now (the
+//! rational quotient statement narrowed their hulls, and the measured
+//! work wall gives the knot-cut walls their round 7), so the blade is
+//! the row that CERTIFIES, number and sign alike. The open number is
+//! carried by [`round_tube`], which stops at the wall short of the
+//! target at every ε row.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
@@ -70,8 +75,40 @@ fn blade(tol: Tol) -> topo::Body<f64> {
         .body
 }
 
+/// **A round tube big enough that its number stays open**: two
+/// circles (two semicircular arcs each, so every wall is rational) of
+/// radii `23.4·s` and `11.7·s`, lofted `125·s` apart, with
+/// `s = 64·(ε / 1e-9)`. The reporting target is `1024·ε` and the width a
+/// wall reaches at the work wall is a length that grows with the part,
+/// so scaling the part with ε puts the same crossing at every ε row.
+/// Measured at ε = 1e-9: the tube certifies its number at `s = 32`,
+/// and at 48 and 64 each wall stops at the work wall after 11 rounds
+/// (the exact-v arm's round 10), 1.050e-6 and 1.400e-6 m against the
+/// 1.024e-6 m target. It is `pncad-py`'s `oversized_round_loft`.
+fn round_tube(tol: Tol) -> topo::Body<f64> {
+    let circle = |r: f64| {
+        vec![bulge_loop(vec![
+            (Point2::new(r, 0.0), -1.0),
+            (Point2::new(-r, 0.0), -1.0),
+        ])]
+    };
+    let s = 64.0 * tol.eps() / geom_core::tolerance::DEFAULT_EPS;
+    loft_body::<f64>(
+        &[circle(23.4 * s), circle(11.7 * s)],
+        &sweep::test_support::stacked_at(&[0.0, 125.0 * s]),
+        1,
+        tol,
+    )
+    .expect("the tube lofts")
+    .body
+}
+
+/// The blade certifies: tier 3 admits it on a positive enclosure, the
+/// reporting door measures it at the default ε and looser, and the
+/// number sits in the gate's bracket. At ε = 1e-9:
+/// `0.034605949150085524 ± 4.64e-7` m³.
 #[test]
-fn a_lofted_lens_blade_certifies_its_sign_past_the_budget_exit() {
+fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
     let tol = Tol::witness();
     let body = topo::test_support::finished("the lens blade", blade(tol), tol);
     let certificate = topo::validate_geometric_certificate(&body, tol).unwrap_or_else(|e| {
@@ -85,50 +122,109 @@ fn a_lofted_lens_blade_certifies_its_sign_past_the_budget_exit() {
         enclosure.volume_lo > 0.0,
         "the admitted blade's volume enclosure is positive: {enclosure:?}"
     );
-    // The reporting door's refusal is the budget exit's, at round 0: the
-    // sign walk did not answer the reporting question, it only stopped
-    // being cut off by it.
-    if tol.eps() <= geom_core::tolerance::DEFAULT_EPS {
-        match topo::mass_properties(&body, tol) {
-            Err(MassPropsError::Face {
-                source: source @ geom_brep::PropsError::QuadratureBudget { rounds: 1, .. },
-                ..
-            }) => assert_eq!(
-                certificate.target_refusal(),
-                Some(&source),
-                "the certificate carries the reporting door's refusal verbatim, through every \
-                 round its sign walk ran past the budget exit"
-            ),
-            other => panic!(
-                "the reporting door refuses the blade at the budget exit at ε = {:e}: {other:?}",
-                tol.eps()
-            ),
+    // At ε = 1e-12 the target is a thousand times tighter and the
+    // blade's number may stay open; the sign is the claim there.
+    match topo::mass_properties(&body, tol) {
+        Ok(measured) => {
+            assert!(
+                enclosure.volume_lo <= measured.volume && measured.volume <= enclosure.volume_hi,
+                "the blade's number {} sits in the gate's bracket {enclosure:?}",
+                measured.volume
+            );
+            if tol.eps() == geom_core::tolerance::DEFAULT_EPS {
+                assert_eq!(
+                    (measured.volume.to_bits(), measured.volume_pad.to_bits()),
+                    (
+                        0.034_605_949_150_085_524_f64.to_bits(),
+                        4.641_116_114_016_224e-7_f64.to_bits()
+                    ),
+                    "the blade's bits at the default ε: {measured:?}"
+                );
+            }
         }
+        Err(MassPropsError::Face {
+            source: geom_brep::PropsError::QuadratureBudget { .. },
+            ..
+        }) if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {}
+        Err(e) => panic!(
+            "the reporting door measures the blade at ε = {:e}: {e:?}",
+            tol.eps()
+        ),
     }
 }
 
-/// **A walk that cannot settle runs no round past the budget exit.**
-/// The volume backstop reads each body to its reporting target, so a
-/// face its lane has refused is of no further use to it. Both of the
-/// blade's quadrature walls refuse at the budget exit, so the backstop
-/// pays each exactly round 0's two readings (`props_quad_converged`
-/// and `props_quad_last_round`) — the two the reporting door pays for
-/// its first refusing wall before it stops. Counted, not timed: the
-/// rounds a resumed refused face would add are each another reading.
+/// **The sign settles while the number is open.** The gate admits the
+/// tube on a positive enclosure; the reporting door refuses its number
+/// with the wall's own width, after the rounds the lane ran; the gate
+/// carries no refusal (it stopped where the sign settled); and the
+/// certificate's continuation refuses verbatim as the door does, with a
+/// positive bracket no wider than the gate's.
 #[test]
-fn the_volume_backstop_runs_no_round_past_the_budget_exit() {
+fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
     let tol = Tol::witness();
-    if tol.eps() > geom_core::tolerance::DEFAULT_EPS {
-        println!(
-            "SKIPPED at ε {:e}: the blade's walls are not refused at the budget exit here",
+    let body = topo::test_support::finished("the round tube", round_tube(tol), tol);
+    let certificate = topo::validate_geometric_certificate(&body, tol)
+        .unwrap_or_else(|e| panic!("check 7 refuses the tube at ε = {:e}: {e:?}", tol.eps()));
+    let enclosure = certificate.enclosure();
+    assert!(
+        enclosure.volume_lo > 0.0,
+        "the admitted tube's volume enclosure is positive: {enclosure:?}"
+    );
+    let door = topo::mass_properties(&body, tol);
+    match &door {
+        Err(MassPropsError::Face {
+            source:
+                source @ geom_brep::PropsError::QuadratureBudget {
+                    width_len,
+                    target_len,
+                    rounds: 11,
+                },
+            ..
+        }) => assert!(width_len > target_len, "{source:?}"),
+        other => panic!(
+            "the reporting door refuses the tube's number at the wall at ε = {:e}: {other:?}",
             tol.eps()
-        );
-        return;
+        ),
     }
-    let body = topo::test_support::finished("the lens blade", blade(tol), tol);
+    // The gate stopped each wall where the sign settled, long before any
+    // reached its wall, so the certificate carries no refusal of its
+    // own; its continuation runs the walls on and refuses verbatim as
+    // the door does.
+    assert_eq!(
+        certificate.target_refusal(),
+        None,
+        "no face ran out under the gate"
+    );
+    match certificate.measure() {
+        Err(topo::TargetUnreached { refusal, bracket }) => {
+            assert_eq!(
+                Err(refusal),
+                door.map(|_| ()),
+                "the continuation refuses as the door does"
+            );
+            let b = bracket.expect("a budget refusal keeps a bracket");
+            assert!(
+                b.volume_lo > 0.0
+                    && b.volume_hi - b.volume_lo <= enclosure.volume_hi - enclosure.volume_lo
+            );
+        }
+        Ok(p) => panic!("the continuation measured the tube: {p:?}"),
+    }
+}
+
+/// **The backstop pays a refused face once per body it reads.** The
+/// volume backstop reads each body to its reporting target, so it runs
+/// the tube's first refusing wall to its stop and no further, as the
+/// reporting door does: reading the tube twice (`A` and the planted
+/// result) costs exactly twice the door's quadrature readings. Counted,
+/// not timed: a round a refused face ran again would be another reading.
+#[test]
+fn the_volume_backstop_reads_a_refused_face_once_per_body() {
+    let tol = Tol::witness();
+    let body = topo::test_support::finished("the round tube", round_tube(tol), tol);
     let brick = crate::common::square_prism();
     let reporting = crate::common::quad_verdicts(|| {
-        topo::mass_properties(&body, tol).expect_err("the reporting door refuses the blade");
+        topo::mass_properties(&body, tol).expect_err("the reporting door refuses the tube");
     });
     let backstop = crate::common::quad_verdicts(|| {
         topo::test_support::volume_backstop(topo::BooleanOp::Union, &body, &brick, &body, tol)
@@ -137,7 +233,7 @@ fn the_volume_backstop_runs_no_round_past_the_budget_exit() {
     assert_eq!(
         backstop,
         2 * reporting,
-        "the backstop read the blade's two refused walls past round 0 ({backstop} quadrature \
-         readings against the reporting door's {reporting} for one wall)"
+        "the backstop read the tube's refused wall past its stop ({backstop} quadrature \
+         readings against the reporting door's {reporting} for one body)"
     );
 }
