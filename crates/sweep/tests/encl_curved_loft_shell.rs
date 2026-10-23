@@ -792,6 +792,14 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
         props.volume,
         props.volume_pad
     );
+    // And the bracket is tight: the cap floors at its first round, so
+    // a pad that grew (a looser rule, a lost round) would make the
+    // containment above vacuous. Measured 3.7e-14 at the default ε.
+    assert!(
+        props.volume_pad <= 1e-12,
+        "the moved box's volume bracket widened to ± {}",
+        props.volume_pad
+    );
 }
 
 /// **A moved plane's section with a held fit follows the plane.** The
