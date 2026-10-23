@@ -3874,9 +3874,9 @@ class Doc:
 
         The vocabulary, in full: `profile`, `extrude`, `revolve`,
         `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`, `chamfer`,
-        `shell`, `split`, `mirror`, `union`, `intersect`, `subtract`,
-        `place`, `world`, `space`, `pattern`, `part`, `placed_union`,
-        `instantiate_part`, `measure`, `assertion`.
+        `shell`, `split`, `mirror`, `union`, `intersect`, `assemble`,
+        `subtract`, `place`, `world`, `space`, `pattern`, `part`,
+        `placed_union`, `instantiate_part`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
         placement and a placed union all evaluate to a value whose

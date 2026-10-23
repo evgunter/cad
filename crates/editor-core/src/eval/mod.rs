@@ -785,10 +785,9 @@ pub struct NodeValue<T: Decide> {
     /// outputs that are a split's two halves are two parts. The placers
     /// (`Place`, `Pattern`) and `Part` carry the count through; every
     /// other op builds a body of its own and counts 1, an explicit union
-    /// (the fuse) included. More than one makes the value a PRODUCT,
-    /// which every op that fuses or reshapes a single body operand
-    /// refuses ([`NodeErrorKind::ProductOperand`]); a reader of its
-    /// geometry (a pose read off a face) reads it as it is.
+    /// (the fuse) included. A body of several parts is an ordinary
+    /// operand (D10 `[operations.operators]`: `(p ⊔ q) − t` cuts both
+    /// pieces).
     pub parts: usize,
     /// **A placement's solved motion** (D10): where its copies sit
     /// relative to the shapes they copy, `None` for a copy the identity
@@ -1017,9 +1016,8 @@ pub enum ValuePayload<T: Decide> {
     /// instance out of it by index, and the product gather takes
     /// every instance in order. Every other consumer of a body
     /// operand — the set is `wire::read_body`'s callers (a pose read
-    /// off a face) and `wire::body_operand`'s (a blend's and a shell's
-    /// body, a split's target, a boolean's and a union's members, a
-    /// placed union's prototype) —
+    /// off a face, a blend's and a shell's body, a split's target, a
+    /// boolean's and a union's members, a placed union's prototype) —
     /// takes ONE body and refuses this value typed (`WrongOperand`):
     /// a boolean of N bodies is N booleans or one union of them, a
     /// blend of N bodies is N blends, and the recipe does not guess
@@ -1578,20 +1576,6 @@ pub enum NodeErrorKind {
     EmptyOperand {
         /// The empty input node.
         input: RecipeNodeId,
-    },
-    /// A body operand is a PRODUCT — several parts a document gathered
-    /// ([`NodeValue::parts`]; `crates/editor-core/ASSEMBLY.md`, A2) —
-    /// which no op that fuses or reshapes one body accepts
-    /// (`docs/DESIGN.md`, "A solid is one piece of material"): which
-    /// solids are one part is recipe structure, and an explicit union is
-    /// what makes the parts one body. The placers carry a product
-    /// through instead, and a reader of geometry (a pose read off a face)
-    /// consumes no material and reads it as it is.
-    ProductOperand {
-        /// The operand node.
-        input: RecipeNodeId,
-        /// How many parts its document gathered.
-        parts: usize,
     },
     /// A body operand is not a finished body: the at-rest gate
     /// ([`topo::AtRestPolicy::gate_at_rest_kept`], tier 3) refuses the
@@ -2166,12 +2150,6 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::EmptyOperand { input } => write!(
                 f,
                 "{} is the empty value — the body ops take real bodies",
-                by.node_as(*input, "input")
-            ),
-            Self::ProductOperand { input, parts } => write!(
-                f,
-                "{} gathers {parts} parts, and this op takes one body. Recourse: union the \
-                 parts explicitly in their document and use that union",
                 by.node_as(*input, "input")
             ),
             Self::UnfinishedOperand { input, errors } => write!(

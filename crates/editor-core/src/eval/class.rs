@@ -91,8 +91,6 @@ pub enum NodeErrorClass {
     WrongOperand,
     /// [`NodeErrorKind::EmptyOperand`].
     EmptyOperand,
-    /// [`NodeErrorKind::ProductOperand`].
-    ProductOperand,
     /// [`NodeErrorKind::UnfinishedOperand`].
     UnfinishedOperand,
     /// [`NodeErrorKind::EmptyHalf`].
@@ -256,7 +254,6 @@ impl NodeErrorKind {
             Self::Seed { .. } => C::Seed,
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
-            Self::ProductOperand { .. } => C::ProductOperand,
             Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
@@ -410,7 +407,6 @@ mod tests {
         Seed,
         WrongOperand,
         EmptyOperand,
-        ProductOperand,
         UnfinishedOperand,
         EmptyHalf,
         InstanceOutOfRange,
@@ -616,10 +612,6 @@ mod tests {
                 found: "profile",
             },
             C::EmptyOperand => K::EmptyOperand { input: n(3) },
-            C::ProductOperand => K::ProductOperand {
-                input: n(3),
-                parts: 2,
-            },
             C::UnfinishedOperand => K::UnfinishedOperand {
                 input: n(3),
                 errors: vec![topo::ValidationError::ScaffoldAtRest {

@@ -856,10 +856,9 @@ pub enum InterfaceCrossing {
     /// is the reference that moved into the part, spelled in the
     /// PART's own names — unwrapped, because that is what the part's
     /// product answers to and re-verification resolves against. The
-    /// wrapped form (`outer / InPart{ inner }`) is what the
-    /// remainder's mate now reads, and re-wrapping is the split's
-    /// rebind, so storing the wrapper twice would be storing a
-    /// derivable fact.
+    /// instance's copy carries the part's product names verbatim, so
+    /// the remainder's mate reads that same name there, and storing
+    /// its host spelling too would be storing a derivable fact.
     ///
     /// **No provenance.** A crossing carries what the seam needs and
     /// nothing about where it came from: the mate the split observed
@@ -3011,10 +3010,9 @@ impl<P, S: Slot> Node<P, S> {
     /// port ([`crate::Doc::output`]).
     ///
     /// A [`Node::Place`]'s one port has its one shape's shape: `Bodies`
-    /// over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]); over
-    /// several it is their copies keyed by read. An instance defines one `copies`, the
-    /// part's world copies keyed by their identity in the part
-    /// ([`crate::CopyKey`]). No port count depends on a list.
+    /// over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]). An
+    /// instance defines one `copy`, a `Body`: the copy of its part's
+    /// product. No port count depends on a list.
     ///
     /// Exhaustive over the variants, so one added does not compile
     /// until it states what it defines.

@@ -1140,22 +1140,21 @@ fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
     ));
 }
 
-/// **What the channel does NOT reach, measured.** A boolean's value
-/// carries records (its own declared pairs, remapped) and no
-/// declaration rows, so a finding against one of them is
-/// `Unattributed` — which is correct there, because no mate authored
-/// them. What could make it wrong is a declaration row reaching a
-/// boolean operand, and nothing can: an instance that CARRIES a
-/// declaration is a product of at least two parts (a mate is between
-/// two members of the document that authored it), an instance's copy is
-/// one body of those parts, and a boolean refuses a body of several
-/// parts where it evaluates (`NodeErrorKind::ProductOperand`), before
-/// any census over its operands.
+/// **A boolean reads a product as it is** (D10
+/// `[operations.operators]`: a `⊔`'s result is an ordinary operand,
+/// and FORK-2b's refusal of a product as a boolean operand is
+/// retired). An instance of a stand is one body of the stand's two
+/// cubes; a union of it with a cube placed far off keeps the cubes
+/// apart where they rest or stand off, so the result is three solids:
+/// the meeting inside the operand is not decided again. Cubes that
+/// interpenetrate inside the operand refuse where the union reads
+/// them, typed by the kernel.
 ///
-/// Every seat, so what refuses is the rule and not this geometry:
-/// penetrating, resting, gapped.
+/// A record or declaration row of the stand reaching the union's
+/// result is not this row's: the carry is its own unit
+/// (`docs/INTENT-STAGE3-SPEC.md` §12, "The carry").
 #[test]
-fn no_carried_declaration_can_reach_a_boolean_operand() {
+fn a_boolean_over_a_product_keeps_its_parts() {
     for (label, standoff) in [("pen", -0.5), ("rest", 0.0), ("gap", 0.5)] {
         let (store, inner_ref, cube) = product_and_cube(label, standoff);
         let doc = ProfileDoc::empty(
@@ -1163,13 +1162,14 @@ fn no_carried_declaration_can_reach_a_boolean_operand() {
             Tol::witness(),
         );
         let (doc, instance) = pinned_instance(doc, &store, inner_ref);
-        refuses_as_product(
-            &store,
-            &doc,
-            instance,
-            cube,
-            &format!("{label}: the instance"),
-        );
+        let what = format!("{label}: the instance");
+        match union_with_far_cube(&store, &doc, instance, cube) {
+            Ok(solids) => {
+                assert!(standoff >= 0.0, "{what}: interpenetrating parts unioned");
+                assert_eq!(solids, 3, "{what}: the two parts and the far cube");
+            }
+            Err((kernel, kind)) => assert!(standoff < 0.0 && kernel, "{what}: {kind}"),
+        }
     }
 }
 
@@ -1191,17 +1191,15 @@ fn product_and_cube(label: &str, standoff: f64) -> (PartStore, DocRef, DocRef) {
     (store, inner_ref, cube)
 }
 
-/// `Union(a, cube placed far off)` refused where it evaluates: `a` is
-/// one body of several parts (an instance's copy of a `⊔`), and
-/// material is fused one part at a time
-/// (`NodeErrorKind::ProductOperand`).
-fn refuses_as_product(
+/// `Union(a, cube placed far off)`, evaluated: how many solids it
+/// holds, or why it refused: whether the kernel's boolean refused, and
+/// the refusal.
+fn union_with_far_cube(
     store: &PartStore,
     doc: &ProfileDoc,
     a: RecipeNodeId,
     cube: DocRef,
-    what: &str,
-) {
+) -> Result<usize, (bool, String)> {
     let (doc, far) = insert(doc.clone(), crate::fixture::mated_instance(cube));
     let doc = place(doc, store, far, [50.0, 0.0, 0.0]);
     let (doc, union) = insert(
@@ -1211,21 +1209,25 @@ fn refuses_as_product(
         },
     );
     let ev = run(&doc, &with_resolver(store.clone()));
-    assert!(
-        matches!(
-            ev.node_error(union).map(|e| &e.kind),
-            Some(editor_core::NodeErrorKind::ProductOperand { input, parts: 2 }) if *input == a
-        ),
-        "{what}: a body of two parts is fused one part at a time: {:?}",
-        ev.node_error(union)
-    );
+    if let Some(e) = ev.node_error(union) {
+        return Err((
+            matches!(e.kind, editor_core::NodeErrorKind::Boolean(_)),
+            format!("{:?}", e.kind),
+        ));
+    }
+    match ev.value(union).map(|v| &v.payload) {
+        Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
+            body, ..
+        })) => Ok(body.solids().count()),
+        other => panic!("a union of bodies is a body: {other:?}"),
+    }
 }
 
-/// **A sub-assembly carries the copies through.** A document whose ONE
-/// placement instantiates the stand delivers copies when it is itself
-/// instantiated, so the union of that instance refuses too.
+/// **A sub-assembly carries the parts through.** A document whose ONE
+/// placement instantiates the stand delivers both cubes when it is
+/// itself instantiated, and the union keeps them apart.
 #[test]
-fn a_product_inside_a_sub_assembly_still_refuses() {
+fn a_product_inside_a_sub_assembly_keeps_its_parts() {
     let (mut store, inner_ref, cube) = product_and_cube("nested", 0.0);
     let wrap = ProfileDoc::empty(DocumentId::derive("docm6-bool-nested-wrap"), Tol::witness());
     let (wrap, _) = pinned_instance(wrap, &store, inner_ref);
@@ -1236,13 +1238,17 @@ fn a_product_inside_a_sub_assembly_still_refuses() {
         Tol::witness(),
     );
     let (doc, instance) = pinned_instance(doc, &store, wrap_ref);
-    refuses_as_product(&store, &doc, instance, cube, "the sub-assembly's instance");
+    assert_eq!(
+        union_with_far_cube(&store, &doc, instance, cube),
+        Ok(3),
+        "the sub-assembly's instance"
+    );
 }
 
-/// **A placer carries the copies through.** A placed copy of an
-/// instance is still its copies, so the union of it refuses at the door.
+/// **A placer carries the parts through.** A placed copy of an
+/// instance is still both cubes, and the union keeps them apart.
 #[test]
-fn a_placed_product_still_refuses() {
+fn a_placed_product_keeps_its_parts() {
     let (store, inner_ref, cube) = product_and_cube("moved", 0.0);
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-bool-moved-outer"), Tol::witness());
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
@@ -1253,15 +1259,17 @@ fn a_placed_product_still_refuses() {
         )),
     );
     let doc = fixture::pinned(doc, moved, &with_resolver(store.clone()));
-    refuses_as_product(&store, &doc, moved, cube, "the placed instance");
+    assert_eq!(
+        union_with_far_cube(&store, &doc, moved, cube),
+        Ok(3),
+        "the placed instance"
+    );
 }
 
-/// **A placed union of a product refuses too**: its prototype takes the
-/// copies, and its evaluation refuses them as a product of two parts
-/// (`NodeErrorKind::ProductOperand`), naming the explicit union as the
-/// recourse.
+/// **A placed union of a product places it whole**: its prototype is
+/// the instance's one body, both cubes, placed at each frame.
 #[test]
-fn a_placed_union_of_a_product_refuses() {
+fn a_placed_union_of_a_product_places_both_parts() {
     let (store, inner_ref, _) = product_and_cube("placed", 0.0);
     let doc = ProfileDoc::empty(
         DocumentId::derive("docm6-bool-placed-outer"),
@@ -1280,16 +1288,10 @@ fn a_placed_union_of_a_product_refuses() {
         },
     );
     let ev = run(&doc, &with_resolver(store));
-    let failure = ev
-        .node_error(group)
-        .expect("the placed union does not evaluate over a product");
     assert!(
-        matches!(
-            failure.kind,
-            editor_core::NodeErrorKind::ProductOperand { input: i, parts: 2 } if i == instance
-        ),
-        "the placed union's prototype: refused as a product: {:?}",
-        failure.kind
+        ev.node_error(group).is_none(),
+        "the placed union evaluates over a product: {:?}",
+        ev.node_error(group)
     );
 }
 

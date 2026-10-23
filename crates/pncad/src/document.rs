@@ -109,9 +109,9 @@ pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 // `EditError::PlacementRuleMismatch` carry. An operand field is an
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
-// A read of one copy of a placement's copies names it by its
-// `CopyKey`; a placement's constraints are addressed by their
-// `ConstraintId`.
+// A placement copies one source; a read of one member of a `⊔` (an
+// instance's copy of a part's product, say) is a pick of it. A
+// placement's constraints are addressed by their `ConstraintId`.
 pub use editor_core::{
     Axis3, Bodies, BodyRead, ConstraintId, CountMismatch, InputFault, ListFault,
     LoftSection, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,

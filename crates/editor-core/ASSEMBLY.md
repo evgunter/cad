@@ -29,8 +29,8 @@ where they disagree with DESIGN, DESIGN is the design.
 | A6 improper frames | `src/placement.rs` (`Frame`); `Node::Mirror` in `src/node.rs`, `wire_mirror` in `src/eval/wire.rs`, `mirror_body` in `crates/topo/src/mirror.rs` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9 partitions | `relative_freedom_components` in `src/mate/solve.rs` |
-| A11 (2) bundles, spaces | `solve_bundle`, `fold_bundle`, `overconstrained`, `pins` in `src/mate/solve.rs`; the space derivation (`Doc::space_of`, `node_space`, `space_fault`) in `src/doc.rs`; the one cross-space predicate `Doc::across_spaces`; an instance's copies (`ValuePayload::Copies`, `CopyKey`) in `src/eval/wire.rs` and `src/eval/parts.rs` |
-| A10 the world and the gather | `Node::Place`, `Node::World` in `src/node.rs`, `Doc::placements`/`Doc::unplaced` in `src/doc.rs`, `src/product.rs`, `DocEdit::place` in `src/edit.rs`, `mate::Placed` and `mate::stand` |
+| A11 (2) bundles, spaces | `solve_bundle`, `fold_bundle`, `overconstrained`, `pins` in `src/mate/solve.rs`; the space derivation (`Doc::space_of`, `node_space`, `space_fault`) in `src/doc.rs`; the one cross-space predicate `Doc::across_spaces`; an instance's copy in `src/eval/wire.rs` and `src/eval/parts.rs`; picks (`VarDef::Pick`, `pick_fault`) in `src/var.rs` and `src/edit.rs` |
+| A10 the product slot and the gather | `Node::Place`, `Node::World`, `Node::Assemble` in `src/node.rs`, `Doc::product` in `src/doc.rs`, `src/product.rs` (`product_recorded`, `assemble_gathers`), `DocEdit::SetProduct` and `DocEdit::place` in `src/edit.rs`, `mate::Placed` and `mate::stand` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
 ## Scope
@@ -276,21 +276,26 @@ pose, so the world is one body. A copy in another space (A11 (2)), a
 it, and is not part of that body. The viewer's free-move probe is display state, never persisted
 (`crates/viewer/src/display.rs`).
 
-**A10 — The product is the world.** The product is the copies the
-document's placements define whose space reaches the world, in the
-document order of those placements. A placement (`Place`, or an
-instance) is an operation reading the shapes it copies and defining
-their copies as one output, so two placements of one body are two
-copies. Its constraints relate the copy to the world, directly or
-through the copies it is pinned against, and only the gather, export and
-a constraint read the world. Nothing else places: no edit places or
-unplaces as a side effect, and nothing derives a placement from what
-reads what. An empty world is a valid document with an empty product; a
-door needing a product refuses `EmptyProduct`, naming the bodies no
-placement copies. A placement whose body is deleted
-is a stranded reader (D10), and the gather refuses naming it. Split and
-inline move placements with their bodies (A4). `product::product`
-gathers the copies in placement order.
+**A10 — The product is a slot.** A document's product is the body its
+product slot reads (`Doc::product`, set by `DocEdit::SetProduct`), a
+body in the world: one copy, or a `⊔` (`Node::Assemble`) of several,
+each operand one arrival of the census. A placement (`Place`, or an
+instance) is an operation reading one source and defining one copy, so
+two placements of one body are two copies; an instance's copy is a copy
+of its part's product. Its constraints relate the copy to the world,
+directly or through the copies it is pinned against, and only the
+gather, export and a constraint read the world. Nothing else places: no
+edit places or unplaces as a side effect, and nothing derives a
+placement or a product from what reads what. A slot that reads nothing
+is a valid document with no product; a door needing a product refuses
+`EmptyProduct`. The door refuses a product read that is no body in the
+world (`EditError::ProductRead`), and a product read whose body is
+deleted is a stranded reader (D10): the gather refuses
+`StrandedProduct`. Split and inline move placements with their bodies
+and re-point the slot where they take what it reads (A4).
+`product::product` gathers the slot's body, a `⊔`'s pieces each its own
+source; a `⊔` the slot does not read is gathered by itself
+(`product::assemble_gathers`) and checked at the gate (A5).
 
 ## The constructive-solve boundary
 
@@ -433,13 +438,15 @@ unit that retires it lands.
 
 **A3 — The node vocabulary; mates are declarations.**
 `Node::InstantiatePart { doc_ref, interface, constraints }` instantiates
-a pinned document, and is a placement: its one output `copies` is the
-part's world copies, each keyed by its identity in the part
-(`CopyKey`), moved together by the motion its constraints pin. A reader
-of one copy reads it by its key (`BodyRead::key`); a selection names a
-face of it by the part-local name path, wrapped at the instance.
-`Node::Place { shapes, constraints }` copies the bodies it reads, one
-output of their shape. The world, `Node::World`, is minted with every
+a pinned document, and is a placement: its one output is a copy of the
+part's product, moved by the motion its constraints pin. A copy carries
+its source's names as they are, so a selection names a face of it by the
+part's own name, read at the instance. A reader of one piece of a copy
+reads a pick (`VarDef::Pick { placement, of }`): the path through the
+source's placements and `⊔` operands to the piece's variable, which the
+door refuses through any other operator (`EditError::PickPath`).
+`Node::Place { source, target, constraints }` copies the one body it
+reads. The world, `Node::World`, is minted with every
 document, defines no variable, and is read only by a placement's
 constraints and by export. Repetition is an index variable (D10,
 Repetition): a placement whose reads reach an index places one copy per
@@ -455,8 +462,8 @@ is the primitive: `Frame`–`Frame` coincides, `Axis`–`Axis` is coaxial,
 `Direction`–`Direction` is parallel, each pinning the relative pose to a
 coset of the kind's `Subgroup` (A11 (1)).
 
-- `on` is a pose read off the copied shapes' geometry (a `Place`'s
-  shapes, an instance's own copies; else `MateFault::NotOnTheCopy`).
+- `on` is a pose read off the copied source's geometry (a `Place`'s
+  source, an instance's own copy; else `MateFault::NotOnTheCopy`).
 - `to` is a pose read off geometry of the space the copy joins. No
   space has roles a mate can read: there is no world frame and no part
   frame to read.
@@ -499,7 +506,7 @@ geometry is `mate::corner_frame`'s, which a caller asks before writing
 the moves it means.
 
 Evaluation mints the declaration of each constraint whose two face
-sides read copies of the space being gathered into the product's
+sides read copies the product's gather reaches into the product's
 `ContactRecords`, the same currency as the boolean wrapper's;
 declarations are verified, never trusted. `class_admission` is the one
 table both the solve and the mint door read: `Rest` solves and mints;

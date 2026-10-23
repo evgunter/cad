@@ -1059,9 +1059,9 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
                 .map(|v| v.unbind().into_any())),
             none(),
         ),
-        // The space is a variable, not a node: it and its own gather
-        // refusal are in the message.
-        E::Space { .. } => (none(), none()),
+        // The `⊔` is read by its output, not a node: it and its own
+        // gather refusal are in the message.
+        E::Assemble { .. } => (none(), none()),
         E::AtRest { findings } | E::Uncertified { findings, .. } => (
             none(),
             obj(findings

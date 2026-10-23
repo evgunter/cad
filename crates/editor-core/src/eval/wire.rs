@@ -1031,30 +1031,8 @@ fn wrong_operand<T: Decide>(
 
 // OPERAND-DOOR END
 
-/// **A body that becomes material of the result**: what every consumer
-/// that combines or reshapes ONE body reads through (a blend, a shell,
-/// a split's target, a boolean's and a union's members, a placed
-/// union's prototype). It is [`read_body`] that also refuses a PRODUCT,
-/// a body of several parts ([`NodeErrorKind::ProductOperand`];
-/// `NodeValue::parts`): a solid is one piece of material, so material
-/// is fused or reshaped one part at a time. The placers read
-/// [`placeable_operand`] instead and carry a product through.
-fn body_operand<T: Decide>(
-    results: &Results<T>,
-    input: RecipeNodeId,
-) -> Result<Arc<Body<T>>, NodeErrorKind> {
-    let v = value_of(results, input)?;
-    if v.parts > 1 {
-        return Err(NodeErrorKind::ProductOperand {
-            input,
-            parts: v.parts,
-        });
-    }
-    read_body(results, input)
-}
-
 /// **A body operand, finished** for a door that takes finished bodies
-/// (the Boolean's, the split's, the shell's and the blends'): [`body_operand`]'s
+/// (the Boolean's, the split's, the shell's and the blends'): [`read_body`]'s
 /// body through the at-rest gate
 /// ([`topo::AtRestPolicy::gate_at_rest_kept`]), once per operand of the
 /// node. The evaluator holds the bodies its nodes built with no verdict
@@ -1062,14 +1040,14 @@ fn body_operand<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`body_operand`]'s; [`NodeErrorKind::UnfinishedOperand`] where the
+/// [`read_body`]'s; [`NodeErrorKind::UnfinishedOperand`] where the
 /// gate refuses the body.
 fn finished_operand<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     results: &Results<T>,
     input: RecipeNodeId,
     tol: Tol,
 ) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
-    let body = body_operand(results, input)?;
+    let body = read_body(results, input)?;
     T::gate_at_rest_kept((*body).clone(), tol)
         .map_err(|errors| NodeErrorKind::UnfinishedOperand { input, errors })
 }
@@ -1077,8 +1055,7 @@ fn finished_operand<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// **A body read for its geometry**: a Body value, or a boolean's
 /// non-empty result — [`placeable_operand`]'s `Body` arm, refusing the
 /// other in its own one-body word. A reader consumes no material (a
-/// pose read off a face reads a face), so a product is read as it is;
-/// the product refusal is [`body_operand`]'s.
+/// pose read off a face reads a face).
 fn read_body<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
@@ -2463,7 +2440,7 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, source)?;
+    let body = read_body(results, source)?;
     let PoseValue::Plane { origin, normal } = plane else {
         unreachable!(
             "the door admits a plane alone at a mirror's plane, not {}",
@@ -4380,7 +4357,7 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, input)?;
+    let body = read_body(results, input)?;
     let maps: Vec<RigidMotion<T>> = match kind.placements() {
         // Listed frames are literal: each is admitted at the decided
         // door.

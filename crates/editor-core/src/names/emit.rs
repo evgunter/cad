@@ -1250,7 +1250,7 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                 }],
             };
             // The prototype is ONE body — a placed union fuses what
-            // `body_operand` admits, and a value of several bodies is
+            // `read_body` admits, and a value of several bodies is
             // `Pattern`'s to place, never this node's to fuse — so its
             // table is a single-output-body table, and a row at any
             // other index is a bug: surfaced, not dropped.

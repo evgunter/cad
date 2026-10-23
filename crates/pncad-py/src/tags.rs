@@ -543,7 +543,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Open => "open",
         S::Face => "face",
         S::Side { .. } => "side",
-        S::Shape(_) => "shape",
+        S::Source => "source",
         S::Measured(..) => "measured",
         S::Tool => "tool",
         S::From => "from",
@@ -937,7 +937,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // A selection a node reads: a name the ladder refused.
         C::SelectResolve => "select_resolve",
         C::EmptyOperand => "empty_operand",
-        C::ProductOperand => "product_operand",
         C::UnfinishedOperand => "unfinished_operand",
         C::DegenerateDirection => "degenerate_direction",
         C::NonFiniteDirection => "non_finite_direction",
@@ -1081,7 +1080,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::EmptyOperand { .. } => None,
-        NodeErrorKind::ProductOperand { .. } => None,
         NodeErrorKind::UnfinishedOperand { .. } => None,
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
@@ -2464,7 +2462,7 @@ pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
         AssemblyError::CarriedAtRest { .. } => "carried_at_rest",
         AssemblyError::AtRest { .. } => "at_rest",
         AssemblyError::Uncertified { .. } => "uncertified",
-        AssemblyError::Space { .. } => "own_space",
+        AssemblyError::Assemble { .. } => "assemble",
     }
 }
 

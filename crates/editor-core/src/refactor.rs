@@ -26,8 +26,10 @@
 //! names one cut world placement's copy holds, re-authored on the
 //! instance's copies; a read of one copy of a cut world placement, or of
 //! a cut `Place`'s one copy, or of a body one cut world `Place` copies
-//! at the identity, each re-pointed to that copy of the instance by its
-//! key in the part ([`crate::CopyKey`]). Any other remainder read of
+//! at the identity, each re-pointed to a pick of the instance's copy:
+//! the member of the part's product `⊔` that copy is, or the copy whole
+//! where the product is that one copy ([`crate::VarDef::Pick`]). Any
+//! other remainder read of
 //! the cut is severed too.
 //!
 //! # Placements cross the seam (A4)
@@ -89,15 +91,15 @@
 //!
 //! Split rewrites every remainder-side reference to a cut entity —
 //! fillet selections, frame faces, appearance keys — from its local
-//! name to the `InPart`-wrapped name at the new instance, around the
-//! name the part's product spells it by: a cut world placement's own
-//! name as it is, and a body's name under the cut placement that copies
-//! it (`Placed`; a recorded [`DocEdit::Rebind`] per name), which is
-//! exactly how "every stable name that resolved before resolves after,
-//! through the instance qualifier" (D-4) is kept. Inline applies the
-//! inverse rewrite: `InPart`-wrapped names at the inlined instance
-//! re-anchor to the spliced local names — the body's own where its
-//! copy stands where the body did, the carried copy's otherwise.
+//! name to the name the part's product spells it by, which the new
+//! instance's copy carries verbatim: the name the cut world placement's
+//! copy carries, keyed by that copy's read (`From { read, of }` at the
+//! product's `⊔`) where the part has several world copies (a recorded
+//! [`DocEdit::Rebind`] per name), which is exactly how "every stable
+//! name that resolved before resolves after" (D-4) is kept. Inline
+//! applies the inverse rewrite: the part's names at the inlined
+//! instance re-anchor to the spliced local names — the body's own where
+//! its copy stands where the body did, the carried copy's otherwise.
 //! Appearance records ride these rewrites — they stay with the document
 //! that referenced the entity, so the split remainder keeps its
 //! presentation and the round trip restores it. A reference that
@@ -924,7 +926,7 @@ pub enum SplitError {
     /// A remainder-side BODY name crosses the cut. A document's
     /// product name table deliberately carries no body rows (the
     /// product is the document's own body, not any copy's), so the
-    /// `InPart`-wrapped rewrite of a body name could never resolve —
+    /// rewrite of a body name through the instance could never resolve —
     /// refused rather than silently breaking a resolving name.
     BodyNameCrossesCut {
         /// The crossing body name.
@@ -1756,9 +1758,9 @@ pub struct InlineOutcome {
 /// Rewrites every LOCAL node id in `name` through `map` — the minting
 /// node, embedded operand names, and discriminator partners: exactly
 /// the id set [`derivation_nodes`] reads, because that is the set that
-/// belongs to THIS document's id space. `InPart` arguments cross
-/// VERBATIM (they name another document's nodes — the walk_names seam
-/// rule). The path is walked by `StableName::rewrite_path`, which
+/// belongs to THIS document's id space. A name an instance's copy
+/// carries is spelled in its part's ids, which this walk cannot tell
+/// from the host's ([`remap_name_keeping`] keeps those). The path is walked by `StableName::rewrite_path`, which
 /// puts it back in canonical form, since a caller's maps need not keep
 /// id order and every name-ordered position may come out reordered.
 ///
@@ -2582,8 +2584,8 @@ pub fn split(
     let places_at_identity = |placement: RecipeNodeId| poses.at_identity(placement);
     // A cut name re-anchors as the part's product spells it: a name a
     // cut world placement mints (its copy's own, or an instance's) as
-    // it is, and a name of a body a cut world `Place` copies under that
-    // placement ([`RoleSeg::Placed`]). The copy holds the names its
+    // it is, and a name of a body a cut world `Place` copies, which
+    // that placement's copy carries verbatim. The copy holds the names its
     // body minted, those a transform below it carried whole (N1's
     // `Whole` edge), and a pattern copy's names where a part picks that
     // copy: the name's own `Instance` index against the pick's, at the
@@ -3688,7 +3690,7 @@ fn read_at<P: crate::ProfilePayload>(
 /// retarget); ids remap into fresh host mints in the part's document
 /// order. Every host read of the instance's copies reads the new
 /// placement's, a selection of them authored afresh there with each
-/// `InPart`-wrapped name re-anchored onto the placement's copy, and a
+/// part name re-anchored onto the placement's copy, and a
 /// side of the instance's own bundle reads the spliced copy it stood
 /// on. Pure — `doc` is untouched; undo is keeping it.
 ///

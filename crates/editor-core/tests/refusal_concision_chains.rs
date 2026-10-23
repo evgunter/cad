@@ -835,7 +835,7 @@ test_utils::f6_variants! {
     const NODE_ERROR_KIND: NodeErrorKind = [
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
-        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
+        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
         UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
@@ -1281,7 +1281,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::ToleranceConflict { .. }
         | NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
-        | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
         | NodeErrorKind::InstanceOutOfRange { .. }
         | NodeErrorKind::NoSuchPiece { .. }
@@ -1907,13 +1906,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::UnresolvedRead {
                 slot: editor_core::OperandSlot::Selection,
                 var: editor_core::VarId::new(0, tagged(4)),
-            },
-        ),
-        row(
-            "ProductOperand",
-            NodeErrorKind::ProductOperand {
-                input: RecipeNodeId::new(0, tagged(3)),
-                parts: 2,
             },
         ),
         row(

@@ -1,21 +1,23 @@
-//! **The whole-document product** (ASSEMBLY-DESIGN A10): the
-//! deterministic gather, in the document order of the placements,
-//! of every copy a placement ([`crate::Node::Place`], or an instance)
-//! places into the world, into ONE aggregate [`Body`].
+//! **The whole-document product** (ASSEMBLY-DESIGN A10, D10
+//! `[operations]`): the body the document's product slot reads
+//! ([`crate::Doc::product`], set by [`crate::DocEdit::SetProduct`]),
+//! gathered into ONE aggregate [`Body`]. Where the slot reads a `⊔`
+//! ([`crate::Node::Assemble`]), each of its members is one source, in
+//! member order; any other read is one source.
 //!
 //! This is what A2's "an assembly's evaluation is a body" means for a
-//! part document. The product is the world: a body appears only if a
-//! placement names it, whatever reads it, and nothing else places. A
-//! measure, an assertion or a mate reads no placement, so none of them
-//! gates the gather. An empty world is a valid document whose product
-//! is empty, and a door needing a product refuses
-//! [`ProductError::EmptyProduct`], naming the unplaced bodies. A
-//! placement whose body is gone is a stranded reader, refused
+//! part document. Nothing joins the product by being placed: the slot
+//! says what it is, and a measure, an assertion or a mate reads no
+//! product, so none of them gates the gather. A slot that reads
+//! nothing is a valid document with no product, and a door needing a
+//! product refuses [`ProductError::EmptyProduct`]. A slot whose body
+//! is gone is a stranded reader, refused
 //! [`ProductError::StrandedProduct`].
 //!
-//! Each copy is its own output, and its names are the body's qualified
-//! by the copy ([`crate::names::RoleSeg::Placed`]), so two placements
-//! of one body carry two sets of names and none collide.
+//! Each copy is its own output and carries its source's names
+//! verbatim; a `⊔` keys each member's names by the member's read
+//! ([`crate::names::RoleSeg::From`]), so two placements of one body
+//! carry two sets of names in the product and none collide.
 //!
 //! # The posture the gather copies
 //!
@@ -668,23 +670,20 @@ pub fn gathers_on_this_thread() -> u64 {
     GATHERS.with(std::cell::Cell::get)
 }
 
-/// The document's product: every world placement's copy gathered, in
-/// the placements' document order, into one [`Body`] (module docs).
+/// The document's product: the body its product slot reads, gathered
+/// into one [`Body`] (module docs).
 ///
-/// A copy placed into another space is not part of the product: only
-/// a placement relates two spaces (D10 `[placement.spaces]`).
-///
-/// The result is a pure function of (`doc.placements()`, `evaluation`)
+/// The result is a pure function of (`doc.product()`, `evaluation`)
 /// — no ambient state, so two evaluations of an edit that moves no
-/// placement yield the same solid order (D9).
+/// member yield the same solid order (D9).
 ///
 /// # Errors
 ///
 /// Every arm of [`ProductError`]: an evaluation of another document
 /// ([`ProductError::EvaluationOfAnotherDocument`]); a root that
-/// failed, was poisoned, or is absent from this evaluation; a document
-/// whose roots denote no body (`ProductError::NoBodyRoots`); the
-/// kernel's graft and at-rest validity refusals.
+/// failed, was poisoned, or is absent from this evaluation; a slot
+/// that reads nothing ([`ProductError::EmptyProduct`]) or a body that
+/// is gone ([`ProductError::StrandedProduct`]); the kernel's graft and at-rest validity refusals.
 pub fn product<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -1003,14 +1002,24 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     let mut sources: Vec<Source<T>> = Vec::new();
     match (doc.node(node), value.pieces.as_ref()) {
         (Some(crate::node::Node::Assemble { .. }), Some(pieces)) => {
+            // A read assembled twice keys its pieces' names alike, so
+            // each such name is a tie over those pieces, as the `⊔`'s
+            // own table names it.
+            let repeated = |read: crate::VarId| {
+                pieces.pieces.iter().filter(|p| p.read == read).count() > 1
+            };
+            let mut next = std::collections::BTreeMap::new();
             for piece in &pieces.pieces {
                 let at = doc.read_operation(piece.read).unwrap_or(node);
                 // Each piece's names as the `⊔` keys them, by its read.
-                let keyed = Arc::new(
-                    crate::names::member_view(node, piece.read, &piece.table).unwrap_or_else(
-                        |e| unreachable!("a member's table keyed by its read stays a table: {e:?}"),
-                    ),
-                );
+                let keyed = if repeated(piece.read) {
+                    crate::names::repeated_member_view(node, piece.read, &piece.table, &mut next)
+                } else {
+                    crate::names::member_view(node, piece.read, &piece.table)
+                };
+                let keyed = Arc::new(keyed.unwrap_or_else(|e| {
+                    unreachable!("a member's table keyed by its read stays a table: {e:?}")
+                }));
                 for (i, body) in piece.bodies.iter().enumerate() {
                     let ix = if piece.family {
                         crate::names::output_body(i).unwrap_or_else(|e| {

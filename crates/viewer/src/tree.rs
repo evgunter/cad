@@ -1067,7 +1067,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // the repair is a re-point at the reading node itself.
         | NodeErrorKind::UnresolvedRead { .. }
         | NodeErrorKind::EmptyOperand { .. }
-        | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
         | NodeErrorKind::InstanceOutOfRange { .. } => None,
         // Names an id no live node holds, so there is no row to go to.

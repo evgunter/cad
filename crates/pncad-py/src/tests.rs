@@ -2107,7 +2107,6 @@ fn node_error_tags_are_the_published_words() {
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
         EmptyOperand => "empty_operand",
-        ProductOperand => "product_operand",
         UnfinishedOperand => "unfinished_operand",
         EmptyHalf => "empty_half",
         InstanceOutOfRange => "instance_out_of_range",
@@ -4047,7 +4046,6 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "value_spin"
                         | "section"
                         | "member"
-                        | "shape"
                         | "index"
                         | "measured"
                         | "side"
@@ -4442,10 +4440,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "assembly_error_tag",
         values: &[
+            "assemble",
             "at_rest",
             "carried_at_rest",
             "carried_mint_refusal",
-            "own_space",
             "uncertified",
             "unminted_mates",
         ],
@@ -5305,7 +5303,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pose_degenerate",
             "pose_read",
             "pose_scalar",
-            "product_operand",
             "profile",
             "profile_lane_replay",
             "profile_replay",
@@ -5406,8 +5403,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile",
             "section",
             "selection",
-            "shape",
             "side",
+            "source",
             "target",
             "target_space",
             "tool",
@@ -6401,6 +6398,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // Three: the join every finisher ends with refused, at a door that
     // tags it by its stage (the boolean's, the split's, the import's).
     ("join", 3),
+    // A coincidence: a pose read of another kind than its role reads
+    // (`pose_fault_tag`) and a product read of a variable that is no
+    // body (`product_read_fault_tag`).
+    ("kind", 2),
     // One fact at the edit and load doors: a constraint the per-mate
     // admission refuses, its fault carried whole.
     ("mate_refused", 2),
@@ -6458,9 +6459,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a selection not in its
     // kind's stored form.
     ("selection_shape", 2),
-    // A coincidence: a placement's shape operand (`operand_slot_tag`)
-    // and a step-id list of another shape than its program's.
-    ("shape", 2),
     // One fact (VR2) at the edit and load doors: a variable with no
     // name that more than one reader reads.
     ("shared_var_needs_name", 2),
@@ -10204,6 +10202,7 @@ fn the_errors_mint_reader_refuses_an_attribute_on_an_item_it_cannot_name() {
 /// at test time and compares, so an added, renamed or deleted kind
 /// reds by name.
 const NODE_KIND_ROSTER: &[&str] = &[
+    "assemble",
     "assertion",
     "chamfer",
     "extrude",

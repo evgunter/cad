@@ -843,7 +843,7 @@ impl OperandArg {
 #[pyclass(module = "pncad", frozen, from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PickRead {
-    placement: OperandArg,
+    placement: Box<OperandArg>,
     of: Vec<d::VarId>,
 }
 
@@ -935,8 +935,8 @@ impl IndexedRead {
         let read = match &self.read {
             OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
             OperandArg::Var(var) => format!("Var({})", var.0.full()),
-            OperandArg::Pose(_) => {
-                unreachable!("an indexed read is `[]` on a node or a variable, never a pose")
+            OperandArg::Pose(_) | OperandArg::Pick(_) => {
+                unreachable!("an indexed read is `[]` on a node or a variable, never a pose or a pick")
             }
         };
         let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();
@@ -1065,9 +1065,10 @@ impl Doc {
                 let dim = self.inner.var(var).and_then(|held| match held.def() {
                     d::VarDef::Free(free) => Some(free.dim()),
                     d::VarDef::Defined(expr) => Some(expr.dim()),
-                    d::VarDef::Output { .. } | d::VarDef::Select(_) | d::VarDef::Pose(_) => {
-                        held.kind().dimension()
-                    }
+                    d::VarDef::Output { .. }
+                    | d::VarDef::Select(_)
+                    | d::VarDef::Pose(_)
+                    | d::VarDef::Pick(_) => held.kind().dimension(),
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -1786,7 +1787,7 @@ impl Doc {
     /// other operator raises `EditError` (`pick_path`) at the insert.
     fn pick(&self, placement: OperandArg, of: Vec<Var>) -> PickRead {
         PickRead {
-            placement,
+            placement: Box::new(placement),
             of: of.into_iter().map(|var| var.0).collect(),
         }
     }
