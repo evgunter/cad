@@ -1,0 +1,4 @@
+# Correspondence pre-note (orchestrator), PR 5613
+BILATERAL: the antipode chart jump (A MINOR / B MAJOR, both executed); the tour's retired read-back in demos/tour/src/world.rs (A MAJOR / B MINOR, inspection); msolve14 seats re-pinned not rewritten (MINOR/MINOR); spec row 20 text (A style+note / B note); atan2 rule copies (style/style); AddConstraint silent drop (A "related" under MAJOR-1 / B MINOR m2); stale value.rs/Composed docs (A style / B S7?).
+UNILATERAL A: MAJOR-1 remove-middle-link drops a later written value (code, executed, red probe) — TALLY CANDIDATE; VERSION 19 premise; ENVELOPE 35→34; Frame::compose doc; test 21 commutes; test 20 breaks-if cannot go red; rebundle row first link only; in_one_space; kept/written restate; unnamed ordering.
+UNILATERAL B: Chart::of takes no frame (n5); gate scans only pin.rs (S2); residual twice / parallel completers (S3); hand-mutated wire refusals (n3); flatten unsure (n6).
