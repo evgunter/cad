@@ -267,6 +267,8 @@ mod result_gate_sites;
 mod review_4996_carry_probes;
 #[path = "review_4996_r2_probes.rs"]
 mod review_4996_r2_probes;
+#[path = "review_census_fixpass_probes.rs"]
+mod review_census_fixpass_probes;
 #[path = "review_census_r2_probes.rs"]
 mod review_census_r2_probes;
 #[path = "review_cleave_farplane.rs"]

@@ -2309,6 +2309,13 @@ impl<T: Real> Geo<T> {
     /// vertex (`boolean::reduce::PendingRow`). The census reads keys,
     /// not lineage, so it cannot tell a pinch from a value decision and
     /// does not ask for the record.
+    /// The line edges bounding `f`.
+    fn sides_of(&self, f: FaceKey) -> impl Iterator<Item = &EdgeGeo<T>> + '_ {
+        self.edges
+            .iter()
+            .filter(move |e| e.f_plus == f || e.f_minus == f)
+    }
+
     /// The faces whose boundary holds `v`.
     fn faces_of(&self, v: VertexKey) -> Vec<FaceKey> {
         self.vertex_faces
@@ -3109,10 +3116,13 @@ fn sweep_edge_face<T: Decide>(
 
 /// One edge–face pair of pass 4, the edge not bounding the face.
 ///
-/// A confirmed pair holding a face the edge bounds and `f` answers for
-/// the pair by incidence: such an edge lies in `f`'s plane, so it
-/// pierces nothing, and its run through `f`'s interior lies in the
-/// closure of the pair's overlap, as do the run's bounds, its limits.
+/// A confirmed pair meeting over an area ([`Declared::area`]) that holds
+/// a face the edge bounds and `f` answers for the pair by incidence:
+/// such an edge lies in `f`'s plane, so it pierces nothing, and its run
+/// through `f`'s interior lies in the closure of the pair's overlap, as
+/// do the run's bounds, its limits. A pair meeting along a line or at a
+/// point answers for no edge here: the lane reads the edge like any
+/// other, and its bounds are vertex events placed by location.
 ///
 /// An end whose residual is in the band's edge is read by
 /// [`read_undecided`], under every sign it could take
@@ -10272,6 +10282,12 @@ const FLUSH_UNDECIDED: &str = "whether they lie flush, on one plane facing the s
     their boundaries meeting, is within the tolerance band. Move one of them clear of the \
     band, or onto the plane";
 
+/// What [`flush_at_rest`] says of a pair whose interiors it cannot read
+/// ([`InteriorsUnread::Unbuilt`]).
+const FLUSH_UNREAD: &str = "they lie on one plane facing the same way with their boundaries \
+    meeting, but whether their interiors meet cannot be read for this shape (a face with an \
+    arc, or one meeting a corner point twice). There is no way through yet for this shape";
+
 /// **The flush pairs between groups of a body at rest** (`[assertions]`):
 /// two planar faces of different groups on one carrier, facing the same
 /// way, whose boundaries meet while their interiors do not. No contact,
@@ -10285,11 +10301,14 @@ const FLUSH_UNDECIDED: &str = "whether they lie flush, on one plane facing the s
 ///   a positive length ([`parallel_overlap`]): the shared boundary
 ///   segment.
 /// - **Door 2**: the declared-pair overlap door, on Door 1's verdict,
-///   finds no area both interiors hold. A pair whose trims share a
-///   boundary is refused `TouchingBoundary` by the region walk, and
-///   its interior-witness rung, complete for planar trims, then
-///   certifies a point strictly inside both or declines; a decline is
-///   the empty overlap at this ε. A positive area is no flush pair: the
+///   finds no area both interiors hold (`Empty`). A pair whose trims
+///   share a boundary is refused `TouchingBoundary` by the region walk;
+///   its interior-witness rung then certifies a point strictly inside
+///   both (`PositiveArea`) or declines, and a decline carries the
+///   refusal. On that refusal the faces' own reading decides
+///   ([`planar_interiors_meet`]): interiors certified apart are a flush
+///   row; interiors that meet are none; a reading in band, or one not
+///   built, is the pair's finding. A positive area is no flush pair: the
 ///   two materials overlap there, which the census reads as
 ///   interference.
 ///
@@ -10311,11 +10330,7 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
             .map(|f| face_box(body, f.key, pad, band).unwrap_or_else(|_| Aabb::poison()))
             .collect(),
     );
-    let sides = |f: FaceKey| {
-        geo.edges
-            .iter()
-            .filter(move |e| e.f_plus == f || e.f_minus == f)
-    };
+    let sides = |f| geo.sides_of(f);
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
     let mut out = FlushAtRest::default();
     for (i, fa) in geo.faces.iter().enumerate() {
@@ -10393,9 +10408,16 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
                 // own reading decides whether their interiors meet.
                 Err(ChartRegionError::TouchingBoundary) => {
                     match planar_interiors_meet(body, &geo, fa, fb, band) {
-                        Some(false) => out.rows.push(row),
-                        Some(true) => {}
-                        None => out.findings.push(undecided()),
+                        Ok(false) => out.rows.push(row),
+                        Ok(true) => {}
+                        Err(InteriorsUnread::Undecided) => out.findings.push(undecided()),
+                        Err(InteriorsUnread::Unbuilt) => {
+                            out.findings.push(ValidationError::CensusUndecidable {
+                                a: EntityId::Face(fa.key),
+                                b: EntityId::Face(fb.key),
+                                what: FLUSH_UNREAD,
+                            });
+                        }
                     }
                 }
                 Err(ChartRegionError::Escalated(_)) => out.findings.push(undecided()),
@@ -10409,32 +10431,48 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
     out
 }
 
+/// Why [`planar_interiors_meet`] read no verdict.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InteriorsUnread {
+    /// A reading it needed landed in the band.
+    Undecided,
+    /// The reading is not built: a face with an arc, or a cone
+    /// [`face_cone`] does not read (a face meeting the point twice).
+    Unbuilt,
+}
+
 /// **Whether two planar faces on one plane, facing the same way, share
 /// interior**: some vertex of one lies strictly inside the other, two of
 /// their edges cross properly (two half-planes whose lines cross share a
 /// quadrant), or at a vertex of one on the other's boundary their cones
 /// share material ([`corners_meet`]). Where the interiors meet, a point
-/// of the meeting's boundary is one of the three, so `Some(false)` is a
-/// certificate that they do not. `None` where a reading escalated or is
-/// not built (a face with an arc, a cone [`face_cone`] does not read).
+/// of the meeting's boundary is one of the three, so `Ok(false)` is a
+/// certificate that they do not.
 fn planar_interiors_meet<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     fa: &FaceGeo<T>,
     fb: &FaceGeo<T>,
     band: Band,
-) -> Option<bool> {
+) -> Result<bool, InteriorsUnread> {
     if !(fa.polygon && fb.polygon) {
-        return None;
+        return Err(InteriorsUnread::Unbuilt);
     }
-    let axis = crate::face_normal::face_outward_normal(body, fa.key)?.vec();
+    let axis = crate::face_normal::face_outward_normal(body, fa.key)
+        .ok_or(InteriorsUnread::Unbuilt)?
+        .vec();
     let mut read = Vec::new();
-    let mut undecided = false;
+    let mut unread = None;
+    let note = |why: InteriorsUnread, unread: &mut Option<InteriorsUnread>| {
+        if *unread != Some(InteriorsUnread::Unbuilt) {
+            *unread = Some(why);
+        }
+    };
     for (x, y) in [(fa, fb), (fb, fa)] {
         for &v in &x.boundary {
-            let p = *geo.vmap.get(&v)?;
+            let p = *geo.vmap.get(&v).ok_or(InteriorsUnread::Unbuilt)?;
             let Some(at) = contain(body, y, p, band, &mut read) else {
-                undecided = true;
+                note(InteriorsUnread::Undecided, &mut unread);
                 continue;
             };
             if at == FaceContainment::Out {
@@ -10445,33 +10483,31 @@ fn planar_interiors_meet<T: Decide>(
                 face_cone(body, geo, y.key, at, p, band),
             );
             match cones {
-                (Ok(Cone::Full), _) | (_, Ok(Cone::Full)) => return Some(true),
+                (Ok(Cone::Full), _) | (_, Ok(Cone::Full)) => return Ok(true),
                 (Ok(Cone::Corner(cx)), Ok(Cone::Corner(cy))) => {
                     match corners_meet(axis, cx, cy, band, &mut read) {
-                        Some(true) => return Some(true),
+                        Some(true) => return Ok(true),
                         Some(false) => {}
-                        None => undecided = true,
+                        None => note(InteriorsUnread::Undecided, &mut unread),
                     }
                 }
-                _ => undecided = true,
+                (Err(Unread::Unbuilt), _) | (_, Err(Unread::Unbuilt)) => {
+                    note(InteriorsUnread::Unbuilt, &mut unread);
+                }
+                _ => note(InteriorsUnread::Undecided, &mut unread),
             }
         }
     }
-    let sides = |f: FaceKey| {
-        geo.edges
-            .iter()
-            .filter(move |e| e.f_plus == f || e.f_minus == f)
-    };
-    for ea in sides(fa.key) {
-        for eb in sides(fb.key) {
+    for ea in geo.sides_of(fa.key) {
+        for eb in geo.sides_of(fb.key) {
             match ee_meeting(ea, eb, band, &mut read) {
-                Some(Some(Meeting::Cross(_))) => return Some(true),
+                Some(Some(Meeting::Cross(_))) => return Ok(true),
                 Some(Some(Meeting::Overlap(..)) | None) => {}
-                None => undecided = true,
+                None => note(InteriorsUnread::Undecided, &mut unread),
             }
         }
     }
-    (!undecided).then_some(false)
+    unread.map_or(Ok(false), Err)
 }
 
 /// **The two solids a finding decides interfere**: an instance's vertex
@@ -11600,6 +11636,53 @@ mod tests {
         let surface = seat.body.get_face(seat.post_top).expect("the cap").surface;
         seat.body.surfaces.remove(surface).expect("its surface");
         ee_cross_backed(&seat.body, &geo, &declared, ea, eb, q, band(), &mut errors);
+    }
+
+    /// **Two coplanar faces facing one way: meeting interiors read as
+    /// meeting.** Each pair of blocks is grafted as two solids and their
+    /// two tops (`z = 1`, both facing up) are read by
+    /// `planar_interiors_meet`. Three pairs share interior, each through
+    /// a different arm: a corner of one strictly inside the other, a
+    /// plus whose edges cross with no corner inside, and two identical
+    /// squares, whose every corner sits on the other's corner with the
+    /// same material. One pair only touches along an edge, and is read
+    /// apart. Red if the reading answers "apart" for interiors that
+    /// meet: the flush arm would then write a row for faces sharing area.
+    #[test]
+    fn planar_interiors_meet_reads_each_way_two_tops_share_interior() {
+        let tol = Tol::witness();
+        let tops = |a: &[(f64, f64)], b: &[(f64, f64)]| {
+            let pa = crate::test_support_fixtures::prism_z::<f64>(a, 0.0, 1.0, tol);
+            let pb = crate::test_support_fixtures::prism_z::<f64>(b, 0.0, 1.0, tol);
+            let mut body = pa.body;
+            let keys = crate::graft_disjoint_all_keyed(&mut body, &pb.body).unwrap();
+            let geo = snapshot(&body);
+            let top_b = keys.face(pb.top_face).unwrap();
+            let fa = planar_face(&geo, pa.top_face).expect("a planar top");
+            let fb = planar_face(&geo, top_b).expect("b planar top");
+            planar_interiors_meet(&body, &geo, fa, fb, band())
+        };
+        let sq = |x0: f64, y0: f64, x1: f64, y1: f64| [(x0, y0), (x1, y0), (x1, y1), (x0, y1)];
+        assert_eq!(
+            tops(&sq(0.0, 0.0, 2.0, 2.0), &sq(1.0, 1.0, 3.0, 3.0)),
+            Ok(true),
+            "a corner inside the other"
+        );
+        assert_eq!(
+            tops(&sq(0.0, 1.0, 3.0, 2.0), &sq(1.0, 0.0, 2.0, 3.0)),
+            Ok(true),
+            "a plus: edges crossing, no corner inside"
+        );
+        assert_eq!(
+            tops(&sq(0.0, 0.0, 1.0, 1.0), &sq(0.0, 0.0, 1.0, 1.0)),
+            Ok(true),
+            "identical squares: every corner on a corner, the same material"
+        );
+        assert_eq!(
+            tops(&sq(0.0, 0.0, 1.0, 1.0), &sq(1.0, 0.0, 2.0, 1.0)),
+            Ok(false),
+            "touching along an edge: apart"
+        );
     }
 
     /// **A touch the census cannot place is refused, never absorbed.**

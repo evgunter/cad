@@ -1096,7 +1096,14 @@ affects only what declines, never what certifies. A schedule stopped by
 one of its two caps refuses typed, one face per cap:
 `WitnessSegmentCapExceeded` (over `WITNESS_SEGMENT_CAP`, nothing probed)
 and `WitnessCellCapExceeded` (`WITNESS_CELL_CAP` probes made, cells
-left).
+left). The rung runs on both chart paths, the shared chart of two faces
+on one surface included. A decline carries the walk's refusal and is
+never an empty overlap. The census's flush arm, on that refusal, reads
+the two faces itself (`census::planar_interiors_meet`): no vertex of
+either strictly inside the other, no proper edge crossing, and no
+shared material at a boundary touch certify the interiors apart, which
+is a flush row. A meeting is no row, and a reading it cannot take is the
+pair's `CensusUndecidable`.
 
 ## Related pages
 
