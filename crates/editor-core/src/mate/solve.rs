@@ -425,13 +425,20 @@ pub(crate) fn tightened<T: SolveScalar>(pose: PoseValue<T>) -> PoseValue<T> {
         PoseValue::Direction { dir } => PoseValue::Direction {
             dir: on_its_axis(dir),
         },
-        PoseValue::Axis { origin, dir } => PoseValue::Axis {
-            origin,
+        // The same line, its direction read narrower: the foot stays
+        // its nearest point.
+        PoseValue::Axis {
+            foot,
+            dir,
+            projected,
+        } => PoseValue::Axis {
+            foot,
             dir: on_its_axis(dir),
+            projected,
         },
-        PoseValue::Plane { origin, normal } => PoseValue::Plane {
-            origin,
+        PoseValue::Plane { normal, offset } => PoseValue::Plane {
             normal: on_its_axis(normal),
+            offset,
         },
         other => other,
     }
@@ -579,8 +586,8 @@ fn frame_of<T: SolveScalar>(pose: &PoseValue<T>) -> Affine3<T> {
             Affine3::from_parts(Mat3::identity(), position - Point3::origin())
         }
         PoseValue::Direction { dir } => aimed(Point3::origin(), dir),
-        PoseValue::Axis { origin, dir } => aimed(origin, dir),
-        PoseValue::Plane { origin, normal } => aimed(origin, normal),
+        PoseValue::Axis { foot, dir, .. } => aimed(foot, dir),
+        PoseValue::Plane { normal, offset } => aimed(PoseValue::plane_foot(normal, offset), normal),
         PoseValue::Frame(f) => f.to_affine(),
     }
 }

@@ -2515,13 +2515,13 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let body = body_operand(results, source)?;
-    let PoseValue::Plane { origin, normal } = plane else {
+    let PoseValue::Plane { normal, offset } = plane else {
         unreachable!(
             "the door admits a plane alone at a mirror's plane, not {}",
             plane.kind()
         )
     };
-    let reflection = topo::Reflection::across_unit(*origin, *normal);
+    let reflection = topo::Reflection::across_unit(PoseValue::plane_foot(*normal, *offset), *normal);
     let image = topo::mirror_body(&body, &reflection, tol).map_err(NodeErrorKind::Mirror)?;
     let value = value_of(results, source)?;
     let table = read_table(value)
@@ -4372,7 +4372,7 @@ fn stepped_map<T: Decide>(
             band(tol)?,
         )?,
         PatternKind::Circular { axis, .. } => {
-            let PoseValue::Axis { origin, dir } = pose::eval_pose(
+            let PoseValue::Axis { foot, dir, .. } = pose::eval_pose(
                 rule.doc,
                 rule.unprojected,
                 crate::OperandSlot::Axis,
@@ -4384,7 +4384,7 @@ fn stepped_map<T: Decide>(
                 unreachable!("the door admits an axis alone at a circular rule's axis")
             };
             SteppedOperands::circular(
-                origin,
+                foot,
                 dir,
                 need_angle(vals, SlotId::Step)?,
                 &(rule.written)(SlotId::Step),

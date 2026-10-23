@@ -144,10 +144,10 @@ fn a_face_reads_as_its_plane_with_the_outward_normal() {
         );
         let ev = eval(&doc);
         let value = bound_pose(&doc, &ev, OperandSlot::Tool, plane, Tol::witness());
-        let Ok(PoseValue::Plane { origin, normal }) = value else {
+        let Ok(PoseValue::Plane { normal, offset }) = value else {
             panic!("{end:?}: a plane, not {value:?}");
         };
-        near(origin.z, z, "the plane passes through the cap");
+        near(offset, z * nz, "the plane passes through the cap");
         let n = UnitVec3::get(normal);
         near(n.x, 0.0, "no tilt");
         near(n.y, 0.0, "no tilt");
@@ -299,13 +299,13 @@ fn a_frame_through_an_axis_and_a_point_on_it_refuses() {
     // Off the line: the frame's plane passes through the point's foot
     // on the edge — an end of it, a corner of the box — normal to the
     // edge, which runs along a world axis.
-    let Ok(PoseValue::Plane { origin, normal }) = through(2) else {
+    let Ok(PoseValue::Plane { normal, offset }) = through(2) else {
         panic!("a plane off the line");
     };
-    for c in [origin.x, origin.y, origin.z] {
-        assert!(c.abs() <= 1e-12 || (c - 1.0).abs() <= 1e-12, "{origin:?}");
-    }
-    near(origin.z, 1.0, "the foot is on the top rim");
+    assert!(
+        offset.abs() <= 1e-12 || (offset.abs() - 1.0).abs() <= 1e-12,
+        "the plane through a corner: {offset}"
+    );
     let n = UnitVec3::get(normal);
     let mut along = [n.x.abs(), n.y.abs(), n.z.abs()];
     along.sort_by(f64::total_cmp);
@@ -740,16 +740,13 @@ fn both_annuli_of_a_revolved_washer_read_outward() {
     let mut heights = Vec::new();
     for plane in planes {
         let value = bound_pose(&doc, &ev, OperandSlot::Tool, plane, Tol::witness());
-        let Ok(PoseValue::Plane { origin, normal }) = value else {
+        let Ok(PoseValue::Plane { normal, offset }) = value else {
             panic!("a plane, not {value:?}");
         };
         let n = UnitVec3::get(normal);
         near(n.y.abs(), 1.0, "an annulus is normal to the axis");
-        assert!(
-            n.y * origin.y > 0.0,
-            "inward: origin {origin:?}, normal {n:?}"
-        );
-        heights.push(origin.y);
+        assert!(offset > 0.0, "inward: offset {offset}, normal {n:?}");
+        heights.push(offset * n.y);
     }
     heights.sort_by(f64::total_cmp);
     near(heights[0], -0.5, "the lower annulus");
@@ -1006,7 +1003,7 @@ fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
     );
     let ev = eval(&doc);
     let axis_of = |var| match bound_pose(&doc, &ev, OperandSlot::Axis, var, Tol::witness()) {
-        Ok(PoseValue::Axis { origin, dir }) => (origin, UnitVec3::get(dir)),
+        Ok(PoseValue::Axis { foot, dir, .. }) => (foot, UnitVec3::get(dir)),
         other => panic!("an axis, not {other:?}"),
     };
     let port = doc.output(revolve, 1).expect("a revolve defines its axis");

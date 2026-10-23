@@ -56,14 +56,17 @@ fn carried<T: Decide>(
             position: motion.transform_point(position),
         },
         PoseValue::Direction { dir } => PoseValue::Direction { dir: turn(dir)? },
-        PoseValue::Axis { origin, dir } => PoseValue::Axis {
-            origin: motion.transform_point(origin),
-            dir: turn(dir)?,
-        },
-        PoseValue::Plane { origin, normal } => PoseValue::Plane {
-            origin: motion.transform_point(origin),
-            normal: turn(normal)?,
-        },
+        PoseValue::Axis { foot, dir, .. } => {
+            PoseValue::axis_through(motion.transform_point(foot), turn(dir)?)
+        }
+        // `p · n = c` carried to `x = R p + t` is `x · R n = c + t · R n`.
+        PoseValue::Plane { normal, offset } => {
+            let normal = turn(normal)?;
+            PoseValue::Plane {
+                normal,
+                offset: offset + (motion.origin() - Point3::origin()).dot(normal.get()),
+            }
+        }
         PoseValue::Frame(f) => PoseValue::Frame(
             frame_axes(
                 motion.transform_point(f.origin()),
@@ -205,10 +208,10 @@ fn output<T: Decide>(
                 band(tol)?,
             )
             .map_err(DirectionRefusal::node_error)?;
-            Ok(PoseValue::Axis {
-                origin: plane.to_world(origin),
-                dir: plane.frame().turn(sketch),
-            })
+            Ok(PoseValue::axis_through(
+                plane.to_world(origin),
+                plane.frame().turn(sketch),
+            ))
         }
         // A read the door would have refused, in a document built past
         // it: the pose the seat asks for, in the operand door's words.
@@ -268,35 +271,35 @@ fn definition<T: Decide>(
             about,
             by,
         } => {
-            let PoseValue::Axis { origin, dir } = pose(about)? else {
+            let PoseValue::Axis { foot, dir, .. } = pose(about)? else {
                 unreachable!("the door admits an axis alone at a spin's axis")
             };
             let angle = crate::expr::eval_angle(*by, env)
                 .map_err(|source| NodeErrorKind::PoseScalar { var: *by, source })?;
-            spin(pose(read)?, origin, dir, angle)?
+            spin(pose(read)?, foot, dir, angle)?
         }
         PoseDef::Through { axis, point } => {
-            let (PoseValue::Axis { origin, dir }, PoseValue::Point { position }) =
+            let (PoseValue::Axis { foot, dir, .. }, PoseValue::Point { position }) =
                 (pose(axis)?, pose(point)?)
             else {
                 unreachable!("the door admits an axis and a point at a frame through them")
             };
             let a = dir.get();
-            let along = (position - origin).dot(a);
-            let foot = origin + a * along;
-            RigidMotion::from_aim_and_reference(foot, dir, position - origin, POSE_UNIT_NORM, b)
+            let along = (position - foot).dot(a);
+            let at = foot + a * along;
+            RigidMotion::from_aim_and_reference(at, dir, position - foot, POSE_UNIT_NORM, b)
                 .map(PoseValue::Frame)
                 .map_err(|e| degenerate(e.error, PoseConstruction::Through))?
         }
         PoseDef::Meet { a, b: second } => {
             let (
                 PoseValue::Plane {
-                    origin: oa,
                     normal: na,
+                    offset: ca,
                 },
                 PoseValue::Plane {
-                    origin: ob,
                     normal: nb,
+                    offset: cb,
                 },
             ) = (pose(a)?, pose(second)?)
             else {
@@ -305,19 +308,12 @@ fn definition<T: Decide>(
             let d = na.get().cross(nb.get());
             let dir = UnitVec3::new(d, POSE_UNIT_NORM, b)
                 .map_err(|e| degenerate(e, PoseConstruction::Meet))?;
-            // The line's point nearest `a`'s origin: from it across `a`
-            // along `d × na` to `b`. `nb · (d × na) = |d|²`, decided
-            // nonzero above. The point is a representative: a
-            // deterministic function of the definition (D9), and no
-            // reader's outcome — its category, its topology, any
-            // decision — depends on which one; its bits may differ at
-            // the rounding level (`intent_s3_a_poses`'s Meet rows).
-            let across = d.cross(na.get());
-            let reach = nb.get().dot(ob - oa) / d.norm_squared();
-            PoseValue::Axis {
-                origin: oa + across * reach,
-                dir,
-            }
+            // The line's point nearest the origin, in closed form:
+            // `(ca (nb × d) + cb (d × na)) / |d|²` lies on both planes
+            // (`na · (nb × d) = nb · (d × na) = |d|²`) and is
+            // perpendicular to `d`; `|d|` is decided nonzero above.
+            let foot = (nb.get().cross(d) * ca + d.cross(na.get()) * cb) / d.norm_squared();
+            PoseValue::axis_through(Point3::origin() + foot, dir)
         }
         PoseDef::Flip { pose: read } => flip(pose(read)?, b)?,
         // The pose moved by the motion its copy's placement solved to:
@@ -350,13 +346,10 @@ pub(crate) fn slide<T: Decide>(
         PoseValue::Point { position } => PoseValue::Point {
             position: position + step,
         },
-        PoseValue::Axis { origin, dir } => PoseValue::Axis {
-            origin: origin + step,
-            dir,
-        },
-        PoseValue::Plane { origin, normal } => PoseValue::Plane {
-            origin: origin + step,
+        PoseValue::Axis { foot, dir, .. } => PoseValue::axis_through(foot + step, dir),
+        PoseValue::Plane { normal, offset } => PoseValue::Plane {
             normal,
+            offset: offset + by * dir.get().dot(normal.get()),
         },
         PoseValue::Frame(f) => PoseValue::Frame(
             RigidMotion::translation(step)
@@ -369,7 +362,7 @@ pub(crate) fn slide<T: Decide>(
     })
 }
 
-/// **A pose turned by `angle` about the line `(origin, dir)`**, by the
+/// **A pose turned by `angle` about the line `(at, dir)`**, by the
 /// right-hand rule: a rigid motion, so each direction is the motion's
 /// turn of a unit one.
 ///
@@ -378,15 +371,15 @@ pub(crate) fn slide<T: Decide>(
 /// [`NodeErrorKind::Motion`] where the turn is no motion.
 pub(crate) fn spin<T: Decide>(
     value: PoseValue<T>,
-    origin: Point3<T>,
+    at: Point3<T>,
     dir: UnitVec3<T>,
     angle: geom_core::Angle<T>,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     let turn =
-        RigidMotion::rotation_about_axis_by(origin, dir, angle).map_err(NodeErrorKind::Motion)?;
+        RigidMotion::rotation_about_axis_by(at, dir, angle).map_err(NodeErrorKind::Motion)?;
     // A turned point takes `q + R·(p − q)`, which widens by its offset
     // from the axis, not by the composite map's anchor.
-    let point = |p| geom_core::Affine3::rotate_point_about_unit_axis_by(origin, dir, angle, p);
+    let point = |p| geom_core::Affine3::rotate_point_about_unit_axis_by(at, dir, angle, p);
     Ok(match value {
         PoseValue::Point { position } => PoseValue::Point {
             position: point(position),
@@ -394,14 +387,17 @@ pub(crate) fn spin<T: Decide>(
         PoseValue::Direction { dir } => PoseValue::Direction {
             dir: turn.turn(dir),
         },
-        PoseValue::Axis { origin, dir } => PoseValue::Axis {
-            origin: point(origin),
-            dir: turn.turn(dir),
-        },
-        PoseValue::Plane { origin, normal } => PoseValue::Plane {
-            origin: point(origin),
-            normal: turn.turn(normal),
-        },
+        PoseValue::Axis { foot, dir, .. } => PoseValue::axis_through(point(foot), turn.turn(dir)),
+        // `p · n = c` turned to `q + R (p − q)`: its offset along `R n`
+        // is `c + q · (R n − n)`.
+        PoseValue::Plane { normal, offset } => {
+            let turned = turn.turn(normal);
+            let q = at - Point3::origin();
+            PoseValue::Plane {
+                normal: turned,
+                offset: offset + q.dot(turned.get()) - q.dot(normal.get()),
+            }
+        }
         PoseValue::Frame(f) => PoseValue::Frame(turn.compose(f).map_err(NodeErrorKind::Motion)?),
     })
 }
@@ -419,10 +415,18 @@ pub(crate) fn flip<T: Decide>(
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     Ok(match value {
         PoseValue::Direction { dir } => PoseValue::Direction { dir: -dir },
-        PoseValue::Axis { origin, dir } => PoseValue::Axis { origin, dir: -dir },
-        PoseValue::Plane { origin, normal } => PoseValue::Plane {
-            origin,
+        PoseValue::Axis {
+            foot,
+            dir,
+            projected,
+        } => PoseValue::Axis {
+            foot,
+            dir: -dir,
+            projected,
+        },
+        PoseValue::Plane { normal, offset } => PoseValue::Plane {
             normal: -normal,
+            offset: -offset,
         },
         // A half-turn about the frame's own x: `u` kept, `v` and the
         // normal reversed.
@@ -493,10 +497,10 @@ fn read_off<T: Decide>(
                     geom::CurveKind::Ellipse,
                 ]) =>
             {
-                Ok(PoseValue::Axis {
-                    origin: pose_of.origin,
-                    dir: unit(pose_of.axis, AXIS_DIRECTION_ROLE)?,
-                })
+                Ok(PoseValue::axis_through(
+                    pose_of.origin,
+                    unit(pose_of.axis, AXIS_DIRECTION_ROLE)?,
+                ))
             }
             K::Axis => Err(fault(PoseReadFault::NoAxis { carrier })),
             K::Point if has(&[geom::CurveKind::Circle, geom::CurveKind::Ellipse]) => {
@@ -520,18 +524,18 @@ fn read_off<T: Decide>(
             // DM1a: the outward normal is the chart axis folded through
             // the face's sense — the bit selects, nothing is computed.
             let normal = OutwardNormal::from_chart(face_pose.axis, face_pose.sense).vec();
-            Ok(PoseValue::Plane {
-                origin: face_pose.origin,
-                normal: unit(normal, PLANE_NORMAL_ROLE)?,
-            })
+            Ok(PoseValue::plane_through(
+                face_pose.origin,
+                unit(normal, PLANE_NORMAL_ROLE)?,
+            ))
         }
         (K::Plane, _) => Err(fault(PoseReadFault::NotPlanar { carrier: kind })),
         (K::Axis, S::Cylinder | S::Cone | S::Torus) => {
             let face_pose = topo::readback::face_pose(&body, face).map_err(readback)?;
-            Ok(PoseValue::Axis {
-                origin: face_pose.origin,
-                dir: unit(face_pose.axis, AXIS_DIRECTION_ROLE)?,
-            })
+            Ok(PoseValue::axis_through(
+                face_pose.origin,
+                unit(face_pose.axis, AXIS_DIRECTION_ROLE)?,
+            ))
         }
         (K::Axis, _) => Err(fault(PoseReadFault::NoAxis { carrier })),
         (K::Point, S::Sphere | S::Torus | S::Cone) => Ok(PoseValue::Point {

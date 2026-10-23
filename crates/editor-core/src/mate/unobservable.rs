@@ -112,7 +112,8 @@ fn point_of(pose: &PoseValue<f64>) -> Point3<f64> {
     match *pose {
         PoseValue::Point { position } => position,
         PoseValue::Direction { .. } => Point3::origin(),
-        PoseValue::Axis { origin, .. } | PoseValue::Plane { origin, .. } => origin,
+        PoseValue::Axis { foot, .. } => foot,
+        PoseValue::Plane { normal, offset } => PoseValue::plane_foot(normal, offset),
         PoseValue::Frame(f) => f.origin(),
     }
 }
@@ -128,22 +129,28 @@ fn pose_move(doc: &ProfileDoc, ev: &Evaluation<f64>, def: &PoseDef, band: Band, 
             let (PoseValue::Direction { dir } | PoseValue::Axis { dir, .. }) = along else {
                 return false;
             };
-            let Some(arm) = arm_over(&[point_of(&pose)], band) else {
+            // A plane slid moves its offset by `by · (along · normal)`
+            // alone, so no point of it is levered over.
+            let points = match pose {
+                PoseValue::Plane { .. } => vec![],
+                _ => vec![point_of(&pose)],
+            };
+            let Some(arm) = arm_over(&points, band) else {
                 return false;
             };
             slides_along(pose.symmetry(), dir, band, arm).unwrap_or(false)
         }
         PoseDef::Spin { pose, about, .. } => {
-            let (Some(pose), Some(PoseValue::Axis { origin, dir })) = (read(pose), read(about))
+            let (Some(pose), Some(PoseValue::Axis { foot, dir, .. })) = (read(pose), read(about))
             else {
                 return false;
             };
-            let Some(arm) = arm_over(&[point_of(&pose), origin], band) else {
+            let Some(arm) = arm_over(&[point_of(&pose), foot], band) else {
                 return false;
             };
             match turn_line(pose.symmetry(), dir, band, arm) {
                 Ok(Some(None)) => true,
-                Ok(Some(Some(q))) => on_the_line(q, origin, dir, band).unwrap_or(false),
+                Ok(Some(Some(q))) => on_the_line(q, foot, dir, band).unwrap_or(false),
                 Ok(None) | Err(_) => false,
             }
         }
@@ -171,7 +178,7 @@ fn spin_moves_nothing(
         Point3::origin() + m.to_affine().translation
     });
     let (point, dir) = match to {
-        Ok(PoseValue::Axis { origin, dir }) => (origin, dir),
+        Ok(PoseValue::Axis { foot, dir, .. }) => (foot, dir),
         Ok(PoseValue::Plane { normal: dir, .. } | PoseValue::Direction { dir }) => {
             (copy_origin, dir)
         }

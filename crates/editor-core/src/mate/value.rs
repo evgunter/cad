@@ -87,8 +87,8 @@ impl<T: SolveScalar> Chart<T> {
         let (to_dir, on_dir, line) = match (on, to) {
             (PoseValue::Plane { normal: o, .. }, PoseValue::Plane { normal: t, .. })
             | (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => (*t, *o, None),
-            (PoseValue::Axis { dir: o, .. }, PoseValue::Axis { origin, dir: t }) => {
-                (*t, *o, Some(*origin))
+            (PoseValue::Axis { dir: o, .. }, PoseValue::Axis { foot, dir: t, .. }) => {
+                (*t, *o, Some(*foot))
             }
             _ => return Ok(None),
         };
