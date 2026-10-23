@@ -794,8 +794,8 @@ pub fn field_source(row: &SlotRow) -> Option<String> {
 ///
 /// One of the crate's TWO number policies, and the one for a number
 /// in an editable field or in a sentence quoting one: the value fields
-/// here, and the frame poses the picker and the feature tree name a
-/// frame by ([`crate::tree::frame_pose`]). The other is
+/// here, and the numbers the create pane writes into an edit
+/// ([`crate::pane::create`]). The other is
 /// [`crate::readout::number`], which spells a number to fit a FIXED
 /// WIDTH and trades digits for it — right for the View pane's δ field,
 /// wrong for a coordinate a reader compares against what the panel

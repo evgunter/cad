@@ -4455,7 +4455,7 @@ fn stepped_map<T: Decide>(
 ///
 /// **The layout, placement-major** (D9): output body `j·M + i` is
 /// placement `j` of the master's body `i`, `M` the master's body count
-/// ([`names::flat_body_index`], which the name table is keyed by too).
+/// (`flat_body_index` in `names::emit`, which the name table is keyed by too).
 /// Placement 0 is the master's own bodies verbatim; every master name
 /// wraps `Instance(j)` per placement (A8/N1).
 #[allow(clippy::too_many_arguments)] // the doc resolves the rule's axis
