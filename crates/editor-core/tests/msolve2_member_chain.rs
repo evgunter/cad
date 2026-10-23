@@ -116,54 +116,36 @@ fn world(
     })
 }
 
-/// **`name` as the product names it**: the name itself where the
-/// product's table holds it (an instance's own face), else the one
-/// name that is a copy of `name` ([`StableName::copy_of`]) — what the
-/// product names a placed member's face by, under the placement that
-/// put it in the world.
-fn world_name(
-    doc: &ProfileDoc,
-    ev: &editor_core::Evaluation<f64>,
-    name: &StableName,
-) -> StableName {
-    let (_, names) =
-        editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
-    if names.lookup(name).is_some() {
-        return name.clone();
-    }
-    let copies: Vec<StableName> = names
-        .iter()
-        .map(|(n, _)| n.clone())
-        .filter(|n| n == name)
-        .collect();
-    let [copy] = copies.as_slice() else {
-        panic!("{name:?} has one world copy, not {copies:?}");
-    };
-    copy.clone()
-}
-
-/// [`fixture::seat::assert_seated`] over the world names of `a` and
-/// `b` ([`world_name`]).
+/// [`fixture::seat::assert_seated`] over the product names of `a` and
+/// `b` ([`fixture::product_name`]).
 fn assert_seated(
     doc: &ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
-    a: &StableName,
-    b: &StableName,
+    a: &(impl fixture::Sited + Clone),
+    b: &(impl fixture::Sited + Clone),
     control: &Affine3<f64>,
     what: &str,
 ) {
-    let (a, b) = (world_name(doc, ev, a), world_name(doc, ev, b));
+    let (a, b) = (
+        fixture::product_name(doc, ev, a.clone()),
+        fixture::product_name(doc, ev, b.clone()),
+    );
     assert_seated_named(doc, ev, &a, &b, control, what);
 }
 
-/// [`fixture::seat::seat_map`] over the world names of `a` and `b`.
+/// [`fixture::seat::seat_map`] over the product names of `a` and `b`.
 fn seat_map(
     doc: &ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
-    a: &StableName,
-    b: &StableName,
+    a: &(impl fixture::Sited + Clone),
+    b: &(impl fixture::Sited + Clone),
 ) -> Affine3<f64> {
-    seat_map_named(doc, ev, &world_name(doc, ev, a), &world_name(doc, ev, b))
+    seat_map_named(
+        doc,
+        ev,
+        &fixture::product_name(doc, ev, a.clone()),
+        &fixture::product_name(doc, ev, b.clone()),
+    )
 }
 
 /// A linear pattern node over `input`.

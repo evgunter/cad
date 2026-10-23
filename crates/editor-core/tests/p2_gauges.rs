@@ -106,31 +106,18 @@ impl Parts {
     }
 }
 
-/// **`name`'s world copy by `by`**: the one name in the gathered
-/// product's table that is `by`'s copy of `name` — `name` itself where
-/// `by` minted it, or `name` under the `Placed` qualifier of the
-/// placement `by` ([`StableName::copy_of`]).
+/// **`name`'s product name, read at `by`** ([`fixture::product_name`]).
 fn copy_name(
     doc: &ProfileDoc,
     ev: &Evaluation<f64>,
     name: &StableName,
     by: RecipeNodeId,
 ) -> StableName {
-    let (_, names) =
-        editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
-    let copies: Vec<StableName> = names
-        .iter()
-        .map(|(n, _)| n.clone())
-        .filter(|n| n == name)
-        .collect();
-    let [copy] = copies.as_slice() else {
-        panic!("{name:?} has one world copy by {by:?}, not {copies:?}");
-    };
-    copy.clone()
+    fixture::product_name(doc, ev, (by, name.clone()))
 }
 
-/// [`fixture::seat::assert_seated`] over the world copies of `a` by
-/// `a_by` and of `b` by `b_by` ([`copy_name`]).
+/// [`fixture::seat::assert_seated`] over the product names of `a` read
+/// at `a_by` and of `b` read at `b_by` ([`copy_name`]).
 fn assert_seated(
     doc: &ProfileDoc,
     ev: &Evaluation<f64>,
@@ -143,19 +130,19 @@ fn assert_seated(
     fixture::seat::assert_seated(doc, ev, &a, &b, control, what);
 }
 
-/// [`fixture::seat::seat_map`] over the world copies of `a` and `b`,
-/// each by the instance that minted it.
+/// [`fixture::seat::seat_map`] over the product names of `a` and `b`,
+/// each read where it is read.
 fn seat_map(
     doc: &ProfileDoc,
     ev: &Evaluation<f64>,
-    a: &StableName,
-    b: &StableName,
+    a: &(impl fixture::Sited + Clone),
+    b: &(impl fixture::Sited + Clone),
 ) -> Affine3<f64> {
     fixture::seat::seat_map(
         doc,
         ev,
-        &copy_name(doc, ev, a, a.node),
-        &copy_name(doc, ev, b, b.node),
+        &fixture::product_name(doc, ev, a.clone()),
+        &fixture::product_name(doc, ev, b.clone()),
     )
 }
 

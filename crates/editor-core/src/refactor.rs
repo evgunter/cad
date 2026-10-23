@@ -2664,11 +2664,13 @@ pub fn split(
             .flatten()
     };
     // A name `at`'s copy holds: one a cut world placement's copy
-    // carries ([`home`]), or a part's name a copy of an instance
+    // carries ([`home`]), or a part's name a world instance's copy
     // carries verbatim.
     let holds = |name: &StableName, at: RecipeNodeId| {
         home(name, Some(at)).is_some()
-            || (name.node != at && world(at) && part_names_at(at).is_some())
+            || (name.node != at
+                && world(at)
+                && matches!(doc.node(at), Some(Node::InstantiatePart { .. })))
     };
     // **The piece a remainder whole read of the cut re-points to**: at a
     // body seat, a read of a cut world placement's copy or of a pick of

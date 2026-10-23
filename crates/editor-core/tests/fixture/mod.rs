@@ -737,6 +737,58 @@ pub fn head_at(at: RecipeNodeId, name: impl Into<StableName>) -> editor_core::Si
     editor_core::SitedFace::new(at, face(name))
 }
 
+/// **`name`'s product name**, read where it is read ([`Sited`]): the
+/// name itself where the product is the copy that carries it, else the
+/// product `⊔`'s name keyed by the copy it came from (`From { read }`),
+/// the copy that is the site's, or a placement's copy of it, where
+/// several carry it.
+///
+/// # Panics
+///
+/// If the product does not gather, or no copy, or several copies none
+/// of them the site's, carry `name`.
+pub fn product_name(doc: &ProfileDoc, ev: &Evaluation<f64>, name: impl Sited) -> StableName {
+    let at = name.site();
+    let name = name.name();
+    let (_, names) =
+        editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
+    if names.lookup(&name).is_some() {
+        return name;
+    }
+    let keyed = |n: &StableName| match n.path.as_slice() {
+        [RoleSeg::From { read, of }] if **of == name => Some(*read),
+        _ => None,
+    };
+    let found: Vec<(StableName, VarId)> = names
+        .iter()
+        .filter_map(|(n, _)| keyed(n).map(|read| (n.clone(), read)))
+        .collect();
+    match found.as_slice() {
+        [(one, _)] => one.clone(),
+        many => many
+            .iter()
+            .find(|(_, read)| copies(doc, *read, at))
+            .map(|(n, _)| n.clone())
+            .unwrap_or_else(|| panic!("{name:?} has one product name at {at:?}, not {found:?}")),
+    }
+}
+
+/// Whether the copy `read` is `at`'s, or a placement's copy of it,
+/// through every placement between.
+fn copies(doc: &ProfileDoc, read: VarId, at: RecipeNodeId) -> bool {
+    let mut node = doc.operation_of(read);
+    while let Some(id) = node {
+        if id == at {
+            return true;
+        }
+        node = match doc.node(id) {
+            Some(Node::Place { source, .. }) => doc.operation_of(source.read),
+            _ => None,
+        };
+    }
+    false
+}
+
 /// **A mate's read of a name** where the name is read ([`Sited`]).
 pub fn sited_ref(name: impl Sited) -> editor_core::SitedRef {
     let at = name.site();
@@ -1172,7 +1224,6 @@ pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
 }
 
 pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
-    let held = doc.product().is_some();
     let (doc, minted) = step(
         doc,
         DocEdit::InsertNode {
@@ -1181,13 +1232,13 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
         },
     );
     let id = minted.unwrap();
-    // A world product the fixture wrote is the world's copies, which a
-    // placement into the world joins.
+    // The fixture's product is the world's copies, which a placement
+    // into the world joins.
     let joins = matches!(
         doc.node(id),
         Some(Node::Place { .. } | Node::InstantiatePart { .. })
     ) && doc.node_space(id) == Some(VarId::WORLD);
-    let doc = if held && joins {
+    let doc = if joins {
         world_product(doc)
     } else {
         doc
