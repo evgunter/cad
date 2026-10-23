@@ -736,3 +736,32 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - Ruled in review: the image carrying its source's names verbatim is N0's derivation (names README N0: "where a case has no rule, N0 decides it"), so it needs nothing from Ev.
   - **Census** PR #5605 (`[ev]`) waits on Ev's answer on location-confined absorption. Then re-word `[assertions]`, have the lane confine the rung, and run an H dual review. After merge, the row moves to ATREST.
   - **Recovering a session's report:** a finished cloud session's report is the last `result` event (`list_events` with kinds `result`). Archive a session once its PR merges.
+- 2026-10-23 — **A new orchestrator takes the track** (cloud session `session_01ErHpqNBTJdZAB9DbuaLNnJ`). Its predecessor ran out of usage after the 01:29 state entry. On GitHub since then: Mirror #5607 merged with its row, and Ev answered #5605's question ("sounds good": absorption is confined by location).
+  - **Census #5605:** lane `session_01BdhYdwM534koBneSGEtBMN` re-words `[assertions]` to the approved text, confines every face-pair rung by location, adds the non-convex row from `the_lemma_probe_declared`, and takes `[ev]` off the title. Then an H concurrent dual review runs.
+  - **D′2:** the first implementer stopped at `31b979f5` with no PR, no handoff and no CI run. Lane `session_01YN83En2svESHE5qoqTC3rP` resumes on the same branch: it establishes state, writes a `## Handoff` early, finishes, and opens the PR. Then an H concurrent dual review runs.
+  - **Designer pairs** (Opus and Fable, blinded; bytes on `analysis/design-fork/msolve-plane-pose-origin` and `analysis/design-fork/intent-mirror-seam`). The pairs weigh MSOLVE's P1 `a-plane-poses-in-plane-origin-enters-the-mate-coset` and INTENT's P1 `a-symmetric-parts-seam-is-not-walked-as-one-construction`. Neither touches code, so both run beside D′2. Sessions: A `session_015MES7EKm2JK5fszuxuzfM1` / B `session_01BFjhxGj98gQiVR6rJ1FULR`; A `session_01G7DYmE3zAicc8Dr51gnwkB` / B `session_014CWcxi4crR6C7M2i7V3Bk4`.
+  - **Held back:** INTENT's other open P1s sit on D′2's ground (mates, placements, the viewer's mate tool), so they wait for it to merge rather than collide with a 225-file diff.
+- 2026-10-23 — **Orchestrator state, 09:55Z.**
+  - **D′2** (PR #5613). The second lane finished at `ca29c81468`, and CI is green (run 39925572244).
+    - Tier: H concurrent dual. R1 is `session_01V31vS7jzdKCBdfhDeHqs9a`; it stalled at 09:19 and was nudged at 09:52. R2 is `session_01P2rauxReh3fHVrhPXHDnMo`, delivered.
+    - The fix pass waits for R1, then runs off the adjudicated union in the D′2 implementer `session_01YN83En2svESHE5qoqTC3rP`.
+    - Row to draft: `docs/dual-review-log/rows/PR-5613.md`.
+  - **Census** (PR #5605): its lane `session_01BdhYdwM534koBneSGEtBMN` is finishing CI. An H concurrent dual follows.
+  - **Mirror seam** (PR #5616, `a-symmetric-parts-seam-is-not-walked-as-one-construction`): the lane delivered at `eceb2a27`, and CI is green.
+    - Tier: dual, cost M. Byte 8, mod 3 = 2, so the arm is SEQUENTIAL. Its one review is `session_01VyN9SoHyU47EULcwpPibmB`. Protocol is at `5e22babe3e`.
+    - The lane left three open questions, which go to follow-up rows at the row commit:
+      - a `Merged` face whose members are one construction;
+      - `lies_on` only for extrudes;
+      - the "mapped apart" wording.
+    - It filed `work/coincide/walls-across-a-mirror-off-a-wall-do-not-prove-at-sym.md` and `work/intent/a-mirrors-body-reads-as-in-no-space.md`.
+  - **Nightly:** main's nightly has been red every night since at least 10-19, in 7 jobs, including about 104 full-suite rows. No orchestrator was triaging it. Lane `session_014BxhTBULM7MsZhXgqY7kfC` (branch `intent/nightly-triage-1023`) attributes each red, fixes INTENT's, and files the rest on their owners' slates.
+- 2026-10-23 — **Orchestrator state, 11:25Z.**
+  - **D′2** (PR #5613): concurrent dual on `ca29c81468`. R1 is `session_01V31vS7jzdKCBdfhDeHqs9a` and R2 is `session_01P2rauxReh3fHVrhPXHDnMo`. Both say APPROVE-WITH-FIXES. Blinding byte 101 (odd), so A = R2.
+    - Bilateral findings: the antipode chart jump, the tour's retired read-back (`demos/tour/src/world.rs`), the msolve14 seats re-pinned rather than rewritten, and spec row 20's text.
+    - Tally candidate (unilateral, R2, executed): `rebundle` drops a later written chain value when a middle link is removed.
+    - The fix pass is running in `session_01YN83En2svESHE5qoqTC3rP` (last push `be339bfc`). The row is drafted after it.
+  - **The antipode** went to designers, and they converged after one round on a written `up` axis per side, refusing at `−up`. It is on `[ev]` PR #5621, fork-log row 192; byte 73, record on `analysis/design-fork/intent-value-chart-antipode`. D′2 merges with today's chart, and `a-value-chart-jumps-at-the-antipode-under-a-downward-face` is the follow-up.
+  - **Nightly triage** PR #5620 merged, orchestrator's read. It fixed 7 red groups and filed 6. The next nightly is the real test. The tour's second split refusing D′1's `Space` node is filed as `the-tours-post-cell-split-refuses-the-space-its-copies-read` (design). That is why the gui montage stays red.
+  - **Mirror seam** (PR #5616): its review was re-dispatched as `session_01Jm3s3aXhc3t897vBTFoKGq`. The first session never started because I gave it a short SHA; give a session the full SHA or a branch. The lane was asked to merge main after #5620 (`symmetric_plate` rows).
+  - **Census** (PR #5605): the lane's container restarted at 09:59 with `ddb44f28` green and the PR edit undone. It was woken at 11:24.
+  - **Merged in this sitting:** #5612, #5614 (MSOLVE plane-pose ruling), #5615 (mirror-seam ruling), #5617 (state), #5618 and #5619. #5618 filed the antipode item without its header, so lint was red on main for about two minutes; #5619 fixed it. Work merges are now gated on lint.

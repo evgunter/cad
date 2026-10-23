@@ -3371,7 +3371,7 @@ impl<T: crate::mate::SolveScalar + EvalScalar> crate::mate::SolvedPoses<T> {
 }
 
 /// **A pose read bound against an evaluation, with no reader seat**
-/// — a report's read of a pose variable ([`crate::mate::unobservable`]).
+/// — a report's read of a pose variable ([`crate::mate::unobservable()`]).
 pub(crate) fn read_pose_in<T: EvalScalar>(
     doc: &crate::ProfileDoc,
     ev: &Evaluation<T>,

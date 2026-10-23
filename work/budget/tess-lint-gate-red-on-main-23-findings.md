@@ -35,3 +35,14 @@ lattice metric): `twisted_duct/twisted_duct` triangles 1.07x over the
 baseline (12508 → 13438), and `lofts/loft_prism` faces 3 and 5 recoverable
 slack (1.1x → 1.1x, flagged as wastefuller). The re-cut folds them with the
 23, and #5531's body has the per-scene deltas against `main`.
+
+**30 findings from the 2026-10-22 nightly (INTENT triage, 2026-10-23).**
+The gate read 23 findings on every nightly from 2026-10-17 through
+2026-10-21, and 30 on 2026-10-22 (run 39728496598) and 2026-10-23 (run
+39906156937, main `be9b907694`). The seven new ones: triangle growth on
+`lily/lily_leaf_a` (10108 -> 15138), `lily/lily_sepal_a` (4234 -> 8774),
+`lily/lily_sepal_b` (4194 -> 8772) and `lily/lily_sepal_c` (4220 -> 8772);
+`twisted_duct/twisted_duct` (12508 -> 13438, #5531 above); re-keyed
+`lily_leaf_a` and `lily_sepal_a` face 2 (nu 1 -> 21, 2 -> 15); and
+`nonuniform_loft` growing again (19736 -> 20384). The lily rows arrived
+in the merges between `8c7db2ae37` and `0ffab3663d`; not bisected further.

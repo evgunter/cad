@@ -274,3 +274,11 @@ PR 5568's fix pass.
   - Fix lane dispatched: the roster blanks the source's `#[cfg(test)] mod tests` region, since it pins kernel mints only.
   - Class finding: a PR that edits a `MINT_SOURCES` file should run k-lint's roster. The fix PR proposes how, or files it on INSTR.
   - The other reds (the editor-core slow set, the sweep rows at 1e-12, the viewer pick tally, test-utils' census) are not on QUAD's ground.
+
+## 2026-10-23: measure door unit A (PR 5589) reviewed and merged
+
+- **DUAL pair (H, concurrent, cloud sessions).** R1 said APPROVE-WITH-FIXES and R2 said NOT-MERGEABLE-AS-IS. They raised one bilateral MAJOR: the work wall prices a face's complexity (knots, chords, edges, spirics), so a complex face that main certifies stops one round short at Wall. The bracket stays sound. Tally 0.
+- **Ruling: ratified text.** A real work bound gives complex faces fewer rounds, so acceptance 4 is amended to "within the wall". The trimmed lane's weight now follows the chart's bidegree (measured), which gives R2's n-gons back main's round.
+- **Fix pass.** It ends at `36c06771e4`. Its own red on the round-tube row was a wrong claim, found by PR 5611's CI, which runs that slow row.
+- **Container restarts.** Three of them interrupted the local lane. Reviews and P1 lanes now run as cloud sessions (Ev, 2026-10-22: "you can use cloud sessions to parallelize").
+- **Next.** Merge PR 5611 (patch doors take `PatchNet`) on top of A, then unit B.

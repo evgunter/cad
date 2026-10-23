@@ -7189,7 +7189,7 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
 /// world read is a pose, its two poses are of one kind, its class is
 /// admitted, a value's freedom is its mate's kind's. The bundle as a
 /// whole is [`admit_bundle_make_up`]'s. The one call every edit that
-/// writes a constraint ([`DocEdit::writes_a_mates_datum`]) makes.
+/// writes a constraint (`DocEdit::writes_a_mates_datum`, a test roster) makes.
 fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
     new: &Doc<P>,
     placement: RecipeNodeId,
