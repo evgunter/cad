@@ -70,9 +70,10 @@ fn opts(doc: &ProfileDoc, seed: Option<&'static str>) -> EvalOptions {
     }
 }
 
-/// The variable `doc` declares as `n`, or an id it never minted.
+/// The variable `doc` declares as `n`, or an id it never minted (not
+/// `(0, 0)`, the world's space, which every document holds).
 fn var(doc: &ProfileDoc, n: &str) -> editor_core::VarId {
-    doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))
+    doc.var_named(n).unwrap_or(editor_core::VarId::new(999, 7))
 }
 
 /// `doc`'s variable `n` as a refusal speaks it.

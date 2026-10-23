@@ -1230,6 +1230,8 @@ mod a_body_built_turned_is_the_body_turned;
 mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
 mod a_cone_with_a_tilted_seam;
+#[path = "a_mirrored_body_is_its_image.rs"]
+mod a_mirrored_body_is_its_image;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "join_lever_is_the_joined_edge.rs"]

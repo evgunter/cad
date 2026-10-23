@@ -556,6 +556,8 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Input => "input",
         S::Of => "of",
         S::Body => "body",
+        S::Plane => "plane",
+        S::Space => "target_space",
     }
 }
 
@@ -665,11 +667,12 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // bundle, and a constraint id the bundle does not hold.
         EditError::WorldIsUndeletable { .. } => "world_is_undeletable",
         EditError::ConstraintOnNonPlacement { .. } => "constraint_on_non_placement",
+        // Its reads lie in two spaces, decided from the recipe.
+        EditError::SpaceMismatch { .. } => "space_mismatch",
         EditError::UnknownConstraint { .. } => "unknown_constraint",
         EditError::MateNamedByValue { .. } => "mate_named_by_value",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
-        EditError::ImproperPlacement { .. } => "improper_placement",
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
         EditError::NonRigidPlacement { .. } => "non_rigid_placement",
         EditError::PlacementAxis { .. } => "placement_axis",
@@ -807,7 +810,6 @@ pub fn placement_rule_inner_tag(fault: &PlacementRuleFault) -> Option<&'static s
         PlacementRuleFault::CountSpelling { shape } => Some(count_mismatch_tag(shape)),
         PlacementRuleFault::NoPlacements
         | PlacementRuleFault::NonFiniteFrame { .. }
-        | PlacementRuleFault::ImproperFrame { .. }
         | PlacementRuleFault::NonRigidFrame { .. } => None,
     }
 }
@@ -831,6 +833,9 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
             FrameInput::Tangent => "degenerate_tangent",
             FrameInput::RollReference => "degenerate_roll_reference",
             FrameInput::ReferenceLadder => "degenerate_reference_ladder",
+            // The mirror normal is the kernel's reflection door's
+            // (`topo::Reflection::across`), which no binding reaches: a
+            // mirror is `Node.mirror`, its plane a pose.
             FrameInput::MirrorNormal => "degenerate_mirror_normal",
         },
         FrameError::NonFiniteLength { input } => match input {
@@ -898,6 +903,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Chamfer => "chamfer",
         C::Boolean => "boolean",
         C::Transform => "transform",
+        C::Mirror => "mirror",
         C::Motion => "motion",
         C::Skin => "skin",
         C::Loft => "loft",
@@ -956,7 +962,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PlacementRuleCountSpelling => "placement_rule_mismatch",
         C::PlacementRuleNoPlacements => "empty_placement_list",
         C::PlacementRuleNonFiniteFrame => "non_finite_placement",
-        C::PlacementRuleImproperFrame => "improper_placement",
         C::PlacementRuleNonRigidFrame => "non_rigid_placement",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
@@ -995,7 +1000,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateClassNotAdmitted => "mate_class_not_admitted",
         C::MateOverconstrained => "mate_overconstrained",
         C::MateUnpinned => "mate_unpinned",
-        C::MateTargetsDiffer => "mate_targets_differ",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
         C::MateUnleverable => "mate_unleverable",
         C::MateKindsDiffer => "mate_kinds_differ",
@@ -1005,8 +1009,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateNotAFreedom => "mate_not_a_freedom",
         C::MateNoChart => "mate_no_chart",
         C::CrossingUnverified => "crossing_unverified",
-        // A node reading two spaces: a loose copy's beside the world's,
-        // or two loose copies'.
+        // A node reading two spaces: its reads, or a placement's mate
+        // outside its target.
         C::SpaceMismatch => "space_mismatch",
     }
 }
@@ -1068,7 +1072,9 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Split(inner) => Some(split_op_error_tag(inner)),
         NodeErrorKind::Blend { error, .. } => Some(blend_error_tag(error)),
         NodeErrorKind::Boolean(inner) => Some(boolean_error_tag(inner.kind())),
-        NodeErrorKind::Transform(inner) => Some(transform_error_tag(inner)),
+        NodeErrorKind::Transform(inner) | NodeErrorKind::Mirror(inner) => {
+            Some(transform_error_tag(inner))
+        }
         NodeErrorKind::Motion(inner) => Some(rigid_motion_error_tag(inner)),
         NodeErrorKind::Skin(inner) => Some(skin_error_tag(inner)),
         NodeErrorKind::Loft(inner) => Some(loft_error_tag(inner)),
@@ -1242,12 +1248,12 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::RebindMetadataCollision { .. } => None,
         EditError::WorldIsUndeletable { .. } => None,
         EditError::ConstraintOnNonPlacement { .. } => None,
+        EditError::SpaceMismatch { .. } => None,
         EditError::UnknownConstraint { .. } => None,
         EditError::MateNamedByValue { .. } => None,
         // Which answer the rule gives twice is the arm.
         EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
-        EditError::ImproperPlacement { .. } => None,
         EditError::NonFinitePlacement { .. } => None,
         EditError::NonRigidPlacement { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
@@ -2054,7 +2060,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         // constraint's word for `node_not_minted`.
         SnapshotError::ConstraintNotMinted { .. } => "constraint_not_minted",
         SnapshotError::PlacementNonFinite { .. } => "placement_non_finite",
-        SnapshotError::PlacementImproper { .. } => "placement_improper",
         SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
         SnapshotError::MateRefused { .. } => "mate_refused",
         SnapshotError::PlacementRule { .. } => "placement_rule",
@@ -2260,7 +2265,6 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         E::EmptyBoolean { .. } => "empty_boolean",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
-        E::Loose { .. } => "loose",
     }
 }
 
@@ -2495,12 +2499,12 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
 pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
     match err {
         AssemblyError::Product(inner) => product_error_tag(inner),
-        AssemblyError::Space { .. } => "own_space",
         AssemblyError::Mint { .. } => "unminted_mates",
         AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
         AssemblyError::CarriedAtRest { .. } => "carried_at_rest",
         AssemblyError::AtRest { .. } => "at_rest",
         AssemblyError::Uncertified { .. } => "uncertified",
+        AssemblyError::Space { .. } => "own_space",
     }
 }
 
@@ -3433,6 +3437,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::StrandedRead { .. } => "stranded_read",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
+        Maintenance::StrandedSpace { .. } => "stranded_space",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }
 }

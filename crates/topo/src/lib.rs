@@ -181,6 +181,7 @@ pub(crate) mod live;
 // the same rustdoc reason as the sector modules below.
 pub(crate) mod loop_winding;
 pub mod merge_faces;
+pub mod mirror;
 pub mod movefac;
 #[cfg(test)]
 mod n2r1_probes;
@@ -1092,6 +1093,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
+pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{
     CurveKind, CurveKindSet, POSE_UNIT_NORM, RimBreak, RimError, SurfaceKind, SurfaceKindSet,

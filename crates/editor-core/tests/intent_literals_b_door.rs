@@ -335,6 +335,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
         Node::InstantiatePart {
             doc_ref: reference(&edge_doc),
             interface: editor_core::InterfaceRecord::default(),
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![editor_core::Constraint {
                 id: editor_core::ConstraintId(editor_core::MintId::new(0, 0)),
                 kind: editor_core::ConstraintKind::Mate(on_the_world(b)),
@@ -342,6 +343,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
         },
         Node::Place {
             shapes: vec![b.into()],
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![
                 editor_core::Constraint {
                     id: editor_core::ConstraintId(editor_core::MintId::new(0, 0)),
@@ -498,7 +500,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     // that no corpus document holds owes an edge above.
     assert_eq!(
         kinds.len(),
-        21,
+        22,
         "a node kind the sweep does not reach: {kinds:?}"
     );
 }

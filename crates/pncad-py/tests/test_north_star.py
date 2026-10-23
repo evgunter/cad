@@ -1170,7 +1170,7 @@ def letter(doc, poly, frame, distance, on=None):
     if frame is None:
         return body
     if on is None:
-        return doc.place(body, pose=frame)
+        return doc.place(body, doc.world, pose=frame)
     return doc.place_against(on, body, frame)
 
 
@@ -2185,7 +2185,7 @@ class TestCrosslapExploded(unittest.TestCase):
     def test_the_lift_is_a_placement_and_preserves_the_beam(self):
         doc = Doc()
         beam_a, beam_b = TestCrosslapGlued.beams(self, doc)
-        lifted = doc.place(beam_b, pose=Frame.translation((0 * m, 0 * m, 1.25 * m)))
+        lifted = doc.place(beam_b, doc.world, pose=Frame.translation((0 * m, 0 * m, 1.25 * m)))
         expected = 4.0 * 0.5 * 0.5 - 0.5 * 0.5 * 0.25
         self.assertEqual(expected, 0.9375)
         self.assertAlmostEqual(volume_of(doc, beam_a), expected, delta=1e-12)
@@ -3540,7 +3540,7 @@ class TestTwopeg(unittest.TestCase):
     def test_twopeg_apart_is_two_parts_and_a_rigid_lift(self):
         doc = Doc()
         p, q, v_p, v_q = self.parts(doc)
-        lifted = doc.place(q, pose=Frame.translation((0 * m, 0 * m, 1.6 * m)))
+        lifted = doc.place(q, doc.world, pose=Frame.translation((0 * m, 0 * m, 1.6 * m)))
         ev = evaluate(doc)
         for node, want in ((p, v_p), (q, v_q), (lifted, v_q)):
             body = ev.value(node).body()
@@ -3978,18 +3978,19 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # caller could author. The positive form is
         # `tests/test_measures.py`.
         #
-        # `place` holds a placement's shapes and its bundle of
-        # constraints, and `mate` is no node: a mate is the `Mate` value
-        # a bundle holds (INTENT stage 3). The positive form is
+        # `place` holds a placement's shapes, its target space and its
+        # bundle of constraints, `space` is a target of its own, and
+        # `mate` is no node: a mate is the `Mate` value a bundle holds
+        # (INTENT stage 3). The positive form is
         # `tests/test_world_pins.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "assertion", "chamfer",
                 "extrude", "fillet", "hollow_tube", "instantiate_part",
-                "intersect", "loft", "measure", "part", "pattern",
+                "intersect", "loft", "measure", "mirror", "part", "pattern",
                 "place", "placed_union", "placed_union_at",
-                "polygon", "profile", "revolve", "shell",
+                "polygon", "profile", "revolve", "shell", "space",
                 "split", "subtract", "tube", "union",
             ],
         )
@@ -4014,7 +4015,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "delete_node", "delete_var",
                 "insert_node", "rebind", "remove_constraint",
                 "rename_var",
-                "set_label", "set_members",
+                "set_constraints", "set_label", "set_members",
                 "set_param", "set_program",
                 "set_tolerance", "set_var_distribution", "set_var_unit",
                 "set_var_value", "update_reference",

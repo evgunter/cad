@@ -41,7 +41,7 @@ use editor_core::{
     BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
     EvalOptions, Evaluation, Formula, FreeVar, Mate, MateRef, NameRef, Node, NodeResult, Operand,
     ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, Target,
-    TargetAxis, Value, VarName, WorldRead, all_vertices, evaluate, vertex_position,
+    TargetAxis, VarName, WorldRead, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
@@ -251,25 +251,6 @@ impl Parts {
     }
 }
 
-/// `doc` with the freedom `coord` of `mate` set to `by`.
-fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> ProfileDoc {
-    editor_core::apply(
-        &doc,
-        &DocEdit::AddValue {
-            placement: mate.placement,
-            value: Box::new(Value {
-                mate: Some(mate.id),
-                coord,
-                by,
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
-    .doc
-}
-
 /// **A seat**: `mover`'s bottom cap resting on `onto`'s top cap,
 /// `by` above it, and the mover's origin at `(x, y)` from the target
 /// body's, turned `spin` about the cap's normal — the rest and its three
@@ -283,7 +264,7 @@ fn seat(
     by: Formula,
     (x, y, spin): (Formula, Formula, Formula),
 ) -> (ProfileDoc, MateRef) {
-    let (doc, rest) = fixture::constrain_at(
+    fixture::mated(
         doc,
         mover,
         fixture::mate(
@@ -291,15 +272,12 @@ fn seat(
             fixture::flip(standoff(fixture::plane(head(onto)), by)),
             ContactClass::Rest,
         ),
-    );
-    let doc = [
-        (Coord::Slide(TargetAxis::X), x),
-        (Coord::Slide(TargetAxis::Y), y),
-        (Coord::Spin, spin),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| with_value(doc, rest, coord, by));
-    (doc, rest)
+        &[
+            (Coord::Slide(TargetAxis::X), x),
+            (Coord::Slide(TargetAxis::Y), y),
+            (Coord::Spin, spin),
+        ],
+    )
 }
 
 /// Literal `(x, y, spin)` values.
@@ -342,7 +320,8 @@ fn slab_and_bolts(
     n: usize,
 ) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (mut doc, slab) = fixture::insert_pinned(doc, Node::instantiate_part(p.slab), &p.opts());
+    let (mut doc, slab) =
+        fixture::insert_pinned(doc, crate::fixture::mated_instance(p.slab), &p.opts());
     let mut bolts = Vec::new();
     for _ in 0..n {
         let (next, bolt) = insert(doc, fixture::mated_instance(p.bolt));
@@ -560,7 +539,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     // slab's top, and a turn about that line.
     let p = parts("msolve14-c-coax");
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-coax", 1);
-    let (doc, coaxial) = fixture::constrain_at(
+    let (doc, _) = fixture::mated(
         doc,
         bolts[0],
         fixture::mate(
@@ -568,29 +547,12 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
             p.slab_line(slab, 4.0, 4.0),
             ContactClass::Rest,
         ),
+        &[
+            (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
+            (Coord::Spin, ang(0.3)),
+        ],
     );
-    let doc = with_value(
-        doc,
-        coaxial,
-        Coord::Slide(TargetAxis::Z),
-        len(SLAB_HEIGHT + 0.25),
-    );
-    let doc = with_value(doc, coaxial, Coord::Spin, ang(0.3));
     out.push(("coaxial-slide-spin", doc, p.opts()));
-
-    // A lone rest: the bolt is LOOSE, its own space's root.
-    let p = parts("msolve14-c-loose");
-    let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-loose", 1);
-    let (doc, _) = fixture::constrain_at(
-        doc,
-        bolts[0],
-        fixture::rest(
-            head(p.bolt_foot(bolts[0])),
-            head(p.slab_top(slab)),
-            ContactClass::Rest,
-        ),
-    );
-    out.push(("loose", doc, p.opts()));
 
     // A rest, then a frame mate beside it past the door (the state a
     // doctored save leaves): the placement refuses its bundle
@@ -945,10 +907,21 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the evaluated bodies, whose planes' `u_ref` moved; no mate reads a
 /// plane's `u_ref` (`mate/pin.rs` reads a plane by its origin and
 /// normal), so no pose moved.
+///
+/// And for D′1 (a placement names its target space, all three rows):
+/// every bundle pins its copy, so the lone-rest `loose` document left
+/// the corpus (a lone rest now refuses `Unpinned` at the door); every
+/// seat and the coaxial document are written as one whole bundle
+/// (`DocEdit::SetConstraints`), which mints their ids in another order
+/// than a mate followed by its values one edit each; every construction
+/// gains a `space` output, so the ids after it moved; and the digest
+/// feeds each node's space as its `Space` variable where it fed the
+/// retired `Space` enum. Re-blessed at all three ε; the solved poses
+/// were not compared against the tree before separately.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb6c1_14a1_d028_2de1),
-    (1e-6, 0x9302_06b1_4562_6ef9),
-    (1e-12, 0x8942_ed37_d6d7_0e79),
+    (1e-9, 0xa3d9_38c4_27d4_530a),
+    (1e-6, 0x6357_4036_51cd_85b1),
+    (1e-12, 0x5e63_7bdc_dd33_f293),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
@@ -1781,7 +1754,7 @@ fn structure<T: editor_core::EvalScalar>(
         .map(|id| {
             let said = match ev.result(id) {
                 Some(NodeResult::Ok(v)) => {
-                    format!("{} in {:?}", v.payload.kind_name(), ev.space(id))
+                    format!("{} in {:?}", v.payload.kind_name(), doc.node_space(id))
                 }
                 Some(other) => format!("failed: {}", fault_class(other)),
                 None => "absent".to_string(),

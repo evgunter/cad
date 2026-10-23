@@ -232,40 +232,22 @@ pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> Loop
 
 // --- placing a construction ------------------------------------------
 
-/// **`doc` with `placed`'s mate and values added to `placement`**.
+/// **A placement of `body` into `target` under `placed`**, its whole
+/// bundle written by the insert.
 ///
 /// # Panics
 ///
-/// If a door refuses one.
-fn constrained(
-    doc: ProfileDoc,
-    placement: RecipeNodeId,
-    placed: crate::Placed,
-    tol: geom_core::Tol,
-) -> ProfileDoc {
-    let mut doc = doc;
-    placed
-        .write(placement, |edit| {
-            let applied = crate::apply(&doc, &edit, tol)?;
-            doc = applied.doc;
-            Ok::<_, crate::EditError>(applied.record.minted_constraints)
-        })
-        .expect("a placement's constraint applies");
-    doc
-}
-
-/// **A placement of `body`**, inserted with no constraint yet.
+/// If the insert door refuses it.
 fn place_of(
     doc: ProfileDoc,
     body: crate::Operand,
+    target: crate::Operand,
+    placed: crate::Placed,
     tol: geom_core::Tol,
 ) -> (ProfileDoc, RecipeNodeId) {
     let applied = crate::apply(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::place(vec![crate::BodyRead::plain(body)])),
-            fresh: Vec::new(),
-        },
+        &DocEdit::place(vec![crate::BodyRead::plain(body)], target, placed.bundle()),
         tol,
     )
     .expect("a placement inserts");
@@ -305,8 +287,13 @@ pub fn in_world(
     } else {
         crate::place_at(&doc, &body, at, &opts, tol).expect("the copy places over its geometry")
     };
-    let (doc, placement) = place_of(doc, body, tol);
-    (constrained(doc, placement, placed, tol), placement)
+    place_of(
+        doc,
+        body,
+        crate::Operand::Var(crate::VarId::WORLD),
+        placed,
+        tol,
+    )
 }
 
 /// **A copy of `body` placed against `target`'s geometry at `at`** —
@@ -335,8 +322,10 @@ pub fn against(
         tol,
     )
     .expect("the copy places against its target's geometry");
-    let (doc, placement) = place_of(doc, body, tol);
-    (constrained(doc, placement, placed, tol), placement)
+    let space = doc
+        .operand_space(&target)
+        .expect("the target is a body in a space");
+    place_of(doc, body, crate::Operand::Var(space), placed, tol)
 }
 
 /// **The frame at `origin` with axes `u` and `v`** (`v` made orthogonal
@@ -676,6 +665,8 @@ pub enum VerbatimKind {
     Selected,
     /// `VerbatimEdge::Intact`: the entities a split leaves intact.
     Intact,
+    /// `VerbatimEdge::Reflected`: a mirror's image.
+    Reflected,
 }
 
 /// **The name-carrying edge the recipe walks read `node` as, if any**:
@@ -693,6 +684,7 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     Some(match crate::names::verbatim_edge(node)? {
         VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
         VerbatimEdge::Intact => VerbatimKind::Intact,
+        VerbatimEdge::Reflected => VerbatimKind::Reflected,
     })
 }
 
@@ -780,12 +772,13 @@ pub fn slot_spelling(doc: &ProfileDoc, node: RecipeNodeId, slot: crate::SlotId) 
 // --- a state no door admits -------------------------------------------
 
 /// **`mate` written into `placement`'s bundle past the bundle rule**:
-/// the constraint lowered and admitted as [`DocEdit::AddConstraint`]
-/// admits it into an empty bundle, then the bundle's other
-/// constraints put back beside it. The state a doctored save leaves, which
-/// no edit door admits and the fold refuses (`MateFault::Overconstrained`); for
-/// rows that hold the solve's half of the rule. Answers the document
-/// and the constraint's id.
+/// the constraint lowered as the door lowers it, its id minted, and
+/// admitted on its own datum as the door admits it, then appended
+/// beside the bundle's other constraints with no bundle check. The
+/// state a doctored save leaves, which no edit door admits and the fold
+/// refuses (`MateFault::Overconstrained`); for rows that hold the
+/// solve's half of the rule. Answers the document and the constraint's
+/// id.
 ///
 /// # Panics
 ///
@@ -795,39 +788,43 @@ pub fn beside_past_the_bundle_rule(
     doc: &ProfileDoc,
     placement: RecipeNodeId,
     mate: crate::Mate<Formula>,
-    tol: geom_core::Tol,
+    _tol: geom_core::Tol,
 ) -> (ProfileDoc, crate::node::ConstraintId) {
-    let bundle = |doc: &mut ProfileDoc| match doc.nodes.get_mut(&placement) {
-        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
-            std::mem::take(constraints)
-        }
-        _ => panic!("{placement} is no placement"),
+    let mut out = doc.clone();
+    // The mate lowered in a carrier bundle of its own, as the door
+    // lowers a bundle's constraints.
+    let carrier: Node<
+        <crate::program::ProfileProgram as crate::ProfilePayload>::Authored,
+        Formula,
+    > = Node::Place {
+        shapes: Vec::new(),
+        target: crate::Operand::Var(crate::VarId::WORLD),
+        constraints: vec![crate::Constraint::of_mate(
+            crate::node::ConstraintId::placeholder(1),
+            mate,
+        )],
     };
-    let mut emptied = doc.clone();
-    let held = bundle(&mut emptied);
-    let applied = crate::apply(
-        &emptied,
-        &DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(mate),
-            fresh: Vec::new(),
-        },
-        tol,
-    )
-    .unwrap_or_else(|e| panic!("the door admits the mate alone: {e}"));
-    let mut out = applied.doc;
-    let id = applied.record.minted_constraints[0];
-    // The door dropped the variables only the taken-out constraints
-    // read; they go back with them.
-    for (var, def) in &doc.vars {
-        out.vars.entry(*var).or_insert_with(|| def.clone());
-    }
-    let added = bundle(&mut out);
+    let Node::Place {
+        constraints: mut lowered,
+        ..
+    } = crate::edit::lower_node_into(&mut out, &carrier)
+        .unwrap_or_else(|e| panic!("the mate lowers: {e}"))
+    else {
+        unreachable!("a placement lowers to a placement")
+    };
+    let mut written = lowered.remove(0);
+    let id = out.mint.add_constraint(placement, &written.kind);
+    written.id = id;
+    let crate::mate::ConstraintKind::Mate(data) = &written.kind else {
+        unreachable!("the carrier holds a mate")
+    };
+    crate::mate::solve::admit_mate(&out, crate::MateRef::new(placement, id), data)
+        .unwrap_or_else(|e| panic!("the door admits the mate on its own: {e}"));
     match out.nodes.get_mut(&placement) {
         Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
-            *constraints = held.into_iter().chain(added).collect();
+            constraints.push(written);
         }
-        _ => unreachable!("the placement was found above"),
+        _ => panic!("{placement} is no placement"),
     }
     (out, id)
 }

@@ -17,8 +17,8 @@ use editor_core::Formula;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, Frame, MateRef, Node, ProfileDoc,
-    RecipeNodeId, StableName, TargetAxis, Value, WorldRead, inline,
+    CapEnd, ContactClass, Coord, DocumentId, Frame, MateRef, Node, ProfileDoc, RecipeNodeId,
+    StableName, TargetAxis, WorldRead, inline,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, offset_of, on_frame, square};
@@ -47,31 +47,15 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// leaves each set to zero, so the copy `b` reads is pinned: the mate
 /// and its values, by the mate's address.
 fn stacked(doc: ProfileDoc, a: StableName, b: StableName) -> (ProfileDoc, MateRef) {
-    let (doc, joint) = fixture::constrain(
+    let (doc, joint) = crate::fixture::constrain_with(
         doc,
         fixture::rest(fixture::head(b), fixture::head(a), ContactClass::Rest),
+        &[
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, fixture::ang(0.0)),
+        ],
     );
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        fixture::step(
-            doc,
-            DocEdit::AddValue {
-                placement: joint.placement,
-                value: Box::new(Value {
-                    mate: Some(joint.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
     (doc, joint)
 }
 

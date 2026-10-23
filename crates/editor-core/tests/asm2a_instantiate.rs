@@ -178,7 +178,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for r in refs {
-        let (next, id) = insert(doc, Node::instantiate_part(*r));
+        let (next, id) = insert(doc, crate::fixture::mated_instance(*r));
         doc = next;
         ids.push(id);
     }
@@ -207,7 +207,7 @@ fn repinned(
     pose: &Frame,
     opts: &EvalOptions,
 ) -> ProfileDoc {
-    let doc = unpinned(doc, placement);
+    let doc = fixture::stand_again(doc, placement);
     fixture::pin(doc, placement, pose, opts)
 }
 
@@ -260,14 +260,8 @@ fn nominally_pinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
 /// **One copy of `body`, which never evaluates, in the world**: a
 /// placement of it, [`nominally_pinned`].
 fn placed_nominally(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, placement) = insert(doc, Node::place(vec![body.into()]));
+    let (doc, placement) = insert(doc, crate::fixture::stood(vec![body.into()]));
     (nominally_pinned(doc, placement), placement)
-}
-
-/// `placement` with its bundle emptied: its values first, so no value
-/// is left naming a mate already removed.
-fn unpinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
-    fixture::emptied(doc, placement)
 }
 
 /// The one product body an instance's copies carry.
@@ -601,7 +595,8 @@ fn row3_instance_qualified_names_round_trip_persistence() {
 
 // ---- Row 4: the world mate ----
 
-/// Row 4 — an inserted instance is loose; a world mate's pose moves the
+/// Row 4 — an inserted instance stands in the world by the identity
+/// bundle; a world mate's pose moves the
 /// copy without changing its volume; the pre-edit document is untouched
 /// (undo = keeping the prior value); a non-instance target refuses
 /// typed.
@@ -612,8 +607,10 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
     let opts = with_resolver(store);
     let (loose, ids) = assembly("asm2a-r4-asm", &[doc_ref]);
     assert!(
-        fixture::bundle(&loose, ids[0]).is_empty(),
-        "an inserted instance is loose"
+        fixture::bundle(&loose, ids[0])
+            .iter()
+            .all(|c| c.mate().is_none()),
+        "an inserted instance stands by the identity bundle"
     );
     let doc = fixture::pinned(loose, ids[0], &opts);
     let held = fixture::offset_of(&doc, ids[0]);
@@ -1026,7 +1023,7 @@ impl PartResolver for CyclicStore {
             (self.b, self.a)
         };
         let doc = ProfileDoc::empty(here.id, Tol::witness());
-        let (doc, instance) = insert(doc, Node::instantiate_part(there));
+        let (doc, instance) = insert(doc, crate::fixture::mated_instance(there));
         Ok(nominally_pinned(doc, instance))
     }
 }
@@ -1095,7 +1092,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let mut store = StubStore::default();
     let broken = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-broken-part"), Tol::witness());
-        let (doc, instance) = insert(doc, Node::instantiate_part(missing));
+        let (doc, instance) = insert(doc, crate::fixture::mated_instance(missing));
         nominally_pinned(doc, instance)
     };
     let inner_root = broken.ids()[0];
@@ -1188,7 +1185,7 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
     let wrapper = |label: &str, inner: DocRef| {
         let (doc, instance) = insert(
             ProfileDoc::empty(DocumentId::derive(label), tol),
-            Node::instantiate_part(inner),
+            crate::fixture::mated_instance(inner),
         );
         (nominally_pinned(doc, instance), instance)
     };
@@ -1330,7 +1327,7 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let part_ref = store.insert(part, tol);
 
     let bracket = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-deep-bracket"), tol);
-    let (bracket, inner) = insert(bracket, Node::instantiate_part(part_ref));
+    let (bracket, inner) = insert(bracket, crate::fixture::mated_instance(part_ref));
     let bracket = nominally_pinned(bracket, inner);
     let (bracket, _) = placed_nominally(bracket, inner);
     let bracket_ref = store.insert(bracket.clone(), tol);
@@ -1451,7 +1448,7 @@ fn r1_part_evaluations_aggregates_through_nesting() {
     let p = store.insert(part("asm2a-nest-p", 0.0, 1.0), Tol::witness());
     let sub = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-nest-b"), Tol::witness());
-        let (doc, instance) = insert(doc, Node::instantiate_part(p));
+        let (doc, instance) = insert(doc, crate::fixture::mated_instance(p));
         fixture::pinned(doc, instance, &with_resolver(store.clone()))
     };
     let b = store.insert(sub, Tol::witness());
@@ -1638,11 +1635,11 @@ impl PartResolver for CancelingStore {
 }
 
 /// **A run canceled during the census pass places nothing**: no node
-/// ran, so no copy's space is read off a part table the pass only
-/// partly entered. The same document uncanceled has both instances as
-/// loose copies, which is what the empty map is measured against.
+/// ran, so no copy is read off a part table the pass only partly
+/// entered. The same document uncanceled places both instances, which
+/// is what the empty result map is measured against.
 #[test]
-fn a_run_canceled_in_the_census_has_no_loose_copies() {
+fn a_run_canceled_in_the_census_places_nothing() {
     let mut store = StubStore::default();
     let a = store.insert(part("asm2a-census-cancel-a", 0.0, 1.0), Tol::witness());
     let b = store.insert(part("asm2a-census-cancel-b", 3.0, 1.0), Tol::witness());
@@ -1654,13 +1651,12 @@ fn a_run_canceled_in_the_census_has_no_loose_copies() {
         editor_core::EvalOutcome::Completed,
         "uncanceled, the run completes"
     );
-    let mut loose = ids.clone();
-    loose.sort();
-    assert_eq!(
-        whole.loose_roots(),
-        loose,
-        "uncanceled, each instance is a loose copy"
-    );
+    for &id in &ids {
+        assert!(
+            whole.value(id).is_some(),
+            "uncanceled, each instance places"
+        );
+    }
 
     let cancel = CancelToken::new();
     let resolver = Arc::new(CancelingStore {
@@ -1687,10 +1683,5 @@ fn a_run_canceled_in_the_census_has_no_loose_copies() {
         canceled.nodes.is_empty(),
         "no node ran: {:?}",
         canceled.nodes.keys()
-    );
-    assert!(
-        canceled.loose.is_empty(),
-        "a canceled census places no copy: {:?}",
-        canceled.loose
     );
 }

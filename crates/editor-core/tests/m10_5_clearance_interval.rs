@@ -240,7 +240,7 @@ pub(crate) fn slid_by(
             _ => {}
         }
     }
-    let placement = r.insert(Node::place(vec![BodyRead::plain(read)]));
+    let placement = r.insert(crate::fixture::stood(vec![BodyRead::plain(read)]));
     r.write(placement, placed);
     placement
 }

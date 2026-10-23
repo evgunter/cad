@@ -115,7 +115,7 @@ fn uncarried() -> Vec<Uncarried> {
         Uncarried::Posed {
             placement: s(4, "Place"),
         },
-        Uncarried::Loose {
+        Uncarried::OtherSpace {
             placement: s(4, "InstantiatePart"),
         },
         Uncarried::NotAnInstance {

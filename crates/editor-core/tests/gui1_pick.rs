@@ -245,10 +245,13 @@ fn unusable_nodes_surface_typed_errors() {
             distance: len(0.0), // degenerate: the extrude fails,
         },
     );
+    // The good cube joins the bad extrude's space, as an operator's
+    // operands share one.
+    let (doc, good_in) = crate::fixture::stood_in(doc, good, bad);
     let (doc, poisoned) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![bad.into(), good.into()]),
+            members: editor_core::Bodies::Spelled(vec![bad.into(), good_in.into()]),
         },
     );
     let ev = run(&doc);

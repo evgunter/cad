@@ -30,8 +30,8 @@ use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, EvalOptions,
     Evaluation, FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind,
     NodeResult, PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE,
-    RecipeNodeId, RoleSeg, SlotId, StableName, Target, TargetAxis, Value, VarDef, VarKind,
-    all_faces, face_carrier_kind, face_frame, load, save,
+    RecipeNodeId, RoleSeg, SlotId, StableName, Target, TargetAxis, VarDef, VarKind, all_faces,
+    face_carrier_kind, face_frame, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, gate, insert, len, on_frame, run, solve, square, step};
@@ -96,25 +96,6 @@ fn worn_face(at: RecipeNodeId, face: &StableName) -> editor_core::SitedFace {
     )
 }
 
-/// `doc` with the freedom `coord` of `mate` set to `by`.
-fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> ProfileDoc {
-    editor_core::apply(
-        &doc,
-        &DocEdit::AddValue {
-            placement: mate.placement,
-            value: Box::new(Value {
-                mate: Some(mate.id),
-                coord,
-                by,
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
-    .doc
-}
-
 /// **`block_i`'s bottom cap seated on `face` of instance `at`**, the
 /// face named by its part's own name: the rest, and the block's origin
 /// over the target body's and its axes the target's — the three
@@ -125,7 +106,8 @@ fn seated_on(
     face: &StableName,
     (block_i, block_body): (RecipeNodeId, RecipeNodeId),
 ) -> (ProfileDoc, MateRef) {
-    let (doc, rest) = fixture::constrain_at(
+    // The rest and its three values, each 0.
+    fixture::constrain_at(
         doc,
         block_i,
         fixture::rest(
@@ -133,15 +115,7 @@ fn seated_on(
             worn_face(at, face),
             ContactClass::Rest,
         ),
-    );
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| with_value(doc, rest, coord, by));
-    (doc, rest)
+    )
 }
 
 /// **The item's document**: a post and a block in a store, the post
@@ -170,7 +144,7 @@ fn seat(label: &str, post_height: f64) -> Seat {
         store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
     let opts = with_resolver(store.clone());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, post_i) = insert(doc, Node::instantiate_part(post_ref));
+    let (doc, post_i) = insert(doc, crate::fixture::mated_instance(post_ref));
     let doc = stood_on_its_base(doc, post_i, post_body);
     let (doc, block_i) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, mate) = seated_on(
@@ -416,7 +390,7 @@ fn rest_on_the_face(
         store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(part_ref), &opts);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(part_ref), &opts);
     let (doc, b) = insert(doc, fixture::mated_instance(block_ref));
     // The door decides nothing that needs a pose: the rest enters
     // whatever the face is.
@@ -662,28 +636,15 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
     // The post's own pin was read off a face the extrude had: the
     // author re-pins the round post over its own geometry, so what
     // remains unresolved is the seat's face alone. Its pin is one mate
-    // and the values on its freedoms: the values go first, then the
-    // mate they are read in.
+    // and the values on its freedoms, written over whole: the copy
+    // stood where it is, then pinned again.
     let bundle = fixture::bundle(&doc, s.post_i);
     assert_eq!(
         bundle.iter().filter(|c| c.mate().is_some()).count(),
         1,
         "the post is pinned by one mate"
     );
-    let order = bundle
-        .iter()
-        .filter(|c| c.value().is_some())
-        .chain(bundle.iter().filter(|c| c.mate().is_some()));
-    let doc = order.fold(doc, |doc, c| {
-        step(
-            doc,
-            DocEdit::RemoveConstraint {
-                placement: s.post_i,
-                constraint: c.id,
-            },
-        )
-        .0
-    });
+    let (doc, _) = step(doc, editor_core::stand().write(s.post_i));
     let doc = fixture::pinned(doc, s.post_i, &s.opts);
     let ev = run(&doc, &s.opts);
     assert!(
@@ -729,9 +690,8 @@ fn an_unresolvable_part_fails_its_instance_in_the_resolvers_voice() {
             _ => panic!("an instance"),
         }),
     );
-    fixture::at_the_door_of(
+    let seat = fixture::squared(
         &doc,
-        other,
         fixture::rest(
             fixture::head(in_part(other, s.block_body, CapEnd::Start)),
             worn_face(
@@ -740,8 +700,10 @@ fn an_unresolvable_part_fails_its_instance_in_the_resolvers_voice() {
             ),
             ContactClass::Rest,
         ),
-    )
-    .unwrap_or_else(|(at, fault)| panic!("the door reads no part, got {at:?}: {fault}"));
+        &[],
+    );
+    editor_core::apply(&doc, &seat.write(other), Tol::witness())
+        .unwrap_or_else(|e| panic!("the door reads no part: {e}"));
     let ev = run(&s.doc, &EvalOptions::default());
     assert!(
         matches!(

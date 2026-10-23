@@ -104,7 +104,7 @@ fn proposal_sides_agree_with_the_standalone_part_documents() {
     // The solved state agrees with the oracle: the placed post's cap,
     // read off the landed evaluation, is the standalone pose carried
     // by the post's solved placement.
-    session.perform(proposal.op());
+    session.perform(proposal.op_into_target_space());
     session.pump();
     let (doc, eval) = session.landed_pair().expect("landed");
     let placed = common::solve(&session, doc, tol)
@@ -149,7 +149,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let proposal = tool
         .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
-    common::commit_mate(&mut session, proposal.op());
+    common::commit_mate(&mut session, proposal.op_into_target_space());
 
     let centre = [
         asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
@@ -204,7 +204,7 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
     let tol = Tol::witness();
     let bench = asm::bench("r2rotpick", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b's world mate off: a loose space the probe moves, the frame
+    // post_b in a space of its own, which the probe moves, the frame
     // composed so it moves the post from where its pin stood it.
     asm::unpin(&mut session, bench.post_b);
     session.perform(SessionOp::BeginFreeMove {
@@ -305,7 +305,7 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
     let proposal = tool
         .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
-    common::commit_mate(&mut session, proposal.op());
+    common::commit_mate(&mut session, proposal.op_into_target_space());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
@@ -328,6 +328,7 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
         placement: bench.post_b,
         mate: Box::new(second),
         values: Vec::new(),
+        into_target_space: false,
     });
     // post_b's bundle already pins it, so the second mate is a mate
     // beyond the pin: the door refuses it typed, measuring nothing, and
@@ -353,15 +354,15 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
     }
 }
 
-/// **A mate landing while a free-move GESTURE is in flight kills the
+/// **A mate committed while a free-move GESTURE is in flight kills the
 /// gesture** (the unit's rows supersede a COMMITTED probe; the
 /// in-flight arm is `prune`'s third clause and deserves its own
-/// exercise). The mate puts post_b in the world's space, which its
-/// landing knows, so the landing's prune kills it. Afterwards the
+/// exercise). The mate places post_b into the world, emptying the space
+/// the gesture moves, so the edit's own prune kills it. Afterwards the
 /// preview op refuses `NoFreeMove` — the gesture died with its
 /// instance's eligibility.
 #[test]
-fn a_landing_mate_kills_an_in_flight_gesture() {
+fn a_mate_kills_an_in_flight_gesture() {
     let tol = Tol::witness();
     let bench = asm::bench("r2gesture", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -383,16 +384,13 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
         instance: bench.post_b,
         frame: Frame::translation([0.02, 0.0, 0.0]),
     });
-    let outcome = session.perform(proposal.op());
+    let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
     assert!(
-        session
-            .take_landed_withdrawals()
-            .iter()
-            .any(|report| report.killed_gesture.is_some()),
-        "the landing reports the gesture it killed"
+        outcome.withdrawn.killed_gesture.is_some(),
+        "the edit reports the gesture it killed"
     );
+    session.pump();
     // The in-flight gesture is dead: a further preview has nothing to
     // preview into.
     let outcome = session.perform(SessionOp::PreviewFreeMove {
@@ -408,7 +406,7 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
         outcome.refusal
     );
     // And nothing of the gesture leaked into a committed value.
-    assert!(session.display().free_move_of(bench.post_b).is_none());
+    assert!(crate::common::asm::frame_of(&session, bench.post_b).is_none());
 }
 
 /// **Hide survives the mate that supersedes the probe.** Probe post_b,
@@ -422,8 +420,8 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     let bench = asm::bench("r2hidemate", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
-    // post_b's world mate off, so the mate places post_b.
-    asm::unpin(&mut session, bench.post_b);
+    // post_b in a space of its own, which the probe moves.
+    let own = asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
@@ -467,29 +465,20 @@ fn hide_survives_the_mate_that_discards_the_probe() {
         );
     }
 
-    let outcome = session.perform(proposal.op());
+    let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(
-        outcome.withdrawn.superseded.is_empty(),
-        "the space is known at the landing, not at the edit"
-    );
-    session.pump();
-    let [superseded] = &session
-        .take_landed_withdrawals()
-        .into_iter()
-        .flat_map(|report| report.superseded)
-        .collect::<Vec<_>>()[..]
-    else {
-        panic!("exactly one placement is superseded at the landing")
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
+        panic!("exactly one frame is superseded at the edit")
     };
+    session.pump();
     assert_eq!(
         superseded.instance, bench.post_b,
-        "the mate's landing discards the probe"
+        "the mate's edit discards the probe"
     );
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
+            AdmissionFault::NotShown { space, .. } if space.id() == own
         ),
         "and the report carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \

@@ -111,14 +111,14 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let doc = ProfileDoc::empty(DocumentId::derive("rv_operand"), Tol::witness());
     // `ia`'s bundle is empty: the mate places it.
     let (doc, ia) = insert(doc, crate::fixture::mated_instance(doc_ref));
-    let (doc, ib) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &opts);
+    let (doc, ib) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &opts);
     // A copy of `ib`'s copy: the mate reads `ib`'s face AT the copy,
     // so the operand is a node the name does not name.
     let ib_copy =
         editor_core::Operand::Var(doc.output(ib, 0).expect("an instance defines its copies"));
     let (doc, placed) = insert(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(ib_copy)]),
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(ib_copy)]),
     );
     let head_b = instance_face(ib, part_body);
     let (doc, mate) = crate::fixture::constrain_at(
