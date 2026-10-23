@@ -942,13 +942,15 @@ pub fn band() -> geom_core::Band {
 #[allow(unused_imports)]
 pub use editor_core::test_support::{ang, axes_at, len, len2, scl};
 
-/// [`editor_core::test_support::in_world`] at the witness tolerance.
+/// [`editor_core::test_support::in_world`] at the witness tolerance,
+/// the copy in the product ([`world_product`]).
 pub fn in_world(
     doc: ProfileDoc,
     body: impl Into<editor_core::Operand>,
     at: &editor_core::Frame,
 ) -> (ProfileDoc, RecipeNodeId) {
-    editor_core::test_support::in_world(doc, body, at, Tol::witness())
+    let (doc, placement) = editor_core::test_support::in_world(doc, body, at, Tol::witness());
+    (world_product(doc), placement)
 }
 
 /// [`editor_core::test_support::against`] at the witness tolerance.
@@ -2119,9 +2121,9 @@ impl Recorder {
 }
 
 /// **One copy of `body` in the world, its whole motion stated by
-/// `values`** ([`Recorder::in_world_by`]): a bundle with no mate.
-/// Returns the document and the placement; its copy is the placement's
-/// output.
+/// `values`** ([`Recorder::in_world_by`]): a bundle with no mate, the
+/// copy in the product ([`world_product`]). Returns the document and
+/// the placement; its copy is the placement's output.
 pub fn in_world_by(
     doc: ProfileDoc,
     body: impl Into<editor_core::Operand>,
@@ -2137,7 +2139,8 @@ pub fn in_world_by(
         editor_core::BodyRead::plain(read),
         placed.bundle(),
     );
-    insert(doc, node)
+    let (doc, placement) = insert(doc, node);
+    (world_product(doc), placement)
 }
 
 /// **One copy of `body` in the world on `at`, a frame whose axes are
