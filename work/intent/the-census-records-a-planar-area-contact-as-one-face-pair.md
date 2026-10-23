@@ -4,7 +4,7 @@ kind: unit
 title: the at-rest census records a planar area contact between arrivals as one face pair, a flush pair as its own row, and a touch of its faces' boundaries as the pair's only inside its overlap's closure
 status: closed
 opened: 2026-10-22
-closed: 2026-10-22
+closed: 2026-10-23
 priority: P1
 cost: H
 branch: intent/census-planar-face-pair
