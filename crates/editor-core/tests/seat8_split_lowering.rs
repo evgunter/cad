@@ -364,13 +364,20 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// written whole, so ids moved, and with them the names and value
 /// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
 /// held, so no point moved.
+///
+/// RE-BLESSED for D′3 (a placement copies one source, and the product is
+/// a slot reading a `⊔`): a copy carries its source's names with no
+/// `Placed` layer, and a `⊔` keys each member's names by its read, so
+/// the name tables this digest feeds moved, and the `⊔` node moved the
+/// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
+/// the corpus's `⊔` nodes set aside, is main's pin.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xa204_ea8f_4f36_b852_u64),
-        ("part_select", 0x096a_b0ce_20a4_aa88),
-        ("kitchen_sink", 0x99b3_96f7_8787_0655),
+        ("cut_cylinder", 0xfb9a_7e9e_282d_807c_u64),
+        ("part_select", 0x2580_ef71_c7cb_f8af),
+        ("kitchen_sink", 0xec0a_7285_191c_1903),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

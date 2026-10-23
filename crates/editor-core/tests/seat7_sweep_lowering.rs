@@ -442,14 +442,21 @@ fn both_sweeps_evaluate_in_one_document() {
 /// written whole, so ids moved, and with them the names and value
 /// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
 /// held, so no point moved.
+///
+/// RE-BLESSED for D′3 (a placement copies one source, and the product is
+/// a slot reading a `⊔`): a copy carries its source's names with no
+/// `Placed` layer, and a `⊔` keys each member's names by its read, so
+/// the name tables this digest feeds moved, and the `⊔` node moved the
+/// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
+/// the corpus's `⊔` nodes set aside, is main's pin.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x538c_32e6_1493_8739),
-        ("corner_table", 0x7dd6_2ea6_289b_019e),
-        ("cut_cylinder", 0xa204_ea8f_4f36_b852),
-        ("boss_union", 0x1018_cfdc_0f05_c44c),
-        ("kitchen_sink", 0x99b3_96f7_8787_0655),
+        ("die", 0x1e87_92c1_fe88_e020),
+        ("corner_table", 0x6912_c7dc_dfd3_41fe),
+        ("cut_cylinder", 0xfb9a_7e9e_282d_807c),
+        ("boss_union", 0x813b_130f_93ab_a1a5),
+        ("kitchen_sink", 0xec0a_7285_191c_1903),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

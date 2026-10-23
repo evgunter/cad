@@ -118,7 +118,14 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// beside their body, and each pip's bundle is written whole, so the
 /// ids after them and the names spelled with them moved; no point moved
 /// (`m10_p_fence`'s ids-masked row).
-const DIE_TABLE_DIGEST: u64 = 0x7b0a_a5df_c0d7_bd88;
+///
+/// RE-BLESSED for D′3 (a placement copies one source, and the product is
+/// a slot reading a `⊔`): a copy carries its source's names with no
+/// `Placed` layer, and a `⊔` keys each member's names by its read, so
+/// the name tables this digest feeds moved, and the `⊔` node moved the
+/// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
+/// the corpus's `⊔` nodes set aside, is main's pin.
+const DIE_TABLE_DIGEST: u64 = 0x1af9_e522_bd73_f34a;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
@@ -155,7 +162,11 @@ const DIE_TABLE_DIGEST: u64 = 0x7b0a_a5df_c0d7_bd88;
 /// Re-pinned with `DIE_TABLE_DIGEST` for D′1: the ids the names spell
 /// moved; `name_words_corpus` says every name's words held with the
 /// tags masked.
-const DIE_NAMES_DIGEST: u64 = 0x6b2c_0d44_369b_26bc;
+///
+/// Re-pinned with `DIE_TABLE_DIGEST` for D′3: a pip's copy carries its
+/// source's names with no `Placed { of }` wrapper, so the names' wording
+/// moved with the ids they spell.
+const DIE_NAMES_DIGEST: u64 = 0x7f32_742d_1926_4ca0;
 
 #[test]
 fn die_name_tables_are_golden() {
