@@ -3904,14 +3904,12 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
                 grid_vec(su.as_ref(), over.0, over.1),
                 grid_vec(sv.as_ref(), over.0, over.1),
             );
-            // ∂_u (S_u×S_v) = S_uu×S_v + S_u×S_uv, and likewise in v.
-            let d_u = rv_add(
-                cross(&grid_vec(suu.as_ref(), over.0, over.1), &h_sv),
-                cross(&h_su, &grid_vec(suv.as_ref(), over.0, over.1)),
-            );
-            let d_v = rv_add(
-                cross(&grid_vec(suv.as_ref(), over.0, over.1), &h_sv),
-                cross(&h_su, &grid_vec(svv.as_ref(), over.0, over.1)),
+            let (d_u, d_v) = normal_partials(
+                &h_su,
+                &h_sv,
+                &grid_vec(suu.as_ref(), over.0, over.1),
+                &grid_vec(suv.as_ref(), over.0, over.1),
+                &grid_vec(svv.as_ref(), over.0, over.1),
             );
             Ok(AreaCell {
                 g_mid: (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt(),
@@ -4616,14 +4614,12 @@ fn area_cell(
     let h_su = grid_vec(su, u, v);
     let h_sv = grid_vec(sv, u, v);
     let c = cross(&h_su, &h_sv);
-    // ∂_u (S_u×S_v) = S_uu×S_v + S_u×S_uv, and likewise in v.
-    let d_u = rv_add(
-        cross(&grid_vec(suu, u, v), &h_sv),
-        cross(&h_su, &grid_vec(suv, u, v)),
-    );
-    let d_v = rv_add(
-        cross(&grid_vec(suv, u, v), &h_sv),
-        cross(&h_su, &grid_vec(svv, u, v)),
+    let (d_u, d_v) = normal_partials(
+        &h_su,
+        &h_sv,
+        &grid_vec(suu, u, v),
+        &grid_vec(suv, u, v),
+        &grid_vec(svv, u, v),
     );
     (
         (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt(),
@@ -4632,85 +4628,155 @@ fn area_cell(
     )
 }
 
-/// The sub-chord cut list of one chord in `u`: its own ends, the
-/// chart's `u`-knots, and the `u` at which it crosses a `v`-knot —
-/// with the crossings' own bracket width returned as the SLIVER the
-/// definite (midpoint) cut leaves unaccounted.
-///
-/// A cut is what makes the exactness argument true: inside one cell
-/// the chart is one polynomial in `u` AND `ℓ(u)` stays in one `v`
-/// span, so `G_f(u, ℓ(u))` is the single polynomial of degree
-/// `3p_u + 3p_v − 1` the outer rule integrates exactly.
-///
-/// **The third spelling of a knot-aligned subdivision in this file**,
-/// declared: [`knot_aligned_cuts`] cuts a RECTANGLE side and owes its
-/// coarse hull blocks their containment, [`clipped_spans`] cuts a knot
-/// vector to a range for the exact patch rule, and this one cuts a
-/// CHORD, whose mandatory set includes crossings of the OTHER
-/// direction's knots — a cut neither sibling has any reason to make.
-/// Unifying them is Track R's consolidation ground (#723, the note
-/// `knot_aligned_cuts` already carries), not this lane's; what this
-/// lane owes is that it does not contradict the invariant its sibling
-/// states, which is why the guard below is gone.
-fn chord_cuts(
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
+/// One chord `v = ℓ(u)` of the polygon, as both outer rules read it: a
+/// chord with `u_a = u_b` carries no `du` and is no chord here.
+struct Chord {
     a: (f64, f64),
     b: (f64, f64),
-) -> (Vec<f64>, f64) {
-    let ((ua, va), (ub, vb)) = (a, b);
-    let (lo, hi) = (ua.min(ub), ua.max(ub));
-    let mut cuts = vec![lo, hi];
-    let mut sliver = 0.0f64;
-    for k in breakpoints(kv_u) {
-        if k > lo && k < hi {
-            cuts.push(k);
-        }
-    }
-    if vb != va {
-        let du = pt(ub) - pt(ua);
-        let dv = pt(vb) - pt(va);
-        for k in breakpoints(kv_v) {
-            if k <= va.min(vb) || k >= va.max(vb) {
-                continue;
-            }
-            let us = pt(ua) + (pt(k) - pt(va)) * du / dv;
-            let m = mid(us);
-            if m > lo && m < hi {
-                cuts.push(m);
-                // The definite cut is the bracket's midpoint; the
-                // mismatch is the triangle `{u ∈ bracket, v between the
-                // knot and ℓ(u)}`, whose chart area is at most
-                // `½·w²·|ℓ′|` on each side of the cut.
-                let w = us.width();
-                sliver += w.powi(2) * (dv / du).mag();
-            }
-        }
-    }
-    // EVERY cut in this list is mandatory — the chart's own knots and
-    // the `v`-knot crossings — and nothing may drop one: the
-    // Newton–Cotes exactness argument needs the sub-chord inside ONE
-    // chart cell, and a dropped cut leaves it straddling a knot by the
-    // width of whatever guard dropped it, with no term paying for it.
-    // That is the invariant [`knot_aligned_cuts`] states in capitals
-    // for its own mandatory set; an earlier version of this function
-    // applied that function's SLIVER guard to the mandatory cuts as
-    // well, which is the opposite rule. A hairline cell is the safe
-    // outcome here and not a defect: the rule integrates its own span
-    // polynomial exactly over it, and a cell of zero width is removed
-    // by the dedup.
-    cuts.sort_by(f64::total_cmp);
-    cuts.dedup();
-    (cuts, sliver)
+    slope: Interval,
 }
 
-/// The `v` cells one sub-chord's column crosses: the complete spans
-/// `below` the located cell `[v_k, ·)`, each `(lo, hi, locator)`, and
-/// the located cell's own start and locator.
-struct Column<'b> {
-    below: &'b [(f64, f64, f64)],
+/// How a chord's cuts meet a crossing of a `v`-knot, whose `u` is a
+/// certified bracket.
+#[derive(Clone, Copy)]
+enum CrossingCut {
+    /// One cut at the bracket's midpoint; the triangle the definite cut
+    /// leaves between the knot and `ℓ` is the SLIVER pad's.
+    Midpoint,
+    /// Cuts at both ends of the bracket, which then lies between them as
+    /// a GAP: outside it `ℓ` provably stays in one span.
+    Bracket,
+}
+
+/// A chord's cut list, ascending, and what its crossings left to pay.
+struct ChordCuts {
+    cuts: Vec<f64>,
+    /// `Σ w²·|ℓ′|` over the midpoint cuts.
+    sliver: f64,
+    /// The crossing brackets cut at both ends.
+    gaps: Vec<(f64, f64)>,
+}
+
+impl Chord {
+    fn of(c: &TrimCell) -> Option<Self> {
+        let ((ua, va), (ub, vb)) = (c.a, c.b);
+        (ua != ub).then(|| Self {
+            a: c.a,
+            b: c.b,
+            slope: (pt(vb) - pt(va)) / (pt(ub) - pt(ua)),
+        })
+    }
+
+    fn ell(&self, u: Interval) -> Interval {
+        pt(self.a.1) + (u - pt(self.a.0)) * self.slope
+    }
+
+    /// `∫_{u_a}^{u_b}` from the integral over the ascending cuts.
+    fn oriented(&self, ascending: Interval) -> Interval {
+        if self.b.0 > self.a.0 {
+            ascending
+        } else {
+            -ascending
+        }
+    }
+
+    /// **The cuts**: the chord's own ends, the chart's `u`-knots, `n − 1`
+    /// evenly spaced points, and its `v`-knot crossings under `policy`.
+    /// `None` when a crossing's bracket does not certify under
+    /// [`CrossingCut::Bracket`].
+    ///
+    /// A cut is what makes either rule's argument true: between cuts the
+    /// chart is one polynomial in `u` AND `ℓ(u)` stays in one `v` span
+    /// (up to a midpoint cut's sliver), so `G_f(u, ℓ(u))` is one
+    /// polynomial of degree `3p_u + 3p_v − 1`.
+    ///
+    /// EVERY knot and crossing cut is mandatory, and nothing may drop
+    /// one: a dropped cut leaves a piece straddling a knot by the width
+    /// of whatever guard dropped it, with no term paying for it. That is
+    /// the invariant [`knot_aligned_cuts`] states in capitals for its own
+    /// mandatory set; this list applies none of that function's SLIVER
+    /// guard. A hairline piece is the safe outcome, and a piece of zero
+    /// width is removed by the dedup.
+    fn cuts(
+        &self,
+        ubreaks: &[f64],
+        vbreaks: &[f64],
+        n: usize,
+        policy: CrossingCut,
+    ) -> Option<ChordCuts> {
+        let ((ua, va), (ub, vb)) = (self.a, self.b);
+        let (lo, hi) = (ua.min(ub), ua.max(ub));
+        let mut cuts = vec![lo, hi];
+        let mut sliver = 0.0f64;
+        let mut gaps = Vec::new();
+        cuts.extend(ubreaks.iter().copied().filter(|k| *k > lo && *k < hi));
+        for j in 1..n {
+            #[allow(clippy::cast_precision_loss)]
+            let t = lo + (hi - lo) * (j as f64 / n as f64);
+            if t > lo && t < hi {
+                cuts.push(t);
+            }
+        }
+        if vb != va {
+            let du = pt(ub) - pt(ua);
+            let dv = pt(vb) - pt(va);
+            for k in vbreaks.iter().copied() {
+                if k <= va.min(vb) || k >= va.max(vb) {
+                    continue;
+                }
+                let us = pt(ua) + (pt(k) - pt(va)) * du / dv;
+                match policy {
+                    CrossingCut::Midpoint => {
+                        let m = mid(us);
+                        if m > lo && m < hi {
+                            cuts.push(m);
+                            // The mismatch is the triangle `{u ∈ bracket,
+                            // v between the knot and ℓ(u)}`, of chart area
+                            // at most `½·w²·|ℓ′|` on each side of the cut.
+                            let w = us.width();
+                            sliver += w.powi(2) * (dv / du).mag();
+                        }
+                    }
+                    CrossingCut::Bracket => {
+                        if !us.is_certified() {
+                            return None;
+                        }
+                        let (g0, g1) = (us.lo().max(lo), us.hi().min(hi));
+                        if g0 <= g1 {
+                            cuts.extend([g0, g1]);
+                            gaps.push((g0, g1));
+                        }
+                    }
+                }
+            }
+        }
+        cuts.sort_by(f64::total_cmp);
+        cuts.dedup();
+        Some(ChordCuts { cuts, sliver, gaps })
+    }
+}
+
+/// The `v` cells one piece's column crosses: the complete spans `below`
+/// the located cell `[v_k, v_{k+1}]`, each `(lo, hi, locator)`, and the
+/// located cell's own start and locator.
+struct Column {
+    below: Vec<(f64, f64, f64)>,
     vk: f64,
     mid_v: f64,
+}
+
+impl Column {
+    fn under(vbreaks: &[f64], (vk, vk1): (f64, f64)) -> Self {
+        Self {
+            below: vbreaks
+                .windows(2)
+                .filter(|b| b[1] > b[0] && b[1] <= vk)
+                .map(|b| (b[0], b[1], b[0].midpoint(b[1])))
+                .collect(),
+            vk,
+            mid_v: vk.midpoint(vk1),
+        }
+    }
 }
 
 /// `∫_{v₀}^{top} g(s) ds` for an integrand read through a `v` collapse,
@@ -4722,7 +4788,7 @@ struct Column<'b> {
 /// integral for every parameter and top in their brackets.
 fn column_integral(
     wv: &[Interval],
-    column: &Column<'_>,
+    column: &Column,
     top: Interval,
     integrand: &dyn Fn(Collapse<'_>) -> Interval,
 ) -> Interval {
@@ -4742,105 +4808,96 @@ fn column_integral(
         }
         inner = inner + sc * row;
     };
-    for (c0, c1, cm) in column.below {
+    for (c0, c1, cm) in &column.below {
         leg(pt(*c0), pt(*c1), *cm);
     }
     leg(pt(column.vk), top, column.mid_v);
     inner
 }
 
-/// **The chord polygon's flux, exactly** — `∫∫ f·w_chord` by Green's
-/// theorem on `G_f(u, v) = ∫_{v₀}^{v} f(u, s) ds`, one chord at a time
-/// (`∫∫ f·w = −∮ G_f du`).
-///
-/// A chord with `u_a = u_b` carries no `du` and contributes nothing.
-/// Every other chord is `v = ℓ(u)` affine and is cut so that each
-/// sub-chord sees one chart cell ([`chord_cuts`]); on one the nested
-/// closed Newton–Cotes rule — outer order `3p_u + 3p_v − 1` in `u`,
-/// inner order `3p_v − 1` in `v` with the inner interval split at the
-/// `v`-knots below `ℓ` — integrates the sub-chord's polynomial
-/// EXACTLY, so the enclosure width is the nodes' and weights' ring
-/// rounding and nothing else. Nodes read through
-/// [`Collapse::AtSpan`], the sub-chord's own midpoint pinning the
-/// cell, exactly as [`patch_flux_exact`] does.
-#[allow(clippy::too_many_arguments)]
-fn chord_polygon_flux(
-    s: &PatchGrid,
-    su: Option<&PatchGrid>,
-    sv: Option<&PatchGrid>,
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-    cells: &[TrimCell],
-    wu: &[Interval],
-    wv: &[Interval],
-) -> (Interval, f64) {
-    let mu = wu.len() - 1;
-    let vbreaks = breakpoints(kv_v);
-    let mut total = Interval::zero();
-    let mut sliver = 0.0f64;
-    for c in cells {
-        let ((ua, va), (ub, vb)) = (c.a, c.b);
-        if ua == ub {
-            continue;
-        }
-        let (cuts, sl) = chord_cuts(kv_u, kv_v, c.a, c.b);
-        sliver += sl;
-        let slope = (pt(vb) - pt(va)) / (pt(ub) - pt(ua));
-        let ell = |u: Interval| -> Interval { pt(va) + (u - pt(ua)) * slope };
-        let mut chord = Interval::zero();
-        for w in cuts.windows(2) {
-            let (p, q) = (w[0], w[1]);
-            let mid_u = p.midpoint(q);
-            let (vk, vk1) = cell_of(&vbreaks, mid(ell(pt(mid_u))));
-            let mid_v = vk.midpoint(vk1);
-            let scale_u = pt(q) - pt(p);
-            // The complete `v` cells under this sub-chord's own cell,
-            // taken once — they are the same for every outer node.
-            let below: Vec<(f64, f64, f64)> = vbreaks
-                .windows(2)
-                .filter(|b| b[1] > b[0] && b[1] <= vk)
-                .map(|b| (b[0], b[1], b[0].midpoint(b[1])))
-                .collect();
-            let column = Column {
-                below: &below,
-                vk,
-                mid_v,
-            };
-            let mut acc = Interval::zero();
-            for (j, wu_j) in wu.iter().enumerate() {
-                #[allow(clippy::cast_precision_loss)]
-                let u_j = pt(p) + scale_u * (pt(j as f64) / pt(mu as f64));
-                let cu = Collapse::AtSpan {
-                    mid: mid_u,
-                    t: &u_j,
-                };
-                acc = acc
-                    + *wu_j
-                        * column_integral(wv, &column, ell(u_j), &|cv| flux_at(s, su, sv, cu, cv));
-            }
-            chord = chord + scale_u * acc;
-        }
-        // `cuts` runs ascending; the chord's own direction carries the
-        // sign of `∫_{u_a}^{u_b}`.
-        total = total + if ub > ua { chord } else { -chord };
-    }
-    (-total, sliver)
-}
-
-/// The grids the composite arm's remainder reads beyond the integrand's:
-/// the chart's second partials and the two third partials `f_uu` needs.
+/// The grids the composite rule's remainder reads beyond the
+/// integrand's: the chart's second partials, and the two third partials
+/// `f_uu` needs, derived here so that every `None` is [`PatchGrid`]'s
+/// own "identically zero away from knots" and never "not built".
 struct Curvature<'g> {
     suu: Option<&'g PatchGrid>,
     suv: Option<&'g PatchGrid>,
     svv: Option<&'g PatchGrid>,
-    suuu: Option<&'g PatchGrid>,
-    suuv: Option<&'g PatchGrid>,
+    suuu: Option<PatchGrid>,
+    suuv: Option<PatchGrid>,
+}
+
+impl<'g> Curvature<'g> {
+    fn of(
+        suu: Option<&'g PatchGrid>,
+        suv: Option<&'g PatchGrid>,
+        svv: Option<&'g PatchGrid>,
+    ) -> Self {
+        Self {
+            suu,
+            suv,
+            svv,
+            suuu: suu.and_then(PatchGrid::deriv_u),
+            suuv: suu.and_then(PatchGrid::deriv_v),
+        }
+    }
+}
+
+/// **The trimmed lane's outer `u` rule**, chosen once at face entry by
+/// whether the exact rule's weights exist for the chord integrand's
+/// degree `3p_u + 3p_v − 1`.
+enum OuterRule<'g> {
+    /// Closed Newton–Cotes weights of that order: exact on a piece.
+    Exact(Vec<Interval>),
+    /// The composite midpoint rule with its certified remainder.
+    Composite(Curvature<'g>),
+}
+
+impl OuterRule<'_> {
+    /// Weight of one cell of this rule, in [`FACE_WORK_WALL`]'s unit.
+    fn weight(&self, p_u: usize, p_v: usize) -> usize {
+        match self {
+            Self::Exact(_) => w_trimmed(p_u, p_v),
+            Self::Composite(_) => w_trimmed_composite(p_u, p_v),
+        }
+    }
+
+    /// The pieces an iso chord is integrated in at a round of `pieces`
+    /// blocks per `General` image: one exact chord, or as many as an
+    /// image has blocks.
+    fn iso_pieces(&self, pieces: usize) -> usize {
+        match self {
+            Self::Exact(_) => 1,
+            Self::Composite(_) => pieces,
+        }
+    }
+
+    fn crossing_cut(&self) -> CrossingCut {
+        match self {
+            Self::Exact(_) => CrossingCut::Midpoint,
+            Self::Composite(_) => CrossingCut::Bracket,
+        }
+    }
+}
+
+/// `∂_u(S_u×S_v) = S_uu×S_v + S_u×S_uv` and `∂_v(S_u×S_v) =
+/// S_uv×S_v + S_u×S_vv`, from the partials' readings.
+fn normal_partials(
+    h_su: &RVec3,
+    h_sv: &RVec3,
+    h_suu: &RVec3,
+    h_suv: &RVec3,
+    h_svv: &RVec3,
+) -> (RVec3, RVec3) {
+    (
+        rv_add(cross(h_suu, h_sv), cross(h_su, h_suv)),
+        rv_add(cross(h_suv, h_sv), cross(h_su, h_svv)),
+    )
 }
 
 /// Enclosures of the chord integrand's first partials at one collapse
-/// pair:
-/// `f_u = ⟨S, S_uu×S_v + S_u×S_uv⟩` and `f_v = ⟨S, S_uv×S_v + S_u×S_vv⟩`
-/// (the `⟨S_u, S_u×S_v⟩` and `⟨S_v, S_u×S_v⟩` terms vanish).
+/// pair: `f_u = ⟨S, ∂_u(S_u×S_v)⟩` and `f_v = ⟨S, ∂_v(S_u×S_v)⟩` (the
+/// `⟨S_u, S_u×S_v⟩` and `⟨S_v, S_u×S_v⟩` terms vanish).
 fn flux_slopes(
     s: &PatchGrid,
     su: Option<&PatchGrid>,
@@ -4849,17 +4906,15 @@ fn flux_slopes(
     u: Collapse<'_>,
     v: Collapse<'_>,
 ) -> (Interval, Interval) {
-    let (hs, hu, hv) = (s.vec(u, v), grid_vec(su, u, v), grid_vec(sv, u, v));
-    let huv = grid_vec(k.suv, u, v);
-    let fu = dot(
-        &hs,
-        &rv_add(cross(&grid_vec(k.suu, u, v), &hv), cross(&hu, &huv)),
+    let hs = s.vec(u, v);
+    let (d_u, d_v) = normal_partials(
+        &grid_vec(su, u, v),
+        &grid_vec(sv, u, v),
+        &grid_vec(k.suu, u, v),
+        &grid_vec(k.suv, u, v),
+        &grid_vec(k.svv, u, v),
     );
-    let fv = dot(
-        &hs,
-        &rv_add(cross(&huv, &hv), cross(&hu, &grid_vec(k.svv, u, v))),
-    );
-    (fu, fv)
+    (dot(&hs, &d_u), dot(&hs, &d_v))
 }
 
 /// Enclosure of `f_uu = ⟨S_u, S_uu×S_v⟩ + ⟨S, S_uuu×S_v + 2·S_uu×S_uv +
@@ -4879,157 +4934,217 @@ fn flux_uu(
         + dot(
             &hs,
             &rv_add(
-                rv_add(cross(&grid_vec(k.suuu, u, v), &hv), twice),
-                cross(&hu, &grid_vec(k.suuv, u, v)),
+                rv_add(cross(&grid_vec(k.suuu.as_ref(), u, v), &hv), twice),
+                cross(&hu, &grid_vec(k.suuv.as_ref(), u, v)),
             ),
         )
 }
 
-/// **The chord polygon's flux by the composite midpoint rule** — the
-/// outer rule of [`chord_polygon_flux`] for a chart past the exact
-/// rule's window, on the same Green decomposition and the same inner
-/// rule ([`column_integral`]).
+/// What [`chord_polygon_flux`] answers.
+struct ChordFlux {
+    /// The polygon's flux, the composite rule's column pads included.
+    flux: Interval,
+    /// `Σ w²·|ℓ′|` over the exact rule's midpoint crossing cuts.
+    sliver: f64,
+    /// The summed width of the composite rule's remainders, the part of
+    /// `flux`'s width a finer round removes.
+    removable: f64,
+}
+
+/// **The chord polygon's flux** — `∫∫ f·w_chord` by Green's theorem on
+/// `G_f(u, v) = ∫_{v₀}^{v} f(u, s) ds`, one chord at a time
+/// (`∫∫ f·w = −∮ G_f du`), each cut ([`Chord::cuts`]) so that a piece
+/// sees one chart cell, and the inner `v` integral by the exact closed
+/// Newton–Cotes rule ([`column_integral`]). `pieces(cell)` is how many
+/// even pieces a cell's chord is cut into before its mandatory cuts.
 ///
-/// Each chord `v = ℓ(u)` is cut at the chart's `u`-knots, at
-/// `uniform(cell) − 1` evenly spaced points, and at both ends of the
-/// certified bracket of every `u` where it crosses a `v`-knot. Outside
-/// those brackets a piece `[p, q]` lies in one `u` cell and, by the
-/// brackets, `ℓ` stays in one `v` span over it, so
-/// `φ(u) = G_f(u, ℓ(u))` is one polynomial there and
+/// **The outer rule is `rule`'s.**
 ///
-/// ```text
-/// ∫_p^q φ = h·φ(m) + (h³/24)·φ''(η),   φ'' = G_uu + 2ℓ′·f_u + ℓ′²·f_v,
-/// ```
+/// - [`OuterRule::Exact`]: the closed Newton–Cotes rule of order
+///   `3p_u + 3p_v − 1` integrates a piece's polynomial EXACTLY, so the
+///   enclosure width is the nodes' and weights' ring rounding and
+///   nothing else. Crossings are cut at their bracket's midpoint, the
+///   sliver returned for the caller's pad.
+/// - [`OuterRule::Composite`]: the midpoint rule on a piece `[p, q]`,
 ///
-/// for some `η` in the piece: the midpoint rule's Peano kernel is
-/// non-negative. The remainder is that formula over enclosures of its
-/// terms on the box `[p, q] × ℓ([p, q])`, each read on the located
-/// cells' polynomials at the piece's brackets — `G_uu = ∫_{v₀}^{ℓ} f_uu`
-/// by the same exact inner rule — so `φ''`'s enclosure narrows with the
-/// piece, and the remainder's width with it, at `O(h⁴)` a piece.
+///   ```text
+///   ∫_p^q φ = h·φ(m) + (h³/24)·φ''(η),   φ'' = G_uu + 2ℓ′·f_u + ℓ′²·f_v,
+///   ```
 ///
-/// A piece inside a crossing bracket, or one too narrow to locate its
-/// span, takes the first-order bound `h·|ℓ − v₀|·sup|f|` on its column
-/// instead.
+///   for some `η` in the piece, `φ(u) = G_f(u, ℓ(u))` — the midpoint
+///   rule's Peano kernel is non-negative. The remainder is that formula
+///   over enclosures of its terms on the box `[p, q] × ℓ([p, q])`, each
+///   read on the located cells' polynomials at the piece's brackets
+///   (`G_uu = ∫_{v₀}^{ℓ} f_uu` by the same inner rule), so `φ''`'s
+///   enclosure narrows with the piece and the remainder's width with
+///   it, at `O(h⁴)` a piece. Crossings are cut at both bracket ends, so
+///   outside a bracket `ℓ` provably stays in one span. A piece inside a
+///   bracket, or one too narrow to locate its span, takes the
+///   first-order bound `h·|ℓ − v₀|·sup|f|` on its column instead.
 ///
-/// Returns the enclosure and the summed width of the remainders, the
-/// part of it a finer round removes.
+/// Nodes read through [`Collapse::AtSpan`], the piece's own midpoint
+/// pinning the cell, exactly as [`patch_flux_exact`] does.
 #[allow(clippy::too_many_arguments)]
-fn chord_polygon_flux_composite(
+fn chord_polygon_flux(
+    s: &PatchGrid,
+    su: Option<&PatchGrid>,
+    sv: Option<&PatchGrid>,
+    rule: &OuterRule<'_>,
+    kv_u: &KnotVector,
+    kv_v: &KnotVector,
+    cells: &[TrimCell],
+    pieces: &dyn Fn(&TrimCell) -> usize,
+    wv: &[Interval],
+) -> ChordFlux {
+    let refused = ChordFlux {
+        flux: Interval::refused(),
+        sliver: 0.0,
+        removable: 0.0,
+    };
+    let ubreaks = breakpoints(kv_u);
+    let vbreaks = breakpoints(kv_v);
+    let mut total = Interval::zero();
+    let mut sliver = 0.0f64;
+    let mut removable = 0.0f64;
+    // The composite rule's first-order column bounds; see the
+    // unguardable-terms note in `trimmed_patch_face_rounds`.
+    let mut column_pad = 0.0f64;
+    for c in cells {
+        let Some(chord) = Chord::of(c) else {
+            continue;
+        };
+        let Some(cut) = chord.cuts(&ubreaks, &vbreaks, pieces(c), rule.crossing_cut()) else {
+            return refused;
+        };
+        sliver += cut.sliver;
+        let mut acc = Interval::zero();
+        for w in cut.cuts.windows(2) {
+            let (p, q) = (w[0], w[1]);
+            match rule {
+                OuterRule::Exact(wu) => {
+                    acc = acc + exact_piece(s, su, sv, wu, wv, &vbreaks, &chord, p, q);
+                }
+                OuterRule::Composite(k) => {
+                    match composite_piece(s, su, sv, k, wv, &vbreaks, &chord, &cut.gaps, p, q) {
+                        Some(Piece::Rule { value, remainder }) => {
+                            removable += remainder.width();
+                            acc = acc + value + remainder;
+                        }
+                        Some(Piece::Column(pad)) => column_pad += pad,
+                        None => return refused,
+                    }
+                }
+            }
+        }
+        total = total + chord.oriented(acc);
+    }
+    ChordFlux {
+        flux: widen(-total, column_pad),
+        sliver,
+        removable,
+    }
+}
+
+/// One piece by the exact rule: `∫_p^q G_f(u, ℓ(u)) du`.
+#[allow(clippy::too_many_arguments)]
+fn exact_piece(
+    s: &PatchGrid,
+    su: Option<&PatchGrid>,
+    sv: Option<&PatchGrid>,
+    wu: &[Interval],
+    wv: &[Interval],
+    vbreaks: &[f64],
+    chord: &Chord,
+    p: f64,
+    q: f64,
+) -> Interval {
+    let mu = wu.len() - 1;
+    let mid_u = p.midpoint(q);
+    let column = Column::under(vbreaks, cell_of(vbreaks, mid(chord.ell(pt(mid_u)))));
+    let scale_u = pt(q) - pt(p);
+    let mut acc = Interval::zero();
+    for (j, wu_j) in wu.iter().enumerate() {
+        #[allow(clippy::cast_precision_loss)]
+        let u_j = pt(p) + scale_u * (pt(j as f64) / pt(mu as f64));
+        let cu = Collapse::AtSpan {
+            mid: mid_u,
+            t: &u_j,
+        };
+        acc = acc
+            + *wu_j
+                * column_integral(wv, &column, chord.ell(u_j), &|cv| {
+                    flux_at(s, su, sv, cu, cv)
+                });
+    }
+    scale_u * acc
+}
+
+/// A composite piece's reading.
+enum Piece {
+    /// `h·φ(m)` and the remainder `(h³/24)·φ''`.
+    Rule {
+        value: Interval,
+        remainder: Interval,
+    },
+    /// The first-order column bound, a pad.
+    Column(f64),
+}
+
+/// One piece by the composite rule ([`chord_polygon_flux`]'s docs);
+/// `None` where a window does not certify.
+#[allow(clippy::too_many_arguments)]
+fn composite_piece(
     s: &PatchGrid,
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
     k: &Curvature<'_>,
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-    cells: &[TrimCell],
-    uniform: &dyn Fn(&TrimCell) -> usize,
     wv: &[Interval],
-) -> (Interval, f64) {
-    let ubreaks = breakpoints(kv_u);
-    let vbreaks = breakpoints(kv_v);
+    vbreaks: &[f64],
+    chord: &Chord,
+    gaps: &[(f64, f64)],
+    p: f64,
+    q: f64,
+) -> Option<Piece> {
     let v0 = pt(vbreaks[0]);
-    let mut total = Interval::zero();
-    let mut removable = 0.0f64;
-    let mut pad = 0.0f64;
-    for c in cells {
-        let ((ua, va), (ub, vb)) = (c.a, c.b);
-        if ua == ub {
-            continue;
-        }
-        let (lo, hi) = (ua.min(ub), ua.max(ub));
-        let slope = (pt(vb) - pt(va)) / (pt(ub) - pt(ua));
-        let ell = |u: Interval| -> Interval { pt(va) + (u - pt(ua)) * slope };
-        let mut cuts = vec![lo, hi];
-        cuts.extend(ubreaks.iter().copied().filter(|t| *t > lo && *t < hi));
-        let n = uniform(c).max(1);
-        for j in 1..n {
-            #[allow(clippy::cast_precision_loss)]
-            let t = lo + (hi - lo) * (j as f64 / n as f64);
-            if t > lo && t < hi {
-                cuts.push(t);
-            }
-        }
-        let mut gaps: Vec<(f64, f64)> = Vec::new();
-        if vb != va {
-            let (du, dv) = (pt(ub) - pt(ua), pt(vb) - pt(va));
-            for kv in vbreaks.iter().copied() {
-                if kv <= va.min(vb) || kv >= va.max(vb) {
-                    continue;
-                }
-                let us = pt(ua) + (pt(kv) - pt(va)) * du / dv;
-                if !us.is_certified() {
-                    return (Interval::refused(), 0.0);
-                }
-                let (g0, g1) = (us.lo().max(lo), us.hi().min(hi));
-                if g0 <= g1 {
-                    cuts.extend([g0, g1]);
-                    gaps.push((g0, g1));
-                }
-            }
-        }
-        cuts.sort_by(f64::total_cmp);
-        cuts.dedup();
-        let mut chord = Interval::zero();
-        for w in cuts.windows(2) {
-            let (p, q) = (w[0], w[1]);
-            let (pi, qi) = (pt(p), pt(q));
-            let h = qi - pi;
-            let band = Interval::hull(ell(pi), ell(qi));
-            let (Some(over_u), Some(over_col)) = (
-                ParamRange::certified(Interval::hull(pi, qi)),
-                ParamRange::certified(Interval::hull(v0, band)),
-            ) else {
-                return (Interval::refused(), 0.0);
-            };
-            let (cu_over, col) = (Collapse::Over(over_u), Collapse::Over(over_col));
-            let m = p.midpoint(q);
-            let in_gap = gaps.iter().any(|&(g0, g1)| p >= g0 && q <= g1);
-            let located = (p < m && m < q && !in_gap)
-                .then(|| {
-                    let lm = ell(pt(m));
-                    let (vk, vk1) = cell_of(&vbreaks, mid(lm));
-                    (lm.lo() >= vk && lm.hi() <= vk1).then_some((vk, vk1))
-                })
-                .flatten();
-            let Some((vk, vk1)) = located else {
-                let f = flux_at(s, su, sv, cu_over, col);
-                pad += h.hi() * ((band - v0) * f).mag();
-                continue;
-            };
-            let below: Vec<(f64, f64, f64)> = vbreaks
-                .windows(2)
-                .filter(|b| b[1] > b[0] && b[1] <= vk)
-                .map(|b| (b[0], b[1], b[0].midpoint(b[1])))
-                .collect();
-            let column = Column {
-                below: &below,
-                vk,
-                mid_v: vk.midpoint(vk1),
-            };
-            let mi = (pi + qi) * pt(0.5);
-            let cu = Collapse::AtSpan { mid: m, t: &mi };
-            let value = h * column_integral(wv, &column, ell(mi), &|cv| flux_at(s, su, sv, cu, cv));
-            // `φ''` over the piece, every term read on the located
-            // cells' polynomials at the piece's own brackets, so its
-            // enclosure narrows with the piece.
-            let piece = Interval::hull(pi, qi);
-            let cu_piece = Collapse::AtSpan { mid: m, t: &piece };
-            let g_uu =
-                column_integral(wv, &column, band, &|cv| flux_uu(s, su, sv, k, cu_piece, cv));
-            let cv_band = Collapse::AtSpan {
-                mid: column.mid_v,
-                t: &band,
-            };
-            let (fu, fv) = flux_slopes(s, su, sv, k, cu_piece, cv_band);
-            let phi2 = g_uu + pt(2.0) * slope * fu + slope.sqr() * fv;
-            let rem = h.sqr() * h / pt(24.0) * phi2;
-            removable += rem.width();
-            chord = chord + value + rem;
-        }
-        total = total + if ub > ua { chord } else { -chord };
-    }
-    (widen(-total, pad), removable)
+    let (pi, qi) = (pt(p), pt(q));
+    let h = qi - pi;
+    let band = Interval::hull(chord.ell(pi), chord.ell(qi));
+    let m = p.midpoint(q);
+    let in_gap = gaps.iter().any(|&(g0, g1)| p >= g0 && q <= g1);
+    let located = (p < m && m < q && !in_gap)
+        .then(|| {
+            let lm = chord.ell(pt(m));
+            let (vk, vk1) = cell_of(vbreaks, mid(lm));
+            (lm.lo() >= vk && lm.hi() <= vk1).then_some((vk, vk1))
+        })
+        .flatten();
+    let Some(cell) = located else {
+        let over_u = Collapse::Over(ParamRange::certified(Interval::hull(pi, qi))?);
+        let col = Collapse::Over(ParamRange::certified(Interval::hull(v0, band))?);
+        let f = flux_at(s, su, sv, over_u, col);
+        return Some(Piece::Column(h.hi() * ((band - v0) * f).mag()));
+    };
+    let column = Column::under(vbreaks, cell);
+    let mi = (pi + qi) * pt(0.5);
+    let cu = Collapse::AtSpan { mid: m, t: &mi };
+    let value = h * column_integral(wv, &column, chord.ell(mi), &|cv| flux_at(s, su, sv, cu, cv));
+    // `φ''` over the piece, every term read on the located cells'
+    // polynomials at the piece's own brackets, so its enclosure narrows
+    // with the piece.
+    let piece = Interval::hull(pi, qi);
+    let cu_piece = Collapse::AtSpan { mid: m, t: &piece };
+    let g_uu = column_integral(wv, &column, band, &|cv| flux_uu(s, su, sv, k, cu_piece, cv));
+    let cv_band = Collapse::AtSpan {
+        mid: column.mid_v,
+        t: &band,
+    };
+    let (fu, fv) = flux_slopes(s, su, sv, k, cu_piece, cv_band);
+    let slope = chord.slope;
+    let phi2 = g_uu + pt(2.0) * slope * fu + slope.sqr() * fv;
+    Some(Piece::Rule {
+        value,
+        remainder: h.sqr() * h / pt(24.0) * phi2,
+    })
 }
 
 /// **The chord polygon's area**, the same Green decomposition with
@@ -5289,10 +5404,6 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             what: TRIM_NC_WINDOW,
         });
     };
-    // `None`: past the exact outer rule's window, the composite arm.
-    let wu = (3 * p_u + 3 * p_v)
-        .checked_sub(1)
-        .and_then(newton_cotes_weights);
     let s = PatchGrid::base(&TensorChannels::from_fn(
         kv_u,
         kv_v,
@@ -5303,20 +5414,12 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     let suu = su.as_ref().and_then(PatchGrid::deriv_u);
     let suv = su.as_ref().and_then(PatchGrid::deriv_v);
     let svv = sv.as_ref().and_then(PatchGrid::deriv_v);
-    let (suuu, suuv) = if wu.is_none() {
-        (
-            suu.as_ref().and_then(PatchGrid::deriv_u),
-            suu.as_ref().and_then(PatchGrid::deriv_v),
-        )
-    } else {
-        (None, None)
-    };
-    let curvature = Curvature {
-        suu: suu.as_ref(),
-        suv: suv.as_ref(),
-        svv: svv.as_ref(),
-        suuu: suuu.as_ref(),
-        suuv: suuv.as_ref(),
+    let rule = match (3 * p_u + 3 * p_v)
+        .checked_sub(1)
+        .and_then(newton_cotes_weights)
+    {
+        Some(wu) => OuterRule::Exact(wu),
+        None => OuterRule::Composite(Curvature::of(suu.as_ref(), suv.as_ref(), svv.as_ref())),
     };
     let (tb_u, tb_v) = trim_box(chords);
     let (s_hull, h_su, h_sv) = match certified_box(tb_u, tb_v) {
@@ -5365,22 +5468,18 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         .mag();
     // A round's cells are its iso chords and, per `General` image, the
     // round's blocks: the schedule's count, before a monotone bisection
-    // adds any. The composite arm cuts an iso chord into as many pieces
-    // as a `General` image has blocks, so its every edge counts so.
+    // adds any, and before the knot and crossing cuts split a chord
+    // further (the composite rule's pieces as the exact rule's cells).
     let cost = |round: usize| {
+        let pieces = TRIM_INIT_PIECES << round;
         let per_edge = |c: &TrimChord| {
-            if c.piece.is_some() || wu.is_none() {
-                TRIM_INIT_PIECES << round
+            if c.piece.is_some() {
+                pieces
             } else {
-                1
+                rule.iso_pieces(pieces)
             }
         };
-        let weight = if wu.is_some() {
-            w_trimmed(p_u, p_v)
-        } else {
-            w_trimmed_composite(p_u, p_v)
-        };
-        weight * chords.iter().map(per_edge).sum::<usize>()
+        rule.weight(p_u, p_v) * chords.iter().map(per_edge).sum::<usize>()
     };
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
@@ -5463,34 +5562,28 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             lune_g += a * (hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).sqrt().mag();
         }
         let winding = polygon_winding(&cells);
-        let (flux_raw, sliver, remainder) = match &wu {
-            Some(wu) => {
-                let (flux, sliver) =
-                    chord_polygon_flux(&s, su.as_ref(), sv.as_ref(), kv_u, kv_v, &cells, wu, &wv);
-                (flux, sliver, 0.0)
-            }
-            None => {
-                let uniform = |c: &TrimCell| {
-                    if chords[c.edge].piece.is_none() {
-                        pieces
-                    } else {
-                        1
-                    }
-                };
-                let (flux, remainder) = chord_polygon_flux_composite(
-                    &s,
-                    su.as_ref(),
-                    sv.as_ref(),
-                    &curvature,
-                    kv_u,
-                    kv_v,
-                    &cells,
-                    &uniform,
-                    &wv,
-                );
-                (flux, 0.0, remainder)
+        let per_cell = |c: &TrimCell| {
+            if chords[c.edge].piece.is_none() {
+                rule.iso_pieces(pieces)
+            } else {
+                1
             }
         };
+        let ChordFlux {
+            flux: flux_raw,
+            sliver,
+            removable: remainder,
+        } = chord_polygon_flux(
+            &s,
+            su.as_ref(),
+            sv.as_ref(),
+            &rule,
+            kv_u,
+            kv_v,
+            &cells,
+            &per_cell,
+            &wv,
+        );
         // **Two of the terms below are not independently guarded, and
         // saying so is cheaper than implying they are.** Dropping the
         // GAP term reds no row: inside the closure check's admitted
