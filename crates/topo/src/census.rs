@@ -1591,20 +1591,29 @@ fn placed<T: Decide>(
 }
 
 /// **Whether `q` lies in the closure of a confirmed pair's overlap**
-/// (`[assertions]`): the closed region of each face holds it, and
-/// where both hold it on their boundary, their cones there share
-/// material in the tangent plane, so points of both interiors lie
-/// arbitrarily near. A face that holds `q` inside answers for the
-/// other's closure alone. A pair meeting over an area lies on one
-/// carrier with opposed senses (Door 1), so `y`'s corner is read about
-/// `x`'s outward normal reversed.
+/// (`[assertions]`): the closed region of each face holds it, and the
+/// overlap reaches it ([`pair_contact`] says which overlap):
 ///
-/// `Some(false)` where either face holds `q` out, or the cones share
-/// none; `None` where a reading escalated or refused (pushed), and
-/// where the reading is not built — a pair on two carriers, which meet
-/// at a point or along a line rather than over an area, or a cone
-/// [`face_cone`] does not read — refused as
-/// [`ValidationError::CensusUndecidable`] naming the two `cells`.
+/// - **over an area** (one carrier): a face that holds `q` inside
+///   answers for the other's closure alone; where both hold it on their
+///   boundary, their cones there share material in the tangent plane,
+///   so points of both interiors lie arbitrarily near;
+/// - **along a line**: the line leaves `q` into both cones, one way or
+///   the other, so points of the line inside both faces lie arbitrarily
+///   near;
+/// - **at a point**: the closures share that point alone, so a touch in
+///   both is at it.
+///
+/// The pair's two faces touch with opposed senses (Door 1, or the
+/// tangent table's sides), so `y`'s cone is read about `x`'s outward
+/// normal reversed.
+///
+/// `Some(false)` where either face holds `q` out, or the overlap does
+/// not reach it; `None` where a reading escalated or refused (pushed),
+/// and where the reading is not built — a contact [`pair_contact`] does
+/// not read, a face no containment door reads, or a cone [`face_cone`]
+/// does not read — refused as [`ValidationError::CensusUndecidable`]
+/// naming the two `cells`.
 #[allow(clippy::too_many_arguments)] // the pair, the touch and the run's state
 fn in_overlap_closure<T: Decide>(
     body: &Body<T>,
@@ -1624,16 +1633,9 @@ fn in_overlap_closure<T: Decide>(
         });
         None
     };
-    let one_carrier = (planar_face(geo, fx).is_some() && planar_face(geo, fy).is_some())
-        || matches!(
-            crate::boolean::carrier_pair_relation(body, fx, body, fy, false, band),
-            Ok(Ok(crate::boolean::CarrierRelation::SameOpposite
-                | crate::boolean::CarrierRelation::SameOriented)
-                | Err(crate::boolean::CarrierEqError::Undecided { .. }))
-        );
-    if !one_carrier {
+    let Some(contact) = pair_contact(body, geo, fx, fy, band) else {
         return unbuilt(errors);
-    }
+    };
     let Some(cx) = placed(body, geo, fx, q, band, errors)? else {
         return unbuilt(errors);
     };
@@ -1643,34 +1645,128 @@ fn in_overlap_closure<T: Decide>(
     let Some(cy) = placed(body, geo, fy, q, band, errors)? else {
         return unbuilt(errors);
     };
-    match (cx, cy) {
-        (_, FaceContainment::Out) => Some(false),
-        (FaceContainment::In, _) | (_, FaceContainment::In) => Some(true),
-        _ => {
-            let axis = match crate::face_normal::face_outward_normal_at(body, fx, q, band) {
-                Ok(Some(n)) => n.vec(),
-                Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
-                    errors.push(ValidationError::CensusEscalated { cause: diag });
-                    return None;
-                }
-                Ok(None) | Err(_) => return unbuilt(errors),
-            };
-            let cones = (
-                face_cone(body, geo, fx, cx, q, band),
-                face_cone(body, geo, fy, cy, q, band),
-            );
-            match cones {
-                (Ok(Cone::Full), _) | (_, Ok(Cone::Full)) => Some(true),
-                (Ok(Cone::Corner(x)), Ok(Cone::Corner(y))) => {
-                    corners_meet(axis, x, y.reversed(), band, errors)
-                }
-                (Err(Unread::Escalated(cause)), _) | (_, Err(Unread::Escalated(cause))) => {
-                    errors.push(ValidationError::CensusEscalated { cause });
-                    None
-                }
-                (Err(Unread::Unbuilt), _) | (_, Err(Unread::Unbuilt)) => unbuilt(errors),
+    if cy == FaceContainment::Out {
+        return Some(false);
+    }
+    let along = match contact {
+        // The two closures share the touch point alone.
+        PairContact::Point => return Some(true),
+        PairContact::Area => {
+            if cx == FaceContainment::In || cy == FaceContainment::In {
+                return Some(true);
             }
+            None
         }
+        PairContact::Line(dir) => Some(dir),
+    };
+    let axis = match crate::face_normal::face_outward_normal_at(body, fx, q, band) {
+        Ok(Some(n)) => n.vec(),
+        Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
+            errors.push(ValidationError::CensusEscalated { cause: diag });
+            return None;
+        }
+        Ok(None) | Err(_) => return unbuilt(errors),
+    };
+    let cone = |f, at| match face_cone(body, geo, f, at, q, band) {
+        Ok(cone) => Ok(cone),
+        Err(Unread::Escalated(cause)) => Err(Some(cause)),
+        Err(Unread::Unbuilt) => Err(None),
+    };
+    let cones = match (cone(fx, cx), cone(fy, cy)) {
+        (Ok(x), Ok(Cone::Corner(y))) => (x, Cone::Corner(y.reversed())),
+        (Ok(x), Ok(Cone::Full)) => (x, Cone::Full),
+        (Err(Some(cause)), _) | (_, Err(Some(cause))) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            return None;
+        }
+        (Err(None), _) | (_, Err(None)) => return unbuilt(errors),
+    };
+    match (along, cones) {
+        (None, (Cone::Full, _) | (_, Cone::Full)) => Some(true),
+        (None, (Cone::Corner(x), Cone::Corner(y))) => corners_meet(axis, x, y, band, errors),
+        // A line contact's overlap is the run of the line inside both
+        // faces: the touch is in its closure where the line leaves it
+        // into both, one way or the other.
+        (Some(dir), (x, y)) => {
+            let mut undecided = false;
+            for d in [dir, -dir] {
+                let mut inside = |c: Cone<T>| match c {
+                    Cone::Full => Some(true),
+                    Cone::Corner(w) => {
+                        let d = d * w.from.norm();
+                        match crate::validate::wedge_holds_named(
+                            &OVERLAP_CORNER,
+                            axis,
+                            w.from,
+                            w.to,
+                            d,
+                            band,
+                        ) {
+                            Ok(holds) => Some(holds),
+                            Err(cause) => {
+                                errors.push(ValidationError::CensusEscalated { cause });
+                                None
+                            }
+                        }
+                    }
+                };
+                match (inside(x), inside(y)) {
+                    (Some(true), Some(true)) => return Some(true),
+                    (Some(false), _) | (_, Some(false)) => {}
+                    _ => undecided = true,
+                }
+            }
+            (!undecided).then_some(false)
+        }
+    }
+}
+
+/// What a confirmed pair's two faces share.
+#[derive(Clone, Copy)]
+enum PairContact<T: Real> {
+    /// An area: the two faces lie on one carrier.
+    Area,
+    /// A point: a sphere touching a plane or a sphere.
+    Point,
+    /// A line, along the unit direction: two other carriers tangent
+    /// along the closed-form line they derive.
+    Line(Vec3<T>),
+}
+
+/// The contact a confirmed pair's carriers make, read as the confirm
+/// pass reads it ([`confirm_face_pair`]); `None` where it reads none.
+fn pair_contact<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    fx: FaceKey,
+    fy: FaceKey,
+    band: Band,
+) -> Option<PairContact<T>> {
+    use crate::boolean::{CarrierEqError, CarrierRelation};
+    if planar_face(geo, fx).is_some() && planar_face(geo, fy).is_some() {
+        return Some(PairContact::Area);
+    }
+    match crate::boolean::carrier_pair_relation(body, fx, body, fy, false, band) {
+        Ok(
+            Ok(CarrierRelation::SameOpposite | CarrierRelation::SameOriented)
+            | Err(CarrierEqError::Undecided { .. }),
+        ) => return Some(PairContact::Area),
+        Ok(Ok(CarrierRelation::Distinct)) => {}
+        _ => return None,
+    }
+    let sphere = |f: FaceKey| {
+        body.get_face(f)
+            .is_some_and(|d| matches!(body.face_surface_linked(f, d), geom::Surface::Sphere { .. }))
+    };
+    if sphere(fx) || sphere(fy) {
+        return Some(PairContact::Point);
+    }
+    match crate::boolean::tangent_pair_at_rest(body, fx, fy, band) {
+        Ok(crate::boolean::RestTangent::Line {
+            carrier: geom::Curve3::Line { dir, .. },
+            ..
+        }) => Some(PairContact::Line(dir.normalize())),
+        _ => None,
     }
 }
 
