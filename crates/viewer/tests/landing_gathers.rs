@@ -484,9 +484,7 @@ fn every_site_of_the_gather_counter_carries_the_debug_gate() {
             "the cell and the reader are each behind the gate; missing: {anchor}"
         );
     }
-    // The increments: the gather's own, and the product door's where
-    // the slot reads nothing and no gather runs. Each at its own
-    // indentation, so counted line by line.
+    // The increment: the gather's own, counted line by line.
     let lines: Vec<&str> = source.lines().collect();
     let increments = lines
         .windows(2)
@@ -495,7 +493,7 @@ fn every_site_of_the_gather_counter_carries_the_debug_gate() {
                 && pair[1].trim_start().starts_with("GATHERS.with(")
         })
         .count();
-    assert_eq!(increments, 2, "the two increments are each behind the gate");
+    assert_eq!(increments, 1, "the increment is behind the gate");
     assert_eq!(
         source.matches("GATHERS").count(),
         gated.len() + increments,
