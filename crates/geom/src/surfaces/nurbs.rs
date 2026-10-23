@@ -814,6 +814,15 @@ impl<T: Real> NurbsSurface<T> {
         self.weights.weights_f64_interim()
     }
 
+    /// **Whether this patch is polynomial**: the one plain constant
+    /// every weight is, or `None` ([`Weights::constant`]). A constant
+    /// cancels out of the rational basis, so on `Some(c)` the patch is
+    /// the tensor polynomial on [`Self::control`] read as Cartesian,
+    /// for every `c`.
+    pub fn constant_weight(&self) -> Option<f64> {
+        self.weights.constant()
+    }
+
     /// `(nu, nv)` — control counts per direction.
     pub fn control_counts(&self) -> (usize, usize) {
         (

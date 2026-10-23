@@ -86,6 +86,32 @@ impl<T: SpanLocate> Weights<T> {
     pub fn first_wide(&self) -> Option<usize> {
         self.values.iter().position(|w| w.point_value().is_none())
     }
+
+    /// The one plain constant every weight is ([`constant_weight`] over
+    /// [`SpanLocate::plain_constant`]), or `None`: a weight that carries
+    /// an enclosure, a derivative or a symbol is no constant, whatever
+    /// its value channel reads.
+    pub fn constant(&self) -> Option<f64> {
+        let plain: Option<Vec<f64>> = self.values.iter().map(|w| w.plain_constant()).collect();
+        constant_weight(&plain?)
+    }
+}
+
+/// **Whether a weight vector cancels out of the rational basis**: the
+/// one value every weight holds, compared on the bits against the
+/// first, or `None` where two differ or there are none.
+///
+/// A constant `c` cancels exactly, `Rᵢ = Nᵢ·c / Σₖ Nₖ·c = Nᵢ`, so a
+/// carrier whose weights answer `Some(c)` IS the polynomial on its
+/// control points, read as Cartesian, for every `c`, `1` among them.
+/// Every "is this carrier polynomial" question in the kernel is this
+/// one; the carriers ask it through their own `constant_weight`.
+#[must_use]
+pub fn constant_weight(weights: &[f64]) -> Option<f64> {
+    let (&first, rest) = weights.split_first()?;
+    rest.iter()
+        .all(|w| w.to_bits() == first.to_bits())
+        .then_some(first)
 }
 
 impl<T> Weights<T> {
@@ -175,7 +201,26 @@ impl<T: Real> Weights<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::Weights;
+    use super::{Weights, constant_weight};
+
+    /// **Constancy is on the bits, and hands back the constant.** Any
+    /// constant answers itself, `1` and `2` alike; one ulp of spread,
+    /// or no weights at all, answers `None`. Through the held values, a
+    /// point enclosure is its constant and a wide one is none.
+    #[test]
+    fn constancy_is_bitwise_against_the_first_weight_and_names_the_constant() {
+        assert_eq!(constant_weight(&[1.0; 3]), Some(1.0));
+        assert_eq!(constant_weight(&[2.0; 3]), Some(2.0));
+        assert_eq!(constant_weight(&[0.5]), Some(0.5));
+        assert_eq!(constant_weight(&[2.0, 2.0, 2.0f64.next_up()]), None);
+        assert_eq!(constant_weight(&[1.0, 0.5, 1.0]), None);
+        assert_eq!(constant_weight(&[]), None);
+        let iv = crate::Interval::from_bounds;
+        let held = |w: Vec<crate::Interval>| Weights::new(w).unwrap().constant();
+        assert_eq!(held(vec![iv(2.0, 2.0); 3]), Some(2.0));
+        assert_eq!(held(vec![iv(2.0, 2.0), iv(1.5, 2.5), iv(2.0, 2.0)]), None);
+        assert_eq!(Weights::new(vec![3.0f64; 2]).unwrap().constant(), Some(3.0));
+    }
     use crate::Interval;
     use crate::spline::SplineError;
 

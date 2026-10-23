@@ -212,7 +212,7 @@ fn nurbs_chord_count(
     delta_s: f64,
     ek: EdgeKey,
 ) -> Result<usize, TessellateError> {
-    let rational = n.weights().iter().any(|w| *w != 1.0);
+    let rational = n.constant_weight().is_none();
     // The convex-combination licence (the surface arm's rule): every
     // hull fact below needs strictly positive finite weights.
     if rational
@@ -541,9 +541,7 @@ fn lcm(a: usize, b: usize) -> usize {
 /// IS its polynomial wrap and the differenced control net is exactly
 /// its derivative net; a genuinely varying weight vector's derivative
 /// is a quotient whose coefficients are not that net, and refuses
-/// typed. Asking "constant" rather than "every weight is 1" is
-/// `work/trim/rational-gates-test-unit-weights-not-constancy.md`'s fix
-/// shape, which names this file.
+/// typed ([`geom::NurbsCurve2::constant_weight`]).
 ///
 /// **What this function does NOT check, because the type already
 /// does.** A degree-0 image and an interior multiplicity above the
@@ -556,12 +554,7 @@ fn general_uv_speeds(
     params: (f64, f64),
     ek: EdgeKey,
 ) -> Result<(f64, f64), TessellateError> {
-    let weights = image.weights();
-    let w0 = weights.first().copied().unwrap_or(f64::NAN);
-    // `!(w0 > 0.0)` catches NaN; the positivity is the convex-
-    // combination licence the constant has to carry with it.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if !(w0 > 0.0) || !w0.is_finite() || weights.iter().any(|w| *w != w0) {
+    if image.constant_weight().is_none() {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "NURBS-face half-edge carries a RATIONAL general curve-in-UV pcurve — \

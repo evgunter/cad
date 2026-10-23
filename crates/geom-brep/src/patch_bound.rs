@@ -286,19 +286,14 @@ pub struct PatchCell {
     pub m_inf: f64,
 }
 
-/// Whether a patch is rational under the kernel's definition (any
-/// weight not bitwise `1.0`) — the arm selection, on f64 STRUCTURE.
-pub fn is_rational(n: &NurbsSurface<f64>) -> bool {
-    n.weights().iter().any(|w| *w != 1.0)
-}
-
 /// `n` with its weights at unit scale
 /// ([`geom_core::spline::weight_scale::unit_scale_exact`]), or `n`
 /// itself where that rescale is a no-op or would drop a bit. The
 /// rescaled net describes the same surface; what it buys is range for
 /// the weight powers the enclosures form (`w²` here, up to `w⁴` in
 /// [`crate::offset_fit`]'s composite). Which arm reads a net is decided
-/// on the DESCRIBED weights ([`is_rational`]), before this runs.
+/// on the DESCRIBED weights ([`NurbsSurface::constant_weight`]), before
+/// this runs.
 pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface<f64>> {
     let Some((_, scaled)) = unit_scale_exact(n.weights()) else {
         return Cow::Borrowed(n);
@@ -331,7 +326,7 @@ pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface
 /// 18 ([`PatchBoundError::DegreeAboveCeiling`], module docs "Refusal").
 pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
     gate(n, false)?;
-    if is_rational(n) {
+    if n.constant_weight().is_none() {
         rational_cells(n, RATIONAL_CERT_SPLITS)
     } else {
         integral_cells(n)
@@ -366,7 +361,7 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
 pub fn patch_cells_across_creases(
     n: &NurbsSurface<f64>,
 ) -> Result<Vec<PatchCell>, PatchBoundError> {
-    if !is_rational(n) {
+    if n.constant_weight().is_some() {
         return patch_cells(n);
     }
     gate(n, true)?;
@@ -419,7 +414,7 @@ pub fn patch_cells_refined(
 ) -> Result<Vec<PatchCell>, PatchBoundError> {
     check_direction(n.knots_u_f64_interim())?;
     check_direction(n.knots_v_f64_interim())?;
-    if is_rational(n) {
+    if n.constant_weight().is_none() {
         rational_cells(n, splits)
     } else {
         integral_cells_refined(n, splits)
@@ -709,17 +704,17 @@ fn centre(vectors: &[[Interval; 3]]) -> [Interval; 3] {
     })
 }
 
-/// The INTEGRAL arm (all weights bitwise `1.0`): the plain hull
-/// assembly on the spatial nets — no quotient rule intervenes, so the
+/// The INTEGRAL arm (all weights one constant, which cancels): the
+/// plain hull assembly on the spatial nets — no quotient rule intervenes, so the
 /// enclosure IS the coefficient hull.
 fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
     integral_cells_on(&comp_nets(n))
 }
 
 /// [`integral_cells`] after refining every nonempty span into `splits`
-/// equal pieces, IN INTERVAL ARITHMETIC: an integral net's weights are unit, so the
-/// net is already homogeneous and [`refine_split`]'s schedule applies to
-/// it directly. The cells therefore enclose the described patch, where an
+/// equal pieces, IN INTERVAL ARITHMETIC: an integral net's constant weight
+/// cancels, so its spatial net is the polynomial patch itself and
+/// [`refine_split`]'s schedule applies to it directly. The cells therefore enclose the described patch, where an
 /// `f64` refinement would have them enclose the refined-`f64` one.
 ///
 /// # Errors

@@ -323,22 +323,14 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     // locus — downstream doors compare `C(t)` against chart images
     // pointwise, so the affine chord map must be within budget of the
     // carrier's own parameterization or the promoted edge is
-    // unadoptable. With unit weights the polynomial basis reproduces
-    // affine maps on the Greville abscissae (linear precision), so
-    // the control-vs-affine deviations bound the map deviation over
-    // the whole domain (module docs); a rational carrier has no
-    // linear-precision fact and refuses the certificate silently.
-    // Non-finite refuses. The bits spelling of the unit-weight gate
-    // is the same predicate as `geom-brep`'s value spelling
-    // `*w != 1.0` — `+1.0` has one representation and NaN fails both
-    // — it just satisfies the float-eq lint without an `allow`.
+    // unadoptable. With one constant weight, which cancels, the
+    // polynomial basis reproduces affine maps on the Greville abscissae
+    // (linear precision), so the control-vs-affine deviations bound the
+    // map deviation over the whole domain (module docs); a rational
+    // carrier has no linear-precision fact and refuses the certificate
+    // silently. Non-finite refuses.
     let degree = curve.knots_f64_interim().degree();
-    if degree == 0
-        || curve
-            .weights()
-            .iter()
-            .any(|w| w.to_bits() != 1.0f64.to_bits())
-    {
+    if degree == 0 || curve.constant_weight().is_none() {
         return None;
     }
     let (d0, d1) = curve.domain();

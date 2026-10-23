@@ -153,7 +153,7 @@ use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
     AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
     LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, diagonal_in_span, restrict_segment,
+    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -3755,7 +3755,8 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let (u0, u1, v0, v1) = rect.corners();
     // M8-3: the rational patch is the SAME integrand over a polynomial
     // cube (`f = N/w³`), so it takes its own lane rather than refusing.
-    if weights.iter().any(|w| *w != 1.0) {
+    // A constant weight cancels, and the net is the polynomial patch.
+    if constant_weight(weights).is_none() {
         return rational_patch_face::<T>(
             kv_u,
             kv_v,
@@ -4122,8 +4123,8 @@ fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
 /// Why [`bezier_blocks`] refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum BlockRefusal {
-    /// A weight is not `1.0`: the blocks' hulls would not be the
-    /// polynomial convex-hull fact.
+    /// The weights are not one constant: the blocks' hulls would not be
+    /// the polynomial convex-hull fact.
     Rational,
     /// A zero degree, a net and weights not one per control point, or
     /// a refusing knot algebra.
@@ -4138,8 +4139,8 @@ enum BlockRefusal {
 /// convex-hull property). Knot insertion is exact in ℝ, so a block is
 /// a statement about the same arc.
 ///
-/// The net's weights must all be `1.0`: that makes each axis its own
-/// homogeneous channel below, and the blocks' hulls the polynomial
+/// The net's weights must be one constant, which cancels: that makes
+/// each axis its own polynomial channel below, and the blocks' hulls the polynomial
 /// convex-hull fact. A rational net refuses
 /// ([`BlockRefusal::Rational`]), as does a malformed one: a zero
 /// degree, a net and weights not one per control point, or a knot
@@ -4150,7 +4151,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefus
     if p == 0 || img.control.len() != kv.control_count() || img.weights.len() != img.control.len() {
         return Err(BlockRefusal::Malformed);
     }
-    if img.weights.iter().any(|w| *w != 1.0) {
+    if constant_weight(&img.weights).is_none() {
         return Err(BlockRefusal::Rational);
     }
     let mut breaks: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
@@ -4167,7 +4168,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefus
             add.push(*b);
         }
     }
-    // Unit weights make the chart net its own homogeneous form, so
+    // A constant weight makes the chart net its own polynomial form, so
     // each axis refines as a channel in the certification ring.
     let refinement = RingRefinement::new(kv, &add).map_err(|_| BlockRefusal::Malformed)?;
     let cu: Vec<Interval> = img.control.iter().map(|q| q.0).collect();
@@ -4990,7 +4991,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                    interior for Green's theorem to bound",
         });
     }
-    if weights.iter().any(|w| *w != 1.0) {
+    if constant_weight(weights).is_none() {
         return Err(PropsError::QuadratureUnsupported {
             what: "a RATIONAL chart reached the trimmed lane — the chord integrand is the \
                    polynomial `⟨S, S_u×S_v⟩`, and a quotient's is not polynomial in the \

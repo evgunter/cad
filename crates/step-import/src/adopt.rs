@@ -832,7 +832,7 @@ fn iso_curve_candidates(
 }
 
 /// The promoted-LINE column match ([`iso_curve_candidates`]'s Line
-/// arm): is `iso` a straight unit-weight ruling whose ends sit on the
+/// arm): is `iso` a straight polynomial ruling whose ends sit on the
 /// edge's vertex pair within `eps`? Answers the `(v0, v1)` the affine
 /// v map must take at `(t0, t1)` — the column's own knot-domain ends,
 /// forward when the start vertex sits at the column's start and
@@ -845,8 +845,8 @@ fn iso_curve_candidates(
 /// straight seam as readily as a two-point polyline — so a degree or
 /// control-count gate here would strip the candidate from part of the
 /// class the promotion just created. What gates is meaning, not
-/// shape: unit weights to the bit (a rational column's v map is not
-/// affine in space) and every control within the band of the
+/// shape: one constant weight to the bit (a rational column's v map is
+/// not affine in space) and every control within the band of the
 /// end-to-end segment (the convex hull carries the curve with it);
 /// the positional halves are banded at the ambient ε (the arm's
 /// comment carries why), and every comparison is the positive
@@ -867,14 +867,10 @@ fn line_column_match(
 ) -> Option<(f64, f64)> {
     let control = iso.control();
     let (first, last) = (control.first()?, control.last()?);
-    if iso
-        .weights()
-        .iter()
-        .any(|w| w.to_bits() != 1.0f64.to_bits())
-    {
+    if iso.constant_weight().is_none() {
         return None;
     }
-    // Straightness, off the control hull: with unit weights the curve
+    // Straightness, off the control hull: with one constant weight the curve
     // lies in its controls' convex hull, so every control within `eps`
     // of the end-to-end segment bounds the whole column there. The
     // `t` clamp folds an along-line overshoot into the distance, so a

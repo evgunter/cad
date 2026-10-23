@@ -156,7 +156,7 @@ fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
 }
 
 /// `(1/2)∫_{t0}^{t1} (P(t) − ref)×P′(t) dt` for a **non-rational**
-/// B-spline carrier, exact (module docs of [`loop_vector_area`]: the
+/// B-spline carrier (one constant weight, which cancels), exact (module docs of [`loop_vector_area`]: the
 /// per-span polynomial integrand meets the fixed `k`-point Gauss rule
 /// that integrates its degree exactly).
 ///
@@ -172,7 +172,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     t1: T,
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
-    if curve.weights_f64_interim().iter().any(|w| *w != 1.0) {
+    if curve.constant_weight().is_none() {
         return Err(PropsError::Unimplemented);
     }
     let degree = curve.degree().max(1);

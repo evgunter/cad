@@ -24,8 +24,9 @@ use crate::curves::NurbsCurve3;
 /// a bound, and the variant NAMES which structure — a caller's typed
 /// refusal is only as good as the reason it can quote. Rational curves
 /// are NOT this door's: their `C″ = M/W³` is the quotient statement's
-/// ([`crate::NurbsCurve3::accel_upper_bound`]), so a weight other than
-/// `1` refuses here.
+/// ([`crate::NurbsCurve3::accel_upper_bound`]), so weights that are not
+/// one constant refuse here ([`NurbsCurve3::constant_weight`]: a
+/// constant cancels, and the control net is the polynomial's).
 ///
 /// # Errors
 ///
@@ -35,7 +36,7 @@ use crate::curves::NurbsCurve3;
 pub fn nonrational_second_derivative_sup(
     curve: &NurbsCurve3<f64>,
 ) -> Result<f64, SecondDerivativeUnbounded> {
-    if curve.weights().iter().any(|w| *w != 1.0) {
+    if curve.constant_weight().is_none() {
         return Err(SecondDerivativeUnbounded::Rational);
     }
     let control = curve.control();
@@ -78,8 +79,8 @@ pub fn nonrational_second_derivative_sup(
 /// name what it met rather than reporting a poisoned number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SecondDerivativeUnbounded {
-    /// A weight is not `1`: the curve is rational, and its second
-    /// derivative is a quotient this door does not assemble.
+    /// The weights are not one constant: the curve is rational, and its
+    /// second derivative is a quotient this door does not assemble.
     Rational,
     /// The knot vector's degree is below 2, so the curve has no second
     /// derivative to hull ([`Derived::SpanConstant`]).
