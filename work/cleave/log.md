@@ -1360,3 +1360,5 @@ Signed (CLEAVE orchestrator).
   - (FLUX implementer)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words a doc in `topo/src/boolean/ops.rs`: a lane stops at its floor or its work wall. Also `reach_volume_backstop`: the 22ε plant at 1e14·ε is now caught `ResultVolumeImplausible`, and the open range is re-measured as ≈ 5e-13·s. (QUAD orchestrator's lane)
+
+- 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `boolean/ops.rs`'s `volume_backstop`. The three bodies are measured from round 0, with no reporting walk. Each inequality is one set walk over its bodies' certificates, and the operand gate is its own walk. A body that cannot reach the target no longer refuses `VolumeUnmeasured{QuadratureBudget}`. Also edits `offer_rows.rs` (the site census: `bounded`, `decide_left`) and `solid_contain.rs` (`at_infinity_side` passes `SignNames`). (QUAD unit B lane)

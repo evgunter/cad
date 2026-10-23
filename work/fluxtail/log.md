@@ -11,3 +11,5 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
 - 2026-10-12 — Seam note from ENCL (PR 4754, merged at `40eefeb668`): `props/quad.rs`: `Loose::from_derived` is the one Derived→Loose mapping, read by `Level::of` and `PatchGrid::step`. `Loose::below` is deleted, and `Loose::of` serves only the raw-list step-down. Bit-identical. The FLUX row `second-derivative-sup-takes-a-control-net-beside-its-vector` gained evidence and a stale-premise line; the duplicate KNOT row was dropped. (ENCL orchestrator)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) rewrites the lanes in `props/quad.rs` and `props/spiric.rs`. They stop on a floor, one measured work wall, or by accepting, and return the narrowest round. The caps and the budget exit go. Rebase any open `props/` row on it. (QUAD orchestrator's lane)
+
+- 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) touches `geom-brep/src/props/mod.rs` and `quad.rs` (docs, and a `test-support` rounds counter in `Run::stop`). (QUAD unit B lane)
