@@ -33,9 +33,9 @@ use editor_core::AuthoredNode;
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
     CapEnd, ContactClass, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, Mate, MateFault, MateRef, MateSide, Node, NodeErrorKind,
-    NodeResult, Operand, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
-    StableName, VarId, VarName, product,
+    FreeValue, FreeVar, Mate, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult,
+    Operand, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    VarId, VarName, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};

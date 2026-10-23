@@ -612,7 +612,10 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let cap = fixture::plane(fixture::head_at(ids[0], in_part(ids[0], body, CapEnd::Start)));
+    let cap = fixture::plane(fixture::head_at(
+        ids[0],
+        in_part(ids[0], body, CapEnd::Start),
+    ));
     let on_the_world = Mate {
         on: cap.clone(),
         to: cap,

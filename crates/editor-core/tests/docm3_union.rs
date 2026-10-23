@@ -592,11 +592,7 @@ fn two_placements_of_one_prototype_are_two_members() {
 
     // The mechanism: the two members' tables are the same table under
     // the placement layer.
-    let prototype = |faces: Vec<StableName>| -> Vec<StableName> {
-        faces
-            .into_iter()
-            .collect()
-    };
+    let prototype = |faces: Vec<StableName>| -> Vec<StableName> { faces.into_iter().collect() };
     assert_eq!(
         prototype(all_faces(&ev, left)),
         prototype(all_faces(&ev, right)),

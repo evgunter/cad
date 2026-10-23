@@ -172,9 +172,7 @@ fn author_die() -> Die {
                 &mut log,
                 TEdit::InsertNode {
                     node: Box::new(editor_core::Node::place(
-                        editor_core::BodyRead::plain(editor_core::Operand::from(
-                            pip_extrude,
-                        )),
+                        editor_core::BodyRead::plain(editor_core::Operand::from(pip_extrude)),
                         editor_core::Operand::Var(in_cube),
                         editor_core::stand().bundle(),
                     )),

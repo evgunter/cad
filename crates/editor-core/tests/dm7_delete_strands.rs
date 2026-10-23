@@ -91,7 +91,9 @@ fn paint(doc: &editor_core::ProfileDoc, name: &(impl crate::fixture::Sited + Clo
     apply(
         doc,
         &DocEdit::SetAppearance {
-            body: doc.read_of_node(name.site()).expect("the face's body is read"),
+            body: doc
+                .read_of_node(name.site())
+                .expect("the face's body is read"),
             name: name.clone().name(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -351,11 +353,17 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
 
 /// A rest of `on`'s face against `to`'s, `on` the face of the copy it
 /// places.
-fn rest(to: impl crate::fixture::Sited, on: impl crate::fixture::Sited) -> editor_core::Mate<Formula> {
+fn rest(
+    to: impl crate::fixture::Sited,
+    on: impl crate::fixture::Sited,
+) -> editor_core::Mate<Formula> {
     fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
 }
 
-fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> crate::fixture::resolver::InPart {
+fn instance_face(
+    instance: RecipeNodeId,
+    part_body: RecipeNodeId,
+) -> crate::fixture::resolver::InPart {
     crate::fixture::resolver::InPart {
         at: instance,
         name: StableName {

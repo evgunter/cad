@@ -13,7 +13,8 @@
 
 use crate::fixture;
 use editor_core::{
-    Bodies, BodyRead, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SplitHalf, ValuePayload, VarId, apply,
+    Bodies, BodyRead, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, Node, Operand,
+    ProfileDoc, RecipeNodeId, RoleSeg, SplitHalf, ValuePayload, VarId, apply,
 };
 use fixture::{len, on_frame, run, square};
 use geom_core::Tol;
@@ -38,7 +39,13 @@ fn block(doc: ProfileDoc, [x, y]: [f64; 2], half: f64, height: f64) -> (ProfileD
 }
 
 /// A block brought into `of`'s space, raised to stand on `z`.
-fn beside(doc: ProfileDoc, of: RecipeNodeId, [x, y, z]: [f64; 3], half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
+fn beside(
+    doc: ProfileDoc,
+    of: RecipeNodeId,
+    [x, y, z]: [f64; 3],
+    half: f64,
+    height: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, body) = block(doc, [x, y], half, height);
     fixture::slid(doc, of, body, [0.0, 0.0, z])
 }
@@ -69,8 +76,13 @@ fn set_product(doc: &ProfileDoc, product: Option<Operand>) -> ProfileDoc {
 fn body_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> topo::Body<f64> {
     match ev.value(node).map(|v| &v.payload) {
         Some(ValuePayload::Body(b)) => (**b).clone(),
-        Some(ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. })) => (**body).clone(),
-        other => panic!("{node:?} reads one body, not {other:?}: {:?}", ev.result(node)),
+        Some(ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. })) => {
+            (**body).clone()
+        }
+        other => panic!(
+            "{node:?} reads one body, not {other:?}: {:?}",
+            ev.result(node)
+        ),
     }
 }
 
@@ -90,17 +102,36 @@ fn solids(body: &topo::Body<f64>) -> usize {
 }
 
 fn near(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> bool {
-    a.0.iter().chain(&a.1).zip(b.0.iter().chain(&b.1)).all(|(x, y)| (x - y).abs() < 1e-12)
+    a.0.iter()
+        .chain(&a.1)
+        .zip(b.0.iter().chain(&b.1))
+        .all(|(x, y)| (x - y).abs() < 1e-12)
 }
 
 fn doc(label: &str) -> ProfileDoc {
     ProfileDoc::empty(DocumentId::derive(label), Tol::witness())
 }
 
-/// `node`'s value placed in the world and made the product.
-fn produced(doc: ProfileDoc, node: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, place) = put(doc, fixture::stood(node));
-    (set_product(&doc, Some(Operand::Node(place))), place)
+/// A copy of `node`'s value standing in the world.
+fn in_world(
+    doc: ProfileDoc,
+    node: impl Into<BodyRead<editor_core::Formula>>,
+) -> (ProfileDoc, RecipeNodeId) {
+    put(doc, fixture::stood(node))
+}
+
+/// The `⊔` of `members`, each read in the world, made the product: the
+/// slot reads the `⊔` itself, so the census at its door is the
+/// product's. (A placement of a `⊔` carries no decision of its door
+/// until `a-placement-carries-its-sources-at-rest-result`.)
+fn produced(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, assembled) = put(
+        doc,
+        Node::Assemble {
+            members: spelled(members),
+        },
+    );
+    (set_product(&doc, Some(Operand::Node(assembled))), assembled)
 }
 
 // ---- Test 19: picks ----
@@ -118,10 +149,17 @@ fn two_copies_unioned_name_each_operand_by_its_read() {
     let (doc, a) = block(doc, [0.0; 2], 0.5, 1.0);
     let (doc, near) = fixture::stood_in(doc, a, a);
     let (doc, far) = fixture::slid(doc, a, a, [0.5, 0.0, 0.0]);
-    let (doc, union) = put(doc, Node::Union { members: spelled(&[near, far]) });
+    let (doc, union) = put(
+        doc,
+        Node::Union {
+            members: spelled(&[near, far]),
+        },
+    );
     let ev = run(&doc, &EvalOptions::default());
     let reads = [doc.output(near, 0).unwrap(), doc.output(far, 0).unwrap()];
-    let table = ev.table(doc.output(union, 0).unwrap()).expect("the union's table");
+    let table = ev
+        .table(doc.output(union, 0).unwrap())
+        .expect("the union's table");
     let mut seen = std::collections::BTreeSet::new();
     for (name, _) in table.iter() {
         let Some(RoleSeg::From { read, of }) = name.path.first() else {
@@ -144,7 +182,12 @@ fn a_pick_reads_one_piece_and_two_picks_are_two_variables() {
     let doc = doc("dprime3-pick");
     let (doc, bolt) = block(doc, [0.0; 2], 0.2, 1.0);
     let (doc, plate) = beside(doc, bolt, [2.0, 0.0, 0.0], 0.5, 0.2);
-    let (doc, seat) = put(doc, Node::Assemble { members: spelled(&[bolt, plate]) });
+    let (doc, seat) = put(
+        doc,
+        Node::Assemble {
+            members: spelled(&[bolt, plate]),
+        },
+    );
     let (doc, place) = put(doc, fixture::stood(seat));
     let bolt_var = doc.output(bolt, 0).unwrap();
     let pick = || BodyRead::plain(Operand::pick(Operand::Node(place), vec![bolt_var]));
@@ -163,15 +206,26 @@ fn a_pick_reads_one_piece_and_two_picks_are_two_variables() {
     let ev = run(&doc, &EvalOptions::default());
     for at in [first, second] {
         assert!(
-            near(bounds(&body_of(&ev, at)), ([-0.2, -0.2, 0.0], [0.2, 0.2, 1.0])),
+            near(
+                bounds(&body_of(&ev, at)),
+                ([-0.2, -0.2, 0.0], [0.2, 0.2, 1.0])
+            ),
             "the pick reads the bolt's copy alone"
         );
     }
-    let (doc, fused) = put(doc, Node::Union { members: spelled(&[bolt, plate]) });
+    let (doc, fused) = put(
+        doc,
+        Node::Union {
+            members: spelled(&[bolt, plate]),
+        },
+    );
     let (doc, through) = put(doc, fixture::stood(fused));
     let refused = fixture::insert_refused(
         &doc,
-        fixture::stood(BodyRead::plain(Operand::pick(Operand::Node(through), vec![bolt_var]))),
+        fixture::stood(BodyRead::plain(Operand::pick(
+            Operand::Node(through),
+            vec![bolt_var],
+        ))),
     );
     assert!(
         matches!(refused, EditError::PickPath { .. }),
@@ -188,11 +242,14 @@ fn a_pick_reads_one_piece_and_two_picks_are_two_variables() {
 fn one_body_assembled_twice_is_an_interference_finding() {
     let doc = doc("dprime3-twice");
     let (doc, a) = block(doc, [0.0; 2], 0.5, 1.0);
-    let (doc, twice) = put(doc, Node::Assemble { members: spelled(&[a, a]) });
-    let (doc, _) = produced(doc, twice);
+    let (doc, copy) = in_world(doc, a);
+    let (doc, _) = produced(doc, &[copy, copy]);
     let ev = run(&doc, &EvalOptions::default());
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
-    assert!(!product.census.is_empty(), "the census reads the two pieces meeting");
+    assert!(
+        !product.census.is_empty(),
+        "the census reads the two pieces meeting"
+    );
     match editor_core::assemble(&doc, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::AtRest { findings }) => {
             assert!(!findings.is_empty(), "the census's findings travel");
@@ -206,7 +263,12 @@ fn one_body_assembled_twice_is_an_interference_finding() {
 fn one_body_unioned_twice_is_that_body() {
     let doc = doc("dprime3-union-twice");
     let (doc, a) = block(doc, [0.0; 2], 0.5, 1.0);
-    let (doc, twice) = put(doc, Node::Union { members: spelled(&[a, a]) });
+    let (doc, twice) = put(
+        doc,
+        Node::Union {
+            members: spelled(&[a, a]),
+        },
+    );
     let ev = run(&doc, &EvalOptions::default());
     let body = body_of(&ev, twice);
     assert_eq!(solids(&body), 1);
@@ -220,7 +282,12 @@ fn a_cut_through_an_assemble_keeps_its_pieces() {
     let doc = doc("dprime3-cut");
     let (doc, p) = block(doc, [0.0; 2], 0.5, 1.0);
     let (doc, q) = beside(doc, p, [2.0, 0.0, 0.0], 0.5, 1.0);
-    let (doc, both) = put(doc, Node::Assemble { members: spelled(&[p, q]) });
+    let (doc, both) = put(
+        doc,
+        Node::Assemble {
+            members: spelled(&[p, q]),
+        },
+    );
     let (doc, t) = beside(doc, p, [1.0, 0.0, 0.5], 2.0, 1.0);
     let (doc, cut) = put(
         doc,
@@ -232,7 +299,11 @@ fn a_cut_through_an_assemble_keeps_its_pieces() {
     let ev = run(&doc, &EvalOptions::default());
     let body = body_of(&ev, cut);
     assert_eq!(solids(&body), 2, "both pieces survive the cut");
-    assert!(near(bounds(&body), ([-0.5, -0.5, 0.0], [2.5, 0.5, 0.5])), "{:?}", bounds(&body));
+    assert!(
+        near(bounds(&body), ([-0.5, -0.5, 0.0], [2.5, 0.5, 0.5])),
+        "{:?}",
+        bounds(&body)
+    );
 }
 
 /// **`h1 ⊔ h2` of a split's halves records the cut, and `h1 ∪ h2`
@@ -244,49 +315,97 @@ fn a_cut_through_an_assemble_keeps_its_pieces() {
 fn a_splits_halves_assembled_record_the_cut_and_unioned_glue_it() {
     let doc = doc("dprime3-halves");
     let (doc, a) = block(doc, [0.0; 2], 0.5, 1.0);
+    // Split in the world, so the halves are the product's to read.
+    let (doc, a) = in_world(doc, a);
     let tool = fixture::plane_on(&doc, a, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
-    let (doc, split) = put(doc, Node::Split { target: a.into(), tool });
-    let half = |h: SplitHalf| BodyRead::plain(Operand::Var(doc.output(split, h.port()).unwrap()));
-    let halves = Bodies::Spelled(vec![half(SplitHalf::Above), half(SplitHalf::Below)]);
-    let (doc, assembled) = put(doc, Node::Assemble { members: halves.clone() });
-    let (doc, glued) = put(doc, Node::Union { members: halves });
-    let (doc, _) = produced(doc, assembled);
+    let (doc, split) = put(
+        doc,
+        Node::Split {
+            target: a.into(),
+            tool,
+        },
+    );
+    let halves = Bodies::Spelled(
+        [SplitHalf::Above, SplitHalf::Below]
+            .map(|h| BodyRead::plain(Operand::Var(doc.output(split, h.port()).unwrap())))
+            .to_vec(),
+    );
+    let (doc, glued) = put(
+        doc,
+        Node::Union {
+            members: halves.clone(),
+        },
+    );
+    let (doc, assembled) = put(doc, Node::Assemble { members: halves });
+    let doc = set_product(&doc, Some(Operand::Node(assembled)));
     let ev = run(&doc, &EvalOptions::default());
     let body = body_of(&ev, glued);
     assert_eq!(solids(&body), 1, "the union glues the cut");
     assert!(near(bounds(&body), ([-0.5, -0.5, 0.0], [0.5, 0.5, 1.0])));
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
-    eprintln!("PROBE halves coinc {} contacts {} census {:.400}", product.coincidences.len(), product.contacts.len(), format!("{:?}", product.census));
-    let report = editor_core::run_checks(&doc, &ev, &editor_core::ChecksConfig::default(), Tol::witness())
-        .expect("the checks run");
-    eprintln!("PROBE halves report {:.1200}", format!("{report:?}"));
-    eprintln!("PROBE halves assemble {:.600}", format!("{:?}", editor_core::assemble(&doc, &ev, Tol::witness()).err()));
     assert!(
-        report.findings.iter().all(|f| f.check != editor_core::CheckId::UnprovenCoincidence),
-        "the cut is proved: {report}"
+        product.census.is_empty(),
+        "the census leaves nothing: {:?}",
+        product.census
     );
-    panic!("probe");
+    assert!(
+        !product.coincidences.is_empty() && !product.contacts.is_empty(),
+        "the meeting is recorded: rows and the record citing them"
+    );
+    editor_core::assemble(&doc, &ev, Tol::witness()).expect("the halves assemble at rest");
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run");
+    assert!(report.findings.is_empty(), "the cut is proved: {report}");
 }
 
 /// **`(bolt ⊔ plate) ∪ bead` keeps the `⊔`'s pieces**: a bead against
 /// the bolt alone fuses with it and leaves the plate a piece of its
-/// own, the bolt–plate meeting not decided again; a bead bridging bolt
+/// own, the bolt–plate meeting not decided again. A bead bridging bolt
 /// and plate makes one solid touching itself where they met, which the
-/// union refuses, typed.
+/// union refuses, typed by the kernel. The `⊔`'s record cited through
+/// the union, and a refusal naming the bridged pair, are
+/// `work/intent/a-boolean-over-an-assemble-cites-none-of-its-meetings.md`.
 #[test]
 fn a_seat_unioned_with_a_bead_keeps_its_pieces() {
     let doc = doc("dprime3-bead");
     let (doc, plate) = block(doc, [0.0; 2], 1.0, 0.2);
     let (doc, bolt) = beside(doc, plate, [0.0, 0.0, 0.2], 0.2, 1.0);
-    let (doc, seat) = put(doc, Node::Assemble { members: spelled(&[bolt, plate]) });
+    let (doc, seat) = put(
+        doc,
+        Node::Assemble {
+            members: spelled(&[bolt, plate]),
+        },
+    );
     let (doc, side) = beside(doc, plate, [0.25, 0.0, 0.6], 0.1, 0.2);
     let (doc, bridge) = beside(doc, plate, [0.25, 0.0, 0.1], 0.1, 0.3);
-    let (doc, kept) = put(doc, Node::Union { members: spelled(&[seat, side]) });
-    let (doc, fused) = put(doc, Node::Union { members: spelled(&[seat, bridge]) });
+    let (doc, kept) = put(
+        doc,
+        Node::Union {
+            members: spelled(&[seat, side]),
+        },
+    );
+    let (doc, fused) = put(
+        doc,
+        Node::Union {
+            members: spelled(&[seat, bridge]),
+        },
+    );
     let ev = run(&doc, &EvalOptions::default());
-    assert_eq!(solids(&body_of(&ev, kept)), 2, "the bolt and its bead, and the plate");
+    assert_eq!(
+        solids(&body_of(&ev, kept)),
+        2,
+        "the bolt and its bead, and the plate"
+    );
     assert!(
-        matches!(ev.node_error(fused).map(|e| &e.kind), Some(editor_core::NodeErrorKind::Boolean(_))),
+        matches!(
+            ev.node_error(fused).map(|e| &e.kind),
+            Some(editor_core::NodeErrorKind::Boolean(_))
+        ),
         "a bridged seat refuses, typed: {:?}",
         ev.node_error(fused)
     );
@@ -301,11 +420,16 @@ fn three_pieces(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, p) = block(doc, [0.0; 2], 0.5, 0.2);
     let (doc, bolt) = beside(doc, p, [2.0, 0.0, 0.0], 0.2, 1.0);
     let (doc, nut) = beside(doc, p, [4.0, 0.0, 0.0], 0.3, 0.3);
-    let (doc, three) = put(doc, Node::Assemble { members: spelled(&[p, bolt, nut]) });
-    let (doc, product) = produced(doc, three);
+    let (doc, three) = put(
+        doc,
+        Node::Assemble {
+            members: spelled(&[p, bolt, nut]),
+        },
+    );
+    let (doc, copy) = in_world(doc, three);
+    let doc = set_product(&doc, Some(Operand::Node(copy)));
     let (doc, spare) = block(doc, [9.0, 0.0], 0.5, 0.5);
-    let (doc, unread) = put(doc, fixture::stood(spare));
-    let _ = product;
+    let (doc, unread) = in_world(doc, spare);
     (doc, three, unread)
 }
 
@@ -324,7 +448,10 @@ fn the_product_is_what_the_slot_reads() {
         bounds(&product).1[0] < 9.0,
         "the body placed at x = 9 is not read, so not in the product"
     );
-    assert!(ev.value(unread).is_some(), "the unread placement evaluates all the same");
+    assert!(
+        ev.value(unread).is_some(),
+        "the unread placement evaluates all the same"
+    );
     let empty = set_product(&doc, None);
     let ev = run(&empty, &EvalOptions::default());
     assert!(matches!(
@@ -339,7 +466,9 @@ fn the_product_is_what_the_slot_reads() {
 fn an_instance_defines_one_body_of_its_parts_product() {
     let (part, three, _) = three_pieces("dprime3-instance-part");
     let bolt_var = match part.node(three) {
-        Some(Node::Assemble { members: Bodies::Spelled(reads) }) => reads[1].read,
+        Some(Node::Assemble {
+            members: Bodies::Spelled(reads),
+        }) => reads[1].read,
         other => panic!("the `⊔`, not {other:?}"),
     };
     let mut store = fixture::resolver::PartStore::default();
@@ -347,19 +476,97 @@ fn an_instance_defines_one_body_of_its_parts_product() {
     let doc = doc("dprime3-instance");
     let (doc, instance) = put(
         doc,
-        Node::instantiate_part(part_ref, Operand::Var(VarId::WORLD), editor_core::stand().bundle()),
+        Node::instantiate_part(
+            part_ref,
+            Operand::Var(VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
     );
     assert_eq!(doc.outputs(instance).len(), 1, "one output, one body");
     let (doc, picked) = put(
         doc,
-        fixture::stood(BodyRead::plain(Operand::pick(Operand::Node(instance), vec![bolt_var]))),
+        fixture::stood(BodyRead::plain(Operand::pick(
+            Operand::Node(instance),
+            vec![bolt_var],
+        ))),
     );
     let opts = fixture::resolver::with_resolver(store);
     let ev = run(&doc, &opts);
-    assert_eq!(solids(&body_of(&ev, instance)), 3, "the part's three pieces");
+    assert_eq!(
+        solids(&body_of(&ev, instance)),
+        3,
+        "the part's three pieces"
+    );
     assert!(
-        near(bounds(&body_of(&ev, picked)), ([1.8, -0.2, 0.0], [2.2, 0.2, 1.0])),
+        near(
+            bounds(&body_of(&ev, picked)),
+            ([1.8, -0.2, 0.0], [2.2, 0.2, 1.0])
+        ),
         "the pick reads the bolt: {:?}",
         bounds(&body_of(&ev, picked))
     );
+}
+
+/// **An instance's census decisions are its part's, reported once**:
+/// a bolt resting on a plate, `p ⊔ bolt`, is the part's product, and
+/// the census at that `⊔` records the touch, which the part's
+/// `unproven-coincidence` check reports. An instance of the part
+/// carries that decision: the host's census decides the touch inside
+/// the instance's copy no second time, and the host reports nothing of
+/// it.
+///
+/// *Breaks if* an instance's census rows are decided again in the host.
+#[test]
+fn an_instances_census_decisions_are_its_parts() {
+    let doc = doc("dprime3-carried-part");
+    let (doc, p) = block(doc, [0.0; 2], 0.5, 0.2);
+    let (doc, bolt) = beside(doc, p, [0.0, 0.0, 0.2], 0.2, 1.0);
+    let (doc, p) = in_world(doc, p);
+    let (doc, bolt) = in_world(doc, bolt);
+    let (part, _) = produced(doc, &[p, bolt]);
+    let unproven = |doc: &ProfileDoc, ev: &Evaluation<f64>| {
+        editor_core::run_checks(
+            doc,
+            ev,
+            &editor_core::ChecksConfig::default(),
+            Tol::witness(),
+        )
+        .expect("the checks run")
+        .findings
+        .iter()
+        .filter(|f| f.check == editor_core::CheckId::UnprovenCoincidence)
+        .count()
+    };
+    let ev = run(&part, &EvalOptions::default());
+    let decided = editor_core::product_recorded(&part, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        !decided.coincidences.is_empty(),
+        "the part's `⊔` records the touch"
+    );
+    assert!(unproven(&part, &ev) > 0, "and the part reports it");
+
+    let mut store = fixture::resolver::PartStore::default();
+    let part_ref = store.insert(part, Tol::witness());
+    let doc = self::doc("dprime3-carried-host");
+    let (doc, instance) = put(
+        doc,
+        Node::instantiate_part(
+            part_ref,
+            Operand::Var(VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+    );
+    let doc = set_product(&doc, Some(Operand::Node(instance)));
+    let ev = run(&doc, &fixture::resolver::with_resolver(store));
+    let host = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        host.coincidences.is_empty() && host.census.is_empty(),
+        "the host decides nothing inside the instance's copy"
+    );
+    assert_eq!(
+        unproven(&doc, &ev),
+        0,
+        "and reports nothing of the part's touch"
+    );
+    editor_core::assemble(&doc, &ev, Tol::witness()).expect("the host assembles");
 }

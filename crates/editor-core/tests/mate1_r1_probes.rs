@@ -90,7 +90,11 @@ impl Cube {
             let worn = wrap(own.name.clone());
             // A part's own name is read at its instance; a name a
             // pattern wraps, at the pattern that minted it.
-            let at = if worn == own.name { instance } else { worn.node };
+            let at = if worn == own.name {
+                instance
+            } else {
+                worn.node
+            };
             fixture::read_at(at, worn)
         };
         fixture::corner_frame(

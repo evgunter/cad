@@ -84,7 +84,12 @@ fn vanished(instance: RecipeNodeId) -> crate::fixture::resolver::InPart {
 
 /// A rest of `b`'s face on `a`'s, declaring `class`, standing `b`
 /// `apart` beside `a` ([`Seat`]).
-fn mate_node(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, class: ContactClass, apart: f64) -> Seat {
+fn mate_node(
+    a: impl crate::fixture::Sited,
+    b: impl crate::fixture::Sited,
+    class: ContactClass,
+    apart: f64,
+) -> Seat {
     Seat {
         mate: fixture::rest(fixture::head(b), fixture::head(a), class),
         apart,

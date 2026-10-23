@@ -1285,9 +1285,7 @@ pub fn with_world_product(doc: ProfileDoc) -> ProfileDoc {
 /// If a door refuses an edit it writes.
 #[must_use]
 #[allow(clippy::expect_used)]
-pub fn world_product_edits(
-    doc: ProfileDoc,
-) -> (ProfileDoc, Vec<crate::DocEdit<ProfileProgram>>) {
+pub fn world_product_edits(doc: ProfileDoc) -> (ProfileDoc, Vec<crate::DocEdit<ProfileProgram>>) {
     let tol = geom_core::Tol::witness();
     let mut log = Vec::new();
     let apply = |log: &mut Vec<_>, doc: &ProfileDoc, edit: crate::DocEdit<ProfileProgram>| {
@@ -1320,10 +1318,18 @@ pub fn world_product_edits(
         .into_iter()
         .filter(|&p| doc.node_space(p) == Some(crate::VarId::WORLD))
         .filter_map(|p| doc.output(p, 0))
-        .filter(|&copy| doc.var(copy).is_some_and(|v| v.kind() == crate::VarKind::Body))
+        .filter(|&copy| {
+            doc.var(copy)
+                .is_some_and(|v| v.kind() == crate::VarKind::Body)
+        })
         .collect();
     let spelled = |copies: &[crate::VarId]| {
-        crate::Bodies::Spelled(copies.iter().map(|&copy| crate::BodyRead::plain(copy)).collect())
+        crate::Bodies::Spelled(
+            copies
+                .iter()
+                .map(|&copy| crate::BodyRead::plain(copy))
+                .collect(),
+        )
     };
     let kept = match world.as_slice() {
         [] => doc.product().is_none(),

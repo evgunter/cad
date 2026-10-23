@@ -284,7 +284,10 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
     let (doc, crossing_mate) =
         fixture::constrain_at(doc, b, mate(from.clone(), in_part(b, body, CapEnd::End)));
     let record = InterfaceRecord {
-        crossings: vec![crossing(spelled_on(a, CapEnd::End), part_side(body, CapEnd::Start))],
+        crossings: vec![crossing(
+            spelled_on(a, CapEnd::End),
+            part_side(body, CapEnd::Start),
+        )],
     };
     let (doc, instance) = with_record(doc, doc_ref, record, None);
 
@@ -307,7 +310,10 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
     );
     assert_eq!(
         record_of(&rebound, instance).crossings,
-        vec![crossing(spelled_on(a, CapEnd::Start), part_side(body, CapEnd::Start))],
+        vec![crossing(
+            spelled_on(a, CapEnd::Start),
+            part_side(body, CapEnd::Start)
+        )],
         "the record's `outer` followed the rebind"
     );
     assert_eq!(

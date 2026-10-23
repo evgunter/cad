@@ -175,14 +175,12 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     let bar1 = &doc
         .operation_of(source.read)
         .expect("the placement reads a live bar");
-    let wall = |segment| {
-        StableName {
-            kind: EntityKind::Face,
-            node: *bar1,
-            path: vec![RoleSeg::Lateral(
-                crate::fixture::piece(&doc, *bar1, 0, segment).into(),
-            )],
-        }
+    let wall = |segment| StableName {
+        kind: EntityKind::Face,
+        node: *bar1,
+        path: vec![RoleSeg::Lateral(
+            crate::fixture::piece(&doc, *bar1, 0, segment).into(),
+        )],
     };
     let Some(Node::Subtract {
         tool: tool_read, ..

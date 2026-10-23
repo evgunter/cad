@@ -201,11 +201,7 @@ fn a_copy_in_a_new_space_placed_into_the_world_is_in_the_product() {
     let space = doc.output(space, 0).expect("a new space defines its space");
     let (doc, inner) = step(
         doc,
-        DocEdit::place(
-            a,
-            Operand::Var(space),
-            editor_core::stand().bundle(),
-        ),
+        DocEdit::place(a, Operand::Var(space), editor_core::stand().bundle()),
     );
     let inner = inner.expect("the placement mints");
     assert_eq!(doc.node_space(inner), Some(space));
@@ -421,11 +417,7 @@ fn deleting_a_space_strands_the_placements_into_it() {
         .expect("a new space defines its space");
     let (doc, inner) = step(
         doc,
-        DocEdit::place(
-            a,
-            Operand::Var(space),
-            editor_core::stand().bundle(),
-        ),
+        DocEdit::place(a, Operand::Var(space), editor_core::stand().bundle()),
     );
     let inner = inner.expect("the placement mints");
     assert_eq!(

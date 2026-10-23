@@ -74,7 +74,12 @@ fn dangling(instance: RecipeNodeId) -> crate::fixture::resolver::InPart {
 
 /// A rest of `b`'s face on `a`'s, declaring `class`, standing `b`
 /// `apart` beside `a` ([`Seat`]).
-fn mate_of(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, apart: f64, class: ContactClass) -> Seat {
+fn mate_of(
+    a: impl crate::fixture::Sited,
+    b: impl crate::fixture::Sited,
+    apart: f64,
+    class: ContactClass,
+) -> Seat {
     Seat {
         mate: fixture::rest(fixture::head(b), fixture::head(a), class),
         apart,

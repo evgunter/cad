@@ -862,12 +862,10 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
     );
     let line = fixture::axis(Operand::select(
         Operand::output(post, 0),
-        vec![
-            fixture::ename(
-                b,
-                editor_core::RoleSeg::LateralEdge(fixture::vpiece(&doc, b, 0, 0)),
-            ),
-        ],
+        vec![fixture::ename(
+            b,
+            editor_core::RoleSeg::LateralEdge(fixture::vpiece(&doc, b, 0, 0)),
+        )],
     ));
     let (by_axis, p_axis) = placed(
         lined,
@@ -1153,10 +1151,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     // it apart).
     let read = fixture::body_read(&doc, b.into());
     let stood = editor_core::stand();
-    let (next, p) = insert(
-        doc.clone(),
-        crate::fixture::stood(BodyRead::plain(read)),
-    );
+    let (next, p) = insert(doc.clone(), crate::fixture::stood(BodyRead::plain(read)));
     let before = fixture::written(next, p, stood);
     let slot = value_slot(&before, p, Coord::Spin(Z));
     let after = retyped(&before, p, slot, SlotValue::Formula(ang(0.0)));

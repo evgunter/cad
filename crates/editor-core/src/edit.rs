@@ -5793,10 +5793,12 @@ fn standing_var<P>(
         VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
         VarDef::Output { .. } => Err(EditError::output_refusal(doc, id, door)
             .unwrap_or_else(|| unreachable!("an output's refusal is the output's"))),
-        VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pose(_) | VarDef::Pick(_) => Err(EditError::NotAFreeVar {
-            var: doc.spoken_var(id),
-            door,
-        }),
+        VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pose(_) | VarDef::Pick(_) => {
+            Err(EditError::NotAFreeVar {
+                var: doc.spoken_var(id),
+                door,
+            })
+        }
     }
 }
 
@@ -7514,8 +7516,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     if !fresh.is_empty() {
                         return Err(EditError::FreshUnread { index: 0 });
                     }
-                    let record =
-                        set_operand(doc, new, reported, *node, *operand, read, tol)?;
+                    let record = set_operand(doc, new, reported, *node, *operand, read, tol)?;
                     // A mate's pose re-pointed is a mate written: its
                     // two kinds must still agree.
                     if let crate::OperandSlot::Side { constraint, .. } = operand {

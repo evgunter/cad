@@ -33,9 +33,7 @@ fn place(
     let applied = doc
         .apply(
             &editor_core::DocEdit::place(
-                editor_core::BodyRead::plain(editor_core::Operand::output(
-                    body, 0,
-                )),
+                editor_core::BodyRead::plain(editor_core::Operand::output(body, 0)),
                 editor_core::Operand::Var(space),
                 placed.bundle(),
             ),

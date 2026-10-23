@@ -4114,7 +4114,9 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
                 (vec![Arc::clone(body)], false, Arc::clone(contacts))
             }
-            ValuePayload::Body(body) => (vec![Arc::clone(body)], false, Arc::clone(&value.contacts)),
+            ValuePayload::Body(body) => {
+                (vec![Arc::clone(body)], false, Arc::clone(&value.contacts))
+            }
             ValuePayload::Instances(bodies) => (bodies.clone(), true, Arc::default()),
             _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
         };

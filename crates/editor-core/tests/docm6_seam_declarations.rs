@@ -34,8 +34,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     Assembly, AssemblyError, Attribution, CapEnd, CarriedRefusal, ContactClass, Coord, DocEdit,
     DocRef, DocumentId, EntityKey, EntityKind, Entry, Frame, Mate, MateRef, Node, Operand,
-    ProfileDoc, RecipeNodeId, Relation, StableName, TargetAxis, assemble,
-    product_recorded,
+    ProfileDoc, RecipeNodeId, Relation, StableName, TargetAxis, assemble, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -106,7 +105,12 @@ fn in_stand(
 /// plane equated with `to`'s slid `standoff` along its own outward
 /// normal and flipped, so the faces face each other `standoff` apart (a
 /// negative standoff passes `on` into `to`).
-fn seat(on: impl crate::fixture::Sited, to: impl crate::fixture::Sited, class: ContactClass, standoff: f64) -> Mate<Formula> {
+fn seat(
+    on: impl crate::fixture::Sited,
+    to: impl crate::fixture::Sited,
+    class: ContactClass,
+    standoff: f64,
+) -> Mate<Formula> {
     let target = fixture::plane(fixture::head(to));
     let target = if standoff == 0.0 {
         target
@@ -1254,9 +1258,9 @@ fn a_placed_product_keeps_its_parts() {
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
     let (doc, moved) = insert(
         doc,
-        crate::fixture::stood(editor_core::BodyRead::plain(
-            editor_core::Operand::from(instance),
-        )),
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::from(
+            instance,
+        ))),
     );
     let doc = fixture::pinned(doc, moved, &with_resolver(store.clone()));
     assert_eq!(
@@ -1806,7 +1810,6 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
         "a part's refusal says the part's label, never the outer document's for its id: \
          {in_outer}"
     );
-
 }
 
 /// **A mate the edit door refuses speaks the nodes its fault names** as

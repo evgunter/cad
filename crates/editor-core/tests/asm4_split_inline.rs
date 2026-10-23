@@ -276,8 +276,8 @@ fn row1_split_one_instance_preserves_structure_and_names() {
         .expect("a cut vertex name");
     let before = editor_core::vertex_position(&ev1, sample.node, &sample).expect("resolves");
     let after_name = rekeyed(&sample, new_copy);
-    let after = editor_core::vertex_position(&ev2, after_name.node, &after_name)
-        .expect("resolves after");
+    let after =
+        editor_core::vertex_position(&ev2, after_name.node, &after_name).expect("resolves after");
     assert_eq!(before.x.to_bits(), after.x.to_bits());
     assert_eq!(before.y.to_bits(), after.y.to_bits());
     assert_eq!(before.z.to_bits(), after.z.to_bits());
@@ -403,7 +403,10 @@ fn row2_inline_inverts_split_and_undo_restores() {
     // through the two maps (split's, then inline's).
     let back = inlined.node_map[&out.node_map[&ids[1]]];
     let cut_copy = doc.output(ids[1], 0).expect("the cut instance's copy");
-    let back_copy = flat.doc.output(back, 0).expect("the returned instance's copy");
+    let back_copy = flat
+        .doc
+        .output(back, 0)
+        .expect("the returned instance's copy");
     for (name, _) in names1.iter() {
         let expected = if member_read(name) == Some(cut_copy) {
             rekeyed(name, back_copy)
@@ -2206,9 +2209,9 @@ fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
     let (part, body) = extrude(part, 0.25);
     let (part, seat) = insert(
         part,
-        crate::fixture::stood(editor_core::BodyRead::from(
-            editor_core::Operand::Node(body),
-        )),
+        crate::fixture::stood(editor_core::BodyRead::from(editor_core::Operand::Node(
+            body,
+        ))),
     );
     let cap = |node, end| StableName {
         kind: EntityKind::Face,

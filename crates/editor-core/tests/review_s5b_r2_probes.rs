@@ -242,10 +242,7 @@ mod interference {
     ) -> (ProfileDoc, RecipeNodeId) {
         asserted_gap(
             doc,
-            [
-                SitedRef::new(p, outer),
-                SitedRef::new(q, inner),
-            ],
+            [SitedRef::new(p, outer), SitedRef::new(q, inner)],
             relation,
             bound,
         )

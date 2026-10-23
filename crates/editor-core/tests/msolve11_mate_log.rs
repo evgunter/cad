@@ -20,8 +20,8 @@ use crate::fixture;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
-    Formula, Mate, MateRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
+    Formula, Mate, MateRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, scl};
@@ -150,11 +150,7 @@ impl Scene {
     fn copy_edge(&self) -> Operand {
         fixture::axis(SitedRef::new(
             self.copy1,
-            in_copy(
-                self.pattern,
-                1,
-                self.edge.clone(),
-            ),
+            in_copy(self.pattern, 1, self.edge.clone()),
         ))
     }
 
@@ -165,10 +161,7 @@ impl Scene {
 
     /// A block's lateral edge, as an axis read at the block.
     fn block_edge(&self, block: RecipeNodeId) -> Operand {
-        fixture::axis(SitedRef::new(
-            block,
-            self.edge.clone(),
-        ))
+        fixture::axis(SitedRef::new(block, self.edge.clone()))
     }
 
     /// Inserts `node` through the door.

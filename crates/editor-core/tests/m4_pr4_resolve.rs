@@ -1229,10 +1229,10 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         path: vec![RoleSeg::From {
             read: fixture::out(&doc1, m),
             of: minted(
-                    EntityKind::Face,
-                    placed_body(&doc1, m),
-                    RoleSeg::Cap(CapEnd::End),
-                )
+                EntityKind::Face,
+                placed_body(&doc1, m),
+                RoleSeg::Cap(CapEnd::End),
+            )
             .into(),
         }],
     };

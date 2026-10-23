@@ -388,10 +388,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
     let b_at = r.against(a, b, &editor_core::Frame::IDENTITY);
     let refs = vec![
         SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-        SitedRef::new(
-            b_at,
-            fname(b, RoleSeg::Cap(CapEnd::End)),
-        ),
+        SitedRef::new(b_at, fname(b, RoleSeg::Cap(CapEnd::End))),
     ];
     let angle = r
         .measure(&[MeasurePrimitive::Angle { a: 0, b: 1 }], &refs)

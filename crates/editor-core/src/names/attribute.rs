@@ -338,7 +338,6 @@ mod tests {
         assert!(it.passes_through(PATTERN));
     }
 
-
     /// A path this partition cannot read answers NO minting node —
     /// the honest empty answer a caller can fall back from, never a
     /// guess.

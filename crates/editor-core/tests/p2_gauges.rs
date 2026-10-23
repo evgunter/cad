@@ -25,8 +25,8 @@ use crate::wire::doctored;
 use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
     Formula, Frame, FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node, PartResolver,
-    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, StableName,
-    TargetAxis, ValuePayload, VarId, VarName, apply, apply_replayed, evaluate, load, product, save,
+    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, StableName, TargetAxis,
+    ValuePayload, VarId, VarName, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, head_at, insert, len, offset_of, on_frame, run, solve, step};

@@ -132,15 +132,16 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MeasureOutcome, Measured, ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace,
-    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, sketch_on_face,
+    MaintenanceNet, MeasureOutcome, Measured, ProductReadFault, Recorded, Recording, SketchOutcome,
+    SketchedOnFace, SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure,
+    sketch_on_face,
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
-    Evaluation, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeStanding, NodeValue, PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces,
+    Evaluation, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
+    NodeStanding, NodeValue, PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces,
     SplitSide, StepTurns, ValuePayload, evaluate,
 };
 pub use refusal::Refusal;

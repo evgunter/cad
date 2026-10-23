@@ -185,10 +185,7 @@ fn notch(
             &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
             &[
                 crate::fixture::sited_ref(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
-                SitedRef::new(
-                    block_at,
-                    fixture::fname(block, RoleSeg::Cap(CapEnd::Start)),
-                ),
+                SitedRef::new(block_at, fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
             ],
         )
         .outputs[0];
@@ -1102,10 +1099,10 @@ fn bracket(
                 SitedRef::new(
                     post,
                     editor_core::StableName {
-                            kind: editor_core::EntityKind::Body,
-                            node: post_solid,
-                            path: vec![RoleSeg::OutputBody],
-                        },
+                        kind: editor_core::EntityKind::Body,
+                        node: post_solid,
+                        path: vec![RoleSeg::OutputBody],
+                    },
                 ),
                 crate::fixture::sited_ref(editor_core::StableName {
                     kind: editor_core::EntityKind::Body,

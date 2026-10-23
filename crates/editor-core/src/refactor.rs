@@ -638,7 +638,13 @@ fn remap_with_selects(
     // never minted), carried verbatim: the carried instance's copy
     // carries it as the source's did.
     let carried_name = |n: &StableName, body: VarId| -> Result<StableName, RemapMiss> {
-        remap_name_keeping(n, node_map, step_map, out_map, (source, source.reaches_instance(body)))
+        remap_name_keeping(
+            n,
+            node_map,
+            step_map,
+            out_map,
+            (source, source.reaches_instance(body)),
+        )
         .map_err(|missing| RemapMiss::Name {
             name: Box::new(n.clone()),
             missing,
@@ -2662,11 +2668,11 @@ pub fn split(
         let mut placing = cut.iter().copied().filter(|&p| {
             world(p)
                 && matches!(doc.node(p), Some(Node::Place { source, .. })
-                    if !source.is_member()
-                        && holds(
-                            doc.operation_of(source.read),
-                            body.filter(|&at| at != p),
-                        ))
+                if !source.is_member()
+                    && holds(
+                        doc.operation_of(source.read),
+                        body.filter(|&at| at != p),
+                    ))
         });
         match (placing.next(), placing.next()) {
             (Some(placement), None) => Some((placement, true)),
@@ -3228,7 +3234,7 @@ pub fn split(
                 // instance's face) cross as they are.
                 None => (
                     remap_name_keeping(name, &node_map, &step_map, &read_map, (doc, true))
-                    .map_err(|missing| SplitError::straddles(doc, name, missing))?,
+                        .map_err(|missing| SplitError::straddles(doc, name, missing))?,
                     home(name, body).ok_or_else(outside)?.0,
                 ),
             };
@@ -3925,7 +3931,7 @@ pub fn inline(
     let parted = part.reaches_instance(product);
     let to_host = |of: &StableName| -> Result<StableName, InlineError> {
         remap_name_keeping(of, &host_nodes, &host_steps, &host_reads, (&part, parted))
-        .map_err(|missing| InlineError::stranded(&part, of, missing))
+            .map_err(|missing| InlineError::stranded(&part, of, missing))
     };
     // A pick's path lands on the spliced variables.
     let host_path = |of: &[VarId]| -> Vec<VarId> {

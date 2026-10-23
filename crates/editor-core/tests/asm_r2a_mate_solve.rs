@@ -26,9 +26,9 @@ use editor_core::Formula;
 use editor_core::CapEnd;
 use editor_core::{
     ContactClass, Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation,
-    Frame, Maintenance, Mate, MateFault, MateRef, MateSide, Node, NodeErrorKind,
-    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis, Value, VarId, apply, load, product, relative_freedom_components, save,
+    Frame, Maintenance, Mate, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult,
+    Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, TargetAxis, Value,
+    VarId, apply, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{InPart, PartStore, in_part, with_resolver};
 use fixture::{

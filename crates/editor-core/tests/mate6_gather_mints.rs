@@ -109,7 +109,12 @@ fn rest_mate(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, apart
 /// [`rest_mate`]'s shape at an arbitrary class — the totality rows need
 /// a `Tangent` declaration, whose class mints no record at rest: `b`'s
 /// face's plane on `a`'s, facing it.
-fn classed_mate(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, apart: f64, class: ContactClass) -> Seat {
+fn classed_mate(
+    a: impl crate::fixture::Sited,
+    b: impl crate::fixture::Sited,
+    apart: f64,
+    class: ContactClass,
+) -> Seat {
     Seat {
         mate: fixture::rest(fixture::head(b), fixture::head(a), class),
         apart,

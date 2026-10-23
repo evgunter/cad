@@ -545,9 +545,10 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
     // A copy of each half, loose: a reader of the half's value.
     let still = |half: SplitHalf| {
-        crate::fixture::stood(editor_core::BodyRead::plain(
-            editor_core::Operand::output(split, half.port()),
-        ))
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::output(
+            split,
+            half.port(),
+        )))
     };
     let above = r.insert(still(SplitHalf::Above));
     let below = r.insert(still(SplitHalf::Below));

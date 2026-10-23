@@ -85,7 +85,10 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
 
 /// The start cap of `part_body`'s world copy in its part, as
 /// `instance`'s copies carry it.
-fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> crate::fixture::resolver::InPart {
+fn instance_face(
+    instance: RecipeNodeId,
+    part_body: RecipeNodeId,
+) -> crate::fixture::resolver::InPart {
     crate::fixture::resolver::in_part(instance, part_body, CapEnd::Start)
 }
 

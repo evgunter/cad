@@ -22,8 +22,8 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
-    Evaluation, MateFault, MateRef, MateSide, Node, Operand, PatternKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, VarId, load, product, save,
+    Evaluation, MateFault, MateRef, MateSide, Node, Operand, PatternKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, VarId, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
 use fixture::seat::map_gap;

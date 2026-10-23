@@ -128,10 +128,10 @@ pub fn selection(
     // The ball's band face as the pip's placement copies it: the
     // ball's own name, which a copy carries as it is.
     let ball_face = |seg: RoleSeg| StableName {
-                kind: EntityKind::Face,
-                node: ball,
-                path: vec![seg],
-            };
+        kind: EntityKind::Face,
+        node: ball,
+        path: vec![seg],
+    };
     let lower = crate::fixture::piece(doc, ball, 0, 0);
     let mut out: Vec<StableName> = prism_edges(doc, cube, 4)
         .into_iter()

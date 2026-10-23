@@ -350,7 +350,9 @@ fn a_unions_rows_follow_its_member_order() {
             let input = |c: &NamedCell| match c {
                 // A copy carries its source's names, so the cell's
                 // name is the source's and its input the member read.
-                NamedCell::Entity { input, .. } if members.iter().any(|&m| out(&doc, m) == *input) => {
+                NamedCell::Entity { input, .. }
+                    if members.iter().any(|&m| out(&doc, m) == *input) =>
+                {
                     *input
                 }
                 other => panic!("{members:?}: a cell is a member's own face: {other:?}"),

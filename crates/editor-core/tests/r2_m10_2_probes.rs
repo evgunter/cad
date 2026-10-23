@@ -839,9 +839,9 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             ),
             (
                 "place",
-                crate::fixture::stood(editor_core::BodyRead::plain(
-                    editor_core::Operand::Node(victim),
-                )),
+                crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Node(
+                    victim,
+                ))),
             ),
             (
                 "extrude-profile",

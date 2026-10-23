@@ -160,9 +160,7 @@ pub fn floor(
     let (doc, inner) = insert(
         doc,
         Node::place(
-            editor_core::BodyRead::plain(editor_core::Operand::output(
-                slab, 0,
-            )),
+            editor_core::BodyRead::plain(editor_core::Operand::output(slab, 0)),
             editor_core::Operand::Var(space),
             sunk.bundle(),
         ),
@@ -171,9 +169,7 @@ pub fn floor(
     let (doc, outer) = insert(
         doc,
         Node::place(
-            editor_core::BodyRead::plain(editor_core::Operand::output(
-                inner, 0,
-            )),
+            editor_core::BodyRead::plain(editor_core::Operand::output(inner, 0)),
             editor_core::Operand::Var(VarId::WORLD),
             moved.bundle(),
         ),
@@ -1238,11 +1234,7 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
         doc.node(id),
         Some(Node::Place { .. } | Node::InstantiatePart { .. })
     ) && doc.node_space(id) == Some(VarId::WORLD);
-    let doc = if joins {
-        world_product(doc)
-    } else {
-        doc
-    };
+    let doc = if joins { world_product(doc) } else { doc };
     (doc, id)
 }
 
@@ -2232,11 +2224,7 @@ pub fn in_world_by(
         mates: Vec::new(),
         values,
     };
-    let node = place_node(
-        &doc,
-        editor_core::BodyRead::plain(read),
-        placed.bundle(),
-    );
+    let node = place_node(&doc, editor_core::BodyRead::plain(read), placed.bundle());
     let (doc, placement) = insert(doc, node);
     (world_product(doc), placement)
 }

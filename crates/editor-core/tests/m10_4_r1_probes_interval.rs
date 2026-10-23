@@ -155,10 +155,7 @@ fn stepped_shaft_sized(
     );
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
-        SitedRef::new(
-            boss,
-            fname(boss_raw, RoleSeg::Cap(CapEnd::End)),
-        ),
+        SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
     ];
     let m = r
         .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)

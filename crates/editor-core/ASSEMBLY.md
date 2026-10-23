@@ -598,14 +598,12 @@ answers for, its own or a part's, carries no attribution
 declaration at all (a structural defect, an overlap or a touch no
 record backs inside one copy, an unrecorded touch of a pair the census
 could not clear, a census that could not look), never a declaration
-that lost its row. Every declaration in the tree keeps its row,
-because the only path a record can take without its row (a boolean over a source) is one no instance
-carrying a declaration can reach: such an instance is a product of
-several parts, whose part count the placers and a sub-assembly that
-instantiates it carry through (`NodeValue::parts`), and every op that
-fuses or reshapes one body refuses a product
-(`NodeErrorKind::ProductOperand`, naming the explicit union as the
-recourse).
+that lost its row. A body of several parts is an ordinary operand (D10
+`[operations.operators]`), so a boolean can read an instance carrying
+a declaration; the boolean keeps its operand's parts apart and carries
+no declaration row, so a finding there names no declaration. Carrying
+a `⊔`'s records through the operators that read it is
+`work/intent/a-boolean-over-an-assemble-cites-none-of-its-meetings.md`.
 
 *Carried mint refusals.* An inner mate that could not be minted refuses
 the outer gate (`AssemblyError::CarriedMintRefusal`), carrying every

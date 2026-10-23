@@ -382,10 +382,10 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
 /// table does not carry: the selection's ladder refuses it.
 fn ghost_side(doc: ProfileDoc, mate: MateRef, instance: RecipeNodeId) -> ProfileDoc {
     let ghost = editor_core::StableName {
-                kind: editor_core::EntityKind::Face,
-                node: RecipeNodeId::new(0, test_utils::refusal::tagged(77)),
-                path: vec![editor_core::RoleSeg::Cap(CapEnd::Start)],
-            };
+        kind: editor_core::EntityKind::Face,
+        node: RecipeNodeId::new(0, test_utils::refusal::tagged(77)),
+        path: vec![editor_core::RoleSeg::Cap(CapEnd::Start)],
+    };
     step(
         doc,
         DocEdit::SetParam {

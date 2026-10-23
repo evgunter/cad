@@ -39,9 +39,9 @@ use std::sync::Arc;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand,
-    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
-    VarName, all_vertices, evaluate, vertex_position,
+    EvalOptions, Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName,
+    all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
@@ -194,17 +194,11 @@ impl Parts {
     }
     /// The bolt's lateral edge `k`, as an axis `bolt` places.
     fn bolt_edge(&self, bolt: RecipeNodeId, k: usize) -> Operand {
-        fixture::axis(SitedRef::new(
-            bolt,
-            self.bolt_names.lateral[k].clone(),
-        ))
+        fixture::axis(SitedRef::new(bolt, self.bolt_names.lateral[k].clone()))
     }
     /// The slab's lateral edge `k`, as an axis `slab` places.
     fn slab_edge(&self, slab: RecipeNodeId, k: usize) -> Operand {
-        fixture::axis(SitedRef::new(
-            slab,
-            self.slab_names.lateral[k].clone(),
-        ))
+        fixture::axis(SitedRef::new(slab, self.slab_names.lateral[k].clone()))
     }
     /// **One of the slab's two side directions**, as an axis: the `x`
     /// of the frame standing on its edge at canonical vertex 0 and aimed
@@ -214,10 +208,7 @@ impl Parts {
         RoleRead::through(
             through(
                 self.slab_edge(slab, 0),
-                fixture::point_of(SitedRef::new(
-                    slab,
-                    self.slab_names.corner[k].clone(),
-                )),
+                fixture::point_of(SitedRef::new(slab, self.slab_names.corner[k].clone())),
             ),
             PoseRole::X,
         )
@@ -596,10 +587,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
                 },
             ),
         };
-        through(
-            edge,
-            fixture::point_of(SitedRef::new(at, corner.clone())),
-        )
+        through(edge, fixture::point_of(SitedRef::new(at, corner.clone())))
     };
     let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
         &doc,

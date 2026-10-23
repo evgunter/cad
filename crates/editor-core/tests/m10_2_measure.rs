@@ -876,10 +876,7 @@ fn a_measure_at_a_placement_reads_the_placed_carrier() {
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
             SitedRef::new(solid, vname.clone()),
-            SitedRef::new(
-                placed,
-                vname,
-            ),
+            SitedRef::new(placed, vname),
         ],
     )
     .0;
@@ -1379,9 +1376,10 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
     );
     let (doc, _) = fixture::insert_pinned(
         doc,
-        crate::fixture::stood(editor_core::BodyRead::plain(
-            editor_core::Operand::output(split, SplitHalf::Above.port()),
-        )),
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::output(
+            split,
+            SplitHalf::Above.port(),
+        ))),
         &EvalOptions::default(),
     );
     let ev = eval(&doc);

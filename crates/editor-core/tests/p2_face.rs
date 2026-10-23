@@ -689,10 +689,10 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
                 constraint: m.id,
                 side: MateSide::To,
             }),
-            value: editor_core::SlotValue::Read(fixture::flip(fixture::plane(head_at(high, in_part(high,
-                high_body,
-                CapEnd::End,
-            ))))),
+            value: editor_core::SlotValue::Read(fixture::flip(fixture::plane(head_at(
+                high,
+                in_part(high, high_body, CapEnd::End),
+            )))),
             fresh: Vec::new(),
         },
     );

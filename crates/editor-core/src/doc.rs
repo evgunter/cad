@@ -1193,7 +1193,6 @@ impl<P> Doc<P> {
             .collect()
     }
 
-
     /// Number of live nodes, the world aside: every document holds it.
     pub fn len(&self) -> usize {
         self.nodes

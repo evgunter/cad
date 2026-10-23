@@ -94,10 +94,7 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
     } else {
         (doc, head_at(b, side))
     };
-    let (doc, placement) = insert(
-        doc,
-        fixture::stood(BodyRead::plain(Operand::from(boss))),
-    );
+    let (doc, placement) = insert(doc, fixture::stood(BodyRead::plain(Operand::from(boss))));
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
         mates: vec![fixture::rest(head(start), target, ContactClass::Rest)],
@@ -475,10 +472,7 @@ fn a_slide_value_sets_its_translation_with_no_width() {
     let doc = ProfileDoc::empty(DocumentId::derive("dprime2-slide-width"), Tol::witness());
     let (doc, top, _) = fixture::floor(doc, Vec::new());
     let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
-    let (doc, placement) = insert(
-        doc,
-        fixture::stood(BodyRead::plain(Operand::from(boss))),
-    );
+    let (doc, placement) = insert(doc, fixture::stood(BodyRead::plain(Operand::from(boss))));
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
         mates: vec![editor_core::Mate {

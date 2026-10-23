@@ -17,8 +17,8 @@ use crate::fixture::{
 use editor_core::eval::bound_pose;
 use editor_core::pose::PoseDef;
 use editor_core::{
-    BodyRead, CapEnd, ContactClass, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
+    BodyRead, CapEnd, ContactClass, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame,
+    MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
     ProductError, ProfileDoc, RecipeNodeId, RoleSeg, VarId,
 };
 use geom_core::Tol;
@@ -239,11 +239,7 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
     let (doc, space) = insert(doc, Node::Space);
     let (doc, l) = step(
         doc,
-        DocEdit::place(
-            a,
-            Operand::Node(space),
-            editor_core::stand().bundle(),
-        ),
+        DocEdit::place(a, Operand::Node(space), editor_core::stand().bundle()),
     );
     let l = l.expect("the placement mints");
     let space = doc.output(space, 0).expect("a new space defines its space");

@@ -24,8 +24,8 @@ use crate::emit_union_rim_piece_ranks::{Case, cases, runs, signature};
 use crate::fixture::{face_vertices, insert, table};
 
 use editor_core::{
-    EntityKey, EntityKind, Entry, Evaluation, NameTable, Node, NodeErrorKind, RecipeNodeId, RoleSeg,
-    StableName, VarId,
+    EntityKey, EntityKind, Entry, Evaluation, NameTable, Node, NodeErrorKind, RecipeNodeId,
+    RoleSeg, StableName, VarId,
 };
 
 /// The member faces a published face name cites, each with the read it

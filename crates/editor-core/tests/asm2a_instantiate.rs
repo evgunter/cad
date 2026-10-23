@@ -1383,7 +1383,11 @@ fn r1_part_evaluations_aggregates_through_nesting() {
     let sub = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-nest-b"), Tol::witness());
         let (doc, instance) = insert(doc, crate::fixture::mated_instance(p));
-        fixture::world_product(fixture::pinned(doc, instance, &with_resolver(store.clone())))
+        fixture::world_product(fixture::pinned(
+            doc,
+            instance,
+            &with_resolver(store.clone()),
+        ))
     };
     let b = store.insert(sub, Tol::witness());
     let opts = with_resolver(store);

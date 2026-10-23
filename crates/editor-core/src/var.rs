@@ -556,7 +556,11 @@ impl VarDef {
     pub fn free(&self) -> Option<&FreeVar> {
         match self {
             Self::Free(free) => Some(free),
-            Self::Defined(_) | Self::Output { .. } | Self::Select(_) | Self::Pose(_) | Self::Pick(_) => None,
+            Self::Defined(_)
+            | Self::Output { .. }
+            | Self::Select(_)
+            | Self::Pose(_)
+            | Self::Pick(_) => None,
         }
     }
 
@@ -565,7 +569,11 @@ impl VarDef {
     pub fn defined(&self) -> Option<&Expr> {
         match self {
             Self::Defined(expr) => Some(expr),
-            Self::Free(_) | Self::Output { .. } | Self::Select(_) | Self::Pose(_) | Self::Pick(_) => None,
+            Self::Free(_)
+            | Self::Output { .. }
+            | Self::Select(_)
+            | Self::Pose(_)
+            | Self::Pick(_) => None,
         }
     }
 
@@ -574,7 +582,11 @@ impl VarDef {
     pub fn select(&self) -> Option<&Select> {
         match self {
             Self::Select(select) => Some(select),
-            Self::Free(_) | Self::Defined(_) | Self::Output { .. } | Self::Pose(_) | Self::Pick(_) => None,
+            Self::Free(_)
+            | Self::Defined(_)
+            | Self::Output { .. }
+            | Self::Pose(_)
+            | Self::Pick(_) => None,
         }
     }
 
@@ -605,7 +617,9 @@ impl VarDef {
     pub fn output(&self) -> Option<(crate::RecipeNodeId, u8)> {
         match *self {
             Self::Output { node, port } => Some((node, port)),
-            Self::Free(_) | Self::Defined(_) | Self::Select(_) | Self::Pose(_) | Self::Pick(_) => None,
+            Self::Free(_) | Self::Defined(_) | Self::Select(_) | Self::Pose(_) | Self::Pick(_) => {
+                None
+            }
         }
     }
 

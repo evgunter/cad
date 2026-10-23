@@ -988,7 +988,9 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     }
     // The recipe's own refusal, before any value is read: a read whose
     // body is gone is absent, which is never skipped.
-    let Some((node, port)) = doc.defined_by(var).filter(|&(node, _)| doc.node(node).is_some())
+    let Some((node, port)) = doc
+        .defined_by(var)
+        .filter(|&(node, _)| doc.node(node).is_some())
     else {
         return Err(ProductError::StrandedProduct { read: var });
     };
@@ -1005,9 +1007,8 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             // A read assembled twice keys its pieces' names alike, so
             // each such name is a tie over those pieces, as the `⊔`'s
             // own table names it.
-            let repeated = |read: crate::VarId| {
-                pieces.pieces.iter().filter(|p| p.read == read).count() > 1
-            };
+            let repeated =
+                |read: crate::VarId| pieces.pieces.iter().filter(|p| p.read == read).count() > 1;
             let mut next = std::collections::BTreeMap::new();
             for piece in &pieces.pieces {
                 let at = doc.read_operation(piece.read).unwrap_or(node);
@@ -1708,10 +1709,7 @@ mod tests {
             .collect();
         assert_eq!(
             reads_no_body,
-            vec![format!(
-                "{:?}",
-                ProductError::EmptyProduct
-            )],
+            vec![format!("{:?}", ProductError::EmptyProduct)],
             "an empty slot is the only gather refusal that is an absence \
              rather than a fault"
         );
