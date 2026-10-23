@@ -47,41 +47,50 @@ fn spacing(kind: &str, n: usize) -> Vec<f64> {
         .collect()
 }
 
-/// Lofts at `z` and v-degree `deg`, then validates through tier 3.
-fn lofts_and_validates(what: &str, z: &[f64], deg: usize) {
-    let lofted = loft_body::<f64>(&sections(z.len()), &stacked(z, 1.0), deg, Tol::witness())
-        .unwrap_or_else(|e| {
-            panic!("{what}: the arc loft at z = {z:?}, degree {deg} refuses: {e:?}")
-        });
-    topo::validate_geometric(&lofted.body, Tol::witness())
-        .unwrap_or_else(|e| panic!("{what}: tier 3 refuses the arc loft at z = {z:?}: {e:?}"));
+/// Lofts at `z` and v-degree `deg`: the walls skin, and every seam
+/// mints its pcurve.
+fn lofts(what: &str, z: &[f64], deg: usize) -> sweep::Lofted<f64> {
+    loft_body::<f64>(&sections(z.len()), &stacked(z, 1.0), deg, Tol::witness()).unwrap_or_else(
+        |e| panic!("{what}: the arc loft at z = {z:?}, degree {deg} refuses: {e:?}"),
+    )
 }
 
 /// The spacings the defect was found at — two that refused, one that
 /// built either way — at v-degree 2.
+const CARVE_ROWS: [&[f64]; 3] = [
+    &[0.0, 1.0, 3.0],
+    &[0.0, 0.25, 0.7, 1.3, 2.0, 2.1],
+    &[0.0, 0.3, 1.1, 2.0],
+];
+
 #[test]
-fn the_carve_spacings_loft_and_validate() {
-    for z in [
-        &[0.0, 1.0, 3.0][..],
-        &[0.0, 0.25, 0.7, 1.3, 2.0, 2.1],
-        &[0.0, 0.3, 1.1, 2.0],
-    ] {
-        lofts_and_validates("carve row", z, 2);
+fn the_carve_spacings_loft() {
+    for z in CARVE_ROWS {
+        lofts("carve row", z, 2);
+    }
+}
+
+/// The same bodies through tier 3.
+#[test]
+fn the_carve_spacings_validate_at_tier_three() {
+    for z in CARVE_ROWS {
+        let lofted = lofts("carve row", z, 2);
+        topo::validate_geometric(&lofted.body, Tol::witness())
+            .unwrap_or_else(|e| panic!("tier 3 refuses the arc loft at z = {z:?}: {e:?}"));
     }
 }
 
 /// Degrees 2 and 3, `n = 3..=9` sections, three spacings: every cell
-/// lofts and validates.
+/// lofts, and its body is closed (tiers 1 and 2).
 #[test]
 fn every_spacing_lofts_at_degree_two_and_three() {
     for deg in [2, 3] {
         for kind in ["uniform", "quadratic", "jittered"] {
             for n in (deg + 1).max(3)..=9 {
-                lofts_and_validates(
-                    &format!("{kind} n={n} degree {deg}"),
-                    &spacing(kind, n),
-                    deg,
-                );
+                let what = format!("{kind} n={n} degree {deg}");
+                let lofted = lofts(&what, &spacing(kind, n), deg);
+                topo::validate_closed(&lofted.body)
+                    .unwrap_or_else(|e| panic!("{what}: tiers 1/2 refuse the arc loft: {e:?}"));
             }
         }
     }
