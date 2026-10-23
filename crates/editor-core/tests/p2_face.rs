@@ -371,7 +371,8 @@ fn a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split() {
     let through = FaceName::new(p.top_upper_cap(sub_aside).name)
         .expect("a face")
         .into_name();
-    let (host, _) = face_mate(host, k, head(p.top_cap(k)), head(through));
+    // Read at the instance: a face its copy does not carry.
+    let (host, _) = face_mate(host, k, head(p.top_cap(k)), fixture::head_at(i, through));
     let poses = solve(&host, &with_sub, Tol::witness());
     assert!(
         matches!(

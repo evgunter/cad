@@ -636,18 +636,14 @@ fn remap_with_selects(
     // never minted), carried verbatim: the carried instance's copy
     // carries it as the source's did.
     let carried_name = |n: &StableName, body: VarId| -> Result<StableName, RemapMiss> {
-        match remap_name(n, node_map, step_map, out_map) {
-            Ok(name) => Ok(name),
-            Err(RemapError::Unmapped(Unmapped::Node(id)))
-                if !source.has_minted(id) && source.reaches_instance(body) =>
-            {
-                Ok(n.clone())
-            }
-            Err(missing) => Err(RemapMiss::Name {
-                name: Box::new(n.clone()),
-                missing,
-            }),
-        }
+        let parted = source.reaches_instance(body);
+        remap_name_keeping(n, node_map, step_map, out_map, |id| {
+            parted && !source.has_minted(id)
+        })
+        .map_err(|missing| RemapMiss::Name {
+            name: Box::new(n.clone()),
+            missing,
+        })
     };
     let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
     // A selection authored afresh over its carried body, its names
@@ -1792,6 +1788,32 @@ pub fn remap_name(
         node,
         path,
     })
+}
+
+/// **[`remap_name`], keeping the ids `keep` admits as they are**: a
+/// copy carries its source's names, so a name read in a copy of an
+/// instance holds its part's ids, which no map of this document's
+/// holds; those cross verbatim while every other id still maps.
+///
+/// # Errors
+///
+/// The first id the maps lack that `keep` does not admit.
+pub(crate) fn remap_name_keeping(
+    name: &StableName,
+    map: &NodeMap,
+    steps: &StepMap,
+    reads: &ReadMap,
+    keep: impl Fn(RecipeNodeId) -> bool,
+) -> Result<StableName, RemapError> {
+    let mut nodes = std::borrow::Cow::Borrowed(map);
+    loop {
+        match remap_name(name, &nodes, steps, reads) {
+            Err(RemapError::Unmapped(Unmapped::Node(id))) if keep(id) && !nodes.contains_key(&id) => {
+                nodes.to_mut().insert(id, id);
+            }
+            done => return done,
+        }
+    }
 }
 
 /// The half of [`remap_name`] that a name's KIND is not part of: the
@@ -2953,7 +2975,12 @@ pub fn split(
     // inexpressible cases typed.
     let mut rebinds: BTreeSet<StableName> = BTreeSet::new();
     let mut classify = |name: &StableName| -> Result<(), SplitError> {
-        let ids = derivation_nodes(name);
+        // A part's ids in the name are no node of either side: a copy
+        // carries its source's names, so they cross as they are.
+        let ids: BTreeSet<RecipeNodeId> = derivation_nodes(name)
+            .into_iter()
+            .filter(|&id| doc.has_minted(id))
+            .collect();
         if ids.iter().all(|id| !cut.contains(id)) {
             return Ok(());
         }
@@ -3183,9 +3210,13 @@ pub fn split(
             let foreign = body.filter(|&at| name.node != at && part_names_at(at).is_some());
             let (of, placement) = match foreign {
                 Some(at) => (name.clone(), world(at).then_some(at).ok_or_else(outside)?),
+                // A part's ids inside the name (a pattern copy of an
+                // instance's face) cross as they are.
                 None => (
-                    remap_name(name, &node_map, &step_map, &read_map)
-                        .map_err(|missing| SplitError::straddles(doc, name, missing))?,
+                    remap_name_keeping(name, &node_map, &step_map, &read_map, |id| {
+                        !doc.has_minted(id)
+                    })
+                    .map_err(|missing| SplitError::straddles(doc, name, missing))?,
                     home(name, body).ok_or_else(outside)?.0,
                 ),
             };
@@ -3876,18 +3907,10 @@ pub fn inline(
     // part's face lands on the spliced `⊔` and read.
     let parted = part.reaches_instance(product);
     let to_host = |of: &StableName| -> Result<StableName, InlineError> {
-        let mut nodes = std::borrow::Cow::Borrowed(&host_nodes);
-        loop {
-            match remap_name(of, &nodes, &host_steps, &host_reads) {
-                Ok(name) => return Ok(name),
-                Err(RemapError::Unmapped(Unmapped::Node(id)))
-                    if parted && !part.has_minted(id) =>
-                {
-                    nodes.to_mut().insert(id, id);
-                }
-                Err(missing) => return Err(InlineError::stranded(&part, of, missing)),
-            }
-        }
+        remap_name_keeping(of, &host_nodes, &host_steps, &host_reads, |id| {
+            parted && !part.has_minted(id)
+        })
+        .map_err(|missing| InlineError::stranded(&part, of, missing))
     };
     // A pick's path lands on the spliced variables.
     let host_path = |of: &[VarId]| -> Vec<VarId> {

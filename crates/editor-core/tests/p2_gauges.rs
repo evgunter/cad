@@ -455,6 +455,21 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
     let p = parts("p2-door");
     let o = p.opts();
     let empty = ProfileDoc::empty(DocumentId::derive("p2-door"), Tol::witness());
+    // Inserted through the door alone: the log below is these edits,
+    // and a fixture insert would write the product beside them.
+    let insert = |doc: ProfileDoc, node| {
+        let applied = apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("an instance inserts");
+        let id = applied.record.minted.expect("an insert mints its node");
+        (applied.doc, id)
+    };
     let (doc, base) = insert(empty.clone(), crate::fixture::mated_instance(p.base));
     assert_eq!(
         fixture::bundle(&doc, base).len(),
@@ -1045,10 +1060,10 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_values_at_any_other_po
 
 /// **A face a seat reads crosses the seam with its head**: a kept top
 /// seated on a cut base, its target reading the base's top face, crosses
-/// split — the head re-anchors through the instance qualifier, and the
-/// face it names in the new part is the same face — and inline carries
-/// it back onto the new placement's copy, which flatten unwraps onto the
-/// inner instance. The seat solves on each document with no fault.
+/// split — the head is read at the instance, under the base part's own
+/// name, which every copy of it carries — and inline carries it back
+/// onto the new placement's copy, which flatten moves onto the inner
+/// instance. The seat solves on each document with no fault.
 #[test]
 fn a_face_target_crosses_split_and_inline_with_its_head() {
     let p = parts("p2-face-crossing");
@@ -1075,10 +1090,12 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     let [side] = fixture::face_reads(&out.remainder, target)[..] else {
         panic!("the crossed target reads one face: {crossed:?}");
     };
+    let face = p.base_cap(base).name;
+    let head = fixture::side_head(&out.remainder, side);
     assert_eq!(
-        fixture::side_head(&out.remainder, side).name.node,
-        out.instance,
-        "the head re-anchors through the instance"
+        (head.at, head.name.into_name()),
+        (out.instance, face.clone()),
+        "the head is read at the instance, under the base's own name"
     );
     let ev = run(&out.remainder, &store_opts);
     assert!(ev.node_error(top).is_none(), "{:?}", ev.node_error(top));
@@ -1097,10 +1114,11 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     let [side] = fixture::face_reads(&back.doc, host.to)[..] else {
         panic!("the host target reads one face: {host:?}");
     };
+    let head = fixture::side_head(&back.doc, side);
     assert_eq!(
-        fixture::side_head(&back.doc, side).name.node,
-        back.placement,
-        "the head re-anchors on the new placement's copy"
+        (head.at, head.name.into_name()),
+        (back.placement, face.clone()),
+        "the head is read at the new placement's copy"
     );
     let ev = run(&back.doc, &o);
     assert!(
@@ -1113,10 +1131,11 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     let [side] = fixture::face_reads(&flat, host.to)[..] else {
         panic!("the flattened target reads one face: {host:?}");
     };
+    let head = fixture::side_head(&flat, side);
     assert_eq!(
-        fixture::side_head(&flat, side).name.node,
-        back.node_map[&out.node_map[&base]],
-        "flattened, the head unwraps onto the inner instance"
+        (head.at, head.name.into_name()),
+        (back.node_map[&out.node_map[&base]], face),
+        "flattened, the head is read at the inner instance"
     );
     let ev = run(&flat, &o);
     assert!(

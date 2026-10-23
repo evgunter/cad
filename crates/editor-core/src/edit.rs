@@ -7826,19 +7826,27 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     to: to.kind,
                 });
             }
+            // A body that reaches an instance reads its part's names,
+            // spelled in ids this document never minted: the part's to
+            // check, at evaluation (`work/intent/a-part-name-in-the-host-
+            // is-spelled-in-the-parts-ids.md`).
+            let parted = body.is_some_and(|body| new.reaches_instance(body));
+            let foreign = |name: &StableName| parted && !new.has_minted(name.node);
             // The target must denote a LIVE node (node existence now;
             // name-level resolution at evaluation — the Declare
             // carve-out's split, spec D3).
-            if !new.nodes.contains_key(&to.node) {
-                return Err(EditError::RebindTargetMissingNode {
-                    name: doc.spoken_name(to),
-                });
+            if !foreign(to) {
+                if !new.nodes.contains_key(&to.node) {
+                    return Err(EditError::RebindTargetMissingNode {
+                        name: doc.spoken_name(to),
+                    });
+                }
+                check_name_steps(doc, new, to)?;
             }
-            check_name_steps(doc, new, to)?;
             // The source must have ONCE existed (ids are monotone and
             // never reused): dead-but-once-lived is exactly the
             // NodeGone repair; never-minted is a typo.
-            if !new.has_minted(from.node) {
+            if !foreign(from) && !new.has_minted(from.node) {
                 return Err(EditError::RebindUnknownName {
                     name: doc.spoken_name(from),
                 });
