@@ -5023,7 +5023,7 @@ fn chord_polygon_flux_composite(
             };
             let (fu, fv) = flux_slopes(s, su, sv, k, cu_piece, cv_band);
             let phi2 = g_uu + pt(2.0) * slope * fu + slope.sqr() * fv;
-            let rem = h * h * h / pt(24.0) * phi2;
+            let rem = h.sqr() * h / pt(24.0) * phi2;
             removable += rem.width();
             chord = chord + value + rem;
         }
