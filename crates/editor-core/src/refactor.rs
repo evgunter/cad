@@ -45,15 +45,14 @@
 //! where its part's world stands ([`crate::mate::stand`]). Neither
 //! door computes a frame.
 //!
-//! [`inline`] is the inverse. An instance whose mates all target the
-//! world splices its part's placements with every mate on the part's
-//! world moved by the motion it solved to (at the identity, verbatim).
-//! An instance placed by other constraints is inlined only over a part
-//! whose one placement on its world is an instance pinned there at the
-//! identity, which takes the instance's bundle in place of its pin
-//! ([`InlineError::UnplaceablePart`]). A host mate reading the
-//! instance's copies is written afresh over the spliced copy its names
-//! land on.
+//! [`inline`] is the inverse, by one rule: the part's nodes land in a
+//! `new_space()` verbatim, and the instance becomes a placement of the
+//! spliced copies of the part's world placements into its target under
+//! its own bundle, verbatim. A part whose world places no list of
+//! copies refuses ([`InlineError::UnplaceablePart`]). A host mate
+//! reading the instance's copies is written afresh over the spliced
+//! copy its names land on. [`flatten`] folds such a placement, at the
+//! identity, back into its target.
 //!
 //! # Variables go where their readers go
 //!
