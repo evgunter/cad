@@ -327,9 +327,10 @@ fn inlined(dx: f64) -> (ProfileDoc, editor_core::InlineOutcome, RecipeNodeId) {
 /// **Flatten folds an identity placement out of its new space, and
 /// refuses everything else typed**: an unknown id, a node that is no
 /// placement, a placement off the identity, one whose source is no new
-/// space, one beside another placement copying out of that space, one
-/// whose copy a reader reads whole over two shapes, and one whose copy
-/// and source are both named.
+/// space, one beside another placement copying out of that space, and
+/// one whose copy and source are both named. A copy of a part of two
+/// placements is one body, the part's `⊔`, so a reader of it whole
+/// flattens.
 ///
 /// *Breaks if* flatten moves a placement that is not the identity, or
 /// strands a reader it cannot re-point.
@@ -401,8 +402,9 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
         FlattenError::SpaceShared { .. }
     ));
 
-    // A part of two placements: the new placement copies two shapes,
-    // and a reader of its copies whole names no one shape.
+    // A part of two placements: the new placement copies the `⊔` of
+    // the two, one body, and a reader of its copy whole reads that `⊔`
+    // once flattened.
     let part = ProfileDoc::empty(DocumentId::derive("dprime2-flatten-two"), Tol::witness());
     let (part, a) = block(part, 1.0, 1.0, 1.0);
     let (part, b) = block(part, 1.0, 1.0, 1.0);
@@ -426,10 +428,8 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
     );
     let resolver: Arc<dyn PartResolver> = Arc::new(store);
     let two = inline(&host, instance, &resolver, Tol::witness()).expect("inlines");
-    assert!(matches!(
-        refused(&two.doc, two.placement),
-        FlattenError::ReadUncarried { .. }
-    ));
+    flatten(&two.doc, two.placement, Tol::witness())
+        .expect("a reader of the copy whole reads the `⊔` it copies");
 
     // The copy and the shape it copies both named.
     let copy = out

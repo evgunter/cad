@@ -2614,7 +2614,7 @@ pub fn split(
             Some(RoleSeg::Instance { i, .. }) => Some(i64::from(*i)),
             _ => None,
         };
-        let holds = |placed: Option<RecipeNodeId>| -> bool {
+        let holds = |placed: Option<RecipeNodeId>, body: Option<RecipeNodeId>| -> bool {
             let mut picked: Option<i64> = None;
             let mut at = match (placed, body) {
                 (placed, None) => placed,
@@ -2655,10 +2655,16 @@ pub fn split(
             }
             false
         };
+        // A name read at a cut placement's own copy is its source's, as
+        // the copy carries it: walked from that source.
         let mut placing = cut.iter().copied().filter(|&p| {
             world(p)
                 && matches!(doc.node(p), Some(Node::Place { source, .. })
-                    if !source.is_member() && holds(doc.operation_of(source.read)))
+                    if !source.is_member()
+                        && holds(
+                            doc.operation_of(source.read),
+                            body.filter(|&at| at != p),
+                        ))
         });
         match (placing.next(), placing.next()) {
             (Some(placement), None) => Some((placement, true)),
@@ -3496,6 +3502,11 @@ pub fn split(
     }
     for from in &rebinds {
         let to = in_part(from, None)?;
+        // A copy carries its source's names, so a name the instance's
+        // copy carries as the cut did needs no repair.
+        if &to == from {
+            continue;
+        }
         // A repair is addressed by body: one per remainder selection
         // body naming `from`, and one for the carriers no body holds.
         let mut bodies: BTreeSet<VarId> = BTreeSet::new();

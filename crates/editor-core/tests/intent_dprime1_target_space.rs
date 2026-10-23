@@ -327,7 +327,7 @@ fn a_bundle_names_its_mate_in_any_order_and_a_rewrite_keeps_its_ids() {
             a,
             RoleSeg::Cap(CapEnd::Start),
         ))),
-        fixture::flip(fixture::plane(fixture::head(top))),
+        fixture::flip(fixture::plane(fixture::head_at(target, top))),
         ContactClass::Rest,
     );
     // The values first, the mate last.

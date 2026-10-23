@@ -829,6 +829,12 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// frame: the fold no longer takes the mated direction back through the
 /// target body's motion, one `pose_unit_norm` decision fewer among the
 /// vector's rows. The neck's copy lands where it landed.
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when D′3 had a copy
+/// carry its source's names: the neck's placed copy names its faces as
+/// its body does, with no `Placed` qualifier, and the vector's rows
+/// carry the names.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();

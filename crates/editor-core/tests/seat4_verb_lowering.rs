@@ -595,6 +595,11 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// bundle is spelled in the new vocabulary and the content key's
 /// `VERSION` moved, so its ids and the names under them moved. Every
 /// node's kind and vertex bits are main's (`be9b907694`).
+///
+/// RE-BLESSED for D′3 (a placement copies one source, and a copy carries
+/// its source's names): the second operand's copy names its faces as
+/// its prism does, with no `Placed` qualifier, so its name table and
+/// the intersect's moved. No body and no vertex moved.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -633,7 +638,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x20c2_ac2e_50fe_a899,
+        got, 0x401d_a70e_ec57_b07d,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

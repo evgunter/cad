@@ -967,10 +967,19 @@ fn run_at<T: editor_core::EvalScalar>(
 /// against main (`be9b907694`) at 1e-9, every other solved pose, fault
 /// and vertex is main's bit for bit; the pinned chain's escalation at
 /// 1e-12 is gone with the seats it was measured on.
+///
+/// And for D′3 (the product is an authored `⊔`, a copy carries its
+/// source's names, all three rows): each corpus document writes its
+/// product as a `⊔` of its world copies, a node the digest walks, and
+/// its instances' copies name their faces as their parts do, so the
+/// evaluations' name tables and every id after the product moved.
+/// Re-blessed at all three ε; each seat still stands on what it is
+/// seated on ([`each_seat_stands_on_what_it_is_seated_on`]), and the
+/// solved poses were not compared id-free against main separately.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x45b5_ced6_e808_5c4b),
-    (1e-6, 0xdc84_75b7_d171_b718),
-    (1e-12, 0x5e49_ccd3_7cc6_3340),
+    (1e-9, 0xc6ad_8dd6_76c2_b66a),
+    (1e-6, 0x0e53_1a39_832e_37cd),
+    (1e-12, 0xe561_c8e9_57dd_a5f0),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

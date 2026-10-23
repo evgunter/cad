@@ -1020,15 +1020,28 @@ fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps
     let (body3, names3) = product_named(&flat, &ev3, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body3));
     assert_eq!(volume_bits(&body1), volume_bits(&body3));
+    // The product's `⊔` keys each copy's names by the copy's read, so a
+    // cut copy's names come back read through its round-tripped copy.
+    let moved = |read: editor_core::VarId| {
+        [i0, i2]
+            .into_iter()
+            .find(|&i| doc.output(i, 0) == Some(read))
+            .and_then(|i| flat.output(back(i), 0))
+    };
     for (name, _) in names1.iter() {
-        let expected = if name.node == i0 || name.node == i2 {
-            StableName {
-                kind: name.kind,
-                node: back(name.node),
-                path: name.path.clone(),
-            }
-        } else {
-            name.clone()
+        let expected = match name.path.as_slice() {
+            [editor_core::RoleSeg::From { read, of }] => match moved(*read) {
+                Some(read) => StableName {
+                    kind: name.kind,
+                    node: name.node,
+                    path: vec![editor_core::RoleSeg::From {
+                        read,
+                        of: of.clone(),
+                    }],
+                },
+                None => name.clone(),
+            },
+            _ => name.clone(),
         };
         assert!(
             names3.iter().any(|(n, _)| *n == expected),

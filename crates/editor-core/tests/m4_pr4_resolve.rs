@@ -1335,10 +1335,11 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
     use editor_core::{NodeResult, ValuePayload};
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, twin) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, d) = block(doc, (5.0, 6.0), (0.0, 1.0), 1.0);
-    // `c` and `d` join `b`'s space where they stand.
-    let (doc, c) = fixture::slid(doc, b, c, [0.0; 3]);
+    // `c` and `d` join `b`'s space where they stand; a copy carries its
+    // source's names, so `c`'s are the twin's.
+    let (doc, c) = fixture::slid(doc, b, twin, [0.0; 3]);
     let (doc, d) = fixture::slid(doc, b, d, [0.0; 3]);
     let (doc, x) = insert(
         doc,
@@ -1384,7 +1385,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
             .any(|(name, _)| editor_core::derivation_nodes(name).contains(&m))
     };
     assert!(
-        mentions(c),
+        mentions(twin),
         "the memo-transferred grandchild table must embed the twin's names"
     );
     assert!(
