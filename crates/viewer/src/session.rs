@@ -3750,7 +3750,10 @@ fn in_one_space(
             _ => false,
         };
         if self_placed {
-            if held_bundle(run.doc(), node).iter().any(|c| c.mate().is_some()) {
+            if held_bundle(run.doc(), node)
+                .iter()
+                .any(|c| c.mate().is_some())
+            {
                 read.push(operand.clone());
                 continue;
             }
