@@ -2,10 +2,11 @@
 id: incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle
 kind: issue
 title: AddConstraint, AddValue, AddValues and RemoveConstraint(s) can no longer succeed: every bundle pins its copy, so an increment over- or under-pins
-status: open
+status: closed
 opened: 2026-10-22
 priority: P1
 parent: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
+closed: 2026-10-23
 ---
 
 
@@ -43,3 +44,7 @@ loading); or make each a whole-bundle rewrite under its old name (a
 removed mate taking its values with it and the identity put back,
 say), which is a design question for D′2, where a value charts on the
 target space.
+
+## Closed
+
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR PRNUM, 2026-10-23). `AddConstraint`, `RemoveConstraint` and `RemoveConstraints` are whole-bundle rewrites under their old names: the mates are kept, each value the residual still leaves is kept, and the constant `0` is written on each freedom left unnamed (ASSEMBLY.md A11). `AddValue` and `AddValues` retire, since `SetConstraints` writes a value. Rows: `p2_gauges::removing_a_value_writes_its_freedom_zero`, `asm_r2a_mate_solve::row4b_removing_the_placing_constraint_leaves_the_copy_pinned`, `intent_s3_b::a_mate_on_a_copy_pinned_by_values_takes_the_freedoms_it_fixes`.
