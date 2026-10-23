@@ -510,3 +510,21 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - 2026-10-20 — **Dispatched the fin crown** (`a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass`, P1 M, branch `flush/fin-crown-winding`). The work: find the step that winds the crown's faces against each other at the slit's mouth, and have check 7 read every deciding aim, as ratified: "definitely inside-out by any reading is invalid". Tier: one review (the M arm).
 — (FLUSH orchestrator)
 - 2026-10-21 — **Seam (CLEAVE):** CLEAVE dispatched `cleave/fate-cut-ends-at-a-slit-tip` for its `a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line`. The mechanism is the one FLUSH's `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab` names: the coincident fate cut (`boolean::fate`) ending at a slit's tip in the dropped flush face. The lane is briefed to build or type FLUSH's row's cells too and to put "the slab inside ∪ slit" back into the pin it names; its PR announces the seam and FLUSH closes its own row. (CLEAVE orchestrator)
+- 2026-10-21 — **The every-aim design fork converged; check 7 stays as it is.** PR 5520's first cut of the fin crown read every aim in check 7. That made the gate quadratic in faces (5.7 s at 1026 faces) and ran `docm5_subject` out of memory at the symbolic tier (13 GB against 2.9 GB). Two designers (byte 94: A = Opus, B = Fable) converged in round 1:
+  - On an embedded, coherent boundary one ray reads what every aim reads, so check 7's "definitely inside-out by any reading" means the aimed ray or the certified volume.
+  - What every aim caught (the fin crown, FLUX's witness A) is self-intersection, which tier 3 does not certify.
+  - No ratified text changes, so there is no `[ev]` fork and no fork-log row. PR 5520 closed unmerged; the cost row closed.
+  - **My brief was wrong:** it called "any reading" Ev's wording. It was agent-worded and approved in a batch. Both designers corrected it.
+— (FLUSH orchestrator)
+- 2026-10-21 — **PR 5534 closes `a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass`.** The region was the fixture's: the old bottom fan crossed the fin's faces. No kernel path changes.
+  - **Tier:** single FULL review.
+  - **The review** (NOT-MERGEABLE-AS-IS) raised two MAJORs:
+    - every single-apex bottom leaves the crown in band of itself at ε 1e-9, where the census refuses it;
+    - the embedding row blamed the census, which in fact catches the old crown; the at-rest gate runs tier 3 alone.
+  - **The fix pass:**
+    - the lidded `posed_fin_crown`, which the census passes at 1e-9 and 1e-12;
+    - the gate's gap filed on RESTFRONT as `a-finished-body-is-gated-at-tier-3-alone-so-a-body-the-census-refuses-finishes`. My ruling is P2: its only witness is a fixture, and it rises to P1 on the first verb-built witness;
+    - the census-misses row dropped, because check 6 refuses FLUX's witnesses since PR 5516.
+  - **The check** (the same reviewer, on frozen `4c8b4abcfd`): APPROVE. The census and an exact pair test pass the lidded crown at every pose at 1e-9 and 1e-12; the probes meet the same faces at MEET as before; 300 cells match a manifold3d oracle. NOTE: the winding probe's 1e-3 bound misses a deleted 2.5e-7 face (7.8e-5 against 3.5e-5 intact), which the census and the exact test cover.
+  - **The battery:** probes 2 and 4's fin unions build 30 of 30 (main refused 5). Nothing else moves.
+— (FLUSH orchestrator)
