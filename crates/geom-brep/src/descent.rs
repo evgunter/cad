@@ -5,10 +5,12 @@
 //! own units and its own action on an idle round: the offset fit
 //! ([`crate::offset_fit`]) and limb 2's hull subdivision
 //! (`ssi::certify::subdivide`). The quadrature lanes in `props::quad`
-//! take the cumulative budget ([`Work`]) as their work wall and need
-//! no stall: each splits a round's width into the part a later round
-//! removes and the part none does, so refinement stopping paying is a
-//! reading of the round itself (`props::quad::Run`). Not every such loop
+//! take the cumulative budget ([`Work`]) as their work wall. None of
+//! them takes the stall today: each splits a round's width into the
+//! part a later round removes and the part none does, so refinement
+//! stopping paying is a reading of the round itself
+//! (`props::quad::Run`'s floor). The stall stays the backstop the
+//! measure door's R2 names, for a lane that cannot split the two. Not every such loop
 //! in the crate reads this home: `ssi::refine::refine_by_certificate`
 //! compares each round with the previous one and is bounded by the
 //! march's step wall.
