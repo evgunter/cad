@@ -1095,9 +1095,6 @@ macro_rules! family_word {
     (instances) => {
         "instances"
     };
-    (copies) => {
-        "copies"
-    };
     (measure) => {
         "measure"
     };

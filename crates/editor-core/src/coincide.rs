@@ -867,6 +867,15 @@ pub fn construction<P>(
     let (mut read, mut name) = (read, name.clone());
     let mut at = doc.operation_of(read).ok_or(Unwalked::Unread(read))?;
     loop {
+        // A `⊔`'s name of a member's entity, read in that member, is
+        // the member's own name.
+        if matches!(doc.node(name.node), Some(Node::Assemble { .. }))
+            && let [RoleSeg::From { read: member, of }] = name.path.as_slice()
+            && *member == read
+        {
+            name = (**of).clone();
+            continue;
+        }
         // A pick is its piece of the copy, placed there.
         if let Some(pick) = doc.pick(read) {
             placed.push(Placed::World(at));

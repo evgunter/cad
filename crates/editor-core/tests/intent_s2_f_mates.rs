@@ -429,13 +429,16 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
         "{:?}",
         ev.node_error(mate.placement)
     );
-    // The placement is in the product, so the gather refuses it typed.
+    // The placement's copy is in the product's `⊔`, so the gather
+    // refuses it typed, poisoned through the placement.
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Product(refusal)) => assert!(
             matches!(
                 *refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node })
-                    if node == mate.placement
+                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                    through,
+                    ..
+                }) if through == mate.placement
             ),
             "{refusal:?}"
         ),

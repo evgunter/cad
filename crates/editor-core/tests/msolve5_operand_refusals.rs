@@ -182,15 +182,16 @@ fn assert_on_selection_refuses(ev: &Evaluation<f64>, mate: MateRef, what: &str) 
     );
 }
 
-/// The side's refusal is the block's: the gather refuses at the
-/// block's placement, failed, before any mate is read.
+/// The side's refusal is the block's: the gather refuses the product's
+/// `⊔`, poisoned through the block's failed placement, before any mate
+/// is read.
 fn assert_refused_at_the_block(doc: &ProfileDoc, ev: &Evaluation<f64>, top: RecipeNodeId) {
     let err = gate(doc, ev).expect_err("the block's refusal refuses the product");
     assert!(
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, ProductError::Root(NodeStanding::Failed { node }) if node == top)
+                if matches!(**e, ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == top)
         ),
         "{err:?}"
     );
@@ -240,7 +241,10 @@ fn a_tied_face_refuses_at_its_placement() {
     let s = scene("msolve5-tied-face", slotted_part("msolve5-tied-face-top"));
     let ev0 = run(&s.doc, &s.opts);
     let (tied, width) = tied_row(&ev0, s.top, EntityKind::Face);
-    assert_eq!(tied.node, s.top, "the tie is worn by the instance");
+    assert_ne!(
+        tied.node, s.top,
+        "the tie is the part's name, which the instance's copy carries verbatim"
+    );
     assert_eq!(width, 2);
     let base_top = fixture::head_at(s.base, in_part(s.base, s.base_body, CapEnd::End));
     let (doc, mate) = seat(s.doc, s.top, base_top, fixture::head_at(s.top, tied));
@@ -362,15 +366,15 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         solve_fault_free(&doc, &opts, top),
         "the block's refusal is its part's, so no bundle refused"
     );
-    // The block is itself a placement of the product, failed on its
-    // part, so the gather refuses at THAT placement, before the
-    // poisoned copies and before any reference is read.
+    // The block is a member of the product's `⊔`, failed on its part,
+    // so the gather refuses the `⊔` poisoned through THAT placement,
+    // before any reference is read.
     let err = gate(&doc, &ev).expect_err("the gather refuses");
     assert!(
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, ProductError::Root(NodeStanding::Failed { node }) if node == top)
+                if matches!(**e, ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == top)
         ),
         "the gather refuses at the failed placement before any reference is read: {err:?}"
     );

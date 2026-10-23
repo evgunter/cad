@@ -1987,7 +1987,7 @@ mod tests {
             .collect();
         // A census that read nothing would pass vacuously.
         assert!(
-            starts.len() >= 10,
+            starts.len() >= 9,
             "the arm census found only {} arms — the sentinels or the scan have drifted from \
              the match they are supposed to read",
             starts.len()

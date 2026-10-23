@@ -69,20 +69,31 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// The same reading, one level deeper: `instance`'s part is ITSELF an
-/// assembly, and the face wanted is the cap of the cube inside the
-/// sub-instance `sub` of that assembly — an instance is a placement,
-/// so its copy carries the face under the instance's own wrapper —
-/// `body` the cube part's body.
+/// **Cube `sub`'s `cap`, as instance `instance` of a stand carries it**:
+/// the stand's product names it keyed by the copy of `sub` its `⊔`
+/// reads (`From { read }`), and the instance's copy carries that name
+/// verbatim. `stand` is the stand document.
 fn in_part_in_part(
+    stand: &ProfileDoc,
     instance: RecipeNodeId,
     sub: RecipeNodeId,
     body: RecipeNodeId,
     cap: CapEnd,
 ) -> crate::fixture::resolver::InPart {
+    let assembled = stand
+        .product()
+        .and_then(|var| stand.operation_of(var))
+        .expect("the stand's product is the `⊔` of its cubes");
     crate::fixture::resolver::InPart {
         at: instance,
-        name: in_part(sub, body, cap).name,
+        name: StableName {
+            kind: EntityKind::Face,
+            node: assembled,
+            path: vec![RoleSeg::From {
+                read: stand.output(sub, 0).expect("the cube's copy"),
+                of: in_part(sub, body, cap).name.into(),
+            }],
+        },
     }
 }
 
@@ -413,7 +424,7 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     let (part, body) = store.insert_part(cube_part("mate6-outer-cube"), Tol::witness());
     let (inner, subs, _) = stand("mate6-outer-stand", part, body, 0.0, &store);
     let inner = crate::fixture::world_product(inner);
-    let inner_ref = store.insert(inner, Tol::witness());
+    let inner_ref = store.insert(inner.clone(), Tol::witness());
 
     // Two stands, and an OUTER mate resting the second stand's lower
     // cube on the first stand's upper cube's plane — two units beside it,
@@ -422,8 +433,8 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     let (doc, mate) = seated(
         doc,
         rest_mate(
-            in_part_in_part(ids[0], subs[1], body, CapEnd::End),
-            in_part_in_part(ids[1], subs[0], body, CapEnd::Start),
+            in_part_in_part(&inner, ids[0], subs[1], body, CapEnd::End),
+            in_part_in_part(&inner, ids[1], subs[0], body, CapEnd::Start),
             2.0,
         ),
     );

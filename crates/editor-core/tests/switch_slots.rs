@@ -657,6 +657,9 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
         },
+        Node::Assemble {
+            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
+        },
         // The identity bundle: no constraint, so no slot.
         Node::Place {
             source: nid(1).into(),

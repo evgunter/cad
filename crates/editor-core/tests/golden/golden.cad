@@ -3,7 +3,7 @@ id: 7ddec231df0049f879136a2f7624647d
   "snapshot": {
     "id": "7ddec231df0049f879136a2f7624647d",
     "mint": {
-      "chain": "54c2100de34c1da63177a940f8857291ce3f0a66d404ce9e09983150501ac057",
+      "chain": "78786c064bae6b67d32cb4c96527caba64c33528f8f59d0afc8ec53341cd6dd9",
       "log": [
         {
           "var": "1:e2382e0f27e19466"
@@ -441,154 +441,190 @@ id: 7ddec231df0049f879136a2f7624647d
           "var": "145:24b1e0c8faf314d9"
         },
         {
-          "node": "146:d074963d5b658c06"
+          "node": "146:17cc68621db2db41"
         },
         {
-          "var": "147:643e72cef8d6609b"
+          "var": "147:95272b9df06ebe0b"
         },
         {
-          "constraint": "148:1ed6e02c566b43db"
+          "constraint": "148:3282cf688b48e712"
         },
         {
-          "constraint": "149:a0901d12d7950d76"
+          "constraint": "149:2e4a26d4ae60b260"
         },
         {
-          "constraint": "150:e28091d4b68e987b"
+          "constraint": "150:0e67f2a4b5628d3a"
         },
         {
-          "constraint": "151:6e780b92b9849d08"
+          "constraint": "151:b6b7916c3892f9ec"
         },
         {
-          "constraint": "152:2ecba3fa8a398ab0"
+          "constraint": "152:21be1480463381f1"
         },
         {
-          "constraint": "153:f96edc76bb41fe6b"
+          "constraint": "153:22e92670fc7fe340"
         },
         {
-          "var": "154:64796ee4391210af"
+          "var": "154:b3b9b1054dba1642"
         },
         {
-          "var": "155:9be492e235895e34"
+          "var": "155:b53e1576e0b5d237"
         },
         {
-          "var": "156:a2868848742d0a7c"
+          "var": "156:607afdad7b61e333"
         },
         {
-          "var": "157:590d5a9924076017"
+          "var": "157:9b4d1f36cbc2a932"
         },
         {
-          "var": "158:135e8e9967549a4c"
+          "var": "158:d8d9eddb2aa7ccb6"
         },
         {
-          "var": "159:4902cc9e02e7ba26"
+          "var": "159:327346708bdef247"
         },
         {
-          "node": "160:cacaa409fce09db1"
+          "node": "160:8767d33230f84650"
         },
         {
-          "var": "161:e540754590f4cfb0"
+          "var": "161:4125e8c9b3c8b3a4"
         },
         {
-          "constraint": "162:c9092cdf9ffa5eb6"
+          "constraint": "162:9fe2b21a9dd27b9f"
         },
         {
-          "constraint": "163:ec0bd8dde08a7024"
+          "constraint": "163:dbb79e1a56f6a1c3"
         },
         {
-          "constraint": "164:f0fc903e3b3e38d8"
+          "constraint": "164:b8992a60598de0f8"
         },
         {
-          "constraint": "165:fae3f5a9b5702216"
+          "constraint": "165:f6249c6587b2423f"
         },
         {
-          "constraint": "166:777e8c209a1271f8"
+          "constraint": "166:ef66c4c2136a0742"
         },
         {
-          "constraint": "167:b842807cb40d7a67"
+          "constraint": "167:5d334a3a71fb4db9"
         },
         {
-          "var": "168:c50616eacbeb5106"
+          "node": "168:bfd03c51c05b229c"
         },
         {
-          "var": "169:670c63a1fe3bf60e"
+          "var": "169:5867d4ef2c8e78a6"
         },
         {
-          "var": "170:057230cb36f0005a"
+          "node": "170:5a894a89367bc48c"
         },
         {
-          "var": "171:ed60f99aeddc0949"
+          "var": "171:688be6918adf445d"
         },
         {
-          "var": "172:fd71d6eeed90a1f2"
+          "var": "172:ab16e046fbb744d5"
         },
         {
-          "var": "173:d4142ab0ddf1380b"
+          "var": "173:419e3d8a1afaf6d0"
         },
         {
-          "node": "174:da222a82c8e1b7e0"
+          "var": "174:0e541811ea4e1d18"
         },
         {
-          "var": "175:06007e90ab43d6cc"
+          "var": "175:e7637b1a98585d4a"
         },
         {
-          "constraint": "176:d5811aad778b5a53"
+          "var": "176:cf5b967ed6f95cb9"
         },
         {
-          "constraint": "177:4de8e47d3f1767ae"
+          "var": "177:afa8d4539e39bcd7"
         },
         {
-          "constraint": "178:788eb0a4aac67a1b"
+          "node": "178:d8aa1c8d499e6b06"
         },
         {
-          "constraint": "179:ab846ced597e6719"
+          "var": "179:a628a7abc7df287a"
         },
         {
-          "constraint": "180:4c547bcb222de2f6"
+          "constraint": "180:176adb2b99e1015b"
         },
         {
-          "constraint": "181:c6c16b8c496b260d"
+          "constraint": "181:dfa0a9b125568760"
         },
         {
-          "var": "182:46cb8b1f0da7cd2e"
+          "constraint": "182:c2f477e0cb3049a1"
         },
         {
-          "var": "183:98afb2e0f4e8533f"
+          "constraint": "183:9446218d8ab4d3ec"
         },
         {
-          "var": "184:902914e54e737140"
+          "constraint": "184:dc9681757cc958d9"
         },
         {
-          "var": "185:10fcf6c3793a8ab4"
+          "constraint": "185:9d7b750fc1428a42"
         },
         {
-          "var": "186:3b043cd658022495"
+          "node": "186:8b080dcb4bb3b8a9"
         },
         {
-          "var": "187:9ee5e88bdfb230f8"
+          "var": "187:8592f517d195d861"
         },
         {
-          "node": "188:88992224782351eb"
+          "node": "188:f9e6e5fc4cc8ffc1"
         },
         {
-          "var": "189:0258bf0b814d35ed"
+          "var": "189:4a85a049347cc753"
         },
         {
-          "constraint": "190:626a3a4ef83ccaa9"
+          "var": "190:c8f674f9bb3a2a77"
         },
         {
-          "constraint": "191:05b1c4b2bdbba3ee"
+          "var": "191:a7088f91a8a4a319"
         },
         {
-          "constraint": "192:c6ad68747b356177"
+          "var": "192:8f24846264c8510b"
         },
         {
-          "constraint": "193:219fc8bd2d4c278c"
+          "var": "193:7f1c192a0f96a765"
         },
         {
-          "constraint": "194:03ad18679d019c0f"
+          "var": "194:24484e7ef6d319a4"
         },
         {
-          "constraint": "195:54c2100de34c1da6"
+          "var": "195:62dad800e9956276"
+        },
+        {
+          "node": "196:08cdbc8d3dde5092"
+        },
+        {
+          "var": "197:0df5fb80a4d14ca9"
+        },
+        {
+          "constraint": "198:d0d76c3be3d179e3"
+        },
+        {
+          "constraint": "199:1a359b231aef4f88"
+        },
+        {
+          "constraint": "200:47450a6c011943d0"
+        },
+        {
+          "constraint": "201:49c799705c2732e8"
+        },
+        {
+          "constraint": "202:737f6ec36ab15a8f"
+        },
+        {
+          "constraint": "203:93d8187b966b4b08"
+        },
+        {
+          "node": "204:a86295b9a202d489"
+        },
+        {
+          "var": "205:ab215d655655b34b"
+        },
+        {
+          "node": "206:7142e78bbb9f0be1"
+        },
+        {
+          "var": "207:78786c064bae6b67"
         }
       ]
     },
@@ -976,15 +1012,13 @@ id: 7ddec231df0049f879136a2f7624647d
           "open": "136:d90ae7bd27d3aa1c"
         }
       },
-      "146:d074963d5b658c06": {
+      "146:17cc68621db2db41": {
         "Place": {
-          "shapes": [
-            "95:9d110d3f0a532317"
-          ],
+          "source": "95:9d110d3f0a532317",
           "target": "0:0000000000000000",
           "constraints": [
             {
-              "id": "148:1ed6e02c566b43db",
+              "id": "148:3282cf688b48e712",
               "kind": {
                 "value": {
                   "coord": {
@@ -995,7 +1029,7 @@ id: 7ddec231df0049f879136a2f7624647d
               }
             },
             {
-              "id": "149:a0901d12d7950d76",
+              "id": "149:2e4a26d4ae60b260",
               "kind": {
                 "value": {
                   "coord": {
@@ -1006,7 +1040,7 @@ id: 7ddec231df0049f879136a2f7624647d
               }
             },
             {
-              "id": "150:e28091d4b68e987b",
+              "id": "150:0e67f2a4b5628d3a",
               "kind": {
                 "value": {
                   "coord": {
@@ -1017,7 +1051,7 @@ id: 7ddec231df0049f879136a2f7624647d
               }
             },
             {
-              "id": "151:6e780b92b9849d08",
+              "id": "151:b6b7916c3892f9ec",
               "kind": {
                 "value": {
                   "coord": {
@@ -1028,7 +1062,7 @@ id: 7ddec231df0049f879136a2f7624647d
               }
             },
             {
-              "id": "152:2ecba3fa8a398ab0",
+              "id": "152:21be1480463381f1",
               "kind": {
                 "value": {
                   "coord": {
@@ -1039,7 +1073,7 @@ id: 7ddec231df0049f879136a2f7624647d
               }
             },
             {
-              "id": "153:f96edc76bb41fe6b",
+              "id": "153:22e92670fc7fe340",
               "kind": {
                 "value": {
                   "coord": {
@@ -1052,232 +1086,238 @@ id: 7ddec231df0049f879136a2f7624647d
           ]
         }
       },
-      "160:cacaa409fce09db1": {
+      "160:8767d33230f84650": {
         "Place": {
-          "shapes": [
-            "107:8656e636ec0b48a9"
-          ],
+          "source": "107:8656e636ec0b48a9",
           "target": "0:0000000000000000",
           "constraints": [
             {
-              "id": "162:c9092cdf9ffa5eb6",
+              "id": "162:9fe2b21a9dd27b9f",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "x"
                   },
-                  "by": "154:64796ee4391210af"
+                  "by": "154:b3b9b1054dba1642"
                 }
               }
             },
             {
-              "id": "163:ec0bd8dde08a7024",
+              "id": "163:dbb79e1a56f6a1c3",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "y"
                   },
-                  "by": "155:9be492e235895e34"
+                  "by": "155:b53e1576e0b5d237"
                 }
               }
             },
             {
-              "id": "164:f0fc903e3b3e38d8",
+              "id": "164:b8992a60598de0f8",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "z"
                   },
-                  "by": "156:a2868848742d0a7c"
+                  "by": "156:607afdad7b61e333"
                 }
               }
             },
             {
-              "id": "165:fae3f5a9b5702216",
+              "id": "165:f6249c6587b2423f",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "x"
                   },
-                  "by": "157:590d5a9924076017"
+                  "by": "157:9b4d1f36cbc2a932"
                 }
               }
             },
             {
-              "id": "166:777e8c209a1271f8",
+              "id": "166:ef66c4c2136a0742",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "y"
                   },
-                  "by": "158:135e8e9967549a4c"
+                  "by": "158:d8d9eddb2aa7ccb6"
                 }
               }
             },
             {
-              "id": "167:b842807cb40d7a67",
+              "id": "167:5d334a3a71fb4db9",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "z"
                   },
-                  "by": "159:4902cc9e02e7ba26"
+                  "by": "159:327346708bdef247"
                 }
               }
             }
           ]
         }
       },
-      "174:da222a82c8e1b7e0": {
+      "178:d8aa1c8d499e6b06": {
         "Place": {
-          "shapes": [
-            "115:184ae8317b63b58f"
-          ],
+          "source": "115:184ae8317b63b58f",
           "target": "0:0000000000000000",
           "constraints": [
             {
-              "id": "176:d5811aad778b5a53",
+              "id": "180:176adb2b99e1015b",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "x"
                   },
-                  "by": "168:c50616eacbeb5106"
+                  "by": "172:ab16e046fbb744d5"
                 }
               }
             },
             {
-              "id": "177:4de8e47d3f1767ae",
+              "id": "181:dfa0a9b125568760",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "y"
                   },
-                  "by": "169:670c63a1fe3bf60e"
+                  "by": "173:419e3d8a1afaf6d0"
                 }
               }
             },
             {
-              "id": "178:788eb0a4aac67a1b",
+              "id": "182:c2f477e0cb3049a1",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "z"
                   },
-                  "by": "170:057230cb36f0005a"
+                  "by": "174:0e541811ea4e1d18"
                 }
               }
             },
             {
-              "id": "179:ab846ced597e6719",
+              "id": "183:9446218d8ab4d3ec",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "x"
                   },
-                  "by": "171:ed60f99aeddc0949"
+                  "by": "175:e7637b1a98585d4a"
                 }
               }
             },
             {
-              "id": "180:4c547bcb222de2f6",
+              "id": "184:dc9681757cc958d9",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "y"
                   },
-                  "by": "172:fd71d6eeed90a1f2"
+                  "by": "176:cf5b967ed6f95cb9"
                 }
               }
             },
             {
-              "id": "181:c6c16b8c496b260d",
+              "id": "185:9d7b750fc1428a42",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "z"
                   },
-                  "by": "173:d4142ab0ddf1380b"
+                  "by": "177:afa8d4539e39bcd7"
                 }
               }
             }
           ]
         }
       },
-      "188:88992224782351eb": {
+      "196:08cdbc8d3dde5092": {
         "Place": {
-          "shapes": [
-            "139:27c3aefa05fbb06d"
-          ],
+          "source": "139:27c3aefa05fbb06d",
           "target": "0:0000000000000000",
           "constraints": [
             {
-              "id": "190:626a3a4ef83ccaa9",
+              "id": "198:d0d76c3be3d179e3",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "x"
                   },
-                  "by": "182:46cb8b1f0da7cd2e"
+                  "by": "190:c8f674f9bb3a2a77"
                 }
               }
             },
             {
-              "id": "191:05b1c4b2bdbba3ee",
+              "id": "199:1a359b231aef4f88",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "y"
                   },
-                  "by": "183:98afb2e0f4e8533f"
+                  "by": "191:a7088f91a8a4a319"
                 }
               }
             },
             {
-              "id": "192:c6ad68747b356177",
+              "id": "200:47450a6c011943d0",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "z"
                   },
-                  "by": "184:902914e54e737140"
+                  "by": "192:8f24846264c8510b"
                 }
               }
             },
             {
-              "id": "193:219fc8bd2d4c278c",
+              "id": "201:49c799705c2732e8",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "x"
                   },
-                  "by": "185:10fcf6c3793a8ab4"
+                  "by": "193:7f1c192a0f96a765"
                 }
               }
             },
             {
-              "id": "194:03ad18679d019c0f",
+              "id": "202:737f6ec36ab15a8f",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "y"
                   },
-                  "by": "186:3b043cd658022495"
+                  "by": "194:24484e7ef6d319a4"
                 }
               }
             },
             {
-              "id": "195:54c2100de34c1da6",
+              "id": "203:93d8187b966b4b08",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "z"
                   },
-                  "by": "187:9ee5e88bdfb230f8"
+                  "by": "195:62dad800e9956276"
                 }
               }
             }
           ]
+        }
+      },
+      "206:7142e78bbb9f0be1": {
+        "Assemble": {
+          "members": {
+            "Spelled": [
+              "147:95272b9df06ebe0b",
+              "161:4125e8c9b3c8b3a4",
+              "179:a628a7abc7df287a",
+              "197:0df5fb80a4d14ca9"
+            ]
+          }
         }
       }
     },
@@ -2595,16 +2635,16 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "147:643e72cef8d6609b": {
+      "147:95272b9df06ebe0b": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "146:d074963d5b658c06",
+            "node": "146:17cc68621db2db41",
             "port": 0
           }
         }
       },
-      "154:64796ee4391210af": {
+      "154:b3b9b1054dba1642": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -2612,7 +2652,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "155:9be492e235895e34": {
+      "155:b53e1576e0b5d237": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -2620,7 +2660,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "156:a2868848742d0a7c": {
+      "156:607afdad7b61e333": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -2628,7 +2668,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "157:590d5a9924076017": {
+      "157:9b4d1f36cbc2a932": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -2636,7 +2676,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "158:135e8e9967549a4c": {
+      "158:d8d9eddb2aa7ccb6": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -2644,7 +2684,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "159:4902cc9e02e7ba26": {
+      "159:327346708bdef247": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -2652,16 +2692,16 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "161:e540754590f4cfb0": {
+      "161:4125e8c9b3c8b3a4": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "160:cacaa409fce09db1",
+            "node": "160:8767d33230f84650",
             "port": 0
           }
         }
       },
-      "168:c50616eacbeb5106": {
+      "172:ab16e046fbb744d5": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -2669,7 +2709,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "169:670c63a1fe3bf60e": {
+      "173:419e3d8a1afaf6d0": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -2677,7 +2717,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "170:057230cb36f0005a": {
+      "174:0e541811ea4e1d18": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -2685,7 +2725,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "171:ed60f99aeddc0949": {
+      "175:e7637b1a98585d4a": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -2693,7 +2733,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "172:fd71d6eeed90a1f2": {
+      "176:cf5b967ed6f95cb9": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -2701,7 +2741,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "173:d4142ab0ddf1380b": {
+      "177:afa8d4539e39bcd7": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -2709,16 +2749,16 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "175:06007e90ab43d6cc": {
+      "179:a628a7abc7df287a": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "174:da222a82c8e1b7e0",
+            "node": "178:d8aa1c8d499e6b06",
             "port": 0
           }
         }
       },
-      "182:46cb8b1f0da7cd2e": {
+      "190:c8f674f9bb3a2a77": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -2726,7 +2766,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "183:98afb2e0f4e8533f": {
+      "191:a7088f91a8a4a319": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -2734,7 +2774,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "184:902914e54e737140": {
+      "192:8f24846264c8510b": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -2742,7 +2782,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "185:10fcf6c3793a8ab4": {
+      "193:7f1c192a0f96a765": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -2750,7 +2790,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "186:3b043cd658022495": {
+      "194:24484e7ef6d319a4": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -2758,7 +2798,7 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "187:9ee5e88bdfb230f8": {
+      "195:62dad800e9956276": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -2766,11 +2806,20 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "189:0258bf0b814d35ed": {
+      "197:0df5fb80a4d14ca9": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "188:88992224782351eb",
+            "node": "196:08cdbc8d3dde5092",
+            "port": 0
+          }
+        }
+      },
+      "207:78786c064bae6b67": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "206:7142e78bbb9f0be1",
             "port": 0
           }
         }
@@ -2836,7 +2885,8 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       ]
-    ]
+    ],
+    "product": "207:78786c064bae6b67"
   },
   "edits": [
     {
