@@ -932,7 +932,7 @@ fn a_place_of_an_assemble_picks_its_pieces() {
             ]),
         },
     );
-    let doc = editor_core::test_support::with_world_product(doc);
+    let doc = editor_core::test_support::with_world_product(doc, Tol::witness());
     let ev = run(&doc, &EvalOptions::default());
     assert!(
         matches!(ev.result(union), Some(NodeResult::Ok(_))),

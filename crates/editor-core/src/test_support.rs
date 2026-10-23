@@ -1273,8 +1273,8 @@ pub(crate) fn record_fold_row(
 ///
 /// If a door refuses an edit it writes.
 #[must_use]
-pub fn with_world_product(doc: ProfileDoc) -> ProfileDoc {
-    world_product_edits(doc).0
+pub fn with_world_product(doc: ProfileDoc, tol: geom_core::Tol) -> ProfileDoc {
+    world_product_edits(doc, tol).0
 }
 
 /// **[`with_world_product`] with the edits it wrote**, in the order it
@@ -1285,8 +1285,10 @@ pub fn with_world_product(doc: ProfileDoc) -> ProfileDoc {
 /// If a door refuses an edit it writes.
 #[must_use]
 #[allow(clippy::expect_used)]
-pub fn world_product_edits(doc: ProfileDoc) -> (ProfileDoc, Vec<crate::DocEdit<ProfileProgram>>) {
-    let tol = geom_core::Tol::witness();
+pub fn world_product_edits(
+    doc: ProfileDoc,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, Vec<crate::DocEdit<ProfileProgram>>) {
     let mut log = Vec::new();
     let apply = |log: &mut Vec<_>, doc: &ProfileDoc, edit: crate::DocEdit<ProfileProgram>| {
         let out = crate::apply(doc, &edit, tol)

@@ -796,7 +796,7 @@ pub fn sited_ref(name: impl Sited) -> editor_core::SitedRef {
 /// ([`editor_core::test_support::with_world_product`]). Called again
 /// after a placement is added, it writes the product anew.
 pub fn world_product(doc: ProfileDoc) -> ProfileDoc {
-    editor_core::test_support::with_world_product(doc)
+    editor_core::test_support::with_world_product(doc, Tol::witness())
 }
 
 /// **A name and where it is read**: a name this document minted, at
@@ -1372,7 +1372,7 @@ pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) 
     let read = body_read(&doc, body.into());
     let (doc, placement) = insert(doc, stood(editor_core::BodyRead::plain(read)));
     (
-        editor_core::test_support::with_world_product(doc),
+        editor_core::test_support::with_world_product(doc, Tol::witness()),
         placement,
     )
 }
@@ -2037,7 +2037,8 @@ impl Recorder {
     /// ([`editor_core::test_support::world_product_edits`]): what a
     /// world placement calls, so a replayed log carries its product.
     pub fn world_product(&mut self) {
-        let (doc, edits) = editor_core::test_support::world_product_edits(self.doc.clone());
+        let (doc, edits) =
+            editor_core::test_support::world_product_edits(self.doc.clone(), Tol::witness());
         self.doc = doc;
         self.edits.extend(edits);
     }

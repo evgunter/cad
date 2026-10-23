@@ -925,8 +925,6 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         return Err(m.into());
     }
     let Some(var) = doc.product() else {
-        #[cfg(debug_assertions)]
-        GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
         return Err(ProductError::EmptyProduct);
     };
     let mut product = gather(doc, evaluation, tol, var, true)?;

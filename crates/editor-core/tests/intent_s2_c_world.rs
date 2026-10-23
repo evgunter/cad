@@ -749,7 +749,7 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         let (doc, body) = block(doc, 0.0);
         let read = doc.output(body, 0).expect("the block defines its body");
         let (doc, placement) = place_by_values(doc, body, &raised());
-        let doc = editor_core::test_support::with_world_product(doc);
+        let doc = editor_core::test_support::with_world_product(doc, Tol::witness());
         (doc, placement, read)
     };
     let mut store = PartStore::default();

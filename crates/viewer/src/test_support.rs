@@ -246,7 +246,7 @@ pub fn placed_read(
         tol,
     );
     (
-        editor_core::test_support::with_world_product(doc),
+        editor_core::test_support::with_world_product(doc, tol),
         placement,
     )
 }

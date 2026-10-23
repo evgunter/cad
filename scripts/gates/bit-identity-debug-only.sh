@@ -10,7 +10,7 @@
 # rather than a second gate with a second reader.
 #
 #   * `crates/editor-core/src/product.rs` — the gather counter: the
-#     `GATHERS` cell, the increment in `product_recorded`, and
+#     `GATHERS` cell, the increment in `gather`, and
 #     `gathers_on_this_thread`. A fourth site without the attribute, or
 #     the attribute dropped from one of the three, compiles and passes
 #     every test.
