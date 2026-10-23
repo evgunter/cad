@@ -101,7 +101,10 @@ fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates
     let bench = asm::bench("rv-matehead-bare", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (mut a, b) = asm::seat_picks(&session, &bench);
-    assert_ne!(a.name.node, a.node, "pick a is its part's name, read at its instance");
+    assert_ne!(
+        a.name.node, a.node,
+        "pick a is its part's name, read at its instance"
+    );
     // The part's name with its role taken off: a bare face name the
     // copy does not carry.
     let mut bare = a.name.clone();

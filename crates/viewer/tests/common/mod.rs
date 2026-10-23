@@ -207,9 +207,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
     let (doc, moved) = inserted(
         &doc,
         Node::place(
-            pncad::document::BodyRead::plain(
-                pncad::document::Operand::from(extrude),
-            ),
+            pncad::document::BodyRead::plain(pncad::document::Operand::from(extrude)),
             pncad::document::Operand::Var(pncad::document::VarId::WORLD),
             pncad::document::stand().bundle(),
         ),
@@ -242,9 +240,7 @@ pub fn placed_at(
     let (doc, placement) = inserted(
         doc,
         Node::place(
-            pncad::document::BodyRead::plain(
-                pncad::document::Operand::from(body),
-            ),
+            pncad::document::BodyRead::plain(pncad::document::Operand::from(body)),
             pncad::document::Operand::Var(pncad::document::VarId::WORLD),
             pncad::document::stand().bundle(),
         ),

@@ -316,10 +316,7 @@ fn a_document_with_no_body_lands_a_clean_report() {
 
     assert_eq!(gathers_of_one_landing(&mut session), 1);
     assert!(
-        matches!(
-            session.product_fault(),
-            Some(ProductError::EmptyProduct)
-        ),
+        matches!(session.product_fault(), Some(ProductError::EmptyProduct)),
         "the gather's own answer: {:?}",
         session.product_fault()
     );
@@ -373,10 +370,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     session.pump();
 
     assert!(
-        matches!(
-            session.product_fault(),
-            Some(ProductError::EmptyProduct)
-        ),
+        matches!(session.product_fault(), Some(ProductError::EmptyProduct)),
         "the premise: nothing is placed into the world: {:?}",
         session.product_fault()
     );

@@ -545,7 +545,6 @@ impl BlendTool {
         }
     }
 
-
     /// Drop every pick — the panel's `Clear picks` button, and what
     /// Cancel's whole-tool replacement amounts to for the picks alone.
     ///

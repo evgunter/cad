@@ -912,7 +912,6 @@ impl Drafts {
         &self.sketch_face_said
     }
 
-
     /// **The held picks' nodes, spoken again from `doc`**, the session's
     /// shown document after an operation (`SpokenNode::respoken`'s
     /// rule): a node `doc` holds takes its label now, and one it no

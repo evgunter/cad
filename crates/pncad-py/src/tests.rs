@@ -3351,9 +3351,7 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         checks_error_tag(&ChecksError::Product {
-            refusal: Some(
-                pncad::document::ProductError::EmptyProduct.into()
-            )
+            refusal: Some(pncad::document::ProductError::EmptyProduct.into())
         }),
         "product_unavailable"
     );

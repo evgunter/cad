@@ -3451,10 +3451,7 @@ mod tests {
         // backticks: a bracketed link in a `//` comment is checked by
         // nothing, so it must not wear the spelling rustdoc gates.)
         for (quiet, site) in [
-            (
-                ProductError::EmptyProduct,
-                BadgeSite::NotAFault,
-            ),
+            (ProductError::EmptyProduct, BadgeSite::NotAFault),
             (
                 ProductError::Root(NodeStanding::Failed { node }),
                 BadgeSite::FeatureTree,

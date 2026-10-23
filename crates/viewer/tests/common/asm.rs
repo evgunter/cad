@@ -104,10 +104,7 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let found = pncad::select::select(&ev, body, &sel);
     assert_eq!(found.len(), 1, "one {end:?} cap: {found:?}");
-    found
-        .into_iter()
-        .next()
-        .expect("checked non-empty")
+    found.into_iter().next().expect("checked non-empty")
 }
 
 /// Author the workspace into a fresh per-test directory and return

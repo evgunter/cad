@@ -81,13 +81,10 @@ several world placements writes exactly that list. One source needs
 7. Inline lands the copied product body; split/flatten follow.
 8. pncad, pncad-py, viewer, tour, wild; stored documents regenerated.
 
-**Progress:** (updated as commits land)
-- Steps 1–7 in editor-core src (commit a7522735). The census at a
-  `⊔` runs in the gather (product and check time), not in the wire.
-- Tests migrated to one source, `⊔`, picks; a part's name is read at
-  the instance whose copy carries it (`fixture::resolver::InPart`,
-  `fixture::Sited`). Interface-crossing rows spell their `outer` on a
-  host node: an instance's copy carries its part's names in the
-  part's id space (filed as the document-seam hazard).
-- pncad-py tags/payloads/value/select/product_memo migrated; Python
-  tests and stubs next.
+**Progress:**
+- Steps 1–8 landed. Editor-core: `⊔`, the slot, one source, the instance's one body, picks; `CopyKey`, `RoleSeg::Placed`/`InPart`, `Copies`/`KeyedCopy`, `SlotValue::Copy` and `NodeErrorKind::ProductOperand` are gone. The census runs at each `⊔`, where it is gathered: at the product, and for every `⊔` the slot does not read (`product::assemble_gathers`).
+- A `⊔` reading one body twice gathers its names as a tie (`names::repeated_member_view`), not a panic.
+- Acceptance rows for tests 19, 25 and 26: `crates/editor-core/tests/intent_dprime3_assemble_product_slot.rs`.
+- pncad, pncad-py (bindings, stubs, Python suite), viewer, tour and the guide are migrated. A test document says its product (`placing.world_product`, `fixture::world_product`).
+- Filed: `a-name-through-a-parts-assemble-moves-with-every-earlier-part-edit`, `a-boolean-over-an-assemble-cites-none-of-its-meetings`, `an-unread-body-is-no-finding`, `the-viewer-authors-no-pick`, `the-viewer-sets-no-product`, `the-pick-cross-check-cannot-tell-two-copies-of-one-body-apart`.
+- Absorbed items closed. `the-world-still-speaks-of-roots` was read and is left open with a note: the rename is a naming choice.

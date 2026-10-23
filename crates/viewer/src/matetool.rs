@@ -584,7 +584,6 @@ impl MateTool {
         crate::seats::respeak_each(&mut self.said, doc);
     }
 
-
     /// **`side`'s pick's node as a refusal says it**: by the label the
     /// tool kept, re-spoken from the shown document after every
     /// operation; as `doc` holds it only when nothing named was kept.

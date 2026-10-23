@@ -245,7 +245,10 @@ pub fn placed_read(
         ),
         tol,
     );
-    (editor_core::test_support::with_world_product(doc), placement)
+    (
+        editor_core::test_support::with_world_product(doc),
+        placement,
+    )
 }
 
 /// The copy `placement` defines, standing where its body stands in the

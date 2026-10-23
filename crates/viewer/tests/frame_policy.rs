@@ -2321,7 +2321,10 @@ fn a_twin_copys_face_wears_the_same_name() {
         .expect("no refusal")
         .expect("the left placement is hit");
     assert_eq!(left_hit.node, left);
-    assert_eq!(left_hit.name, hit.name, "the same face of the body, on the left copy");
+    assert_eq!(
+        left_hit.name, hit.name,
+        "the same face of the body, on the left copy"
+    );
     for id in drawn {
         assert_eq!(
             idpass::compare(

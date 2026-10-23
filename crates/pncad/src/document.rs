@@ -88,8 +88,8 @@
 // `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MetaVersionError, ProgramRefusal, Recorded, Recording, SlotValue, StepId,
-    StepIdFault, Took, ProductReadFault, apply, apply_replayed,
+    MaintenanceNet, MetaVersionError, ProductReadFault, ProgramRefusal, Recorded, Recording,
+    SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -113,10 +113,9 @@ pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 // instance's copy of a part's product, say) is a pick of it. A
 // placement's constraints are addressed by their `ConstraintId`.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, CountMismatch, InputFault, ListFault,
-    LoftSection, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove, TubeWindow,
-    VectorSlot,
+    Axis3, Bodies, BodyRead, ConstraintId, CountMismatch, InputFault, ListFault, LoftSection,
+    MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
+    PortKind, RecipeNodeId, SlotId, SlotKind, StationMove, TubeWindow, VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -257,8 +256,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // refusal's count can read what it was measured against.
 pub use editor_core::{
     DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, FreshEntry,
-    Pick, Select, SelectionCount, SelectionFault, UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName,
-    VarNameFault, VarNameReason, VarRef, WrittenDef,
+    Pick, Select, SelectionCount, SelectionFault, UnitSym, Var, VarDecl, VarDef, VarId, VarKind,
+    VarName, VarNameFault, VarNameReason, VarRef, WrittenDef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -372,8 +371,8 @@ pub use editor_core::ContentBits;
 // pair it is (`AtRestBy`): a mate's, or two copies' the census found
 // touching.
 pub use editor_core::{
-    AssembleGather, AtRestBy, AtRestRow, Product, ProductError, ProductErrorKind,
-    ProductRefusal, Refusal, SourceFinding, assemble_gathers, product, product_recorded,
+    AssembleGather, AtRestBy, AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal,
+    Refusal, SourceFinding, assemble_gathers, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:

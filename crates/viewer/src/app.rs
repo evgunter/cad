@@ -4821,11 +4821,7 @@ mod properties_pane_tests {
             // pose is read off its copies to place it by.
             insert(
                 &mut doc,
-                Node::place(
-                    BodyRead::plain(Operand::from(union)),
-                    world(),
-                    stand(),
-                ),
+                Node::place(BodyRead::plain(Operand::from(union)), world(), stand()),
             );
             union
         });

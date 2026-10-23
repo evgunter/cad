@@ -936,7 +936,9 @@ impl IndexedRead {
             OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
             OperandArg::Var(var) => format!("Var({})", var.0.full()),
             OperandArg::Pose(_) | OperandArg::Pick(_) => {
-                unreachable!("an indexed read is `[]` on a node or a variable, never a pose or a pick")
+                unreachable!(
+                    "an indexed read is `[]` on a node or a variable, never a pose or a pick"
+                )
             }
         };
         let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();

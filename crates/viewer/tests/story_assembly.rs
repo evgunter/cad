@@ -850,7 +850,11 @@ fn the_windmill_story() {
         "save → reopen is bit-identity on the document"
     );
     let rows = reopened.tree_rows();
-    assert_eq!(rows.len(), 5, "the whole recipe came back, the product's ⊔ with it");
+    assert_eq!(
+        rows.len(),
+        5,
+        "the whole recipe came back, the product's ⊔ with it"
+    );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

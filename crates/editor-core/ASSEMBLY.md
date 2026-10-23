@@ -48,9 +48,9 @@ numerically solved mates (SE(3) witnesses under the witness contract in
 instantiate node resolves its `DocRef` through the evaluation's
 `PartResolver` (`EvalOptions::resolver`; with none, instantiate nodes
 refuse typed), evaluates the pinned document at the ambient ε, takes its
-world (A10), one `Body` per world placement, all in one space (no body
-has world coordinates: the world sets only the coordinates export
-writes), and materializes it through `topo::transform_rigid`
+product (A10), the one `Body` its product slot reads, a `⊔`'s pieces
+side by side (no body has world coordinates: the world sets only the
+coordinates export writes), and materializes it through `topo::transform_rigid`
 (rigidity carried by the witness or decided at the door, every
 carrier re-certified) and the disjoint graft. A resolved document whose recorded ε disagrees refuses
 `ResolveFault::EpsilonSeam`. An evaluation enters each `(DocRef, ε)` it

@@ -4123,8 +4123,7 @@ fn asm_r2b_child_crossing_probe() {
     let dir = WsDir::new("asm-r2b-probe");
     let (doc_ref, body) = asm2a_part_and_body(&dir, "part.pncad", "asm-r2b-probe-part");
     // The part's product carries its faces' own names.
-    let face =
-        |cap| FaceName::new(body.cap(cap)).expect("a crossing's references are face names");
+    let face = |cap| FaceName::new(body.cap(cap)).expect("a crossing's references are face names");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
 
     // A mated pair (the minting subject), then a THIRD instance
@@ -4133,7 +4132,7 @@ fn asm_r2b_child_crossing_probe() {
     // The `outer` is this document's name for a face: the first
     // instance's end cap, the part's own name, carried by that instance's copy.
     let outer = FaceName::new((*face(CapEnd::End)).clone())
-    .expect("a crossing's references are face names");
+        .expect("a crossing's references are face names");
     let record = pncad::document::InterfaceRecord {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {
             class: ContactClass::Rest,

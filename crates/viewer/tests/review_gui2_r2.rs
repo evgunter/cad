@@ -804,7 +804,11 @@ fn two_copies_of_one_body_draw_its_names_on_their_own_nodes() {
     };
     for id in index.ids().ids() {
         if let Ok(name) = index.name_of(id) {
-            assert_eq!(index.ids_of(name).len(), 2, "{name:?} is drawn once per copy");
+            assert_eq!(
+                index.ids_of(name).len(),
+                2,
+                "{name:?} is drawn once per copy"
+            );
         }
     }
     let (left_names, right_names) = (own(left), own(right));
@@ -892,7 +896,11 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
         2,
         "the body's name is drawn once per copy"
     );
-    assert_eq!(index.ids_of_target(&face).len(), 1, "once on the picked copy");
+    assert_eq!(
+        index.ids_of_target(&face).len(),
+        1,
+        "once on the picked copy"
+    );
     assert_eq!(index.ids_of_target(&twin).len(), 1, "and once on its twin");
     let held = marks::Held {
         faces: [None, Some(&face), Some(&twin)],

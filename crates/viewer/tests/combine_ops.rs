@@ -2728,9 +2728,7 @@ fn the_part_seats_track_the_part_door() {
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
-        crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(
-            pattern,
-        ))),
+        crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(pattern))),
         tol,
     );
 
@@ -3138,9 +3136,7 @@ fn duplicating_a_several_body_value_is_refused() {
     let mut doc = session.committed_doc().clone();
     let placed = common::insert_into(
         &mut doc,
-        crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(
-            pattern,
-        ))),
+        crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(pattern))),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);

@@ -730,7 +730,6 @@ impl Tools {
         notices
     }
 
-
     /// **The open tool's held nodes, spoken again from `doc`**, the
     /// shown document after an operation (`SpokenNode::respoken`'s
     /// rule): a held node `doc` holds takes its label now, and one it
