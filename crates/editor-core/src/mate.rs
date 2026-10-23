@@ -55,9 +55,9 @@ pub mod solve;
 pub mod unobservable;
 pub(crate) mod value;
 
+pub use corner::{PinRefusal, corner_frame, corner_frame_in};
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
-pub use corner::{PinRefusal, corner_frame, corner_frame_in};
 pub use pin::{FrameMove, Placed, moved_frame, stand};
 pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach};
 pub use solve::{
@@ -1108,7 +1108,10 @@ impl crate::spoken::Say for MateFault {
                 on,
                 to
             ),
-            Self::NoChart { value, why: NoChartWhy::SlideTurnsABall } => write!(
+            Self::NoChart {
+                value,
+                why: NoChartWhy::SlideTurnsABall,
+            } => write!(
                 f,
                 "{} sets a slide beside a ball mate, which fixes every translation, so the \
                  slide could only turn the copy about the ball, and the solve does not settle \

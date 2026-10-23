@@ -6983,7 +6983,11 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
     let named: Vec<crate::mate::Coord> = kept.iter().map(|&(_, c, _)| c).collect();
     let zeros = crate::mate::pin::unnamed(residual, &named);
     let mut placeholder = (1..).map(crate::node::ConstraintId::placeholder);
-    let mut next = || placeholder.next().unwrap_or_else(|| unreachable!("the ids are endless"));
+    let mut next = || {
+        placeholder
+            .next()
+            .unwrap_or_else(|| unreachable!("the ids are endless"))
+    };
     let mut whole: Vec<Constraint<Formula>> = mates.collect();
     if let Some(mate) = added {
         whole.push(Constraint::of_mate(next(), mate));
@@ -8033,15 +8037,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
         DocEdit::RemoveConstraints {
             placement,
             constraints,
-        } => removed(rebundle(
-            doc,
-            new,
-            *placement,
-            None,
-            constraints,
-            &[],
-            tol,
-        )?),
+        } => removed(rebundle(doc, new, *placement, None, constraints, &[], tol)?),
         DocEdit::SetLabel { node, label } => {
             if !new.nodes.contains_key(node) {
                 return Err(EditError::UnknownNode {

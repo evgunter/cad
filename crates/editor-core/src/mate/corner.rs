@@ -258,4 +258,3 @@ pub fn corner_frame(
     let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
     corner_frame_in(doc, &ev, body, corner, up, toward)
 }
-

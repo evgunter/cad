@@ -22,9 +22,9 @@ use geom_core::Tol;
 use geom_core::linalg::{Point3, UnitVec3};
 use geom_core::predicate::Band;
 
+use super::MateRef;
 use super::PoseSymmetry;
 use super::coset::{Arm, directions_parallel, on_the_line, slides_along, turn_line};
-use super::MateRef;
 use crate::eval::{Evaluation, NodeResult, ValuePayload};
 use crate::node::RecipeNodeId;
 use crate::pose::{PoseDef, PoseValue};

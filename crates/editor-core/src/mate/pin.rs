@@ -88,10 +88,7 @@ impl Placed {
     #[must_use]
     pub fn bundle(self) -> Vec<super::Constraint<Formula>> {
         use crate::node::ConstraintId;
-        let mates = self
-            .mates
-            .into_iter()
-            .map(super::ConstraintKind::Mate);
+        let mates = self.mates.into_iter().map(super::ConstraintKind::Mate);
         let values = self
             .values
             .into_iter()
@@ -206,7 +203,10 @@ pub(crate) fn kept(left: SubgroupFamily, written: &[Coord]) -> Vec<bool> {
 /// kind, a definition's own, or, for a move, a flip or a carried pose,
 /// the kind of the read it keeps through its role. `None` where it
 /// reads nothing live.
-pub(crate) fn operand_kind<P>(doc: &crate::doc::Doc<P>, operand: &Operand) -> Option<crate::VarKind> {
+pub(crate) fn operand_kind<P>(
+    doc: &crate::doc::Doc<P>,
+    operand: &Operand,
+) -> Option<crate::VarKind> {
     match operand {
         Operand::Var(var) => doc.var(*var).map(crate::Var::kind),
         Operand::Pose(def) => def.kind().or_else(|| {
@@ -278,4 +278,3 @@ pub fn moved_frame(base: Operand, moves: &[FrameMove]) -> Operand {
         }))
     })
 }
-

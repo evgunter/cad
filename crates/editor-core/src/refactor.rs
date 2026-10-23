@@ -3594,10 +3594,9 @@ pub fn inline(
         .into_iter()
         .filter(|&p| part.node_space(p) == Some(VarId::WORLD))
         .collect();
-    let several_bodies = |p: RecipeNodeId| {
-        matches!(part.node(p), Some(Node::Place { shapes, .. }) if shapes.len() > 1)
-    };
-    if part_world.is_empty() || (part_world.len() > 1 && part_world.iter().any(|&p| several_bodies(p)))
+    let several_bodies = |p: RecipeNodeId| matches!(part.node(p), Some(Node::Place { shapes, .. }) if shapes.len() > 1);
+    if part_world.is_empty()
+        || (part_world.len() > 1 && part_world.iter().any(|&p| several_bodies(p)))
     {
         // A list of copies holds bodies and families, not lists: a part
         // whose world places several bodies in one placement beside
@@ -4110,6 +4109,438 @@ pub fn inline(
         space,
     })
 }
+// ---- Flatten ----
+
+/// **What [`flatten`] answers**: the document with the placement and
+/// its space gone, and the recorded edits producing it.
+#[derive(Debug, Clone)]
+pub struct FlattenOutcome {
+    /// The document after the flatten.
+    pub doc: ProfileDoc,
+    /// The recorded edits producing `doc` from the input.
+    pub edits: Vec<DocEdit<ProfileProgram>>,
+    /// The maintenance `edits` reported, net, in edit order.
+    pub maintenance: Vec<Maintenance>,
+}
+
+/// **Why a placement does not flatten** ([`flatten`]).
+#[derive(Debug)]
+pub enum FlattenError {
+    /// The id is no live node.
+    UnknownNode {
+        /// The missing id.
+        id: SpokenNode,
+    },
+    /// The node is no `Place`.
+    NotAPlacement {
+        /// The node.
+        node: SpokenNode,
+    },
+    /// Its bundle is not the identity as written, so its copy is not
+    /// its source where the source stands.
+    NotTheIdentity {
+        /// The placement.
+        placement: SpokenNode,
+    },
+    /// Its source is not in one `new_space()`: a construction's own
+    /// space, or the world, is not one a flatten removes.
+    NotANewSpace {
+        /// The placement.
+        placement: SpokenNode,
+    },
+    /// Another placement takes a source from the source's space, which
+    /// would then read the target's coordinates.
+    SpaceShared {
+        /// The placement.
+        placement: SpokenNode,
+        /// The other placement reading out of the space.
+        other: SpokenNode,
+    },
+    /// A read of the copy names no one shape it copies.
+    ReadUncarried {
+        /// The reader.
+        reader: SpokenNode,
+    },
+    /// The copy and the one shape it copies are both named, and a
+    /// variable has one name (VR2).
+    BothNamed {
+        /// The copy's name.
+        name: crate::doc::VarName,
+        /// The shape's.
+        held: crate::doc::VarName,
+    },
+    /// Replaying the constructed edits refused, typed.
+    Edit {
+        /// The refusing edit's own diagnosis.
+        error: Box<EditError>,
+    },
+}
+
+impl core::fmt::Display for FlattenError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::UnknownNode { id } => write!(
+                f,
+                "flatten: {id} is not live. {}",
+                Recourse("name a live placement")
+            ),
+            Self::NotAPlacement { node } => write!(
+                f,
+                "flatten: {node} is no placement. {}",
+                Recourse("name a placement whose bundle is the identity")
+            ),
+            Self::NotTheIdentity { placement } => write!(
+                f,
+                "flatten: {placement}'s bundle is not the identity as written, so its copy \
+                 is not its source where the source stands. {}",
+                Recourse(&format!("write {placement}'s bundle as the identity first"))
+            ),
+            Self::NotANewSpace { placement } => write!(
+                f,
+                "flatten: {placement}'s source is not in one new_space(), and only such a \
+                 space is flattened into its target. {}",
+                Recourse("keep the placement")
+            ),
+            Self::SpaceShared { placement, other } => write!(
+                f,
+                "flatten: {other} also takes a source from {placement}'s source's space, and \
+                 would read the target's coordinates once it is flattened. {}",
+                Recourse(&format!("delete or re-point {other} first"))
+            ),
+            Self::ReadUncarried { reader } => write!(
+                f,
+                "flatten: {reader} reads the copy whole or by a name of no one shape it \
+                 copies. {}",
+                Recourse(&format!(
+                    "re-point {reader} at one copy (SetParam), then flatten"
+                ))
+            ),
+            Self::BothNamed { name, held } => write!(
+                f,
+                "flatten: the copy is named {name} and the shape it copies {held}. {}",
+                Recourse(&format!("clear the name {name} (RenameVar), then flatten"))
+            ),
+            Self::Edit { error } => write!(f, "flatten: {error}"),
+        }
+    }
+}
+
+impl core::error::Error for FlattenError {}
+
+/// **Flattens an identity placement into its target** (ASSEMBLY A4):
+/// a `Place` whose bundle is the identity as written, and whose source
+/// is in a `new_space()` no other placement takes a source from. Every
+/// placement into that space is re-targeted to the placement's target,
+/// every read of the copy re-pointed to the shape it copies (a name of
+/// the copy re-anchored on the shape's), and the placement and the
+/// space deleted. Anything else refuses, typed. Inline-of-split, then
+/// this, returns the document split was given, up to minted ids and
+/// order. Pure — `doc` is untouched; it computes no frame.
+///
+/// # Errors
+///
+/// Every arm of [`FlattenError`].
+#[allow(clippy::too_many_lines)] // one linear pass per read kind, each short
+pub fn flatten(
+    doc: &ProfileDoc,
+    placement: RecipeNodeId,
+    tol: Tol,
+) -> Result<FlattenOutcome, FlattenError> {
+    let Some(node) = doc.node(placement) else {
+        return Err(FlattenError::UnknownNode {
+            id: SpokenNode::absent(placement),
+        });
+    };
+    let Node::Place {
+        shapes,
+        target,
+        constraints,
+    } = node
+    else {
+        return Err(FlattenError::NotAPlacement {
+            node: doc.spoken(placement),
+        });
+    };
+    if !crate::mate::solve::identity_bundle(doc, constraints) {
+        return Err(FlattenError::NotTheIdentity {
+            placement: doc.spoken(placement),
+        });
+    }
+    let spaces: BTreeSet<Option<VarId>> = shapes.iter().map(|s| doc.space_of(s.read)).collect();
+    let space = match spaces.into_iter().collect::<Vec<_>>().as_slice() {
+        [Some(space)]
+            if doc
+                .operation_of(*space)
+                .is_some_and(|at| matches!(doc.node(at), Some(Node::Space))) =>
+        {
+            *space
+        }
+        _ => {
+            return Err(FlattenError::NotANewSpace {
+                placement: doc.spoken(placement),
+            });
+        }
+    };
+    for other in doc.placements() {
+        if other == placement {
+            continue;
+        }
+        if let Some(Node::Place { shapes, .. }) = doc.node(other)
+            && shapes.iter().any(|s| doc.space_of(s.read) == Some(space))
+        {
+            return Err(FlattenError::SpaceShared {
+                placement: doc.spoken(placement),
+                other: doc.spoken(other),
+            });
+        }
+    }
+    let copy = doc
+        .output(placement, 0)
+        .unwrap_or_else(|| unreachable!("a placement defines its copy"));
+    let reads: Vec<VarId> = shapes.iter().map(|s| s.read).collect();
+    // The shape a name of the copy names: the one whose operation
+    // minted the name the copy wraps.
+    let shape_of = |name: &StableName| -> Option<(VarId, StableName)> {
+        let (at, of) = name.copy_of()?;
+        if at != placement {
+            return None;
+        }
+        let shape = match reads.as_slice() {
+            [one] => *one,
+            many => *many
+                .iter()
+                .find(|&&read| doc.operation_of(read) == Some(of.node))?,
+        };
+        Some((shape, of.clone()))
+    };
+    let mut current = Recording::start(doc, tol);
+    let refused = |error| FlattenError::Edit {
+        error: Box::new(error),
+    };
+    let step =
+        |current: &mut Recording<'_, ProfileProgram>,
+         edit: DocEdit<ProfileProgram>|
+         -> Result<(), FlattenError> { current.apply(edit).map(|_| ()).map_err(refused) };
+    // The placements into the space take its target.
+    for other in doc.placements() {
+        if other != placement && doc.node_space(other) == Some(space) {
+            step(
+                &mut current,
+                DocEdit::SetParam {
+                    node: other,
+                    slot: crate::SlotId::Operand(crate::OperandSlot::Space),
+                    value: crate::SlotValue::Read(crate::Operand::Var(*target)),
+                    fresh: Vec::new(),
+                },
+            )?;
+        }
+    }
+    // A selection of the copy authored afresh on the shape its names
+    // are of.
+    let reselect = |var: VarId, reader: RecipeNodeId| -> Result<crate::Operand, FlattenError> {
+        let Some(select) = doc.selection(var) else {
+            unreachable!("a selection reader reads a selection")
+        };
+        let mut body = None;
+        let mut names = Vec::with_capacity(select.names.len());
+        for name in &select.names {
+            let Some((shape, of)) = shape_of(name) else {
+                return Err(FlattenError::ReadUncarried {
+                    reader: doc.spoken(reader),
+                });
+            };
+            if body.is_some_and(|held| held != shape) {
+                return Err(FlattenError::ReadUncarried {
+                    reader: doc.spoken(reader),
+                });
+            }
+            body = Some(shape);
+            names.push(of);
+        }
+        let Some(body) = body else {
+            return Err(FlattenError::ReadUncarried {
+                reader: doc.spoken(reader),
+            });
+        };
+        Ok(crate::Operand::select(
+            crate::Operand::Var(body),
+            crate::var::Select::canonical(selection_kind(doc, var), names),
+        ))
+    };
+    let mut reauthored: BTreeMap<VarId, VarId> = BTreeMap::new();
+    for id in doc.ids() {
+        if id == placement {
+            continue;
+        }
+        let Some(reader) = doc.node(id) else { continue };
+        for (slot, var) in reader.operand_rows() {
+            let value = if let Some(leaves) = pose_leaves(doc, var) {
+                if !leaves
+                    .iter()
+                    .any(|&leaf| doc.selection(leaf).is_some_and(|s| s.body == copy))
+                {
+                    continue;
+                }
+                let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, FlattenError> {
+                    match doc.selection(leaf) {
+                        Some(select) if select.body == copy => reselect(leaf, id).map(Some),
+                        _ => Ok(None),
+                    }
+                };
+                crate::SlotValue::Read(rewritten_pose(doc, var, &mut leaf)?)
+            } else if doc.selection(var).is_some_and(|s| s.body == copy) {
+                match reauthored.get(&var) {
+                    Some(&fresh) => crate::SlotValue::Read(crate::Operand::Var(fresh)),
+                    None => crate::SlotValue::Read(reselect(var, id)?),
+                }
+            } else if var == copy {
+                let key = reader.body_read(slot).and_then(|read| read.key.clone());
+                match (reads.as_slice(), key) {
+                    ([one], None) => crate::SlotValue::Read(crate::Operand::Var(*one)),
+                    ([one], Some(key)) => crate::SlotValue::Copy {
+                        of: crate::Operand::Var(*one),
+                        key,
+                    },
+                    (_, Some(crate::CopyKey::Read(read))) if reads.contains(&read) => {
+                        crate::SlotValue::Read(crate::Operand::Var(read))
+                    }
+                    _ => {
+                        return Err(FlattenError::ReadUncarried {
+                            reader: doc.spoken(id),
+                        });
+                    }
+                }
+            } else {
+                continue;
+            };
+            step(
+                &mut current,
+                DocEdit::SetParam {
+                    node: id,
+                    slot: crate::SlotId::Operand(slot),
+                    value,
+                    fresh: Vec::new(),
+                },
+            )?;
+            if doc.selection(var).is_some_and(|s| s.body == copy) && !reauthored.contains_key(&var)
+            {
+                let fresh = read_at(current.doc(), id, slot);
+                reauthored.insert(var, fresh);
+                if let Some(name) = doc.var_name(var) {
+                    step(&mut current, DocEdit::DeleteVar { var: var.into() })?;
+                    step(
+                        &mut current,
+                        DocEdit::RenameVar {
+                            var: fresh.into(),
+                            name: Some(name.clone()),
+                        },
+                    )?;
+                }
+            }
+        }
+    }
+    // Every other carrier of a name of the copy — a selection of a body
+    // downstream of it, a payload — re-anchors on the shape's name.
+    let mut carried: Vec<StableName> = current
+        .doc()
+        .name_carriers()
+        .into_iter()
+        .map(|carrier| carrier.name().clone())
+        .filter(|name| shape_of(name).is_some())
+        .collect();
+    carried.sort();
+    carried.dedup();
+    for from in carried {
+        let Some((_, to)) = shape_of(&from) else {
+            continue;
+        };
+        let mut bodies: BTreeSet<VarId> = BTreeSet::new();
+        let mut unbodied = false;
+        for carrier in current.doc().name_carriers() {
+            if *carrier.name() != from {
+                continue;
+            }
+            match carrier {
+                NameCarrier::Select { var, .. } => {
+                    if let Some(select) = current.doc().selection(var) {
+                        bodies.insert(select.body);
+                    }
+                }
+                NameCarrier::Payload { .. } | NameCarrier::Store { .. } => unbodied = true,
+            }
+        }
+        for body in bodies.into_iter().map(Some).chain(unbodied.then_some(None)) {
+            step(
+                &mut current,
+                DocEdit::Rebind {
+                    body,
+                    from: from.clone(),
+                    to: to.clone(),
+                },
+            )?;
+        }
+    }
+    // An appearance key read in the copy re-attaches in its shape.
+    for (key, record) in current.doc().appearance().clone() {
+        if key.at != copy {
+            continue;
+        }
+        let Some((shape, name)) = shape_of(&key.name) else {
+            return Err(FlattenError::ReadUncarried {
+                reader: doc.spoken(placement),
+            });
+        };
+        reattach_appearance(
+            &mut |edit| step(&mut current, edit),
+            &key,
+            &record,
+            &crate::AppearanceKey::new(shape, name),
+        )?;
+    }
+    let renamed = match (doc.var_name(copy), reads.as_slice()) {
+        (None, _) => None,
+        (Some(name), [one]) => match doc.var_name(*one) {
+            Some(held) => {
+                return Err(FlattenError::BothNamed {
+                    name: name.clone(),
+                    held: held.clone(),
+                });
+            }
+            None => Some((name.clone(), *one)),
+        },
+        (Some(_), _) => {
+            return Err(FlattenError::ReadUncarried {
+                reader: doc.spoken(placement),
+            });
+        }
+    };
+    step(&mut current, DocEdit::DeleteNode { id: placement })?;
+    let space_node = doc
+        .operation_of(space)
+        .unwrap_or_else(|| unreachable!("a new space is a node's output"));
+    step(&mut current, DocEdit::DeleteNode { id: space_node })?;
+    if let Some((name, var)) = renamed {
+        step(
+            &mut current,
+            DocEdit::RenameVar {
+                var: var.into(),
+                name: Some(name),
+            },
+        )?;
+    }
+    let Recorded {
+        doc,
+        edits,
+        maintenance,
+        ..
+    } = current.finish().map_err(refused)?;
+    Ok(FlattenOutcome {
+        doc,
+        edits,
+        maintenance,
+    })
+}
+
 /// **A remap never changes a KIND.**
 ///
 /// [`remap_name`] rewrites a name's derivation — its minting node and

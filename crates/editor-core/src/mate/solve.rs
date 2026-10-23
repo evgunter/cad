@@ -952,10 +952,9 @@ pub(crate) fn unpinned(
 pub(crate) fn identity_bundle<P>(doc: &Doc<P>, bundle: &[super::Constraint]) -> bool {
     let defs = crate::param_source::definitions_of(doc);
     !bundle.is_empty()
-        && bundle.iter().all(|c| {
-            c.value()
-                .is_some_and(|v| written_as_zero(&defs, v.by))
-        })
+        && bundle
+            .iter()
+            .all(|c| c.value().is_some_and(|v| written_as_zero(&defs, v.by)))
 }
 
 /// **Whether `var` is defined as the lone constant `0`** — the recipe
@@ -1083,7 +1082,11 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
                 to: PoseValue::Point { position: to },
                 ..
             },
-        ] => return Ok(Folded::Chained(super::value::point_motion(*on, *to, values)?)),
+        ] => {
+            return Ok(Folded::Chained(super::value::point_motion(
+                *on, *to, values,
+            )?));
+        }
         _ => {}
     }
     let coset = fold_bundle(placement, mates).map_err(|f| fault(*f))?;
@@ -1352,7 +1355,11 @@ mod tests {
             (id(2), Equations::Mate(F::Parallel)),
         ];
         assert_eq!(verdict(&ball_and_direction), Ok(false));
-        let spun = [ball_and_direction.to_vec(), vec![value(2, Coord::Spin(TargetAxis::Z))]].concat();
+        let spun = [
+            ball_and_direction.to_vec(),
+            vec![value(2, Coord::Spin(TargetAxis::Z))],
+        ]
+        .concat();
         assert_eq!(verdict(&spun), Ok(true));
         // ... and with a slide on the direction: no repeat (in general
         // position it would fix the ball's turn), but no translation the
@@ -1512,7 +1519,11 @@ mod tests {
                 .chain((3u32..).zip(axes).map(|(k, &a)| unmated(k, Coord::Spin(a))))
                 .collect()
         };
-        assert_eq!(verdict(&chain(&[Z, X, Y])), Ok(true), "a chain pins the ball");
+        assert_eq!(
+            verdict(&chain(&[Z, X, Y])),
+            Ok(true),
+            "a chain pins the ball"
+        );
         assert_eq!(verdict(&chain(&[Z, X, Z])), Ok(true), "ZXZ is three turns");
         assert_eq!(
             verdict(&chain(&[Z, X, X])),
