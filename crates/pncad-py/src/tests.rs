@@ -870,7 +870,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         },
         &["expected_document", "found_document"],
     );
-    carries(&F::ClassNotAdmitted { mate: m(1) }, &["mate"]);
     // The arms whose payload is a NESTED refusal cross under the
     // inner refusal's own word.
     carries(
@@ -1392,38 +1391,6 @@ fn select_refusal_tags_are_stable() {
             value: f64::INFINITY,
         })),
         "invalid_value"
-    );
-}
-
-/// LIB-PYG5: `ContactClass` is `#[non_exhaustive]` kernel-side, so
-/// the Python mirror (`py/contact.rs`) is forced to carry a wildcard
-/// arm and the compile-time drift alarm is unavailable — an unknown
-/// class refuses typed (`unclassified`) at the crossing instead.
-///
-/// That forced wildcard has a cost this pin pays: a wildcarded alarm
-/// cannot fire, so the pin ENUMERATES what the mirror speaks, one line
-/// per class, and a class added to the kernel without a line here is
-/// visible as an absence in a list rather than invisible behind a
-/// wildcard.
-///
-/// It is deliberately NOT a `_ => panic!()` over the kernel enum:
-/// that would red on every downstream build the moment the kernel
-/// reserved a class, which is precisely the coupling
-/// `#[non_exhaustive]` exists to prevent. The crossing's typed
-/// refusal is the safety property; this list is the reminder.
-#[test]
-fn the_contact_class_mirror_matches_the_kernel() {
-    let spoken = |class| match class {
-        pncad::select::ContactClass::Rest => "rest",
-        pncad::select::ContactClass::Tangent => "tangent",
-        _ => "unclassified",
-    };
-    assert_eq!(spoken(pncad::select::ContactClass::Rest), "rest");
-    assert_eq!(
-        spoken(pncad::select::ContactClass::Tangent),
-        "tangent",
-        "Tangent crossed into the mirror with M9-1; a class the binding \
-         cannot name refuses typed at the crossing instead"
     );
 }
 
@@ -2141,7 +2108,6 @@ fn node_error_tags_are_the_published_words() {
         PartDepthExceeded => "part_depth_exceeded",
         PartNotEntered => "part_not_entered",
         MatePosesOfAnotherDocument => "mate_poses_of_another_document",
-        MateClassNotAdmitted => "mate_class_not_admitted",
         MateOverconstrained => "mate_overconstrained",
         MateUnpinned => "mate_unpinned",
         MateNotOnTheCopy => "mate_not_on_the_copy",
@@ -4358,49 +4324,6 @@ fn the_edit_and_snapshot_maps_agree_on_the_var_read_words() {
     );
 }
 
-/// **The class table's `no_at_rest_record` arm predicts the mint
-/// door's refusal in the mint door's own word.**
-///
-/// `ClassAdmission::NoAtRestRecord` exists to answer, before a tool
-/// commits an edit, the question `MintRefusal::NoAtRestRecord`
-/// answers after one — the kernel says so at the arm itself. So a
-/// caller that asks ahead and then reads that refusal is reading one
-/// fact, and it stays one fact only while the two maps agree word for
-/// word. That is what this row holds.
-///
-/// **What it does not hold, stated so the row is not read wider than
-/// it is.** The prediction is the arm's, not the table's: the mint
-/// door (`editor_core::assembly::mint`) refuses through
-/// a wildcard `other =>`, so `ClassAdmission::NotAdmitted` ALSO
-/// reaches the caller as `MintRefusal::NoAtRestRecord` — under a word
-/// the table did not answer. A tool matching the answer it got
-/// against the refusal it later sees is right here, silent on `mints`
-/// (which refuses nothing) and wrong on `not_admitted`. Whether that
-/// wildcard should split is a kernel question, not one this crate can
-/// pin.
-#[test]
-fn the_class_table_predicts_the_mint_refusal_in_its_own_words() {
-    use crate::tags::{class_admission_tag, mint_refusal_tag};
-    use pncad::document::{ClassAdmission, MintRefusal, RecipeNodeId};
-    use pncad::topo::ContactClass;
-
-    assert_eq!(
-        class_admission_tag(&ClassAdmission::NoAtRestRecord {
-            why: "the table's own reason"
-        }),
-        mint_refusal_tag(&MintRefusal::NoAtRestRecord {
-            mate: pncad::document::MateRef::new(
-                RecipeNodeId::new(0, 0),
-                pncad::document::ConstraintId(pncad::document::MintId::new(0, 0)),
-            ),
-            class: ContactClass::Tangent,
-            why: "the table's own reason",
-        }),
-        "the class table and the mint door have drifted apart on the refusal one \
-         exists to predict"
-    );
-}
-
 /// One row of [`TAG_INVENTORY`]: a tag function in `src/tags.rs`, and
 /// the exact vocabulary it can put on the wire.
 struct TagEntry {
@@ -4441,21 +4364,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "at_rest",
             "carried_at_rest",
-            "carried_mint_refusal",
             "own_space",
-            "uncertified",
-            "unminted_mates",
         ],
         delegates: &["product_error_tag"],
     },
     TagEntry {
         function: "attr_kind_tag",
         values: &["color", "label", "visibility"],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "attribution_tag",
-        values: &["carried_declined", "carried_refuted", "declined", "refuted"],
         delegates: &[],
     },
     TagEntry {
@@ -4650,11 +4565,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "product_unavailable",
             "root_without_value",
         ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "class_admission_tag",
-        values: &["mints", "no_at_rest_record", "not_admitted"],
         delegates: &[],
     },
     TagEntry {
@@ -5181,15 +5091,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "mint_refusal_tag",
-        values: &[
-            "mate_reference_refused",
-            "mate_unevaluated",
-            "no_at_rest_record",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
         function: "name_fault_tag",
         values: &["unlowered_name", "var_kind_mismatch"],
         delegates: &[],
@@ -5263,7 +5164,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "full_range_step",
             "instance_out_of_range",
             "loft",
-            "mate_class_not_admitted",
             "mate_kinds_differ",
             "mate_no_chart",
             "mate_not_on_the_copy",
@@ -5632,11 +5532,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "subdivision_count",
         ],
         delegates: &["expr_dimension_error_tag"],
-    },
-    TagEntry {
-        function: "refused_ref_tag",
-        values: &["ref_ambiguous"],
-        delegates: &[],
     },
     TagEntry {
         function: "replay_error_tag",
@@ -6139,9 +6034,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "unmirrored_select_tag",
-        // Twice on purpose: one word for two arms, and the multiset is
-        // what says the two are held equal here rather than by prose.
-        values: &["unclassified", "unclassified"],
+        values: &["unclassified"],
         delegates: &[],
     },
     TagEntry {
@@ -6402,7 +6295,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),
-    ("no_at_rest_record", 2),
     ("no_such_body", 2),
     ("node_failed", 2),
     ("non_finite", 5),
@@ -7679,8 +7571,7 @@ fn read_tag_table(source: &str) -> TagTable {
 /// without the binding restating a kernel enum's arm list, and a fresh
 /// raise of either class could still pass a `variant` of its own.
 /// [`crate::tags::unmirrored_select_tag`] is lower again: it makes the
-/// query door's wildcard and the contact-class crossing one word in one
-/// place, and stops there.
+/// query door's wildcard one word in one place, and stops there.
 ///
 /// **And one word is pinned by text alone**, which is the weakest
 /// arrangement and is marked as such where it lives:

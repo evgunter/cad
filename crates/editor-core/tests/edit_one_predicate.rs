@@ -578,7 +578,6 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
         serde_json::to_value(&crossing).expect("a crossing serializes"),
         serde_json::json!({
             "Mate": {
-                "class": "rest",
                 "outer": { "kind": "Face", "node": "0:0000000000000003", "path": [{ "Cap": "Start" }] },
                 "inner": { "kind": "Face", "node": "0:0000000000000005", "path": [{ "Cap": "Start" }] },
             }

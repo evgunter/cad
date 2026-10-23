@@ -196,7 +196,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             found_document: Some(*found),
             ..none
         },
-        MateFault::ClassNotAdmitted { mate } | MateFault::NotOnTheCopy { mate } => {
+        MateFault::NotOnTheCopy { mate } => {
             MateFaultPayload {
                 mate: Some(*mate),
                 ..none
