@@ -24,7 +24,7 @@
     clippy::useless_vec
 )]
 
-use crate::shared::patch::{Unmet, at_target, to_target};
+use crate::shared::patch::{Unmet, at_target, patch_net, to_target};
 use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{
@@ -370,10 +370,7 @@ fn probe(
         }
     }
     let out = nurbs_patch_face::<f64>(
-        ku,
-        kv,
-        control,
-        weights,
+        &patch_net(ku, kv, control, weights),
         {
             let (a, b) = ku.domain();
             let (c, d) = kv.domain();
@@ -874,7 +871,7 @@ fn probe_c0_kink_area() {
 /// DIAGNOSIS: is certified knot refinement exact on the two-span
 /// half-circle? Refine the HOMOGENEOUS 1-D net with the kernel's own
 /// refine_plan chain (weights-1 plans, plain lerp — exactly what
-/// refine_dir does) and compare rational curve points before/after
+/// refined_grid does) and compare rational curve points before/after
 /// with the independent evaluator.
 #[test]
 fn diag_refine_half_circle() {
@@ -961,10 +958,7 @@ fn diag_uniform_weight_twins() {
     ];
     let run = |ws: &[f64]| {
         at_target(nurbs_patch_face::<f64>(
-            &ku,
-            &kv,
-            &net,
-            ws,
+            &patch_net(&ku, &kv, &net, ws),
             (0.0, 1.0, 0.0, 1.0),
             2.0 * h + 2.0 * PI,
             0.0,
@@ -1057,10 +1051,7 @@ fn probe_interval_scalar_agrees() {
     let rect = (0.0, 1.0, 0.0, 1.0);
     let eps = Tol::witness().get().eps;
     let a = at_target(nurbs_patch_face::<f64>(
-        &ku,
-        &kv,
-        &net,
-        &weights,
+        &patch_net(&ku, &kv, &net, &weights),
         rect,
         4.0 + PI,
         0.0,
@@ -1068,10 +1059,7 @@ fn probe_interval_scalar_agrees() {
         &mut to_target(eps),
     ));
     let b = at_target(nurbs_patch_face::<Interval>(
-        &ku,
-        &kv,
-        &net,
-        &weights,
+        &patch_net(&ku, &kv, &net, &weights),
         rect,
         4.0 + PI,
         0.0,

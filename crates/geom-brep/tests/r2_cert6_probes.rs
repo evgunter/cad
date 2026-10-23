@@ -7,7 +7,7 @@
 //! fallback with zero corpus coverage).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::shared::patch::{met, to_target};
+use crate::shared::patch::{met, patch_net, to_target};
 use crate::shared::ring::p3;
 use crate::shared::tol::band;
 use geom_brep::props::quad::nurbs_patch_face;
@@ -33,10 +33,7 @@ fn r2_flat_square_perimeter_anchor() {
         }
     }
     let out = met(nurbs_patch_face::<f64>(
-        &k,
-        &k,
-        &net,
-        &[1.0; 9],
+        &patch_net(&k, &k, &net, &[1.0; 9]),
         (0.0, 1.0, 0.0, 1.0),
         4.0,
         0.0,
@@ -76,10 +73,7 @@ fn r2_collapsed_boundary_balloon_probe() {
     }
     let (a, b) = k.domain();
     let out = met(nurbs_patch_face::<f64>(
-        &k,
-        &k,
-        &net,
-        &vec![1.0; n * n],
+        &patch_net(&k, &k, &net, &vec![1.0; n * n]),
         (a, b, a, b),
         0.0,
         0.0,

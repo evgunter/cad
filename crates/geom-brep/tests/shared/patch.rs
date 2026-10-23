@@ -29,12 +29,23 @@
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{
-    FaceCutBounds, LaneEnd, LaneRun, LaneStop, QUAD_TARGET_LEN_FACTOR, mean_boundary_displacement,
-    nurbs_patch_face,
+    FaceCutBounds, LaneEnd, LaneRun, LaneStop, PatchNet, QUAD_TARGET_LEN_FACTOR,
+    mean_boundary_displacement, nurbs_patch_face,
 };
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::spline::KnotVector;
+
+/// The patch doors' checked net of a fixture's parts.
+#[allow(clippy::unwrap_used)] // a fixture whose counts disagree is a broken row
+pub(crate) fn patch_net(
+    ku: &KnotVector,
+    kv: &KnotVector,
+    control: &[[Interval; 3]],
+    weights: &[f64],
+) -> PatchNet {
+    PatchNet::new(ku.clone(), kv.clone(), control.to_vec(), weights.to_vec()).unwrap()
+}
 
 /// All basis values `N_{i,p}(t)`, seeded by a `t >= knots[n]` branch at
 /// the domain end.
@@ -396,10 +407,7 @@ pub(crate) fn face_posture(
     let (c, d) = kv.domain();
     let band = crate::shared::tol::band();
     let out = nurbs_patch_face::<f64>(
-        ku,
-        kv,
-        control,
-        weights,
+        &patch_net(ku, kv, control, weights),
         (a, b, c, d),
         perimeter,
         0.0,

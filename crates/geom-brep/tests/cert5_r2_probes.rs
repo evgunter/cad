@@ -6,7 +6,7 @@
 //! the hairline-cell hazard; two of the three now certify or refuse
 //! honestly, and the third (`knot_one_ulp_from_a_block_edge`) still
 //! carries a large width for a reason that is NOT this unit's cut
-//! rule — see `refine_dir`'s exact-equality insertion guard, measured
+//! rule — see `refined_grid`'s exact-equality insertion guard, measured
 //! and reported rather than changed here.
 //!
 //! Every probe drives the PUBLIC props door `nurbs_patch_face` and
@@ -41,7 +41,7 @@ test_utils::gated_to![
     "crates/geom-brep/tests/shared/",
 ];
 
-use crate::shared::patch::{Unmet, at_target, to_target};
+use crate::shared::patch::{Unmet, at_target, patch_net, to_target};
 
 use geom_brep::props::quad::{
     QUAD_TARGET_LEN_FACTOR, mean_boundary_displacement, nurbs_patch_face,
@@ -218,10 +218,7 @@ fn drive(
     let (ua, ub) = ku.domain();
     let (va, vb) = kv.domain();
     let out = at_target(nurbs_patch_face::<f64>(
-        ku,
-        kv,
-        control,
-        weights,
+        &patch_net(ku, kv, control, weights),
         (ua, ub, va, vb),
         0.0,
         0.0,

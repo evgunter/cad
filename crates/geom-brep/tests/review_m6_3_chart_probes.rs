@@ -11,7 +11,7 @@
     clippy::unreachable
 )]
 
-use crate::shared::patch::{met, to_target};
+use crate::shared::patch::{met, patch_net, to_target};
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use core::num::NonZeroUsize;
 use geom_core::Bounds;
@@ -266,10 +266,7 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
         }
     }
     let out = met(nurbs_patch_face::<f64>(
-        &kv,
-        &kv,
-        &control,
-        &[1.0; 16],
+        &patch_net(&kv, &kv, &control, &[1.0; 16]),
         (0.0, 1.0, 0.0, 1.0),
         4.0,
         0.0,
