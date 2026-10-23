@@ -8852,4 +8852,41 @@ mod tests {
             );
         }
     }
+    mod r2probe {
+        use super::*;
+        pub(super) fn arcs(n: usize, b: f64) -> Vec<TrimChord> {
+            // a regular n-gon of curved (degree-2) General arcs, centre (0.5,0.5), radius 0.35
+            let pts: Vec<(f64, f64)> = (0..n)
+                .map(|k| {
+                    let t = std::f64::consts::TAU * k as f64 / n as f64;
+                    (0.5 + 0.35 * t.cos(), 0.5 + 0.35 * t.sin())
+                })
+                .collect();
+            (0..n)
+                .map(|k| {
+                    let (a, c) = (pts[k], pts[(k + 1) % n]);
+                    let m = ((a.0 + c.0) / 2.0, (a.1 + c.1) / 2.0);
+                    let (dx, dy) = (m.0 - 0.5, m.1 - 0.5);
+                    let l = (dx * dx + dy * dy).sqrt();
+                    let ctl = (m.0 + b * dx / l, m.1 + b * dy / l);
+                    general(&[a, ctl, c], 0.0)
+                })
+                .collect()
+        }
+        #[test]
+        fn r2_probe_trimmed_many_arcs() {
+            let (ku, kvv, control, w) = flat_chart(1.0);
+            for n in [1usize, 3, 4, 6] {
+                for b in [0.002, 0.004, 0.008, 0.016, 0.03, 0.06] {
+                    let chords = if n == 1 {
+                        vec![iso((0.0, 0.0), (1.0, 0.0)), general(&[(1.0, 0.0), (1.0 - b, 0.5), (1.0, 1.0)], 0.0), iso((1.0,1.0),(0.0,1.0)), iso((0.0,1.0),(0.0,0.0))]
+                    } else { arcs(n, b) };
+                    let t = std::time::Instant::now();
+                    let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE);
+                    let s = match &out { Ok(o) => format!("end={:?} round={} rounds={} flux={:?}", o.end, o.round, o.rounds, (o.bounds.flux.lo(), o.bounds.flux.hi())), Err(e) => format!("ERR {e:?}") };
+                    eprintln!("R2PROBE n={n} b={b} {s} t={:?}", t.elapsed());
+                }
+            }
+        }
+    }
 }
