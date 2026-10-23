@@ -2,10 +2,11 @@
 id: main-red-the-quotient-statement-widens-two-rational-wall-volume-pads-past-their-pins
 kind: issue
 title: main red at 1e-9: cert5 blade-8 and m8_3's rational wall read a volume pad of 2.2106e-6 against the 2.0016e-6 they pin, since b0962d6af1
-status: open
+status: closed
 opened: 2026-10-22
 priority: P1
 cost: E
+closed: 2026-10-23
 ---
 
 
@@ -48,3 +49,9 @@ the cause named at the cut, and the looseness is filed. If it is not, the
 bound is tightened back. `work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`
 tables the same blade-8 pad under its own order question, and moves with
 this row's answer.
+
+## Closed
+
+This is the same red as `rational-wall-pad-pins-trail-the-quotient-statement`,
+filed on main in parallel. That row closed it by re-pinning both pads to
+2.2106e-6 (9c390fac00).
