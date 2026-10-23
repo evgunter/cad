@@ -95,19 +95,17 @@ use std::sync::Arc;
 use pncad::document::coincidence::Relation;
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord,
-    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, InlineError, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect,
-    PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis,
-    UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble, content_pin, evaluate,
-    inline, load, mixed_pins, parse_formula, product_named, run_checks, save, solve_document,
-    split, stand,
+    Assembly, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord, Dimension,
+    DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
+    InlineError, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand,
+    PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId,
+    SitedFace, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble,
+    content_pin, evaluate, inline, load, mixed_pins, parse_formula, product_named, run_checks,
+    save, solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{
-    CapEnd, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
-};
+use pncad::select::{CapEnd, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector};
 use pncad::topo::Body;
 use pncad::topo::EulerCounts;
 use pncad::topo::readback::euler_counts;
@@ -858,20 +856,14 @@ fn stand_doc(parts: &Parts, tol: Tol) -> Stand {
     let mate_1 = constrain(
         &mut doc,
         shelf_i,
-        rest(
-            plane(shelf_i, shelf_bottom),
-            plane(post_a, post_top),
-        ),
+        rest(plane(shelf_i, shelf_bottom), plane(post_a, post_top)),
         on_top(shelf_at),
         tol,
     );
     let mate_2 = constrain(
         &mut doc,
         post_b,
-        rest(
-            plane(post_b, post_top),
-            plane(shelf_i, shelf_bottom),
-        ),
+        rest(plane(post_b, post_top), plane(shelf_i, shelf_bottom)),
         under(post_b_at),
         tol,
     );
