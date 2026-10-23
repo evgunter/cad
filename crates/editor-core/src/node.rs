@@ -4001,9 +4001,7 @@ where
             continue;
         };
         out.push((seat(crate::mate::MateSide::On), mate.on.clone()));
-        if let Some(to) = mate.to.pose() {
-            out.push((seat(crate::mate::MateSide::To), to.clone()));
-        }
+        out.push((seat(crate::mate::MateSide::To), mate.to.clone()));
     }
     out
 }
@@ -4023,9 +4021,7 @@ fn side_rows_mut<S: Slot>(
             continue;
         };
         out.push((seat(crate::mate::MateSide::On), on));
-        if let Some(to) = to.pose_mut() {
-            out.push((seat(crate::mate::MateSide::To), to));
-        }
+        out.push((seat(crate::mate::MateSide::To), to));
     }
     out
 }

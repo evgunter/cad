@@ -1180,8 +1180,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // A constraint's numbers are slots, written as formulas the
         // door lowers.
         | DocEdit::AddConstraint { .. }
-        | DocEdit::AddValue { .. }
-        | DocEdit::AddValues { .. }
         | DocEdit::SetConstraints { .. }
         // A constraint's id is minted, not a float.
         | DocEdit::RemoveConstraint { .. }
@@ -2060,23 +2058,17 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 bound,
             });
         }
-        // A constraint's own admission, the one the edit door asks
+        // A mate's own admission, the one the edit door asks
         // (`mate::solve::admit_mate`), asked in THIS walk: a second
         // pass over the nodes would be a second place to forget the
-        // question. Whether the bundle fixes an equation twice is the
-        // fold's, for a state the edit doors did not see (A11 (1)).
+        // question. Whether the bundle fixes an equation twice, a
+        // value's freedom among them, is the fold's, for a state the
+        // edit doors did not see (A11 (1)).
         let bundle = crate::mate::solve::bundle_of(node).unwrap_or_default();
         for c in bundle {
+            let Some(mate) = c.mate() else { continue };
             let at = crate::mate::MateRef::new(id, c.id);
-            let admitted = match &c.kind {
-                crate::mate::ConstraintKind::Mate(mate) => {
-                    crate::mate::solve::admit_mate(doc, at, mate)
-                }
-                crate::mate::ConstraintKind::Value(value) => {
-                    crate::mate::solve::admit_value(doc, at, bundle, value)
-                }
-            };
-            if let Err(fault) = admitted {
+            if let Err(fault) = crate::mate::solve::admit_mate(doc, at, mate) {
                 return Err(SnapshotError::MateRefused {
                     node: doc.spoken(id),
                     constraint: c.id,

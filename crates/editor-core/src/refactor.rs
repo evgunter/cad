@@ -381,13 +381,9 @@ fn in_id_order(old: &[Vec<StepId>], minted: &[Vec<StepId>]) -> Vec<Vec<StepId>> 
 /// (`Doc::upstream`'s one exemption), and may read a copy inserted after
 /// its placement, so it waits for both, and every bundle pins its copy,
 /// so the placement is inserted pinned. A constraint changes no output,
-/// so no node inserted meanwhile reads it. Each constraint, authored,
-/// passes `settle` with its placement's old id, which may rewrite it or
-/// drop it (`false`), a value going with the mate it names: the one
-/// rewrite inline makes, a mate to the world moved by the instance's
-/// pose, or the part's root taking the instance's bundle in place of
-/// its own. A bundle `settle` drops whole leaves the identity bundle,
-/// for the caller to write over.
+/// so no node inserted meanwhile reads it. Every bundle crosses
+/// verbatim. A read of the source's world reads `world` in the target:
+/// the target's world for a split, the space inline mints for the part.
 ///
 /// A name the maps lack whose missing id belongs to a node still to
 /// come is a FORWARD reference (a blend selection or a frame's face rebound
@@ -405,8 +401,7 @@ fn carry<E>(
     olds: &[RecipeNodeId],
     target: &mut Recording<'_, ProfileProgram>,
     vars: &mut VarCarry<'_>,
-    fold: bool,
-    settle: impl Fn(RecipeNodeId, Option<&mut crate::mate::Mate<Formula>>, Option<&Run>) -> bool,
+    world: VarId,
     edit: impl Fn(EditError) -> E,
     miss: impl Fn(RecipeNodeId, RemapMiss) -> E,
 ) -> Result<(NodeMap, StepMap, ReadMap), E> {
@@ -414,9 +409,8 @@ fn carry<E>(
     // Each carried operation's outputs, onto the ones its insert
     // minted at the same ports: what a carried read reads.
     let mut out_map = ReadMap::new();
-    // The world's space is every document's: a target reading it reads
-    // the target's.
-    out_map.insert(VarId::WORLD, VarId::WORLD);
+    // The source's world, as the caller reads it in the target.
+    out_map.insert(VarId::WORLD, world);
     let mut step_map = StepMap::new();
     let mut bundles: Vec<(RecipeNodeId, RecipeNodeId, Vec<crate::mate::Constraint>)> = Vec::new();
     for (k, &old) in olds.iter().enumerate() {
@@ -547,30 +541,8 @@ fn carry<E>(
             bundles.push((old, new, bundle));
         }
     }
-    // The bundles, now every node is in, each as one write. A value
-    // names its mate by the mate's id as written, which the write mints
-    // ([`DocEdit::SetConstraints`]); a value of a mate `settle` dropped
-    // goes with it.
+    // The bundles, now every node is in, each as one write, verbatim.
     for (old, new, bundle) in bundles {
-        if crate::mate::solve::unmated_bundle(&bundle) && !settle(old, None, None) {
-            continue;
-        }
-        // A world read's run of written moves, folded off each source
-        // mate before it is carried (`fold`): its numbers are not
-        // carried, and `settle` moves the read by them.
-        let mut runs = BTreeMap::new();
-        let bundle: Vec<crate::mate::Constraint> = bundle
-            .into_iter()
-            .map(|mut constraint| {
-                if let Some(run) = fold
-                    .then(|| fold_world_run(source, &mut constraint))
-                    .flatten()
-                {
-                    runs.insert(constraint.id, run);
-                }
-                constraint
-            })
-            .collect();
         let whole = Node::Place {
             shapes: Vec::new(),
             target: VarId::WORLD,
@@ -587,33 +559,10 @@ fn carry<E>(
         else {
             unreachable!("a carried placement carrier stays one")
         };
-        let mut dropped = Vec::new();
-        let mut kept = Vec::new();
-        let mut kept_sources = Vec::new();
-        for (source_constraint, mut constraint) in bundle.iter().zip(authored) {
-            match &mut constraint.kind {
-                crate::mate::ConstraintKind::Mate(mate) => {
-                    if !settle(old, Some(mate), runs.get(&constraint.id)) {
-                        dropped.push(constraint.id);
-                        continue;
-                    }
-                    kept_sources.push(source_constraint);
-                }
-                crate::mate::ConstraintKind::Value(value) => {
-                    if value.mate.is_some_and(|mate| dropped.contains(&mate)) {
-                        continue;
-                    }
-                }
-            }
-            kept.push(constraint);
-        }
-        if kept.is_empty() {
-            continue;
-        }
         let record = target
             .apply_recorded(DocEdit::SetConstraints {
                 placement: new,
-                constraints: kept,
+                constraints: authored,
                 fresh: fresh.fresh.clone(),
             })
             .map_err(&edit)?;
@@ -630,36 +579,17 @@ fn carry<E>(
                     .collect()
             })
             .unwrap_or_default();
-        let reads = |mate: &crate::mate::Mate| {
-            std::iter::once(mate.on)
-                .chain(mate.to.pose().copied())
-                .collect::<Vec<_>>()
-        };
-        for (source_constraint, minted) in kept_sources.into_iter().zip(&minted) {
-            let Some(source_mate) = source_constraint.mate() else {
-                unreachable!("only a mate is kept as one")
-            };
+        let reads = |mate: &crate::mate::Mate| vec![mate.on, mate.to];
+        for (source_mate, minted) in bundle
+            .iter()
+            .filter_map(crate::mate::Constraint::mate)
+            .zip(&minted)
+        {
             name_selections(source, target, vars, reads(source_mate), reads(minted))
                 .map_err(&edit)?;
         }
     }
     Ok((node_map, step_map, out_map))
-}
-
-/// **Whether `bundle` places its copy in the world by itself**: it has
-/// mates and every one reads the world (the pin
-/// [`crate::mate::pin_at`] writes, or a plane mate and its values), or
-/// it has none and its values state the whole motion there (the
-/// identity bundle [`crate::mate::stand`] writes).
-fn places_in_the_world(bundle: &[crate::mate::Constraint]) -> bool {
-    let mut mates = bundle
-        .iter()
-        .filter_map(crate::mate::Constraint::mate)
-        .peekable();
-    match mates.peek() {
-        None => crate::mate::solve::unmated_bundle(bundle),
-        Some(_) => mates.all(|mate| matches!(mate.to, crate::mate::Target::World(_))),
-    }
 }
 
 /// **`node` remapped for the target, with each selection it reads
@@ -1257,11 +1187,6 @@ pub enum Uncarried {
         /// How many.
         count: usize,
     },
-    /// The one body standing where it did is named already.
-    HeirNamed {
-        /// That name.
-        held: crate::doc::VarName,
-    },
     /// Its one placement holds a pose of its own, so what stood where
     /// the read did is that placement's copy, moved.
     Posed {
@@ -1271,13 +1196,6 @@ pub enum Uncarried {
     /// The copy is in a space other than the world, which a part does
     /// not deliver.
     OtherSpace {
-        /// The placement, spoken from the document that holds it.
-        placement: SpokenNode,
-    },
-    /// The one placement on the world copies recipe content, which no
-    /// bundle of an instance's faces may move onto (the B4 interim,
-    /// `work/intent/the-solve-reads-a-face-only-of-an-instance.md`).
-    NotAnInstance {
         /// The placement, spoken from the document that holds it.
         placement: SpokenNode,
     },
@@ -1295,9 +1213,6 @@ impl core::fmt::Display for Uncarried {
                 f,
                 "the world in question places {count} copies, so no one copy stands where it did"
             ),
-            Self::HeirNamed { held } => {
-                write!(f, "the copy standing where it did is named {held} already")
-            }
             Self::Posed { placement } => write!(
                 f,
                 "{placement} places it at a pose of its own, so what stands where it did is a \
@@ -1307,11 +1222,6 @@ impl core::fmt::Display for Uncarried {
                 f,
                 "{placement}'s copy is in a space other than the world, and a part delivers only \
                  its world"
-            ),
-            Self::NotAnInstance { placement } => write!(
-                f,
-                "{placement} copies recipe content rather than placing an instance, and a \
-                 face of it is not one a constraint reads yet"
             ),
             Self::NoSuchCopy { key } => write!(f, "the part delivers no copy keyed {key}"),
         }
@@ -1346,20 +1256,19 @@ pub enum InlineError {
         /// The non-instance target.
         node: SpokenNode,
     },
-    /// **The instance is placed by other constraints than one world
-    /// mate, and the part is not one instance pinned to its world at the
-    /// identity** (A4): only such a part's one placement can take the
-    /// instance's bundle and move the part's copies as the instance
-    /// moved them.
+    /// **The part's world places no list of copies** (A4): it places
+    /// none, or one of several world placements copies several bodies,
+    /// which a list of copies cannot hold as one entry until the part's
+    /// product is one body.
     UnplaceablePart {
         /// The instance.
         instance: SpokenNode,
         /// What the part's placements on its world are instead.
         why: Uncarried,
     },
-    /// **A host node reads the instance's copies, and no one copy of
-    /// the part takes the read** (A4): a whole read of the copies, or a
-    /// key the part delivers nothing at.
+    /// **A host node reads one of the instance's copies, and the new
+    /// placement keys no copy for the read** (A4): a key the part
+    /// delivers nothing at, or one inside a copy of several bodies.
     InstanceReadUncarried {
         /// The reader.
         reader: SpokenNode,
@@ -1398,15 +1307,6 @@ pub enum InlineError {
         /// The name.
         name: crate::doc::VarName,
     },
-    /// The instance's copies carry a name (VR2) and the referenced
-    /// document has no one copy to carry it onto: inline neither drops
-    /// a name nor gives a variable two.
-    InstanceOutputUncarried {
-        /// The name.
-        name: crate::doc::VarName,
-        /// Why no copy takes it.
-        why: Uncarried,
-    },
     /// The referenced document's spliced recipe reads a variable that
     /// document no longer holds (a deleted one, legal there by VR7):
     /// the host has no variable to point the reader at.
@@ -1415,49 +1315,6 @@ pub enum InlineError {
         var: SpokenVar,
         /// A node of the referenced document reading it.
         node: SpokenNode,
-    },
-    /// **The instance sits at a pose of its own and an operation of the
-    /// part reads a copy**: the part's copies would move with the pose
-    /// and its constructions, each the root of its own space (D10), would
-    /// not, so the operation would read the copy moved against them.
-    ConstructionReadsCopy {
-        /// The construction, spoken from the referenced document.
-        node: SpokenNode,
-    },
-    /// **The instance's pin reads a variable**: the part's world mates
-    /// take the motion the pin solved to as numbers, so the variable
-    /// would no longer move what it moved.
-    PinReadsVariable {
-        /// The instance.
-        instance: SpokenNode,
-        /// The variable its pin reads, boxed so the refusal stays a small
-        /// `Err`.
-        var: Box<SpokenVar>,
-    },
-    /// **A part copy's value is charted on the world the inline moves**:
-    /// a value on a mate to the part's world measures the copy from the
-    /// world's own frame, which stays where it is once the part's world
-    /// moves with the instance, so the copy would not move with it.
-    ValueOnAMovedWorld {
-        /// The part placement, spoken from the referenced document.
-        placement: SpokenNode,
-        /// The value.
-        value: crate::node::ConstraintId,
-    },
-    /// **A part copy re-pinned at its moved pose offers no frame**: its
-    /// world bundle holds numbers alone, so the landing re-pins it over
-    /// its own geometry ([`crate::mate::pin_at`]), which refused.
-    RepinRefused {
-        /// The part placement, spoken from the referenced document.
-        placement: SpokenNode,
-        /// The pin's refusal.
-        refusal: crate::mate::PinRefusal,
-    },
-    /// **The instance's pin to the world did not solve**: the motion
-    /// the part's world would move by has no value.
-    InstanceUnsolved {
-        /// The instance.
-        instance: SpokenNode,
     },
     /// A host reference names the instance's own OUTPUT BODY. The
     /// spliced recipe has no single node whose body corresponds to the
@@ -1539,12 +1396,10 @@ impl core::fmt::Display for InlineError {
             ),
             Self::UnplaceablePart { instance, why } => write!(
                 f,
-                "inline: {instance} is placed by constraints other than mates to the world, and \
-                 only a part whose world is one instance pinned at the identity takes them, \
-                 but {why}. {}",
+                "inline: {instance}'s part places no list of copies in its world: {why}. {}",
                 Recourse(&format!(
-                    "pin {instance} to the world alone, or point it (UpdateReference) at a \
-                     version whose world is one instance pinned at the identity"
+                    "point {instance} (UpdateReference) at a version whose world places its \
+                     bodies one placement each"
                 ))
             ),
             Self::InstanceReadUncarried { reader, why } => write!(
@@ -1585,11 +1440,6 @@ impl core::fmt::Display for InlineError {
                      that version (UpdateReference), then inline"
                 ))
             ),
-            Self::InstanceOutputUncarried { name, why } => write!(
-                f,
-                "inline: the instance's copies are named {name}, and {why}. {}",
-                Recourse(&format!("clear the name {name} (RenameVar), then inline"))
-            ),
             Self::VarNameConflict { name } => write!(
                 f,
                 "inline: both documents hold a variable named {name}, and the referenced \
@@ -1606,44 +1456,6 @@ impl core::fmt::Display for InlineError {
                     "in the referenced document, repoint {node}'s reader at a variable it holds \
                      or remove the reader, point this instance at that version \
                      (UpdateReference), then inline"
-                ))
-            ),
-            Self::ConstructionReadsCopy { node } => write!(
-                f,
-                "inline: the instance sits at a pose of its own, and the referenced document's \
-                 {node} reads a copy, which would move with that pose while {node} does not. {}",
-                Recourse(
-                    "pin the instance to the world at the identity, or re-point the \
-                     construction at a body, then inline"
-                )
-            ),
-            Self::PinReadsVariable { instance, var } => write!(
-                f,
-                "inline: {instance}'s pin to the world reads {var}, and once spliced its part's \
-                 world mates take the pin's motion as numbers, so {var} would move nothing. {}",
-                Recourse(&format!(
-                    "write {instance}'s pin by numbers, or keep the instance"
-                ))
-            ),
-            Self::ValueOnAMovedWorld { placement, value } => write!(
-                f,
-                "inline: {placement}'s value {value} is charted on its part's world frame, \
-                 which stays where it is when the part's world moves with the instance, so \
-                 the copy would not move with the rest. {}",
-                Recourse("inline the instance where it stands at the identity, or keep it")
-            ),
-            Self::RepinRefused { placement, refusal } => write!(
-                f,
-                "inline: {placement}'s copy lands moved with the instance, and pinning it there \
-                 over its own geometry refused: {refusal}. {}",
-                Recourse("inline the instance where it stands at the identity, or keep it")
-            ),
-            Self::InstanceUnsolved { instance } => write!(
-                f,
-                "inline: {instance}'s pin to the world did not solve, so there is no motion \
-                 to move its part's world by. {}",
-                Recourse(&format!(
-                    "evaluate the document and repair {instance}'s pin"
                 ))
             ),
             Self::InstanceBodyNameReferenced { name } => write!(
@@ -1865,7 +1677,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SpaceMismatch { .. }
             | EditError::ConstraintOnNonPlacement { .. }
             | EditError::UnknownConstraint { .. }
-            | EditError::MateNamedByValue { .. }
             | EditError::PlacementRuleMismatch { .. }
             | EditError::EmptyPlacementList { .. }
             | EditError::ImproperPlacement { .. }
@@ -1942,6 +1753,12 @@ pub struct InlineOutcome {
     /// The part's profile step ids → the ids the host minted for them,
     /// in the same order.
     pub step_map: StepMap,
+    /// The placement the instance became: the spliced copies of the
+    /// part's world placements, placed into the instance's target under
+    /// its bundle.
+    pub placement: RecipeNodeId,
+    /// The space the part's world became.
+    pub space: VarId,
 }
 
 // ---- Name and node remapping ----
@@ -2382,52 +2199,6 @@ struct VarCarry<'s> {
     map: BTreeMap<VarId, VarId>,
 }
 
-/// **Whether `var` is a number**: a constant, or an anonymous,
-/// untoleranced free value (`stand`'s, `place_at`'s and `pin_at`'s own
-/// writing) — what a re-pin may compose into a motion and write again.
-fn reads_a_number(source: &ProfileDoc, var: VarId) -> bool {
-    match source.var(var).map(crate::Var::def) {
-        Some(VarDef::Free(crate::doc::FreeVar::Continuous {
-            distribution: None, ..
-        })) => source.var_name(var).is_none(),
-        Some(VarDef::Defined(_)) => source.definition_reads(var).is_empty(),
-        _ => false,
-    }
-}
-
-/// **A run of world-axis moves, as one rigid motion**: what
-/// [`fold_world_run`] takes off a part's world read.
-type Run = (geom_core::linalg::Mat3<f64>, geom_core::linalg::Vec3<f64>);
-
-/// **The run of written moves a carried world mate's read ends in,
-/// taken off it** ([`crate::mate::pin::written_moves`]): each a turn
-/// about or slide along a world axis by a number the part holds as an
-/// anonymous, untoleranced free value (`pin_at`'s and inline's own
-/// writing). `None` for a constraint that is no world mate, or whose
-/// read ends in no such move.
-fn fold_world_run(source: &ProfileDoc, constraint: &mut crate::mate::Constraint) -> Option<Run> {
-    let crate::mate::ConstraintKind::Mate(mate) = &mut constraint.kind else {
-        return None;
-    };
-    let crate::mate::Target::World(world) = &mut mate.to else {
-        return None;
-    };
-    let number = |&var: &VarId| match source.var(var).map(crate::Var::def) {
-        Some(VarDef::Free(crate::doc::FreeVar::Continuous {
-            value,
-            distribution: None,
-            ..
-        })) if source.var_name(var).is_none() => Some(*value),
-        _ => None,
-    };
-    let before = world.depth();
-    let (base, linear, translation) =
-        crate::mate::pin::written_moves(std::mem::replace(world, crate::WorldRead::Frame), number);
-    let peeled = base.depth() < before;
-    *world = base;
-    peeled.then_some((linear, translation))
-}
-
 /// One carried edit's variables: the fresh table it carries and the
 /// source variable each entry stands for.
 struct Carried {
@@ -2709,28 +2480,6 @@ enum SourceKey {
     /// A read of one copy of a cut placement's copies, keyed as the
     /// source keys it.
     Keyed(crate::CopyKey),
-}
-
-/// **The numbers `placement` is pinned to the world by**, when its
-/// bundle places it in the world by numbers of the world's own
-/// ([`places_in_the_world`]): each world read's scalars and each
-/// value's, as slots. `None` for a placement whose target is not the
-/// world, or one with a mate on another target.
-fn world_pin_of<P>(doc: &Doc<P>, placement: RecipeNodeId) -> Option<Vec<(crate::SlotId, VarId)>> {
-    use crate::mate::BundleRows;
-    let node = doc.node(placement)?;
-    let bundle = crate::mate::solve::bundle_of(node)?;
-    if doc.node_space(placement) != Some(VarId::WORLD) || !places_in_the_world(bundle) {
-        return None;
-    }
-    Some(
-        bundle
-            .to_vec()
-            .rows()
-            .into_iter()
-            .map(|(slot, &var)| (slot, var))
-            .collect(),
-    )
 }
 
 /// Cuts `cut` out of `doc` into a new document under `part_id` (the
@@ -3071,48 +2820,6 @@ pub fn split(
             }
         }
     }
-    // A value is charted on its mate's target body's own frame: a kept
-    // mate whose values read a cut copy keeps their meaning across the
-    // seam only where that copy stands at the identity, since the
-    // instance's frame is the part's world.
-    for &(reader, slot, _) in &crossing_poses {
-        let crate::OperandSlot::Side {
-            constraint,
-            side: crate::mate::MateSide::To,
-        } = slot
-        else {
-            continue;
-        };
-        let valued = doc
-            .node(reader)
-            .and_then(crate::mate::solve::bundle_of)
-            .is_some_and(|bundle| {
-                bundle
-                    .iter()
-                    .any(|c| c.value().is_some_and(|v| v.mate == Some(constraint)))
-            });
-        if !valued {
-            continue;
-        }
-        for &(_, leaf) in crossing_leaves.iter().filter(|&&(at, _)| at == reader) {
-            let Some(select) = doc.selection(leaf) else {
-                continue;
-            };
-            let body = doc.operation_of(select.body);
-            for name in &select.names {
-                if let Some((placement, _)) = home(name, body)
-                    && !places_at_identity(placement)
-                {
-                    return Err(SplitError::RemainderReadUncarried {
-                        reader: doc.spoken(reader),
-                        why: Uncarried::Posed {
-                            placement: doc.spoken(placement),
-                        },
-                    });
-                }
-            }
-        }
-    }
     // Every walk over the cut below reads it in document order, so the
     // node a refusal names is the one the author placed first.
     let in_order: Vec<RecipeNodeId> = doc
@@ -3307,8 +3014,7 @@ pub fn split(
         &in_order,
         &mut part,
         &mut vars,
-        false,
-        |_, _, _| true,
+        VarId::WORLD,
         part_refused,
         |old, miss| match miss {
             RemapMiss::Input(input) => SplitError::PartEdit {
@@ -3801,42 +3507,37 @@ fn read_at<P: crate::ProfilePayload>(
 }
 // ---- Inline ----
 
-/// **How an inlined part's placements land in the host** (A4).
-enum Landing {
-    /// The instance was pinned to the world, solved to this motion
-    /// (`None` the identity): each part constraint on the world is moved
-    /// by it, and every other lands as it is.
-    Pinned(Option<geom_core::linalg::Affine3<f64>>),
-    /// The instance was placed by other constraints: the part's one
-    /// placement on the world, pinned there at the identity and itself
-    /// an instance, takes the instance's bundle in place of its own pin.
-    Root(RecipeNodeId),
-}
-
-/// Splices the document `instance` references into `doc` and deletes
-/// the instance — the inverse of [`split`] (D-3). The pin resolves
-/// through `resolver` (a stale pin is the resolver's typed
-/// `PinMismatch`, never a silent retarget); ids remap into fresh host
-/// mints in the part's document order; `InPart`-wrapped names at the
-/// instance re-anchor to the spliced local names; the part's
-/// placements land where the instance put them ([`Landing`]), and no
-/// frame is computed (A4). Pure — `doc` is untouched; undo is keeping
-/// it.
+/// Splices the document `instance` references into `doc` and rewrites
+/// the instance as a placement — the inverse of [`split`], by one rule
+/// (ASSEMBLY A4). It mints a `new_space()`, copies the part's nodes into
+/// the host verbatim with the part's world read as that space, and
+/// writes one [`Node::Place`] of the spliced copies of the part's world
+/// placements, as a list, into the instance's target under the
+/// instance's own bundle, verbatim; the instance is deleted. No motion
+/// is composed, every variable keeps driving its copy, and no landing
+/// refuses for its numbers. The pin resolves through `resolver` (a
+/// stale pin is the resolver's typed `PinMismatch`, never a silent
+/// retarget); ids remap into fresh host mints in the part's document
+/// order. Every host read of the instance's copies reads the new
+/// placement's, a selection of them authored afresh there with each
+/// `InPart`-wrapped name re-anchored onto the placement's copy, and a
+/// side of the instance's own bundle reads the spliced copy it stood
+/// on. Pure — `doc` is untouched; undo is keeping it.
 ///
 /// The instance's INTERFACE RECORD dissolves here (ASM-R2b D-4, the
 /// inverse of split's populate): each crossing's part-side reference
-/// is re-anchored to the local name the splice minted, which is
-/// exactly what the wrapped-name rebind below does to the constraint
-/// that declared it — so once every crossing's inner name is confirmed
-/// to land locally, the record has no remaining content and goes with
-/// the deleted instance. Confirmed, not assumed: a crossing that does
-/// not re-anchor refuses [`InlineError::StrandedPartName`] rather than
-/// being dropped with the node.
+/// re-anchors onto the spliced copy, which is exactly what the
+/// wrapped-name rebind below does to the constraint that declared it —
+/// so once every crossing's inner name is confirmed to land locally,
+/// the record has no remaining content and goes with the deleted
+/// instance. Confirmed, not assumed: a crossing that does not re-anchor
+/// refuses [`InlineError::StrandedPartName`] rather than being dropped
+/// with the node.
 ///
 /// # Errors
 ///
 /// Every arm of [`InlineError`].
-#[allow(clippy::too_many_lines)] // one linear pass per D-3 rule, each short
+#[allow(clippy::too_many_lines)] // one linear pass per A4 rule, each short
 pub fn inline(
     doc: &ProfileDoc,
     instance: RecipeNodeId,
@@ -3851,7 +3552,7 @@ pub fn inline(
     let Node::InstantiatePart {
         doc_ref,
         interface,
-        target: _,
+        target,
         constraints: bundle,
     } = node
     else {
@@ -3873,8 +3574,7 @@ pub fn inline(
         return Err(InlineError::PartCarriesMetadata { key: key.clone() });
     }
     // A spliced reader of a variable the part no longer holds has
-    // nothing to be re-pointed at, and refuses here, at this door, before
-    // anything asks the part's evaluation, which it leaves without one.
+    // nothing to be re-pointed at, and refuses here, at this door.
     for id in part.ids() {
         let Some(node) = part.node(id) else { continue };
         if let Some(var) = node_var_reads(&part, node)
@@ -3887,200 +3587,37 @@ pub fn inline(
             });
         }
     }
-    // The part's world copies: what the instance's copies are.
-    let opts = crate::eval::EvalOptions {
-        resolver: Some(std::sync::Arc::clone(resolver)),
-        ..crate::eval::EvalOptions::default()
-    };
-    let part_poses = crate::mate::solve_document(&part, &opts, tol);
-    // Whether a part copy stands where its body did: its bundle is the
-    // identity bundle, read off the recipe.
-    let places_at_identity = |placement: RecipeNodeId| part_poses.at_identity(placement);
-    let in_world = |p: RecipeNodeId| part.node_space(p) == Some(VarId::WORLD);
+    // The part's world placements, in its document order: what the
+    // instance copies, and what the new placement copies, as a list.
     let part_world: Vec<RecipeNodeId> = part
         .placements()
         .into_iter()
-        .filter(|&p| in_world(p))
+        .filter(|&p| part.node_space(p) == Some(VarId::WORLD))
         .collect();
-    // A placement into the world whose values chart on the world's axes
-    // or whose mates read the world: what a move of the part's world
-    // moves.
-    let reads_world = |p: RecipeNodeId| {
-        in_world(p)
-            && part
-                .node(p)
-                .and_then(crate::mate::solve::bundle_of)
-                .is_some_and(|bundle| {
-                    crate::mate::solve::unmated_bundle(bundle)
-                        || bundle.iter().any(crate::mate::Constraint::reads_world)
-                })
+    let several_bodies = |p: RecipeNodeId| {
+        matches!(part.node(p), Some(Node::Place { shapes, .. }) if shapes.len() > 1)
     };
-    // Where the part's placements land (A4). A pin's numbers are the
-    // motion it solved to: one that reads a variable would lose it once
-    // the part's world mates carry the motion, and refuses.
-    let landing = match world_pin_of(doc, instance) {
-        Some(numbers) => {
-            for (slot, scalar) in numbers {
-                let written = doc.written(&crate::expr::Expr::var(scalar, slot.expr_dimension()));
-                let (mut ids, mut names) = (Vec::new(), Vec::new());
-                written.var_reads(&mut ids);
-                written.named_reads(&mut names);
-                if let Some(&(var, _)) = ids.first() {
-                    return Err(InlineError::PinReadsVariable {
-                        instance: doc.spoken(instance),
-                        var: Box::new(doc.spoken_var(var)),
-                    });
-                }
-                debug_assert!(names.is_empty(), "a stored formula reads by id");
-            }
-            let host = crate::mate::solve_document(doc, &opts, tol);
-            if host.at_identity(instance) {
-                Landing::Pinned(None)
-            } else if host.space(instance) == Some(VarId::WORLD)
-                && let Some(motion) = host.relative_map(instance)
-            {
-                Landing::Pinned(Some(motion))
-            } else {
-                return Err(InlineError::InstanceUnsolved {
-                    instance: doc.spoken(instance),
-                });
-            }
-        }
-        None => {
-            let on_world: Vec<RecipeNodeId> = part
-                .placements()
-                .into_iter()
-                .filter(|&p| reads_world(p))
-                .collect();
-            match on_world.as_slice() {
-                [root]
-                    if places_at_identity(*root)
-                        && matches!(part.node(*root), Some(Node::InstantiatePart { .. })) =>
-                {
-                    Landing::Root(*root)
-                }
-                [root] => {
-                    return Err(InlineError::UnplaceablePart {
-                        instance: doc.spoken(instance),
-                        why: if places_at_identity(*root) {
-                            Uncarried::NotAnInstance {
-                                placement: part.spoken(*root),
-                            }
-                        } else {
-                            Uncarried::Posed {
-                                placement: part.spoken(*root),
-                            }
-                        },
-                    });
-                }
-                many => {
-                    return Err(InlineError::UnplaceablePart {
-                        instance: doc.spoken(instance),
-                        why: Uncarried::Bodies { count: many.len() },
-                    });
-                }
-            }
-        }
-    };
-    // The part placements re-pinned where the landing moves them: their
-    // world bundle holds numbers alone, so the copy's pose is one rigid
-    // motion the pin writes again, composed after the landing's.
-    let mut repinned: BTreeMap<RecipeNodeId, geom_core::linalg::Affine3<f64>> = BTreeMap::new();
-    if let Landing::Pinned(Some(motion)) = &landing {
-        // A value is charted on the world's own frame, which the move
-        // leaves where it is: the copy would land where its numbers say
-        // in the host's world, not moved with the rest. A bundle of
-        // numbers is pinned again at its copy's moved pose; one reading
-        // a variable cannot be, and refuses.
-        for placement in part.placements() {
-            let Some(node) = part.node(placement) else {
-                continue;
-            };
-            let Some(bundle) = crate::mate::solve::bundle_of(node) else {
-                continue;
-            };
-            let on_world = |id: crate::node::ConstraintId| {
-                bundle
-                    .iter()
-                    .any(|c| c.id == id && c.mate().is_some() && c.reads_world())
-            };
-            // A value naming no mate is charted on the world's own axes.
-            let Some(value) = bundle
-                .iter()
-                .find(|c| c.value().is_some_and(|v| v.mate.is_none_or(on_world)))
-            else {
-                continue;
-            };
-            let numbers_only = node
-                .rows()
-                .into_iter()
-                .filter(|(slot, _)| slot.is_value() || slot.is_world_read_step())
-                .all(|(_, &var)| reads_a_number(&part, var));
-            match part_poses.relative_map(placement) {
-                Some(at) if numbers_only => {
-                    repinned.insert(placement, *motion * at);
-                }
-                _ => {
-                    return Err(InlineError::ValueOnAMovedWorld {
-                        placement: part.spoken(placement),
-                        value: value.id,
-                    });
-                }
-            }
-        }
-        // The part's world moves and its constructions, each in a space
-        // of its own, do not: an operation reading a world copy would
-        // read it moved against them. A copy in another space is not
-        // moved, so reading it is not refused.
-        for id in part.ids() {
-            let Some(node) = part.node(id) else { continue };
-            if matches!(
-                node,
-                Node::Place { .. }
-                    | Node::InstantiatePart { .. }
-                    | Node::World
-                    | Node::Space
-                    | Node::Measure { .. }
-                    | Node::Assertion { .. }
-            ) {
-                continue;
-            }
-            if part.upstream_of(id, node).into_iter().any(|input| {
-                matches!(
-                    part.node(input),
-                    Some(Node::Place { .. } | Node::InstantiatePart { .. })
-                ) && in_world(input)
-            }) {
-                return Err(InlineError::ConstructionReadsCopy {
-                    node: part.spoken(id),
-                });
-            }
-        }
+    if part_world.is_empty() || (part_world.len() > 1 && part_world.iter().any(|&p| several_bodies(p)))
+    {
+        // A list of copies holds bodies and families, not lists: a part
+        // whose world places several bodies in one placement beside
+        // another has no list of copies to place until its product is
+        // one body.
+        return Err(InlineError::UnplaceablePart {
+            instance: doc.spoken(instance),
+            why: Uncarried::Bodies {
+                count: part_world.len(),
+            },
+        });
     }
-    // Whether a part copy stands where the instance put the body it
-    // copies: landing verbatim at the identity, its placement pinned
-    // there too, over one shape already in the world, so a reader of
-    // the copy reads that shape. A construction's body is in a space of
-    // its own, so a copy of one is read as the copy.
-    let verbatim = matches!(&landing, Landing::Pinned(None));
-    let raw = |placement: RecipeNodeId| {
-        verbatim
-            && places_at_identity(placement)
-            && matches!(part.node(placement), Some(Node::Place { shapes, .. })
-                if matches!(shapes.as_slice(), [shape]
-                    if part.space_of(shape.read) == Some(VarId::WORLD)))
-    };
-    // The instance's readers (A4, A10): every operand of the host that
-    // reads its copies, whole, one copy by its key, or a selection of
-    // a face of it; and the sides of the host's constraints, which are
-    // selections. A whole read has no one body to read once the copies
-    // are the part's placements, and refuses.
     let copies = doc
         .output(instance, 0)
         .unwrap_or_else(|| unreachable!("an instance defines its copies"));
+    // The instance's readers: every operand of the host that reads its
+    // copies, whole, one copy by its key, or a selection of a face of
+    // them; and every pose read at a seat (a mate's side) reaching a
+    // selection of them, written afresh over the new placement's copy.
     let mut readers: Vec<(RecipeNodeId, crate::OperandSlot, VarId)> = Vec::new();
-    // A pose read at a seat (a mate's side) that reads a selection of
-    // the copies in it is written afresh over the spliced copies.
     let mut pose_readers: Vec<(RecipeNodeId, crate::OperandSlot, VarId)> = Vec::new();
     for id in doc.ids() {
         if id == instance {
@@ -4089,14 +3626,6 @@ pub fn inline(
         let Some(reader) = doc.node(id) else { continue };
         for (slot, var) in reader.operand_rows() {
             if let Some(leaves) = pose_leaves(doc, var) {
-                if leaves.contains(&copies) {
-                    return Err(InlineError::InstanceReadUncarried {
-                        reader: doc.spoken(id),
-                        why: Uncarried::Bodies {
-                            count: part_world.len(),
-                        },
-                    });
-                }
                 if leaves
                     .iter()
                     .any(|&leaf| doc.selection(leaf).is_some_and(|s| s.body == copies))
@@ -4106,20 +3635,9 @@ pub fn inline(
                 continue;
             }
             let body = doc.selection(var).map_or(var, |select| select.body);
-            if body != copies {
-                continue;
+            if body == copies {
+                readers.push((id, slot, var));
             }
-            if doc.selection(var).is_none()
-                && reader.body_read(slot).is_none_or(|read| read.key.is_none())
-            {
-                return Err(InlineError::InstanceReadUncarried {
-                    reader: doc.spoken(id),
-                    why: Uncarried::Bodies {
-                        count: part_world.len(),
-                    },
-                });
-            }
-            readers.push((id, slot, var));
         }
     }
     // Host references deriving from the instance must be exactly the
@@ -4150,20 +3668,6 @@ pub fn inline(
     }
     wrapped.sort();
     wrapped.dedup();
-    // The part copy a selection of the instance's copies lands on: the
-    // one placement all its names are under.
-    let landing_copy = |var: VarId| -> Option<RecipeNodeId> {
-        let select = doc.selection(var)?;
-        let mut placements = select
-            .names
-            .iter()
-            .filter_map(|name| match name.path.as_slice() {
-                [RoleSeg::InPart { of }] if name.node == instance => Some(of.node),
-                _ => None,
-            });
-        let first = placements.next()?;
-        placements.all(|p| p == first).then_some(first)
-    };
     let mut current = Recording::start(doc, tol);
     let refused = |error| InlineError::Edit {
         error: Box::new(error),
@@ -4171,6 +3675,17 @@ pub fn inline(
     let step = |current: &mut Recording<'_, ProfileProgram>,
                 edit: DocEdit<ProfileProgram>|
      -> Result<(), InlineError> { current.apply(edit).map(|_| ()).map_err(refused) };
+    // The part's world, minted afresh in the host.
+    let space = current
+        .apply_recorded(DocEdit::InsertNode {
+            node: Box::new(Node::Space),
+            fresh: Vec::new(),
+        })
+        .map_err(refused)?
+        .outputs
+        .first()
+        .copied()
+        .unwrap_or_else(|| unreachable!("a space defines its space"));
     // Every part variable crosses as an id the host mints, never one
     // it holds: a named one declared here, refusing a name the host
     // holds whatever either's value; an anonymous one with the first
@@ -4190,40 +3705,9 @@ pub fn inline(
         vars.declare(&mut current, id, name.clone())
             .map_err(refused)?;
     }
-    // A name on the instance's copies moves onto the one copy of the
-    // part, where the part has one: the body it copies, landing
-    // verbatim, else the copy.
-    let heir_of_name = match doc.var_name(copies) {
-        None => None,
-        Some(name) => {
-            let [placement] = part_world.as_slice() else {
-                return Err(InlineError::InstanceOutputUncarried {
-                    name: name.clone(),
-                    why: Uncarried::Bodies {
-                        count: part_world.len(),
-                    },
-                });
-            };
-            let held = match part.node(*placement) {
-                Some(Node::Place { shapes, .. }) if raw(*placement) => {
-                    shapes.first().and_then(|s| part.var_name(s.read))
-                }
-                _ => part
-                    .output(*placement, 0)
-                    .and_then(|copy| part.var_name(copy)),
-            };
-            if let Some(held) = held {
-                return Err(InlineError::InstanceOutputUncarried {
-                    name: name.clone(),
-                    why: Uncarried::HeirNamed { held: held.clone() },
-                });
-            }
-            Some((name.clone(), *placement))
-        }
-    };
     // The part's nodes in its document order, each under the id the
-    // host's insert door mints for it, the world aside: the host's is
-    // the part's.
+    // host's insert door mints for it, the world aside: the part's world
+    // is the space just minted.
     let carried: Vec<RecipeNodeId> = part
         .ids()
         .into_iter()
@@ -4234,41 +3718,7 @@ pub fn inline(
         &carried,
         &mut current,
         &mut vars,
-        // Under a moved landing a world read's run of written moves is
-        // folded into the motion, so a part inlined into a part inlined
-        // in turn holds one run, not one per level.
-        matches!(landing, Landing::Pinned(Some(_))),
-        |old, mate, run| match &landing {
-            // The root's own pin goes: the instance's bundle takes its
-            // place below.
-            Landing::Root(root) => old != *root,
-            // A re-pinned placement's bundle goes: its pin is written
-            // again below.
-            Landing::Pinned(Some(_)) if repinned.contains_key(&old) => false,
-            // A constraint on the part's world is one on the host's
-            // world, moved by the instance's pose, composed after the
-            // run its read was folded off.
-            Landing::Pinned(motion) => {
-                if let (
-                    Some(motion),
-                    Some(crate::mate::Mate {
-                        to: crate::mate::Target::World(world),
-                        ..
-                    }),
-                ) = (motion, mate)
-                {
-                    let (linear, translation) = match run {
-                        Some((held, at)) => (
-                            motion.linear * *held,
-                            motion.linear * *at + motion.translation,
-                        ),
-                        None => (motion.linear, motion.translation),
-                    };
-                    *world = crate::mate::pin::moved_by(world.clone(), linear, translation);
-                }
-                true
-            }
-        },
+        space,
         refused,
         |old, miss| match miss {
             RemapMiss::Input(input) => InlineError::Edit {
@@ -4292,59 +3742,104 @@ pub fn inline(
             RemapMiss::Name { name, missing } => InlineError::stranded(&part, &name, missing),
         },
     )?;
-    for (old, at) in &repinned {
-        let placement = node_map[old];
-        // The copy as the placement's constraints read it: a `Place`
-        // through its one shape, an instance through its own copies.
-        let copy = match current.doc().node(placement) {
-            Some(Node::Place { shapes, .. }) => crate::Operand::Var(shapes[0].read),
-            Some(Node::InstantiatePart { .. }) => crate::Operand::Var(
-                current
-                    .doc()
-                    .output(placement, 0)
-                    .unwrap_or_else(|| unreachable!("an instance defines its copies")),
-            ),
-            _ => unreachable!("a re-pinned part placement is carried as a placement"),
-        };
-        let mate = crate::mate::pin_at(
-            current.doc(),
-            &copy,
-            &crate::placement::Frame::from_affine(*at),
-            &opts,
-            tol,
-        )
-        .map_err(|refusal| InlineError::RepinRefused {
-            placement: part.spoken(*old),
-            refusal,
-        })?;
-        current
-            .apply_recorded(DocEdit::SetConstraints {
-                placement,
-                constraints: vec![crate::mate::Constraint::of_mate(
-                    crate::node::ConstraintId::placeholder(1),
-                    mate,
-                )],
-                fresh: Vec::new(),
-            })
-            .map_err(|error| InlineError::Edit {
-                error: Box::new(error),
-            })?;
-    }
-    // A name of the part's product (a copy's name, under its placement)
-    // as the host spells it once the instance is gone: the body's own
-    // name where the copy stands where its body did, else the carried
-    // copy's.
+    // The spliced copy of each part world placement, in order.
+    let spliced_of: BTreeMap<RecipeNodeId, VarId> = part_world
+        .iter()
+        .map(|&p| {
+            let copy = node_map
+                .get(&p)
+                .and_then(|&at| current.doc().output(at, 0))
+                .unwrap_or_else(|| {
+                    unreachable!("a part placement is carried and defines its copy")
+                });
+            (p, copy)
+        })
+        .collect();
+    let spliced = |p: RecipeNodeId| spliced_of[&p];
+    let shapes: Vec<VarId> = part_world.iter().map(|&p| spliced(p)).collect();
+    // A name of the part's product (a copy's name, under its world
+    // placement) as the spliced copy spells it.
     let to_host = |of: &StableName| -> Result<StableName, InlineError> {
-        if let Some((placement, inner)) = of.copy_of()
-            && raw(placement)
-        {
-            return remap_name(inner, &node_map, &step_map, &read_map)
-                .map_err(|missing| InlineError::stranded(&part, inner, missing));
-        }
         remap_name(of, &node_map, &step_map, &read_map)
             .map_err(|missing| InlineError::stranded(&part, of, missing))
     };
-    // The inverse of the bridge: wrapped names re-anchor to local.
+    // The part copy a selection of the instance's copies lands on: the
+    // one world placement all its names are under.
+    let landing_copy = |var: VarId| -> Option<RecipeNodeId> {
+        let select = doc.selection(var)?;
+        let mut placements = select
+            .names
+            .iter()
+            .filter_map(|name| match name.path.as_slice() {
+                [RoleSeg::InPart { of }] if name.node == instance => Some(of.node),
+                _ => None,
+            });
+        let first = placements.next()?;
+        placements.all(|p| p == first).then_some(first)
+    };
+    // The instance's bundle, its own side read off the spliced copy it
+    // stood on: each selection of the instance's copies authored afresh
+    // over that copy, every other read kept.
+    let host_vars = VarCarry::new(doc);
+    let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
+    for side in bundle
+        .iter()
+        .filter_map(crate::mate::Constraint::mate)
+        .map(|mate| mate.on)
+    {
+        if doc.var_name(side).is_some() || pose_leaves(doc, side).is_none() {
+            continue;
+        }
+        let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, InlineError> {
+            let Some(select) = doc.selection(leaf).filter(|s| s.body == copies) else {
+                return Ok(None);
+            };
+            let reader = || doc.spoken(instance);
+            let placement =
+                landing_copy(leaf).ok_or_else(|| InlineError::InstanceReadUncarried {
+                    reader: reader(),
+                    why: Uncarried::Bodies {
+                        count: part_world.len(),
+                    },
+                })?;
+            let names = select
+                .names
+                .iter()
+                .map(|name| match name.path.as_slice() {
+                    [RoleSeg::InPart { of }] => to_host(of),
+                    _ => Ok(name.clone()),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(Some(crate::Operand::select(
+                crate::Operand::Var(spliced(placement)),
+                crate::var::Select::canonical(selection_kind(doc, leaf), names),
+            )))
+        };
+        selects.insert(side, rewritten_pose(doc, side, &mut leaf)?);
+    }
+    let whole = Node::Place {
+        shapes: shapes
+            .iter()
+            .map(|&shape| crate::BodyRead::plain(shape))
+            .collect(),
+        target: *target,
+        constraints: bundle.clone(),
+    };
+    let (authored, fresh) = host_vars.author(&whole, &selects);
+    let placement = current
+        .apply_recorded(DocEdit::InsertNode {
+            node: Box::new(authored),
+            fresh: fresh.fresh,
+        })
+        .map_err(refused)?
+        .minted
+        .unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
+    let placed = current
+        .doc()
+        .output(placement, 0)
+        .unwrap_or_else(|| unreachable!("a placement defines its copy"));
+    // The inverse of the bridge: a wrapped name re-anchors onto the new
+    // placement's copy of the spliced copy it named.
     let rehost = |from: &StableName| -> Result<StableName, InlineError> {
         // The collection admitted exactly this shape; a non-match here
         // would be a collection bug, and skipping it would strand the
@@ -4354,43 +3849,35 @@ pub fn inline(
                 name: doc.spoken_name(from),
             });
         };
-        to_host(of)
+        Ok(to_host(of)?.in_copy(placement))
     };
-    // The host variable a part copy is read through once spliced, and
-    // the key of the copy within it: the body it copies, landing
-    // verbatim; a `Place`'s copies, whole over one shape, keyed by read
-    // over several; an instance's copies, keyed as they were.
-    let host_copy =
-        |host: &ProfileDoc, key: &crate::CopyKey| -> Option<(VarId, Option<crate::CopyKey>)> {
-            let crate::CopyKey::Part { placement, within } = key else {
-                return None;
-            };
-            let carried = host.output(*node_map.get(placement)?, 0)?;
-            match (part.node(*placement)?, within.as_ref()) {
-                (Node::Place { shapes, .. }, crate::CopyKey::Read(var)) => {
-                    let read = *read_map.get(var)?;
-                    if raw(*placement) {
-                        Some((read, None))
-                    } else if shapes.len() == 1 {
-                        Some((carried, None))
-                    } else {
-                        Some((carried, Some(crate::CopyKey::Read(read))))
-                    }
-                }
-                (Node::InstantiatePart { .. }, within) => Some((carried, Some(within.clone()))),
-                _ => None,
-            }
+    // The key a host read of one of the instance's copies reads the new
+    // placement's copies by: over one world placement, that placement's
+    // own copies keyed as they were; over several, the spliced copy's
+    // read, which keys a body or a family whole.
+    let host_key = |key: &crate::CopyKey| -> Option<Option<crate::CopyKey>> {
+        let crate::CopyKey::Part {
+            placement: p,
+            within,
+        } = key
+        else {
+            return None;
         };
-    // A selection's body once spliced: the copy its names land on, read
-    // as [`host_copy`] reads it.
-    let selection_body = |host: &ProfileDoc, var: VarId| -> Option<VarId> {
-        let placement = landing_copy(var)?;
-        let carried = host.output(*node_map.get(&placement)?, 0)?;
-        match part.node(placement)? {
-            Node::Place { shapes, .. } if raw(placement) => {
-                read_map.get(&shapes.first()?.read).copied()
+        if !part_world.contains(p) {
+            return None;
+        }
+        let inner = match (part.node(*p)?, within.as_ref()) {
+            (Node::Place { shapes, .. }, crate::CopyKey::Read(_)) if shapes.len() == 1 => None,
+            (Node::Place { .. }, crate::CopyKey::Read(var)) => {
+                Some(crate::CopyKey::Read(*read_map.get(var)?))
             }
-            _ => Some(carried),
+            (Node::InstantiatePart { .. }, within) => Some(within.clone()),
+            _ => return None,
+        };
+        match (part_world.len(), inner) {
+            (1, inner) => Some(inner),
+            (_, None) => Some(Some(crate::CopyKey::Read(spliced(*p)))),
+            (_, Some(_)) => None,
         }
     };
     // Witness data copies VERBATIM while ids remap — the same
@@ -4415,8 +3902,6 @@ pub fn inline(
         let name = &at.name;
         let key = remap_name(name, &node_map, &step_map, &read_map)
             .map_err(|missing| InlineError::stranded(&part, name, missing))?;
-        // The body read lands on its spliced local read, as a name's
-        // carried reads do.
         let body = read_map.get(&at.at).copied().ok_or_else(|| {
             InlineError::stranded(&part, name, RemapError::Unmapped(Unmapped::Read(at.at)))
         })?;
@@ -4443,8 +3928,8 @@ pub fn inline(
         }
     }
     // The selections of the instance's copies are authored afresh on
-    // the spliced copy below; every other carrier is repaired here, a
-    // selection of a body downstream of the instance by its body.
+    // the new placement's copy below; every other carrier is repaired
+    // here, a selection of a body downstream of the instance by its body.
     for from in &wrapped {
         let mut bodies: BTreeSet<VarId> = BTreeSet::new();
         let mut unbodied = false;
@@ -4476,35 +3961,19 @@ pub fn inline(
     }
     // The record dissolves (ASM-R2b D-4, and the function docs): every
     // crossing's part-side reference must land on a spliced local
-    // name. The declaration itself survives in the constraint, which is
-    // in the host and whose wrapped reference the loop above just
-    // re-anchored — so the record's job ends here, CHECKED.
+    // name, CHECKED.
     for crossing in &interface.crossings {
         let InterfaceCrossing::Mate { inner, .. } = crossing;
         to_host(inner)?;
     }
-    // A selection authored afresh on the spliced copy, its names
-    // re-anchored.
-    let reselect = |host: &ProfileDoc, var: VarId| -> Result<crate::Operand, InlineError> {
-        let reader = || {
-            doc.spoken(
-                readers
-                    .iter()
-                    .find(|r| r.2 == var)
-                    .map_or(instance, |r| r.0),
-            )
-        };
+    // A selection of the instance's copies authored afresh on the new
+    // placement's copy, its names re-anchored.
+    let reselect = |var: VarId| -> Result<crate::Operand, InlineError> {
         let Some(select) = doc.selection(var) else {
             unreachable!("a selection reader reads a selection")
         };
-        let body = selection_body(host, var).ok_or_else(|| InlineError::InstanceReadUncarried {
-            reader: reader(),
-            why: Uncarried::Bodies {
-                count: part_world.len(),
-            },
-        })?;
         Ok(crate::Operand::select(
-            crate::Operand::Var(body),
+            crate::Operand::Var(placed),
             crate::var::Select::canonical(
                 selection_kind(doc, var),
                 select
@@ -4521,87 +3990,34 @@ pub fn inline(
             ),
         ))
     };
-    // The root takes the instance's bundle: each constraint authored
-    // afresh on it, its own side's faces re-anchored onto the root's
-    // copy, every other read kept.
-    if let Landing::Root(root) = &landing {
-        let Some(&carried_root) = node_map.get(root) else {
-            unreachable!("the root is carried")
-        };
-        let host_vars = VarCarry::new(doc);
-        // A side on the instance's copies is reselected on the root's;
-        // an anonymous selection of another copy is authored afresh,
-        // since it has one reader and the instance still reads it until
-        // it goes; a named one is read by its name.
-        let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
-        let sides = bundle
-            .iter()
-            .filter_map(crate::mate::Constraint::mate)
-            .flat_map(|mate| std::iter::once(mate.on).chain(mate.to.pose().copied()));
-        for side in sides {
-            if doc.var_name(side).is_some() || pose_leaves(doc, side).is_none() {
-                continue;
-            }
-            let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, InlineError> {
-                match doc.selection(leaf) {
-                    Some(select) if select.body == copies => {
-                        reselect(current.doc(), leaf).map(Some)
-                    }
-                    _ => Ok(None),
-                }
-            };
-            selects.insert(side, rewritten_pose(doc, side, &mut leaf)?);
-        }
-        // The bundle as one write, each value naming its mate by the
-        // instance's id for it, which the write mints afresh.
-        let whole = Node::Place {
-            shapes: Vec::new(),
-            target: VarId::WORLD,
-            constraints: bundle.clone(),
-        };
-        let (authored, fresh) = host_vars.author(&whole, &selects);
-        let Node::Place { constraints, .. } = authored else {
-            unreachable!("a placement carrier stays one")
-        };
-        current
-            .apply_recorded(DocEdit::SetConstraints {
-                placement: carried_root,
-                constraints,
-                fresh: fresh.fresh,
-            })
-            .map_err(refused)?;
-    }
     {
         // Once per selection, as split authors them: a named one keeps
         // its name on the new variable, which every other reader reads.
         let mut reauthored: BTreeMap<VarId, VarId> = BTreeMap::new();
         for &(node, slot, var) in &readers {
-            if node == instance {
-                continue;
-            }
             let value = match (doc.selection(var), reauthored.get(&var)) {
                 (Some(_), Some(&fresh)) => crate::SlotValue::Read(crate::Operand::Var(fresh)),
-                (Some(_), None) => crate::SlotValue::Read(reselect(current.doc(), var)?),
+                (Some(_), None) => crate::SlotValue::Read(reselect(var)?),
                 (None, _) => {
-                    let Some(key) = doc
+                    match doc
                         .node(node)
                         .and_then(|n| n.body_read(slot))
                         .and_then(|read| read.key.clone())
-                    else {
-                        unreachable!("a whole reader of the copies refused above")
-                    };
-                    match host_copy(current.doc(), &key) {
-                        Some((read, None)) => crate::SlotValue::Read(crate::Operand::Var(read)),
-                        Some((read, Some(key))) => crate::SlotValue::Copy {
-                            of: crate::Operand::Var(read),
-                            key,
+                    {
+                        None => crate::SlotValue::Read(crate::Operand::Var(placed)),
+                        Some(key) => match host_key(&key) {
+                            Some(None) => crate::SlotValue::Read(crate::Operand::Var(placed)),
+                            Some(Some(key)) => crate::SlotValue::Copy {
+                                of: crate::Operand::Var(placed),
+                                key,
+                            },
+                            None => {
+                                return Err(InlineError::InstanceReadUncarried {
+                                    reader: doc.spoken(node),
+                                    why: Uncarried::NoSuchCopy { key: Box::new(key) },
+                                });
+                            }
                         },
-                        None => {
-                            return Err(InlineError::InstanceReadUncarried {
-                                reader: doc.spoken(node),
-                                why: Uncarried::NoSuchCopy { key: Box::new(key) },
-                            });
-                        }
                     }
                 }
             };
@@ -4632,9 +4048,7 @@ pub fn inline(
         for &(node, slot, var) in &pose_readers {
             let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, InlineError> {
                 match doc.selection(leaf) {
-                    Some(select) if select.body == copies => {
-                        reselect(current.doc(), leaf).map(Some)
-                    }
+                    Some(select) if select.body == copies => reselect(leaf).map(Some),
                     _ => Ok(None),
                 }
             };
@@ -4651,33 +4065,12 @@ pub fn inline(
         }
     }
     // A host appearance key read in the instance's copies is re-attached
-    // in the part's one copy, where the name on the copies goes too: a
-    // Rebind keeps a key's read, and the inline takes that read away. A
-    // part of several copies has no one body to hold it, as a whole
-    // reader of the copies has none, and refuses.
+    // in the new placement's: a Rebind keeps a key's read, and the
+    // inline takes that read away.
     for (key, record) in current.doc().appearance().clone() {
         if key.at != copies {
             continue;
         }
-        let [placement] = part_world.as_slice() else {
-            return Err(InlineError::InstanceReadUncarried {
-                reader: doc.spoken(instance),
-                why: Uncarried::Bodies {
-                    count: part_world.len(),
-                },
-            });
-        };
-        let heir = match part.node(*placement) {
-            Some(Node::Place { shapes, .. }) if raw(*placement) => {
-                shapes.first().and_then(|s| read_map.get(&s.read)).copied()
-            }
-            _ => node_map
-                .get(placement)
-                .and_then(|&p| current.doc().output(p, 0)),
-        };
-        let Some(heir) = heir else {
-            unreachable!("the part's one copy is carried, and is defined")
-        };
         let name = if wrapped.contains(&key.name) {
             rehost(&key.name)?
         } else {
@@ -4687,27 +4080,17 @@ pub fn inline(
             &mut |edit| step(&mut current, edit),
             &key,
             &record,
-            &crate::AppearanceKey::new(heir, name),
+            &crate::AppearanceKey::new(placed, name),
         )?;
     }
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
-    if let Some((name, placement)) = heir_of_name {
-        let heir = match part.node(placement) {
-            Some(Node::Place { shapes, .. }) if raw(placement) => {
-                shapes.first().and_then(|s| read_map.get(&s.read)).copied()
-            }
-            _ => node_map
-                .get(&placement)
-                .and_then(|&p| current.doc().output(p, 0)),
-        };
-        let Some(heir) = heir else {
-            unreachable!("the part's one copy is carried, and is defined")
-        };
+    // A name on the instance's copies moves onto the new placement's.
+    if let Some(name) = doc.var_name(copies) {
         step(
             &mut current,
             DocEdit::RenameVar {
-                var: heir.into(),
-                name: Some(name),
+                var: placed.into(),
+                name: Some(name.clone()),
             },
         )?;
     }
@@ -4723,6 +4106,8 @@ pub fn inline(
         maintenance,
         node_map,
         step_map,
+        placement,
+        space,
     })
 }
 /// **A remap never changes a KIND.**

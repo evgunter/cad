@@ -3,9 +3,8 @@
 //!
 //! A mate equates two poses of one kind (D10, FORK-S3M): `on`, a pose
 //! read off the copied shapes' geometry in their own coordinates, and
-//! `to`, a pose read off geometry of the space the copy joins, or the
-//! world read through the pose reads the world offers
-//! ([`WorldRead`]). The kind is the primitive: `Frame`–`Frame`
+//! `to`, a pose read off a body in the target space. A mate reads only
+//! geometry: no space has roles it can read. The kind is the primitive: `Frame`–`Frame`
 //! coincides, `Axis`–`Axis` is coaxial, `Plane`–`Plane` rests,
 //! `Point`–`Point` is a ball and `Direction`–`Direction` is parallel.
 //! A mate holds no number: its sense is a `Flip` on one side, a
@@ -14,9 +13,8 @@
 //!
 //! A copy standing where its body stands is placed by the identity
 //! bundle ([`stand`]): no mate, and the constant `0` on every freedom,
-//! so its own coordinates are the world's. A pose off the identity is
-//! pinned by a frame mate ([`pin_at`]) or placed by the gesture
-//! ([`place_at`]).
+//! so its own coordinates are its target space's. Any other bundle is
+//! the mates and moves its author wrote ([`Placed::of`]).
 //!
 //! # What a mate says, geometrically
 //!
@@ -48,7 +46,7 @@
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
 
-pub mod anchor;
+pub mod corner;
 pub mod coset;
 pub mod member;
 pub mod pin;
@@ -59,10 +57,8 @@ pub(crate) mod value;
 
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
-pub use pin::{
-    FrameMove, PinRefusal, Placed, PlacedBy, corner_frame, corner_frame_in, frame_at, frame_at_in,
-    moved_frame, pin_at, pin_at_in, place_against, place_against_in, place_at, place_at_in, stand,
-};
+pub use corner::{PinRefusal, corner_frame, corner_frame_in};
+pub use pin::{FrameMove, Placed, moved_frame, stand};
 pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach};
 pub use solve::{
     PoseRefusal, SolveScalar, SolvedPoses, mate_coset, relative_freedom_components, solve_document,
@@ -96,345 +92,19 @@ impl MateSide {
     }
 }
 
-/// **A pose of the world, read inside a mate** (spec Q7). The world
-/// defines no pose variable, so a mate's target reads it here: its
-/// frame, a role of it, and the target constructions — a slide along a
-/// direction or an axis, a spin about an axis, a flip. The read is part
-/// of the mate and nothing else can read it.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields, bound = "")]
-pub enum WorldRead<S: crate::Slot = crate::VarId> {
-    /// The world's own frame.
-    Frame,
-    /// A pose of the world read through a role its kind offers.
-    Role {
-        /// The pose read.
-        pose: Box<WorldRead<S>>,
-        /// The role.
-        role: crate::pose::PoseRole,
-    },
-    /// The pose slid along a direction by a length.
-    Slide {
-        /// The pose moved.
-        pose: Box<WorldRead<S>>,
-        /// The direction or axis it moves along.
-        along: Box<WorldRead<S>>,
-        /// How far.
-        by: S,
-    },
-    /// The pose spun about an axis by an angle, right-handed.
-    Spin {
-        /// The pose moved.
-        pose: Box<WorldRead<S>>,
-        /// The axis it turns about.
-        about: Box<WorldRead<S>>,
-        /// How far.
-        by: S,
-    },
-    /// The pose's opposite sense.
-    Flip {
-        /// The pose flipped.
-        pose: Box<WorldRead<S>>,
-    },
-}
-
-impl<S: crate::Slot> WorldRead<S> {
-    /// The world's frame read through `role`.
-    #[must_use]
-    pub fn through(role: crate::pose::PoseRole) -> Self {
-        Self::Role {
-            pose: Box::new(Self::Frame),
-            role,
-        }
-    }
-
-    /// `self` slid along `along` by `by`.
-    #[must_use]
-    pub fn slide(self, along: Self, by: S) -> Self {
-        Self::Slide {
-            pose: Box::new(self),
-            along: Box::new(along),
-            by,
-        }
-    }
-
-    /// `self` spun about `about` by `by`.
-    #[must_use]
-    pub fn spin(self, about: Self, by: S) -> Self {
-        Self::Spin {
-            pose: Box::new(self),
-            about: Box::new(about),
-            by,
-        }
-    }
-
-    /// `self`'s opposite sense.
-    #[must_use]
-    pub fn flip(self) -> Self {
-        Self::Flip {
-            pose: Box::new(self),
-        }
-    }
-
-    /// **How many reads deep this read nests**: the world's frame is
-    /// one, and each construction is one more than the deepest read it
-    /// moves or reads along or about.
-    pub fn depth(&self) -> usize {
-        1 + match self {
-            Self::Frame => 0,
-            Self::Role { pose, .. } | Self::Flip { pose } => pose.depth(),
-            Self::Slide {
-                pose, along: line, ..
-            }
-            | Self::Spin {
-                pose, about: line, ..
-            } => pose.depth().max(line.depth()),
-        }
-    }
-
-    /// **The kind this read is**, or the first construction its kinds
-    /// refuse: a slide's along a direction or an axis and of no
-    /// direction, a spin's about an axis, a flip of no point, a role
-    /// its pose's kind offers. A read nested deeper than
-    /// [`MAX_WORLD_READ_DEPTH`] refuses before its kinds are read.
-    ///
-    /// # Errors
-    ///
-    /// [`WorldReadFault`] naming the construction, or
-    /// [`WorldReadFault::TooDeep`].
-    pub fn kind(&self) -> Result<crate::VarKind, WorldReadFault> {
-        let depth = self.depth();
-        if depth > MAX_WORLD_READ_DEPTH {
-            return Err(WorldReadFault::TooDeep { depth });
-        }
-        self.kind_within()
-    }
-
-    fn kind_within(&self) -> Result<crate::VarKind, WorldReadFault> {
-        use crate::VarKind as K;
-        Ok(match self {
-            Self::Frame => K::Frame,
-            Self::Role { pose, role } => {
-                let found = pose.kind_within()?;
-                if role.of() != found {
-                    return Err(WorldReadFault::Role { role: *role, found });
-                }
-                role.kind()
-            }
-            Self::Slide { pose, along, .. } => {
-                if !matches!(along.kind_within()?, K::Direction | K::Axis) {
-                    return Err(WorldReadFault::Along);
-                }
-                match pose.kind_within()? {
-                    K::Direction => return Err(WorldReadFault::SlidDirection),
-                    kind => kind,
-                }
-            }
-            Self::Spin { pose, about, .. } => {
-                if about.kind_within()? != K::Axis {
-                    return Err(WorldReadFault::About);
-                }
-                pose.kind_within()?
-            }
-            Self::Flip { pose } => match pose.kind_within()? {
-                K::Point => return Err(WorldReadFault::FlippedPoint),
-                kind => kind,
-            },
-        })
-    }
-
-    /// Each scalar of the read in pre-order, with whether it is a
-    /// spin's angle (`true`) or a slide's length: the read's slots
-    /// ([`crate::SlotId::WorldSlide`], [`crate::SlotId::WorldSpin`]).
-    pub fn scalars(&self) -> Vec<(bool, &S)> {
-        let mut out = Vec::new();
-        self.walk(&mut out);
-        out
-    }
-
-    fn walk<'a>(&'a self, out: &mut Vec<(bool, &'a S)>) {
-        match self {
-            Self::Frame => {}
-            Self::Role { pose, .. } | Self::Flip { pose } => pose.walk(out),
-            Self::Slide { pose, along, by } => {
-                pose.walk(out);
-                along.walk(out);
-                out.push((false, by));
-            }
-            Self::Spin { pose, about, by } => {
-                pose.walk(out);
-                about.walk(out);
-                out.push((true, by));
-            }
-        }
-    }
-
-    /// [`Self::scalars`], writable, in the same order.
-    pub fn scalars_mut(&mut self) -> Vec<(bool, &mut S)> {
-        let mut out = Vec::new();
-        self.walk_mut(&mut out);
-        out
-    }
-
-    fn walk_mut<'a>(&'a mut self, out: &mut Vec<(bool, &'a mut S)>) {
-        match self {
-            Self::Frame => {}
-            Self::Role { pose, .. } | Self::Flip { pose } => pose.walk_mut(out),
-            Self::Slide { pose, along, by } => {
-                pose.walk_mut(out);
-                along.walk_mut(out);
-                out.push((false, by));
-            }
-            Self::Spin { pose, about, by } => {
-                pose.walk_mut(out);
-                about.walk_mut(out);
-                out.push((true, by));
-            }
-        }
-    }
-
-    /// This read in another slot form, each scalar mapped by `f` in
-    /// pre-order.
-    ///
-    /// # Errors
-    ///
-    /// `f`'s first.
-    pub fn try_map<S2: crate::Slot, E>(
-        &self,
-        f: &mut impl FnMut(&S) -> Result<S2, E>,
-    ) -> Result<WorldRead<S2>, E> {
-        Ok(match self {
-            Self::Frame => WorldRead::Frame,
-            Self::Role { pose, role } => WorldRead::Role {
-                pose: Box::new(pose.try_map(f)?),
-                role: *role,
-            },
-            Self::Slide { pose, along, by } => WorldRead::Slide {
-                pose: Box::new(pose.try_map(f)?),
-                along: Box::new(along.try_map(f)?),
-                by: f(by)?,
-            },
-            Self::Spin { pose, about, by } => WorldRead::Spin {
-                pose: Box::new(pose.try_map(f)?),
-                about: Box::new(about.try_map(f)?),
-                by: f(by)?,
-            },
-            Self::Flip { pose } => WorldRead::Flip {
-                pose: Box::new(pose.try_map(f)?),
-            },
-        })
-    }
-}
-
-/// **The deepest world read a mate holds** ([`WorldRead::depth`]):
-/// fifteen. The writers stay well inside it: the `place_at` gesture
-/// writes at most nine — the world's xy plane read through its role
-/// after three spins and three slides (`mate::pin`), each about or
-/// along an axis read two deep — and its values refuse a moved landing,
-/// so inline never moves it; `pin_at` writes the world's frame after at
-/// most six such moves, and inline at a landing off the identity folds
-/// a read's run of written moves into the motion it moves it by and
-/// writes one run again, so a pin flattened through any number of
-/// nested parts stays as deep as `pin_at` wrote it. Only a read whose
-/// moves read a variable gains a run per inline, and past this bound
-/// the edit door refuses it. A world read is written inside its mate,
-/// never as a variable (spec Q7), so this bound is what holds a saved
-/// mate within the load door's nesting limit
-/// (`persist::nesting::ENVELOPE`).
-pub const MAX_WORLD_READ_DEPTH: usize = 15;
-
-/// **Why a world read is no pose** ([`WorldRead::kind`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorldReadFault {
-    /// A role the read pose's kind does not offer.
-    Role {
-        /// The role asked.
-        role: crate::pose::PoseRole,
-        /// The kind read.
-        found: crate::VarKind,
-    },
-    /// A slide along what is no direction and no axis.
-    Along,
-    /// A slide of a direction, which has no position.
-    SlidDirection,
-    /// A spin about what is no axis.
-    About,
-    /// A flip of a point, which has no sense.
-    FlippedPoint,
-    /// A read nested deeper than [`MAX_WORLD_READ_DEPTH`]: the world
-    /// read is written inside the mate, so the depth a save writes is
-    /// bounded where the read is admitted, as an expression's is.
-    TooDeep {
-        /// The read's depth ([`WorldRead::depth`]).
-        depth: usize,
-    },
-}
-
-impl core::fmt::Display for WorldReadFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Role { role, found } => write!(
-                f,
-                "a world read through its {} role reads a {}, which offers none",
-                role.label(),
-                found
-            ),
-            Self::Along => f.write_str("a world read slides along what is no direction or axis"),
-            Self::SlidDirection => {
-                f.write_str("a world read slides a direction, which has no position")
-            }
-            Self::About => f.write_str("a world read spins about what is no axis"),
-            Self::FlippedPoint => f.write_str("a world read flips a point, which has no sense"),
-            Self::TooDeep { depth } => write!(
-                f,
-                "a world read nests {depth} reads deep, past the {MAX_WORLD_READ_DEPTH} a mate \
-                 holds; read a pose of the world's geometry, or move the world less"
-            ),
-        }
-    }
-}
-
-/// **What a mate's `to` reads** (D10, spec Q7): a pose variable read
-/// off geometry of the space the copy joins, or the world.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case", bound = "")]
-pub enum Target<S: crate::Slot = crate::VarId> {
-    /// A pose variable of the space the copy joins.
-    Pose(S::Read),
-    /// The world, read inside the mate.
-    World(WorldRead<S>),
-}
-
-impl<S: crate::Slot> Target<S> {
-    /// The pose read, `None` for the world.
-    pub fn pose(&self) -> Option<&S::Read> {
-        match self {
-            Self::Pose(read) => Some(read),
-            Self::World(_) => None,
-        }
-    }
-
-    /// [`Self::pose`], writable.
-    pub fn pose_mut(&mut self) -> Option<&mut S::Read> {
-        match self {
-            Self::Pose(read) => Some(read),
-            Self::World(_) => None,
-        }
-    }
-}
-
-/// **A mate** (D10, FORK-S3M): two poses of one kind, `on` read off
-/// the copied shapes' geometry and `to` off the space the copy joins
-/// or the world, with the contact class it declares. A mate holds no
-/// number, and is a constraint of the placement that holds it, never a
-/// node.
+/// **A mate** (D10, FORK-S3M, `[placement.mates]`): two poses of one
+/// kind, `on` read off the copied shapes' geometry and `to` off a body
+/// in the target space, with the contact class it declares. A mate
+/// reads only geometry, holds no number, and is a constraint of the
+/// placement that holds it, never a node.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, bound = "")]
 pub struct Mate<S: crate::Slot = crate::VarId> {
     /// The copy's pose.
     pub on: S::Read,
-    /// The pose the copy's is equated with.
-    pub to: Target<S>,
+    /// The pose the copy's is equated with, read off a body in the
+    /// target space.
+    pub to: S::Read,
     /// The declared contact class, the kernel vocabulary
     /// ([`class_admission`] says how far each gets).
     #[serde(with = "crate::persist::kernel_wire::contact_class")]
@@ -442,38 +112,26 @@ pub struct Mate<S: crate::Slot = crate::VarId> {
 }
 
 impl<S: crate::Slot> Mate<S> {
-    /// Bit-semantic equality (D7): the reads equal, each scalar slot
-    /// equal.
+    /// Bit-semantic equality (D7): a mate holds no scalar, so it is
+    /// its reads' equality.
     #[must_use]
     pub fn bit_eq(&self, other: &Self) -> bool {
         self == other
-            && match (&self.to, &other.to) {
-                (Target::World(a), Target::World(b)) => a
-                    .scalars()
-                    .iter()
-                    .zip(b.scalars())
-                    .all(|((_, x), (_, y))| x.bit_eq(y)),
-                _ => true,
-            }
     }
 
     /// **This mate in another slot form**: each pose read mapped by
-    /// `read`, each world read's scalar by `slot`, `on` first.
+    /// `read`, `on` first.
     ///
     /// # Errors
     ///
-    /// The first refusal of either.
+    /// The first refusal of `read`.
     pub fn try_map<S2: crate::Slot, E>(
         &self,
         mut read: impl FnMut(MateSide, &S::Read) -> Result<S2::Read, E>,
-        slot: &mut impl FnMut(&S) -> Result<S2, E>,
     ) -> Result<Mate<S2>, E> {
         Ok(Mate {
             on: read(MateSide::On, &self.on)?,
-            to: match &self.to {
-                Target::Pose(r) => Target::Pose(read(MateSide::To, r)?),
-                Target::World(w) => Target::World(w.try_map(slot)?),
-            },
+            to: read(MateSide::To, &self.to)?,
             class: self.class,
         })
     }
@@ -483,8 +141,8 @@ impl<S: crate::Slot> Mate<S> {
 /// each side a face read as its plane, through any number of plain
 /// flips (a rest's faces face each other) — the face–face contact a
 /// `Rest` declares (A5), `on`'s face first. `None` for a mate of another
-/// kind, for a plane constructed off a face (a standoff), and for a
-/// world read: such a mate places, and declares no contact.
+/// kind, and for a plane constructed off a face (a standoff): such a
+/// mate places, and declares no contact.
 pub(crate) fn rested_faces<P>(
     doc: &crate::doc::Doc<P>,
     mate: &Mate,
@@ -520,7 +178,7 @@ pub(crate) fn planes_equated<P>(
         }
     };
     let (on, on_flipped) = face(mate.on)?;
-    let (to, to_flipped) = face(*mate.to.pose()?)?;
+    let (to, to_flipped) = face(mate.to)?;
     Some((on, to, on_flipped != to_flipped))
 }
 
@@ -616,12 +274,10 @@ pub(crate) fn reads_in<P>(
     }
 }
 
-/// **A bundle's slots**: each world read's scalars, addressed by the
-/// constraint and the scalar's place in the read
-/// ([`crate::SlotId::WorldSlide`], [`crate::SlotId::WorldSpin`]), and
-/// each value's number ([`crate::SlotId::ValueSlide`],
-/// [`crate::SlotId::ValueSpin`]). A trait over the bundle so the node's
-/// slot table reads it through the borrow it holds.
+/// **A bundle's slots**: each value's number
+/// ([`crate::SlotId::ValueSlide`], [`crate::SlotId::ValueSpin`]); a
+/// mate holds none. A trait over the bundle so the node's slot table
+/// reads it through the borrow it holds.
 pub(crate) trait BundleRows<S> {
     /// The rows, shared.
     fn rows(&self) -> Vec<(crate::SlotId, &S)>;
@@ -631,42 +287,18 @@ pub(crate) trait BundleRows<S> {
 
 impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
     fn rows(&self) -> Vec<(crate::SlotId, &S)> {
-        let mut out = Vec::new();
-        for c in self {
-            match &c.kind {
-                ConstraintKind::Mate(Mate {
-                    to: Target::World(w),
-                    ..
-                }) => {
-                    for (step, (spin, e)) in w.scalars().into_iter().enumerate() {
-                        out.push((world_slot(c.id, step, spin), e));
-                    }
-                }
-                ConstraintKind::Mate(_) => {}
-                ConstraintKind::Value(v) => out.push((value_slot(c.id, v.coord), &v.by)),
-            }
-        }
-        out
+        self.iter()
+            .filter_map(|c| c.value().map(|v| (value_slot(c.id, v.coord), &v.by)))
+            .collect()
     }
 
     fn rows_mut(&mut self) -> Vec<(crate::SlotId, &mut S)> {
         let mut out = Vec::new();
         for c in self {
             let id = c.id;
-            match &mut c.kind {
-                ConstraintKind::Mate(Mate {
-                    to: Target::World(w),
-                    ..
-                }) => {
-                    for (step, (spin, e)) in w.scalars_mut().into_iter().enumerate() {
-                        out.push((world_slot(id, step, spin), e));
-                    }
-                }
-                ConstraintKind::Mate(_) => {}
-                ConstraintKind::Value(v) => {
-                    let coord = v.coord;
-                    out.push((value_slot(id, coord), &mut v.by));
-                }
+            if let ConstraintKind::Value(v) = &mut c.kind {
+                let coord = v.coord;
+                out.push((value_slot(id, coord), &mut v.by));
             }
         }
         out
@@ -677,16 +309,7 @@ impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
 fn value_slot(constraint: crate::node::ConstraintId, coord: Coord) -> crate::SlotId {
     match coord {
         Coord::Slide(_) => crate::SlotId::ValueSlide { constraint },
-        Coord::Spin | Coord::SpinAbout(_) => crate::SlotId::ValueSpin { constraint },
-    }
-}
-
-/// The slot of a world read's `step`th scalar, a spin's or a slide's.
-fn world_slot(constraint: crate::node::ConstraintId, step: usize, spin: bool) -> crate::SlotId {
-    if spin {
-        crate::SlotId::WorldSpin { constraint, step }
-    } else {
-        crate::SlotId::WorldSlide { constraint, step }
+        Coord::Spin(_) => crate::SlotId::ValueSpin { constraint },
     }
 }
 
@@ -776,16 +399,6 @@ impl<S: crate::Slot> Constraint<S> {
         }
     }
 
-    /// Whether it places its copy on the world: a mate whose target is
-    /// a world read.
-    #[must_use]
-    pub fn reads_world(&self) -> bool {
-        match &self.kind {
-            ConstraintKind::Mate(mate) => matches!(mate.to, Target::World(_)),
-            ConstraintKind::Value(_) => false,
-        }
-    }
-
     /// Bit-semantic equality (D7).
     #[must_use]
     pub fn bit_eq(&self, other: &Self) -> bool {
@@ -793,15 +406,15 @@ impl<S: crate::Slot> Constraint<S> {
             && match (&self.kind, &other.kind) {
                 (ConstraintKind::Mate(a), ConstraintKind::Mate(b)) => a.bit_eq(b),
                 (ConstraintKind::Value(a), ConstraintKind::Value(b)) => {
-                    a.mate == b.mate && a.coord == b.coord && a.by.bit_eq(&b.by)
+                    a.coord == b.coord && a.by.bit_eq(&b.by)
                 }
                 _ => false,
             }
     }
 
     /// **This constraint in another slot form**: a mate's pose reads
-    /// mapped by `read` ([`Mate::try_map`]), every scalar by `slot`, its
-    /// id kept.
+    /// mapped by `read` ([`Mate::try_map`]), a value's scalar by `slot`,
+    /// its id kept.
     ///
     /// # Errors
     ///
@@ -814,9 +427,8 @@ impl<S: crate::Slot> Constraint<S> {
         Ok(Constraint {
             id: self.id,
             kind: match &self.kind {
-                ConstraintKind::Mate(mate) => ConstraintKind::Mate(mate.try_map(read, slot)?),
+                ConstraintKind::Mate(mate) => ConstraintKind::Mate(mate.try_map(read)?),
                 ConstraintKind::Value(value) => ConstraintKind::Value(Value {
-                    mate: value.mate,
                     coord: value.coord,
                     by: slot(&value.by)?,
                 }),
@@ -825,63 +437,59 @@ impl<S: crate::Slot> Constraint<S> {
     }
 }
 
-/// **A value** (FORK-S3M, ruling C-2; D10 `[placement.values]`): one
-/// freedom of a placement's motion — a slide or a spin — set to a
-/// `Length` or an `Angle`.
+/// **A value** (FORK-S3M; D10 `[placement.values]`, row 190): one
+/// freedom of a placement's motion that its mates leave — a slide or a
+/// spin — set to a `Length` or an `Angle`. A value names no mate: its
+/// bundle holds at most one mate fixing a direction, so its values
+/// have one chart, the target space's axes.
 ///
-/// A value naming a mate sets a freedom that mate leaves, charted on
-/// the two bodies' own frames, each swung onto its side of the mate by
-/// the shortest turn carrying its own `z` to the mated direction
-/// ([`reference_about`]): a slide is the copy's origin measured from
-/// the target's along the target's swung `x`, `y` or `z`; a spin is
-/// the angle about the mated direction from the target's swung `x` to
-/// the copy's. Each is a function of the relative pose alone, so no
-/// order of the values is chosen, and zero says the two bodies' own
-/// coordinates agree as far as the mate allows.
+/// Where a mate fixes a direction, the target space's axes are swung
+/// onto it by the shortest turn carrying their `z` to the mated
+/// direction ([`reference_about`]): a slide is the copy's origin
+/// measured from the target space's along a swung axis, and
+/// `Spin(Z)` the angle about the mated direction from the target
+/// space's swung `x` to the copy's. Each is a function of the relative
+/// pose alone, so no order of the values is chosen.
 ///
-/// A value naming no mate is charted on the target space's own axes:
-/// a slide is the copy's origin measured from the target's along its
-/// `x`, `y` or `z`, and a spin ([`Coord::SpinAbout`]) is one link of a
-/// chain of turns about its axes, taken in the order the bundle lists
-/// them. A bundle with no mate states the copy's whole motion this way.
+/// Where no direction is fixed (no mate, or a lone point mate), a
+/// slide is the copy's origin measured from the target space's along
+/// its own `x`, `y` or `z`, and a spin is one link of a chain of turns
+/// about the target space's own axes (through the mated point, for a
+/// point mate), taken in the order the bundle lists them.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, bound = "")]
 pub struct Value<S: crate::Slot = crate::VarId> {
-    /// The mate whose freedom it sets, by its id in the same bundle;
-    /// `None` for a freedom of the target space's own axes.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mate: Option<crate::node::ConstraintId>,
     /// Which freedom.
     pub coord: Coord,
     /// The number: a `Length` for a slide, an `Angle` for a spin.
     pub by: S,
 }
 
-/// **Which freedom a value sets.**
+/// **Which freedom a value sets**, on the target space's axes, swung
+/// onto the mated direction where a mate fixes one.
 ///
-/// The freedoms each kind of mate leaves: a plane mate slides along
-/// `x` and `y` and spins; an axis mate slides along `z` (its axis) and
-/// spins; a direction mate slides along all three and spins (its
-/// residual, `Parallel`); a point mate's rotation has no chart, and a
-/// frame mate leaves nothing. With no mate, a value slides along the
-/// target space's `x`, `y` or `z`, or spins about one of them.
+/// The freedoms each bundle's mates leave: a plane mate slides along
+/// `x` and `y` and spins about `z`; an axis mate slides along and spins
+/// about `z`; a direction mate slides along all three and spins about
+/// `z`; a point mate leaves its rotation, a chain of spins about the
+/// target space's own axes; a frame mate leaves nothing. With no mate,
+/// a value slides along the target space's `x`, `y` or `z`, or spins
+/// about one of them.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum Coord {
-    /// A slide along the target's (swung) axis.
+    /// A slide along the target space's (swung) axis.
     Slide(TargetAxis),
-    /// A spin about the mated direction.
-    Spin,
-    /// A spin about the target space's own axis: one link of a written
-    /// chain of turns, where no mate fixes a direction.
-    SpinAbout(TargetAxis),
+    /// A spin about the target space's (swung) axis: about the mated
+    /// direction (`Z`) where a mate fixes one, else one link of a
+    /// written chain of turns.
+    Spin(TargetAxis),
 }
 
-/// **An axis of the target's frame**: the target space's own where no
-/// mate fixes a direction, its frame swung onto the mated direction
-/// where one does.
+/// **An axis of the target space**: its own where no mate fixes a
+/// direction, swung onto the mated direction where one does.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -896,6 +504,9 @@ pub enum TargetAxis {
 }
 
 impl TargetAxis {
+    /// The three, in order.
+    pub const ALL: [Self; 3] = [Self::X, Self::Y, Self::Z];
+
     /// The axis as a unit direction of its frame.
     #[must_use]
     pub fn unit<T: geom_core::Real>(self) -> geom_core::UnitVec3<T> {
@@ -913,7 +524,7 @@ impl Coord {
     pub fn dimension(self) -> crate::expr::Dimension {
         match self {
             Self::Slide(_) => crate::expr::Dimension::Length,
-            Self::Spin | Self::SpinAbout(_) => crate::expr::Dimension::Angle,
+            Self::Spin(_) => crate::expr::Dimension::Angle,
         }
     }
 
@@ -924,73 +535,22 @@ impl Coord {
             Self::Slide(TargetAxis::X) => "slide along x",
             Self::Slide(TargetAxis::Y) => "slide along y",
             Self::Slide(TargetAxis::Z) => "slide along z",
-            Self::Spin => "spin",
-            Self::SpinAbout(TargetAxis::X) => "spin about x",
-            Self::SpinAbout(TargetAxis::Y) => "spin about y",
-            Self::SpinAbout(TargetAxis::Z) => "spin about z",
+            Self::Spin(TargetAxis::X) => "spin about x",
+            Self::Spin(TargetAxis::Y) => "spin about y",
+            Self::Spin(TargetAxis::Z) => "spin about z",
         }
-    }
-
-    /// **Whether a mate of `kind` leaves this freedom**, from the kind
-    /// alone (ruling C-2). `Err(NoChart)` for a point mate's rotation.
-    ///
-    /// # Errors
-    ///
-    /// [`FreedomRefusal`]: the kind leaves no such freedom, or leaves it
-    /// with no chart.
-    pub fn admitted_by(self, kind: crate::VarKind) -> Result<(), FreedomRefusal> {
-        use crate::VarKind as K;
-        match (kind, self) {
-            (K::Plane, Self::Slide(TargetAxis::X | TargetAxis::Y) | Self::Spin)
-            | (K::Axis, Self::Slide(TargetAxis::Z) | Self::Spin)
-            | (K::Direction, Self::Slide(_) | Self::Spin) => Ok(()),
-            (K::Point, Self::Spin | Self::SpinAbout(_)) => Err(FreedomRefusal::NoChart),
-            _ => Err(FreedomRefusal::NotAFreedom),
-        }
-    }
-
-    /// Whether this freedom is one of the target space's own axes, which
-    /// a value naming no mate sets: a slide along one, or a spin about
-    /// one.
-    #[must_use]
-    pub fn on_own_axes(self) -> bool {
-        matches!(self, Self::Slide(_) | Self::SpinAbout(_))
     }
 }
 
 /// **Why a value's freedom has no chart** ([`MateFault::NoChart`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoChartWhy {
-    /// A point mate's rotation: three freedoms with no direction to
-    /// measure one about. A direction mate lowers it first.
-    PointRotation,
-    /// A spin about the mated direction on a value naming no mate:
-    /// there is no mated direction to turn about. A value naming no
-    /// mate spins about the target space's `x`, `y` or `z`.
-    NoMatedDirection,
-    /// A value naming no mate, in a bundle holding a mate: the target
-    /// space's own axes chart a bundle with no mate, whose values state
-    /// the whole motion.
-    BesideAMate,
-    /// The mate's `to` reads two bodies: each has its own frame, and
-    /// the chart is the one body's.
-    TwoBodies,
-    /// A slide on a direction mate beside a ball mate: the ball fixes
+    /// A slide beside a ball mate and a direction mate: the ball fixes
     /// every translation, so the slide could only fix the ball's turn
     /// through the copy's lever, a circle meeting a plane at two points
     /// or none, which the solve's structural settle does not choose
     /// between.
     SlideTurnsABall,
-}
-
-/// **Why a mate's kind leaves a value no freedom to set.**
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FreedomRefusal {
-    /// The kind fixes it.
-    NotAFreedom,
-    /// The kind leaves it, with no chart to measure it on: a lone point
-    /// mate's rotation.
-    NoChart,
 }
 
 /// **A body's frame swung onto a mate's direction** (ruling C-1): the
@@ -1336,36 +896,8 @@ pub enum MateFault {
         /// The kind `to` reads.
         to: crate::VarKind,
     },
-    /// **A mate's world read is no pose** ([`WorldRead::kind`]).
-    WorldRead {
-        /// The mate.
-        mate: MateRef,
-        /// The construction its kinds refuse.
-        fault: WorldReadFault,
-    },
-    /// **A value names no mate of its bundle** (ruling C-2): the id is
-    /// no constraint of the placement, or a value's.
-    ValueNamesNoMate {
-        /// The value.
-        value: MateRef,
-        /// The id it names.
-        mate: crate::node::ConstraintId,
-    },
-    /// **A value sets a freedom its mate's kind does not leave**
-    /// (ruling C-2). A freedom the kind leaves and the rest of the bundle
-    /// fixes is [`Self::Overconstrained`].
-    NotAFreedom {
-        /// The value.
-        value: MateRef,
-        /// The freedom it sets.
-        coord: Coord,
-        /// The mate's kind.
-        kind: crate::VarKind,
-    },
-    /// **A value's freedom has no chart** (ruling C-1): a lone point
-    /// mate's rotation, a mate whose `to` reads two bodies, whose own
-    /// frames do not agree on which reference to measure from, or a
-    /// slide beside a ball, which leaves it no translation to measure.
+    /// **A value's freedom has no chart**: a slide beside a ball,
+    /// which leaves it no translation to measure.
     NoChart {
         /// The value.
         value: MateRef,
@@ -1419,9 +951,6 @@ impl MateFault {
             | Self::NotOnTheCopy { .. }
             | Self::Unleverable { .. }
             | Self::KindsDiffer { .. }
-            | Self::WorldRead { .. }
-            | Self::ValueNamesNoMate { .. }
-            | Self::NotAFreedom { .. }
             | Self::NoChart { .. } => None,
         }
     }
@@ -1579,70 +1108,11 @@ impl crate::spoken::Say for MateFault {
                 on,
                 to
             ),
-            Self::WorldRead { mate, fault } => write!(
-                f,
-                "{}: {fault}. Recourse: re-author the world read",
-                mate_(*mate)
-            ),
-            Self::ValueNamesNoMate { value, mate } => write!(
-                f,
-                "{} names constraint {mate}, which is no mate of its placement's bundle. \
-                 Recourse: name a mate the bundle holds",
-                mate_(*value)
-            ),
-            Self::NotAFreedom { value, coord, kind } => write!(
-                f,
-                "{} sets the {} of a {kind} mate, which the mate fixes. Recourse: set a freedom \
-                 the mate leaves",
-                mate_(*value),
-                coord.name()
-            ),
-            Self::NoChart {
-                value,
-                why: NoChartWhy::PointRotation,
-            } => write!(
-                f,
-                "{} sets a point mate's rotation, which has no chart: no direction to measure \
-                 a spin about. Recourse: add a direction mate and set its spin",
-                mate_(*value)
-            ),
-            Self::NoChart {
-                value,
-                why: NoChartWhy::NoMatedDirection,
-            } => write!(
-                f,
-                "{} spins about a mated direction and names no mate, so there is no direction \
-                 to turn about. Recourse: spin about the target's x, y or z, or name the mate \
-                 whose direction it turns about",
-                mate_(*value)
-            ),
-            Self::NoChart {
-                value,
-                why: NoChartWhy::BesideAMate,
-            } => write!(
-                f,
-                "{} names no mate, and its bundle holds one: the target space's own axes chart \
-                 a bundle with no mate. Recourse: name a mate of the bundle whose freedom it \
-                 sets",
-                mate_(*value)
-            ),
-            Self::NoChart {
-                value,
-                why: NoChartWhy::TwoBodies,
-            } => write!(
-                f,
-                "{} is charted on its mate's target body, and the mate's `to` reads two. \
-                 Recourse: read `to` off one body, or pin the copy by a frame mate",
-                mate_(*value)
-            ),
-            Self::NoChart {
-                value,
-                why: NoChartWhy::SlideTurnsABall,
-            } => write!(
+            Self::NoChart { value, why: NoChartWhy::SlideTurnsABall } => write!(
                 f,
                 "{} sets a slide beside a ball mate, which fixes every translation, so the \
                  slide could only turn the copy about the ball, and the solve does not settle \
-                 a turn from a slide. Recourse: set the turn as the direction mate's spin, or \
+                 a turn from a slide. Recourse: set the turn as the spin about the mated direction, or \
                  pin the copy by a frame mate and its values",
                 mate_(*value)
             ),

@@ -2631,16 +2631,12 @@ pub fn apply_with_names<T: Decide>(
         DocEdit::Rebind { to, .. } => names.push(to),
         DocEdit::AddConstraint { mate, .. } => {
             names.extend(mate.on.selected_names());
-            if let Some(to) = mate.to.pose() {
-                names.extend(to.selected_names());
-            }
+            names.extend(mate.to.selected_names());
         }
         DocEdit::SetConstraints { constraints, .. } => {
             for mate in constraints.iter().filter_map(crate::mate::Constraint::mate) {
                 names.extend(mate.on.selected_names());
-                if let Some(to) = mate.to.pose() {
-                    names.extend(to.selected_names());
-                }
+                names.extend(mate.to.selected_names());
             }
         }
         // Name-carrying and deliberately unchecked here: an appearance
@@ -2655,9 +2651,6 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ClearAppearanceMeta { .. } => {}
         // Carry no `StableName` at all.
         DocEdit::DeleteNode { .. }
-        // A value reads its mate by id and holds a number.
-        | DocEdit::AddValue { .. }
-        | DocEdit::AddValues { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
         // A program and its step ids carry no name, and the door

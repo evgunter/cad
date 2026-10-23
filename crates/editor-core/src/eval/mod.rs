@@ -3377,16 +3377,6 @@ pub(crate) fn read_pose_in<T: EvalScalar>(
     wire::pose::read_pose(doc, &ev.nodes, read, &ev.env, tol)
 }
 
-/// **A mate's world read bound at an evaluation's parameters**
-/// ([`read_pose_in`]'s twin for the world).
-pub(crate) fn world_pose_in<T: EvalScalar>(
-    world: &crate::mate::WorldRead,
-    ev: &Evaluation<T>,
-    tol: Tol,
-) -> Result<PoseValue<T>, NodeErrorKind> {
-    wire::pose::eval_world(world, &ev.env, wire::band(tol)?)
-}
-
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
 /// failure is a per-node typed result, never a top-level error or a
 /// panic.
@@ -4213,9 +4203,8 @@ where
 ///
 /// **Disposition of the inline matches.** A few small vocabularies are
 /// written as an exhaustive `match` that maps an enum's variants to
-/// literals at the site — a constraint's kind, a value's coordinate and
-/// a world read's arm (`tag::constraint_kind`, `tag::value_coord`,
-/// `tag::world_read`), a name's entity kind, a side verdict, a qualifier, a cap end, a meridian end and a
+/// literals at the site — a constraint's kind and a value's coordinate
+/// (`tag::constraint_kind`, `tag::value_coord`), a name's entity kind, a side verdict, a qualifier, a cap end, a meridian end and a
 /// rim support (`names/role.rs`), a tube's window (`node.rs`), an
 /// assertion's relation and a measure primitive (`measure.rs`), a
 /// dimension (`expr.rs`). Each is total by exhaustiveness — a variant
@@ -4271,7 +4260,9 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v18: a placement reads the space it places into, which
+            /// v19: a value names no mate, and a spin's word is the
+            /// axis it turns about; a mate's `to` is a pose read, with
+            /// no target word and no world read. v18: a placement reads the space it places into, which
             /// it does not key (its copy's value is its source moved by
             /// its bundle, whichever space names it), beside a bundle
             /// that pins it, and a construction defines its space
@@ -4299,7 +4290,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 18,
+            VERSION = 19,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4393,25 +4384,10 @@ mod tag {
             SLIDE_X = 1,
             SLIDE_Y = 2,
             SLIDE_Z = 3,
-            SPIN = 4,
+            // 4 was the retired spin about a named mate's direction.
             SPIN_X = 5,
             SPIN_Y = 6,
             SPIN_Z = 7,
-        }
-        /// What a mate's `to` reads: a pose variable of the target
-        /// space, or the world read inside the mate.
-        mate_target {
-            POSE = 1,
-            WORLD = 2,
-        }
-        /// A world read's arms, in pre-order ([`crate::WorldRead`]); a
-        /// role arm writes its role word after its own.
-        world_read {
-            FRAME = 1,
-            ROLE = 2,
-            SLIDE = 3,
-            SPIN = 4,
-            FLIP = 5,
         }
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
@@ -5810,22 +5786,13 @@ fn feed_bundle(
             crate::mate::ConstraintKind::Value(value) => {
                 use crate::mate::{Coord, TargetAxis};
                 h.write_tag(tag::constraint_kind::VALUE);
-                match value.mate {
-                    Some(mate) => {
-                        h.write_tag(tag::presence::PRESENT);
-                        h.write_u64(u64::from(mate.0.ordinal()));
-                        h.write_u64(mate.0.digest());
-                    }
-                    None => h.write_tag(tag::presence::ABSENT),
-                }
                 h.write_tag(match value.coord {
                     Coord::Slide(TargetAxis::X) => tag::value_coord::SLIDE_X,
                     Coord::Slide(TargetAxis::Y) => tag::value_coord::SLIDE_Y,
                     Coord::Slide(TargetAxis::Z) => tag::value_coord::SLIDE_Z,
-                    Coord::Spin => tag::value_coord::SPIN,
-                    Coord::SpinAbout(TargetAxis::X) => tag::value_coord::SPIN_X,
-                    Coord::SpinAbout(TargetAxis::Y) => tag::value_coord::SPIN_Y,
-                    Coord::SpinAbout(TargetAxis::Z) => tag::value_coord::SPIN_Z,
+                    Coord::Spin(TargetAxis::X) => tag::value_coord::SPIN_X,
+                    Coord::Spin(TargetAxis::Y) => tag::value_coord::SPIN_Y,
+                    Coord::Spin(TargetAxis::Z) => tag::value_coord::SPIN_Z,
                 });
                 h.write_tag(if crate::mate::solve::written_as_zero(defs, value.by) {
                     tag::value_form::ZERO
@@ -5839,40 +5806,6 @@ fn feed_bundle(
         // The class's word is `ContactClass::content_tag` — the one
         // spelling the crossing record and the constraint both write.
         h.write_u64(mate.class.content_tag());
-        match &mate.to {
-            crate::mate::Target::Pose(_) => h.write_tag(tag::mate_target::POSE),
-            crate::mate::Target::World(world) => {
-                h.write_tag(tag::mate_target::WORLD);
-                feed_world_read(h, world);
-            }
-        }
-    }
-}
-
-/// A world read's arms in pre-order, a role arm with its role's word.
-fn feed_world_read(h: &mut KeyHasher, world: &crate::mate::WorldRead) {
-    use crate::mate::WorldRead as W;
-    match world {
-        W::Frame => h.write_tag(tag::world_read::FRAME),
-        W::Role { pose, role } => {
-            h.write_tag(tag::world_read::ROLE);
-            h.write_tag(wire::pose::role_word(Some(*role)));
-            feed_world_read(h, pose);
-        }
-        W::Slide { pose, along, .. } => {
-            h.write_tag(tag::world_read::SLIDE);
-            feed_world_read(h, pose);
-            feed_world_read(h, along);
-        }
-        W::Spin { pose, about, .. } => {
-            h.write_tag(tag::world_read::SPIN);
-            feed_world_read(h, pose);
-            feed_world_read(h, about);
-        }
-        W::Flip { pose } => {
-            h.write_tag(tag::world_read::FLIP);
-            feed_world_read(h, pose);
-        }
     }
 }
 

@@ -334,52 +334,6 @@ fn definition<T: Decide>(
     })
 }
 
-/// **A world read, evaluated** (spec Q7): the world's frame is the
-/// identity of the world's coordinates, and the read's moves are a pose
-/// definition's ([`slide`], [`spin`], [`flip`], a role's
-/// [`crate::pose::PoseRole::read`]). Its kinds were checked
-/// ([`crate::WorldRead::kind`]) before it is asked.
-///
-/// # Errors
-///
-/// A scalar's refusal ([`NodeErrorKind::PoseScalar`]), or a move's.
-pub(crate) fn eval_world<T: Decide>(
-    world: &crate::mate::WorldRead,
-    env: &VarEnv<T>,
-    b: geom_core::predicate::Band,
-) -> Result<PoseValue<T>, NodeErrorKind> {
-    use crate::mate::WorldRead as W;
-    let scalar = |var: VarId, dim| {
-        eval_var(var, dim, env).map_err(|source| NodeErrorKind::PoseScalar { var, source })
-    };
-    Ok(match world {
-        W::Frame => PoseValue::Frame(RigidMotion::axes_xy(Point3::origin())),
-        W::Role { pose, role } => role.read(&eval_world(pose, env, b)?).unwrap_or_else(|| {
-            unreachable!("a world read's role is its pose's: its kind was checked")
-        }),
-        W::Slide { pose, along, by } => {
-            let (PoseValue::Direction { dir } | PoseValue::Axis { dir, .. }) =
-                eval_world(along, env, b)?
-            else {
-                unreachable!(
-                    "a world read slides along a direction or an axis: its kind was checked"
-                )
-            };
-            let by = scalar(*by, crate::expr::Dimension::Length)?;
-            slide(eval_world(pose, env, b)?, dir, by)?
-        }
-        W::Spin { pose, about, by } => {
-            let PoseValue::Axis { origin, dir } = eval_world(about, env, b)? else {
-                unreachable!("a world read spins about an axis: its kind was checked")
-            };
-            let angle = crate::expr::eval_angle(*by, env)
-                .map_err(|source| NodeErrorKind::PoseScalar { var: *by, source })?;
-            spin(eval_world(pose, env, b)?, origin, dir, angle)?
-        }
-        W::Flip { pose } => flip(eval_world(pose, env, b)?, b)?,
-    })
-}
-
 /// **A pose slid along `dir` by `by`**: its position moved, its
 /// directions kept. A direction has no position and is no slide's.
 ///
@@ -587,63 +541,6 @@ fn read_off<T: Decide>(
         }),
         (K::Point, _) => Err(fault(PoseReadFault::NoCentre { carrier })),
         _ => unreachable!("the door admits a face at a plane, an axis or a point read alone"),
-    }
-}
-
-/// **The direction of the pose `read`, in the own coordinates of the
-/// body `copy` places**: a plane's normal or an axis's direction read
-/// off `copy`'s one placed body as that body stands before the
-/// placement moves it (the copy holds it under the same keys), through
-/// the definition's slides and flips. The carrier's stored direction,
-/// read and not decided, so the lanes decide alike. `None` for a pose
-/// that reads anything else.
-pub(crate) fn own_direction<T: Decide>(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    read: RoleRead<VarId>,
-    copy: crate::RecipeNodeId,
-) -> Option<Vec3<T>> {
-    if read.role.is_some() {
-        return None;
-    }
-    let VarDef::Pose(def) = doc.var(read.read)?.def() else {
-        return None;
-    };
-    let off = |of: VarId| {
-        let (at, ent) = select_one(doc, results, OperandSlot::Frame, of).ok()?;
-        let Some(Node::Place { shapes, .. }) = doc.node(copy) else {
-            return None;
-        };
-        let ([shape], true, 0) = (shapes.as_slice(), at == copy, ent.body) else {
-            return None;
-        };
-        let placed = doc.read_operation(shape.read)?;
-        let ValuePayload::Body(body) = &value_of(results, placed).ok()?.payload else {
-            return None;
-        };
-        Some((std::sync::Arc::clone(body), ent.key))
-    };
-    match def {
-        PoseDef::Plane { face } => {
-            let (body, key) = off(*face)?;
-            let face = names::EntityKey::face(key)?;
-            let at = topo::readback::face_pose(&body, face).ok()?;
-            Some(OutwardNormal::from_chart(at.axis, at.sense).vec())
-        }
-        PoseDef::Axis { of } => {
-            let (body, key) = off(*of)?;
-            if let Some(edge) = names::EntityKey::edge(key) {
-                return Some(topo::readback::edge_pose(&body, edge).ok()?.axis);
-            }
-            Some(
-                topo::readback::face_pose(&body, names::EntityKey::face(key)?)
-                    .ok()?
-                    .axis,
-            )
-        }
-        PoseDef::Slide { pose, .. } => own_direction(doc, results, *pose, copy),
-        PoseDef::Flip { pose } => own_direction(doc, results, *pose, copy).map(|v| -v),
-        _ => None,
     }
 }
 
