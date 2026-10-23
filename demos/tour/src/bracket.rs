@@ -50,7 +50,7 @@
 use core::f64::consts::{PI, SQRT_2};
 use pncad::prelude::AuthoredNode;
 
-use pncad::document::Operand;
+use pncad::document::{FrameMove, Operand, TargetAxis};
 use pncad::geom_core::Tol;
 use pncad::prelude::{
     CancelToken, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation, Formula,
@@ -193,7 +193,24 @@ fn half_read(
 /// corner piece's four cap chords.
 fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> Trimmed {
     let mut doc = doc.clone();
-    let tool = crate::world::plane_on(&doc, body, [CUT, 0.0, 0.0], [1.0, 1.0, 0.0], tol);
+    // The plane `x + y = CUT`: the bracket's frame at its origin corner
+    // (`z` up its depth, `x` along its base), its `z` turned a quarter
+    // turn about `y` onto `+x` and an eighth about `z` onto `x + y`,
+    // then slid `CUT` along `x`.
+    let tool = pncad::document::pose::RoleRead::through(
+        crate::world::frame_on(
+            &doc,
+            body,
+            [[0.0; 3], [0.0, 0.0, DEPTH], [3.0, 0.0, 0.0]],
+            &[
+                FrameMove::Spin(TargetAxis::Y, crate::world::turn(4, false)),
+                FrameMove::Spin(TargetAxis::Z, crate::world::turn(8, false)),
+                FrameMove::Slide(TargetAxis::X, len(CUT)),
+            ],
+            tol,
+        ),
+        pncad::document::pose::PoseRole::Xy,
+    );
     let split = insert(
         &mut doc,
         Node::Split {

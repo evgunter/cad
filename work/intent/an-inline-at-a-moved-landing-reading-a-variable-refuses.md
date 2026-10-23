@@ -2,11 +2,12 @@
 id: an-inline-at-a-moved-landing-reading-a-variable-refuses
 kind: issue
 title: Inline at a moved landing refuses a world bundle that reads a variable: the landing's motion has no way into the values
-status: open
+status: closed
 opened: 2026-10-18
 priority: P2
 cost: M
 parent: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
+closed: 2026-10-23
 ---
 
 
@@ -19,3 +20,7 @@ C's world pin carried no number, so an instance whose part stood where its bodie
 **Done when** the landing's motion enters the values as expressions over the landing's own numbers or variables, so the variable keeps driving the copy after the splice. Or the lever in `a-value-charted-on-the-target-reads-frame-carries-the-datum-chain` is pulled, which makes the move a read-only composition. Raised by the orchestrator's ruling on PR D.
 
 - 2026-10-18: superseded by the placement pivot (fork-log row 162, PR 5312). `stand` becomes an unmated placement whose values are the datum chain or six zeros, and `Anchors`, the in-plane/out-of-plane split and the moved-landing refusal retire with it. This closes with that unit, whichever PR carries it.
+
+## Closed
+
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR 5613, 2026-10-23). Inline is one rule: a new space, the part's placements spliced verbatim, and one placement of the spliced copies under the instance's own bundle, so a variable the bundle reads keeps driving. Row: `intent_dprime2_mates_read_geometry::inline_keeps_a_variable_driving` (spec test 21).

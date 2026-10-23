@@ -32,6 +32,8 @@ from pncad import (
     m,
 )
 
+from placing import against
+
 # Three boxes of side 2, offset so that every pair overlaps in a
 # volume and NO two faces are coplanar: a flush pair would be a
 # contact, which is a different subject, and this scene is about the
@@ -72,7 +74,7 @@ def slab(doc, box, on=None):
     if on is None:
         assert z0 == 0.0, "a box standing alone sits on its own xy"
         return body
-    return doc.place_against(on, body, Frame.translation((0 * m, 0 * m, z0 * m)))
+    return against(doc, on, body, Frame.translation((0 * m, 0 * m, z0 * m)))
 
 
 def measured(doc, node):

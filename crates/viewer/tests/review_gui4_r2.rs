@@ -323,7 +323,7 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
         }))
     };
     let mut second = proposal.mate.clone();
-    second.to = pncad::document::Target::Pose(lower);
+    second.to = lower;
     let outcome = session.perform(SessionOp::AddMate {
         placement: bench.post_b,
         mate: Box::new(second),

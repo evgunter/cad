@@ -200,14 +200,8 @@ pub enum NodeErrorClass {
     MateUnleverable,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::KindsDiffer`].
     MateKindsDiffer,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::WorldRead`].
-    MateWorldRead,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideUnevaluated`].
     MateSideUnevaluated,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::ValueNamesNoMate`].
-    MateValueNamesNoMate,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotAFreedom`].
-    MateNotAFreedom,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::NoChart`].
     MateNoChart,
     /// [`NodeErrorKind::SpaceMismatch`].
@@ -352,10 +346,7 @@ impl NodeErrorClass {
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
             MateFault::KindsDiffer { .. } => Self::MateKindsDiffer,
-            MateFault::WorldRead { .. } => Self::MateWorldRead,
             MateFault::SideUnevaluated { .. } => Self::MateSideUnevaluated,
-            MateFault::ValueNamesNoMate { .. } => Self::MateValueNamesNoMate,
-            MateFault::NotAFreedom { .. } => Self::MateNotAFreedom,
             MateFault::NoChart { .. } => Self::MateNoChart,
         }
     }
@@ -472,10 +463,7 @@ mod tests {
         MateNotOnTheCopy,
         MateUnleverable,
         MateKindsDiffer,
-        MateWorldRead,
         MateSideUnevaluated,
-        MateValueNamesNoMate,
-        MateNotAFreedom,
         MateNoChart,
         SpaceMismatch,
         CrossingUnverified,
@@ -827,27 +815,14 @@ mod tests {
                 on: crate::VarKind::Plane,
                 to: crate::VarKind::Axis,
             }),
-            C::MateWorldRead => mate(crate::MateFault::WorldRead {
-                mate: m(9),
-                fault: crate::WorldReadFault::FlippedPoint,
-            }),
             C::MateSideUnevaluated => mate(crate::MateFault::SideUnevaluated {
                 mate: m(9),
                 side: crate::MateSide::On,
                 refusal: Box::new(K::EmptyOperand { input: n(3) }.into()),
             }),
-            C::MateValueNamesNoMate => mate(crate::MateFault::ValueNamesNoMate {
-                value: m(9),
-                mate: c(1),
-            }),
-            C::MateNotAFreedom => mate(crate::MateFault::NotAFreedom {
-                value: m(9),
-                coord: crate::mate::Coord::Slide(crate::mate::TargetAxis::Z),
-                kind: crate::VarKind::Plane,
-            }),
             C::MateNoChart => mate(crate::MateFault::NoChart {
                 value: m(9),
-                why: crate::mate::NoChartWhy::PointRotation,
+                why: crate::mate::NoChartWhy::SlideTurnsABall,
             }),
             C::SpaceMismatch => K::SpaceMismatch {
                 a: crate::VarId::WORLD,

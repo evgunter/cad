@@ -227,6 +227,14 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// Check 4 decides no whole period (PCERT B2b: a row is its placed
 /// image), so `pcurve_fidelity_branch` 0/40 decides nothing (measured on
 /// INTENT stage 3 D after merging main at `557e581a64`).
+///
+/// **D′2** (a value charts on the target space): the fold no longer
+/// takes the mated direction back through the target body's motion, so
+/// the chart decides one direction fewer (`pose_unit_norm` 0/5 -> 0/4).
+/// Nothing else moved. `segment_gap` 0/6 is the tab profile's own
+/// validation, which the tree D′2 branched from (`6652164d`) already
+/// decided and this table did not list: this row was red there, in the
+/// slow set, before D′2 touched it.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -243,7 +251,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("chord_side", [6, 12]),
     ("circle_side", [2, 2]),
     ("contact_at_shared_vertex", [12, 4]),
-    ("pose_unit_norm", [0, 5]),
+    ("pose_unit_norm", [0, 4]),
     ("dihedral_arm", [0, 156]),
     ("dihedral_wedge", [0, 156]),
     ("extrusion_normal_component", [0, 2]),
@@ -262,6 +270,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_interval_forward", [0, 20]),
     ("pcurve_loop_branch", [0, 42]),
     ("pcurve_map_residual", [36, 0]),
+    ("segment_gap", [0, 6]),
     ("segment_straightness", [6, 6]),
     ("side_cylinders_cosurface", [2, 0]),
     ("side_planes_cosurface", [0, 2]),
@@ -392,6 +401,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// Check 4 decides no whole period (PCERT B2b: a row is its placed
 /// image), so `pcurve_fidelity_branch` 0/40 decides nothing (measured on
 /// INTENT stage 3 D after merging main at `557e581a64`).
+///
+/// **D′2** (a value charts on the target space): the fold no longer
+/// takes the mated direction back through the target body's motion, so
+/// the chart decides one direction fewer (`pose_unit_norm` 0/5 -> 0/4).
+/// Nothing else moved.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -414,7 +428,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("carrier_on_surface_1", [126, 0]),
             ("carrier_on_surface_2", [126, 0]),
             ("contact_at_shared_vertex", [6, 3]),
-            ("pose_unit_norm", [0, 5]),
+            ("pose_unit_norm", [0, 4]),
             ("dihedral_arm", [0, 108]),
             ("dihedral_wedge", [0, 108]),
             ("extrusion_normal_component", [0, 2]),

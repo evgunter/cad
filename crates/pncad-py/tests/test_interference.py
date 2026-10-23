@@ -17,6 +17,8 @@ from pathlib import Path
 import pncad
 from pncad import Doc, DocRef, Formula, Frame, Node, Workspace, assemble, evaluate, m
 
+from placing import placed
+
 
 def block(doc, corner, side, elevation, height):
     """A square prism of `side` with its low corner at `corner`, its
@@ -36,7 +38,7 @@ def block(doc, corner, side, elevation, height):
     body = doc.insert(Node.extrude(outline, Formula.length_in(height, m)))
     if elevation == 0.0:
         return doc.place(body, doc.world)
-    return doc.place(body, doc.world, pose=Frame.translation((0 * m, 0 * m, elevation * m)))
+    return placed(doc, body, Frame.translation((0 * m, 0 * m, elevation * m)))
 
 
 class TestInterferenceIsAFinding(unittest.TestCase):
@@ -88,7 +90,6 @@ class TestAPartsOverlapIsThePartsFinding(unittest.TestCase):
         instance = outer.insert(
             Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), outer.world)
         )
-        outer.pin(instance, resolver=store)
         assembly = assemble(outer, evaluate(outer, resolver=store))
         self.assertEqual(assembly.interference, [], "not this document's overlap")
         (carried,) = assembly.carried_interference
@@ -123,7 +124,6 @@ class TestAPartsOverlapIsThePartsFinding(unittest.TestCase):
         instance = outer.insert(
             Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), outer.world)
         )
-        outer.pin(instance, resolver=store)
         with self.assertRaises(pncad.AssemblyError) as carried:
             assemble(outer, evaluate(outer, resolver=store))
         err = carried.exception

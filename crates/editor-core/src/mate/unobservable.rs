@@ -22,9 +22,9 @@ use geom_core::Tol;
 use geom_core::linalg::{Point3, UnitVec3};
 use geom_core::predicate::Band;
 
+use super::MateRef;
 use super::PoseSymmetry;
 use super::coset::{Arm, directions_parallel, on_the_line, slides_along, turn_line};
-use super::{MateRef, Target};
 use crate::eval::{Evaluation, NodeResult, ValuePayload};
 use crate::node::RecipeNodeId;
 use crate::pose::{PoseDef, PoseValue};
@@ -78,17 +78,16 @@ pub fn unobservable(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> Vec<Uno
         };
         for c in bundle {
             let Some(value) = c.value() else { continue };
-            if value.coord != super::Coord::Spin {
+            if value.coord != super::Coord::Spin(super::TargetAxis::Z) {
                 continue;
             }
-            let Some(mate) = bundle
+            // The spin about the mated direction: the one mate fixing a
+            // direction turns it, and a bundle with none spins a chain.
+            if bundle
                 .iter()
-                .find(|m| Some(m.id) == value.mate)
-                .and_then(super::Constraint::mate)
-            else {
-                continue;
-            };
-            if spin_moves_nothing(doc, ev, placement, mate, band, tol) {
+                .filter_map(super::Constraint::mate)
+                .any(|mate| spin_moves_nothing(doc, ev, placement, mate, band, tol))
+            {
                 out.push(Unobservable::Value {
                     value: MateRef::new(placement, c.id),
                 });
@@ -167,12 +166,7 @@ fn spin_moves_nothing(
     let Some(NodeResult::Ok(value)) = ev.result(placement) else {
         return false;
     };
-    let to = match &mate.to {
-        Target::Pose(var) => {
-            crate::eval::read_pose_in(doc, ev, crate::pose::RoleRead::plain(*var), tol)
-        }
-        Target::World(world) => crate::eval::world_pose_in(world, ev, tol),
-    };
+    let to = crate::eval::read_pose_in(doc, ev, crate::pose::RoleRead::plain(mate.to), tol);
     let copy_origin = value.motion.map_or_else(Point3::origin, |m| {
         Point3::origin() + m.to_affine().translation
     });

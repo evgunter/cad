@@ -39,7 +39,7 @@ use geom_core::predicate::Band;
 use geom_core::{Decide, Real};
 
 use super::coset::{Arm, Coset, PoseSymmetry, SubgroupFamily};
-use super::{MateFault, MateRef, MateSide, Target};
+use super::{MateFault, MateRef, MateSide};
 use crate::doc::Doc;
 use crate::node::{Node, RecipeNodeId};
 use crate::placement::Frame;
@@ -89,6 +89,17 @@ pub trait SolveScalar: Decide {
     /// enclosure on a branch its arguments do not cross.
     fn solve_atan2(y: Self, x: Self) -> Self;
 
+    /// **Which branch [`Self::solve_atan2`] reads `y` over `x` on** — the
+    /// principal branch, but for a box scalar: an exact zero `y` over a
+    /// positive `x` is the angle zero, and across the negative `x` axis
+    /// the branch about `π`, where the principal cut would widen the
+    /// enclosure to the whole circle. A scalar recording its expression
+    /// over a lane scalar reads the lane's branch, so its angle is the
+    /// lane's on the same branch.
+    fn atan2_branch(_y: Self, _x: Self) -> Atan2Branch {
+        Atan2Branch::Principal
+    }
+
     /// Whether a value's spin sets the map's turn from the two charts'
     /// frames ([`super::value`]) rather than turning the folded map by
     /// the measured difference.
@@ -105,6 +116,17 @@ pub trait SolveScalar: Decide {
     fn exactly_zero(self) -> bool {
         false
     }
+}
+
+/// **The branch an angle is read on** ([`SolveScalar::atan2_branch`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Atan2Branch {
+    /// The angle zero exactly: a zero `y` over a positive `x`.
+    Zero,
+    /// The branch about `π`: `y` spanning zero over a negative `x`.
+    AboutPi,
+    /// The principal branch.
+    Principal,
 }
 
 impl SolveScalar for f64 {
@@ -589,8 +611,7 @@ pub fn mate_coset<T: SolveScalar>(on: &PoseValue<T>, to: &PoseValue<T>) -> Coset
 
 /// **One constraint's equations, as the bundle rule reads them**
 /// (FORK-S3O): a mate's are its pose kind's symmetry, a value's the one
-/// freedom it sets on the mate it names, or on the target space's own
-/// axes where it names none. Read once per bundle, off its
+/// freedom it sets on the target space's (swung) axes. Read once per bundle, off its
 /// definitions ([`equations_of`]), by the edit doors and by the solve
 /// alike, so the rule the door asks and the rule the fold asks are one
 /// reading.
@@ -598,13 +619,8 @@ pub fn mate_coset<T: SolveScalar>(on: &PoseValue<T>, to: &PoseValue<T>) -> Coset
 pub(crate) enum Equations {
     /// A mate, by its kind's symmetry.
     Mate(SubgroupFamily),
-    /// A value: the mate it names and the freedom it sets.
-    Value {
-        /// The mate, `None` for the target space's own axes.
-        mate: Option<crate::node::ConstraintId>,
-        /// The freedom.
-        coord: super::Coord,
-    },
+    /// A value: the freedom it sets.
+    Value(super::Coord),
 }
 
 impl Equations {
@@ -612,18 +628,9 @@ impl Equations {
     fn codimension(self) -> u8 {
         match self {
             Self::Mate(family) => family.codimension(),
-            Self::Value { .. } => 1,
+            Self::Value(_) => 1,
         }
     }
-}
-
-/// The pose kind whose symmetry `family` is, for the kinds a mate reads:
-/// [`crate::VarKind::symmetry`] read backwards, so the two cannot drift.
-fn kind_of(family: SubgroupFamily) -> Option<crate::VarKind> {
-    use crate::VarKind as K;
-    [K::Frame, K::Plane, K::Axis, K::Direction, K::Point]
-        .into_iter()
-        .find(|kind| kind.symmetry() == Some(family))
 }
 
 /// A bundle's mates, by id and family.
@@ -634,179 +641,103 @@ fn mates_of(
         .iter()
         .filter_map(|&(id, e)| match e {
             Equations::Mate(family) => Some((id, family)),
-            Equations::Value { .. } => None,
+            Equations::Value(_) => None,
         })
         .collect()
 }
 
-/// How many equations a set of mates fixes: their families met in
-/// general position ([`SubgroupFamily::meet`]).
-fn mates_codimension(mates: &[(crate::node::ConstraintId, SubgroupFamily)]) -> u8 {
-    mates
-        .iter()
-        .fold(SubgroupFamily::Se3, |held, &(_, family)| held.meet(family))
-        .codimension()
-}
-
-/// **Whether a value's freedom is its own to set beside `mates`**: its
-/// mate is in the bundle, the mate's kind leaves the freedom with a
-/// chart, and every other mate leaves it too. The solve reads a slide
-/// as a translation equation and a spin as a rotation equation, and
-/// settles each structurally inside what the mates leave, so a slide
-/// is its own only beside mates freeing every translation, a spin only
-/// beside mates freeing every rotation. Beside a mate that fixes a
-/// translation (a rotation), the value's equation is one that mate
-/// already fixes in that reading — even where, through the copy's
-/// lever, it would in general position fix a different freedom (a
-/// slide beside a ball would fix the ball's turn): the solve does not
-/// trade one freedom for another.
-fn own_freedom(
-    mates: &[(crate::node::ConstraintId, SubgroupFamily)],
-    mate: Option<crate::node::ConstraintId>,
-    coord: super::Coord,
-) -> bool {
-    let Some(mate) = mate else {
-        return mates.is_empty() && coord.on_own_axes();
-    };
-    let Some(&(_, own)) = mates.iter().find(|&&(id, _)| id == mate) else {
-        return false;
-    };
-    kind_of(own).is_some_and(|kind| coord.admitted_by(kind).is_ok())
-        && mates
-            .iter()
-            .filter(|&&(id, _)| id != mate)
-            .all(|&(_, f)| frees(f, coord))
-}
-
-/// Whether a mate of `family` leaves `coord`'s whole class of freedom.
-fn frees(family: SubgroupFamily, coord: super::Coord) -> bool {
-    match coord {
-        super::Coord::Slide(_) => family.frees_every_translation(),
-        super::Coord::Spin | super::Coord::SpinAbout(_) => family.frees_every_rotation(),
-    }
-}
-
-/// **How many equations a bundle fixes**, read off its families alone:
-/// its mates met ([`mates_codimension`]), and one more for each
-/// freedom a value sets that is its own ([`own_freedom`]). Two values
-/// of one freedom on one mate set it once.
-fn codimension(bundle: &[(crate::node::ConstraintId, Equations)]) -> u8 {
-    let mates = mates_of(bundle);
-    if mates.is_empty() {
-        return unmated(bundle).0;
-    }
-    let mut set = Vec::new();
-    for &(_, e) in bundle {
-        if let Equations::Value { mate, coord } = e
-            && own_freedom(&mates, mate, coord)
-            && !set.contains(&(mate, coord))
-        {
-            set.push((mate, coord));
-        }
-    }
-    let set = u8::try_from(set.len()).unwrap_or(u8::MAX);
-    mates_codimension(&mates).saturating_add(set).min(6)
-}
-
-/// **The constraints any of whose equations the rest of `bundle`
-/// already fixes** (FORK-S3O, A11 (1)). A bundle fixes no equation
-/// twice exactly when its count is the sum of its members' counts, so
-/// that is the test, and it is order-free. Which to name is read in
-/// two steps, the mates first, since a value lives inside what they
-/// leave:
-///
-/// - where the mates fix an equation twice, each mate the others fix
-///   an equation of (`codim(M∖m) + codim(m) > codim(M)`), and no value;
-/// - else each value that is not its own freedom ([`own_freedom`]),
-///   with the mates beside it that fix its class; each value that sets
-///   a freedom another value of its mate sets too; and, past six
-///   equations, every value.
-fn already_fixed(
+/// A bundle's values, by id and freedom, in bundle order.
+fn values_of(
     bundle: &[(crate::node::ConstraintId, Equations)],
-) -> Vec<crate::node::ConstraintId> {
-    let total: u16 = bundle
+) -> Vec<(crate::node::ConstraintId, super::Coord)> {
+    bundle
         .iter()
-        .map(|&(_, e)| u16::from(e.codimension()))
-        .sum();
-    if u16::from(codimension(bundle)) == total {
-        return Vec::new();
-    }
-    let mates = mates_of(bundle);
-    if mates.is_empty() {
-        return unmated(bundle).1;
-    }
-    let met = mates_codimension(&mates);
-    let named = |id: crate::node::ConstraintId, named: &mut Vec<crate::node::ConstraintId>| {
-        if !named.contains(&id) {
-            named.push(id);
-        }
-    };
-    let mut out = Vec::new();
-    if u16::from(met)
-        < mates
+        .filter_map(|&(id, e)| match e {
+            Equations::Value(coord) => Some((id, coord)),
+            Equations::Mate(_) => None,
+        })
+        .collect()
+}
+
+/// The family a set of mates leaves ([`super::pin::residual`]).
+fn residual(mates: &[(crate::node::ConstraintId, SubgroupFamily)]) -> SubgroupFamily {
+    super::pin::residual(mates.iter().map(|&(_, family)| family))
+}
+
+/// How many equations a set of mates fixes.
+fn mates_codimension(mates: &[(crate::node::ConstraintId, SubgroupFamily)]) -> u8 {
+    residual(mates).codimension()
+}
+
+/// Whether a set of mates repeats no equation: its families meet in
+/// as many equations as they are.
+fn independent(mates: &[(crate::node::ConstraintId, SubgroupFamily)]) -> bool {
+    u16::from(mates_codimension(mates))
+        == mates
             .iter()
             .map(|&(_, f)| u16::from(f.codimension()))
             .sum::<u16>()
-    {
-        for (k, &(id, family)) in mates.iter().enumerate() {
-            let rest: Vec<_> = mates
-                .iter()
-                .enumerate()
-                .filter(|&(j, _)| j != k)
-                .map(|(_, &m)| m)
-                .collect();
-            if mates_codimension(&rest) + family.codimension() > met {
-                named(id, &mut out);
-            }
-        }
-        return out;
-    }
-    let values: Vec<_> = bundle
-        .iter()
-        .filter_map(|&(id, e)| match e {
-            Equations::Value { mate, coord } => Some((id, mate, coord)),
-            Equations::Mate(_) => None,
-        })
-        .collect();
-    for &(id, mate, coord) in &values {
-        if !own_freedom(&mates, mate, coord) {
-            for &(other, family) in &mates {
-                if Some(other) != mate && !frees(family, coord) {
-                    named(other, &mut out);
-                }
-            }
-            named(id, &mut out);
-        } else if values
-            .iter()
-            .any(|&(o, m, c)| o != id && m == mate && c == coord)
-        {
-            named(id, &mut out);
-        }
-    }
-    if out.is_empty() {
-        for &(id, ..) in &values {
-            named(id, &mut out);
-        }
-    }
-    // The bundle's order, whatever order the walk named them in.
-    bundle
-        .iter()
-        .map(|&(id, _)| id)
-        .filter(|id| out.contains(id))
-        .collect()
 }
 
-/// **A bundle with no mate, read as the freedoms its values write**
-/// (D10 `[placement.values]`): a slide along each of the target space's
-/// axes, and a chain of spins about them taken in bundle order, of at
-/// most three, no two in a row about one axis. Answers how many of the
-/// copy's freedoms it writes, and the values that write one twice, in
-/// bundle order: two slides along one axis, two spins in a row about
-/// one axis, every spin of a chain longer than three, and a value
-/// whose freedom is no axis of the target space's (a spin about a
-/// mated direction, or one naming a mate the bundle does not hold).
-fn unmated(
-    bundle: &[(crate::node::ConstraintId, Equations)],
+/// **Whether a family fixes no direction**, so a value's spins are a
+/// written chain about the target space's own axes: no mate, or a lone
+/// point mate.
+pub(crate) fn chained(left: SubgroupFamily) -> bool {
+    left.frees_every_rotation()
+}
+
+/// **Whether the mates' residual `left` leaves `coord`** (D10
+/// `[placement.values]`), on the target space's axes swung onto the one
+/// mated direction where a mate fixes one: the one question a value is
+/// asked of its bundle. The solve reads a slide as a translation
+/// equation and a spin as a rotation equation, and settles each
+/// structurally inside what the mates leave, so a slide is the
+/// residual's only where it frees every translation along that axis,
+/// and a spin only where it frees that turn.
+///
+/// - No direction fixed ([`chained`]): a slide where the residual frees
+///   every translation, and a spin about any axis, one link of a chain.
+/// - A direction fixed: `Spin(Z)`, the turn about it, and a slide along
+///   a swung axis the residual frees — `x` and `y` in a plane's, `z`
+///   along an axis's, all three beside a lone direction.
+pub(crate) fn leaves(left: SubgroupFamily, coord: super::Coord) -> bool {
+    use super::{Coord, TargetAxis as A};
+    use SubgroupFamily as F;
+    match coord {
+        Coord::Spin(_) if chained(left) => true,
+        Coord::Spin(axis) => {
+            axis == A::Z && matches!(left, F::Planar | F::Cylindrical | F::Parallel | F::Revolute)
+        }
+        Coord::Slide(axis) => match left {
+            F::Se3 | F::Parallel | F::Translation => true,
+            F::Planar | F::PlaneTranslation => axis != A::Z,
+            F::Cylindrical | F::Prismatic => axis == A::Z,
+            F::Spherical | F::Revolute | F::Trivial => false,
+        },
+    }
+}
+
+/// Whether a mate of `family` leaves `coord`'s whole class of freedom:
+/// the mates [`already_fixed`] names beside a value that is not the
+/// residual's.
+fn frees(family: SubgroupFamily, coord: super::Coord) -> bool {
+    match coord {
+        super::Coord::Slide(_) => family.frees_every_translation(),
+        super::Coord::Spin(_) => family.frees_every_rotation(),
+    }
+}
+
+/// **A bundle's values read against its mates' residual**: how many of
+/// the copy's freedoms they write, and the values that write none of
+/// the residual's or one another value writes, in bundle order.
+///
+/// Where no direction is fixed, the spins are a chain about the target
+/// space's axes taken in bundle order, of at most three, no two in a
+/// row about one axis, counted by the turns it writes; where a mate
+/// fixes one, each freedom of the swung chart is written once.
+fn written(
+    left: SubgroupFamily,
+    values: &[(crate::node::ConstraintId, super::Coord)],
 ) -> (u8, Vec<crate::node::ConstraintId>) {
     use super::Coord;
     let mut named: Vec<crate::node::ConstraintId> = Vec::new();
@@ -815,25 +746,15 @@ fn unmated(
             named.push(id);
         }
     };
-    let mut slides: Vec<(super::TargetAxis, crate::node::ConstraintId)> = Vec::new();
+    let mut set: Vec<(Coord, crate::node::ConstraintId)> = Vec::new();
     let mut spins: Vec<(super::TargetAxis, crate::node::ConstraintId)> = Vec::new();
-    for &(id, e) in bundle {
-        match e {
-            Equations::Value {
-                mate: None,
-                coord: Coord::Slide(axis),
-            } => {
-                if let Some(&(_, first)) = slides.iter().find(|&&(a, _)| a == axis) {
-                    name(first);
-                    name(id);
-                } else {
-                    slides.push((axis, id));
-                }
-            }
-            Equations::Value {
-                mate: None,
-                coord: Coord::SpinAbout(axis),
-            } => {
+    for &(id, coord) in values {
+        if !leaves(left, coord) {
+            name(id);
+            continue;
+        }
+        match coord {
+            Coord::Spin(axis) if chained(left) => {
                 if let Some(&(last, before)) = spins.last()
                     && last == axis
                 {
@@ -842,7 +763,14 @@ fn unmated(
                 }
                 spins.push((axis, id));
             }
-            Equations::Value { .. } | Equations::Mate(_) => name(id),
+            _ => {
+                if let Some(&(_, first)) = set.iter().find(|&&(c, _)| c == coord) {
+                    name(first);
+                    name(id);
+                } else {
+                    set.push((coord, id));
+                }
+            }
         }
     }
     if spins.len() > 3 {
@@ -858,47 +786,114 @@ fn unmated(
         .filter(|&(k, &(axis, _))| k == 0 || spins[k - 1].0 != axis)
         .count()
         .min(3);
-    let written = u8::try_from(slides.len() + turns).unwrap_or(u8::MAX).min(6);
-    let order: Vec<_> = bundle
+    let count = u8::try_from(set.len() + turns).unwrap_or(u8::MAX).min(6);
+    let order: Vec<_> = values
         .iter()
         .map(|&(id, _)| id)
         .filter(|id| named.contains(id))
         .collect();
-    (written, order)
+    (count, order)
+}
+
+/// **How many equations a bundle fixes**, read off its families alone:
+/// its mates met ([`mates_codimension`]), and the freedoms of their
+/// residual its values write ([`written`]).
+fn codimension(bundle: &[(crate::node::ConstraintId, Equations)]) -> u8 {
+    let mates = mates_of(bundle);
+    let (set, _) = written(residual(&mates), &values_of(bundle));
+    mates_codimension(&mates).saturating_add(set).min(6)
+}
+
+/// **The constraints any of whose equations the rest of `bundle`
+/// already fixes** (FORK-S3O, A11 (1)). A bundle fixes no equation
+/// twice exactly when its count is the sum of its members' counts, so
+/// that is the test, and it is order-free. Which to name is read in
+/// two steps, the mates first, since a value lives inside what they
+/// leave:
+///
+/// - where the mates fix an equation twice, each mate the others fix
+///   an equation of (`codim(M∖m) + codim(m) > codim(M)`), and no value;
+/// - else each value that writes no freedom of the mates' residual,
+///   with the mates that fix its class; each value that writes a
+///   freedom another writes too; and, past six equations, every value.
+fn already_fixed(
+    bundle: &[(crate::node::ConstraintId, Equations)],
+) -> Vec<crate::node::ConstraintId> {
+    let total: u16 = bundle
+        .iter()
+        .map(|&(_, e)| u16::from(e.codimension()))
+        .sum();
+    if u16::from(codimension(bundle)) == total {
+        return Vec::new();
+    }
+    let mates = mates_of(bundle);
+    let named = |id: crate::node::ConstraintId, named: &mut Vec<crate::node::ConstraintId>| {
+        if !named.contains(&id) {
+            named.push(id);
+        }
+    };
+    let mut out = Vec::new();
+    if !independent(&mates) {
+        let met = mates_codimension(&mates);
+        for (k, &(id, family)) in mates.iter().enumerate() {
+            let rest: Vec<_> = mates
+                .iter()
+                .enumerate()
+                .filter(|&(j, _)| j != k)
+                .map(|(_, &m)| m)
+                .collect();
+            if mates_codimension(&rest) + family.codimension() > met {
+                named(id, &mut out);
+            }
+        }
+        return out;
+    }
+    let left = residual(&mates);
+    let values = values_of(bundle);
+    let (_, twice) = written(left, &values);
+    for &(id, coord) in &values {
+        if !leaves(left, coord) {
+            for &(other, family) in &mates {
+                if !frees(family, coord) {
+                    named(other, &mut out);
+                }
+            }
+        }
+        if twice.contains(&id) {
+            named(id, &mut out);
+        }
+    }
+    if out.is_empty() {
+        for &(id, _) in &values {
+            named(id, &mut out);
+        }
+    }
+    // The bundle's order, whatever order the walk named them in.
+    bundle
+        .iter()
+        .map(|&(id, _)| id)
+        .filter(|id| out.contains(id))
+        .collect()
 }
 
 /// **A slide the mates leave no translation to set**: where the mates
-/// repeat no equation, the first slide on a mate of its kind whose
-/// fellow mates fix a translation — a ball beside a direction, the one
-/// pair that meets transversally. In general position it would fix the
-/// ball's turn, so it is no repeat, and it refuses
+/// repeat no equation, the first slide beside a ball and a direction,
+/// the one pair that meets transversally. In general position it would
+/// fix the ball's turn, so it is no repeat, and it refuses
 /// [`super::NoChartWhy::SlideTurnsABall`], not as an overconstraint.
 fn slide_beside_a_ball(
     bundle: &[(crate::node::ConstraintId, Equations)],
 ) -> Option<crate::node::ConstraintId> {
     let mates = mates_of(bundle);
-    let independent = u16::from(mates_codimension(&mates))
-        == mates
-            .iter()
-            .map(|&(_, f)| u16::from(f.codimension()))
-            .sum::<u16>();
-    if !independent {
+    let ball = mates.iter().any(|&(_, f)| f == SubgroupFamily::Spherical);
+    let direction = mates.iter().any(|&(_, f)| f == SubgroupFamily::Parallel);
+    if !(independent(&mates) && ball && direction) {
         return None;
     }
-    bundle.iter().find_map(|&(id, e)| match e {
-        Equations::Value {
-            mate: Some(mate),
-            coord: coord @ super::Coord::Slide(_),
-        } => {
-            let own = mates.iter().find(|&&(m, _)| m == mate)?.1;
-            let charted = kind_of(own).is_some_and(|kind| coord.admitted_by(kind).is_ok());
-            let held = mates
-                .iter()
-                .any(|&(m, f)| m != mate && !f.frees_every_translation());
-            (charted && held).then_some(id)
-        }
-        _ => None,
-    })
+    values_of(bundle)
+        .into_iter()
+        .find(|&(_, coord)| matches!(coord, super::Coord::Slide(_)))
+        .map(|(id, _)| id)
 }
 
 /// **The bundle rule** (FORK-S3O): `placement`'s constraints, read as
@@ -965,15 +960,6 @@ pub(crate) fn unpinned(
     }))
 }
 
-/// **Whether `bundle` has values and no mate**: its values state the
-/// copy's whole motion in the world.
-pub(crate) fn unmated_bundle<S: crate::Slot>(bundle: &[super::Constraint<S>]) -> bool {
-    !bundle.is_empty()
-        && bundle
-            .iter()
-            .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
-}
-
 /// **Whether a bundle is the identity bundle as written** (D10: "a
 /// placement whose values are all zero and which has no mate is the
 /// identity"): no mate, and every value the constant `0`, VR6's lone
@@ -985,10 +971,9 @@ pub(crate) fn unmated_bundle<S: crate::Slot>(bundle: &[super::Constraint<S>]) ->
 pub(crate) fn identity_bundle<P>(doc: &Doc<P>, bundle: &[super::Constraint]) -> bool {
     let defs = crate::param_source::definitions_of(doc);
     !bundle.is_empty()
-        && bundle.iter().all(|c| {
-            c.value()
-                .is_some_and(|v| v.mate.is_none() && written_as_zero(&defs, v.by))
-        })
+        && bundle
+            .iter()
+            .all(|c| c.value().is_some_and(|v| written_as_zero(&defs, v.by)))
 }
 
 /// **Whether `var` is defined as the lone constant `0`** — the recipe
@@ -1017,10 +1002,7 @@ pub(crate) fn equations_of<P>(
                         .map(crate::Var::kind)
                         .and_then(crate::VarKind::symmetry)?,
                 ),
-                super::ConstraintKind::Value(value) => Equations::Value {
-                    mate: value.mate,
-                    coord: value.coord,
-                },
+                super::ConstraintKind::Value(value) => Equations::Value(value.coord),
             };
             Some((c.id, e))
         })
@@ -1078,27 +1060,27 @@ pub(crate) enum Folded<T: Real> {
     /// At this map from its own coordinates, and the map as the rigid
     /// motion its composition made, where the lane composes one.
     Pinned(Affine3<T>, Option<super::value::Composed<T>>),
-    /// A bundle with no mate, its values writing every freedom: placed
-    /// by the motion its values state
-    /// ([`super::value::unmated_motion`]).
-    Unmated,
+    /// By the motion the values compose: a bundle with no mate
+    /// ([`super::value::unmated_motion`]), or a lone point mate's chain
+    /// ([`super::value::point_motion`]).
+    Chained(geom_core::RigidMotion<T>),
 }
 
 /// **One placement's bundle, solved.** `equations` are the bundle's,
 /// read once off its definitions ([`equations_of`]) — the reading the
 /// edit doors ask the rule of, so the door and the solve decide over
-/// one value. Each value is first asked what its mate's kind decides (a
-/// freedom the kind leaves, with a chart), then the bundle rule
-/// ([`overconstrained`]) refuses a constraint any of whose equations
-/// the rest already fix. The mates fold, and the values place the copy
-/// inside what they leave ([`super::value::settle`]). Every bundle
-/// pins its copy ([`unpinned`]); one with no mate is answered
-/// [`Folded::Unmated`].
+/// one value. The bundle rule ([`overconstrained`]) refuses a
+/// constraint any of whose equations the rest already fix, a value
+/// writing no freedom the mates leave among them, and every bundle pins
+/// its copy ([`unpinned`]). A bundle with no mate, or with a lone point
+/// mate, places its copy by the motion its values compose; any other
+/// folds its mates, and the values place the copy inside what they
+/// leave ([`super::value::settle`]) on the chart of the one mate fixing
+/// a direction.
 ///
 /// # Errors
 ///
-/// [`MateFault::ValueNamesNoMate`], [`MateFault::NotAFreedom`] or
-/// [`MateFault::NoChart`] for a value, [`MateFault::Overconstrained`],
+/// [`MateFault::Overconstrained`], [`MateFault::NoChart`],
 /// [`MateFault::Unpinned`], the fold's own ([`fold_bundle`]), or a
 /// chart degenerate at its values ([`super::value::settle`]).
 pub(crate) fn solve_bundle<T: SolveScalar>(
@@ -1106,58 +1088,35 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
     equations: &[(crate::node::ConstraintId, Equations)],
     mates: &[ReadMate<T>],
     values: &[super::value::ReadValue<T>],
-    charts: &BTreeMap<crate::node::ConstraintId, Option<super::value::Chart<T>>>,
+    chart: Option<super::value::Chart<T>>,
 ) -> Result<Folded<T>, crate::NodeErrorKind> {
     let fault = |f: MateFault| crate::NodeErrorKind::Mate(Box::new(f));
-    for v in values {
-        let Some(mate) = v.mate else {
-            unmated_admitted(v.value, v.coord, !mates.is_empty()).map_err(|f| fault(*f))?;
-            continue;
-        };
-        let Some(&(_, Equations::Mate(family))) = equations.iter().find(|&&(id, _)| id == mate)
-        else {
-            return Err(fault(MateFault::ValueNamesNoMate {
-                value: v.value,
-                mate,
-            }));
-        };
-        if let Some(kind) = kind_of(family) {
-            v.coord
-                .admitted_by(kind)
-                .map_err(|refusal| fault(refused_freedom(v.value, v.coord, kind, refusal)))?;
-        }
-    }
     overconstrained(placement, equations).map_err(|f| fault(*f))?;
     unpinned(placement, equations).map_err(|f| fault(*f))?;
-    if mates.is_empty() {
-        return Ok(Folded::Unmated);
+    match mates {
+        [] => return Ok(Folded::Chained(super::value::unmated_motion(values)?)),
+        [
+            ReadMate {
+                on: PoseValue::Point { position: on },
+                to: PoseValue::Point { position: to },
+                ..
+            },
+        ] => {
+            return Ok(Folded::Chained(super::value::point_motion(
+                *on, *to, values,
+            )?));
+        }
+        _ => {}
     }
     let coset = fold_bundle(placement, mates).map_err(|f| fault(*f))?;
-    let (at, rigid) = super::value::settle(coset, values, charts)?;
+    let (at, rigid) = super::value::settle(coset, values, chart)?;
     Ok(Folded::Pinned(at, rigid))
-}
-
-/// A value's freedom its mate's kind does not leave, as the fault
-/// names it.
-fn refused_freedom(
-    value: MateRef,
-    coord: super::Coord,
-    kind: crate::VarKind,
-    refusal: super::FreedomRefusal,
-) -> MateFault {
-    match refusal {
-        super::FreedomRefusal::NotAFreedom => MateFault::NotAFreedom { value, coord, kind },
-        super::FreedomRefusal::NoChart => MateFault::NoChart {
-            value,
-            why: super::NoChartWhy::PointRotation,
-        },
-    }
 }
 
 /// **Whether a mate's target reads its pose in the opposite sense**: a
 /// flip, through any slides and spins of it — what the chart normalises
 /// to the copy's side (ruling C-1).
-pub(crate) fn target_flipped<P>(doc: &Doc<P>, to: &Target) -> bool {
+pub(crate) fn target_flipped<P>(doc: &Doc<P>, to: crate::VarId) -> bool {
     fn read<P>(doc: &Doc<P>, var: crate::VarId) -> bool {
         use crate::pose::PoseDef as D;
         match doc.var(var).map(crate::Var::def) {
@@ -1168,18 +1127,7 @@ pub(crate) fn target_flipped<P>(doc: &Doc<P>, to: &Target) -> bool {
             _ => false,
         }
     }
-    fn world(w: &super::WorldRead) -> bool {
-        use super::WorldRead as W;
-        match w {
-            W::Flip { pose } => !world(pose),
-            W::Slide { pose, .. } | W::Spin { pose, .. } => world(pose),
-            W::Frame | W::Role { .. } => false,
-        }
-    }
-    match to {
-        Target::Pose(var) => read(doc, *var),
-        Target::World(w) => world(w),
-    }
+    read(doc, to)
 }
 
 /// **The fold's arm**: the copy's reach in its own coordinates, plus
@@ -1284,8 +1232,7 @@ fn admit_class(mate: MateRef, class: super::ContactClass) -> Result<(), Box<Mate
 /// **One constraint's own admission** — what the recipe decides about a
 /// mate, asked by the edit door of a constraint being written and by
 /// the load door of every constraint it reads: `on` reads the copy
-/// ([`MateFault::NotOnTheCopy`]), a world read is a pose
-/// ([`MateFault::WorldRead`]), the two poses are of one kind
+/// ([`MateFault::NotOnTheCopy`]), the two poses are of one kind
 /// ([`MateFault::KindsDiffer`]), and the class is admitted. Whether it
 /// fixes an equation the rest of its bundle already fixes is the bundle
 /// rule's ([`overconstrained`]).
@@ -1303,133 +1250,12 @@ pub(crate) fn admit_mate<P>(
     }
     let kind = |var: crate::VarId| doc.var(var).map(crate::Var::kind);
     let on = kind(data.on);
-    let to = match &data.to {
-        Target::Pose(var) => kind(*var),
-        Target::World(world) => Some(
-            world
-                .kind()
-                .map_err(|fault| Box::new(MateFault::WorldRead { mate, fault }))?,
-        ),
-    };
-    if let (Some(on), Some(to)) = (on, to)
+    if let (Some(on), Some(to)) = (on, kind(data.to))
         && on != to
     {
         return Err(Box::new(MateFault::KindsDiffer { mate, on, to }));
     }
     admit_class(mate, data.class)
-}
-
-/// **The body a mate's target pose is charted on** (ruling C-1): the
-/// placement whose copy every read of `to` reaches — through a
-/// [`crate::pose::PoseDef::Carried`], its copy — or `None` where every
-/// read reaches only geometry in the space's own coordinates (a
-/// construction, the world).
-///
-/// # Errors
-///
-/// [`super::NoChartWhy::TwoBodies`] where the reads reach two bodies:
-/// two copies, or a copy and the space's own geometry.
-pub(crate) fn chart_body<P>(
-    doc: &Doc<P>,
-    to: crate::VarId,
-) -> Result<Option<RecipeNodeId>, super::NoChartWhy> {
-    fn walk<P>(doc: &Doc<P>, var: crate::VarId, out: &mut Vec<Option<RecipeNodeId>>) {
-        let placed = |var: crate::VarId| {
-            doc.read_operation(var).filter(|&at| {
-                matches!(
-                    doc.node(at),
-                    Some(Node::Place { .. } | Node::InstantiatePart { .. })
-                )
-            })
-        };
-        let mut push = |body: Option<RecipeNodeId>| {
-            if !out.contains(&body) {
-                out.push(body);
-            }
-        };
-        match doc.var(var).map(crate::Var::def) {
-            Some(crate::var::VarDef::Pose(crate::pose::PoseDef::Carried { copy, .. })) => {
-                push(placed(*copy));
-            }
-            Some(crate::var::VarDef::Pose(def)) => {
-                for (_, &read, _, _) in def.reads() {
-                    walk(doc, read, out);
-                }
-            }
-            _ => push(placed(var)),
-        }
-    }
-    let mut bodies = Vec::new();
-    walk(doc, to, &mut bodies);
-    match bodies.as_slice() {
-        [] => Ok(None),
-        [one] => Ok(*one),
-        _ => Err(super::NoChartWhy::TwoBodies),
-    }
-}
-
-/// **A value naming no mate, admitted on its own**: its freedom is an
-/// axis of the target space's own ([`super::Coord::on_own_axes`]), and
-/// its bundle holds no mate (`beside`), since the target space's axes
-/// chart a bundle with no mate.
-///
-/// # Errors
-///
-/// [`MateFault::NoChart`]: [`super::NoChartWhy::BesideAMate`] or
-/// [`super::NoChartWhy::NoMatedDirection`].
-fn unmated_admitted(
-    value: MateRef,
-    coord: super::Coord,
-    beside: bool,
-) -> Result<(), Box<MateFault>> {
-    let why = if beside {
-        super::NoChartWhy::BesideAMate
-    } else if coord.on_own_axes() {
-        return Ok(());
-    } else {
-        super::NoChartWhy::NoMatedDirection
-    };
-    Err(Box::new(MateFault::NoChart { value, why }))
-}
-
-/// **One value's own admission** (ruling C-2): it names a mate of
-/// `bundle` ([`MateFault::ValueNamesNoMate`]) or none
-/// ([`unmated_admitted`]), the mate's kind leaves
-/// its freedom ([`MateFault::NotAFreedom`]) with a chart
-/// ([`MateFault::NoChart`]), and the mate's target reads one body. Its
-/// number's dimension is the slot's, which the lowering checks. A
-/// freedom the bundle's other constraints already fix is the bundle
-/// rule's ([`overconstrained`]).
-///
-/// # Errors
-///
-/// The first of those faults.
-pub(crate) fn admit_value<P>(
-    doc: &Doc<P>,
-    value: MateRef,
-    bundle: &[super::Constraint],
-    data: &super::Value,
-) -> Result<(), Box<MateFault>> {
-    let Some(named) = data.mate else {
-        let beside = bundle.iter().any(|c| c.mate().is_some());
-        return unmated_admitted(value, data.coord, beside);
-    };
-    let Some(mate) = bundle
-        .iter()
-        .find(|c| c.id == named)
-        .and_then(super::Constraint::mate)
-    else {
-        return Err(Box::new(MateFault::ValueNamesNoMate { value, mate: named }));
-    };
-    if let Some(kind) = doc.var(mate.on).map(crate::Var::kind) {
-        data.coord
-            .admitted_by(kind)
-            .map_err(|refusal| Box::new(refused_freedom(value, data.coord, kind, refusal)))?;
-    }
-    if let Target::Pose(to) = &mate.to {
-        chart_body(doc, *to).map_err(|why| Box::new(MateFault::NoChart { value, why }))?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -1447,17 +1273,14 @@ mod tests {
 
     fn value(mate: u32, coord: Coord) -> (ConstraintId, Equations) {
         (
-            id(100 + mate * 10 + u32::from(matches!(coord, Coord::Spin))),
-            Equations::Value {
-                mate: Some(id(mate)),
-                coord,
-            },
+            id(100 + mate * 10 + u32::from(matches!(coord, Coord::Spin(_)))),
+            Equations::Value(coord),
         )
     }
 
     /// The `k`th value of a bundle with no mate.
     fn unmated(k: u32, coord: Coord) -> (ConstraintId, Equations) {
-        (id(200 + k), Equations::Value { mate: None, coord })
+        (id(200 + k), Equations::Value(coord))
     }
 
     /// The rule's verdict on `bundle`: `Ok(pinned)` where it admits,
@@ -1541,7 +1364,7 @@ mod tests {
             verdict(&[
                 (id(1), Equations::Mate(F::Cylindrical)),
                 value(1, Coord::Slide(TargetAxis::Z)),
-                value(1, Coord::Spin),
+                value(1, Coord::Spin(TargetAxis::Z)),
             ]),
             Ok(true)
         );
@@ -1551,7 +1374,11 @@ mod tests {
             (id(2), Equations::Mate(F::Parallel)),
         ];
         assert_eq!(verdict(&ball_and_direction), Ok(false));
-        let spun = [ball_and_direction.to_vec(), vec![value(2, Coord::Spin)]].concat();
+        let spun = [
+            ball_and_direction.to_vec(),
+            vec![value(2, Coord::Spin(TargetAxis::Z))],
+        ]
+        .concat();
         assert_eq!(verdict(&spun), Ok(true));
         // ... and with a slide on the direction: no repeat (in general
         // position it would fix the ball's turn), but no translation the
@@ -1621,27 +1448,15 @@ mod tests {
         }
     }
 
-    /// **Two values of one freedom on one mate name each other**, and
+    /// **Two values of one freedom name each other**, and
     /// nothing else: the mate fixes nothing they repeat.
     #[test]
     fn a_freedom_set_twice_names_its_two_values() {
         let x = Coord::Slide(TargetAxis::X);
         let bundle = [
             (id(1), Equations::Mate(F::Planar)),
-            (
-                id(7),
-                Equations::Value {
-                    mate: Some(id(1)),
-                    coord: x,
-                },
-            ),
-            (
-                id(8),
-                Equations::Value {
-                    mate: Some(id(1)),
-                    coord: x,
-                },
-            ),
+            (id(7), Equations::Value(x)),
+            (id(8), Equations::Value(x)),
         ];
         assert_eq!(verdict(&bundle), Err((vec![id(7), id(8)], 2)));
     }
@@ -1667,7 +1482,7 @@ mod tests {
         let chain = |axes: &[TargetAxis]| -> Vec<(ConstraintId, Equations)> {
             let mut bundle = slides.to_vec();
             for (k, &axis) in (3u32..).zip(axes) {
-                bundle.push(unmated(k, Coord::SpinAbout(axis)));
+                bundle.push(unmated(k, Coord::Spin(axis)));
             }
             bundle
         };
@@ -1704,5 +1519,71 @@ mod tests {
         assert_eq!(verdict(&short), Ok(false), "two spins fix no freedom twice");
         assert_eq!(unwritten(&short), Some(1), "and leave one unwritten");
         assert_eq!(unwritten(&[]), Some(6), "an empty bundle pins nothing");
+    }
+
+    /// **A lone point mate's rotation is a chain** (D10
+    /// `[placement.values]`, test 20): three spins about the target
+    /// space's axes, no two in a row about one axis, pin a ball's copy;
+    /// a second spin about x right after the first names both; a slide
+    /// writes no freedom the ball leaves, and is named with the ball.
+    ///
+    /// *Breaks if* a point mate's rotation is refused for having no
+    /// chart, or the chain is counted by axis rather than by position.
+    #[test]
+    fn a_point_mates_rotation_is_a_chain() {
+        use TargetAxis::{X, Y, Z};
+        let ball = (id(1), Equations::Mate(F::Spherical));
+        let chain = |axes: &[TargetAxis]| -> Vec<(ConstraintId, Equations)> {
+            std::iter::once(ball)
+                .chain((3u32..).zip(axes).map(|(k, &a)| unmated(k, Coord::Spin(a))))
+                .collect()
+        };
+        assert_eq!(
+            verdict(&chain(&[Z, X, Y])),
+            Ok(true),
+            "a chain pins the ball"
+        );
+        assert_eq!(verdict(&chain(&[Z, X, Z])), Ok(true), "ZXZ is three turns");
+        assert_eq!(
+            verdict(&chain(&[Z, X, X])),
+            Err((vec![id(204), id(205)], 1)),
+            "a second spin about x right after the first names both"
+        );
+        let slid = [chain(&[Z, X, Y]), vec![unmated(9, Coord::Slide(X))]].concat();
+        assert_eq!(
+            verdict(&slid),
+            Err((vec![id(1), id(209)], 0)),
+            "a slide beside a ball is fixed by it"
+        );
+    }
+
+    /// **The symbolic tier reads an angle on its lane's branch**: `y`
+    /// spanning zero over a negative `x`, at `Sym<Interval>`, is the
+    /// angle about `π` the `Interval` lane reads, an enclosure a few
+    /// ulps wide, not the whole circle the principal branch's cut gives;
+    /// and an exact zero over a positive `x` is the angle zero on both.
+    ///
+    /// *Breaks if* `Sym`'s `solve_atan2` reads the plain `atan2`.
+    #[test]
+    fn the_symbolic_tier_reads_an_angle_on_its_lanes_branch() {
+        use crate::mate::SolveScalar;
+        use geom_core::{Bounds, Interval, Sym};
+        let (y, x) = (
+            Interval::from_bounds(-1e-3, 1e-3),
+            Interval::from_bounds(-1.0, -0.9),
+        );
+        let lane = <Interval as SolveScalar>::solve_atan2(y, x);
+        let sym = <Sym<Interval> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x));
+        assert_eq!(
+            (sym.value.lo(), sym.value.hi()),
+            (lane.lo(), lane.hi()),
+            "the lane's branch"
+        );
+        assert!(sym.value.hi() - sym.value.lo() < 0.01, "{:?}", sym.value);
+        let zero = <Sym<Interval> as SolveScalar>::solve_atan2(
+            Sym::opaque(Interval::from_bounds(0.0, 0.0)),
+            Sym::opaque(Interval::from_bounds(1.0, 2.0)),
+        );
+        assert_eq!((zero.value.lo(), zero.value.hi()), (0.0, 0.0));
     }
 }

@@ -54,7 +54,7 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
         doc,
         cube,
         pip,
-        &fixture::frame_at([1.0, 1.0, 2.0], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
+        &fixture::axes_at([1.0, 1.0, 2.0], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
     );
     // The pip's outer cap lies ON the cube's top; the subtract glues it.
     let (doc, sub) = insert(

@@ -94,7 +94,7 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
             common::head_at(lifted, b),
             ContactClass::Rest,
         ),
-        asm::middle_seat_values(),
+        asm::own_space_seat_values(),
         tol,
     );
     let mut ws = Workspace::open(&bench.dir).expect("the bench's workspace opens");

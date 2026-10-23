@@ -1481,13 +1481,11 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         refusal: _,
         withdrawn,
         maintenance,
-        placed,
         renamed: _,
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
         .chain(maintenance.iter().filter_map(maintenance_notice))
-        .chain(placed.iter().filter_map(place_notice))
 }
 
 /// **What a landing's prune withdrew, as notices** — the same notices
@@ -1497,30 +1495,6 @@ pub fn withdrawal_notices(
     report: &crate::display::PruneReport,
 ) -> impl Iterator<Item = Message> + '_ {
     Withdrawal::all(report).map(|withdrawal| withdrawal.notice())
-}
-
-/// **How a place gesture placed its copy, as a notice**, or `None` for
-/// the gesture's ordinary answer: a plane mate on the copy's planar
-/// face, whose values move it. A copy with no planar face is placed by
-/// its own axis where it has one, and pinned, with no value to move it
-/// by, where it has none; one that could not be read stands where its
-/// body stands; each
-/// says so, in [`editor_core::PinRefusal`]'s own words for the last. Nothing else says it again ([`Retold::Never`]): the
-/// tree row says what the bundle holds, not why.
-pub fn place_notice(report: &crate::session::PlaceReport) -> Option<Message> {
-    let text = match &report.by {
-        Ok(editor_core::PlacedBy::Identity | editor_core::PlacedBy::PlanarFace) => return None,
-        Ok(editor_core::PlacedBy::Axis) => "the copy has no planar face, so it is placed by its \
-                                           own axis, its values moving it along and about it"
-            .to_owned(),
-        Ok(editor_core::PlacedBy::Pin) => "the copy has no planar face, so it is pinned where it \
-                                          stands, with no values to move it by"
-            .to_owned(),
-        Err(refusal) => {
-            format!("the copy stands where its body stands, placed by no mate: {refusal}")
-        }
-    };
-    Some(Message::new(Subject::Document, text, Retold::Never))
 }
 
 /// **One maintenance row as a notice**, or `None` for a row the line
@@ -1565,6 +1539,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // evaluation, naming both spaces.
         Maintenance::StrandedSpace { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
+        // Nothing evaluates differently in a way that names it: the
+        // copy simply stops reading the value.
+        Maintenance::ValueDropped { .. } => Retold::Never,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
         // one on almost every edit: one that carried no tolerance took

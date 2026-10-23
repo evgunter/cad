@@ -193,8 +193,8 @@ fn the_exit_demo_walk() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        2,
-        "the re-target and the bundle: {:?}",
+        3,
+        "the re-target, the mate and its values: {:?}",
         outcome.committed
     );
     let [superseded] = &outcome.withdrawn.superseded[..] else {
