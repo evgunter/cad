@@ -491,36 +491,82 @@ fn a_partial_arc_rim_takes_the_rows_arc() {
     assert_on_pair(&edge, "the partial rim, by its exact image");
 }
 
-/// `got` is `want`'s row, direction and sub-arcs bit for bit, its arc
-/// `want`'s to rounding: the measured arc is read off the geometry.
+/// `got` and `want` compared as rows ([`test_utils::arc_row`]).
 fn assert_same_arc(got: &geom_brep::Pcurve<f64>, want: &geom_brep::Pcurve<f64>, what: &str) {
-    let (
-        geom_brep::Pcurve::IsoArc {
-            p0,
-            pd,
-            t0,
-            angle,
-            breaks,
-        },
-        geom_brep::Pcurve::IsoArc {
-            p0: w_p0,
-            pd: w_pd,
-            t0: w_t0,
-            angle: w_angle,
-            breaks: w_breaks,
-        },
-    ) = (got, want)
+    test_utils::arc_row::assert_same_row(&arc_row(got), &arc_row(want), what);
+}
+
+fn arc_row(image: &geom_brep::Pcurve<f64>) -> test_utils::arc_row::ArcRow {
+    let geom_brep::Pcurve::IsoArc {
+        p0,
+        pd,
+        t0,
+        angle,
+        breaks,
+    } = image
     else {
-        panic!("{what}: two IsoArc images: {got:?} / {want:?}")
+        panic!("an IsoArc image: {image:?}")
     };
+    test_utils::arc_row::ArcRow {
+        p0: [p0.x, p0.y],
+        pd: [pd.x, pd.y],
+        breaks: breaks.knots().to_vec(),
+        t0: *t0,
+        angle: *angle,
+    }
+}
+
+/// **The measured arc is moved onto the branch the edge lies on.** The
+/// half rim stated a whole turn on, `[τ + π/8, τ + 3π/8]`: the row's
+/// start corner reads at azimuth `0`, and the arc that holds the span
+/// starts at `τ`, a turn from the principal read. The pick decides that
+/// turn and the image certifies over the span; read at the principal
+/// branch, the image's arc would hold none of it.
+#[test]
+fn the_measured_arc_takes_the_branch_its_edge_lies_on() {
+    let (carrier, quarter) = rim(1.0, core::f64::consts::FRAC_PI_2);
+    let tau = core::f64::consts::TAU;
+    let (t0, span) = (tau + quarter / 4.0, quarter / 2.0);
+    let picked = geom_brep::pick_arc_rim(&carrier, (t0, span), &wall(), band())
+        .expect("the pick decides")
+        .expect("the measured step holds the rim a turn on");
+    let row = arc_row(&picked);
+    assert!(
+        (row.t0 - tau).abs() < 1e-12 && (row.angle - quarter).abs() < 1e-12,
+        "the row's arc a turn on: ({}, {})",
+        row.t0,
+        row.angle
+    );
+    geom_brep::PcurveCache::certify(picked, t0, t0 + span, &carrier, &wall(), band())
+        .expect("the image certifies over the span a turn on");
+}
+
+/// **A polynomial row states no turn.** The quarter wall's net with unit
+/// weights is no circle's rational form: its rows' interior weight is
+/// `1`, which states a zero turn, so the measured step offers no image
+/// rather than one of zero arc. The wall's own rational rows offer one
+/// per row and direction.
+#[test]
+fn a_polynomial_row_offers_no_measured_arc() {
+    let (carrier, quarter) = rim(1.0, core::f64::consts::FRAC_PI_2);
+    let rational = quarter_cylinder_wall();
+    let control: Vec<Point3<f64>> = rational.control().to_vec();
+    let polynomial = NurbsSurface::new(
+        crate::shared::fixture::kv2(),
+        crate::shared::fixture::kv1(),
+        control,
+        vec![1.0; 6],
+    )
+    .unwrap();
+    let span = (quarter / 4.0, quarter / 2.0);
     assert_eq!(
-        (p0.x, p0.y, pd.x, pd.y, format!("{breaks:?}")),
-        (w_p0.x, w_p0.y, w_pd.x, w_pd.y, format!("{w_breaks:?}")),
-        "{what}: row and sub-arcs"
+        geom_brep::arc_rim_measured(&carrier, &rational, span, band()).len(),
+        4,
+        "the rational wall: one measured image per row and direction"
     );
     assert!(
-        (t0 - w_t0).abs() < 1e-12 && (angle - w_angle).abs() < 1e-12,
-        "{what}: the arc ({t0}, {angle}) is the row's ({w_t0}, {w_angle})"
+        geom_brep::arc_rim_measured(&carrier, &polynomial, span, band()).is_empty(),
+        "a polynomial row offers no measured image"
     );
 }
 

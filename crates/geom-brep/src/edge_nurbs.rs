@@ -776,16 +776,20 @@ pub fn arc_rim_candidates<T: Real>(chart: &NurbsSurface<T>, t0: T, span: T) -> V
 /// of a split rim, either half or any sub-interval) evaluates on its
 /// own span inside that arc, and a whole rim's arc is its interval.
 ///
-/// - `angle = m·h` for `m` sub-arcs, `h = 2·acos(w)` from the row's
-///   interior weight `w = cos(h/2)` (the construction's own pattern);
+/// - `angle` is the turn the row's interior weight states for its `m`
+///   sub-arcs (`arc_rim_turn`, the inverse of the certificate's
+///   `w = cos(h/2)`); a row whose weight is not decided below 1 (a
+///   polynomial row) states no turn and offers no image;
 /// - `at0` is the carrier's angle at the image's start corner (the
 ///   row's first control point, or its last for the image against `u`),
-///   an [`Azimuth`](crate::pcurve_cache::Azimuth) read in the carrier's frame and moved onto the
-///   branch nearest the middle of the arcs that could hold the edge,
-///   `t0 + (span − angle)/2`. The arcs that hold `[t0, t0 + span]` are
-///   less than a period wide, so the branch named is one of them where
-///   any is, and the read's cut, half a period from that middle, is
-///   never near a holding arc.
+///   an [`Azimuth`](crate::pcurve_cache::Azimuth) read in the carrier's
+///   frame and moved by whole turns onto the branch nearest the middle
+///   of the arcs that could hold the edge, `t0 + (span − angle)/2`,
+///   the turns decided ([`Period::decide`](crate::pcurve_cache::Period::decide)).
+///   The arcs that hold `[t0, t0 + span]` are less than a period wide,
+///   so the branch named is one of them where any is, and the marks the
+///   decision reads, half a period from that middle, are never near a
+///   holding arc. A gap the decision cannot name offers no image.
 ///
 /// A SELECTION, checked: the arc-rim certificate re-derives the
 /// circle's form from `at0` and `angle` against the row's control net
@@ -809,11 +813,10 @@ pub fn arc_rim_measured<T: Decide>(
     };
     let vref = axis.cross(u_ref);
     let spans = arc_rim_spans(chart);
+    let turn = crate::pcurve_cache::Period::new(T::tau());
     arc_rim_images(chart, |end, forward| {
         let row = crate::nurbs_iso::boundary_iso_v(chart, end).ok()?;
-        let w = *row.weights().get(1)?;
-        #[allow(clippy::cast_precision_loss)]
-        let angle = T::from_f64(2.0 * spans as f64) * w.acos();
+        let angle = crate::pcurve_cache::arc_rim_turn(&row, spans, band)?;
         let corner = if forward {
             row.control().first()
         } else {
@@ -822,8 +825,15 @@ pub fn arc_rim_measured<T: Decide>(
         let d = *corner? - center;
         let read = crate::pcurve_cache::Azimuth::of(d.dot(vref), d.dot(u_ref)).principal(band);
         let middle = t0 + (span - angle) * T::from_f64(0.5);
-        let at0 = read + T::tau() * (middle - read).periodic_branch(T::tau());
-        Some((at0, angle))
+        let k = turn
+            .decide(
+                "pcurve_iso_arc_branch",
+                middle - read,
+                geom_core::Margin::of,
+                band,
+            )
+            .ok()?;
+        Some((read + turn.times(k), angle))
     })
 }
 
@@ -913,8 +923,8 @@ fn uniform_breaks(spans: usize) -> Option<KnotVector> {
 /// A rim against `u` starts at the `u₁` corner, so neither the start
 /// nor a fixed corner can name its row, and on a FULL-PERIOD rim the
 /// two `u` boundaries are one 3-D point. So the four images are judged
-/// together a quarter of the arc in, where the directions are a
-/// half-period apart. A SELECTION, checked: the arc-rim certification
+/// together by the probe, whose point a quarter of the arc in is where
+/// the directions are a half-period apart. A SELECTION, checked: the arc-rim certification
 /// follows.
 ///
 /// `Ok(None)` where `wall` has no spline chart, or no candidate holds
@@ -951,14 +961,26 @@ pub fn pick_arc_rim<T: Decide>(
     }
 }
 
-/// **The interior probe**: the first candidate chart image that holds
-/// the carrier a quarter of the edge's span in, metered in METRES
-/// against the chart at the image's own point (D4 ¶1). The start point
-/// cannot decide a pick: every candidate the iso arms build passes
-/// through the start's foot or a chart corner, and a quarter span in is
-/// where they separate. A SELECTION, checked: the full certification
-/// follows every derivation. The pcurve mint's iso arms and [`pick_arc_rim`]
-/// alike.
+/// **The probe**: the first candidate chart image that holds the carrier
+/// at both ends of the edge's span and a quarter of it in, metered in
+/// METRES against the chart at the image's own points, the largest of
+/// the three misses deciding (D4 ¶1). The pcurve mint's iso arms and
+/// [`pick_arc_rim`] alike: one judge for every closed-form and measured
+/// candidate.
+///
+/// **Why three points.** The ends alone cannot separate the candidates:
+/// on a whole rim every closed-form image passes through the chart's
+/// corners, and on a full-period one the two `u` directions share both
+/// ends; a quarter span in is where the rows and directions part. The
+/// quarter point alone cannot either: a closed-form image maps the edge's
+/// interval onto the chart's whole domain, and for each sub-span there is
+/// a start at which that wrong map crosses the carrier exactly a quarter
+/// in. The ends rule that out: a closed-form image puts its ends on
+/// domain ends, so it holds an edge's ends only where they ARE domain
+/// ends, the whole-domain edge it is the image of. Among images on one
+/// locus whose moving map is affine in the parameter (every iso line),
+/// two ends fix the map. A SELECTION, checked: the full certification
+/// follows every derivation.
 ///
 /// Escalations are DEFERRED per candidate, so an indeterminate one does
 /// not rob the rest of their turn; the first is answered only when no
@@ -971,11 +993,14 @@ pub fn probe_pick<T: Decide>(
     band: Band,
     candidates: impl IntoIterator<Item = Pcurve<T>>,
 ) -> Result<Option<Pcurve<T>>, Indeterminate> {
-    let probe_t = t0 + span * T::from_f64(0.25);
-    let probe = carrier.eval(probe_t);
+    let at = [t0, t0 + span * T::from_f64(0.25), t0 + span].map(|t| (t, carrier.eval(t)));
     first_within(what, candidates, band, |cand| {
-        let uv = cand.eval(probe_t);
-        geom_core::Margin::of(probe.distance(surface.eval(uv.x, uv.y)))
+        let miss = |&(t, point): &(T, Point3<T>)| {
+            let uv = cand.eval(t);
+            point.distance(surface.eval(uv.x, uv.y))
+        };
+        let [start, quarter, end] = at.each_ref().map(miss);
+        geom_core::Margin::of(quarter.max(start).max(end))
     })
 }
 

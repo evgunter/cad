@@ -878,7 +878,7 @@ impl WallTorus {
 /// (variant docs for the derivation). Total: a malformed `breaks`
 /// answers poison rather than panicking (D4).
 fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
-    let spans = breaks.control_count().saturating_sub(1);
+    let spans = iso_arc_spans(breaks);
     if spans == 0 {
         return T::from_f64(f64::NAN);
     }
@@ -7369,6 +7369,33 @@ fn arc_rim_weight<T: SpanLocate>(
     }
 }
 
+/// **The turn a chart column's arc weight states**: `m` sub-arcs of
+/// `h = 2·acos(w)` each, `w` the column's interior weight. The inverse
+/// of [`arc_rim_weight`]'s `w = cos(h/2)`, read by the arc rim's measured
+/// image (`edge_nurbs::arc_rim_measured`). `None` for a column with fewer
+/// than two weights, or whose weight is not decided below 1: a
+/// polynomial column (`w = 1`) states no turn.
+pub(crate) fn arc_rim_turn<T: Decide>(
+    column: &NurbsCurve3<T>,
+    spans: usize,
+    band: Band,
+) -> Option<T> {
+    let w = *column.weights().get(1)?;
+    match decide("pcurve_iso_arc_weight", Margin::of(T::one() - w), band) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => return None,
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let m = T::from_f64(spans as f64);
+    Some(T::from_f64(2.0) * w.acos() * m)
+}
+
+/// **An arc rim's sub-arc count**: one per span of its `breaks`.
+#[must_use]
+pub fn iso_arc_spans(breaks: &KnotVector) -> usize {
+    breaks.control_count().saturating_sub(1)
+}
+
 /// **The ARC-RIM iso class** (M8-3) — certification of a
 /// [`Pcurve::IsoArc`], to the same bar as every other minted pcurve.
 ///
@@ -7542,7 +7569,7 @@ fn run_iso_arc_checks<T: Decide>(
     let b = crate::nurbs_iso::boundary_iso_v(payload, end)
         .map_err(|source| PcurveCertifyError::ChartRow { source })?;
     // --- The construction's EXACT structure (C6). ---
-    let spans = breaks.control_count().saturating_sub(1);
+    let spans = iso_arc_spans(breaks);
     if spans == 0 || b.knots_f64_interim().degree() != 2 {
         return Err(bad(
             "an arc rim whose chart column is not a quadratic — the rational-quadratic \
