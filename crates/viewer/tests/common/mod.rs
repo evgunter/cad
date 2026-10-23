@@ -279,6 +279,11 @@ pub fn placed_at(
 /// numbers. The ring's placement holds six values and no mate, so its
 /// ids from the placement on moved; the profile and the revolve did
 /// not.
+///
+/// Regenerated for values on the target space's axes (D′2): a spin
+/// value names its axis (`spin`, where it was `spin_about`), and the
+/// tour's variables now record the display units it authors them in.
+/// No id and no number moved.
 pub const GALLERY_RING: &str = include_str!("../gallery_ring.pncad");
 
 /// **ε is a run parameter, and a saved document records the one it was
@@ -383,8 +388,6 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
                 } | DocEdit::DeleteNode { .. }
                     | DocEdit::SetConstraints { .. }
                     | DocEdit::AddConstraint { .. }
-                    | DocEdit::AddValue { .. }
-                    | DocEdit::AddValues { .. }
                     | DocEdit::RemoveConstraint { .. }
                     | DocEdit::RemoveConstraints { .. }
             ),
@@ -404,21 +407,16 @@ pub fn instance_in(session: &mut DocSession, id: pncad::document::DocumentId) ->
     node
 }
 
-/// **Every mate `doc` holds between two copies**: each mate whose
-/// target is a pose rather than the world, by its address, in placement
-/// order and bundle order within one — the recipe's own mates, without
-/// the world mates and without the values.
+/// **Every mate `doc` holds between two copies**: each mate, by its
+/// address, in placement order and bundle order within one — the
+/// recipe's own mates, without the values.
 pub fn mates_in(doc: &Doc<ProfileProgram>) -> Vec<pncad::document::MateRef> {
     doc.placements()
         .into_iter()
         .flat_map(|placement| {
             crate::fixture::bundle(doc, placement)
                 .into_iter()
-                .filter(|constraint| {
-                    constraint
-                        .mate()
-                        .is_some_and(|mate| matches!(mate.to, pncad::document::Target::Pose(_)))
-                })
+                .filter(|constraint| constraint.mate().is_some())
                 .map(move |constraint| pncad::document::MateRef::new(placement, constraint.id))
         })
         .collect()
@@ -442,18 +440,17 @@ pub fn mate_into(
 }
 
 /// **Commit a mate through the session**, pump, and answer the mate it
-/// added — the op's first committed edit checked to BE an
-/// `AddConstraint` and the rest its values, and the mate read back by
-/// its address, because that address is what the solve keys a fault by
-/// (its placement's).
+/// added — the op's last committed edit checked to BE an
+/// `AddConstraint` (or the bundle written whole over it with the
+/// panel's values), and the mate read back by its address, because
+/// that address is what the solve keys a fault by (its placement's).
 ///
 /// A row that authors two mates into ONE evaluation does not pump
 /// between them, and so takes [`add_mate`] instead.
 ///
 /// # Panics
 ///
-/// If the op refuses, or commits anything but one `AddConstraint` and
-/// its `AddValue`s.
+/// If the op refuses, or commits anything but one new mate.
 pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
     let mate = add_mate(session, op);
     session.pump();
@@ -462,22 +459,39 @@ pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::
 
 /// [`commit_mate`] without the pump.
 pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
+    let SessionOp::AddMate { placement, .. } = &op else {
+        panic!("a mate is added by `AddMate`: {op:?}")
+    };
+    let placement = *placement;
+    let mates = |doc: &Doc<ProfileProgram>| -> Vec<_> {
+        crate::fixture::bundle(doc, placement)
+            .into_iter()
+            .filter(|constraint| constraint.mate().is_some())
+            .map(|constraint| constraint.id)
+            .collect()
+    };
+    let before = mates(session.committed_doc());
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    // The bundle written whole, after a re-target where the mate reads
+    // The mate added, its bundle then written whole with the panel's
+    // values where it has any, after a re-target where the mate reads
     // another space.
-    let Some(DocEdit::SetConstraints { placement, .. }) = outcome.committed.last() else {
-        panic!("the op writes one bundle: {:?}", outcome.committed)
-    };
-    let mates: Vec<_> = crate::fixture::bundle(session.committed_doc(), *placement)
+    assert!(
+        matches!(
+            outcome.committed.last(),
+            Some(DocEdit::AddConstraint { .. } | DocEdit::SetConstraints { .. })
+        ),
+        "the op writes one bundle: {:?}",
+        outcome.committed
+    );
+    let added: Vec<_> = mates(session.committed_doc())
         .into_iter()
-        .filter(|constraint| constraint.mate().is_some())
-        .map(|constraint| constraint.id)
+        .filter(|id| !before.contains(id))
         .collect();
-    let [id] = mates[..] else {
-        panic!("the op wrote one mate on {placement:?}: {mates:?}")
+    let [id] = added[..] else {
+        panic!("the op wrote one mate on {placement:?}: {added:?}")
     };
-    pncad::document::MateRef::new(*placement, id)
+    pncad::document::MateRef::new(placement, id)
 }
 
 /// **A rectangle profile through the session**: the chrome's rectangle
@@ -781,65 +795,4 @@ pub fn inline_without_door(
     tol: pncad::geom_core::Tol,
 ) -> viewer::session::DocSession {
     viewer::session::DocSession::inline(doc, tol).with_door(Box::new(NoDoor))
-}
-
-/// **Re-place every copy an edit stranded** — what an author does
-/// after an edit removes the geometry a pin reads (a full revolve's
-/// seam goes when the revolve stops short of a turn): each `Place`
-/// whose mate no longer evaluates (`SideUnevaluated`) is pinned again,
-/// over its copy's geometry as the edit left it, at the pose it held in
-/// `before`, through the session's own doors (`IntoOwnSpace`, which
-/// takes the stranded mate off, then the mate tool's `AddMate`). A copy
-/// `before` did not pose stays as it is.
-pub fn repin_stranded(session: &mut DocSession, before: &editor_core::ProfileDoc, tol: Tol) {
-    use editor_core::{EvalOptions, MateFault, Node, NodeErrorKind, Operand};
-    let opts = EvalOptions::default();
-    let poses = solve_document(before, &opts, tol);
-    let (doc, eval) = session.landed_pair().expect("a landed pair");
-    let doc = doc.clone();
-    let stranded: Vec<_> = doc
-        .ids()
-        .into_iter()
-        .filter(|&id| {
-            eval.node_error(id).is_some_and(|e| {
-                matches!(&e.kind, NodeErrorKind::Mate(f)
-                    if matches!(**f, MateFault::SideUnevaluated { .. }))
-            })
-        })
-        .filter_map(|id| match doc.node(id) {
-            Some(Node::Place {
-                shapes,
-                constraints,
-                ..
-            }) => Some((
-                id,
-                Operand::Var(shapes.first().expect("a placement copies a shape").read),
-                constraints
-                    .iter()
-                    .filter(|c| c.mate().is_some())
-                    .map(|c| c.id)
-                    .collect::<Vec<_>>(),
-            )),
-            _ => None,
-        })
-        .collect();
-    for (placement, copy, _) in stranded {
-        let Ok(frame) = poses.placement(before, placement) else {
-            continue;
-        };
-        let pin = editor_core::pin_at(session.committed_doc(), &copy, &frame, &opts, tol)
-            .expect("the copy as the edit left it has a frame to pin");
-        // Its stranded mate off first, by a space of its own at the
-        // identity: a mate beside one the bundle holds is refused.
-        let outcome = session.perform(SessionOp::IntoOwnSpace { placement });
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        let outcome = session.perform(SessionOp::AddMate {
-            placement,
-            mate: Box::new(pin),
-            values: Vec::new(),
-            into_target_space: true,
-        });
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        session.pump();
-    }
 }

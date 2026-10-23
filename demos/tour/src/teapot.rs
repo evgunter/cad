@@ -1003,30 +1003,12 @@ fn build_doc(tol: Tol) -> Recipe {
         },
         tol,
     );
-    // A windowed tube's own axis is its torus's: the spine is mated by
-    // it to the pot.
-    let ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    let spine_face = ev
-        .table_at(handle_body)
-        .expect("the handle evaluates")
-        .iter()
-        .map(|(name, _)| name.clone())
-        .find(|name| {
-            name.kind == EntityKind::Face
-                && face_carrier_kind(&ev, handle_body, name) == Ok(SurfaceKind::Torus)
-        })
-        .expect("a tube has a torus face");
-    let placed = crate::world::against_on_axis(
+    // Placed into the pot's space with its own frame at the handle's
+    // pose there.
+    let placed = crate::world::against(
         &doc,
         pncad::document::Operand::output(bellied, 0),
         handle_body,
-        spine_face,
         &handle_pose(),
         tol,
     );

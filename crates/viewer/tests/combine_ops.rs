@@ -614,9 +614,9 @@ fn several_bodies_are_not_one_body_at_a_seat() {
     }
 }
 
-/// The transform door places a body rigidly: a placement of it against
-/// its own geometry, standing at the frame the form's numbers make, with
-/// values the property panel then owns.
+/// The transform door places a body rigidly: a placement of it into its
+/// own space, standing at the frame the form's numbers make, by values
+/// on the space's axes the property panel then owns.
 #[test]
 fn the_transform_door_places_a_body_with_values() {
     let tol = Tol::witness();
@@ -664,8 +664,13 @@ fn the_transform_door_places_a_body_with_values() {
                 .all(|(a, b)| close(*a, *b)),
         "the copy stands at {at:?}, not {want:?}"
     );
-    // Its values are the placement's slots: two slides and a spin.
+    // Its values are the placement's slots: the spin about the space's
+    // `z` the rotation axis names, and the three slides.
     for (coord, dim) in [
+        (
+            pncad::document::Coord::Spin(pncad::document::TargetAxis::Z),
+            Dimension::Angle,
+        ),
         (
             pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
             Dimension::Length,
@@ -674,7 +679,10 @@ fn the_transform_door_places_a_body_with_values() {
             pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
             Dimension::Length,
         ),
-        (pncad::document::Coord::Spin, Dimension::Angle),
+        (
+            pncad::document::Coord::Slide(pncad::document::TargetAxis::Z),
+            Dimension::Length,
+        ),
     ] {
         let slot = crate::fixture::value_slot(doc, placed, coord);
         let expr = doc

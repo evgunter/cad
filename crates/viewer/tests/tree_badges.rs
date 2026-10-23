@@ -1150,12 +1150,11 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
 }
 
 /// **A placement's row carries its constraints as children**, in bundle
-/// order, each by its address — a mate and each value naming it; the
-/// world, which every document holds and nothing deletes, has no row;
-/// and removing the mate, or one of its values, through its child row's
-/// op writes the bundle whole without it and is refused `Unpinned`,
-/// since every bundle pins its copy and the door admits none beyond the
-/// pin, leaving the row as it was.
+/// order, each by its address — a mate and the values on the freedoms
+/// it leaves; the world, which every document holds and nothing
+/// deletes, has no row; and removing the mate through its child row's
+/// op writes the bundle whole without it, each freedom it fixed written
+/// `0`, so the copy stays pinned and the row carries values alone.
 #[test]
 fn a_placement_row_carries_its_constraints_as_children() {
     use viewer::tree::ConstraintRow;
@@ -1192,7 +1191,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
                 "constraint 1: Rest mate",
                 "constraint 2: slide along x value",
                 "constraint 3: slide along y value",
-                "constraint 4: spin value",
+                "constraint 4: spin about z value",
             ])
             .map(|(mate, said)| ConstraintRow {
                 mate,
@@ -1201,56 +1200,38 @@ fn a_placement_row_carries_its_constraints_as_children() {
             .collect::<Vec<_>>(),
         "post_b's row carries the seat that places it, and its values"
     );
-    let pin = common::asm::world_pin_of(session.committed_doc(), bench.shelf_i);
+    let shelf: Vec<_> = crate::fixture::bundle(session.committed_doc(), bench.shelf_i)
+        .iter()
+        .enumerate()
+        .map(|(at, c)| ConstraintRow {
+            mate: pncad::document::MateRef::new(bench.shelf_i, c.id),
+            said: format!(
+                "constraint {}: {} value",
+                at + 1,
+                c.value().expect("the shelf's pin is values").coord.name()
+            ),
+        })
+        .collect();
+    assert_eq!(shelf.len(), 6, "the shelf's pin sets every freedom");
     assert_eq!(
         common::row_of(&rows, bench.shelf_i).constraints,
-        vec![ConstraintRow {
-            mate: pin,
-            said: "constraint 1: world mate".to_owned(),
-        }],
-        "the shelf's row carries the pin it stands on"
+        shelf,
+        "the shelf's row carries the values it stands on"
     );
 
     let outcome = session.perform(SessionOp::RemoveConstraint { mate: seat });
-    assert!(
-        matches!(
-            outcome.refusal.as_ref(),
-            Some(viewer::session::Refusal::Edit(error))
-                if matches!(
-                    error.as_ref(),
-                    pncad::document::EditError::MateRefused { fault, .. }
-                        if matches!(**fault, pncad::document::MateFault::Unpinned { .. })
-                )
-        ),
-        "every bundle pins its copy: {:?}",
-        outcome.refusal
-    );
-    // A value alone is refused the same: the bundle the door admitted
-    // is minimal, so it leaves the freedom the value set unwritten.
-    let value = crate::fixture::bundle(session.committed_doc(), bench.post_b)[1].id;
-    let outcome = session.perform(SessionOp::RemoveConstraint {
-        mate: pncad::document::MateRef::new(bench.post_b, value),
-    });
-    assert!(
-        matches!(
-            outcome.refusal.as_ref(),
-            Some(viewer::session::Refusal::Edit(error))
-                if matches!(
-                    error.as_ref(),
-                    pncad::document::EditError::MateRefused { fault, .. }
-                        if matches!(**fault, pncad::document::MateFault::Unpinned { .. })
-                )
-        ),
-        "a value's removal leaves its freedom unwritten: {:?}",
-        outcome.refusal
-    );
-    assert!(outcome.committed.is_empty(), "nothing is recorded");
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
+    let bundle = crate::fixture::bundle(session.committed_doc(), bench.post_b);
+    assert!(
+        bundle.iter().all(|c| c.value().is_some()),
+        "the seat is gone, the copy pinned by values: {bundle:?}"
+    );
     let rows = session.tree_rows();
     assert_eq!(
         common::row_of(&rows, bench.post_b).constraints.len(),
-        4,
-        "the refused removal leaves the row as it was"
+        bundle.len(),
+        "the row carries the bundle the door wrote"
     );
     assert_eq!(common::status_of(&rows, bench.post_b), RowStatus::Ok);
     std::fs::remove_dir_all(&bench.dir).expect("removable");

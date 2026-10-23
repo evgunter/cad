@@ -179,11 +179,11 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
 /// about the CHOICE alone, so the tool refuses them the way it refuses
 /// a class outside the vocabulary — here with the picks' instance
 /// deleted out from under the tool, which the pick door would refuse
-/// were it reached. The freedom's sentence is the kernel's reading
-/// (`Coord::admitted_by`).
+/// were it reached. Which freedoms a kind leaves is the panel's
+/// reading (`MateFreedom::left_by`).
 #[test]
 fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
-    use pncad::document::{Coord, FreedomRefusal, TargetAxis, VarKind};
+    use pncad::document::{Coord, TargetAxis, VarKind};
     let tol = Tol::witness();
     let bench = asm::bench("matetable", tol);
     let session = asm::open_bench(&bench, tol);
@@ -210,22 +210,10 @@ fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
     );
     let mut choice = asm::seat_choice();
     choice.kind = VarKind::Axis;
-    let Err(MateToolError::NotAFreedom {
-        coord,
-        kind,
-        refusal,
-    }) = tool.proposal(doc, choice)
-    else {
+    let Err(MateToolError::NotAFreedom { coord, kind }) = tool.proposal(doc, choice) else {
         panic!("an axis mate leaves no slide along x");
     };
-    assert_eq!(
-        (coord, kind, refusal),
-        (
-            Coord::Slide(TargetAxis::X),
-            VarKind::Axis,
-            FreedomRefusal::NotAFreedom
-        )
-    );
+    assert_eq!((coord, kind), (Coord::Slide(TargetAxis::X), VarKind::Axis));
     // And a choice whose every part is admitted reaches the pick door,
     // which is what "before any pick" means here.
     assert!(matches!(
@@ -382,7 +370,7 @@ fn shelf_on(
     let mut choice = asm::seat_choice();
     for (coord, by) in &mut choice.values {
         *by = match coord {
-            pncad::document::Coord::Spin | pncad::document::Coord::SpinAbout(_) => ang(0.0),
+            pncad::document::Coord::Spin(_) => ang(0.0),
             pncad::document::Coord::Slide(_) => len(0.0),
         };
     }

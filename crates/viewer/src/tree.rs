@@ -325,17 +325,12 @@ pub struct ConstraintRow {
 }
 
 /// **What a constraint is, as its child row says it**: its 1-based
-/// position in its bundle (`at`), then `world mate` for a mate whose
-/// target reads the world, its contact class's name and `mate` for any
-/// other mate, and the freedom a value sets —
-/// `constraint 1: world mate`, `constraint 2: Rest mate`,
-/// `constraint 3: spin value`. Never its minted id, which is an arena
+/// position in its bundle (`at`), then its contact class's name and
+/// `mate` for a mate, and the freedom a value sets —
+/// `constraint 1: Rest mate`, `constraint 2: spin about z value`. Never its minted id, which is an arena
 /// key and no word a person reads.
 pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
     match (constraint.mate(), constraint.value()) {
-        (Some(mate), _) if matches!(mate.to, pncad::document::Target::World(_)) => {
-            format!("constraint {at}: world mate")
-        }
         (Some(mate), _) => format!("constraint {at}: {} mate", mate.class.name()),
         (None, Some(value)) => format!("constraint {at}: {} value", value.coord.name()),
         (None, None) => unreachable!("a constraint is a mate or a value"),
@@ -1193,11 +1188,8 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::NotOnTheCopy { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
-        | MateFault::WorldRead { mate, .. }
         | MateFault::SideUnevaluated { mate, .. } => vec![mate.placement],
-        MateFault::ValueNamesNoMate { value, .. }
-        | MateFault::NotAFreedom { value, .. }
-        | MateFault::NoChart { value, .. } => vec![value.placement],
+        MateFault::NoChart { value, .. } => vec![value.placement],
         // A claim about one bundle: its placement is the row.
         MateFault::Overconstrained { placement, .. } | MateFault::Unpinned { placement, .. } => {
             vec![*placement]

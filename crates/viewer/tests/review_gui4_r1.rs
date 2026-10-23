@@ -371,7 +371,11 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         asm::middle_seat_values(),
     ));
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
-    assert_eq!(first.committed.len(), 2, "the re-target and the bundle");
+    assert_eq!(
+        first.committed.len(),
+        3,
+        "the re-target, the mate and its values"
+    );
     let [superseded] = &first.withdrawn.superseded[..] else {
         panic!("exactly one frame is superseded at the edit")
     };

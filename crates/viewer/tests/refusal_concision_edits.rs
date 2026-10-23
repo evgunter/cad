@@ -842,7 +842,7 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
 
 /// A mate fault of every arm, for the two edit arms that forward one.
 fn mate_faults() -> Vec<(&'static str, MateFault)> {
-    use editor_core::{Coord, LeverRefusal, MateSide, TargetAxis, VarKind};
+    use editor_core::{LeverRefusal, MateSide, VarKind};
     let doc_ref = editor_core::DocRef {
         id: DocumentId::derive("bracket"),
         pin: ContentPin::of_bytes(b"bracket v3"),
@@ -877,32 +877,10 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             },
         ),
         (
-            "WorldRead",
-            MateFault::WorldRead {
-                mate: r(9),
-                fault: editor_core::WorldReadFault::FlippedPoint,
-            },
-        ),
-        (
-            "ValueNamesNoMate",
-            MateFault::ValueNamesNoMate {
-                value: r(9),
-                mate: c(8),
-            },
-        ),
-        (
-            "NotAFreedom",
-            MateFault::NotAFreedom {
-                value: r(9),
-                coord: Coord::Slide(TargetAxis::Z),
-                kind: VarKind::Plane,
-            },
-        ),
-        (
             "NoChart",
             MateFault::NoChart {
                 value: r(9),
-                why: editor_core::NoChartWhy::PointRotation,
+                why: editor_core::NoChartWhy::SlideTurnsABall,
             },
         ),
         (
