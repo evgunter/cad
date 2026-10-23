@@ -991,10 +991,15 @@ fn run_at<T: editor_core::EvalScalar>(
 /// translation entry by at most one ulp (8.9e-16 m) and every rotation
 /// entry bit-identical; every other solved pose of the corpus is main's
 /// bit for bit (each map dumped on main and on the branch).
+///
+/// And for INTENT stage 4 I (a mate declares no contact, all three
+/// rows): a mate's wire lost its class, so every mate's edit preimage
+/// and every id minted after one moved; the solve reads no class, so no
+/// pose moved for it. Re-blessed at all three ε.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb2a4_c6af_68c0_eabf),
-    (1e-6, 0xf1ee_344a_2a63_4bd7),
-    (1e-12, 0xc404_5ce6_ff18_2ef7),
+    (1e-9, 0xf0e5_fe83_906b_f0d0),
+    (1e-6, 0xaae3_bcde_b879_7471),
+    (1e-12, 0x97e6_d8a5_3234_3d45),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1716,7 +1721,6 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
                 p.slab_side(slab, 1),
                 named(drift(), Dimension::Length),
             )),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::X), len(x)),
