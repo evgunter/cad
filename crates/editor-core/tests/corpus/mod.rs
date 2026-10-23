@@ -466,13 +466,14 @@ pub fn read_body<'e, T: Decide>(
 ///
 /// - `Sweep`: every recipe-expressible sweep refuses at one door, for
 ///   the reason `eval::wire::SWEEP_FRONTIER` states.
-/// - `World`: the world defines no variable and is scheduled nowhere
-///   (`eval::schedule`); a constraint reads it as a side, never as a
-///   value.
+/// - `World` and `Space`: each defines one `Space` variable, which
+///   holds nothing, and is scheduled nowhere (`eval::schedule`); a
+///   placement reads it as its target and a constraint the world as a
+///   side, never as a value.
 ///
 /// Each reader holds its entries in both directions, so a kind that
 /// starts evaluating reds until it is removed here.
-pub const NEVER_EVALUATES: [&str; 2] = ["Sweep", "World"];
+pub const NEVER_EVALUATES: [&str; 3] = ["Sweep", "World", "Space"];
 
 /// **The node kinds that evaluate, but only in documents beside this
 /// registry** — so [`documents`] cannot cover them while
@@ -490,7 +491,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 22] = [
+pub const NODE_KINDS: [&str; 23] = [
     "Profile",
     "Extrude",
     "Revolve",
@@ -551,6 +552,10 @@ pub const NODE_KINDS: [&str; 22] = [
     // The world: in every document, authored by none, so it reads zero
     // here and is exempt through `NEVER_EVALUATES`.
     "World",
+    // A `new_space()`: it holds nothing and is scheduled nowhere, and
+    // no corpus document places into one, so it reads zero here and is
+    // exempt through `NEVER_EVALUATES`.
+    "Space",
 ];
 
 /// The edit kinds the corpus is required to exercise — the coverage
@@ -561,9 +566,10 @@ pub const NODE_KINDS: [&str; 22] = [
 /// `UpdateReference` are arms of `DocEdit` that no corpus document
 /// authors, and listing them here would report six permanent misses
 /// rather than covering anything. `AddConstraint`, `AddValue` and
-/// `AddValues` are listed: a placement writes a mate and the values
-/// that set its freedoms, or, standing where its body stands, the
-/// identity bundle's values as one write.
+/// `AddValues` are not listed either: every bundle pins its copy, so
+/// an increment over a stored bundle can only refuse
+/// (`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`).
+/// `SetConstraints` is listed: a placement's bundle is written whole.
 /// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -575,7 +581,7 @@ pub const NODE_KINDS: [&str; 22] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 23] = [
+pub const EDIT_KINDS: [&str; 21] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -596,9 +602,7 @@ pub const EDIT_KINDS: [&str; 23] = [
     "SetAppearanceMeta",
     "ClearAppearanceMeta",
     "SetLabel",
-    "AddConstraint",
-    "AddValue",
-    "AddValues",
+    "SetConstraints",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: both pattern
@@ -682,6 +686,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Mirror { .. }
         | Node::Place { .. }
         | Node::World
+        | Node::Space
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Measure { .. }
@@ -711,6 +716,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
         Node::World => "World",
+        Node::Space => "Space",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
@@ -752,6 +758,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::RemoveConstraints { .. } => "RemoveConstraints",
         DocEdit::AddValue { .. } => "AddValue",
         DocEdit::AddValues { .. } => "AddValues",
+        DocEdit::SetConstraints { .. } => "SetConstraints",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
     }

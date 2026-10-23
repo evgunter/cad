@@ -427,7 +427,7 @@ assert blended.vertex_count == 4
 **A profile is 2-D, and a body has no location.** A profile is drawn
 on its own xy plane and an extrude runs up its own +z, so a
 construction lies in its own coordinates and reads no frame. Where it
-stands is a placement's: `doc.place(body, pose=frame)` stands it in the
+stands is a placement's: `doc.place(body, doc.world, pose=frame)` stands it in the
 world at a `Frame`, and `doc.place_against(target, body, frame)` stands
 it at a frame in `target`'s own coordinates — which is how a body
 joins a boolean with another construction.
@@ -461,7 +461,7 @@ slab = doc.insert(
         Formula.length_in(0.25, m),
     )
 )
-wall = doc.place(slab, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+wall = doc.place(slab, doc.world, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
 ev = evaluate(doc)
 assert abs(ev.value(wall).body().mass_properties().volume - 1.5) < 1e-12
 corners = [ev.vertex_position(wall, v) for v in ev.all_vertices(wall)]
@@ -1876,13 +1876,13 @@ let placed = place_against(
     &EvalOptions::default(),
     tol,
 )?;
-let (next, tab_on_plate) = insert(&doc, Node::place(vec![BodyRead::plain(Operand::from(tab))]));
+// The tab's copy is placed into the plate's space, which the mate reads.
+let in_plate = Operand::Var(doc.node_space(plate).expect("a construction is in its own space"));
+let (next, tab_on_plate) = insert(
+    &doc,
+    Node::place(vec![BodyRead::plain(Operand::from(tab))], in_plate, placed.bundle()),
+);
 doc = next;
-placed.write(tab_on_plate, |edit| {
-    let applied = apply(&doc, &edit, tol)?;
-    doc = applied.doc;
-    Ok::<_, EditError>(applied.record.minted_constraints)
-})?;
 let (next, solid) = insert(&doc, Node::Union {
     members: Bodies::Spelled(vec![plate.into(), tab_on_plate.into()]),
 });

@@ -79,9 +79,36 @@ fn two_picks_one_choice_one_committed_edit() {
         "two planes, the target flipped: the faces rest against each other"
     );
 
+    // post_b stands in a space of its own and the shelf in the world:
+    // the plain commit never moves the copy as a side effect, so the
+    // door refuses the mate, naming both spaces, and nothing is recorded.
+    let before = session.committed_doc().clone();
+    let refused = session.perform(proposal.op());
+    let own = before.node_space(bench.post_b).expect("post_b is placed");
+    assert!(
+        matches!(
+            refused.refusal.as_ref(),
+            Some(viewer::session::Refusal::Edit(error))
+                if matches!(
+                    error.as_ref(),
+                    pncad::document::EditError::SpaceMismatch { a, b, .. }
+                        if [a.id(), b.id()].contains(&own)
+                            && [a.id(), b.id()].contains(&pncad::document::VarId::WORLD)
+                )
+        ),
+        "a mate across two spaces refuses unless the move is asked for: {:?}",
+        refused.refusal
+    );
+    assert!(refused.committed.is_empty(), "nothing is recorded");
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "the document stands"
+    );
+
     // One committed action, through the session's one door, into
-    // post_b's bundle: the mate and its values.
-    let mate = common::commit_mate(&mut session, proposal.op());
+    // post_b's bundle: the mate and its values, the copy moved into the
+    // shelf's space by name.
+    let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
     assert_eq!(mate.placement, bench.post_b, "the mate places post_b");
 
     // The placement is SOLVED from the mate: the two picked FACES now
@@ -411,7 +438,7 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     // the evaluation draws. A tool that read the master's face would
     // land the shelf one step away from copy 1.
     asm::unpin(&mut session, bench.shelf_i);
-    let mate = common::commit_mate(&mut session, proposal.op());
+    let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
         common::solve(&session, doc, tol)
@@ -523,7 +550,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     // pins: its copy is pinned `UNION_SHIFT` along y, clear of them.
     let (doc, union_copy) = common::inserted(
         &doc,
-        pncad::document::Node::place(vec![pncad::document::BodyRead::plain(
+        crate::fixture::stood(vec![pncad::document::BodyRead::plain(
             pncad::document::Operand::from(union),
         )]),
         tol,
@@ -667,7 +694,7 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
     // rotation being applied exactly once. The shelf's world mate comes
     // off, so the mate places the shelf against the spun copy.
     asm::unpin(&mut session, bench.shelf_i);
-    let mate = common::commit_mate(&mut session, spun.op());
+    let mate = common::commit_mate(&mut session, spun.op_into_target_space());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
         common::solve(&session, doc, tol)
@@ -844,7 +871,7 @@ fn a_nested_copy_pick_is_a_target_and_seats() {
     // The shelf's world mate off, so the mate places the shelf against
     // the nested copy.
     asm::unpin(&mut session, shelf);
-    let mate = common::commit_mate(&mut session, proposal.op());
+    let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
     assert_eq!(mate.placement, shelf);
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
@@ -899,7 +926,7 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
     // The shelf's world mate off, so the mate places the shelf against
     // the Part's copy.
     asm::unpin(&mut session, shelf);
-    let mate = common::commit_mate(&mut session, proposal.op());
+    let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
     assert_eq!(mate.placement, shelf);
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(

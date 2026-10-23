@@ -2635,6 +2635,14 @@ pub fn apply_with_names<T: Decide>(
                 names.extend(to.selected_names());
             }
         }
+        DocEdit::SetConstraints { constraints, .. } => {
+            for mate in constraints.iter().filter_map(crate::mate::Constraint::mate) {
+                names.extend(mate.on.selected_names());
+                if let Some(to) = mate.to.pose() {
+                    names.extend(to.selected_names());
+                }
+            }
+        }
         // Name-carrying and deliberately unchecked here: an appearance
         // name resolves at evaluation, where a miss is a typed
         // `AppearanceLoss` rather than a silent drop, and clearing is

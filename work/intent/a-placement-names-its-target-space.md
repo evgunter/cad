@@ -2,11 +2,14 @@
 id: a-placement-names-its-target-space
 kind: unit
 title: D′1: a placement names the Space it places into; Space a minted kind (the world, new_space(), a.space); every body's space derived from the recipe and SpaceMismatch decided statically; every bundle pinned, so the loose copy retires
-status: spec
+status: closed
 opened: 2026-10-22
 priority: P0
 cost: H
 parent: a-placement-pins-by-written-values-without-a-mate
+closed: 2026-10-22
+pr: 5592
+branch: intent/dprime1-placement-target-space
 ---
 
 
@@ -44,3 +47,29 @@ wire, content key (VERSION 18) and var tables move.
 
 **Absorbs:** `a-bundle-folds-in-the-joined-space`,
 `a-placement-relates-two-frames`.
+
+## Closed (2026-10-22)
+
+Built on `intent/dprime1-placement-target-space`.
+
+- `VarKind::Space`, minted by the world (`VarId::WORLD`, every
+  document's, off the wire), `Node::Space` and each construction's
+  `space` output (its last port).
+- `Place` and `InstantiatePart` read a `target`; `SetParam` of the
+  `target` slot re-targets, reporting `Maintenance::StrandedSpace`.
+- `Doc::space_of`, `node_space`, `space_fault(s)` derive every space
+  from the recipe; the edit door refuses `EditError::SpaceMismatch`
+  for a node written whole, and evaluation refuses
+  `NodeErrorKind::SpaceMismatch` for a stranded one. A re-point is
+  reported rather than refused, as a re-target is, so a split or
+  inline that re-points a node's reads one at a time passes through.
+- Every bundle pins its copy; bundles are written whole
+  (`DocEdit::SetConstraints`). `mate::solve::Space`, the loose copy,
+  `TargetsDiffer`, `loose_spaces`, `ExportError::Loose` and
+  `AssemblyError::Space` are gone.
+- The viewer shows its spaces by their variables (DI5).
+
+Left open: `incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle`,
+`deleting-a-space-strands-the-placements-into-it`,
+`the-viewer-does-not-show-a-constructions-own-space`, and the census
+of spaces other than the world (`a-parts-loose-spaces-and-member-reads-drop-its-census-rows`).

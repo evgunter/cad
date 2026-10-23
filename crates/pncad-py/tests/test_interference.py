@@ -35,8 +35,8 @@ def block(doc, corner, side, elevation, height):
     )
     body = doc.insert(Node.extrude(outline, Formula.length_in(height, m)))
     if elevation == 0.0:
-        return doc.place(body)
-    return doc.place(body, pose=Frame.translation((0 * m, 0 * m, elevation * m)))
+        return doc.place(body, doc.world)
+    return doc.place(body, doc.world, pose=Frame.translation((0 * m, 0 * m, elevation * m)))
 
 
 class TestInterferenceIsAFinding(unittest.TestCase):
@@ -86,7 +86,7 @@ class TestAPartsOverlapIsThePartsFinding(unittest.TestCase):
         store.create(part)
         outer = Doc("pncad-carried-overlap")
         instance = outer.insert(
-            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), [])
+            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), outer.world)
         )
         outer.pin(instance, resolver=store)
         assembly = assemble(outer, evaluate(outer, resolver=store))
@@ -121,7 +121,7 @@ class TestAPartsOverlapIsThePartsFinding(unittest.TestCase):
         store.create(part)
         outer = Doc("pncad-carried-at-rest")
         instance = outer.insert(
-            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), [])
+            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), outer.world)
         )
         outer.pin(instance, resolver=store)
         with self.assertRaises(pncad.AssemblyError) as carried:

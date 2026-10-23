@@ -21,9 +21,9 @@ use std::sync::Arc;
 use editor_core::mate::SurfaceKind;
 use editor_core::pose::PoseRole;
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
-    MateFault, MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal,
-    RecipeNodeId, ResolveFault, Target, TargetAxis, Value, WorldRead, content_pin, product,
+    CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate, MateFault,
+    MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal, RecipeNodeId,
+    ResolveFault, Target, WorldRead, content_pin, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, on_frame, revolve_about, run, solve};
@@ -144,7 +144,7 @@ fn instances(
     let mut ids = Vec::new();
     for i in 0..n {
         let (next, id) = if i == 0 {
-            fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &opts)
+            fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &opts)
         } else {
             insert(doc, fixture::mated_instance(doc_ref))
         };
@@ -152,25 +152,6 @@ fn instances(
         ids.push(id);
     }
     (doc, ids, opts, body)
-}
-
-/// `doc` with the freedom `coord` of `mate` set to `by`.
-fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> ProfileDoc {
-    editor_core::apply(
-        &doc,
-        &DocEdit::AddValue {
-            placement: mate.placement,
-            value: Box::new(Value {
-                mate: Some(mate.id),
-                coord,
-                by,
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
-    .doc
 }
 
 /// **`upper` seated flush on `lower`'s top cap**: `upper`'s bottom cap
@@ -182,7 +163,8 @@ fn seat(
     (lower, lower_body): (RecipeNodeId, RecipeNodeId),
     (upper, upper_body): (RecipeNodeId, RecipeNodeId),
 ) -> (ProfileDoc, MateRef) {
-    let (doc, rest) = fixture::constrain_at(
+    // The rest and its three values, each 0.
+    fixture::constrain_at(
         doc,
         upper,
         fixture::rest(
@@ -190,15 +172,7 @@ fn seat(
             fixture::head(in_part(lower, lower_body, CapEnd::End)),
             ContactClass::Rest,
         ),
-    );
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| with_value(doc, rest, coord, by));
-    (doc, rest)
+    )
 }
 
 /// The world's `xy` plane, facing down: what a bottom cap rests on.
@@ -424,9 +398,12 @@ fn seated(
         node: Box::new(node),
         fresh: Vec::new(),
     };
-    let a = push(&mut doc, insert_node(Node::instantiate_part(part_ref)))
-        .0
-        .unwrap();
+    let a = push(
+        &mut doc,
+        insert_node(crate::fixture::mated_instance(part_ref)),
+    )
+    .0
+    .unwrap();
     let pin = editor_core::pin_at(
         &doc,
         &editor_core::Operand::Var(doc.output(a, 0).expect("an instance defines its copies")),
@@ -435,63 +412,55 @@ fn seated(
         Tol::witness(),
     )
     .expect("the instance pins over its geometry");
-    push(
-        &mut doc,
-        DocEdit::AddConstraint {
-            placement: a,
-            mate: Box::new(pin),
-            fresh: Vec::new(),
-        },
-    );
+    // The pin is the first instance's whole bundle.
+    push(&mut doc, pinned_by(a, pin));
     let b = push(&mut doc, insert_node(fixture::mated_instance(part_ref)))
         .0
         .unwrap();
-    let rest = MateRef::new(
-        b,
-        push(
-            &mut doc,
-            DocEdit::AddConstraint {
-                placement: b,
-                mate: Box::new(fixture::rest(
-                    fixture::head(in_part(b, body, CapEnd::Start)),
-                    fixture::head(in_part(a, body, CapEnd::End)),
-                    ContactClass::Rest,
-                )),
-                fresh: Vec::new(),
-            },
-        )
-        .1[0],
+    // The rest and its three values, each 0, written whole.
+    let rest = fixture::rest(
+        fixture::head(in_part(b, body, CapEnd::Start)),
+        fixture::head(in_part(a, body, CapEnd::End)),
+        ContactClass::Rest,
     );
-    let mut seat = vec![rest];
-    for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, ang(0.0)),
-    ] {
-        let id = push(
-            &mut doc,
-            DocEdit::AddValue {
-                placement: b,
-                value: Box::new(Value {
-                    mate: Some(rest.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .1[0];
-        seat.push(MateRef::new(b, id));
-    }
+    let squared = fixture::squared(&doc, rest, &[]);
+    let seat = push(&mut doc, squared.write(b))
+        .1
+        .into_iter()
+        .map(|id| MateRef::new(b, id))
+        .collect();
     (doc, [a, b], seat, opts, log, body)
 }
 
-/// **A constraint edit is never refused for the placement it removes,
-/// and asks no store** (A11 (2)): no edit records a pose, so removing
-/// a mate from a placement whose part does not resolve applies, and
-/// leaves the copy it pinned loose — no row, no solve.
+/// The edit that writes `mate` as `placement`'s whole bundle: a world
+/// pin, which pins its copy by itself.
+fn pinned_by(
+    placement: RecipeNodeId,
+    mate: editor_core::Mate<Formula>,
+) -> DocEdit<editor_core::ProfileProgram> {
+    DocEdit::SetConstraints {
+        placement,
+        constraints: vec![editor_core::Constraint::of_mate(
+            editor_core::ConstraintId::placeholder(1),
+            mate,
+        )],
+        fresh: Vec::new(),
+    }
+}
+
+/// The edit that stands `placement`'s copy where it is: the identity
+/// bundle written over whatever it held ([`editor_core::stand`]).
+fn unseat(placement: RecipeNodeId) -> DocEdit<editor_core::ProfileProgram> {
+    editor_core::stand().write(placement)
+}
+
+/// **A constraint edit is never refused for the placement it unseats,
+/// and asks no store** (A11 (2)): no edit records a pose, so writing a
+/// placement whose part does not resolve out of its mate — the identity
+/// bundle written over its seat — applies, and stands the copy where it
+/// is — no row, no solve.
 ///
-/// *Breaks if* a removal is refused, or invents a constraint.
+/// *Breaks if* the unseating is refused, or invents a constraint.
 #[test]
 fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
     let mut elsewhere = PartStore::new();
@@ -513,22 +482,23 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
             ContactClass::Rest,
         ),
     );
-    let remove = DocEdit::RemoveConstraint {
-        placement: mate.placement,
-        constraint: mate.id,
-    };
+    let remove = unseat(mate.placement);
     {
         let applied = doc
             .apply(&remove, Tol::witness())
-            .expect("removing a placing mate is never refused");
+            .expect("unseating a placing mate is never refused");
         assert!(
             crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
             "{:?}",
             applied.maintenance
         );
         assert!(
-            fixture::bundle(&applied.doc, lost).is_empty(),
-            "the copy the mate pinned is loose, with no constraint the removal invented"
+            fixture::bundle(&applied.doc, lost)
+                .iter()
+                .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
+                && fixture::bundle(&applied.doc, lost).len() == 6,
+            "the copy the mate pinned stands by the identity bundle, with no constraint the \
+             edit invented"
         );
         assert_eq!(
             fixture::bundle(&applied.doc, ids[0]),
@@ -539,10 +509,10 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
 }
 
 /// **No edit asks the store**: the edit door takes none and decides
-/// only what the recipe says, so on a mated document a seat added to a
-/// third instance, a world mate removed and re-added at another pose, an
-/// appearance, a union, a fourth instance and every removal — the
-/// seat's, the first instance's — each applies.
+/// only what the recipe says, so on a mated document a seat written to
+/// a third instance, a world mate re-written at another pose, an
+/// appearance, a union, a fourth instance, the seat unseated and the
+/// first instance deleted — each applies.
 ///
 /// *Breaks if* any of these edits is refused for a fact of the parts.
 #[test]
@@ -554,38 +524,30 @@ fn a6_no_edit_asks_the_store() {
         _ => panic!("an instance"),
     };
     let (doc, c) = insert(doc, fixture::mated_instance(part_ref));
-    let applied = doc
-        .apply(
-            &DocEdit::AddConstraint {
-                placement: c,
-                mate: Box::new(fixture::rest(
-                    fixture::head(in_part(c, body, CapEnd::Start)),
-                    fixture::head(in_part(b, body, CapEnd::End)),
-                    ContactClass::Rest,
-                )),
-                fresh: Vec::new(),
-            },
-            tol,
-        )
-        .expect("a mate is added");
+    let seat_c = fixture::squared(
+        &doc,
+        fixture::rest(
+            fixture::head(in_part(c, body, CapEnd::Start)),
+            fixture::head(in_part(b, body, CapEnd::End)),
+            ContactClass::Rest,
+        ),
+        &[],
+    );
+    let applied = doc.apply(&seat_c.write(c), tol).expect("a seat is written");
     assert!(
         crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
         "{:?}",
         applied.maintenance
     );
     let doc = applied.doc;
-    let [pin] = &fixture::bundle(&doc, a)[..] else {
+    let [_pin] = &fixture::bundle(&doc, a)[..] else {
         panic!("the first instance is pinned to the world by one constraint");
     };
+    // The world mate taken off — the copy stood where it is — and
+    // written again at another pose.
     let doc = doc
-        .apply(
-            &DocEdit::RemoveConstraint {
-                placement: a,
-                constraint: pin.id,
-            },
-            tol,
-        )
-        .expect("removing a world mate asks nothing")
+        .apply(&unseat(a), tol)
+        .expect("unseating a world mate asks nothing")
         .doc;
     let moved = editor_core::pin_at(
         &doc,
@@ -596,15 +558,8 @@ fn a6_no_edit_asks_the_store() {
     )
     .expect("the instance pins over its geometry");
     let doc = doc
-        .apply(
-            &DocEdit::AddConstraint {
-                placement: a,
-                mate: Box::new(moved),
-                fresh: Vec::new(),
-            },
-            tol,
-        )
-        .expect("a world mate asks nothing")
+        .apply(&pinned_by(a, moved), tol)
+        .expect("a world mate re-written asks nothing")
         .doc;
     let doc = doc
         .apply(
@@ -657,21 +612,12 @@ fn a6_no_edit_asks_the_store() {
             applied.maintenance
         );
     };
-    // The seat's values, then the mate they set the freedoms of.
-    let mut unseated = doc.clone();
-    for m in seat_refs.iter().rev() {
-        let applied = unseated
-            .apply(
-                &DocEdit::RemoveConstraint {
-                    placement: m.placement,
-                    constraint: m.id,
-                },
-                tol,
-            )
-            .expect("a removal is never refused for the placement it removes");
-        stranding(&applied);
-        unseated = applied.doc;
-    }
+    // The seat unseated whole.
+    assert_eq!(seat_refs.len(), 4, "the rest and its three values");
+    stranding(
+        &doc.apply(&unseat(b), tol)
+            .expect("an unseating is never refused for the placement it unseats"),
+    );
     stranding(
         &doc.apply(&DocEdit::DeleteNode { id: a }, tol)
             .expect("a removal is never refused for the placement it removes"),
@@ -680,26 +626,19 @@ fn a6_no_edit_asks_the_store() {
 
 /// **A saved document whose seat is taken apart replays
 /// bit-identically with no store**: the log is its edits, and replay
-/// re-applies them without evaluating — the copy the removed seat
-/// pinned is loose, not re-pinned.
+/// re-applies them without evaluating — the copy the unseated seat
+/// pinned stands by the identity bundle, not re-pinned.
 ///
-/// *Breaks if* replay consults a part, or re-pins what the log loosed.
+/// *Breaks if* replay consults a part, or re-pins what the log unseated.
 #[test]
 fn a6_a_saved_unseating_replays_bit_identically_with_no_store() {
-    let (doc, [a, b], seat_refs, _, mut log, _) = seated("msolve6-a6-replay");
-    // The values first, then the mate they set the freedoms of.
-    let mut live = doc;
-    for m in seat_refs.iter().rev() {
-        let remove = DocEdit::RemoveConstraint {
-            placement: m.placement,
-            constraint: m.id,
-        };
-        live = live
-            .apply(&remove, Tol::witness())
-            .expect("the removal applies")
-            .doc;
-        log.push(remove);
-    }
+    let (doc, [a, b], _, _, mut log, _) = seated("msolve6-a6-replay");
+    let remove = unseat(b);
+    let live = doc
+        .apply(&remove, Tol::witness())
+        .expect("the unseating applies")
+        .doc;
+    log.push(remove);
     let empty = ProfileDoc::empty(live.id(), Tol::witness());
     let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
     let loaded = editor_core::load(&text, Tol::witness()).expect("loads with no store");
@@ -708,8 +647,10 @@ fn a6_a_saved_unseating_replays_bit_identically_with_no_store() {
     let replayed = ProfileDoc::replay(live.id(), &log, Tol::witness()).expect("replays");
     assert!(replayed.bit_eq(&live));
     assert!(
-        fixture::bundle(&live, b).is_empty(),
-        "the copy the seat pinned stays loose"
+        fixture::bundle(&live, b)
+            .iter()
+            .all(|c| c.value().is_some_and(|v| v.mate.is_none())),
+        "the copy the seat pinned stands by the identity bundle"
     );
     assert_eq!(fixture::bundle(&live, a).len(), 1, "the first stays pinned");
 }
@@ -966,11 +907,12 @@ fn a2_the_reach_fold_propagates_a_poisoned_face_rather_than_dropping_it() {
     );
 }
 
-/// **A mate chained to a refused one removes like any other**: a
+/// **A mate chained to a refused one unseats like any other**: a
 /// placement whose bundle its fold refuses (two rests, the second
 /// beside the first past the door, as a doctored save leaves it) leaves
-/// the copy seated on it poisoned through it, and the removal of that
-/// seat neither asks for a verdict nor refuses — no edit records a pose.
+/// the copy seated on it poisoned through it, and unseating that copy —
+/// the identity bundle written over its seat — neither asks for a
+/// verdict nor refuses: no edit records a pose.
 ///
 /// *Breaks if* a refused placement's reader evaluates, or a removal
 /// decides anything.
@@ -996,7 +938,7 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
         rest_on(tilted_floor(0.25)),
         Tol::witness(),
     );
-    // One rest, no value names it: the mate this row removes.
+    // One rest and its values: the seat this row unseats.
     let (doc, m2) = fixture::constrain_at(
         doc,
         c,
@@ -1019,14 +961,11 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
         "the copy seated on the undecided one is poisoned through it: {:?}",
         ev.result(c)
     );
-    let remove = DocEdit::RemoveConstraint {
-        placement: m2.placement,
-        constraint: m2.id,
-    };
+    let remove = unseat(m2.placement);
     {
         let applied = doc
             .apply(&remove, Tol::witness())
-            .expect("removing a mate is never refused");
+            .expect("unseating a copy is never refused");
         assert!(crate::fixture::without_anonymous(&applied.maintenance).is_empty());
     }
 }
@@ -1092,7 +1031,7 @@ fn a5_two_mated_parts_evaluate_once_each() {
     let rb = store.insert(pb, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p8"), Tol::witness());
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(ra), &opts);
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(ra), &opts);
     let (doc, b) = insert(doc, fixture::mated_instance(rb));
     let (doc, c) = insert(doc, fixture::mated_instance(ra));
     assert_eq!(run(&doc, &opts).part_evaluations, 2);

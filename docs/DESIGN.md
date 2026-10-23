@@ -1304,8 +1304,9 @@ An operator's operands share one space. The recipe decides it, with no
 value and no evaluation, as it decides a dimension mismatch: the
 façade's builder and the Python binding refuse the call that would
 write such a node (`SpaceMismatch`), the GUI does not offer the
-gesture, and `persist::check::validate_document` marks such a read
-unresolved, as it marks a dangling one, rather than refusing the file.
+gesture, and a file holding such a read loads
+(`persist::check::validate_document` does not refuse it): the node
+refuses at evaluation, naming both spaces.
 An edit that re-targets a placement so that reads of its copy
 land in another space leaves those reads unresolved and typed, as
 deleting a variable does ([operations]): the document stays valid and

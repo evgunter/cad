@@ -22,10 +22,10 @@
 use crate::fixture;
 
 use editor_core::{
-    AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, Entry,
-    EvalOptions, Evaluation, Formula, MateFault, MateRef, MateSide, Node, NodeErrorKind,
-    NodeResult, NodeStanding, PartFault, PatternKind, ProductError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, StableName, TargetAxis, Value,
+    AssemblyError, CapEnd, ContactClass, Coord, DocumentId, EntityKind, Entry, EvalOptions,
+    Evaluation, Formula, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult,
+    NodeStanding, PartFault, PatternKind, ProductError, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedFace, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, gate, insert, len, on_frame, run, scl};
@@ -116,7 +116,7 @@ fn scene(label: &str, top_part: (ProfileDoc, RecipeNodeId)) -> Scene {
     let (top_ref, _) = store.insert_part(top_part, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     Scene {
         doc,
@@ -147,33 +147,16 @@ fn seat(
     base_top: SitedFace,
     bottom: SitedFace,
 ) -> (ProfileDoc, MateRef) {
-    let (mut doc, rest) = fixture::constrain_at(
+    fixture::mated(
         doc,
         top,
         fixture::rest(bottom, base_top, ContactClass::Rest),
-    );
-    for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(1.0)),
-        (Coord::Slide(TargetAxis::Y), len(1.0)),
-        (Coord::Spin, ang(0.0)),
-    ] {
-        doc = editor_core::apply(
-            &doc,
-            &DocEdit::AddValue {
-                placement: top,
-                value: Box::new(Value {
-                    mate: Some(rest.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
-        .doc;
-    }
-    (doc, rest)
+        &[
+            (Coord::Slide(TargetAxis::X), len(1.0)),
+            (Coord::Slide(TargetAxis::Y), len(1.0)),
+            (Coord::Spin, ang(0.0)),
+        ],
+    )
 }
 
 /// The placement `mate` refuses with its `on` pose's own refusal, and
@@ -300,13 +283,13 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     );
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve5-poisoned"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // A copy of the top's copy, lifted: it reads a copy that does not
     // evaluate, so it is pinned nominally ([`fixture::pin_mate`]).
     let (doc, xf) = insert(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::Node(top),
         )]),
     );
@@ -344,7 +327,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         );
         let (next, placed) = insert(
             next,
-            Node::place(vec![editor_core::BodyRead::plain(
+            crate::fixture::stood(vec![editor_core::BodyRead::plain(
                 editor_core::Operand::Node(part),
             )]),
         );

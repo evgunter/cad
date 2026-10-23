@@ -126,8 +126,8 @@ def two_slabs_resting():
 def place_resting(doc, lower, upper):
     """Both slabs of `two_slabs_resting` placed in the world, the upper
     resting on the lower."""
-    doc.place(lower)
-    doc.place(upper, pose=lift(RISE))
+    doc.place(lower, doc.world)
+    doc.place(upper, doc.world, pose=lift(RISE))
 
 
 class TestTheFourthRungIsTheStrictest(unittest.TestCase):
@@ -172,8 +172,8 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         doc = Doc()
         a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), 1 * m)
         b = slab(doc, (3 * m, 4 * m), (0 * m, 1 * m), 1 * m)
-        doc.place(a)
-        doc.place(b)
+        doc.place(a, doc.world)
+        doc.place(b, doc.world)
         product(doc, evaluate(doc)).validate_pseudomanifold()
 
     def test_an_interpenetrating_union_has_no_coincidence_to_record(self):
@@ -446,8 +446,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc = Doc()
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), 1 * m)
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 0.5 * m)
-        doc.place(seat)
-        doc.place(post, pose=lift(1 * m))
+        doc.place(seat, doc.world)
+        doc.place(post, doc.world, pose=lift(1 * m))
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -518,8 +518,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc = Doc()
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), 1 * m)
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 0.5 * m)
-        doc.place(seat)
-        doc.place(post, pose=lift(1 * m))
+        doc.place(seat, doc.world)
+        doc.place(post, doc.world, pose=lift(1 * m))
         with self.assertRaises(ValidationError) as caught:
             product(doc, evaluate(doc)).validate_pseudomanifold()
         reached = {f.variant for f in caught.exception.findings}

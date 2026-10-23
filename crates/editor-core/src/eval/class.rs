@@ -194,8 +194,6 @@ pub enum NodeErrorClass {
     MateOverconstrained,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unpinned`].
     MateUnpinned,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::TargetsDiffer`].
-    MateTargetsDiffer,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotOnTheCopy`].
     MateNotOnTheCopy,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unleverable`].
@@ -351,7 +349,6 @@ impl NodeErrorClass {
             MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::Unpinned { .. } => Self::MateUnpinned,
-            MateFault::TargetsDiffer { .. } => Self::MateTargetsDiffer,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
             MateFault::KindsDiffer { .. } => Self::MateKindsDiffer,
@@ -472,7 +469,6 @@ mod tests {
         MateClassNotAdmitted,
         MateOverconstrained,
         MateUnpinned,
-        MateTargetsDiffer,
         MateNotOnTheCopy,
         MateUnleverable,
         MateKindsDiffer,
@@ -794,7 +790,7 @@ mod tests {
                 held: Default::default(),
                 refusal: crate::ProductError::EmptyProduct {
                     unplaced: Vec::new(),
-                    loose: Vec::new(),
+                    elsewhere: Vec::new(),
                 }
                 .into(),
             }),
@@ -816,10 +812,6 @@ mod tests {
             C::MateUnpinned => mate(crate::MateFault::Unpinned {
                 placement: n(6),
                 free: 2,
-            }),
-            C::MateTargetsDiffer => mate(crate::MateFault::TargetsDiffer {
-                placement: n(6),
-                constraints: vec![c(1), c(2)],
             }),
             C::MateNotOnTheCopy => mate(crate::MateFault::NotOnTheCopy { mate: m(9) }),
             C::MateUnleverable => mate(crate::MateFault::Unleverable {
@@ -858,8 +850,8 @@ mod tests {
                 why: crate::mate::NoChartWhy::PointRotation,
             }),
             C::SpaceMismatch => K::SpaceMismatch {
-                a: crate::Space::World,
-                b: crate::Space::Loose { root: n(6) },
+                a: crate::VarId::WORLD,
+                b: crate::VarId::new(0, test_utils::refusal::tagged(6)),
             },
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),

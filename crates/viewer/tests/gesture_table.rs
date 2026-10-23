@@ -114,7 +114,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 54;
+const OP_COUNT: usize = 55;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -246,6 +246,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             placement: node,
             mate: Box::new(seat(node)),
             values: Vec::new(),
+            into_target_space: true,
         },
         SessionOp::NewDocument {
             name: "view1b-fresh".to_owned(),
@@ -364,6 +365,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 pncad::document::ConstraintId(pncad::document::MintId::new(0, 1)),
             ),
         },
+        SessionOp::IntoOwnSpace { placement: node },
     ]
 }
 
@@ -462,6 +464,9 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::DeclineOffer { .. } => (52, true),
         // A bundle edit: a document edit, fenced with every other one.
         SessionOp::RemoveConstraint { .. } => (53, false),
+        // A re-target and a bundle written: a document edit, fenced
+        // with every other one.
+        SessionOp::IntoOwnSpace { .. } => (54, false),
     }
 }
 
@@ -686,7 +691,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     let bench = common::asm::bench("view7-two-gestures", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let post = bench.post_a;
-    // Its world mate off, post_a is a loose space of its own, which the
+    // In a space of its own, post_a is a space, which the
     // probe moves; pinned at the identity, it is drawn where it stood.
     common::asm::unpin(&mut session, post);
 
@@ -813,7 +818,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             "{slot:?}: the previewed probe reaches its drawn copy under a scratch document"
         );
         perform(&mut session, SessionOp::CommitFreeMove { instance: post });
-        assert_eq!(session.display().free_move_of(post), Some(&probe));
+        assert_eq!(crate::common::asm::frame_of(&session, post), Some(&probe));
 
         // The value gesture lands its own value over a committed
         // probe: one edit, no supersession, probe intact.
@@ -845,7 +850,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             "{slot:?}: a slot drag supersedes no probe: {:?}",
             outcome.withdrawn.superseded
         );
-        assert_eq!(session.display().free_move_of(post), Some(&probe));
+        assert_eq!(crate::common::asm::frame_of(&session, post), Some(&probe));
 
         // And the same over an IN-FLIGHT free-move, which the prune
         // kills outright rather than reporting. The committed value
@@ -902,6 +907,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
+        | SessionOp::IntoOwnSpace { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -1401,7 +1407,7 @@ fn the_free_move_door_is_live_exactly_while_the_probe_is() {
     let bench = common::asm::bench("view-cancel-door-free-move", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let post = bench.post_a;
-    // Its world mate off, post_a is a loose space the probe moves.
+    // In a space of its own, post_a is a space the probe moves.
     common::asm::unpin(&mut session, post);
 
     let door = |session: &DocSession| {
@@ -1441,7 +1447,7 @@ fn the_free_move_door_is_live_exactly_while_the_probe_is() {
     assert!(session.perform(open.op).refusal.is_none(), "and it closes");
     assert_eq!(session.display().probing(), None, "the probe is gone");
     assert_eq!(
-        session.display().free_move_of(post),
+        crate::common::asm::frame_of(&session, post),
         None,
         "and it left no committed placement behind — a cancel is not a commit"
     );
@@ -1514,6 +1520,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
+        | SessionOp::IntoOwnSpace { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -1622,7 +1629,7 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
     let instance = bench.post_a;
     for op in every_op(instance, &dir.join("saved.pncad")) {
         let mut session = common::asm::open_bench(&bench, tol);
-        // Its world mate off, post_a is a loose space the probe moves.
+        // In a space of its own, post_a is a space the probe moves.
         common::asm::unpin(&mut session, instance);
         assert!(
             session
@@ -1954,7 +1961,7 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
     let bench = common::asm::bench("view-free-move-identity", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let (open, other) = (bench.post_a, bench.post_b);
-    // Both pins off: each post a loose space of its own, which the
+    // Each post in a space of its own, which the
     // probe moves.
     common::asm::unpin(&mut session, open);
     common::asm::unpin(&mut session, other);
@@ -1998,7 +2005,10 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
         "and its preview names a probe that is not in flight"
     );
     assert_eq!(
-        session.display_view().moved.get(&open),
+        session
+            .display_view()
+            .moved
+            .get(&session.committed_doc().node_space(open).expect("placed")),
         Some(&held),
         "so the open probe still shows its own frame"
     );
@@ -2014,7 +2024,7 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
         "a refused commit leaves the probe it does not name in flight"
     );
     assert_eq!(
-        session.display().free_move_of(other),
+        crate::common::asm::frame_of(&session, other),
         None,
         "and nothing landed on the instance that was dragged"
     );
@@ -2058,7 +2068,7 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
     let bench = common::asm::bench("view-probe-driven-again", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let (probed, other) = (bench.post_a, bench.post_b);
-    // Both pins off: each post a loose space of its own, which the
+    // Each post in a space of its own, which the
     // probe moves.
     common::asm::unpin(&mut session, probed);
     common::asm::unpin(&mut session, other);
@@ -2095,7 +2105,10 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
         "and it leaves the probe live with its field no longer drawn"
     );
     assert_eq!(
-        session.display_view().moved.get(&probed),
+        session
+            .display_view()
+            .moved
+            .get(&session.committed_doc().node_space(probed).expect("placed")),
         Some(&held),
         "still showing the frame it was dragged to"
     );
@@ -2134,7 +2147,7 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
         "a probe reaches no document edit"
     );
     assert_eq!(
-        session.display().free_move_of(probed),
+        crate::common::asm::frame_of(&session, probed),
         Some(&again),
         "the instance keeps the frame the second drive left it at"
     );
@@ -2144,7 +2157,7 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
         "and the probe the first drive opened is the one that ended"
     );
     assert_eq!(
-        session.display().free_move_of(other),
+        crate::common::asm::frame_of(&session, other),
         None,
         "nothing landed on the instance the selection passed through"
     );
@@ -2388,7 +2401,7 @@ fn the_free_move_probe_answers_the_three_shared_rules() {
     let bench = common::asm::bench("view-g1-shared-rules", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let (open, other) = (bench.post_a, bench.post_b);
-    // Both pins off: each post a loose space of its own, which the
+    // Each post in a space of its own, which the
     // probe moves.
     common::asm::unpin(&mut session, open);
     common::asm::unpin(&mut session, other);
@@ -2413,9 +2426,7 @@ fn the_free_move_probe_answers_the_three_shared_rules() {
         let refusal = session.perform(op).refusal;
         shared_word(refusal, "the free-move probe").unwrap_or_else(|| {
             Answer::Ok(
-                session
-                    .display()
-                    .free_move_of(open)
+                crate::common::asm::frame_of(&session, open)
                     .map(|frame| micrometres(frame.translation[2])),
             )
         })

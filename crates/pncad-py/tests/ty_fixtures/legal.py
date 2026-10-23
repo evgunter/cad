@@ -216,7 +216,7 @@ upright: NodeId = doc.insert(
     )
 )
 stood: NodeId = doc.place(
-    upright, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
+    upright, doc.world, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
 )
 sideways: NodeId = doc.insert(Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m))), Formula.length_in(4, m)))
 
@@ -340,6 +340,7 @@ pose_cut: NodeId = doc.insert(Node.split(plate, inset))
 # then translate — a world placement at that frame.
 placed: NodeId = doc.place(
     plate_with_holes,
+    doc.world,
     pose=Frame.rotate_then_translate((0.0, 0.0, 1.0), 90 * deg, (0 * m, 0 * m, 2 * m)),
 )
 
@@ -542,15 +543,18 @@ crossings: int = both.part_evaluations
 # instance, a bundle of constraints places each copy, a mate says how
 # two copies meet, and the gate says whether the result is valid at
 # rest.
-instance: NodeId = doc.insert(Node.instantiate_part(reference))
+instance: NodeId = doc.insert(Node.instantiate_part(reference, doc.world))
 gesture: Placed = doc.pin(instance, here, resolver=store)
 gesture_by: str = gesture.by
 gesture_values: list[MateRef] = gesture.values
-loose_instance: Node = Node.instantiate_part(reference, [])
+aside: NodeId = doc.new_space(label="aside")
+aside_instance: Node = Node.instantiate_part(reference, aside)
+space_node: Node = Node.space()
+in_space: Var | None = doc.space(instance)
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
-placed: NodeId = doc.place(sideways, pose=here, label="the post")
+placed: NodeId = doc.place(sideways, doc.world, pose=here, label="the post")
 placed_at: Placed = doc.place_at(sideways, here)
-twice: NodeId = doc.place([sideways, sideways])
+twice: NodeId = doc.place([sideways, sideways], doc.world)
 world: list[NodeId] = doc.placements()
 the_world: NodeId = doc.world
 held: list[tuple[MateRef, Mate | MateValue]] = doc.bundle(placed)
@@ -576,7 +580,11 @@ mate_class: ContactClass = mate.class_
 mate_on: PoseDef = mate.on
 mate_to: PoseDef | WorldRead = mate.to
 pinned_on: DocEdit = DocEdit.add_constraint(instance, mate)
-placer: Node = Node.place(sideways, [mate])
+placer: Node = Node.place(
+    sideways, doc.world, [mate, MateValue(0, Coord.slide("x"), 0.1 * m)]
+)
+rewritten: list[MateRef] = doc.set_constraints(instance, [mate, MateValue(0, Coord.spin(), 0)])
+rewrite: DocEdit = DocEdit.set_constraints(instance, [mate])
 joint: MateRef = doc.constrain(instance, mate)
 slide_x: MateRef = doc.add_value(joint, Coord.slide("x"), 0.1 * m)
 spun: MateRef = doc.add_value(joint, Coord.spin(), 90 * deg)
@@ -591,8 +599,6 @@ refusal: MateFault | None = poses.fault(instance)
 faulted_mate: MateRef | None = refusal.mate if refusal is not None else None
 relative: Frame | None = poses.pose(instance)
 world_pose: Frame = poses.placement(doc, instance)
-loose: list[NodeId] = evaluate(doc).loose
-in_space: str | NodeId = evaluate(doc).space(instance)
 partition: list[list[NodeId]] = relative_freedom_components(doc)
 admission: ClassAdmission = class_admission(ContactClass.Rest)
 mintable: bool = admission.mints

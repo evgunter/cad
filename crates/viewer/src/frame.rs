@@ -757,6 +757,7 @@ pub fn acts(op: &SessionOp) -> bool {
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
+        | SessionOp::IntoOwnSpace { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -868,6 +869,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
+        | SessionOp::IntoOwnSpace { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -1251,9 +1253,9 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// **Nothing here composes prose about why a placement or a hide
 /// went.** Each entry carries the [`AdmissionFault`] the prune
 /// discarded on, and this renders it through its own `Display` — the rule the
-/// rest of the crate follows. So the commonest arm names where the copy
-/// lives and why the probe cannot move it (`InTheWorld`: *its placement
-/// pins it there … free-move moves a loose space*), a fuse names the product and the instances
+/// rest of the crate follows. So the commonest arm names the space and
+/// why it is no longer shown (`NotShown`: *no copy is placed into it, or
+/// its bodies are copied into another space*), a fuse names the product and the instances
 /// fused into it, and a deleted instance says the document does not
 /// hold the node — which is the delete arm's whole point, since the id
 /// alone names something the tree no longer draws without saying that
@@ -1263,9 +1265,10 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// and never names: every [`AdmissionFault`] names its own SUBJECT, so
 /// naming the id again in the preamble would say it twice. It does not
 /// promise a vocabulary for that subject: each arm says it as the
-/// spoken node does, its kind included (`InstantiatePart N`, `Place N`,
-/// and `node N` for an id the document does not hold), which is that
-/// enum's own rule and the only honest wording there.
+/// spoken node or the spoken space does, its kind included
+/// (`InstantiatePart N`, `Place N`, `node N` for an id the document does
+/// not hold, `the space of Extrude N`), which is that enum's own rule and
+/// the only honest wording there.
 ///
 /// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
 /// gesture or a frame rather than a node — and a `Withdrawn` cannot
@@ -1288,17 +1291,17 @@ vocabulary! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum WithdrawalKind {
         /// **A SUBSTITUTION.** The user's hand placement answered "where
-        /// does this part go", and the document that landed answers it
-        /// differently — a pin, a join with another space, a placement it
-        /// refuses — so the probe steps aside and the picture keeps the
-        /// part.
+        /// does this part go", and the document answers it differently —
+        /// its copies placed into another space, the space's bodies
+        /// copied on, the space gone — so the probe steps aside and the
+        /// picture keeps the part.
         ///
-        /// [`crate::display::PruneReport::superseded`] names, by their
-        /// roots, the loose spaces whose COMMITTED free-move frame a prune
-        /// discarded — the G3 supersession, reported by the session rather
-        /// than inferred. Most arrive with a landing, which is when a space
-        /// is known (`DocSession::take_landed_withdrawals`), and the rest
-        /// on [`crate::session::OpOutcome::withdrawn`] (a root gone);
+        /// [`crate::display::PruneReport::superseded`] names, by the
+        /// instance that committed each, the spaces whose COMMITTED
+        /// free-move frame a prune discarded — the G3 supersession,
+        /// reported by the session rather than inferred. A frame is asked
+        /// of the document alone, so it arrives on
+        /// [`crate::session::OpOutcome::withdrawn`] with the edit;
         /// [`crate::display::DisplayState::prune`] is where it happens
         /// ([`crate::display::DisplayState::prune_structural`] for a value
         /// gesture's scratch), and [`crate::display::space_check`] is the
@@ -1500,7 +1503,8 @@ pub fn withdrawal_notices(
 /// the gesture's ordinary answer: a plane mate on the copy's planar
 /// face, whose values move it. A copy with no planar face is placed by
 /// its own axis where it has one, and pinned, with no value to move it
-/// by, where it has none; one that could not be read stands loose; each
+/// by, where it has none; one that could not be read stands where its
+/// body stands; each
 /// says so, in [`editor_core::PinRefusal`]'s own words for the last. Nothing else says it again ([`Retold::Never`]): the
 /// tree row says what the bundle holds, not why.
 pub fn place_notice(report: &crate::session::PlaceReport) -> Option<Message> {
@@ -1512,7 +1516,9 @@ pub fn place_notice(report: &crate::session::PlaceReport) -> Option<Message> {
         Ok(editor_core::PlacedBy::Pin) => "the copy has no planar face, so it is pinned where it \
                                           stands, with no values to move it by"
             .to_owned(),
-        Err(refusal) => format!("the copy stands loose, placed by nothing: {refusal}"),
+        Err(refusal) => {
+            format!("the copy stands where its body stands, placed by no mate: {refusal}")
+        }
     };
     Some(Message::new(Subject::Document, text, Retold::Never))
 }
@@ -1555,6 +1561,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // next evaluation, before any poison from upstream, naming the
         // operand.
         Maintenance::StrandedRead { .. } => Retold::Again,
+        // The reader's own row refuses `SpaceMismatch` at the next
+        // evaluation, naming both spaces.
+        Maintenance::StrandedSpace { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
@@ -1585,7 +1594,9 @@ impl core::fmt::Display for Withdrawal<'_> {
             | AdmissionFault::InTheWorld { .. }
             | AdmissionFault::NotEvaluated { .. }
             | AdmissionFault::NoSpace { .. }
-            | AdmissionFault::MovedSpace { .. } => false,
+            | AdmissionFault::MovedSpace { .. }
+            | AdmissionFault::NoSuchSpace { .. }
+            | AdmissionFault::NotShown { .. } => false,
         };
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
@@ -3465,7 +3476,7 @@ mod tests {
             (
                 ProductError::EmptyProduct {
                     unplaced: Vec::new(),
-                    loose: Vec::new(),
+                    elsewhere: Vec::new(),
                 },
                 BadgeSite::NotAFault,
             ),
@@ -3621,9 +3632,10 @@ mod tests {
         Withdrawal::dropped_hide(withdrawn).map(|withdrawal| withdrawal.to_string())
     }
 
-    /// A withdrawal on `instance`, whose copy a placement now pins to the
-    /// world — the commonest arm under DI5, and the one whose `Display`
-    /// says why the probe cannot move it.
+    /// A withdrawal on `instance`, whose copy is placed into the world —
+    /// a fault whose `Display` names the instance and says why the probe
+    /// cannot move it. The rows below are about the rendering, which is
+    /// the same whichever fault a withdrawal carries.
     fn pinned(instance: u64) -> Withdrawn {
         Withdrawn {
             instance: RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
@@ -3695,7 +3707,7 @@ mod tests {
             "the fault renders itself, verbatim: {notice}"
         );
         assert!(
-            notice.contains("Free-move moves a loose space"),
+            notice.contains("Free-move moves another shown space"),
             "so what the typed value already knew reaches the line: {notice}"
         );
 
@@ -3843,9 +3855,9 @@ mod tests {
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             InstantiatePart 000000000003 lives in the world's space: its placement pins it \
-             there (a world mate, or a mate onto a copy in the world), so the free-move probe \
-             refuses. Free-move moves a loose space, a copy nothing pins to the world"
+             InstantiatePart 000000000003 is placed into the world, the product's space, so \
+             the free-move probe refuses. Free-move moves another shown space: place the copy \
+             into a space of its own to probe it"
         );
 
         let two = [pinned(3), pinned(11)];
@@ -4028,7 +4040,7 @@ mod tests {
                 held: Default::default(),
                 refusal: ProductError::EmptyProduct {
                     unplaced: Vec::new(),
-                    loose: Vec::new(),
+                    elsewhere: Vec::new(),
                 }
                 .into(),
             },

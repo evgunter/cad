@@ -174,14 +174,14 @@ fn a_mirror_plane_refuses_an_axis() {
         ),
         "{refused:?}"
     );
-    let _ = OperandSlot::Plane;
 }
 
-/// **The plane reads the source's space alone**: a plane read off
-/// another construction relates two spaces, which only a placement
-/// does, so the mirror refuses naming both.
+/// **The plane reads the source's space alone, at the door**: a plane
+/// read off another construction relates two spaces, which only a
+/// placement does, so the insert refuses naming both, before any
+/// evaluation.
 #[test]
-fn a_mirror_plane_off_another_construction_refuses_its_space() {
+fn a_mirror_plane_off_another_construction_refuses_at_the_door() {
     let (doc, plate) = plate();
     let profile = match doc.node(plate) {
         Some(Node::Extrude { profile, .. }) => Operand::Var(*profile),
@@ -194,21 +194,98 @@ fn a_mirror_plane_off_another_construction_refuses_its_space() {
             distance: len(1.0),
         },
     );
+    let (space_a, space_b) = (fixture::space(&doc, plate), fixture::space(&doc, other));
     let plane = fixture::plane_on(&doc, other, [0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]);
-    let (doc, mirror) = fixture::insert(
-        doc,
+    let refused = fixture::insert_refused(
+        &doc,
         Node::Mirror {
             body: Operand::output(plate, 0).into(),
             plane,
         },
     );
-    let ev = eval(&doc);
-    match ev.nodes.get(&mirror) {
+    match &refused {
+        EditError::SpaceMismatch { a, b, .. } => {
+            let mut got = [a.id(), b.id()];
+            got.sort();
+            let mut want = [space_a, space_b];
+            want.sort();
+            assert_eq!(got, want, "the refusal names both spaces");
+        }
+        other => panic!("a mirror reading two spaces refuses at the door, got {other:?}"),
+    }
+}
+
+/// **The plane reads the source's space alone, at evaluation**: the
+/// mirror's body is a copy of a block placed into the plate's space,
+/// its plane read off the plate. Re-targeting the copy into another
+/// space is admitted and strands the mirror; the document saves and
+/// loads, and the mirror refuses `SpaceMismatch` at evaluation.
+#[test]
+fn a_re_target_strands_a_mirror_and_it_refuses_at_evaluation() {
+    let (doc, plate) = plate();
+    let (doc, other) = fixture::on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(6.0, 0.0, 0.5)],
+    );
+    let (doc, other) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: other.into(),
+            distance: len(1.0),
+        },
+    );
+    let (doc, block) = fixture::on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(3.0, 0.0, 0.5)],
+    );
+    let (doc, block) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: block.into(),
+            distance: len(1.0),
+        },
+    );
+    let (doc, copy) = fixture::stood_in(doc, block, plate);
+    let plane = fixture::plane_on(&doc, plate, [-1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]);
+    let (doc, mirror) = fixture::insert(
+        doc,
+        Node::Mirror {
+            body: Operand::output(copy, 0).into(),
+            plane,
+        },
+    );
+    assert!(
+        matches!(eval(&doc).nodes.get(&mirror), Some(NodeResult::Ok(_))),
+        "the mirror builds in the plate's space"
+    );
+    let moved = editor_core::apply(
+        &doc,
+        &editor_core::DocEdit::SetParam {
+            node: copy,
+            slot: editor_core::SlotId::Operand(OperandSlot::Space),
+            value: editor_core::SlotValue::Read(Operand::Var(fixture::space(&doc, other))),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    )
+    .expect("a re-target is admitted")
+    .doc;
+    let text = editor_core::save(&moved, &[], Tol::witness()).expect("the stranded document saves");
+    let loaded = editor_core::load(&text, Tol::witness())
+        .expect("and loads")
+        .doc;
+    match eval(&loaded).nodes.get(&mirror) {
         Some(NodeResult::Failed(refusal)) => assert!(
             matches!(refusal.kind, NodeErrorKind::SpaceMismatch { .. }),
             "{refusal:?}"
         ),
-        other => panic!("a mirror reading two spaces must refuse, got {other:?}"),
+        other => panic!("a stranded mirror refuses at evaluation, got {other:?}"),
     }
 }
 

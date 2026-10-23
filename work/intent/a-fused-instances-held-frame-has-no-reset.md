@@ -24,3 +24,10 @@ clears it.
 Options: have the free-move admission skip `display_check`, since a frame
 moves a space and not `drawn_targets` (the pane's early return would then have
 to split), or have prune discard a frame whose root's instance becomes fused.
+
+## Re-read at D′1 (2026-10-22)
+
+There is no loose instance any more: a free-move frame is keyed by a
+shown space's variable (`crates/viewer/src/display.rs`) and checked
+against the document alone at each edit. Whether a frame held on a
+space whose copy is then fused still has no reset was not re-measured.

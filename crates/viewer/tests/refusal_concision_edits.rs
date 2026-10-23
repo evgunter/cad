@@ -859,13 +859,6 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
                 free: 0,
             },
         ),
-        (
-            "TargetsDiffer",
-            MateFault::TargetsDiffer {
-                placement: n(7),
-                constraints: vec![c(8), c(9)],
-            },
-        ),
         ("NotOnTheCopy", MateFault::NotOnTheCopy { mate: r(9) }),
         (
             "KindsDiffer",

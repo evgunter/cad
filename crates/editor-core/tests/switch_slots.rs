@@ -513,6 +513,7 @@ test_utils::f6_variants! {
         Intersect,
         Place,
         World,
+        Space,
         Pattern,
         Part,
         PlacedUnion,
@@ -663,12 +664,14 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         // holds no scalar, so no slot.
         Node::Place {
             shapes: vec![nid(1).into()],
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![constraint(1, to_world(nid(1), world_xy()))],
         },
         // A world mate reading the world's plane slid and spun: a slide
         // slot and a spin slot, in the read's pre-order.
         Node::Place {
             shapes: vec![nid(1).into()],
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![constraint(
                 1,
                 to_world(
@@ -681,6 +684,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         // The world: no slot at all.
         Node::World,
+        // A new space: no slot either.
+        Node::Space,
     ]);
     for kind in [
         PatternKind::Linear {
@@ -722,6 +727,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             interface: InterfaceRecord {
                 crossings: Vec::new(),
             },
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![constraint(
                 1,
                 to_world(nid(1), world_xy().slide(world_z(), len(1.0))),
@@ -732,6 +738,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         // own id.
         Node::Place {
             shapes: vec![nid(2).into()],
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![
                 constraint(
                     1,

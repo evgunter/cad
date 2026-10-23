@@ -1766,26 +1766,6 @@ impl Evaluation {
             .map_err(|err| export_err(py, *node, &err, &self.doc))
     }
 
-    /// **Every loose copy**, by its placement, in id order: a
-    /// placement whose bundle pins less than its copy needs, so it
-    /// lives in a space of its own. The product gathers only the
-    /// world's space, and nothing in one space is compared with
-    /// another's.
-    #[getter]
-    fn loose(&self) -> Vec<NodeId> {
-        self.inner.loose_roots().into_iter().map(NodeId).collect()
-    }
-
-    /// **The space `node`'s value lives in**: `"world"`, or the loose
-    /// copy whose space it is, by its placement. A node that denotes no
-    /// geometry answers `"world"`.
-    fn space(&self, py: Python<'_>, node: &NodeId) -> PyResult<Py<PyAny>> {
-        match self.inner.space(node.0) {
-            d::Space::World => Ok(PyString::new(py, "world").unbind().into_any()),
-            d::Space::Loose { root } => Ok(Py::new(py, NodeId(root))?.into_any()),
-        }
-    }
-
     fn __repr__(&self) -> String {
         format!("Evaluation({} nodes)", self.inner.order.len())
     }
@@ -1793,9 +1773,8 @@ impl Evaluation {
 
 /// Raise `ExportError` mirroring the Rust door's refusal: `variant`
 /// is the arm's stable tag, `node` rides along, a poisoning adds
-/// `through`, a wrong-kind value adds `kind`, and a loose export adds
-/// `copies` — every loose copy the export would have to write, by its
-/// placement. The message is the door's own
+/// `through`, and a wrong-kind value adds `kind`. The message is the
+/// door's own
 /// sentence, its nodes spoken from the evaluated document.
 fn export_err(
     py: Python<'_>,
@@ -1818,7 +1797,6 @@ fn export_err(
         ("node", node_obj),
         ("through", py.None().into_any()),
         ("kind", py.None().into_any()),
-        ("copies", py.None().into_any()),
     ];
     match err {
         E::Standing(standing) => {
@@ -1833,13 +1811,6 @@ fn export_err(
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
-        E::Loose { copies } => {
-            let listed: Vec<NodeId> = copies.iter().copied().map(NodeId).collect();
-            match listed.into_pyobject(py) {
-                Ok(bound) => fields[4] = ("copies", bound.unbind().into_any()),
-                Err(failed) => return failed,
-            }
-        }
     }
     typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }

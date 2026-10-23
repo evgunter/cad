@@ -27,9 +27,9 @@ use crate::fixture;
 use editor_core::Formula;
 
 use editor_core::{
-    AssemblyError, CapEnd, ChecksConfig, ContactClass, Coord, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, MateRef, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis,
-    Value, assemble, run_checks,
+    AssemblyError, CapEnd, ChecksConfig, ContactClass, Coord, DocRef, DocumentId, EntityKind,
+    Frame, MateRef, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble,
+    run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, mated_instance, on_frame, run};
@@ -129,28 +129,16 @@ struct Seat {
 /// a plane mate leaves set: a slide of `apart` along x, none along y,
 /// and no spin, so it pins the copy.
 fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
-    let (doc, m) = fixture::constrain_at(doc, placement, seat.mate);
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(seat.apart)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        fixture::step(
-            doc,
-            DocEdit::AddValue {
-                placement: m.placement,
-                value: Box::new(Value {
-                    mate: Some(m.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
+    let (doc, m) = crate::fixture::mated(
+        doc,
+        placement,
+        seat.mate,
+        &[
+            (Coord::Slide(TargetAxis::X), len(seat.apart)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, fixture::ang(0.0)),
+        ],
+    );
     (doc, m)
 }
 
@@ -172,7 +160,7 @@ fn stand_with(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, lower) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(part),
+        crate::fixture::mated_instance(part),
         &with_resolver(store.clone()),
     );
     let (doc, upper) = insert(doc, mated_instance(part));
@@ -385,7 +373,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
     let doc = ProfileDoc::empty(DocumentId::derive("m6r2-p5"), Tol::witness());
     let (doc, base) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(part),
+        crate::fixture::mated_instance(part),
         &with_resolver(store.clone()),
     );
     let (doc, far) = insert(doc, mated_instance(part));
@@ -482,7 +470,7 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
     let inner = ProfileDoc::empty(DocumentId::derive("m6r2-p8-stand"), Tol::witness());
     let (inner, lower) = fixture::insert_pinned(
         inner,
-        Node::instantiate_part(part),
+        crate::fixture::mated_instance(part),
         &with_resolver(store.clone()),
     );
     let (inner, upper) = insert(inner, mated_instance(part));

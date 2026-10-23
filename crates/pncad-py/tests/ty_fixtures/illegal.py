@@ -293,16 +293,19 @@ evaluate(doc, resolver=evaluate(doc))  # ty: error
 # An instance names a REFERENCE — (id, pin) — never a bare identity.
 # The pin is half the value, and that half is what Cargo.lock
 # semantics live in.
-Node.instantiate_part(doc.id)  # ty: error
+Node.instantiate_part(doc.id, doc.world)  # ty: error
 
 # A placement's pose is a FRAME, not a coordinate triple: a non-rigid
 # map is refused where the frame is built, and there is
 # no translation-only shortcut that would hide it.
 doc.pin(solid, (0 * m, 0 * m, 1 * m))  # ty: error
 
-# A placement's bundle is a sequence of `Mate`s, not a pose: a pose is
-# the keyword `pose=`.
+# A placement's target is a space, not a pose: a pose is the keyword
+# `pose=`.
 doc.place(solid, Frame.translation((0 * m, 0 * m, 1 * m)))  # ty: error
+
+# A placement's target is always written.
+Node.place(solid, [])  # ty: error
 
 # A placement against another body is at a FRAME, not a coordinate
 # triple.

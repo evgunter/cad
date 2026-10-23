@@ -358,13 +358,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xabec_a5a8_aa58_3491_u64),
-        ("part_select", 0x909e_06e1_e24c_6bdd),
-        ("kitchen_sink", 0x53da_49ea_7e4c_e120),
+        ("cut_cylinder", 0xa204_ea8f_4f36_b852_u64),
+        ("part_select", 0x096a_b0ce_20a4_aa88),
+        ("kitchen_sink", 0x99b3_96f7_8787_0655),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -488,6 +494,11 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// `x` axis and its walls along their swept segments, where
 /// `orthonormal_basis` picked both off the axes. No plane moved as a
 /// point set.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body, and the content key
+/// holds a placement's target (`VERSION` 18), so ids drawn after a
+/// construction and every value token moved. No point moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -508,7 +519,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x2408_3521_d2dd_0000,
+        got, 0xa218_4b53_38f5_c2fe,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
@@ -534,7 +545,7 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
     // A copy of each half, loose: a reader of the half's value.
     let still = |half: SplitHalf| {
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::output(split, half.port()),
         )])
     };

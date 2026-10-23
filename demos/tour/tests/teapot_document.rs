@@ -116,18 +116,18 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
     applied.record.minted.expect("insert mints an id")
 }
 
-/// One copy of `body` placed in the world where it stands: a loose
-/// `Node::place`, then `stand`'s identity bundle written onto it.
+/// One copy of `body` placed in the world where it stands: a
+/// `Node::place` into the world holding `stand`'s identity bundle.
 fn place_in_world(doc: &mut Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) {
-    let placement = insert(doc, Node::place(vec![body.into()]), tol);
-    let placed = stand();
-    placed
-        .write(placement, |edit| {
-            let applied = apply(doc, &edit, tol)?;
-            *doc = applied.doc;
-            Ok::<_, pncad::document::EditError>(applied.record.minted_constraints)
-        })
-        .unwrap_or_else(|err| panic!("the placement's edit applies: {err}"));
+    insert(
+        doc,
+        Node::place(
+            vec![body.into()],
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            stand().bundle(),
+        ),
+        tol,
+    );
 }
 
 /// A fresh document carrying the sharp ANNULAR lid, and that node's id.

@@ -77,8 +77,8 @@ def in_world(doc, body, z=0.0):
     are two spaces, and a measure across them reads their copies in the
     world's."""
     if z == 0.0:
-        return doc.place(body)
-    return doc.place(body, pose=Frame.translation((0 * m, 0 * m, z * m)))
+        return doc.place(body, doc.world)
+    return doc.place(body, doc.world, pose=Frame.translation((0 * m, 0 * m, z * m)))
 
 
 def prism(doc, height=1.0):
@@ -362,7 +362,7 @@ class TestTheClosedForms(unittest.TestCase):
         travel = 100.0
         body = prism(doc)
         here = in_world(doc, body)
-        moved = doc.place(body, pose=Frame.translation((travel * m, 0 * m, 0 * m)))
+        moved = doc.place(body, doc.world, pose=Frame.translation((travel * m, 0 * m, 0 * m)))
         ev = evaluate(doc)
         corner = sorted(ev.all_vertices(moved))[0]
         at = [c.meters for c in ev.vertex_position(moved, corner)]
@@ -848,7 +848,7 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         right = doc.place_against(
             left, cylinder_body(doc, 0.30, 0.2), Frame.translation((0 * m, 0 * m, 0 * m))
         )
-        placed = doc.place(doc.insert(Node.union([left, right])))
+        placed = doc.place(doc.insert(Node.union([left, right])), doc.world)
         placements = doc.placements()
         self.assertIn(placed, placements)
         before = pncad.product(doc, evaluate(doc)).mass_properties().volume

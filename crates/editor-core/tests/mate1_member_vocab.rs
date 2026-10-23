@@ -14,7 +14,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -80,36 +80,13 @@ pub(crate) fn against_with(
     let read = editor_core::Operand::from(body);
     let placed = editor_core::place_against(&doc, &target.into(), &read, at, o, Tol::witness())
         .expect("the copy places against its target");
-    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
-    let applied = doc
-        .apply(
-            &DocEdit::AddConstraint {
-                placement,
-                mate: Box::new(placed.mate.expect("the copy is placed by a mate")),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .expect("the mate adds");
-    let mate = applied.record.minted_constraints[0];
-    let doc = placed
-        .values
-        .into_iter()
-        .fold(applied.doc, |doc, (coord, by)| {
-            step(
-                doc,
-                DocEdit::AddValue {
-                    placement,
-                    value: Box::new(editor_core::Value {
-                        mate: Some(mate),
-                        coord,
-                        by,
-                    }),
-                    fresh: Vec::new(),
-                },
-            )
-            .0
-        });
+    let (doc, placement) = insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+    );
+    assert!(placed.mate.is_some(), "the copy is placed by a mate");
+    // The mate and its values written whole, into the target's space.
+    let (doc, _) = crate::fixture::write_bundle(doc, placement, placed.bundle());
     (doc, placement)
 }
 
@@ -237,7 +214,7 @@ fn four_legs(
     let top_part = cube(&mut store, &format!("{label}-top"));
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -285,7 +262,7 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     assert_eq!(poses.fault(top), None, "the mates solve — no fault");
     assert_eq!(
         poses.space(top),
-        Some(Space::World),
+        Some(VarId::WORLD),
         "the top is pinned, through the leg, to the world"
     );
 
@@ -326,7 +303,7 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
     let top_part = cube(&mut store, "mate1-circ-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-circ"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let axis = axis_with(&doc, leg, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], &o);
     let theta = core::f64::consts::FRAC_PI_2;
     let (doc, pattern) = insert(
@@ -402,7 +379,7 @@ fn mates_never_solve_pattern_parameters() {
     let top_part = cube(&mut store, &format!("{label}-top"));
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -485,7 +462,7 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
     let top_part = cube(&mut store, "mate1-contra-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-contra"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -547,7 +524,7 @@ fn out_of_vocabulary_pattern_heads_refuse_where_the_placement_evaluates() {
     let top_part = cube(&mut store, "mate1-fence-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-fence"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {

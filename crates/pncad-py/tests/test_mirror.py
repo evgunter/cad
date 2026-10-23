@@ -8,7 +8,7 @@ and its mirror across one of its own faces is one symmetric solid.
 
 import unittest
 
-from pncad import Doc, EvaluationError, Formula, Node, evaluate, m
+from pncad import Doc, EditError, Formula, Node, evaluate, m
 
 from placing import plane_on
 
@@ -60,12 +60,9 @@ class MirrorTest(unittest.TestCase):
         doc = Doc()
         body = plate(doc)
         other = plate(doc)
-        image = doc.insert(Node.mirror(body, plane_on(doc, other, (0.0, 0.0, 0.0), (-1.0, 0.0, 0.0))))
-        ev = evaluate(doc)
-        self.assertFalse(ev.succeeded(image))
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(image)
-        self.assertEqual(caught.exception.kind, "space_mismatch")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.mirror(body, plane_on(doc, other, (0.0, 0.0, 0.0), (-1.0, 0.0, 0.0))))
+        self.assertEqual(caught.exception.variant, "space_mismatch")
 
 
 if __name__ == "__main__":
