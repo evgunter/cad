@@ -49,9 +49,8 @@ use pncad::tolerance::Tol;
 /// or `InvalidLeverArm`.
 ///
 /// The classifier half is [`crate::escalation::escalation`] rather
-/// than a fork written here: [`orthonormalize_err`] publishes the
-/// SAME escalation under these same words, and one projection is what
-/// keeps the two from drifting.
+/// than a fork written here: one projection of the escalation, under
+/// these same words, is what keeps its spellings from drifting.
 pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> PyErr {
     use pncad::geom_core::{BandError, FrameError as E};
 

@@ -868,7 +868,7 @@ pub(crate) fn select_refusal(
 }
 
 /// **A resolve the Rust door refuses, raised typed** — the select
-/// door's class and fields, the tag [`resolve_refusal_tag`]'s, the
+/// door's class and fields, the tag [`crate::tags::resolve_refusal_tag`]'s, the
 /// message the kernel's sentence as the document speaks it.
 pub(crate) fn resolve_refusal(
     py: Python<'_>,
