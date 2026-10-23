@@ -2,10 +2,11 @@
 id: iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain
 kind: issue
 title: nurbs_iso_derive's rim arms map an edge's whole interval onto the chart's whole u domain, so mint_pcurves refuses on any body whose spline-chart wall edge has been split
-status: open
+status: review
 opened: 2026-09-14
 priority: P1
 cost: H
+pr: 5630
 ---
 
 Found by PR 2531's fix pass (TOPO, `split-edge-children-lack-pcurve-rows-on-curved-charts`)
