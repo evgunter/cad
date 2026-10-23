@@ -91,12 +91,26 @@ pub fn set_product(doc: &Doc<ProfileProgram>, bodies: &[Operand], tol: Tol) -> P
 
 /// **The product set to the world's copies**, in document order
 /// ([`set_product`]): what a scene whose placements into the world are
-/// what it makes says its product is.
+/// what it makes says its product is. A `⊔` the product read before is
+/// deleted first, so the product is set anew rather than beside it.
 ///
 /// # Panics
 ///
 /// If nothing is placed into the world or an edit refuses.
 pub fn world_is_the_product(doc: &Doc<ProfileProgram>, tol: Tol) -> Producted {
+    let held = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .filter(|&at| matches!(doc.node(at), Some(pncad::document::Node::Assemble { .. })));
+    let mut edits = Vec::new();
+    let mut doc = doc.clone();
+    if let Some(id) = held {
+        let delete = DocEdit::DeleteNode { id };
+        doc = apply(&doc, &delete, tol)
+            .unwrap_or_else(|err| panic!("the old product's `⊔` deletes: {err}"))
+            .doc;
+        edits.push(delete);
+    }
     let copies: Vec<Operand> = doc
         .placements()
         .into_iter()
@@ -104,7 +118,12 @@ pub fn world_is_the_product(doc: &Doc<ProfileProgram>, tol: Tol) -> Producted {
         .filter_map(|p| doc.output(p, 0))
         .map(Operand::Var)
         .collect();
-    set_product(doc, &copies, tol)
+    let set = set_product(&doc, &copies, tol);
+    edits.extend(set.edits);
+    Producted {
+        doc: set.doc,
+        edits,
+    }
 }
 
 /// One copy of `body` in the world where it stands ([`stand`]).

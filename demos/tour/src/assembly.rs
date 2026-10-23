@@ -478,7 +478,8 @@ fn prism_part(
         tol,
     );
     place(&mut doc, prism, tol);
-    doc
+    // What the part makes: its one copy.
+    crate::world::world_is_the_product(&doc, tol).doc
 }
 
 /// The post: a square section, standing.
@@ -586,16 +587,6 @@ fn on_the_world(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
     }
 }
 
-/// **`name`, a part's name, as the inline's host spells it**: its
-/// minting node mapped through `map`.
-fn hosted(name: &StableName, map: &pncad::document::NodeMap) -> StableName {
-    StableName {
-        kind: name.kind,
-        node: map.get(&name.node).copied().unwrap_or(name.node),
-        path: name.path.clone(),
-    }
-}
-
 /// `placement`'s bundle, in bundle order.
 fn bundle(doc: &ProfileDoc, placement: RecipeNodeId) -> Vec<Constraint> {
     match doc.node(placement) {
@@ -606,13 +597,11 @@ fn bundle(doc: &ProfileDoc, placement: RecipeNodeId) -> Vec<Constraint> {
     }
 }
 
-/// The one body an instance's copies gather into: its part's product.
+/// The one body an instance defines: a copy of its part's product.
 fn instance_body(ev: &Evaluation<f64>, instance: RecipeNodeId, what: &str) -> Arc<Body<f64>> {
     match &ev.value(instance).expect("the instance evaluates").payload {
-        other => panic!(
-            "{what} is a {}, not an instance's copies",
-            other.kind_name()
-        ),
+        ValuePayload::Body(body) => Arc::clone(body),
+        other => panic!("{what} is a {}, not an instance's copy", other.kind_name()),
     }
 }
 
@@ -697,6 +686,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         crate::world::slides([FLAT_PACK_GAP, 0.9, 0.0]),
         tol,
     );
+    let doc = crate::world::world_is_the_product(&doc, tol).doc;
     (doc, pattern, shelf_i)
 }
 
@@ -862,6 +852,7 @@ fn stand_doc(parts: &Parts, seating: Seating, tol: Tol) -> Stand {
         under(post_b_at),
         tol,
     );
+    let doc = crate::world::world_is_the_product(&doc, tol).doc;
     Stand {
         doc,
         post_a,
@@ -912,6 +903,8 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
         seated_at(x, y, pe("swing", &scope)),
         tol,
     );
+    // The stand's product, the crate with it.
+    let doc = crate::world::world_is_the_product(&doc, tol).doc;
     Bench {
         doc,
         crate_i,
@@ -1242,7 +1235,12 @@ fn poses(
         // key the edit moved. The near post's pin reads `swing`,
         // and a placement's key carries the copies its bundle's mates
         // read (D10), so the shelf, the far post and the crate re-key
-        // with the post they stand on.
+        // with the post they stand on, and the product's `⊔` with the
+        // four it reads.
+        let product = doc
+            .product()
+            .and_then(|var| doc.operation_of(var))
+            .expect("the bench sets its product");
         let moved: BTreeSet<RecipeNodeId> = doc
             .ids()
             .iter()
@@ -1253,8 +1251,14 @@ fn poses(
             .collect();
         assert_eq!(
             moved,
-            BTreeSet::from([stand.post_a, stand.shelf_i, stand.post_b, bench.crate_i]),
-            "a swing re-keys the four instances on the turntable, and nothing else"
+            BTreeSet::from([
+                stand.post_a,
+                stand.shelf_i,
+                stand.post_b,
+                bench.crate_i,
+                product
+            ]),
+            "a swing re-keys the four instances on the turntable and the product, and nothing else"
         );
         assert_eq!(
             (ev.recomputed, ev.reused),
@@ -1609,7 +1613,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         &DocEdit::DeleteNode { id: swapped.post_b },
         tol,
     );
-    let swapped = swapped.doc;
+    // The product said anew: the two that remain.
+    let swapped = crate::world::world_is_the_product(&swapped.doc, tol).doc;
     let ev = run(&swapped, &with_store(ws), tol);
     let err = assemble(&swapped, &ev, tol).expect_err("a Tangent mate has no at-rest record");
     assert!(
@@ -1696,23 +1701,36 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     );
 
     // Name-resolution identity, over the WHOLE table rather than a
-    // sample: kept names verbatim, cut names re-anchored under the
-    // remainder's new instance. An instance is its own copy, so the
-    // shelf's product names are the shelf instance's own; across the
-    // seam they are the part's names for the same entities — the shelf
-    // instance's, now in the part — wrapped in the remainder instance.
-    let mapped = out.node_map[&shelf_i];
+    // sample: kept names verbatim, cut names re-read through the
+    // remainder's new instance. The product is a `⊔` of the layout's
+    // copies, naming each copy's entities by the read it takes them
+    // through; a copy carries its source's names, so the shelf's are
+    // the shelf part's own on either side of the seam, and what moves
+    // is the read: the shelf instance's copy before, the remainder
+    // instance's after.
+    let (was, now) = (
+        layout
+            .output(shelf_i, 0)
+            .expect("the shelf instance's copy"),
+        out.remainder
+            .output(out.instance, 0)
+            .expect("the remainder instance's copy"),
+    );
     let mut crossed = 0usize;
     for (name, _) in before_names.iter() {
-        let expected = if name.node == shelf_i {
-            crossed += 1;
-            StableName {
-                kind: name.kind,
-                node: mapped,
-                path: name.path.clone(),
+        let expected = match name.path.as_slice() {
+            [RoleSeg::From { read, of }] if *read == was => {
+                crossed += 1;
+                StableName {
+                    kind: name.kind,
+                    node: name.node,
+                    path: vec![RoleSeg::From {
+                        read: now,
+                        of: of.clone(),
+                    }],
+                }
             }
-        } else {
-            name.clone()
+            _ => name.clone(),
         };
         assert!(
             after_names.lookup(&expected).is_some(),
@@ -1776,21 +1794,39 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         volume_bits(&back_body, tol),
         "and the volume bits"
     );
-    let restored = back.node_map[&mapped];
+    // The shelf instance comes back as the node the part's own maps to,
+    // and the `⊔` reads, in the shelf's seat, the copy the inline lands.
+    let restored = back.node_map[&out.node_map[&shelf_i]];
+    let members = |doc: &ProfileDoc| match doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .and_then(|at| doc.node(at))
+    {
+        Some(Node::Assemble {
+            members: pncad::document::Bodies::Spelled(members),
+        }) => members.iter().map(|member| member.read).collect::<Vec<_>>(),
+        other => panic!("the layout's product is a `⊔`, got {other:?}"),
+    };
+    let seat = members(layout)
+        .iter()
+        .position(|&read| read == was)
+        .expect("the `⊔` reads the shelf's copy");
+    let again = members(&back.doc)[seat];
     let mut returned = 0usize;
     for (name, _) in before_names.iter() {
-        let expected = if name.node == shelf_i {
-            returned += 1;
-            hosted(
-                &StableName {
+        let expected = match name.path.as_slice() {
+            [RoleSeg::From { read, of }] if *read == was => {
+                returned += 1;
+                StableName {
                     kind: name.kind,
-                    node: mapped,
-                    path: name.path.clone(),
-                },
-                &back.node_map,
-            )
-        } else {
-            name.clone()
+                    node: name.node,
+                    path: vec![RoleSeg::From {
+                        read: again,
+                        of: of.clone(),
+                    }],
+                }
+            }
+            _ => name.clone(),
         };
         assert!(
             back_names.lookup(&expected).is_some(),
