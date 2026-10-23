@@ -86,5 +86,10 @@ with no PR and no CI run). State found at `31b979f5`:
   fence; `node::SitedFace`, the GUIDE's plate journey). Each was
   compared id-free against main before re-pinning; msolve14's three
   moved seats are the space chart's, reported in its re-pin note.
-- Left: CI green on the final head; the gui render lane (its first
-  run died installing packages).
+- Also done: the boolean gesture's re-placement no longer reads a
+  pose back (`in_one_space` re-targets with the values as written);
+  the viewer's two remaining read-back heuristics are filed
+  (`the-viewers-numeric-gestures-read-a-frame-back-off-geometry`).
+- State at hand-off to review: hosted CI `gate ok` green; the gui
+  render lane failed twice installing apt packages before rendering
+  (as on main's nightly), so its cells are not re-baselined.
