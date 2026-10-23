@@ -608,19 +608,15 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
             new_pin: new_ref.pin,
         },
     );
-    // The post's own pin was read off a face the extrude had: the
-    // author re-pins the round post over its own geometry, so what
-    // remains unresolved is the seat's face alone. Its pin is one mate
-    // and the values on its freedoms, written over whole: the copy
-    // stood where it is, then pinned again.
+    // The post's own pin is values on the world's axes, reading none of
+    // the geometry the extrude had, so what remains unresolved is the
+    // seat's face alone.
     let bundle = fixture::bundle(&doc, s.post_i);
     assert_eq!(
         bundle.iter().filter(|c| c.mate().is_some()).count(),
-        1,
-        "the post is pinned by one mate"
+        0,
+        "the post is pinned by values alone"
     );
-    let (doc, _) = step(doc, editor_core::stand().write(s.post_i));
-    let doc = fixture::pinned(doc, s.post_i, &s.opts);
     let ev = run(&doc, &s.opts);
     assert!(
         matches!(

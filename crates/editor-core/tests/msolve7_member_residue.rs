@@ -38,6 +38,7 @@ use test_utils::source;
 const SOLVE: &str = include_str!("../src/mate/solve.rs");
 const VALUE: &str = include_str!("../src/mate/value.rs");
 const PIN: &str = include_str!("../src/mate/pin.rs");
+const CORNER: &str = include_str!("../src/mate/corner.rs");
 const COSET: &str = include_str!("../src/mate/coset.rs");
 const WIRE: &str = include_str!("../src/eval/wire.rs");
 const EVAL: &str = include_str!("../src/eval/mod.rs");
@@ -100,7 +101,8 @@ fn a1_the_solve_builds_no_environment_and_the_fold_reads_its_lanes() {
             &["pub fn solve_document", "fn solve_bundle"][..],
         ),
         ("mate/value.rs", VALUE, &["fn settle"][..]),
-        ("mate/pin.rs", PIN, &["pub fn pin_at"][..]),
+        ("mate/pin.rs", PIN, &["pub fn of<P>"][..]),
+        ("mate/corner.rs", CORNER, &["pub fn corner_frame"][..]),
         ("mate/coset.rs", COSET, &["pub fn intersect"][..]),
     ] {
         let code = shipped(text, heads);
@@ -466,7 +468,7 @@ fn refused_field(text: &str) -> Result<String, String> {
 
 /// The keys of a mate's object and of a value's on the wire.
 const MATE_KEYS: [&str; 3] = ["on", "to", "class"];
-const VALUE_KEYS: [&str; 3] = ["mate", "coord", "by"];
+const VALUE_KEYS: [&str; 2] = ["coord", "by"];
 
 /// **A stray key on a constraint's objects refuses at the load door**,
 /// in the format's own arm for a field this build lacks, naming the
@@ -479,10 +481,10 @@ const VALUE_KEYS: [&str; 3] = ["mate", "coord", "by"];
 fn a4_a_stray_key_on_a_constraint_refuses_at_the_load_door() {
     let (_, text) = saved_with_a_bundle("msolve7-a4-stray");
     for (keys, key) in [
-        (&MATE_KEYS, "stray"),
-        (&VALUE_KEYS, "stray"),
-        (&MATE_KEYS, "coord"),
-        (&VALUE_KEYS, "class"),
+        (&MATE_KEYS[..], "stray"),
+        (&VALUE_KEYS[..], "stray"),
+        (&MATE_KEYS[..], "coord"),
+        (&VALUE_KEYS[..], "class"),
     ] {
         assert_eq!(
             refused_field(&with_a_key_in(&text, keys, key)).as_deref(),
@@ -568,10 +570,10 @@ fn a4_the_same_bundle_without_the_key_loads() {
     assert_eq!(
         coords,
         [
+            Coord::Spin(TargetAxis::Z),
             Coord::Slide(TargetAxis::X),
             Coord::Slide(TargetAxis::Y),
-            Coord::Spin(editor_core::TargetAxis::Z)
         ],
-        "the rest's values come back as written"
+        "the rest's values come back as written: the spin given, then the zeros"
     );
 }

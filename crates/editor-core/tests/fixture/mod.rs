@@ -90,16 +90,12 @@ pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
     ev
 }
 
-/// **Every placement whose bundle holds a mate to a pose of its
-/// space**, in document order: the placements mated to other copies.
+/// **Every placement whose bundle holds a mate**, in document order:
+/// the placements mated to other copies.
 pub fn constrained(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
     doc.placements()
         .into_iter()
-        .filter(|&p| {
-            bundle(doc, p)
-                .iter()
-                .any(|c| c.mate().is_some_and(|m| matches!(m.to, _)))
-        })
+        .filter(|&p| bundle(doc, p).iter().any(|c| c.mate().is_some()))
         .collect()
 }
 
@@ -259,7 +255,7 @@ pub fn mate(
     to: editor_core::Operand,
     class: editor_core::ContactClass,
 ) -> editor_core::Mate<Formula> {
-    editor_core::Mate { on, to: to, class }
+    editor_core::Mate { on, to, class }
 }
 
 /// **The placement whose copy an authored face side reads**: the node

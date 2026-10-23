@@ -102,11 +102,10 @@ const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
 /// A placement standing where its body stands ([`fixture::place`]): the
 /// identity bundle, which the fold places by no map, deciding nothing.
 const PLACEMENT_LOG: usize = 0;
-/// Each instance's own op: its pin's fold off the identity (two pose
-/// normals and the map's seven rigidity margins, run as every
-/// placement but the identity bundle runs its map), then placement and
-/// validation of the placed body.
-const INSTANCE_LOG: usize = 465;
+/// Each instance's own op: its pin, values on the world's axes composed
+/// as a motion (reading no pose and deciding no margin), then placement
+/// and validation of the placed body.
+const INSTANCE_LOG: usize = 456;
 
 /// Two instances, both pinned to the world, so both ops do the same
 /// work. `o` reaches the part they copy.
@@ -174,7 +173,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
     assert_eq!(
-        seq[0], 921,
+        seq[0], 912,
         "the outer op's own log over a two-solid part, and its pin's"
     );
     let par = logs(

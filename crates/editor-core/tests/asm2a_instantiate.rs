@@ -432,10 +432,9 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     );
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both lose the same decisions. 456 is
-    // the placing op's own log on this part: its pin's fold off the
-    // identity (values on the world's axes, which read no pose, and the
-    // map's rigidity, which every placement but the identity bundle
-    // runs), then placement and
+    // the placing op's own log on this part: its pin, values on the
+    // world's axes composed as a motion (reading no pose and deciding no
+    // margin), then placement and
     // validation of the placed body; 826 is the part's, on its own
     // nodes — its profile's pre-pass on the Profile node's log, then
     // what the second pass the `f64` lane skips decides, logged in its

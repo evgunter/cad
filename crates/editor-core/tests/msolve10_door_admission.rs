@@ -434,7 +434,7 @@ fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
     assert!(
         matches!(
             &**fault,
-            MateFault::Overconstrained { placement, constraints, free: 1 }
+            MateFault::Overconstrained { placement, constraints, free: 0 }
                 if *placement == ids[1] && constraints.len() == 2 && constraints.contains(&held)
         ),
         "{fault:?}"
@@ -459,18 +459,15 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
     let (doc, ids, _, body) = instances("msolve10-a3-snapshot", 2);
     let (doc, mate_id) = fixture::constrain(doc, mate(body, ids[0], ids[1]));
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    // The one mate whose target is a pose (the first instance's world
-    // mate reads the world): its `on` and `to` reads exchanged, so
-    // every variable keeps its one reader.
+    // The one mate: its `on` and `to` reads exchanged, so every
+    // variable keeps its one reader.
     fn swap(v: &mut serde_json::Value, swapped: &mut usize) {
         match v {
             serde_json::Value::Object(map) => {
-                if map.contains_key("on")
-                    && map.get("to").is_some_and(|to| to.get("pose").is_some())
-                {
+                if map.contains_key("on") && map.contains_key("to") {
                     let on = map["on"].clone();
-                    map["on"] = map["to"]["pose"].clone();
-                    map["to"]["pose"] = on;
+                    map["on"] = map["to"].clone();
+                    map["to"] = on;
                     *swapped += 1;
                 }
                 for value in map.values_mut() {
@@ -489,7 +486,7 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
     let doctored = wire::doctored(&text, |w| swap(w, &mut swapped));
     assert_eq!(
         swapped, 1,
-        "the snapshot's one pose-to-pose mate was swapped"
+        "the snapshot's one mate was swapped"
     );
     match load(&doctored, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::MateRefused {
