@@ -366,7 +366,7 @@ fn seam_tube() -> (Body<f64>, FaceKey, [HalfEdgeKey; 2]) {
 /// The loop walk is not read here: the wall's cap arcs, circles along
 /// `v`, take `General` images whose foot at the seam vertex lands on the
 /// `v = 0` branch, so their fit folds back across the chart
-/// (`work/iso/a-general-image-ending-on-a-closed-charts-seam-takes-its-foot-on-the-first-branch`).
+/// (`work/isotail/a-general-image-ending-on-a-closed-charts-seam-takes-its-foot-on-the-first-branch`).
 ///
 /// The fixture is PR 5137's.
 #[test]
