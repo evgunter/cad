@@ -1139,7 +1139,7 @@ impl RowSpace {
 ///   chart carrying the neighbour's own `v` map — a domain end, or the
 ///   column the start's certified chart foot measures (a chart wider
 ///   than the face it trims) — where one holds the carrier at the
-///   interior probe ([`probe_pick`]); otherwise the carrier takes the
+///   probe ([`probe_pick`]); otherwise the carrier takes the
 ///   boundary-iso schedule below, as an `Intersection` seam does, down
 ///   to its `General` image. Every pick is then CERTIFIED by the full
 ///   iso lane.
@@ -1154,7 +1154,9 @@ impl RowSpace {
 /// - A cap–wall rim over a CIRCLE carrier maps to the same boundary
 ///   line through the chart's own rational-quadratic parameter
 ///   ([`Pcurve::IsoArc`], M8-3), its boundary row and `u` direction
-///   picked together at the interior probe ([`probe_pick`]). Both mapped
+///   picked together at the probe ([`probe_pick`]): the whole
+///   row over the edge's interval, then the row over the arc it
+///   measures, which a rim covering part of the row (a sub-edge) takes. Both mapped
 ///   description forms the kernel mints for a circle reach it — see the
 ///   arm's own note.
 /// - An [`geom_brep::EdgeDescription::Intersection`] over a spline or
@@ -1163,8 +1165,9 @@ impl RowSpace {
 ///   `IsoCurve` arm mints, recovered from the carrier because the
 ///   description names no chart coordinate; one on a boundary row (a
 ///   cap–wall rim) maps as that row. The residency is a pick over the
-///   columns and rows and their two directions, each judged a quarter
-///   span in ([`probe_pick`]), definite or escalated; then over the
+///   columns and rows and their two directions, each judged at the
+///   edge's ends and a quarter span in ([`probe_pick`]), definite or
+///   escalated; then over the
 ///   row, and for a line the column, whose moving map the carrier's
 ///   end feet measure (a sub-edge, a cap rim an offset moved, and for
 ///   a line an interior column). An Intersection circle is offered to
@@ -1208,19 +1211,20 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         None => (T::zero(), T::one(), T::zero(), T::one()),
     };
     // The ARC-RIM class: a circle on one of the chart's boundary rows,
-    // its image the row on the chart's own rational-quadratic parameter
-    // (`Pcurve::IsoArc`). An IsoUnsupported refusal says this carrier
-    // is not such a rim.
+    // over the whole row or part of it, its image the row on the
+    // chart's own rational-quadratic parameter (`Pcurve::IsoArc`). An
+    // IsoUnsupported refusal says this carrier is not such a rim.
     let arc_rim = || -> Result<Pcurve<T>, PcurveMintError> {
-        // The row and the `u` direction are one pick, the incidence
-        // lane's too ([`geom_brep::pick_arc_rim`]); the full arc-rim
-        // certification still follows.
+        // The row and the `u` direction are one pick, and the arc the
+        // closed form or the row measures, the incidence lane's too
+        // ([`geom_brep::pick_arc_rim`]); the full arc-rim certification
+        // still follows.
         match geom_brep::pick_arc_rim(&carrier, (t0, span), surface, band) {
             Ok(Some(cand)) => Ok(cand),
             Err(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
             Ok(None) => Err(refuse(
                 "no boundary row of this chart, in either u direction, holds the circle \
-                 at the interior probe — not an arc rim spanning the chart's u domain",
+                 at the probe — not an arc rim of this chart",
             )),
         }
     };
@@ -1434,7 +1438,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // chart: at each chart boundary, then at the column the
             // start's measured foot names (a chart wider than the face
             // it trims). They lead the boundary-iso schedule, which
-            // judges every candidate at the interior probe, so a stated
+            // judges every candidate at the probe, so a stated
             // map this chart does not share, or a stated image that is
             // no column at all, is passed over rather than trusted. A
             // foot that will not converge places no column: that
@@ -1495,9 +1499,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // description states (the wall-seam arm's columns carrying the
         // neighbour's `v` map), then the chart's two boundary columns
         // and two boundary rows × the two directions the carrier can
-        // traverse each, every candidate judged by the interior probe
-        // ([`probe_pick`]): the start point fixes a chart CORNER, and a
-        // column, a row and a direction all pass through one. A
+        // traverse each, every candidate judged by the probe
+        // ([`probe_pick`]): the edge's ends and the point a quarter in. A
         // SELECTION, checked: the full iso certification follows every
         // derivation.
         //
@@ -2585,18 +2588,17 @@ pub(crate) enum SplitRefusal {
 /// The carry is exact on every kind it covers, spline charts included.
 /// Two readers downstream of it are narrower:
 ///
-/// - **The iso rim arms.** On a described-NURBS wall the carried
-///   `IsoLine` and `IsoArc` rows restrict like any other, and tier 3
-///   reads `Ok` after the split. But [`mint_pcurves`], the pass a
-///   rowless face's caveat names, refuses on that body, because
-///   [`nurbs_iso_derive`]'s rim arms map an edge's WHOLE carrier
-///   interval onto the chart's whole `u` domain, which a sub-edge no
-///   longer spans (`IsoUnsupported` on an arc rim, a loop-continuity
-///   finding on a line rim). That is pre-existing, and filed as
-///   `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`.
-///   A carried fitted-grade row is not in it: the pass re-derives the
-///   split body's `General` rows bit for bit
-///   (`sweep`'s `split_edge_fitted_rows`).
+/// - **The iso rim arms** are not among them. On a described-NURBS
+///   wall the carried `IsoLine` and `IsoArc` rows restrict like any
+///   other, and [`mint_pcurves`] re-derives them: [`nurbs_iso_derive`]'s
+///   line rim takes the row its end feet measure, and its arc rim the
+///   row over the arc the row measures (`sweep`'s
+///   `split_edge_loft_charts`). A carried fitted-grade row is
+///   re-derived bit for bit (`sweep`'s `split_edge_fitted_rows`).
+/// - **The mesher's chord schedule.** It lands chord points on an arc
+///   rim's sub-arc joints only where the row's arc is the edge's
+///   interval, so it refuses a split rim's child typed
+///   (`work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).
 /// - **The trimmed quadrature lane.** It subdivides a `General` image
 ///   over its whole knot domain, so it refuses a carried child's
 ///   sub-range typed rather than integrate chart the face does not
