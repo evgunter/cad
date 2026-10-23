@@ -148,15 +148,15 @@ fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use pncad::document::{BooleanValue, Evaluation, Node, RecipeNodeId, Space, ValuePayload};
+    use pncad::document::{BooleanValue, Evaluation, Node, RecipeNodeId, ValuePayload, VarId};
     use pncad::topo::{Body, mass_properties};
 
     /// The placements whose copies stand in the world: the product's
     /// (a placement against another body joins that body's space).
-    fn world_placements(doc: &ProfileDoc, evaluation: &Evaluation<f64>) -> Vec<RecipeNodeId> {
+    fn world_placements(doc: &ProfileDoc, _evaluation: &Evaluation<f64>) -> Vec<RecipeNodeId> {
         doc.placements()
             .into_iter()
-            .filter(|&p| evaluation.space(p) == Space::World)
+            .filter(|&p| doc.node_space(p) == Some(VarId::WORLD))
             .collect()
     }
 

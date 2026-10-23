@@ -159,7 +159,7 @@ fn repinned(
         .apply(&DocEdit::UpdateReference { node, new_pin }, Tol::witness())
         .expect("the update applies")
         .doc;
-    let doc = fixture::emptied(doc, node);
+    let doc = fixture::stand_again(doc, node);
     fixture::pin(doc, node, &Frame::translation([dx, 0.0, 0.0]), o)
 }
 
@@ -229,7 +229,7 @@ fn row1b_the_update_replays_bit_identically() {
 
     let mut rec = fixture::Recorder::new();
     let asm_id = rec.doc.id();
-    let node = rec.insert(Node::instantiate_part(DocRef { id, pin: v1 }));
+    let node = rec.insert(crate::fixture::mated_instance(DocRef { id, pin: v1 }));
     rec.push(DocEdit::UpdateReference { node, new_pin: v2 });
 
     let replayed = ProfileDoc::replay(asm_id, &rec.edits, Tol::witness()).expect("the log replays");
@@ -613,7 +613,7 @@ fn assembly_under(
     let mut doc = ProfileDoc::empty(id, Tol::witness());
     let mut ids = Vec::new();
     for r in refs {
-        let (next, node) = fixture::insert_pinned(doc, Node::instantiate_part(*r), o);
+        let (next, node) = fixture::insert_pinned(doc, crate::fixture::mated_instance(*r), o);
         doc = next;
         ids.push(node);
     }
@@ -757,13 +757,11 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 
     // An unrelated edit keeps moving the pin exactly as it did — the
     // update arm smuggles no path into the canonical bytes.
-    let unrelated = DocEdit::RemoveConstraints {
-        placement: ids[0],
-        constraints: fixture::bundle(&before, ids[0])
-            .iter()
-            .map(|c| c.id)
-            .collect(),
-    };
+    // The instance's bundle rewritten whole: the identity bundle slid a
+    // unit along x.
+    let mut slid = editor_core::stand();
+    slid.values[0].1 = fixture::len(1.0);
+    let unrelated = slid.write(ids[0]);
     let update = DocEdit::UpdateReference {
         node: ids[0],
         new_pin: v2,
@@ -805,7 +803,7 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
 
     let mut rec = fixture::Recorder::new();
     let asm_id = rec.doc.id();
-    let node = rec.insert(Node::instantiate_part(DocRef { id, pin: v1 }));
+    let node = rec.insert(crate::fixture::mated_instance(DocRef { id, pin: v1 }));
     rec.push(DocEdit::UpdateReference { node, new_pin: v2 });
 
     // Snapshot = the EMPTY document, log = everything: the load

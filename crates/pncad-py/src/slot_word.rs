@@ -93,6 +93,7 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "open" => SlotId::Operand(OperandSlot::Open),
         "face" => SlotId::Operand(OperandSlot::Face),
         "body" => SlotId::Operand(OperandSlot::Body),
+        "target_space" => SlotId::Operand(OperandSlot::Space),
         _ => return None,
     };
     Some(slot)

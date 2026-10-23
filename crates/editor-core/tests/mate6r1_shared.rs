@@ -16,12 +16,12 @@ use editor_core::Formula;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    AssemblyError, CapEnd, ChecksConfig, ContactClass, Coord, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, MateRef, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis, Value, assemble, product_recorded, run_checks,
+    AssemblyError, CapEnd, ChecksConfig, ContactClass, Coord, DocRef, DocumentId, EntityKind,
+    Frame, MateRef, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis,
+    assemble, product_recorded, run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, constrain_at, insert, len, mated_instance, on_frame, run, step};
+use fixture::{ang, insert, len, mated_instance, on_frame, run};
 use geom_core::Tol;
 
 // ---- store / eval plumbing (the shared resolver, `fixture::resolver`) ----
@@ -119,28 +119,16 @@ struct Seat {
 /// a plane mate leaves set: a slide of `apart` along x, none along y,
 /// and no spin, so it pins the copy.
 fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
-    let (doc, m) = constrain_at(doc, placement, seat.mate);
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(seat.apart)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        step(
-            doc,
-            DocEdit::AddValue {
-                placement: m.placement,
-                value: Box::new(Value {
-                    mate: Some(m.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
+    let (doc, m) = crate::fixture::mated(
+        doc,
+        placement,
+        seat.mate,
+        &[
+            (Coord::Slide(TargetAxis::X), len(seat.apart)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, ang(0.0)),
+        ],
+    );
     (doc, m)
 }
 
@@ -151,7 +139,7 @@ fn seated(doc: ProfileDoc, seat: Seat) -> (ProfileDoc, MateRef) {
 }
 
 /// `count` instances of `part`: the first pinned to the world, the rest
-/// with empty bundles, each loose until a mate places it.
+/// standing in the world by the identity bundle until a mate places it.
 fn seated_row(
     label: &str,
     part: DocRef,
@@ -161,7 +149,7 @@ fn seated_row(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (mut doc, first) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(part),
+        crate::fixture::mated_instance(part),
         &with_resolver(store.clone()),
     );
     let mut ids = vec![first];
@@ -489,14 +477,17 @@ fn r1_true_carried_declaration_at_both_doors() {
 /// clone and `mint` STOPPED at the bad mate, so the good mate that
 /// follows it did not suppress. After the change the gather's set holds
 /// the good one. A bad reference fails its placement, so the bad mate's
-/// placement is put out of the product (its target is a loose copy),
+/// placement is put out of the product (its target is a copy in a
+/// space of its own),
 /// where its failure refuses nothing the checks gather.
 #[test]
 fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-dp-cube"), Tol::witness());
     let (doc, ids) = seated_row("r1-dp", part, 4, &store);
-    // Bad mate FIRST (dangling, on the loose `ids[3]`), then a good Rest
+    // `ids[3]` in a space of its own, out of the product.
+    let (doc, _) = crate::fixture::into_new_space(doc, ids[3]);
+    // Bad mate FIRST (dangling, on `ids[3]`), then a good Rest
     // on a later placement seating cube 2 on the base — a real,
     // declared contact.
     let (doc, _) = seated_at(

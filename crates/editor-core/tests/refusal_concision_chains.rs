@@ -4947,23 +4947,17 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "SpaceMismatch/WorldAndLoose",
+            "SpaceMismatch/WorldAndAnother",
             NodeErrorKind::SpaceMismatch {
-                a: editor_core::Space::World,
-                b: editor_core::Space::Loose {
-                    root: RecipeNodeId::new(0, tagged(6)),
-                },
+                a: editor_core::VarId::WORLD,
+                b: editor_core::VarId::new(0, tagged(6)),
             },
         ),
         row(
-            "SpaceMismatch/TwoLoose",
+            "SpaceMismatch/TwoOthers",
             NodeErrorKind::SpaceMismatch {
-                a: editor_core::Space::Loose {
-                    root: RecipeNodeId::new(0, tagged(6)),
-                },
-                b: editor_core::Space::Loose {
-                    root: RecipeNodeId::new(0, tagged(7)),
-                },
+                a: editor_core::VarId::new(0, tagged(6)),
+                b: editor_core::VarId::new(0, tagged(7)),
             },
         ),
         row(
@@ -5244,7 +5238,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
         .map(|(name, part, class)| {
             let (doc, instance) = insert(
                 ProfileDoc::empty(DocumentId::derive(name), tol),
-                Node::instantiate_part(part),
+                crate::fixture::mated_instance(part),
             );
             match evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol).result(instance) {
                 Some(NodeResult::Failed(error)) => match &error.kind {
@@ -5343,13 +5337,6 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 placement: n(7),
                 constraints: vec![c(8), c(9)],
                 free: 0,
-            },
-        ),
-        (
-            "TargetsDiffer",
-            M::TargetsDiffer {
-                placement: n(7),
-                constraints: vec![c(8), c(9)],
             },
         ),
         ("NotOnTheCopy", M::NotOnTheCopy { mate: r(9) }),

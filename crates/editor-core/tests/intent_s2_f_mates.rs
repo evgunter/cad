@@ -13,7 +13,7 @@ use crate::fixture;
 use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, Formula, Mate, MateRef,
     MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId, RefusedRef, SplitError, TargetAxis,
-    Value, assemble, product_recorded, relative_freedom_components,
+    assemble, product_recorded, relative_freedom_components,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -56,33 +56,16 @@ fn seat(
 /// slides in its plane and the spin — so its copy stands square on the
 /// target, pinned against it.
 fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
-    let (doc, mate) = fixture::constrain(doc, mate);
-    (squared(doc, mate), mate)
-}
-
-/// `mate`'s placement with a zero value on each freedom the mate leaves.
-fn squared(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
-    [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        step(
-            doc,
-            DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    })
+    let (doc, mate) = crate::fixture::constrain_with(
+        doc,
+        mate,
+        &[
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, fixture::ang(0.0)),
+        ],
+    );
+    (doc, mate)
 }
 
 /// Two cube instances, the first pinned to the world and the second
@@ -93,7 +76,7 @@ fn pair(label: &str) -> (ProfileDoc, [RecipeNodeId; 2], PartStore, RecipeNodeId)
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, a) = fixture::insert_pinned(
         doc,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &with_resolver(store.clone()),
     );
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
@@ -107,13 +90,18 @@ fn component_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<usize> {
         .position(|c| c.contains(&id))
 }
 
-/// **Test 20 (A9 over reads).** Two instances are relatively free until
-/// a mate in the second's bundle reads a face of the first: the
+/// **Test 20 (A9 over reads).** Two instances, each in a space of its
+/// own, are relatively free until a mate in the second's bundle reads a
+/// face of the first: the
 /// placement's reads reach the first instance, so both are one
 /// component.
 #[test]
 fn a_mate_couples_its_two_instances_through_its_reads() {
     let (doc, [a, b], _, body) = pair("f-a9");
+    // Each in a space of its own: two copies in the world are each
+    // pinned there.
+    let (doc, _) = fixture::into_new_space(doc, a);
+    let (doc, _) = fixture::into_new_space(doc, b);
     let of = component_of;
     assert_ne!(of(&doc, a), of(&doc, b), "unmated instances are free");
     let (doc, mate) = fixture::constrain(doc, seat(body, (b, b), (a, a)));
@@ -149,7 +137,8 @@ fn a_measure_couples_as_reads_do() {
 }
 
 /// **Test 21 (split across a mate).** A cut that takes the copy a kept
-/// mate's target reads, which is loose and so no world placement,
+/// mate's target reads, which is in a space of its own and so no world
+/// placement,
 /// refuses as the ordinary severed read, naming the mate's placement and
 /// the copy.
 #[test]
@@ -159,7 +148,8 @@ fn a_cut_severing_a_mates_read_refuses_as_a_severed_read() {
     let doc = ProfileDoc::empty(DocumentId::derive("f-split"), Tol::witness());
     let (doc, a) = insert(doc, fixture::mated_instance(doc_ref));
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
-    // The mate places `a` onto `b`, which stays loose.
+    // The mate places `a` onto `b`, which stands in a space of its own.
+    let (doc, _) = fixture::into_new_space(doc, b);
     let (doc, mate) = fixture::constrain(doc, seat(body, (a, a), (b, b)));
     let err = editor_core::split(
         &doc,
@@ -209,8 +199,8 @@ fn a_mate_between_placed_instances_mints_on_their_copies() {
     );
 }
 
-/// **Test 22 (a member of no world copy).** A mate seating one loose
-/// instance on another, whose copies a boolean reads, mints nothing: the
+/// **Test 22 (a member of no world copy).** A mate seating one instance
+/// on another in a space of its own, whose copies a boolean reads, mints nothing: the
 /// copies are in the first's own space, not the world, the mate relates
 /// them there, and the product is the boolean's copy alone.
 #[test]
@@ -220,6 +210,7 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
     let doc = ProfileDoc::empty(DocumentId::derive("f-unplaced"), Tol::witness());
     let (doc, a) = insert(doc, fixture::mated_instance(doc_ref));
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
+    let (doc, _) = fixture::into_new_space(doc, a);
     let (doc, mate) = seated(doc, seat(body, (b, b), (a, a)));
     let (doc, fused) = insert(
         doc,
@@ -230,7 +221,7 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
             ]),
         },
     );
-    let (doc, placed) = insert(doc, Node::place(vec![fused.into()]));
+    let (doc, placed) = insert(doc, crate::fixture::stood(vec![fused.into()]));
     let doc = fixture::pinned(doc, placed, &with_resolver(store.clone()));
     let ev = run(&doc, &with_resolver(store.clone()));
     fixture::assert_mints_nothing(&doc, &ev, mate);
@@ -282,7 +273,7 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
 fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
     let (doc, [a, b], store, body) = pair("f-twice");
     let opts = with_resolver(store);
-    // The moved copy's pin, read off `b`'s own copy while it is loose:
+    // The moved copy's pin, read off `b`'s own copy:
     // where the seat puts it, one up.
     let pin = editor_core::pin_at(
         &doc,
@@ -293,16 +284,17 @@ fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
     )
     .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
     let (doc, mate) = seated(doc, seat(body, (b, b), (a, a)));
-    let (doc, again) = insert(doc, Node::place(vec![b.into()]));
+    // `again` stands where `b` stands, by the identity bundle; the pin
+    // moves a second copy of it one up.
+    let (doc, again) = insert(doc, crate::fixture::stood(vec![b.into()]));
     let (moved, _) = fixture::constrain_at(doc.clone(), again, pin);
     let (minted, unminted) = fixture::mate_mints(&moved, &run(&moved, &opts));
     assert!(
         unminted.is_empty() && minted.iter().any(|m| m.mate == mate),
         "a moved copy is no second candidate: {minted:?} {unminted:?}"
     );
-    let stood = fixture::pinned(doc, again, &opts);
-    let ev = run(&stood, &opts);
-    let (_, unminted) = fixture::mate_mints(&stood, &ev);
+    let ev = run(&doc, &opts);
+    let (_, unminted) = fixture::mate_mints(&doc, &ev);
     assert_eq!(
         unminted,
         vec![MintRefusal::Reference {
@@ -337,9 +329,9 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
         &editor_core::Frame::translation([5.0, 0.0, 0.0]),
         &opts,
     );
-    let (doc, p) = insert(doc, Node::place(vec![b.into()]));
+    let (doc, p) = insert(doc, crate::fixture::stood(vec![b.into()]));
+    // The seat and a zero on each freedom it leaves, written whole.
     let (doc, mate) = fixture::constrain_at(doc, p, seat(body, (b, b), (a, a)));
-    let doc = squared(doc, mate);
     let ev = run(&doc, &opts);
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the cubes gather");
     let Some(seat) = product
@@ -465,7 +457,8 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
 
 /// Two local cubes, `x` and `y`, a placement `t` lifting `x` by 5 in
 /// its own space, and `x` and `y` placed in the world; a distance
-/// measure reads a face of `x` and a face of `y`. Answers the document
+/// measure reads `x`'s two caps (a measure reads one space, and each
+/// cube is in a space of its own). Answers the document
 /// and `(x, t, the placement of x)`.
 fn lifted_cube_measured(label: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let cube = |doc: ProfileDoc, x: f64| {
@@ -497,8 +490,8 @@ fn lifted_cube_measured(label: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
         vec![
             editor_core::SitedRef::new(x, x_end),
             editor_core::SitedRef::new(
-                y,
-                fixture::fname(y, editor_core::RoleSeg::Cap(CapEnd::End)),
+                x,
+                fixture::fname(x, editor_core::RoleSeg::Cap(CapEnd::Start)),
             ),
         ],
     );
@@ -516,8 +509,11 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
     let (leg_ref, leg) = store.insert_part(cube_part("f-shared-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(cube_part("f-shared-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("f-shared"), Tol::witness());
-    let (doc, instance) =
-        fixture::insert_pinned(doc, Node::instantiate_part(leg_ref), &with_resolver(store));
+    let (doc, instance) = fixture::insert_pinned(
+        doc,
+        crate::fixture::mated_instance(leg_ref),
+        &with_resolver(store),
+    );
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -595,7 +591,7 @@ fn a_selection_crossing_a_posed_placement_refuses() {
     let (doc, [x, t, px]) = lifted_cube_measured("f-posed");
     // Re-place `x` posed, in place of its world placement at the identity.
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: px });
-    let (doc, posed) = insert(doc, Node::place(vec![x.into()]));
+    let (doc, posed) = insert(doc, crate::fixture::stood(vec![x.into()]));
     let doc = fixture::pin(
         doc,
         posed,

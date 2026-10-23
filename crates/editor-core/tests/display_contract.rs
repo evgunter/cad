@@ -2948,6 +2948,7 @@ test_utils::f6_variants! {
         StrandedSelection,
         StrandedAppearance,
         StrandedRead,
+        StrandedSpace,
         AnonymousVarRemoved,
     ];
 }
@@ -2965,6 +2966,8 @@ test_utils::f6_variants! {
 /// live node to move to.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
+    let spaces =
+        editor_core::ProfileDoc::empty_derived("display-spaces", geom_core::Tol::witness());
     let cases = [
         (
             Maintenance::Strand {
@@ -3017,6 +3020,18 @@ fn maintenance_display_says_what_the_edit_did() {
                 "Fillet 000000000005's target reads #0:0000000000070000",
                 "this edit deleted with its operation",
                 "until the target reads a live value",
+            ],
+        ),
+        (
+            Maintenance::StrandedSpace {
+                node: held(5, "Union"),
+                a: spaces.spoken_space(editor_core::VarId::WORLD),
+                b: spaces.spoken_space(editor_core::VarId::new(0, tagged(7))),
+            },
+            vec![
+                "Union 000000000005 reads the world and the space #0:0000000000070000",
+                "this edit left in two spaces",
+                "refuses until its reads are in one space",
             ],
         ),
         (

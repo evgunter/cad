@@ -83,9 +83,6 @@ pub(crate) struct OpOut<T: Decide> {
     pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
     /// A placement's solved motion (`NodeValue::motion`).
     pub motion: Option<RigidMotion<T>>,
-    /// A placement's space (`NodeValue::space`), `None` for every other
-    /// op, whose value lives in its inputs'.
-    pub space: Option<crate::mate::Space>,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -100,17 +97,12 @@ impl<T: Decide> OpOut<T> {
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
             motion: None,
-            space: None,
         }
     }
 
-    /// This output, a placement's, sitting at `motion` in `space`.
-    fn moved(self, (motion, space): (Option<RigidMotion<T>>, crate::mate::Space)) -> Self {
-        Self {
-            motion,
-            space: Some(space),
-            ..self
-        }
+    /// This output, a placement's, sitting at `motion` in its target.
+    fn moved(self, motion: Option<RigidMotion<T>>) -> Self {
+        Self { motion, ..self }
     }
 
     /// This output, its records' carried citations naming `inputs` by
@@ -484,6 +476,7 @@ where
         }
         Node::Place {
             shapes,
+            target: _,
             constraints,
         } => {
             // Each shape projected by itself: two halves of one split
@@ -520,10 +513,12 @@ where
                 env,
                 tol,
             )?;
-            wire_place(id, &reads, placed.0.as_ref(), tol).map(|out| out.moved(placed))
+            wire_place(id, &reads, placed.as_ref(), tol).map(|out| out.moved(placed))
         }
-        // The world DENOTES NO BODY and defines no variable.
-        Node::World => unreachable!("the world is scheduled nowhere (`eval::schedule`)"),
+        // A space DENOTES NO BODY.
+        Node::World | Node::Space => {
+            unreachable!("a space is scheduled nowhere (`eval::schedule`)")
+        }
         Node::Pattern { input, kind, .. } => {
             let input = at(O::Input, *input)?;
             let rule = RuleEnv {
@@ -566,6 +561,7 @@ where
         Node::InstantiatePart {
             doc_ref,
             interface,
+            target: _,
             constraints,
         } => {
             // The copy before placement is what its mates' `on` poses
@@ -577,7 +573,7 @@ where
             let own: Results<T> =
                 BTreeMap::from([(id, NodeResult::Ok(super::NodeValue::scratch(unplaced)))]);
             let placed = fold_with(doc, &own, unprojected, id, constraints, reach, env, tol)?;
-            let out = wire_instantiate_part(id, doc_ref, interface, placed.0, env, tol)?;
+            let out = wire_instantiate_part(id, doc_ref, interface, placed, env, tol)?;
             Ok(out.moved(placed))
         }
     }
@@ -651,10 +647,12 @@ fn body_reach<T: crate::mate::SolveScalar>(
 /// their own coordinates, and its `to` off the target space's geometry,
 /// or the world read inside the mate; the bundle folded
 /// ([`crate::mate::solve::solve_bundle`]). A bundle with no mate places
-/// its copy in the world by its values alone. Answers the copy's motion
-/// in its target space's coordinates (`None` for the identity bundle,
-/// the one placement placed by no map) and the space it joins: a loose
-/// copy roots its own.
+/// its copy by its values alone. Every mate's `to` is in the target
+/// space, which the edit door checked and evaluation refuses a node a
+/// re-target left otherwise before it runs
+/// ([`NodeErrorKind::SpaceMismatch`]). Answers the copy's motion in its
+/// target space's coordinates (`None` for the identity bundle, the one
+/// placement placed by no map).
 ///
 /// # Errors
 ///
@@ -669,11 +667,11 @@ fn fold_with<T>(
     reach: Result<f64, crate::mate::LeverRefusal>,
     env: &OpEnv<'_, T>,
     tol: Tol,
-) -> Result<(Option<RigidMotion<T>>, crate::mate::Space), NodeErrorKind>
+) -> Result<Option<RigidMotion<T>>, NodeErrorKind>
 where
     T: crate::mate::SolveScalar,
 {
-    use crate::mate::{MateFault, MateRef, MateSide, Space, Target};
+    use crate::mate::{MateFault, MateRef, MateSide, Target};
     let fault = |f: MateFault| NodeErrorKind::Mate(Box::new(f));
     let b = band(tol)?;
     let params = env.lane.params;
@@ -682,7 +680,6 @@ where
     // Each mate's two poses, its target's sense and the frame of the
     // body its target is read off: what a value's chart reads.
     let mut charted = Vec::new();
-    let mut target_space: Option<Space> = None;
     for c in constraints {
         let mate = MateRef::new(id, c.id);
         let m = match &c.kind {
@@ -727,7 +724,7 @@ where
         )
         .map_err(|kind| unevaluated(MateSide::On, kind))?;
         let on = crate::mate::solve::tightened(on);
-        let (to, space, body) = match &m.to {
+        let (to, body) = match &m.to {
             Target::Pose(var) => {
                 let to = pose::eval_pose(
                     doc,
@@ -738,14 +735,6 @@ where
                     tol,
                 )
                 .map_err(|kind| unevaluated(MateSide::To, kind))?;
-                let space = doc
-                    .read_ports(*var)
-                    .iter()
-                    .find_map(|(at, _)| match to_results.get(at) {
-                        Some(NodeResult::Ok(value)) => value.space,
-                        _ => None,
-                    })
-                    .unwrap_or(Space::World);
                 // The body's own frame: its placement's motion in the
                 // space, the identity for the space's own geometry. Two
                 // bodies refuse only where a value asks for the chart.
@@ -767,7 +756,7 @@ where
                     .and_then(|at| {
                         pose::own_direction(doc, to_results, crate::pose::RoleRead::plain(*var), at)
                     });
-                (to, space, (body, own))
+                (to, (body, own))
             }
             Target::World(world) => {
                 world
@@ -775,23 +764,9 @@ where
                     .map_err(|f| fault(MateFault::WorldRead { mate, fault: f }))?;
                 let to = pose::eval_world(world, params, b)
                     .map_err(|kind| unevaluated(MateSide::To, kind))?;
-                (
-                    to,
-                    Space::World,
-                    (Ok(geom_core::RigidMotion::identity()), None),
-                )
+                (to, (Ok(geom_core::RigidMotion::identity()), None))
             }
         };
-        match target_space {
-            None => target_space = Some(space),
-            Some(held) if held != space => {
-                return Err(fault(MateFault::TargetsDiffer {
-                    placement: id,
-                    constraints: constraints.iter().map(|c| c.id).collect(),
-                }));
-            }
-            Some(_) => {}
-        }
         let to = crate::mate::solve::tightened(to);
         let flipped = crate::mate::solve::target_flipped(doc, &m.to);
         charted.push((c.id, on.clone(), to.clone(), flipped, body));
@@ -799,8 +774,8 @@ where
     }
     let equations = crate::mate::solve::equations_of(doc, constraints);
     if mates.is_empty() {
-        // With no mate, the values state the whole motion in the world;
-        // the identity bundle places by no map.
+        // With no mate, the values state the whole motion in the
+        // target; the identity bundle places by no map.
         return match crate::mate::solve::solve_bundle(
             id,
             &equations,
@@ -811,13 +786,11 @@ where
             crate::mate::solve::Folded::Unmated
                 if crate::mate::solve::identity_bundle(doc, constraints) =>
             {
-                Ok((None, Space::World))
+                Ok(None)
             }
-            crate::mate::solve::Folded::Unmated => Ok((
-                Some(crate::mate::value::unmated_motion(&values)?),
-                Space::World,
-            )),
-            crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
+            crate::mate::solve::Folded::Unmated => {
+                Ok(Some(crate::mate::value::unmated_motion(&values)?))
+            }
             crate::mate::solve::Folded::Pinned(..) => {
                 unreachable!("a bundle with no mate folds no coset")
             }
@@ -848,7 +821,6 @@ where
         );
     }
     match crate::mate::solve::solve_bundle(id, &equations, &mates, &values, &charts)? {
-        crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
         crate::mate::solve::Folded::Unmated => {
             unreachable!("a bundle holding a mate is folded by its mates")
         }
@@ -856,13 +828,10 @@ where
         // value and in every lane: a map the solve composed as motions
         // is placed as the motion it is, any other admitted from its
         // entries, by one door.
-        crate::mate::solve::Folded::Pinned(map, composed) => Ok((
-            Some(match composed {
-                Some(composed) => composed.motion(b)?,
-                None => crate::mate::solve::admitted(&map, b)?,
-            }),
-            target_space.unwrap_or(Space::World),
-        )),
+        crate::mate::solve::Folded::Pinned(map, composed) => Ok(Some(match composed {
+            Some(composed) => composed.motion(b)?,
+            None => crate::mate::solve::admitted(&map, b)?,
+        })),
     }
 }
 
@@ -1027,7 +996,6 @@ where
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
         motion: None,
-        space: None,
     })
 }
 

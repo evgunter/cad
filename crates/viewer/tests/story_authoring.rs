@@ -102,18 +102,18 @@ const MERLON_OFF: f64 = 0.009;
 /// above the plinth is moved up its axis before it is combined.
 const CARVED_STATES: usize = 22;
 /// The world's own edits among the carving actions (A10, D10), each
-/// riding in the action that caused it: five extrudes each placed —
-/// the placement, then the identity bundle that places it, one edit
-/// (10);
-/// the chamfer re-pointing the plinth's placement (1); five moves each
-/// writing its mate and three values (20), four of them re-pointing the
-/// world placement of what they moved (4); five booleans each placing
-/// its moved second operand against the plinth where it stands — its
-/// mate and three values taken off and written again (40); four of
-/// them re-pointing their first operand's placement and deleting the
-/// second's (8); and the last, whose second operand nothing places,
-/// re-pointing only (1).
-const WORLD_EDITS: usize = 84;
+/// riding in the action that caused it: five extrudes each placed into
+/// the world, the placement inserted with its identity bundle as one
+/// edit (5); the chamfer re-pointing the plinth's placement (1); five
+/// moves, each placement inserted with its mate and values as its own
+/// edit, four of them re-pointing the world placement of what they
+/// moved (4); five booleans each placing its moved second operand into
+/// the plinth's space where it stands — its bundle written as the
+/// identity, the placement re-targeted, and its mate and values written
+/// whole (15); four of them re-pointing their first operand's placement
+/// and deleting the second's (8); and the last, whose second operand
+/// nothing places, re-pointing only (1).
+const WORLD_EDITS: usize = 34;
 /// Edits on the FINAL saved path: the twenty-two carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`

@@ -24,8 +24,8 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CapEnd, ContactClass, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,
     EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, Value, VarName, apply,
-    load, save,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, VarName, apply, load,
+    save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, solve, step};
@@ -195,9 +195,9 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         )
         .0;
     }
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (mut doc, rest) = fixture::constrain_at(
+    let (doc, rest) = fixture::mated(
         doc,
         top,
         fixture::rest(
@@ -205,39 +205,18 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
             head(in_part(base, base_body, CapEnd::End)),
             ContactClass::Rest,
         ),
+        &[
+            (Coord::Slide(TargetAxis::X), x),
+            (Coord::Slide(TargetAxis::Y), len(1.0)),
+            (Coord::Spin, turn),
+        ],
     );
-    for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), x),
-        (Coord::Slide(TargetAxis::Y), len(1.0)),
-        (Coord::Spin, turn),
-    ] {
-        doc = with_value(doc, rest, coord, by);
-    }
     Scene {
         doc,
         opts,
         top,
         rest,
     }
-}
-
-/// `doc` with the freedom `coord` of `mate` set to `by`.
-fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> ProfileDoc {
-    apply(
-        &doc,
-        &DocEdit::AddValue {
-            placement: mate.placement,
-            value: Box::new(Value {
-                mate: Some(mate.id),
-                coord,
-                by,
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
-    .doc
 }
 
 fn set_value(doc: ProfileDoc, name: &'static str, value: FreeValue) -> ProfileDoc {
@@ -427,7 +406,7 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
             }],
         })
     };
-    let (doc, rest) = fixture::constrain_at(
+    let (doc, _) = fixture::mated(
         doc,
         ids[1],
         fixture::mate(
@@ -435,8 +414,8 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
             standoff(name(ids[0], CapEnd::End), 0.5),
             ContactClass::Rest,
         ),
+        &[(Coord::Spin, ang(0.25))],
     );
-    let doc = with_value(doc, rest, Coord::Spin, ang(0.25));
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     (doc, text)
 }
@@ -584,7 +563,15 @@ fn a4_the_same_bundle_without_the_key_loads() {
     let coords: Vec<Coord> = fixture::constrained(&back)
         .into_iter()
         .flat_map(|p| fixture::bundle(&back, p))
-        .filter_map(|c| c.value().map(|v| v.coord))
+        .filter_map(|c| c.value().filter(|v| v.mate.is_some()).map(|v| v.coord))
         .collect();
-    assert_eq!(coords, [Coord::Spin], "the value comes back as written");
+    assert_eq!(
+        coords,
+        [
+            Coord::Slide(TargetAxis::X),
+            Coord::Slide(TargetAxis::Y),
+            Coord::Spin
+        ],
+        "the rest's values come back as written"
+    );
 }

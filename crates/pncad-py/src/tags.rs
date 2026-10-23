@@ -556,6 +556,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Input => "input",
         S::Of => "of",
         S::Body => "body",
+        S::Space => "target_space",
     }
 }
 
@@ -665,6 +666,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // bundle, and a constraint id the bundle does not hold.
         EditError::WorldIsUndeletable { .. } => "world_is_undeletable",
         EditError::ConstraintOnNonPlacement { .. } => "constraint_on_non_placement",
+        // Its reads lie in two spaces, decided from the recipe.
+        EditError::SpaceMismatch { .. } => "space_mismatch",
         EditError::UnknownConstraint { .. } => "unknown_constraint",
         EditError::MateNamedByValue { .. } => "mate_named_by_value",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
@@ -995,7 +998,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateClassNotAdmitted => "mate_class_not_admitted",
         C::MateOverconstrained => "mate_overconstrained",
         C::MateUnpinned => "mate_unpinned",
-        C::MateTargetsDiffer => "mate_targets_differ",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
         C::MateUnleverable => "mate_unleverable",
         C::MateKindsDiffer => "mate_kinds_differ",
@@ -1005,8 +1007,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateNotAFreedom => "mate_not_a_freedom",
         C::MateNoChart => "mate_no_chart",
         C::CrossingUnverified => "crossing_unverified",
-        // A node reading two spaces: a loose copy's beside the world's,
-        // or two loose copies'.
+        // A node reading two spaces: its reads, or a placement's mate
+        // outside its target.
         C::SpaceMismatch => "space_mismatch",
     }
 }
@@ -1242,6 +1244,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::RebindMetadataCollision { .. } => None,
         EditError::WorldIsUndeletable { .. } => None,
         EditError::ConstraintOnNonPlacement { .. } => None,
+        EditError::SpaceMismatch { .. } => None,
         EditError::UnknownConstraint { .. } => None,
         EditError::MateNamedByValue { .. } => None,
         // Which answer the rule gives twice is the arm.
@@ -2260,7 +2263,6 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         E::EmptyBoolean { .. } => "empty_boolean",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
-        E::Loose { .. } => "loose",
     }
 }
 
@@ -2495,12 +2497,12 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
 pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
     match err {
         AssemblyError::Product(inner) => product_error_tag(inner),
-        AssemblyError::Space { .. } => "own_space",
         AssemblyError::Mint { .. } => "unminted_mates",
         AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
         AssemblyError::CarriedAtRest { .. } => "carried_at_rest",
         AssemblyError::AtRest { .. } => "at_rest",
         AssemblyError::Uncertified { .. } => "uncertified",
+        AssemblyError::Space { .. } => "own_space",
     }
 }
 
@@ -3433,6 +3435,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::StrandedRead { .. } => "stranded_read",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
+        Maintenance::StrandedSpace { .. } => "stranded_space",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }
 }

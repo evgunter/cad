@@ -81,7 +81,7 @@ fn pinned(
     doc_ref: editor_core::DocRef,
     o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
-    fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), o)
+    fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), o)
 }
 
 /// **The instance a split leaves stands at the identity of the
@@ -637,7 +637,7 @@ fn row3_inline_of_stale_pin_is_pin_mismatch() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-r3i-part", 0.0, 1.0), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-r3i"), Tol::witness());
-    let (host, id) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, id) = insert(host, crate::fixture::mated_instance(doc_ref));
     // The referenced document moves on under the same id: the pin the
     // host carries no longer holds.
     store.insert(part("asm4-r3i-part", 0.0, 2.0), Tol::witness());
@@ -707,6 +707,8 @@ fn row3_further_typed_refusals() {
             distance: len(1.0),
         },
     );
+    // The block joins the instance's copy in the world.
+    let (host, block) = fixture::place(host, block);
     let (host, consumer) = insert(
         host,
         Node::Union {
@@ -1388,7 +1390,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let moved_eps = host.epsilon() * 0.5;
     let (part_doc, _) = step(part_doc, DocEdit::SetTolerance { eps: moved_eps });
     let doc_ref = store.insert(part_doc, Tol::witness());
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, inst) = insert(host, crate::fixture::mated_instance(doc_ref));
     match inline(
         &host,
         inst,
@@ -1424,7 +1426,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     assert_eq!(carrying.metadata().len(), 1);
     let doc_ref = store.insert(carrying, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-meta-host"), Tol::witness());
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, inst) = insert(host, crate::fixture::mated_instance(doc_ref));
     match inline(
         &host,
         inst,
@@ -2240,7 +2242,7 @@ fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
     let (part, body) = extrude(part, 0.25);
     let (part, seat) = insert(
         part,
-        Node::place(vec![editor_core::BodyRead::from(
+        crate::fixture::stood(vec![editor_core::BodyRead::from(
             editor_core::Operand::Node(body),
         )]),
     );

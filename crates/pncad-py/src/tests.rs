@@ -84,26 +84,18 @@ fn insert(
     (applied.doc, minted)
 }
 
-/// `placement`'s one copy standing where its body stands
-/// ([`pncad::document::stand`]): the identity bundle, written whole.
+/// **One copy of `body` standing in the world where it stands**: a
+/// placement into the world holding the identity bundle
+/// ([`pncad::document::stand`]), written whole.
 fn stood(
-    doc: pncad::document::ProfileDoc,
-    placement: pncad::document::RecipeNodeId,
-) -> pncad::document::ProfileDoc {
-    use pncad::document::Node;
-    let Some(Node::Place { .. }) = doc.node(placement) else {
-        panic!("{placement} is a placement");
-    };
-    let placed = pncad::document::stand();
-    let mut doc = doc;
-    placed
-        .write(placement, |edit| {
-            let added = applied(&doc, edit);
-            doc = added.doc;
-            Ok::<_, std::convert::Infallible>(added.record.minted_constraints)
-        })
-        .unwrap_or_else(|never| match never {});
-    doc
+    body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
+) -> pncad::document::AuthoredNode {
+    use pncad::document::{Node, Operand, VarId};
+    Node::place(
+        vec![body.into()],
+        Operand::Var(VarId::WORLD),
+        pncad::document::stand().bundle(),
+    )
 }
 
 /// A one-box document under the id `label` derives: square(2)
@@ -127,11 +119,8 @@ fn box_doc(
             distance: len(1.5),
         },
     );
-    let (doc, placement) = insert(
-        doc,
-        Node::place(vec![pncad::document::BodyRead::plain(body)]),
-    );
-    (stood(doc, placement), profile, body)
+    let (doc, _) = insert(doc, stood(body));
+    (doc, profile, body)
 }
 // END box-document fixture twin
 
@@ -177,6 +166,7 @@ fn var_kind_tags_are_stable() {
             VarKind::Vertex,
             VarKind::Faces,
             VarKind::Edges,
+            VarKind::Space,
         ]
         .map(var_kind_tag),
         [
@@ -192,7 +182,8 @@ fn var_kind_tags_are_stable() {
             "edge",
             "vertex",
             "faces",
-            "edges"
+            "edges",
+            "space"
         ]
     );
 }
@@ -913,16 +904,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             free: 1,
         },
         &["placement", "constraints", "free"],
-    );
-    carries(
-        &F::TargetsDiffer {
-            placement: id(1),
-            constraints: vec![
-                ConstraintId(MintId::new(2, 2)),
-                ConstraintId(MintId::new(3, 3)),
-            ],
-        },
-        &["placement", "constraints"],
     );
     carries(&F::NotOnTheCopy { mate: m(1) }, &["mate"]);
     carries(
@@ -2189,7 +2170,6 @@ fn node_error_tags_are_the_published_words() {
         MateClassNotAdmitted => "mate_class_not_admitted",
         MateOverconstrained => "mate_overconstrained",
         MateUnpinned => "mate_unpinned",
-        MateTargetsDiffer => "mate_targets_differ",
         MateNotOnTheCopy => "mate_not_on_the_copy",
         MateUnleverable => "mate_unleverable",
         MateKindsDiffer => "mate_kinds_differ",
@@ -3415,7 +3395,7 @@ fn check_registry_tags_are_stable() {
             refusal: Some(
                 pncad::document::ProductError::EmptyProduct {
                     unplaced: Vec::new(),
-                    loose: Vec::new(),
+                    elsewhere: Vec::new(),
                 }
                 .into()
             )
@@ -4928,6 +4908,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_unknown_var_name",
             "slot_unresolved_var",
             "slot_var_kind",
+            "space_mismatch",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
             "unknown_constraint",
@@ -5011,7 +4992,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "export_error_tag",
         values: &[
             "empty_boolean",
-            "loose",
             "node_failed",
             "not_a_body",
             "poisoned",
@@ -5214,6 +5194,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stranded_appearance",
             "stranded_read",
             "stranded_selection",
+            "stranded_space",
         ],
         delegates: &[],
     },
@@ -5345,7 +5326,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_overconstrained",
             "mate_poses_of_another_document",
             "mate_side_unevaluated",
-            "mate_targets_differ",
             "mate_unleverable",
             "mate_unpinned",
             "mate_value_names_no_mate",
@@ -5482,6 +5462,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "shape",
             "side",
             "target",
+            "target_space",
             "tool",
         ],
         delegates: &[],
@@ -6566,6 +6547,12 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // The slot-addressed half of the two above, same pin.
     ("slot_var_kind", 2),
     ("smooth_join_refuted", 2),
+    // One fact (D10 `[placement.spaces]`): a node whose reads lie in two
+    // spaces, refused at the edit door or, a re-target having left it
+    // so, at evaluation;
+    // `a_space_mismatch_has_one_word_at_the_door_and_at_evaluation`
+    // pins it.
+    ("space_mismatch", 2),
     // One fact: one `SplitLineageCycle`, met by the Boolean
     // (`BooleanErrorKind::SplitLineage`) or by naming
     // (`NamingError::SplitLineage`);
@@ -6631,6 +6618,25 @@ fn a_split_lineage_cycle_has_one_word_wherever_it_is_met() {
     assert_eq!(
         boolean_error_tag(BooleanErrorKind::SplitLineage),
         naming_error_tag(&pncad::select::NamingError::SplitLineage(cycle))
+    );
+}
+
+/// **A read across two spaces is one word at both doors**: the edit
+/// door refuses a node it would write with one, and evaluation refuses
+/// one a re-target left so; a caller reading the tag reads one fact.
+#[test]
+fn a_space_mismatch_has_one_word_at_the_door_and_at_evaluation() {
+    use crate::tags::{edit_error_tag, node_error_tag};
+    use pncad::document::{EditError, NodeErrorClass, ProfileDoc, RecipeNodeId, VarId};
+    let doc = ProfileDoc::empty_derived("space-mismatch-word", Tol::witness());
+    let refused = EditError::SpaceMismatch {
+        node: doc.spoken(RecipeNodeId::WORLD),
+        a: Box::new(doc.spoken_space(VarId::WORLD)),
+        b: Box::new(doc.spoken_space(VarId::WORLD)),
+    };
+    assert_eq!(
+        edit_error_tag(&refused),
+        node_error_tag(NodeErrorClass::SpaceMismatch)
     );
 }
 
@@ -8250,10 +8256,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "var_kind_tag",
-        literals: 13,
+        literals: 14,
         held_by: &[Holder::Test {
             name: "var_kind_tags_are_stable",
-            holds: "the thirteen words, and the scalar kinds against `dimension_tag`",
+            holds: "the fourteen words, and the scalar kinds against `dimension_tag`",
         }],
     },
 ];
@@ -10290,6 +10296,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "profile",
     "revolve",
     "shell",
+    "space",
     "split",
     "subtract",
     "sweep",
@@ -10566,7 +10573,7 @@ mod product_memo_rows {
                 let refusal = product_memo::body(&memo, &doc, &ev, tol)
                     .expect_err("a document with nothing placed has no product");
                 assert!(
-                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced, loose } if unplaced.is_empty() && loose.is_empty()),
+                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced, .. } if unplaced.is_empty()),
                     "a sketch places nothing and defines no body: {refusal:?}"
                 );
             }

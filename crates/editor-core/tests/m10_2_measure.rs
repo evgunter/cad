@@ -1382,7 +1382,7 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
     );
     let (doc, _) = fixture::insert_pinned(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::output(split, SplitHalf::Above.port()),
         )]),
         &EvalOptions::default(),

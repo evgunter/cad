@@ -314,7 +314,15 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// written `atan2`'s rounded turns: the die's world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
 /// placements, their ids and the names under them are new.
-const SAID_DIGEST: u64 = 0xc081_1a04_565d_481d;
+///
+/// D′1 (a placement names its target space): the words that moved are
+/// the node tags, every construction minting its space beside its body
+/// and every bundle written whole. With the tags masked, every name of
+/// every document says the words it said on the merge base
+/// (`e605bc0e`), and [`NAME_WORDS`] held: a read of a construction's
+/// body is said by the node alone, its space being no part of what it
+/// holds.
+const SAID_DIGEST: u64 = 0x2954_4d78_a391_f39b;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

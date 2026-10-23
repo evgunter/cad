@@ -2,12 +2,11 @@
 id: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
 kind: unit
 title: D′2: WorldRead retires into values; a value names no mate and charts on the target space's axes; a point mate's spin chain; the placement helpers become one pure constructor; inline is one rule; the flatten edit
-status: parked
+status: spec
 opened: 2026-10-22
 priority: P0
 cost: H
 parent: a-placement-pins-by-written-values-without-a-mate
-blocked_on: [a-placement-names-its-target-space]
 ---
 
 
@@ -45,6 +44,10 @@ The spec's §5′.2 rows, and tests 20, 21 and 24. Geometry moves only
 where a mated target body stands off its space's identity or a
 helper's rounded turn is replaced by the turn its caller meant, each
 reported by document and node.
+`p2_face::a_valued_mate_reading_a_mate_placed_copy_refuses_to_cross_split`
+crosses split once a value charts on the target space: today it pins
+split refusing the reader `Posed`, because the value is charted on the
+mate's target body's frame.
 
 **Absorbs:**
 `a-value-charted-on-the-target-reads-frame-carries-the-datum-chain`,

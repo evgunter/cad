@@ -82,6 +82,9 @@ pub(crate) struct Drafts {
     pub(crate) mate_class: usize,
     pub(crate) mate_kind: usize,
     pub(crate) mate_flip: bool,
+    /// Whether the mate moves its copy into the space its `to` reads,
+    /// asked by name: off, a mate across two spaces refuses.
+    pub(crate) mate_into_target_space: bool,
     pub(crate) mate_values: [(bool, f64); crate::matetool::MateFreedom::ALL.len()],
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
@@ -607,6 +610,7 @@ impl Default for Drafts {
             // Two picked faces rest against each other: the plain plane
             // mate equates outward normals, so a rest carries the flip.
             mate_flip: true,
+            mate_into_target_space: false,
             mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
             new_doc_name: None,
             sketch_on_face: false,

@@ -19,9 +19,11 @@ use crate::var::{VarId, VarKind};
 /// the read a node stores.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Operand {
-    /// A node, read through its one output (spec Q5). A node with
-    /// several outputs — a revolve's body and axis, a split's two halves
-    /// — refuses this spelling whatever the seat
+    /// A node, read through its one output (spec Q5): at a space seat
+    /// its one `Space` output (`a.space`), at any other seat its one
+    /// output that is no space, so a construction read whole is its
+    /// body. A node with several such outputs — a revolve's body and
+    /// axis, a split's two halves — refuses this spelling
     /// ([`crate::EditError::AmbiguousOutput`], naming its ports): the
     /// read names its port ([`Operand::Output`]).
     Node(RecipeNodeId),
@@ -187,6 +189,8 @@ pub enum OperandSlot {
     Of,
     /// The body a world placement places.
     Body,
+    /// The space a placement places into, its target.
+    Space,
 }
 
 impl OperandSlot {
@@ -231,6 +235,7 @@ impl OperandSlot {
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
             Self::Body => "body".to_owned(),
+            Self::Space => "target space".to_owned(),
         }
     }
 
@@ -246,6 +251,7 @@ impl OperandSlot {
                 SlotKind::Is(VarKind::Body)
             }
             Self::Members | Self::Of => SlotKind::Is(VarKind::Bodies),
+            Self::Space => SlotKind::Is(VarKind::Space),
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
             Self::Face => SlotKind::Is(VarKind::Face),

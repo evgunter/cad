@@ -119,17 +119,6 @@ pub struct Evaluation<T: Decide> {
     /// How many nodes were reused from the prior evaluation by
     /// content-key match.
     pub reused: usize,
-    /// **Every node whose value lives in a space other than the
-    /// world's** (D10, Spaces), with that space's root: a construction,
-    /// or a loose copy's placement. A node absent here lives in the
-    /// world's space, or denotes no geometry.
-    /// [`crate::product::product`] gathers the world's alone.
-    pub loose: BTreeMap<RecipeNodeId, RecipeNodeId>,
-    /// **The roots of [`Self::loose`] that are loose copies**: a
-    /// placement whose bundle pins less than its body needs. The
-    /// at-rest census checks each such space by itself; a construction's
-    /// space holds the bodies combined into it, which no census reads.
-    pub loose_copies: std::collections::BTreeSet<RecipeNodeId>,
     /// How many REFERENCED documents this evaluation actually
     /// evaluated across the document seam (ASM-2A D-3's sharing
     /// evidence). N instances of one part contribute 1; a part the
@@ -152,6 +141,9 @@ pub struct Evaluation<T: Decide> {
     /// Each output variable of the evaluated document and the port that
     /// defines it: what [`Self::table`] reads a variable through.
     reads: Arc<BTreeMap<crate::VarId, (RecipeNodeId, u8)>>,
+    /// **Each node's space, as the recipe derives it**
+    /// ([`crate::Doc::spaces`]): what [`Self::across_spaces`] reads.
+    spaces: Arc<BTreeMap<RecipeNodeId, crate::VarId>>,
     /// The parts this run entered and evaluated, carried for the run
     /// that names it as its prior.
     parts: parts::Carried<T>,
@@ -325,33 +317,16 @@ impl<T: Decide> Evaluation<T> {
         })
     }
 
-    /// **Whether two nodes' values live in different spaces** (D10,
-    /// Spaces) — the one predicate every door comparing two nodes'
-    /// geometry asks: `Some` naming the two spaces, `None` when both
-    /// live in one.
+    /// **Whether two nodes' bodies are in different spaces** (D10
+    /// `[placement.spaces]`), as the recipe this run evaluated derives
+    /// them ([`crate::Doc::across_spaces`]): `Some` naming the two,
+    /// `None` when both are in one or either builds no body.
     pub fn across_spaces(
         &self,
         a: RecipeNodeId,
         b: RecipeNodeId,
-    ) -> Option<(crate::mate::Space, crate::mate::Space)> {
-        let (sa, sb) = (self.space(a), self.space(b));
-        (sa != sb).then_some((sa, sb))
-    }
-
-    /// **The space `node`'s value lives in** (D10, Spaces), read off
-    /// [`Evaluation::loose`]: the world's for a node absent there.
-    pub fn space(&self, node: RecipeNodeId) -> crate::mate::Space {
-        self.loose
-            .get(&node)
-            .map_or(crate::mate::Space::World, |&root| {
-                crate::mate::Space::Loose { root }
-            })
-    }
-
-    /// **Every loose copy**, by its placement, in id order
-    /// ([`Evaluation::loose_copies`]).
-    pub fn loose_roots(&self) -> Vec<RecipeNodeId> {
-        self.loose_copies.iter().copied().collect()
+    ) -> Option<(crate::VarId, crate::VarId)> {
+        crate::doc::two_spaces(self.spaces.get(&a).copied(), self.spaces.get(&b).copied())
     }
 
     /// The node's successful value, if it has one — [`Evaluation::usable`]
@@ -821,10 +796,6 @@ pub struct NodeValue<T: Decide> {
     /// placement's. A carried
     /// pose reads it ([`crate::pose::PoseDef::Carried`]).
     pub motion: Option<geom_core::RigidMotion<T>>,
-    /// **The space the value lives in** (D10, Spaces): a placement's
-    /// copy its bundle's, every other value its inputs', `None` for a
-    /// value that lives in none (a measure's, an assertion's).
-    pub space: Option<crate::mate::Space>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -894,7 +865,6 @@ impl<T: Decide> NodeValue<T> {
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
             motion: None,
-            space: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -926,7 +896,6 @@ impl NodeValue<f64> {
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
             motion: None,
-            space: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -963,8 +932,6 @@ impl Evaluation<f64> {
             .collect();
         Self {
             epoch: crate::Epoch::mint(),
-            loose: BTreeMap::new(),
-            loose_copies: std::collections::BTreeSet::new(),
             document,
             prior_refused: None,
             recomputed: order.len(),
@@ -976,6 +943,7 @@ impl Evaluation<f64> {
             appearance: AppearanceResolution::default(),
             env: crate::expr::VarEnv::default(),
             reads: Arc::new(reads),
+            spaces: Arc::default(),
             parts: parts::Carried::none(),
             resolver: None,
         }
@@ -1382,45 +1350,6 @@ impl NodeRefusal {
     pub fn line_at(&self, node: RecipeNodeId, by: crate::spoken::Speaker<'_>) -> String {
         failed_line(node, self.get(), by)
     }
-}
-
-/// **The one space `node`'s inputs live in**, read off their values:
-/// a `Place`'s shapes (it copies them as one), no input of an
-/// instance's (it copies a part), every other node's inputs — a
-/// constraint reads across spaces by design, so its reads are no input
-/// here. `None` for a node reading no value that lives in a space.
-///
-/// # Errors
-///
-/// The first two spaces, where the inputs lie in two.
-fn input_space<T: Decide>(
-    doc: &Doc<ProfileProgram>,
-    id: RecipeNodeId,
-    node: &crate::node::Node<ProfileProgram>,
-    results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-) -> Result<Option<crate::mate::Space>, (crate::mate::Space, crate::mate::Space)> {
-    use crate::node::Node;
-    let inputs = match node {
-        Node::InstantiatePart { .. } => Vec::new(),
-        Node::Place { shapes, .. } => shapes
-            .iter()
-            .filter_map(|shape| doc.operation_of(shape.read))
-            .collect(),
-        _ => doc.upstream_of(id, node),
-    };
-    let mut first: Option<crate::mate::Space> = None;
-    for input in inputs {
-        let Some(NodeResult::Ok(value)) = results.get(&input) else {
-            continue;
-        };
-        match (first, value.space) {
-            (_, None) => {}
-            (None, Some(space)) => first = Some(space),
-            (Some(held), Some(space)) if held != space => return Err((held, space)),
-            (Some(_), Some(_)) => {}
-        }
-    }
-    Ok(first)
 }
 
 /// A node's failure as one line: the node, then its kind's prose, each
@@ -1990,15 +1919,17 @@ pub enum NodeErrorKind {
     /// pose. The fault names its own subject — the pair, the residual
     /// subgroup, the failed predicate and its measured clash.
     Mate(Box<crate::mate::MateFault>),
-    /// **A read across two spaces** (D10, Spaces): a node whose reads
-    /// lie in two kinds — a loose copy's and the world's, or two loose
-    /// copies' — would relate two raw coordinate systems, which only a
-    /// mate may do.
+    /// **A read across two spaces** (D10 `[placement.spaces]`): a node
+    /// whose reads lie in two spaces would relate two coordinate
+    /// systems, which only a placement does. Decided from the recipe
+    /// ([`crate::Doc::space_fault`]): the edit door refuses writing such
+    /// a node, so it is one a re-target or a load left so, and it
+    /// refuses before it reads anything.
     SpaceMismatch {
         /// One space the node reads.
-        a: crate::mate::Space,
+        a: crate::VarId,
         /// Another.
-        b: crate::mate::Space,
+        b: crate::VarId,
     },
     /// A crossing declaration on this instance no longer resolves
     /// against the pinned part (ASM-R2b D-4/D-5; A4's "does it
@@ -2159,21 +2090,14 @@ impl crate::spoken::Say for NodeErrorKind {
                 write!(f, "profile loop {loop_} refused at {error}")
             }
             Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
-            Self::SpaceMismatch { a, b } => {
-                let space = |s: &crate::mate::Space| match s.loose() {
-                    None => "the world's space".to_owned(),
-                    Some(root) => format!("the space of the loose copy {}", by.node(root)),
-                };
-                write!(
-                    f,
-                    "this reads {} and {}, and only a mate relates two spaces. {}",
-                    space(a),
-                    space(b),
-                    crate::sentence::Recourse(
-                        "place one copy relative to the other, or read only one space"
-                    )
-                )
-            }
+            Self::SpaceMismatch { a, b } => write!(
+                f,
+                "this reads {} and {}, and {}. {}",
+                by.space(*a),
+                by.space(*b),
+                crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
+                crate::sentence::Recourse(crate::sentence::place_into_one_space("read only"))
+            ),
             Self::CrossingUnverified {
                 instance,
                 outer,
@@ -3389,84 +3313,6 @@ pub fn bound_pose<T: EvalScalar>(
     wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
 }
 
-/// **The space a node reading no space is the root of** (D10: a body's
-/// kind is its root): a construction, which reads no body, is a root of
-/// its own; a profile or a pose is in no space until a construction
-/// reads it.
-fn root_space<P, S: crate::Slot>(
-    id: RecipeNodeId,
-    node: &crate::node::Node<P, S>,
-) -> Option<crate::mate::Space> {
-    use crate::node::Node;
-    matches!(
-        node,
-        Node::Extrude { .. }
-            | Node::Revolve { .. }
-            | Node::Tube { .. }
-            | Node::HollowTube { .. }
-            | Node::Loft { .. }
-            | Node::Sweep { .. }
-    )
-    .then_some(crate::mate::Space::Loose { root: id })
-}
-
-/// **Every node whose value lives in a loose copy's space**, in
-/// schedule order: a value's own space where it built; for a node that
-/// did not, the space its recipe gives it (D10: kinds are decided from
-/// the recipe) — a placement with an empty bundle is a loose copy of
-/// its own, one with values and no mate (which the door admits only
-/// writing every freedom) or whose mates read the world is the world's,
-/// one whose mates read
-/// poses joins the space of what they read; any other node joins the
-/// first loose space among its inputs.
-fn spaces_of<T: Decide>(
-    doc: &Doc<ProfileProgram>,
-    order: &[RecipeNodeId],
-    nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-) -> BTreeMap<RecipeNodeId, RecipeNodeId> {
-    use crate::mate::{Space, Target};
-    let mut loose: BTreeMap<RecipeNodeId, RecipeNodeId> = BTreeMap::new();
-    for &id in order {
-        let space = match nodes.get(&id) {
-            Some(NodeResult::Ok(value)) => value.space,
-            Some(_) => {
-                let Some(node) = doc.node(id) else { continue };
-                let read_space =
-                    |var: crate::VarId, loose: &BTreeMap<RecipeNodeId, RecipeNodeId>| {
-                        doc.read_ports(var)
-                            .iter()
-                            .find_map(|(at, _)| loose.get(at).copied())
-                            .map_or(Space::World, |root| Space::Loose { root })
-                    };
-                match crate::mate::solve::bundle_of(node) {
-                    Some(bundle) => {
-                        let mut mates = bundle.iter().filter_map(crate::mate::Constraint::mate);
-                        Some(match mates.next() {
-                            None if bundle.is_empty() => Space::Loose { root: id },
-                            None => Space::World,
-                            Some(mate) => match &mate.to {
-                                Target::World(_) => Space::World,
-                                Target::Pose(var) => read_space(*var, &loose),
-                            },
-                        })
-                    }
-                    None => doc
-                        .upstream_of(id, node)
-                        .iter()
-                        .find_map(|at| loose.get(at).copied())
-                        .map(|root| Space::Loose { root })
-                        .or_else(|| root_space(id, node)),
-                }
-            }
-            None => None,
-        };
-        if let Some(Space::Loose { root }) = space {
-            loose.insert(id, root);
-        }
-    }
-    loose
-}
-
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box
 /// run's poses enclosing each copy's over the box, a seed run's
 /// carrying their tangents — under `opts`, whose box or seed the run
@@ -3486,7 +3332,7 @@ where
 
 impl<T: crate::mate::SolveScalar + EvalScalar> crate::mate::SolvedPoses<T> {
     /// **Every placement's answer in `evaluation`**, the evaluation of
-    /// `doc`: a placement that evaluated, its space and motion; one
+    /// `doc`: a placement that evaluated, its target and motion; one
     /// that refused its bundle, the fault.
     pub fn of(doc: &Doc<ProfileProgram>, evaluation: &Evaluation<T>) -> Self {
         let mut placed = BTreeMap::new();
@@ -3500,7 +3346,9 @@ impl<T: crate::mate::SolveScalar + EvalScalar> crate::mate::SolvedPoses<T> {
             }
             match evaluation.result(id) {
                 Some(NodeResult::Ok(value)) => {
-                    let space = value.space.unwrap_or(crate::mate::Space::World);
+                    let Some(space) = doc.node_space(id) else {
+                        unreachable!("a placement is in its target")
+                    };
                     placed.insert(id, Ok((space, value.motion.map(|m| m.to_affine()))));
                 }
                 Some(NodeResult::Failed(error)) => {
@@ -3786,21 +3634,6 @@ where
     // result DAG — canceled prefixes resolve what completed and report
     // the rest as typed losses carrying their standing.
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
-    let loose = spaces_of(doc, &order, &nodes);
-    let loose_copies = loose
-        .iter()
-        .filter(|&(node, root)| {
-            node == root
-                && matches!(
-                    doc.node(*node),
-                    Some(
-                        crate::node::Node::Place { .. } | crate::node::Node::InstantiatePart { .. }
-                    )
-                )
-        })
-        .map(|(&node, _)| node)
-        .collect();
-
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
@@ -3810,12 +3643,11 @@ where
         outcome,
         recomputed,
         reused,
-        loose,
-        loose_copies,
         part_evaluations: entry.evaluations,
         appearance: resolved_appearance,
         env,
         reads: Arc::new(doc.output_ports()),
+        spaces: Arc::new(doc.spaces()),
         parts: entry.carried,
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
@@ -3935,12 +3767,11 @@ where
         outcome: EvalOutcome::Completed,
         recomputed: 0,
         reused: 0,
-        loose: BTreeMap::new(),
-        loose_copies: std::collections::BTreeSet::new(),
         part_evaluations: 0,
         appearance: resolved_appearance,
         env: doc.var_env::<T>(),
         reads: Arc::new(doc.output_ports()),
+        spaces: Arc::new(doc.spaces()),
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
@@ -4133,14 +3964,13 @@ where
         Ok(words) => words,
         Err(kind) => return fail(bracket, kind),
     };
-    // A node whose reads lie in two spaces relates two raw coordinate
-    // systems, which only a mate may do (D10), and refuses before it
-    // reads them. Every input it reads has its value (above), and
-    // carries its space.
-    let inputs_space = match input_space(doc, id, node, results) {
-        Ok(space) => space,
-        Err((a, b)) => return fail(bracket, NodeErrorKind::SpaceMismatch { a, b }),
-    };
+    // A node whose reads lie in two spaces relates two coordinate
+    // systems, which only a placement does (D10), and refuses before
+    // it reads them: decided from the recipe, as the edit door decides
+    // it.
+    if let Some((a, b)) = doc.space_fault(id) {
+        return fail(bracket, NodeErrorKind::SpaceMismatch { a, b });
+    }
 
     // What the op reads beyond its inputs and slots, by the node's
     // kind ([`wire::OpInput`]), built here because each part of it
@@ -4320,12 +4150,6 @@ where
                 cited_inputs: out.cited_inputs,
                 parts: out.parts,
                 motion: out.motion,
-                space: match node {
-                    // A measure and an assertion read geometry and
-                    // answer a number, which lives in no space.
-                    crate::node::Node::Measure { .. } | crate::node::Node::Assertion { .. } => None,
-                    _ => out.space.or(inputs_space).or_else(|| root_space(id, node)),
-                },
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
@@ -4447,7 +4271,11 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v17: a scalar writes the fraction of a turn its
+            /// v18: a placement reads the space it places into, which
+            /// it does not key (its copy's value is its source moved by
+            /// its bundle, whichever space names it), beside a bundle
+            /// that pins it, and a construction defines its space
+            /// beside its body. v17: a scalar writes the fraction of a turn its
             /// definition is (`slot`'s `TURNS`), and a value whether
             /// its number is written as the constant zero
             /// (`value_form`). v16: a value writes whether it names a mate before the
@@ -4471,7 +4299,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 17,
+            VERSION = 18,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4962,6 +4790,9 @@ where
         // its tag alone.
         Node::Place { .. } => 40,
         Node::World => 39,
+        // A `new_space()` is evaluated nowhere; its word keeps the
+        // vocabulary total.
+        Node::Space => 42,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -5153,9 +4984,12 @@ where
         // re-verifies the crossings it holds — so a crossing edit
         // must move this node's value rather than hit the memo on the
         // pre-edit answer.
+        // A placement's target holds nothing: its copy is the same
+        // value in any space, so the key does not read it.
         Node::InstantiatePart {
             doc_ref,
             interface,
+            target: _,
             constraints,
         } => {
             feed_doc_ref(&mut h, doc_ref);
@@ -5179,12 +5013,13 @@ where
         // bundle feed here.
         Node::Place {
             shapes,
+            target: _,
             constraints,
         } => {
             h.write_u64(shapes.len() as u64);
             feed_bundle(&mut h, defs, constraints);
         }
-        Node::World => {}
+        Node::World | Node::Space => {}
         // The operands and the members are input edges.
         Node::Subtract { from: _, tool: _ } => {}
         Node::Union { members } | Node::Intersect { members } => {

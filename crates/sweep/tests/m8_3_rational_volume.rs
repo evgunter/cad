@@ -249,10 +249,9 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // shell's first quadrature face (`topo::props`' `shell_reference`),
     // so a quadrature face's lever is the extent of the shell's
     // quadrature faces: on this prism, centred on the world origin, its
-    // diameter where the origin's was its radius. Measured 2.00e-6 at
-    // 1e-9, 1.95 times the target (0.98e-6 about the origin): the
-    // ceiling is that measure with the headroom the origin's had, not a
-    // bound the rule guarantees.
+    // diameter where the origin's was its radius. Measured 2.21e-6 at
+    // 1e-9, 2.16 times the target: the ceiling is that measure with
+    // headroom, not a bound the rule guarantees.
     let ceiling = 4.0 * QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
     assert!(
         got.volume_pad < ceiling,
@@ -272,9 +271,7 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
 }
 
 /// The pad measured on the arc prism at the default ε (1e-9), each face
-/// read about a vertex of the shell's first quadrature face (the
-/// ceiling's comment says why it is about twice the 9.816_714_3e-7 read
-/// about the world origin here). Kept as a named number so the ceiling
-/// assertion above can say what the lane actually achieves, not only
-/// what it must beat.
-const ARC_PRISM_PAD_AT_DEFAULT_EPS: f64 = 2.001_6e-6;
+/// read about a vertex of the shell's first quadrature face. Kept as a
+/// named number so the ceiling assertion above can say what the lane
+/// actually achieves, not only what it must beat.
+const ARC_PRISM_PAD_AT_DEFAULT_EPS: f64 = 2.210_6e-6;
