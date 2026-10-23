@@ -722,7 +722,7 @@ fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
     )
     .unwrap_or_else(|e| panic!("A3(d): the part inlines back: {e}"));
     let (map, steps) = fixture::round_trip::composed(&doc, &out, &back);
-    fixture::round_trip::same_up_to_ids(&doc, &back.doc, &map, &steps)
+    fixture::round_trip::same_up_to_ids(&doc, &crate::fixture::round_trip::flat(&back), &map, &steps)
         .unwrap_or_else(|e| panic!("A3(d): inline(split(d)) is d up to node ids:\n{e}"));
     let ev = run(&back.doc, &with_resolver(store));
     assert!(

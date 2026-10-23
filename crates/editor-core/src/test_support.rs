@@ -287,7 +287,7 @@ pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
     // A turn about z carried onto x or y by cycling the coordinates.
     let about = |axis: usize, k: i32| -> [[i32; 3]; 3] {
         let q = quarter(k);
-        let cyc = |i: usize| (i + 2 + axis) % 3;
+        let cyc = |i: usize| (i + 1 + axis) % 3;
         let mut m = [[0; 3]; 3];
         for (col, column) in q.iter().enumerate() {
             for (row, &v) in column.iter().enumerate() {
@@ -1216,4 +1216,46 @@ pub(crate) fn record_fold_row(
         relation: named.relation,
         spelled: spelled.clone(),
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{axes_at, moves_at};
+    use crate::{Coord, Formula, TargetAxis};
+
+    /// **A frame's quarter turns are read about the axes they turn
+    /// about**: a frame turned a quarter about each of the target
+    /// space's axes, and one turned about `x` then `z`, read back as
+    /// those spins, each `turn/4`, in the chain's order.
+    ///
+    /// *Breaks if* a turn about one axis is labelled with another.
+    #[test]
+    fn a_quarter_turn_is_read_about_its_own_axis() {
+        let quarter = Formula::turn_over(4).expect("a quarter turn");
+        let spins = |at| -> Vec<(Coord, Formula)> {
+            moves_at(&at)
+                .into_iter()
+                .filter(|(c, _)| matches!(c, Coord::Spin(_)))
+                .collect()
+        };
+        for (axis, x, y) in [
+            (TargetAxis::X, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            (TargetAxis::Y, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+            (TargetAxis::Z, [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]),
+        ] {
+            assert_eq!(
+                spins(axes_at([0.0; 3], x, y)),
+                vec![(Coord::Spin(axis), quarter.clone())],
+                "a quarter turn about {axis:?}"
+            );
+        }
+        // About x, then z: x ↦ y, y ↦ z, z ↦ x.
+        assert_eq!(
+            spins(axes_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])),
+            vec![
+                (Coord::Spin(TargetAxis::X), quarter.clone()),
+                (Coord::Spin(TargetAxis::Z), quarter),
+            ],
+        );
+    }
 }

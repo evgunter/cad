@@ -127,19 +127,6 @@ fn floor(
     (fixture::written(doc, at, placed), at)
 }
 
-/// The start cap of `floor`'s copy of `box_`, read as a plane looking up
-/// the copy's own `+z`: where the floor stands at the identity, the
-/// world's `xy`.
-fn floor_plane(box_: RecipeNodeId, floor: RecipeNodeId) -> Operand {
-    let cap = fixture::fname(box_, editor_core::RoleSeg::Cap(editor_core::CapEnd::Start));
-    Operand::Pose(Box::new(PoseDef::Flip {
-        pose: editor_core::pose::RoleRead::plain(fixture::plane(Operand::select(
-            Operand::output(floor, 0),
-            vec![cap.in_copy(floor)],
-        ))),
-    }))
-}
-
 fn shifted(points: &[[f64; 3]], by: [f64; 3]) -> Vec<[f64; 3]> {
     points
         .iter()
@@ -834,22 +821,22 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
         to,
         class: editor_core::ContactClass::Rest,
     };
-    let (level, flat) = floor(doc.clone(), b, Vec::new());
+    let (level, flat, _) = fixture::floor(doc.clone(), Vec::new());
     let (by_spin, p_spin) = placed(
         level,
         b,
-        mate(floor_plane(b, flat)),
+        mate(flat),
         vec![
             (Coord::Slide(X), zero(editor_core::Dimension::Length)),
             (Coord::Slide(Y), zero(editor_core::Dimension::Length)),
             (Coord::Spin(editor_core::TargetAxis::Z), quarter()),
         ],
     );
-    let (stood, upended) = floor(doc.clone(), b, vec![(Coord::Spin(X), quarter())]);
+    let (stood, upended, _) = fixture::floor(doc.clone(), vec![(Coord::Spin(X), quarter())]);
     let (by_read, p_read) = placed(
         stood,
         b,
-        mate(floor_plane(b, upended)),
+        mate(upended),
         vec![
             (Coord::Slide(X), zero(editor_core::Dimension::Length)),
             (Coord::Slide(Y), zero(editor_core::Dimension::Length)),
@@ -1059,7 +1046,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
         to,
         class: editor_core::ContactClass::Rest,
     };
-    let (level, flat) = floor(doc.clone(), b, Vec::new());
+    let (level, flat, _) = fixture::floor(doc.clone(), Vec::new());
     let mut cases: Vec<(&str, ProfileDoc, ProfileDoc, RecipeNodeId)> = Vec::new();
 
     // A mateless spin, `turn/4` about the world's `x`.
@@ -1085,7 +1072,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     // A mated spin.
     let mut values = slides();
     values.push((Coord::Spin(editor_core::TargetAxis::Z), quarter()));
-    let (before, p) = placed(level.clone(), b, mate(start_cap(b), floor_plane(b, flat)), values);
+    let (before, p) = placed(level.clone(), b, mate(start_cap(b), flat.clone()), values);
     let slot = value_slot(&before, p, Coord::Spin(editor_core::TargetAxis::Z));
     let after = retyped(&before, p, slot, typed_quarter());
     cases.push(("a mated spin", before, after, p));
@@ -1094,8 +1081,9 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     // copy's spin retyped moves the mated copy's key.
     let mut values = slides();
     values.push((Coord::Spin(editor_core::TargetAxis::Z), zero(editor_core::Dimension::Angle)));
-    let (stood, upended) = floor(doc.clone(), b, vec![(Coord::Spin(X), quarter())]);
-    let (before, p) = placed(stood, b, mate(start_cap(b), floor_plane(b, upended)), values);
+    let (stood, upended_top, upended) =
+        fixture::floor(doc.clone(), vec![(Coord::Spin(X), quarter())]);
+    let (before, p) = placed(stood, b, mate(start_cap(b), upended_top), values);
     let slot = value_slot(&before, upended, Coord::Spin(X));
     let after = retyped(&before, upended, slot, typed_quarter());
     cases.push(("a spun target's spin", before, after, p));
@@ -1127,7 +1115,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
         b,
         mate(
             spun(Formula::turn_over(6).expect("a sixth of a turn")),
-            floor_plane(b, flat),
+            flat,
         ),
         values,
     );

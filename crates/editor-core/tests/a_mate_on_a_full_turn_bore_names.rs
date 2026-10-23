@@ -19,7 +19,7 @@ use editor_core::{
 use geom_core::Tol;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
-use editor_core::{Coord, TargetAxis};
+use editor_core::{Coord, Formula, TargetAxis};
 
 use crate::fixture::{ang, insert, len, len2, revolve_about};
 
@@ -115,12 +115,8 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // the collar's coordinates, `x` along `(cos a, 0, −sin a)` and `y` along
     // `(−sin a, 0, −cos a)`, so the collar is placed at that frame's inverse: a
     // quarter turn about `x`, then `−a` about `z`, slid `−y0` along `z`.
-    // The quarter turn is written in radians, so its cosine is the
-    // 6.1e-17 every placement this row ran over carried; the exact
-    // `turn/4` puts a shaft vertex exactly on a rim vertex at azimuth 0,
-    // where the union refuses (`work/topo/a-shaft-vertex-exactly-on-a-bore-rim-vertex-refuses-the-union.md`).
     let placed = editor_core::Placed::unmated(vec![
-        (Coord::Spin(TargetAxis::X), ang(FRAC_PI_2)),
+        (Coord::Spin(TargetAxis::X), Formula::turn_over(4).expect("a quarter turn")),
         (Coord::Spin(TargetAxis::Z), ang(-a)),
         (Coord::Slide(TargetAxis::Z), len(-y0)),
     ]);

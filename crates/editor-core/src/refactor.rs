@@ -4158,8 +4158,8 @@ pub enum FlattenError {
         /// The placement.
         placement: SpokenNode,
     },
-    /// Another placement takes a source from the source's space, which
-    /// would then read the target's coordinates.
+    /// Another placement copies a source out of the source's space into
+    /// a third, which would then read the target's coordinates.
     SpaceShared {
         /// The placement.
         placement: SpokenNode,
@@ -4213,8 +4213,8 @@ impl core::fmt::Display for FlattenError {
             ),
             Self::SpaceShared { placement, other } => write!(
                 f,
-                "flatten: {other} also takes a source from {placement}'s source's space, and \
-                 would read the target's coordinates once it is flattened. {}",
+                "flatten: {other} also copies a source out of {placement}'s source's space, \
+                 and would read the target's coordinates once it is flattened. {}",
                 Recourse(&format!("delete or re-point {other} first"))
             ),
             Self::ReadUncarried { reader } => write!(
@@ -4239,7 +4239,7 @@ impl core::error::Error for FlattenError {}
 
 /// **Flattens an identity placement into its target** (ASSEMBLY A4):
 /// a `Place` whose bundle is the identity as written, and whose source
-/// is in a `new_space()` no other placement takes a source from. Every
+/// is in a `new_space()` no other placement copies a source out of. Every
 /// placement into that space is re-targeted to the placement's target,
 /// every read of the copy re-pointed to the shape it copies (a name of
 /// the copy re-anchored on the shape's), and the placement and the
@@ -4295,7 +4295,10 @@ pub fn flatten(
         if other == placement {
             continue;
         }
+        // A placement within the space is re-targeted with it below; one
+        // copying out of it into another space would share the source.
         if let Some(Node::Place { shapes, .. }) = doc.node(other)
+            && doc.node_space(other) != Some(space)
             && shapes.iter().any(|s| doc.space_of(s.read) == Some(space))
         {
             return Err(FlattenError::SpaceShared {
@@ -4449,6 +4452,24 @@ pub fn flatten(
             }
         }
     }
+    // An appearance key read in the copy re-attaches in its shape,
+    // before the rebinding below would rename it where it is held.
+    for (key, record) in current.doc().appearance().clone() {
+        if key.at != copy {
+            continue;
+        }
+        let Some((shape, name)) = shape_of(&key.name) else {
+            return Err(FlattenError::ReadUncarried {
+                reader: doc.spoken(placement),
+            });
+        };
+        reattach_appearance(
+            &mut |edit| step(&mut current, edit),
+            &key,
+            &record,
+            &crate::AppearanceKey::new(shape, name),
+        )?;
+    }
     // Every other carrier of a name of the copy — a selection of a body
     // downstream of it, a payload — re-anchors on the shape's name.
     let mut carried: Vec<StableName> = current
@@ -4489,23 +4510,6 @@ pub fn flatten(
                 },
             )?;
         }
-    }
-    // An appearance key read in the copy re-attaches in its shape.
-    for (key, record) in current.doc().appearance().clone() {
-        if key.at != copy {
-            continue;
-        }
-        let Some((shape, name)) = shape_of(&key.name) else {
-            return Err(FlattenError::ReadUncarried {
-                reader: doc.spoken(placement),
-            });
-        };
-        reattach_appearance(
-            &mut |edit| step(&mut current, edit),
-            &key,
-            &record,
-            &crate::AppearanceKey::new(shape, name),
-        )?;
     }
     let renamed = match (doc.var_name(copy), reads.as_slice()) {
         (None, _) => None,

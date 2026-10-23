@@ -401,7 +401,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
     )
     .unwrap_or_else(|e| panic!("inline refused: {e}"));
     let (map, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &map, &steps)
+    same_up_to_ids(&doc, &crate::fixture::round_trip::flat(&back), &map, &steps)
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
     assert_eq!(
         top_corner(&back.doc, &o, top_image(&map, top)),
