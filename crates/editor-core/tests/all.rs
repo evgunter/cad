@@ -117,6 +117,7 @@ mod cascade_delete;
 mod cert3r1_dump;
 #[path = "coincidence_door.rs"]
 mod coincidence_door;
+mod review5624_probe;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dm3_indexed_read.rs"]
