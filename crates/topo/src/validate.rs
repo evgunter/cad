@@ -8125,7 +8125,7 @@ fn pinch_corner_errors<T: Decide>(
 
 /// One corner side: the half-edge leaving the point, its edge, and
 /// its departure there.
-type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<geom_core::Vec3<T>>);
+pub(crate) type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<geom_core::Vec3<T>>);
 
 /// [`pinch_corner_errors`] at one point key, whose corners are the
 /// half-edges of `cycle` at the indices `group` carries: the first
@@ -8203,7 +8203,7 @@ fn pinch_corners_at<T: Decide>(
 }
 
 /// The other half of `he`'s edge.
-fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
+pub(crate) fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
     let e = body.edges.get(body.half_edges.get(he)?.edge)?;
     Some(if e.he_plus == he {
         e.he_minus
@@ -8216,7 +8216,7 @@ fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
 /// edge's extent so a cross product over its length is a lever: a line
 /// by its chord, a conic or spiric arc by its walk tangent there.
 /// `None` for the departure of a NURBS edge, the residue.
-fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
+pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
     let h = body.half_edges.get(he)?;
     let curve = certified_carrier(body, h.edge)?;
     let plus = body.edges.get(h.edge)?.he_plus == he;
@@ -9506,11 +9506,12 @@ pub fn validate_pseudomanifold<
 /// every same-key opposed-sense curved pair, and the record
 /// confirm arm on every patch record whose pair passes Door 1 — each
 /// as [`ValidationError::CensusLaneUnsupported`] naming the pair; and
-/// the crossing rung's backing consult answers `false`, so an in-plane
-/// `EdgeEdgeCross` at a declared seat that [`validate_pseudomanifold`]
-/// reports backed is reported here as
-/// [`ValidationError::UnrecordedContact`], with the declaration in
-/// hand. The declaration is not found wrong; it is not read.
+/// it confirms no face pair, so the planar face-pair arm finds none and
+/// every meeting of the cells bounding a seat is read and reported as
+/// [`ValidationError::UnrecordedContact`] where [`validate_pseudomanifold`]
+/// confirms the seat's pair and lets it answer for those inside its
+/// overlap's closure, with the declaration in hand. The declaration is not found wrong; it is not
+/// read.
 ///
 /// # Errors
 ///
@@ -9518,7 +9519,7 @@ pub fn validate_pseudomanifold<
 /// plus the closed form's typed refusal at check 7, plus the census's
 /// `CensusLaneUnsupported` on every conformal candidate and every
 /// Door-1-verified patch record, and an `UnrecordedContact` on every
-/// crossing a declared pair would have backed.
+/// meeting a confirmed pair would have answered for.
 pub fn validate_pseudomanifold_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(

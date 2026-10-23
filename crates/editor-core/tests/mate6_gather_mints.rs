@@ -828,8 +828,10 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
 /// mate whose pair it decided. The row names each cap in its copy, as
 /// that instance's output names it. The two caps are the faces whose
 /// planes the mate equates, so the door's first rung proves the row
-/// (`[coincidence.structural]`) and `unproven-coincidence` reports
-/// nothing.
+/// (`[coincidence.structural]`). The two cubes stand flush on all four
+/// sides, and each side is a flush pair the census records as a row of
+/// its own (`[assertions]`); the mate equates no side's plane, so
+/// `unproven-coincidence` reports those four and nothing else.
 ///
 /// Red if the mint makes a record citing nothing the product holds,
 /// names a cap anywhere but in its copy, or the door leaves the mate's
@@ -851,9 +853,11 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
         topo::Cites::decided(0),
         "the record cites the product's row 0"
     );
-    let [row] = product.coincidences.as_slice() else {
-        panic!("one row: {:?}", product.coincidences);
+    let (seats, flush) = seat_and_flush(&product.coincidences);
+    let [row] = seats[..] else {
+        panic!("one seat row: {:?}", product.coincidences);
     };
+    assert_eq!(flush.len(), 4, "the four flush sides: {flush:?}");
     assert_eq!(
         row.by,
         editor_core::AtRestBy::Mate(mate),
@@ -889,12 +893,22 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
         Tol::witness(),
     )
     .expect("checks run over the stand");
-    assert!(
-        !report
-            .findings
-            .iter()
-            .any(|f| f.check == editor_core::CheckId::UnprovenCoincidence),
-        "the mate's own seat is proven: {report}"
+    let unproven: Vec<_> = report
+        .findings
+        .iter()
+        .filter_map(|f| match &f.evidence {
+            editor_core::CheckEvidence::UnprovenCoincidence { row, .. }
+                if f.check == editor_core::CheckId::UnprovenCoincidence =>
+            {
+                Some(row.relation)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        unproven,
+        vec![topo::Relation::SameOriented; 4],
+        "the mate's own seat is proven, and the four flush sides are not: {report}"
     );
     assert_eq!(
         door(&stand, mate.placement, &row.row, &ev),
@@ -904,6 +918,22 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
 }
 
 // ---- What the door reads a seat by ----
+
+/// A product's at-rest rows split into the seat's (two faces decided one
+/// carrier, opposed) and the flush pairs' (one carrier, aligned).
+fn seat_and_flush(
+    rows: &[editor_core::AtRestRow],
+) -> (Vec<&editor_core::AtRestRow>, Vec<&editor_core::AtRestRow>) {
+    let (seats, rest): (Vec<_>, Vec<_>) = rows
+        .iter()
+        .partition(|r| r.row.relation == topo::Relation::SameOpposite);
+    assert!(
+        rest.iter()
+            .all(|r| r.row.relation == topo::Relation::SameOriented),
+        "every other row is a flush pair: {rest:?}"
+    );
+    (seats, rest)
+}
 
 /// **The door's one proof of `row`**, decided at `at` with `ev`'s
 /// resolver.
@@ -1043,8 +1073,9 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
     let (doc, ids, mate) = stand("mate6-states-stand", part, body, 0.0, &store);
     let ev = run(&doc, &with_resolver(store.clone()));
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
-    let [seat] = product.coincidences.as_slice() else {
-        panic!("one row: {:?}", product.coincidences);
+    let (seats, _) = seat_and_flush(&product.coincidences);
+    let [seat] = seats[..] else {
+        panic!("one seat row: {:?}", product.coincidences);
     };
     let (upper_bottom, lower_top) = (
         copy_cap(&doc, ids[1], body, CapEnd::Start),
