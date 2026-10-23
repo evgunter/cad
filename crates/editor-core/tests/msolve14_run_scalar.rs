@@ -850,6 +850,10 @@ fn run_at<T: editor_core::EvalScalar>(
 /// hashing it — moved, and the part's names reach an instance under its
 /// placement's copy. The id-free rows held.
 ///
+/// And again for INTENT stage 4 I (all three rows): a mate writes no
+/// class, so every id after a mate moved, and its content key moved
+/// with the key's `VERSION`. The id-free rows held.
+///
 /// And again for INTENT stage 4 E (all three rows): the bodies this
 /// digest feeds carry no provenance side tables, and a node error is
 /// the value-decided refusal or the glued build. The id-free rows held.
@@ -971,9 +975,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// and vertex is main's bit for bit; the pinned chain's escalation at
 /// 1e-12 is gone with the seats it was measured on.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x45b5_ced6_e808_5c4b),
-    (1e-6, 0xdc84_75b7_d171_b718),
-    (1e-12, 0x5e49_ccd3_7cc6_3340),
+    (1e-9, 0x2c0f_fc2e_045a_c502),
+    (1e-6, 0x3c75_80ec_8b1e_7905),
+    (1e-12, 0xe047_0ec3_dc93_7a88),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
