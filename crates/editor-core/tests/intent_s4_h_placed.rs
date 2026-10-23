@@ -11,7 +11,7 @@
 
 use editor_core::PoseValue;
 use editor_core::mate::mate_coset;
-use geom_core::linalg::{Mat3, Point3, UnitVec3, Vec3};
+use geom_core::linalg::{Mat3, UnitVec3, Vec3};
 use geom_core::{Band, Decide, ParamSymbol, Real, Sym, SymBudget, Tol};
 
 type S = Sym<f64>;
@@ -81,12 +81,12 @@ fn a_poses_frame_is_orthonormal_as_a_polynomial_identity() {
     for (key, at) in [(10, [0.2, 0.1, 0.9]), (20, [0.1, -0.3, -0.8])] {
         let (unproven, _) = geom_core::sym::with_session(BUDGET, || {
             let plane = PoseValue::Plane {
-                origin: Point3::new(sym(key + 5, 0.0), sym(key + 6, 0.0), sym(key + 7, 0.0)),
                 normal: direction(key, at),
+                offset: sym(key + 5, 0.0),
             };
             let z = PoseValue::Plane {
-                origin: Point3::origin(),
                 normal: UnitVec3::exact_z(),
+                offset: S::zero(),
             };
             let frame = mate_coset(&z, &plane).representative.linear;
             let d = direction(key, at).get();

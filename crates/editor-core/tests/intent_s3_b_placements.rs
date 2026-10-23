@@ -1010,13 +1010,14 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
 // ---- Carried ----
 
 /// **A carried pose is the pose its copy carries**: a block's top plane,
-/// carried by a placement three units along x, is the top plane moved —
-/// each read where it splits, the block's in the block's own space and
+/// carried by a placement three units along x and two up, is the top
+/// plane moved two up (its slide along x is in-plane, which a plane
+/// forgets) — each read where it splits, the block's in the block's own space and
 /// the carried one in the world its copy stands in.
 #[test]
 fn a_carried_pose_moves_with_its_copy() {
     let (doc, body) = block("s3b-carried");
-    let (doc, placement) = place_by_values(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
+    let (doc, placement) = place_by_values(doc, body, &Frame::translation([3.0, 0.0, 2.0]));
     let top = fixture::fname(body, RoleSeg::Cap(CapEnd::End));
     let plane = |carried: bool| {
         let face = Operand::Pose(Box::new(PoseDef::Plane {
@@ -1031,7 +1032,7 @@ fn a_carried_pose_moves_with_its_copy() {
             face
         }
     };
-    let mut origins = Vec::new();
+    let mut offsets = Vec::new();
     for carried in [false, true] {
         let (doc, split) = insert(
             doc.clone(),
@@ -1048,12 +1049,11 @@ fn a_carried_pose_moves_with_its_copy() {
         let tool = *tool;
         let ev = run(&doc, &EvalOptions::default());
         let value = bound_pose(&doc, &ev, OperandSlot::Tool, tool, Tol::witness());
-        let Ok(PoseValue::Plane { origin, normal }) = value else {
+        let Ok(PoseValue::Plane { normal, offset }) = value else {
             panic!("a plane, not {value:?}")
         };
         assert_eq!(UnitVec3::get(normal).z, 1.0, "the top's outward normal");
-        origins.push(origin);
+        offsets.push(offset);
     }
-    assert_eq!(origins[1].x - origins[0].x, 3.0, "moved with its copy");
-    assert_eq!(origins[1].z, origins[0].z, "and no further");
+    assert_eq!(offsets[1] - offsets[0], 2.0, "moved with its copy");
 }

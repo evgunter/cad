@@ -58,3 +58,16 @@ territory, not `author`'s — `work/author/program.md`'s `paths` does not
 list it. The row is filed here because the line is AUTH-2's own and
 this is the program that will recognise it; re-home it if that reads
 wrong.
+
+## Re-pointed (2026-10-23)
+
+The cited message is gone. `7d2fb96455` (VGEOM, 2026-09-22) rewrote
+`the_second_hand_over_of_one_typed_text_changes_nothing`. The row's own
+grep, `'[a-z,—] \{6,\}[a-z]'` over `crates/viewer/{src,tests}`, now finds
+three other literals with the same run of spaces:
+
+- `crates/viewer/src/widgets.rs:3431` ("parsed on the frame the edit ends and again on              the next"), added by that same commit;
+- `crates/viewer/src/gpu.rs:2340` (`draw_range`'s vertex-count message, from `7b55bfedee`);
+- `crates/viewer/tests/panel_edits.rs:1721` ("instead of carrying its value          to the liter…").
+
+The row stands for these three.
