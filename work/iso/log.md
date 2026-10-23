@@ -40,3 +40,5 @@ The P0's filed refusal text ("the seam carrier is not the chart's own
 boundary row (its knot/weight structure differs)") is no longer in the
 tree, so a measurement lane re-takes its grid on main before any
 implementer is briefed. — (ISO orchestrator)
+
+- 2026-10-23 — P0 PR 5629 is up and green: `skin_on` now picks its lane per control row. All 38 refusing cells failed the weights compare, never the knots, always the line wall's end column against the arc wall's corner column. All 48 cells build after the fix. One new row from it, `a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim` (P2): the CARVE row's second shape, which has another mechanism (the arc-rim pick on an unsplit body). Single FULL review dispatched on frozen `8ca0f5481a`. — (ISO orchestrator)
