@@ -94,32 +94,22 @@ test_utils::f6_variants! {
 test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
-        EpsilonSeam, PartCarriesMetadata, VarNameConflict, InstanceOutputUncarried,
-        UnresolvedVarCrossesCut, ConstructionReadsCopy, PinReadsVariable,
-        ValueOnAMovedWorld, RepinRefused, InstanceUnsolved, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
+        EpsilonSeam, PartCarriesMetadata, VarNameConflict,
+        UnresolvedVarCrossesCut, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
         StrandedPartName,
         StrandedPartRead, Edit,
     ];
-}
-
-/// A constraint id, as a refusal names one in its placement.
-fn constraint() -> ConstraintId {
-    ConstraintId(editor_core::MintId::new(1, test_utils::refusal::tagged(2)))
 }
 
 /// Every [`Uncarried`] reason, on a representative payload.
 fn uncarried() -> Vec<Uncarried> {
     vec![
         Uncarried::Bodies { count: 2 },
-        Uncarried::HeirNamed { held: param() },
         Uncarried::Posed {
             placement: s(4, "Place"),
         },
         Uncarried::OtherSpace {
             placement: s(4, "InstantiatePart"),
-        },
-        Uncarried::NotAnInstance {
-            placement: s(4, "Place"),
         },
         Uncarried::NoSuchCopy {
             key: Box::new(editor_core::CopyKey::part(
@@ -271,34 +261,12 @@ fn inline_refusals() -> Vec<InlineError> {
             key: "author".to_owned(),
         },
         InlineError::VarNameConflict { name: param() },
-        InlineError::InstanceOutputUncarried {
-            name: param(),
-            why: editor_core::Uncarried::Bodies { count: 2 },
-        },
         InlineError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
                 editor_core::VarId::new(0, test_utils::refusal::tagged(9)),
                 None,
             ),
             node: s(4, "Extrude"),
-        },
-        InlineError::ConstructionReadsCopy {
-            node: s(3, "Union"),
-        },
-        InlineError::PinReadsVariable {
-            instance: s(7, "InstantiatePart"),
-            var: Box::new(var()),
-        },
-        InlineError::ValueOnAMovedWorld {
-            placement: s(8, "Place"),
-            value: constraint(),
-        },
-        InlineError::RepinRefused {
-            placement: s(8, "Place"),
-            refusal: editor_core::PinRefusal::NoFrame { node: n(8) },
-        },
-        InlineError::InstanceUnsolved {
-            instance: s(7, "InstantiatePart"),
         },
         InlineError::InstanceBodyNameReferenced { name: name() },
         InlineError::ForeignInstanceName { name: name() },

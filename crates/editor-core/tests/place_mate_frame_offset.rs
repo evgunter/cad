@@ -21,8 +21,7 @@ use crate::p2_gauges::{Parts, block, body_of, cut, min_corner, parts};
 use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    FreeValue, FreeVar, Mate, MateRef, ProfileDoc, RecipeNodeId, SlotId, SplitError, Target,
-    TargetAxis, Value, VarName, WorldRead, apply,
+    FreeValue, FreeVar, Mate, MateRef, ProfileDoc, RecipeNodeId, SlotId, SplitError, TargetAxis, Value, VarName, apply,
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -55,7 +54,7 @@ fn plane_seated(
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), y),
-            (Coord::Spin, ang(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
         ],
     );
     let vx = fixture::bundle(&doc, placement)
@@ -514,7 +513,6 @@ fn a_constraint_compares_by_bits() {
         editor_core::Constraint::of_value(
             id,
             Value {
-                mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 0))),
                 coord: Coord::Slide(TargetAxis::X),
                 by: len(by),
             },

@@ -18,8 +18,7 @@ use crate::p2_gauges::{body_of, pinned, seat, seat_on, set_pin};
 use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
-    FreeValue, FreeVar, Node, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, StableName, Target,
-    VarName, WorldRead, evaluate,
+    FreeValue, FreeVar, Node, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, StableName, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, run, solve, step};
@@ -277,26 +276,41 @@ fn pin_lifted(
     then: &Frame,
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let copy = Operand::Var(
-        doc.output(placement, 0)
-            .expect("an instance defines its copies"),
-    );
-    let mut pin = editor_core::pin_at(&doc, &copy, then, o, Tol::witness())
-        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
-    let Target::World(world) = pin.to else {
-        unreachable!("a pin reads the world")
-    };
-    let world = if angle == 0.0 {
-        world
-    } else {
-        world.spin(WorldRead::through(PoseRole::Z), ang(angle))
-    };
-    let along = [PoseRole::X, PoseRole::Y, PoseRole::Z][index];
-    pin.to = Target::World(world.slide(
-        WorldRead::through(along),
-        Formula::named(lift(), Dimension::Length),
-    ));
-    fixture::constrain_at(doc, placement, pin).0
+    use editor_core::{Coord, TargetAxis};
+    let _ = o;
+    // `then` spun `angle` about the world's z, then lifted along the
+    // axis `index`: the chain of `then`'s spins and that one, and its
+    // origin turned with it, the lift written as the variable.
+    let (c, s) = (angle.cos(), angle.sin());
+    let [x, y, z] = then.translation;
+    let origin = [c * x - s * y, s * x + c * y, z];
+    let mut spins: Vec<(Coord, Formula)> = editor_core::test_support::moves_at(then)
+        .into_iter()
+        .filter(|(coord, _)| matches!(coord, Coord::Spin(_)))
+        .collect();
+    if angle != 0.0 {
+        match spins.last_mut() {
+            Some((Coord::Spin(TargetAxis::Z), by)) => {
+                *by = Formula::add(by.clone(), ang(angle)).expect("two angles add");
+            }
+            _ => spins.push((Coord::Spin(TargetAxis::Z), ang(angle))),
+        }
+    }
+    let slides = TargetAxis::ALL.into_iter().enumerate().map(|(k, axis)| {
+        let at = if origin[k] == 0.0 {
+            Formula::zero(Dimension::Length)
+        } else {
+            len(origin[k])
+        };
+        let by = if k == index {
+            Formula::add(at, Formula::named(lift(), Dimension::Length)).expect("two lengths add")
+        } else {
+            at
+        };
+        (Coord::Slide(axis), by)
+    });
+    let placed = editor_core::Placed::unmated(spins.into_iter().chain(slides).collect());
+    fixture::written(doc, placement, placed)
 }
 
 /// [`pin_lifted`] over a new instance of `part`.

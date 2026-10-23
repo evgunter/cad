@@ -46,9 +46,8 @@ pub(crate) fn axis_with(
     };
     let u = seed - n * (seed.dot(n) / n.dot(n));
     let v = n.cross(u);
-    let at = fixture::frame_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
-    let frame = editor_core::frame_at(doc, &body.into(), &at, o, Tol::witness())
-        .expect("the body offers a frame to read the axis off");
+    let at = fixture::axes_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
+    let frame = editor_core::test_support::frame_on(doc, &body.into(), &at, Tol::witness());
     editor_core::pose::RoleRead::through(frame, editor_core::pose::PoseRole::Z)
 }
 
@@ -78,13 +77,19 @@ pub(crate) fn against_with(
     o: &editor_core::EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
     let read = editor_core::Operand::from(body);
-    let placed = editor_core::place_against(&doc, &target.into(), &read, at, o, Tol::witness())
-        .expect("the copy places against its target");
+    let placed = editor_core::test_support::placed_against_in(
+        &doc,
+        o,
+        &target.into(),
+        &read,
+        at,
+        Tol::witness(),
+    );
     let (doc, placement) = insert(
         doc,
         crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
     );
-    assert!(placed.mate.is_some(), "the copy is placed by a mate");
+    assert!(!placed.mates.is_empty(), "the copy is placed by a mate");
     // The mate and its values written whole, into the target's space.
     let (doc, _) = crate::fixture::write_bundle(doc, placement, placed.bundle());
     (doc, placement)

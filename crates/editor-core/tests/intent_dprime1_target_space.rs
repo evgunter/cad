@@ -176,9 +176,8 @@ fn an_empty_bundle_and_a_plane_mate_with_one_value_refuse_unpinned() {
         ContactClass::Rest,
     );
     let one_value = editor_core::Placed {
-        mate: Some(mate),
+        mates: vec![mate],
         values: vec![(Coord::Slide(TargetAxis::X), len(0.0))],
-        by: editor_core::PlacedBy::PlanarFace,
     };
     let short = fixture::bundle_refusal(&doc, under, one_value.bundle());
     assert!(
@@ -351,17 +350,6 @@ fn a_bundle_names_its_mate_in_any_order_and_a_rewrite_keeps_its_ids() {
     .0;
     let held = fixture::bundle(&doc, under);
     assert_eq!(held.len(), 4, "the mate and its three values");
-    let mate_id = held
-        .iter()
-        .find(|c| c.mate().is_some())
-        .expect("the mate")
-        .id;
-    assert!(
-        held.iter()
-            .filter_map(editor_core::Constraint::value)
-            .all(|v| v.mate == Some(mate_id)),
-        "each value names the mate's minted id"
-    );
 
     let o = EvalOptions::default();
     let key = |doc: &ProfileDoc| {

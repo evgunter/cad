@@ -64,6 +64,15 @@ impl Placed {
         Self::with_families(mates, &families, moves)
     }
 
+    /// **A bundle with no mate**: `moves` in the order written, then the
+    /// constant `0` on each freedom of the target space's axes they
+    /// leave unnamed — [`Self::of`] with no mate, which reads no
+    /// document.
+    #[must_use]
+    pub fn unmated(moves: Vec<(Coord, Formula)>) -> Self {
+        Self::with_families(Vec::new(), &[], moves)
+    }
+
     /// [`Self::of`], the mates' families given.
     fn with_families(
         mates: Vec<Mate<Formula>>,

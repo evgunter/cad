@@ -58,14 +58,12 @@ pub fn document() -> CorpusDoc {
     // frame read off its geometry, slid `cut` up its z and spun TILT
     // about its y, read through its xy — normal at TILT off the axis,
     // crossing both wall seams strictly between the caps.
-    let own = editor_core::frame_at(
+    let own = editor_core::test_support::frame_on(
         &r.doc,
         &Operand::from(cylinder),
         &editor_core::Frame::IDENTITY,
-        &EvalOptions::default(),
         Tol::witness(),
-    )
-    .expect("the cylinder offers a frame");
+    );
     let pose = |def| Operand::Pose(Box::new(def));
     let slid = pose(PoseDef::Slide {
         pose: RoleRead::plain(own.clone()),

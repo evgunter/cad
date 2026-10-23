@@ -20,7 +20,7 @@ use crate::p2_gauges::{
 use editor_core::pose::PoseRole;
 use editor_core::{
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, Operand, ParamBox, ProfileDoc, RecipeNodeId, Target, VarName, WorldRead, evaluate,
+    FreeVar, Operand, ParamBox, ProfileDoc, RecipeNodeId, VarName, evaluate,
 };
 use fixture::resolver::with_resolver;
 use fixture::{ang, head, insert, len, run, solve, step};
@@ -188,34 +188,48 @@ fn chain(label: &str) -> ProfileDoc {
     declare(doc, turn(), 0.25, Dimension::Angle)
 }
 
-/// **An instance of `part` pinned to the world at the parametric pose
-/// [`chain_frame`] composes, onto `root_off`**: the pin at `root_off`
-/// over its geometry, its world read then spun `spin` about the world's
-/// z, slid `lift` along it, spun 0.3 about the world's x and slid 5
-/// along it — each move about the world's own axes, so each composes on
-/// the left: `G0 ∘ G1(lift, spin) ∘ root_off`.
-fn pinned_chain(
-    doc: ProfileDoc,
-    part: DocRef,
-    root_off: &M,
-    o: &EvalOptions,
-) -> (ProfileDoc, RecipeNodeId) {
+/// **An instance of `part` placed in the world at the parametric pose
+/// [`chain_frame`] composes onto [`root_off`]**, by values alone (D10
+/// `[placement.values]`): the chain of spins `0.2` about `y`, `spin`
+/// about `z` and `0.3` about `x`, in that order, and the slides that put
+/// its origin where `G0 ∘ G1(lift, spin) ∘ root_off` does — written as
+/// the formulas over `lift` and `spin` that motion means, so both keep
+/// driving the copy.
+fn pinned_chain(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
+    use editor_core::{Coord, TargetAxis};
     let (doc, id) = insert(doc, fixture::mated_instance(part));
-    let copy = Operand::Var(doc.output(id, 0).expect("an instance defines its copies"));
-    let mut pin = editor_core::pin_at(&doc, &copy, &root_off.frame(), o, Tol::witness())
-        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
-    let Target::World(world) = pin.to else {
-        unreachable!("a pin reads the world")
-    };
-    let axis = WorldRead::through;
-    pin.to = Target::World(
-        world
-            .spin(axis(PoseRole::Z), Formula::named(turn(), Dimension::Angle))
-            .slide(axis(PoseRole::Z), Formula::named(lift(), Dimension::Length))
-            .spin(axis(PoseRole::X), ang(0.3))
-            .slide(axis(PoseRole::X), len(5.0)),
-    );
-    (fixture::constrain_at(doc, id, pin).0, id)
+    let lift = || Formula::named(lift(), Dimension::Length);
+    let spin = || Formula::named(turn(), Dimension::Angle);
+    let cos = || Formula::cos(spin()).expect("an angle's cosine");
+    let sin = || Formula::sin(spin()).expect("an angle's sine");
+    let times = |k: f64, f: Formula| Formula::mul(fixture::scl(k), f).expect("a product");
+    let plus = |a: Formula, b: Formula| Formula::add(a, b).expect("a sum");
+    // root_off's origin (1, 2, 0) turned by `spin` about z, lifted.
+    let at = |k: f64, f: Formula| Formula::mul(len(k), f).expect("a length");
+    let ax = plus(at(1.0, cos()), at(-2.0, sin()));
+    let ay = plus(at(1.0, sin()), at(2.0, cos()));
+    let (c, s) = (0.3_f64.cos(), 0.3_f64.sin());
+    let values = vec![
+        (Coord::Spin(TargetAxis::Y), ang(0.2)),
+        (Coord::Spin(TargetAxis::Z), spin()),
+        (Coord::Spin(TargetAxis::X), ang(0.3)),
+        (Coord::Slide(TargetAxis::X), plus(len(5.0), ax)),
+        (
+            Coord::Slide(TargetAxis::Y),
+            plus(times(c, ay.clone()), times(-s, lift())),
+        ),
+        (
+            Coord::Slide(TargetAxis::Z),
+            plus(times(s, ay), times(c, lift())),
+        ),
+    ];
+    let placed = editor_core::Placed::unmated(values);
+    (fixture::written(doc, id, placed), id)
+}
+
+/// The turned literal the parametric pose composes onto.
+fn root_off() -> M {
+    M::tr([1.0, 2.0, 0.0]).c(&M::rot([0.0, 1.0, 0.0], 0.2))
 }
 
 fn chain_frame(lift: f64, turn: f64) -> M {
@@ -250,8 +264,8 @@ fn the_seat_relation_the_rows_compose_with_is_the_solves() {
     assert!(got.dist(&seat_rep()) <= 1e-15, "{got:?}");
 }
 
-/// **A seat under a two-parameter world mate against an independent
-/// composition**: the base pinned to the world at a pose two parameters
+/// **A seat under a two-parameter placement against an independent
+/// composition**: the base placed in the world at a pose two parameters
 /// drive composed with a turned literal, the top seated on it, and a
 /// second top stacked on the seated one, in f64 and in the interval lane
 /// at two parameter values.
@@ -260,8 +274,8 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
     let p = parts("r2-afb-x");
     let o = p.opts();
     let doc = chain("r2-afb-x");
-    let root_off = M::tr([1.0, 2.0, 0.0]).c(&M::rot([0.0, 1.0, 0.0], 0.2));
-    let (doc, base) = pinned_chain(doc, p.base, &root_off, &o);
+    let root_off = root_off();
+    let (doc, base) = pinned_chain(doc, p.base);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let tm = M::tr([0.0, 0.0, TOP_HEIGHT]);
     let (doc, t) = crate::p2_gauges::stacked(doc, p.top, p.top_body, head(p.top_upper_cap(top)));

@@ -34,7 +34,7 @@ use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::emit_shared_rim_several::{construction, own_name};
 use crate::fixture::{
-    against, ends, face_vertices, frame_at, insert, len, on_frame, out, point, slid, table,
+    against, ends, face_vertices, axes_at, insert, len, on_frame, out, point, slid, table,
     vertex_of,
 };
 
@@ -67,7 +67,7 @@ fn placed_prism(
             distance: len(distance),
         },
     );
-    against(doc, target, prism, &frame_at(origin, u, v))
+    against(doc, target, prism, &axes_at(origin, u, v))
 }
 
 /// Which symmetric two-member boolean node a row builds.

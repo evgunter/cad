@@ -208,7 +208,7 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), len(1.0)),
-            (Coord::Spin, turn),
+            (Coord::Spin(editor_core::TargetAxis::Z), turn),
         ],
     );
     Scene {
@@ -414,7 +414,7 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
             standoff(name(ids[0], CapEnd::End), 0.5),
             ContactClass::Rest,
         ),
-        &[(Coord::Spin, ang(0.25))],
+        &[(Coord::Spin(editor_core::TargetAxis::Z), ang(0.25))],
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     (doc, text)
@@ -563,14 +563,14 @@ fn a4_the_same_bundle_without_the_key_loads() {
     let coords: Vec<Coord> = fixture::constrained(&back)
         .into_iter()
         .flat_map(|p| fixture::bundle(&back, p))
-        .filter_map(|c| c.value().filter(|v| v.mate.is_some()).map(|v| v.coord))
+        .filter_map(|c| c.value().map(|v| v.coord))
         .collect();
     assert_eq!(
         coords,
         [
             Coord::Slide(TargetAxis::X),
             Coord::Slide(TargetAxis::Y),
-            Coord::Spin
+            Coord::Spin(editor_core::TargetAxis::Z)
         ],
         "the rest's values come back as written"
     );

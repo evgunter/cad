@@ -30,7 +30,7 @@ use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Frame, InlineError, InlineOutcome,
     Label, MateFault, MateRef, Node, PartResolver, ProfileDoc, RecipeNodeId, SitedFace, SplitError,
-    SplitOutcome, StableName, Target, Uncarried, VarId, WorldRead, product,
+    SplitOutcome, StableName, Uncarried, VarId, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -84,23 +84,25 @@ pub(crate) fn pinned_lifted(
     angle: f64,
     o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
+    use editor_core::{Coord, TargetAxis};
+    let _ = o;
     let (doc, id) = insert(doc, fixture::mated_instance(part));
-    let copy = editor_core::Operand::Var(doc.output(id, 0).expect("an instance's copies"));
-    let mut pin = editor_core::pin_at(&doc, &copy, &Frame::IDENTITY, o, Tol::witness())
-        .expect("the copy pins over its geometry");
-    let Target::World(world) = pin.to else {
-        unreachable!("a pin reads the world")
+    // Spun `angle` about the world's z, then lifted along `along` by the
+    // variable, by values alone.
+    let axis = match along {
+        PoseRole::X => TargetAxis::X,
+        PoseRole::Y => TargetAxis::Y,
+        _ => TargetAxis::Z,
     };
-    let world = if angle == 0.0 {
-        world
-    } else {
-        world.spin(WorldRead::through(PoseRole::Z), fixture::ang(angle))
-    };
-    pin.to = Target::World(world.slide(
-        WorldRead::through(along),
+    let mut values = vec![(
+        Coord::Slide(axis),
         Formula::named(crate::p2_gauges::lift(), editor_core::Dimension::Length),
-    ));
-    (fixture::constrain_at(doc, id, pin).0, id)
+    )];
+    if angle != 0.0 {
+        values.push((Coord::Spin(TargetAxis::Z), fixture::ang(angle)));
+    }
+    let placed = editor_core::Placed::unmated(values);
+    (fixture::written(doc, id, placed), id)
 }
 
 /// **`placement`'s bundle replaced by one pin at the translation `at`**.
@@ -232,9 +234,7 @@ fn read_name(doc: &ProfileDoc, pose: VarId) -> StableName {
 
 /// The pose a stored constraint's target reads.
 fn target_of(c: &editor_core::Constraint) -> VarId {
-    *c.mate()
-        .and_then(|m| m.to.pose())
-        .expect("a mate to a pose")
+    c.mate().expect("a mate").to
 }
 
 /// The pose a stored constraint's own side reads.

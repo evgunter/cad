@@ -6743,16 +6743,14 @@ mod tag_vocabulary_tests {
 #[cfg(test)]
 mod bundle_key {
     //! A bundle's shape reaches the content key: what each constraint
-    //! states, a mate's target word and its world read's arms, and a
-    //! value's mate and freedom. Its numbers are slots, keyed with the
+    //! states, and a value's freedom. Its numbers are slots, keyed with the
     //! slots. Dropping any of these from the feed would let two
     //! documents differing only there share a memo entry, and one be
     //! served the other's placement.
 
     use super::{KeyHasher, feed_bundle};
-    use crate::mate::{Constraint, Coord, Mate, Target, TargetAxis, Value, WorldRead};
+    use crate::mate::{Constraint, Coord, Mate, TargetAxis, Value};
     use crate::node::ConstraintId;
-    use crate::pose::PoseRole;
 
     const ON: crate::VarId = crate::VarId::new(1, 1);
     const TO: crate::VarId = crate::VarId::new(2, 2);
@@ -6762,7 +6760,7 @@ mod bundle_key {
         ConstraintId(crate::MintId::new(k, u64::from(k)))
     }
 
-    fn mate(to: Target) -> Constraint {
+    fn mate(to: crate::VarId) -> Constraint {
         Constraint::of_mate(
             id(10),
             Mate {
@@ -6773,11 +6771,10 @@ mod bundle_key {
         )
     }
 
-    fn value(mate: ConstraintId, coord: Coord) -> Constraint {
+    fn value(coord: Coord) -> Constraint {
         Constraint::of_value(
             id(11),
             Value {
-                mate: Some(mate),
                 coord,
                 by: BY,
             },
@@ -6798,29 +6795,14 @@ mod bundle_key {
     }
 
     #[test]
-    fn a_mates_target_word_and_world_arms_move_the_key() {
+    fn a_values_freedom_moves_the_key() {
+        let with = |v: Constraint| key(&[mate(TO), v]);
         let keys = [
-            key(&[mate(Target::Pose(TO))]),
-            key(&[mate(Target::World(WorldRead::Frame))]),
-            key(&[mate(Target::World(WorldRead::through(PoseRole::Xy)))]),
-            key(&[mate(Target::World(WorldRead::through(PoseRole::Xy).flip()))]),
-        ];
-        for (i, a) in keys.iter().enumerate() {
-            for b in &keys[i + 1..] {
-                assert_ne!(a, b, "each target shape keys distinctly");
-            }
-        }
-    }
-
-    #[test]
-    fn a_values_mate_and_freedom_move_the_key() {
-        let with = |v: Constraint| key(&[mate(Target::Pose(TO)), v]);
-        let keys = [
-            key(&[mate(Target::Pose(TO))]),
-            with(value(id(10), Coord::Spin)),
-            with(value(id(10), Coord::Slide(TargetAxis::X))),
-            with(value(id(10), Coord::Slide(TargetAxis::Y))),
-            with(value(id(12), Coord::Slide(TargetAxis::Y))),
+            key(&[mate(TO)]),
+            with(value(Coord::Spin(TargetAxis::Z))),
+            with(value(Coord::Spin(TargetAxis::X))),
+            with(value(Coord::Slide(TargetAxis::X))),
+            with(value(Coord::Slide(TargetAxis::Y))),
         ];
         for (i, a) in keys.iter().enumerate() {
             for b in &keys[i + 1..] {
@@ -6836,7 +6818,7 @@ mod bundle_key {
     fn a_values_constant_zero_form_moves_the_key() {
         let zero = crate::expr::Expr::zero(crate::expr::Dimension::Angle);
         let defined = |var| (var == BY).then_some(&zero);
-        let bundle = [value(id(10), Coord::Spin)];
+        let bundle = [value(Coord::Spin(TargetAxis::Z))];
         assert_ne!(
             key_over(&defined, &bundle),
             key(&bundle),

@@ -107,13 +107,13 @@ pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
         .into_iter()
         .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
         .chain([
-            (Coord::SpinAbout(TargetAxis::X), back),
+            (Coord::Spin(TargetAxis::X), back),
             (
-                Coord::SpinAbout(TargetAxis::Y),
+                Coord::Spin(TargetAxis::Y),
                 Formula::zero(Dimension::Angle),
             ),
             (
-                Coord::SpinAbout(TargetAxis::Z),
+                Coord::Spin(TargetAxis::Z),
                 Formula::zero(Dimension::Angle),
             ),
         ])
@@ -749,8 +749,6 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::AddConstraint { .. } => "AddConstraint",
         DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
         DocEdit::RemoveConstraints { .. } => "RemoveConstraints",
-        DocEdit::AddValue { .. } => "AddValue",
-        DocEdit::AddValues { .. } => "AddValues",
         DocEdit::SetConstraints { .. } => "SetConstraints",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",

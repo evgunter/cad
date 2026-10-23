@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::fixture::{self, against, ang, desc, frame_at, insert, len, on_frame};
+use crate::fixture::{self, against, ang, desc, axes_at, insert, len, on_frame};
 use editor_core::{
     CancelToken, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Formula, Node, ProfileDoc,
     Qualifier, RecipeNodeId, RoleSeg, SplitHalf, StableName, evaluate,
@@ -961,7 +961,7 @@ fn a_sections_hole_with_no_island_cites_nothing_of_the_hole() {
         doc,
         ext,
         bore,
-        &frame_at([0.0, -1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+        &axes_at([0.0, -1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
     );
     let (doc, cut) = insert(
         doc,
@@ -1046,7 +1046,7 @@ fn a_ring_holding_an_island_cites_the_ring_and_the_island() {
         doc,
         block,
         groove,
-        &frame_at([0.0, 0.5, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+        &axes_at([0.0, 0.5, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
     );
     let (doc, cut) = insert(
         doc,
@@ -1192,7 +1192,7 @@ fn moat_split(
             doc,
             block,
             tool,
-            &frame_at([0.0, floor, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            &axes_at([0.0, floor, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
         )
     };
     let (doc, pocket) = tool(doc, 1.0, square(0.5, 3.5));

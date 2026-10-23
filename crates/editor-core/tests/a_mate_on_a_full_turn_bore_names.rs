@@ -19,7 +19,7 @@ use editor_core::{
 use geom_core::Tol;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
-use crate::fixture::{against, ang, frame_at, insert, len, len2, revolve_about};
+use crate::fixture::{against, ang, axes_at, insert, len, len2, revolve_about};
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -95,7 +95,7 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         doc,
         shaft,
         editor_core::Operand::output(collar, 0),
-        &frame_at([0.0, 0.0, -y0], [c, -s, 0.0], [0.0, 0.0, 1.0]),
+        &axes_at([0.0, 0.0, -y0], [c, -s, 0.0], [0.0, 0.0, 1.0]),
     );
     (doc, collar, shaft)
 }

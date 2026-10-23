@@ -40,8 +40,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
     EvalOptions, Evaluation, Formula, FreeVar, Mate, MateRef, NameRef, Node, NodeResult, Operand,
-    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, Target,
-    TargetAxis, VarName, WorldRead, all_vertices, evaluate, vertex_position,
+    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
@@ -275,7 +274,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), y),
-            (Coord::Spin, spin),
+            (Coord::Spin(editor_core::TargetAxis::Z), spin),
         ],
     )
 }
@@ -549,7 +548,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         ),
         &[
             (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
-            (Coord::Spin, ang(0.3)),
+            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.3)),
         ],
     );
     out.push(("coaxial-slide-spin", doc, p.opts()));

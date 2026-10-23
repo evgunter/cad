@@ -23,7 +23,7 @@ use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate, MateFault,
     MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal, RecipeNodeId,
-    ResolveFault, Target, WorldRead, content_pin, product,
+    ResolveFault, content_pin, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, on_frame, revolve_about, run, solve};
@@ -175,17 +175,6 @@ fn seat(
     )
 }
 
-/// The world's `xy` plane, facing down: what a bottom cap rests on.
-fn floor() -> WorldRead<Formula> {
-    WorldRead::through(PoseRole::Xy).flip()
-}
-
-/// [`floor`] turned `theta` about the world's `x` axis. Its origin
-/// stays the world's, exactly: a turn about a line through the origin
-/// moves no point of it.
-fn tilted_floor(theta: f64) -> WorldRead<Formula> {
-    floor().spin(WorldRead::through(PoseRole::X), ang(theta))
-}
 
 // ---- A4: refusals typed ----
 
@@ -404,16 +393,8 @@ fn seated(
     )
     .0
     .unwrap();
-    let pin = editor_core::pin_at(
-        &doc,
-        &editor_core::Operand::Var(doc.output(a, 0).expect("an instance defines its copies")),
-        &Frame::IDENTITY,
-        &opts,
-        Tol::witness(),
-    )
-    .expect("the instance pins over its geometry");
-    // The pin is the first instance's whole bundle.
-    push(&mut doc, pinned_by(a, pin));
+    // Values on the world's axes are the first instance's whole bundle.
+    push(&mut doc, pinned_by(a, &Frame::IDENTITY));
     let b = push(&mut doc, insert_node(fixture::mated_instance(part_ref)))
         .0
         .unwrap();
@@ -434,18 +415,8 @@ fn seated(
 
 /// The edit that writes `mate` as `placement`'s whole bundle: a world
 /// pin, which pins its copy by itself.
-fn pinned_by(
-    placement: RecipeNodeId,
-    mate: editor_core::Mate<Formula>,
-) -> DocEdit<editor_core::ProfileProgram> {
-    DocEdit::SetConstraints {
-        placement,
-        constraints: vec![editor_core::Constraint::of_mate(
-            editor_core::ConstraintId::placeholder(1),
-            mate,
-        )],
-        fresh: Vec::new(),
-    }
+fn pinned_by(placement: RecipeNodeId, at: &Frame) -> DocEdit<editor_core::ProfileProgram> {
+    editor_core::Placed::unmated(editor_core::test_support::moves_at(at)).write(placement)
 }
 
 /// The edit that stands `placement`'s copy where it is: the identity
@@ -495,7 +466,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
         assert!(
             fixture::bundle(&applied.doc, lost)
                 .iter()
-                .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
+                .all(|c| c.value().is_some())
                 && fixture::bundle(&applied.doc, lost).len() == 6,
             "the copy the mate pinned stands by the identity bundle, with no constraint the \
              edit invented"
@@ -540,25 +511,18 @@ fn a6_no_edit_asks_the_store() {
         applied.maintenance
     );
     let doc = applied.doc;
-    let [_pin] = &fixture::bundle(&doc, a)[..] else {
-        panic!("the first instance is pinned to the world by one constraint");
-    };
-    // The world mate taken off — the copy stood where it is — and
-    // written again at another pose.
+    assert!(
+        fixture::bundle(&doc, a).iter().all(|c| c.value().is_some()),
+        "the first instance is placed in the world by values alone"
+    );
+    // The values taken off — the copy stood where it is — and written
+    // again at another pose.
     let doc = doc
         .apply(&unseat(a), tol)
         .expect("unseating a world mate asks nothing")
         .doc;
-    let moved = editor_core::pin_at(
-        &doc,
-        &editor_core::Operand::Var(doc.output(a, 0).expect("an instance defines its copies")),
-        &Frame::translation([0.0, 0.0, 3.0]),
-        &opts,
-        tol,
-    )
-    .expect("the instance pins over its geometry");
     let doc = doc
-        .apply(&pinned_by(a, moved), tol)
+        .apply(&pinned_by(a, &Frame::translation([0.0, 0.0, 3.0])), tol)
         .expect("a world mate re-written asks nothing")
         .doc;
     let doc = doc
@@ -649,10 +613,10 @@ fn a6_a_saved_unseating_replays_bit_identically_with_no_store() {
     assert!(
         fixture::bundle(&live, b)
             .iter()
-            .all(|c| c.value().is_some_and(|v| v.mate.is_none())),
+            .all(|c| c.value().is_some()),
         "the copy the seat pinned stands by the identity bundle"
     );
-    assert_eq!(fixture::bundle(&live, a).len(), 1, "the first stays pinned");
+    assert_eq!(fixture::bundle(&live, a).len(), 6, "the first stays placed");
 }
 
 /// **C5, the checked-in corpus**: every TRACKED `.pncad` (git's
@@ -928,14 +892,20 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
     let (doc, c) = insert(doc, fixture::mated_instance(doc_ref));
     let rest_on = |to| Mate {
         on: fixture::plane(fixture::head(in_part(b, body, CapEnd::Start))),
-        to: Target::World(to),
+        to: fixture::flip(to),
         class: ContactClass::Rest,
     };
-    let (doc, _) = fixture::constrain_at(doc, b, rest_on(floor()));
+    // A floor's top, and a second turned `0.25` about the world's `x`.
+    let (doc, level, _) = fixture::floor(doc, Vec::new());
+    let (doc, tilted, _) = fixture::floor(
+        doc,
+        vec![(Coord::Spin(editor_core::TargetAxis::X), ang(0.25))],
+    );
+    let (doc, _) = fixture::constrain_at(doc, b, rest_on(level));
     let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
         &doc,
         b,
-        rest_on(tilted_floor(0.25)),
+        rest_on(tilted),
         Tol::witness(),
     );
     // One rest and its values: the seat this row unseats.
@@ -1004,7 +974,7 @@ fn a6_a_split_stands_its_instance_by_the_identity_bundle_with_or_without_a_resol
         bundle.len() == 6
             && bundle
                 .iter()
-                .all(|c| c.value().is_some_and(|v| v.mate.is_none())),
+                .all(|c| c.value().is_some()),
         "the instance stands where it stands by the identity bundle: {bundle:?}"
     );
     let unresolved = split(None).unwrap_or_else(|e| panic!("a cut splits with no resolver: {e}"));

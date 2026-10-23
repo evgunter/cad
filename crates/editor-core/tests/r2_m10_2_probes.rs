@@ -746,7 +746,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
         d3,
         c1,
         c2,
-        &fixture::frame_at(
+        &fixture::axes_at(
             [0.01, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, theta.cos(), -theta.sin()],

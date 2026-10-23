@@ -27,7 +27,7 @@ use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
     Formula, Frame, FreeValue, FreeVar, Maintenance, MateFault, MateRef, MeasurePrimitive, Node,
     Operand, PartResolver, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace,
-    SitedRef, StableName, Target, TargetAxis, ValuePayload, VarId, VarName, WorldRead, apply,
+    SitedRef, StableName, TargetAxis, ValuePayload, VarId, VarName, apply,
     apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -199,13 +199,12 @@ pub(crate) fn seat_edits(
     at: [f64; 2],
 ) -> (ProfileDoc, MateRef, Vec<DocEdit<ProfileProgram>>) {
     let placed = editor_core::Placed {
-        mate: Some(fixture::rest(mover, onto, ContactClass::Rest)),
+        mates: vec![fixture::rest(mover, onto, ContactClass::Rest)],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(at[0])),
             (Coord::Slide(TargetAxis::Y), len(at[1])),
-            (Coord::Spin, ang(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
         ],
-        by: editor_core::PlacedBy::PlanarFace,
     };
     let edits = fixture::bundle_edits(&doc, placement, placed.bundle());
     let mut doc = doc;
@@ -278,17 +277,23 @@ pub(crate) fn pinned_lifting(
     o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = insert(doc, fixture::mated_instance(part));
-    let copy = Operand::Var(doc.output(id, 0).expect("an instance defines its copies"));
-    let mut pin = editor_core::pin_at(&doc, &copy, &pose, o, Tol::witness())
-        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
-    let Target::World(world) = pin.to else {
-        unreachable!("a pin reads the world")
-    };
-    pin.to = Target::World(world.slide(
-        WorldRead::through(PoseRole::Z),
-        Formula::named(lift(), Dimension::Length),
-    ));
-    (fixture::constrain_at(doc, id, pin).0, id)
+    let _ = o;
+    // The pose's moves on the world's axes, its slide up the world's
+    // `z` lifted by the variable.
+    let moves = editor_core::test_support::moves_at(&pose)
+        .into_iter()
+        .filter(|(coord, _)| *coord != Coord::Slide(TargetAxis::Z))
+        .chain(std::iter::once((
+            Coord::Slide(TargetAxis::Z),
+            Formula::add(
+                len(pose.translation[2]),
+                Formula::named(lift(), Dimension::Length),
+            )
+            .expect("two lengths add"),
+        )))
+        .collect();
+    let placed = editor_core::Placed::of(&doc, Vec::new(), moves);
+    (fixture::written(doc, id, placed), id)
 }
 
 /// **`placement`'s bundle replaced** by one world mate at `pose`, or
@@ -448,21 +453,12 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
         6,
         "an inserted instance stands by the identity bundle"
     );
-    let pin = DocEdit::SetConstraints {
-        placement: base,
-        constraints: vec![editor_core::Constraint::of_mate(
-            editor_core::ConstraintId::placeholder(1),
-            editor_core::pin_at(
-                &doc,
-                &Operand::Var(doc.output(base, 0).expect("an instance defines its copies")),
-                &Frame::IDENTITY,
-                &o,
-                Tol::witness(),
-            )
-            .expect("the copy pins over its geometry"),
-        )],
-        fresh: Vec::new(),
-    };
+    let typed: Vec<(Coord, Formula)> = TargetAxis::ALL
+        .into_iter()
+        .map(|axis| (Coord::Slide(axis), len(0.0)))
+        .chain(TargetAxis::ALL.into_iter().map(|axis| (Coord::Spin(axis), ang(0.0))))
+        .collect();
+    let pin = editor_core::Placed::of(&doc, Vec::new(), typed).write(base);
     let doc = step(doc, pin.clone()).0;
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     assert!(offset_of(&doc, base).is_some(), "the base is pinned");
@@ -573,7 +569,7 @@ fn removing_what_pins_a_copy_refuses_unpinned() {
     let pin = fixture::bundle(&doc, base)[0].id;
     let spin = fixture::bundle(&doc, top)
         .iter()
-        .find(|c| c.value().is_some_and(|v| v.coord == Coord::Spin))
+        .find(|c| c.value().is_some_and(|v| v.coord == Coord::Spin(editor_core::TargetAxis::Z)))
         .expect("the seat's spin")
         .id;
     for (what, placement, constraint, free) in [
@@ -999,7 +995,7 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     store.insert(out.part.clone(), Tol::witness());
     let store_opts = with_resolver(store.clone());
     let crossed = fixture::constraint(&out.remainder, mate);
-    let Target::Pose(target) = crossed.to else {
+    let target = crossed.to else {
         panic!("the crossed seat reads a pose: {crossed:?}");
     };
     let [side] = fixture::face_reads(&out.remainder, target)[..] else {
@@ -1024,7 +1020,7 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     )
     .expect("and inlines back with its head");
     let host = fixture::constraint(&back.doc, mate);
-    let Target::Pose(target) = host.to else {
+    let target = host.to else {
         panic!("the host seat reads a pose: {host:?}");
     };
     let [side] = fixture::face_reads(&back.doc, target)[..] else {
@@ -1086,7 +1082,10 @@ fn pair_beside_a_base(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 /// One instance's world mate beside its image's.
-type PinPair = (Option<WorldRead<Formula>>, Option<WorldRead<Formula>>);
+type PinPair = (
+    Option<Vec<(Coord, Formula)>>,
+    Option<Vec<(Coord, Formula)>>,
+);
 
 /// Every instance's world mate in `doc` beside the one `onto` holds at
 /// its image under `map`.

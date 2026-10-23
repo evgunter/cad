@@ -198,21 +198,17 @@ pub(crate) fn slid_by(
     body: RecipeNodeId,
     by: [Formula; 3],
 ) -> RecipeNodeId {
-    use editor_core::{BodyRead, Coord, Operand, Target, TargetAxis, pose::PoseDef};
+    use editor_core::{BodyRead, Coord, Operand, TargetAxis, pose::PoseDef};
     let target_read = fixture::body_read(&r.doc, target.into());
     let read = fixture::body_read(&r.doc, body.into());
-    r.evaluated();
-    let ev = r.last.as_ref().expect("just evaluated");
     let probe = [1.0, 2.0, 4.0];
-    let mut placed = editor_core::place_against_in(
+    let mut placed = editor_core::test_support::placed_against(
         &r.doc,
-        ev,
         &target_read,
         &read,
         &editor_core::Frame::translation(probe),
         Tol::witness(),
-    )
-    .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
+    );
     let signed = |written: &Formula, n: f64, to: &Formula| {
         if *written == len(n) {
             to.clone()
@@ -223,11 +219,11 @@ pub(crate) fn slid_by(
         }
     };
     let Some(editor_core::Mate {
-        to: Target::Pose(Operand::Pose(def)),
+        to: Operand::Pose(def),
         ..
-    }) = &mut placed.mate
+    }) = placed.mates.first_mut()
     else {
-        panic!("a plane mate to a pose: {:?}", placed.mate)
+        panic!("a plane mate to a pose: {:?}", placed.mates)
     };
     let PoseDef::Slide { by: along, .. } = &mut **def else {
         panic!("the target's plane slid along its normal: {def:?}")

@@ -437,9 +437,7 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
             placement: pattern,
             mate: Box::new(editor_core::Mate {
                 on: plane(head(in_copy(pattern, 0, leg_part.cap(leg, CapEnd::End)))),
-                to: editor_core::Target::World(editor_core::WorldRead::through(
-                    editor_core::pose::PoseRole::Xy,
-                )),
+                to: plane(head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End)))),
                 class: ContactClass::Rest,
             }),
             fresh: Vec::new(),
@@ -517,13 +515,13 @@ fn r1_pattern_free_solves_are_bit_identical() {
             // `c` rests on `b`, its three freedoms set by values: a
             // quarter along `b`'s x, none along its y, no turn.
             let placed = editor_core::Placed {
-                mate: Some(rest(
+                mates: vec![rest(
                     head(c_part.cap(c, CapEnd::Start)),
                     head(b_part.cap(b, CapEnd::End)),
                     ContactClass::Rest,
-                )),
+                )],
                 values: vec![
-                    (editor_core::Coord::Spin, ang(0.0)),
+                    (editor_core::Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
                     (
                         editor_core::Coord::Slide(editor_core::TargetAxis::X),
                         len(0.25),
@@ -533,7 +531,6 @@ fn r1_pattern_free_solves_are_bit_identical() {
                         len(0.0),
                     ),
                 ],
-                by: editor_core::PlacedBy::PlanarFace,
             };
             fixture::write_bundle(doc, c, placed.bundle()).0
         } else {

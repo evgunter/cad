@@ -137,7 +137,7 @@ fn with_record(
 
 /// The one name a stored constraint's target pose selects.
 fn target_name(doc: &ProfileDoc, mate: &Mate) -> StableName {
-    let pose = *mate.to.pose().expect("a target read off geometry");
+    let pose = mate.to;
     let [face] = fixture::face_reads(doc, pose)[..] else {
         panic!("a rest's target reads one face")
     };

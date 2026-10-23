@@ -1042,7 +1042,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             "a frame's spin",
             &doc,
             frame,
-            Coord::Spin,
+            Coord::Spin(editor_core::TargetAxis::Z),
             ang(0.5),
             editor_core::VarKind::Frame,
         ),
@@ -1055,15 +1055,20 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             editor_core::VarKind::Plane,
         ),
     ] {
+        let mut bundle: Vec<editor_core::Constraint<Formula>> =
+            fixture::bundle(doc, mate.placement)
+                .iter()
+                .map(|c| fixture::authored(doc, c))
+                .collect();
+        bundle.push(editor_core::Constraint::of_value(
+            editor_core::ConstraintId::placeholder(1),
+            Value { coord, by },
+        ));
         let err = apply(
             doc,
-            &DocEdit::AddValue {
+            &DocEdit::SetConstraints {
                 placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
+                constraints: bundle,
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -1072,17 +1077,14 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
         let EditError::MateRefused { fault, .. } = &err else {
             panic!("{what}: expected MateRefused, got {err:?}");
         };
+        let _ = kind;
         assert!(
             matches!(
-                **fault,
-                MateFault::NotAFreedom { value, coord: c, kind: k }
-                    if value.placement == ids[1] && c == coord && k == kind
+                &**fault,
+                MateFault::Overconstrained { placement, constraints, .. }
+                    if *placement == ids[1] && constraints.contains(&mate.id)
             ),
             "{what}: {fault:?}"
-        );
-        assert!(
-            fault.to_string().contains("which the mate fixes"),
-            "{fault}"
         );
     }
 }

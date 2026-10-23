@@ -19,8 +19,7 @@ use editor_core::pose::{PoseDef, PoseRole};
 use editor_core::{
     BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions, Formula,
     Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
-    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, StableName, Target, VarId, WorldRead,
-};
+    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId, };
 use geom_core::Tol;
 use geom_core::UnitVec3;
 
@@ -114,7 +113,7 @@ fn place_at(doc: ProfileDoc, body: RecipeNodeId, pose: &Frame) -> (ProfileDoc, R
 /// target's as far as the mate allows. The whole bundle.
 fn zeroed(mate: editor_core::Mate<Formula>) -> Vec<editor_core::Constraint<Formula>> {
     editor_core::Placed {
-        mate: Some(mate),
+        mates: vec![mate],
         values: vec![
             (
                 editor_core::Coord::Slide(editor_core::TargetAxis::X),
@@ -124,9 +123,8 @@ fn zeroed(mate: editor_core::Mate<Formula>) -> Vec<editor_core::Constraint<Formu
                 editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                 len(0.0),
             ),
-            (editor_core::Coord::Spin, fixture::ang(0.0)),
+            (editor_core::Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
         ],
-        by: editor_core::PlacedBy::PlanarFace,
     }
     .bundle()
 }
@@ -354,20 +352,19 @@ fn block_at(doc: ProfileDoc, half: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// **A copy of no instance forms no lever its constraints do not ask
-/// for**: a `Place` copy resting on the world's xy plane decides nothing
-/// over a lever, so its bundle never asks the parts' reach, which has no
-/// part to answer for it. The copy stands in the world.
+/// for**: a `Place` copy resting on a floor's top decides nothing over a
+/// lever, so its bundle never asks the parts' reach, which has no part
+/// to answer for it. The copy stands in the world.
 #[test]
 fn a_place_copy_resting_on_the_world_asks_no_lever() {
     let (doc, body) = block("s3b-world-rest");
+    let (doc, top, _) = fixture::floor(doc, Vec::new());
     let rest = editor_core::Mate {
         on: fixture::plane(fixture::head(fixture::fname(
             body,
             RoleSeg::Cap(CapEnd::Start),
         ))),
-        to: Target::World(WorldRead::Flip {
-            pose: Box::new(WorldRead::through(PoseRole::Xy)),
-        }),
+        to: fixture::flip(top),
         class: ContactClass::Rest,
     };
     let (doc, place) = step(
@@ -678,7 +675,6 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
                 editor_core::Constraint::of_value(
                     editor_core::ConstraintId::placeholder(3),
                     editor_core::Value {
-                        mate: Some(editor_core::ConstraintId::placeholder(2)),
                         coord: editor_core::Coord::Slide(editor_core::TargetAxis::X),
                         by: len(0.1),
                     },
@@ -877,26 +873,14 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
         translation: [0.0, 0.0, 0.0],
     };
     // The reader copies the one copy where the outer instance puts it:
-    // one pin, read off that copy while the instance is loose, holds
-    // the instance at the quarter turn and the reader where it reads.
-    let at_turn = editor_core::pin_at(
-        &top,
-        &Operand::Var(
-            top.output(outer, 0)
-                .expect("an instance defines its copies"),
-        ),
-        &quarter_turn,
-        &with_resolver(store.clone()),
-        Tol::witness(),
-    )
-    .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
-    let (top, _) = fixture::constrain_at(top, outer, at_turn.clone());
+    // values hold the instance at the quarter turn and the reader where
+    // it reads.
+    let top = fixture::pin(top, outer, &quarter_turn, &with_resolver(store.clone()));
     let key = CopyKey::part(inner, copy_key(leaf_body));
     let (top, reader) = insert(
         top,
         crate::fixture::stood(vec![BodyRead::keyed(Operand::Node(outer), key)]),
     );
-    let (top, _) = fixture::constrain_at(top, reader, at_turn);
     let ev = run(&top, &with_resolver(store));
     let body = match ev.value(reader).map(|v| &v.payload) {
         Some(editor_core::ValuePayload::Body(b)) => b.clone(),

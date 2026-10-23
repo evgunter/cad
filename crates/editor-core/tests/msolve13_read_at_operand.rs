@@ -651,7 +651,7 @@ fn a3c_a_mate_read_through_a_union_crosses_onto_the_instance() {
     )
     .unwrap_or_else(|e| panic!("the kept seat crosses: {e}"));
     let seat = fixture::constraint(&out.remainder, f.m2);
-    let [select] = fixture::face_reads(&out.remainder, *seat.to.pose().expect("a pose target"))[..]
+    let [select] = fixture::face_reads(&out.remainder, seat.to)[..]
     else {
         panic!("the seat's target reads one face")
     };

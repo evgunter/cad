@@ -6819,7 +6819,7 @@ mod split_carries_candidates {
     use crate::names::table::{EntityRef, Entry, NameTable};
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
-    use crate::test_support::{against, frame_at, len, plane_on};
+    use crate::test_support::{against, axes_at, len, plane_on};
     use geom_core::Tol;
 
     fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
@@ -6879,7 +6879,7 @@ mod split_carries_candidates {
             doc,
             a,
             b,
-            &frame_at([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            &axes_at([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
             Tol::witness(),
         );
         let (doc, sub) = ins(
@@ -7156,7 +7156,7 @@ mod crossings_rank_along_the_line {
             doc,
             from,
             tool,
-            &crate::test_support::frame_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            &crate::test_support::axes_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
             Tol::witness(),
         );
         ins(
@@ -7747,7 +7747,7 @@ mod edge_pieces_of_one_line_tie {
             doc,
             from,
             tool,
-            &crate::test_support::frame_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            &crate::test_support::axes_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
             Tol::witness(),
         );
         ins(

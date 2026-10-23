@@ -612,85 +612,78 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
 }
 
 /// **An inline refusal speaks each node from the document that holds
-/// it**: the instance's reader from the host, the part's placement
-/// from the part, each with the label that document gives it.
+/// it**: the instance from the host, a node of the part from the part,
+/// each with the label that document gives it.
 #[test]
 fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_part() {
     let tol = Tol::witness();
+    // A part whose world places nothing: its instance has no copies to
+    // carry.
+    let empty = ProfileDoc::empty_derived("node-labels-inline-empty", tol);
+    let (empty, _) = block(empty, 0.0);
+    // A part one of whose nodes reads a variable the part deleted.
     let part_doc = ProfileDoc::empty_derived("node-labels-inline-part", tol);
-    let (part_doc, [_, body]) = block(part_doc, 0.0);
-    let (part_doc, body) = crate::fixture::place(part_doc, body);
+    let (part_doc, _) = step(
+        part_doc,
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::new("h").expect("a name"),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                editor_core::Dimension::Length,
+                1.0,
+            )),
+        },
+    );
+    let (part_doc, profile) = insert(
+        part_doc,
+        Node::Profile(fixture::desc(vec![square(0.0, 0.0, 0.5)])),
+    );
+    let (part_doc, body) = insert(
+        part_doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: editor_core::Formula::named(
+                editor_core::VarName::new("h").expect("a name"),
+                editor_core::Dimension::Length,
+            ),
+        },
+    );
+    let (part_doc, _) = crate::fixture::place(part_doc, body);
     let part_doc = set_label(part_doc, body, Some("bracket"));
-    // A second part whose world is two bodies.
-    let pair = ProfileDoc::empty_derived("node-labels-inline-pair", tol);
-    let (pair, [_, a]) = block(pair, 0.0);
-    let (pair, [_, b]) = block(pair, 5.0);
-    let pair = crate::fixture::place_all(pair, &[a, b]);
+    let h = part_doc.var_named("h").expect("declared");
+    let (part_doc, _) = step(part_doc, DocEdit::DeleteVar { var: h.into() });
     let mut store = PartStore::default();
+    let empty_ref = store.insert(empty, tol);
     let doc_ref = store.insert(part_doc, tol);
-    let pair_ref = store.insert(pair, tol);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
-    let host = ProfileDoc::empty_derived("node-labels-inline-host", tol);
-    // The instance stands in a space of its own: no world pin carries
-    // it, so only a part whose one world placement is an instance at
-    // the identity could take it, and this part's is a copy of a body.
-    let (host, inst) = insert(host, fixture::mated_instance(doc_ref));
-    let (host, _) = fixture::into_new_space(host, inst);
-    let host = set_label(host, inst, Some("left bracket"));
 
-    let refused = inline(&host, inst, &resolver, tol).expect_err("a plain part outside the world");
-    let InlineError::UnplaceablePart {
-        instance,
-        why: Uncarried::NotAnInstance { placement },
-    } = &refused
-    else {
-        panic!("the part's placement takes no bundle, got {refused:?}");
+    let host = ProfileDoc::empty_derived("node-labels-inline-host", tol);
+    let (host, inst) = insert(host, fixture::mated_instance(empty_ref));
+    let host = set_label(host, inst, Some("left bracket"));
+    let refused = inline(&host, inst, &resolver, tol).expect_err("a part with an empty world");
+    let InlineError::UnplaceablePart { instance, .. } = &refused else {
+        panic!("the part places no copy, got {refused:?}");
     };
     assert_eq!(
         (instance.id(), instance.label()),
         (inst, Some(&label("left bracket"))),
         "the instance is the host's, spoken from the host"
     );
+
+    let host = ProfileDoc::empty_derived("node-labels-inline-host-2", tol);
+    let (host, inst) = insert(host, fixture::mated_instance(doc_ref));
+    let refused = inline(&host, inst, &resolver, tol).expect_err("a stranded reader");
+    let InlineError::UnresolvedVarCrossesCut { node, .. } = &refused else {
+        panic!("the part's reader of a deleted variable, got {refused:?}");
+    };
     assert_eq!(
-        (placement.id(), placement.label()),
+        (node.id(), node.label()),
         (body, Some(&label("bracket"))),
-        "the placement is the part's, spoken from the part"
+        "the reader is the part's, spoken from the part"
     );
     assert!(
         refused.to_string().contains(&format!(
-            "Place \"bracket\" ({}) copies recipe content",
+            "Extrude \"bracket\" ({})",
             tag(body.0.digest())
-        )),
-        "{refused}"
-    );
-
-    let pair_host = ProfileDoc::empty_derived("node-labels-inline-pair-host", tol);
-    let opts = editor_core::EvalOptions {
-        resolver: Some(Arc::clone(&resolver)),
-        ..editor_core::EvalOptions::default()
-    };
-    let (pair_host, inst) =
-        fixture::insert_pinned(pair_host, crate::fixture::mated_instance(pair_ref), &opts);
-    let pair_host = set_label(pair_host, inst, Some("left bracket"));
-    let (consumed, by) = insert(
-        pair_host,
-        Node::Pattern {
-            input: inst.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
-                spacing: len(1.0),
-            },
-        },
-    );
-    let consumed = set_label(consumed, by, Some("offset"));
-    let refused = inline(&consumed, inst, &resolver, tol)
-        .expect_err("a reader of a two-body world has no one body to read");
-    assert!(
-        refused.to_string().starts_with(&format!(
-            "inline: Pattern \"offset\" ({b}) reads the instance's copies, and the world \
-             in question places 2 copies",
-            b = tag(by.0.digest())
         )),
         "{refused}"
     );

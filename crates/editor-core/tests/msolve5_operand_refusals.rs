@@ -154,7 +154,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), len(1.0)),
             (Coord::Slide(TargetAxis::Y), len(1.0)),
-            (Coord::Spin, ang(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
         ],
     )
 }
@@ -285,21 +285,20 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     let doc = ProfileDoc::empty(DocumentId::derive("msolve5-poisoned"), Tol::witness());
     let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    // A copy of the top's copy, lifted: it reads a copy that does not
-    // evaluate, so it is pinned nominally ([`fixture::pin_mate`]).
+    // A copy of the top's copy, lifted by values, which read no
+    // geometry of a copy that does not evaluate.
     let (doc, xf) = insert(
         doc,
         crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::Node(top),
         )]),
     );
-    let lift = fixture::pin_mate(
-        &doc,
+    let doc = fixture::pin(
+        doc,
         xf,
         &editor_core::Frame::translation([0.0, 0.0, 10.0]),
         &opts,
     );
-    let (doc, _) = fixture::constrain_at(doc, xf, lift);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {

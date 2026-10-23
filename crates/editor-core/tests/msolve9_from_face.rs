@@ -30,7 +30,7 @@ use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, EvalOptions,
     Evaluation, FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind,
     NodeResult, PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE,
-    RecipeNodeId, RoleSeg, SlotId, StableName, Target, TargetAxis, VarDef, VarKind, all_faces,
+    RecipeNodeId, RoleSeg, SlotId, StableName, TargetAxis, VarDef, VarKind, all_faces,
     face_carrier_kind, face_frame, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -167,35 +167,12 @@ fn seat(label: &str, post_height: f64) -> Seat {
     }
 }
 
-/// **`instance` standing in the world on its part's base**: its copy's
-/// start cap of `body` resting on the world's floor, the three values
-/// zero — so an edit growing the part moves its top and keeps its base
-/// where it stands.
-fn stood_on_its_base(doc: ProfileDoc, instance: RecipeNodeId, body: RecipeNodeId) -> ProfileDoc {
-    let copy = editor_core::Operand::Var(
-        doc.output(instance, 0)
-            .expect("an instance defines its copies"),
-    );
-    let mate = editor_core::Mate {
-        on: fixture::plane(editor_core::Operand::select(
-            copy,
-            vec![in_part(instance, body, CapEnd::Start)],
-        )),
-        to: editor_core::Target::World(
-            editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy).flip(),
-        ),
-        class: ContactClass::Rest,
-    };
-    fixture::with_values(
-        doc,
-        instance,
-        mate,
-        vec![
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin, ang(0.0)),
-        ],
-    )
+/// **`instance` standing in the world on its part's base**: by the
+/// identity bundle, its part's start cap on the world's `xy` — so an
+/// edit growing the part moves its top and keeps its base where it
+/// stands.
+fn stood_on_its_base(doc: ProfileDoc, instance: RecipeNodeId, _body: RecipeNodeId) -> ProfileDoc {
+    fixture::stand_again(doc, instance)
 }
 
 /// The post's cap pose, read off the post document's OWN evaluation
@@ -344,7 +321,7 @@ fn a1_the_mate_follows_the_edited_face() {
     // Nothing stored twice: the target is the face's plane, flipped —
     // a read of the face, with no number of where it was.
     let mate = fixture::constraint(&s.doc, s.mate);
-    let Target::Pose(to) = mate.to else {
+    let to = mate.to else {
         panic!("the seat's target is a pose of the post");
     };
     let flipped = match s.doc.var(to).map(editor_core::Var::def) {

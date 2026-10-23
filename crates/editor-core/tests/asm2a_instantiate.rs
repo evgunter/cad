@@ -218,43 +218,7 @@ fn repinned(
 /// names are never resolved; the mate is the shape of a pin, so the
 /// copy is the world's by its recipe.
 fn nominally_pinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
-    let copy = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => {
-            editor_core::Operand::Var(shapes.first().expect("a placement copies a shape").read)
-        }
-        Some(Node::InstantiatePart { .. }) => editor_core::Operand::Var(
-            doc.output(placement, 0)
-                .expect("an instance defines its copies"),
-        ),
-        other => panic!("node {placement} is a placement, got {other:?}"),
-    };
-    let named = |kind| StableName {
-        kind,
-        node: placement,
-        path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
-    };
-    let read = |def: editor_core::pose::PoseDef<editor_core::Operand, editor_core::Formula>| {
-        editor_core::pose::RoleRead::plain(editor_core::Operand::Pose(Box::new(def)))
-    };
-    let mate = editor_core::Mate {
-        on: editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Through {
-            axis: read(editor_core::pose::PoseDef::Axis {
-                of: editor_core::Operand::select(
-                    copy.clone(),
-                    vec![named(editor_core::EntityKind::Edge)],
-                ),
-            }),
-            point: read(editor_core::pose::PoseDef::Point {
-                of: editor_core::Operand::select(
-                    copy,
-                    vec![named(editor_core::EntityKind::Vertex)],
-                ),
-            }),
-        })),
-        to: editor_core::Target::World(editor_core::WorldRead::Frame),
-        class: editor_core::ContactClass::Rest,
-    };
-    fixture::constrain_at(doc, placement, mate).0
+    fixture::stand_again(doc, placement)
 }
 
 /// **One copy of `body`, which never evaluates, in the world**: a
@@ -654,14 +618,15 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
         .iter()
         .find(|&&id| matches!(part_doc.node(id), Some(Node::Extrude { .. })))
         .expect("the part extrudes its block");
-    let pin = editor_core::pin_at(
-        &part_doc,
-        &editor_core::Operand::Node(block),
-        &Frame::translation([1.0, 0.0, 0.0]),
-        &EvalOptions::default(),
-        Tol::witness(),
-    )
-    .expect("the block pins over its geometry");
+    let cap = fixture::plane(editor_core::Operand::select(
+        editor_core::Operand::Node(block),
+        vec![fixture::fname(block, RoleSeg::Cap(editor_core::CapEnd::Start))],
+    ));
+    let pin = editor_core::Mate {
+        on: cap.clone(),
+        to: cap,
+        class: editor_core::ContactClass::Rest,
+    };
     match editor_core::apply(
         &part_doc,
         &DocEdit::AddConstraint {

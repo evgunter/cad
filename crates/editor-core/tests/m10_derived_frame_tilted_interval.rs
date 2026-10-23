@@ -143,7 +143,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
         placement,
         editor_core::Mate {
             on: fixture::plane(start),
-            to: editor_core::Target::Pose(to),
+            to: to,
             class: editor_core::ContactClass::Rest,
         },
         vec![
@@ -155,7 +155,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
                 editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
-            (editor_core::Coord::Spin, Formula::zero(Dimension::Angle)),
+            (editor_core::Coord::Spin(editor_core::TargetAxis::Z), Formula::zero(Dimension::Angle)),
         ],
     );
     r.doc

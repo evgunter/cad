@@ -114,14 +114,7 @@ fn split_by(
 /// geometry ([`editor_core::frame_at`]): a pose a definition reads
 /// through a role.
 fn frame_on(doc: &ProfileDoc, body: RecipeNodeId, at: &editor_core::Frame) -> Operand {
-    editor_core::frame_at(
-        doc,
-        &Operand::from(body),
-        at,
-        &EvalOptions::default(),
-        Tol::witness(),
-    )
-    .expect("the body offers a frame")
+    editor_core::test_support::frame_on(doc, &Operand::from(body), at, Tol::witness())
 }
 
 /// `operand` read plainly, where a definition reads a pose.
@@ -562,7 +555,7 @@ fn numbers_and_shape(printed: &str) -> (Vec<f64>, String) {
 /// point it is built about; its coordinates may differ at the rounding
 /// level, and nowhere more.
 ///
-/// The planes are read off a block by a frame (`frame_at`) whose spins
+/// The planes are read off a block by a frame (`axes_at`) whose spins
 /// are written as angles that round (`cos(π/2)` is about 6e-17), so even
 /// the untilted line is a world axis only to rounding, and the ring
 /// moves at the rounding level there too. Each coordinate of a copy is `R·(p − c) + c` for the pivot `c`:

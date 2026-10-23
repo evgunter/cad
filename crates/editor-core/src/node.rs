@@ -1354,7 +1354,7 @@ impl SitedRef {
 /// }));
 /// let _: Mate<Formula> = Mate {
 ///     on: plane(face),
-///     to: Target::Pose(flipped),
+///     to: flipped,
 ///     class: ContactClass::Rest,
 /// };
 /// ```

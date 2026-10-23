@@ -46,7 +46,7 @@ fn face_mate(
 /// The selection a stored mate's target reads.
 fn target_var(doc: &ProfileDoc, mate: MateRef) -> editor_core::VarId {
     let stored = fixture::constraint(doc, mate);
-    let to = *stored.to.pose().expect("a mate to a pose");
+    let to = stored.to;
     let [select] = fixture::face_reads(doc, to)[..] else {
         panic!("the target reads one face")
     };

@@ -18,7 +18,7 @@ use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName,
     InterfaceCrossing, InterfaceRecord, Mate, Node, PersistError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, StableName, Target, WorldRead, apply, load, save,
+    RoleSeg, SitedFace, StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -97,17 +97,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
             editor_core::stand().bundle(),
         )),
     );
-    let instance = *host.ids().last().expect("the record's instance is live");
-    fixture::constrain_at(
-        host,
-        instance,
-        Mate {
-            on: fixture::plane(sited(instance, CapEnd::Start)),
-            to: Target::World(WorldRead::through(PoseRole::Xy)),
-            class: ContactClass::Rest,
-        },
-    )
-    .0
+    host
 }
 
 /// The record is ON THE WIRE (it was unspellable while the enum was

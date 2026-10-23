@@ -27,7 +27,7 @@ use crate::corpus::body_of;
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{face_vertices, insert, len, on_frame, out, step, table};
-use crate::fixture::{frame_at, slid, value_slot};
+use crate::fixture::{axes_at, slid, value_slot};
 
 use editor_core::{
     Coord, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
@@ -110,20 +110,20 @@ fn add(doc: ProfileDoc, root: Option<RecipeNodeId>, m: &Mem) -> (ProfileDoc, Rec
     let ((doc, body), at) = match m {
         Mem::Block(x, y, (z0, dz)) => (
             block(doc, *x, *y, *dz),
-            frame_at([0.0, 0.0, *z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            axes_at([0.0, 0.0, *z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
         ),
         Mem::Prism(loops, z0, dz) => {
             let (doc, p) = on_frame(doc, identity.0, identity.1, identity.2, loops.clone());
             (
                 extrude(doc, p, *dz),
-                frame_at([0.0, 0.0, *z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+                axes_at([0.0, 0.0, *z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
             )
         }
         Mem::Side(pts, y1, dy) => {
             let (doc, p) = on_frame(doc, identity.0, identity.1, identity.2, vec![pts.clone()]);
             (
                 extrude(doc, p, *dy),
-                frame_at([0.0, *y1, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+                axes_at([0.0, *y1, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
             )
         }
     };
@@ -1320,7 +1320,7 @@ pub(crate) fn cylinder(
     length: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, cyl) = rod(doc, length);
-    crate::fixture::against(doc, target, cyl, &frame_at(c, x, y))
+    crate::fixture::against(doc, target, cyl, &axes_at(c, x, y))
 }
 
 /// **A curved divider names in the union as it does in the pair
@@ -1906,7 +1906,7 @@ fn letter(
             crate::fixture::own_frame([0.0; 3], u, v);
             (doc, prism)
         }
-        Some(root) => crate::fixture::against(doc, root, prism, &frame_at([0.0; 3], u, v)),
+        Some(root) => crate::fixture::against(doc, root, prism, &axes_at([0.0; 3], u, v)),
     }
 }
 
