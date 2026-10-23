@@ -38,13 +38,13 @@ use geom_core::spline::KnotVector;
 
 /// The patch doors' checked net of a fixture's parts.
 #[allow(clippy::unwrap_used)] // a fixture whose counts disagree is a broken row
-pub(crate) fn patch_net(
-    ku: &KnotVector,
-    kv: &KnotVector,
+pub(crate) fn patch_net<'a>(
+    ku: &'a KnotVector,
+    kv: &'a KnotVector,
     control: &[[Interval; 3]],
     weights: &[f64],
-) -> PatchNet {
-    PatchNet::new(ku.clone(), kv.clone(), control.to_vec(), weights.to_vec()).unwrap()
+) -> PatchNet<'a> {
+    PatchNet::new(ku, kv, control, weights).unwrap()
 }
 
 /// All basis values `N_{i,p}(t)`, seeded by a `t >= knots[n]` branch at

@@ -2,8 +2,7 @@
 id: patch-doors-take-a-control-net-beside-two-vectors
 kind: issue
 title: The patch-flux doors take a control net and weights beside two knot vectors, related by count
-status: closed
-closed: 2026-10-23
+status: open
 opened: 2026-10-10
 priority: P1
 cost: M

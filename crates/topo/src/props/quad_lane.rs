@@ -1420,10 +1420,10 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         centre,
     );
     let net = PatchNet::new(
-        payload.knots_u_f64_interim().clone(),
-        payload.knots_v_f64_interim().clone(),
-        control,
-        payload.weights_f64_interim().to_vec(),
+        payload.knots_u_f64_interim(),
+        payload.knots_v_f64_interim(),
+        &control,
+        payload.weights_f64_interim(),
     )?;
     let out = quad::nurbs_patch_face_rounds::<T>(
         &net,
@@ -1651,10 +1651,10 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
         centre,
     );
     let net = PatchNet::new(
-        payload.knots_u_f64_interim().clone(),
-        payload.knots_v_f64_interim().clone(),
-        control,
-        payload.weights_f64_interim().to_vec(),
+        payload.knots_u_f64_interim(),
+        payload.knots_v_f64_interim(),
+        &control,
+        payload.weights_f64_interim(),
     )?;
     quad::trimmed_patch_face_rounds::<T>(&net, &chords, band, window, accept)
 }

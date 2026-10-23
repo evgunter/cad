@@ -13,7 +13,7 @@ use core::f64::consts::PI;
 use crate::common::arc_section;
 use geom_brep::PropsError;
 use geom_brep::props::quad::{
-    PatchNet, QUAD_TARGET_LEN_FACTOR, mean_boundary_displacement, nurbs_patch_face,
+    PatchNet, QUAD_TARGET_LEN_FACTOR, RVec3, mean_boundary_displacement, nurbs_patch_face,
 };
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::spline::KnotVector;
@@ -31,7 +31,9 @@ fn tol() -> Tol {
 
 /// `geom_brep::ssi::enclose`'s `rational_wall` (cubic × linear, weights
 /// 1.8 / 0.7), its net mapped through `map`.
-fn rational_wall(map: &dyn Fn([f64; 3]) -> [f64; 3]) -> PatchNet {
+fn rational_wall(
+    map: &dyn Fn([f64; 3]) -> [f64; 3],
+) -> (KnotVector, KnotVector, Vec<RVec3>, Vec<f64>) {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let mut control = Vec::new();
@@ -41,17 +43,17 @@ fn rational_wall(map: &dyn Fn([f64; 3]) -> [f64; 3]) -> PatchNet {
             control.push(p.map(Interval::from_f64));
         }
     }
-    PatchNet::new(
+    (
         ku,
         kv,
         control,
         vec![1.0, 1.0, 1.8, 1.8, 0.7, 0.7, 1.0, 1.0],
     )
-    .unwrap()
 }
 
 fn patch(label: &str, map: &dyn Fn([f64; 3]) -> [f64; 3]) {
-    let net = rational_wall(map);
+    let (ku, kv, control, w) = rational_wall(map);
+    let net = PatchNet::new(&ku, &kv, &control, &w).unwrap();
     let band = Band::linear(tol()).unwrap();
     let out = nurbs_patch_face::<f64>(&net, (0.0, 1.0, 0.0, 1.0), 3.8, 0.0, band, &mut |b, _| {
         Ok(mean_boundary_displacement(b.flux, b.area)? <= QUAD_TARGET_LEN_FACTOR * tol().get().eps)

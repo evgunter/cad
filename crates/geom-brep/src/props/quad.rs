@@ -1705,86 +1705,89 @@ fn finite_param(t: f64) -> Option<Param> {
 }
 
 /// **A patch's bracketed control net over its two knot vectors**, with
-/// its weights: row-major, `knots_u().control_count() ×
-/// knots_v().control_count()` points and one weight per point, checked
-/// once at [`PatchNet::new`]. It is the patch doors' one input, so no
+/// its weights: one [`TensorChannels`] of four channels — the position
+/// `(x, y, z)` and the weight as a point bracket — over the caller's
+/// vectors, borrowed. [`PatchNet::new`] checks the counts once, so no
 /// door reads a net beside vectors it is related to by count alone.
 #[derive(Clone, Debug)]
-pub struct PatchNet {
-    kv_u: KnotVector,
-    kv_v: KnotVector,
-    control: Vec<RVec3>,
-    weights: Vec<f64>,
+pub struct PatchNet<'a> {
+    net: TensorChannels<'a, 4>,
 }
 
-impl PatchNet {
+impl<'a> PatchNet<'a> {
     /// The net `control` (row-major, `v` fastest) with `weights` over
     /// `kv_u × kv_v`.
     ///
     /// # Errors
     ///
     /// [`PropsError::QuadratureUnsupported`] when `control` is not
-    /// `kv_u`'s count by `kv_v`'s, or `weights` not one per point.
+    /// `kv_u`'s count by `kv_v`'s, `weights` not one per point, or a
+    /// weight not finite.
     pub fn new(
-        kv_u: KnotVector,
-        kv_v: KnotVector,
-        control: Vec<RVec3>,
-        weights: Vec<f64>,
+        kv_u: &'a KnotVector,
+        kv_v: &'a KnotVector,
+        control: &[RVec3],
+        weights: &[f64],
     ) -> Result<Self, PropsError> {
-        let extent = kv_u.control_count().checked_mul(kv_v.control_count());
+        let nv = kv_v.control_count();
+        let extent = kv_u.control_count().checked_mul(nv);
         if extent != Some(control.len()) || weights.len() != control.len() {
             return Err(PropsError::QuadratureUnsupported {
                 what: "a patch net that does not fill its knot vectors' extent, or whose \
                        weights are not one per control point",
             });
         }
+        // A point bracket holds a finite weight exactly; a non-finite
+        // one has no point to hold.
+        if weights.iter().any(|w| !w.is_finite()) {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a patch net with a non-finite weight",
+            });
+        }
         Ok(Self {
-            kv_u,
-            kv_v,
-            control,
-            weights,
+            net: TensorChannels::from_fn(kv_u, kv_v, |i, j| {
+                let k = i * nv + j;
+                let c = control[k];
+                [c[0], c[1], c[2], pt(weights[k])]
+            }),
         })
     }
+}
 
+impl PatchNet<'_> {
     /// The `u` direction's knot vector.
     #[must_use]
     pub fn knots_u(&self) -> &KnotVector {
-        &self.kv_u
+        self.net.knots_u()
     }
 
     /// The `v` direction's knot vector.
     #[must_use]
     pub fn knots_v(&self) -> &KnotVector {
-        &self.kv_v
-    }
-
-    /// The control points, row-major.
-    #[must_use]
-    pub fn control(&self) -> &[RVec3] {
-        &self.control
-    }
-
-    /// The weights, one per control point.
-    #[must_use]
-    pub fn weights(&self) -> &[f64] {
-        &self.weights
+        self.net.knots_v()
     }
 
     /// Control point `(i, j)` and its weight.
     fn at(&self, i: usize, j: usize) -> (RVec3, f64) {
-        let k = i * self.kv_v.control_count() + j;
-        (self.control[k], self.weights[k])
+        let [x, y, z, w] = self.net.channels().map(|c| c.net().get(i, j));
+        ([x, y, z], w.lo())
+    }
+
+    /// The weights, row-major.
+    fn weights(&self) -> Vec<f64> {
+        let [.., w] = self.net.channels();
+        w.net().as_flat().iter().map(|w| w.lo()).collect()
     }
 
     /// Whether any weight is not `1.0` (exact `f64` structure, C6).
     fn is_rational(&self) -> bool {
-        self.weights.iter().any(|w| *w != 1.0)
+        self.weights().iter().any(|w| *w != 1.0)
     }
 
     /// The three channels of `f` over the net's vectors, `f` read at
     /// each control point and its weight.
     fn channels(&self, f: impl Fn(RVec3, f64) -> RVec3) -> TensorChannels<'_, 3> {
-        TensorChannels::from_fn(&self.kv_u, &self.kv_v, |i, j| {
+        TensorChannels::from_fn(self.knots_u(), self.knots_v(), |i, j| {
             let (c, w) = self.at(i, j);
             f(c, w)
         })
@@ -2869,7 +2872,7 @@ impl MeasureCells {
                no finite bound there",
     };
 
-    fn build<'n>(net: &'n PatchNet, rect: PatchRect) -> Result<Self, PropsError> {
+    fn build<'n>(net: &'n PatchNet<'_>, rect: PatchRect) -> Result<Self, PropsError> {
         let (kv_u, kv_v) = (net.knots_u(), net.knots_v());
         let (u0, u1, v0, v1) = rect.corners();
         let held =
@@ -3330,7 +3333,7 @@ fn remainder_cell_v(hu: Interval, hv: Interval) -> Interval {
 /// degenerate face, or `accept`'s own refusal.
 #[allow(clippy::too_many_lines)] // one engine, kept whole like the integral lane
 fn rational_patch_face<T: Decide>(
-    net: &PatchNet,
+    net: &PatchNet<'_>,
     rect: PatchRect,
     perimeter: f64,
     boundary_defect: f64,
@@ -3343,7 +3346,7 @@ fn rational_patch_face<T: Decide>(
     // Exact `f64` structure (C6): the rational hull property IS the
     // positive-weight hypothesis, so a non-positive weight is not a
     // tolerance question but a refusal.
-    if net.weights().iter().any(|w| *w <= 0.0 || !w.is_finite()) {
+    if net.weights().iter().any(|w| *w <= 0.0) {
         return Err(PropsError::QuadratureUnsupported {
             what: "a rational patch with a non-positive or non-finite weight: the \
                    convex-hull property (and with it every enclosure here) needs \
@@ -3668,7 +3671,7 @@ fn rational_patch_face<T: Decide>(
 /// [`PropsError`] — `accept`'s own refusal, an escalated funnel
 /// decision, a degenerate face, or the rational lane's own refusals.
 pub fn nurbs_patch_face<T: Decide>(
-    net: &PatchNet,
+    net: &PatchNet<'_>,
     rect: (f64, f64, f64, f64),
     perimeter: f64,
     boundary_defect: f64,
@@ -3703,7 +3706,7 @@ pub fn nurbs_patch_face<T: Decide>(
 /// As [`nurbs_patch_face`].
 #[allow(clippy::too_many_lines)] // one engine, kept whole like the cylinder lane
 pub fn nurbs_patch_face_rounds<T: Decide>(
-    net: &PatchNet,
+    net: &PatchNet<'_>,
     rect: (f64, f64, f64, f64),
     perimeter: f64,
     boundary_defect: f64,
@@ -4969,7 +4972,7 @@ fn polygon_winding(cells: &[TrimCell]) -> f64 {
 /// Newton–Cotes window.
 #[allow(clippy::too_many_lines)] // one engine, kept whole like the cylinder lane
 pub fn trimmed_patch_face_rounds<T: Decide>(
-    net: &PatchNet,
+    net: &PatchNet<'_>,
     chords: &[TrimChord],
     band: Band,
     window: RoundWindow,
@@ -5253,8 +5256,13 @@ mod tests {
     use geom_core::Tol;
 
     /// The checked net of a fixture's parts.
-    fn patch(ku: &KnotVector, kv: &KnotVector, control: &[RVec3], weights: &[f64]) -> PatchNet {
-        PatchNet::new(ku.clone(), kv.clone(), control.to_vec(), weights.to_vec()).unwrap()
+    fn patch<'a>(
+        ku: &'a KnotVector,
+        kv: &'a KnotVector,
+        control: &[RVec3],
+        weights: &[f64],
+    ) -> PatchNet<'a> {
+        PatchNet::new(ku, kv, control, weights).unwrap()
     }
 
     /// **A node straddling its span's end, whose true value lies past
@@ -7352,7 +7360,7 @@ mod tests {
     // ---------------------------------------------------------------
 
     /// The flat chart `S(u, v) = (u, v, c)` on `[0,1]²`, bilinear.
-    fn flat_chart(c: f64) -> PatchNet {
+    fn flat_chart(c: f64) -> (KnotVector, KnotVector, Vec<RVec3>, Vec<f64>) {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let mut control = Vec::new();
         for i in 0..2 {
@@ -7360,7 +7368,7 @@ mod tests {
                 control.push([pt(f64::from(i)), pt(f64::from(j)), pt(c)]);
             }
         }
-        PatchNet::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap()
+        (kv.clone(), kv, control, vec![1.0; 4])
     }
 
     /// One exact chord of a trim polygon (an iso image's class):
@@ -7407,7 +7415,7 @@ mod tests {
     /// Adopted from the t2q-r2 reviewer probe `curved_chart` that first
     /// executed the whole-box-hull refusal; the shape and the constants
     /// are that probe's.
-    fn curved_chart(pu: usize, pv: usize) -> PatchNet {
+    fn curved_chart(pu: usize, pv: usize) -> (KnotVector, KnotVector, Vec<RVec3>, Vec<f64>) {
         let kv = |p: usize, k: f64| {
             let mut v = vec![0.0; p + 1];
             v.push(k);
@@ -7427,12 +7435,12 @@ mod tests {
                 control.push([pt(x), pt(y), pt(z)]);
             }
         }
-        PatchNet::new(ku, kvv, control, vec![1.0; nu * nv]).unwrap()
+        (ku, kvv, control, vec![1.0; nu * nv])
     }
 
     /// The rectangle certificate on the same chart — the independent
     /// lane every curved-chart row below is measured against.
-    fn rectangle(net: &PatchNet) -> FaceCutBounds {
+    fn rectangle(net: &PatchNet<'_>) -> FaceCutBounds {
         nurbs_patch_face_rounds::<f64>(
             net,
             (0.0, 1.0, 0.0, 1.0),
@@ -7452,7 +7460,7 @@ mod tests {
 
     /// The lane over the whole schedule, at the run's own ε and band.
     fn trimmed(
-        net: &PatchNet,
+        net: &PatchNet<'_>,
         chords: &[TrimChord],
         window: RoundWindow,
     ) -> Result<LaneRun, PropsError> {
@@ -7489,7 +7497,8 @@ mod tests {
     #[test]
     fn q1_a_flat_patch_with_a_diagonal_general_trim() {
         let c = 3.0;
-        let net = flat_chart(c);
+        let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
@@ -7526,7 +7535,8 @@ mod tests {
     /// round alone.
     #[test]
     fn the_trimmed_lanes_envelope_is_a_floor() {
-        let net = flat_chart(1.0);
+        let (ku, kvv, control, w) = flat_chart(1.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             general(&[(1.0, 0.0), (0.7, 0.7), (0.0, 1.0)], 1e-2),
@@ -7559,7 +7569,8 @@ mod tests {
     #[test]
     fn q2_an_arc_trim_pads_its_lunes_and_the_pad_is_second_order() {
         let c = 1.0;
-        let net = flat_chart(c);
+        let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let arc = [(1.0, 0.0), (0.7, 0.7), (0.0, 1.0)];
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
@@ -7609,7 +7620,8 @@ mod tests {
     #[test]
     fn q3_the_rectangle_loop_agrees_with_the_rectangle_certificate() {
         let c = 2.0;
-        let net = flat_chart(c);
+        let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
@@ -7662,7 +7674,8 @@ mod tests {
     fn q4_the_planted_envelope_covers_the_displacement_it_states() {
         let c = 10.0;
         let env = 1.0e-4;
-        let net = flat_chart(c);
+        let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let square = |e: f64| {
             vec![
                 iso((0.0, 0.0), (1.0, 0.0)),
@@ -7728,7 +7741,8 @@ mod tests {
     /// independently; this fixture is the row its name says.
     #[test]
     fn q5_a_fold_over_its_chord_refuses_typed() {
-        let net = flat_chart(1.0);
+        let (ku, kvv, control, w) = flat_chart(1.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
@@ -7759,7 +7773,8 @@ mod tests {
     #[test]
     fn q5b_a_piece_that_only_looks_folded_resolves_by_bisection() {
         let c = 3.0;
-        let net = flat_chart(c);
+        let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
@@ -7789,14 +7804,16 @@ mod tests {
     #[test]
     fn the_bisection_halves_are_the_retired_doors_to_the_bit() {
         BISECTED.with(|b| b.borrow_mut().clear());
-        let net = flat_chart(1.0);
+        let (ku, kvv, control, w) = flat_chart(1.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let fold = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
             general(&[(1.0, 1.0), (2.0, 2.0), (0.0, 0.0)], 0.0),
         ];
         let _ = trimmed(&net, &fold, RoundWindow::SCHEDULE);
-        let net = flat_chart(3.0);
+        let (ku, kvv, control, w) = flat_chart(3.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let looks_folded = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
@@ -7957,7 +7974,8 @@ mod tests {
     #[test]
     fn q8_a_curved_chart_area_agrees_with_the_rectangle_lane() {
         for (pu, pv) in [(1usize, 2usize), (2, 2)] {
-            let net = curved_chart(pu, pv);
+            let (ku, kvv, control, w) = curved_chart(pu, pv);
+            let net = patch(&ku, &kvv, &control, &w);
             let rect = rectangle(&net);
             // Both triangles of the diagonal, the General walked each
             // way — `second` is the orientation the whole-box hull
@@ -8070,7 +8088,8 @@ mod tests {
     /// mutant reds on it as well as on the answer.
     #[test]
     fn q9_the_inner_rules_order_is_pinned_at_two_short_and_the_outer_at_four() {
-        let net = curved_chart(2, 2);
+        let (ku, kvv, control, w) = curved_chart(2, 2);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
@@ -8152,7 +8171,8 @@ mod tests {
     fn q10_a_fat_shared_vertex_is_paid_by_the_vertex_pad() {
         let c = 3.0;
         let d = 1.0e-4;
-        let net = flat_chart(c);
+        let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let fat = (
             Interval::from_bounds(1.0 - 2.0 * d, 1.0),
             Interval::from_bounds(1.0, 1.0 + 2.0 * d),
@@ -8201,7 +8221,8 @@ mod tests {
     #[test]
     fn q11_an_open_walk_refuses_and_an_in_bracket_gap_is_paid() {
         let c = 3.0;
-        let net = flat_chart(c);
+        let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let open = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
@@ -8259,7 +8280,8 @@ mod tests {
     #[test]
     fn q13_an_in_band_monotone_verdict_escalates() {
         let eps = Tol::witness().get().eps;
-        let net = flat_chart(1.0);
+        let (ku, kvv, control, w) = flat_chart(1.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
@@ -8755,7 +8777,8 @@ mod tests {
     /// is minted, and the rate is the refused one.
     #[test]
     fn a_trv_block_does_not_certify_a_piece_monotone() {
-        let net = flat_chart(3.0);
+        let (ku, kvv, control, w) = flat_chart(3.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let s = PatchGrid::base(&net.positions());
         let (su, sv) = (s.deriv_u(), s.deriv_v());
         let band = Band::linear(Tol::witness()).unwrap();
@@ -8797,7 +8820,8 @@ mod tests {
     #[test]
     fn a_trv_trim_endpoint_does_not_converge_the_trimmed_lane() {
         let c = 3.0;
-        let net = flat_chart(c);
+        let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let trv = trv_zero();
         let mut first = iso((0.0, 0.0), (1.0, 0.0));
         first.a = (trv, pt(0.0));
