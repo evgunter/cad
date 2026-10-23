@@ -34,7 +34,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     Assembly, AssemblyError, Attribution, CapEnd, CarriedRefusal, ContactClass, Coord, DocEdit,
     DocRef, DocumentId, EntityKey, EntityKind, Entry, Frame, Mate, MateRef, Node, Operand,
-    ProfileDoc, RecipeNodeId, Relation, RoleSeg, StableName, TargetAxis, assemble,
+    ProfileDoc, RecipeNodeId, Relation, StableName, TargetAxis, assemble,
     product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};

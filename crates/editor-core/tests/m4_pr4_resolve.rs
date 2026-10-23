@@ -159,11 +159,6 @@ fn placed_body(doc: &ProfileDoc, placement: RecipeNodeId) -> RecipeNodeId {
     }
 }
 
-/// `name`, as the copy `placement` makes wears it.
-fn worn(placement: RecipeNodeId, name: StableName) -> StableName {
-    crate::m10_5_clearance_interval::in_placement(placement, name)
-}
-
 fn slide_union(tx: f64) -> Slide {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
@@ -232,10 +227,7 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
             of: cap.clone().into(),
         },
     );
-    let cap_b = worn(
-        s.placement,
-        minted(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End)),
-    );
+    let cap_b = minted(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End));
     let wrapped_b = minted(
         EntityKind::Face,
         s.union,
@@ -1236,14 +1228,11 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         node: bl,
         path: vec![RoleSeg::From {
             read: fixture::out(&doc1, m),
-            of: worn(
-                m,
-                minted(
+            of: minted(
                     EntityKind::Face,
                     placed_body(&doc1, m),
                     RoleSeg::Cap(CapEnd::End),
-                ),
-            )
+                )
             .into(),
         }],
     };

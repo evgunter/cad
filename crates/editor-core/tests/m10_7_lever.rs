@@ -83,20 +83,13 @@ fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Recip
 }
 
 /// A named cap of the prism `body`, read at `site`: the prism itself,
-/// or a placement of it, whose copy wears the prism's name under its
-/// `Placed` layer.
+/// or a placement of it, whose copy carries the prism's name as it is.
 fn cap(ev: &Evaluation<f64>, site: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> SitedRef {
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let mut found = select(ev, body, &sel);
     assert_eq!(found.len(), 1, "one {end:?} cap on node {body:?}");
-    let name = found.remove(0);
-    let name = if site == body {
-        name
-    } else {
-        crate::m10_5_clearance_interval::in_placement(site, name)
-    };
-    SitedRef::new(site, name)
+    SitedRef::new(site, found.remove(0))
 }
 
 /// **Two square plates of half-width `half`, the upper one TILTED by

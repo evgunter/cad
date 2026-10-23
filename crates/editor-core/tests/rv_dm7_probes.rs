@@ -19,8 +19,7 @@ use crate::blocks::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::{
-    ContactClass, DocEdit, DocumentId, Maintenance, MateSide, Node, ProfileDoc, RecipeNodeId,
-    StableName, apply,
+    ContactClass, DocEdit, DocumentId, Maintenance, MateSide, Node, ProfileDoc, RecipeNodeId, apply,
 };
 use fixture::{fname, insert, len, wall};
 use geom_core::Tol;

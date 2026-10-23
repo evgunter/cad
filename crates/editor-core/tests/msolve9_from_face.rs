@@ -27,8 +27,7 @@ use std::sync::Arc;
 use editor_core::mate::SurfaceKind;
 use editor_core::pose::{PoseDef, PoseReadFault};
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation,
-    FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult,
+    CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult,
     PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId,
     RoleSeg, SlotId, StableName, VarDef, VarKind, all_faces, face_carrier_kind, face_frame, load,
     save,

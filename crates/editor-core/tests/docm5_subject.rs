@@ -117,7 +117,7 @@ fn an_empty_world_is_the_empty_product_subject() {
     assert!(
         matches!(
             product_recorded(&doc, &ev, tol).expect_err("nothing is placed"),
-            ProductError::EmptyProduct { .. }
+            ProductError::EmptyProduct
         ),
         "the premise: this is the arm the wrapper maps to a subject"
     );

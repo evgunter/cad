@@ -1257,7 +1257,7 @@ fn lower_read<P: crate::ProfilePayload>(
     let unresolved = || EditError::OperandUnresolved {
         node: spoken(),
         slot,
-        read: read.clone(),
+        read: Box::new(read.clone()),
     };
     let var = match read {
         crate::Operand::Node(id) => {
@@ -1656,14 +1656,9 @@ pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<O
     }
     for (k, &step) in of.iter().enumerate() {
         // Through the placements, to the first operation that is none.
-        let Some(mut var) = at else {
-            return None;
-        };
+        let mut var = at?;
         while let Some(inner) = source(var) {
-            match inner {
-                Some(read) => var = read,
-                None => return None,
-            }
+            var = inner?;
         }
         let members = match doc.operation_of(var).and_then(|at| doc.node(at)) {
             Some(Node::Assemble { members }) => members.rows(),
@@ -2223,8 +2218,9 @@ pub enum EditError {
         node: SpokenNode,
         /// The slot.
         slot: SlotId,
-        /// What it reads, as written.
-        read: crate::Operand,
+        /// What it reads, as written, boxed: an operand is the widest
+        /// payload a refusal carries.
+        read: Box<crate::Operand>,
     },
     /// A read names a node by itself, and the node defines several
     /// outputs (a revolve's body and axis, a split's two halves): the
@@ -2972,8 +2968,9 @@ pub enum EditError {
     /// `[operations]`): `SetProduct`'s read resolves to no variable, to
     /// a variable that is no `Body`, or to a body in another space.
     ProductRead {
-        /// The read as written.
-        read: crate::Operand,
+        /// The read as written, boxed: an operand is the widest payload
+        /// a refusal carries.
+        read: Box<crate::Operand>,
         /// Why it is no product.
         fault: ProductReadFault,
     },
@@ -8686,7 +8683,7 @@ fn product_read<P: crate::ProfilePayload>(
     read: &crate::Operand,
 ) -> Result<VarId, EditError> {
     let refused = |fault| EditError::ProductRead {
-        read: read.clone(),
+        read: Box::new(read.clone()),
         fault,
     };
     let var = match read {

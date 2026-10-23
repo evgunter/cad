@@ -4792,8 +4792,7 @@ mod properties_pane_tests {
         Option<RecipeNodeId>,
     ) {
         use pncad::document::{
-            Bodies, BodyRead, ContentPin, CopyKey, DocRef, DocumentId, Node, Operand, ProfileDoc,
-            RecipeNodeId, VarId,
+            Bodies, BodyRead, ContentPin, DocRef, DocumentId, Node, Operand, ProfileDoc, VarId,
         };
         let tol = pncad::tolerance::witness();
         let part = DocRef {
@@ -4809,10 +4808,9 @@ mod properties_pane_tests {
         let a = insert(&mut doc, Node::instantiate_part(part, world(), stand()));
         let b = insert(&mut doc, Node::instantiate_part(part, world(), stand()));
         let union = fused.then(|| {
-            // The part is never resolved, so its one copy's key is
-            // spelled here: the edges are what the admission reads.
-            let key = CopyKey::part(RecipeNodeId::new(1, 1), CopyKey::Read(VarId::new(1, 2)));
-            let copy = |instance| BodyRead::keyed(Operand::Node(instance), key.clone());
+            // An instance defines one body, its part's product: the
+            // edges are what the admission reads.
+            let copy = |instance| BodyRead::plain(Operand::Node(instance));
             let union = insert(
                 &mut doc,
                 Node::Union {
@@ -5468,14 +5466,15 @@ mod properties_pane_tests {
     }
 
     /// A cap of the startup extrude, as a face pick on its drawn copy:
-    /// the extrude's cap in the placement's wrap, on the placement.
+    /// the extrude's cap, which the copy carries as it is, on the
+    /// placement.
     fn cap_of(end: pncad::prelude::CapEnd) -> crate::session::FaceSelection {
         crate::session::FaceSelection {
             name: pncad::prelude::StableName {
                 kind: pncad::prelude::EntityKind::Face,
                 node: extrude(),
                 path: vec![pncad::prelude::RoleSeg::Cap(end)],
-            }),
+            },
             node: placement(),
             body: 0,
         }

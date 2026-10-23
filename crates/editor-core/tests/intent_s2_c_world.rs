@@ -744,7 +744,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
 /// boolean's geometry moves).
 #[test]
 fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
-    let (part, placement, read) = {
+    let (part, _placement, _read) = {
         let doc = ProfileDoc::empty(DocumentId::derive("intent-c-posed-part"), Tol::witness());
         let (doc, body) = block(doc, 0.0);
         let read = doc.output(body, 0).expect("the block defines its body");

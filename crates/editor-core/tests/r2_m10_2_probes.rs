@@ -21,7 +21,7 @@ use editor_core::{
     AssertionRelation, AssertionVerdict, Axis3, CancelToken, Dimension, DocEdit, DocumentId,
     EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
     MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
     SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
     select_where,
 };

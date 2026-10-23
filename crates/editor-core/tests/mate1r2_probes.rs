@@ -19,7 +19,7 @@ use crate::fixture;
 
 use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame,
-    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, StableName,
+    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId,
     TargetAxis, VarId, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};

@@ -150,17 +150,11 @@ fn dumbbell() -> Dumbbell {
         &[
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
             ),
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-                ),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
             ),
         ],
     );
@@ -212,10 +206,7 @@ impl<'v> Neck<'v> {
             panic!("a placement's value is one body");
         };
         let key = |seg: u32| {
-            let n = crate::m10_5_clearance_interval::in_placement(
-                f.placed,
-                fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg)),
-            );
+            let n = fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg));
             let Some(editor_core::Entry::Unique(ent)) =
                 ev.table_at(f.placed).expect("one table").lookup(&n)
             else {

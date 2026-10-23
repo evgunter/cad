@@ -73,11 +73,6 @@ fn block_on(
     (doc, b, placed)
 }
 
-/// `name`, as the copy `placement` makes wears it.
-fn worn(placement: RecipeNodeId, name: StableName) -> StableName {
-    crate::m10_5_clearance_interval::in_placement(placement, name)
-}
-
 // ---- From + Seam + OrderAlong on the overlapping union. ----
 
 #[test]
@@ -115,7 +110,7 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
             u,
             RoleSeg::From {
                 read: out(&doc, pb),
-                of: worn(pb, minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End))).into(),
+                of: minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End)).into(),
             },
         ),
     ];
@@ -156,7 +151,7 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         } else {
             RoleSeg::From {
                 read: out(&doc, pb),
-                of: worn(pb, inner).into(),
+                of: inner.into(),
             }
         };
         assert!(

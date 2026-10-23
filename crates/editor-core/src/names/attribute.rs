@@ -212,7 +212,6 @@ mod tests {
     const CUT: RecipeNodeId = RecipeNodeId::new(0, 2);
     const FILLET: RecipeNodeId = RecipeNodeId::new(0, 3);
     const PATTERN: RecipeNodeId = RecipeNodeId::new(0, 4);
-    const INSTANCE: RecipeNodeId = RecipeNodeId::new(0, 5);
 
     /// A cap face of the extrude — a name-free role, minted where it
     /// is emitted.

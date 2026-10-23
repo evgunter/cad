@@ -315,7 +315,7 @@ fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
 #[test]
 fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
     use editor_core::coincide::NamedCell;
-    use editor_core::{Proof, RoleSeg, Rung};
+    use editor_core::{Proof, Rung};
     let (doc, [a, b], store, body) = pair("f-on-own");
     let opts = with_resolver(store);
     let doc = fixture::pin(

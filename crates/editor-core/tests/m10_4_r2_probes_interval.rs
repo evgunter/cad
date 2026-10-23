@@ -390,10 +390,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
         SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
         SitedRef::new(
             b_at,
-            crate::m10_5_clearance_interval::in_placement(
-                b_at,
-                fname(b, RoleSeg::Cap(CapEnd::End)),
-            ),
+            fname(b, RoleSeg::Cap(CapEnd::End)),
         ),
     ];
     let angle = r

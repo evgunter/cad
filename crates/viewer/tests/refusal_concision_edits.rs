@@ -222,7 +222,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::OperandUnresolved {
                 node: s(5, "Extrude"),
                 slot: SlotId::Operand(pncad::document::OperandSlot::Profile),
-                read: pncad::document::Operand::Node(s(3, "Profile").id()),
+                read: Box::new(pncad::document::Operand::Node(s(3, "Profile").id())),
             },
         ),
         (

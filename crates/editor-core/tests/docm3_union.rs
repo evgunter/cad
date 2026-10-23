@@ -595,7 +595,6 @@ fn two_placements_of_one_prototype_are_two_members() {
     let prototype = |faces: Vec<StableName>| -> Vec<StableName> {
         faces
             .into_iter()
-            .map(|n| n.clone())
             .collect()
     };
     assert_eq!(

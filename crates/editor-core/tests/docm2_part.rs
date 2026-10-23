@@ -102,11 +102,6 @@ fn lift(r: &mut Recorder, input: impl Into<Operand>, dz: f64) -> RecipeNodeId {
     r.in_world(input, &editor_core::Frame::translation([0.0, 0.0, dz]))
 }
 
-/// `name`, as the placement `p` names its copy of the entity.
-fn placed(p: RecipeNodeId, name: &StableName) -> StableName {
-    name.clone()
-}
-
 /// The `Body` value of a node — a Part's, a placement's one copy — as
 /// the Arc it holds.
 fn body_arc(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Arc<Body<f64>> {
@@ -435,7 +430,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     assert!(ev.value(rounded).is_some(), "{:?}", error_of(&ev, rounded));
     for name in &selection {
         assert_eq!(
-            denotation(&ev, moved, &placed(moved, name)),
+            denotation(&ev, moved, &name.clone()),
             Ok(Denotation::Unique),
             "{name} resolves through the port as it did on the split"
         );
@@ -449,7 +444,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     // re-anchored to a congruent above-half edge.
     for name in &below_rows {
         assert_eq!(
-            denotation(&ev, moved, &placed(moved, name)),
+            denotation(&ev, moved, &name.clone()),
             Err(editor_core::InterrogateError::NoSuchName),
             "{name} is the other half's"
         );
@@ -908,7 +903,7 @@ fn a_tie_the_split_separates_is_unique_through_each_port() {
         assert_eq!(candidates.len(), 2, "{name}: one candidate per half");
         for (p, h) in [(above, SplitHalf::Above), (below, SplitHalf::Below)] {
             assert_eq!(
-                denotation(&ev, p, &placed(p, name)),
+                denotation(&ev, p, &name.clone()),
                 Ok(Denotation::Unique),
                 "{name} is unique through the {h:?} port"
             );

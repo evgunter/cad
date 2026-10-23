@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::resolver::{InPart, PartStore, placement_of, with_resolver};
+use crate::fixture::resolver::{InPart, PartStore, with_resolver};
 use crate::fixture::{
     self, at_the_door_of, insert, len, mated_instance, on_frame, run, square, step,
 };
@@ -19,7 +19,7 @@ use editor_core::pose::PoseDef;
 use editor_core::{
     BodyRead, CapEnd, ContactClass, DocEdit, DocumentId, EditError, EvalOptions, Formula,
     Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
-    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
+    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, VarId,
 };
 use geom_core::Tol;
 use geom_core::UnitVec3;
@@ -219,7 +219,7 @@ fn copies_placed_into_a_new_space_are_in_it_not_the_world() {
     assert!(
         matches!(
             editor_core::product_recorded(&doc, &ev, Tol::witness()),
-            Err(ProductError::EmptyProduct { .. })
+            Err(ProductError::EmptyProduct)
         ),
         "an empty world"
     );
@@ -308,7 +308,7 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
     assert!(
         matches!(
             editor_core::product_recorded(&doc, &ev, Tol::witness()),
-            Err(ProductError::EmptyProduct { .. })
+            Err(ProductError::EmptyProduct)
         ),
         "an empty world"
     );

@@ -39,11 +39,11 @@ use std::sync::Arc;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand,
+    EvalOptions, Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand,
     ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
     VarName, all_vertices, evaluate, vertex_position,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
 use geom_core::{Dual64, Interval, Tol};
 
@@ -150,14 +150,6 @@ fn parts(label: &str) -> Parts {
     }
 }
 
-/// **`name`, an entity of a part's body, as `instance` wears it**:
-/// under the placement the part's world copies the body by, inside the
-/// instance's `InPart` wrapper.
-fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: &StableName) -> StableName {
-    let placed = name.clone();
-    placed
-}
-
 /// A pose slid `by` along a direction or an axis's direction.
 fn slid(pose: Operand, along: RoleRead<Operand>, by: Formula) -> Operand {
     Operand::Pose(Box::new(PoseDef::Slide {
@@ -204,14 +196,14 @@ impl Parts {
     fn bolt_edge(&self, bolt: RecipeNodeId, k: usize) -> Operand {
         fixture::axis(SitedRef::new(
             bolt,
-            worn(bolt, self.bolt_body, &self.bolt_names.lateral[k]),
+            self.bolt_names.lateral[k].clone(),
         ))
     }
     /// The slab's lateral edge `k`, as an axis `slab` places.
     fn slab_edge(&self, slab: RecipeNodeId, k: usize) -> Operand {
         fixture::axis(SitedRef::new(
             slab,
-            worn(slab, self.slab_body, &self.slab_names.lateral[k]),
+            self.slab_names.lateral[k].clone(),
         ))
     }
     /// **One of the slab's two side directions**, as an axis: the `x`
@@ -224,7 +216,7 @@ impl Parts {
                 self.slab_edge(slab, 0),
                 fixture::point_of(SitedRef::new(
                     slab,
-                    worn(slab, self.slab_body, &self.slab_names.corner[k]),
+                    self.slab_names.corner[k].clone(),
                 )),
             ),
             PoseRole::X,
@@ -606,7 +598,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         };
         through(
             edge,
-            fixture::point_of(SitedRef::new(at, worn(at, body, &corner))),
+            fixture::point_of(SitedRef::new(at, corner.clone())),
         )
     };
     let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(

@@ -14,7 +14,7 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, DocEdit, EntityKind, EvalOptions, MetaValue, NameRef, Node, PatternKind, PersistError,
+    CapEnd, DocEdit, EntityKind, EvalOptions, MetaValue, Node, PatternKind, PersistError,
     ProfileDoc, RecipeNodeId, RoleSeg, StableName, all_faces, canonical_bytes, content_pin, load,
     remap_name, save,
 };

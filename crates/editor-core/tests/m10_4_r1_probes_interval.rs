@@ -157,10 +157,7 @@ fn stepped_shaft_sized(
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(
             boss,
-            crate::m10_5_clearance_interval::in_placement(
-                boss,
-                fname(boss_raw, RoleSeg::Cap(CapEnd::End)),
-            ),
+            fname(boss_raw, RoleSeg::Cap(CapEnd::End)),
         ),
     ];
     let m = r

@@ -2438,7 +2438,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::OperandUnresolved {
             node: sp(1),
             slot: SlotId::Operand(OperandSlot::Profile),
-            read: Operand::Node(id(2)),
+            read: Box::new(Operand::Node(id(2))),
         },
         &["node", "slot"],
     );

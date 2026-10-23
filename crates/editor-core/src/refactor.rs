@@ -3104,7 +3104,7 @@ pub fn split(
                 error: Box::new(EditError::OperandUnresolved {
                     node: doc.spoken(old),
                     slot: crate::SlotId::Operand(slot),
-                    read: crate::Operand::Var(var),
+                    read: Box::new(crate::Operand::Var(var)),
                 }),
             },
             RemapMiss::PayloadRead { var } => SplitError::PartEdit {
@@ -3872,7 +3872,7 @@ pub fn inline(
                 error: Box::new(EditError::OperandUnresolved {
                     node: part.spoken(old),
                     slot: crate::SlotId::Operand(slot),
-                    read: crate::Operand::Var(var),
+                    read: Box::new(crate::Operand::Var(var)),
                 }),
             },
             RemapMiss::PayloadRead { var } => InlineError::Edit {
@@ -4183,7 +4183,7 @@ pub fn inline(
     }
     // The product reads the new placement's copy where it read the
     // instance's.
-    if doc.product().is_some_and(|read| reads_instance(read)) {
+    if doc.product().is_some_and(reads_instance) {
         step(
             &mut current,
             DocEdit::SetProduct {

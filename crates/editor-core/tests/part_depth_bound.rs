@@ -102,7 +102,7 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
             _ => None,
         })
         .collect();
-    let [(copy, union)] = worlds[..] else {
+    let [(_copy, union)] = worlds[..] else {
         panic!("a leaf places its union once");
     };
     let read = leaf.output(block, 0).expect("the block defines its output");

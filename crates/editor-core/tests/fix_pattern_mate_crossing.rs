@@ -35,7 +35,7 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    ProfileDoc, RecipeNodeId, RoleSeg,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{in_copy, insert, len, on_frame, scl};
@@ -281,7 +281,7 @@ fn a_pattern_headed_mate_is_an_edge_and_reads_the_pattern_input_instance() {
 #[test]
 fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_its_placement() {
     let o = legs_reach();
-    let (doc, leg, pattern, top, mate, leg_body) = four_legs("fix-xs-torn");
+    let (doc, leg, pattern, top, _mate, _leg_body) = four_legs("fix-xs-torn");
     let across = editor_core::split(
         &doc,
         &cut(&doc, [leg, pattern]),

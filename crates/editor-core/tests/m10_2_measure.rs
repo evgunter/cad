@@ -878,7 +878,7 @@ fn a_measure_at_a_placement_reads_the_placed_carrier() {
             SitedRef::new(solid, vname.clone()),
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(placed, vname),
+                vname,
             ),
         ],
     )

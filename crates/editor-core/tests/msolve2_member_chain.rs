@@ -33,11 +33,11 @@ use editor_core::AuthoredNode;
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
     CapEnd, ContactClass, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
+    FreeValue, FreeVar, Mate, MateFault, MateRef, MateSide, Node, NodeErrorKind,
     NodeResult, Operand, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
     StableName, VarId, VarName, product,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
 use fixture::{ang, gate, in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
@@ -67,14 +67,6 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
             distance: len(h),
         },
     )
-}
-
-/// **`name`, an entity of the part's body, as `instance` wears it**:
-/// under the placement the part's world copies the body by, inside the
-/// instance's `InPart` wrapper.
-fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: StableName) -> StableName {
-    let placed = name;
-    placed
 }
 
 /// The part's own names for what a seat reads: two lateral edges, at
@@ -244,7 +236,7 @@ impl Scene {
 
     /// `name`, an entity of the top's part, as the top wears it.
     fn on_top(&self, name: &StableName) -> StableName {
-        worn(self.top, self.top_body, name.clone())
+        name.clone()
     }
 
     /// **The seat of `cap` on the copy read at `at` under `wrap`**: one
@@ -260,7 +252,7 @@ impl Scene {
         wrap: &dyn Fn(StableName) -> StableName,
     ) -> Vec<Mate<Formula>> {
         let read = |name: &StableName| SitedRef::new(at, wrap(self.on_top(name)));
-        let own = |name: &StableName| SitedRef::new(cap, worn(cap, self.top_body, name.clone()));
+        let own = |name: &StableName| SitedRef::new(cap, name.clone());
         let slid = |pose: Operand, along: &StableName| {
             Operand::Pose(Box::new(PoseDef::Slide {
                 pose: RoleRead::plain(pose),

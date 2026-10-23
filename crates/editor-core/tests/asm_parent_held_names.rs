@@ -89,12 +89,6 @@ fn part_wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, k: u32) -> Stable
     fixture::fname(ext, fixture::wall(doc, ext, k))
 }
 
-/// The same wall as the parent names it: the part's own name, which
-/// its placement's copy and the instance's carry verbatim.
-fn held(_instance: RecipeNodeId, _placement: RecipeNodeId, of: &StableName) -> StableName {
-    of.clone()
-}
-
 /// The corners of the face a parent-held name denotes, sorted.
 fn corners(
     ev: &Evaluation<f64>,
@@ -129,7 +123,7 @@ fn corners(
 /// removed.
 #[test]
 fn a_parents_held_name_follows_its_step_across_a_pin_update() {
-    let (v1, profile, ext, placement) = part();
+    let (v1, profile, ext, _) = part();
     let wall = part_wall(&v1, ext, 1);
     let v1_painted = apply(
         &v1,
@@ -176,7 +170,7 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
 
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
     let (parent, instance) = insert(parent, crate::fixture::mated_instance(r1));
-    let name = held(instance, placement, &wall);
+    let name = wall.clone();
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
@@ -274,7 +268,7 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
 /// the paint `Vanished`, rather than re-denoting B's leg.
 #[test]
 fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them() {
-    let (base, profile, ext, placement) = part();
+    let (base, profile, ext, _) = part();
     let a = with_leg(&base, profile, 2, (3.0, 1.0));
     let b = with_leg(&base, profile, 3, (1.0, 3.0));
     let a_new = step_ids(&a, profile)[2];
@@ -313,7 +307,7 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     };
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
     let (parent, instance) = insert(parent, crate::fixture::mated_instance(ra));
-    let name = held(instance, placement, &wall(a_new));
+    let name = wall(a_new).clone();
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
@@ -359,7 +353,7 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     let b_leg = corners(
         &after_ev,
         instance,
-        &held(instance, placement, &wall(b_new)),
+        &wall(b_new).clone(),
     );
     assert!(
         b_leg.contains(&(2.0, 2.0, 0.0)) && b_leg.contains(&(1.0, 3.0, 0.0)),

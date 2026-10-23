@@ -28,7 +28,7 @@ use editor_core::{
     save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, head, head_at, insert, len, on_frame, solve, step};
+use fixture::{ang, head_at, insert, len, on_frame, solve, step};
 use geom_core::linalg::Affine3;
 use geom_core::{Point3, Tol, Vec3};
 use test_utils::source;

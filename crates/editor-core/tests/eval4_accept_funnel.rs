@@ -17,8 +17,7 @@ use editor_core::Formula;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocumentId, Frame, MateRef, Node, ProfileDoc, RecipeNodeId,
-    StableName, TargetAxis, inline,
+    CapEnd, ContactClass, Coord, DocumentId, Frame, MateRef, Node, ProfileDoc, RecipeNodeId, TargetAxis, inline,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, offset_of, on_frame, square};

@@ -22,7 +22,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
-    Evaluation, MateFault, MateRef, MateSide, NameRef, Node, Operand, PatternKind, ProfileDoc,
+    Evaluation, MateFault, MateRef, MateSide, Node, Operand, PatternKind, ProfileDoc,
     RecipeNodeId, RoleSeg, StableName, VarId, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
@@ -1480,14 +1480,8 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) 
         },
     );
     let nest = |n: StableName| in_copy(outer, j, in_copy(inner, i, n));
-    // The name the `Part` carries: the placed copy's, where it reads one.
-    let carried = |n: StableName| {
-        if via_placed {
-            nest(n)
-        } else {
-            nest(n)
-        }
-    };
+    // The name the `Part` carries, a placed copy carrying its source's.
+    let carried = nest;
     // Read where the `Part` is copied into the world.
     let a = (part, nest(base_part.cap(base, CapEnd::End).name));
     let b = top_part.cap(top, CapEnd::Start);

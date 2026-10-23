@@ -4097,8 +4097,8 @@ fn moved_pieces<T: Decide>(
         .map(|piece| {
             Ok(super::Piece {
                 motion: Some(match &piece.motion {
-                    None => map.clone(),
-                    Some(inner) => map.compose(inner.clone()).map_err(NodeErrorKind::Motion)?,
+                    None => *map,
+                    Some(inner) => map.compose(*inner).map_err(NodeErrorKind::Motion)?,
                 }),
                 pieces: moved_pieces(piece.pieces.as_ref(), Some(map))?,
                 ..piece.clone()

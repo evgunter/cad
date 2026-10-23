@@ -241,15 +241,6 @@ pub(crate) fn slid_by(
     placement
 }
 
-/// **A name worn by the copy `placement` makes**: the name its body
-/// minted, which a copy carries verbatim.
-pub(crate) fn in_placement(
-    _placement: RecipeNodeId,
-    of: editor_core::StableName,
-) -> editor_core::StableName {
-    of
-}
-
 /// A copy of `input` slid by `by` along its own +x ([`slid_by`]).
 fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeId {
     slid_by(r, input, input, [by, len(0.0), len(0.0)])

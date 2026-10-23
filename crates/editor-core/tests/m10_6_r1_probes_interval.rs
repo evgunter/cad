@@ -187,10 +187,7 @@ fn notch(
                 crate::fixture::sited_ref(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
                 SitedRef::new(
                     block_at,
-                    crate::m10_5_clearance_interval::in_placement(
-                        block_at,
-                        fixture::fname(block, RoleSeg::Cap(CapEnd::Start)),
-                    ),
+                    fixture::fname(block, RoleSeg::Cap(CapEnd::Start)),
                 ),
             ],
         )
@@ -474,17 +471,11 @@ fn web_across(
             &[
                 SitedRef::new(
                     placed,
-                    crate::m10_5_clearance_interval::in_placement(
-                        placed,
-                        fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
-                    ),
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
                 ),
                 SitedRef::new(
                     placed,
-                    crate::m10_5_clearance_interval::in_placement(
-                        placed,
-                        fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                    ),
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
                 ),
             ],
         )
@@ -781,17 +772,11 @@ fn neck_related(
             &[
                 SitedRef::new(
                     placed,
-                    crate::m10_5_clearance_interval::in_placement(
-                        placed,
-                        fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                    ),
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
                 ),
                 SitedRef::new(
                     placed,
-                    crate::m10_5_clearance_interval::in_placement(
-                        placed,
-                        fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
-                    ),
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
                 ),
             ],
         )
@@ -980,17 +965,11 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
             &[
                 SitedRef::new(
                     placed,
-                    crate::m10_5_clearance_interval::in_placement(
-                        placed,
-                        fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
-                    ),
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
                 ),
                 SitedRef::new(
                     placed,
-                    crate::m10_5_clearance_interval::in_placement(
-                        placed,
-                        fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                    ),
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
                 ),
             ],
         )
@@ -1105,10 +1084,7 @@ fn bracket(
             &[
                 SitedRef::new(
                     post,
-                    crate::m10_5_clearance_interval::in_placement(
-                        post,
-                        fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
-                    ),
+                    fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
                 ),
                 crate::fixture::sited_ref(fixture::fname(base, fixture::wall(&r.doc, base, 3))),
             ],
@@ -1125,14 +1101,11 @@ fn bracket(
             &[
                 SitedRef::new(
                     post,
-                    crate::m10_5_clearance_interval::in_placement(
-                        post,
-                        editor_core::StableName {
+                    editor_core::StableName {
                             kind: editor_core::EntityKind::Body,
                             node: post_solid,
                             path: vec![RoleSeg::OutputBody],
                         },
-                    ),
                 ),
                 crate::fixture::sited_ref(editor_core::StableName {
                     kind: editor_core::EntityKind::Body,

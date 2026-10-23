@@ -427,17 +427,11 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         &[
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
             ),
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-                ),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
             ),
         ],
     );

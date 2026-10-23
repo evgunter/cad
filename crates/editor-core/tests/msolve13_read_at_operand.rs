@@ -23,7 +23,7 @@ use editor_core::{
     RecipeNodeId, SitedFace, SplitError, StableName, VarId, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{gate, head, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve};
+use fixture::{gate, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve};
 use geom_core::Tol;
 
 // ---- the scene ----

@@ -17,7 +17,7 @@ use crate::p2_gauges::{body_of, pinned, seat, seat_on, set_pin};
 
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
-    FreeValue, FreeVar, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, StableName, VarName,
+    FreeValue, FreeVar, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, VarName,
     evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -628,7 +628,7 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
     assert!(said.contains("Recourse:"), "{said}");
     match editor_core::assemble(&doc, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => assert!(
-            matches!(*e, editor_core::ProductError::EmptyProduct { .. }),
+            matches!(*e, editor_core::ProductError::EmptyProduct),
             "{e:?}"
         ),
         other => panic!("the gate raises the world's refusal: {other:?}"),
@@ -1003,7 +1003,7 @@ fn the_gate_checks_each_new_space_whatever_the_world_holds() {
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r2-space-gate"), Tol::witness());
     let (doc, x) = insert(doc, fixture::mated_instance(p.base));
-    let (doc, space) = fixture::into_new_space(doc, x);
+    let (doc, _space) = fixture::into_new_space(doc, x);
     let (doc, a) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat_on(doc, a, head(p.top_cap(a)), head(p.base_cap(x)), [0.5, 1.0]);
     let (doc, group) = assembled_in_space(doc, &[x, a]);

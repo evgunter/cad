@@ -138,11 +138,6 @@ fn rekeyed(name: &StableName, to: editor_core::VarId) -> StableName {
     name
 }
 
-/// Wraps a part-local name under an instance — the bridge's own form.
-fn wrap(instance: RecipeNodeId, of: &StableName) -> StableName {
-    of.clone()
-}
-
 /// What `doc` places, in its placements' document order — the order
 /// the product gathers its copies in: an instance itself, since it is
 /// its own placement, and the body a one-shape `Place` copies.

@@ -1245,48 +1245,6 @@ pub(crate) fn record_fold_row(
     });
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{axes_at, moves_at};
-    use crate::{Coord, Formula, TargetAxis};
-
-    /// **A frame's quarter turns are read about the axes they turn
-    /// about**: a frame turned a quarter about each of the target
-    /// space's axes, and one turned about `x` then `z`, read back as
-    /// those spins, each `turn/4`, in the chain's order.
-    ///
-    /// *Breaks if* a turn about one axis is labelled with another.
-    #[test]
-    fn a_quarter_turn_is_read_about_its_own_axis() {
-        let quarter = Formula::turn_over(4).expect("a quarter turn");
-        let spins = |at| -> Vec<(Coord, Formula)> {
-            moves_at(&at)
-                .into_iter()
-                .filter(|(c, _)| matches!(c, Coord::Spin(_)))
-                .collect()
-        };
-        for (axis, x, y) in [
-            (TargetAxis::X, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-            (TargetAxis::Y, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
-            (TargetAxis::Z, [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]),
-        ] {
-            assert_eq!(
-                spins(axes_at([0.0; 3], x, y)),
-                vec![(Coord::Spin(axis), quarter.clone())],
-                "a quarter turn about {axis:?}"
-            );
-        }
-        // About x, then z: x ↦ y, y ↦ z, z ↦ x.
-        assert_eq!(
-            spins(axes_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])),
-            vec![
-                (Coord::Spin(TargetAxis::X), quarter.clone()),
-                (Coord::Spin(TargetAxis::Z), quarter),
-            ],
-        );
-    }
-}
-
 /// **The product a document whose world placements were its product
 /// had** (D10 `[operations]`): the slot set to its one world copy, or
 /// to a `⊔` of its world copies in document order, written through the
@@ -1394,4 +1352,46 @@ pub fn world_product_edits(
         },
     );
     (doc, log)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{axes_at, moves_at};
+    use crate::{Coord, Formula, TargetAxis};
+
+    /// **A frame's quarter turns are read about the axes they turn
+    /// about**: a frame turned a quarter about each of the target
+    /// space's axes, and one turned about `x` then `z`, read back as
+    /// those spins, each `turn/4`, in the chain's order.
+    ///
+    /// *Breaks if* a turn about one axis is labelled with another.
+    #[test]
+    fn a_quarter_turn_is_read_about_its_own_axis() {
+        let quarter = Formula::turn_over(4).expect("a quarter turn");
+        let spins = |at| -> Vec<(Coord, Formula)> {
+            moves_at(&at)
+                .into_iter()
+                .filter(|(c, _)| matches!(c, Coord::Spin(_)))
+                .collect()
+        };
+        for (axis, x, y) in [
+            (TargetAxis::X, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            (TargetAxis::Y, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+            (TargetAxis::Z, [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]),
+        ] {
+            assert_eq!(
+                spins(axes_at([0.0; 3], x, y)),
+                vec![(Coord::Spin(axis), quarter.clone())],
+                "a quarter turn about {axis:?}"
+            );
+        }
+        // About x, then z: x ↦ y, y ↦ z, z ↦ x.
+        assert_eq!(
+            spins(axes_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])),
+            vec![
+                (Coord::Spin(TargetAxis::X), quarter.clone()),
+                (Coord::Spin(TargetAxis::Z), quarter),
+            ],
+        );
+    }
 }
