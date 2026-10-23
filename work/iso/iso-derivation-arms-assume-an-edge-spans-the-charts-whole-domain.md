@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-14
 priority: P1
 cost: H
+branch: iso/arc-rim-sub-arc
 pr: 5630
 ---
 
