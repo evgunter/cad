@@ -2,11 +2,12 @@
 id: a-symmetric-parts-seam-is-not-walked-as-one-construction
 kind: unit
 title: The coincidence walk stops at a mirror, so a symmetric part's seam is glued by value where D10 says it is one construction read twice
-status: dispatched
+status: review
 opened: 2026-10-22
 priority: P1
 cost: M
 branch: intent/mirror-seam-walk
+pr: 5616
 refs: [a-mirror-is-a-construction]
 ---
 
