@@ -7139,8 +7139,8 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
 /// a mate alone ([`crate::mate::solve::admit_mate`]) — its `on` reads
 /// the copy, its two poses are of one kind, its class is admitted. The
 /// bundle as a whole, every value's freedom included, is
-/// [`admit_bundle_make_up`]'s. The one call every edit that
-/// writes a constraint ([`DocEdit::writes_a_mates_datum`]) makes.
+/// [`admit_bundle_make_up`]'s. The one call every edit that writes a
+/// constraint (`DocEdit::writes_a_mates_datum`, a test roster) makes.
 fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
     new: &Doc<P>,
     placement: RecipeNodeId,
