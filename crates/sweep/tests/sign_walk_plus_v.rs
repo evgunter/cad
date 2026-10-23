@@ -353,3 +353,45 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
          reporting target — otherwise the sign level is a name and not a level"
     );
 }
+
+/// **THE NARROWER BRACKET HOLDS THE CLOSED FORM** — where the sign walk
+/// refined a face PAST the resolution, [`topo::SignCertificate::measure`]
+/// keeps that face's narrower enclosure (a face run's one transition
+/// keeps the narrower of two), while the reporting door stops every face at the
+/// first round meeting the resolution. The two doors then differ in the
+/// bits of exactly the faces the sign walk took further: here the
+/// strip's two walls, whose fluxes nearly cancel, so deciding the sign
+/// needs a width far under the volume `2·s²·delta` while the number
+/// only needs the resolution. The row pins that the narrower bracket is
+/// a true one: it is strictly narrower, and it still holds the closed
+/// form.
+#[test]
+fn the_sign_walks_narrower_bracket_holds_the_closed_form() {
+    let tol = Tol::witness();
+    let s = 1.0e6 * tol.get().eps;
+    let delta = 1.0e-4 * s;
+    let want = 2.0 * s * s * delta;
+    let body = strip_loft(s, delta, false).expect("the strip lofts at every ε row");
+    let cert = topo::validate_geometric_certificate(&body, tol)
+        .unwrap_or_else(|errors| panic!("tier 3 admits the strip: {errors:?}"));
+    let reported = topo::test_support::unmigrated_measure(&body, tol)
+        .unwrap_or_else(|e| panic!("the reporting door measures the strip: {e}"));
+    let measured = cert
+        .measure()
+        .unwrap_or_else(|e| panic!("the certificate measures the strip: {}", e.refusal));
+    assert!(
+        measured.volume_pad < reported.volume_pad,
+        "the sign walk refined the walls past the resolution, so the certificate's pad \
+         {:e} must be under the reporting door's {:e}",
+        measured.volume_pad,
+        reported.volume_pad
+    );
+    for (door, p) in [("certificate", &measured), ("reporting door", &reported)] {
+        assert!(
+            (p.volume - want).abs() <= p.volume_pad,
+            "the {door}'s bracket {:e} ± {:e} must hold the closed form {want:e}",
+            p.volume,
+            p.volume_pad
+        );
+    }
+}

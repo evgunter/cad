@@ -51,15 +51,13 @@ pub enum Settle<T: Real> {
     Resolution(Length),
 }
 
-/// **A relation an assertion states** (`[assertions]`: `≤`, `≥`, `=`).
+/// **A relation an assertion states** (`[assertions]`: `≤`, `≥`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RelOp {
     /// At most the bound.
     Le,
     /// At least the bound.
     Ge,
-    /// Equal to the bound, to within the band.
-    Eq,
 }
 
 /// **The names a sign is decided under**: the walk's own sums under
@@ -157,7 +155,6 @@ pub(crate) fn relation_step<T: Decide>(
         RelOp::Le if above => Step::Settled(false),
         RelOp::Ge if above => Step::Settled(true),
         RelOp::Ge if below => Step::Settled(false),
-        RelOp::Eq if below || above => Step::Settled(false),
         _ => {
             // Undecided at both ends: wholly in the band where neither end
             // reads a definite side, else straddling it.
@@ -214,17 +211,16 @@ mod tests {
     }
 
     /// **A relation settles when definite, refines while it straddles,
-    /// and stops in the band**, read at each of its three operators.
+    /// and stops in the band**, read at each of its operators.
     #[test]
     fn a_relation_settles_refines_or_stops_in_the_band() {
         let eps = Tol::witness().eps();
         let (b, band) = (1.0, band());
-        for (what, enclosure, le, ge, eq) in [
+        for (what, enclosure, le, ge) in [
             (
                 "wholly below",
                 e(0.5, 0.6),
                 Step::Settled(true),
-                Step::Settled(false),
                 Step::Settled(false),
             ),
             (
@@ -232,19 +228,11 @@ mod tests {
                 e(1.4, 1.5),
                 Step::Settled(false),
                 Step::Settled(true),
-                Step::Settled(false),
             ),
-            (
-                "straddling",
-                e(0.5, 1.5),
-                Step::Refine,
-                Step::Refine,
-                Step::Refine,
-            ),
+            ("straddling", e(0.5, 1.5), Step::Refine, Step::Refine),
             (
                 "in the band",
                 e(b - 0.1 * eps, b + 0.1 * eps),
-                Step::Band,
                 Step::Band,
                 Step::Band,
             ),
@@ -258,11 +246,6 @@ mod tests {
                 relation_step(enclosure, RelOp::Ge, b, "t", band),
                 ge,
                 "{what}: ≥"
-            );
-            assert_eq!(
-                relation_step(enclosure, RelOp::Eq, b, "t", band),
-                eq,
-                "{what}: ="
             );
         }
     }

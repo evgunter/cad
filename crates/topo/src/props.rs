@@ -593,6 +593,9 @@ fn resolution_runs<T: Decide>(
     quad: Option<QuadLane<T>>,
     len: f64,
 ) -> Result<Vec<FaceRun<T>>, MassPropsError> {
+    // INTERIM: a panic while the only resolutions are the number doors'
+    // own, which are never finer than ε. Unit C, where the caller states
+    // the resolution, makes it a typed refusal.
     assert!(
         len >= tol.eps(),
         "a resolution of {len} m, finer than ε = {} m: the model defines no measure that fine",
@@ -3135,7 +3138,7 @@ mod measure_door_rows {
             Stop::Settled(Verdict::Holds(false)),
             "V ≥ 2"
         );
-        assert_eq!(stop(&cube, relation(RelOp::Eq, 1.0)), Stop::Band, "V = 1");
+        assert_eq!(stop(&cube, relation(RelOp::Le, 1.0)), Stop::Band, "V ≤ 1");
         assert_eq!(
             stop(
                 &cube,
@@ -4385,16 +4388,18 @@ pub struct ShellClassification<T: Real> {
     pub shell: ShellKey,
     /// The solid owning it ([`crate::entity::Shell::solid`]).
     pub solid: SolidKey,
-    /// The shell's signed enclosed volume (midpoint; bracket
-    /// `± volume_pad`).
+    /// The midpoint of the shell's signed volume enclosure as the role's
+    /// read left it: the sign walk's where the role was read off the
+    /// volume, round 0's otherwise. An enclosure, not a measured volume.
     pub volume: T,
-    /// Half-width of the quadrature's volume bracket (m³); `0.0` when
-    /// every face of the shell took a closed form, which states nothing
-    /// of the value's rounding ([`MassProperties`]).
+    /// Half-width of that enclosure (m³); `0.0` when every face of the
+    /// shell took a closed form, which states nothing of the value's
+    /// rounding ([`MassProperties`]).
     pub volume_pad: f64,
-    /// The shell's surface area (midpoint; bracket `± area_pad`).
+    /// The midpoint of the shell's surface-area enclosure, from the same
+    /// read as `volume`.
     pub surface_area: T,
-    /// Certified half-width of the area bracket (m²).
+    /// Certified half-width of that area enclosure (m²).
     pub area_pad: f64,
     /// The decided role. A solid's only shell is `Outer` by arity, not
     /// by a reading of its orientation: on an unvalidated body it is
