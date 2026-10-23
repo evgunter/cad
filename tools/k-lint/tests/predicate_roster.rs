@@ -36,7 +36,8 @@
 //!   found in the mint's own enclosing function, and that binding's
 //!   value `QUAD_TARGET_LEN_FACTOR * eps` with the factor finite and
 //!   positive;
-//! - **every mint whose margin derives from `target_len` is rostered**
+//! - **every mint whose margin derives from `target_len` is rostered**,
+//!   or excused by name in `EPS_COUPLED_UNRULED` (empty today)
 //!   — the ADDED direction, closed for `target_len`-derived mints in
 //!   these sources and for nothing wider;
 //! - **every `classify_len` in these sources is a parsed mint or the
@@ -93,7 +94,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use k_lint::EPS_COUPLED_PREDICATES;
+use k_lint::{EPS_COUPLED_PREDICATES, EPS_COUPLED_UNRULED};
 use std::sync::OnceLock;
 use test_utils::source;
 
@@ -511,19 +512,26 @@ fn the_rostered_familys_margin_is_still_eps_scaled_at_its_mint() {
 /// gets ruled on here, instead of being judged by rules (2) and (3)
 /// with nobody noticing the question was open.
 #[test]
-fn every_target_len_mint_is_rostered() {
+fn every_target_len_mint_is_rostered_or_excused() {
     for (path, _, mint) in kernel_mint_sites() {
         if !uses_target(&mint.margin) {
             continue;
         }
         let name = mint.name.as_str();
         assert!(
-            EPS_COUPLED_PREDICATES.contains(&name),
+            EPS_COUPLED_PREDICATES.contains(&name)
+                || EPS_COUPLED_UNRULED.iter().any(|(n, _)| *n == name),
             "{name:?} is minted in {path} with margin {:?} — a headroom against the ε-scaled \
              `{TARGET}`, which is the property rule (4) exempts a family for — but it is not on \
-             EPS_COUPLED_PREDICATES. Rule it: a line on the roster, or a ruling in \
-             docs/K-REPORT.md saying why the metre rules are right for it",
+             EPS_COUPLED_PREDICATES nor excused in EPS_COUPLED_UNRULED. Rule it: a line on the \
+             roster, or a line in EPS_COUPLED_UNRULED saying why the metre rules are right for it",
             mint.margin
+        );
+    }
+    for (name, _) in EPS_COUPLED_UNRULED {
+        assert!(
+            !EPS_COUPLED_PREDICATES.contains(name),
+            "{name:?} is both rostered and excused from the roster"
         );
     }
 }

@@ -80,7 +80,9 @@ const CORPUS_EPS: f64 = 1e-9;
 
 /// Möbius-reparameterized quarter cylinder (weight ratio 100), exact-v.
 const MOEBIUS_FLOOR: f64 = 3.149_977_622_964e-8;
-/// Warped bilinear with 1e-1/1e1 weights.
+/// Warped bilinear with 1e-1/1e1 weights. Round 7's own width: the
+/// 1.295834045203e-5 that stood here was the budget exit's lower bound
+/// on it, as for [`QUARTER_TORUS_FLOOR`] (4e-6 relative wider).
 const HYPAR_FLOOR: f64 = 1.295_839_630_913e-5;
 /// Quarter torus, R = 2 m, r = 0.5 m. Round 7's own width: a pin of
 /// 4.648e-8 stood here while the budget exit refused this carrier, and
@@ -89,7 +91,9 @@ const HYPAR_FLOOR: f64 = 1.295_839_630_913e-5;
 const QUARTER_TORUS_FLOOR: f64 = 4.687_047_770_243e-8;
 /// Bilinear unit square with a 1e-3/1e3 weight spread: the enclosure
 /// is uselessly wide, but it is a WIDTH rather than a degeneracy (see
-/// the row for why).
+/// the row for why). Round 7's own width: the 6.357819236722e5 that
+/// stood here was the budget exit's lower bound on it, as for
+/// [`QUARTER_TORUS_FLOOR`] (1e-9 relative wider).
 const SQUARE_FLOOR: f64 = 6.357_819_244_047e5;
 /// Unit sphere octant (degenerate pole row). Round 7's own width; the
 /// 2.907e-8 that stood here was the budget exit's lower bound on it, as
@@ -1097,4 +1101,96 @@ fn probe_interval_scalar_agrees() {
         }
         (x, y) => panic!("f64 and Interval disagree on the OUTCOME: {x:?} vs {y:?}"),
     }
+}
+
+/// The quarter torus `(R, r)` over `θ, φ ∈ [0, π/2]` as `spans × spans`
+/// degree-2 conic spans (each a rational quadratic arc of
+/// `π/(2·spans)`, joined at double knots): the surface of revolution of
+/// the minor arc about `z` (Piegl–Tiller), with weights `w_i·w_j`.
+fn conic_quarter_torus(
+    rr: f64,
+    r: f64,
+    spans: usize,
+) -> (KnotVector, Vec<[Interval; 3]>, Vec<f64>) {
+    #[allow(clippy::cast_precision_loss)]
+    let a = core::f64::consts::FRAC_PI_2 / spans as f64;
+    let mut knots = vec![0.0; 3];
+    for k in 1..spans {
+        #[allow(clippy::cast_precision_loss)]
+        let t = k as f64 / spans as f64;
+        knots.extend([t, t]);
+    }
+    knots.extend([1.0; 3]);
+    let kv = KnotVector::clamped(knots, 2).expect("a clamped conic knot vector");
+    // The unit arc's control points and weights over [0, π/2].
+    let mut unit: Vec<((f64, f64), f64)> = vec![((1.0, 0.0), 1.0)];
+    for k in 0..spans {
+        #[allow(clippy::cast_precision_loss)]
+        let (a0, a1) = (a * k as f64, a * (k + 1) as f64);
+        let m = 0.5 * (a0 + a1);
+        let c = (0.5 * a).cos();
+        unit.push(((m.cos() / c, m.sin() / c), c));
+        unit.push(((a1.cos(), a1.sin()), 1.0));
+    }
+    let mut net = Vec::new();
+    let mut weights = Vec::new();
+    // u: the minor (profile) arc, `(d, z) = (R + r·cos φ, r·sin φ)`;
+    // v: the major arc about z.
+    for &((cx, sx), wu) in &unit {
+        let (d, z) = (rr + r * cx, r * sx);
+        for &((ca, sa), wv) in &unit {
+            net.push(p(d * ca, d * sa, z));
+            weights.push(wu * wv);
+        }
+    }
+    (kv, net, weights)
+}
+
+/// The quarter torus's area and its flux `∫ S·n dA` about the origin
+/// (outward normal), closed form.
+fn quarter_torus_closed(rr: f64, r: f64) -> (f64, f64) {
+    let h = core::f64::consts::FRAC_PI_2;
+    let area = h * r * (rr * h + r);
+    let flux = h * r * (rr * rr + rr * r * core::f64::consts::FRAC_PI_4 + rr * r * h + r * r);
+    (flux, area)
+}
+
+/// **The wall bounds work, not rounds** (`FACE_WORK_WALL`'s doc). The
+/// quarter torus at 12× (R = 24 m, r = 6 m) on one conic span a
+/// direction certifies at round 7, as the round caps did, and on 7×7
+/// spans too. On 9×9 (PR 5589's first reviewer's witness) every round
+/// costs more cells than the calibrating face's: it stops at the wall
+/// after round 6, and round 6's bracket holds the closed-form flux and
+/// area. The flux is read about the origin with the patch's normal
+/// inward, so its value is `−∫ S·n dA`.
+#[test]
+fn a_conic_torus_costlier_per_round_stops_at_the_wall_holding_its_closed_form() {
+    use geom_core::interval::certification::Certification;
+    let (rr, r) = (24.0, 6.0);
+    let (flux, area) = quarter_torus_closed(rr, r);
+    let (kv, net, w) = conic_quarter_torus(rr, r, 9);
+    let run = nurbs_patch_face::<f64>(
+        &kv,
+        &kv,
+        &net,
+        &w,
+        (0.0, 1.0, 0.0, 1.0),
+        2.0 * core::f64::consts::FRAC_PI_2 * (rr + r) + 2.0 * core::f64::consts::FRAC_PI_2 * r,
+        0.0,
+        crate::shared::tol::band(),
+        &mut to_target(CORPUS_EPS),
+    )
+    .expect("the conic torus has an enclosure");
+    assert_eq!((run.end, run.rounds), (LaneEnd::Wall, 7), "{run:?}");
+    assert!(
+        run.bounds.flux.contains(-flux),
+        "flux {:?} misses {}",
+        run.bounds.flux,
+        -flux
+    );
+    assert!(
+        run.bounds.area.contains(area),
+        "area {:?} misses {area}",
+        run.bounds.area
+    );
 }

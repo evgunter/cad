@@ -945,8 +945,8 @@ mod length_fuzz;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::props::quad::LaneEnd;
     use crate::props::quad::test_target::to_target;
+    use crate::props::quad::{LaneEnd, LaneStop};
 
     /// One loop's share of a face's edge lists.
     fn part(spirics: usize, rims: usize, meridians: usize) -> WallLoopParts {
@@ -1168,6 +1168,44 @@ mod tests {
             assert_eq!((a.lo(), a.hi()), (-b.hi(), -b.lo()));
         }
         assert!(f[3].contains(-(2.1 - 0.3)), "dv = σ·span, got {:?}", f[3]);
+    }
+
+    /// **A lever in the cap's own plane still carries the moment's
+    /// width.** The flux reads `J` through `Σₖ leverₖ·nₖ·r·J`, component
+    /// by component, so with the oval's normal along `(1, −1, 0)` and a
+    /// lever along `(1, 1, 0)` the real product `lever·n` is zero while
+    /// each component carries `J`'s width. The lane's removable part
+    /// must read it component-wise: read as `|lever·n|` it would be
+    /// zero, and the cap would stop at its floor at round 0 with every
+    /// round's width still removable.
+    #[test]
+    fn a_lever_in_the_caps_plane_keeps_the_moments_width_removable() {
+        let (_, (c, _)) = cases().swap_remove(5);
+        let (mut e, ..) = edge(c);
+        let h = pt(core::f64::consts::FRAC_1_SQRT_2);
+        e.normal = [h, -h, Interval::zero()];
+        let face = SpiricFaceQ {
+            closed_va: [Interval::zero(); 3],
+            spirics: vec![e],
+            lever: [pt(3.0), pt(3.0), Interval::zero()],
+            perimeter: 1.0,
+            wall: None,
+        };
+        let mut first = None;
+        let _ = spiric_face_rounds::<f64>(
+            &face,
+            Band::linear(geom_core::Tol::witness()).unwrap(),
+            RoundWindow::SCHEDULE,
+            &mut |_, stop| {
+                first.get_or_insert(stop);
+                Ok(true)
+            },
+        );
+        assert_eq!(
+            first,
+            Some(LaneStop::Refinable),
+            "round 0's moment width is removable, so the cap is not at its floor"
+        );
     }
 
     /// Over a whole period the chord and endpoint terms vanish and the

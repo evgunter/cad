@@ -125,11 +125,23 @@ fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
     // At ε = 1e-12 the target is a thousand times tighter and the
     // blade's number may stay open; the sign is the claim there.
     match topo::mass_properties(&body, tol) {
-        Ok(measured) => assert!(
-            enclosure.volume_lo <= measured.volume && measured.volume <= enclosure.volume_hi,
-            "the blade's number {} sits in the gate's bracket {enclosure:?}",
-            measured.volume
-        ),
+        Ok(measured) => {
+            assert!(
+                enclosure.volume_lo <= measured.volume && measured.volume <= enclosure.volume_hi,
+                "the blade's number {} sits in the gate's bracket {enclosure:?}",
+                measured.volume
+            );
+            if tol.eps() == geom_core::tolerance::DEFAULT_EPS {
+                assert_eq!(
+                    (measured.volume.to_bits(), measured.volume_pad.to_bits()),
+                    (
+                        0.034_605_949_150_085_524_f64.to_bits(),
+                        4.641_116_114_016_224e-7_f64.to_bits()
+                    ),
+                    "the blade's bits at the default ε: {measured:?}"
+                );
+            }
+        }
         Err(MassPropsError::Face {
             source: geom_brep::PropsError::QuadratureBudget { .. },
             ..
@@ -167,12 +179,11 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
             ..
         }) => {
             assert!(width_len > target_len, "{source:?}");
-            if let Some(carried) = certificate.target_refusal() {
-                assert_eq!(
-                    carried, &source,
-                    "the certificate carries the door's refusal"
-                );
-            }
+            assert_eq!(
+                certificate.target_refusal(),
+                Some(&source),
+                "the certificate carries the door's refusal"
+            );
         }
         other => panic!(
             "the reporting door refuses the tube's number at the wall at ε = {:e}: {other:?}",

@@ -218,6 +218,27 @@ fn findings_in_any_file_fail_the_run() {
     assert!(stderr(&out).contains("1 margin(s)"));
 }
 
+/// **A row of an unruled ε-coupled name is counted on its own**, by
+/// the scan the CLI gates on. `k_lint::EPS_COUPLED_UNRULED` is empty
+/// today (its one entry, `props_quad_last_round`, retired with the
+/// quadrature budget exit), so the guard is driven here with a
+/// synthetic entry through `k_lint::lint_csv_ruled`. The margin is on
+/// the REFUSAL side and far above `BASELINE_FLOOR_MARGIN`, so every
+/// metre rule passes it clean: without the name gate this row would be
+/// a silent green. What this row cannot reach while the list is empty
+/// is the CLI's own voice for it (`main.rs`'s `discipline`), which the
+/// next entry brings back under test.
+#[test]
+fn an_unruled_eps_coupled_row_is_counted_by_name() {
+    const RULED: &[(&str, &str)] = &[("synthetic_unruled", "a test entry")];
+    let text = format!("{HEADER}\ncorpus/x,synthetic_unruled,-1.83e-4,1e-12,1e-11,negative\n");
+    let scan = k_lint::lint_csv_ruled(&text, RULED).expect("a well-formed file");
+    assert!(scan.flags.is_empty(), "no metre rule flags this row");
+    assert_eq!(scan.unruled, vec![("synthetic_unruled", 1)]);
+    let none = k_lint::lint_csv(&text).expect("a well-formed file");
+    assert!(none.unruled.is_empty(), "the committed list is empty");
+}
+
 /// Rule (2)'s ZERO arm is a tally, never a finding: a zero-classified
 /// margin above `band_zero / 10²` prints per predicate with the
 /// largest `|m| / band_zero` and the row it came from, and the run

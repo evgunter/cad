@@ -69,7 +69,7 @@ use std::process::{Command, Stdio};
 
 use k_lint::{
     AMBIENT_BAND_MIN, BASELINE_FLOOR_MARGIN, EPS_COUPLED_FLOOR_RATIO, EPS_COUPLED_PREDICATES,
-    PROXIMITY_FACTOR, Reason, lint_csv, lint_sample, zero_arm_usage,
+    EPS_COUPLED_UNRULED, PROXIMITY_FACTOR, Reason, lint_csv, lint_sample, zero_arm_usage,
 };
 
 /// The era the shipped thresholds were cut from — the one
@@ -303,6 +303,54 @@ fn eps_coupled_floor_ratio_is_re_derivable_from_the_m7_population() {
         "the doc claims 8.9% of headroom; re-derived it is {:.3}%",
         headroom * 100.0
     );
+}
+
+/// **The other half of the population above: the names ruled OUT of
+/// it, and the claim that ruling rests on** ([`EPS_COUPLED_UNRULED`]).
+///
+/// Each entry is ε-coupled by the same reading as the rostered family
+/// and is off rule (4) because the population the constant above is
+/// cut from carries no draw of it. That is a statement about [`M7`],
+/// so it is checked against [`M7`], on every run, beside the cut it
+/// qualifies.
+///
+/// **Today it checks nothing, and that is worth knowing rather than
+/// hiding.** The list is empty: its one entry, `props_quad_last_round`,
+/// retired with the quadrature budget exit. The guard is for the next
+/// entry: [`M7`] moves in this file when a later era supersedes it, and
+/// that is the same commit that re-cuts [`EPS_COUPLED_FLOOR_RATIO`]. This
+/// row makes that commit answer the question instead of re-cutting the
+/// floor from a population that has an excused family in it.
+///
+/// It says nothing about a FRESH sweep, which no committed file can.
+/// The live half is [`k_lint::Scan`]'s `unruled` column, which makes a
+/// row of an entry a finding in its own right and is pinned in
+/// `tests/cli_contract.rs` with a synthetic entry.
+#[test]
+fn the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from() {
+    // Empty today (`props_quad_last_round` retired with the budget
+    // exit); the loop is the guard for the next entry.
+    for &(name, why) in EPS_COUPLED_UNRULED {
+        assert!(
+            !EPS_COUPLED_PREDICATES.contains(&name),
+            "{name:?} is both rostered and ruled off the roster"
+        );
+        for row in ROWS {
+            let mut seen = 0usize;
+            for_each_row(M7, row, |r| {
+                if r.predicate == name {
+                    seen += 1;
+                }
+            });
+            assert_eq!(
+                seen, 0,
+                "{name:?} carries {seen} row(s) in the {M7}{row} era that \
+                 EPS_COUPLED_FLOOR_RATIO is cut from, and it is ruled OFF rule (4) on the \
+                 grounds that it has no draw there. It has one now: re-cut the floor over this \
+                 family too, or re-state the reason. On record: {why}"
+            );
+        }
+    }
 }
 
 /// **[`AMBIENT_BAND_MIN`], re-derived as an interval.** Its doc says

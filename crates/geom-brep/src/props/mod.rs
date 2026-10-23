@@ -775,8 +775,9 @@ impl core::fmt::Display for PropsError {
                 rounds,
             } => write!(
                 f,
-                "a face's certified contribution stayed {width_len:.3e} m wide after {rounds} \
-                 refinement round(s), above the {target_len:.3e} m this tolerance targets. {}",
+                "a face's quadrature stopped after {rounds} refinement round(s) without its \
+                 certified contribution meeting the {target_len:.3e} m this tolerance targets; \
+                 its narrowest enclosure is {width_len:.3e} m wide. {}",
                 quadrature_budget_recourse(*width_len)
             ),
             Self::QuadratureUnsupported { what } => write!(
