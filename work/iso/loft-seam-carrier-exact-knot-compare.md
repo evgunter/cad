@@ -8,6 +8,7 @@ github: 1316
 refs: [1314]
 priority: P0
 cost: H
+branch: iso/loft-seam-per-row-lane
 pr: 5629
 ---
 
@@ -49,3 +50,38 @@ Moved from `work/cert/` to `work/trim/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## Measured on main (2026-10-23, ISO measurement lane, `e4045c3132`)
+
+Still live. TRIM-1 (PR 2095) re-worded the refusal; it now reads
+`IsoUnsupported { what: "the seam carrier is not the chart's own column
+(its knot/weight structure differs from the traversed row's) — the hull
+comparison needs one spline space" }`, raised in `pcurve_cache.rs`
+`seam_envelope` at the `shared_knots`/`shared_weights` check, always at
+`HalfEdgeKey(11v1)`, reached from `sweep::loft` `assemble` →
+`topo::mint_pcurves`. Pure-translation `loft_body::<f64>`, three
+arc-bearing profiles (identical results) and a square control,
+sections at heights in `[0, 2]`:
+
+| arc profiles | n=3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|
+| deg 1, any spacing | ok | ok | ok | ok | ok | ok | ok |
+| deg 2 uniform | ok | refuses | ok | ok | refuses | refuses | ok |
+| deg 2 `0.6t + 0.4t²` | ok | ok | ok | refuses | refuses | refuses | refuses |
+| deg 2 jittered | refuses | ok | refuses | refuses | refuses | refuses | refuses |
+| deg 3, any spacing | (needs 4) | refuses | refuses | refuses | refuses | refuses | refuses |
+
+The square never refuses here. Every cell that built also passed
+tier 3, `validate_pseudomanifold` and a re-mint. Not measured: which
+of the knot or weight compares fails per cell.
+
+The mechanism is
+`a-rational-wall-beside-an-integral-one-skins-its-shared-corner-off-unit-weight`
+(moved here from CARVE to ride with this row): `skin_on` picks the
+homogeneous lane for the whole surface, so the rational wall's corner
+column, integral in every section, comes out with LU-synthesized
+weights an ulp off `1.0` against its integral neighbour's exact `1.0`.
+The fix it names, the lane chosen per control row, is `skin`'s own
+integral-in ⇒ integral-out contract at the granularity the seam needs,
+and acts at the producer, so the certifier's exact one-spline-space
+test stays as it is.
