@@ -22,7 +22,13 @@
 //! its plane, so a cell on the plane's face read through the mirror is
 //! that cell read again. A plane read off a face is that face's
 //! construction ([`plane`]), so a split's section face and the face its
-//! tool reads are one origin. Provenance is the document's: the walk
+//! tool reads are one origin. A split's halves each hold a copy of one
+//! crossing, its sense against that half, and the walk reads both
+//! against the `Above` half ([`crossing`]), so the two copies are one
+//! construction. A row laying an edge or a vertex on a face is that
+//! rung's where the one lies on the face as its minter built it
+//! ([`lies_on`]): a rim on its cap, a split's crossing vertex or
+//! section edge on its tool's plane. Provenance is the document's: the walk
 //! reads the recipe and the names, never a stamp the kernel carries.
 //!
 //! **A mate is that rung's statement** (`[coincidence.structural]`): two
@@ -622,6 +628,7 @@ pub fn prove<P: crate::ProfilePayload>(
                 .zip(walked)
                 .map(|(row, constructions)| {
                     !(one_construction(constructions)
+                        || on_by_construction(doc, row, constructions, tol)
                         || stated_by_a_mate(doc, row, constructions, tol))
                 })
                 .collect()
@@ -700,6 +707,24 @@ fn one_construction(constructions: &[Result<Construction, Unwalked>]) -> bool {
         }
         _ => false,
     }
+}
+
+/// **The first rung's laying of an edge or a vertex on a face**: a row
+/// that lays one cell on the other's face ([`topo::Relation::OnCarrier`])
+/// where the one lies on that face as its minter built it ([`lies_on`]).
+fn on_by_construction<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    row: &NamedCoincidence,
+    constructions: &[Result<Construction, Unwalked>],
+    tol: geom_core::Tol,
+) -> bool {
+    use crate::names::EntityKind;
+    let face = |cell: &NamedCell| matches!(cell, NamedCell::Entity { name, .. } if name.kind == EntityKind::Face);
+    let ([Ok(a), Ok(b)], [ka, kb]) = (constructions, row.cells.as_slice()) else {
+        return false;
+    };
+    row.relation == topo::Relation::OnCarrier
+        && ((face(ka) && lies_on(doc, b, a, tol)) || (face(kb) && lies_on(doc, a, b, tol)))
 }
 
 /// **The first rung's statement by a mate** (`[coincidence.structural]`):
@@ -793,6 +818,9 @@ fn lies_on<P: crate::ProfilePayload>(
     face: &Construction,
     tol: geom_core::Tol,
 ) -> bool {
+    if on_its_tool(doc, cell, face, tol) {
+        return true;
+    }
     let (Origin::Minted(cell_name), Origin::Minted(face_name)) = (&cell.origin, &face.origin)
     else {
         return false;
@@ -818,6 +846,46 @@ fn lies_on<P: crate::ProfilePayload>(
                 .is_ok_and(|pieces| pieces.bounds(run, v))
         };
     on_face(cell_name, face_name, &bounds)
+}
+
+/// **Whether `cell` is a split's crossing vertex or section edge and
+/// `face` its tool's plane** ([`plane`]), or, for a section edge, the
+/// operand face it runs across: each lies there as the split built it,
+/// read through the maps above the split. A half's copy of an operand
+/// vertex the tool happens to pass through (`OnToolVertex`) lies there
+/// by its values alone, and is not one.
+fn on_its_tool<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    cell: &Construction,
+    face: &Construction,
+    tol: geom_core::Tol,
+) -> bool {
+    let Origin::Minted(name) = &cell.origin else {
+        return false;
+    };
+    let seg = name.path.first();
+    if !matches!(
+        seg,
+        Some(RoleSeg::CrossingVertex { .. } | RoleSeg::SectionEdge { .. })
+    ) {
+        return false;
+    }
+    let Some(Node::Split { target, tool }) = doc.node(name.node) else {
+        return false;
+    };
+    let below = |on: Construction| Construction {
+        origin: on.origin,
+        maps: cell.maps.iter().copied().chain(on.maps).collect(),
+    };
+    if *face == below(plane(doc, tool, tol)) {
+        return true;
+    }
+    match seg {
+        Some(RoleSeg::SectionEdge { face: across }) => {
+            construction(doc, target.read, across, tol).is_ok_and(|on| *face == below(on))
+        }
+        _ => false,
+    }
 }
 
 /// [`lies_on`] by the two minted names. `bounds` answers whether a
@@ -954,7 +1022,8 @@ fn side_copies<P: crate::ProfilePayload>(
 /// construction ([`plane`]), or one lying on that face ([`lies_on`]),
 /// is the source's cell read again. A minted role ends the walk,
 /// except a split's section face, which lies on the split's tool
-/// ([`plane`]). A carried segment names the entity in the read that
+/// ([`plane`]), and a crossing vertex, read against the split's
+/// `Above` half ([`crossing`]). A carried segment names the entity in the read that
 /// segment says — a `From`'s own read, an `Instance`'s pattern input,
 /// a one-body operation's target — where the walk continues.
 ///
@@ -1007,6 +1076,13 @@ pub fn construction<P: crate::ProfilePayload>(
                         })
                     }
                     (RoleSeg::SectionFace, _) => Err(Unwalked::Misplaced(at)),
+                    (RoleSeg::CrossingVertex { .. }, Node::Split { .. }) => {
+                        let half = split_half(doc, read).ok_or(Unwalked::Misplaced(at))?;
+                        Ok(Construction {
+                            origin: Origin::Minted(crossing(name, half)),
+                            maps,
+                        })
+                    }
                     _ => {
                         let mut minted = name;
                         minted
@@ -1026,6 +1102,37 @@ pub fn construction<P: crate::ProfilePayload>(
         at = operation(doc, at, read)?;
         name = of;
     }
+}
+
+/// **The half of a split the read `read` reads**: the split's output
+/// port it is, through a selection of it. `None` for any other read.
+fn split_half<P>(doc: &crate::doc::Doc<P>, read: crate::VarId) -> Option<crate::SplitHalf> {
+    let read = doc.selection(read).map_or(read, |select| select.body);
+    match doc.var(read)?.def() {
+        crate::var::VarDef::Output { port, .. } => {
+            crate::SplitHalf::of_output_body(u32::from(*port))
+        }
+        _ => None,
+    }
+}
+
+/// **A split's crossing vertex as one construction across its halves**:
+/// the split, the crossed edge and the sense read against the
+/// [`crate::SplitHalf::Above`] half. Each half holds its own copy of a
+/// crossing, its sense against that half, so the `Below` copy's sense
+/// is the `Above` copy's flipped. A crossing holds one piece of the
+/// edge on each side, so its sense always crosses. Its ranking
+/// qualifiers are kept: crossings of one sense are ranked along the
+/// crossed edge as the target holds it, which the two halves share,
+/// and the `Above` copy's crossings of one sense are the `Below`
+/// copy's crossings of the other.
+fn crossing(mut name: StableName, half: crate::SplitHalf) -> StableName {
+    if half == crate::SplitHalf::Below
+        && let Some(RoleSeg::CrossingVertex { sense, .. }) = name.path.first_mut()
+    {
+        *sense = sense.flipped();
+    }
+    name
 }
 
 /// **The operation defining the read `read`** that `at` takes (D10).

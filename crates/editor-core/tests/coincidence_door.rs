@@ -813,10 +813,13 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     };
     assert_eq!(a.origin, coincide::Origin::Pose(tool.read, tool.role));
     assert_eq!(a, b);
+    // The halves' copies of one crossing are one construction: the
+    // split, the crossed edge and the sense against the `Above` half.
     for proof in proofs(&doc, union, &got) {
-        assert!(
-            matches!(proof, Proof::Structural(_)),
-            "every row of the reunion is one construction: {proof:?}"
+        assert_eq!(
+            proof,
+            Proof::Structural(Rung::SameConstruction),
+            "every row of the reunion is one construction, with no replay"
         );
     }
     let report = editor_core::run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
@@ -833,6 +836,149 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         "a proven row is not reported: {:?}",
         report.findings
     );
+}
+
+/// Whether `cell` names a split's crossing vertex.
+fn a_crossing(cell: &NamedCell) -> bool {
+    matches!(cell, NamedCell::Entity { name, .. }
+        if matches!(name.path.first(), Some(RoleSeg::CrossingVertex { .. })))
+}
+
+/// **A split's crossing vertex lies on its tool's plane, and so on the
+/// face the plane is read off.** A unit block `X` standing in a wider
+/// slab `Y` half as tall is split by the plane of `Y`'s top, and `X`'s
+/// upper half is unioned with `Y`. The four crossings of `X`'s struts
+/// lie on `Y`'s top as the split built them, and the section face is
+/// `Y`'s top read again, so every row the union decides there is the
+/// first rung's, with no replay. The replay cannot prove the crossings
+/// at any budget: the plane's normal is the document's, opaque to the
+/// tier.
+///
+/// *Breaks if* a crossing vertex is not read as lying on its split's
+/// tool plane.
+#[test]
+fn a_split_on_a_faces_plane_lays_its_crossings_on_that_face() {
+    let doc = ProfileDoc::empty_derived("coincide-crossings-on-a-face", Tol::witness());
+    let (doc, slab) = block(doc, (-1.0, 2.0), (-1.0, 2.0), 0.5);
+    let (doc, x) = block_on(doc, slab, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let tool = crate::fixture::plane_on(&doc, slab, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: x.into(),
+            tool,
+        },
+    );
+    let upper = port(&doc, split, SplitHalf::Above);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![upper.into(), slab.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let got = rows(&ev, union);
+    let crossings: Vec<&NamedCoincidence> = got
+        .iter()
+        .filter(|r| r.relation == Relation::OnCarrier && r.cells.iter().any(a_crossing))
+        .collect();
+    assert_eq!(
+        crossings.len(),
+        4,
+        "the premise: each strut's crossing on the slab's top: {got:?}"
+    );
+    for (row, proof) in got.iter().zip(proofs(&doc, union, &got)) {
+        assert_eq!(
+            proof,
+            Proof::Structural(Rung::SameConstruction),
+            "the union's row over the slab's top is one construction: {row:?}"
+        );
+    }
+}
+
+/// **A half's copy of an operand vertex the tool passes through stays
+/// a coincidence of values**: a unit cube turned off every axis stands
+/// in a slab, levelled so that one of its middle corners is at the
+/// slab's top by the numbers alone. The cube is split by the plane of
+/// the slab's top, and its upper half is unioned with the slab. That
+/// corner's copy (`OnToolVertex`) lies on the slab's top where its
+/// values put it, not as the split built it, so the row laying it
+/// there is no first-rung proof, and the check reports it. The
+/// crossings beside it lie on the top by construction.
+///
+/// *Breaks if* an `OnToolVertex` is read as lying on its split's tool
+/// by construction.
+#[test]
+fn a_corner_the_tool_passes_through_is_not_on_it_by_construction() {
+    use geom_core::Point3;
+    let band = geom_core::Band::linear(Tol::witness()).expect("the witness band");
+    let turn =
+        editor_core::Frame::rotate_then_translate([1.0, 2.0, 3.0], 0.4, [0.5, 0.5, 0.25], band)
+            .expect("a turn about a unit axis");
+    let mut heights: Vec<f64> = [0.0, 1.0]
+        .into_iter()
+        .flat_map(|x| {
+            [0.0, 1.0]
+                .into_iter()
+                .flat_map(move |y| [0.0, 1.0].map(|z| [x, y, z]))
+        })
+        .map(|[x, y, z]| turn.affine::<f64>().transform_point(Point3::new(x, y, z)).z)
+        .collect();
+    heights.sort_by(f64::total_cmp);
+    let level = heights[3];
+    let doc = ProfileDoc::empty_derived("coincide-on-tool-vertex", Tol::witness());
+    let (doc, slab) = block(doc, (-2.0, 3.0), (-2.0, 3.0), level);
+    let (doc, cube) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, cube) = crate::fixture::against(doc, slab, cube, &turn);
+    let tool = crate::fixture::plane_on(&doc, slab, [0.0, 0.0, level], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: cube.into(),
+            tool,
+        },
+    );
+    let upper = port(&doc, split, SplitHalf::Above);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![upper.into(), slab.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let got = rows(&ev, union);
+    let on_tool = |cell: &NamedCell| {
+        matches!(cell, NamedCell::Entity { name, .. }
+            if matches!(name.path.first(), Some(RoleSeg::OnToolVertex { .. })))
+    };
+    let proven = proofs(&doc, union, &got);
+    let laid: Vec<(&NamedCoincidence, &Proof)> = got
+        .iter()
+        .zip(&proven)
+        .filter(|(r, _)| r.relation == Relation::OnCarrier && r.cells.iter().any(on_tool))
+        .collect();
+    assert_eq!(
+        laid.len(),
+        1,
+        "the premise: the levelled corner laid on the slab's top: {got:?}"
+    );
+    for (row, proof) in &laid {
+        assert!(
+            matches!(proof, Proof::Unproven { .. }),
+            "a corner on the tool by its values is unproven: {row:?} {proof:?}"
+        );
+    }
+    for (row, proof) in got.iter().zip(&proven) {
+        if row.cells.iter().any(a_crossing) {
+            assert_eq!(
+                *proof,
+                Proof::Structural(Rung::SameConstruction),
+                "a crossing lies on the top by construction: {row:?}"
+            );
+        }
+    }
 }
 
 /// Two unit blocks apart along x, their caps and y-walls on one

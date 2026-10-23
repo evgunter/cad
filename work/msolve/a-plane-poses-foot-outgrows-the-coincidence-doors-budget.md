@@ -1,31 +1,49 @@
 ---
 id: a-plane-poses-foot-outgrows-the-coincidence-doors-budget
 kind: issue
-title: A split's tool plane read at its foot outgrows the coincidence door's symbolic budget
-status: open
+title: A split's crossing vertices on its tool plane are no first-rung construction, and the Sym replay cannot prove them
+status: closed
 opened: 2026-10-23
+closed: 2026-10-23
 priority: P1
 cost: M
 refs: [a-plane-poses-in-plane-origin-enters-the-mate-coset]
+pr: 5624
 ---
 
-Found by the implementer of `a-plane-poses-in-plane-origin-enters-the-mate-coset` (branch `msolve/plane-pose-holds-its-invariants`), measured.
+Found by the implementer of `a-plane-poses-in-plane-origin-enters-the-mate-coset` (PR 5624), measured.
 
-A plane pose's value is now `{ normal, offset }`, and a split or a mirror reads its point as the plane's foot, `offset · normal` (`PoseValue::plane_foot` in `crates/editor-core/src/pose.rs`, read by `plane_of` in `crates/editor-core/src/verbs/split.rs` and `wire_mirror` in `crates/editor-core/src/eval/wire.rs`). That is what the row's Decided section rules.
+When a plane pose's value became `{ normal, offset }`, a split began reading its point on the plane as the foot, `offset · normal`. After that, `coincidence_door::a_reunited_splits_section_caps_are_one_construction` (`crates/editor-core/tests/coincidence_door.rs`) went red: the reunion's four crossing-vertex `OnCarrier` rows read `Unproven { recourse: Budget }`.
 
-At `Sym` the foot is `n (n · p)` for a face read off a carrier with stored point `p`, where the representative it replaces was `p` itself. The carrier's stored normal is a computed form there (its `x` and `y` are not literal zeros, so `mate::solve::on_its_axis` cannot tighten it), and the tier cannot fold `|n|² = 1`. So every margin that reads the section face's carrier origin carries one more factor of the normal.
+The halves' copies of one crossing are two minted names, `CrossingVertex { edge, sense }`, each with its sense against its own half. So rung 1 left them to the `Sym` replay. There, the plane's normal is the document's, and the tier cannot reduce it:
+- The tier does fold `|n|² = 1` for a unit vector built from plain symbols.
+- But it is the carrier's normal, a Newell sum normalised again, that is opaque (`work/sym/a-plane-poses-normal-read-off-a-face-is-opaque-to-the-unit-relation-at-sym.md`).
 
-Measured on `coincidence_door::a_reunited_splits_section_caps_are_one_construction` (`crates/editor-core/tests/coincidence_door.rs`): the reunion's four `VertexFusion` / `OnCarrier` rows, each a DAG of 281 nodes, no longer discharge at the door's budget (`coincide/replay.rs`'s `BUDGET`, 256 terms). They still fail at 300, 384 and 512 terms, and discharge at 2048 in about 7 ms each. So the row reads `Unproven { recourse: Budget }` where it read `Structural`, and `run_checks` would report an unproven coincidence on a plain split-and-reunite. Main proves the row.
+So the problem is not budget alone. The reunion's margins discharge at 2048 terms but not at 512. On designer A's probe (below), they fail even at 16384.
 
-**Re-measured over PR 5616** (merged at `de020583`): unchanged. The reunion's section-cap row (`SameOpposite`, `PlaneLadder`) proves at rung 1, `Structural(SameConstruction)`, as it did before. Its two caps read the one tool, a slide of a face plane, so 5616's reading of `Plane { face }` as the face's construction does not apply to it. What fails is only the four crossing-vertex rows (`CrossingVertex { … Enters }` against `… Leaves` on one lateral edge). They are two minted constructions, so they reach the `Sym` replay, and their `OnCarrier` margins exceed the 256-term budget.
+## Decided (2026-10-23, designer pair; INTENT orchestrator)
 
-The options, none of which this unit decides:
+A blinded designer pair weighed this; the record is on `analysis/design-fork/msolve-plane-foot-sym-budget`. Both recommend the same final state ("likely"). No ratified text changes.
 
-- **Topo takes a plane equation.** `SplitPlane` and `Reflection` take `(normal, offset)`, and the kernel's margins read `p · n − c`. This is cheaper than either spelling. The section face's carrier still stores an origin, though, so the `OnCarrier` margin would need the carrier built from a point the split already holds.
-- **The tier learns `|n|² = 1`.** A unit vector's construction states it, but `register_equal` aliases nodes only (`geom-core/src/sym.rs`), and the margin expands `n_x² + n_y² + n_z²` without ever building that node.
-- **A kernel-only witness point.** The value keeps a point that only the kernel's own constructions read. The Decided section rejected this kind of representative, because a reader can then see the freedom.
-- **Accept the weaker proof** and re-state the row.
+**Rung 1 learns the split's own constructions.** The plane value, the door's budget and the tier are unchanged.
+- **(a)** A crossing vertex's construction is the split, the crossed edge, and the sense read against one fixed half, the tool normal's `Above` side. So the `Above` half's `Enters` copy of one crossing and the `Below` half's `Leaves` copy are one construction, and for an arc crossed twice `(Above, Enters) ≡ (Below, Leaves)` holds per crossing. Names are untouched: selection keeps the per-half sense.
+- **(b)** A crossing vertex and a section edge lie on their split's tool plane, and so on that plane's construction; a plane read off a face is that face's construction (PR 5616's `plane()`). A section edge also lies on the operand face it runs across.
+- **Hazard:** an operand vertex the tool happens to pass through (`OnToolVertex`) stays a value coincidence.
 
-A fifth option opened by 5616: the walk reads the two crossing vertices of one edge cut by one tool as one construction, so they never reach the replay. That is COINCIDE's ground.
+## Closed
 
-**Done when** the reunion row proves structural again at the door's budget with the canonical value, or Ev has ruled one of the above.
+Built on PR 5624 in `crates/editor-core/src/coincide.rs` (COINCIDE's ground).
+
+`construction` reads a split's `CrossingVertex` against the `Above` half (`crossing`). It takes the half from the port the walk entered the split by (`split_half`), and keeps the ranking qualifiers. Crossings of one sense are ranked along the crossed edge as the target holds it, which both halves share, so ranks align per crossing.
+
+`lies_on` gains `on_its_tool`: a crossing vertex or a section edge lies on its split's tool plane, and a section edge on the face it runs across. Rung 1 now reads an `OnCarrier` row through `lies_on` (`on_by_construction`). An `OnToolVertex` is carried (`CarriedAs::ToolCopy`), so its construction is the operand corner and never this arm.
+
+Rows, all in `crates/editor-core/tests/coincidence_door.rs`:
+- the reunion, every row `Structural(SameConstruction)` with no replay;
+- `a_split_on_a_faces_plane_lays_its_crossings_on_that_face` (designer A's probe): box X split on box Y's top and unioned with Y, its four crossings proved at rung 1;
+- `a_corner_the_tool_passes_through_is_not_on_it_by_construction`: a turned cube levelled so a corner lies on the slab's top by value; that row stays `Unproven` and the crossings beside it prove.
+
+Filed beside it:
+- `work/carve/an-extrudes-cap-carrier-is-minted-by-newell-not-by-its-frame.md` (P2);
+- `work/sym/a-plane-poses-normal-read-off-a-face-is-opaque-to-the-unit-relation-at-sym.md` (P2);
+- `work/msolve/split-and-mirror-take-a-point-the-plane-kind-forgets.md` (P3).
