@@ -320,9 +320,8 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// **PINNED TO ITS MINT SITES' SPELLING — read
 /// `tests/predicate_roster.rs` for what that does and does not
 /// cover**, because the pin's reach is narrower than this sentence can
-/// honestly summarise. It reads the quadrature's mint sources
-/// (`crates/geom-brep/src/props/quad.rs` and
-/// `crates/topo/src/props/quad_lane.rs`) across the cargo-root boundary
+/// honestly summarise. It reads the quadrature's mint source
+/// (`crates/geom-brep/src/props/quad.rs`) across the cargo-root boundary
 /// and reds if a name here stops being minted there; if a rostered
 /// mint's margin stops deriving from the whole identifier `target_len`
 /// in its own enclosing function, or that binding stops being
@@ -343,7 +342,20 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// **A name can satisfy the criterion's spelling and still belong off
 /// this list** — see [`EPS_COUPLED_UNRULED`], which is where that is
 /// recorded and where the CLI reads it from.
-pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
+///
+/// **Empty today.** Its one member, `props_quad_converged`, was the
+/// quadrature's convergence test against the reporting target; the
+/// target became a resolution, which is compared and not decided
+/// (`[tolerance.measure]`), so nothing mints it. Rule (4) stays
+/// specified for the next family, and its floor's provenance reads the
+/// committed eras through [`ERA_EPS_COUPLED_PREDICATES`].
+pub const EPS_COUPLED_PREDICATES: [&str; 0] = [];
+
+/// **The ε-coupled family as the committed eras recorded it**: the
+/// names [`EPS_COUPLED_FLOOR_RATIO`] and the metre rules' constants were
+/// cut against, read from those eras' files. A historical fact about
+/// committed data, not the live roster ([`EPS_COUPLED_PREDICATES`]).
+pub const ERA_EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 
 /// **Names ε-coupled by the same reading as [`EPS_COUPLED_PREDICATES`]
 /// that are deliberately NOT on it, each with the reason**, as
@@ -768,6 +780,28 @@ pub fn lint_sample(
     band_escalate: f64,
     outcome: &str,
 ) -> Vec<Reason> {
+    lint_sample_under(
+        &EPS_COUPLED_PREDICATES,
+        predicate,
+        margin,
+        band_zero,
+        band_escalate,
+        outcome,
+    )
+}
+
+/// [`lint_sample`] with `coupled` as the ε-coupled roster in place of
+/// [`EPS_COUPLED_PREDICATES`]: how a committed era's rows lint under the
+/// roster they were recorded against ([`ERA_EPS_COUPLED_PREDICATES`]).
+#[must_use]
+pub fn lint_sample_under(
+    coupled: &[&str],
+    predicate: &str,
+    margin: f64,
+    band_zero: f64,
+    band_escalate: f64,
+    outcome: &str,
+) -> Vec<Reason> {
     let mut reasons = Vec::new();
     let m = margin.abs();
     match outcome {
@@ -791,7 +825,7 @@ pub fn lint_sample(
         // decisions is the evidence the tier exists to produce.
         "symbolic" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
-            if is_eps_coupled(predicate) {
+            if coupled.contains(&predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
                     reasons.push(Reason::BelowEpsCoupledFloor);
                 }
@@ -1071,7 +1105,14 @@ mod tests {
         // …nor does the ε-coupled allow-list: rule (4) replaces the
         // two RATIO rules only, never the outcome rule.
         assert_eq!(
-            lint_sample("props_quad_converged", 5e-9, 1e-9, 1e-8, "indeterminate"),
+            lint_sample_under(
+                &ERA_EPS_COUPLED_PREDICATES,
+                "props_quad_converged",
+                5e-9,
+                1e-9,
+                1e-8,
+                "indeterminate"
+            ),
             vec![Reason::InBand]
         );
     }
@@ -1173,8 +1214,11 @@ mod tests {
 
     #[test]
     fn eps_coupled_family_answers_to_the_eps_relative_floor_only() {
-        assert!(is_eps_coupled("props_quad_converged"));
+        assert!(!is_eps_coupled("props_quad_converged"), "retired");
         assert!(!is_eps_coupled("volume_backstop"));
+        let era = |p, m, zero, esc| {
+            lint_sample_under(&ERA_EPS_COUPLED_PREDICATES, p, m, zero, esc, "positive")
+        };
         // The three baseline minima of `props_quad_converged`
         // (8.3952e-4 / 1.6467e-7 / 3.3595e-10 at 1e-6 / 1e-9 / 1e-12):
         // all CLEAN under rule (4).
@@ -1184,7 +1228,7 @@ mod tests {
             (3.3595e-10, 1e-12, 1e-11),
         ] {
             assert!(
-                lint_sample("props_quad_converged", m, zero, esc, "positive").is_empty(),
+                era("props_quad_converged", m, zero, esc).is_empty(),
                 "baseline ε-coupled minimum {m:e} must lint clean at ε={zero:e}"
             );
         }
@@ -1199,13 +1243,13 @@ mod tests {
         }
         // Below 1.5e2·ε: rule (4) fires, and only rule (4).
         assert_eq!(
-            lint_sample("props_quad_converged", 1.4e-7, 1e-9, 1e-8, "positive"),
+            era("props_quad_converged", 1.4e-7, 1e-9, 1e-8),
             vec![Reason::BelowEpsCoupledFloor]
         );
         // The convergence target itself (1024·ε) is the family's
         // ceiling and sits just above rule (2)'s 10²·Kε — the
         // tautology rule (4) replaces.
-        assert!(lint_sample("props_quad_converged", 1.024e-9, 1e-12, 1e-11, "positive").is_empty());
+        assert!(era("props_quad_converged", 1.024e-9, 1e-12, 1e-11).is_empty());
     }
 
     #[test]

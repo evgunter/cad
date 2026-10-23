@@ -68,8 +68,8 @@ use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 
 use k_lint::{
-    AMBIENT_BAND_MIN, BASELINE_FLOOR_MARGIN, EPS_COUPLED_FLOOR_RATIO, EPS_COUPLED_PREDICATES,
-    EPS_COUPLED_UNRULED, PROXIMITY_FACTOR, Reason, lint_csv, lint_sample, zero_arm_usage,
+    AMBIENT_BAND_MIN, BASELINE_FLOOR_MARGIN, EPS_COUPLED_FLOOR_RATIO, EPS_COUPLED_PREDICATES, ERA_EPS_COUPLED_PREDICATES,
+    EPS_COUPLED_UNRULED, PROXIMITY_FACTOR, Reason, lint_csv, lint_sample, lint_sample_under, zero_arm_usage,
 };
 
 /// The era the shipped thresholds were cut from — the one
@@ -223,7 +223,7 @@ fn eps_coupled_floor_ratio_is_re_derivable_from_the_m7_population() {
     for row in ROWS {
         let (mut n, mut min, mut at) = (0usize, f64::INFINITY, String::new());
         for_each_row(M7, row, |r| {
-            if !EPS_COUPLED_PREDICATES.contains(&r.predicate) {
+            if !ERA_EPS_COUPLED_PREDICATES.contains(&r.predicate) {
                 return;
             }
             // Rule (4)'s own statistic, in rule (4)'s own units: the
@@ -249,7 +249,8 @@ fn eps_coupled_floor_ratio_is_re_derivable_from_the_m7_population() {
             // voice: not one row of the era this threshold was cut
             // from may fire rule (4).
             assert!(
-                !lint_sample(
+                !lint_sample_under(
+                    &ERA_EPS_COUPLED_PREDICATES,
                     r.predicate,
                     r.margin,
                     r.band_zero,
@@ -332,7 +333,7 @@ fn the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from()
     // exit); the loop is the guard for the next entry.
     for &(name, why) in EPS_COUPLED_UNRULED {
         assert!(
-            !EPS_COUPLED_PREDICATES.contains(&name),
+            !EPS_COUPLED_PREDICATES.contains(&name) && !ERA_EPS_COUPLED_PREDICATES.contains(&name),
             "{name:?} is both rostered and ruled off the roster"
         );
         for row in ROWS {
@@ -713,7 +714,7 @@ fn era_witnesses(era: &str, row: &str) -> Witnesses {
         }
         let m = r.margin.abs();
         if r.outcome == "positive" || r.outcome == "negative" {
-            if !EPS_COUPLED_PREDICATES.contains(&r.predicate) && m < w.floor.0 {
+            if !ERA_EPS_COUPLED_PREDICATES.contains(&r.predicate) && m < w.floor.0 {
                 w.floor = (m, r.predicate.to_string());
             }
             let ratio = m / r.band_zero;
@@ -916,7 +917,7 @@ fn the_ambient_side_is_chosen_by_the_parsed_band_not_its_spelling() {
             if r.outcome != "positive" && r.outcome != "negative" {
                 return;
             }
-            if EPS_COUPLED_PREDICATES.contains(&r.predicate) {
+            if ERA_EPS_COUPLED_PREDICATES.contains(&r.predicate) {
                 return;
             }
             let m = r.margin.abs();

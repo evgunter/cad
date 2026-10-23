@@ -508,19 +508,15 @@ pub enum PropsError {
         check: PropsCheck,
     },
     /// The certified quadrature's enclosure did not tighten to the
-    /// reporting target before its lane stopped, at its floor or at the
-    /// work wall (M5 PR 11; the [`quad`] module docs give the rule and
-    /// the stop, and `topo`'s reporting adapter the target's metering).
-    /// Certified bounds or typed refusal — never a silently wide
-    /// answer. Both payloads are LENGTHS (mean boundary displacement),
-    /// the same metering as tier 3's volume check.
-    ///
-    /// Two-tolerance shape, stated: the in-band twin of this refusal is
-    /// [`PropsError::Escalated`] on `props_quad_converged` (a margin
-    /// close to the target at the round the lane stops escalates
-    /// through the funnel); this arm is the *definite* "the enclosure
-    /// sits above the target" outcome. The recourse is the ε knob: the
-    /// target scales with the run's ε.
+    /// reporting resolution before its lane stopped, at its floor or at
+    /// the work wall (M5 PR 11; the [`quad`] module docs give the rule
+    /// and the stop, and `topo`'s number doors the resolution). Certified
+    /// bounds or typed refusal — never a silently wide answer. Both
+    /// payloads are LENGTHS (mean boundary displacement), the same
+    /// metering as tier 3's volume check. A resolution is a sizing, so
+    /// the width is compared with it and nothing is decided: there is no
+    /// in-band twin. The recourse is the ε knob: the resolution scales
+    /// with the run's ε.
     QuadratureBudget {
         /// The width of the narrowest enclosure the lane reached, as a
         /// length (m). The narrowest round is chosen by flux width, so

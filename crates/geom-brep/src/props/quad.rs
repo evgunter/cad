@@ -171,7 +171,8 @@ pub(super) const QUAD_INIT_PIECES: usize = 16;
 /// slacks times the boundary length, so an ε-tight target would refuse
 /// every real face; three decades above the floor and far below display
 /// relevance is the useful band. No lane reads it: it is the caller's,
-/// and `topo`'s reporting adapter is its reader.
+/// and `topo`'s number doors pass it as their resolution until each
+/// takes its own caller's.
 pub const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// **The work a face may spend over all its rounds**, in weighted cell
@@ -883,8 +884,8 @@ fn refinable(cause: &geom_core::Indeterminate) -> bool {
 /// **mean boundary displacement** it corresponds to,
 /// `width(flux)/(3·area)` (module docs), with the area enclosure's
 /// midpoint as the lever arm. `pub` because its readers are the
-/// callers' targets: `topo`'s reporting adapter decides convergence and
-/// sizes [`PropsError::QuadratureBudget`]'s payload from here.
+/// callers' questions: `topo` compares it with a resolution and sizes
+/// [`PropsError::QuadratureBudget`]'s payload from here.
 ///
 /// INVARIANT: the returned length is FINITE and non-negative — so a
 /// budget refusal carries a number the caller can act on *by

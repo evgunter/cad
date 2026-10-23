@@ -101,9 +101,11 @@ use test_utils::source;
 /// Every kernel source the roster's names are minted in, as
 /// `(path, text)`.
 ///
-/// The lanes' own mints (`props_quad_face_extent`) and the reporting
-/// target's (`props_quad_converged`, minted by `topo`'s interim
-/// adapter, which reads the target the lanes do not). A roster entry
+/// The lanes' own mints (`props_quad_face_extent`). The roster is empty
+/// (its one family, `props_quad_converged`, is no longer minted: the
+/// reporting target became a resolution, compared and not decided), so
+/// what this table still guards is the ADDED direction: a mint here
+/// whose margin derives from `target_len` must be ruled on. A roster entry
 /// minted somewhere not listed here REDS
 /// [`every_rostered_predicate_is_still_minted_by_the_kernel`] rather
 /// than passing quietly, and the fix is a line in this table — the same
@@ -117,16 +119,10 @@ use test_utils::source;
 /// **A path here is also a trigger** in `.github/workflows/ci.yml`'s
 /// `tools` row, since a PR editing only the kernel file is this
 /// roster's subject; a new entry adds its path there.
-const MINT_SOURCES: [(&str, &str); 2] = [
-    (
-        "crates/geom-brep/src/props/quad.rs",
-        include_str!("../../../crates/geom-brep/src/props/quad.rs"),
-    ),
-    (
-        "crates/topo/src/props/quad_lane.rs",
-        include_str!("../../../crates/topo/src/props/quad_lane.rs"),
-    ),
-];
+const MINT_SOURCES: [(&str, &str); 1] = [(
+    "crates/geom-brep/src/props/quad.rs",
+    include_str!("../../../crates/geom-brep/src/props/quad.rs"),
+)];
 
 /// What the pins searched, for their refusals.
 const SEARCHED: &str = "the kernel's quadrature mint sites";
@@ -326,8 +322,8 @@ fn kernel_mint_sites() -> Vec<(&'static str, &'static str, Mint)> {
 ///
 /// Shared by the pin and by its negative control below, so the control
 /// exercises the pin's own decision rather than a second copy of it.
-fn unminted_roster_names(minted: &[&str], searched: &str) -> Vec<String> {
-    EPS_COUPLED_PREDICATES
+fn unminted_roster_names(roster: &[&str], minted: &[&str], searched: &str) -> Vec<String> {
+    roster
         .iter()
         .filter(|name| !minted.contains(*name))
         .map(|name| {
@@ -355,7 +351,7 @@ fn every_rostered_predicate_is_still_minted_by_the_kernel() {
     let sites = kernel_mint_sites();
     let minted: Vec<&str> = sites.iter().map(|(_, _, m)| m.name.as_str()).collect();
     let paths: Vec<&str> = MINT_SOURCES.iter().map(|(p, _)| *p).collect();
-    let complaints = unminted_roster_names(&minted, &format!("{paths:?}"));
+    let complaints = unminted_roster_names(&EPS_COUPLED_PREDICATES, &minted, &format!("{paths:?}"));
     assert!(complaints.is_empty(), "{}", complaints.join("\n"));
 }
 
@@ -482,7 +478,7 @@ fn the_rostered_familys_margin_is_still_eps_scaled_at_its_mint() {
         );
     }
     assert!(
-        rostered > 0,
+        EPS_COUPLED_PREDICATES.is_empty() || rostered > 0,
         "no rostered name is minted in {SEARCHED}, so the loop above asserted nothing"
     );
     let (path, code, _) = kernel_views()[0];
@@ -549,6 +545,11 @@ fn every_target_len_mint_is_rostered_or_excused() {
 /// [`unminted_roster_names`] itself — the function
 /// [`every_rostered_predicate_is_still_minted_by_the_kernel`] asserts
 /// on — rather than a second copy of its rule.
+/// The roster the fixtures below are read against: the live one is
+/// empty ([`EPS_COUPLED_PREDICATES`]), and a roster check over it would
+/// red nothing.
+const FIXTURE_ROSTER: [&str; 1] = ["props_quad_converged"];
+
 #[test]
 fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
     let decoyed = concat!(
@@ -577,7 +578,7 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
     );
     assert_eq!(sites[0].margin, "Margin::of(target_len - width_len)");
     assert!(
-        unminted_roster_names(&names, "the decoy fixture").is_empty(),
+        unminted_roster_names(&FIXTURE_ROSTER, &names, "the decoy fixture").is_empty(),
         "this fixture mints the whole roster, so the roster check must be QUIET on it — \
          otherwise the red below says nothing about a missing name"
     );
@@ -610,7 +611,7 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
         "the short fixture",
     );
     let names: Vec<&str> = minted.iter().map(|m| m.name.as_str()).collect();
-    let complaints = unminted_roster_names(&names, "the short fixture");
+    let complaints = unminted_roster_names(&FIXTURE_ROSTER, &names, "the short fixture");
     assert_eq!(complaints.len(), 1, "one rostered name is unminted here");
     assert!(
         complaints[0].contains("props_quad_converged")
