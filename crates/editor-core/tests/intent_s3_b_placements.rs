@@ -159,8 +159,9 @@ fn two_placements_of_one_body_are_two_copies() {
     assert_eq!(product_solids(&doc, &ev), 2);
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
     let cap = fixture::fname(body, RoleSeg::Cap(CapEnd::End));
+    // The product's `⊔` keys each copy's names by the copy.
     for placement in [first, second] {
-        let copied = cap.clone();
+        let copied = fixture::product_name(&doc, &ev, (placement, cap.clone()));
         assert!(
             product.names.lookup(&copied).is_some(),
             "the cap resolves in {placement:?}'s copy"

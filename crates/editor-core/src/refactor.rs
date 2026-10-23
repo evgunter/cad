@@ -3332,6 +3332,18 @@ pub fn split(
         .doc()
         .output(instance, 0)
         .unwrap_or_else(|| unreachable!("an instance defines its copy"));
+    // A product the cut took is the instance's copy: the part's product
+    // is the cut's world.
+    if let Some(var) = doc.product()
+        && doc.operation_of(var).is_some_and(|at| cut.contains(&at))
+    {
+        rem_apply(
+            &mut remainder,
+            DocEdit::SetProduct {
+                product: Some(crate::Operand::Var(copies)),
+            },
+        )?;
+    }
     // The instance's copy carries its part's product names verbatim.
     let in_part = |from: &StableName, body: Option<RecipeNodeId>| in_world(from, body);
     // A selection of cut material is authored afresh in the instance's

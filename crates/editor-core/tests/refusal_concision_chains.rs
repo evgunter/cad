@@ -5188,8 +5188,10 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
                 distance: len(1.0),
             },
         );
-        let (doc, _) = crate::fixture::place(doc, body);
-        crate::fixture::step(doc, editor_core::DocEdit::DeleteNode { id: body }).0
+        // The product reads the placement's copy, and the placement
+        // goes: the slot reads a body that is gone.
+        let (doc, placement) = crate::fixture::place(doc, body);
+        crate::fixture::step(doc, editor_core::DocEdit::DeleteNode { id: placement }).0
     };
     let mut store = PartStore::new();
     let parts = [

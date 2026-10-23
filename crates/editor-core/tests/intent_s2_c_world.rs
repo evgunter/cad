@@ -379,15 +379,13 @@ fn an_empty_world_names_the_unplaced_and_a_stranded_placement_refuses() {
         applied.maintenance
     );
     let doc = applied.doc;
+    // The slot reads the placement's copy, and the placement's read is
+    // gone: the gather refuses at the placement, failed.
     match product(&doc, &ev(&doc), Tol::witness()) {
-        Err(ProductError::StrandedProduct { read }) => {
-            assert_eq!(
-                Some(read),
-                doc.output(placement, 0),
-                "the gather names the copy the slot reads"
-            );
+        Err(ProductError::Root(editor_core::NodeStanding::Failed { node })) => {
+            assert_eq!(node, placement, "the gather names the stranded placement");
         }
-        other => panic!("a stranded product refuses: {other:?}"),
+        other => panic!("a stranded placement refuses: {other:?}"),
     }
 }
 
@@ -405,8 +403,9 @@ fn two_identity_placements_of_one_body_are_two_copies() {
     let run = ev(&doc);
     let (body, names) = product_named(&doc, &run, Tol::witness()).expect("two copies gather");
     assert_eq!(body.solids().count(), 2, "two solids");
+    // The product's `⊔` keys each copy's names by the copy.
     for placement in [p, q] {
-        let copy = cap(a, CapEnd::End);
+        let copy = crate::fixture::product_name(&doc, &run, (placement, cap(a, CapEnd::End)));
         assert!(
             matches!(names.lookup(&copy), Some(editor_core::Entry::Unique(_))),
             "the block's end cap is named once in copy {placement:?}"
