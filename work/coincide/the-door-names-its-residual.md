@@ -35,3 +35,7 @@ What it needs:
 Done when an unproven row over two separately typed equal values
 reports the read-one-variable recourse naming both, pinned beside
 `two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbols_to_the_door`.
+
+## Evidence (2026-10-23, INTENT's mirror-seam designer pair)
+
+A `Numeric` replay on a pair the document never relates recourses `Budget`. Two examples: the seam of a C-shape's second prong, which is coplanar with a mirror plane by value only, and today any mirror seam. That is the wrong lever: raising the budget cannot prove a coincidence the document does not state. The recourse for that row class should name the statement the user could write: read the plane off a face both prongs are built from, or state the collinearity in the profile. See `work/intent/a-symmetric-parts-seam-is-not-walked-as-one-construction.md`.
