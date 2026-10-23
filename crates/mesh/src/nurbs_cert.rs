@@ -3003,9 +3003,7 @@ pub(crate) mod tests {
             nurbs_face_bound(&s, FaceKey::default()).unwrap()
         };
         let (b, unit) = (bound(0.5), bound(1.0));
-        let bits = |b: &NurbsFaceBound| {
-            [b.muu, b.muv, b.mvv, b.mu1, b.mv1].map(f64::to_bits)
-        };
+        let bits = |b: &NurbsFaceBound| [b.muu, b.muv, b.mvv, b.mu1, b.mv1].map(f64::to_bits);
         assert_eq!(
             bits(&b),
             bits(&unit),
