@@ -12,8 +12,7 @@
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, Operand, ProfileProgram,
-    VarName,
+    Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, Operand, ProfileProgram, VarName,
 };
 use geom_core::Tol;
 

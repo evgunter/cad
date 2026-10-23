@@ -96,10 +96,9 @@ pub fn constrained(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
     doc.placements()
         .into_iter()
         .filter(|&p| {
-            bundle(doc, p).iter().any(|c| {
-                c.mate()
-                    .is_some_and(|m| matches!(m.to, _))
-            })
+            bundle(doc, p)
+                .iter()
+                .any(|c| c.mate().is_some_and(|m| matches!(m.to, _)))
         })
         .collect()
 }
@@ -165,7 +164,9 @@ pub fn floor(
     let (doc, inner) = insert(
         doc,
         Node::place(
-            vec![editor_core::BodyRead::plain(editor_core::Operand::output(slab, 0))],
+            vec![editor_core::BodyRead::plain(editor_core::Operand::output(
+                slab, 0,
+            ))],
             editor_core::Operand::Var(space),
             sunk.bundle(),
         ),
@@ -174,7 +175,9 @@ pub fn floor(
     let (doc, outer) = insert(
         doc,
         Node::place(
-            vec![editor_core::BodyRead::plain(editor_core::Operand::output(inner, 0))],
+            vec![editor_core::BodyRead::plain(editor_core::Operand::output(
+                inner, 0,
+            ))],
             editor_core::Operand::Var(VarId::WORLD),
             moved.bundle(),
         ),
@@ -256,11 +259,7 @@ pub fn mate(
     to: editor_core::Operand,
     class: editor_core::ContactClass,
 ) -> editor_core::Mate<Formula> {
-    editor_core::Mate {
-        on,
-        to: to,
-        class,
-    }
+    editor_core::Mate { on, to: to, class }
 }
 
 /// **The placement whose copy an authored face side reads**: the node
@@ -613,7 +612,8 @@ pub fn pin(
     pose: &editor_core::Frame,
     _o: &EvalOptions,
 ) -> ProfileDoc {
-    let placed = editor_core::Placed::of(&doc, Vec::new(), editor_core::test_support::moves_at(pose));
+    let placed =
+        editor_core::Placed::of(&doc, Vec::new(), editor_core::test_support::moves_at(pose));
     written(doc, placement, placed)
 }
 
@@ -960,10 +960,7 @@ pub fn mated_instance(doc_ref: editor_core::DocRef) -> AuthoredNode {
 /// in bundle order: its whole motion on its target space's axes.
 /// `None` for a bundle holding a mate. Panics on a node that is no
 /// placement.
-pub fn offset_of(
-    doc: &ProfileDoc,
-    id: RecipeNodeId,
-) -> Option<Vec<(editor_core::Coord, Formula)>> {
+pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<Vec<(editor_core::Coord, Formula)>> {
     let constraints = match doc.node(id) {
         Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
             constraints
@@ -1074,7 +1071,9 @@ pub fn value_bump(
     };
     let value = match coord {
         editor_core::Coord::Slide(_) => len(held + delta),
-        editor_core::Coord::Spin(editor_core::TargetAxis::Z) | editor_core::Coord::Spin(_) => ang(held + delta),
+        editor_core::Coord::Spin(editor_core::TargetAxis::Z) | editor_core::Coord::Spin(_) => {
+            ang(held + delta)
+        }
     };
     DocEdit::SetParam {
         node: placement,
@@ -1819,7 +1818,10 @@ impl Recorder {
                     editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                     Formula::zero(Dimension::Length),
                 ),
-                (editor_core::Coord::Spin(editor_core::TargetAxis::Z), Formula::zero(Dimension::Angle)),
+                (
+                    editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+                    Formula::zero(Dimension::Angle),
+                ),
             ],
         );
         let ev = editor_core::evaluate::<f64>(

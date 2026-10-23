@@ -886,10 +886,11 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     // `inline` never touches, so `!order().is_empty()` would hold
     // however little came in. The count can only come from the part
     // (`ids` leaves out each document's world, which every document
-    // has its own of).
+    // has its own of), beside the new space the part's recipe stands in
+    // and the placement of its copy under the instance's bundle.
     assert_eq!(
         back.doc.ids().len(),
-        before - 1 + part_nodes,
+        before - 1 + part_nodes + 2,
         "the instance went and the part's own recipe came in its place"
     );
 }

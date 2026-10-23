@@ -4163,6 +4163,15 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
                 }
                 true
             }
+            // An instance's copies, read whole: a family of its bodies,
+            // as an inline places the spliced copies of a part's world.
+            ValuePayload::Copies(copies) => {
+                for (i, body) in copies.bodies.iter().enumerate() {
+                    let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
+                    flat.push((projected(&read_table(value), index)?, placed(body)?));
+                }
+                true
+            }
             _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
         };
         parts += value.parts;

@@ -3778,9 +3778,19 @@ pub fn inline(
     };
     // The instance's bundle, its own side read off the spliced copy it
     // stood on: each selection of the instance's copies authored afresh
-    // over that copy, every other read kept.
+    // over that copy. Each other side is written again as it was, so
+    // the new placement reads no unnamed variable the instance reads.
     let host_vars = VarCarry::new(doc);
     let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
+    for side in bundle
+        .iter()
+        .filter_map(crate::mate::Constraint::mate)
+        .flat_map(|mate| [mate.on, mate.to])
+        .filter(|&side| doc.var_name(side).is_none())
+    {
+        let written = rewritten_pose(doc, side, &mut |_| Ok::<_, InlineError>(None))?;
+        selects.insert(side, written);
+    }
     for side in bundle
         .iter()
         .filter_map(crate::mate::Constraint::mate)

@@ -379,21 +379,20 @@ pub fn in_world(
 }
 
 /// **A copy of `body` placed against `target`'s geometry at `at`** —
-/// `at` the copy's own frame in `target`'s own coordinates, not tilted
-/// off them: how a construction combined with another body joins that
+/// `at` the copy's own frame in `target`'s own coordinates: how a construction combined with another body joins that
 /// body's space. A plane mate equates the copy's first planar face by id
 /// lying on its own `xy` with the target's lying on its own `xy`, slid
 /// along its normal to where the copy's face stands at `at` (flipped
 /// where the two face one way), and the three values put the copy at
 /// `at` on the chart of that mate, each the number `at` states (a turn
 /// by quarter turns written `turn/4`); where either body has no planar
-/// face on its own `xy`, no mate, and the moves `at` states
-/// ([`moves_at`]). Returns the document and the placement; its copy is
-/// the placement's output.
+/// face on its own `xy`, or `at` tilts the copy's face off the
+/// target's, no mate, and the moves `at` states ([`moves_at`]). Returns
+/// the document and the placement; its copy is the placement's output.
 ///
 /// # Panics
 ///
-/// If `at` tilts the copy's face off the target's, or a door refuses.
+/// If a door refuses.
 pub fn against(
     doc: ProfileDoc,
     target: impl Into<crate::Operand>,
@@ -486,10 +485,11 @@ pub fn placed_against_in(
     let placed = at.affine::<f64>();
     // The copy's face's normal where `at` puts it.
     let m = placed.linear * geom_core::linalg::Vec3::new(0.0, 0.0, copy_z);
-    assert!(
-        m.x == 0.0 && m.y == 0.0,
-        "{at:?} tilts the copy's face off the target's: write the mate and moves it means"
-    );
+    // An `at` tilting the copy's face off the target's xy is no face
+    // rest: the copy is placed by the moves `at` states, with no mate.
+    if m.x != 0.0 || m.y != 0.0 {
+        return crate::Placed::of(doc, Vec::new(), moves_at(at));
+    }
     let plane = |shape: &crate::Operand, face: crate::StableName| {
         crate::Operand::Pose(Box::new(PoseDef::Plane {
             face: crate::Operand::select(shape.clone(), vec![face]),
