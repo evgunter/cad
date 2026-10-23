@@ -356,7 +356,9 @@ pub fn frame_at(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::Frame {
 /// plane of the body's planar face whose outward normal is `normal`'s
 /// direction, or its opposite flipped, slid along it onto `origin` — a
 /// split's tool or a plane target parallel to a face of the body,
-/// written with no turn, so it stands exactly where it is meant. A
+/// written with no turn, so it stands exactly where it is meant. A face
+/// whose plane passes through `origin` is preferred, read with no
+/// slide, so a plane meant on a face is that face's plane. A
 /// placed copy is read where its placement put it, `origin` and
 /// `normal` carried there with it.
 ///
@@ -393,9 +395,9 @@ pub fn plane_on(
         None => (n, o),
         Some(m) => (m.linear * n, m.transform_point(o)),
     };
-    let (face, sense, at) = solid
+    let parallel: Vec<_> = solid
         .faces()
-        .find_map(|(face, _)| {
+        .filter_map(|(face, _)| {
             let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
             (kind == geom::SurfaceKind::Plane).then_some(())?;
             let pose = topo::readback::face_pose(&solid, face).ok()?;
@@ -409,6 +411,12 @@ pub fn plane_on(
             };
             Some((face, sense, pose.origin))
         })
+        .collect();
+    let (face, sense, at) = parallel
+        .iter()
+        .find(|(_, _, at)| (o - *at).dot(n) == 0.0)
+        .or_else(|| parallel.first())
+        .copied()
         .unwrap_or_else(|| panic!("{node} has a planar face with normal {normal:?}"));
     let name = table
         .name_of(&crate::names::EntityRef {
@@ -683,8 +691,8 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     use crate::names::VerbatimEdge;
     Some(match crate::names::verbatim_edge(node)? {
         VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
-        VerbatimEdge::Intact => VerbatimKind::Intact,
-        VerbatimEdge::Reflected => VerbatimKind::Reflected,
+        VerbatimEdge::Intact { .. } => VerbatimKind::Intact,
+        VerbatimEdge::Reflected { .. } => VerbatimKind::Reflected,
     })
 }
 
