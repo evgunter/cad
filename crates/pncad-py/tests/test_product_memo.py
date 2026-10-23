@@ -23,6 +23,7 @@ by.
 """
 
 import unittest
+from placing import world_product
 
 import pncad
 from pncad import (
@@ -55,7 +56,7 @@ def slab(doc, x0, x1):
 
 def one_box(seed="memo-one-box"):
     doc = Doc(seed)
-    doc.place(slab(doc, 0.0, 1.0), doc.world)
+    doc.set_product(doc.place(slab(doc, 0.0, 1.0), doc.world))
     return doc
 
 
@@ -103,7 +104,9 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         """The memo is per-evaluation, and an evaluation is per-ask.
         Two of them are two memos and one answer."""
         doc = one_box("memo-two-evaluations")
+        world_product(doc)
         first = product(doc, evaluate(doc)).mass_properties().volume
+        world_product(doc)
         second = product(doc, evaluate(doc)).mass_properties().volume
         self.assertEqual(first, second)
 

@@ -3576,6 +3576,7 @@ MEMBERS_BOUND_AS = {
     "Value::by": "MateValue.by",
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
+    "AssemblyError::Assemble": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
     "AssemblyError::CarriedAtRest": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
@@ -3654,6 +3655,9 @@ MEMBERS_BOUND_AS = {
     "EditError::WorldIsUndeletable": "EditError.variant",
     "EditError::ConstraintOnNonPlacement": "EditError.variant",
     "EditError::SpaceMismatch": "EditError.variant",
+    "EditError::PickPath": "EditError.variant",
+    "EditError::ProductRead": "EditError.variant",
+    "DocEdit::SetProduct": "Doc.set_product",
     "EditError::UnknownConstraint": "EditError.variant",
     "EditError::ProfileProgramRefused": "EditError.variant",
     "EditError::UnresolvedInput": "EditError.variant",
@@ -3862,6 +3866,7 @@ MEMBERS_BOUND_AS = {
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
     "ProductError::Root": "ProductError.variant",
     "ProductError::EmptyProduct": "ProductError.variant",
+    "ProductError::StrandedProduct": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
     "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
@@ -4182,6 +4187,20 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
+    # A `⊔`'s piece as an evaluation holds it (`editor_core::Piece`),
+    # which shares its name with Python's profile `Piece` and nothing
+    # else: Python reads a `⊔`'s pieces as the bodies its value holds,
+    # and a pick (`Doc.pick`) reads one, so no piece is a value of its
+    # own there.
+    "Piece::bodies": INTERIOR,
+    "Piece::carried": INTERIOR,
+    "Piece::contacts": INTERIOR,
+    "Piece::family": INTERIOR,
+    "Piece::motion": INTERIOR,
+    "Piece::parts": INTERIOR,
+    "Piece::pieces": INTERIOR,
+    "Piece::read": INTERIOR,
+    "Piece::table": INTERIOR,
     # The document a report was taken of, which the kernel's `render`
     # checks it is handed. Python's `McReport` holds that document
     # itself and renders from it, so there is no second document to

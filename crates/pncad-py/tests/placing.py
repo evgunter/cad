@@ -204,13 +204,13 @@ def world_product(doc):
     them in document order. Nothing joins a product by being placed
     (`Doc.set_product`), so a document says what it delivers; this is
     the saying, for a scene whose product is every copy it stands in the
-    world. Call it once the scene is placed. Answers the product's node,
-    or `None` for a world that holds no copy."""
+    world. Call it once the scene is placed; a document that already
+    has a product keeps it. Answers whether it set one."""
+    if doc.product is not None:
+        return False
     world = doc.output(doc.world)
     copies = [p for p in doc.placements() if doc.space(p) == world]
     if not copies:
-        doc.set_product(None)
-        return None
-    product = copies[0] if len(copies) == 1 else doc.assemble(copies)
-    doc.set_product(product)
-    return product
+        return False
+    doc.set_product(copies[0] if len(copies) == 1 else doc.assemble(copies))
+    return True

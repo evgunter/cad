@@ -64,7 +64,7 @@ from pncad import (
     mm,
 )
 
-from placing import against, placed
+from placing import against, placed, world_product
 
 SQUARE = [
     (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -854,6 +854,7 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         placed = doc.place(doc.insert(Node.union([left, right])), doc.world)
         placements = doc.placements()
         self.assertIn(placed, placements)
+        world_product(doc)
         before = pncad.product(doc, evaluate(doc)).mass_properties().volume
         ev = evaluate(doc)
         doc.insert(
@@ -875,6 +876,7 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         right = cylinder(doc, 0.30, 0.2)
         placed = doc.placements()
         self.assertEqual(placed, [left, right])
+        world_product(doc)
         before = pncad.product(doc, evaluate(doc)).mass_properties().volume
         self.assertGreater(before, 0.0)
         ev = evaluate(doc)

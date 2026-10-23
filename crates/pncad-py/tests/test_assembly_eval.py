@@ -111,11 +111,12 @@ from bench_scene import (
 )
 from pncad import CapEnd, Doc, DocEdit, DocRef, Formula, Frame, Node, SegTag, Workspace, content_pin, evaluate, m, mm
 
-from placing import placed
+from placing import placed, world_product
 
 #: The layout's nodes: the post instance, its pattern and the shelf
-#: instance, then each pattern copy projected and placed.
-LAYOUT_NODES = 3 + 2 * PATTERN_COUNT
+#: instance, then each pattern copy projected and placed, and the `⊔`
+#: of the world's copies the product slot reads.
+LAYOUT_NODES = 4 + 2 * PATTERN_COUNT
 
 TOUR = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
 
@@ -332,9 +333,10 @@ class TestTheResolutionRefusals(CorpusCase):
         refusals = failures(evaluate(docs["layout"], resolver=store))
         self.assertEqual(
             [(r.kind, r.reason) for r in refusals.values()],
-            [("part_pin_mismatch", "node_failed")],
+            [("part_pin_mismatch", "node_failed"), ("part_pin_mismatch", "poisoned")],
             "only the shelf instance refuses — it is its own placement; the "
-            "posts still resolve",
+            "posts still resolve — and the product's `⊔` reading it is "
+            "poisoned through it",
         )
         refusal = next(iter(refusals.values()))
         self.assertIn(pncad.PIN_MISMATCH_RECOURSE, str(refusal))
@@ -348,9 +350,9 @@ class TestTheResolutionRefusals(CorpusCase):
             evaluate(docs["layout"], resolver=Workspace(str(directory)))
         )
         # The post instance fails; the pattern over it, each copy
-        # projected out of the pattern and each copy's placement are
-        # poisoned.
-        downstream = 1 + 2 * PATTERN_COUNT
+        # projected out of the pattern, each copy's placement and the
+        # product's `⊔` are poisoned.
+        downstream = 2 + 2 * PATTERN_COUNT
         self.assertEqual(
             [r.kind for r in refusals.values()],
             ["part_unresolved"] * (1 + downstream),
@@ -423,6 +425,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         # The boss: its one placed body, an extrude, stored while it
         # builds.
         boss = bench_scene.prism("pncad-partroot-boss", 0.02, 0.02, 0.01)
+        world_product(boss)
         self.store.create(boss)
         # The bracket: its one placement is an instance of the boss,
         # standing in the bracket's world by the identity bundle.
@@ -438,6 +441,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.boss_ref = DocRef(boss.id, pncad.content_pin(boss))
         for edit in pncad.update_references(bracket, boss.id, self.boss_ref.pin):
             bracket.apply(edit)
+        world_product(bracket)
         self.store.create(bracket)
         self.bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
         # The assembly's twin is inserted as the bracket's root was, and
@@ -529,6 +533,7 @@ class TestAPartWithAnEmptyWorld(unittest.TestCase):
         )
         part.insert(Node.extrude(profile, Formula.length_in(0.01, m)))
         self.assertEqual(failures(evaluate(part)), {}, "the part itself evaluates")
+        world_product(part)
         store.create(part)
         assembly = pncad.Doc("pncad-emptyworld-assembly")
         instance = assembly.insert(
@@ -536,7 +541,7 @@ class TestAPartWithAnEmptyWorld(unittest.TestCase):
         )
         refusal = failures(evaluate(assembly, resolver=store))[instance]
         self.assertEqual(refusal.kind, "part_product")
-        self.assertIn("nothing is placed in the world", str(refusal))
+        self.assertIn("the product slot reads nothing", str(refusal))
 
 
 class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
@@ -569,6 +574,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         # extrude refuses.
         self.placed = placed(part, self.extrude, Frame.translation((0.01 * m, 0 * m, 0 * m)))
         part.apply(DocEdit.set_param(self.extrude, "distance", Formula.length_in(0.0, m)))
+        world_product(part)
         self.store.create(part)
         self.part = part
         self.part_ref = DocRef(part.id, pncad.content_pin(part))
@@ -628,6 +634,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         flat = at_length(0.0)
         for edit in pncad.update_references(bracket, self.part.id, flat):
             bracket.apply(edit)
+        world_product(bracket)
         self.store.create(bracket)
         bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
         assembly = pncad.Doc("pncad-partpoison-deep-assembly")
@@ -682,6 +689,7 @@ try:
         # Each level stands its copy on its floor by the identity
         # bundle.
         bench_scene.on_floor(doc, instance)
+        doc.set_product(instance)
         store.create(doc)
         first = first or doc
         below = doc
@@ -965,7 +973,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         fresh = evaluate(docs["layout"], resolver=store)
         self.assertEqual(
             [r.kind for r in failures(fresh).values()],
-            ["part_pin_mismatch"],
+            ["part_pin_mismatch"] * 2,
             "an evaluation that ASKS still refuses the moved pin",
         )
 
@@ -996,7 +1004,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
                 r.kind
                 for r in failures(evaluate(docs["layout"], resolver=gone)).values()
             ),
-            ["part_unresolved"] * (2 + 2 * PATTERN_COUNT),
+            ["part_unresolved"] * (3 + 2 * PATTERN_COUNT),
             "an evaluation that ASKS refuses the document that is not there",
         )
         memoized = evaluate(docs["layout"], resolver=gone, prior=before)
@@ -1037,7 +1045,7 @@ class TestTheResolverSnapshot(CorpusCase):
                 r.kind
                 for r in failures(evaluate(docs["layout"], resolver=store)).values()
             ],
-            ["part_pin_mismatch"],
+            ["part_pin_mismatch"] * 2,
             "the store a resave went through sees its own write: the shelf "
             "instance, its own placement",
         )
@@ -1053,7 +1061,7 @@ class TestTheResolverSnapshot(CorpusCase):
                 r.kind
                 for r in failures(evaluate(whole["layout"], resolver=gone)).values()
             ),
-            ["part_unresolved"] * (2 + 2 * PATTERN_COUNT),
+            ["part_unresolved"] * (3 + 2 * PATTERN_COUNT),
         )
         gone.create(whole["post"])
         self.assertEqual(

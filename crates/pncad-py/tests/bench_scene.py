@@ -375,6 +375,8 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
     doc.set_constraints(post_a, Placed.unmated(moves(doc, Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m)))))
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref, doc.world))
     post_b = doc.insert(Node.instantiate_part(post_ref, doc.world))
+    # What the stand delivers: its three copies side by side.
+    world_product(doc)
     a_top = instance_face(store, doc, post_a, CapEnd.End)
     b_top = instance_face(store, doc, post_b, CapEnd.End)
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)
@@ -394,7 +396,6 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
         POST_UNDER_SHELF,
         class_,
     )
-    world_product(doc)
     return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)
 
 

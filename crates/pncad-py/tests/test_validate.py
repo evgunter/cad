@@ -73,7 +73,7 @@ from pncad import (
     rad,
 )
 
-from placing import against, placed
+from placing import against, placed, world_product
 from test_assembly_eval import opened
 
 RUNGS = ("validate", "validate_closed", "validate_geometric", "validate_pseudomanifold")
@@ -157,6 +157,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         """
         doc, lower, upper = two_slabs_resting()
         place_resting(doc, lower, upper)
+        world_product(doc)
         gathered = product(doc, evaluate(doc))
 
         gathered.validate()
@@ -176,6 +177,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         b = slab(doc, (3 * m, 4 * m), (0 * m, 1 * m), 1 * m)
         doc.place(a, doc.world)
         doc.place(b, doc.world)
+        world_product(doc)
         product(doc, evaluate(doc)).validate_pseudomanifold()
 
     def test_an_interpenetrating_union_has_no_coincidence_to_record(self):
@@ -283,6 +285,7 @@ class TestTheRefusalsShape(unittest.TestCase):
     def refusal(self):
         doc, lower, upper = two_slabs_resting()
         place_resting(doc, lower, upper)
+        world_product(doc)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -336,9 +339,11 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertNotIn("Point3 {", message)
         # The prose still carries what the Debug guts carried: which
         # entities coincide, and where. A finding that lost its
-        # witness would read as prose and say nothing actionable.
-        self.assertIn("vertex", message)
-        self.assertRegex(message, r"at \(-?\d")
+        # witness would read as prose and say nothing actionable. The
+        # census reads the rest as one face pair (PR 5605), whose
+        # witness is the region the two faces share.
+        self.assertIn("two faces lying against each other", message)
+        self.assertIn("at their shared region", message)
 
     def test_the_per_arm_words_cross_and_the_census_says_so(self):
         """Which coincidence the census found IS something Python can
@@ -364,7 +369,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         )
         self.assertEqual(
             {f.contact_kind for f in refusal.findings},
-            {"vertex_on_face", "edge_face_overlap"},
+            {"conformal_patch"},
         )
 
     def test_the_findings_are_the_count(self):
@@ -388,8 +393,13 @@ class TestTheRefusalsShape(unittest.TestCase):
             with self.subTest(variant=finding.variant):
                 self.assertIn(finding.variant.replace("_", " "), message)
             if finding.contact_kind is not None:
+                # A conformal patch is said as what it is: two faces
+                # lying against each other.
+                phrase = {"conformal_patch": "lying against each other"}.get(
+                    finding.contact_kind, finding.contact_kind.split("_")[0]
+                )
                 with self.subTest(contact=finding.contact_kind):
-                    self.assertIn(finding.contact_kind.split("_")[0], message)
+                    self.assertIn(phrase, message)
 
     def test_a_finding_is_a_frozen_value_that_compares_structurally(self):
         """The value shape: two findings that say the same thing ARE
@@ -399,7 +409,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertEqual(first.findings, second.findings)
         self.assertEqual(first.findings[0], second.findings[0])
         self.assertEqual(
-            len({(f.variant, f.contact_kind) for f in first.findings}), 2
+            len({(f.variant, f.contact_kind) for f in first.findings}), 1
         )
         # Frozen: a finding is restated by re-running the validator,
         # never by editing one in place.
@@ -450,6 +460,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 0.5 * m)
         doc.place(seat, doc.world)
         placed(doc, post, lift(1 * m))
+        world_product(doc)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -523,6 +534,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc.place(seat, doc.world)
         placed(doc, post, lift(1 * m))
         with self.assertRaises(ValidationError) as caught:
+            world_product(doc)
             product(doc, evaluate(doc)).validate_pseudomanifold()
         reached = {f.variant for f in caught.exception.findings}
         self.assertNotIn("census_unsupported", reached)
@@ -663,6 +675,7 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         """
         doc, lower, upper = two_slabs_resting()
         place_resting(doc, lower, upper)
+        world_product(doc)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError):
             gathered.validate_pseudomanifold()
