@@ -420,7 +420,15 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// names verbatim, with no `InPart` layer, and the document's product
 /// is a `⊔` of its two copies, a node the ids after it count; the
 /// volume bits and the solid count held.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 17_614_411_536_504_555_015;
+///
+/// The digest is pinned per ε: a document's tolerance is part of what
+/// its ids are minted from, so each eps row mints its own (the
+/// msolve14 posture), and every row's volume bits are the same.
+const SINGLE_SOLID_NAMES_DIGEST: [(f64, u64); 3] = [
+    (1e-9, 17_614_411_536_504_555_015),
+    (1e-6, 16_222_653_049_492_933_193),
+    (1e-12, 720_102_748_755_875_421),
+];
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]
@@ -436,9 +444,14 @@ fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(loaded.bit_eq(&doc), "the assembly round-trips");
 
+    let eps = Tol::witness().eps();
+    let (_, names) = SINGLE_SOLID_NAMES_DIGEST
+        .into_iter()
+        .find(|(e, _)| e.to_bits() == eps.to_bits())
+        .unwrap_or_else(|| panic!("no digest was measured at ε = {eps:e}"));
     assert_eq!(
         (digest(&ev), volume(&body).to_bits(), body.solids().count()),
-        (SINGLE_SOLID_NAMES_DIGEST, SINGLE_SOLID_VOLUME_BITS, 2),
+        (names, SINGLE_SOLID_VOLUME_BITS, 2),
         "the single-solid path is bit-identical across the lift"
     );
 }

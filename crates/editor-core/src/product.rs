@@ -925,6 +925,10 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         return Err(m.into());
     }
     let Some(var) = doc.product() else {
+        // The product door asked, and nothing was there to gather: a
+        // gather all the same, for the counters that read one.
+        #[cfg(debug_assertions)]
+        GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
         return Err(ProductError::EmptyProduct);
     };
     let mut product = gather(doc, evaluation, tol, var, true)?;
