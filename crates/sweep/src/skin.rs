@@ -994,17 +994,18 @@ pub fn skin_on<T: SpanLocate>(
     // Per row: `Some(c)` for a constant-weight row (see the docs).
     let constant: Vec<Option<T>> = (0..n)
         .map(|i| {
-            let c = sections[0].weights_f64_interim()[i];
-            sections
+            let ws: Vec<f64> = sections
                 .iter()
-                .all(|s| s.weights_f64_interim()[i] == c)
-                .then(|| {
-                    if c == 1.0 {
-                        T::one()
-                    } else {
-                        sections[0].weights()[i]
-                    }
-                })
+                .map(|s| s.weights_f64_interim()[i])
+                .collect();
+            let c = ws[0];
+            ws.iter().all(|w| *w == c).then(|| {
+                if c == 1.0 {
+                    T::one()
+                } else {
+                    sections[0].weights()[i]
+                }
+            })
         })
         .collect();
     let rows: Vec<Vec<T>> = sections
