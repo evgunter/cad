@@ -115,7 +115,7 @@ fn closed_forms_at_varied_geometry() {
         let t = hollow(major, outer, wall, window);
         let props = match topo::AtRestBody::validate(topo::Body::clone(&t.body), Tol::witness()) {
             Ok(finished) => topo::mass_properties(&finished, Tol::witness()),
-            // Raw door: at ε 1e-12 tier 3's volume check escalates on a case's wall (VolumeUncomputable) though the measurement converges (work/flux/tier-3-refuses-a-thin-walled-tube-at-1e-12-that-the-measurement-converges-on.md); every other case reads the typed door.
+            // Raw door: at ε 1e-12 tier 3's volume check escalates on the major-1300 case's tube (VolumeUncomputable) though the measurement converges (work/flux/tier-3-refuses-a-major-1300-torus-tube-at-1e-12-that-the-measurement-converges-on.md); every other case reads the typed door.
             Err(_) => topo::test_support::measure_unvalidated(&t.body, Tol::witness()),
         }
         .expect("props");
@@ -162,18 +162,15 @@ fn the_bore_differences_out_against_the_solid_door() {
         .expect("the solid tube builds");
         let hp = match topo::AtRestBody::validate(topo::Body::clone(&h.body), Tol::witness()) {
             Ok(finished) => topo::mass_properties(&finished, Tol::witness()),
-            // Raw door: at ε 1e-12 tier 3's volume check escalates on a case's wall (VolumeUncomputable) though the measurement converges (work/flux/tier-3-refuses-a-thin-walled-tube-at-1e-12-that-the-measurement-converges-on.md); every other case reads the typed door.
+            // Raw door: at ε 1e-12 tier 3's volume check escalates on the major-1300 case's tube (VolumeUncomputable) though the measurement converges (work/flux/tier-3-refuses-a-major-1300-torus-tube-at-1e-12-that-the-measurement-converges-on.md); every other case reads the typed door.
             Err(_) => topo::test_support::measure_unvalidated(&h.body, Tol::witness()),
         }
         .expect("props");
-        let sp = topo::mass_properties(
-            &topo::test_support::finished(
-                "the measured body",
-                topo::Body::clone(&s.body),
-                Tol::witness(),
-            ),
-            Tol::witness(),
-        )
+        let sp = match topo::AtRestBody::validate(topo::Body::clone(&s.body), Tol::witness()) {
+            Ok(finished) => topo::mass_properties(&finished, Tol::witness()),
+            // Raw door: the major-1300 case's solid tube is refused at ε 1e-12 as its hollow one above is (the same row); every other case reads the typed door.
+            Err(_) => topo::test_support::measure_unvalidated(&s.body, Tol::witness()),
+        }
         .expect("props");
         rel_close(
             sp.volume - hp.volume,
