@@ -972,18 +972,32 @@ fn replayed(proof: &Proof) -> Option<(Unreplayed, editor_core::coincide::Recours
 }
 
 /// **The cap `cap` of the cube in `instance`'s copy**, as the at-rest
-/// census names it: in the instance's output.
+/// census names it: in the instance's output, by the name the product's
+/// `⊔` keys it with, the copy's read.
 fn copy_cap(
     doc: &ProfileDoc,
     instance: RecipeNodeId,
     body: RecipeNodeId,
     cap: CapEnd,
 ) -> NamedCell {
+    let input = doc
+        .output(instance, 0)
+        .expect("an instance defines its copies");
+    let of = in_part(instance, body, cap).name;
+    let (assembled, _) = doc
+        .product()
+        .and_then(|product| doc.defined_by(product))
+        .expect("the stand's product is the `⊔` of its cubes");
     NamedCell::Entity {
-        input: doc
-            .output(instance, 0)
-            .expect("an instance defines its copies"),
-        name: in_part(instance, body, cap).name,
+        input,
+        name: StableName {
+            kind: of.kind,
+            node: assembled,
+            path: vec![RoleSeg::From {
+                read: input,
+                of: of.into(),
+            }],
+        },
     }
 }
 

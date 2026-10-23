@@ -1712,6 +1712,16 @@ pub(crate) enum VerbatimEdge<'a> {
         /// The mirror plane.
         plane: &'a crate::pose::RoleRead<crate::VarId>,
     },
+    /// Every entity of the source, copied (D10 `[placement.placement]`):
+    /// a [`Node::Place`](crate::node::Node::Place)'s copy of its
+    /// `source`, or an instance's copy of its part's product, whose
+    /// names are spelled in the part's ids and which no walk of this
+    /// document follows (`source` is `None`). The copy's own body row
+    /// is minted at the copying node.
+    Copied {
+        /// The source's read, `None` for an instance.
+        source: Option<crate::VarId>,
+    },
 }
 
 /// **The name-carrying edge `node` is, if any**: a part's projection,
@@ -1748,6 +1758,10 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
             body: body.read,
             plane,
         }),
+        Node::Place { source, .. } => Some(VerbatimEdge::Copied {
+            source: Some(source.read),
+        }),
+        Node::InstantiatePart { .. } => Some(VerbatimEdge::Copied { source: None }),
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -1763,11 +1777,9 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Intersect { .. }
         | Node::Assemble { .. }
         | Node::Pattern { .. }
-        | Node::Place { .. }
         | Node::World
         | Node::Space
         | Node::PlacedUnion { .. }
-        | Node::InstantiatePart { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }

@@ -995,26 +995,23 @@ pub fn construction<P: crate::ProfilePayload>(
             continue;
         }
         while at != name.node {
-            match node(at)? {
+            read = match crate::names::verbatim_edge(node(at)?) {
                 // A copy carries its source's names verbatim.
-                Node::Place { source, .. } => {
+                Some(VerbatimEdge::Copied {
+                    source: Some(source),
+                }) => {
                     maps.push(Map::World(at));
-                    read = source.read;
-                    at = operation(doc, at, read)?;
-                    continue;
+                    source
                 }
                 // A part's entity enters at its instance, where the
                 // walk stops: its name is the part's, in the part's ids.
-                Node::InstantiatePart { .. } => {
+                Some(VerbatimEdge::Copied { source: None }) => {
                     maps.push(Map::World(at));
                     return Ok(Construction {
                         origin: Origin::Minted(name),
                         maps,
                     });
                 }
-                _ => {}
-            }
-            read = match crate::names::verbatim_edge(node(at)?) {
                 Some(VerbatimEdge::Selected { of, .. }) => of,
                 Some(VerbatimEdge::Intact { target }) => target,
                 Some(VerbatimEdge::Reflected { body, plane }) => {

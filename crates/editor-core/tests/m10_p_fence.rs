@@ -453,3 +453,4 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
          moves with ids, and this one does not"
     );
 }
+

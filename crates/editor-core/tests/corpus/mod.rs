@@ -483,7 +483,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 23] = [
+pub const NODE_KINDS: [&str; 24] = [
     "Profile",
     "Extrude",
     "Revolve",
@@ -503,6 +503,9 @@ pub const NODE_KINDS: [&str; 23] = [
     "Union",
     "Intersect",
     "Subtract",
+    // D′3's fourth operator — COVERED, by every document whose product
+    // reads several world copies.
+    "Assemble",
     "Pattern",
     // DOCM-2's projection node — COVERED, by `part_select`.
     "Part",

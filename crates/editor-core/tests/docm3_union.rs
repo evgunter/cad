@@ -1197,14 +1197,16 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
     );
 }
 
-/// The list a node carries, as the reads it holds — a union's or an
-/// intersect's members, or a loft's sections — or `None` for a node
+/// The list a node carries, as the reads it holds — a union's, an
+/// intersect's or a `⊔`'s members, or a loft's sections — or `None` for a node
 /// with no list. The test-side twin of the retired `Node::list_input`.
 fn list_input(
     node: &editor_core::Node<editor_core::ProfileProgram>,
 ) -> Option<editor_core::Bodies<editor_core::BodyRead<editor_core::Formula>>> {
     match node {
-        Node::Union { members, .. } | Node::Intersect { members, .. } => Some(
+        Node::Union { members, .. }
+        | Node::Intersect { members, .. }
+        | Node::Assemble { members } => Some(
             members
                 .try_map(|_, m| {
                     Ok::<_, std::convert::Infallible>(editor_core::BodyRead::plain(m.read))

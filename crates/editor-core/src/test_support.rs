@@ -1022,6 +1022,8 @@ pub enum VerbatimKind {
     Intact,
     /// `VerbatimEdge::Reflected`: a mirror's image.
     Reflected,
+    /// `VerbatimEdge::Copied`: a placement's or an instance's copy.
+    Copied,
 }
 
 /// **The name-carrying edge the recipe walks read `node` as, if any**:
@@ -1040,6 +1042,7 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
         VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
         VerbatimEdge::Intact { .. } => VerbatimKind::Intact,
         VerbatimEdge::Reflected { .. } => VerbatimKind::Reflected,
+        VerbatimEdge::Copied { .. } => VerbatimKind::Copied,
     })
 }
 

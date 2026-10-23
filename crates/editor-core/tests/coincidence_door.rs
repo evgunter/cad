@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, block_on, failure, run};
-use crate::emit_shared_rim_several::own_name;
+use crate::emit_shared_rim_several::{construction, own_name};
 use crate::fixture::{fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
@@ -141,7 +141,7 @@ fn a_glued_rest_and_its_corners_are_unproven_rows_named_by_their_operands() {
             corner.site == DecisionSite::VertexFusion
                 && corner.relation == Relation::OnCarrier
                 && matches!(&corner.cells[0], NamedCell::Entity { name, .. }
-                    if name.node == plate && name.kind == EntityKind::Vertex)
+                    if name.node == construction(&doc, plate) && name.kind == EntityKind::Vertex)
                 && corner.cells[1] == entity(out(&doc, base), &top),
             "a plate corner on the block's top: {corner:?}"
         );

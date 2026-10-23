@@ -60,9 +60,15 @@ fn with_world(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> BTreeSet<Recipe
 
 /// The face name each side of a stored rest reads, `on`'s first; `None`
 /// for a mate that rests no two faces.
-fn rested_names(doc: &ProfileDoc, mate: &editor_core::Mate) -> Option<(StableName, StableName)> {
+fn rested_names(
+    doc: &ProfileDoc,
+    mate: &editor_core::Mate,
+) -> Option<((RecipeNodeId, StableName), (RecipeNodeId, StableName))> {
     let face = |pose| match fixture::face_reads(doc, pose)[..] {
-        [one] => Some(fixture::side_name(doc, one)),
+        [one] => Some((
+            doc.operation_of(doc.selection(one)?.body)?,
+            fixture::side_name(doc, one),
+        )),
         _ => None,
     };
     Some((face(mate.on)?, face(mate.to)?))
@@ -143,7 +149,17 @@ fn sweep_every_cut((doc, o): &(ProfileDoc, EvalOptions), label: &str) -> Sweep {
                 let Some((on, to)) = c.mate().and_then(|m| rested_names(doc, m)) else {
                     continue;
                 };
-                let inside = |n: &StableName| derivation_nodes(n).is_subset(&cut);
+                // A name an instance's copy carries is spelled in its
+                // part's ids, which no cut of this document holds: it
+                // is inside where the node it is read at is.
+                let inside = |(at, n): &(RecipeNodeId, StableName)| {
+                    let nodes = derivation_nodes(n);
+                    if nodes.iter().all(|&id| doc.node(id).is_some()) {
+                        nodes.is_subset(&cut)
+                    } else {
+                        cut.contains(at)
+                    }
+                };
                 if inside(&on) != inside(&to) {
                     seen.straddling_mates += 1;
                     if edge_count(MateRef::new(placement, c.id)) == 2 {
