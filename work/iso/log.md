@@ -71,3 +71,11 @@ Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
 (P0), the measurement's off-ground finding. — (ISO orchestrator)
 
 - 2026-10-23 — `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain` (its IsoArc half) dispatched on `iso/arc-rim-sub-arc`. **Review tier: single FULL** — a new map in the arc-rim arm (sub-arc extent from the carrier's chart feet, `breaks` re-cut), whose certificate must still hold, so believing it takes more than reading it. No fork: the row names the measurement and the IsoLine half landed that way. — (ISO orchestrator)
+
+- 2026-10-23 — PR 5629 review (single FULL, frozen `8ca0f5481a`): APPROVE-WITH-FIXES, no MAJOR. The core change was confirmed by execution (1,869 random cases with rational rows bitwise the old lane; the 38→0 census reproduced). The fix pass takes every item:
+  - two test gaps, each shown by mutants that pass every committed test (a silent weight heal on the integral rows; `all`→`any` on the every-section rule);
+  - the passenger row closes with the carrier;
+  - two evidence errors in the new arc-bulge row;
+  - the history prose in skin's docs.
+
+  Orchestrator's call: a constant non-1 weight row also takes the Cartesian lane, with its constant attached. That closes the `skin.rs` bullet of `rational-gates-test-unit-weights-not-constancy` in passing. The "is integral" predicate is spelled differently across `patch_bound`, `curves` and `skin`, a class whose home is that row. — (ISO orchestrator)
