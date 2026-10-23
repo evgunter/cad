@@ -112,7 +112,7 @@ fn point_of(pose: &PoseValue<f64>) -> Point3<f64> {
     match *pose {
         PoseValue::Point { position } => position,
         PoseValue::Direction { .. } => Point3::origin(),
-        PoseValue::Axis { foot, .. } => foot,
+        PoseValue::Axis(line) => line.foot(),
         PoseValue::Plane { normal, offset } => PoseValue::plane_foot(normal, offset),
         PoseValue::Frame(f) => f.origin(),
     }
@@ -126,7 +126,7 @@ fn pose_move(doc: &ProfileDoc, ev: &Evaluation<f64>, def: &PoseDef, band: Band, 
             let (Some(pose), Some(along)) = (read(pose), read(along)) else {
                 return false;
             };
-            let (PoseValue::Direction { dir } | PoseValue::Axis { dir, .. }) = along else {
+            let Some(dir) = along.heading() else {
                 return false;
             };
             // A plane slid moves its offset by `by · (along · normal)`
@@ -141,10 +141,10 @@ fn pose_move(doc: &ProfileDoc, ev: &Evaluation<f64>, def: &PoseDef, band: Band, 
             slides_along(pose.symmetry(), dir, band, arm).unwrap_or(false)
         }
         PoseDef::Spin { pose, about, .. } => {
-            let (Some(pose), Some(PoseValue::Axis { foot, dir, .. })) = (read(pose), read(about))
-            else {
+            let (Some(pose), Some(PoseValue::Axis(about))) = (read(pose), read(about)) else {
                 return false;
             };
+            let (foot, dir) = (about.foot(), about.dir());
             let Some(arm) = arm_over(&[point_of(&pose), foot], band) else {
                 return false;
             };
@@ -178,7 +178,7 @@ fn spin_moves_nothing(
         Point3::origin() + m.to_affine().translation
     });
     let (point, dir) = match to {
-        Ok(PoseValue::Axis { foot, dir, .. }) => (foot, dir),
+        Ok(PoseValue::Axis(line)) => (line.foot(), line.dir()),
         Ok(PoseValue::Plane { normal: dir, .. } | PoseValue::Direction { dir }) => {
             (copy_origin, dir)
         }

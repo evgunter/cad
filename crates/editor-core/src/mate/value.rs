@@ -121,19 +121,12 @@ impl<T: SolveScalar> Chart<T> {
             (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => {
                 (*t, *o, Seat::Free)
             }
-            (
-                PoseValue::Axis {
-                    foot: copy_foot,
-                    dir: o,
-                    ..
-                },
-                PoseValue::Axis { foot, dir: t, .. },
-            ) => (
-                *t,
-                *o,
+            (PoseValue::Axis(copy), PoseValue::Axis(target)) => (
+                target.dir(),
+                copy.dir(),
                 Seat::Line {
-                    foot: *foot,
-                    copy_foot: *copy_foot,
+                    foot: target.foot(),
+                    copy_foot: copy.foot(),
                 },
             ),
             _ => return Ok(None),

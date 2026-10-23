@@ -41,19 +41,10 @@ pub enum PoseValue<T: Real> {
         /// The direction.
         dir: UnitVec3<T>,
     },
-    /// An axis along `dir` through `foot`: known up to slide and spin
-    /// along itself, so it holds those invariants alone. `foot` is the
-    /// line's point nearest its space's origin, projected there by the
-    /// one constructor ([`Self::axis_through`]); `projected` is that
-    /// constructor's witness, so no reader sees a slide along the line.
-    Axis {
-        /// The line's point nearest its space's origin.
-        foot: Point3<T>,
-        /// The direction.
-        dir: UnitVec3<T>,
-        /// The constructor's witness that `foot` is projected.
-        projected: Projected,
-    },
+    /// An axis: known up to slide and spin along itself, so it holds
+    /// its line alone ([`AxisLine`]), and no reader sees a slide along
+    /// it.
+    Axis(AxisLine<T>),
     /// The plane `p · normal = offset`: known up to in-plane motion, so
     /// it holds those invariants alone, and no reader sees a point in
     /// the plane ([`Self::plane_through`] reads one off).
@@ -72,26 +63,55 @@ pub enum PoseValue<T: Real> {
     Frame(RigidMotion<T>),
 }
 
-/// **The witness that an axis's foot is projected** onto the line's
-/// point nearest its space's origin: minted by
-/// [`PoseValue::axis_through`] alone, and carried unchanged by a
-/// construction that keeps the line (a reversed sense).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Projected(());
+/// **An axis's line**: its direction and its foot, the line's point
+/// nearest its space's origin. The fields are private, so every foot is
+/// the one [`Self::through`] projects, and a construction that keeps
+/// the line ([`Self::reversed`]) goes through this type.
+#[derive(Debug, Clone, Copy)]
+pub struct AxisLine<T: Real> {
+    foot: Point3<T>,
+    dir: UnitVec3<T>,
+}
+
+impl<T: Real> AxisLine<T> {
+    /// **The line through `point` along `dir`**: its foot is `point`
+    /// with its component along `dir` taken off.
+    #[must_use]
+    pub fn through(point: Point3<T>, dir: UnitVec3<T>) -> Self {
+        let d = dir.get();
+        Self {
+            foot: point - d * (point - Point3::origin()).dot(d),
+            dir,
+        }
+    }
+
+    /// The line's point nearest its space's origin.
+    #[must_use]
+    pub fn foot(&self) -> Point3<T> {
+        self.foot
+    }
+
+    /// The line's direction.
+    #[must_use]
+    pub fn dir(&self) -> UnitVec3<T> {
+        self.dir
+    }
+
+    /// The same line in the opposite sense: its foot is kept.
+    #[must_use]
+    pub fn reversed(self) -> Self {
+        Self {
+            foot: self.foot,
+            dir: -self.dir,
+        }
+    }
+}
 
 impl<T: Real> PoseValue<T> {
-    /// **The axis through `point` along `dir`**, its foot the line's
-    /// point nearest the origin: `point` with its component along `dir`
-    /// taken off.
+    /// **The axis through `point` along `dir`** ([`AxisLine::through`]).
     #[must_use]
     pub fn axis_through(point: Point3<T>, dir: UnitVec3<T>) -> Self {
-        let v = point - Point3::origin();
-        let d = dir.get();
-        Self::Axis {
-            foot: point - d * v.dot(d),
-            dir,
-            projected: Projected(()),
-        }
+        Self::Axis(AxisLine::through(point, dir))
     }
 
     /// **The plane through `point` with `normal`**: its offset the
@@ -101,6 +121,17 @@ impl<T: Real> PoseValue<T> {
         Self::Plane {
             normal,
             offset: (point - Point3::origin()).dot(normal.get()),
+        }
+    }
+
+    /// The direction a direction or an axis runs along; `None` for any
+    /// other kind.
+    #[must_use]
+    pub(crate) fn heading(&self) -> Option<UnitVec3<T>> {
+        match self {
+            Self::Direction { dir } => Some(*dir),
+            Self::Axis(line) => Some(line.dir),
+            Self::Point { .. } | Self::Plane { .. } | Self::Frame(_) => None,
         }
     }
 
@@ -116,7 +147,7 @@ impl<T: Real> PoseValue<T> {
         match self {
             Self::Point { .. } => crate::VarKind::Point,
             Self::Direction { .. } => crate::VarKind::Direction,
-            Self::Axis { .. } => crate::VarKind::Axis,
+            Self::Axis(_) => crate::VarKind::Axis,
             Self::Plane { .. } => crate::VarKind::Plane,
             Self::Frame(_) => crate::VarKind::Frame,
         }
@@ -132,9 +163,9 @@ impl<T: Real> PoseSymmetry<T> for PoseValue<T> {
         match *self {
             Self::Point { position } => Subgroup::Spherical { point: position },
             Self::Direction { dir } => Subgroup::Parallel { direction: dir },
-            Self::Axis { foot, dir, .. } => Subgroup::Cylindrical {
-                point: foot,
-                direction: dir,
+            Self::Axis(line) => Subgroup::Cylindrical {
+                point: line.foot,
+                direction: line.dir,
             },
             Self::Plane { normal, .. } => Subgroup::Planar { normal },
             Self::Frame(_) => Subgroup::Trivial,
@@ -153,9 +184,9 @@ impl<T: Real> PoseSymmetry<T> for PoseValue<T> {
 pub fn pose_distance<T: Real>(pose: &PoseValue<T>, p: Point3<T>) -> Option<T> {
     Some(match pose {
         PoseValue::Plane { normal, offset } => (p - Point3::origin()).dot(normal.get()) - *offset,
-        PoseValue::Axis { foot, dir, .. } => {
-            let d = dir.get();
-            let v = p - *foot;
+        PoseValue::Axis(line) => {
+            let d = line.dir.get();
+            let v = p - line.foot;
             (v - d * v.dot(d)).norm()
         }
         PoseValue::Point { position } => (p - *position).norm(),
@@ -398,8 +429,10 @@ impl PoseRole {
                     },
                 ),
             ),
-            (PoseValue::Plane { normal: dir, .. }, Self::Normal)
-            | (PoseValue::Axis { dir, .. }, Self::Direction) => PoseValue::Direction { dir: *dir },
+            (PoseValue::Plane { normal: dir, .. }, Self::Normal) => {
+                PoseValue::Direction { dir: *dir }
+            }
+            (PoseValue::Axis(line), Self::Direction) => PoseValue::Direction { dir: line.dir },
             _ => return None,
         })
     }

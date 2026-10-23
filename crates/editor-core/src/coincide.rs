@@ -1109,9 +1109,9 @@ pub fn construction<P: crate::ProfilePayload>(
 fn split_half<P>(doc: &crate::doc::Doc<P>, read: crate::VarId) -> Option<crate::SplitHalf> {
     let read = doc.selection(read).map_or(read, |select| select.body);
     match doc.var(read)?.def() {
-        crate::var::VarDef::Output { port, .. } => {
-            crate::SplitHalf::of_output_body(u32::from(*port))
-        }
+        crate::var::VarDef::Output { port, .. } => crate::SplitHalf::ALL
+            .into_iter()
+            .find(|half| half.port() == *port),
         _ => None,
     }
 }

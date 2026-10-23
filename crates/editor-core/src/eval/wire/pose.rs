@@ -56,8 +56,8 @@ fn carried<T: Decide>(
             position: motion.transform_point(position),
         },
         PoseValue::Direction { dir } => PoseValue::Direction { dir: turn(dir)? },
-        PoseValue::Axis { foot, dir, .. } => {
-            PoseValue::axis_through(motion.transform_point(foot), turn(dir)?)
+        PoseValue::Axis(line) => {
+            PoseValue::axis_through(motion.transform_point(line.foot()), turn(line.dir())?)
         }
         // `p · n = c` carried to `x = R p + t` is `x · R n = c + t · R n`.
         PoseValue::Plane { normal, offset } => {
@@ -258,24 +258,11 @@ fn definition<T: crate::mate::SolveScalar>(
             along,
             by,
         } => {
-            let (PoseValue::Direction { dir } | PoseValue::Axis { dir, .. }) = pose(along)? else {
+            let Some(dir) = pose(along)?.heading() else {
                 unreachable!("the door admits a direction or an axis alone at a slide's direction")
             };
             let by = scalar(*by, crate::expr::Dimension::Length)?;
-            match pose(read)? {
-                // Along its own normal, `along · normal` is one: the
-                // offset moves by `by`.
-                PoseValue::Plane { normal, offset }
-                    if along.read == read.read
-                        && along.role == Some(crate::pose::PoseRole::Normal) =>
-                {
-                    PoseValue::Plane {
-                        normal,
-                        offset: offset + by,
-                    }
-                }
-                value => slide(value, dir, by)?,
-            }
+            slide(pose(read)?, dir, by)?
         }
         // The pose turned about the line by the right-hand rule: a rigid
         // motion, so each direction is the motion's turn of a unit one.
@@ -284,19 +271,20 @@ fn definition<T: crate::mate::SolveScalar>(
             about,
             by,
         } => {
-            let PoseValue::Axis { foot, dir, .. } = pose(about)? else {
+            let PoseValue::Axis(about) = pose(about)? else {
                 unreachable!("the door admits an axis alone at a spin's axis")
             };
             let angle = crate::expr::eval_angle(*by, env)
                 .map_err(|source| NodeErrorKind::PoseScalar { var: *by, source })?;
-            spin(pose(read)?, foot, dir, angle)?
+            spin(pose(read)?, about.foot(), about.dir(), angle)?
         }
         PoseDef::Through { axis, point } => {
-            let (PoseValue::Axis { foot, dir, .. }, PoseValue::Point { position }) =
+            let (PoseValue::Axis(axis), PoseValue::Point { position }) =
                 (pose(axis)?, pose(point)?)
             else {
                 unreachable!("the door admits an axis and a point at a frame through them")
             };
+            let (foot, dir) = (axis.foot(), axis.dir());
             let a = dir.get();
             let along = (position - foot).dot(a);
             let at = foot + a * along;
@@ -359,7 +347,7 @@ pub(crate) fn slide<T: Decide>(
         PoseValue::Point { position } => PoseValue::Point {
             position: position + step,
         },
-        PoseValue::Axis { foot, dir, .. } => PoseValue::axis_through(foot + step, dir),
+        PoseValue::Axis(line) => PoseValue::axis_through(line.foot() + step, line.dir()),
         PoseValue::Plane { normal, offset } => PoseValue::Plane {
             normal,
             offset: offset + by * dir.get().dot(normal.get()),
@@ -400,7 +388,7 @@ pub(crate) fn spin<T: Decide>(
         PoseValue::Direction { dir } => PoseValue::Direction {
             dir: turn.turn(dir),
         },
-        PoseValue::Axis { foot, dir, .. } => PoseValue::axis_through(point(foot), turn.turn(dir)),
+        PoseValue::Axis(line) => PoseValue::axis_through(point(line.foot()), turn.turn(line.dir())),
         // `p · n = c` turned to `q + R (p − q)`: its offset along `R n`
         // is `c + q · (R n − n)`.
         PoseValue::Plane { normal, offset } => {
@@ -428,15 +416,7 @@ pub(crate) fn flip<T: Decide>(
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     Ok(match value {
         PoseValue::Direction { dir } => PoseValue::Direction { dir: -dir },
-        PoseValue::Axis {
-            foot,
-            dir,
-            projected,
-        } => PoseValue::Axis {
-            foot,
-            dir: -dir,
-            projected,
-        },
+        PoseValue::Axis(line) => PoseValue::Axis(line.reversed()),
         PoseValue::Plane { normal, offset } => PoseValue::Plane {
             normal: -normal,
             offset: -offset,

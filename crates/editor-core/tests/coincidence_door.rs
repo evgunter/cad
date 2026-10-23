@@ -838,10 +838,17 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     );
 }
 
-/// Whether `cell` names a split's crossing vertex.
+/// Whether `cell` names a split's crossing vertex, through any copies
+/// a placement made of it.
 fn a_crossing(cell: &NamedCell) -> bool {
-    matches!(cell, NamedCell::Entity { name, .. }
-        if matches!(name.path.first(), Some(RoleSeg::CrossingVertex { .. })))
+    fn crossing(name: &StableName) -> bool {
+        match name.path.first() {
+            Some(RoleSeg::CrossingVertex { .. }) => true,
+            Some(RoleSeg::Placed { of }) => crossing(of),
+            _ => false,
+        }
+    }
+    matches!(cell, NamedCell::Entity { name, .. } if crossing(name))
 }
 
 /// **A split's crossing vertex lies on its tool's plane, and so on the
@@ -979,6 +986,212 @@ fn a_corner_the_tool_passes_through_is_not_on_it_by_construction() {
             );
         }
     }
+}
+
+/// **A crossing of a half a placement moves is not on the unmoved
+/// face by construction**: [`a_split_on_a_faces_plane_lays_its_crossings_on_that_face`]'s
+/// scene, with the upper half placed `(0.25, 0, 0)` along the slab
+/// before the union. Each crossing's construction carries the
+/// placement's map and the slab's top does not, so though the half
+/// still rests on the top, no crossing row is the first rung's.
+///
+/// *Breaks if* a crossing is laid on its tool's face without the maps
+/// above the split.
+#[test]
+fn a_placed_halfs_crossings_are_not_on_the_unplaced_face_by_construction() {
+    let doc = ProfileDoc::empty_derived("coincide-placed-half", Tol::witness());
+    let (doc, slab) = block(doc, (-1.0, 2.0), (-1.0, 2.0), 0.5);
+    let (doc, x) = block_on(doc, slab, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let tool = crate::fixture::plane_on(&doc, slab, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: x.into(),
+            tool,
+        },
+    );
+    let upper = port(&doc, split, SplitHalf::Above);
+    let (doc, moved) = crate::fixture::against(
+        doc,
+        slab,
+        upper,
+        &editor_core::Frame::translation([0.25, 0.0, 0.0]),
+    );
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![moved.into(), slab.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let got = rows(&ev, union);
+    let crossings: Vec<(&NamedCoincidence, Proof)> = got
+        .iter()
+        .zip(proofs(&doc, union, &got))
+        .filter(|(r, _)| r.relation == Relation::OnCarrier && r.cells.iter().any(a_crossing))
+        .collect();
+    assert_eq!(
+        crossings.len(),
+        4,
+        "the premise: the four crossings: {got:?}"
+    );
+    for (row, proof) in crossings {
+        assert_ne!(
+            proof,
+            Proof::Structural(Rung::SameConstruction),
+            "a placed crossing is read on the unplaced top by construction: {row:?}"
+        );
+    }
+}
+
+/// **An arc crossed twice reunites**: a disc's cylinder split by a
+/// plane off its axis, so each rim circle is crossed twice and each
+/// half holds one crossing of each sense on it, then the halves
+/// unioned again. The halves' copies pair per crossing, the `Above`
+/// half's `Enters` with the `Below` half's `Leaves`, so every crossing
+/// row is the first rung's.
+///
+/// *Breaks if* the two halves' copies of a crossing are read with each
+/// half's own sense, or ranked apart.
+#[test]
+fn an_arc_crossed_twice_reunites_by_construction() {
+    let doc = ProfileDoc::empty_derived("coincide-arc-twice", Tol::witness());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("a circle")],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, disc) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+        },
+    );
+    let (doc, wall) = block_on(doc, disc, (-1.0, 1.0), (-1.0, 0.2), 0.0, 1.0);
+    let tool = crate::fixture::plane_on(&doc, wall, [0.0, 0.2, 0.0], [0.0, 1.0, 0.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: disc.into(),
+            tool,
+        },
+    );
+    let (above, below) = (
+        port(&doc, split, SplitHalf::Above),
+        port(&doc, split, SplitHalf::Below),
+    );
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![above.into(), below.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let got = rows(&ev, union);
+    let crossings: Vec<(&NamedCoincidence, Proof)> = got
+        .iter()
+        .zip(proofs(&doc, union, &got))
+        .filter(|(r, _)| r.cells.iter().any(a_crossing))
+        .collect();
+    assert_eq!(
+        crossings.len(),
+        4,
+        "the premise: two crossings on each rim: {got:?}"
+    );
+    for (row, proof) in crossings {
+        assert_eq!(
+            proof,
+            Proof::Structural(Rung::SameConstruction),
+            "a crossing's two copies are one construction: {row:?}"
+        );
+    }
+}
+
+/// **A section edge lies on the operand face it runs across**: a row
+/// laying the upper half's section edge on the lower half's fragment
+/// of that edge's wall is the first rung's, and one laying it on the
+/// fragment of a wall it does not cross is not. The rows are written
+/// here: no node decides an edge on a face of the other half.
+///
+/// *Breaks if* a section edge is not read as on its wall, or is read
+/// as on every wall.
+#[test]
+fn a_section_edge_lies_on_the_wall_it_runs_across() {
+    let doc = ProfileDoc::empty_derived("coincide-section-edge", Tol::witness());
+    let (doc, cube) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let tool = crate::fixture::plane_on(&doc, cube, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: cube.into(),
+            tool,
+        },
+    );
+    let (above, below) = (
+        port(&doc, split, SplitHalf::Above),
+        port(&doc, split, SplitHalf::Below),
+    );
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![above.into(), below.into()]),
+        },
+    );
+    let ev = run(&doc);
+    let names = |half| -> Vec<StableName> {
+        crate::fixture::half(&ev, split, half)
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect()
+    };
+    let (upper, lower) = (names(SplitHalf::Above), names(SplitHalf::Below));
+    let (edge, across) = upper
+        .iter()
+        .find_map(|n| match n.path.first() {
+            Some(RoleSeg::SectionEdge { face }) => Some((n.clone(), face.clone())),
+            _ => None,
+        })
+        .expect("the premise: a section edge of the upper half");
+    let fragment = |of: &dyn Fn(&StableName) -> bool| {
+        lower
+            .iter()
+            .find(|n| {
+                n.kind == EntityKind::Face
+                    && matches!(n.path.first(), Some(RoleSeg::SplitFragment { parent }) if of(parent))
+            })
+            .cloned()
+            .expect("the premise: a fragment of the lower half")
+    };
+    let its_wall = fragment(&|parent| *parent == *across);
+    let another = fragment(&|parent| {
+        *parent != *across && matches!(parent.path.first(), Some(RoleSeg::Lateral(_)))
+    });
+    let laid = |face: &StableName| {
+        let margin = MarginDiag::value(0.0);
+        NamedCoincidence {
+            cells: vec![entity(above, &edge), entity(below, face)],
+            relation: Relation::OnCarrier,
+            site: DecisionSite::VertexFusion,
+            margin,
+            discharge: topo::Discharge::of(margin),
+            origin: coincide::RowOrigin::Node,
+        }
+    };
+    assert_eq!(
+        proof(&doc, union, &laid(&its_wall)),
+        Proof::Structural(Rung::SameConstruction),
+        "the section edge on its own wall's fragment"
+    );
+    assert_ne!(
+        proof(&doc, union, &laid(&another)),
+        Proof::Structural(Rung::SameConstruction),
+        "the section edge on a wall it does not cross"
+    );
 }
 
 /// Two unit blocks apart along x, their caps and y-walls on one
@@ -1511,6 +1724,49 @@ fn a_ratio_evaluates_exactly_at_sym() {
         })
     });
     assert_eq!(theorems, [true; 3]);
+}
+
+/// **The door's proof of each row of the corpus**, one line a row
+/// (`ROW <document> <node> <index> <relation> <site> <proof>`): the
+/// instrument a change to a rung is diffed by, base against head. A
+/// census, not a gate.
+#[test]
+#[ignore = "a census: cargo nextest run -p editor-core --run-ignored only --no-capture -E 'test(=coincidence_door::census_the_door_per_row_over_the_corpus)'"]
+fn census_the_door_per_row_over_the_corpus() {
+    for cd in crate::corpus::documents() {
+        let ev = run(&cd.doc);
+        let nodes: Vec<(RecipeNodeId, &[NamedCoincidence])> = ev
+            .order
+            .iter()
+            .filter_map(|&node| ev.value(node).map(|v| (node, &*v.coincidences)))
+            .filter(|(_, rows)| !rows.is_empty())
+            .collect();
+        let proofs = coincide::prove(
+            &cd.doc,
+            &nodes,
+            None,
+            Tol::witness(),
+            &editor_core::CancelToken::new(),
+        )
+        .expect("an uncanceled door");
+        for ((node, rows), proofs) in nodes.iter().zip(&proofs) {
+            for (i, (row, proof)) in rows.iter().zip(proofs).enumerate() {
+                let how = match proof {
+                    Proof::Structural(rung) => format!("{rung:?}"),
+                    Proof::Unproven { residual, recourse } => {
+                        format!("unproven/{:?}/{recourse:?}", residual.replay)
+                    }
+                };
+                println!(
+                    "ROW {} {} {i} {:?} {:?} {how}",
+                    cd.name,
+                    node.0.ordinal(),
+                    row.relation,
+                    row.site
+                );
+            }
+        }
+    }
 }
 
 /// **What the door proves on the corpus**: every document's rows, by

@@ -152,7 +152,7 @@ fn plane_of<T: Decide>(pose: &PoseValue<T>) -> Option<SplitPlane<T>> {
             origin: PoseValue::plane_foot(*normal, *offset),
             normal: *normal,
         }),
-        PoseValue::Axis { .. }
+        PoseValue::Axis(_)
         | PoseValue::Point { .. }
         | PoseValue::Direction { .. }
         | PoseValue::Frame { .. } => None,

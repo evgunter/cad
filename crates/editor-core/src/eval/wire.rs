@@ -4373,7 +4373,7 @@ fn stepped_map<T: crate::mate::SolveScalar>(
             band(tol)?,
         )?,
         PatternKind::Circular { axis, .. } => {
-            let PoseValue::Axis { foot, dir, .. } = pose::eval_pose(
+            let PoseValue::Axis(line) = pose::eval_pose(
                 rule.doc,
                 rule.unprojected,
                 crate::OperandSlot::Axis,
@@ -4385,8 +4385,8 @@ fn stepped_map<T: crate::mate::SolveScalar>(
                 unreachable!("the door admits an axis alone at a circular rule's axis")
             };
             SteppedOperands::circular(
-                foot,
-                dir,
+                line.foot(),
+                line.dir(),
                 need_angle(vals, SlotId::Step)?,
                 &(rule.written)(SlotId::Step),
                 band(tol)?,

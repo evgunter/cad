@@ -97,7 +97,7 @@ fn a_frames_axes_and_planes_read_through_their_roles() {
     let through = |role| RoleRead::through(frame, role);
     let axis = |role| match bound_pose(&doc, &ev, OperandSlot::Axis, through(role), Tol::witness())
     {
-        Ok(PoseValue::Axis { foot, dir, .. }) => (foot, UnitVec3::get(dir)),
+        Ok(PoseValue::Axis(line)) => (line.foot(), UnitVec3::get(line.dir())),
         other => panic!("{role}: an axis, not {other:?}"),
     };
     // Each axis through the frame's origin (1, 2, 3), its foot that
@@ -378,12 +378,12 @@ fn the_tilted_seat_plane_evaluates() {
     else {
         panic!("a spun plane");
     };
-    let Ok(PoseValue::Axis { dir, .. }) =
+    let Ok(PoseValue::Axis(axis)) =
         bound_pose(&doc, &ev, OperandSlot::Axis, about.read, Tol::witness())
     else {
         panic!("the rim's axis");
     };
-    let d = UnitVec3::get(dir);
+    let d = UnitVec3::get(axis.dir());
     let toward = d.cross(geom_core::Vec3::new(0.0, 0.0, 1.0));
     near(
         n.dot(toward),
@@ -474,12 +474,12 @@ fn a_lone_zero_is_the_constant_of_its_slots_dimension() {
         built.nodes.get(&revolve)
     );
     let axis = doc.output(revolve, 1).expect("a revolve defines its axis");
-    let Ok(PoseValue::Axis { dir, .. }) =
+    let Ok(PoseValue::Axis(axis)) =
         bound_pose(&doc, &built, OperandSlot::Axis, axis, Tol::witness())
     else {
         panic!("the revolve's axis");
     };
-    let d = UnitVec3::get(dir);
+    let d = UnitVec3::get(axis.dir());
     for (got, want, what) in [(d.x, 1.0, "x"), (d.y, 0.0, "y"), (d.z, 0.0, "z")] {
         near(
             got,
