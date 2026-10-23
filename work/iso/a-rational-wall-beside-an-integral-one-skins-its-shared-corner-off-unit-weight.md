@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P2
 cost: M
+rides_with: loft-seam-carrier-exact-knot-compare
 ---
 
 

@@ -42,3 +42,32 @@ tree, so a measurement lane re-takes its grid on main before any
 implementer is briefed. — (ISO orchestrator)
 
 - 2026-10-23 — P0 PR 5629 is up and green: `skin_on` now picks its lane per control row. All 38 refusing cells failed the weights compare, never the knots, always the line wall's end column against the arc wall's corner column. All 48 cells build after the fix. One new row from it, `a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim` (P2): the CARVE row's second shape, which has another mechanism (the arc-rim pick on an unsplit body). Single FULL review dispatched on frozen `8ca0f5481a`. — (ISO orchestrator)
+## 2026-10-23 — the P0 measured and dispatched
+
+The measurement lane re-took the P0's grid on main (the row's
+`## Measured on main` section): it is live, and CARVE's
+`a-rational-wall-beside-an-integral-one-skins-its-shared-corner-off-unit-weight`
+is its mechanism, moved here to ride with it. No design fork: the fix
+acts at the producer (`skin_on` chooses its lane per control row, so an
+integral corner column stays bitwise `1.0`), which is `skin`'s own
+fit contract, and the certifier's exact one-spline-space test stays.
+Relaxing that test to a tolerance would put a second copy of one
+column in the tree and argue soundness around the drift, and nothing
+needs it once the copies agree.
+
+Dispatched on `iso/loft-seam-per-row-lane`. **Review tier: single
+FULL** — a fit-contract change in `skin.rs` that moves every rational
+loft's integral rows, so believing it takes more than reading it, but
+it is one decision with a narrow footprint, not a broad architectural
+one.
+
+`non-separable-rational-interior-column` waits on a producer: nothing
+in the tree mints such a column (its own `## The honest route`), so it
+is not dispatched this sitting. It stays `open` rather than `parked`
+because no item names the trigger; the first construction that mints
+one is it.
+
+Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
+(P0), the measurement's off-ground finding. — (ISO orchestrator)
+
+- 2026-10-23 — `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain` (its IsoArc half) dispatched on `iso/arc-rim-sub-arc`. **Review tier: single FULL** — a new map in the arc-rim arm (sub-arc extent from the carrier's chart feet, `breaks` re-cut), whose certificate must still hold, so believing it takes more than reading it. No fork: the row names the measurement and the IsoLine half landed that way. — (ISO orchestrator)
