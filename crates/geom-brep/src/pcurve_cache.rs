@@ -591,11 +591,14 @@ pub enum Pcurve<T: Real> {
         pd: Vec2<T>,
         /// The carrier parameter at `g = 0`.
         t0: T,
-        /// The arc's total turn, `t1 − t0`. Always POSITIVE on a
-        /// certified cache — check 2 (`pcurve_interval_forward`)
-        /// refuses a non-forward interval before the class is built —
-        /// so the map's own sign cancellation (variant docs) never has
-        /// a sign to carry.
+        /// The arc's total turn: the image's arc is
+        /// `[t0, t0 + angle]`, the whole boundary row, and its edge's
+        /// span lies in it (a built rim's span is the arc; an edge
+        /// covering part of the row, such as a split rim's child, keeps
+        /// the row's arc). Always POSITIVE on a certified cache — check
+        /// 2 refuses a non-forward interval and a span outside the arc
+        /// (`pcurve_iso_arc_span`) — so the map's own sign cancellation
+        /// (variant docs) never has a sign to carry.
         angle: T,
         /// Sub-arc breakpoints on `τ ∈ [0, 1]`: a uniform clamped
         /// degree-1 knot vector with one span per sub-arc.
@@ -7458,6 +7461,32 @@ fn run_iso_arc_checks<T: Decide>(
     })? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
+    }
+    // **The edge's span lies in the image's arc**, `at0 ≤ t0` and
+    // `t1 ≤ at0 + angle`, each decided in metres along the arc. The
+    // envelope below bounds the miss over the image's own arc, where
+    // `Ĉ(g(t)) = C(t)`; off it the map clamps and the envelope holds
+    // nothing. A span inside the band of an arc end reads as on it.
+    for room in [t0 - at0, at0 + angle - t1] {
+        match decide(
+            "pcurve_iso_arc_span",
+            Margin::metered(room, param_rate(carrier)),
+            band,
+        )
+        .map_err(|cause| PcurveCertifyError::Escalated {
+            check: PcurveCheck::ParamSpan,
+            sample: 0,
+            cause,
+        })? {
+            Sign::Positive | Sign::Zero => {}
+            Sign::Negative => {
+                return Err(PcurveCertifyError::IsoUnsupported {
+                    what: "an arc rim whose edge runs past its image's arc — the arc-rim \
+                           class bounds the miss over the image's own arc, and its map \
+                           holds nothing off it",
+                });
+            }
+        }
     }
 
     // ---- Check 3: the schedule, in metres through the map. ----

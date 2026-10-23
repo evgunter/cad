@@ -750,8 +750,10 @@ pub struct PlaneNurbsIncidence<T: Real> {
 /// The arc-rim images a circle carrier may have on `chart`: each of its
 /// two boundary rows, in each `u` direction, as [`Pcurve::IsoArc`] from
 /// the carrier's `t0` through `span`, its sub-arcs one per chart span
-/// pair. The ONE derivation of an arc rim's candidate images;
-/// [`pick_arc_rim`] is the one selection among them.
+/// pair. The CLOSED-FORM step of [`pick_arc_rim`]: each image is the
+/// edge's whole interval onto the chart's whole `u` domain, which is
+/// what a rim the kernel built is. [`arc_rim_measured`] is the step for
+/// a rim that covers part of the row.
 ///
 /// The chart's sub-arcs are read off its interior `u` knot COUNT, two
 /// per sub-arc joint (a rational-quadratic circle's double knots), not
@@ -763,26 +765,105 @@ pub struct PlaneNurbsIncidence<T: Real> {
 /// no candidate.
 #[must_use]
 pub fn arc_rim_candidates<T: Real>(chart: &NurbsSurface<T>, t0: T, span: T) -> Vec<Pcurve<T>> {
+    arc_rim_images(chart, |_, _| Some((t0, span)))
+}
+
+/// **The arc-rim images whose arc the row itself measures**: for each
+/// boundary row and `u` direction, the WHOLE row's image, its arc read
+/// off the row and the carrier circle rather than off the edge's
+/// interval. The image is the row's map `t ↦ u` over the row's own arc
+/// `[at0, at0 + angle]`, so an edge covering part of the row (a child
+/// of a split rim, either half or any sub-interval) evaluates on its
+/// own span inside that arc, and a whole rim's arc is its interval.
+///
+/// - `angle = m·h` for `m` sub-arcs, `h = 2·acos(w)` from the row's
+///   interior weight `w = cos(h/2)` (the construction's own pattern);
+/// - `at0` is the carrier's angle at the image's start corner (the
+///   row's first control point, or its last for the image against `u`),
+///   an [`Azimuth`](crate::pcurve_cache::Azimuth) read in the carrier's frame and moved onto the
+///   branch nearest the middle of the arcs that could hold the edge,
+///   `t0 + (span − angle)/2`. The arcs that hold `[t0, t0 + span]` are
+///   less than a period wide, so the branch named is one of them where
+///   any is, and the read's cut, half a period from that middle, is
+///   never near a holding arc.
+///
+/// A SELECTION, checked: the arc-rim certificate re-derives the
+/// circle's form from `at0` and `angle` against the row's control net
+/// and decides that the edge's span lies in the arc. Empty for a carrier
+/// that is not a circle.
+#[must_use]
+pub fn arc_rim_measured<T: Decide>(
+    carrier: &Curve3<T>,
+    chart: &NurbsSurface<T>,
+    (t0, span): (T, T),
+    band: Band,
+) -> Vec<Pcurve<T>> {
+    let Curve3::Circle {
+        center,
+        axis,
+        u_ref,
+        ..
+    } = *carrier
+    else {
+        return Vec::new();
+    };
+    let vref = axis.cross(u_ref);
+    let spans = arc_rim_spans(chart);
+    arc_rim_images(chart, |end, forward| {
+        let row = crate::nurbs_iso::boundary_iso_v(chart, end).ok()?;
+        let w = *row.weights().get(1)?;
+        #[allow(clippy::cast_precision_loss)]
+        let angle = T::from_f64(2.0 * spans as f64) * w.acos();
+        let corner = if forward {
+            row.control().first()
+        } else {
+            row.control().last()
+        };
+        let d = *corner? - center;
+        let read = crate::pcurve_cache::Azimuth::of(d.dot(vref), d.dot(u_ref)).principal(band);
+        let middle = t0 + (span - angle) * T::from_f64(0.5);
+        let at0 = read + T::tau() * (middle - read).periodic_branch(T::tau());
+        Some((at0, angle))
+    })
+}
+
+/// The chart's sub-arc count: one per pair of interior `u` knots, plus
+/// one ([`arc_rim_candidates`]' note).
+fn arc_rim_spans<T: Real>(chart: &NurbsSurface<T>) -> usize {
     let ku = chart.knots_u_f64_interim();
     let (d0, d1) = ku.domain();
-    let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
-    let Some(breaks) = uniform_breaks(spans) else {
+    ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1
+}
+
+/// The four arc-rim images, `v₀` first and with the chart's `u` first
+/// in each row, each over the arc `arc(end, forward)` names: the row
+/// at `v₁` where `end`, running with `u` where `forward`. An arc that
+/// is `None` offers no image.
+fn arc_rim_images<T: Real>(
+    chart: &NurbsSurface<T>,
+    arc: impl Fn(bool, bool) -> Option<(T, T)>,
+) -> Vec<Pcurve<T>> {
+    let Some(breaks) = uniform_breaks(arc_rim_spans(chart)) else {
         return Vec::new();
     };
     let ((cu0, cu1), (cv0, cv1)) = (
         chart.knot_values_u().domain(),
         chart.knot_values_v().domain(),
     );
-    let image = |v: T, p0x: T, sign: T| Pcurve::IsoArc {
-        p0: Point2::new(p0x, v),
-        pd: geom_core::Vec2::new(sign, T::zero()),
-        t0,
-        angle: span,
-        breaks: breaks.clone(),
-    };
-    [cv0, cv1]
+    [(false, cv0), (true, cv1)]
         .into_iter()
-        .flat_map(|v| [(cu0, cu1 - cu0), (cu1, cu0 - cu1)].map(|(p0x, sign)| image(v, p0x, sign)))
+        .flat_map(|(end, v)| {
+            [(true, cu0, cu1 - cu0), (false, cu1, cu0 - cu1)].map(|(forward, p0x, sign)| {
+                arc(end, forward).map(|(t0, angle)| Pcurve::IsoArc {
+                    p0: Point2::new(p0x, v),
+                    pd: geom_core::Vec2::new(sign, T::zero()),
+                    t0,
+                    angle,
+                    breaks: breaks.clone(),
+                })
+            })
+        })
+        .flatten()
         .collect()
 }
 
@@ -817,10 +898,13 @@ fn uniform_breaks(spans: usize) -> Option<KnotVector> {
     KnotVector::clamped(knots, 1).ok()
 }
 
-/// **The arc rim's image, picked**: the one of [`arc_rim_candidates`]
-/// that holds the carrier at the interior probe ([`probe_pick`]). The
-/// ONE selection among them, the pcurve mint's (`topo::pcurves`) and
-/// the incidence lane's ([`plane_nurbs_incidence`]) alike.
+/// **The arc rim's image, picked**: the first of [`arc_rim_candidates`],
+/// then of [`arc_rim_measured`], that holds the carrier at the interior
+/// probe ([`probe_pick`]). The ONE selection among them, the pcurve
+/// mint's (`topo::pcurves`) and the incidence lane's
+/// ([`plane_nurbs_incidence`]) alike. The same schedule as the mint's
+/// boundary-iso one: the closed form a built rim has, then the map the
+/// geometry measures, for a rim that covers part of its row.
 ///
 /// **The row and the `u` direction are one pick.** A rim the kernel
 /// built runs with the chart's increasing `u`; one it imported need not
@@ -839,7 +923,9 @@ fn uniform_breaks(spans: usize) -> Option<KnotVector> {
 /// # Errors
 ///
 /// The first in-band candidate's [`Indeterminate`] where none holds: an
-/// undecided pick is the rim's to report, never a definite miss.
+/// undecided pick is the rim's to report, never a definite miss. A
+/// closed-form candidate that escalates outranks the measured step,
+/// which is then not taken.
 pub fn pick_arc_rim<T: Decide>(
     carrier: &Curve3<T>,
     (t0, span): (T, T),
@@ -849,14 +935,20 @@ pub fn pick_arc_rim<T: Decide>(
     let Some(chart) = wall.spline_chart() else {
         return Ok(None);
     };
-    probe_pick(
-        "pcurve_iso_arc_row_direction",
-        carrier,
-        (t0, span),
-        wall,
-        band,
-        arc_rim_candidates(chart, t0, span),
-    )
+    let pick = |candidates| {
+        probe_pick(
+            "pcurve_iso_arc_row_direction",
+            carrier,
+            (t0, span),
+            wall,
+            band,
+            candidates,
+        )
+    };
+    match pick(arc_rim_candidates(chart, t0, span))? {
+        Some(image) => Ok(Some(image)),
+        None => pick(arc_rim_measured(carrier, chart, (t0, span), band)),
+    }
 }
 
 /// **The interior probe**: the first candidate chart image that holds
@@ -967,18 +1059,12 @@ pub enum IncidenceRefusal {
 ///   envelope. The image is `stated` where the caller holds one (the
 ///   pcurve the mint already stored for this rim), certified as it
 ///   stands; otherwise it is [`pick_arc_rim`]'s, the mint's own pick.
-///   Its limits:
-///   - **full-row rims only.** The certificate compares the wall's
-///     whole boundary row with the circle in the row's own spline
-///     space, so a picked image needs a rim spanning the chart's whole
-///     `u` domain: a partial rim's candidates part from it at the
-///     pick's probe, and it takes the fitted path.
-///   - **an `f64` read**: the row's weight pattern is read on the `f64`
-///     value channel.
-///   - **the image's arc is not checked to cover the edge's span**: the
-///     certificate bounds the miss over the image's own arc, and only
-///     its samples see an edge running past it
-///     (`work/select/an-iso-arc-certificate-never-checks-the-edge-span-lies-in-its-arc.md`).
+///   The certificate compares the wall's whole boundary row with the
+///   circle in the row's own spline space, over the image's arc, which
+///   it decides holds the edge's span; a rim covering part of the row
+///   takes the row over the arc the row measures
+///   ([`arc_rim_measured`]). Its one limit is **an `f64` read**: the
+///   row's weight pattern is read on the `f64` value channel.
 ///
 ///   An exact image that ESCALATES, at the pick or in its certificate,
 ///   refuses with that escalation
