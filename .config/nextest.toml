@@ -127,7 +127,8 @@ not (
   (binary_id(geom-brep) & (test(=props::quad::tests::the_statements_hulls_and_pads_hold_the_sampled_integrand_on_every_rational_carrier))) |
   (binary_id(geom-brep::all) & (test(=cert5_r1_patch_probes::knots_one_ulp_apart_at_an_odd_mantissa_stay_sound))) |
   (binary_id(geom-brep::all) & (test(=cert5_r1_patch_probes::integral_composite_midpoints_far_from_the_origin_stay_sound))) |
-  (binary_id(mesh::all) & (test(=lofted_circle::a_loft_of_two_circles_tessellates)))
+  (binary_id(mesh::all) & (test(=lofted_circle::a_loft_of_two_circles_tessellates))) |
+  (binary_id(sweep::all) & (test(=m6_loft_body::shape_iii_volume_matches_the_derived_closed_form) | test(=r1_area_gauge_probes::r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door)))
 )
 """
 

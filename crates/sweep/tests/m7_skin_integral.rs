@@ -181,15 +181,14 @@ fn nonuniform_prism_loft_body_matches_the_derived_volume() {
     let places = stacked_at(&[0.0, 1.0, 3.0]);
     let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the non-uniform loft builds");
-    let body =
-        topo::test_support::finished("body", topo::Body::clone(&lofted.body), Tol::witness());
-    assert_eq!(topo::validate(&body), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2 (watertight)");
+    assert_eq!(topo::validate(&lofted.body), Ok(()), "tier 1");
     assert_eq!(
-        topo::validate_geometric(&body, Tol::witness()),
+        topo::validate_closed(&lofted.body),
         Ok(()),
-        "tier 3 at rest"
+        "tier 2 (watertight)"
     );
+    let body = topo::AtRestBody::validate(topo::Body::clone(&lofted.body), Tol::witness())
+        .expect("tier 3 at rest");
     let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     assert!(
         (m.volume - 12.0).abs() <= m.volume_pad + 1e-9,
@@ -279,14 +278,14 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
         Tol::witness(),
     )
     .expect("the curved-path sweep body builds");
-    let body = topo::test_support::finished("body", topo::Body::clone(&swept.body), Tol::witness());
-    assert_eq!(topo::validate(&body), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2 (watertight)");
+    assert_eq!(topo::validate(&swept.body), Ok(()), "tier 1");
     assert_eq!(
-        topo::validate_geometric(&body, Tol::witness()),
+        topo::validate_closed(&swept.body),
         Ok(()),
-        "tier 3 at rest"
+        "tier 2 (watertight)"
     );
+    let body = topo::AtRestBody::validate(topo::Body::clone(&swept.body), Tol::witness())
+        .expect("tier 3 at rest");
 
     let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     let pappus = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * ELBOW_R * FRAC_PI_2;
