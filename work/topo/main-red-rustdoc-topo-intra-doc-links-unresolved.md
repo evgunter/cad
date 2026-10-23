@@ -43,3 +43,13 @@ Path each link the way the code names the item, then run
 `scripts/doc-gate.sh` green. This touches docs only; no code moves.
 Consider whether per-PR CI should run the rustdoc pass on changed
 crates, so that drift stops reaching main unseen.
+
+**Still red on the 2026-10-23 nightly (INTENT triage).** Run 39906156937
+(main `be9b907694`) lists the same family plus
+`boolean/solid_contain.rs:4653` (`census::line_passes`, first printed
+on the 2026-10-21 nightly, run 39549991622) and `census.rs:5874`
+(`face_piece`) and `:7641` (`Sector::place`) where the census lines
+moved. The `wedge_reach` and `validate` errors are ambiguity, not
+absence (`crate::wedge_reach` and `crate::validate` are each a function
+and a module; `mod@` or `()` settles each). INTENT's triage PR fixes the
+editor-core, pncad-py and viewer links the same job reported.

@@ -207,9 +207,30 @@ fn planes() -> Vec<(&'static str, Reflection<f64>)> {
     ]
 }
 
-fn volume(body: &Body<f64>) -> f64 {
+/// `body`'s volume and its certified pad, or the measurement's refusal
+/// rendered: a spline face's quadrature can refuse its budget at a fine
+/// ε, which is the measurement's answer and not the mirror's.
+fn volume(body: &Body<f64>) -> Result<(f64, f64), String> {
     let measured = topo::test_support::finished("the measured body", body.clone(), tol());
-    topo::mass_properties(&measured, tol()).unwrap().volume
+    topo::mass_properties(&measured, tol())
+        .map(|m| (m.volume, m.volume_pad))
+        .map_err(|e| format!("{e:?}"))
+}
+
+/// The image measures as the source does: both volumes within their
+/// pads of each other, or both measurements refusing.
+fn same_volume(label: &str, source: &Result<(f64, f64), String>, image: &Body<f64>) {
+    match (source, volume(image)) {
+        (Ok((v, v_pad)), Ok((w, w_pad))) => assert!(
+            w > 0.0 && (w - v).abs() <= v_pad + w_pad + 1e-9 * v,
+            "{label}: volume {w} ± {w_pad} against the source's {v} ± {v_pad}"
+        ),
+        (Err(v), Err(w)) => println!(
+            "{label}: no volume compared — the source's measurement refuses ({v}) and so does \
+             the image's ({w})"
+        ),
+        (v, w) => panic!("{label}: the source measures {v:?} and the image {w:?}"),
+    }
 }
 
 /// The chart point of the image that is the source's chart point
@@ -330,11 +351,7 @@ fn mirrors_to_its_image(what: &str, body: Body<f64>) {
         let image = mirror_body(&body, &reflection, tol())
             .unwrap_or_else(|e| panic!("{label}: the mirror refused: {e}"));
         let image = finished(&label, image);
-        let w = volume(&image);
-        assert!(
-            w > 0.0 && (w - v).abs() <= 1e-9 * v,
-            "{label}: volume {w} against the source's {v}"
-        );
+        same_volume(&label, &v, &image);
         charts_are_the_convention(&label, &body, &image, &reflection);
         let map = reflection.to_affine();
         for (k, p) in body.points() {

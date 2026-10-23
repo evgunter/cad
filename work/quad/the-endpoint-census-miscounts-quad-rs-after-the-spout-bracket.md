@@ -25,3 +25,9 @@ the slow set. #5587 touches no file the census counts.
 
 Disposition the new endpoint reads in `props/quad.rs`, then re-pin the
 census with their stated cause. Do not raise the pin blindly.
+
+**Nightly (INTENT triage, 2026-10-23).** The row is red at every ε row
+in the full suite from the 2026-10-23 nightly (run 39906156937, main
+`be9b907694`), its first after #5588; the only file that moved is
+`crates/geom-brep/src/props/quad.rs`, measured `(10, 4)` against the
+pinned `(7, 2)`.

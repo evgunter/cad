@@ -102,7 +102,7 @@ pub(crate) fn eval_pose<T: Decide>(
 
 /// **A pose read bound against an evaluation's results**, with no
 /// reader seat: what a report over the document's pose variables reads
-/// ([`crate::mate::unobservable`]). Its refusals name no seat a reader
+/// ([`crate::mate::unobservable()`]). Its refusals name no seat a reader
 /// holds, so it is for reports, never for an op.
 pub(crate) fn read_pose<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,

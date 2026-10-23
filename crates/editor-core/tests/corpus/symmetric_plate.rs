@@ -9,7 +9,8 @@
 //! volume is `6t` and the area `2·6 + 12t`.
 //!
 //! D2 bump: the thickness `t` (mid-DAG — its cone is the extrude, the
-//! mirror and the union; the profile is reused).
+//! plane read off its face, the mirror and the union; the profile is
+//! reused).
 
 use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, VarName};
 
