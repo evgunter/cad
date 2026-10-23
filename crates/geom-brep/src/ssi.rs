@@ -491,7 +491,7 @@ pub enum SsiError {
     /// [`certify_rung3`] with a declared carrier. The
     /// pcurve cache reports it in a sentence of its own; the plane ×
     /// NURBS edge lane folds it into `Unsupported` through its wildcard
-    /// (`work/iso/plane-nurbs-refusal-arms-with-no-ending.md`).
+    /// (`work/isotail/plane-nurbs-refusal-arms-with-no-ending.md`).
     TubeLadderEmpty {
         /// The extent the ladder was scaled from (meters): the caller's
         /// extent at [`certify_rung3`], the domain's

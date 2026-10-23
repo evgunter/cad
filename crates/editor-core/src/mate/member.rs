@@ -205,7 +205,9 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                     // copy.
                     at = doc.operation_of(of).ok_or(at)?;
                 }
-                Some(VerbatimEdge::Intact | VerbatimEdge::Reflected) | None => return Err(at),
+                Some(VerbatimEdge::Intact { .. } | VerbatimEdge::Reflected { .. }) | None => {
+                    return Err(at);
+                }
             }
             continue;
         }
