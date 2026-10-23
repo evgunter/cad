@@ -633,6 +633,15 @@ impl<T: SpanLocate> NurbsSurface<T> {
             area_floor: OnceLock::new(),
         })
     }
+
+    /// **Whether this patch is polynomial**: the one plain constant
+    /// every weight is, or `None` ([`Weights::constant`]). A constant
+    /// cancels out of the rational basis, so on `Some(c)` the patch is
+    /// the tensor polynomial on [`Self::control`] read as Cartesian,
+    /// for every `c`.
+    pub fn constant_weight(&self) -> Option<f64> {
+        self.weights.constant()
+    }
 }
 
 impl<T: Real> NurbsSurface<T> {
@@ -812,15 +821,6 @@ impl<T: Real> NurbsSurface<T> {
     #[track_caller]
     pub fn weights_f64_interim(&self) -> &[f64] {
         self.weights.weights_f64_interim()
-    }
-
-    /// **Whether this patch is polynomial**: the one plain constant
-    /// every weight is, or `None` ([`Weights::constant`]). A constant
-    /// cancels out of the rational basis, so on `Some(c)` the patch is
-    /// the tensor polynomial on [`Self::control`] read as Cartesian,
-    /// for every `c`.
-    pub fn constant_weight(&self) -> Option<f64> {
-        self.weights.constant()
     }
 
     /// `(nu, nv)` — control counts per direction.

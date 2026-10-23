@@ -1104,18 +1104,17 @@ mod tests {
         );
     }
 
-    /// The rational gate is load-bearing (INV-C5's hypothesis):
-    /// straight degree-2 carriers with non-unit weights must stay
-    /// NURBS at every tested budget, however generous. The three
-    /// weight rows attack it from three sides — a genuinely re-timed
-    /// interior ([1, 2, 1]), a re-timing the other way ([1, ½, 1]),
-    /// and a CONSTANT non-unit weight ([2, 2, 2]) whose curve is the
-    /// exact affine chord (the constant scales out of the rational
-    /// basis) — because the gate is the hypothesis of the Greville
-    /// hull, not a residual: without it the hull reads 0 for all
-    /// three (their CONTROLS sit at the affine positions even where
-    /// the rational CURVE does not) and the re-timed carriers would
-    /// promote unsoundly. Deleting the gate reds this row.
+    /// The rational gate is load-bearing (INV-C5's hypothesis), and it
+    /// asks constancy: straight degree-2 carriers whose weights VARY
+    /// must stay NURBS at every tested budget, however generous — a
+    /// re-timed interior ([1, 2, 1]) and a re-timing the other way
+    /// ([1, ½, 1]). The gate is the hypothesis of the Greville hull,
+    /// not a residual: without it the hull reads 0 for both (their
+    /// CONTROLS sit at the affine positions where the rational CURVE
+    /// does not) and they would promote unsoundly. A CONSTANT weight
+    /// ([2, 2, 2]) is the exact affine chord (the constant cancels out
+    /// of the rational basis), so it promotes to the unit carrier's
+    /// line with its residual, to the bit.
     #[test]
     fn a_rational_straight_carrier_refuses_the_map_certificate() {
         let carrier = |w1: f64, w: f64| {
@@ -1131,8 +1130,8 @@ mod tests {
             )
             .unwrap()
         };
-        for (w1, w) in [(2.0, 1.0), (0.5, 1.0), (2.0, 2.0)] {
-            for eps in [1e-6, 1e-3, 1.0] {
+        for eps in [1e-6, 1e-3, 1.0] {
+            for (w1, w) in [(2.0, 1.0), (0.5, 1.0)] {
                 assert!(
                     matches!(
                         recognize(&carrier(w1, w), eps),
@@ -1141,6 +1140,17 @@ mod tests {
                     "weights [{w}, {w1}, {w}] must refuse the map certificate at ε = {eps:e}"
                 );
             }
+            let line = |w: f64| match recognize(&carrier(w, w), eps) {
+                CurveRecognition::Promoted {
+                    curve: Curve3::Line { origin, dir },
+                    residual,
+                    ..
+                } => {
+                    [origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, residual].map(f64::to_bits)
+                }
+                other => panic!("weights [{w}; 3] at ε = {eps:e} must promote: {other:?}"),
+            };
+            assert_eq!(line(2.0), line(1.0), "weights [2; 3] at ε = {eps:e}");
         }
     }
 

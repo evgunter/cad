@@ -577,16 +577,6 @@ macro_rules! nurbs_curve {
                 self.weights.weights_f64_interim()
             }
 
-            /// **Whether this carrier is polynomial**: the one plain
-            /// constant every weight is, or `None`
-            /// ([`Weights::constant`]). A constant cancels out of the
-            /// rational basis, so on `Some(c)` the curve is the
-            /// polynomial on [`Self::control`] read as Cartesian, for
-            /// every `c`.
-            pub fn constant_weight(&self) -> Option<f64> {
-                self.weights.constant()
-            }
-
             /// The degree `p` (carried by the knot vector).
             pub fn degree(&self) -> usize {
                 self.knots.degree()
@@ -1244,6 +1234,16 @@ macro_rules! nurbs_curve {
                 spline::accel_pieces(&self.knots, &points, self.weights.values(), SPEED_PIECE_SPLITS)
                     .and_then(|ps| ps.iter().map(spline::QuotientPiece::sup_norm).reduce(Real::max))
                     .unwrap_or_else(|| T::from_f64(f64::NAN))
+            }
+
+            /// **Whether this carrier is polynomial**: the one plain
+            /// constant every weight is, or `None`
+            /// ([`Weights::constant`]). A constant cancels out of the
+            /// rational basis, so on `Some(c)` the curve is the
+            /// polynomial on [`Self::control`] read as Cartesian, for
+            /// every `c`.
+            pub fn constant_weight(&self) -> Option<f64> {
+                self.weights.constant()
             }
 
             /// Whether the weights are not all one plain constant: the

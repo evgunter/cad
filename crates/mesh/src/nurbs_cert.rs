@@ -2982,33 +2982,39 @@ pub(crate) mod tests {
     }
 
     /// **A uniform weight is the integral arm's** (the
-    /// `planar_bilinear_bounds_collapse` class): a flat bilinear patch
-    /// with UNIFORM weight `1/2` and zero twist is the polynomial flat
-    /// quad (a constant weight cancels out of the rational basis), so it
-    /// takes the integral arm and its bound is the unit-weight patch's
-    /// to the bit, every second-partial sup the exact zero. Red where a
-    /// uniform weight is read as rational: the rational arm proves the
-    /// same zeros but its first-partial sups are its own.
+    /// `planar_bilinear_bounds_collapse` class): a bilinear patch with
+    /// UNIFORM weight `1/2` is the polynomial bilinear on its net (a
+    /// constant weight cancels out of the rational basis), so it takes
+    /// the integral arm and its bound is the unit-weight patch's to the
+    /// bit. On the flat net with zero twist every second-partial sup is
+    /// the exact zero; on the twisted net (`z` lifted at one corner) the
+    /// pair agreeing is what goes red where a uniform weight is read as
+    /// rational, whose arm bounds the same patch through the quotient.
     #[test]
     fn rational_uniform_weight_bilinear_dust() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
-        let control = vec![
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(0.0, 1.0, 0.0),
-            Point3::new(1.0, 0.0, 0.0),
-            Point3::new(1.0, 1.0, 0.0),
-        ];
-        let bound = |w: f64| {
-            let s = NurbsSurface::new(kv.clone(), kv.clone(), control.clone(), vec![w; 4]).unwrap();
+        let net = |z: f64| {
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, z),
+            ]
+        };
+        let bound = |z: f64, w: f64| {
+            let s = NurbsSurface::new(kv.clone(), kv.clone(), net(z), vec![w; 4]).unwrap();
             nurbs_face_bound(&s, FaceKey::default()).unwrap()
         };
-        let (b, unit) = (bound(0.5), bound(1.0));
         let bits = |b: &NurbsFaceBound| [b.muu, b.muv, b.mvv, b.mu1, b.mv1].map(f64::to_bits);
-        assert_eq!(
-            bits(&b),
-            bits(&unit),
-            "weight 1/2 ({b:?}) is not the unit-weight patch's bound ({unit:?})"
-        );
+        for z in [0.0, 0.7] {
+            let (b, unit) = (bound(z, 0.5), bound(z, 1.0));
+            assert_eq!(
+                bits(&b),
+                bits(&unit),
+                "z = {z}: weight 1/2 ({b:?}) is not the unit-weight patch's bound ({unit:?})"
+            );
+        }
+        let b = bound(0.0, 0.5);
         assert!(
             b.muu == 0.0 && b.muv == 0.0 && b.mvv == 0.0,
             "a flat bilinear's second partials are the exact zero: {b:?}"

@@ -1199,6 +1199,42 @@ pub(crate) mod tests {
         }
     }
 
+    /// **A constant weight is the integral arm's.** The quarter
+    /// cylinder's net with every weight `2` (or `3`) is the polynomial
+    /// patch on that net: a constant cancels out of the rational basis.
+    /// Its cells, plain and refined, are the unit-weight net's to the
+    /// bit, since that arm reads the control net alone; the rational
+    /// arm would cut each span into its own pieces.
+    #[test]
+    fn a_constant_weight_takes_the_integral_arm() {
+        let cylinder = quarter_cylinder();
+        let constant = |w: f64| {
+            NurbsSurface::new(
+                cylinder.knots_u_f64_interim().clone(),
+                cylinder.knots_v_f64_interim().clone(),
+                cylinder.control().to_vec(),
+                vec![w; 6],
+            )
+            .expect("door")
+        };
+        let unit = constant(1.0);
+        let want = format!("{:?}", patch_cells(&unit).expect("unit"));
+        let want_refined = format!("{:?}", patch_cells_refined(&unit, 4).expect("unit"));
+        for w in [2.0, 3.0] {
+            let net = constant(w);
+            assert_eq!(
+                format!("{:?}", patch_cells(&net).expect("constant")),
+                want,
+                "weight {w}: the cells are not the unit net's"
+            );
+            assert_eq!(
+                format!("{:?}", patch_cells_refined(&net, 4).expect("constant")),
+                want_refined,
+                "weight {w}: the refined cells are not the unit net's"
+            );
+        }
+    }
+
     /// Every patch-bound refusal names what the caller changes in the
     /// description, not only which structural fact refused. Nothing
     /// here delegates: the prose is this module's at every arm, which

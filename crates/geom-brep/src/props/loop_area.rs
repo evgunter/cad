@@ -255,6 +255,40 @@ mod tests {
         }
     }
 
+    /// **A constant weight is the polynomial arm's**: the cubic on one
+    /// net with every weight `2` integrates to the unit-weight curve's
+    /// area to the bit (a power of two scales the homogeneous
+    /// evaluation exactly), and a net whose weights vary refuses as the
+    /// rational carrier this arm does not integrate.
+    #[test]
+    fn a_constant_weight_carrier_integrates_as_its_polynomial() {
+        use geom_core::spline::KnotVector;
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let area = |weights: Vec<f64>| {
+            let curve = NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![p(0.0, 0.0), p(1.0, 2.0), p(2.0, 0.0), p(3.0, 1.0)],
+                weights,
+            )
+            .unwrap();
+            nurbs_vector_area(&curve, 0.1, 0.9, p(0.5, -1.0))
+        };
+        let unit = area(vec![1.0; 4]).unwrap();
+        let twos = area(vec![2.0; 4]).unwrap();
+        assert_eq!(
+            [twos.x, twos.y, twos.z].map(f64::to_bits),
+            [unit.x, unit.y, unit.z].map(f64::to_bits),
+            "weights 2: {twos:?}, unit: {unit:?}"
+        );
+        assert!(
+            matches!(
+                area(vec![1.0, 2.0, 2.0, 1.0]),
+                Err(PropsError::Unimplemented)
+            ),
+            "a varying weight vector is rational"
+        );
+    }
+
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {
         let d = b - a;
         let len = d.norm();

@@ -8086,6 +8086,47 @@ mod tests {
     /// patch's, and each region's own enclosure must be a positive
     /// extent the gate accepts. Adopted from the t2q-r2 reviewer probes
     /// P5/P11, whose curved chart this is.
+    /// **A constant weight is the polynomial lanes'.** The curved chart
+    /// with every weight `2` is the polynomial patch on its net, so the
+    /// rectangle lane and the trimmed lane each answer it as the
+    /// unit-weight chart, to the bit (neither reads a weight on its
+    /// polynomial arm); a chart whose weights vary is rational, and the
+    /// trimmed lane refuses it by name.
+    #[test]
+    fn a_constant_weight_chart_is_measured_as_its_polynomial() {
+        let (ku, kvv, control, unit) = curved_chart(2, 2);
+        let twos = vec![2.0; unit.len()];
+        let bits = |b: FaceCutBounds| {
+            [b.flux.lo(), b.flux.hi(), b.area.lo(), b.area.hi()].map(f64::to_bits)
+        };
+        assert_eq!(
+            bits(rectangle(&ku, &kvv, &control, &twos)),
+            bits(rectangle(&ku, &kvv, &control, &unit)),
+            "the rectangle lane on weights 2"
+        );
+        let loop_ = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
+        ];
+        let run = |w: &[f64]| trimmed(&ku, &kvv, &control, w, &loop_, RoundWindow::SCHEDULE);
+        assert_eq!(
+            bits(bounds_of(
+                &run(&twos).expect("a constant chart is polynomial")
+            )),
+            bits(bounds_of(&run(&unit).expect("the unit chart"))),
+            "the trimmed lane on weights 2"
+        );
+        let mut varying = unit.clone();
+        varying[4] = 2.0;
+        match run(&varying) {
+            Err(PropsError::QuadratureUnsupported { what }) => {
+                assert!(what.contains("RATIONAL chart"), "{what}");
+            }
+            other => panic!("a varying weight vector is rational: {other:?}"),
+        }
+    }
+
     #[test]
     fn q8_a_curved_chart_area_agrees_with_the_rectangle_lane() {
         for (pu, pv) in [(1usize, 2usize), (2, 2)] {
@@ -8659,9 +8700,10 @@ mod tests {
         }
     }
 
-    /// `bezier_blocks` holds its unit-weight invariant itself: an image
-    /// with a non-unit weight refuses as `Rational`, whoever calls it,
-    /// and a weight list of the wrong length as `Malformed`.
+    /// `bezier_blocks` holds its constant-weight invariant itself: an
+    /// image whose weights vary refuses as `Rational`, whoever calls it,
+    /// and a weight list of the wrong length as `Malformed`; one whose
+    /// weights are the constant `2` is the unit image, block for block.
     #[test]
     fn bezier_blocks_refuses_a_rational_image_by_name() {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
@@ -8679,7 +8721,20 @@ mod tests {
             bezier_blocks(&img(vec![1.0; 2]), 4).err(),
             Some(BlockRefusal::Malformed)
         );
-        assert!(bezier_blocks(&img(vec![1.0; 3]), 4).is_ok());
+        let unit = bezier_blocks(&img(vec![1.0; 3]), 4).expect("unit");
+        let twos = bezier_blocks(&img(vec![2.0; 3]), 4).expect("a constant weight cancels");
+        let bits = |blocks: &[Vec<RPt2>]| -> Vec<[u64; 4]> {
+            blocks
+                .iter()
+                .flatten()
+                .map(|q| [q.0.lo(), q.0.hi(), q.1.lo(), q.1.hi()].map(f64::to_bits))
+                .collect()
+        };
+        assert_eq!(
+            bits(&twos),
+            bits(&unit),
+            "weights 2: the unit image's blocks"
+        );
     }
 
     /// `bezier_blocks`' breaks are the DISTINCT interior knots: a

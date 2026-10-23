@@ -92,3 +92,42 @@ pub enum SecondDerivativeUnbounded {
     /// unbounded (a non-finite control point, a zero knot difference).
     PoisonedHull,
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
+    use crate::curves::NurbsCurve3;
+    use geom_core::Point3;
+    use geom_core::spline::KnotVector;
+
+    /// **A constant weight is this door's**: the cubic with every weight
+    /// `2` is the polynomial on its net, and its bound is the
+    /// unit-weight curve's to the bit (the hull reads the control net
+    /// alone); a varying weight vector refuses as rational.
+    #[test]
+    fn a_constant_weight_bounds_as_its_polynomial_and_a_varying_one_refuses() {
+        let sup = |weights: Vec<f64>| {
+            let curve = NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.0, 2.0, 0.5),
+                    Point3::new(2.0, -1.0, 0.0),
+                    Point3::new(3.0, 1.0, -0.5),
+                    Point3::new(4.0, 0.0, 0.0),
+                ],
+                weights,
+            )
+            .unwrap();
+            nonrational_second_derivative_sup(&curve)
+        };
+        let unit = sup(vec![1.0; 5]).unwrap();
+        assert_eq!(sup(vec![2.0; 5]).unwrap().to_bits(), unit.to_bits());
+        assert_eq!(sup(vec![0.5; 5]).unwrap().to_bits(), unit.to_bits());
+        assert_eq!(
+            sup(vec![1.0, 1.0, 2.0, 1.0, 1.0]),
+            Err(SecondDerivativeUnbounded::Rational)
+        );
+    }
+}
