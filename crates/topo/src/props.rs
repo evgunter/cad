@@ -4370,12 +4370,14 @@ impl ShellRole {
 /// One shell's flux-derived properties and its decided role.
 ///
 /// `volume` is the shell's SIGNED enclosed volume (divergence theorem
-/// over exactly this shell's faces — the same per-face closed
-/// forms/quadrature the whole-body [`mass_properties`] sums, so the
-/// per-shell volumes of a body sum to its body volume and the pads to
-/// its pad). For quadrature faces the value is the certified
-/// enclosure's midpoint and the bracket is `± volume_pad`
-/// ([`MassProperties`]' convention).
+/// over exactly this shell's faces — the same per-face closed forms the
+/// whole-body [`mass_properties`] sums, so on a body of closed-form
+/// faces the per-shell volumes sum to its body volume). A quadrature
+/// face contributes the enclosure the role's read reached, not a number:
+/// its sign walk's, where the role was read off the volume, and round 0
+/// otherwise, so its bracket `± volume_pad` ([`MassProperties`]'
+/// convention) is sound and may be wide. A caller that wants a shell's
+/// number measures it.
 #[derive(Clone, Copy, Debug)]
 pub struct ShellClassification<T: Real> {
     /// The classified shell.
@@ -4682,7 +4684,9 @@ impl std::error::Error for ShellClassifyError {}
 ///
 /// Each shell's volume and area sum the same per-face contributions the
 /// whole-body [`mass_properties`] sums, restricted to that shell's face
-/// list — never a second flux implementation (engineering convention 2).
+/// list — never a second flux implementation (engineering convention 2) —
+/// at the rounds its role's read reached ([`ShellClassification`]): no
+/// face is refined for a number.
 /// The role is the one reader's ([`shell_role`]): a solid's only shell is
 /// `Outer` by ARITY — its role, not its orientation, which this door does
 /// not read: a lone shell wound inside out on a body that has not passed
