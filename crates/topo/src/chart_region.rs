@@ -2427,14 +2427,26 @@ fn pcurve_entry<T: Decide + Bounds>(
             let t = if forward { t0 } else { t1 };
             Ok(Point2::new(p0.x + pl.x * t, p0.y + pl.y * t))
         }
-        // The UV image is the straight segment `p0 → p0 + pd` by
+        // The UV image lies on the straight segment `p0 → p0 + pd` by
         // variant; only the parameterization along it is
-        // transcendental, and endpoints are read structurally
-        // (`g = 0` at the carrier's `t0`, `g = 1` at `t1`).
-        Pcurve::IsoArc { p0, pd, .. } => Ok(if forward {
-            *p0
+        // transcendental. An edge spanning the image's whole arc has
+        // the segment's ends as its own, read structurally (`g = 0` at
+        // `t0`, `g = 1` at `t1`); an edge covering part of the arc (a
+        // split rim's child) ends where the image is at its parameter.
+        Pcurve::IsoArc {
+            p0,
+            pd,
+            t0: at0,
+            angle,
+            ..
+        } => Ok(if exact_zero(*at0 - t0) && exact_zero(*angle - (t1 - t0)) {
+            if forward {
+                *p0
+            } else {
+                Point2::new(p0.x + pd.x, p0.y + pd.y)
+            }
         } else {
-            Point2::new(p0.x + pd.x, p0.y + pd.y)
+            pcurve.eval(if forward { t0 } else { t1 })
         }),
         // Straight iff each channel is (C6). An angle channel is, by
         // its kind: a phase and a winding's rate, with no trig terms.
@@ -3959,9 +3971,22 @@ mod tests {
             breaks: geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
         };
         // The UV image is the straight segment p0 → p0 + pd by
-        // variant; endpoints are structural, no Bézier evaluation.
-        assert_pt(pcurve_entry(&arc, 0.0, 1.0, true).unwrap(), 0.0, 1.0);
-        assert_pt(pcurve_entry(&arc, 0.0, 1.0, false).unwrap(), 1.0, 1.0);
+        // variant; a span that is the whole arc ends at its ends,
+        // structurally.
+        let quarter = core::f64::consts::FRAC_PI_2;
+        assert_pt(pcurve_entry(&arc, 0.0, quarter, true).unwrap(), 0.0, 1.0);
+        assert_pt(pcurve_entry(&arc, 0.0, quarter, false).unwrap(), 1.0, 1.0);
+        // A span covering part of the arc (a split rim's child) ends
+        // where the image is at its parameter: on one sub-arc of a
+        // quarter turn, `g(π/4)` is the Bézier midpoint, `½`.
+        let half = core::f64::consts::FRAC_PI_4;
+        assert_pt(pcurve_entry(&arc, 0.0, half, false).unwrap(), 0.5, 1.0);
+        assert_pt(pcurve_entry(&arc, half, quarter, true).unwrap(), 0.5, 1.0);
+        let end = pcurve_entry(&arc, half, quarter, false).unwrap();
+        assert!(
+            (end.x - 1.0).abs() < 1e-15 && end.y == 1.0,
+            "the child ending at the arc's end ends at its corner: {end:?}"
+        );
     }
 
     #[test]
