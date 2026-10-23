@@ -85,3 +85,13 @@ The fix it names, the lane chosen per control row, is `skin`'s own
 integral-in ⇒ integral-out contract at the granularity the seam needs,
 and acts at the producer, so the certifier's exact one-spline-space
 test stays as it is.
+
+## Measured again (2026-10-23, `iso/loft-seam-per-row-lane`, PR 5629)
+
+All 38 refusals on main failed the weights compare, never the knots
+one: the line wall's end row (weights exactly `1.0`) against the arc
+wall's corner row, a few ulps off `1.0`. The jittered row of this
+census builds at n = 3 and refuses at n = 4..9, the reverse of the
+table above at n = 3 and 4: its jitter (`t + 0.15·sin(7k)/n` on the
+interior stations) is not the measurement lane's, so the two rows are
+different spacings. A review census reproduced this one.

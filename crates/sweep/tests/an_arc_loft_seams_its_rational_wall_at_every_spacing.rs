@@ -1,19 +1,17 @@
 //! **An arc-bearing loft builds at every section spacing and v-degree.**
 //!
 //! `common::arc_section` lofted with pure `+z` translations: three line
-//! walls and one rational arc wall, whose two corner columns are the
-//! seams it shares with its line neighbours. `topo::mint_pcurves`
-//! certifies each seam by one spline space — the line wall's boundary
-//! column and the arc wall's corner column must carry the same knots
-//! and the same weights, compared exactly — so the arc wall's corner
-//! columns have to come out of the skin at exactly the `1.0` the line
-//! wall holds. They do because `skin_on` picks its lane per control
-//! row: a row integral in every section is solved in Cartesian ℝ³.
+//! walls and one rational arc wall, whose two corner rows are the seams
+//! it shares with its line neighbours. `topo::mint_pcurves` certifies
+//! each seam by one spline space — the line wall's boundary row and the
+//! arc wall's corner row must carry the same knots and the same
+//! weights, compared exactly — so the arc wall's corner rows have to
+//! come out of the skin at exactly the `1.0` the line wall holds
+//! (`skin`'s "no synthesized weight channel" contract).
 //!
 //! The spacings are the variable: evenly stacked sections parameterize
 //! at exact `k/(n − 1)`, and every other spacing parameterizes off that
-//! grid, which is where a homogeneous solve of the corner row lands an
-//! ulp off `1.0`.
+//! grid, which is where a weight solved by LU lands an ulp off `1.0`.
 
 // Panicking is a test's failure mechanism (workspace lint policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -112,8 +110,9 @@ fn lofts_at_interval(n: usize, deg: usize) {
     }
 }
 
-/// At `Interval` even stacking is no shelter: the enclosure solve lands
-/// the corner row off `1.0` at eight sections.
+/// At `Interval`, eight evenly stacked sections, v-degree 2 and 3: a
+/// spacing where an LU-solved weight at an enclosure scalar lands off
+/// `1.0`.
 #[test]
 fn eight_stacked_sections_loft_at_interval() {
     lofts_at_interval(8, 2);

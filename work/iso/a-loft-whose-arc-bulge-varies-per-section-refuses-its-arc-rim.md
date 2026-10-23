@@ -13,7 +13,7 @@ cost: M
 
 The second shape of
 `a-rational-wall-beside-an-integral-one-skins-its-shared-corner-off-unit-weight`
-(work/carve), split out because its mechanism is not that row's. A
+(`work/iso/`), split out because its mechanism is not that row's. A
 square with one arc edge whose bulge differs per section (`tan(π/8)`,
 `tan 50°`, `tan 30°`), `loft_body::<f64>` at v-degree 2, z = `[0, 0.8,
 2]` or `[0, 1, 2]`, refuses at `topo::mint_pcurves` with
@@ -27,16 +27,16 @@ the interior probe — not an arc rim spanning the chart's u domain" } })
 raised in `topo::pcurves` `nurbs_iso_derive`'s `arc_rim` closure when
 `geom_brep::pick_arc_rim` (`edge_nurbs.rs`) returns `Ok(None)`.
 
-**Measured** (2026-10-23, on `iso/loft-seam-per-row-lane`, with `skin_on`
+**Measured** (2026-10-23, on `iso/loft-seam-per-row-lane` at `8ca0f5481a`, with `skin_on`
 choosing its lane per control row): still refuses, so the per-row lane
 does not reach it. The corner columns are exact there; the seam-carrier
 compare is not what fails.
 
 What the walls hold, measured on the same head: the arc wall's `u`
-structure is the union of the three arcs' (`[0,0,0,⅓,⅓,½,½,⅔,⅔,1,1,1]`,
-nine control points — the 100° arc is split into more pieces than the
-45° and 60° ones), so section 0's arc reaches the wall refined, not as
-authored. The wall's `v = 0` row equals compatible section 0 bitwise in
+structure is the union of the three arcs' piece structures
+(`[0,0,0,⅓,⅓,½,½,⅔,⅔,1,1,1]`, nine control points; with bulge
+`tan(θ/4)` the arcs are 90°, 200° and 120°), so section 0's arc
+reaches the wall refined, not as authored. The wall's `v = 0` row equals compatible section 0 bitwise in
 its weights, but two rational control points (indices 2 and 6, weight
 `0.8698252360829102`) come back one ulp off in `x`
 (`1.361302095513585` against `1.3613020955135853`) — the homogeneous
