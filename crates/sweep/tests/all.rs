@@ -136,6 +136,8 @@ mod a_vertex_on_a_grazing_plane;
 mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
+mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
 #[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
 mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
