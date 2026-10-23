@@ -146,9 +146,7 @@ fn every_at_rest_finding_renders_to_the_standard() {
                     used.insert(format!("LABELS {scope} {l}"));
                 }
             }
-            problems.extend(test_utils::refusal::problems(
-                &name, &text, &allowed, keyed,
-            ));
+            problems.extend(test_utils::refusal::problems(&name, &text, &allowed, keyed));
             // A header and ONE finding line: a line break inside a
             // finding (a `\` continuation left inside a literal) would
             // split it across the list.

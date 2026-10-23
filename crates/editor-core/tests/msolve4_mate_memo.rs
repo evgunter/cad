@@ -23,9 +23,9 @@ use std::sync::Arc;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
-    MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId,
-    SitedFace, TargetAxis, evaluate,
+    CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, MateFault, MateRef,
+    Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, SitedFace, TargetAxis,
+    evaluate,
 };
 use fixture::{insert, len, on_frame, solve, step};
 use geom_core::Tol;

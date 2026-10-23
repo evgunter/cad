@@ -555,10 +555,7 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
             Formula::turn_over(4).expect("a quarter turn"),
         )],
     );
-    let written = Mate {
-        on: face,
-        to: wall,
-    };
+    let written = Mate { on: face, to: wall };
     let doc = doc;
     let doc = seat(
         doc,

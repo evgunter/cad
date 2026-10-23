@@ -41,8 +41,7 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    parse_formula,
+    DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId, parse_formula,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::select::face_frame;

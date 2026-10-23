@@ -18,9 +18,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame,
-    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, StableName,
-    TargetAxis, VarId, assemble,
+    CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
+    NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, StableName, TargetAxis, VarId, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
@@ -100,10 +99,7 @@ fn seat(
     let to = if facing { fixture::flip(to) } else { to };
     let (doc, mate) = crate::fixture::constrain_with(
         doc,
-        fixture::mate(
-            fixture::plane(fixture::head(placed)),
-            to,
-        ),
+        fixture::mate(fixture::plane(fixture::head(placed)), to),
         &[
             (Coord::Slide(TargetAxis::X), len(slide[0])),
             (Coord::Slide(TargetAxis::Y), len(slide[1])),

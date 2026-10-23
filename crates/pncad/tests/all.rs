@@ -3922,7 +3922,7 @@ fn asm_r2a_mated_assembly(
 ) {
     use pncad::document::{Coord, Formula, Mate, Operand, TargetAxis, pose::PoseDef};
     use pncad::prelude::StableName;
-    use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
+    use pncad::select::{CapEnd, EntityKind, RoleSeg};
     let doc = pncad::document::ProfileDoc::empty(
         pncad::document::DocumentId::derive(label),
         Tol::witness(),
@@ -3967,7 +3967,6 @@ fn asm_r2a_mated_assembly(
         Mate {
             on: plane(name(ids[1])),
             to: plane(name(ids[0])),
-            class: ContactClass::Rest,
         },
         values,
     );
@@ -4078,7 +4077,7 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 fn asm_r2b_child_crossing_probe() {
     use pncad::prelude::FaceName;
     use pncad::prelude::StableName;
-    use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
+    use pncad::select::{CapEnd, EntityKind, RoleSeg};
     let Ok(out) = std::env::var(ASM_R2B_PROBE_OUT) else {
         return; // not the child — nothing to do
     };
@@ -4104,7 +4103,6 @@ fn asm_r2b_child_crossing_probe() {
     .expect("a crossing's references are face names");
     let record = pncad::document::InterfaceRecord {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {
-            class: ContactClass::Rest,
             outer,
             inner: face(CapEnd::Start),
         }],
@@ -4888,9 +4886,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   rule this list's own `NodeRefusal` entry states, and `crate::document`
 ///   and `crate::select` carry them now. `BifurcationKind` stays: its
 ///   carrier arm is not constructed before the M6 solver, so nothing
-///   can hold one to name. (`ClassAdmission`/`class_admission` left this family
-///   at GUI-4: a mate-authoring consumer needs the admission table
-///   BEFORE committing, so `crate::document` carries them now.)
+///   can hold one to name.
 ///
 ///   **`AttrKind` and `ExprPath` were in it too, and the reading did
 ///   not hold for them either.** Both are `EditError` payloads —

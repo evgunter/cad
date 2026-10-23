@@ -14,8 +14,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef,
-    MateSide, NameRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
+    CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef, MateSide,
+    NameRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{

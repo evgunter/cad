@@ -34,8 +34,8 @@ use crate::fixture;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    CapEnd, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    CapEnd, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, PatternKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{in_copy, insert, len, on_frame, scl};
@@ -291,9 +291,7 @@ fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_it
     )
     .expect("a cut of the pattern side splits");
     let record = crossings(&across.remainder, across.instance);
-    let [
-        editor_core::InterfaceCrossing::Mate { outer, inner },
-    ] = record.crossings.as_slice()
+    let [editor_core::InterfaceCrossing::Mate { outer, inner }] = record.crossings.as_slice()
     else {
         panic!("the kept constraint is one crossing: {record:?}");
     };

@@ -19,9 +19,9 @@ use crate::fixture;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
-    Formula, Mate, MateRef, NameRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
+    CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Mate,
+    MateRef, NameRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, scl};
@@ -221,10 +221,7 @@ impl Scene {
     fn seat_cap(&mut self) {
         self.add_with(
             self.cap,
-            fixture::mate(
-                self.block_edge(self.cap),
-                self.copy_edge(),
-            ),
+            fixture::mate(self.block_edge(self.cap), self.copy_edge()),
             &[
                 (Coord::Slide(TargetAxis::Z), len(BLOCK_HEIGHT)),
                 (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
@@ -505,10 +502,7 @@ fn rest_on_part(s: &mut Scene, part: RecipeNodeId) -> MateRef {
         part,
         in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::End)),
     );
-    s.add(
-        s.cap,
-        fixture::rest(s.bottom(s.cap), read_at_part),
-    )
+    s.add(s.cap, fixture::rest(s.bottom(s.cap), read_at_part))
 }
 
 /// **A `Part`'s index that does not evaluate is refused at the
@@ -659,10 +653,7 @@ fn a_box_run_over_an_overconstrained_bundle_refuses_at_its_witness() {
     use editor_core::range::{RangeField, RangeSeed, derive};
     use editor_core::{Dimension, FreeVar, VarName};
     let mut s = scene("msolve11-drive");
-    s.add(
-        s.other,
-        fixture::rest(s.bottom(s.other), s.base_top()),
-    );
+    s.add(s.other, fixture::rest(s.bottom(s.other), s.base_top()));
     let beside = on_the_world(&mut s, BASE_HEIGHT);
     let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
         &s.doc,

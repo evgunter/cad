@@ -30,9 +30,9 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
-    FaceName, Formula, InterfaceCrossing, InterfaceRecord, Maintenance, Mate, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, SplitError, StableName, apply, inline, split,
+    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions, FaceName, Formula,
+    InterfaceCrossing, InterfaceRecord, Maintenance, Mate, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    SplitError, StableName, apply, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, on_frame, step};
@@ -102,10 +102,7 @@ fn crossing(outer: StableName, inner: FaceName) -> InterfaceCrossing {
 /// A rest of `placed`'s face against `target`'s, each read at its own
 /// mint: `placed` is the face of the copy the constraint places.
 fn mate(target: StableName, placed: StableName) -> Mate<Formula> {
-    fixture::rest(
-        fixture::head(placed),
-        fixture::head(target),
-    )
+    fixture::rest(fixture::head(placed), fixture::head(target))
 }
 
 /// An instance carrying `record` — pinned to the world at the identity

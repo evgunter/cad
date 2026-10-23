@@ -581,10 +581,7 @@ fn the_windmill_story() {
     );
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified {
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "the seated base certifies, its seat recorded at rest"
     );
 
@@ -618,10 +615,7 @@ fn the_windmill_story() {
     }
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified {
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "redo re-certifies what undo took away"
     );
 
@@ -813,10 +807,7 @@ fn the_windmill_story() {
     );
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified {
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "the declared overhanging blades certify through the crossing rung"
     );
 
@@ -842,10 +833,7 @@ fn the_windmill_story() {
     assert!(crate::common::asm::frame_of(&reopened, hub_i).is_none());
     assert_eq!(
         reopened.at_rest(),
-        Some(&AtRestBadge::Certified {
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "the reopened census reads the same design: {:?}",
         reopened.at_rest()
     );

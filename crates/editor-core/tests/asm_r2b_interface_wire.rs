@@ -15,9 +15,9 @@
 use crate::fixture;
 use crate::wire::{doctored, wire_body};
 use editor_core::{
-    CapEnd, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName,
-    InterfaceCrossing, InterfaceRecord, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
-    SitedFace, StableName, apply, load, save,
+    CapEnd, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName, InterfaceCrossing,
+    InterfaceRecord, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName,
+    apply, load, save,
 };
 use geom_core::Tol;
 
@@ -66,10 +66,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     let (host, _) = fixture::constrain_at(
         host,
         second,
-        fixture::rest(
-            sited(second, CapEnd::Start),
-            sited(first, CapEnd::End),
-        ),
+        fixture::rest(sited(second, CapEnd::Start), sited(first, CapEnd::End)),
     );
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {

@@ -248,10 +248,7 @@ pub fn rest(
 }
 
 /// **A mate equating two poses** as written, `on` reading the copy.
-pub fn mate(
-    on: editor_core::Operand,
-    to: editor_core::Operand,
-) -> editor_core::Mate<Formula> {
+pub fn mate(on: editor_core::Operand, to: editor_core::Operand) -> editor_core::Mate<Formula> {
     editor_core::Mate { on, to }
 }
 
@@ -1969,10 +1966,7 @@ impl Recorder {
         self.insert_placed(
             read,
             editor_core::Placed {
-                mates: vec![editor_core::Mate {
-                    on: own,
-                    to: frame,
-                }],
+                mates: vec![editor_core::Mate { on: own, to: frame }],
                 values: Vec::new(),
             },
         )
@@ -3381,8 +3375,5 @@ pub fn frame_seat(
     x: f64,
     y: f64,
 ) -> editor_core::Mate<Formula> {
-    mate(
-        top,
-        slid_across(base, x, y),
-    )
+    mate(top, slid_across(base, x, y))
 }

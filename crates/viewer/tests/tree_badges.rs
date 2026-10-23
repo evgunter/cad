@@ -1163,11 +1163,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
     common::asm::unpin(&mut session, bench.post_b);
     let seat = common::commit_mate(
         &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_b,
-            common::asm::middle_seat_values(),
-        ),
+        common::asm::seat_op(&bench, bench.post_b, common::asm::middle_seat_values()),
     );
 
     let rows = session.tree_rows();

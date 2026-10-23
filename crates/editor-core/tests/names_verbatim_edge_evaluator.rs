@@ -55,8 +55,7 @@ use crate::fixture;
 
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
-    CapEnd, Coord, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId,
-    StableName, TargetAxis,
+    CapEnd, Coord, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame};

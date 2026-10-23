@@ -32,10 +32,10 @@ use editor_core::AuthoredNode;
 
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
-    CapEnd, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
-    NodeResult, Operand, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
-    StableName, VarId, VarName, product,
+    CapEnd, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
+    Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind, NodeResult, Operand,
+    PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, VarId,
+    VarName, product,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};

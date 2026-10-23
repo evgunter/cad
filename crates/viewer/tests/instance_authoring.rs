@@ -1051,11 +1051,7 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
         asm::unpin(&mut session, bench.shelf_i);
         common::commit_mate(
             &mut session,
-            asm::seat_op(
-                &bench,
-                bench.post_b,
-                asm::own_space_seat_values(),
-            ),
+            asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
         );
         session.pump();
         let saved = session.perform(SessionOp::Save(bench.asm_path.clone()));

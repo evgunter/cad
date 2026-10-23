@@ -611,7 +611,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
         // gate's own `of`/`via`/`through` stay `None`, because a list of
         // rows has no single route.
         E::CarriedAtRest { findings } => obj(findings
-                .iter()
+            .iter()
             .map(|f| CarriedAtRestFinding(f.clone(), from.clone()))
             .collect::<Vec<_>>()
             .into_pyobject(py)

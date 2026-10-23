@@ -21,9 +21,8 @@ use crate::fixture;
 use editor_core::Formula;
 
 use editor_core::{
-    AssemblyError, CapEnd, ChecksConfig, Coord, DocRef, DocumentId, EntityKind,
-    Frame, MateRef, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble,
-    run_checks,
+    AssemblyError, CapEnd, ChecksConfig, Coord, DocRef, DocumentId, EntityKind, Frame, MateRef,
+    Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble, run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, mated_instance, on_frame, run};
@@ -100,10 +99,7 @@ fn sunk(a: StableName, b: StableName, depth: f64) -> Seat {
         by: len(-depth),
     }));
     Seat {
-        mate: fixture::mate(
-            fixture::plane(fixture::head(b)),
-            fixture::flip(under),
-        ),
+        mate: fixture::mate(fixture::plane(fixture::head(b)), fixture::flip(under)),
         apart: 0.0,
     }
 }
@@ -176,9 +172,7 @@ fn stand(
     apart: f64,
     store: &PartStore,
 ) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef) {
-    stand_with(label, part, body, store, |a, b| {
-        mate_node(a, b, apart)
-    })
+    stand_with(label, part, body, store, |a, b| mate_node(a, b, apart))
 }
 
 /// `count` instances of `part`, each pinned `spacing * i` along +x.
@@ -234,11 +228,7 @@ fn stand_with_two_bad_mates(
     };
     let (doc, _) = seated(
         doc,
-        mate_node(
-            vanished(ids[0]),
-            in_part(badref, body, CapEnd::Start),
-            2.0,
-        ),
+        mate_node(vanished(ids[0]), in_part(badref, body, CapEnd::Start), 2.0),
     );
     let (doc, _) = seated(
         doc,
@@ -367,4 +357,3 @@ fn p7_seam_gate_by_arm() {
         Err(other) => println!("P7: {other}"),
     }
 }
-

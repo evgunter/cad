@@ -29,9 +29,8 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
-    Attr, AttrKind, CapEnd, DocEdit, DocumentId, EntityKind, Maintenance,
-    MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
-    cascade_delete_order,
+    Attr, AttrKind, CapEnd, DocEdit, DocumentId, EntityKind, Maintenance, MeasurePrimitive, Node,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
 };
 use fixture::{fname, insert, len, wall};
 use geom_core::Tol;

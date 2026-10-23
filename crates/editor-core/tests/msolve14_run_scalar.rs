@@ -38,10 +38,10 @@ use std::sync::Arc;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand,
-    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
-    VarName, all_vertices, evaluate, vertex_position,
+    BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand, ParamBox,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName,
+    all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
@@ -571,10 +571,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = fixture::mated(
         doc,
         bolts[0],
-        fixture::mate(
-            p.bolt_edge(bolts[0], 0),
-            p.slab_line(slab, 4.0, 4.0),
-        ),
+        fixture::mate(p.bolt_edge(bolts[0], 0), p.slab_line(slab, 4.0, 4.0)),
         &[
             (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
             (Coord::Spin(editor_core::TargetAxis::Z), ang(0.3)),
@@ -591,10 +588,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = fixture::constrain_at(
         doc,
         bolt,
-        fixture::rest(
-            head(p.bolt_foot(bolt)),
-            head(p.slab_top(slab)),
-        ),
+        fixture::rest(head(p.bolt_foot(bolt)), head(p.slab_top(slab))),
     );
     let frame = |at: RecipeNodeId, body: RecipeNodeId, names: &Names, edge: Operand, end| {
         let corner = match end {

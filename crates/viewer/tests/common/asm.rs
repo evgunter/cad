@@ -500,14 +500,7 @@ pub fn refuse_shelf_chaining(
     // Its pin off first, by a space of its own: a seat beside a mate the
     // bundle holds is refused.
     unpin(session, chained);
-    let sound = super::commit_mate(
-        session,
-        seat_op(
-            bench,
-            chained,
-            middle_seat_values(),
-        ),
-    );
+    let sound = super::commit_mate(session, seat_op(bench, chained, middle_seat_values()));
     // The shelf's mates off, by a space of its own: a mate beside one
     // the bundle holds is refused. The refused mate places it back.
     unpin(session, bench.shelf_i);

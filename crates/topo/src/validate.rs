@@ -4278,7 +4278,7 @@ impl fmt::Display for ValidationError {
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
                 "{declaration} names a contact the geometry does not have. \
-                 Recourse: remove that declaration (the mate named with it, where one is), \
+                 Recourse: remove that declaration, \
                  or move the geometry so the contact exists"
             ),
             Self::ContactContradicted {
@@ -9432,9 +9432,10 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// through the chart-region predicate), face-granularity backing from
 /// face–face records, and the record certifiers (chart-region overlap
 /// for a face–face record). ASM R2-b
-/// consumes THIS gate (ASM-R2-SPEC-DRAFT:39-58): mate declarations
-/// land in the product body's [`crate::boolean::ContactRecords`] —
-/// same currency, no adapter — and validate here.
+/// consumes THIS gate (ASM-R2-SPEC-DRAFT:39-58): the records the
+/// at-rest census writes for the touches between copies land in the
+/// product body's [`crate::boolean::ContactRecords`] — same currency,
+/// no adapter — and validate here.
 ///
 /// # Errors
 ///

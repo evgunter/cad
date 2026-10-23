@@ -27,11 +27,7 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
     let shelf_bundle = crate::fixture::bundle(&before, bench.shelf_i);
     let mate = common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
     );
     assert_eq!(mate.placement, bench.post_b, "the mate places post_b");
     let after = session.doc().clone();

@@ -25,10 +25,10 @@ use editor_core::Formula;
 
 use editor_core::CapEnd;
 use editor_core::{
-    Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation,
-    Frame, Maintenance, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
-    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis, Value, VarId, apply, load, product, relative_freedom_components, save,
+    Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Frame, Maintenance,
+    Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind, NodeResult, Operand,
+    ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, TargetAxis, Value, VarId,
+    apply, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{
@@ -974,10 +974,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
     assert!(
         editor_core::apply_with_names(
             &doc,
-            &add(rest(
-                on.clone(),
-                head(kit.cap(ids[0], CapEnd::End))
-            )),
+            &add(rest(on.clone(), head(kit.cap(ids[0], CapEnd::End)))),
             &ev,
             Tol::witness()
         )

@@ -16,12 +16,11 @@
 use editor_core::VarNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    CapEnd, Diagnosis, Dimension, DimensionError,
-    DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
-    InterrogateError, LeverRefusal, Maintenance, MateFault, MateRef, MeshPickError,
-    MetaVersionError, NamingError, NodeErrorKind, NodePickError, ParseError,
-    PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
-    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal,
+    CapEnd, Diagnosis, Dimension, DimensionError, DocRef, DocumentId, EditError, EntityKind,
+    EvalError, FreeValue, HitTestError, InterrogateError, LeverRefusal, Maintenance, MateFault,
+    MateRef, MeshPickError, MetaVersionError, NamingError, NodeErrorKind, NodePickError,
+    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
+    RecordedProgramError, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal,
     SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
     UnnamedEntity, VarName,
 };

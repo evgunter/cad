@@ -127,14 +127,14 @@ use pncad::analysis::{
 };
 use pncad::document::LabelFault;
 use pncad::document::{
-    AssemblyError, AttrKind, Axis3, CheckEvidence, ChecksError, Coord,
-    CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
-    EvalError, FlattenError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
+    AssemblyError, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, CountMismatch,
+    DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
+    FlattenError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
     MeasureUnavailableAt, MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind,
     NodeStanding, ParseError, PersistError, PinRefusal, PlacementRuleFault, ProgramFault,
-    ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault,
-    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
-    TargetAxis, Unlocalized, UpdateError,
+    ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault, ShellClassifyError, SlotId,
+    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized,
+    UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -2866,7 +2866,7 @@ pub fn checks_error_tag(err: &ChecksError) -> &'static str {
 /// The stable tag for one finding's evidence.
 ///
 /// A VALUE's discriminant rather than a refusal's, on the
-/// [`refused_ref_tag`] / [`mate_fault_tag`] precedent: what a caller
+/// [`mate_fault_tag`] precedent: what a caller
 /// branches on is which fact was found, and `Display` prose is not a
 /// stable interface for that. It lives here, beside the refusal maps
 /// and not in the PyO3 layer, so the exhaustive match compiles — and

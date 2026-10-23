@@ -24,8 +24,8 @@ use crate::fixture;
 use std::sync::Arc;
 
 use editor_core::{
-    CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault,
-    MateRef, MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult, OperandSlot, PatternKind,
+    CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault, MateRef,
+    MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult, OperandSlot, PatternKind,
     ProfileDoc, RecipeNodeId, SlotId, StableName,
 };
 use fixture::resolver::{PartStore, in_part};

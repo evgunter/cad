@@ -19,8 +19,8 @@ use editor_core::Formula;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    AssemblyError, CapEnd, Coord, DocEdit, DocRef, DocumentId, EntityKind, Frame, Mate,
-    MateRef, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble,
+    AssemblyError, CapEnd, Coord, DocEdit, DocRef, DocumentId, EntityKind, Frame, Mate, MateRef,
+    Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble,
     product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -90,10 +90,7 @@ fn seat(on: StableName, to: StableName, standoff: f64) -> Mate<Formula> {
             by: len(standoff),
         }))
     };
-    fixture::mate(
-        fixture::plane(fixture::head(on)),
-        fixture::flip(target),
-    )
+    fixture::mate(fixture::plane(fixture::head(on)), fixture::flip(target))
 }
 
 /// **`mate` added with a value on each freedom it leaves**: a slide of
@@ -225,12 +222,8 @@ fn row_of(
 #[test]
 fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
     let mut store = PartStore::default();
-    let (inner_ref, inner_id, _, _, cube_body) = stand(
-        &mut store,
-        "docm6-precedence-stand",
-        -0.5,
-        0.0,
-    );
+    let (inner_ref, inner_id, _, _, cube_body) =
+        stand(&mut store, "docm6-precedence-stand", -0.5, 0.0);
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-precedence"), Tol::witness());
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
     // The SAME two faces the inner mate declared, named from out here:
@@ -303,12 +296,7 @@ fn a_mated_product_is_no_boolean_operand() {
 /// both in one store.
 fn product_and_cube(label: &str, standoff: f64) -> (PartStore, DocRef, DocRef) {
     let mut store = PartStore::default();
-    let (inner_ref, ..) = stand(
-        &mut store,
-        &format!("docm6-bool-{label}"),
-        standoff,
-        0.0,
-    );
+    let (inner_ref, ..) = stand(&mut store, &format!("docm6-bool-{label}"), standoff, 0.0);
     let (cube, _) = store.insert_part(
         cube_part(&format!("docm6-bool-{label}-cube")),
         Tol::witness(),
@@ -781,12 +769,7 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
 #[test]
 fn a_parts_own_refusal_crosses_whole() {
     let mut store = PartStore::default();
-    let (gapped, ..) = stand(
-        &mut store,
-        "docm6-whole-stand",
-        0.0,
-        3.0,
-    );
+    let (gapped, ..) = stand(&mut store, "docm6-whole-stand", 0.0, 3.0);
     let mid = ProfileDoc::empty(DocumentId::derive("docm6-whole-mid"), Tol::witness());
     let (mid, _) = pinned_instance(mid, &store, gapped);
     let (mid, profile) = on_frame(

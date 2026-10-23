@@ -15,10 +15,10 @@ use test_utils::refusal::tagged;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    AssemblyError, CapEnd, Coord, DocEdit, DocumentId, EntityKey, EntityKind,
-    EntityRef, Entry, EvalOptions, FaceName, InterfaceCrossing, Mate, MateFault, MateRef, MateSide,
-    Node, NodeErrorClass, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName, TargetAxis, assemble, content_pin, inline, product_recorded,
+    AssemblyError, CapEnd, Coord, DocEdit, DocumentId, EntityKey, EntityKind, EntityRef, Entry,
+    EvalOptions, FaceName, InterfaceCrossing, Mate, MateFault, MateRef, MateSide, Node,
+    NodeErrorClass, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    TargetAxis, assemble, content_pin, inline, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, solve, split_world as split, step};
@@ -657,10 +657,7 @@ fn row5_c_inline_dissolves_the_crossing_record() {
         .expect("a crossing's references are face names");
     let (doc, outer) = remainder_with_a_neighbour("asm-r2b-row5c", doc_ref, body, &store);
     let record = editor_core::InterfaceRecord {
-        crossings: vec![InterfaceCrossing::Mate {
-            outer,
-            inner,
-        }],
+        crossings: vec![InterfaceCrossing::Mate { outer, inner }],
     };
     let (doc, instance) = pinned_with(doc, doc_ref, record, &store);
     let before = doc.ids().len();
@@ -813,10 +810,7 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
         .expect("a crossing's references are face names");
     let (host, outer) = remainder_with_a_neighbour("asm-r2b-row6", doc_ref, body, &store);
     let record = editor_core::InterfaceRecord {
-        crossings: vec![InterfaceCrossing::Mate {
-            outer,
-            inner,
-        }],
+        crossings: vec![InterfaceCrossing::Mate { outer, inner }],
     };
     let (with, id_with) = pinned_with(host.clone(), doc_ref, record, &store);
     let (without, id_without) = pinned_with(
@@ -877,24 +871,15 @@ fn a_crossing_record_keys_on_each_of_its_fields() {
             .expect("the instance evaluates")
             .content_key
     };
-    let base = key(record(
-        outer.clone(),
-        part_face(CapEnd::End),
-    ));
+    let base = key(record(outer.clone(), part_face(CapEnd::End)));
     assert_ne!(
         base,
-        key(record(
-            other_outer,
-            part_face(CapEnd::End)
-        )),
+        key(record(other_outer, part_face(CapEnd::End))),
         "the crossing's `outer` feeds the key"
     );
     assert_ne!(
         base,
-        key(record(
-            outer.clone(),
-            part_face(CapEnd::Start)
-        )),
+        key(record(outer.clone(), part_face(CapEnd::Start))),
         "the crossing's `inner` feeds the key"
     );
 }
@@ -1192,12 +1177,7 @@ fn the_refusal_renders_the_kernels_prose_never_debug_guts() {
         2,
         "{msg}"
     );
-    for guts in [
-        "{",
-        "NegativeVolume",
-        "AtRestFinding",
-        "ValidationError",
-    ] {
+    for guts in ["{", "NegativeVolume", "AtRestFinding", "ValidationError"] {
         assert!(!msg.contains(guts), "Debug guts leaked ({guts}): {msg}");
     }
 }

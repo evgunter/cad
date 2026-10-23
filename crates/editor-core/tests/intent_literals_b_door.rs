@@ -13,8 +13,8 @@ use crate::corpus;
 use crate::fixture::resolver::PartStore;
 use crate::fixture::{len, scl};
 use editor_core::{
-    AuthoredNode, CapEnd, CountMismatch, Dimension, DocEdit, DocRef, DocumentId,
-    EditError, Formula, Frame, FreeVar, LoopProgram, Node, PatternKind, ProfileDoc, ProfileProgram,
+    AuthoredNode, CapEnd, CountMismatch, Dimension, DocEdit, DocRef, DocumentId, EditError,
+    Formula, Frame, FreeVar, LoopProgram, Node, PatternKind, ProfileDoc, ProfileProgram,
     RecipeNodeId, RoleSeg, TubeWindow, VarDecl, VarName, apply, content_pin,
 };
 use geom_core::Tol;

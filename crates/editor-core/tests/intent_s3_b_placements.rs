@@ -17,8 +17,8 @@ use crate::fixture::{
 use editor_core::eval::bound_pose;
 use editor_core::pose::PoseDef;
 use editor_core::{
-    BodyRead, CapEnd, CopyKey, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
+    BodyRead, CapEnd, CopyKey, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame,
+    MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
     ProductError, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use geom_core::Tol;

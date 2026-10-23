@@ -18,9 +18,8 @@ use editor_core::Formula;
 
 use editor_core::coincide::{NamedCell, NamedCoincidence, Proof, Rung};
 use editor_core::{
-    AssemblyError, CapEnd, Coord, DocRef, DocumentId, EntityKind, Frame,
-    MateRef, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis,
-    assemble, product_recorded,
+    AssemblyError, CapEnd, Coord, DocRef, DocumentId, EntityKind, Frame, MateRef, Node, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble, product_recorded,
 };
 use editor_core::{Evaluation, Unreplayed};
 use fixture::resolver::{PartStore, in_part, with_resolver};

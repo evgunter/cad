@@ -5160,7 +5160,7 @@ mod declaration_order_rows {
                 *decision,
                 BooleanDecision::Coincidence(
                     which,
-                    class.map_or(DeclarationRead::Moot, |c| DeclarationRead::Spent(c.into()))
+                    class.map_or(DeclarationRead::Moot, DeclarationRead::Spent)
                 ),
                 "{class:?}"
             );
@@ -5214,7 +5214,7 @@ mod declaration_order_rows {
     /// distance whose residual `y²/2` lies in the band. The endpoint's
     /// side escalates ahead of the declared-cover rungs, so a `Tangent`
     /// declaration of that plane, which the door verifies definite
-    /// (`contact_pair_verdict`), changes nothing. Before the review's fix
+    /// (`rest_pair_verdict`), changes nothing. Before the review's fix
     /// it offered "declare the coincidence".
     #[test]
     fn an_in_band_endpoint_on_a_curved_face_offers_no_declaration() {
@@ -5288,9 +5288,7 @@ mod declaration_order_rows {
             Default::default()
         };
         let declared = GluedPairs::<f64>::without_struts(&decls, one);
-        let door = class.map(|class| {
-            contact_door((&x, xw), (&y, yw), class, None, b)
-        });
+        let door = class.map(|class| contact_door((&x, xw), (&y, yw), class, None, b));
         let edges: Vec<_> = x.edges().map(|(k, e)| (k, e.clone())).collect();
         let mut out = Vec::new();
         for (edge_key, edge) in edges {

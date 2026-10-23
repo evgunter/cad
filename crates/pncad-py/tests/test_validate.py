@@ -271,6 +271,13 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
         product(doc, ev).validate_pseudomanifold()
 
 
+#: The phrase the kernel's prose spells each census contact word with,
+#: for the words the refusal below carries; a new word is a KeyError.
+CONTACT_PHRASE = {
+    "conformal_patch": "two faces lying against each other",
+}
+
+
 class TestTheRefusalsShape(unittest.TestCase):
     """What a caller reads off a tier-3′ refusal, and what they
     cannot."""
@@ -330,10 +337,11 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertNotIn(" { ", message, "the struct-brace fingerprint")
         self.assertNotIn("Point3 {", message)
         # The prose still carries what the Debug guts carried: which
-        # entities coincide, and where. A finding that lost its
-        # witness would read as prose and say nothing actionable.
-        self.assertIn("vertex", message)
-        self.assertRegex(message, r"at \(-?\d")
+        # entities coincide, and where. The census reads the slabs'
+        # rest as one face pair over their shared region, and asks
+        # nothing of the edges and corners bounding it.
+        self.assertIn("two faces lying against each other", message)
+        self.assertIn("at their shared region", message)
 
     def test_the_per_arm_words_cross_and_the_census_says_so(self):
         """Which coincidence the census found IS something Python can
@@ -359,7 +367,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         )
         self.assertEqual(
             {f.contact_kind for f in refusal.findings},
-            {"vertex_on_face", "edge_face_overlap"},
+            {"conformal_patch"},
         )
 
     def test_the_findings_are_the_count(self):
@@ -384,7 +392,7 @@ class TestTheRefusalsShape(unittest.TestCase):
                 self.assertIn(finding.variant.replace("_", " "), message)
             if finding.contact_kind is not None:
                 with self.subTest(contact=finding.contact_kind):
-                    self.assertIn(finding.contact_kind.split("_")[0], message)
+                    self.assertIn(CONTACT_PHRASE[finding.contact_kind], message)
 
     def test_a_finding_is_a_frozen_value_that_compares_structurally(self):
         """The value shape: two findings that say the same thing ARE
@@ -394,7 +402,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertEqual(first.findings, second.findings)
         self.assertEqual(first.findings[0], second.findings[0])
         self.assertEqual(
-            len({(f.variant, f.contact_kind) for f in first.findings}), 2
+            {(f.variant, f.contact_kind) for f in first.findings},
+            {("unrecorded_contact", "conformal_patch")},
         )
         # Frozen: a finding is restated by re-running the validator,
         # never by editing one in place.

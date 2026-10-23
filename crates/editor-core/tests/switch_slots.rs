@@ -13,11 +13,11 @@ use crate::fixture;
 use editor_core::AuthoredNode;
 
 use editor_core::{
-    AssertionRelation, CancelToken, CapEnd, ContentPin, Dimension, DocEdit, DocRef,
-    DocumentId, EditError, EvalOptions, ExprPath, Formula, FreeVar, InterfaceRecord, LoopProgram,
-    Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
-    StepArg, TubeWindow, ValuePayload, VarName, evaluate,
+    AssertionRelation, CancelToken, CapEnd, ContentPin, Dimension, DocEdit, DocRef, DocumentId,
+    EditError, EvalOptions, ExprPath, Formula, FreeVar, InterfaceRecord, LoopProgram, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, StepArg, TubeWindow,
+    ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;

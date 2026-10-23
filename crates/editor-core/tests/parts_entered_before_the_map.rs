@@ -17,8 +17,8 @@
 
 use crate::fixture;
 use editor_core::{
-    CancelToken, CapEnd, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node,
-    NodeResult, ProfileDoc, RecipeNodeId, evaluate,
+    CancelToken, CapEnd, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, NodeResult,
+    ProfileDoc, RecipeNodeId, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, on_pool, square};

@@ -11,8 +11,8 @@
 use crate::fixture::{flip, head, len, plane};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CapEnd, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, Operand, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, apply, load, save,
+    CapEnd, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, Operand, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -80,10 +80,7 @@ fn a_mate_bearing_document_round_trips() {
     let doc = add(
         &doc,
         ids[1],
-        crate::fixture::mate(
-            plane(head(name(ids[1]))),
-            flip(standoff),
-        ),
+        crate::fixture::mate(plane(head(name(ids[1]))), flip(standoff)),
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert!(

@@ -4361,11 +4361,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "assembly_error_tag",
-        values: &[
-            "at_rest",
-            "carried_at_rest",
-            "own_space",
-        ],
+        values: &["at_rest", "carried_at_rest", "own_space"],
         delegates: &["product_error_tag"],
     },
     TagEntry {

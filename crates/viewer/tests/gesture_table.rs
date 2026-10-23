@@ -145,10 +145,7 @@ fn face(node: RecipeNodeId) -> StableName {
 /// A mate for the mate door — well-formed and never evaluated here: a
 /// rest of `node`'s face on itself.
 fn seat(node: RecipeNodeId) -> pncad::document::Mate<Formula> {
-    crate::fixture::rest(
-        common::head(face(node)),
-        common::head(face(node)),
-    )
+    crate::fixture::rest(common::head(face(node)), common::head(face(node)))
 }
 
 /// One sample of every `SessionOp` variant, in `expected`'s order.

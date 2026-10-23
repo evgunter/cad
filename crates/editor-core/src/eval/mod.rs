@@ -6737,7 +6737,6 @@ mod tag_vocabulary_tests {
             );
         }
     }
-
 }
 
 #[cfg(test)]
@@ -6761,13 +6760,7 @@ mod bundle_key {
     }
 
     fn mate(to: crate::VarId) -> Constraint {
-        Constraint::of_mate(
-            id(10),
-            Mate {
-                on: ON,
-                to,
-            },
-        )
+        Constraint::of_mate(id(10), Mate { on: ON, to })
     }
 
     fn value(coord: Coord) -> Constraint {

@@ -28,8 +28,8 @@ use crate::wire;
 use editor_core::Formula;
 
 use editor_core::{
-    CapEnd, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateRef,
-    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, TargetAxis, VarKind, load, save,
+    CapEnd, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateRef, Node,
+    PersistError, ProfileDoc, RecipeNodeId, SnapshotError, TargetAxis, VarKind, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, at_the_door_of, insert, insert_pinned, len, on_frame, step};
@@ -87,10 +87,7 @@ fn cap(of: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> editor_core::SitedF
 /// `b`'s bottom cap resting on `a`'s top cap, both instances of the
 /// part whose body is `body`: a mate `b`'s bundle holds.
 fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::Mate<Formula> {
-    fixture::rest(
-        cap(b, body, CapEnd::Start),
-        cap(a, body, CapEnd::End),
-    )
+    fixture::rest(cap(b, body, CapEnd::Start), cap(a, body, CapEnd::End))
 }
 
 /// `b`'s bottom cap's plane equated with the point of `a`'s top cap: a

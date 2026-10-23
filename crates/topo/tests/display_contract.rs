@@ -70,9 +70,7 @@ const READBACK_ERROR_FIELDS: &[&str] = &["what:", "carrier:"];
 fn contact_refusal_display_names_its_content_not_its_struct() {
     let cases = [
         (
-            ContactRefusal::Contradicted {
-                diag: in_band(),
-            },
+            ContactRefusal::Contradicted { diag: in_band() },
             // The one reason true at every contradiction site; the
             // predicate and margin are developer detail in `Debug`.
             vec![

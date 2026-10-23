@@ -69,10 +69,7 @@ fn carried_records(product: &editor_core::Product<f64>) -> topo::ContactRecords 
         .iter()
         .filter(|record| {
             !record.cites.iter().any(|backing| match backing {
-                topo::Backing::Decided(k) => product
-                    .coincidences
-                    .get(k as usize)
-                    .is_some(),
+                topo::Backing::Decided(k) => product.coincidences.get(k as usize).is_some(),
                 topo::Backing::Carried { .. } => false,
             })
         })

@@ -16,8 +16,8 @@ use crate::fixture;
 use editor_core::Formula;
 
 use editor_core::{
-    CapEnd, Coord, DocumentId, EvalOptions, MateFault, Node, NodeErrorClass, Operand,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
+    CapEnd, Coord, DocumentId, EvalOptions, MateFault, Node, NodeErrorClass, Operand, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, run, solve};
@@ -96,12 +96,7 @@ impl Rig {
 
     /// Writes `on ≡ to` and `values` naming it as the copy's bundle.
     fn place(&mut self, on: Operand, to: Operand, values: Vec<(Coord, Formula)>) {
-        self.doc = fixture::with_values(
-            self.doc.clone(),
-            self.copy,
-            fixture::mate(on, to),
-            values,
-        );
+        self.doc = fixture::with_values(self.doc.clone(), self.copy, fixture::mate(on, to), values);
     }
 }
 
@@ -242,10 +237,7 @@ fn a_determined_bundle_and_a_v_block_keep_their_verdicts_under_the_witness() {
     let walls = [0, 1].map(|k| {
         editor_core::Constraint::of_mate(
             editor_core::ConstraintId::placeholder(k + 1),
-            fixture::mate(
-                r.side(r.b, k as usize),
-                r.side(r.t, k as usize),
-            ),
+            fixture::mate(r.side(r.b, k as usize), r.side(r.t, k as usize)),
         )
     });
     let fault = fixture::bundle_refusal(&r.doc, r.copy, walls.to_vec());

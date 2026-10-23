@@ -21,9 +21,9 @@ use crate::fixture;
 use crate::fixture::resolver::{PartStore, with_resolver};
 use editor_core::pose::PoseDef;
 use editor_core::{
-    BodyRead, CapEnd, Coord, Dimension, DocEdit, DocumentId, EvalOptions,
-    FlattenError, FreeValue, FreeVar, Node, Operand, PartResolver, Placed, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, TargetAxis, VarName, flatten, inline, product,
+    BodyRead, CapEnd, Coord, Dimension, DocEdit, DocumentId, EvalOptions, FlattenError, FreeValue,
+    FreeVar, Node, Operand, PartResolver, Placed, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    TargetAxis, VarName, flatten, inline, product,
 };
 use fixture::{head, head_at, insert, len, on_frame, run, solve, step};
 use geom_core::Tol;

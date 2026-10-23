@@ -591,11 +591,7 @@ fn free_move_accepts_only_a_space_other_than_the_world() {
     asm::unpin(&mut session, bench.post_a);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_a,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_a, asm::middle_seat_values()),
     );
     session.pump();
     // The mated post, the shelf it is mated onto, and the post the
@@ -668,11 +664,7 @@ fn two_copies_in_one_space_free_move_as_one() {
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            asm::own_space_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
     );
     session.pump();
     let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
@@ -848,11 +840,7 @@ fn gesture_on_a_non_root_copy(name: &str, tol: Tol) -> (asm::Bench, DocSession, 
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            asm::own_space_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
     );
     session.pump();
     let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
@@ -952,11 +940,7 @@ fn a_replacement_takes_the_landings_untaken_report() {
             SessionOp::IntoOwnSpace {
                 placement: bench.post_b,
             },
-            asm::seat_op(
-                &bench,
-                bench.post_b,
-                asm::middle_seat_values(),
-            ),
+            asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
         ] {
             let outcome = session.perform(op.clone());
             assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
@@ -1138,11 +1122,7 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            bench,
-            bench.post_b,
-            asm::own_space_seat_values(),
-        ),
+        asm::seat_op(bench, bench.post_b, asm::own_space_seat_values()),
     );
     let outcome = session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
@@ -1226,12 +1206,7 @@ fn an_undo_that_moves_a_gestures_copy_kills_it_at_the_edit() {
     let shelf_space = asm::unpin(&mut session, shelf);
     common::commit_mate(
         &mut session,
-        asm::seat_op_under(
-            &bench,
-            bench.post_b,
-            shelf,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op_under(&bench, bench.post_b, shelf, asm::middle_seat_values()),
     );
     session.pump();
     assert_eq!(

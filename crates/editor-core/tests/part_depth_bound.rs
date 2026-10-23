@@ -27,9 +27,9 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    CapEnd, ContentPin, Coord, DocRef, DocumentId, EvalOptions, Node, NodeErrorKind,
-    NodeResult, PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault,
-    TargetAxis, product,
+    CapEnd, ContentPin, Coord, DocRef, DocumentId, EvalOptions, Node, NodeErrorKind, NodeResult,
+    PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, TargetAxis,
+    product,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, run, square};

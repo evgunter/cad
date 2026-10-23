@@ -910,7 +910,7 @@ fn plane<P: crate::ProfilePayload>(
 /// the face the selection `face` names, walked from its body
 /// ([`construction`]), in each copy of that body that holds it where
 /// a mate of `placement` reads it ([`crate::mate::reads_in`], the
-/// rule the gather mints the mate's record by): the body itself where
+/// rule the door reads the mate by): the body itself where
 /// it is that copy's output, else under the `Place` that copies it, or
 /// a `Part` picking one of its copies (the walk's own `Instance` says
 /// which). A body no placement copies is read where it stands, which is

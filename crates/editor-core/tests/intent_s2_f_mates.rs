@@ -11,9 +11,9 @@
 
 use crate::fixture;
 use editor_core::{
-    AssemblyError, CapEnd, Coord, DocEdit, DocumentId, Formula, Mate, MateRef,
-    Node, OperandSlot, ProfileDoc, RecipeNodeId, SplitError, TargetAxis,
-    assemble, product_recorded, relative_freedom_components,
+    AssemblyError, CapEnd, Coord, DocEdit, DocumentId, Formula, Mate, MateRef, Node, OperandSlot,
+    ProfileDoc, RecipeNodeId, SplitError, TargetAxis, assemble, product_recorded,
+    relative_freedom_components,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};

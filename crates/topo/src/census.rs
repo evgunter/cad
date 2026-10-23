@@ -1353,7 +1353,7 @@ fn pair_holds_edges<T: Decide>(
 
 /// The VERIFIED-INTERFACE half of the confinement: the declared pair
 /// itself answers through the SAME two doors the confirm pass runs —
-/// Door 1 (`contact_pair_verdict`, class `Rest`: carrier identity
+/// Door 1 (`rest_pair_verdict`: carrier identity
 /// through the kind ladder, senses opposed) and Door 2 (the
 /// chart-region overlap through the [`RegionLane`] the pass holds, the
 /// verdict carried between them, `interior_witness`'s rescue included) — and
@@ -10641,7 +10641,7 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
 
 /// The at-rest confirmation of a face–face record, as a patch (C3):
 /// through the two doors its certification obligation names — the
-/// `Rest` carrier/sense door (`contact_pair_verdict`: carrier identity
+/// `Rest` carrier/sense door (`rest_pair_verdict`: carrier identity
 /// through the kind ladder with the record standing as the declaration,
 /// senses opposed, aligned coincidence contradicted) and the
 /// chart-region overlap predicate (region overlap in the shared chart

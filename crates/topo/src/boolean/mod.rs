@@ -6540,7 +6540,11 @@ pub(super) fn glue_contradicted(
             margin,
         },
         GlueClass::Rest | GlueClass::Tangent => BooleanError::ContactContradicted {
-            declaration: crate::contact::DeclaredContact { a: fa, b: fb, class },
+            declaration: crate::contact::DeclaredContact {
+                a: fa,
+                b: fb,
+                class,
+            },
             fact,
             margin,
         },

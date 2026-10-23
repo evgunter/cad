@@ -13,8 +13,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
+    CapEnd, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -482,17 +482,11 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
     let copy_end = head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End)));
     let (doc, m0) = constrain(
         doc,
-        rest(
-            head(top_part.cap(top, CapEnd::Start)),
-            copy_end.clone(),
-        ),
+        rest(head(top_part.cap(top, CapEnd::Start)), copy_end.clone()),
     );
     let fault = fixture::door_refusal(
         &doc,
-        fixture::mate(
-            plane(head(top_part.cap(top, CapEnd::End))),
-            plane(copy_end),
-        ),
+        fixture::mate(plane(head(top_part.cap(top, CapEnd::End))), plane(copy_end)),
     );
     let editor_core::MateFault::Overconstrained {
         placement,

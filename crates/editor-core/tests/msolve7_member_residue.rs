@@ -22,10 +22,9 @@ use crate::fixture;
 use crate::wire;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CapEnd, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,
-    EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, VarName, apply, load,
-    save,
+    CapEnd, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId, EntityKind,
+    EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, VarName, apply, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, solve, step};

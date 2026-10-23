@@ -19,9 +19,9 @@ use std::sync::Arc;
 
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
-    MateFault, MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal,
-    RecipeNodeId, ResolveFault, content_pin, product,
+    CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate, MateFault, MateRef,
+    Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal, RecipeNodeId,
+    ResolveFault, content_pin, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, on_frame, revolve_about, run, solve};

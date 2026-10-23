@@ -374,8 +374,8 @@ pub use editor_core::ContentBits;
 // the product's at-rest decisions, beside the two copies whose pair the
 // census decided.
 pub use editor_core::{
-    AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
-    SourceFinding, SpaceGather, product, product_recorded, space_gathers,
+    AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal, SourceFinding,
+    SpaceGather, product, product_recorded, space_gathers,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
