@@ -111,6 +111,8 @@ from bench_scene import (
 )
 from pncad import CapEnd, Doc, DocEdit, DocRef, Formula, Frame, Node, SegTag, Workspace, content_pin, evaluate, m, mm
 
+from placing import placed
+
 #: The layout's nodes: the post instance, its pattern and the shelf
 #: instance, then each pattern copy projected and placed.
 LAYOUT_NODES = 3 + 2 * PATTERN_COUNT
@@ -418,16 +420,15 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
         self.store = Workspace(str(directory))
-        # The boss: its one placed body, an extrude. It is stored while
-        # it builds, so the bracket can pin a copy of it over its faces.
+        # The boss: its one placed body, an extrude, stored while it
+        # builds.
         boss = bench_scene.prism("pncad-partroot-boss", 0.02, 0.02, 0.01)
         self.store.create(boss)
         # The bracket: its one placement is an instance of the boss,
-        # pinned to the bracket's world.
+        # standing in the bracket's world by the identity bundle.
         building = DocRef(boss.id, pncad.content_pin(boss))
         bracket = pncad.Doc("pncad-partroot-bracket")
         self.bracket_root = bracket.insert(Node.instantiate_part(building, bracket.world))
-        bracket.pin(self.bracket_root, resolver=self.store)
         bracket.apply(DocEdit.set_label(self.bracket_root, "bracket seat"))
         # Then the boss's extrude is edited to no length, and the bracket
         # takes that version.
@@ -564,11 +565,9 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
             )
         )
         self.extrude = part.insert(Node.extrude(profile, Formula.length_in(0.01, m)))
-        # Placed while it builds — the gesture reads the extrude's
-        # faces — then edited to no length, so the extrude refuses.
-        self.placed = part.place(
-            self.extrude, part.world, pose=Frame.translation((0.01 * m, 0 * m, 0 * m))
-        )
+        # Placed while it builds, then edited to no length, so the
+        # extrude refuses.
+        self.placed = placed(part, self.extrude, Frame.translation((0.01 * m, 0 * m, 0 * m)))
         part.apply(DocEdit.set_param(self.extrude, "distance", Formula.length_in(0.0, m)))
         self.store.create(part)
         self.part = part
@@ -625,11 +624,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         building = DocRef(self.part.id, at_length(0.01))
         bracket = pncad.Doc("pncad-partpoison-bracket")
         inner = bracket.insert(Node.instantiate_part(building, bracket.new_space()))
-        bracket.place(
-            inner, bracket.world,
-            pose=Frame.translation((0.01 * m, 0 * m, 0 * m)),
-            resolver=self.store,
-        )
+        placed(bracket, inner, Frame.translation((0.01 * m, 0 * m, 0 * m)))
         flat = at_length(0.0)
         for edit in pncad.update_references(bracket, self.part.id, flat):
             bracket.apply(edit)
@@ -672,7 +667,7 @@ import json, shutil, sys, tempfile, threading
 from pathlib import Path
 
 import bench_scene
-from pncad import CapEnd, DocRef, Doc, EvaluationError, Node, Workspace, content_pin, evaluate
+from pncad import DocRef, Doc, EvaluationError, Node, Workspace, content_pin, evaluate
 
 levels, mode = int(sys.argv[1]), sys.argv[2]
 directory = Path(tempfile.mkdtemp())
@@ -681,26 +676,12 @@ try:
     below = bench_scene.post()
     store.create(below)
     first = None
-    base = None
     for level in range(1, levels + 1):
         doc = Doc(f"pncad-depth-level-{level}")
         instance = doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below)), doc.world))
-        # Each level stands its copy on its floor by the post's base
-        # cap. The first level reads that face off its copy; each level
-        # above wears the level below's name inside the one `InPart`
-        # its own instance puts round it, checked against the copy's own
-        # faces at the second and third levels before the chain is
-        # trusted with it.
-        if base is None:
-            base = json.loads(bench_scene.instance_face(store, doc, instance, CapEnd.Start))
-        else:
-            # `NodeId(...)`'s repr spells the id as a name writes it.
-            node = repr(instance).removeprefix("NodeId(").removesuffix(")")
-            base = {"kind": "Face", "node": node, "path": [{"InPart": {"of": base}}]}
-            if level <= 3:
-                faces = evaluate(doc, resolver=store).all_faces(instance)
-                assert base in [json.loads(face) for face in faces], level
-        bench_scene.on_floor(doc, instance, instance, json.dumps(base, separators=(",", ":")))
+        # Each level stands its copy on its floor by the identity
+        # bundle.
+        bench_scene.on_floor(doc, instance)
         store.create(doc)
         first = first or doc
         below = doc

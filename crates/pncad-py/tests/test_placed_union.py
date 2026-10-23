@@ -49,7 +49,7 @@ from pncad import (
     rad,
 )
 
-from placing import own_frame
+from placing import against, own_frame
 
 
 def slab(doc, x, y, z):
@@ -139,7 +139,8 @@ class TestTheFinGroup(unittest.TestCase):
         fin = fin_only(chain_doc)
         acc = fin
         for i in range(1, 5):
-            placed = chain_doc.place_against(
+            placed = against(
+                chain_doc,
                 fin, fin, Frame.translation((i * PITCH * m, 0 * m, 0 * m))
             )
             acc = chain_doc.insert(Node.union([acc, placed]))
@@ -310,8 +311,8 @@ def die_tool_document():
                     PoseDef.slide(RoleRead(own, "z"), RoleRead(own, "z"), Formula.zero("length")),
                     ContactClass.Rest,
                 ),
-                MateValue(0, Coord.slide("z"), Formula.zero("length")),
-                MateValue(0, Coord.spin(), Formula.zero("angle")),
+                MateValue(Coord.slide("z"), Formula.zero("length")),
+                MateValue(Coord.spin("z"), Formula.zero("angle")),
             ],
         )
     )

@@ -39,10 +39,10 @@ it is genuinely a second measure and not a second reading.
 The ASSEMBLY vocabulary is the layer above a single document:
 `Workspace` holds the parts, `Node.instantiate_part` references one,
 a placement's bundle of `Mate`s and `MateValue`s places each copy
-(`Doc.place`, `Doc.constrain`, `Doc.add_value`), `solve_document` poses
+(`Doc.place`, `Doc.constrain`, `Placed`), `solve_document` poses
 them, `product` gathers what
 the document IS and `assemble` says whether it is valid at rest.
-`split` and `inline` refactor across the seam, and
+`split`, `inline` and `flatten` refactor across the seam, and
 `update_references` moves a pin at its sites.
 
 The advisory CHECKS registry is `run_checks`: a report over an
@@ -157,8 +157,7 @@ class EditError(PncadError):
       two attributes.
     - `mate` is a constraint's address (`MateRef`): the placement
       `node` names with the constraint the refusal is about — an id
-      the bundle does not hold (`unknown_constraint`) or a mate a
-      value names (`mate_named_by_value`).
+      the bundle does not hold (`unknown_constraint`).
     - `from_kind` and `to_kind` are a rebind's two entity kinds.
       Neither keeps the kernel's bare word because `from` is a Python
       keyword.
@@ -177,7 +176,7 @@ class EditError(PncadError):
     its `MateFault` WHOLE — the type `SolvedPoses.fault` answers in —
     so its payload and its recourse are read off the type a caller
     already knows, and `inner_variant` is that fault's word
-    (`mate_kinds_differ`, `mate_not_a_freedom`, …).
+    (`mate_kinds_differ`, `mate_overconstrained`, …).
     """
 
     variant: str
@@ -778,16 +777,24 @@ class InlineError(PncadError):
     key: Optional[str]
     host_epsilon: Optional[float]
     part_epsilon: Optional[float]
-    mate: Optional[MateRef]
-    """`value_on_a_moved_world`: the part copy's value charted on the
-    world the inline moves, `node` its placement, both in the part's
-    ids. `repin_refused`: `node` is the part placement whose re-pin at
-    the moved world found no frame. `instance_unsolved`: `node` is the
-    instance whose pin did not solve; `pin_reads_variable`: `node` is the instance and `param` the
-    variable its pin reads. `unplaceable_part`:
-    `node` is the instance whose bundle does not carry its part;
-    `construction_reads_copy`: `node` is the construction reading the
-    instance's copy."""
+    """`unplaceable_part`: `node` is the instance whose part's world
+    places no list of copies — none, or several placements one of which
+    copies several bodies."""
+
+class FlattenError(PncadError):
+    """The `flatten` refactoring refused: `not_a_placement`,
+    `not_the_identity` (the bundle is not the identity as written),
+    `not_a_new_space` (the source is not in one `Doc.new_space()`),
+    `space_shared` (`by` another placement reading out of the space),
+    `read_uncarried` (`by` a read of the copy naming no one shape it
+    copies), `both_named` (`name` the copy's, `param` the shape's),
+    `unknown_node`, or `flatten_edit`."""
+
+    variant: str
+    node: Optional[NodeId]
+    by: Optional[NodeId]
+    name: Optional[str]
+    param: Optional[str]
 
 class UpdateError(PncadError):
     """A whole-document pin update produced no edit list.
@@ -2325,7 +2332,7 @@ class Node:
     def place(
         shapes: _BodyArg | Sequence[_BodyArg],
         target: _SpaceArg,
-        constraints: Sequence[_ConstraintArg],
+        constraints: _BundleArg,
     ) -> Node:
         """One copy of `shapes` placed into `target` by `constraints`:
         the operation whose output is a copy. Inserting it is
@@ -2335,10 +2342,9 @@ class Node:
         the copy has that shape's kind (a body over a body); over
         several, its output is a keyed enumeration of copies. `target`
         is the space it places into (`Doc.place`'s). `constraints` is
-        the bundle, written whole: `Mate`s and `MateValue`s, a value
-        naming a mate beside it by its position. Every bundle pins its
-        copy: the insert refuses one that leaves a freedom unwritten
-        (`mate_unpinned`)."""
+        the bundle, written whole: a `Placed`, or `Mate`s and
+        `MateValue`s. Every bundle pins its copy: the insert refuses one
+        that leaves a freedom unwritten (`mate_unpinned`)."""
 
     @staticmethod
     def space() -> Node:
@@ -2463,7 +2469,7 @@ class Node:
     def instantiate_part(
         reference: DocRef,
         target: _SpaceArg,
-        constraints: Optional[Sequence[_ConstraintArg]] = None,
+        constraints: Optional[_BundleArg] = None,
     ) -> Node:
         """An instance of another document's product: a LEAF whose
         material crosses the document seam.
@@ -2478,8 +2484,8 @@ class Node:
         placement, its part's world placed into the space `target`
         (`Doc.place`'s) and moved by its bundle, written whole as
         `Doc.place`'s is. `None` stands it where the part's world
-        stands, by the identity bundle; `Doc.pin(instance)`, the "place
-        part" gesture, writes another. A bundle that leaves a freedom
+        stands, by the identity bundle (`Placed.identity()`), the "place
+        part" gesture. A bundle that leaves a freedom
         unwritten, `[]` among them, refuses at the insert
         (`mate_unpinned`). No interface record either: an AUTHORED instance crosses nothing, and a non-empty
         record is mintable only by the `split` that observed
@@ -2586,8 +2592,12 @@ world (`Doc.world`), a `Doc.new_space()`, or a construction, whose body
 is born in a space of its own — or a `Space` variable (`Doc.space`)."""
 
 _ConstraintArg: TypeAlias = Mate | MateValue
-"""One entry of a bundle written whole: a mate, or a value naming a
-mate beside it by its position in the bundle (or no mate)."""
+"""One entry of a bundle written whole: a mate, or a value."""
+
+_BundleArg: TypeAlias = Placed | Sequence[_ConstraintArg]
+"""A bundle written whole: a `Placed` (its one constructor, which writes
+the constant zero on each freedom left unnamed), or its mates and
+values, in order."""
 
 class RoleRead:
     """A finer pose read through a role, at a seat of a coarser kind: a
@@ -3480,11 +3490,11 @@ class DocEdit:
         broken E2 invariant (`invalid_distribution`,
         `non_finite_var`)."""
     @staticmethod
-    def set_constraints(placement: NodeId, constraints: Sequence[_ConstraintArg]) -> DocEdit:
+    def set_constraints(placement: NodeId, constraints: _BundleArg) -> DocEdit:
         """Write `constraints` as `placement`'s bundle, in place of the
         one it holds, each id minted by the edit (`Doc.set_constraints`
         answers their addresses). Written whole, as `Doc.place`'s bundle
-        is: a value names a mate beside it by its position. Refuses
+        is: a `Placed`, or `Mate`s and `MateValue`s. Refuses
         typed on `EditError`: `constraint_on_non_placement`,
         `mate_refused` with the door's fault (`mate_unpinned` for a
         bundle that leaves a freedom unwritten), and `space_mismatch`
@@ -3492,42 +3502,25 @@ class DocEdit:
 
     @staticmethod
     def add_constraint(placement: NodeId, mate: Mate) -> DocEdit:
-        """Add `mate` to `placement`'s bundle; the constraint's id is
-        minted by the edit (`Doc.constrain` answers its address).
-        Refuses typed on `EditError`: `constraint_on_non_placement` (the
-        node holds no bundle), and `mate_refused` with the door's fault —
-        `mate_not_on_the_copy`, `mate_kinds_differ`, `mate_world_read`,
-        `mate_overconstrained` where the rest of the bundle already pins
-        the copy."""
-
-    @staticmethod
-    def add_values(placement: NodeId, values: list[MateValue]) -> DocEdit:
-        """Add `values` to `placement`'s bundle as one write: a bundle
-        with no mate, whose values state the copy's whole motion, is
-        admitted only whole (`Doc.add_values` answers their addresses).
-        Refuses typed on `EditError`: `constraint_on_non_placement`, and
-        `mate_refused` with the door's fault — `mate_unpinned`,
-        `mate_overconstrained`, `mate_no_chart`, and each value's own."""
-
-    @staticmethod
-    def add_value(placement: NodeId, value: MateValue) -> DocEdit:
-        """Add `value` to `placement`'s bundle: one freedom a mate of the
-        bundle leaves, set to a number (`Doc.add_value` answers its
-        address). Refuses typed on `EditError`:
-        `constraint_on_non_placement`, and `mate_refused` with the
-        door's fault — `mate_value_names_no_mate`, `mate_not_a_freedom`,
-        `mate_no_chart`."""
+        """Add `mate` to `placement`'s bundle, the bundle written whole
+        again with it by `Placed`'s rule: the values the mates still
+        leave kept, the rest of the freedoms they leave written `0`. The
+        constraint's id is minted by the edit (`Doc.constrain` answers
+        its address). Refuses typed on `EditError`:
+        `constraint_on_non_placement` (the node holds no bundle), and
+        `mate_refused` with the door's fault — `mate_not_on_the_copy`,
+        `mate_kinds_differ`, `mate_overconstrained` where the other
+        mates already fix what it fixes."""
 
     @staticmethod
     def remove_constraint(mate: MateRef) -> DocEdit:
         """Remove the constraint `mate` addresses from its placement's
-        bundle. Every bundle pins its copy, so the edit refuses a
-        removal that leaves a freedom unwritten (`mate_unpinned`):
-        `DocEdit.set_constraints` writes another bundle whole. Refuses
-        typed on `EditError`: `constraint_on_non_placement`,
-        `unknown_constraint` (the bundle holds no such id) and
-        `mate_named_by_value` (a value names the mate: remove the value
-        first)."""
+        bundle, the bundle written whole again without it by `Placed`'s
+        rule: each value the remaining mates leave kept, each freedom
+        they leave that no value sets written `0`, so the copy stays
+        pinned (`Doc.remove_mate` answers the values it wrote). Refuses
+        typed on `EditError`: `constraint_on_non_placement` and
+        `unknown_constraint` (the bundle holds no such id)."""
 
     @staticmethod
     def update_reference(node: NodeId, new_pin: ContentPin) -> DocEdit:
@@ -3793,8 +3786,8 @@ class Doc:
     def world(self) -> NodeId:
         """The world: the node every document holds from its creation,
         which no edit deletes or writes (`world_is_undeletable`). A
-        mate whose `to` reads the world (a `WorldRead`) relates its copy
-        to it; it is not among the document's nodes (`order`,
+        placement whose `target` is it places its copy into the world's
+        space; it is not among the document's nodes (`order`,
         `node_count`)."""
 
     def new_space(self, *, label: Optional[str] = None) -> NodeId:
@@ -3813,14 +3806,13 @@ class Doc:
         document does not hold."""
 
     def set_constraints(
-        self, placement: NodeId, constraints: Sequence[_ConstraintArg]
+        self, placement: NodeId, constraints: _BundleArg
     ) -> list[MateRef]:
         """Write `constraints` as `placement`'s bundle, in place of the
         one it holds, and answer their addresses in order: the edit
         `DocEdit.set_constraints`. The bundle is written whole, as
-        `Doc.place`'s is: `Mate`s and `MateValue`s, a value naming a
-        mate beside it by its position, each id minted by the edit.
-        Refuses typed on `EditError`: `constraint_on_non_placement`,
+        `Doc.place`'s is: a `Placed`, or `Mate`s and `MateValue`s, each
+        id minted by the edit. Refuses typed on `EditError`: `constraint_on_non_placement`,
         `mate_refused` (`mate_unpinned` for a bundle that leaves a
         freedom unwritten, `[]` among them; `mate_overconstrained`),
         `space_mismatch` for a mate whose `to` is outside the
@@ -3835,44 +3827,25 @@ class Doc:
 
     def constrain(self, placement: NodeId, mate: Mate) -> MateRef:
         """Add `mate` to `placement`'s bundle and answer the
-        constraint's address: `apply` of `DocEdit.add_constraint`, the
-        id minted by the edit. Refuses typed on `EditError`:
+        constraint's address: `apply` of `DocEdit.add_constraint`, which
+        writes the bundle whole again with the mate — each value the
+        mates then still leave kept, each freedom they leave that no
+        value sets written `0` (`Placed`'s rule) — the id minted by the
+        edit. Refuses typed on `EditError`:
         `constraint_on_non_placement`, `mate_refused` (the door's
         fault — `mate_not_on_the_copy`, `mate_kinds_differ`,
-        `mate_world_read`, `mate_overconstrained` where the bundle
-        already pins the copy), and the slot doors' refusals."""
+        `mate_overconstrained` where the other mates already fix what it
+        fixes), and the slot doors' refusals."""
 
     def remove_mate(self, mate: MateRef) -> list[MateRef]:
-        """Remove the constraint `mate` addresses as one action, a mate
-        with every value that names it: each value's removal in bundle
-        order, then the mate's, all applied or none; answers the removed
-        values' addresses. A value naming a mate, or a mate no value
-        names, is removed alone (answering `[]`); a value of a bundle
-        with no mate takes the whole bundle with it, whose values state
-        the copy's motion together, and answers the others' addresses.
-        `DocEdit.remove_constraint` stays the raw edit, which refuses a
-        mate a value names (`mate_named_by_value`). Raises `EditError`:
-        `unknown_node`, `constraint_on_non_placement`,
+        """Remove the constraint `mate` addresses: `apply` of
+        `DocEdit.remove_constraint`, the bundle written whole again
+        without it, so the copy stays pinned — each value the remaining
+        mates still leave kept, each freedom they leave that no value
+        then sets written the constant `0` (`Placed`'s rule). Answers
+        the addresses of the values that rewrite wrote. Raises
+        `EditError`: `unknown_node`, `constraint_on_non_placement`,
         `unknown_constraint` (no such id)."""
-
-    def add_values(self, placement: NodeId, values: list[MateValue]) -> list[MateRef]:
-        """Write `values` onto `placement` as one edit, and answer their
-        addresses: `apply` of `DocEdit.add_values`. A bundle with no mate
-        states the copy's whole motion in its values — a slide along each
-        of the world's `x`, `y` and `z` and a chain of three spins about
-        its axes, no two in a row about one, taken in the order written —
-        so it is written whole. Refuses typed on `EditError`
-        (`mate_refused`): `mate_unpinned`, `mate_overconstrained`,
-        `mate_no_chart`."""
-
-    def add_value(self, mate: MateRef, coord: Coord, by: _SlotArg) -> MateRef:
-        """Set one freedom `mate` leaves to `by`, and answer the value's
-        address: `apply` of `DocEdit.add_value` on `mate`'s placement.
-        `by` is a `Length` for a slide, an `Angle` for a spin, or
-        anything a slot argument is. Refuses typed on `EditError`
-        (`mate_refused`, the fault naming the value):
-        `mate_value_names_no_mate`, `mate_not_a_freedom`,
-        `mate_no_chart`."""
 
     def reference(self, node: NodeId) -> Optional[DocRef]:
         """The `(id, pin)` an instantiate node carries, or `None` for
@@ -3936,10 +3909,8 @@ class Doc:
         self,
         shapes: _BodyArg | Sequence[_BodyArg],
         target: _SpaceArg,
-        constraints: Optional[Sequence[_ConstraintArg]] = None,
+        constraints: Optional[_BundleArg] = None,
         *,
-        pose: Optional[Frame] = None,
-        resolver: Optional[Workspace] = None,
         label: Optional[str] = None,
     ) -> NodeId:
         """Place one copy of `shapes` into `target`, placed by
@@ -3951,16 +3922,14 @@ class Doc:
         the copy is placed into, always written: the world
         (`Doc.world`), a `Doc.new_space()`, or a construction's own
         space (the construction, or `Doc.space`'s `Var`).
-        `constraints` is the bundle, written whole: `Mate`s and
-        `MateValue`s, a value naming a mate beside it by its position.
-        Every bundle pins its copy: one that leaves a freedom unwritten,
-        `[]` among them, raises `EditError` (`mate_unpinned`). `None`
-        with a `pose` is the "place part" gesture, as `place_at(shapes,
-        pose)` into `target`, answering the placement alone; `pose`
-        beside `constraints` raises ValueError. Neither: the copy stands
-        in `target` where its body's own coordinates put it — the
-        identity bundle, no mate and the constant zero on every
-        freedom, the kernel's `stand`.
+        `constraints` is the bundle, written whole: a `Placed` (its one
+        constructor, which writes the constant zero on each freedom left
+        unnamed), or `Mate`s and `MateValue`s. Every bundle pins its
+        copy: a sequence that leaves a freedom unwritten, `[]` among
+        them, raises `EditError` (`mate_unpinned`). `None` is the
+        identity bundle, `Placed.identity()`: the copy stands in
+        `target` where its body's own coordinates put it — the "place
+        part" gesture.
 
         The one door that puts a body in the product: nothing places as
         a side effect, so a boolean of two placed bodies leaves both
@@ -3968,70 +3937,6 @@ class Doc:
         split's half is placed by its output, `place(doc.output(split,
         1), doc.world)`. Two placements of one body are two copies. `label=`
         labels the placement in the same call, as `insert`'s does."""
-
-    def pin(
-        self,
-        placement: NodeId,
-        pose: Optional[Frame] = None,
-        *,
-        resolver: Optional[Workspace] = None,
-    ) -> Placed:
-        """The "place part" gesture on a placement already in the
-        document — an instance, or a `Place`: `place_at`'s constraints
-        written as its bundle in place of the one it holds
-        (`DocEdit.set_constraints`), pinning its copy at `pose` (the
-        identity when `None`) in the world, its target. An instance's
-        part is read through `resolver`. The bundle is one edit, and
-        refuses as `place_at`'s does; a node that is no placement raises
-        `EditError` (`constraint_on_non_placement`)."""
-
-    def place_at(
-        self,
-        shapes: _BodyArg | Sequence[_BodyArg],
-        pose: Optional[Frame] = None,
-        *,
-        resolver: Optional[Workspace] = None,
-        label: Optional[str] = None,
-    ) -> Placed:
-        """The "place part" gesture: one copy of `shapes` placed in the
-        world at `pose` (the identity when `None`), as constraints its
-        author can then move by their numbers.
-
-        The copy is placed into the world, pinned by a plane mate on its
-        first planar face to the world plane that face lies in at
-        `pose`, and three values — the slides along the chart's `x` and
-        `y` and the spin — computed from `pose`, so evaluating the
-        document puts the copy at `pose` (`Placed.by ==
-        "planar_face"`). A copy with no planar face is pinned over a
-        frame read off its geometry instead and leaves no freedom to
-        set (`Placed.by == "pin"`). The insert, the mate and the values
-        are one action: all land or none does.
-
-        The copy is evaluated to read its geometry, through `resolver`
-        where it is a part's. A copy that cannot be placed raises
-        `EditError` under the pin refusal's word (`pin_no_frame`,
-        `pin_unevaluated`, `pin_not_a_body`, `pin_already_placed`,
-        `pin_no_node`, `pin_band`); the edit doors' own refusals raise
-        as theirs."""
-
-    def place_against(
-        self,
-        target: _Operand,
-        body: _BodyArg,
-        pose: Frame,
-        *,
-        resolver: Optional[Workspace] = None,
-        label: Optional[str] = None,
-    ) -> NodeId:
-        """One copy of `body` placed against `target`'s geometry at
-        `pose` — the copy's own frame in `target`'s own coordinates —
-        and the placement's id: how a construction combined with another
-        body joins that body's space, and how a body is moved rigidly
-        relative to another. A plane mate on a face of the copy no
-        variable reaches to `target`'s plane it lies on at `pose` (an
-        axis mate on a full revolve's or ring's own axis), and the
-        values that put it there; one action, refusing as `place_at`
-        does."""
 
     def corner_frame(
         self,
@@ -5702,17 +5607,18 @@ def evaluate(
 # Two part documents in a store, instances of them in a third, mates
 # saying how the instances meet, and one gate that says whether the
 # result is valid at rest. Authoring is `Node.instantiate_part` +
-# `Doc.place` + `Mate` + `Doc.constrain` + `Doc.add_value`; reading is
+# `Doc.place` + `Mate` + `Doc.constrain` + `Placed`; reading is
 # `solve_document`, `product` and `assemble`; refactoring is `split` /
-# `inline`.
+# `inline` / `flatten`.
 #
 # A copy is made by a PLACEMENT — a `Place` over shapes, or an
 # instance, which is its part's world, moved — and placed by its
 # BUNDLE: the constraints it holds, each addressed by a `MateRef`,
 # never a node. A constraint is a `Mate`, two poses of one kind
 # equated — `on` read off the copy's geometry, `to` a pose of the
-# space the placement places into (its `target`) or a `WorldRead` — or
-# a `MateValue` setting one freedom a mate leaves. Every bundle pins
+# space the placement places into (its `target`), read off geometry
+# there — or a `MateValue` setting one freedom the mates leave, which
+# names no mate and charts on the target space's axes. Every bundle pins
 # its copy, and is written whole: a bundle that leaves a freedom
 # unwritten refuses (`mate_unpinned`). A copy placed into the world is
 # in the product; one placed into another space (`Doc.new_space`, a
@@ -5727,43 +5633,6 @@ class MateSide:
     On: Final[MateSide]
     To: Final[MateSide]
 
-class WorldRead:
-    """A pose of the world, read inside a mate: the world defines no
-    pose variable, so a mate's `to` reads it here — its frame, a role
-    of it, and the moves a target may make.
-
-    `WorldRead.frame()` is the world's frame; `WorldRead.through(role)`
-    the frame read through a role (`"x"`, `"y"`, `"z"` its axes,
-    `"origin"`, `"xy"`, `"yz"`, `"zx"` its planes). Each move answers a
-    new read: `read.role(role)` a role of the read (a plane's
-    `"normal"`, an axis's `"direction"`), `read.slide(along, by)` slid
-    along `along` (a direction or an axis read) by the length `by`,
-    `read.spin(about, by)` spun about `about` (an axis read) by the
-    angle `by`, right-handed, `read.flip()` the opposite sense. A lone
-    `0` is the constant zero of the slot's dimension.
-
-    A read whose moves do not compose (a slide of a direction, a spin
-    about a plane, a role its pose's kind does not offer, a flipped
-    point) is built here and refused where its mate is added
-    (`mate_world_read`); `kind` answers `None` for it."""
-
-    @staticmethod
-    def frame() -> WorldRead: ...
-    @staticmethod
-    def through(role: str) -> WorldRead:
-        """The world's frame read through `role`. Raises ValueError for
-        a word that is no role."""
-    def role(self, role: str) -> WorldRead: ...
-    def slide(self, along: WorldRead, by: _SlotArg) -> WorldRead: ...
-    def spin(self, about: WorldRead, by: _SlotArg) -> WorldRead: ...
-    def flip(self) -> WorldRead: ...
-    @property
-    def kind(self) -> Optional[Literal["point", "direction", "axis", "plane", "frame"]]:
-        """The kind of pose this read is, `None` where its moves do not
-        compose."""
-    def __eq__(self, other: object) -> bool:
-        """Bit-exact: the same moves, each number equal."""
-
 class Mate:
     """A mate: two poses of one kind equated, with the contact class it
     declares — ONE value carrying both the placement constraint and the
@@ -5774,7 +5643,8 @@ class Mate:
     `on` is a pose read off the copied shapes' geometry — a `PoseDef`
     over one of the placement's shapes, or over the instance itself.
     `to` is a pose of the space the copy joins (a `PoseDef`, or a pose
-    variable), or a `WorldRead`. The kind is the primitive: plane to
+    variable), read off geometry there: a mate reads only geometry,
+    never the world's frame. The kind is the primitive: plane to
     plane rests, axis to axis is coaxial, frame to frame coincides,
     point to point is a ball, direction to direction is parallel. A
     plain plane mate equates outward normals, so two faces resting
@@ -5788,104 +5658,77 @@ class Mate:
     nothing at the at-rest gate.
 
     Where it is added, the door refuses an `on` that does not read the
-    copy (`mate_not_on_the_copy`), poses of two kinds
-    (`mate_kinds_differ`) and a world read whose moves do not compose
-    (`mate_world_read`). A pose that does not evaluate — a face gone, a
+    copy (`mate_not_on_the_copy`) and poses of two kinds
+    (`mate_kinds_differ`). A pose that does not evaluate — a face gone, a
     curved face read as a plane — is the placement's own refusal where
     it evaluates (`mate_side_unevaluated`)."""
 
     def __init__(
         self,
         on: _Operand,
-        to: _Operand | WorldRead,
+        to: _Operand,
         class_: ContactClass,
     ) -> None: ...
     @property
     def on(self) -> PoseDef:
         """The copy's pose, as written."""
     @property
-    def to(self) -> PoseDef | WorldRead:
+    def to(self) -> PoseDef:
         """The pose the copy's is equated with."""
     @property
     def class_(self) -> ContactClass:
         """The declared contact class."""
     def __eq__(self, other: object) -> bool:
-        """BIT-exact: the same poses, the same world moves, the same
-        class."""
+        """BIT-exact: the same poses, the same class."""
 
 class Coord:
-    """Which freedom a value sets: `Coord.slide("x")`, `"y"` or `"z"`
-    — a slide along the chart's axis, `z` the mated direction —
-    `Coord.spin()`, the turn about the mated direction, or
-    `Coord.spin_about("x")`, `"y"` or `"z"`, a turn about the target
-    space's own axis.
+    """Which freedom a value sets: `Coord.slide("x")`, `"y"` or `"z"`,
+    a slide along the chart's axis, or `Coord.spin("x")`, `"y"` or
+    `"z"`, a turn about it.
 
-    A plane mate leaves the slides along `x` and `y` and the spin; an
-    axis mate the slide along `z` (its axis) and the spin; a direction
-    mate the three slides and the spin; a point mate's rotation has no
-    chart; a frame mate leaves nothing. A value naming no mate slides
-    along the target space's own axes and spins about them, a chain of
-    spins in the order written."""
+    The chart is the target space's own axes, swung by the shortest
+    turn onto the one direction the bundle's mates fix, where they fix
+    one (`z` that direction). A plane mate leaves the slides along `x`
+    and `y` and the spin about `z`; an axis mate the slide along and
+    the spin about `z`; a direction mate the three slides and the spin
+    about `z`; a point mate its rotation, a chain of spins about the
+    target space's axes through the mated point; a frame mate nothing.
+    A bundle with no mate leaves the three slides and a chain of spins
+    about the target space's axes, in the order written."""
 
     @staticmethod
     def slide(axis: Literal["x", "y", "z"]) -> Coord:
         """Raises ValueError for any other axis word."""
     @staticmethod
-    def spin() -> Coord: ...
-    @staticmethod
-    def spin_about(axis: Literal["x", "y", "z"]) -> Coord:
+    def spin(axis: Literal["x", "y", "z"]) -> Coord:
         """Raises ValueError for any other axis word."""
     @property
     def variant(
         self,
-    ) -> Literal[
-        "slide_x",
-        "slide_y",
-        "slide_z",
-        "spin",
-        "spin_about_x",
-        "spin_about_y",
-        "spin_about_z",
-    ]: ...
+    ) -> Literal["slide_x", "slide_y", "slide_z", "spin_x", "spin_y", "spin_z"]: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class MateValue:
-    """A value: one freedom a mate of the same bundle leaves, or one of
-    the target space's own where it names no mate, set to a number — a
-    `Length` for a slide, an `Angle` for a spin (a lone `0` is the
-    constant zero).
+    """A value: one freedom the bundle's mates leave, set to a number —
+    a `Length` for a slide, an `Angle` for a spin (a lone `0` is the
+    constant zero). A value names no mate: the mates of its bundle
+    together leave its freedom.
 
-    It is charted on the two bodies' own frames, each swung onto the
-    mated direction by the shortest turn: a slide is the copy's origin
-    measured from the target's along the chart's axis, a spin the angle
-    about the mated direction from the target's reference to the
-    copy's. Zero says the two bodies' own coordinates agree as far as
-    the mate allows.
+    It is charted on the target space's own axes, swung by the shortest
+    turn onto the one direction the mates fix: a slide is the copy's
+    origin measured along the chart's axis, a spin the angle about it.
+    Zero says the copy's own coordinates agree with the target space's
+    as far as the mates allow.
 
-    `mate` names the mate (a `MateRef`, or its `constraint` id; in a
-    bundle written whole, `Doc.place`'s or `Doc.set_constraints`', its
-    position there, from `0`), or is `None`: the target space's own
-    axes, which chart a bundle with no
-    mate, whose values state the copy's whole motion and are written
-    whole (`Doc.add_values`). `Doc.add_value` adds one; the door refuses
-    an id that is no mate of the bundle (`mate_value_names_no_mate`), a
-    freedom the mate's kind does not leave (`mate_not_a_freedom`), a
-    point mate's rotation and a value naming no mate beside a mate
-    (`mate_no_chart`), and a bundle with no mate that leaves a freedom
-    unwritten (`mate_unpinned`). Raises ValueError where `by` is of
-    another dimension."""
+    A bundle is written whole (`Doc.place`, `Doc.set_constraints`,
+    `Placed`); the door refuses a freedom the mates do not leave, or
+    one written twice (`mate_overconstrained`), a slide beside a ball
+    and a direction (`mate_no_chart`), and a bundle that leaves a
+    freedom unwritten (`mate_unpinned`). Raises ValueError where `by`
+    is of another dimension."""
 
-    def __init__(
-        self,
-        mate: MateRef | ConstraintId | int | None,
-        coord: Coord,
-        by: _SlotArg,
-    ) -> None: ...
-    @property
-    def mate(self) -> Optional[ConstraintId]:
-        """The id of the mate whose freedom it sets, `None` for the
-        target space's own axes."""
+    def __init__(self, coord: Coord, by: _SlotArg) -> None: ...
     @property
     def coord(self) -> Coord: ...
     @property
@@ -5895,29 +5738,39 @@ class MateValue:
         """Bit-exact."""
 
 class Placed:
-    """What a placement gesture wrote (`Doc.place_at`, `Doc.place`): the
-    placement, its mate and its values, and how the copy was placed —
-    `by == "identity"`, the identity bundle, no mate and the constant
-    `0` on every freedom; `by == "planar_face"`, a plane mate on a
-    planar face of the copy to
-    the plane it lies in at the pose and the three values (slides along
-    `x` and `y`, and the spin) that put it there; `by == "axis"`, an
-    axis mate on a full revolve's or ring's own axis and its two
-    values; or `by == "pin"`, a copy with no planar face pinned over a
-    frame read off its geometry, with no freedom left to set."""
+    """A placement's bundle, as its author wrote it — the one
+    constructor of a bundle: its mates, then the values written, then
+    the constant `0` on each freedom the mates leave that no value
+    names (a slide along each axis the mates leave and the spin about
+    the mated direction, or, where no direction is fixed, the chain's
+    missing turns about `x`, `y` and `z` until it turns three times).
+    It reads no geometry and writes no number its author did not, so a
+    quarter turn written `Formula.turn_over(4)` is one.
 
+    `Placed.identity()` is the identity bundle, which an instance and a
+    `Doc.place` with no constraints are written;
+    `Placed.unmated(values)` a bundle with no mate; `Placed.of(doc,
+    mates, values)` one with mates, the freedoms they leave read off
+    their kinds in `doc`'s recipe, nothing evaluated. A `Placed` is
+    passed where a bundle is (`Doc.place`, `Doc.set_constraints`), or
+    read as its entries (`bundle()`)."""
+
+    @staticmethod
+    def identity() -> Placed: ...
+    @staticmethod
+    def unmated(values: Sequence[MateValue]) -> Placed: ...
+    @staticmethod
+    def of(doc: Doc, mates: Sequence[Mate], values: Sequence[MateValue]) -> Placed: ...
     @property
-    def placement(self) -> NodeId: ...
+    def mates(self) -> list[Mate]: ...
     @property
-    def mate(self) -> Optional[MateRef]:
-        """`None` for the identity bundle."""
-    @property
-    def values(self) -> list[MateRef]:
-        """The three slides and three spins of the identity bundle;
-        slide `x`, slide `y`, spin for a planar face; the axis mate's
-        two for an axis; empty for a pin."""
-    @property
-    def by(self) -> Literal["identity", "planar_face", "axis", "pin"]: ...
+    def values(self) -> list[MateValue]:
+        """The author's values in the order written, then the constant
+        `0` on each freedom left unnamed."""
+    def bundle(self) -> list[Mate | MateValue]:
+        """Each mate, then each value."""
+    def __eq__(self, other: object) -> bool:
+        """Bit-exact: the same mates and values, in order."""
 
 class ClassAdmission:
     """How far a contact class gets in v1, as a value BOTH enforcing
@@ -6024,15 +5877,9 @@ class MateFault:
     `mate_unpinned` carries `placement` and `free`.
     `mate_not_on_the_copy` names the `mate` whose
     `on` does not read its copy; `mate_kinds_differ` the `mate` and its
-    `on_kind` and `to_kind`; `mate_world_read` the `mate`, with the
-    world read's word as `inner_variant` (`role`, `along`,
-    `slid_direction`, `about`, `flipped_point`, `too_deep`);
-    `mate_side_unevaluated` the `mate`, the `side` and the pose's own
-    `error`. A value's faults
-    name the value as `value_ref`: `mate_value_names_no_mate` the id it
-    names as `named`, `mate_not_a_freedom` the `coord` and the
-    `mate_kind` that fixes it, and `mate_no_chart` `why`
-    (`point_rotation`, `two_bodies`, `slide_turns_a_ball`)."""
+    `on_kind` and `to_kind`; `mate_side_unevaluated` the `mate`, the
+    `side` and the pose's own `error`. `mate_no_chart` names the value
+    as `value_ref`, and `why` (`slide_turns_a_ball`)."""
 
     @property
     def variant(self) -> str: ...
@@ -6067,13 +5914,7 @@ class MateFault:
     @property
     def value_ref(self) -> Optional[MateRef]: ...
     @property
-    def named(self) -> Optional[ConstraintId]: ...
-    @property
-    def coord(self) -> Optional[Coord]: ...
-    @property
-    def mate_kind(self) -> Optional[str]: ...
-    @property
-    def why(self) -> Optional[Literal["point_rotation", "two_bodies", "slide_turns_a_ball"]]: ...
+    def why(self) -> Optional[Literal["slide_turns_a_ball"]]: ...
     @property
     def what(self) -> Optional[str]:
         """What a lever's unbounded face is, in its own words."""
@@ -6094,9 +5935,8 @@ class MateFault:
         `malformed_body`, `no_extent`, `no_finite_bound`, with the
         instance it is about as `instance` or the copied shape as
         `shape`, or `out_of_range` and `below_zero_band`, about the
-        pair's lever rather than one body, with neither), or the world
-        read's on `mate_world_read`. `None` on an arm with no nested
-        refusal."""
+        pair's lever rather than one body, with neither). `None` on an
+        arm with no nested refusal."""
 
 
 class SolvedPoses:
@@ -6675,6 +6515,14 @@ class InlineOutcome:
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Part profile step id -> the id the host minted for it."""
+    @property
+    def placement(self) -> NodeId:
+        """The placement standing where the instance stood: the part's
+        world copied into `space` and placed under the instance's
+        bundle, its output the instance's."""
+    @property
+    def space(self) -> Var:
+        """The new space the part's recipe was copied into."""
 
 def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     """Splice a referenced document back in, replacing the instantiate
@@ -6686,22 +6534,35 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     version on disk. Pure — `doc` is untouched. Raises InlineError,
     typed.
 
-    Where the content lands (A4): the part's world mates are moved by
-    the motion the instance's pin solved to, taken as numbers — so a
-    pin that reads a variable refuses `pin_reads_variable` (`node` the
-    instance, `param` the variable), a pin that did not solve
-    `instance_unsolved`, and a part copy's value charted on the world
-    the inline moves `value_on_a_moved_world` (`mate` the value). An
-    instance placed by other constraints is inlined only over a part
-    whose one placement on its world is an instance pinned there at the
-    identity, which takes the instance's bundle in place of its pin;
-    otherwise it refuses `unplaceable_part` (`node` the instance).
+    One rule (A4): the part's recipe is copied verbatim into a new
+    space (`Doc.new_space()`, the outcome's `space`), and a placement
+    of what the part's world placed is put where the instance stood,
+    under the instance's own bundle (the outcome's `placement`), so
+    nothing moves and a variable the bundle reads keeps driving it. A
+    part whose world places no list of copies — none, or several
+    placements one of which copies several bodies — refuses
+    `unplaceable_part` (`node` the instance). A host node that read the
+    instance reads the placement's copy; a read keyed at no copy it
+    makes refuses `instance_read_uncarried` (`by` the reader).
+    `flatten` folds the placement away where its bundle is the
+    identity."""
 
-    A host node that read the instance reads the inlined copy the part's
-    one placement makes. A part whose world is not one body for that
-    reader refuses `instance_read_uncarried` (`by` the reader), and a
-    construction reading the instance's copy refuses
-    `construction_reads_copy`."""
+class FlattenOutcome:
+    """What a flatten produced: the document value and the recorded
+    edits that make it."""
+
+    @property
+    def doc(self) -> Doc: ...
+    @property
+    def edits(self) -> list[DocEdit]: ...
+
+def flatten(doc: Doc, placement: NodeId) -> FlattenOutcome:
+    """Flatten an identity placement out of a `new_space()` into its
+    target — what `inline` leaves, folded away: each placement taking a
+    source from the space is re-targeted into the placement's target,
+    each read of the copy reads the shape it copies, the copy's name
+    moves to that shape, and the placement and the space are deleted.
+    Pure — `doc` is untouched. Raises FlattenError, typed."""
 
 # --- the pin-update door ----------------------------------------------
 

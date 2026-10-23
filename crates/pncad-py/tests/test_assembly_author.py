@@ -113,12 +113,12 @@ from pncad import (
     MateValue,
     Node,
     PatternKind,
+    Placed,
     PoseDef,
     RoleRead,
     SegTag,
     VarName,
     Workspace,
-    WorldRead,
     assemble,
     content_pin,
     evaluate,
@@ -128,6 +128,8 @@ from pncad import (
     random_document_id,
     solve_document,
 )
+
+from placing import against, moves, placed
 
 
 class BenchWorkspace(unittest.TestCase):
@@ -148,9 +150,11 @@ class BenchWorkspace(unittest.TestCase):
 
     def pinned(self, doc, ref, pose=None):
         """An instance of `ref` pinned in the world at `pose` (the
-        identity when `None`) by the "place part" gesture."""
+        identity when `None`, the "place part" gesture), by the values
+        that put it there."""
         node = doc.insert(Node.instantiate_part(ref, doc.world))
-        doc.pin(node, pose, resolver=self.ws)
+        if pose is not None:
+            doc.set_constraints(node, Placed.unmated(moves(doc, pose)))
         return node
 
 
@@ -158,16 +162,16 @@ def identity():
     """The identity bundle: no mate, and the constant zero on a slide
     along each of the target space's axes and a spin about each."""
     axes = ("x", "y", "z")
-    return [MateValue(None, Coord.slide(a), 0) for a in axes] + [
-        MateValue(None, Coord.spin_about(a), 0) for a in axes
+    return [MateValue(Coord.slide(a), 0) for a in axes] + [
+        MateValue(Coord.spin(a), 0) for a in axes
     ]
 
 
 def zeros():
     """The three values a plane mate leaves, the bundle's first entry,
     each the constant zero: its slides along the chart's `x` and `y` and
-    its spin."""
-    return [MateValue(0, coord, 0) for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin())]
+    its spin about `z`."""
+    return [MateValue(coord, 0) for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin("z"))]
 
 
 #: The two nodes `bench_scene.layout`'s `posts=` admits, by the name
@@ -421,11 +425,10 @@ class TestBenchLayout(BenchWorkspace):
     def test_an_instance_stands_where_its_part_stands_and_is_pinned_where_the_gesture_puts_it(self):
         """An inserted instance with no bundle written stands where its
         part's world stands, by the identity bundle — no mate, the
-        constant zero on every freedom; `Doc.pin` writes the "place
-        part" gesture's bundle in its place, a mate on its first planar
-        face and the three values that put it at the pose; a removal
-        that would leave a freedom unwritten refuses; and an instance
-        placed into a space of its own has no world pose."""
+        constant zero on every freedom, which is the "place part"
+        gesture; values written in its place put it at a pose; a value
+        removed is written zero again, so the copy stays pinned; and an
+        instance placed into a space of its own has no world pose."""
         doc = Doc("inserted")
         node = doc.insert(Node.instantiate_part(self.post_ref, doc.world))
         identity = doc.bundle(node)
@@ -433,21 +436,14 @@ class TestBenchLayout(BenchWorkspace):
         self.assertTrue(all(isinstance(held, MateValue) for _, held in identity))
         for got in solve_document(doc, resolver=self.ws).placement(doc, node).origin:
             self.assertAlmostEqual(got.meters, 0.0, delta=1e-12)
-        placed = doc.pin(node, resolver=self.ws)
-        self.assertEqual(placed.by, "planar_face")
-        for got in solve_document(doc, resolver=self.ws).placement(doc, node).origin:
-            self.assertAlmostEqual(got.meters, 0.0, delta=1e-12)
-
-        moved = doc.pin(node, Frame.translation((1 * m, 0 * m, 0 * m)), resolver=self.ws)
-        self.assertEqual(
-            [ref for ref, _ in doc.bundle(node)], [moved.mate, *moved.values]
-        )
+        moved = doc.set_constraints(node, Placed.unmated([MateValue(Coord.slide("x"), 1 * m)]))
+        self.assertEqual([ref for ref, _ in doc.bundle(node)], moved)
         at = solve_document(doc, resolver=self.ws).placement(doc, node).origin
         for got, want in zip(at, (1.0, 0.0, 0.0), strict=True):
             self.assertAlmostEqual(got.meters, want, delta=1e-12)
-        with self.assertRaises(pncad.EditError) as caught:
-            doc.apply(DocEdit.remove_constraint(moved.values[0]))
-        self.assertEqual(caught.exception.inner_variant, "mate_unpinned")
+        doc.apply(DocEdit.remove_constraint(moved[0]))
+        for got in solve_document(doc, resolver=self.ws).placement(doc, node).origin:
+            self.assertAlmostEqual(got.meters, 0.0, delta=1e-12)
 
         aside = doc.insert(Node.instantiate_part(self.post_ref, doc.new_space()))
         solved = solve_document(doc, resolver=self.ws)
@@ -466,21 +462,22 @@ class TestBenchStand(BenchWorkspace):
         return bench_scene.stand(self.ws, self.post_ref, self.shelf_ref, class_)
 
     def assertSeated(self, doc, node, mate):
-        """`node`'s bundle is `mate`, which reads another copy rather
-        than the world, then the three values that name it."""
+        """`node`'s bundle is `mate`, which reads another copy, then
+        the three values its plane leaves."""
         bundle = doc.bundle(node)
         self.assertEqual(bundle[0][0], mate)
-        self.assertNotIsInstance(bundle[0][1].to, WorldRead)
+        self.assertIsInstance(bundle[0][1], Mate)
         self.assertEqual(
-            [(type(held), held.mate) for _, held in bundle[1:]],
-            [(MateValue, mate.constraint)] * 3,
+            [(type(held), held.coord) for _, held in bundle[1:]],
+            [(MateValue, Coord.slide("x")), (MateValue, Coord.slide("y")), (MateValue, Coord.spin("z"))],
         )
 
     def test_each_mate_is_a_constraint_of_the_copy_it_places(self):
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
-        # The near post is pinned to the world; each other instance's
-        # bundle is the one mate that places it, with its values.
-        self.assertIsInstance(doc.bundle(post_a)[0][1].to, WorldRead)
+        # The near post is pinned to the world by values alone; each
+        # other instance's bundle is the one mate that places it, with
+        # its values.
+        self.assertTrue(all(isinstance(held, MateValue) for _, held in doc.bundle(post_a)))
         self.assertSeated(doc, shelf_i, mate_1)
         self.assertSeated(doc, post_b, mate_2)
         self.assertEqual((mate_1.placement, mate_2.placement), (shelf_i, post_b))
@@ -531,7 +528,7 @@ class TestBenchStand(BenchWorkspace):
             body = doc.insert(Node.extrude(profile, Formula.literal(z[1] - z[0])))
             if on is None:
                 return body
-            return doc.place_against(on, body, Frame.translation((0 * m, 0 * m, z[0])))
+            return against(doc, on, body, Frame.translation((0 * m, 0 * m, z[0])))
 
         lower = slab((0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m), on=lower)
@@ -561,7 +558,7 @@ class TestBenchStand(BenchWorkspace):
         # reads another copy pins nothing of this one.
         doc.apply(DocEdit.delete_node(upper))
         stranded = [m.variant for m in doc.last_maintenance]
-        elsewhere = Mate(PoseDef.plane(shelf_i, s_bottom), WorldRead.through("xy"), ContactClass.Rest)
+        elsewhere = Mate(PoseDef.plane(shelf_i, s_bottom), PoseDef.plane(shelf_i, s_bottom), ContactClass.Rest)
         with self.assertRaises(pncad.EditError) as caught:
             doc.set_constraints(post_b, [elsewhere, *zeros()])
         self.assertEqual(caught.exception.inner_variant, "mate_not_on_the_copy")
@@ -603,18 +600,18 @@ class TestBenchStand(BenchWorkspace):
         )
         # The cut moves as selected: the instance left behind stands
         # where its part's world stands — the identity bundle, six values
-        # naming no mate — and the near post keeps its pin.
+        # and no mate — and the near post keeps its pin.
         left_behind = outcome.remainder.bundle(outcome.instance)
         self.assertEqual(len(left_behind), 6)
         for _, value in left_behind:
             self.assertIsInstance(value, MateValue)
-            self.assertIsNone(value.mate)
 
         def pinned(part):
+            # A placement pinned to its target by values alone.
             return [
                 n
                 for n in part.placements()
-                if isinstance(part.bundle(n)[0][1].to, WorldRead)
+                if all(isinstance(held, MateValue) for _, held in part.bundle(n))
             ]
 
         self.assertEqual(len(pinned(outcome.part)), 1)
@@ -631,19 +628,25 @@ class TestBenchStand(BenchWorkspace):
             set(),
             spliced.doc.last_maintenance,
         )
-        # Inline of split is the document split was given, up to node
-        # ids: three instances again, one pinned where the near post was.
-        self.assertEqual(len(spliced.doc.placements()), 3)
-        self.assertEqual(len(pinned(spliced.doc)), 1)
+        # Inline copies the part verbatim into a new space and places
+        # it where the instance stood, under the instance's identity
+        # bundle; flatten folds that placement away, and what is left is
+        # the document split was given, up to node ids: three instances
+        # again, one pinned where the near post was.
+        self.assertEqual(spliced.doc.space(spliced.placement), spliced.doc.space(doc.world))
+        self.assertEqual(len(spliced.doc.placements()), 4)
+        flat = pncad.flatten(spliced.doc, spliced.placement).doc
+        self.assertEqual(len(flat.placements()), 3)
+        self.assertEqual(len(pinned(flat)), 1)
 
     def test_only_the_near_post_is_pinned_to_the_world(self):
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
-        # The near post's mate reads the world; each other bundle is one
-        # face mate on another copy and its values, and their poses are
-        # solved.
-        pin = doc.bundle(post_a)[0][1]
-        self.assertIsInstance(pin.to, WorldRead)
-        self.assertEqual(pin.to.kind, "plane")
+        # The near post is pinned by values on the world's axes, no
+        # mate; each other bundle is one face mate on another copy and
+        # its values, and their poses are solved.
+        pin = doc.bundle(post_a)
+        self.assertEqual(len(pin), 6)
+        self.assertTrue(all(isinstance(held, MateValue) for _, held in pin))
         self.assertSeated(doc, shelf_i, mate_1)
         self.assertSeated(doc, post_b, mate_2)
 
@@ -681,10 +684,12 @@ class TestBenchStand(BenchWorkspace):
         ):
             for g, w in zip(got, want, strict=True):
                 self.assertAlmostEqual(g, w, delta=1e-12)
-        # The shelf sits on top of the posts.
-        self.assertAlmostEqual(
-            solved.placement(doc, shelf_i).origin[2].meters, POST_HEIGHT, delta=1e-12
-        )
+        # The shelf sits on top of the posts, at the world's origin in
+        # its plane: flush with the bench's front.
+        for got, want in zip(
+            solved.placement(doc, shelf_i).origin, (0.0, 0.0, POST_HEIGHT), strict=True
+        ):
+            self.assertAlmostEqual(got.meters, want, delta=1e-12)
 
     def test_the_flush_seated_stand_certifies_at_the_at_rest_gate(self):
         doc, _, (mate_1, mate_2) = self.stand()
@@ -837,17 +842,10 @@ class TestAssemblyRefusals(BenchWorkspace):
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
         doc.apply(DocEdit.declare_var(VarName("gap"), FreeVar.scalar(0.0)))
-        floor = WorldRead.through("xy")
         lifted = doc.place(
-            shelf_i, doc.world,
-            [
-                Mate(
-                    PoseDef.plane(shelf_i, s_bottom),
-                    floor.slide(WorldRead.through("z"), doc.parse_formula("1 m / gap")),
-                    ContactClass.Rest,
-                ),
-                *zeros(),
-            ],
+            shelf_i,
+            doc.world,
+            Placed.unmated([MateValue(Coord.slide("z"), doc.parse_formula("1 m / gap"))]),
         )
         doc.set_constraints(
             post_a,
@@ -871,14 +869,13 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(raised.through, lifted)
         self.assertIn(f'Place "lift" ({tag(lifted)})', str(raised))
         self.assertEqual(raised.kind, "expr")
-        self.assertIn("world read slide", str(raised))
 
-    def test_a_non_finite_world_move_refuses_where_it_is_written(self):
-        """A world read's moves are numbers, and a number that is not
-        finite is no literal: the read refuses where it is built, before
-        any mate or document holds it."""
+    def test_a_non_finite_value_refuses_where_it_is_written(self):
+        """A value is a number, and a number that is not finite is no
+        literal: the value refuses where it is built, before any bundle
+        or document holds it."""
         with self.assertRaises(pncad.LiteralError):
-            WorldRead.frame().slide(WorldRead.through("x"), float("inf") * m)
+            MateValue(Coord.slide("x"), float("inf") * m)
 
     def test_a_mate_whose_operand_is_not_live_refuses_at_the_door(self):
         """A pose is a read of the body its face is selected in, so a
@@ -905,10 +902,9 @@ class TestAssemblyRefusals(BenchWorkspace):
 
     def test_the_door_refuses_what_a_mates_structure_says(self):
         """The edit door is structural: it refuses a mate whose poses
-        are of two kinds, whose world read's moves do not compose, or
-        whose `on` reads another copy, and a value on a freedom its
-        mate's kind fixes — each carrying the fault whole, its payload
-        on the words a caller branches on."""
+        are of two kinds or whose `on` reads another copy, and a value
+        on a freedom its mate fixes — each carrying the fault whole, its
+        payload on the words a caller branches on."""
         doc, post_i, shelf_i = self.two_instances()
         top = self.instance_face(doc, post_i, CapEnd.End)
         bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
@@ -926,25 +922,18 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(kinds.variant, "mate_kinds_differ")
         self.assertEqual((kinds.on_kind, kinds.to_kind), ("plane", "axis"))
         self.assertEqual(kinds.mate.placement, post_i)
-        slid = WorldRead.through("x").slide(WorldRead.through("x"), 0.1 * m)
-        self.assertEqual(slid.kind, "axis")
-        bad = slid.role("normal")
-        self.assertIsNone(bad.kind)
-        world = refused(Mate(PoseDef.plane(post_i, top), bad, ContactClass.Rest))
-        self.assertEqual((world.variant, world.inner_variant), ("mate_world_read", "role"))
         elsewhere = refused(
-            Mate(PoseDef.plane(shelf_i, bottom), WorldRead.through("xy"), ContactClass.Rest)
+            Mate(PoseDef.plane(shelf_i, bottom), PoseDef.plane(shelf_i, bottom), ContactClass.Rest)
         )
         self.assertEqual(elsewhere.variant, "mate_not_on_the_copy")
-        floor = Mate(PoseDef.plane(post_i, top), WorldRead.through("xy"), ContactClass.Rest)
-        fixed = refused(floor, MateValue(0, Coord.slide("z"), 0.1 * m))
-        self.assertEqual(fixed.variant, "mate_not_a_freedom")
-        self.assertEqual(fixed.value_ref.placement, post_i)
-        self.assertEqual((fixed.coord, fixed.mate_kind), (Coord.slide("z"), "plane"))
+        seat = Mate(PoseDef.plane(post_i, top), PoseDef.flip(PoseDef.plane(shelf_i, bottom)), ContactClass.Rest)
+        fixed = refused(seat, *zeros(), MateValue(Coord.slide("z"), 0.1 * m))
+        self.assertEqual(fixed.variant, "mate_overconstrained")
+        self.assertEqual(fixed.placement, post_i)
         # A number of the other dimension is the binding's to refuse,
         # before any edit.
         with self.assertRaises(ValueError):
-            MateValue(0, Coord.slide("x"), 0.1 * rad)
+            MateValue(Coord.slide("x"), 0.1 * rad)
 
     def test_a_class_the_gate_cannot_mint_refuses_at_the_gate(self):
         doc, _, (mate_1, mate_2) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
@@ -1122,17 +1111,17 @@ class TestMateFaultPayload(BenchWorkspace):
         the bundle would leave, and no single mate."""
         doc = Doc("payload-over")
         post = doc.insert(Node.instantiate_part(self.post_ref, doc.world))
+        floor = self.pinned(doc, self.post_ref)
 
-        def facing(normal):
-            return PoseDef.plane(post, bench_scene.face_facing(self.ws, doc, post, normal))
+        def facing(node, normal):
+            return PoseDef.plane(node, bench_scene.face_facing(self.ws, doc, node, normal))
 
-        raised = WorldRead.through("xy").slide(WorldRead.through("z"), POST_HEIGHT * m)
         with self.assertRaises(pncad.EditError) as caught:
             doc.set_constraints(
                 post,
                 [
-                    Mate(facing((0.0, 0.0, -1.0)), WorldRead.through("xy").flip(), ContactClass.Rest),
-                    Mate(facing((0.0, 0.0, 1.0)), raised, ContactClass.Rest),
+                    Mate(facing(post, (0.0, 0.0, -1.0)), PoseDef.flip(facing(floor, (0.0, 0.0, 1.0))), ContactClass.Rest),
+                    Mate(facing(post, (0.0, 0.0, 1.0)), facing(floor, (0.0, 0.0, 1.0)), ContactClass.Rest),
                 ],
             )
         fault = caught.exception.fault
@@ -1159,27 +1148,6 @@ class TestMateFaultPayload(BenchWorkspace):
         # The subject is two documents, so no mate is named at all.
         self.assertIsNone(fault.mate)
         self.assertIsNone(fault.side)
-
-    def test_a_value_on_a_point_mates_rotation_has_no_chart(self):
-        """A lone point mate leaves three rotations with no direction to
-        measure one about, so a spin value on it refuses at the door,
-        naming the value and why; its other attributes are `None`."""
-        doc, post_i, _ = self.two_instances()
-        corner = sorted(evaluate(doc, resolver=self.ws).all_vertices(post_i))[0]
-        with self.assertRaises(pncad.EditError) as caught:
-            doc.set_constraints(
-                post_i,
-                [
-                    Mate(PoseDef.point(post_i, corner), WorldRead.through("origin"), ContactClass.Rest),
-                    MateValue(0, Coord.spin(), 0),
-                ],
-            )
-        fault = caught.exception.fault
-        self.assertEqual(fault.variant, "mate_no_chart")
-        self.assertEqual(fault.why, "point_rotation")
-        self.assertEqual(fault.value_ref.placement, post_i)
-        for absent in ("mate", "side", "coord", "named", "free"):
-            self.assertIsNone(getattr(fault, absent), absent)
 
 
 class TestPinUpdateDoor(BenchWorkspace):
@@ -1519,7 +1487,7 @@ class TestTheWorld(BenchWorkspace):
         doc.place(b, doc.world)
         # The cut reads `b` in `a`'s coordinates, through a copy placed
         # against `a` where it was drawn.
-        tool = doc.place_against(a, b, Frame.translation((0 * m, 0 * m, 0 * m)))
+        tool = against(doc, a, b, Frame.translation((0 * m, 0 * m, 0 * m)))
         placed = doc.placements()
         cut = doc.insert(Node.subtract(a, tool))
         self.assertEqual(doc.placements(), placed, "the boolean is not placed")
@@ -1532,7 +1500,7 @@ class TestTheWorld(BenchWorkspace):
         doc = Doc("world-two-copies")
         body = self.block(doc, 0.0)
         doc.place(body, doc.world)
-        doc.place(body, doc.world, pose=Frame.translation((2 * m, 0 * m, 0 * m)))
+        placed(doc, body, Frame.translation((2 * m, 0 * m, 0 * m)))
         self.assertEqual(len(doc.placements()), 2)
         self.assertEqual(self.volume(doc), 2.0)
 
@@ -1603,9 +1571,9 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
                     PoseDef.flip(PoseDef.plane(post_a, a_top)),
                     class_,
                 ),
-                MateValue(0, Coord.slide("x"), slide[0] * m),
-                MateValue(0, Coord.slide("y"), slide[1] * m),
-                MateValue(0, Coord.spin(), 0),
+                MateValue(Coord.slide("x"), slide[0] * m),
+                MateValue(Coord.slide("y"), slide[1] * m),
+                MateValue(Coord.spin("z"), 0),
             ],
         )
         self.ws.create(doc)
@@ -1800,10 +1768,10 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
                     ContactClass.Rest,
                 ),
                 *(
-                    MateValue(0, Coord.slide(axis), by if isinstance(by, Formula) else by * m)
+                    MateValue(Coord.slide(axis), by if isinstance(by, Formula) else by * m)
                     for axis, by in zip(("x", "y"), at, strict=True)
                 ),
-                MateValue(0, Coord.spin(), 0),
+                MateValue(Coord.spin("z"), 0),
             ],
         )
         return doc, post_i, shelf_i, mate, slides
@@ -1815,9 +1783,7 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
 
         def base_pinned(doc):
             post_i = doc.insert(Node.instantiate_part(self.post_ref, doc.world))
-            bench_scene.on_floor(
-                doc, post_i, post_i, self.instance_face(doc, post_i, CapEnd.Start)
-            )
+            bench_scene.on_floor(doc, post_i)
             return post_i
 
         doc, _post_i, shelf_i, mate, _ = self.seated("from-face-follows", post=base_pinned)
@@ -1871,14 +1837,14 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
         self.assertAlmostEqual(later.origin[0].meters - at.origin[0].meters, 0.2, places=12)
 
     def test_a_value_reads_back_as_written_and_compares_bit_exact(self):
-        doc, _, shelf_i, mate, (x, _) = self.seated("face-offset-read", at=(0.1, 0.0))
+        doc, _, shelf_i, _, (x, _) = self.seated("face-offset-read", at=(0.1, 0.0))
         held = dict(doc.bundle(shelf_i))[x]
         self.assertIsInstance(held, MateValue)
-        self.assertEqual((held.mate, held.coord), (mate.constraint, Coord.slide("x")))
-        plus = MateValue(mate, Coord.slide("x"), 0.1 * m)
-        self.assertEqual(plus, MateValue(mate.constraint, Coord.slide("x"), 0.1 * m))
-        self.assertNotEqual(plus, MateValue(mate, Coord.slide("x"), 0.2 * m))
-        self.assertNotEqual(plus, MateValue(mate, Coord.slide("y"), 0.1 * m))
+        self.assertEqual(held.coord, Coord.slide("x"))
+        plus = MateValue(Coord.slide("x"), 0.1 * m)
+        self.assertEqual(plus, MateValue(Coord.slide("x"), 0.1 * m))
+        self.assertNotEqual(plus, MateValue(Coord.slide("x"), 0.2 * m))
+        self.assertNotEqual(plus, MateValue(Coord.slide("y"), 0.1 * m))
 
     def test_a_vanished_face_refuses_where_the_placement_evaluates(self):
         # The post's own cap, wrapped at the instance as a selection is,

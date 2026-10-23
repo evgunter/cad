@@ -369,16 +369,6 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
             editor_core::SlotId::ValueSpin { constraint } => editor_core::SlotId::ValueSpin {
                 constraint: cmap[&constraint],
             },
-            editor_core::SlotId::WorldSlide { constraint, step } => {
-                editor_core::SlotId::WorldSlide {
-                    constraint: cmap[&constraint],
-                    step,
-                }
-            }
-            editor_core::SlotId::WorldSpin { constraint, step } => editor_core::SlotId::WorldSpin {
-                constraint: cmap[&constraint],
-                step,
-            },
             other => other,
         };
         assert_eq!(

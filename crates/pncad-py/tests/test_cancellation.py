@@ -50,6 +50,8 @@ from pncad import (
     m,
 )
 
+from placing import against
+
 
 def slab(doc, x, y, z, on=None):
     """Insert the axis-aligned box [x0,x1] x [y0,y1] x [z0,z1]: in its
@@ -71,7 +73,7 @@ def slab(doc, x, y, z, on=None):
     body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
     if on is None:
         return body
-    return doc.place_against(on, body, Frame.translation((0 * m, 0 * m, z0)))
+    return against(doc, on, body, Frame.translation((0 * m, 0 * m, z0)))
 
 
 def stack(count):
