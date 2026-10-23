@@ -1381,15 +1381,18 @@ however the plane is tilted. Where the mates fix a direction (a plane's
 normal, an axis, a lone direction; a bundle holds at most one mate
 fixing a direction, since a second would state the angle between
 them, an equation the first already fixes, so its values have one
-chart and a value names no mate), each of the two spaces' axes is swung
-onto it by the shortest turn carrying its own z to the mated
-direction, the half-turn about its own x where that direction is its
-own −z, so a mate between axis-aligned poses has an axis-aligned zero
-and no edit that tilts a wall or turns a profile moves a held value's
-meaning; a slide runs along the target's swung axes, a spin is the
+chart and a value names no mate), each of the two spaces' axes is swung onto it by the shortest turn
+carrying that side's written `up`, one of its own ±x, ±y and ±z, to
+the mated direction. The mate carries both sides' `up` as it carries
+its `Flip`: a choice written with the mate (the gesture writes the axis
+nearest the mated direction) and never re-derived from geometry, since
+no chart that reads the direction alone is continuous everywhere. So a
+mate between axis-aligned poses has an axis-aligned zero, and no edit
+that keeps the mated direction out of the hemisphere about `−up` moves
+a held value's meaning; a slide runs along the target's swung axes, a spin is the
 angle about the mated direction from the target's swung x to the
-copy's, and a mate's `Flip` is on the copy's side. Inside the sliver
-band about that one pole the chart refuses, typed at evaluation, as a
+copy's, and a mate's `Flip` is on the copy's side. Within the band about a side's `−up`, `−up` itself included, the
+chart refuses, typed at evaluation and naming the axis to write, as a
 construction refuses at its degenerate values. Where no direction is
 fixed (no mate, or a lone point mate), the rotation is a written
 chain of at most three spins, each about the target space's x, y or z
