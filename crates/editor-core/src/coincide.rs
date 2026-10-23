@@ -421,9 +421,13 @@ impl Residual {
             .collect();
         match (self.constructions.as_slice(), unwalked.as_slice()) {
             ([Ok(a), Ok(b)], _) => match (a.origin == b.origin, a.maps == b.maps) {
-                (false, false) => f.write_str("the two cells are two constructions, mapped apart"),
+                (false, false) => {
+                    f.write_str("the two cells are two constructions, placed or reflected apart")
+                }
                 (false, true) => f.write_str("the two cells are two constructions"),
-                (true, _) => f.write_str("the two cells are one construction mapped apart"),
+                (true, _) => {
+                    f.write_str("the two cells are one construction placed or reflected apart")
+                }
             },
             ([Err(a), Err(b)], _) => write!(
                 f,
@@ -448,8 +452,14 @@ impl Residual {
                 let distinct = origins.len();
                 let apart = walked.windows(2).any(|w| w[0].maps != w[1].maps);
                 match (distinct, apart) {
-                    (1, _) => write!(f, "the {n} cells are one construction mapped apart"),
-                    (d, true) => write!(f, "the {n} cells are {d} constructions, mapped apart"),
+                    (1, _) => write!(
+                        f,
+                        "the {n} cells are one construction placed or reflected apart"
+                    ),
+                    (d, true) => write!(
+                        f,
+                        "the {n} cells are {d} constructions, placed or reflected apart"
+                    ),
                     (d, false) => write!(f, "the {n} cells are {d} constructions"),
                 }
             }
@@ -666,14 +676,14 @@ fn constructions<P: crate::ProfilePayload>(
         .iter()
         .map(|cell| match cell {
             NamedCell::Entity { input, name } => construction(doc, *input, name, tol),
-            NamedCell::Tool { input, role } => plane(
+            NamedCell::Tool { input, role } => Ok(plane(
                 doc,
                 &crate::pose::RoleRead {
                     read: *input,
                     role: *role,
                 },
                 tol,
-            ),
+            )),
             NamedCell::Piece { profile, piece } => Ok(Construction {
                 origin: Origin::Piece(*profile, *piece),
                 maps: Vec::new(),
@@ -771,10 +781,12 @@ fn stated_by_a_mate<P: crate::ProfilePayload>(
 /// edge or a cap vertex lies on its cap; a rim edge on the wall it
 /// bounds; an extrude's strut or cap vertex on each wall whose run it
 /// bounds, read off the profile's pieces ([`crate::ProfilePieces::bounds`]).
-/// A carried entity stands where the one it carries does, so a cell
-/// carried into a face carried alike lies on it where the two carried
-/// names do.
-/// Anything else is `false`, whether or not it lies there.
+/// A part's entity is minted at its instance, where the walk stops, so
+/// the two names are read on inside the part: there a carried entity
+/// stands where the one it carries does, so a cell carried alike with
+/// a face lies on it where the two carried names do, and the profile
+/// pieces are the part's, which this document does not hold. Anything
+/// else is `false`, whether or not it lies there.
 fn lies_on<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     cell: &Construction,
@@ -808,8 +820,9 @@ fn lies_on<P: crate::ProfilePayload>(
     on_face(cell_name, face_name, &bounds)
 }
 
-/// [`lies_on`] by the two minted names; `bounds` reads an extrude's
-/// profile, for names of the document `bounds` reads.
+/// [`lies_on`] by the two minted names. `bounds` answers whether a
+/// vertex bounds a wall's run, off the profile of the extrude a name's
+/// node is; inside a part it answers `false`.
 fn on_face(
     cell: &StableName,
     face: &StableName,
@@ -851,34 +864,33 @@ fn on_face(
 /// **The construction of a plane**: a plane read off a face is that
 /// face's ([`construction`]), its sense aside, so a flip of one is the
 /// face's too. Any other plane — a frame's coordinate plane, a slid or
-/// spun one — is its pose ([`Origin::Pose`]).
-///
-/// # Errors
-///
-/// [`Unwalked`], where the face's walk stops.
+/// spun one — is its pose ([`Origin::Pose`]), and so is one read off a
+/// face the walk does not reach: two reads of one pose are still one
+/// plane.
 fn plane<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     plane: &crate::pose::RoleRead<crate::VarId>,
     tol: geom_core::Tol,
-) -> Result<Construction, Unwalked> {
+) -> Construction {
     use crate::pose::PoseDef;
-    let pose = Construction {
+    let pose = || Construction {
         origin: Origin::Pose(plane.read, plane.role),
         maps: Vec::new(),
     };
     if plane.role.is_some() {
-        return Ok(pose);
+        return pose();
     }
     match doc.var(plane.read).and_then(|var| var.def().pose()) {
         Some(PoseDef::Flip { pose }) => self::plane(doc, pose, tol),
-        Some(PoseDef::Plane { face }) => match doc.selection(*face) {
-            Some(select) => match select.names.as_slice() {
-                [name] => construction(doc, select.body, name, tol),
-                _ => Ok(pose),
-            },
-            None => Ok(pose),
-        },
-        _ => Ok(pose),
+        Some(PoseDef::Plane { face }) => {
+            match doc.selection(*face).map(|s| (s, s.names.as_slice())) {
+                Some((select, [name])) => {
+                    construction(doc, select.body, name, tol).unwrap_or_else(|_| pose())
+                }
+                _ => pose(),
+            }
+        }
+        _ => pose(),
     }
 }
 
@@ -968,7 +980,7 @@ pub fn construction<P: crate::ProfilePayload>(
                 Some(VerbatimEdge::Intact { target }) => target,
                 Some(VerbatimEdge::Reflected { body, plane }) => {
                     let source = construction(doc, body, &name, tol)?;
-                    let fixed = self::plane(doc, plane, tol)?;
+                    let fixed = self::plane(doc, plane, tol);
                     if source != fixed && !lies_on(doc, &source, &fixed, tol) {
                         maps.push(Map::Mirror(at));
                     }
@@ -987,7 +999,7 @@ pub fn construction<P: crate::ProfilePayload>(
             SegOrigin::Minted => {
                 return match (seg, node(at)?) {
                     (RoleSeg::SectionFace, Node::Split { tool, .. }) => {
-                        let tool = plane(doc, tool, tol)?;
+                        let tool = plane(doc, tool, tol);
                         maps.extend(tool.maps);
                         Ok(Construction {
                             origin: tool.origin,

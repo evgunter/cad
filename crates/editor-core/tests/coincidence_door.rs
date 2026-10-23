@@ -443,7 +443,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     assert_ne!(a.maps, b.maps, "placed by two instances");
     assert_eq!(
         residual.to_string(),
-        "the two cells are one construction mapped apart; the replay with every variable a \
+        "the two cells are one construction placed or reflected apart; the replay with every variable a \
          symbol took other decisions there",
         "a row no node decided matches no row of the replay"
     );

@@ -322,7 +322,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// (`e605bc0e`), and [`NAME_WORDS`] held: a read of a construction's
 /// body is said by the node alone, its space being no part of what it
 /// holds.
-const SAID_DIGEST: u64 = 0x06c5_b4ba_2867_0bee;
+const SAID_DIGEST: u64 = 0x4821_af23_6c4c_3113;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
