@@ -100,7 +100,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
-use pncad::select::ContactClass;
 use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
@@ -149,7 +148,6 @@ fn seat(node: RecipeNodeId) -> pncad::document::Mate<Formula> {
     crate::fixture::rest(
         common::head(face(node)),
         common::head(face(node)),
-        ContactClass::Rest,
     )
 }
 

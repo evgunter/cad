@@ -41,14 +41,14 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    ClassAdmission, DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId, assemble,
-    class_admission, parse_formula,
+    DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId,
+    parse_formula,
 };
 use pncad::geom_core::{Point3, Tol};
-use pncad::select::{ContactClass, face_frame};
+use pncad::select::face_frame;
 use pncad::workspace::Workspace;
 use viewer::display::{AdmissionFault, DisplayFault};
-use viewer::matetool::{MateTool, admitted_classes};
+use viewer::matetool::MateTool;
 use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
@@ -367,7 +367,6 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     let first = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
-        ContactClass::Rest,
         asm::middle_seat_values(),
     ));
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
@@ -399,7 +398,6 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     let second = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
-        ContactClass::Rest,
         asm::middle_seat_values(),
     ));
     session.pump();
@@ -589,75 +587,7 @@ fn r1_save_as_rebinds_the_directory_and_the_rebind_re_resolves() {
     let _ = std::fs::remove_dir_all(&elsewhere);
 }
 
-// ── 5. The class table, and what a Tangent commit means ──────────
-
-/// The tool must never offer a class the doors will not execute, and
-/// the verdict it shows beside a committable-but-unassemblable class
-/// must be the kernel's own.
-///
-/// This row also PINS what a `Tangent` commit currently means, because
-/// nothing else does: the document evaluates green, and the A5 at-rest
-/// gate refuses it. If v1 later decides Tangent should refuse at the
-/// tool instead, this row is what goes red.
-#[test]
-fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() {
-    let tol = Tol::witness();
-    let classes = admitted_classes();
-    assert!(!classes.is_empty(), "the tool offers something");
-    for entry in &classes {
-        assert_eq!(
-            entry.admission,
-            class_admission(entry.class),
-            "the exposed verdict is the kernel's, for {}",
-            entry.class.name()
-        );
-        assert_ne!(
-            entry.admission,
-            ClassAdmission::NotAdmitted,
-            "the tool never offers a class the solve door refuses: {}",
-            entry.class.name()
-        );
-    }
-    assert!(
-        classes.iter().any(|e| e.class == ContactClass::Rest)
-            && classes.iter().any(|e| e.class == ContactClass::Tangent),
-        "both kernel-nameable classes are offered: {classes:?}"
-    );
-
-    // A committed Tangent: green document, refused assembly.
-    let bench = asm::bench("r1tangent", tol);
-    let mut session = asm::open_bench(&bench, tol);
-    // A Tangent mate commits, post_b's world mate off: the constraint
-    // door admits it.
-    asm::unpin(&mut session, bench.post_b);
-    common::commit_mate(
-        &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Tangent,
-            asm::middle_seat_values(),
-        ),
-    );
-    for row in session.tree_rows() {
-        assert_eq!(
-            row.status,
-            RowStatus::Ok,
-            "…and every tree row reads OK, which is the whole difficulty: {row:?}"
-        );
-    }
-    let (doc, eval) = session.landed_pair().expect("landed");
-    let text = match assemble(doc, eval, tol) {
-        Err(refusal) => refusal.to_string(),
-        Ok(_) => panic!("the at-rest gate must refuse a Tangent declaration"),
-    };
-    assert!(
-        text.contains("no at-rest kernel record"),
-        "the refusal is the class table's own: {text}"
-    );
-}
-
-// ── 6. The gesture's own edges ───────────────────────────────────
+// ── 5. The gesture's own edges ───────────────────────────────────
 
 /// The three edges of the display gesture nothing else covers: the
 /// out-of-order refusals, the bit-exact identity commit, and the
@@ -749,7 +679,6 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     let outcome = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
-        ContactClass::Rest,
         asm::middle_seat_values(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -793,7 +722,7 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     );
 }
 
-// ── 7. Two picks on one instance, through the real cursor path ───
+// ── 6. Two picks on one instance, through the real cursor path ───
 
 /// Both picks on ONE instance refuses at the tool, before any edit
 /// exists — driven through the cursor path rather than by re-feeding
@@ -841,7 +770,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     );
 }
 
-// ── 8. An instance a `Pattern` consumes ──────────────────────────
+// ── 7. An instance a `Pattern` consumes ──────────────────────────
 
 /// **Both G3 display operations reach an instance a `Pattern`
 /// consumes** (the fix-pass rule; this row pinned the silent no-op as
@@ -1008,7 +937,7 @@ fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
     );
 }
 
-// ── 9. A workspace with no parts at all ──────────────────────────
+// ── 8. A workspace with no parts at all ──────────────────────────
 
 /// An assembly whose store is empty: the open still SUCCEEDS (a
 /// document is not held hostage by its directory), and every instantiate

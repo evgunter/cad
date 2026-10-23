@@ -316,9 +316,6 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
         },
         Some(Readout::Value(_) | Readout::Empty(_)) | None => {}
     }
-    if let Some(note) = &row.note {
-        advisory_line(ui, row.depth, note, theme);
-    }
     clicked
 }
 
@@ -517,7 +514,6 @@ mod tests {
             depth: 0,
             placed: false,
             status: RowStatus::Ok,
-            note: None,
             repair_at: None,
             readout: None,
             version_offer: None,
@@ -569,7 +565,6 @@ mod tests {
             depth: 0,
             placed: true,
             status: RowStatus::Ok,
-            note: None,
             repair_at: None,
             readout: None,
             version_offer: None,
@@ -623,7 +618,6 @@ mod tests {
                 message: FAILURE.to_owned(),
                 carried: Vec::new(),
             },
-            note: None,
             repair_at,
             readout: None,
             version_offer: None,
@@ -1016,7 +1010,6 @@ mod tests {
             depth: 0,
             placed: false,
             status: RowStatus::Ok,
-            note: None,
             repair_at: None,
             readout: Some(Readout::Empty(readout)),
             version_offer: None,
@@ -1114,25 +1107,15 @@ mod tests {
         );
     }
 
-    /// **A placement's row paints its standing note under it, then its
-    /// constraints as children one step in**, each with its remove
-    /// button — here a placement holding a mate whose class has no
-    /// at-rest record, in the kernel's words — quietly and with no
-    /// badge.
+    /// **A placement's row paints its constraints as children one step
+    /// in**, each with its remove button, and no badge.
     ///
-    /// Red if `lines_under` drops the note or draws it loud, or if the
-    /// constraint children stop drawing under the row, in bundle order.
+    /// Red if the constraint children stop drawing under the row, in
+    /// bundle order.
     #[test]
-    fn a_placement_rows_note_and_constraints_paint_under_it() {
-        use pncad::document::{ClassAdmission, ConstraintId, MateRef, MintId, class_admission};
-        use pncad::select::ContactClass;
+    fn a_placement_rows_constraints_paint_under_it() {
+        use pncad::document::{ConstraintId, MateRef, MintId};
 
-        let admission = class_admission(ContactClass::Tangent);
-        assert!(
-            matches!(admission, ClassAdmission::NoAtRestRecord { .. }),
-            "the premise: a Tangent mate has no at-rest record: {admission:?}"
-        );
-        let note = admission.no_record_reason();
         let placement = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
         let constraint = |n: u64| {
             MateRef::new(
@@ -1142,7 +1125,6 @@ mod tests {
         };
         let row = TreeRow {
             status: RowStatus::Ok,
-            note: Some(note.to_owned()),
             constraints: vec![
                 tree::ConstraintRow {
                     mate: constraint(8),
@@ -1150,35 +1132,31 @@ mod tests {
                 },
                 tree::ConstraintRow {
                     mate: constraint(9),
-                    said: "constraint 2: Tangent mate".to_owned(),
+                    said: "constraint 2: on-side mate".to_owned(),
                 },
             ],
             ..placer_refused_row(None)
         };
-        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+        let (painted, _) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
             feature_row_drawn(ui, &row, theme)
         });
         let kind = find(&painted, "Mate 000000000007");
-        let line = find(&painted, note);
-        assert_under(kind, line);
-        assert_eq!(line.ink, Some(voices.weak), "{note:?} said quietly");
         let pin = find(&painted, "constraint 1: world mate");
-        let mate = find(&painted, "constraint 2: Tangent mate");
-        assert_under(line, pin);
+        let mate = find(&painted, "constraint 2: on-side mate");
+        assert_under(kind, pin);
         assert_under(pin, mate);
         assert_eq!(
             texts(&painted),
             vec![
                 "Mate 000000000007",
-                note,
                 "constraint 1: world mate",
                 super::REMOVE_CONSTRAINT,
-                "constraint 2: Tangent mate",
+                "constraint 2: on-side mate",
                 super::REMOVE_CONSTRAINT,
             ],
-            "the row, its note, its constraints with their buttons, and no badge"
+            "the row, its constraints with their buttons, and no badge"
         );
-        let clicks = row_clicked(&row, "constraint 2: Tangent mate", false);
+        let clicks = row_clicked(&row, "constraint 2: on-side mate", false);
         assert_eq!(clicks.remove, None, "a constraint's words remove nothing");
         for (nth, expected) in [(0, constraint(8)), (1, constraint(9))] {
             let remove = core::cell::Cell::new(None);
@@ -1563,7 +1541,6 @@ mod tests {
             depth: 0,
             placed: false,
             status: RowStatus::Ok,
-            note: None,
             repair_at: None,
             readout: None,
             version_offer: None,

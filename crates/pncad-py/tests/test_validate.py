@@ -27,11 +27,9 @@ declares nothing — and `TestTheRecordsRideWithTheBody` is the row.
 THE ORACLES ARE DOORS, NOT RESTATED ARITHMETIC
 ----------------------------------------------
 Nothing below asserts a hand-computed verdict. The fourth rung is
-checked against the third (which already shipped), against the
-`assemble` gate (which takes the same verdict attributed, and whose
-passing is the precondition for reaching an `Assembly` at all), and
-against `Assembly.minted` (which counts the declarations whose
-presence is the whole question). The geometry is the tour's own bench,
+checked against the third (which already shipped), and against the
+`assemble` gate (which takes the same verdict, and whose passing is
+the precondition for reaching an `Assembly` at all). The geometry is the tour's own bench,
 taken through `test_assembly_eval.opened` rather than rebuilt here, so
 this file and the two assembly files agree on the scene by
 construction (`bench_scene.py` is the one definition of it).
@@ -242,36 +240,33 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
                 getattr(assembly.body, rung)()
 
         # The fourth rung is where they part. The at-rest body's
-        # declarations back its seats; the gathered body has none, so
-        # every seat is an unrecorded contact.
+        # records back its seats; the gathered body has none, so every
+        # seat is an unrecorded contact.
         assembly.body.validate_pseudomanifold()
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
         self.assertEqual(caught.exception.door, "validate_pseudomanifold")
         self.assertGreater(caught.exception.failure_count, 0)
 
-    def test_the_declarations_the_gate_minted_are_what_it_carries(self):
-        """The stand's mates are the source of those records, and
-        `minted` is the Python-visible count of them: two solved mates,
-        two declarations, and reaching an `Assembly` at all means the
-        kernel's at-rest gate already passed over this exact pair."""
+    def test_the_records_the_census_minted_are_what_the_body_carries(self):
+        """The census over the stand records its two seats, and
+        reaching an `Assembly` at all means the kernel's at-rest gate
+        already passed over the body and those records."""
         doc, ev = self.evaluated("stand")
         assembly = assemble(doc, ev)
-        self.assertEqual(len(assembly.minted), 2)
-        # The same verdict re-taken, un-attributed.
+        # The same verdict re-taken.
         assembly.body.validate_pseudomanifold()
 
     def test_a_mate_less_assembly_is_the_control(self):
-        """The flat-pack layout: same doors, no mates, no declarations
-        — and the two bodies agree, because its solids are disjoint.
+        """The flat-pack layout: same doors, no mates, no touches —
+        and the two bodies agree, because its solids are disjoint.
 
         Without this row the pair above would only show that
         `assemble` answers more kindly than `product`. It shows
-        instead that they differ exactly when declarations exist to
+        instead that they differ exactly when touches exist to
         differ about."""
         doc, ev = self.evaluated("layout")
         assembly = assemble(doc, ev)
-        self.assertEqual(assembly.minted, [])
         assembly.body.validate_pseudomanifold()
         product(doc, ev).validate_pseudomanifold()
 

@@ -8,7 +8,6 @@ use crate::common;
 
 use common::asm;
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use viewer::history::History;
 use viewer::session::SessionOp;
 
@@ -31,7 +30,6 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
         asm::seat_op(
             &bench,
             bench.post_b,
-            ContactClass::Rest,
             asm::middle_seat_values(),
         ),
     );
@@ -81,7 +79,6 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
         crate::fixture::rest(
             common::head(asm::in_part(post, &bench.post_top)),
             common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-            ContactClass::Rest,
         )
     };
     // The world-side lone instance, far off.

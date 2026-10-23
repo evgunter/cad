@@ -22,7 +22,6 @@ use std::path::{Path, PathBuf};
 use common::asm;
 use pncad::document::{Doc, DocumentId, Node, NodeResult, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::parts::{PartChooser, PartEntry};
@@ -147,7 +146,6 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
             &bench,
             post_i,
             shelf_i,
-            ContactClass::Rest,
             asm::seat_values_at(asm::SHELF_LENGTH / 2.0, [0.0; 3]),
         )
     };
@@ -209,7 +207,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
             reopened.at_rest(),
             Some(viewer::session::AtRestBadge::Certified { .. })
         ),
-        "the authored Rest mate certifies at rest: {:?}",
+        "the authored mate certifies at rest: {:?}",
         reopened.at_rest()
     );
 }
@@ -1056,7 +1054,6 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
             asm::seat_op(
                 &bench,
                 bench.post_b,
-                ContactClass::Rest,
                 asm::own_space_seat_values(),
             ),
         );

@@ -30,7 +30,7 @@ use pncad::document::{
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
 use pncad::quantity::{M, MM};
-use pncad::select::{ContactClass, HitTestError, NodePickError, UnnamedEntity};
+use pncad::select::{HitTestError, NodePickError, UnnamedEntity};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
 use viewer::evalseam::{
@@ -793,7 +793,6 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         ),
         (
             frame::at_rest_badge(Some(&AtRestBadge::Certified {
-                minted: 0,
                 loud: 0,
                 quiet: 0,
             })),
@@ -1075,7 +1074,6 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
         common::asm::seat_op(
             &bench,
             bench.post_a,
-            ContactClass::Rest,
             common::asm::middle_seat_values(),
         ),
     );
@@ -1499,7 +1497,6 @@ fn the_profiles_badge_counts_what_it_could_not_draw() {
 #[test]
 fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
     let certified = frame::at_rest_badge(Some(&AtRestBadge::Certified {
-        minted: 4,
         loud: 0,
         quiet: 0,
     }))
@@ -1515,7 +1512,7 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         "{}",
         certified.label()
     );
-    assert!(certified.label().contains('4'), "{}", certified.label());
+    assert_eq!(certified.label(), "at rest: certified");
 
     // An overlap no assertion quiets is the reader's to answer; one
     // every assertion quiets is reported and asks nothing.
@@ -1524,7 +1521,6 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         (0, 2, frame::Tone::Advisory),
     ] {
         let badge = frame::at_rest_badge(Some(&AtRestBadge::Certified {
-            minted: 0,
             loud,
             quiet,
         }))
@@ -1658,7 +1654,6 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
         (
             "at rest",
             frame::at_rest_badge(Some(&AtRestBadge::Certified {
-                minted: 0,
                 loud: 0,
                 quiet: 0,
             })),
@@ -3411,7 +3406,6 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     let mate = asm::seat_op(
         &bench,
         bench.post_b,
-        ContactClass::Rest,
         asm::middle_seat_values(),
     );
     let outcome = session.perform(mate.clone());

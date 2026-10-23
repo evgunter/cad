@@ -72,7 +72,6 @@ const SAIL_B_PARK: [f64; 3] = [-0.12, 0.02, 0.0];
 fn rest_choice(slide: [f64; 2], spin: f64) -> viewer::matetool::MateChoice {
     use pncad::document::{Coord, TargetAxis};
     viewer::matetool::MateChoice {
-        class: pncad::select::ContactClass::Rest,
         kind: pncad::document::VarKind::Plane,
         flip: true,
         values: vec![
@@ -583,11 +582,10 @@ fn the_windmill_story() {
     assert_eq!(
         session.at_rest(),
         Some(&AtRestBadge::Certified {
-            minted: 1,
             loud: 0,
             quiet: 0,
         }),
-        "the seated base certifies with its one declaration"
+        "the seated base certifies, its seat recorded at rest"
     );
 
     // The seated hub lives in the world's space, so it refuses the
@@ -621,7 +619,6 @@ fn the_windmill_story() {
     assert_eq!(
         session.at_rest(),
         Some(&AtRestBadge::Certified {
-            minted: 1,
             loud: 0,
             quiet: 0,
         }),
@@ -817,7 +814,6 @@ fn the_windmill_story() {
     assert_eq!(
         session.at_rest(),
         Some(&AtRestBadge::Certified {
-            minted: 3,
             loud: 0,
             quiet: 0,
         }),
@@ -847,7 +843,6 @@ fn the_windmill_story() {
     assert_eq!(
         reopened.at_rest(),
         Some(&AtRestBadge::Certified {
-            minted: 3,
             loud: 0,
             quiet: 0,
         }),
