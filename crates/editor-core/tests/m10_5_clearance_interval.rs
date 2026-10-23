@@ -183,7 +183,7 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
 /// parameter among them drives the copy, with no rotation, so every
 /// stored direction passes through exactly and the placed body's
 /// charts are as clean as the literal one's. The mate is the one
-/// [`editor_core::place_against_in`] writes at a probe translation
+/// [`editor_core::test_support::placed_against`] writes at a probe translation
 /// (each body's own planar face on its own xy, the target's slid along
 /// its normal), its numbers replaced by `by`'s with the signs the probe
 /// read. Returns the placement, whose output is the copy.

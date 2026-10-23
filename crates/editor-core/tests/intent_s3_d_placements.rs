@@ -182,7 +182,10 @@ fn every_copy_stands_by_the_identity_bundle() {
         let own = vertices(&doc, body);
         let read = fixture::body_read(&doc, body.into());
         let stood = editor_core::stand();
-        assert!(stood.mates.is_empty(), "{body}: the identity bundle has no mate");
+        assert!(
+            stood.mates.is_empty(),
+            "{body}: the identity bundle has no mate"
+        );
         let coords: Vec<Coord> = stood.values.iter().map(|(coord, _)| *coord).collect();
         assert_eq!(
             coords,
@@ -410,10 +413,7 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     let top = fixture::fname(b, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)).in_copy(base);
     let mate = Mate {
         on: start_cap(b),
-        to: fixture::plane(Operand::select(
-            Operand::output(base, 0),
-            vec![top],
-        )),
+        to: fixture::plane(Operand::select(Operand::output(base, 0), vec![top])),
         class: editor_core::ContactClass::Rest,
     };
     let mated = stood
@@ -840,7 +840,10 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
         vec![
             (Coord::Slide(X), zero(editor_core::Dimension::Length)),
             (Coord::Slide(Y), zero(editor_core::Dimension::Length)),
-            (Coord::Spin(editor_core::TargetAxis::Z), zero(editor_core::Dimension::Angle)),
+            (
+                Coord::Spin(editor_core::TargetAxis::Z),
+                zero(editor_core::Dimension::Angle),
+            ),
         ],
     );
 
@@ -1025,7 +1028,9 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
             .expect("the value");
         match coord {
             Coord::Slide(_) => SlotId::ValueSlide { constraint: c.id },
-            Coord::Spin(editor_core::TargetAxis::Z) | Coord::Spin(_) => SlotId::ValueSpin { constraint: c.id },
+            Coord::Spin(editor_core::TargetAxis::Z) | Coord::Spin(_) => {
+                SlotId::ValueSpin { constraint: c.id }
+            }
         }
     };
     let mate_id = |doc: &ProfileDoc, p| {
@@ -1080,7 +1085,10 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     // A plane read off a copy spun `turn/4` about the world's `x`: the
     // copy's spin retyped moves the mated copy's key.
     let mut values = slides();
-    values.push((Coord::Spin(editor_core::TargetAxis::Z), zero(editor_core::Dimension::Angle)));
+    values.push((
+        Coord::Spin(editor_core::TargetAxis::Z),
+        zero(editor_core::Dimension::Angle),
+    ));
     let (stood, upended_top, upended) =
         fixture::floor(doc.clone(), vec![(Coord::Spin(X), quarter())]);
     let (before, p) = placed(stood, b, mate(start_cap(b), upended_top), values);
@@ -1109,7 +1117,10 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
         }))
     };
     let mut values = slides();
-    values.push((Coord::Spin(editor_core::TargetAxis::Z), zero(editor_core::Dimension::Angle)));
+    values.push((
+        Coord::Spin(editor_core::TargetAxis::Z),
+        zero(editor_core::Dimension::Angle),
+    ));
     let (before, p) = placed(
         level,
         b,

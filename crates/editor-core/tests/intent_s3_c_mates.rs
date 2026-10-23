@@ -295,10 +295,7 @@ fn placed(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
 fn floor_facing_down(doc: ProfileDoc) -> (ProfileDoc, Operand) {
     let (doc, top, _) = fixture::floor(
         doc,
-        vec![(
-            Coord::Spin(TargetAxis::X),
-            ang(std::f64::consts::PI),
-        )],
+        vec![(Coord::Spin(TargetAxis::X), ang(std::f64::consts::PI))],
     );
     (doc, top)
 }
@@ -573,7 +570,10 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
         [
             (Coord::Slide(TargetAxis::X), len(0.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), ang(30.0_f64.to_radians())),
+            (
+                Coord::Spin(editor_core::TargetAxis::Z),
+                ang(30.0_f64.to_radians()),
+            ),
         ],
     );
     solved(&doc, placement)
@@ -733,7 +733,12 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         to: down,
         class: ContactClass::Rest,
     };
-    let doc = seat(doc, placement, written, [(Coord::Spin(editor_core::TargetAxis::Z), ang(0.0))]);
+    let doc = seat(
+        doc,
+        placement,
+        written,
+        [(Coord::Spin(editor_core::TargetAxis::Z), ang(0.0))],
+    );
     let ev = fixture::run(&doc, &EvalOptions::default());
     assert!(
         !matches!(ev.result(placement), Some(NodeResult::Failed(_))),
@@ -781,7 +786,9 @@ fn a_constraint_taken_out_leaves_its_bundle_pinned() {
     };
     let freed = remove(&doc, mate);
     assert!(
-        fixture::bundle(&freed, p).iter().all(|c| c.mate().is_none()),
+        fixture::bundle(&freed, p)
+            .iter()
+            .all(|c| c.mate().is_none()),
         "the mate went"
     );
     assert_eq!(
@@ -821,7 +828,7 @@ fn a_constraint_taken_out_leaves_its_bundle_pinned() {
 /// written in.
 #[test]
 fn the_migration_pin_reproduces_its_pose() {
-    let (doc, body) = a_box("s3c_pin_at", 1.0);
+    let (doc, body) = a_box("s3c_pinned", 1.0);
     let (doc, placement) = placed(doc, body);
     let turn = Mat3::rotation_about(Vec3::new(-2.0, 0.5, 1.0), 2.1);
     let shift = Vec3::new(-3.0, 0.5, 7.0);

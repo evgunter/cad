@@ -252,7 +252,11 @@ fn space_seat(base: &M, height: f64, at: [f64; 2]) -> M {
     let n = [base.r[0][2], base.r[1][2], base.r[2][2]];
     let on_cap: [f64; 3] = std::array::from_fn(|i| base.r[i][2] * height + base.t[i]);
     let (a, b, c) = (n[0], n[1], n[2]);
-    let one_plus_c = if c < 0.0 { (a * a + b * b) / (1.0 - c) } else { 1.0 + c };
+    let one_plus_c = if c < 0.0 {
+        (a * a + b * b) / (1.0 - c)
+    } else {
+        1.0 + c
+    };
     let x = [1.0 - a * a / one_plus_c, -a * b / one_plus_c, -a];
     let y = [
         n[1] * x[2] - n[2] * x[1],
@@ -318,13 +322,7 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
         assert!(got_b.dist(&f) <= 1e-12, "DEFECT: base pose");
         let ev = run(&doc, &o);
         check_body_f64(&ev, top, &top_pts, &w_top, "f64 top");
-        check_body_f64(
-            &ev,
-            t,
-            &top_pts,
-            &w_t,
-            "f64 placed copy of the top",
-        );
+        check_body_f64(&ev, t, &top_pts, &w_t, "f64 placed copy of the top");
         check_body_f64(&ev, base, &base_pts, &f, "f64 base");
         let lane = evaluate::<Interval>(
             &doc,

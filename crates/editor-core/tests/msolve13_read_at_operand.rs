@@ -651,8 +651,7 @@ fn a3c_a_mate_read_through_a_union_crosses_onto_the_instance() {
     )
     .unwrap_or_else(|e| panic!("the kept seat crosses: {e}"));
     let seat = fixture::constraint(&out.remainder, f.m2);
-    let [select] = fixture::face_reads(&out.remainder, seat.to)[..]
-    else {
+    let [select] = fixture::face_reads(&out.remainder, seat.to)[..] else {
         panic!("the seat's target reads one face")
     };
     assert_eq!(
@@ -722,8 +721,13 @@ fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
     )
     .unwrap_or_else(|e| panic!("A3(d): the part inlines back: {e}"));
     let (map, steps) = fixture::round_trip::composed(&doc, &out, &back);
-    fixture::round_trip::same_up_to_ids(&doc, &crate::fixture::round_trip::flat(&back), &map, &steps)
-        .unwrap_or_else(|e| panic!("A3(d): inline(split(d)) is d up to node ids:\n{e}"));
+    fixture::round_trip::same_up_to_ids(
+        &doc,
+        &crate::fixture::round_trip::flat(&back),
+        &map,
+        &steps,
+    )
+    .unwrap_or_else(|e| panic!("A3(d): inline(split(d)) is d up to node ids:\n{e}"));
     let ev = run(&back.doc, &with_resolver(store));
     assert!(
         gate(&back.doc, &ev).is_ok(),

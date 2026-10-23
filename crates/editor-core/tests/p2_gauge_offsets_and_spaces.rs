@@ -17,7 +17,8 @@ use crate::p2_gauges::{body_of, pinned, seat, seat_on, set_pin};
 
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
-    FreeValue, FreeVar, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, StableName, VarName, evaluate,
+    FreeValue, FreeVar, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, StableName, VarName,
+    evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, run, solve, step};
@@ -268,10 +269,13 @@ fn seat_rel(p: &Parts) -> M4 {
 /// plane along `n`.
 fn space_seat(w_base: &M4, height: f64, at: [f64; 2]) -> M4 {
     let n = [w_base[0][2], w_base[1][2], w_base[2][2]];
-    let on_cap: [f64; 3] =
-        std::array::from_fn(|i| w_base[i][2] * height + w_base[i][3]);
+    let on_cap: [f64; 3] = std::array::from_fn(|i| w_base[i][2] * height + w_base[i][3]);
     let (a, b, c) = (n[0], n[1], n[2]);
-    let one_plus_c = if c < 0.0 { (a * a + b * b) / (1.0 - c) } else { 1.0 + c };
+    let one_plus_c = if c < 0.0 {
+        (a * a + b * b) / (1.0 - c)
+    } else {
+        1.0 + c
+    };
     let x = [1.0 - a * a / one_plus_c, -a * b / one_plus_c, -a];
     let y = [
         n[1] * x[2] - n[2] * x[1],
@@ -736,14 +740,7 @@ fn the_memo_moves_instances_when_their_pin_or_their_target_moves() {
         (minz(&ev2, top) - (t0 + 5.0)).abs() < 1e-9,
         "the mated instance moved"
     );
-    let shifted = pin_lifted(
-        doc,
-        base,
-        2,
-        0.0,
-        &Frame::translation([0.0, 0.0, 3.0]),
-        &o,
-    );
+    let shifted = pin_lifted(doc, base, 2, 0.0, &Frame::translation([0.0, 0.0, 3.0]), &o);
     let ev3 = evaluate::<f64>(
         &shifted,
         Some(&ev),

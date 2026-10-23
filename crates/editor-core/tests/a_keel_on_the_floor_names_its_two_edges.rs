@@ -7,7 +7,7 @@
 //! one vertex per wedge), and wall to wall (two floor faces, two solids).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{against, desc, axes_at, insert, len, table};
+use crate::fixture::{against, axes_at, desc, insert, len, table};
 use editor_core::{
     BooleanValue, CancelToken, EntityKey, Entry, EvalOptions, Node, ProfileDoc, ValuePayload,
     evaluate,

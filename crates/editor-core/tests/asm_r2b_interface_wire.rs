@@ -16,8 +16,8 @@ use crate::fixture;
 use crate::wire::{doctored, wire_body};
 use editor_core::{
     CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName,
-    InterfaceCrossing, InterfaceRecord, Node, PersistError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, StableName, apply, load, save,
+    InterfaceCrossing, InterfaceRecord, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedFace, StableName, apply, load, save,
 };
 use geom_core::Tol;
 

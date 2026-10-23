@@ -21,7 +21,7 @@
 
 use crate::blocks::{block, failure, run};
 use crate::fixture::{
-    desc, ends, face_vertices, axes_at, in_world_square, insert, len, out, plane_on, point, table,
+    axes_at, desc, ends, face_vertices, in_world_square, insert, len, out, plane_on, point, table,
     xform,
 };
 use editor_core::{

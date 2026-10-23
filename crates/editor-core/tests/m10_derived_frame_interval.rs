@@ -143,7 +143,10 @@ fn at_rest() -> Vec<(editor_core::Coord, Formula)> {
             Coord::Slide(TargetAxis::Y),
             Formula::zero(Dimension::Length),
         ),
-        (Coord::Spin(editor_core::TargetAxis::Z), Formula::zero(Dimension::Angle)),
+        (
+            Coord::Spin(editor_core::TargetAxis::Z),
+            Formula::zero(Dimension::Angle),
+        ),
     ]
 }
 

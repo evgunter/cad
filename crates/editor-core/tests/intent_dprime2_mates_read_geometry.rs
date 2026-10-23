@@ -94,7 +94,10 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
     } else {
         (doc, head_at(b, side.in_copy(b)))
     };
-    let (doc, placement) = insert(doc, fixture::stood(vec![BodyRead::plain(Operand::from(boss))]));
+    let (doc, placement) = insert(
+        doc,
+        fixture::stood(vec![BodyRead::plain(Operand::from(boss))]),
+    );
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
         mates: vec![fixture::rest(head(start), target, ContactClass::Rest)],
@@ -107,7 +110,9 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
     let poses = solve(&doc, &EvalOptions::default(), Tol::witness());
     assert_eq!(poses.fault(placement), None, "the boss is placed");
-    poses.placement(&doc, placement).expect("the boss is placed")
+    poses
+        .placement(&doc, placement)
+        .expect("the boss is placed")
 }
 
 /// **Test 24 (D′2): a value charts on the target space.** A boss rests
@@ -224,7 +229,11 @@ fn inline_keeps_a_variable_driving() {
     );
     let slide = fixture::bundle(&out.doc, spliced)
         .into_iter()
-        .find_map(|c| c.value().filter(|v| v.coord == Coord::Slide(TargetAxis::Z)).cloned())
+        .find_map(|c| {
+            c.value()
+                .filter(|v| v.coord == Coord::Slide(TargetAxis::Z))
+                .cloned()
+        })
         .expect("the part's slide");
     assert_eq!(
         out.doc.var_name(slide.by),
@@ -391,9 +400,15 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
     );
     let mut store = PartStore::default();
     let doc_ref = store.insert(part, Tol::witness());
-    let host = ProfileDoc::empty(DocumentId::derive("dprime2-flatten-two-host"), Tol::witness());
+    let host = ProfileDoc::empty(
+        DocumentId::derive("dprime2-flatten-two-host"),
+        Tol::witness(),
+    );
     let (host, instance) = insert(host, fixture::mated_instance(doc_ref));
-    let (host, _) = insert(host, fixture::stood(vec![BodyRead::plain(Operand::from(instance))]));
+    let (host, _) = insert(
+        host,
+        fixture::stood(vec![BodyRead::plain(Operand::from(instance))]),
+    );
     let resolver: Arc<dyn PartResolver> = Arc::new(store);
     let two = inline(&host, instance, &resolver, Tol::witness()).expect("inlines");
     assert!(matches!(
@@ -445,7 +460,10 @@ fn a_slide_value_sets_its_translation_with_no_width() {
     let doc = ProfileDoc::empty(DocumentId::derive("dprime2-slide-width"), Tol::witness());
     let (doc, top, _) = fixture::floor(doc, Vec::new());
     let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
-    let (doc, placement) = insert(doc, fixture::stood(vec![BodyRead::plain(Operand::from(boss))]));
+    let (doc, placement) = insert(
+        doc,
+        fixture::stood(vec![BodyRead::plain(Operand::from(boss))]),
+    );
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
         mates: vec![editor_core::Mate {

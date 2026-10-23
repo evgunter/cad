@@ -1123,7 +1123,10 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
                 Coord::Slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
-            (Coord::Spin(editor_core::TargetAxis::Z), Formula::zero(Dimension::Angle)),
+            (
+                Coord::Spin(editor_core::TargetAxis::Z),
+                Formula::zero(Dimension::Angle),
+            ),
         ],
     );
     let ev = eval_after(&r.doc, None);

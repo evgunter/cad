@@ -341,11 +341,15 @@ pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
             } else {
                 ((-r(1, 2)).atan2(r(1, 1)), 0.0)
             };
-            [(TargetAxis::X, alpha), (TargetAxis::Y, beta), (TargetAxis::Z, gamma)]
-                .into_iter()
-                .filter(|&(_, angle)| angle != 0.0)
-                .map(|(axis, angle)| (Coord::Spin(axis), ang(angle)))
-                .collect()
+            [
+                (TargetAxis::X, alpha),
+                (TargetAxis::Y, beta),
+                (TargetAxis::Z, gamma),
+            ]
+            .into_iter()
+            .filter(|&(_, angle)| angle != 0.0)
+            .map(|(axis, angle)| (Coord::Spin(axis), ang(angle)))
+            .collect()
         }
     };
     slides.chain(spins).collect()
@@ -450,30 +454,28 @@ pub fn placed_against_in(
         let (_, solid, table, motion) =
             crate::mate::corner::read_of(&doc, &ev, shape).expect("the body has a value");
         let motion = motion.map(|m| m.to_affine());
-        solid
-            .faces()
-            .find_map(|(face, _)| {
-                let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
-                (kind == geom::SurfaceKind::Plane).then_some(())?;
-                let pose = topo::readback::face_pose(&solid, face).ok()?;
-                let n = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
-                let o = pose.origin - geom_core::linalg::Point3::origin();
-                let (o, n) = match motion {
-                    None => (o, n),
-                    Some(m) => {
-                        let back = m.linear.transpose();
-                        (back * (o - m.translation), back * n)
-                    }
-                };
-                let name = table.name_of(&crate::names::EntityRef {
-                    body: 0,
-                    key: crate::names::EntityKey::Face(face),
-                })?;
-                [o.z, n.x, n.y]
-                    .into_iter()
-                    .all(|c| c == 0.0)
-                    .then(|| (name.clone(), n.z.signum()))
-            })
+        solid.faces().find_map(|(face, _)| {
+            let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+            (kind == geom::SurfaceKind::Plane).then_some(())?;
+            let pose = topo::readback::face_pose(&solid, face).ok()?;
+            let n = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
+            let o = pose.origin - geom_core::linalg::Point3::origin();
+            let (o, n) = match motion {
+                None => (o, n),
+                Some(m) => {
+                    let back = m.linear.transpose();
+                    (back * (o - m.translation), back * n)
+                }
+            };
+            let name = table.name_of(&crate::names::EntityRef {
+                body: 0,
+                key: crate::names::EntityKey::Face(face),
+            })?;
+            [o.z, n.x, n.y]
+                .into_iter()
+                .all(|c| c == 0.0)
+                .then(|| (name.clone(), n.z.signum()))
+        })
     };
     // A body with no planar face on its own xy (a full revolve, an arc
     // tube) is placed by the moves `at` states, with no mate.
@@ -524,8 +526,9 @@ pub fn placed_against_in(
         (1.0, 0.0) => Formula::zero(Dimension::Angle),
         (0.0, 1.0) => Formula::turn_over(4).expect("a quarter turn"),
         (-1.0, 0.0) => Formula::turn_over(2).expect("a half turn"),
-        (0.0, -1.0) => Formula::neg(Formula::turn_over(4).expect("a quarter turn"))
-            .expect("an angle"),
+        (0.0, -1.0) => {
+            Formula::neg(Formula::turn_over(4).expect("a quarter turn")).expect("an angle")
+        }
         (c, s) => ang(s.atan2(c)),
     };
     let slide = |by: f64| {
@@ -789,15 +792,23 @@ pub fn frame_on_in(
     } else {
         ((-r(1, 2)).atan2(r(1, 1)), 0.0)
     };
-    let spins = [(TargetAxis::X, alpha), (TargetAxis::Y, beta), (TargetAxis::Z, gamma)]
-        .into_iter()
-        .filter(|(_, angle)| *angle != 0.0)
-        .map(|(axis, angle)| FrameMove::Spin(axis, ang(angle)));
+    let spins = [
+        (TargetAxis::X, alpha),
+        (TargetAxis::Y, beta),
+        (TargetAxis::Z, gamma),
+    ]
+    .into_iter()
+    .filter(|(_, angle)| *angle != 0.0)
+    .map(|(axis, angle)| FrameMove::Spin(axis, ang(angle)));
     let t = rel.translation;
-    let slides = [(TargetAxis::X, t.x), (TargetAxis::Y, t.y), (TargetAxis::Z, t.z)]
-        .into_iter()
-        .filter(|(_, length)| *length != 0.0)
-        .map(|(axis, length)| FrameMove::Slide(axis, len(length)));
+    let slides = [
+        (TargetAxis::X, t.x),
+        (TargetAxis::Y, t.y),
+        (TargetAxis::Z, t.z),
+    ]
+    .into_iter()
+    .filter(|(_, length)| *length != 0.0)
+    .map(|(axis, length)| FrameMove::Slide(axis, len(length)));
     crate::moved_frame(base, &spins.chain(slides).collect::<Vec<_>>())
 }
 

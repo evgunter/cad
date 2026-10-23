@@ -6796,13 +6796,7 @@ mod bundle_key {
     }
 
     fn value(coord: Coord) -> Constraint {
-        Constraint::of_value(
-            id(11),
-            Value {
-                coord,
-                by: BY,
-            },
-        )
+        Constraint::of_value(id(11), Value { coord, by: BY })
     }
 
     fn key(bundle: &[Constraint]) -> crate::eval::ContentKey {

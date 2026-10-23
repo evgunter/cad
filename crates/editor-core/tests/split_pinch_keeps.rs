@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::fixture::{self, against, ang, desc, axes_at, insert, len, on_frame};
+use crate::fixture::{self, against, ang, axes_at, desc, insert, len, on_frame};
 use editor_core::{
     CancelToken, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Formula, Node, ProfileDoc,
     Qualifier, RecipeNodeId, RoleSeg, SplitHalf, StableName, evaluate,

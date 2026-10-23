@@ -100,7 +100,7 @@ const SENTINEL: f64 = 0.5;
 /// **A copy of `input` slid by `d` in `target`'s own coordinates** (the
 /// world's where `target` is `None`), each component a formula: placed
 /// against `target` at a literal slide along `z`
-/// ([`editor_core::place_against`]; [`editor_core::place_at`] in the
+/// ([`editor_core::test_support::placed_against`]; three slides with no mate in the
 /// world), the mate's slide then
 /// re-spelled as `d[2]` and its `x` and `y` values as `d[0]` and `d[1]`.
 /// Returns the placement, whose output is the copy.
@@ -162,7 +162,11 @@ fn translated(
             replaced += 1;
         }
     };
-    let mut mate = placed.mates.into_iter().next().expect("the copy is placed by a mate");
+    let mut mate = placed
+        .mates
+        .into_iter()
+        .next()
+        .expect("the copy is placed by a mate");
     walk(&mut mate.on, &mut respell);
     walk(&mut mate.to, &mut respell);
     assert_eq!(replaced, 1, "the mate slides the copy once: {mate:?}");

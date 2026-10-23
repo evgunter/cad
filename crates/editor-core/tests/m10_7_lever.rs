@@ -150,7 +150,12 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
     // `THICKNESS + SEPARATION` up its z, that frame's xy spun by `theta`
     // about its x: the tilt is a number the pose reads, so nothing
     // decides it before the measure does.
-    let up = editor_core::test_support::frame_on(&doc, &editor_core::Operand::from(plates[0]), &editor_core::Frame::translation([0.0, 0.0, THICKNESS + SEPARATION]), Tol::witness());
+    let up = editor_core::test_support::frame_on(
+        &doc,
+        &editor_core::Operand::from(plates[0]),
+        &editor_core::Frame::translation([0.0, 0.0, THICKNESS + SEPARATION]),
+        Tol::witness(),
+    );
     let tilted = editor_core::Operand::Pose(Box::new(PoseDef::Spin {
         pose: RoleRead::through(up.clone(), PoseRole::Xy),
         about: RoleRead::through(up, PoseRole::X),

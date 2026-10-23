@@ -58,7 +58,8 @@ fn unit_box() -> (ProfileDoc, RecipeNodeId) {
 /// named, so further seats share it.
 fn turned_frame(doc: ProfileDoc, cube: RecipeNodeId) -> (ProfileDoc, VarId) {
     let at = fixture::axes_at([1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
-    let frame = editor_core::test_support::frame_on(&doc, &Operand::from(cube), &at, Tol::witness());
+    let frame =
+        editor_core::test_support::frame_on(&doc, &Operand::from(cube), &at, Tol::witness());
     let (doc, split) = fixture::insert(
         doc,
         Node::Split {

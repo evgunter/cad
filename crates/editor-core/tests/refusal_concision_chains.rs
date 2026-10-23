@@ -5315,9 +5315,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
 }
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{
-        DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, VarKind,
-    };
+    use editor_core::{DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, VarKind};
     let n = |id| RecipeNodeId::new(0, tagged(id));
     let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
     // Constraint `id` of placement 7, the copy every row's bundle places.

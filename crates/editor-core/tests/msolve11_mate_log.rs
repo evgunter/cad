@@ -21,8 +21,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
     Formula, Mate, MateRef, NameRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, TargetAxis,
-    evaluate,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, scl};

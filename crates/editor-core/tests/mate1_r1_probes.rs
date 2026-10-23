@@ -521,7 +521,10 @@ fn r1_pattern_free_solves_are_bit_identical() {
                     ContactClass::Rest,
                 )],
                 values: vec![
-                    (editor_core::Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+                    (
+                        editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+                        ang(0.0),
+                    ),
                     (
                         editor_core::Coord::Slide(editor_core::TargetAxis::X),
                         len(0.25),

@@ -24,9 +24,9 @@ use crate::wire::doctored;
 
 use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
-    Formula, Frame, FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node, PartResolver, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace,
-    SitedRef, StableName, TargetAxis, ValuePayload, VarId, VarName, apply,
-    apply_replayed, evaluate, load, product, save,
+    Formula, Frame, FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node, PartResolver,
+    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, SitedRef, StableName,
+    TargetAxis, ValuePayload, VarId, VarName, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, offset_of, on_frame, run, solve, step};
@@ -335,7 +335,7 @@ pub(crate) fn set_pin(
 }
 
 /// **Whether the interval lane may escalate where a placement maps a
-/// copy pinned over its geometry** (`pin_at` at a pose off the
+/// copy pinned over its geometry** (the retired pin-at helper at a pose off the
 /// identity): at ε = 1e-12 the copy carries its geometry's enclosure, a
 /// few ε wide, into the map, and certifying the placed copy's moved edges
 /// escalates at some values of the pin's parameters
@@ -422,7 +422,7 @@ pub(crate) fn resolver(store: PartStore) -> Arc<dyn PartResolver> {
 /// evaluated bodies agree, and a value edit to `lift` moves both
 /// instances by the same amount.
 #[test]
-fn a_world_pin_at_a_composed_parametric_pose_places_its_instance_and_a_parameter_moves_it() {
+fn values_at_a_composed_parametric_pose_places_its_instance_and_a_parameter_moves_it() {
     let p = parts("p2-chain");
     let doc = ProfileDoc::empty(DocumentId::derive("p2-chain"), Tol::witness());
     let doc = declare_lift(doc, 2.0);
@@ -478,7 +478,11 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
     let typed: Vec<(Coord, Formula)> = TargetAxis::ALL
         .into_iter()
         .map(|axis| (Coord::Slide(axis), len(0.0)))
-        .chain(TargetAxis::ALL.into_iter().map(|axis| (Coord::Spin(axis), ang(0.0))))
+        .chain(
+            TargetAxis::ALL
+                .into_iter()
+                .map(|axis| (Coord::Spin(axis), ang(0.0))),
+        )
         .collect();
     let pin = editor_core::Placed::of(&doc, Vec::new(), typed).write(base);
     let doc = step(doc, pin.clone()).0;
@@ -636,9 +640,16 @@ fn removing_a_value_writes_its_freedom_zero() {
             "{what}: written as 0"
         );
         let poses = solve(&removed, &o, Tol::witness());
-        assert_eq!(poses.fault(placement), None, "{what}: the copy stays pinned");
         assert_eq!(
-            poses.placement(&removed, placement).expect("placed").translation,
+            poses.fault(placement),
+            None,
+            "{what}: the copy stays pinned"
+        );
+        assert_eq!(
+            poses
+                .placement(&removed, placement)
+                .expect("placed")
+                .translation,
             landed,
             "{what}: where the 0 puts it"
         );
@@ -958,7 +969,7 @@ fn a_cut_of_one_placed_pair_moves_its_bundles_as_they_are() {
 /// nothing moves in the world; an instance in a space of its own inlines
 /// into that space.
 #[test]
-fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose() {
+fn inline_lands_verbatim_at_the_identity_and_composes_the_values_at_any_other_pose() {
     let (p, doc, [base, top], _) = placed_pair("p2-inline");
     let o = p.opts();
     let out = editor_core::split(
@@ -1022,13 +1033,17 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose(
         "the new placement takes the instance's pin",
     );
     let corner = |d: &ProfileDoc| {
-        let body = product(d, &run(d, &with_resolver(store.clone())), Tol::witness())
-            .expect("gathers");
+        let body =
+            product(d, &run(d, &with_resolver(store.clone())), Tol::witness()).expect("gathers");
         points(&body).into_iter().fold([f64::INFINITY; 3], |m, p| {
             [m[0].min(p[0]), m[1].min(p[1]), m[2].min(p[2])]
         })
     };
-    close(corner(&moved.doc), corner(&shifted), "nothing moves in the world");
+    close(
+        corner(&moved.doc),
+        corner(&shifted),
+        "nothing moves in the world",
+    );
 
     // An instance moved into a space of its own inlines there: the new
     // placement takes the instance's target.
@@ -1168,10 +1183,7 @@ fn pair_beside_a_base(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 /// One instance's world mate beside its image's.
-type PinPair = (
-    Option<Vec<(Coord, Formula)>>,
-    Option<Vec<(Coord, Formula)>>,
-);
+type PinPair = (Option<Vec<(Coord, Formula)>>, Option<Vec<(Coord, Formula)>>);
 
 /// Every instance's world mate in `doc` beside the one `onto` holds at
 /// its image under `map`.

@@ -28,9 +28,9 @@ use crate::p2_gauges::{Parts, body_of, cut, min_corner, parts, placed_pair, poin
 
 use editor_core::pose::PoseRole;
 use editor_core::{
-    CapEnd, DocEdit, DocRef, DocumentId, EvalOptions, Frame, InlineOutcome,
-    Label, MateRef, Node, PartResolver, ProfileDoc, RecipeNodeId, SitedFace, SplitError,
-    SplitOutcome, StableName, VarId, product,
+    CapEnd, DocEdit, DocRef, DocumentId, EvalOptions, Frame, InlineOutcome, Label, MateRef, Node,
+    PartResolver, ProfileDoc, RecipeNodeId, SitedFace, SplitError, SplitOutcome, StableName, VarId,
+    product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -529,12 +529,22 @@ fn i1_inline_at_a_pose_places_the_parts_world_under_the_instances_bundle() {
         );
         let o = with_resolver(store);
         let ev = run(&out.doc, &o);
-        let landed = match &ev.value(out.placement).expect("the copies evaluate").payload {
-            editor_core::ValuePayload::Copies(c) => c.bodies.iter().map(|b| min_corner(b)).fold(
-                [f64::INFINITY; 3],
-                |m, c| [m[0].min(c[0]), m[1].min(c[1]), m[2].min(c[2])],
+        let landed = match &ev
+            .value(out.placement)
+            .expect("the copies evaluate")
+            .payload
+        {
+            editor_core::ValuePayload::Copies(c) => c
+                .bodies
+                .iter()
+                .map(|b| min_corner(b))
+                .fold([f64::INFINITY; 3], |m, c| {
+                    [m[0].min(c[0]), m[1].min(c[1]), m[2].min(c[2])]
+                }),
+            other => panic!(
+                "{what}: the new placement holds copies: {}",
+                other.kind_name()
             ),
-            other => panic!("{what}: the new placement holds copies: {}", other.kind_name()),
         };
         let lowest = corners.iter().fold([f64::INFINITY; 3], |m, (_, c)| {
             [m[0].min(c[0]), m[1].min(c[1]), m[2].min(c[2])]
@@ -692,7 +702,7 @@ fn i4_a_mate_placed_instance_inlines_under_its_own_bundle() {
     same_extent(
         extent(&through_top, &o),
         extent(&out.doc, &o),
-        "no material moves"
+        "no material moves",
     );
 }
 
@@ -720,7 +730,7 @@ fn i5_a_mate_placed_instance_over_any_part_inlines() {
     same_extent(
         extent(&repinned, &o),
         extent(&out.doc, &o),
-        "a part off the identity: no material moves"
+        "a part off the identity: no material moves",
     );
 
     let (two, first) = two_pinned(&p, "i5-mate-placed-part");
@@ -746,7 +756,7 @@ fn i5_a_mate_placed_instance_over_any_part_inlines() {
     same_extent(
         extent(&other, &o),
         extent(&out.doc, &o),
-        "a part of two placements: no material moves"
+        "a part of two placements: no material moves",
     );
 }
 

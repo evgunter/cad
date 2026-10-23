@@ -155,7 +155,10 @@ fn deepest_pose_document(levels: usize) -> Recorder {
             by: len(0.0),
         }));
     }
-    let space = r.doc.operand_space(&extrude.into()).expect("the extrude's space");
+    let space = r
+        .doc
+        .operand_space(&extrude.into())
+        .expect("the extrude's space");
     let placed = editor_core::Placed::of(
         &r.doc,
         vec![Mate {

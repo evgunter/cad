@@ -94,12 +94,12 @@ use editor_core::Node;
 ///
 /// `die_tool`'s two rows moved again when its master ball came to
 /// stand on the cube's corner frame by an axis mate whose slide and
-/// spin are the constant `0`, where `place_against` had turned it by
+/// spin are the constant `0`, where the retired place-against helper had turned it by
 /// `atan2`'s rounded quarter turns. Its explicit rule's frames are now
 /// built from the fraction of a turn each is
 /// (`Frame::rotate_by_turns_then_translate`). The rows are the ball's
 /// copy and the product. The product's ordinal fell from 101 to 59:
-/// the master's placement mints 42 fewer ids than `place_against`'s
+/// the master's placement mints 42 fewer ids than the retired place-against helper's
 /// did.
 ///
 /// `tube_arc`'s and `hollow_tube_elbow`'s rows moved when each tube,
@@ -117,7 +117,7 @@ use editor_core::Node;
 ///
 /// Re-pinned, `die` alone, when its pips came to stand on frames stated
 /// from the cube's corner by whole quarter turns and dyadic slides (a
-/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
 /// written `atan2`'s rounded turns: the die's world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
 /// placements, their ids and the names under them are new.

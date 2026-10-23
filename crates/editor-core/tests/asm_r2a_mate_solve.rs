@@ -1211,7 +1211,10 @@ fn a_lone_point_mates_chain_turns_its_copy_about_the_mated_point() {
     );
     let (tz, tx, ty) = (0.3, 0.2, 0.1);
     let chain = |spins: &[(TargetAxis, f64)]| -> Vec<(Coord, Formula)> {
-        spins.iter().map(|&(a, t)| (Coord::Spin(a), ang(t))).collect()
+        spins
+            .iter()
+            .map(|&(a, t)| (Coord::Spin(a), ang(t)))
+            .collect()
     };
     let placed = fixture::with_values(
         doc.clone(),
@@ -1231,7 +1234,8 @@ fn a_lone_point_mates_chain_turns_its_copy_about_the_mated_point() {
     let frame = solve(&placed, &o, Tol::witness())
         .placement(&placed, ids[1])
         .expect("the chain pins the copy");
-    let linear: [[f64; 3]; 3] = std::array::from_fn(|i| std::array::from_fn(|j| frame.columns[j][i]));
+    let linear: [[f64; 3]; 3] =
+        std::array::from_fn(|i| std::array::from_fn(|j| frame.columns[j][i]));
     let written = times(
         turn([0.0, 1.0, 0.0], ty),
         times(turn([1.0, 0.0, 0.0], tx), turn([0.0, 0.0, 1.0], tz)),
@@ -1247,16 +1251,23 @@ fn a_lone_point_mates_chain_turns_its_copy_about_the_mated_point() {
             .map(|(x, y)| (x - y).abs())
             .fold(0.0_f64, f64::max)
     };
-    assert!(off(linear, written) < 1e-12, "turned in the order written: {frame:?}");
+    assert!(
+        off(linear, written) < 1e-12,
+        "turned in the order written: {frame:?}"
+    );
     assert!(off(linear, reversed) > 1e-3, "and not in the reverse");
-    let landed: [f64; 3] =
-        std::array::from_fn(|i| (0..3).map(|k| linear[i][k] * on[k]).sum::<f64>() + frame.translation[i]);
+    let landed: [f64; 3] = std::array::from_fn(|i| {
+        (0..3).map(|k| linear[i][k] * on[k]).sum::<f64>() + frame.translation[i]
+    });
     let miss = landed
         .iter()
         .zip(&to)
         .map(|(a, b)| (a - b).abs())
         .fold(0.0_f64, f64::max);
-    assert!(miss < 1e-12, "the mated corner lands on its target, {miss:e} off");
+    assert!(
+        miss < 1e-12,
+        "the mated corner lands on its target, {miss:e} off"
+    );
 
     let refused = |values: Vec<(Coord, Formula)>| -> Box<MateFault> {
         let placed = editor_core::Placed {

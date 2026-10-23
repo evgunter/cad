@@ -110,7 +110,12 @@ fn wired() -> (
             RoleSeg::LateralEdge(fixture::vpiece(&doc, body, 0, 0)),
         )],
     ));
-    let sketch = editor_core::test_support::frame_on(&doc, &body.into(), &editor_core::Frame::IDENTITY, Tol::witness());
+    let sketch = editor_core::test_support::frame_on(
+        &doc,
+        &body.into(),
+        &editor_core::Frame::IDENTITY,
+        Tol::witness(),
+    );
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {

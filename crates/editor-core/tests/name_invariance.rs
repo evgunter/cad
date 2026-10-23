@@ -50,7 +50,7 @@ use std::sync::Mutex;
 
 use crate::blocks::{Spans, block, block_of, block_on, block_on_of, failure, run};
 use crate::fixture::{
-    against, ang, desc, ends, face_edges, face_vertices, axes_at, in_world_by, insert, len, point,
+    against, ang, axes_at, desc, ends, face_edges, face_vertices, in_world_by, insert, len, point,
     turned_to,
 };
 use crate::union_member_orders_decide_alike as decide_alike;
@@ -1191,7 +1191,8 @@ impl Tool {
             }
             Self::FrameXy(origin, u, v) => (own(origin), own(u), own(v)),
         };
-        let frame = editor_core::test_support::frame_on(doc, &body, &axes_at(origin, u, v), Tol::witness());
+        let frame =
+            editor_core::test_support::frame_on(doc, &body, &axes_at(origin, u, v), Tol::witness());
         RoleRead::through(frame, PoseRole::Xy)
     }
 }

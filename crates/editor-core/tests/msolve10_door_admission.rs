@@ -180,10 +180,7 @@ fn whole_door(
 fn value_at(at: u32, coord: Coord, by: Formula) -> editor_core::Constraint<Formula> {
     editor_core::Constraint::of_value(
         editor_core::ConstraintId::placeholder(at),
-        editor_core::Value {
-            coord,
-            by,
-        },
+        editor_core::Value { coord, by },
     )
 }
 
@@ -484,10 +481,7 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
     }
     let mut swapped = 0_usize;
     let doctored = wire::doctored(&text, |w| swap(w, &mut swapped));
-    assert_eq!(
-        swapped, 1,
-        "the snapshot's one mate was swapped"
-    );
+    assert_eq!(swapped, 1, "the snapshot's one mate was swapped");
     match load(&doctored, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::MateRefused {
             node,

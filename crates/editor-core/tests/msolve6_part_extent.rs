@@ -19,9 +19,9 @@ use std::sync::Arc;
 
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate, MateFault,
-    MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal, RecipeNodeId,
-    ResolveFault, content_pin, product,
+    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
+    MateFault, MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal,
+    RecipeNodeId, ResolveFault, content_pin, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, on_frame, revolve_about, run, solve};
@@ -172,7 +172,6 @@ fn seat(
         ),
     )
 }
-
 
 // ---- A4: refusals typed ----
 
@@ -969,10 +968,7 @@ fn a6_a_split_stands_its_instance_by_the_identity_bundle_with_or_without_a_resol
     assert_eq!(placements.len(), 1, "one instance is left behind");
     let bundle = fixture::bundle(remainder, placements[0]);
     assert!(
-        bundle.len() == 6
-            && bundle
-                .iter()
-                .all(|c| c.value().is_some()),
+        bundle.len() == 6 && bundle.iter().all(|c| c.value().is_some()),
         "the instance stands where it stands by the identity bundle: {bundle:?}"
     );
     let unresolved = split(None).unwrap_or_else(|e| panic!("a cut splits with no resolver: {e}"));

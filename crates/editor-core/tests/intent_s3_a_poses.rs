@@ -111,7 +111,7 @@ fn split_by(
 }
 
 /// **The frame at `at` in `body`'s own coordinates**, read off its
-/// geometry ([`editor_core::frame_at`]): a pose a definition reads
+/// geometry ([`editor_core::test_support::frame_on`]): a pose a definition reads
 /// through a role.
 fn frame_on(doc: &ProfileDoc, body: RecipeNodeId, at: &editor_core::Frame) -> Operand {
     editor_core::test_support::frame_on(doc, &Operand::from(body), at, Tol::witness())

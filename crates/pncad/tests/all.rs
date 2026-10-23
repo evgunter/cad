@@ -2644,12 +2644,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
             distance: len(1.0),
         },
     );
-    let (doc, second_box) = placed_against(
-        doc,
-        first_box,
-        second_box,
-        [0.0, 0.0, sliver],
-    );
+    let (doc, second_box) = placed_against(doc, first_box, second_box, [0.0, 0.0, sliver]);
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
@@ -2785,12 +2780,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         },
     );
     // The tab is placed against the plate, inside its slab.
-    let (doc, tab) = placed_against(
-        doc,
-        plate,
-        tab,
-        [0.0, 0.0, 0.125],
-    );
+    let (doc, tab) = placed_against(doc, plate, tab, [0.0, 0.0, 0.125]);
     let (doc, solid) = insert(
         doc,
         Node::Union {
@@ -2900,7 +2890,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 ///
 /// Re-blessed for D′2 (a mate reads only geometry, the helpers retired
 /// into one constructor): the tab joins the plate's space by its three
-/// slides on that space's axes, no mate, where `place_against` wrote a
+/// slides on that space's axes, no mate, where the retired place-against helper wrote a
 /// plane mate on the two start caps and three values naming it; a value
 /// names no mate and a spin names its axis (`"spin": "z"`) on the wire.
 /// The tab stands where it stood — `(0, 0, 0.125)` up the plate, no

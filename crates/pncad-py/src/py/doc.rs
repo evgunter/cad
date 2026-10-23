@@ -769,10 +769,7 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
          address — the seat the read sits at and which index — is not carried by the word: \
          the member read is re-authored"
                 .to_owned()
-        } else if matches!(
-            word,
-            "value_slide" | "value_spin"
-        ) {
+        } else if matches!(word, "value_slide" | "value_spin") {
             format!(
                 "`{word}` addresses one number of a placement's constraint, and the rest of \
              that address — the constraint — is not carried by the word, so no slot word \

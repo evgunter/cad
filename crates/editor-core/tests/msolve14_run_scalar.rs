@@ -40,7 +40,8 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
     EvalOptions, Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand,
-    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices, evaluate, vertex_position,
+    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
+    VarName, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};

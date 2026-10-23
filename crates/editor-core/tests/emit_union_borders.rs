@@ -26,8 +26,8 @@ use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_flush_names::parent_of;
-use crate::fixture::{face_vertices, insert, len, on_frame, out, step, table};
 use crate::fixture::{axes_at, slid, value_slot};
+use crate::fixture::{face_vertices, insert, len, on_frame, out, step, table};
 
 use editor_core::{
     Coord, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,

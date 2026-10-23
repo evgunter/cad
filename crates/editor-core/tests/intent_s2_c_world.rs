@@ -61,7 +61,7 @@ const FILES: [&str; 5] = [
 /// split's plane read off its faces. The two saved files follow their
 /// documents. `die_tool` moved once more, its count kept, when its
 /// master ball came to stand on the cube's corner frame by an axis mate
-/// (where `place_against` had turned it by `atan2`), with its rule's
+/// (where the retired place-against helper had turned it by `atan2`), with its rule's
 /// frames built from the fraction of a turn each is; its saved file
 /// follows it. `die` moved when its pips came to stand on frames stated
 /// from the cube's corner by exact turns: its world vertices are the
@@ -202,7 +202,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
 
 /// **One copy of `body` in the world at `pose`**: a placement of it,
 /// pinned there over its own geometry.
-fn place_at(
+fn place_by_values(
     doc: ProfileDoc,
     body: RecipeNodeId,
     pose: &editor_core::Frame,
@@ -583,13 +583,13 @@ fn a_construction_reads_a_world_copy_at_the_door_and_at_load() {
     let doc = ProfileDoc::empty_derived("intent-c-copy-read", Tol::witness());
     let (doc, a) = block(doc, 0.0);
     let (doc, b) = block(doc, 0.75);
-    let (doc, placement) = place_at(doc, a, &raised());
+    let (doc, placement) = place_by_values(doc, a, &raised());
     let copy = doc
         .output(placement, 0)
         .expect("the placement defines its copy");
     // The block where its own coordinates are, and `b` beside both.
-    let (doc, unmoved) = place_at(doc, a, &editor_core::Frame::IDENTITY);
-    let (doc, b) = place_at(doc, b, &editor_core::Frame::IDENTITY);
+    let (doc, unmoved) = place_by_values(doc, a, &editor_core::Frame::IDENTITY);
+    let (doc, b) = place_by_values(doc, b, &editor_core::Frame::IDENTITY);
     let boolean = |a: editor_core::Operand| Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
     };
@@ -670,10 +670,10 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
         body_digest(&product(doc, &ev(doc), Tol::witness()).expect("the world gathers"))
     };
     let (unposed, _) = place(doc.clone(), union);
-    let (posed, _) = place_at(doc.clone(), union, &pose);
+    let (posed, _) = place_by_values(doc.clone(), union, &pose);
     let (moved, by) = xform(doc, union, t, axis, angle);
     // The pin writes the pose as spins and slides read back from the
-    // frame's numbers (`pin_at`), so the posed copy stands where the
+    // frame's numbers (the retired pin-at helper), so the posed copy stands where the
     // union's copy placed against itself at that pose does, to the
     // rounding of that one re-composition: every vertex within 4 ulps
     // of the moved copy's.
@@ -750,7 +750,7 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         let doc = ProfileDoc::empty(DocumentId::derive("intent-c-posed-part"), Tol::witness());
         let (doc, body) = block(doc, 0.0);
         let read = doc.output(body, 0).expect("the block defines its body");
-        let (doc, placement) = place_at(doc, body, &raised());
+        let (doc, placement) = place_by_values(doc, body, &raised());
         (doc, placement, read)
     };
     let mut store = PartStore::default();
@@ -862,7 +862,7 @@ fn cut_with_a_reader(
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let before = doc.ids().len();
     let (doc, b) = block(doc, 0.0);
-    let (doc, p) = place_at(doc, b, pose);
+    let (doc, p) = place_by_values(doc, b, pose);
     let mut cut: BTreeSet<RecipeNodeId> = doc.ids()[before..].iter().copied().collect();
     let doc = if second {
         let (doc, again) = place(doc, b);
@@ -1040,7 +1040,7 @@ fn a_measure_observes_a_world_copy() {
     let (doc, a) = block(doc, 0.0);
     let (doc, b) = block(doc, 0.0);
     let (doc, p) = place(doc, a);
-    let (doc, q) = place_at(doc, b, &raised());
+    let (doc, q) = place_by_values(doc, b, &raised());
     let (doc, measure) = crate::fixture::measure_node(
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },

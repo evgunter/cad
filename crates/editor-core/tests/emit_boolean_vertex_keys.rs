@@ -34,7 +34,7 @@ use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::emit_shared_rim_several::{construction, own_name};
 use crate::fixture::{
-    against, ends, face_vertices, axes_at, insert, len, on_frame, out, point, slid, table,
+    against, axes_at, ends, face_vertices, insert, len, on_frame, out, point, slid, table,
     vertex_of,
 };
 

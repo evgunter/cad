@@ -21,13 +21,12 @@ use crate::p2_gauges::{Parts, block, body_of, cut, min_corner, parts};
 use editor_core::pose::PoseRole;
 use editor_core::{
     ContactClass, Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    FreeValue, FreeVar, Mate, MateRef, ProfileDoc, RecipeNodeId, SlotId, SplitError, TargetAxis, Value, VarName, apply,
+    FreeValue, FreeVar, Mate, MateRef, ProfileDoc, RecipeNodeId, SlotId, SplitError, TargetAxis,
+    Value, VarName, apply,
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{
-    ang, flip, gate, head, insert, insert_pinned, len, plane, rest, run, solve, step,
-};
+use fixture::{ang, flip, gate, head, insert, insert_pinned, len, plane, rest, run, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----

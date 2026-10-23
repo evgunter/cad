@@ -106,7 +106,7 @@ fn block_on(
 
 /// **`p`'s copy slid `by` further**, by value edits alone: each of its
 /// placement's values, and the slide along its target face's normal,
-/// set to the numbers [`editor_core::place_against`] gives the copy
+/// set to the numbers [`editor_core::test_support::placed_against`] gives the copy
 /// there ([`moved_to`]).
 pub(crate) fn moved(doc: ProfileDoc, p: &Placed, by: [f64; 3]) -> ProfileDoc {
     let at = [p.at[0] + by[0], p.at[1] + by[1], p.at[2] + by[2]];

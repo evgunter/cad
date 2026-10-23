@@ -47,8 +47,8 @@ use editor_core::CapEnd;
 use editor_core::{
     ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula,
     Frame, FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node,
-    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName,
-    apply, load, save,
+    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply,
+    load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};

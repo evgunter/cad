@@ -13,8 +13,8 @@ use std::sync::Arc;
 use crate::fixture::split_world as split;
 use editor_core::{
     CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
-    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError,
-    content_pin, evaluate, inline, load, save,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError, content_pin, evaluate,
+    inline, load, save,
 };
 use fixture::resolver::PartStore;
 use fixture::{die, insert, len, square, step};
@@ -681,10 +681,9 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
         "the reader is the part's, spoken from the part"
     );
     assert!(
-        refused.to_string().contains(&format!(
-            "Extrude \"bracket\" ({})",
-            tag(body.0.digest())
-        )),
+        refused
+            .to_string()
+            .contains(&format!("Extrude \"bracket\" ({})", tag(body.0.digest()))),
         "{refused}"
     );
 }

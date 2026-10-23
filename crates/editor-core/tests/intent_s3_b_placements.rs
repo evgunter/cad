@@ -19,7 +19,8 @@ use editor_core::pose::PoseDef;
 use editor_core::{
     BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions, Formula,
     Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
-    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId, };
+    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
+};
 use geom_core::Tol;
 use geom_core::UnitVec3;
 
@@ -100,7 +101,11 @@ fn stack(
 
 /// **One copy of `body` in the world at `pose`**: a placement of it,
 /// pinned there over its own geometry.
-fn place_at(doc: ProfileDoc, body: RecipeNodeId, pose: &Frame) -> (ProfileDoc, RecipeNodeId) {
+fn place_by_values(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    pose: &Frame,
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, placement) = insert(doc, crate::fixture::stood(vec![body.into()]));
     (
         fixture::pin(doc, placement, pose, &EvalOptions::default()),
@@ -123,7 +128,10 @@ fn zeroed(mate: editor_core::Mate<Formula>) -> Vec<editor_core::Constraint<Formu
                 editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                 len(0.0),
             ),
-            (editor_core::Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+            (
+                editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+                fixture::ang(0.0),
+            ),
         ],
     }
     .bundle()
@@ -156,7 +164,7 @@ fn product_solids(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) -> usize 
 fn two_placements_of_one_body_are_two_copies() {
     let (doc, body) = block("s3b-two-copies");
     let (doc, first) = fixture::place(doc, body);
-    let (doc, second) = place_at(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
+    let (doc, second) = place_by_values(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
     assert_ne!(
         doc.output(first, 0),
         doc.output(second, 0),
@@ -1008,7 +1016,7 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
 #[test]
 fn a_carried_pose_moves_with_its_copy() {
     let (doc, body) = block("s3b-carried");
-    let (doc, placement) = place_at(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
+    let (doc, placement) = place_by_values(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
     let top = fixture::fname(body, RoleSeg::Cap(CapEnd::End));
     let plane = |carried: bool| {
         let face = Operand::Pose(Box::new(PoseDef::Plane {

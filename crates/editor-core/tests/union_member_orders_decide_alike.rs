@@ -49,7 +49,7 @@ use std::collections::BTreeMap;
 use crate::blocks::{Spans, block, block_of, block_on, block_on_of, failure, run};
 use crate::corpus::body_of;
 use crate::emit_boolean_vertex_keys::named_geometry;
-use crate::fixture::{against, desc, axes_at, insert, len};
+use crate::fixture::{against, axes_at, desc, insert, len};
 use editor_core::{Evaluation, Node, NodeErrorKind, ProfileDoc, RecipeNodeId};
 use geom_core::Tol;
 

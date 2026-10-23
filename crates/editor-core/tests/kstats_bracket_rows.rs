@@ -445,12 +445,12 @@ fn a_memo_hit_drops_its_frame<T: EvalScalar>(log: usize) {
 }
 
 #[test]
-fn a_memo_hit_drops_its_frame_at_f64() {
+fn a_memo_hit_drops_its_frame_on_f64() {
     a_memo_hit_drops_its_frame::<f64>(PROFILE_LOG);
 }
 
 #[test]
-fn a_memo_hit_drops_its_frame_at_interval() {
+fn a_memo_hit_drops_its_frame_on_interval() {
     a_memo_hit_drops_its_frame::<geom_core::Interval>(PROFILE_LOG);
 }
 

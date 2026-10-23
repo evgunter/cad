@@ -620,7 +620,10 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
         .expect("the part extrudes its block");
     let cap = fixture::plane(editor_core::Operand::select(
         editor_core::Operand::Node(block),
-        vec![fixture::fname(block, RoleSeg::Cap(editor_core::CapEnd::Start))],
+        vec![fixture::fname(
+            block,
+            RoleSeg::Cap(editor_core::CapEnd::Start),
+        )],
     ));
     let pin = editor_core::Mate {
         on: cap.clone(),

@@ -430,7 +430,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
 }
 
 /// The frozen bytes, built at the golden's own pinned ε. Its placements
-/// are pinned by the gesture (`pin_at`), which reads each copy's
+/// are pinned by the gesture (the retired pin-at helper), which reads each copy's
 /// geometry off an evaluation at the process ε, so a matrix row at
 /// another ε builds another document — one the load door refuses
 /// (`ToleranceConflict`, [`golden_bytes_load`]) — and skips.
