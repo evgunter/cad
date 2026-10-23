@@ -221,6 +221,30 @@ pub(crate) fn seat_edits(
     (doc, mate.expect("the seat writes its rest"), edits)
 }
 
+/// [`seat_on`] with the spin it means too: the rest, the slides `at`
+/// and the spin `turn` (radians) about the seat's normal, each on the
+/// target space's axes (D′2: a value charts on the space, not on the
+/// body it reads).
+pub(crate) fn seat_turned(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    mover: SitedFace,
+    onto: SitedFace,
+    at: [f64; 2],
+    turn: f64,
+) -> (ProfileDoc, MateRef) {
+    let placed = editor_core::Placed {
+        mates: vec![fixture::rest(mover, onto, ContactClass::Rest)],
+        values: vec![
+            (Coord::Slide(TargetAxis::X), len(at[0])),
+            (Coord::Slide(TargetAxis::Y), len(at[1])),
+            (Coord::Spin(TargetAxis::Z), ang(turn)),
+        ],
+    };
+    let (doc, ids) = fixture::write_bundle(doc, placement, placed.bundle());
+    (doc, ids[0])
+}
+
 pub(crate) fn lift() -> VarName {
     VarName::from_static("lift")
 }
@@ -552,43 +576,72 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
 
 // ---- Row 3: every bundle pins its copy ----
 
-/// **Removing a world mate or a value of a placing seat refuses**
-/// (D10 `[placement.placement]`): every bundle pins its copy, so taking
-/// out one constraint leaves a freedom unwritten, refused `Unpinned`
-/// at the door with the freedoms left, and the document is unchanged.
+/// **Removing a value of a pin or of a placing seat writes its freedom
+/// back as `0`** (D10 `[placement.placement]`: every bundle pins its
+/// copy; D′2: the door rewrites the bundle whole). Taking out the base's
+/// slide along `y` puts it back on the world's `x` axis, and taking out
+/// the seat's spin, already `0`, moves nothing: each bundle still pins
+/// its copy, the removed freedom written as the constant `0`.
+///
+/// *Breaks if* the removal leaves a freedom unwritten, or writes it as
+/// anything but `0`.
 #[test]
-fn removing_what_pins_a_copy_refuses_unpinned() {
+fn removing_a_value_writes_its_freedom_zero() {
     let p = parts("p2-delete");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("p2-delete"), Tol::witness());
     let (doc, base) = pinned(doc, p.base, literal([0.0, 5.0, 0.0]), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
-    let pin = fixture::bundle(&doc, base)[0].id;
-    let spin = fixture::bundle(&doc, top)
-        .iter()
-        .find(|c| c.value().is_some_and(|v| v.coord == Coord::Spin(editor_core::TargetAxis::Z)))
-        .expect("the seat's spin")
-        .id;
-    for (what, placement, constraint, free) in [
-        ("the world mate", base, pin, 6),
-        ("the seat's spin", top, spin, 1),
+    let value = |placement, coord| {
+        fixture::bundle(&doc, placement)
+            .iter()
+            .find(|c| c.value().is_some_and(|v| v.coord == coord))
+            .expect("the value")
+            .id
+    };
+    for (what, placement, coord, landed) in [
+        (
+            "the pin's slide along y",
+            base,
+            Coord::Slide(TargetAxis::Y),
+            [0.0, 0.0, 0.0],
+        ),
+        (
+            "the seat's spin",
+            top,
+            Coord::Spin(TargetAxis::Z),
+            [1.0, 1.0, BASE_HEIGHT],
+        ),
     ] {
-        match apply(
+        let removed = apply(
             &doc,
             &DocEdit::RemoveConstraint {
                 placement,
-                constraint,
+                constraint: value(placement, coord),
             },
             Tol::witness(),
-        ) {
-            Err(editor_core::EditError::MateRefused { fault, .. }) => assert!(
-                matches!(*fault, MateFault::Unpinned { placement: at, free: left }
-                    if at == placement && left == free),
-                "{what}: {fault:?}"
-            ),
-            other => panic!("{what}: removing it refuses, not {other:?}"),
-        }
+        )
+        .unwrap_or_else(|e| panic!("{what}: removing it is admitted: {e}"))
+        .doc;
+        let written = fixture::bundle(&removed, placement)
+            .iter()
+            .find_map(|c| c.value().filter(|v| v.coord == coord).map(|v| v.by))
+            .expect("the freedom is written again");
+        assert!(
+            removed
+                .var(written)
+                .and_then(|v| v.def().defined())
+                .is_some_and(|e| e.is_zero()),
+            "{what}: written as 0"
+        );
+        let poses = solve(&removed, &o, Tol::witness());
+        assert_eq!(poses.fault(placement), None, "{what}: the copy stays pinned");
+        assert_eq!(
+            poses.placement(&removed, placement).expect("placed").translation,
+            landed,
+            "{what}: where the 0 puts it"
+        );
     }
 }
 
@@ -746,7 +799,18 @@ fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
         .expect("a literal axis");
     let (doc, base) = pinned_lifting(doc, p.base, turned, &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, mate) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
+    // The control's seat, `(1, 1)` on the base and square to it, on the
+    // world's axes: the base turned a quarter radian, so the slides are
+    // `(1, 1)` turned with it and the spin is the base's.
+    let (s, c) = 0.25_f64.sin_cos();
+    let (doc, mate) = seat_turned(
+        doc,
+        top,
+        head(p.top_cap(top)),
+        head(p.base_cap(base)),
+        [c - s, s + c],
+        0.25,
+    );
     let (doc, lifted) = stacked(doc, p.top, p.top_body, head(p.top_upper_cap(top)));
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate.placement), None);
@@ -886,13 +950,13 @@ fn a_cut_of_one_placed_pair_moves_its_bundles_as_they_are() {
     assert_eq!(offset_of(&out.part, out.node_map[&top]), None);
 }
 
-/// **Inline at the identity, and at any other pose** (A4): at the
-/// identity the content lands verbatim, so the round trip of a cut
-/// returns the pair with the base's pin; at another pose the part's
-/// world mates move by the instance's solved motion and nothing in the
-/// part moves relative to it. An instance with an empty bundle, over a
-/// part that is not one instance at the identity, has no placement to
-/// hand its bundle to and refuses typed.
+/// **Inline at the identity, and at any other pose** (A4, one rule):
+/// the part's placements land verbatim in a new space, and a placement
+/// of their copies takes the instance's bundle and target. At the
+/// identity the round trip of a cut returns the pair with the base's
+/// pin; at another pose the new placement takes the instance's pin and
+/// nothing moves in the world; an instance in a space of its own inlines
+/// into that space.
 #[test]
 fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose() {
     let (p, doc, [base, top], _) = placed_pair("p2-inline");
@@ -918,6 +982,7 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose(
         fixture::same_offset(&back.doc, through(&back, base), &doc, base),
         "the base's pin comes back as it was"
     );
+    let back_doc = fixture::round_trip::flat(&back);
     let volume = |d: &ProfileDoc| {
         topo::test_support::unmigrated_measure(
             &product(d, &run(d, &o), Tol::witness()).expect("gathers"),
@@ -926,7 +991,7 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose(
         .expect("mass properties")
         .volume
     };
-    assert_eq!(volume(&back.doc).to_bits(), volume(&doc).to_bits());
+    assert_eq!(volume(&back_doc).to_bits(), volume(&doc).to_bits());
 
     // Another pose: the instance's pin composes into the base's.
     let store_opts = with_resolver(store.clone());
@@ -938,39 +1003,51 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose(
     );
     let moved = editor_core::inline(&shifted, out.instance, &r, Tol::witness())
         .expect("a pinned instance inlines at any pose");
-    let poses = solve(&moved.doc, &o, Tol::witness());
-    close(
-        poses
-            .placement(&moved.doc, through(&moved, base))
-            .expect("placed")
-            .translation,
-        [4.0, 5.0, 0.0],
-        "the base sits at the instance's pose composed with its own",
+    assert!(
+        fixture::same_offset(&moved.doc, through(&moved, base), &doc, base),
+        "the base's pin lands verbatim in the new space"
     );
+    let poses = solve(&moved.doc, &o, Tol::witness());
     assert_eq!(
         poses.space(through(&moved, top)),
-        Some(VarId::WORLD),
-        "and the top still seats on it"
+        Some(moved.space),
+        "and the top still seats on it there"
     );
+    close(
+        poses
+            .placement(&moved.doc, moved.placement)
+            .expect("placed")
+            .translation,
+        [0.0, 5.0, 0.0],
+        "the new placement takes the instance's pin",
+    );
+    let corner = |d: &ProfileDoc| {
+        let body = product(d, &run(d, &with_resolver(store.clone())), Tol::witness())
+            .expect("gathers");
+        points(&body).into_iter().fold([f64::INFINITY; 3], |m, p| {
+            [m[0].min(p[0]), m[1].min(p[1]), m[2].min(p[2])]
+        })
+    };
+    close(corner(&moved.doc), corner(&shifted), "nothing moves in the world");
 
-    // The refusal: an instance over a pair in a space of its own, whose
-    // bundle moves its part's world by no motion of the world.
+    // An instance moved into a space of its own inlines there: the new
+    // placement takes the instance's target.
     let loose = set_pin(out.remainder.clone(), out.instance, None, &store_opts);
-    let err = editor_core::inline(&loose, out.instance, &r, Tol::witness())
-        .expect_err("an instance in a space of its own over a pair");
-    assert!(
-        matches!(&err, editor_core::InlineError::UnplaceablePart { instance, .. } if instance.id() == out.instance),
-        "{err:?}"
+    let inlined = editor_core::inline(&loose, out.instance, &r, Tol::witness())
+        .expect("an instance in a space of its own inlines");
+    assert_eq!(
+        inlined.doc.node_space(inlined.placement),
+        loose.node_space(out.instance),
+        "into the instance's own space"
     );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
 /// **A face a seat reads crosses the seam with its head**: a kept top
 /// seated on a cut base, its target reading the base's top face, crosses
 /// split — the head re-anchors through the instance qualifier, and the
 /// face it names in the new part is the same face — and inline carries
-/// it back, the head unwrapped onto the inner instance. The seat solves
-/// on each document with no fault.
+/// it back onto the new placement's copy, which flatten unwraps onto the
+/// inner instance. The seat solves on each document with no fault.
 #[test]
 fn a_face_target_crosses_split_and_inline_with_its_head() {
     let p = parts("p2-face-crossing");
@@ -1016,16 +1093,31 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     )
     .expect("and inlines back with its head");
     let host = fixture::constraint(&back.doc, mate);
-    let target = host.to;
-    let [side] = fixture::face_reads(&back.doc, target)[..] else {
+    let [side] = fixture::face_reads(&back.doc, host.to)[..] else {
         panic!("the host target reads one face: {host:?}");
     };
     assert_eq!(
         fixture::side_head(&back.doc, side).name.node,
-        back.node_map[&out.node_map[&base]],
-        "the head unwraps onto the inner instance"
+        back.placement,
+        "the head re-anchors on the new placement's copy"
     );
     let ev = run(&back.doc, &o);
+    assert!(
+        ev.node_error(top).is_none(),
+        "the host constraint evaluates clean: {:?}",
+        ev.node_error(top)
+    );
+    let flat = fixture::round_trip::flat(&back);
+    let host = fixture::constraint(&flat, mate);
+    let [side] = fixture::face_reads(&flat, host.to)[..] else {
+        panic!("the flattened target reads one face: {host:?}");
+    };
+    assert_eq!(
+        fixture::side_head(&flat, side).name.node,
+        back.node_map[&out.node_map[&base]],
+        "flattened, the head unwraps onto the inner instance"
+    );
+    let ev = run(&flat, &o);
     assert!(
         ev.node_error(top).is_none(),
         "the host constraint evaluates clean: {:?}",

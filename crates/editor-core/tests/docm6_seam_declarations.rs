@@ -113,8 +113,8 @@ fn seat(on: StableName, to: StableName, class: ContactClass, standoff: f64) -> M
 
 /// **`mate` added with a value on each freedom it leaves**: a slide of
 /// `shift` along its plane's `x`, none along its `y`, and no spin — so
-/// its copy is pinned against the target, its own coordinates agreeing
-/// with the target's but for the shift.
+/// its copy is pinned against the target, slid `shift` along the
+/// target space's `x`.
 fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, MateRef) {
     let (doc, mate) = crate::fixture::constrain_with(
         doc,
@@ -428,6 +428,8 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let (mid, m_c0) = insert(mid, crate::fixture::mated_instance(cube));
     let mid = place(mid, &store, m_c0, [30.0, 0.0, 0.0]);
     let (mid, m_c1) = insert(mid, crate::fixture::mated_instance(cube));
+    // The seat's slide is measured on the mid's own axes, so it is the
+    // first cube's place along x (D′2: a value charts on the space).
     let (mid, mid_mate) = seated(
         mid,
         seat(
@@ -436,7 +438,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
             ContactClass::Rest,
             0.0,
         ),
-        0.0,
+        30.0,
     );
     let mid_id = mid.id();
     let mid_ref = store.insert(mid, Tol::witness());
@@ -468,7 +470,9 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
         "no row is `of` the document that merely passed it"
     );
     assert_rows_match_names(&gathered);
-    assert!(assemble(&outer, &ev, Tol::witness()).is_ok());
+    if let Err(e) = assemble(&outer, &ev, Tol::witness()) {
+        panic!("the outer assembles: {e}");
+    }
 
     // Level four: the outer instantiated once more. Every `via` gains
     // a second entry, nearest first, and `of` does not move.

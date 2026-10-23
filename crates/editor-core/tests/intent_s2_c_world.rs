@@ -785,8 +785,8 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
     };
     assert_eq!(
         inlined.doc.operation_of(members[0].read),
-        Some(inlined.node_map[&placement]),
-        "the boolean reads the spliced placement's copy"
+        Some(inlined.placement),
+        "the boolean reads the copy of the spliced placement's copy in the host's world"
     );
     let body = |run: &editor_core::Evaluation<f64>| {
         let Some(NodeResult::Ok(value)) = run.result(fused) else {
@@ -933,9 +933,9 @@ fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
 /// copying the instance's one copy by its key, over a part that places
 /// its block once: the inlined host still places two copies, and its
 /// product is the one it had. A second placement of the instance's
-/// copies whole is a copy of the part's whole world, and over a part
-/// that places two bodies no one body stands where it did, so it
-/// refuses as a reader the part's world does not carry.
+/// copies whole, over a part that places two bodies, reads the new
+/// placement's copies whole (A4, one rule), and the product is the one
+/// it had.
 ///
 /// Red if inline splices the part's world once and drops the second
 /// copy (one copy, the product moves), or drops the second placement
@@ -979,7 +979,12 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
         Ok(inlined) => inlined,
         Err(other) => panic!("inline of an instance placed twice succeeds: {other}"),
     };
-    assert_eq!(inlined.doc.placements().len(), 2, "both copies stay placed");
+    assert_eq!(
+        inlined.doc.placements().len(),
+        3,
+        "the part's placement in its new space, the new placement of its copy, and the \
+         second copy"
+    );
     let after = product(&inlined.doc, &ev(&inlined.doc), Tol::witness()).expect("gathers");
     assert_eq!(
         body_digest(&after),
@@ -999,14 +1004,26 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
     };
     let (host, instance, [_, second], store) =
         host_of(two, "intent-c-twice-two", &|instance| instance.into());
+    let opts = crate::fixture::resolver::with_resolver(store.clone());
+    let before = product(&host, &crate::fixture::run(&host, &opts), Tol::witness())
+        .expect("the host gathers");
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
-    match editor_core::inline(&host, instance, &resolver, Tol::witness()) {
-        Err(InlineError::InstanceReadUncarried {
-            reader,
-            why: editor_core::Uncarried::Bodies { count: 2 },
-        }) => assert_eq!(reader.id(), second, "the second copy is the reader refused"),
-        other => panic!("a two-body part placed twice refuses: {other:?}"),
-    }
+    let inlined = editor_core::inline(&host, instance, &resolver, Tol::witness())
+        .unwrap_or_else(|e| panic!("a two-body part placed twice inlines: {e}"));
+    let Some(Node::Place { shapes, .. }) = inlined.doc.node(second) else {
+        panic!("the second copy stays a placement")
+    };
+    assert_eq!(
+        inlined.doc.operation_of(shapes[0].read),
+        Some(inlined.placement),
+        "the second copy reads the new placement's copies whole"
+    );
+    let after = product(&inlined.doc, &ev(&inlined.doc), Tol::witness()).expect("gathers");
+    assert_eq!(
+        body_digest(&after),
+        body_digest(&before),
+        "the product is unchanged"
+    );
 }
 
 /// **A measure observes a copy.** A distance between two copies' end

@@ -708,18 +708,30 @@ pub fn frame_on(
     at: &crate::Frame,
     tol: geom_core::Tol,
 ) -> crate::Operand {
+    frame_on_in(doc, &crate::EvalOptions::default(), body, at, tol)
+}
+
+/// [`frame_on`] under `opts` — which reaches the parts an instance
+/// copies.
+///
+/// # Panics
+///
+/// As [`frame_on`]'s.
+#[must_use]
+pub fn frame_on_in(
+    doc: &ProfileDoc,
+    opts: &crate::EvalOptions,
+    body: &crate::Operand,
+    at: &crate::Frame,
+    tol: geom_core::Tol,
+) -> crate::Operand {
     use crate::names::{EntityKey, EntityRef};
     use crate::pose::{PoseDef, RoleRead};
     use crate::{FrameMove, TargetAxis};
     use geom_core::UnitVec3;
     let band = geom_core::predicate::Band::linear(tol).expect("a band");
-    let ev: crate::Evaluation<f64> = crate::evaluate(
-        doc,
-        None,
-        &crate::CancelToken::new(),
-        &crate::EvalOptions::default(),
-        tol,
-    );
+    let ev: crate::Evaluation<f64> =
+        crate::evaluate(doc, None, &crate::CancelToken::new(), opts, tol);
     let (node, solid, table, motion) =
         crate::mate::corner::read_of(doc, &ev, body).expect("the body has a value");
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();

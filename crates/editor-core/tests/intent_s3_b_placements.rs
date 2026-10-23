@@ -528,7 +528,11 @@ fn a_mate_beyond_the_pin_refuses_at_the_door() {
                 fixture::bundle(&doc, b).len() > 1,
                 "the premise: values beside the rest"
             );
-            assert_eq!(free, 1, "two planes in general position leave a slide");
+            assert_eq!(
+                free, 0,
+                "the bundle is written whole: the slide two planes in general position \
+                 leave is written 0"
+            );
         }
         other => panic!("a mate beyond the pin refuses, not {other:?}"),
     }
@@ -690,7 +694,7 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
                 assert_eq!(value.placement, c);
                 assert_eq!(why, editor_core::NoChartWhy::SlideTurnsABall);
                 let said = MateFault::NoChart { value, why }.to_string();
-                assert!(said.contains("direction mate's spin"), "{said}");
+                assert!(said.contains("spin about the mated direction"), "{said}");
             }
             other => panic!("a slide beside a ball has no chart, not {other:?}"),
         },
@@ -698,34 +702,46 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
     }
 }
 
-/// **A mate on a pinned copy is overconstrained**: on a copy its world
-/// mate already pins, a rest on another copy in the world that holds
-/// where the pin puts it is a mate the pin already fixes, refused at
-/// the door, naming both — the case `(Trivial, _)`.
+/// **A mate on a copy pinned by values takes the freedoms it fixes
+/// from them** (D′2: the door rewrites the bundle whole): on a copy its
+/// values alone pin, a rest on another copy holding where the values put
+/// it is admitted, and the values it fixes go, the slides and the spin
+/// it leaves kept as written. The copy stands where it stood.
+///
+/// *Breaks if* the door keeps a value the rest fixes, or drops one it
+/// leaves.
 #[test]
-fn a_mate_on_a_pinned_copy_is_overconstrained() {
+fn a_mate_on_a_copy_pinned_by_values_takes_the_freedoms_it_fixes() {
+    use editor_core::{Coord, TargetAxis};
     let (doc, store, doc_ref, body) = host("s3b-pin-first");
     let o = with_resolver(store);
     let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     // `b` pinned where the rest puts it, on `a`'s top.
     let (doc, b) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let doc = fixture::pin(doc, b, &Frame::translation([0.0, 0.0, 1.0]), &o);
-    let pin = fixture::bundle(&doc, b)[0].id;
-    match fixture::door_refusal(&doc, rest_on(body, a, b)) {
-        MateFault::Overconstrained {
-            placement,
-            constraints,
-            free,
-        } => {
-            assert_eq!(placement, b);
-            assert!(
-                constraints.len() == 2 && constraints.contains(&pin),
-                "{constraints:?}"
-            );
-            assert_eq!(free, 0, "the pin leaves nothing");
-        }
-        other => panic!("a mate on a pinned copy is overconstrained, not {other:?}"),
-    }
+    let before = fixture::solve(&doc, &o, Tol::witness()).placement(&doc, b);
+    let (doc, rest) = fixture::at_the_door(&doc, rest_on(body, a, b))
+        .unwrap_or_else(|(_, fault)| panic!("the rest is admitted: {fault}"));
+    let bundle = fixture::bundle(&doc, b);
+    assert_eq!(bundle[0].id, rest.id, "the rest leads the bundle");
+    let kept: Vec<Coord> = bundle
+        .iter()
+        .filter_map(|c| c.value().map(|v| v.coord))
+        .collect();
+    assert_eq!(
+        kept,
+        [
+            Coord::Slide(TargetAxis::X),
+            Coord::Slide(TargetAxis::Y),
+            Coord::Spin(TargetAxis::Z),
+        ],
+        "the values the rest leaves, and none it fixes"
+    );
+    assert_eq!(
+        fixture::solve(&doc, &o, Tol::witness()).placement(&doc, b),
+        before,
+        "the copy stands where it stood"
+    );
 }
 
 /// **A constraint has its `on` on its copy**: one relating two other

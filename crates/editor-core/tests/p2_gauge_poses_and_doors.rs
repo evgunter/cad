@@ -241,6 +241,31 @@ fn seat_rep() -> M {
     M::tr([1.0, 1.0, BASE_HEIGHT])
 }
 
+/// **Where a copy seated on a placed base stands, by D′2's chart**
+/// (`docs/INTENT-STAGE3-SPEC.md` §5′.2), written out independently of
+/// the solve: the target space's axes swung onto the base's upper cap's
+/// normal `n = (a, b, c)` by the shortest turn, `x' = (1 − a²/(1 + c),
+/// −ab/(1 + c), −a)` and `y' = n × x'`; the copy's own axes land on them
+/// (no spin), its origin `at` along `x'` and `y'` from the space's
+/// origin and on the cap's plane, `height` up the base, along `n`.
+fn space_seat(base: &M, height: f64, at: [f64; 2]) -> M {
+    let n = [base.r[0][2], base.r[1][2], base.r[2][2]];
+    let on_cap: [f64; 3] = std::array::from_fn(|i| base.r[i][2] * height + base.t[i]);
+    let (a, b, c) = (n[0], n[1], n[2]);
+    let one_plus_c = if c < 0.0 { (a * a + b * b) / (1.0 - c) } else { 1.0 + c };
+    let x = [1.0 - a * a / one_plus_c, -a * b / one_plus_c, -a];
+    let y = [
+        n[1] * x[2] - n[2] * x[1],
+        n[2] * x[0] - n[0] * x[2],
+        n[0] * x[1] - n[1] * x[0],
+    ];
+    let along: f64 = (0..3).map(|i| on_cap[i] * n[i]).sum();
+    M {
+        r: std::array::from_fn(|i| [x[i], y[i], n[i]]),
+        t: std::array::from_fn(|i| at[0] * x[i] + at[1] * y[i] + along * n[i]),
+    }
+}
+
 /// **The seat's relative pose, the one input the rows below take from
 /// the kernel rather than compose**: a top mated onto a base at the world
 /// origin sits at the composed seat to 1e-15.
@@ -260,8 +285,9 @@ fn the_seat_relation_the_rows_compose_with_is_the_solves() {
 /// **A seat under a two-parameter placement against an independent
 /// composition**: the base placed in the world at a pose two parameters
 /// drive composed with a turned literal, the top seated on it, and a
-/// second top stacked on the seated one, in f64 and in the interval lane
-/// at two parameter values.
+/// second top stacked on the seated one, each seat by the chart of the
+/// space it is placed into ([`space_seat`]), in f64 and in the interval
+/// lane at two parameter values.
 #[test]
 fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
     let p = parts("r2-afb-x");
@@ -270,7 +296,6 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
     let root_off = root_off();
     let (doc, base) = pinned_chain(doc, p.base);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    let tm = M::tr([0.0, 0.0, TOP_HEIGHT]);
     let (doc, t) = crate::p2_gauges::stacked(doc, p.top, p.top_body, head(p.top_upper_cap(top)));
     let (doc, _) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     let top_pts = part_points("r2-afb-x-top", 1.0, TOP_HEIGHT);
@@ -278,7 +303,10 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
     for (lv, tv) in [(2.0, 0.25), (7.0, -1.1)] {
         let doc = set_value(set_value(doc.clone(), lift(), lv), turn(), tv);
         let f = chain_frame(lv, tv).c(&root_off);
-        let w_top = f.c(&seat_rep());
+        // Each seat's values chart on the world, swung onto the cap it
+        // rests on: a seat does not ride with its base in the cap's plane.
+        let w_top = space_seat(&f, BASE_HEIGHT, [1.0, 1.0]);
+        let w_t = space_seat(&w_top, TOP_HEIGHT, [0.0, 0.0]);
         let poses = solve(&doc, &o, Tol::witness());
         assert_eq!(poses.fault(top), None, "the seat places the top");
         let got = M::of(&poses.placement(&doc, top).expect("placed"));
@@ -294,7 +322,7 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
             &ev,
             t,
             &top_pts,
-            &w_top.c(&tm),
+            &w_t,
             "f64 placed copy of the top",
         );
         check_body_f64(&ev, base, &base_pts, &f, "f64 base");
@@ -310,7 +338,7 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
             check_body_interval(&lane, top, &top_pts, &w_top, "interval top");
         });
         crate::p2_gauges::encloses_or_escalates(&lane, t, || {
-            check_body_interval(&lane, t, &top_pts, &w_top.c(&tm), "interval t");
+            check_body_interval(&lane, t, &top_pts, &w_t, "interval t");
         });
         crate::p2_gauges::encloses_or_escalates(&lane, base, || {
             check_body_interval(&lane, base, &base_pts, &f, "interval base");
@@ -442,7 +470,8 @@ fn split_of(
 }
 
 /// **Inline of split on the verbatim shape** (a cut of two pinned bases
-/// and a top seated on one of them) returns every instance's world pose.
+/// and a top seated on one of them), flattened, returns every instance's
+/// world pose.
 #[test]
 fn inline_of_a_verbatim_split_returns_every_world_pose() {
     let p = parts("r2-rt");
@@ -468,11 +497,12 @@ fn inline_of_a_verbatim_split_returns_every_world_pose() {
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store.clone());
     let back = editor_core::inline(&out.remainder, out.instance, &resolver, Tol::witness())
         .expect("inline of the verbatim split");
+    let flat = fixture::round_trip::flat(&back);
     let po = with_resolver(store);
-    let poses = solve(&back.doc, &po, Tol::witness());
+    let poses = solve(&flat, &po, Tol::witness());
     for (i, old) in [b1, t1, b2].iter().enumerate() {
         let new = back.node_map[&out.node_map[old]];
-        let got = M::of(&poses.placement(&back.doc, new).unwrap());
+        let got = M::of(&poses.placement(&flat, new).unwrap());
         assert!(
             got.dist(&before[i]) <= 1e-12,
             "DEFECT: {old:?} moved over inline(split): {got:?} vs {:?}",

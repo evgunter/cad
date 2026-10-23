@@ -612,8 +612,9 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
     );
     assert_eq!(
         back.doc.len(),
-        before - 1 + part_nodes,
-        "the instance went and the part's own nodes came in its place — a count the \
-         untouched neighbour cannot supply"
+        before - 1 + part_nodes + 2,
+        "the instance went and the part's own nodes came in its place, beside the new \
+         space they stand in and the placement of their copy — a count the untouched \
+         neighbour cannot supply"
     );
 }

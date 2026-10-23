@@ -36,7 +36,7 @@ pub(crate) fn axis_with(
     body: RecipeNodeId,
     origin: [f64; 3],
     dir: [f64; 3],
-    _o: &editor_core::EvalOptions,
+    o: &editor_core::EvalOptions,
 ) -> editor_core::pose::RoleRead<editor_core::Operand> {
     let n = geom_core::Vec3::new(dir[0], dir[1], dir[2]);
     let seed = if n.x.abs() <= n.y.abs().max(n.z.abs()) {
@@ -47,7 +47,7 @@ pub(crate) fn axis_with(
     let u = seed - n * (seed.dot(n) / n.dot(n));
     let v = n.cross(u);
     let at = fixture::axes_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
-    let frame = editor_core::test_support::frame_on(doc, &body.into(), &at, Tol::witness());
+    let frame = editor_core::test_support::frame_on_in(doc, o, &body.into(), &at, Tol::witness());
     editor_core::pose::RoleRead::through(frame, editor_core::pose::PoseRole::Z)
 }
 
@@ -89,7 +89,6 @@ pub(crate) fn against_with(
         doc,
         crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
     );
-    assert!(!placed.mates.is_empty(), "the copy is placed by a mate");
     // The mate and its values written whole, into the target's space.
     let (doc, _) = crate::fixture::write_bundle(doc, placement, placed.bundle());
     (doc, placement)
@@ -510,7 +509,11 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
         constraints.contains(&m0.id) && constraints.len() == 2,
         "each mate is named, neither the later one: {constraints:?}"
     );
-    assert_eq!(free, 1, "two planes in general position leave a slide");
+    assert_eq!(
+        free, 0,
+        "the bundle is written whole: the slide two planes in general position leave is \
+         written 0"
+    );
 }
 
 // ---- The fence: what the vocabulary refuses ----
