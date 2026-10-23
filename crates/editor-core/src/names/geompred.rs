@@ -472,10 +472,7 @@ pub(crate) fn prepare<T: Decide>(
                 let normal = geom_core::UnitVec3::new(normal, query::POSE_UNIT_NORM, band)
                     .map_err(|_| unresolved())?;
                 Ok(Prepared::Distance {
-                    plane: PoseValue::Plane {
-                        origin: at.origin,
-                        normal,
-                    },
+                    plane: PoseValue::plane_through(at.origin, normal),
                     cmp: *cmp,
                     value: crate::expr::eval(value, params).map_err(SelectRefusal::BadValue)?,
                 })

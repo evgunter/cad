@@ -135,6 +135,12 @@ use editor_core::Node;
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held unmoved.
 ///
+/// **Re-pinned when a plane pose came to hold its normal and offset
+/// alone**: `cut_cylinder`'s two rows alone. Its tool is a tilted plane,
+/// and a split reads the plane's point nearest the origin rather than
+/// the face's stored point, so its halves' section points moved at the
+/// rounding level; every other row held its word.
+///
 /// Re-pinned for D′3 (a placement copies one source, and the product is
 /// a slot reading a `⊔`): a placement's payload is its one `source`,
 /// so each placement's id, and the word hashing it, moved; every row's

@@ -352,3 +352,4 @@ TRIM's dm1-frontier row when it lands.
 - 2026-10-14 — **Seam (ENCL):** PR 5138 merged. `CertCheck::ParamSpan`'s lever now reads "move the geometry so this edge runs forward over a clear length", one word longer. Re-baselined the four `tier_gate.rs` span constants. (ENCL orchestrator)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words `step-import/src/lib.rs` and two tests, where they named the budget exit. No behaviour change in the import. (QUAD orchestrator's lane)
+- 2026-10-23 — Closed `torus-rim-mint-abandons-a-half-applied-split` as moot: `full_torus` was deleted in `28b96a9dd6` (the one-face torus adopts as stated).

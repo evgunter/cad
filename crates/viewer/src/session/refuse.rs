@@ -958,7 +958,7 @@ impl core::fmt::Display for GestureFrameFault {
 impl core::error::Error for GestureFrameFault {}
 
 /// **The one body an evaluated value IS, if it is one** — the
-/// evaluator's single-body operand door (`eval::wire::body_operand`)
+/// evaluator's single-body operand door (`eval::wire::read_body`)
 /// asked of a value the viewer is holding.
 ///
 /// The same two shapes that door takes: a `Body` payload, or a
