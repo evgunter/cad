@@ -1633,9 +1633,9 @@ impl SnapshotError {}
 
 /// **A placement frame's refusal at load**: the frame's subject at its
 /// site and the frame rule's own clause, then what a user holding the
-/// file can do. The edit doors never admitted a non-finite frame, so a
-/// file holding one was not written by them; a frame that is not rigid
-/// (a mirror among them) was admitted by earlier builds at the
+/// file can do. The edit doors never admitted a non-finite or a
+/// mirrored frame, so a file holding one was not written by them; a
+/// frame that scales or shears was admitted by earlier builds at the
 /// registry and in an explicit rule, and a current build refuses it at
 /// the edit door with that frame's own recourse.
 fn frame_refusal(

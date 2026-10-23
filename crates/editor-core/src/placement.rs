@@ -297,17 +297,28 @@ impl Frame {
     ///
     /// Rigidity is [`RigidMotion::check_rigid`] at `tol`'s linear band,
     /// the door a listed frame's evaluation asks, so a frame admitted
-    /// here is one the evaluation moves a body by. A tolerance that forms no band decides nothing, and
-    /// every evaluation at it refuses before it reads a frame, so the
-    /// rigidity half is left to the next door that holds a band: the
-    /// load door asks it again at the loading tolerance.
+    /// here is one the evaluation moves a body by. A determinant that is
+    /// not positive is refused first, at any tolerance: a reflection is
+    /// no pose (every pose is proper; a mirror is
+    /// [`crate::Node::Mirror`]). A tolerance that forms no band decides
+    /// nothing else, and every evaluation at it refuses before it reads
+    /// a frame, so the rest of rigidity is left to the next door that
+    /// holds a band: the load door asks it again at the loading
+    /// tolerance.
     ///
     /// It lives on [`Frame`] because the rule is about a frame and
     /// nothing else: it reads no document and no node.
     #[must_use]
-    pub(crate) fn admission_fault(&self, tol: geom_core::Tol) -> Option<FrameFault> {
+    pub fn admission_fault(&self, tol: geom_core::Tol) -> Option<FrameFault> {
         if !self.is_finite() {
             return Some(FrameFault::NonFinite);
+        }
+        // A reflection is refused whatever the tolerance: no band reads
+        // the sign of a determinant that is not positive.
+        if self.determinant() <= 0.0 {
+            return Some(FrameFault::NotRigid {
+                check: "transform_rigid_det_plus_one",
+            });
         }
         let band = Band::linear(tol).ok()?;
         match RigidMotion::check_rigid(&self.affine_f64(), band) {

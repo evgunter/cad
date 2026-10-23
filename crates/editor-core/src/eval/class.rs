@@ -145,7 +145,6 @@ pub enum NodeErrorClass {
     /// [`PlacementRuleFault::NonFiniteFrame`].
     PlacementRuleNonFiniteFrame,
     /// [`NodeErrorKind::PlacementRule`] carrying
-    /// [`NodeErrorKind::PlacementRule`] carrying
     /// [`PlacementRuleFault::NonRigidFrame`].
     PlacementRuleNonRigidFrame,
     /// [`NodeErrorKind::UnschedulableCycle`].

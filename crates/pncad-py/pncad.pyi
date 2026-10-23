@@ -983,14 +983,13 @@ class FrameError(PncadError):
 
     `variant` is `degenerate_aim`, `degenerate_tangent`,
     `degenerate_roll_reference`, `degenerate_reference_ladder`,
-    `degenerate_mirror_normal`, `non_finite_aim`,
-    `non_finite_tangent`, `non_finite_roll_reference`,
-    `non_finite_mirror_normal`, or `band`. WHICH input was refused is
+    `non_finite_aim`, `non_finite_tangent`,
+    `non_finite_roll_reference`, or `band`. WHICH input was refused is
     that word and nothing else: the tag is minted per input, so there
     is no second attribute spelling the same fact.
 
-    **The two families are not the same length.** There are five
-    `degenerate_*` words and only four `non_finite_*` ones: the
+    **The two families are not the same length.** There are four
+    `degenerate_*` words and only three `non_finite_*` ones: the
     reference LADDER is a pair of unit constants the kernel supplies,
     not a vector you hand in, so it can be degenerate (neither rung is
     off the tangent line) but never non-finite. No
@@ -1946,7 +1945,7 @@ class Frame:
     than field by field — a linear part is a MATRIX, and that is how a
     mirror or a shear arrives by accident. A frame that is not a rigid
     motion is refused at the edit door, not admitted; a mirror is a
-    construction (`Document.mirror`), never a frame.
+    construction (`Node.mirror`), never a frame.
 
     Rigidity is not claimed here: the edit door asks the kernel's
     rigidity predicate.

@@ -2876,11 +2876,8 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
     .chain([row(
-        "Mirror/ChartReflected",
-        NodeErrorKind::Mirror(E::ChartReflected {
-            edge: topo::EdgeKey::default(),
-            refusal: geom_brep::ChartMapRefusal::WallReflected,
-        }),
+        "Mirror/NurbsPlaceholder",
+        NodeErrorKind::Mirror(E::NurbsPlaceholder),
     )])
     .chain(certify_refusal_routes())
     .chain(offset_fit_routes())

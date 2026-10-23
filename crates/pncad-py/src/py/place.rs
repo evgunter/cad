@@ -191,7 +191,7 @@ fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
 /// because a frame's linear part is a MATRIX and hand-writing one is
 /// how a mirror or a shear arrives by accident — and a frame that is
 /// not a rigid motion is refused at the edit door, not admitted. A
-/// mirror is a construction (`Document.mirror`), never a frame.
+/// mirror is a construction (`Node.mirror`), never a frame.
 ///
 /// The frame is not a rigidity claim: rigidity is a decided predicate
 /// the kernel's placement door owns, and the edit door asks it.

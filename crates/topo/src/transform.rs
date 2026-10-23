@@ -1,6 +1,9 @@
 //! Rigid placement of a whole body (M4 PR 2, spec D3's Transform
 //! clause): apply an isometry to every geometric datum of a [`Body`]
-//! while leaving the topology — and every arena key — untouched.
+//! while leaving the topology — and every arena key — untouched. The
+//! same map, at the improper hand, is the geometry half of a mirror
+//! ([`crate::mirror`]); everything below is stated for the rigid door
+//! and says where the reflection differs.
 //!
 //! Landed here (not in editor-core) per the spec's report-or-land
 //! path: no public rigid-transform op existed on `Body`, and bolting
@@ -8,10 +11,12 @@
 //!
 //! # Contract
 //!
-//! The map is a [`RigidMotion`] (orthonormal linear part, determinant
-//! +1, finite): rigidity is **carried by the witness or decided at its
-//! door** ([`RigidMotion::check_rigid`]), and this door asks nothing
-//! about it. A uniform scale is affinely self-consistent on planar
+//! [`transform_rigid`]'s map is a [`RigidMotion`] (orthonormal linear
+//! part, determinant +1, finite): rigidity is **carried by the witness
+//! or decided at its door** ([`RigidMotion::check_rigid`]), and this
+//! door asks nothing about it. A mirror's map is a
+//! [`crate::Reflection`], a Householder matrix (determinant −1) decided
+//! at its own door. A uniform scale is affinely self-consistent on planar
 //! bodies, so re-certification alone would NOT catch one while it
 //! silently broke every unit-vector convention downstream; the type is
 //! what keeps one out, to the type's own standard: a minted motion is
@@ -79,9 +84,11 @@
 //!   the run's ε on the mapped pair through the injected fit door
 //!   ([`geom_brep::OffsetFitLane::remap`]) — never the stored one,
 //!   which is a claim about a different geometry. The
-//!   composition law is what makes the mapped pair a pair at all: a
-//!   rigid map carries unit normals to unit normals, so
-//!   `M(S + d·n) = M(S) + d·n_M`. The certificate's hull bound is not
+//!   composition law is what makes the mapped pair a pair at all: an
+//!   isometry carries unit normals to unit normals, so
+//!   `M(S + d·n) = M(S) + d·M·n`, and `M·n` is the mapped net's chart
+//!   normal under a rigid map and its negation under a reflection, which
+//!   therefore negates `d`. The certificate's hull bound is not
 //!   frame-invariant, so the image of a face that certifies where it
 //!   stands can re-derive above ε on a limb; that face is re-fitted
 //!   construction-fresh on the mapped description through the same
@@ -187,16 +194,6 @@ pub enum TransformError {
         /// What was missing, for the log.
         what: &'static str,
     },
-    /// A reflection reverses an analytic chart's azimuth, and this
-    /// edge's image in that chart has no reflected image
-    /// ([`geom_brep::Pcurve::map_affine`]): a spiric wall, whose one
-    /// `sense` rides two channels, or a winding with no negation.
-    ChartReflected {
-        /// The edge whose chart image refused.
-        edge: EdgeKey,
-        /// Why the image has no reflection.
-        refusal: geom_brep::ChartMapRefusal,
-    },
 }
 
 impl TransformError {
@@ -248,11 +245,6 @@ impl TransformError {
                 "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
                 geom_core::NOT_YET_ENDING
             ),
-            Self::ChartReflected { refusal, .. } => format!(
-                "an edge's image in a curved face's chart has no mirror image ({refusal:?}), so \
-                 the body cannot be mirrored yet. {}",
-                geom_core::NOT_YET_ENDING
-            ),
             Self::Corrupt { what } => format!(
                 "the body references a missing {what} (a corrupt body). {}",
                 defect
@@ -278,22 +270,6 @@ fn map_vec<T: Real>(map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
     map.linear * v
 }
 
-/// **Sense-invariant** (M5 S10 audit). Every face's `sense` is copied
-/// unchanged, and correctly so: this map's ratified contract is a
-/// RIGID motion with `det = +1` (module docs), which carries the chart
-/// normal to the transformed chart normal and the material side along
-/// with it — the bit's *meaning* ("does the material side agree with
-/// the chart normal?") survives because both sides move together.
-/// The tripwire for any future extension: an orientation-REVERSING
-/// map (a mirror, `det = −1`) would carry the chart normal to the
-/// NEGATION of the transformed chart normal, and would therefore have
-/// to flip `sense` on every face — and, because it reverses every
-/// loop's cycle, move every loop's `Cycle::first` to its source
-/// predecessor so a periodic chart's wrap stays at the closure
-/// ([`crate::entity::LoopBoundary::Cycle`]'s `first`;
-/// [`crate::Body::revert`] is the map that does both). `det = +1` is
-/// the [`RigidMotion`] type's, so there is no such branch to write here
-/// today.
 /// Whether an isometry keeps orientation ([`Hand::Proper`], a rigid
 /// motion) or reverses it ([`Hand::Improper`], a reflection —
 /// [`crate::mirror`]). Under an improper map every datum is written so
@@ -321,6 +297,22 @@ impl Hand {
     }
 }
 
+/// Every datum of one surface under `map` at `hand` (module docs: what
+/// maps how).
+///
+/// **Sense** (M5 S10 audit). Under [`Hand::Proper`] every face's `sense`
+/// is copied unchanged, and correctly so: a rigid motion carries the
+/// chart normal to the transformed chart normal and the material side
+/// along with it, so the bit's *meaning* ("does the material side agree
+/// with the chart normal?") survives because both move together. Under
+/// [`Hand::Improper`] the map writes the inside-out image ([`Hand`]): a
+/// plane's stored normal, its outward side, is the axial `−M·n`; an
+/// analytic chart's frame maps forward, so its chart normal crosses as
+/// `M·n` while the material side crosses inside out, and
+/// [`map_isometry`] flips that face's `sense`; a net's chart normal
+/// crosses as `−M·n`, already inside out, and its `sense` is kept.
+/// [`crate::Body::revert`]'s map then reverses every loop's cycle and
+/// every outward side once ([`crate::mirror`]).
 fn map_surface<T: Decide + crate::props::AtRestPolicy>(
     map: &Affine3<T>,
     hand: Hand,
@@ -616,19 +608,105 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     Ok(out)
 }
 
-/// Whether a surface's chart is the analytic `(azimuth, ·)` kind whose
-/// frame a reflection maps forward, reversing the azimuth `u`
-/// (MIRROR-DESIGN P1): a cylinder, cone, sphere or torus. A plane is
-/// written so its chart is unmoved ([`map_surface`]), and a spline net
-/// maps by its points, its chart unmoved.
-fn azimuth_reversed<T: Real>(s: &Surface<T>) -> bool {
-    matches!(
-        s,
-        Surface::Cylinder { .. }
+/// **An edge's chart image under a reflection, in the inside-out
+/// image's own terms** ([`map_isometry`] at [`Hand::Improper`]).
+///
+/// A spiric image is restated for its mapped carrier, whose stand-off
+/// is `−d` ([`map_carrier`]): `f(t) = √((R + r·cos t)² − d²)` is even in
+/// `d`, so a plane cap keeps its coefficients (its chart is unmoved),
+/// and a torus wall, whose chart reverses its azimuth, reads
+/// `−u0 − σμ·atan2(f, d) = u0′ + σμ·atan2(f, −d)` with
+/// `u0′ = −u0 − σμπ`, since `atan2(f, −d) = π − atan2(f, d)` for the
+/// `f > 0` of the two-oval regime; its minor angle, its sense and its
+/// torus are unmoved. Every other image on an analytic chart has its
+/// azimuth negated, and one on a plane or a net is unmoved.
+///
+/// # Errors
+///
+/// [`TransformError::Corrupt`] for an image whose winding count has no
+/// negation in `i32`, which no body a door built carries.
+fn reflected_image<T: Real>(
+    p: &geom_brep::Pcurve<T>,
+    class: OrientationClass,
+) -> Result<geom_brep::Pcurve<T>, TransformError> {
+    use geom_brep::{Pcurve, SpiricImage};
+    if let Pcurve::Spiric {
+        major,
+        minor,
+        offset,
+        image,
+    } = p
+    {
+        let image = match *image {
+            SpiricImage::Cap { .. } => *image,
+            SpiricImage::Wall {
+                u0,
+                v0,
+                sense,
+                torus,
+            } => SpiricImage::Wall {
+                u0: -u0 - sense * torus.mu::<T>() * T::pi(),
+                v0,
+                sense,
+                torus,
+            },
+        };
+        return Ok(Pcurve::Spiric {
+            major: *major,
+            minor: *minor,
+            offset: -*offset,
+            image,
+        });
+    }
+    match class {
+        OrientationClass::Analytic => p
+            .map_affine(geom_brep::ChartMap {
+                u: geom_brep::AxisMap::reflect(),
+                v: geom_brep::AxisMap::identity(),
+            })
+            .map_err(|refusal| TransformError::Corrupt {
+                what: match refusal {
+                    geom_brep::ChartMapRefusal::WindingUnnegatable => {
+                        "a chart image whose winding count has no negation"
+                    }
+                    geom_brep::ChartMapRefusal::WallReflected => {
+                        "a spiric wall image the reflection did not restate"
+                    }
+                },
+            }),
+        OrientationClass::Plane | OrientationClass::Net => Ok(p.clone()),
+    }
+}
+
+/// **How a surface's face carries its orientation**, the one
+/// classification [`crate::Body::revert`] and the reflection read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OrientationClass {
+    /// A plane: its stored normal is the outward side, so it carries
+    /// its own reversal, and a reflection writes it so its chart is
+    /// unmoved ([`map_surface`]).
+    Plane,
+    /// A cylinder, cone, sphere or torus: the outward side rides the
+    /// face's `sense`, and a reflection maps the frame forward,
+    /// reversing the azimuth `u` (MIRROR-DESIGN P1).
+    Analytic,
+    /// A spline net or a fit: the outward side rides `sense`, and a
+    /// reflection maps the net by its points, its chart unmoved.
+    Net,
+}
+
+impl OrientationClass {
+    /// The class of `s`.
+    pub(crate) fn of<T: Real>(s: &Surface<T>) -> Self {
+        match s {
+            Surface::Plane { .. } => Self::Plane,
+            Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
-            | Surface::Torus { .. }
-    )
+            | Surface::Torus { .. } => Self::Analytic,
+            Surface::Nurbs(_) | Surface::Approx(_) => Self::Net,
+        }
+    }
 }
 
 /// The geometry half of [`transform_rigid`] and [`crate::mirror`]: every
@@ -726,17 +804,16 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             // The authority record travels with the map, because a
             // sketch pushforward is stated in 3-space.
             EdgeDescription::Chart(c) => {
-                let reversed = hand == Hand::Improper
-                    && body.surfaces.get(c.surface).is_some_and(azimuth_reversed);
-                let image = if reversed {
-                    c.pcurve
-                        .map_affine(geom_brep::ChartMap {
-                            u: geom_brep::AxisMap::reflect(),
-                            v: geom_brep::AxisMap::identity(),
-                        })
-                        .map_err(|refusal| TransformError::ChartReflected { edge: ek, refusal })?
-                } else {
-                    c.pcurve.clone()
+                let class = body
+                    .surfaces
+                    .get(c.surface)
+                    .map(OrientationClass::of)
+                    .ok_or(TransformError::Corrupt {
+                        what: "chart image on a missing surface",
+                    })?;
+                let image = match hand {
+                    Hand::Proper => c.pcurve.clone(),
+                    Hand::Improper => reflected_image(&c.pcurve, class)?,
                 };
                 let chart = EdgeDescriptionSpec::Chart {
                     surface: c.surface,
@@ -799,7 +876,11 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
         let flipped: Vec<crate::entity::FaceKey> = out
             .faces
             .iter()
-            .filter(|(_, f)| out.surfaces.get(f.surface).is_some_and(azimuth_reversed))
+            .filter(|(_, f)| {
+                out.surfaces
+                    .get(f.surface)
+                    .is_some_and(|s| OrientationClass::of(s) == OrientationClass::Analytic)
+            })
             .map(|(k, _)| k)
             .collect();
         for k in flipped {

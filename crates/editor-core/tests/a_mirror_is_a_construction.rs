@@ -9,9 +9,9 @@
 
 use crate::fixture::{self, len};
 use editor_core::{
-    Bodies, CancelToken, CapEnd, EditError, EvalOptions, Evaluation, Node, NodeErrorKind,
-    NodeResult, Operand, OperandSlot, ProfileDoc, RecipeNodeId, RoleSeg, SlotKind, VarKind,
-    evaluate,
+    Bodies, CancelToken, CapEnd, EditError, EntityKind, Entry, EvalOptions, Evaluation, Node,
+    NodeErrorKind, NodeResult, Operand, OperandSlot, ProfileDoc, RecipeNodeId, RoleSeg, SlotKind,
+    VarKind, evaluate,
 };
 use geom_core::Tol;
 use topo::Body;
@@ -61,7 +61,10 @@ fn body(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::mass_properties(b, Tol::witness()).unwrap().volume
+    let measured = topo::test_support::finished("the measured body", b.clone(), Tol::witness());
+    topo::mass_properties(&measured, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 /// Every vertex point of `b`, sorted, so two bodies compare by point set.
@@ -207,4 +210,49 @@ fn a_mirror_plane_off_another_construction_refuses_its_space() {
         ),
         other => panic!("a mirror reading two spaces must refuse, got {other:?}"),
     }
+}
+
+/// **A body and its mirror, side by side, name every entity apart**
+/// (NAMES N0: identical operands are told apart by their reads). The
+/// image carries its source's names verbatim; a union over the plate
+/// and its mirror across a plane clear of it keeps both as separate
+/// solids and names each member's entities by the read it came through,
+/// so no name in the union's table is tied, and each solid's every face
+/// is named once.
+#[test]
+fn a_body_and_its_mirror_side_by_side_name_every_entity_apart() {
+    let (doc, plate) = plate();
+    let plane = fixture::plane_on(&doc, plate, [-0.75, 0.0, 0.0], [-1.0, 0.0, 0.0]);
+    let (doc, mirror) = fixture::insert(
+        doc,
+        Node::Mirror {
+            body: Operand::output(plate, 0).into(),
+            plane,
+        },
+    );
+    let (doc, both) = fixture::insert(
+        doc,
+        Node::Union {
+            members: Bodies::Spelled(vec![
+                Operand::output(plate, 0).into(),
+                Operand::output(mirror, 0).into(),
+            ]),
+        },
+    );
+    let ev = eval(&doc);
+    let faces = body(&ev, plate).faces().count();
+    assert_eq!(body(&ev, both).solids().count(), 2, "two solids, apart");
+    let mut face_names = 0;
+    for (name, entry) in fixture::table(&ev, both).iter() {
+        assert!(
+            matches!(entry, Entry::Unique(_)),
+            "{name:?} names more than one entity: {entry:?}"
+        );
+        face_names += usize::from(name.kind == EntityKind::Face);
+    }
+    assert_eq!(
+        face_names,
+        2 * faces,
+        "each solid's every face is named once"
+    );
 }

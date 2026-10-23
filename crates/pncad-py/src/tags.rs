@@ -830,6 +830,9 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
             FrameInput::Tangent => "degenerate_tangent",
             FrameInput::RollReference => "degenerate_roll_reference",
             FrameInput::ReferenceLadder => "degenerate_reference_ladder",
+            // The mirror normal is the kernel's reflection door's
+            // (`topo::Reflection::across`), which no binding reaches: a
+            // mirror is `Node.mirror`, its plane a pose.
             FrameInput::MirrorNormal => "degenerate_mirror_normal",
         },
         FrameError::NonFiniteLength { input } => match input {
@@ -1609,7 +1612,6 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
         TransformError::NurbsLaneUnsupported { .. } => "nurbs_lane_unsupported",
         TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
-        TransformError::ChartReflected { .. } => "chart_reflected",
     }
 }
 

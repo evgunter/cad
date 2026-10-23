@@ -47,18 +47,22 @@
 //!
 //! # What the result is
 //!
-//! A body at rest with the source's keys, arena for arena, so names
-//! read through it as through a copy. Its volume is the source's, which
-//! the tier-3 `+V` invariant checks: without step 2 it is negative.
+//! A body with the source's keys, arena for arena, so names read
+//! through it as through a copy. Its volume is the source's, which the
+//! tier-3 `+V` invariant checks: without step 2 it is negative. Like
+//! every door it owes a finished body and, like
+//! [`crate::transform_rigid`], it does not gate its own result: a reader
+//! that takes finished bodies gates what it reads
+//! ([`crate::AtRestPolicy::gate_at_rest_kept`]), and the tests gate every
+//! image they build.
 //!
 //! # The audit's residuals (P3)
 //!
-//! - An edge image that is a spiric wall in a torus chart has no
-//!   reflected image (one `sense` rides two channels), so the body
-//!   refuses typed ([`TransformError::ChartReflected`]).
-//! - The `Nurbs` placeholder, an approximating surface with no fit door
-//!   at the scalar, and an edge needing the NURBS lane at a scalar that
-//!   holds none refuse as [`crate::transform_rigid`] does.
+//! The `Nurbs` placeholder, an approximating surface with no fit door at
+//! the scalar, and an edge needing the NURBS lane at a scalar that holds
+//! none refuse as [`crate::transform_rigid`] does. Every chart image has
+//! a mirror image, a spiric's included (`map_isometry`'s
+//! `reflected_image`).
 
 use geom_core::linalg::frame::{FrameError, mirror_across_plane, mirror_across_unit_plane};
 use geom_core::{Affine3, Decide, Point3, Real, Tol, UnitVec3, Vec3};
@@ -110,8 +114,7 @@ impl<T: Real> Reflection<T> {
 ///
 /// # Errors
 ///
-/// [`TransformError`], as [`crate::transform_rigid`], plus
-/// [`TransformError::ChartReflected`] for a chart image with no mirror.
+/// [`TransformError`], as [`crate::transform_rigid`].
 pub fn mirror_body<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     reflection: &Reflection<T>,
@@ -127,4 +130,58 @@ pub fn mirror_body<T: Decide + crate::props::AtRestPolicy>(
             .map_err(|source| TransformError::Pcurve { source })?;
     }
     Ok(out)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom::{ApproxSurface, Surface, SurfaceDescription};
+
+    /// The offset surface's own point, `base(u, v) + d·n(u, v)`, read off
+    /// its description rather than its fit.
+    fn described(s: &ApproxSurface<f64>, u: f64, v: f64) -> Point3<f64> {
+        let SurfaceDescription::Offset { base, d } = s.description();
+        base.eval(u, v) + Surface::Nurbs(base.clone()).normal(u, v) * *d
+    }
+
+    /// **An offset surface mirrors onto its image.** Across an oblique
+    /// plane, the image's description and its fit both sample `M∘S` at
+    /// the source's own parameters: the base net maps by its points and
+    /// the distance negates with the base's chart normal. A distance
+    /// left unnegated stands `2d` off, and so does a fit re-minted on it.
+    #[test]
+    fn an_offset_surface_mirrors_onto_its_image() {
+        let tol = Tol::witness();
+        let (body, face) = crate::fixtures::approx_faced_body::<f64>();
+        let reflection =
+            Reflection::across(Point3::new(0.1, -0.2, 0.3), Vec3::new(1.0, 2.0, 3.0), tol).unwrap();
+        let image = mirror_body(&body, &reflection, tol).expect("an offset face mirrors");
+        let m = reflection.to_affine();
+        let surface = |b: &Body<f64>| {
+            b.get_surface(b.get_face(face).unwrap().surface)
+                .unwrap()
+                .clone()
+        };
+        let (source, mapped) = (surface(&body), surface(&image));
+        let (Surface::Approx(a), Surface::Approx(b)) = (&source, &mapped) else {
+            panic!("the image's face is an offset surface: {mapped:?}");
+        };
+        for u in [0.2, 0.5, 0.8] {
+            for v in [0.25, 0.5, 0.75] {
+                let want = m.transform_point(described(a, u, v));
+                let got = described(b, u, v);
+                assert!(
+                    (got - want).norm() <= 1e-12,
+                    "({u}, {v}): the description samples {got:?}, M∘S is {want:?}"
+                );
+                let fit = mapped.eval(u, v);
+                let want = m.transform_point(source.eval(u, v));
+                assert!(
+                    (fit - want).norm() <= 1e-9,
+                    "({u}, {v}): the fit samples {fit:?}, M∘S is {want:?}"
+                );
+            }
+        }
+    }
 }

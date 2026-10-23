@@ -6163,7 +6163,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "approx_recertify",
             "band",
             "certify",
-            "chart_reflected",
             "corrupt",
             "null_scaffold",
             "nurbs_lane_unsupported",
