@@ -6634,8 +6634,8 @@ mod unit_vector_witness_through_the_facade {
         )
         .unwrap();
         let d = PoseValue::<f64>::Plane {
-            origin: Point3::origin(),
             normal: n,
+            offset: 0.0,
         };
         let PoseValue::Plane { normal, .. } = d else {
             panic!("a plane pose");
