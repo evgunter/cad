@@ -27,4 +27,4 @@ Raised by the orchestrator's (A)/(B) ruling on PR D. `needs_ev` once someone pic
 
 ## Closed
 
-Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR PRNUM, 2026-10-23). A value names no mate and charts on the target space's axes, swung onto the mated direction; `Target::World` and `ValueOnAMovedWorld` are gone, so a datum chain carries verbatim. Row: `intent_dprime2_mates_read_geometry::a_value_charts_on_the_target_space` (spec test 24).
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR 5613, 2026-10-23). A value names no mate and charts on the target space's axes, swung onto the mated direction; `Target::World` and `ValueOnAMovedWorld` are gone, so a datum chain carries verbatim. Row: `intent_dprime2_mates_read_geometry::a_value_charts_on_the_target_space` (spec test 24).

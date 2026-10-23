@@ -23,4 +23,4 @@ C's world pin carried no number, so an instance whose part stood where its bodie
 
 ## Closed
 
-Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR PRNUM, 2026-10-23). Inline is one rule: a new space, the part's placements spliced verbatim, and one placement of the spliced copies under the instance's own bundle, so a variable the bundle reads keeps driving. Row: `intent_dprime2_mates_read_geometry::inline_keeps_a_variable_driving` (spec test 21).
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR 5613, 2026-10-23). Inline is one rule: a new space, the part's placements spliced verbatim, and one placement of the spliced copies under the instance's own bundle, so a variable the bundle reads keeps driving. Row: `intent_dprime2_mates_read_geometry::inline_keeps_a_variable_driving` (spec test 21).

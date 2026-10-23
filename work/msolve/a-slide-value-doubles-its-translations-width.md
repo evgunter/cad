@@ -16,4 +16,4 @@ closed: 2026-10-23
 
 ## Closed
 
-Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR PRNUM, 2026-10-23). The chart sets a slide's translation component directly where the chart is on the box lanes' axes, not by adding a difference. Row: `intent_dprime2_mates_read_geometry::a_slide_value_sets_its_translation_with_no_width` (the slid copy's translation width at Interval equals the value's).
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR 5613, 2026-10-23). The chart sets a slide's translation component directly where the chart is on the box lanes' axes, not by adding a difference. Row: `intent_dprime2_mates_read_geometry::a_slide_value_sets_its_translation_with_no_width` (the slid copy's translation width at Interval equals the value's).

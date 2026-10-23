@@ -22,4 +22,4 @@ Those decide at axis-mate translations on Sym.
 
 ## Closed
 
-Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR PRNUM, 2026-10-23). `SolveScalar::atan2_branch` (`Atan2Branch { Zero, AboutPi, Principal }`) is the branch rule: Interval decides it from its enclosure, and Sym and Dual read the angle on their lane scalar's branch. Row: `mate::solve::tests::the_symbolic_tier_reads_an_angle_on_its_lanes_branch`.
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR 5613, 2026-10-23). `SolveScalar::atan2_branch` (`Atan2Branch { Zero, AboutPi, Principal }`) is the branch rule: Interval decides it from its enclosure, and Sym and Dual read the angle on their lane scalar's branch. Row: `mate::solve::tests::the_symbolic_tier_reads_an_angle_on_its_lanes_branch`.

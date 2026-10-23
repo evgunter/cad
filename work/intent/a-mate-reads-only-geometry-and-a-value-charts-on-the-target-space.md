@@ -2,11 +2,13 @@
 id: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
 kind: unit
 title: D′2: WorldRead retires into values; a value names no mate and charts on the target space's axes; a point mate's spin chain; the placement helpers become one pure constructor; inline is one rule; the flatten edit
-status: spec
+status: review
 opened: 2026-10-22
 priority: P0
 cost: H
 parent: a-placement-pins-by-written-values-without-a-mate
+pr: 5613
+branch: intent/dprime2-mates-read-geometry
 ---
 
 
@@ -78,6 +80,6 @@ with no PR and no CI run). State found at `31b979f5`:
 - Absorbed items: five closed by the first lane; this lane closed
   `the-viewer-cannot-mate-two-freshly-inserted-parts` (the door's
   rebundle drops the values a mate fixes).
-- Left: no CI has run; the absorbed items' `PR PRNUM` placeholders;
+- Left: no CI has run; the absorbed items' PR number (now 5613);
   the PR body (geometry moves by document and node, goldens, sweep
   hit lists); a `[render]` commit.

@@ -37,4 +37,4 @@ mechanical follow-on of B.
 
 ## Closed
 
-Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR PRNUM, 2026-10-23). An insert writes the identity bundle (values and no mate), and `DocEdit::AddConstraint` writes the bundle whole with the mate in it (`edit.rs`'s `rebundle`): the values whose freedoms the mate fixes go, the ones it leaves are kept. So the mate tool's op mates two freshly inserted parts with no hand unpin (`instance_authoring::an_assembly_authored_into_a_directory_of_parts_round_trips`).
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR 5613, 2026-10-23). An insert writes the identity bundle (values and no mate), and `DocEdit::AddConstraint` writes the bundle whole with the mate in it (`edit.rs`'s `rebundle`): the values whose freedoms the mate fixes go, the ones it leaves are kept. So the mate tool's op mates two freshly inserted parts with no hand unpin (`instance_authoring::an_assembly_authored_into_a_directory_of_parts_round_trips`).

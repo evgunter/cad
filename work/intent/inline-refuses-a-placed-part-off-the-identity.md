@@ -39,4 +39,4 @@ above becomes a landing row.
 
 ## Closed
 
-Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR PRNUM, 2026-10-23). Inline no longer re-expresses the instance's values: it places the spliced copies under the instance's bundle as written, so a part placed anywhere inlines (`p2_split::i5_a_mate_placed_instance_over_any_part_inlines`, `p2_gauge_offsets_and_spaces::a_mate_placed_instance_inlines_in_place`). The new `refactor::flatten` folds the identity placement back, and inline then flatten of a split returns the original.
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR 5613, 2026-10-23). Inline no longer re-expresses the instance's values: it places the spliced copies under the instance's bundle as written, so a part placed anywhere inlines (`p2_split::i5_a_mate_placed_instance_over_any_part_inlines`, `p2_gauge_offsets_and_spaces::a_mate_placed_instance_inlines_in_place`). The new `refactor::flatten` folds the identity placement back, and inline then flatten of a split returns the original.
