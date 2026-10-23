@@ -79,3 +79,5 @@ Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
   - the history prose in skin's docs.
 
   Orchestrator's call: a constant non-1 weight row also takes the Cartesian lane, with its constant attached. That closes the `skin.rs` bullet of `rational-gates-test-unit-weights-not-constancy` in passing. The "is integral" predicate is spelled differently across `patch_bound`, `curves` and `skin`, a class whose home is that row. — (ISO orchestrator)
+
+- 2026-10-23 — IsoArc P1 PR 5630 is up and green. Departure from the row: a split child keeps its PARENT's `IsoArc` (the whole boundary row's arc), evaluated over its own span, rather than a re-cut sub-arc. The lane's argument is that `split_edge`'s carry already settles what the image is. The review is asked to judge that as a final state. Closed in passing: two SELECT rows (the span-in-arc certificate check, and a child certified through its parent's image). Filed on TESS: `a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints` (P3). Single FULL review dispatched on frozen `05c551e643`. — (ISO orchestrator)
