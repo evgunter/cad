@@ -96,6 +96,8 @@ mod a_plane_moved_to_a_cone_apex;
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
 mod a_rigid_turn_keeps_a_slivers_volume;
+#[path = "a_rim_covering_part_of_its_row_re_mints_the_rows_arc.rs"]
+mod a_rim_covering_part_of_its_row_re_mints_the_rows_arc;
 #[path = "a_rim_in_a_face_beside_a_resting_ridge.rs"]
 mod a_rim_in_a_face_beside_a_resting_ridge;
 #[path = "a_ring_on_a_cone_face.rs"]
