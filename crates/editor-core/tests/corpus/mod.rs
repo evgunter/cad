@@ -559,10 +559,9 @@ pub const NODE_KINDS: [&str; 23] = [
 /// `RemoveConstraint`, `RemoveConstraints`, `RenameVar`, `DeleteVar` and
 /// `UpdateReference` are arms of `DocEdit` that no corpus document
 /// authors, and listing them here would report six permanent misses
-/// rather than covering anything. `AddConstraint`, `AddValue` and
-/// `AddValues` are not listed either: every bundle pins its copy, so
-/// an increment over a stored bundle can only refuse
-/// (`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`).
+/// rather than covering anything. `AddConstraint` is not listed
+/// either: no corpus document authors one, its placements being
+/// written whole.
 /// `SetConstraints` is listed: a placement's bundle is written whole.
 /// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
