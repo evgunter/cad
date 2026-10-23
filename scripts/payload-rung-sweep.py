@@ -217,9 +217,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # same carrier, the same row.
     "AlongFace": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                   "boolean-error.md"),
-    # `BooleanError`'s `DeclarationRead`: the glue a read pair held.
-    "GlueClass": ("argued", "non-carriage with its falsifier, beside the declaration "
-                  "in crates/topo/src/contact.rs"),
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),

@@ -617,8 +617,8 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
     );
     assert_eq!(
         seat.row.cells,
-        vec![upper_bottom.clone(), lower_top.clone()],
-        "the premise: the census's row is the mate's two caps, `on`'s first"
+        vec![lower_top.clone(), upper_bottom.clone()],
+        "the premise: the census's row is the mate's two caps, in gather order"
     );
     assert_eq!(
         door(&doc, mate.placement, &seat.row, &ev),
@@ -629,7 +629,7 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
         door(
             &doc,
             mate.placement,
-            &at_rest_row(vec![lower_top.clone(), upper_bottom.clone()], SameOpposite),
+            &at_rest_row(vec![upper_bottom.clone(), lower_top.clone()], SameOpposite),
             &ev
         ),
         Proof::Structural(Rung::SameConstruction),

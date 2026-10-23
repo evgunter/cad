@@ -283,8 +283,18 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
         &opts,
     );
     let (doc, p) = insert(doc, crate::fixture::stood(vec![b.into()]));
-    // The seat and a zero on each freedom it leaves, written whole.
-    let (doc, mate) = fixture::constrain_at(doc, p, seat(body, (b, b), (a, a)));
+    // The seat, slid back over `a` from where `b`'s pin stands its copy,
+    // so `p`'s copy rests on `a` and clear of `b`'s own.
+    let (doc, mate) = fixture::mated(
+        doc,
+        p,
+        seat(body, (b, b), (a, a)),
+        &[
+            (Coord::Slide(TargetAxis::X), len(-5.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+        ],
+    );
     let ev = run(&doc, &opts);
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the cubes gather");
     let Some(seat) = product

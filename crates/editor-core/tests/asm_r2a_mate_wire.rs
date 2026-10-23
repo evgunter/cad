@@ -87,8 +87,8 @@ fn a_mate_bearing_document_round_trips() {
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert!(
-        text.contains("\"rest\""),
-        "the class rides the SAME stable spelling a Declare pair's does: {text}"
+        !text.contains("\"class\""),
+        "a mate writes no class: {text}"
     );
     let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the mate round-trips bit for bit");

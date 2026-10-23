@@ -76,7 +76,7 @@
 // exception**, and `EntityKind`, `SplitHalf`, `RimShare` and the
 // naming shapes below are the rest of it. `EntityKind` and
 // `SplitHalf` are `document::NodeErrorKind`'s payload as well — and
-// `RefusedRef`'s and `PartSelect`'s — and both are the naming-role
+// `PartSelect`'s — and both are the naming-role
 // vocabulary this module owns, beside `RoleSeg`, `SegTag` and
 // `Denotation`. `RimShare` is on the list for the payload rule alone,
 // one level further in: it is the typed discriminant
@@ -90,9 +90,9 @@
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{
-    At, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
+    At, CONTACT_RECOURSE, CapEnd, Cmp, ContactRefusal, ContactVerdict,
     CrossingSensesShape, CurveKind, CurveKindSet, DeclaredContact, Denotation, DisagreeShape,
-    DuplicateName, EntityKind, EntityNamed, FIT_DEFERRAL, GeomPred, InterrogateError, JoinShape,
+    DuplicateName, EntityKind, EntityNamed, GeomPred, InterrogateError, JoinShape,
     KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
     OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare,
     RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE, SeamSidesShape, SeamVertexShape,
@@ -106,8 +106,8 @@ pub use editor_core::{
 /// class, on this evidence" — the fourth quarter of a vocabulary this
 /// list already carried three quarters of.
 ///
-/// [`ContactClass`], [`ContactRefusal`] and [`ContactVerdict`] are
-/// above, lifted from `editor_core`; the finding itself is `topo`'s
+/// [`ContactRefusal`] and [`ContactVerdict`] are above, lifted from
+/// `editor_core`, and [`GlueClass`] below; the finding itself is `topo`'s
 /// and was reachable only one module hop away. It is what
 /// `CensusContact::ConformalPatch` and `CensusContact::FaceFaceTangent`
 /// carry, so a caller matching a
@@ -121,6 +121,10 @@ pub use editor_core::{
 /// [`DeclaredContact`] plus the [`ContactVerdict`] that decided it,
 /// by composition, and both are carried above.
 pub use topo::ContactFinding;
+/// **The class a contact claim names** — [`DeclaredContact`]'s `class`,
+/// so a caller matching a contact refusal down to its claim can name
+/// the class it holds.
+pub use topo::GlueClass;
 /// The frame type the geometry doors answer with and its refusal —
 /// re-exported from the kernel's read-back module so a façade user
 /// names one crate, not two. [`ReadbackError::Dangling`]'s payload is
