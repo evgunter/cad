@@ -337,13 +337,14 @@ fn last_round_decides(s: f64) -> bool {
 /// in ε. A fattening refuses — by refinement
 /// past the reporting target where the reporting enclosures alone
 /// cannot decide — down to the open range the last round every lane
-/// runs leaves ([`last_round_open`]): `100·ε` clears it at every ε, and
-/// `ε` does where `0.22·ε` exceeds it (ε = 1e-9 and 1e-6; at 1e-12 the
-/// flip sits near `13·ε`). A fattening
-/// below it, and the right answer with it, is below the model's
-/// resolution and is accepted where the range meters inside the band
-/// ([`last_round_decides`]; at ε = 1e-12 the `ε` plant is such a
-/// fattening). Where the range meters beyond the band the gate cannot
+/// runs leaves ([`last_round_open`]): `100·ε` and `ε` both clear it at
+/// every ε (measured at 1e-6, 1e-9 and 1e-12; at 1e-12 the `ε` plant
+/// was accepted, its flip near `13·ε`, while every lane stopped at its
+/// round cap, and the unit pair's range is now under `0.22·ε` there, so
+/// the large-scale fit [`last_round_open`] overstates it at `s = 1`).
+/// A fattening below it, `ε/100`, and the right answer with it, is
+/// below the model's resolution and is accepted where the range meters
+/// inside the band ([`last_round_decides`]). Where the range meters beyond the band the gate cannot
 /// tell the right answer from a fattening the model resolves, and every
 /// plant below the range refuses `VolumeUndecided`.
 #[test]
@@ -377,19 +378,11 @@ fn planted_subtraction_results_refuse_down_to_the_stated_resolution() {
             Ok(AtRestOutcome::Validated),
             "the right answer passes"
         );
-        if 0.22 * eps > last_round_open(1.0) {
-            assert_eq!(
-                eps_fat,
-                Err(BooleanErrorKind::ResultVolumeImplausible),
-                "a result fattened by δ = ε refuses"
-            );
-        } else {
-            assert_eq!(
-                eps_fat,
-                Ok(AtRestOutcome::Validated),
-                "a fattening by δ = ε is below the last round's open range"
-            );
-        }
+        assert_eq!(
+            eps_fat,
+            Err(BooleanErrorKind::ResultVolumeImplausible),
+            "a result fattened by δ = ε refuses"
+        );
         assert_eq!(
             below,
             Ok(AtRestOutcome::Validated),
